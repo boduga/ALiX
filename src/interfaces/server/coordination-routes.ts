@@ -29,6 +29,7 @@ import { buildCoordinationRunView } from "../../coordination/kernel/coordination
 import { CollaborationStore } from "../../coordination/kernel/collaboration-store.js";
 import { ConflictRepository } from "../../coordination/kernel/collaboration-conflict-repository.js";
 import { parseSessionMode } from "../../operations/config/schema.js";
+import { isSubagentsEnabled } from "../../operations/config/subagent-config.js";
 import { shouldReclaimWorker, DEFAULT_ORPHAN_THRESHOLD_MS } from "../../coordination/kernel/owner-liveness.js";
 import type { CoordinationScheduler } from "../../coordination/kernel/coordination-scheduler.js";
 import type { SecurityContext } from "../../governance/security/inspector/security-context.js";
@@ -408,7 +409,7 @@ async function buildCoordinationRuntime(
   const registry = new OwnershipRegistry(cwd);
 
   let executor: import("../../coordination/kernel/worker-executor.js").CoordinationWorkerExecutor;
-  if (config.subagents?.enabled) {
+  if (isSubagentsEnabled(config)) {
     const { SubagentWorkerExecutor } = await import("../../coordination/kernel/subagent-worker-executor.js");
     executor = new SubagentWorkerExecutor({
       sessionId: `${opts.sessionIdPrefix}-${Date.now()}`,

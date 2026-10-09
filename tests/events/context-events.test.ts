@@ -68,6 +68,7 @@ describe("Context Event Payload Types", () => {
   it("CONTEXT_EVENT_TYPES has correct values", () => {
     assert.equal(CONTEXT_EVENT_TYPES.REPO_MAP_CREATED, "context.repo_map_created");
     assert.equal(CONTEXT_EVENT_TYPES.BUNDLE_CREATED, "context.bundle_created");
+    assert.equal(CONTEXT_EVENT_TYPES.BUNDLE_COMPILED, "context.bundle_compiled");
     assert.equal(CONTEXT_EVENT_TYPES.FILE_PINNED, "context.file_pinned");
     assert.equal(CONTEXT_EVENT_TYPES.FILE_UNPINNED, "context.file_unpinned");
   });

@@ -49,6 +49,10 @@ The `alix_execution_state_propose` tool is intercepted in
 `src/execution/run/event-handlers.ts` before the router. It has no registry entry; its
 internal identity is defined in the manifest.
 
+- Subagent behavior flags read through `src/operations/config/subagent-config.ts`
+  (`isSubagentsEnabled` / `getSubagentRole`) — never through `ModelResolver`,
+  which stays models-only.
+
 - Update the manifest, resolver, worker boundary, prompts, and cutover fixtures together when changing model-facing names.
 - Run GitNexus impact analysis before editing functions, classes, or methods; inspect high-risk results before proceeding.
 

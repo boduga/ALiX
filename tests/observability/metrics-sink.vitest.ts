@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { MetricRow } from "../../src/operations/observability/metrics-store.js";
 import type { MetricsStore } from "../../src/operations/observability/metrics-store.js";
+import type { MetricObservation } from "../../src/runtime-state/contracts/metrics-sink.js";
 import { createMetricsStoreSink } from "../../src/operations/observability/metrics-sink.js";
 
 describe("createMetricsStoreSink (R5.4)", () => {
@@ -51,5 +52,25 @@ describe("createMetricsStoreSink (R5.4)", () => {
     const sink = createMetricsStoreSink(fakeStore);
     expect(() => sink.observe({ name: "x_total", value: 1 })).not.toThrow();
     await expect(sink.flush()).resolves.toBeUndefined();
+  });
+
+  it("reports a failed store write to the optional error observer", async () => {
+    const fakeStore = {
+      async *append() {
+        throw new Error("disk full");
+      },
+    } as unknown as MetricsStore;
+    let reported: { error: unknown; observation: MetricObservation } | undefined;
+    const sink = createMetricsStoreSink(fakeStore, {
+      onError: (error, observation) => {
+        reported = { error, observation };
+      },
+    });
+
+    sink.observe({ name: "x_total", value: 1, type: "counter_delta" });
+    await sink.flush();
+
+    expect(reported?.observation.name).toBe("x_total");
+    expect(reported?.error).toBeInstanceOf(Error);
   });
 });

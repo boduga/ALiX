@@ -16,6 +16,7 @@ import {
   defaultWorkflowAgentCards,
 } from "../../src/capabilities/registry/card-loader.js";
 import { buildDefaultToolIndex } from "../../src/capabilities/tools/tool-registry.js";
+import type { ToolCapabilityRegistry } from "../../src/runtime-state/contracts/tool-capability-registry.js";
 
 function makeTemp(): string {
   return mkdtempSync(join(tmpdir(), "card-loader-test-"));
@@ -217,6 +218,38 @@ describe("CardLoader", () => {
     // display-name projection
     assert.equal(web.name, "Web Search");
     assert.equal(cards.find(c => c.id === "mcp.*")!.name, "MCP Tool");
+  });
+
+  it("derives tool-card membership and metadata from the canonical port", () => {
+    const catalog = {
+      resolve: (name: string) =>
+        name === "file.read"
+          ? {
+              name: "file.read",
+              capabilityId: "filesystem.read",
+              policyKey: "file.read",
+              risk: "low",
+              mutates: false,
+            }
+          : undefined,
+      list: () => [
+        {
+          name: "file.read",
+          capabilityId: "filesystem.read",
+          policyKey: "file.read",
+          risk: "low",
+          mutates: false,
+        },
+      ],
+    } as unknown as ToolCapabilityRegistry;
+
+    const cards = defaultToolCards(catalog);
+
+    assert.equal(cards.length, 1);
+    assert.equal(cards[0].id, "file.read");
+    assert.deepEqual(cards[0].capabilities, ["filesystem.read"]);
+    assert.equal(cards[0].riskLevel, "low");
+    assert.equal(cards[0].sideEffects, "read");
   });
 
   // --- partial-config regression tests (per-kind independent defaulting) ---

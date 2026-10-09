@@ -15,6 +15,7 @@
 
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import { createExecutiveStores, executiveDir, executivePlansDir } from "../../../execution/executive/executive-context.js";
 import { AdaptationProposalStore } from "../../../planning/adaptation/adaptation-proposal-store.js";
 import { EvidenceStore } from "../../../governance/security/evidence/evidence-store.js";
 import {
@@ -63,14 +64,13 @@ export async function handleOrchestrateCommand(args: string[]): Promise<void> {
   }
 
   // 3. Set up executive stores (state store needed for BOTH dry-run and effectful path)
-  const execDir = join(cwd, ".alix", "executive");
+  const execDir = executiveDir(cwd);
 
   // Execution state files are stored as <planId>-state.json inside the
   // plans directory (canonical pattern: ExecutionStateStore(join(execDir, "plans"))).
   let stateStore: ExecutionStateStore | undefined;
-  if (existsSync(join(execDir, "plans"))) {
-    const { ExecutionStateStore: ESS } = await import("../../../execution/executive/execution-state-store.js");
-    stateStore = new ESS(join(execDir, "plans"));
+  if (existsSync(executivePlansDir(cwd))) {
+    stateStore = createExecutiveStores(cwd).stateStore;
   }
 
   // Effectful stores only needed for non-dry-run
@@ -81,12 +81,11 @@ export async function handleOrchestrateCommand(args: string[]): Promise<void> {
       console.error("Executive state store not found at " + join(execDir, "plans"));
       process.exit(1);
     }
-    const { PlanStore } = await import("../../../execution/executive/plan-store.js");
     const { StepRunner } = await import("../../../execution/executive/step-runner.js");
     const { ExecutionEngine: EE } = await import("../../../execution/executive/execution-engine.js");
     const { EvidenceEventWriter: EEW } = await import("../../../coordination/workflow/evidence-writer.js");
 
-    const planStore = new PlanStore(join(execDir, "plans"));
+    const planStore = createExecutiveStores(cwd).planStore;
     const evidenceStore = new EvidenceStore({ storeDir: join(cwd, ".alix", "security") });
     writer = new EEW((type, payload) => evidenceStore.append(type, payload));
     const runner = new StepRunner(writer);

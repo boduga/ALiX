@@ -2,547 +2,526 @@
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/agents/agent/agent.ts",
-    "reason": "R0 runtime truth \u2014 direct EventLog producer",
+    "reason": "R0 runtime truth — direct EventLog producer",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/agents/subagent-cli.ts",
-    "reason": "R0 runtime truth \u2014 direct EventLog producer",
+    "reason": "R0 runtime truth — direct EventLog producer",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/interfaces/cli/commands/approvals-doctor-capability.ts",
-    "reason": "R0 runtime truth \u2014 direct EventLog producer",
+    "reason": "R0 runtime truth — direct EventLog producer",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/interfaces/cli/commands/demo.ts",
-    "reason": "R0 runtime truth \u2014 direct EventLog producer",
+    "reason": "R0 runtime truth — direct EventLog producer",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/interfaces/cli/commands/governance/evolution.ts",
-    "reason": "R0 runtime truth \u2014 direct EventLog producer",
+    "reason": "R0 runtime truth — direct EventLog producer",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/interfaces/cli/commands/graph.ts",
-    "reason": "R0 runtime truth \u2014 direct EventLog producer",
+    "reason": "R0 runtime truth — direct EventLog producer",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/interfaces/cli/commands/issue-run-handler.ts",
-    "reason": "R0 runtime truth \u2014 direct EventLog producer",
+    "reason": "R0 runtime truth — direct EventLog producer",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/interfaces/cli/commands/tui.ts",
-    "reason": "R0 runtime truth \u2014 direct EventLog producer",
+    "reason": "R0 runtime truth — direct EventLog producer",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/operations/daemon/daemon-server.ts",
-    "reason": "R0 runtime truth \u2014 direct EventLog producer",
+    "reason": "R0 runtime truth — direct EventLog producer",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/coordination/kernel/worker-executor.ts",
-    "reason": "R0 runtime truth \u2014 direct EventLog producer",
+    "reason": "R0 runtime truth — direct EventLog producer",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/runtime-state/runtime/runtime-builder.ts",
-    "reason": "R0 runtime truth \u2014 direct EventLog producer",
+    "reason": "R0 runtime truth — direct EventLog producer",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/interfaces/tui/capabilities/capability-service.ts",
-    "reason": "R0 TUI audit \u2014 EventLog bridge (platform events to log)",
+    "reason": "R0 TUI audit — EventLog bridge (platform events to log)",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/interfaces/tui/runtime-collector.ts",
-    "reason": "R0 TUI audit \u2014 canonical projection collector over EventLog",
+    "reason": "R0 TUI audit — canonical projection collector over EventLog",
     "removalPhase": "R2",
     "rule": "eventlog-append-producers"
   },
   {
     "imported": "src/coordination/ownership/ownership-registry.ts",
     "importer": "src/interfaces/cli/commands/coordination.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "reason": "R0 coordination overlap — durable registry construction site — retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
     "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/coordination/ownership/ownership-registry.ts",
     "importer": "src/interfaces/cli/commands/ownership.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "reason": "R0 coordination overlap — durable registry construction site — retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
     "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/coordination/ownership/ownership-registry.ts",
     "importer": "src/operations/daemon/daemon-server.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "reason": "R0 coordination overlap — durable registry construction site — retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
     "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/coordination/ownership/ownership-registry.ts",
     "importer": "src/coordination/kernel/coordination-tools.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "reason": "R0 coordination overlap — durable registry construction site — retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
     "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/coordination/ownership/ownership-registry.ts",
     "importer": "src/coordination/kernel/coordination-view.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "reason": "R0 coordination overlap — durable registry construction site — retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
     "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/coordination/ownership/ownership-registry.ts",
     "importer": "src/operations/observability/health-snapshot.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "reason": "R0 coordination overlap — durable registry construction site — retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
     "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/coordination/ownership/ownership-registry.ts",
     "importer": "src/interfaces/server/coordination-routes.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "reason": "R0 coordination overlap — durable registry construction site — retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
     "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/governance/approvals/global-store.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
-    "rule": "status-store-writes"
-  },
-  {
-    "imported": "src/execution/executive/execution-state-store.ts",
-    "importer": "src/interfaces/cli/commands/adaptation/main.ts",
-    "reason": "R0 B6 \u2014 legacy executive store; R5.5 reclassified to R6 (executive read-path consolidation, outside R5's models/tools/redaction/metrics scope)",
-    "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/interfaces/cli/commands/approval.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/interfaces/cli/commands/approvals-doctor-capability.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/collaboration-store.ts",
     "importer": "src/interfaces/cli/commands/coordination.ts",
-    "reason": "R0 B9 \u2014 collaboration snapshot bypasses EventLog",
+    "reason": "R0 B9 — collaboration snapshot bypasses EventLog",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/interfaces/cli/commands/coordination.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
-    "rule": "status-store-writes"
-  },
-  {
-    "imported": "src/execution/executive/execution-state-store.ts",
-    "importer": "src/interfaces/cli/commands/executive-evaluate-handler.ts",
-    "reason": "R0 B6 \u2014 legacy executive store; R5.5 reclassified to R6 (executive read-path consolidation, outside R5's models/tools/redaction/metrics scope)",
-    "removalPhase": "R6",
-    "rule": "status-store-writes"
-  },
-  {
-    "imported": "src/execution/executive/execution-state-store.ts",
-    "importer": "src/interfaces/cli/commands/executive-orchestrate-handler.ts",
-    "reason": "R0 B6 \u2014 legacy executive store; R5.5 reclassified to R6 (executive read-path consolidation, outside R5's models/tools/redaction/metrics scope)",
-    "removalPhase": "R6",
-    "rule": "status-store-writes"
-  },
-  {
-    "imported": "src/execution/executive/execution-state-store.ts",
-    "importer": "src/interfaces/cli/commands/executive.ts",
-    "reason": "R0 B6 \u2014 legacy executive store; R5.5 reclassified to R6 (executive read-path consolidation, outside R5's models/tools/redaction/metrics scope)",
-    "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/execution-approval-store.ts",
     "importer": "src/interfaces/cli/commands/governance/execution.ts",
-    "reason": "R0 advisory governance \u2014 execution approval store outside operational path",
+    "reason": "R0 advisory governance — execution approval store outside operational path",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/interfaces/cli/commands/graph.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/interfaces/cli/commands/run.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/operations/daemon/task-registry.ts",
     "importer": "src/interfaces/cli/commands/schedule.ts",
-    "reason": "R0 B3 \u2014 daemon registry is detached runtime truth",
+    "reason": "R0 B3 — daemon registry is detached runtime truth",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/interfaces/cli/commands/sop.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/interfaces/cli/commands/tui.ts",
-    "reason": "R0 V5 \u2014 dual approval truth (store vs projection)",
+    "reason": "R0 V5 — dual approval truth (store vs projection)",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/interfaces/cli/helpers/approval-stores.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/operations/daemon/approval-watcher.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/operations/daemon/coordination-scheduler-service.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/operations/daemon/daemon-server.ts",
-    "reason": "R0 B3/B4 \u2014 R1.5 composition-root approval-store wiring (the fix itself); migrates with the approvals domain in R2",
+    "reason": "R0 B3/B4 — R1.5 composition-root approval-store wiring (the fix itself); migrates with the approvals domain in R2",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/operations/daemon/task-registry.ts",
     "importer": "src/operations/daemon/daemon-server.ts",
-    "reason": "R0 B3 \u2014 daemon registry is detached runtime truth",
+    "reason": "R0 B3 — daemon registry is detached runtime truth",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/operations/daemon/daemon-server.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/collaboration-store.ts",
     "importer": "src/coordination/kernel/collaboration-conflict-repository.ts",
-    "reason": "R0 B9 \u2014 collaboration snapshot bypasses EventLog",
+    "reason": "R0 B9 — collaboration snapshot bypasses EventLog",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/collaboration-store.ts",
     "importer": "src/coordination/kernel/collaboration-context-builder.ts",
-    "reason": "R0 B9 \u2014 collaboration snapshot bypasses EventLog",
+    "reason": "R0 B9 — collaboration snapshot bypasses EventLog",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/coordination/kernel/collaboration-context-builder.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/coordination/kernel/coordination-completion-service.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/coordination/kernel/coordination-ledger-reconcile.ts",
-    "reason": "R0 B1 \u2014 R2 reconcile reads the authoritative coordinator to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
+    "reason": "R0 B1 — R2 reconcile reads the authoritative coordinator to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
     "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/coordination/kernel/coordination-planner.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/coordination/kernel/coordination-scheduler.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/collaboration-store.ts",
     "importer": "src/coordination/kernel/coordination-scheduler.ts",
-    "reason": "R0 B9 \u2014 collaboration snapshot bypasses EventLog",
+    "reason": "R0 B9 — collaboration snapshot bypasses EventLog",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/coordination/kernel/coordination-scheduler.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/coordination/kernel/coordination-tools.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/coordination/kernel/coordination-view.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/collaboration-store.ts",
     "importer": "src/coordination/kernel/coordination-view.ts",
-    "reason": "R0 B9 \u2014 collaboration snapshot bypasses EventLog",
+    "reason": "R0 B9 — collaboration snapshot bypasses EventLog",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/coordination/kernel/coordination-view.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/coordination/kernel/graph-executor.ts",
-    "reason": "R0 B1 \u2014 graph execution approval path (unenforced by default)",
+    "reason": "R0 B1 — graph execution approval path (unenforced by default)",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/coordination/kernel/model-assisted-replan-service.ts",
-    "reason": "R0 B10 \u2014 scheduler cancel/replan mutates run JSON without events",
+    "reason": "R0 B10 — scheduler cancel/replan mutates run JSON without events",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/coordination/kernel/replan-applier.ts",
-    "reason": "R0 B10 \u2014 scheduler cancel/replan mutates run JSON without events",
+    "reason": "R0 B10 — scheduler cancel/replan mutates run JSON without events",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/collaboration-store.ts",
     "importer": "src/coordination/kernel/worker-collaboration-api.ts",
-    "reason": "R0 B9 \u2014 collaboration snapshot bypasses EventLog",
+    "reason": "R0 B9 — collaboration snapshot bypasses EventLog",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/operations/observability/health-snapshot.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/operations/observability/health-snapshot.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/execution/run/task-loop/completion-phase.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/runtime-state/runtime/execution-state/execution-state-store.ts",
     "importer": "src/runtime-state/runtime/context/retrieval.ts",
-    "reason": "R0 B7/B8 \u2014 snapshot-ahead-of-log divergence risk",
+    "reason": "R0 B7/B8 — snapshot-ahead-of-log divergence risk",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/runtime-state/runtime/continuation-store.ts",
     "importer": "src/runtime-state/runtime/continuation-ledger-reconcile.ts",
-    "reason": "R0 B5 \u2014 R2 reconcile reads the authoritative continuation store to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
+    "reason": "R0 B5 — R2 reconcile reads the authoritative continuation store to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
     "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/runtime-state/runtime/execution-state/execution-state-store.ts",
     "importer": "src/runtime-state/runtime/execution-state/execution-ledger-reconcile.ts",
-    "reason": "R0 B7 \u2014 R2 reconcile reads the authoritative snapshot store to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
+    "reason": "R0 B7 — R2 reconcile reads the authoritative snapshot store to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
     "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/runtime-state/runtime/execution-state/execution-state-store.ts",
     "importer": "src/runtime-state/runtime/execution-state/execution-state-emitter.ts",
-    "reason": "R0 B7/B8 \u2014 snapshot-ahead-of-log divergence risk",
+    "reason": "R0 B7/B8 — snapshot-ahead-of-log divergence risk",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/runtime-state/runtime/runtime-builder.ts",
-    "reason": "R0 B3/B4 \u2014 R1.5 composition-root approval-store wiring (the fix itself); migrates with the approvals domain in R2",
+    "reason": "R0 B3/B4 — R1.5 composition-root approval-store wiring (the fix itself); migrates with the approvals domain in R2",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/interfaces/server/coordination-routes.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/collaboration-store.ts",
     "importer": "src/interfaces/server/coordination-routes.ts",
-    "reason": "R0 B9 \u2014 collaboration snapshot bypasses EventLog",
+    "reason": "R0 B9 — collaboration snapshot bypasses EventLog",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/kernel/coordination-store.ts",
     "importer": "src/interfaces/server/coordination-routes.ts",
-    "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
+    "reason": "R0 B1 — coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/interfaces/server/server.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/runtime-state/runtime/continuation-store.ts",
     "importer": "src/capabilities/tools/executor.ts",
-    "reason": "R0 B5 \u2014 continuation resume without fresh authorization",
+    "reason": "R0 B5 — continuation resume without fresh authorization",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/capabilities/tools/state-query.ts",
-    "reason": "R0 B4 \u2014 approval queue is store-read, events secondary",
+    "reason": "R0 B4 — approval queue is store-read, events secondary",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/governance/approvals/approval-store.ts",
     "importer": "src/coordination/kernel/default-worker-review.ts",
-    "reason": "R0 B4 \u2014 R1.5: worker review executor wired to the project ApprovalStore (the 4th construction site); migrated with the other approval-store reads",
+    "reason": "R0 B4 — R1.5: worker review executor wired to the project ApprovalStore (the 4th construction site); migrated with the other approval-store reads",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/operations/daemon/task-registry.ts",
     "importer": "src/capabilities/tools/state-query.ts",
-    "reason": "R0 B3 \u2014 daemon registry is detached runtime truth",
+    "reason": "R0 B3 — daemon registry is detached runtime truth",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/coordination/workflow/state-file.ts",
     "importer": "src/coordination/workflow/coordinator.ts",
-    "reason": "R0 B9 \u2014 workflow snapshot overwrite bypasses EventLog",
+    "reason": "R0 B9 — workflow snapshot overwrite bypasses EventLog",
     "removalPhase": "R2",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/interfaces/tui/capabilities/capability-service.ts",
-    "reason": "R0 TUI audit \u2014 EventLog bridge (platform events to log)",
+    "reason": "R0 TUI audit — EventLog bridge (platform events to log)",
     "removalPhase": "R4",
     "rule": "ui-store-imports"
   },
   {
     "imported": "src/runtime-state/events/event-log.ts",
     "importer": "src/interfaces/tui/runtime-collector.ts",
-    "reason": "R0 TUI audit \u2014 canonical projection collector over EventLog",
+    "reason": "R0 TUI audit — canonical projection collector over EventLog",
     "removalPhase": "R4",
     "rule": "ui-store-imports"
   },
   {
     "imported": "src/coordination/ownership/ownership-registry.ts",
     "importer": "src/agents/subagent-manager.ts",
-    "reason": "R0 coordination overlap \u2014 R3 consolidation: SubagentManager spawn claims route through the durable registry, replacing the ephemeral in-process map",
+    "reason": "R0 coordination overlap — R3 consolidation: SubagentManager spawn claims route through the durable registry, replacing the ephemeral in-process map",
     "removalPhase": "R6",
     "rule": "ownership-registry-construction"
+  },
+  {
+    "imported": "src/execution/executive/execution-state-store.ts",
+    "importer": "src/execution/executive/executive-context.ts",
+    "reason": "R0 B6 — executive-owned composition seam; the single sanctioned constructor of the legacy executive store (R6 read-path consolidation)",
+    "removalPhase": "R6",
+    "rule": "status-store-writes"
   }
 ]

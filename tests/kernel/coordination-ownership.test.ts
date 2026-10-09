@@ -186,6 +186,19 @@ describe("renewWorkerOwnership", () => {
     const renewed = await renewWorkerOwnership(registry, acquired.leaseIds, 120000);
     assert.equal(renewed.renewed.length, 1);
   });
+
+  it("reports a failed renew instead of silently keeping the lease", async () => {
+    // Policy: a renew that finds its record gone (released/expired
+    // externally) is reported in `failed` so the caller drops the id —
+    // the registry TTL is the backstop, never a silent keep.
+    const registry = {
+      renew: async () => false,
+    } as unknown as OwnershipRegistry;
+
+    const result = await renewWorkerOwnership(registry, ["lease-gone"], 120000);
+    assert.deepEqual(result.renewed, []);
+    assert.deepEqual(result.failed, ["lease-gone"]);
+  });
 });
 
 describe("releaseWorkerLeases (R3.4 lease-retention regression)", () => {

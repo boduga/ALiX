@@ -4,6 +4,7 @@ import { resolve } from "path";
 import { fileURLToPath } from "url";
 import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig, ModelTierConfig } from "../operations/config/schema.js";
 import { parseSessionMode } from "../operations/config/schema.js";
+import { getSubagentRole } from "../operations/config/subagent-config.js";
 import type { EventLog } from "../runtime-state/events/event-log.js";
 import { OwnershipRegistry, type AcquireRequest } from "../coordination/ownership/ownership-registry.js";
 import { resolveOwnedScopePrefix } from "../coordination/ownership/path-scope.js";
@@ -573,7 +574,7 @@ export class SubagentManager {
   }
 
   getRoleConfig(role: SubagentRole): SubagentRoleConfig | undefined {
-    return this.options.config?.subagents?.roles.find((r: SubagentRoleConfig) => r.role === role);
+    return getSubagentRole(this.options.config, role);
   }
 
   getRoleModel(role: SubagentRole): { provider: string; name: string } {

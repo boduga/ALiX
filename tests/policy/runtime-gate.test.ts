@@ -256,4 +256,96 @@ describe("RuntimeGate", () => {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it("returns blocked when the prior approval was denied (no new approval)", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-denied-"));
+    try {
+      const store = new ApprovalStore(tmpDir);
+      await store.load();
+      const rec = await store.request({
+        reason: "prior", graphId: "test_graph", nodeId: "test_node", capability: "shell.exec",
+      });
+      await store.resolve(rec.id, "denied");
+      const registry = makeRegistry();
+      const policyGate = makePolicyGate({
+        id: "ask-shell", description: "Ask shell",
+        match: { capability: "shell.exec" }, decision: "ask", enabled: true,
+      });
+      const result = await evaluateRuntimeGate({
+        node: makeNode({ requiredCapabilities: ["shell.exec"], riskLevel: "high" }),
+        registry, policyGate, approvalStore: store, config: mockConfig,
+      });
+      assert.equal(result.status, "blocked");
+      assert.equal(result.policyDecision, "deny");
+      assert.ok(result.reason.includes(rec.id));
+      assert.equal(store.list().length, 1);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("uses a direct approval id from the authorization boundary without touching the store", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-direct-"));
+    try {
+      const store = new ApprovalStore(tmpDir);
+      await store.load();
+      const registry = makeRegistry();
+      const policyGate = makePolicyGate();
+      const authorization = {
+        evaluate: async () => ({
+          status: "approval_required", approvalId: "ap-direct-1",
+          policyRuleId: "ask-shell", reason: "needs a human",
+        }),
+      } as any;
+      const result = await evaluateRuntimeGate({
+        node: makeNode({ requiredCapabilities: ["shell.exec"], riskLevel: "high" }),
+        registry, policyGate, approvalStore: store, authorization, config: mockConfig,
+      });
+      assert.equal(result.status, "needs_approval");
+      assert.equal(result.approvalId, "ap-direct-1");
+      assert.equal(store.list().length, 0);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("maps an unknown approval id to the pending-reuse path", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-unknown-"));
+    try {
+      const store = new ApprovalStore(tmpDir);
+      await store.load();
+      const pending = await store.request({
+        reason: "existing", graphId: "test_graph", nodeId: "test_node", capability: "shell.exec",
+      });
+      const registry = makeRegistry();
+      const policyGate = makePolicyGate();
+      const authorization = {
+        evaluate: async () => ({
+          status: "approval_required", approvalId: "unknown",
+          policyRuleId: "ask-shell", reason: "needs a human",
+        }),
+      } as any;
+      const result = await evaluateRuntimeGate({
+        node: makeNode({ requiredCapabilities: ["shell.exec"], riskLevel: "high" }),
+        registry, policyGate, approvalStore: store, authorization, config: mockConfig,
+      });
+      assert.equal(result.status, "needs_approval");
+      assert.equal(result.approvalId, pending.id);
+      assert.equal(store.list().length, 1);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

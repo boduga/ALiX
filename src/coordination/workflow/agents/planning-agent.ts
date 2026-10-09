@@ -236,29 +236,56 @@ export class PlanningAgent {
 
   /**
    * Derive a test file path from a source file path.
-   *   src/foo.ts          → tests/foo.test.ts
-   *   src/bar/baz.tsx     → tests/bar/baz.test.tsx
-   *   tests/foo.test.ts   → null (already a test file)
+   *   src/foo.ts                            → tests/foo.test.ts
+   *   src/coordination/workflow/types.ts    → tests/workflow/types.test.ts
+   *   src/coordination/kernel/owner-liveness.ts → tests/kernel/owner-liveness.test.ts
+   *   src/governance/policy/runtime-gate.ts → tests/policy/runtime-gate.test.ts
+   *   tests/foo.test.ts                     → null (already a test file)
+   *
+   * R6 moved `src/` into subsystems while `tests/` kept its flat layout, so
+   * the subsystem prefixes below map to their real test directories. Unknown
+   * layouts fall back to stripping `src/` (never inventing a mirrored tree
+   * that does not exist).
    */
   private deriveTestFile(filePath: string): string | null {
-    if (filePath.includes(".test.") || filePath.includes("tests/") || filePath.includes("__tests__")) {
+    if (filePath.includes(".test.") || filePath.includes(".vitest.") || filePath.includes("tests/") || filePath.includes("__tests__")) {
       return null;
+    }
+
+    const toTestPath = (relative: string): string => {
+      const ext = relative.match(/\.(\w+)$/)?.[1] ?? "";
+      const base = ext ? relative.slice(0, -(ext.length + 1)) : relative;
+      return `tests/${base}.test.${ext}`;
+    };
+
+    // R6 subsystem map (src prefix → real tests dir).
+    const subsystemPrefixes: Array<[string, string]> = [
+      ["src/coordination/kernel/", "tests/kernel/"],
+      ["src/coordination/workflow/", "tests/workflow/"],
+      ["src/coordination/ownership/", "tests/ownership/"],
+      ["src/coordination/sop/", "tests/sop/"],
+      ["src/governance/policy/", "tests/policy/"],
+      ["src/governance/approvals/", "tests/approvals/"],
+      ["src/agents/", "tests/agents/"],
+    ];
+    for (const [srcPrefix, testDir] of subsystemPrefixes) {
+      if (filePath.startsWith(srcPrefix)) {
+        const relative = filePath.slice(srcPrefix.length);
+        const ext = relative.match(/\.(\w+)$/)?.[1] ?? "";
+        const base = ext ? relative.slice(0, -(ext.length + 1)) : relative;
+        return `${testDir}${base}.test.${ext}`;
+      }
     }
 
     const srcPrefixes = ["src/", "lib/", "app/"];
     for (const prefix of srcPrefixes) {
       if (filePath.startsWith(prefix)) {
-        const relative = filePath.slice(prefix.length);
-        const ext = relative.match(/\.(\w+)$/)?.[1] ?? "";
-        const base = relative.slice(0, -(ext.length + 1));
-        return `tests/${base}.test.${ext}`;
+        return toTestPath(filePath.slice(prefix.length));
       }
     }
 
     // Fallback: prepend tests/ and insert .test before extension
-    const ext = filePath.match(/\.(\w+)$/)?.[1] ?? "";
-    const base = ext ? filePath.slice(0, -(ext.length + 1)) : filePath;
-    return `tests/${base}.test.${ext}`;
+    return toTestPath(filePath);
   }
 
   /**

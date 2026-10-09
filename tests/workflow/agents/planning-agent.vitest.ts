@@ -142,7 +142,39 @@ describe("PlanningAgent", () => {
       if (!result.success) return;
       // Setup gets the file, AC subtask gets the test file derived from it
       const acSubtask = result.plan.subtasks[1];
-      expect(acSubtask.testFiles).toContain("tests/coordination/workflow/types.test.ts");
+      expect(acSubtask.testFiles).toContain("tests/workflow/types.test.ts");
+    });
+
+    it("maps R6 subsystem sources to their real test directories", async () => {
+      const wp = validWorkPackage({
+        estimatedFiles: [
+          "src/coordination/kernel/owner-liveness.ts",
+          "src/governance/policy/runtime-gate.ts",
+          "src/agents/subagent-manager.ts",
+        ],
+        acceptanceCriteria: ["Map sources to tests"],
+      });
+      const result = await agent.plan(wp);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const derived = result.plan.subtasks.flatMap((s) => s.testFiles ?? []);
+      expect(derived).toContain("tests/kernel/owner-liveness.test.ts");
+      expect(derived).toContain("tests/policy/runtime-gate.test.ts");
+      expect(derived).toContain("tests/agents/subagent-manager.test.ts");
+    });
+
+    it("skips test derivation for vitest files", async () => {
+      const wp = validWorkPackage({
+        estimatedFiles: [
+          "tests/workflow/types.vitest.ts",
+        ],
+        acceptanceCriteria: ["AC"],
+      });
+      const result = await agent.plan(wp);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const acSubtask = result.plan.subtasks[1];
+      expect(acSubtask.testFiles).toEqual([]);
     });
 
     it("skips test derivation for existing test files", async () => {

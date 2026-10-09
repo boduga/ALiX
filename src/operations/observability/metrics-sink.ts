@@ -21,8 +21,17 @@ export interface MetricsStoreSink extends MetricsSink {
   flush(): Promise<void>;
 }
 
+export interface MetricsStoreSinkOptions {
+  /**
+   * Observe a store failure without changing the port's fail-open contract.
+   * The default remains silent; adapters that previously logged failures can
+   * preserve that behavior here.
+   */
+  onError?: (error: unknown, observation: MetricObservation) => void;
+}
+
 /** Adapt a `MetricsStore` to the canonical `MetricsSink` port. */
-export function createMetricsStoreSink(store: MetricsStore): MetricsStoreSink {
+export function createMetricsStoreSink(store: MetricsStore, options: MetricsStoreSinkOptions = {}): MetricsStoreSink {
   const pending = new Set<Promise<void>>();
 
   return {
@@ -41,8 +50,9 @@ export function createMetricsStoreSink(store: MetricsStore): MetricsStoreSink {
           for await (const _ of store.append(row)) {
             // drain
           }
-        } catch {
+        } catch (error) {
           // non-fatal: metrics must never fail the caller
+          options.onError?.(error, observation);
         }
       })();
       pending.add(task);

@@ -6,6 +6,7 @@ import type { ToolDef } from "../../models/providers/types.js";
 import type { RunResult, RunOpts, MutationSessionState } from "../../run.js";
 import { runTaskLoop, type TaskLoopDeps } from "../../execution/run/task-loop.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
+import { CONTEXT_EVENT_TYPES } from "../../runtime-state/events/types.js";
 import { createToolSelector } from "../../capabilities/mcp/tool-selector.js";
 import { ToolDiscovery } from "../../capabilities/mcp/tool-discovery.js";
 import { classifyTask, detectResearchDepth, isReadOnlyTask, isShellTask } from "../../task-classifier.js";
@@ -322,7 +323,7 @@ async function runTaskCoreImpl(
       contextBundle = await contextCompiler.compileContext(task, taskType, []);
       await ctx.log.append({
         ...session,
-        type: "context.bundle_compiled",
+        type: CONTEXT_EVENT_TYPES.BUNDLE_COMPILED,
         payload: buildContextBundleEventPayload(contextBundle),
       });
 

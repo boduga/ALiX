@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { loadConfig } from "../../operations/config/loader.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
+import { isSubagentsEnabled } from "../../operations/config/subagent-config.js";
 import { EventLog } from "../../runtime-state/events/event-log.js";
 import { ApprovalManager } from "../../governance/policy/approvals.js";
 import { buildRepoMapLite } from "../../context/repomap/repomap-lite.js";
@@ -152,7 +153,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   let subagentManager: import("../subagent-manager.js").SubagentManager | undefined;
   let delegateHandler: ((args: Record<string, unknown>) => Promise<import("../../capabilities/tools/types.js").ToolResult>) | undefined;
 
-  if (config.subagents?.enabled) {
+  if (isSubagentsEnabled(config)) {
     const { SubagentManager: SubagentManagerClass } = await import("../subagent-manager.js");
     const { MergeCoordinator: MergeCoordinatorClass } = await import("../merge-coordinator.js");
     const { createDelegateHandler: createDelegateHandlerFn } = await import("../delegate-tool.js");

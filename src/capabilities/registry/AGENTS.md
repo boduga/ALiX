@@ -18,6 +18,10 @@ Agent and tool identity, capability registration, and resolution — answers "ca
 - Duplicate IDs are rejected on registration.
 - Disabled cards are excluded from capability resolution by default.
 - Card loader falls back to built-in defaults when no card files exist.
+- Tool cards derive membership and metadata (`capabilityId`, `risk`,
+  `mutates`) from the canonical `ToolCapabilityRegistry` port
+  (`createToolCapabilityRegistry`), not the implementation registry — only
+  display-only detail comes from `buildDefaultToolIndex`.
 
 ## Work Guidance
 

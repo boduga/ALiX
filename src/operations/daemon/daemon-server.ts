@@ -32,6 +32,7 @@ import { executeDirectBehavior } from "../../runtime-state/runtime/route-executi
 import { DaemonRuntimeExecutor } from "./daemon-runtime-executor.js";
 import { recordWorkspaceActivity } from "./workspace-registry.js";
 import { shutdownProcessTraceClient } from "./daemon-tracing-shutdown.js";
+import { isSubagentsEnabled } from "../config/subagent-config.js";
 
 const args = process.argv.slice(2);
 const socketPath = args[args.indexOf("--socket") + 1];
@@ -75,7 +76,7 @@ async function startCoordinationService(): Promise<void> {
   const approvalStore = await loadApprovalStore(defaultCwd);
 
   let executor: import("../../coordination/kernel/worker-executor.js").CoordinationWorkerExecutor;
-  if (config.subagents?.enabled) {
+  if (isSubagentsEnabled(config)) {
     const { SubagentWorkerExecutor } = await import("../../coordination/kernel/subagent-worker-executor.js");
     executor = new SubagentWorkerExecutor({ sessionId: `coord-daemon-${Date.now()}`, config });
   } else {
