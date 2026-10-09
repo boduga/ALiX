@@ -142,14 +142,19 @@ export async function releaseWorkerOwnership(
 }
 
 /**
- * Release every lease a loaded worker record still holds, then clear
- * `leaseIds` on that record (the caller persists it).
+ * Release every lease a loaded worker record still holds, then record the
+ * outcome on that record (the caller persists it).
  *
  * THE single lease-release entry point (R3.4). Every path that clears a
  * worker's `leaseIds` — terminal completion, cancellation, orphan recovery,
  * dead-owner reclaim — must go through here first: clearing without
  * releasing leaves active registry records behind, and later runs in the
  * workspace collide with them until the leases' TTL expires.
+ *
+ * `leaseIds` is set to the FAILED ids, not blanket-cleared: a release that
+ * errored (or a lease already released elsewhere) must stay on the record so
+ * a later reclaim retries it. Blanket-clearing silently orphaned active
+ * leases and left them blocking the workspace until TTL.
  */
 export async function releaseWorkerLeases(
   registry: OwnershipRegistry,
@@ -158,7 +163,7 @@ export async function releaseWorkerLeases(
   const ids = worker.leaseIds ?? [];
   if (ids.length === 0) return { released: [], failed: [] };
   const result = await releaseWorkerOwnership(registry, ids);
-  worker.leaseIds = [];
+  worker.leaseIds = result.failed;
   return result;
 }
 

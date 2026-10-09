@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SubagentManager } from "../../src/agents/subagent-manager.js";
+import { resolveRenewalResult } from "../../src/agents/subagent-manager.js";
 import type { AlixConfig, SubagentRole, SubagentTask } from "../../src/config/schema.js";
 
 /** Minimal subagent tier config so getRoleModel doesn't throw. */
@@ -387,4 +388,19 @@ test("spawnMany isolates a spawn rejection to a failed result", async () => {
   assert.equal(results[0].status, "success");
   assert.equal(results[1].status, "failed");
   assert.match(results[1].error ?? "", /overlapping ownership/i);
+});
+
+describe("resolveRenewalResult (lease release/renew race regression)", () => {
+  it("releases the ids a pass renewed after the task was released mid-await", () => {
+    // The task is no longer tracked (releaseTaskOwnership ran while renew was
+    // awaited): never re-insert it; release whatever the pass renewed.
+    assert.deepEqual(resolveRenewalResult(false, ["a", "b"]), { action: "release", releaseIds: ["a", "b"] });
+    assert.deepEqual(resolveRenewalResult(false, []), { action: "release", releaseIds: [] });
+  });
+
+  it("continues tracking a task that is still present", () => {
+    assert.deepEqual(resolveRenewalResult(true, ["a"]), { action: "set", releaseIds: [] });
+    // Every renewed lease was gone: drop the task.
+    assert.deepEqual(resolveRenewalResult(true, []), { action: "delete", releaseIds: [] });
+  });
 });
