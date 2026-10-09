@@ -330,6 +330,22 @@ export function closeSharedLedger(cwd: string): void {
   }
 }
 
+/**
+ * Close and forget EVERY cached ledger. Tests that remove a workspace temp
+ * dir must call this first: Windows refuses to unlink a SQLite file that an
+ * open connection still holds (`EBUSY`), where POSIX silently unlinks it.
+ */
+export function closeAllSharedLedgers(): void {
+  for (const ledger of sharedLedgers.values()) {
+    try {
+      ledger.close();
+    } catch {
+      /* already closed */
+    }
+  }
+  sharedLedgers.clear();
+}
+
 // ── Shared domain-facing helpers ─────────────────────────────────────
 // Every migrated domain re-implemented the same envelope construction and
 // status accounting; one copy here keeps the fail-closed contract uniform.

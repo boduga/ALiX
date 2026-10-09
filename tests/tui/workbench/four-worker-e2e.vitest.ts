@@ -15,6 +15,7 @@ import { TerminalCanvas } from '../../../src/tui/canvas.js';
 import { resolveWorkbenchLayout } from '../../../src/tui/workbench/layout/responsive-layout.js';
 import { paintRosterDrawer } from '../../../src/tui/workbench/views/roster-drawer.js';
 import type { AlixConfig } from '../../../src/config/schema.js';
+import { closeAllSharedLedgers } from '../../../src/storage/runtime-ledger.js';
 
 function config(): AlixConfig {
   return {
@@ -31,6 +32,7 @@ describe('four-worker Workbench end-to-end', () => {
   let cwd = '';
 
   afterEach(() => {
+    closeAllSharedLedgers();
     if (cwd) rmSync(cwd, { recursive: true, force: true });
   });
 

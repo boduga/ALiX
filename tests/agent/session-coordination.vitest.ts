@@ -13,6 +13,7 @@ import { ToolExecutor } from '../../src/tools/executor.js';
 import { DEFAULT_CONFIG } from '../../src/config/defaults.js';
 import { ApprovalStore } from '../../src/approvals/approval-store.js';
 import { ExecutionCancelledError } from '../../src/runtime/cancellation-token.js';
+import { closeAllSharedLedgers } from '../../src/storage/runtime-ledger.js';
 import type { SessionState } from '../../src/agent/session/state.js';
 import type { ToolCallRequest, ToolResult } from '../../src/tools/types.js';
 
@@ -24,7 +25,7 @@ vi.mock('../../src/agent/session/state.js', async importOriginal => {
   } };
 });
 const roots: string[] = [];
-afterEach(() => { hooks.seed = undefined; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+afterEach(() => { closeAllSharedLedgers(); hooks.seed = undefined; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 async function fixture(options: { mode?: 'auto' | 'ask' | 'bypass'; deny?: boolean; readOnly?: boolean; offered?: boolean; handler?: (args: Record<string, unknown>, request?: ToolCallRequest) => Promise<ToolResult> } = {}) {
   const cwd = mkdtempSync(join(tmpdir(), 'alix-coordination-port-')); roots.push(cwd);

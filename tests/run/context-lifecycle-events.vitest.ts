@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { EventLog } from '../../src/events/event-log.js';
+import { closeAllSharedLedgers } from '../../src/storage/runtime-ledger.js';
 import {
   createContextBudget,
   type ContextBudget,
@@ -150,7 +151,7 @@ async function runOneInvocation(opts: {
   await runTaskLoop(deps);
   const events = await log.readAll();
 
-  rmSync(tmpDir, { recursive: true, force: true });
+  closeAllSharedLedgers(); rmSync(tmpDir, { recursive: true, force: true });
   return { events, budget: effectiveBudget };
 }
 
@@ -306,7 +307,7 @@ describe('context lifecycle events — integration', () => {
     }
 
     const events = await log.readAll();
-    rmSync(tmpDir, { recursive: true, force: true });
+    closeAllSharedLedgers(); rmSync(tmpDir, { recursive: true, force: true });
 
     // context.snapshot.created and context.budget.computed should still emit
     const snapshots = events.filter((e) => e.type === 'context.snapshot.created');
@@ -433,7 +434,7 @@ describe('context lifecycle events — integration', () => {
     }
 
     const events = await log.readAll();
-    rmSync(tmpDir, { recursive: true, force: true });
+    closeAllSharedLedgers(); rmSync(tmpDir, { recursive: true, force: true });
 
     // context.snapshot.created and context.budget.computed always emit first
     const snapshots = events.filter((e) => e.type === 'context.snapshot.created');

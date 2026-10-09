@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
 import {
   ExecutionEvidenceStore,
   computeEvidenceChecksum,
@@ -60,6 +61,7 @@ describe("ExecutionEvidenceStore", () => {
   });
 
   afterEach(() => {
+    closeAllSharedLedgers();
     rmSync(tempDir, { recursive: true, force: true });
   });
 

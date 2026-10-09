@@ -6,6 +6,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventLog } from "../src/events/event-log.js";
+import { closeAllSharedLedgers } from "../src/storage/runtime-ledger.js";
 import {
   buildLiveSendRequest,
   createExecutionStateEmitter,
@@ -27,6 +28,7 @@ describe("execution-state-phase — session emitter + turn reconcile", () => {
   afterEach(async () => {
     delete process.env.ALIX_EXECUTION_STATE_EMIT;
     delete process.env.ALIX_EXECUTION_STATE_SEND;
+    closeAllSharedLedgers();
     await rm(sessionDir, { recursive: true, force: true });
     await rm(storeDir, { recursive: true, force: true });
   });

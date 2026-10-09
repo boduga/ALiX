@@ -31,9 +31,10 @@ import type { AggregateCompletedEventLike } from '../../../src/kernel/coordinati
 import type { CoordinationPlanner } from '../../../src/kernel/coordination-planner.js';
 import type { CoordinationWorkerExecutor } from '../../../src/kernel/worker-executor.js';
 import type { ModelAdapter } from '../../../src/providers/types.js';
+import { closeAllSharedLedgers } from '../../../src/storage/runtime-ledger.js';
 
 const roots: string[] = [];
-afterEach(() => { vi.restoreAllMocks(); for (const cwd of roots.splice(0)) rmSync(cwd, { recursive: true, force: true }); });
+afterEach(() => { vi.restoreAllMocks(); closeAllSharedLedgers(); for (const cwd of roots.splice(0)) rmSync(cwd, { recursive: true, force: true }); });
 
 async function fixture(executor: CoordinationWorkerExecutor, count = 4) {
   const cwd = mkdtempSync(join(tmpdir(), 'workbench-phase9-')); roots.push(cwd);

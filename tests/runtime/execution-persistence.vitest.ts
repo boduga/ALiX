@@ -12,6 +12,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ExecutionEvidenceStore } from "../../src/runtime/execution-evidence-store.js";
+import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
 import {
   PersistenceEvidenceEmitter,
   recoverExecutionState,
@@ -50,6 +51,7 @@ function withTempDir(fn: (dir: string, store: ExecutionEvidenceStore) => Promise
     // landing while teardown runs; let it settle, then tolerate a late write
     // racing the removal (ENOTEMPTY/EBUSY) with a bounded retry.
     await new Promise((r) => setTimeout(r, 25));
+    closeAllSharedLedgers();
     for (let attempt = 0; ; attempt++) {
       try {
         rmSync(dir, { recursive: true, force: true });

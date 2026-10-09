@@ -6,6 +6,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventLog } from "../src/events/event-log.js";
+import { closeAllSharedLedgers } from "../src/storage/runtime-ledger.js";
 import { ExecutionStateEmitter } from "../src/runtime/execution-state/execution-state-emitter.js";
 import {
   STATE_PROPOSAL_TOOL,
@@ -29,6 +30,7 @@ describe("state-proposal-tool — model emits StateTransitionProposal", () => {
   afterEach(async () => {
     delete process.env.ALIX_EXECUTION_STATE_EMIT;
     delete process.env.ALIX_EXECUTION_STATE_SEND;
+    closeAllSharedLedgers();
     await rm(sessionDir, { recursive: true, force: true });
     await rm(storeDir, { recursive: true, force: true });
   });
