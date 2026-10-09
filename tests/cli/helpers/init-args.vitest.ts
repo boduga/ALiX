@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseInitArgs, InitArgsError } from "../../../src/cli/helpers/init-args.js";
+import { parseInitArgs, InitArgsError } from "../../../src/interfaces/cli/helpers/init-args.js";
 
 describe("parseInitArgs", () => {
   it("returns empty args when no flags", () => {

@@ -24,19 +24,19 @@ import {
   TOKEN_ID_LENGTH,
   SECRET_ENCODED_LENGTH,
   MAX_TOKEN_LENGTH,
-} from "../../src/security/inspector/token-format.js";
+} from "../../src/governance/security/inspector/token-format.js";
 import {
   AuthStore,
-} from "../../src/security/inspector/auth-store.js";
+} from "../../src/governance/security/inspector/auth-store.js";
 import {
   AuthService,
   AUTH_TOKEN_ROLES,
-} from "../../src/security/inspector/auth-service.js";
+} from "../../src/governance/security/inspector/auth-service.js";
 import {
   setStateDirOverride,
   clearStateDirOverride,
   getUserStatePaths,
-} from "../../src/security/platform/user-state-paths.js";
+} from "../../src/governance/security/platform/user-state-paths.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -46,8 +46,8 @@ function tempDir(): string {
   return join(tmpdir(), `alix-cli-auth-test-${randomUUID()}`);
 }
 
-const noopAudit: import("../../src/security/inspector/auth-service.js").AuditFn = () => {};
-const noopMetrics: import("../../src/security/inspector/auth-service.js").MetricsFn = () => {};
+const noopAudit: import("../../src/governance/security/inspector/auth-service.js").AuditFn = () => {};
+const noopMetrics: import("../../src/governance/security/inspector/auth-service.js").MetricsFn = () => {};
 
 // ---------------------------------------------------------------------------
 // Token Format Tests

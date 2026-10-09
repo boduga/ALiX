@@ -4,15 +4,15 @@
 
 **Goal:** Turn the projection pattern into a platform — `ProjectionRuntime` owns registration, generic dispatch, durable state, and reset coordination; the collector becomes blind to projection identity; ApprovalProjection proves a third, non-array snapshot shape lands with zero collector/snapshot changes.
 
-**Architecture:** `RuntimeCollectorImpl` keeps temporal orchestration (polling, cursor, session filter, workflow accounting, snapshot publication) but delegates every per-projection operation to a `ProjectionRuntime` it holds. The runtime registers builders by string id, dispatches `updateAll`, extracts `snapshotOf<T>(id)`, exports/imports a registry-keyed durable envelope, and resets. The projection contract is generalized so the snapshot shape is arbitrary — `ProjectionBuilder<TSnapshot>` with `snapshot(): TSnapshot` — no longer assuming arrays. Adding a projection = implement `DurableProjectionBuilder`, register it in the composition root (`src/cli/commands/tui.ts`), never touch the collector.
+**Architecture:** `RuntimeCollectorImpl` keeps temporal orchestration (polling, cursor, session filter, workflow accounting, snapshot publication) but delegates every per-projection operation to a `ProjectionRuntime` it holds. The runtime registers builders by string id, dispatches `updateAll`, extracts `snapshotOf<T>(id)`, exports/imports a registry-keyed durable envelope, and resets. The projection contract is generalized so the snapshot shape is arbitrary — `ProjectionBuilder<TSnapshot>` with `snapshot(): TSnapshot` — no longer assuming arrays. Adding a projection = implement `DurableProjectionBuilder`, register it in the composition root (`src/interfaces/cli/commands/tui.ts`), never touch the collector.
 
-**Tech Stack:** TypeScript (strict, NodeNext ESM `.js` specifiers), vitest (`tests/**/*.vitest.ts`). Files: `src/tui/runtime/projection-runtime.ts` (new), `src/tui/runtime/approval-projection.ts` (new), `src/tui/runtime/projection-builder.ts`, `src/tui/runtime/durable-projection-builder.ts`, `src/tui/runtime/timeline-builder.ts`, `src/tui/runtime/execution-trace-builder.ts`, `src/tui/runtime/projection-checkpoint-store.ts`, `src/tui/runtime-collector.ts`, `src/cli/commands/tui.ts`.
+**Tech Stack:** TypeScript (strict, NodeNext ESM `.js` specifiers), vitest (`tests/**/*.vitest.ts`). Files: `src/interfaces/tui/runtime/projection-runtime.ts` (new), `src/interfaces/tui/runtime/approval-projection.ts` (new), `src/interfaces/tui/runtime/projection-builder.ts`, `src/interfaces/tui/runtime/durable-projection-builder.ts`, `src/interfaces/tui/runtime/timeline-builder.ts`, `src/interfaces/tui/runtime/execution-trace-builder.ts`, `src/interfaces/tui/runtime/projection-checkpoint-store.ts`, `src/interfaces/tui/runtime-collector.ts`, `src/interfaces/cli/commands/tui.ts`.
 
 ## Global Constraints
 
 - NodeNext ESM (`.js` import specifiers), strict TypeScript.
 - vitest tests under `tests/**/*.vitest.ts`.
-- `EventLog` API stays additive; `src/capability/*` untouched.
+- `EventLog` API stays additive; `src/capabilities/capability/*` untouched.
 - Checkpoint envelope `version` STAYS `1`. The 6.5 `state` field is renamed `projections`; **dual-shape load** (accept legacy `state` with keys `timeline`/`trace`) keeps existing 6.5 checkpoint files working. Save always writes the new `projections` shape. Keep the `state` field permanently — never "clean up" it while any 6.5-era checkpoint may exist.
 - Durable state must be JSON-serializable plain objects only (no Maps/Sets/Date/undefined).
 - **Dispatch order deterministic**: registration order is preserved for update/export/import/reset iteration; projections MUST NOT depend on execution order or on each other (D11 — each builder derives only from the EventLog batch).
@@ -29,12 +29,12 @@
 ### Task 1: Generalize the projection contract + extract the state module
 
 **Files:**
-- Create: `src/tui/runtime/projection-state.ts`
-- Modify: `src/tui/runtime/projection-builder.ts` (interface)
-- Modify: `src/tui/runtime/durable-projection-builder.ts` (interface; `ProjectionState` import moves to the new module)
-- Modify: `src/tui/runtime/timeline-builder.ts` (implements clause; `ProjectionState` import)
-- Modify: `src/tui/runtime/execution-trace-builder.ts` (implements clause; `ProjectionState` import)
-- Modify: `src/tui/runtime/projection-checkpoint-store.ts` (import `ProjectionState`/`ProjectionStateSnapshot` from the new module; remove local `ProjectionStateSnapshot` def)
+- Create: `src/interfaces/tui/runtime/projection-state.ts`
+- Modify: `src/interfaces/tui/runtime/projection-builder.ts` (interface)
+- Modify: `src/interfaces/tui/runtime/durable-projection-builder.ts` (interface; `ProjectionState` import moves to the new module)
+- Modify: `src/interfaces/tui/runtime/timeline-builder.ts` (implements clause; `ProjectionState` import)
+- Modify: `src/interfaces/tui/runtime/execution-trace-builder.ts` (implements clause; `ProjectionState` import)
+- Modify: `src/interfaces/tui/runtime/projection-checkpoint-store.ts` (import `ProjectionState`/`ProjectionStateSnapshot` from the new module; remove local `ProjectionStateSnapshot` def)
 - Modify: `tests/tui/runtime/timeline-builder-state.vitest.ts`, `tests/tui/runtime/execution-trace-builder-state.vitest.ts` (type-only assertions if any reference the old element generic)
 
 **Interfaces:**
@@ -61,7 +61,7 @@
     importState(state: ProjectionState): void;
   }
 
-  // src/tui/runtime/projection-state.ts (NEW — state types live in their own
+  // src/interfaces/tui/runtime/projection-state.ts (NEW — state types live in their own
   // module so ProjectionRuntime and ProjectionCheckpointStore both import it,
   // avoiding a layering inversion; neither depends on the other's module).
   export type ProjectionState = Record<string, unknown>;
@@ -78,7 +78,7 @@
 
 - [ ] **Step 1: Change the two contract interfaces**
 
-In `src/tui/runtime/projection-builder.ts`, change the generic parameter name and the doc:
+In `src/interfaces/tui/runtime/projection-builder.ts`, change the generic parameter name and the doc:
 ```ts
 export interface ProjectionBuilder<TSnapshot> {
   update(events: readonly AlixEvent[]): void;
@@ -86,7 +86,7 @@ export interface ProjectionBuilder<TSnapshot> {
   reset(): void;
 }
 ```
-In `src/tui/runtime/durable-projection-builder.ts`:
+In `src/interfaces/tui/runtime/durable-projection-builder.ts`:
 ```ts
 export interface DurableProjectionBuilder<TSnapshot> extends ProjectionBuilder<TSnapshot> {
   exportState(): ProjectionState;
@@ -94,19 +94,19 @@ export interface DurableProjectionBuilder<TSnapshot> extends ProjectionBuilder<T
 }
 ```
 
-- [ ] **Step 2: Create `src/tui/runtime/projection-state.ts`** with the two state types above (with the "projection-state portion only" boundary doc on `ProjectionStateSnapshot`).
+- [ ] **Step 2: Create `src/interfaces/tui/runtime/projection-state.ts`** with the two state types above (with the "projection-state portion only" boundary doc on `ProjectionStateSnapshot`).
 
 - [ ] **Step 3: Rewire state-type imports.** Move `ProjectionState` out of `durable-projection-builder.ts` (keep the `DurableProjectionBuilder` interface there, import the type: `import type { ProjectionState } from './projection-state.js';`). In `projection-checkpoint-store.ts`, delete the local `ProjectionStateSnapshot` definition and import both types: `import type { ProjectionState, ProjectionStateSnapshot } from './projection-state.js';`. Update `timeline-builder.ts` / `execution-trace-builder.ts` to import `ProjectionState` from `./projection-state.js` instead of `durable-projection-builder.js`.
 
 - [ ] **Step 4: Update the two existing builders' implements clauses (type-only)**
 
-In `src/tui/runtime/timeline-builder.ts`, change `class TimelineBuilder implements DurableProjectionBuilder<...>` to:
+In `src/interfaces/tui/runtime/timeline-builder.ts`, change `class TimelineBuilder implements DurableProjectionBuilder<...>` to:
 ```ts
 export class TimelineBuilder implements DurableProjectionBuilder<readonly TimelineEntry[]> {
 ```
 Its `snapshot(): readonly TimelineEntry[]` is unchanged — only the type argument changed.
 
-In `src/tui/runtime/execution-trace-builder.ts`, change to:
+In `src/interfaces/tui/runtime/execution-trace-builder.ts`, change to:
 ```ts
 export class IncrementalExecutionTraceBuilder implements DurableProjectionBuilder<readonly ExecutionTraceEntry[]> {
 ```
@@ -120,7 +120,7 @@ Expected: clean, ALL pass unchanged — the two builders' behavior is untouched;
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/runtime/projection-state.ts src/tui/runtime/projection-builder.ts src/tui/runtime/durable-projection-builder.ts src/tui/runtime/timeline-builder.ts src/tui/runtime/execution-trace-builder.ts src/tui/runtime/projection-checkpoint-store.ts
+git add src/interfaces/tui/runtime/projection-state.ts src/interfaces/tui/runtime/projection-builder.ts src/interfaces/tui/runtime/durable-projection-builder.ts src/interfaces/tui/runtime/timeline-builder.ts src/interfaces/tui/runtime/execution-trace-builder.ts src/interfaces/tui/runtime/projection-checkpoint-store.ts
 git commit -m "refactor(capabilities): generalize projection contract to arbitrary snapshot shapes + extract state module (Phase 7)"
 ```
 
@@ -130,12 +130,12 @@ git commit -m "refactor(capabilities): generalize projection contract to arbitra
 ### Task 2: `ProjectionRuntime` foundation
 
 **Files:**
-- Create: `src/tui/runtime/projection-runtime.ts`
+- Create: `src/interfaces/tui/runtime/projection-runtime.ts`
 - Create: `tests/tui/runtime/projection-runtime.vitest.ts`
 - (No collector changes.)
 
 **Interfaces:**
-- Consumes: `DurableProjectionBuilder<TSnapshot>` (Task 1), `ProjectionState` / `ProjectionStateSnapshot` (Task 1 — the `projection-state.ts` module), `AlixEvent` (`src/events/types.ts`).
+- Consumes: `DurableProjectionBuilder<TSnapshot>` (Task 1), `ProjectionState` / `ProjectionStateSnapshot` (Task 1 — the `projection-state.ts` module), `AlixEvent` (`src/runtime-state/events/types.ts`).
 - Produces (Task 3/4/5 depend on these):
   ```ts
   export class ProjectionRegistrationError extends Error { constructor(id: string, reason?: string); }
@@ -161,11 +161,11 @@ git commit -m "refactor(capabilities): generalize projection contract to arbitra
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { ProjectionRuntime, ProjectionRegistrationError, ProjectionRollbackError, createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import type { DurableProjectionBuilder } from '../../../src/tui/runtime/durable-projection-builder.js';
-import type { ProjectionState } from '../../../src/tui/runtime/projection-state.js';
-import type { ProjectionStateSnapshot } from '../../../src/tui/runtime/projection-state.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { ProjectionRuntime, ProjectionRegistrationError, ProjectionRollbackError, createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import type { DurableProjectionBuilder } from '../../../src/interfaces/tui/runtime/durable-projection-builder.js';
+import type { ProjectionState } from '../../../src/interfaces/tui/runtime/projection-state.js';
+import type { ProjectionStateSnapshot } from '../../../src/interfaces/tui/runtime/projection-state.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 /** Minimal durable builder: appends seqs to an array. */
 function makeBuilder(initial: number[] = []): DurableProjectionBuilder<readonly number[]> {
@@ -358,9 +358,9 @@ describe('ProjectionRuntime', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/tui/runtime/projection-runtime.vitest.ts`
-Expected: FAIL — module `../../../src/tui/runtime/projection-runtime.js` not found.
+Expected: FAIL — module `../../../src/interfaces/tui/runtime/projection-runtime.js` not found.
 
-- [ ] **Step 3: Write the implementation** `src/tui/runtime/projection-runtime.ts`
+- [ ] **Step 3: Write the implementation** `src/interfaces/tui/runtime/projection-runtime.ts`
 
 ```ts
 import type { AlixEvent } from '../../events/types.js';
@@ -521,7 +521,7 @@ Expected: PASS (18 tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/runtime/projection-runtime.ts tests/tui/runtime/projection-runtime.vitest.ts
+git add src/interfaces/tui/runtime/projection-runtime.ts tests/tui/runtime/projection-runtime.vitest.ts
 git commit -m "feat(capabilities): ProjectionRuntime registry + generic dispatch + tuple factory (Phase 7)"
 ```
 
@@ -531,16 +531,16 @@ git commit -m "feat(capabilities): ProjectionRuntime registry + generic dispatch
 ### Task 3: Collector migration — blind to projection identity
 
 **Files:**
-- Create: `src/tui/runtime/projection-ids.ts`
-- Modify: `src/tui/runtime-collector.ts` (options 50-66, fields 71-84, constructor 86-104, initializeCheckpoint 123-158, sample 212-306)
-- Modify: `src/cli/commands/tui.ts` (collector construction ~114-138)
+- Create: `src/interfaces/tui/runtime/projection-ids.ts`
+- Modify: `src/interfaces/tui/runtime-collector.ts` (options 50-66, fields 71-84, constructor 86-104, initializeCheckpoint 123-158, sample 212-306)
+- Modify: `src/interfaces/cli/commands/tui.ts` (collector construction ~114-138)
 - Modify: `tests/tui/runtime/runtime-collector.vitest.ts`, `tests/tui/runtime/runtime-collector-state.vitest.ts`, `tests/tui/runtime/projection-independence.vitest.ts` (mechanical construction change only — assertions unchanged)
 
 **Interfaces:**
 - Consumes: `ProjectionRuntime` + `createProjectionRuntime` (Task 2).
 - Produces: `RuntimeCollectorOptions.projectionRuntime: ProjectionRuntime` (replaces `timelineBuilder?`/`traceBuilder?`/`buildTimeline?`). Behavior is byte-for-byte equivalent.
 
-- [ ] **Step 0: Create the projection-id constants module** `src/tui/runtime/projection-ids.ts`
+- [ ] **Step 0: Create the projection-id constants module** `src/interfaces/tui/runtime/projection-ids.ts`
 
 ```ts
 /** Canonical projection ids — prevents silent string drift across the
@@ -555,7 +555,7 @@ export const ProjectionIds = {
 
 - [ ] **Step 1: Change `RuntimeCollectorOptions` + fields + constructor**
 
-In `src/tui/runtime-collector.ts`, replace the option fields (lines 50-66):
+In `src/interfaces/tui/runtime-collector.ts`, replace the option fields (lines 50-66):
 ```ts
 export interface RuntimeCollectorOptions {
   eventLog: EventLog;
@@ -624,7 +624,7 @@ The durable-state save block (lines 270-279) becomes:
       });
 ```
 
-- [ ] **Step 3: Update `src/cli/commands/tui.ts` to build runtimes via the tuple factory**
+- [ ] **Step 3: Update `src/interfaces/cli/commands/tui.ts` to build runtimes via the tuple factory**
 
 Add `createProjectionRuntime` to the import from `../../tui/runtime/projection-runtime.js`, and `import { ProjectionIds } from '../../tui/runtime/projection-ids.js';`. Replace the three collector constructions (lines 121-138) so the composition root decides what each collector hosts:
 ```ts
@@ -667,7 +667,7 @@ with:
 ```ts
 new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) })
 ```
-Add `import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';` (and the builder value imports if not present) to each file. **Do NOT change any assertion** — behavior must be byte-for-byte equivalent. Use a `buildCollector(...)` helper per file if the same options repeat.
+Add `import { createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';` (and the builder value imports if not present) to each file. **Do NOT change any assertion** — behavior must be byte-for-byte equivalent. Use a `buildCollector(...)` helper per file if the same options repeat.
 
 **Add two assertions covering both optional projections** in `runtime-collector.vitest.ts`:
 ```ts
@@ -684,8 +684,8 @@ Add `import { createProjectionRuntime } from '../../../src/tui/runtime/projectio
 
 In `tests/tui/runtime/runtime-collector.vitest.ts`, add a test. **Lifecycle note:** `start()` runs `initializeCheckpoint()` then an immediate `sample()`. The collector SWALLOWS a non-`EventLogCursorError` throw in `sample()` (the operational-failure catch keeps the old checkpoint + cache), so `start()` completes without throwing. The test asserts the durable commit never happened:
 ```ts
-import { ProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import type { DurableProjectionBuilder } from '../../../src/tui/runtime/durable-projection-builder.js';
+import { ProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import type { DurableProjectionBuilder } from '../../../src/interfaces/tui/runtime/durable-projection-builder.js';
 
   it('a throwing projection does not commit the checkpoint (batch atomicity)', async () => {
     const { log, append } = makeEventLog();
@@ -720,15 +720,15 @@ Expected: clean.
 
 Run:
 ```bash
-grep -nE '\.(update|reset|exportState|importState)\(' src/tui/runtime-collector.ts
-grep -nE 'snapshot\(' src/tui/runtime-collector.ts
+grep -nE '\.(update|reset|exportState|importState)\(' src/interfaces/tui/runtime-collector.ts
+grep -nE 'snapshot\(' src/interfaces/tui/runtime-collector.ts
 ```
 Expected: the ONLY matches are `this.projectionRuntime.updateAll(` / `this.projectionRuntime.resetAll(` / `this.projectionRuntime.exportState(` / `this.projectionRuntime.importState(` / `this.projectionRuntime.snapshot<...>(...)`. There MUST be no bare `this.timelineBuilder.`, `this.traceBuilder.`, or a per-id `if`/`switch`. (A hidden `this.traceBuilder.reset()` would pass tests but violates the platform goal — grep catches it.)
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/tui/runtime/projection-ids.ts src/tui/runtime-collector.ts src/cli/commands/tui.ts tests/tui/runtime/runtime-collector.vitest.ts tests/tui/runtime/runtime-collector-state.vitest.ts tests/tui/runtime/projection-independence.vitest.ts
+git add src/interfaces/tui/runtime/projection-ids.ts src/interfaces/tui/runtime-collector.ts src/interfaces/cli/commands/tui.ts tests/tui/runtime/runtime-collector.vitest.ts tests/tui/runtime/runtime-collector-state.vitest.ts tests/tui/runtime/projection-independence.vitest.ts
 git commit -m "refactor(capabilities): collector hosts ProjectionRuntime, blind to projection identity (Phase 7)"
 ```
 
@@ -738,7 +738,7 @@ git commit -m "refactor(capabilities): collector hosts ProjectionRuntime, blind 
 ### Task 4: Registry-keyed durable envelope (`state` → `projections`)
 
 **Files:**
-- Modify: `src/tui/runtime/projection-checkpoint-store.ts` (envelope 19-29, load 54-75)
+- Modify: `src/interfaces/tui/runtime/projection-checkpoint-store.ts` (envelope 19-29, load 54-75)
 - Modify: `tests/tui/runtime/projection-checkpoint-store.vitest.ts`, `tests/tui/runtime/runtime-collector-state.vitest.ts`
 - (The collector's restore already reads both shapes from Task 3 Step 2 — verify.)
 
@@ -748,7 +748,7 @@ git commit -m "refactor(capabilities): collector hosts ProjectionRuntime, blind 
 
 - [ ] **Step 1: Document the version-1 dual-shape contract on the envelope**
 
-In `src/tui/runtime/projection-checkpoint-store.ts`, update the `PersistedProjectionCheckpoint` doc (lines 19-29):
+In `src/interfaces/tui/runtime/projection-checkpoint-store.ts`, update the `PersistedProjectionCheckpoint` doc (lines 19-29):
 ```ts
 /**
  * Version 1 contains two historical shapes:
@@ -766,7 +766,7 @@ export interface PersistedProjectionCheckpoint {
   readonly state?: ProjectionStateSnapshot;          // Phase 6.5 legacy
 }
 ```
-Also add the boundary doc to `ProjectionStateSnapshot` (in `src/tui/runtime/projection-state.ts` from Task 1):
+Also add the boundary doc to `ProjectionStateSnapshot` (in `src/interfaces/tui/runtime/projection-state.ts` from Task 1):
 ```ts
 /**
  * The projection-state portion of the checkpoint envelope ONLY. Cursor and
@@ -848,7 +848,7 @@ Expected: ALL pass (store dual-shape, collector legacy + new shape, invalid-curs
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/tui/runtime/projection-checkpoint-store.ts tests/tui/runtime/projection-checkpoint-store.vitest.ts tests/tui/runtime/runtime-collector-state.vitest.ts
+git add src/interfaces/tui/runtime/projection-checkpoint-store.ts tests/tui/runtime/projection-checkpoint-store.vitest.ts tests/tui/runtime/runtime-collector-state.vitest.ts
 git commit -m "feat(capabilities): registry-keyed durable envelope, dual-shape legacy load (Phase 7)"
 ```
 
@@ -858,9 +858,9 @@ git commit -m "feat(capabilities): registry-keyed durable envelope, dual-shape l
 ### Task 5: ApprovalProjection — first registry-native projection
 
 **Files:**
-- Create: `src/tui/runtime/approval-projection.ts`
+- Create: `src/interfaces/tui/runtime/approval-projection.ts`
 - Create: `tests/tui/runtime/approval-projection.vitest.ts`
-- Modify: `src/cli/commands/tui.ts` (register approval on the runtime collector's runtime only)
+- Modify: `src/interfaces/cli/commands/tui.ts` (register approval on the runtime collector's runtime only)
 - **No changes to `RuntimeCollectorImpl`, `RuntimeSnapshot`, or the checkpoint transaction flow** (acceptance criterion).
 
 **Interfaces:**
@@ -894,8 +894,8 @@ git commit -m "feat(capabilities): registry-keyed durable envelope, dual-shape l
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { ApprovalProjection, MAX_COMPLETED } from '../../../src/tui/runtime/approval-projection.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { ApprovalProjection, MAX_COMPLETED } from '../../../src/interfaces/tui/runtime/approval-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 function evt(type: string, payload: Record<string, unknown>, seq: number, ts = seq * 1000): AlixEvent {
   return { id: `e${seq}`, seq, version: 1, sessionId: 's', timestamp: new Date(ts).toISOString(), type, actor: 'system', payload };
@@ -1031,9 +1031,9 @@ describe('ApprovalProjection', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/tui/runtime/approval-projection.vitest.ts`
-Expected: FAIL — module `../../../src/tui/runtime/approval-projection.js` not found.
+Expected: FAIL — module `../../../src/interfaces/tui/runtime/approval-projection.js` not found.
 
-- [ ] **Step 3: Write the implementation** `src/tui/runtime/approval-projection.ts`
+- [ ] **Step 3: Write the implementation** `src/interfaces/tui/runtime/approval-projection.ts`
 
 ```ts
 import type { AlixEvent } from '../../events/types.js';
@@ -1227,7 +1227,7 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
 Run: `npx vitest run tests/tui/runtime/approval-projection.vitest.ts`
 Expected: PASS (18 tests).
 
-- [ ] **Step 5: Register approval on the runtime collector in `src/cli/commands/tui.ts`**
+- [ ] **Step 5: Register approval on the runtime collector in `src/interfaces/cli/commands/tui.ts`**
 
 Add `import { ApprovalProjection } from '../../tui/runtime/approval-projection.js';`. In the runtime-collector construction (Task-3 version), add approval to the tuple factory:
 ```ts
@@ -1278,14 +1278,14 @@ This is the ultimate Phase 7 proof: a projection with a NEW object shape registe
 
 - [ ] **Step 8: Verify the acceptance bar — no collector/snapshot/checkpoint changes; composition-root registration is expected**
 
-Run: `git diff HEAD --stat` and confirm `src/tui/runtime-collector.ts`, `src/tui/snapshot.ts`, and `src/tui/runtime/projection-checkpoint-store.ts` are NOT in the changed set for THIS task's commit. `src/cli/commands/tui.ts` IS expected to change — it is the composition root, and registering the new projection there is the whole point. (The collector changes happened in Task 3; Task 5 must touch only the new builder + its test + the composition root.)
+Run: `git diff HEAD --stat` and confirm `src/interfaces/tui/runtime-collector.ts`, `src/interfaces/tui/snapshot.ts`, and `src/interfaces/tui/runtime/projection-checkpoint-store.ts` are NOT in the changed set for THIS task's commit. `src/interfaces/cli/commands/tui.ts` IS expected to change — it is the composition root, and registering the new projection there is the whole point. (The collector changes happened in Task 3; Task 5 must touch only the new builder + its test + the composition root.)
 
 > **ApprovalProjection is persistence/runtime validation only in Phase 7.** Rendering approval data is explicitly deferred to Phase 8 (the existing `ApprovalManager` → `snapshot.approvals` → `ApprovalsView` path stays the UI source). A future reviewer should not expect the projection to be shown anywhere.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/tui/runtime/approval-projection.ts tests/tui/runtime/approval-projection.vitest.ts src/cli/commands/tui.ts tests/tui/runtime/projection-runtime.vitest.ts
+git add src/interfaces/tui/runtime/approval-projection.ts tests/tui/runtime/approval-projection.vitest.ts src/interfaces/cli/commands/tui.ts tests/tui/runtime/projection-runtime.vitest.ts
 git commit -m "feat(capabilities): ApprovalProjection — first registry-native projection (Phase 7)"
 ```
 (Also commit the new `projection-runtime.vitest.ts` "future projection" extension test added in Step 7.)
@@ -1302,7 +1302,7 @@ git commit -m "feat(capabilities): ApprovalProjection — first registry-native 
 5. **Final acceptance gates (run on the finished branch):**
    ```bash
    # Projection isolation: the collector knows no concrete projections
-   grep -R "TimelineBuilder\|ExecutionTraceBuilder" src/tui/runtime-collector.ts
+   grep -R "TimelineBuilder\|ExecutionTraceBuilder" src/interfaces/tui/runtime-collector.ts
    #   Expected: 0 matches
    # Registration ownership: only composition roots + runtime tests call register(
    grep -R "register(" src/tui --include="*.ts"

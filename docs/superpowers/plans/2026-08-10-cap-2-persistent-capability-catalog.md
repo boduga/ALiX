@@ -4,9 +4,9 @@
 
 **Goal:** Introduce a durable `CapabilityCatalog` (JSONL store + bootstrap providers + source precedence + two-phase authoring) that becomes the single durable source of capability definitions — additively, without modifying the three existing definition databases or their HIGH-risk consumers.
 
-**Architecture:** New files under `src/capability/canonical/` (the CAP-1 module): `catalog.ts` (facade over the store), `catalog-store.ts` (JSONL persistence), `bootstrap.ts` (bootstrap-provider abstraction + source precedence), `authoring.ts` (two-phase authoring status). Bootstrap providers *read* from the existing sources (`initial-capabilities.ts`, `tool-registry.ts`, `policy/capability-registry.ts`) via their existing public APIs but never modify them. The existing databases remain authoritative for their current consumers until CAP-8/CAP-11 swap them out — this is additive, the "expand" half.
+**Architecture:** New files under `src/capabilities/capability/canonical/` (the CAP-1 module): `catalog.ts` (facade over the store), `catalog-store.ts` (JSONL persistence), `bootstrap.ts` (bootstrap-provider abstraction + source precedence), `authoring.ts` (two-phase authoring status). Bootstrap providers *read* from the existing sources (`initial-capabilities.ts`, `tool-registry.ts`, `policy/capability-registry.ts`) via their existing public APIs but never modify them. The existing databases remain authoritative for their current consumers until CAP-8/CAP-11 swap them out — this is additive, the "expand" half.
 
-**Tech Stack:** TypeScript (ESM), Vitest (`.vitest.ts`), Node `node:fs`. JSONL pattern mirrors `src/evolution/capability-lifecycle/capability-lifecycle-ledger.ts` (appendFileSync/readFileSync).
+**Tech Stack:** TypeScript (ESM), Vitest (`.vitest.ts`), Node `node:fs`. JSONL pattern mirrors `src/planning/evolution/capability-lifecycle/capability-lifecycle-ledger.ts` (appendFileSync/readFileSync).
 
 ## Global Constraints
 
@@ -25,11 +25,11 @@
 
 ## File Structure
 
-- `src/capability/canonical/catalog-store.ts` — JSONL store (definitions + bindings).
-- `src/capability/canonical/catalog.ts` — `CapabilityCatalog` facade over the store.
-- `src/capability/canonical/bootstrap.ts` — `CapabilityBootstrapProvider` + `CapabilityBootstrapEntry` + source-precedence loader.
-- `src/capability/canonical/authoring.ts` — `DefinitionAuthoringStatus` + `evaluateDefinitionAuthoring()`.
-- Update `src/capability/canonical/index.ts` — add new exports.
+- `src/capabilities/capability/canonical/catalog-store.ts` — JSONL store (definitions + bindings).
+- `src/capabilities/capability/canonical/catalog.ts` — `CapabilityCatalog` facade over the store.
+- `src/capabilities/capability/canonical/bootstrap.ts` — `CapabilityBootstrapProvider` + `CapabilityBootstrapEntry` + source-precedence loader.
+- `src/capabilities/capability/canonical/authoring.ts` — `DefinitionAuthoringStatus` + `evaluateDefinitionAuthoring()`.
+- Update `src/capabilities/capability/canonical/index.ts` — add new exports.
 - `tests/capability/canonical/catalog-store.vitest.ts`
 - `tests/capability/canonical/catalog.vitest.ts`
 - `tests/capability/canonical/bootstrap.vitest.ts`
@@ -41,7 +41,7 @@
 ### Task 1: JSONL catalog store
 
 **Files:**
-- Create: `src/capability/canonical/catalog-store.ts`
+- Create: `src/capabilities/capability/canonical/catalog-store.ts`
 - Test: `tests/capability/canonical/catalog-store.vitest.ts`
 
 **Interfaces:**
@@ -55,8 +55,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { CapabilityDefinitionStore } from "../../../src/capabilities/capability/canonical/catalog-store.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 function makeDef(id: string, version = "1.0.0"): CapabilityDefinition {
   return { id, version, kind: "operation", title: id, description: id, tags: [], category: "test",
@@ -277,7 +277,7 @@ Expected: PASS.
 Run: `pnpm exec tsc --noEmit` — exit 0 (fix any latent type errors in YOUR file).
 Commit:
 ```bash
-git add src/capability/canonical/catalog-store.ts tests/capability/canonical/catalog-store.vitest.ts
+git add src/capabilities/capability/canonical/catalog-store.ts tests/capability/canonical/catalog-store.vitest.ts
 git commit -m "feat(capability): CAP-2 JSONL catalog store"
 ```
 
@@ -286,7 +286,7 @@ git commit -m "feat(capability): CAP-2 JSONL catalog store"
 ### Task 2: CapabilityCatalog facade
 
 **Files:**
-- Create: `src/capability/canonical/catalog.ts`
+- Create: `src/capabilities/capability/canonical/catalog.ts`
 - Test: `tests/capability/canonical/catalog.vitest.ts`
 
 **Interfaces:**
@@ -300,9 +300,9 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
-import { CapabilityCatalog } from "../../../src/capability/canonical/catalog.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { CapabilityDefinitionStore } from "../../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityCatalog } from "../../../src/capabilities/capability/canonical/catalog.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 function makeDef(id: string, version = "1.0.0"): CapabilityDefinition {
   return { id, version, kind: "operation", title: id, description: id, tags: [], category: "test",
@@ -412,7 +412,7 @@ Expected: PASS.
 Run: `pnpm exec tsc --noEmit` — exit 0.
 Commit:
 ```bash
-git add src/capability/canonical/catalog.ts tests/capability/canonical/catalog.vitest.ts
+git add src/capabilities/capability/canonical/catalog.ts tests/capability/canonical/catalog.vitest.ts
 git commit -m "feat(capability): CAP-2 CapabilityCatalog facade"
 ```
 
@@ -421,7 +421,7 @@ git commit -m "feat(capability): CAP-2 CapabilityCatalog facade"
 ### Task 3: Bootstrap providers + source precedence
 
 **Files:**
-- Create: `src/capability/canonical/bootstrap.ts`
+- Create: `src/capabilities/capability/canonical/bootstrap.ts`
 - Test: `tests/capability/canonical/bootstrap.vitest.ts`
 
 **Interfaces:**
@@ -432,9 +432,9 @@ git commit -m "feat(capability): CAP-2 CapabilityCatalog facade"
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { loadCatalogWithPrecedence, BOOTSTRAP_SOURCE_ORDER } from "../../../src/capability/canonical/bootstrap.js";
-import type { CapabilityBootstrapProvider, CapabilityBootstrapEntry } from "../../../src/capability/canonical/bootstrap.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { loadCatalogWithPrecedence, BOOTSTRAP_SOURCE_ORDER } from "../../../src/capabilities/capability/canonical/bootstrap.js";
+import type { CapabilityBootstrapProvider, CapabilityBootstrapEntry } from "../../../src/capabilities/capability/canonical/bootstrap.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 function makeDef(id: string, title: string): CapabilityDefinition {
   return { id, version: "1.0.0", kind: "operation", title, description: id, tags: [], category: "test",
@@ -534,7 +534,7 @@ Expected: PASS.
 Run: `pnpm exec tsc --noEmit` — exit 0.
 Commit:
 ```bash
-git add src/capability/canonical/bootstrap.ts tests/capability/canonical/bootstrap.vitest.ts
+git add src/capabilities/capability/canonical/bootstrap.ts tests/capability/canonical/bootstrap.vitest.ts
 git commit -m "feat(capability): CAP-2 bootstrap providers + source precedence"
 ```
 
@@ -543,7 +543,7 @@ git commit -m "feat(capability): CAP-2 bootstrap providers + source precedence"
 ### Task 4: Two-phase definition authoring
 
 **Files:**
-- Create: `src/capability/canonical/authoring.ts`
+- Create: `src/capabilities/capability/canonical/authoring.ts`
 - Test: `tests/capability/canonical/authoring.vitest.ts`
 
 **Interfaces:**
@@ -554,8 +554,8 @@ git commit -m "feat(capability): CAP-2 bootstrap providers + source precedence"
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { evaluateDefinitionAuthoring } from "../../../src/capability/canonical/authoring.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { evaluateDefinitionAuthoring } from "../../../src/capabilities/capability/canonical/authoring.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 function makeDef(): CapabilityDefinition {
   return { id: "a.b.c", version: "1.0.0", kind: "operation", title: "t", description: "d",
@@ -661,7 +661,7 @@ Expected: PASS.
 Run: `pnpm exec tsc --noEmit` — exit 0.
 Commit:
 ```bash
-git add src/capability/canonical/authoring.ts tests/capability/canonical/authoring.vitest.ts
+git add src/capabilities/capability/canonical/authoring.ts tests/capability/canonical/authoring.vitest.ts
 git commit -m "feat(capability): CAP-2 two-phase definition authoring"
 ```
 
@@ -670,7 +670,7 @@ git commit -m "feat(capability): CAP-2 two-phase definition authoring"
 ### Task 5: Barrel + integration test
 
 **Files:**
-- Modify: `src/capability/canonical/index.ts`
+- Modify: `src/capabilities/capability/canonical/index.ts`
 - Create: `tests/capability/canonical/catalog-integration.vitest.ts`
 
 **Interfaces:**
@@ -693,12 +693,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
-import { CapabilityCatalog } from "../../../src/capability/canonical/catalog.js";
-import { loadCatalogWithPrecedence } from "../../../src/capability/canonical/bootstrap.js";
-import { evaluateDefinitionAuthoring } from "../../../src/capability/canonical/authoring.js";
-import { migrateKind } from "../../../src/capability/canonical/kind.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { CapabilityDefinitionStore } from "../../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityCatalog } from "../../../src/capabilities/capability/canonical/catalog.js";
+import { loadCatalogWithPrecedence } from "../../../src/capabilities/capability/canonical/bootstrap.js";
+import { evaluateDefinitionAuthoring } from "../../../src/capabilities/capability/canonical/authoring.js";
+import { migrateKind } from "../../../src/capabilities/capability/canonical/kind.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 describe("CAP-2 end-to-end: bootstrap → catalog → store", () => {
   let dir: string;
@@ -757,7 +757,7 @@ Expected: all still pass (CAP-2 is additive — nothing existing changed). Note:
 Run: `pnpm exec tsc --noEmit` — exit 0.
 Commit:
 ```bash
-git add src/capability/canonical/index.ts tests/capability/canonical/catalog-integration.vitest.ts
+git add src/capabilities/capability/canonical/index.ts tests/capability/canonical/catalog-integration.vitest.ts
 git commit -m "feat(capability): CAP-2 catalog integration test + barrel"
 ```
 
@@ -777,7 +777,7 @@ git commit -m "feat(capability): CAP-2 catalog integration test + barrel"
 
 **Type consistency:** `CapabilityDefinitionStore`, `CapabilityCatalog`, `CapabilityBootstrapProvider`/`Entry`, `BOOTSTRAP_SOURCE_ORDER`, `DefinitionAuthoringStatus`, `evaluateDefinitionAuthoring`, `CapabilityCatalogPatch` used consistently across tasks. `migrateKind` (CAP-1) reused in integration test. Store `getDefinition` returns highest SemVer — matches #479 "current = highest eligible".
 
-**Additive check:** the three existing databases (`initial-capabilities.ts`, `tool-registry.ts`, `policy/capability-registry.ts`) and their HIGH-risk consumers (ToolExecutor, CoordinationPlanner, 5 CLI commands) are NOT touched. Only new files under `src/capability/canonical/` + the barrel + tests.
+**Additive check:** the three existing databases (`initial-capabilities.ts`, `tool-registry.ts`, `policy/capability-registry.ts`) and their HIGH-risk consumers (ToolExecutor, CoordinationPlanner, 5 CLI commands) are NOT touched. Only new files under `src/capabilities/capability/canonical/` + the barrel + tests.
 
 ---
 

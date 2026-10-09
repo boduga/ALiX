@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { WorkbenchStore } from '../../../src/tui/workbench/app/workbench-store.js';
-import { routeWorkbenchInput } from '../../../src/tui/workbench/input/input-router.js';
-import { paintCoordinationEntry, validateCoordinationObjective } from '../../../src/tui/workbench/views/coordination-entry.js';
-import { displayWidth } from '../../../src/tui/terminal-text.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import { WorkbenchStore } from '../../../src/interfaces/tui/workbench/app/workbench-store.js';
+import { routeWorkbenchInput } from '../../../src/interfaces/tui/workbench/input/input-router.js';
+import { paintCoordinationEntry, validateCoordinationObjective } from '../../../src/interfaces/tui/workbench/views/coordination-entry.js';
+import { displayWidth } from '../../../src/interfaces/tui/terminal-text.js';
 
 describe('isolated coordination objective', () => {
   it('edits complete graphemes without altering the foreground draft', () => {

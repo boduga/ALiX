@@ -12,8 +12,8 @@ import { randomUUID } from "node:crypto";
 import {
   BaselineAlreadyCapturedError,
   ExecutiveSnapshotStore,
-} from "../../src/executive/executive-snapshot-store.js";
-import type { ExecutivePlanSnapshot } from "../../src/executive/executive-snapshot-store.js";
+} from "../../src/execution/executive/executive-snapshot-store.js";
+import type { ExecutivePlanSnapshot } from "../../src/execution/executive/executive-snapshot-store.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

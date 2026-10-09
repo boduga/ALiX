@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { WorkflowRuntimeHealthProvider } from "../../../src/baseline/providers/workflow-runtime-health-provider.js";
+import { WorkflowRuntimeHealthProvider } from "../../../src/context/baseline/providers/workflow-runtime-health-provider.js";
 
 describe("WorkflowRuntimeHealthProvider", () => {
   const provider = new WorkflowRuntimeHealthProvider();

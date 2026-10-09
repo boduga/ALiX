@@ -13,10 +13,10 @@ import type {
   FileMatch,
   ToolArgs,
   ToolSafetyBoundary,
-} from "../../src/runtime/contracts/tool-contract.js";
+} from "../../src/runtime-state/runtime/contracts/tool-contract.js";
 import {
   TOOL_SAFETY_BOUNDARY,
-} from "../../src/runtime/contracts/tool-contract.js";
+} from "../../src/runtime-state/runtime/contracts/tool-contract.js";
 import { ALIX_BUILTIN_EXECUTORS } from "../../src/agents/tool-manifest.js";
 
 // ── Source types (structural comparison) ────────────────────────────
@@ -27,7 +27,7 @@ import type {
   ToolResult as SourceToolResult,
   ToolArgs as SourceToolArgs,
   FileMatch as SourceFileMatch,
-} from "../../src/tools/types.js";
+} from "../../src/capabilities/tools/types.js";
 
 // ── Tests ───────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createWorkflowRun, transitionWorkflowStatus } from "../../src/kernel/workflow-run.js";
+import { createWorkflowRun, transitionWorkflowStatus } from "../../src/coordination/kernel/workflow-run.js";
 
 describe("WorkflowRun", () => {
 

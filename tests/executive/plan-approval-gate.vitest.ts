@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { PlanApprovalGate } from "../../src/executive/plan-approval-gate.js";
-import type { PlanStore } from "../../src/executive/plan-store.js";
-import type { ExecutionStateStore } from "../../src/executive/execution-state-store.js";
-import type { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/executive/executive-plan-types.js";
+import { PlanApprovalGate } from "../../src/execution/executive/plan-approval-gate.js";
+import type { PlanStore } from "../../src/execution/executive/plan-store.js";
+import type { ExecutionStateStore } from "../../src/execution/executive/execution-state-store.js";
+import type { EvidenceEventWriter } from "../../src/coordination/workflow/evidence-writer.js";
+import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/execution/executive/executive-plan-types.js";
 
 function mockPlan(overrides?: Partial<PersistedExecutionPlan>): PersistedExecutionPlan {
   return {

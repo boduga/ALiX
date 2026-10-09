@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseKeyValueArgs } from "../../../src/cli/helpers/parse-args.js";
+import { parseKeyValueArgs } from "../../../src/interfaces/cli/helpers/parse-args.js";
 
 describe("parseKeyValueArgs", () => {
   it("parses --key value pairs and --flags", () => {

@@ -15,21 +15,21 @@
  * @module evolution-cli
  */
 
-import type { EvolutionStateMachine } from "../evolution/evolution-state-machine.js";
-import type { ExecutionEvidenceStore } from "../runtime/execution-evidence-store.js";
-import type { VerificationEvidenceLedger } from "../evolution/verification/evidence/evidence-ledger.js";
-import type { GovernanceDecisionBridge } from "../evolution/governance/governance-decision-bridge.js";
-import type { GovernancePolicyConfig } from "../evolution/governance/contracts/decision-contract.js";
-import type { GovernanceDecisionStore } from "../evolution/governance/contracts/decision-store-contract.js";
+import type { EvolutionStateMachine } from "../planning/evolution/evolution-state-machine.js";
+import type { ExecutionEvidenceStore } from "../runtime-state/runtime/execution-evidence-store.js";
+import type { VerificationEvidenceLedger } from "../planning/evolution/verification/evidence/evidence-ledger.js";
+import type { GovernanceDecisionBridge } from "../planning/evolution/governance/governance-decision-bridge.js";
+import type { GovernancePolicyConfig } from "../planning/evolution/governance/contracts/decision-contract.js";
+import type { GovernanceDecisionStore } from "../planning/evolution/governance/contracts/decision-store-contract.js";
 import type { PatternRegistry } from "../context/pattern-registry.js";
 import { join } from "node:path";
 import { bold, red } from "./ansi.js";
-import { RecommendationStore } from "../evolution/verification/recommendation/recommendation-store.js";
-import { ObservationEngine } from "../evolution/observation/observation-engine.js";
-import { CliObservationProvider } from "../evolution/observation/providers/cli-provider.js";
-import { FilesystemObservationProvider } from "../evolution/observation/providers/filesystem-provider.js";
-import { GitObservationProvider } from "../evolution/observation/providers/git-provider.js";
-import { LedgerObservationProvider } from "../evolution/observation/providers/ledger-provider.js";
+import { RecommendationStore } from "../planning/evolution/verification/recommendation/recommendation-store.js";
+import { ObservationEngine } from "../planning/evolution/observation/observation-engine.js";
+import { CliObservationProvider } from "../planning/evolution/observation/providers/cli-provider.js";
+import { FilesystemObservationProvider } from "../planning/evolution/observation/providers/filesystem-provider.js";
+import { GitObservationProvider } from "../planning/evolution/observation/providers/git-provider.js";
+import { LedgerObservationProvider } from "../planning/evolution/observation/providers/ledger-provider.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -118,7 +118,7 @@ export async function handleEvolutionCommand(
         return;
       }
       {
-        const { runDecide } = await import("../evolution/governance/governance-decision-cli.js");
+        const { runDecide } = await import("../planning/evolution/governance/governance-decision-cli.js");
         return runDecide({
           stateMachine: deps.stateMachine,
           evidenceLedger: deps.evidenceLedger,
@@ -138,7 +138,7 @@ export async function handleEvolutionCommand(
         return;
       }
       {
-        const { runExecute } = await import("../evolution/execution/execution-cli.js");
+        const { runExecute } = await import("../planning/evolution/execution/execution-cli.js");
         const dryRun = args.includes("--dry-run");
         return runExecute(id, { dryRun, jsonMode }, {
           stateMachine: deps.stateMachine,
@@ -153,14 +153,14 @@ export async function handleEvolutionCommand(
         return;
       }
       {
-        const { runObserve } = await import("../evolution/observation/observation-cli.js");
+        const { runObserve } = await import("../planning/evolution/observation/observation-cli.js");
         const engine = buildObservationEngine(deps);
         await runObserve(id, { engine, evidenceStore: deps.evidenceStore }, { jsonMode });
         return;
       }
     case "curate":
       {
-        const { handleCurationCommand } = await import("../evolution/knowledge/curation-cli.js");
+        const { handleCurationCommand } = await import("../planning/evolution/knowledge/curation-cli.js");
         return handleCurationCommand(deps, args.slice(1), jsonMode);
       }
     default:

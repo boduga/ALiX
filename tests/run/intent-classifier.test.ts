@@ -22,7 +22,7 @@ import assert from "node:assert/strict";
 import {
   IntentClassifier,
   type AgentIntent,
-} from "../../src/run/intent-classifier.js";
+} from "../../src/execution/run/intent-classifier.js";
 
 // Minimal tool-call shape used by the recognizer.
 const tc = (name: string, args: Record<string, unknown> = {}) =>

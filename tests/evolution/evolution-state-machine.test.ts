@@ -15,8 +15,8 @@ import {
   UnknownEvolutionError,
   DuplicateEvolutionError,
   type EvolutionTransitionEvent,
-} from "../../src/evolution/evolution-state-machine.js";
-import { EvolutionState } from "../../src/evolution/contracts/evolution-contract.js";
+} from "../../src/planning/evolution/evolution-state-machine.js";
+import { EvolutionState } from "../../src/planning/evolution/contracts/evolution-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

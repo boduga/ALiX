@@ -25,7 +25,7 @@
 ### Task 1: Pure function — `EffectivenessOutcome` type + `applyEffectivenessData()` + extended aggregation
 
 **Files:**
-- Modify: `src/executive/recommendation-effectiveness.ts`
+- Modify: `src/execution/executive/recommendation-effectiveness.ts`
 - Test: `tests/executive/recommendation-effectiveness.vitest.ts`
 
 **Interfaces:**
@@ -37,8 +37,8 @@
 Add to the end of `tests/executive/recommendation-effectiveness.vitest.ts` — writes tests before the function exists:
 
 ```ts
-import { applyEffectivenessData } from "../../src/executive/recommendation-effectiveness.js";
-import type { EffectivenessOutcome } from "../../src/executive/recommendation-effectiveness.js";
+import { applyEffectivenessData } from "../../src/execution/executive/recommendation-effectiveness.js";
+import type { EffectivenessOutcome } from "../../src/execution/executive/recommendation-effectiveness.js";
 
 describe("applyEffectivenessData", () => {
   const baseEntry = (over: Partial<RecommendationEntry> = {}): RecommendationEntry => ({
@@ -194,7 +194,7 @@ Expected: FAIL — new tests fail because `applyEffectivenessData` and new `Sign
 
 - [ ] **Step 5: Implement — add type, interface changes, pure function, and aggregation changes**
 
-All implementation changes go into `src/executive/recommendation-effectiveness.ts`:
+All implementation changes go into `src/execution/executive/recommendation-effectiveness.ts`:
 
 **(a) Add `EffectivenessOutcome` type after `ProposalStatus` on line 28:**
 ```ts
@@ -298,7 +298,7 @@ If any match on a `SignalCalibration` or `EffectivenessResult` literal, add the 
 - [ ] **Step 9: Commit Task 1**
 
 ```bash
-git add src/executive/recommendation-effectiveness.ts tests/executive/recommendation-effectiveness.vitest.ts
+git add src/execution/executive/recommendation-effectiveness.ts tests/executive/recommendation-effectiveness.vitest.ts
 git commit -m "feat(p10-8b): add EffectivenessOutcome type, applyEffectivenessData(), extended SignalCalibration
 
 - New EffectivenessOutcome type (keep/revert/investigate/no_data)
@@ -317,7 +317,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 2: CLI handler — effectiveness store load + terminal render
 
 **Files:**
-- Modify: `src/cli/commands/executive-effectiveness-handler.ts`
+- Modify: `src/interfaces/cli/commands/executive-effectiveness-handler.ts`
 - Test: `tests/cli/commands/executive-effectiveness-cli.vitest.ts`
 
 **Interfaces:**
@@ -326,7 +326,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 - [ ] **Step 1: Add imports to the handler**
 
-Add to the imports at the top of `src/cli/commands/executive-effectiveness-handler.ts`:
+Add to the imports at the top of `src/interfaces/cli/commands/executive-effectiveness-handler.ts`:
 
 ```ts
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -470,7 +470,7 @@ Add new test cases at the end of `tests/cli/commands/executive-effectiveness-cli
 
 ```ts
 import { writeFileSync, mkdirSync } from "node:fs";
-import type { ProposalEffectivenessReport } from "../../../src/adaptation/effectiveness-types.js";
+import type { ProposalEffectivenessReport } from "../../../src/planning/adaptation/effectiveness-types.js";
 
 describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
   /** Seed raw JSON files matching ProposalEffectivenessReport shape, not via store API. */
@@ -644,7 +644,7 @@ Expected: PASS — all tests green. The full suite includes the sentinel test (5
 - [ ] **Step 8: Commit Task 2**
 
 ```bash
-git add src/cli/commands/executive-effectiveness-handler.ts tests/cli/commands/executive-effectiveness-cli.vitest.ts
+git add src/interfaces/cli/commands/executive-effectiveness-handler.ts tests/cli/commands/executive-effectiveness-cli.vitest.ts
 git commit -m "feat(p10-8b): CLI handler — effectiveness store load + enriched render
 
 - Load effectiveness data via per-file readdirSync with isolated try/catch

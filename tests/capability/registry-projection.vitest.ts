@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { CatalogBackedCapabilityMutationPort } from "../../src/capability/mutation-port.js";
-import { legacyToCanonicalDefinition } from "../../src/capability/legacy-adapter.js";
-import type { Capability } from "../../src/capability/types.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { CatalogBackedCapabilityMutationPort } from "../../src/capabilities/capability/mutation-port.js";
+import { legacyToCanonicalDefinition } from "../../src/capabilities/capability/legacy-adapter.js";
+import type { Capability } from "../../src/capabilities/capability/types.js";
 
 function makeLegacyCap(): Capability {
   return { id: "tool.file.read", version: "1.0", kind: "tool", title: "Read file", description: "d",

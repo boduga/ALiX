@@ -1,7 +1,7 @@
 /**
  * `alix run` handler — Task 14 bounded-shutdown integration.
  *
- * Verifies that the run CLI composition root (src/cli/commands/run.ts) is the
+ * Verifies that the run CLI composition root (src/interfaces/cli/commands/run.ts) is the
  * entry mode's single "app closing down" choke point:
  *   - it shuts down the process TraceClient exactly once on BOTH the success
  *     path and the error path (the finally runs before any return settles),
@@ -21,33 +21,33 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-import type { TraceClient } from "../../../src/tracing/client.js";
+import type { TraceClient } from "../../../src/models/tracing/client.js";
 
-vi.mock("../../../src/agent/session.js", () => ({
+vi.mock("../../../src/agents/agent/session.js", () => ({
   createAgentSession: vi.fn(),
 }));
-vi.mock("../../../src/agent/session-store-jsonl.js", () => ({
+vi.mock("../../../src/agents/agent/session-store-jsonl.js", () => ({
   JsonlSessionStore: class {
     constructor() {}
   },
 }));
-vi.mock("../../../src/config/loader.js", () => ({
+vi.mock("../../../src/operations/config/loader.js", () => ({
   loadConfig: vi.fn(async () => ({ tracing: { enabled: true } })),
 }));
-vi.mock("../../../src/tracing/client-factory.js", () => ({
+vi.mock("../../../src/models/tracing/client-factory.js", () => ({
   createTraceClient: vi.fn(),
 }));
-vi.mock("../../../src/providers/base.js", () => ({
+vi.mock("../../../src/models/providers/base.js", () => ({
   ApiError: class extends Error {},
 }));
-vi.mock("../../../src/cli/renderers/repl.js", () => ({
+vi.mock("../../../src/interfaces/cli/renderers/repl.js", () => ({
   createReplEvents: () => ({ on: vi.fn(), emit: vi.fn() }),
   createReplRenderer: () => ({ start: vi.fn(async () => {}) }),
 }));
 
-import { handler } from "../../../src/cli/commands/run.js";
-import { createAgentSession } from "../../../src/agent/session.js";
-import { createTraceClient } from "../../../src/tracing/client-factory.js";
+import { handler } from "../../../src/interfaces/cli/commands/run.js";
+import { createAgentSession } from "../../../src/agents/agent/session.js";
+import { createTraceClient } from "../../../src/models/tracing/client-factory.js";
 
 /** Recording TraceClient the factory mock resolves — only shutdown() is used. */
 function fakeTraceClient(shutdownImpl?: () => Promise<void>) {
@@ -148,7 +148,7 @@ describe("run handler · bounded shutdown at the composition root (Task 14)", ()
     // Headless tolerance: loadConfig throws when no Secret Service bus is
     // available (cron). The run must proceed with no chat-model hint and a
     // (mocked) trace client instead of dying before any turn begins.
-    const { loadConfig } = await import("../../../src/config/loader.js");
+    const { loadConfig } = await import("../../../src/operations/config/loader.js");
     (loadConfig as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error("Credential store is unavailable")
     );

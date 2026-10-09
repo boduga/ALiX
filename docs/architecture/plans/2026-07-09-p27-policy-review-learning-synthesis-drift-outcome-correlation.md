@@ -40,14 +40,14 @@
 | P27.1 | `src/governance/learning-synthesis-types.ts` | DriftOutcomeTrace, LearningSynthesisReport types |
 | P27.2 | `src/governance/learning-synthesis-analytics.ts` | Pure correlation analytics |
 | P27.3 | `src/governance/learning-synthesis-report.ts` | Pure report builder + text/json |
-| P27.4 | `src/cli/commands/governance-learning-synthesis.ts` | CLI handler (no write path) |
+| P27.4 | `src/interfaces/cli/commands/governance-learning-synthesis.ts` | CLI handler (no write path) |
 | P27.5 | `docs/architecture/checkpoints/2026-07-09-p27-5-policy-review-learning-synthesis-drift-outcome-correlation-checkpoint.md` | Checkpoint |
 
 ### Touched Files
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "learning-synthesis"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "learning-synthesis"` dispatch |
 
 ### Untouched Files
 
@@ -766,8 +766,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 4: P27.4 — CLI + Dispatch (governance-learning-synthesis.ts)
 
 **Files:**
-- Create: `src/cli/commands/governance-learning-synthesis.ts`
-- Modify: `src/cli/commands/governance.ts` — add `case "learning-synthesis"` dispatch
+- Create: `src/interfaces/cli/commands/governance-learning-synthesis.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts` — add `case "learning-synthesis"` dispatch
 - Test: `tests/governance/learning-synthesis-cli.test.ts`
 
 **Interfaces:**
@@ -784,7 +784,7 @@ import assert from "node:assert/strict";
 import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleGovernanceLearningSynthesisCommand } from "../../src/cli/commands/governance-learning-synthesis.js";
+import { handleGovernanceLearningSynthesisCommand } from "../../src/interfaces/cli/commands/governance-learning-synthesis.js";
 
 let tmpDir: string;
 let bundlePath: string;
@@ -863,7 +863,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Write the CLI handler**
 
-Create `src/cli/commands/governance-learning-synthesis.ts`:
+Create `src/interfaces/cli/commands/governance-learning-synthesis.ts`:
 
 ```typescript
 /**
@@ -1130,7 +1130,7 @@ export function handleGovernanceLearningSynthesisCommand(
 
 - [ ] **Step 4: Wire dispatch in governance.ts**
 
-Read `src/cli/commands/governance.ts` and add after the `case "policy-review-outcome"` block:
+Read `src/interfaces/cli/commands/governance.ts` and add after the `case "policy-review-outcome"` block:
 
 ```typescript
     case "learning-synthesis": {
@@ -1152,7 +1152,7 @@ Expected: Clean compile
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/governance-learning-synthesis.ts src/cli/commands/governance.ts tests/governance/learning-synthesis-cli.test.ts
+git add src/interfaces/cli/commands/governance-learning-synthesis.ts src/interfaces/cli/commands/governance.ts tests/governance/learning-synthesis-cli.test.ts
 git commit -m "feat(P27.4): learning synthesis CLI — build|report, no write path
 
 Wires alix governance learning-synthesis subcommand tree into governance.ts

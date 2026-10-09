@@ -49,7 +49,7 @@ PolicyGate.evaluateToolCall()   PolicyGate.evaluateCapability()
 ### PolicyGate
 
 ```typescript
-// src/policy/policy-gate.ts
+// src/governance/policy/policy-gate.ts
 
 type PolicyGateDecision = {
   requestId: string;
@@ -195,10 +195,10 @@ This ensures `file.write path="../secrets.env"` is detected even when the raw st
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/policy/policy-gate.ts` | **Create** | `PolicyGate` class, `PolicyGateDecision`, `ToolPolicyRequest`, `CapabilityPolicyRequest`, approval lifecycle |
-| `src/tools/executor.ts` | **Modify** | Replace placeholder + legacy policy with single `PolicyGate.evaluateToolCall()` |
-| `src/policy/runtime-gate.ts` | **Modify** | Call `PolicyGate.evaluateCapability()` for policy decisions |
-| `src/policy/index.ts` | **Modify** | Export `PolicyGate`, `PolicyGateDecision` |
+| `src/governance/policy/policy-gate.ts` | **Create** | `PolicyGate` class, `PolicyGateDecision`, `ToolPolicyRequest`, `CapabilityPolicyRequest`, approval lifecycle |
+| `src/capabilities/tools/executor.ts` | **Modify** | Replace placeholder + legacy policy with single `PolicyGate.evaluateToolCall()` |
+| `src/governance/policy/runtime-gate.ts` | **Modify** | Call `PolicyGate.evaluateCapability()` for policy decisions |
+| `src/governance/policy/index.ts` | **Modify** | Export `PolicyGate`, `PolicyGateDecision` |
 | `tests/policy/policy-gate.test.ts` | **Create** | Unit tests for tool and capability evaluation paths |
 
 ## Testing

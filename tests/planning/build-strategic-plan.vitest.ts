@@ -8,8 +8,8 @@ import type {
   RootCauseAnalysis,
   CausalFinding,
   LikelyCause,
-} from "../../src/reasoning/reasoning-types.js";
-import type { CorrelationSubsystemId } from "../../src/correlation/correlation-types.js";
+} from "../../src/planning/reasoning/reasoning-types.js";
+import type { CorrelationSubsystemId } from "../../src/operations/correlation/correlation-types.js";
 import type { PlanningEngineConfig } from "../../src/planning/planning-types.js";
 
 // ---------------------------------------------------------------------------

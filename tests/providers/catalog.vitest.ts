@@ -1,6 +1,6 @@
 /**
  * Tests for `detectProvider()` and `loadUserConfigApiKeys()` in
- * `src/providers/catalog.ts`.
+ * `src/models/providers/catalog.ts`.
  *
  * Verifies the env-var-always-wins / user-config-fallback / ollama chain.
  *
@@ -19,7 +19,7 @@ import {
   PROVIDERS,
   getDefaultModel,
   _setUserConfigPathOverride,
-} from "../../src/providers/catalog.js";
+} from "../../src/models/providers/catalog.js";
 
 // Env vars that `detectProvider` reads (computed from PROVIDERS, never hardcoded).
 const ALL_ENV_VARS = PROVIDERS.map((p) => p.env);

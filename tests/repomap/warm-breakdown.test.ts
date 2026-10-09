@@ -2,8 +2,8 @@ import { describe, it } from "node:test";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { Dirent } from "node:fs";
-import { buildDependencyGraph } from "../../src/repomap/dependency-graph.js";
-import { extractTopLevelSymbols, type ExtractedSymbol } from "../../src/repomap/symbol-extractor.js";
+import { buildDependencyGraph } from "../../src/context/repomap/dependency-graph.js";
+import { extractTopLevelSymbols, type ExtractedSymbol } from "../../src/context/repomap/symbol-extractor.js";
 import { existsSync } from "node:fs";
 
 type FileEntry = {

@@ -15,14 +15,14 @@
 ## File Structure
 
 **New files:**
-- `src/providers/specs/_tool-schema.ts` — Schema builder (~30 lines)
-- `src/providers/specs/local-llama-spec.ts` — Provider spec (~100 lines)
+- `src/models/providers/specs/_tool-schema.ts` — Schema builder (~30 lines)
+- `src/models/providers/specs/local-llama-spec.ts` — Provider spec (~100 lines)
 - `tests/providers/tool-schema.test.ts` — Schema tests
 - `tests/providers/local-llama-spec.test.ts` — Spec tests
 - `docs/local-llama-setup.md` — User setup guide
 
 **Modified files:**
-- `src/providers/unified-complete.ts` — Register the new spec (one line)
+- `src/models/providers/unified-complete.ts` — Register the new spec (one line)
 
 ---
 
@@ -30,7 +30,7 @@
 
 **Files:**
 - Create: `tests/providers/tool-schema.test.ts`
-- Create: `src/providers/specs/_tool-schema.ts`
+- Create: `src/models/providers/specs/_tool-schema.ts`
 
 - [ ] **Step 1: Write failing test**
 
@@ -38,7 +38,7 @@
 // tests/providers/tool-schema.test.ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildToolCallSchema } from "../../src/providers/specs/_tool-schema.js";
+import { buildToolCallSchema } from "../../src/models/providers/specs/_tool-schema.js";
 
 describe("buildToolCallSchema", () => {
   it("returns an object schema", () => {
@@ -80,10 +80,10 @@ npx tsc -p tsconfig.json 2>&1 | tail -3
 
 Expected: Module not found.
 
-- [ ] **Step 3: Implement `src/providers/specs/_tool-schema.ts`**
+- [ ] **Step 3: Implement `src/models/providers/specs/_tool-schema.ts`**
 
 ```typescript
-// src/providers/specs/_tool-schema.ts
+// src/models/providers/specs/_tool-schema.ts
 import type { ToolDef } from "../types.js";
 
 /**
@@ -127,7 +127,7 @@ Expected: 4 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/providers/specs/_tool-schema.ts tests/providers/tool-schema.test.ts
+git add src/models/providers/specs/_tool-schema.ts tests/providers/tool-schema.test.ts
 git commit -m "feat(providers): add buildToolCallSchema for grammar-constrained tools"
 ```
 
@@ -137,7 +137,7 @@ git commit -m "feat(providers): add buildToolCallSchema for grammar-constrained 
 
 **Files:**
 - Create: `tests/providers/local-llama-spec.test.ts`
-- Create: `src/providers/specs/local-llama-spec.ts`
+- Create: `src/models/providers/specs/local-llama-spec.ts`
 
 - [ ] **Step 1: Write failing tests**
 
@@ -145,7 +145,7 @@ git commit -m "feat(providers): add buildToolCallSchema for grammar-constrained 
 // tests/providers/local-llama-spec.test.ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { localLlamaSpec } from "../../src/providers/specs/local-llama-spec.js";
+import { localLlamaSpec } from "../../src/models/providers/specs/local-llama-spec.js";
 
 describe("localLlamaSpec", () => {
   it("uses llama-server's OpenAI-compat base URL by default", () => {
@@ -246,10 +246,10 @@ describe("localLlamaSpec", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-- [ ] **Step 3: Implement `src/providers/specs/local-llama-spec.ts`**
+- [ ] **Step 3: Implement `src/models/providers/specs/local-llama-spec.ts`**
 
 ```typescript
-// src/providers/specs/local-llama-spec.ts
+// src/models/providers/specs/local-llama-spec.ts
 import type { ProviderSpec } from "../spec-types.js";
 import type { NormalizedRequest, NormalizedResponse, ToolCall, TokenUsage } from "../types.js";
 import { buildToolCallSchema } from "./_tool-schema.js";
@@ -368,7 +368,7 @@ Expected: 9 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/providers/specs/local-llama-spec.ts tests/providers/local-llama-spec.test.ts
+git add src/models/providers/specs/local-llama-spec.ts tests/providers/local-llama-spec.test.ts
 git commit -m "feat(providers): local-llama spec with grammar-constrained tool calling"
 ```
 
@@ -377,7 +377,7 @@ git commit -m "feat(providers): local-llama spec with grammar-constrained tool c
 ## Task 3: Register spec in dispatcher
 
 **Files:**
-- Modify: `src/providers/unified-complete.ts`
+- Modify: `src/models/providers/unified-complete.ts`
 
 - [ ] **Step 1: Add import and registration**
 
@@ -407,7 +407,7 @@ npx tsc -p tsconfig.json 2>&1 | tail -3
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/providers/unified-complete.ts
+git add src/models/providers/unified-complete.ts
 git commit -m "feat(providers): register local-llama spec in dispatcher"
 ```
 

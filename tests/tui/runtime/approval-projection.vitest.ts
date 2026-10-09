@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { ApprovalProjection, MAX_COMPLETED } from '../../../src/tui/runtime/approval-projection.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { ApprovalProjection, MAX_COMPLETED } from '../../../src/interfaces/tui/runtime/approval-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 function evt(type: string, payload: Record<string, unknown>, seq: number, ts = seq * 1000): AlixEvent {
   return { id: `e${seq}`, seq, version: 1, sessionId: 's', timestamp: new Date(ts).toISOString(), type, actor: 'system', payload };

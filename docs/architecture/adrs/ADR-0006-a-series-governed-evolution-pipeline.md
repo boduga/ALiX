@@ -219,13 +219,13 @@ The A-series governed evolution pipeline is **not**:
 
 ## 8. References
 
-- A0: `src/evolution/contracts/evolution-contract.ts`
-- A2: `src/evolution/verification/`
-- A3: `src/evolution/governance/`
-- A4: `src/evolution/execution/`
-- A5: `src/evolution/observation/`
+- A0: `src/planning/evolution/contracts/evolution-contract.ts`
+- A2: `src/planning/evolution/verification/`
+- A3: `src/planning/evolution/governance/`
+- A4: `src/planning/evolution/execution/`
+- A5: `src/planning/evolution/observation/`
 - Specs: `docs/architecture/specs/2026-07-12-a5-outcome-observation-design.md`
 - Plans: `docs/superpowers/plans/2026-07-12-a5-outcome-observation-plan.md`
-- Evidence contract: `src/evolution/verification/contracts/verification-contract.ts`
-- Confidence contract: `src/evolution/verification/contracts/confidence-contract.ts`
+- Evidence contract: `src/planning/evolution/verification/contracts/verification-contract.ts`
+- Confidence contract: `src/planning/evolution/verification/contracts/confidence-contract.ts`
 - Evolution CLI: `src/governance/evolution-cli.ts`

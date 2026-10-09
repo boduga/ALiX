@@ -36,9 +36,9 @@ const {
   parseLabelRecord,
   resolveDisagreementLabels,
   summarizeCorpus,
-} = await import(`${ROOT}/dist/src/decision/tool-selection-corpus.js`);
+} = await import(`${ROOT}/dist/src/planning/decision/tool-selection-corpus.js`);
 const { extractToolSelectionScopes } = await import(
-  `${ROOT}/dist/src/decision/tool-selection-replay.js`
+  `${ROOT}/dist/src/planning/decision/tool-selection-replay.js`
 );
 
 function parseArgs(argv) {

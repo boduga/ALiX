@@ -88,7 +88,7 @@ Keep the existing per-symbol sentinels (signalEvaluatedEvent, decisionRecordedEv
 - `src/governance/audit-decorators.ts` — audited store factories
 - `src/governance/action-queue.ts` — `refreshProposals`
 - `src/governance/{governance-signal,decision-capture,operator-review,action-queue}.js` — real `File*Store` classes for seeding
-- `src/cli/commands/governance.ts` — sentinel scan target
+- `src/interfaces/cli/commands/governance.ts` — sentinel scan target
 
 ## Acceptance gate
 

@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { describe, it, expect } from "vitest";
 import { codeOnly } from "../helpers/import-graph.js";
 
-const SRC = resolve(import.meta.dirname, "../../src/capability/mutation-contract.ts");
+const SRC = resolve(import.meta.dirname, "../../src/capabilities/capability/mutation-contract.ts");
 const source = readFileSync(SRC, "utf8");
 // Comment-stripped view for symbol/side-effect scans (#697).
 const code = codeOnly(source);
@@ -27,8 +27,8 @@ describe("mutation-contract.ts purity (user ruling)", () => {
     // the rest of src/adaptation (stores, analyzers, appliers, etc.)
     const allowed = [
       "./canonical/",
-      "../adaptation/capability-evolution-types.js",
-      "../evolution/contracts/evolution-contract.js",
+      "../../planning/adaptation/capability-evolution-types.js",
+      "../../planning/evolution/contracts/evolution-contract.js",
     ];
     expect(bannedImports(source, allowed)).toEqual([]);
   });
@@ -37,8 +37,8 @@ describe("mutation-contract.ts purity (user ruling)", () => {
     const synthetic = 'import type { EffectivenessStore } from "../adaptation/effectiveness-store.js";\n';
     const banned = bannedImports(synthetic, [
       "./canonical/",
-      "../adaptation/capability-evolution-types.js",
-      "../evolution/contracts/evolution-contract.js",
+      "../../planning/adaptation/capability-evolution-types.js",
+      "../../planning/evolution/contracts/evolution-contract.js",
     ]);
     expect(banned).toContain("../adaptation/effectiveness-store.js");
   });
@@ -61,7 +61,7 @@ describe("mutation-contract.ts purity (user ruling)", () => {
 /** Barrel integration: the mutation contract is exported from the capability index. */
 describe("capability barrel exports", () => {
   it("re-exports the mutation contract", async () => {
-    const mod = await import("../../src/capability/index.js");
+    const mod = await import("../../src/capabilities/capability/index.js");
     expect(typeof mod.isLegalTransition).toBe("function");
     expect(typeof mod.validateCapabilityMutation).toBe("function");
     expect(typeof mod.classifyUpdateBump).toBe("function");

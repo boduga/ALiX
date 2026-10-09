@@ -106,7 +106,7 @@ The `merge` gate cannot be approved by `approveGate()`. It represents the invari
 
 - `src/governance/approval-workflow.ts` — Types + pure functions
 - `tests/governance/approval-workflow.test.ts` — Unit tests (node:test)
-- `src/cli/commands/governance.ts` — Add `approval` subcommand
+- `src/interfaces/cli/commands/governance.ts` — Add `approval` subcommand
 
 ## Merge Criteria
 

@@ -20,11 +20,11 @@ import {
   createWorkerAssignment,
   transitionWorkerStatus,
   recomputeRunStatus,
-} from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/coordination-types.js";
 import {
   coordinationCompletionLabel,
   deriveCoordinationCompletion,
-} from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/coordination-types.js";
 import type {
   CoordinationRun,
   CoordinationRunStatus,
@@ -37,7 +37,7 @@ import type {
   PlanTriggerKind,
   PlanningRoundStatus,
   WorkerOwnershipClaim,
-} from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/coordination-types.js";
 
 // ─── CoordinationRunStatus: "replanning" ─────────────────────────────────
 

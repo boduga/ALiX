@@ -121,13 +121,13 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 **Purpose.** The single canonical `CapabilityDefinition` contract: semantic identity, immutable SemVer versioning, provider bindings separate from kind.
 
-**Scope.** `CapabilityDefinition` type (replaces `src/capability/types.ts` `Capability`); semantic `CapabilityKind` (`core|query|operation|workflow|agent`); `id@version` identity; `bindings[]` + `provider.type` union; canonical validation (reject short SemVer, empty provider IDs, non-serializable handles, kind=provider-technology); migration vocabulary from `initial-capabilities.ts` and `tool-registry.ts`.
+**Scope.** `CapabilityDefinition` type (replaces `src/capabilities/capability/types.ts` `Capability`); semantic `CapabilityKind` (`core|query|operation|workflow|agent`); `id@version` identity; `bindings[]` + `provider.type` union; canonical validation (reject short SemVer, empty provider IDs, non-serializable handles, kind=provider-technology); migration vocabulary from `initial-capabilities.ts` and `tool-registry.ts`.
 
 **Dependencies.** None (first increment). Consumes research #473/#474 findings.
 
 **Locked decisions incorporated.** #475 (kind vocabulary, provider-tech ≠ kind), #476 (binding vocabulary), #479 (SemVer `id@version`).
 
-**Files/modules affected.** `src/capability/types.ts`; `src/capability/initial-capabilities.ts` (vocabulary only — behavior unchanged, see CAP-2); `src/tools/tool-registry.ts` (capabilityId vocabulary); `src/policy/capability-registry.ts` (risk/approval metadata → definition fields); `docs/research/wf-r1-*.md`, `wf-r2-*.md`.
+**Files/modules affected.** `src/capabilities/capability/types.ts`; `src/capabilities/capability/initial-capabilities.ts` (vocabulary only — behavior unchanged, see CAP-2); `src/capabilities/tools/tool-registry.ts` (capabilityId vocabulary); `src/governance/policy/capability-registry.ts` (risk/approval metadata → definition fields); `docs/research/wf-r1-*.md`, `wf-r2-*.md`.
 
 **Migration boundary.** Contract stands alone; **no runtime behavior change** (design §70 Stage 1 "do not change behavior yet"). The old `Capability` type is superseded in-place; consumers migrate over later CAPs.
 
@@ -156,7 +156,7 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 **Locked decisions incorporated.** #478 (two-phase authoring, no invented defaults), #479 (immutable publications retained, corrections = new artifacts), #476 (bindings persisted alongside definitions).
 
-**Files/modules affected.** New `CapabilityDefinitionStore` + `.alix/capabilities/*`; `src/capability/initial-capabilities.ts` → bootstrap provider (no longer the sole definition database); `src/tools/tool-registry.ts`; `src/integrations/session-capabilities.ts`; `src/policy/capability-registry.ts`; `src/capability/registry/capability-resolver.ts` (card-discovery re-aligned to catalog ids).
+**Files/modules affected.** New `CapabilityDefinitionStore` + `.alix/capabilities/*`; `src/capabilities/capability/initial-capabilities.ts` → bootstrap provider (no longer the sole definition database); `src/capabilities/tools/tool-registry.ts`; `src/capabilities/integrations/session-capabilities.ts`; `src/governance/policy/capability-registry.ts`; `src/capabilities/capability/registry/capability-resolver.ts` (card-discovery re-aligned to catalog ids).
 
 **Migration boundary.** Catalog populated from bootstrap sources (Stage 2); runtime behavior unchanged. No independent definition universe remains.
 
@@ -179,13 +179,13 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 **Purpose.** The registry becomes a projection of the catalog — the current-state authority that owns definitions only via the catalog, never independently.
 
-**Scope.** Refactor `src/capability/registry.ts` to the design §14 interface (`register/unregister/get/list/query/getLifecycleState/setLifecycleState/getProviders/getAvailableProviders/export/import`); runtime platform's registry (instance A) becomes the projection; lifecycle state is current registry state (no A7-only overlay authority).
+**Scope.** Refactor `src/capabilities/capability/registry.ts` to the design §14 interface (`register/unregister/get/list/query/getLifecycleState/setLifecycleState/getProviders/getAvailableProviders/export/import`); runtime platform's registry (instance A) becomes the projection; lifecycle state is current registry state (no A7-only overlay authority).
 
 **Dependencies.** CAP-2.
 
 **Locked decisions incorporated.** #481 (registry = current state; ledger = history), #476 (availability in registry), #479 (versioning: `get` by `id@version`, list shows eligible versions).
 
-**Files/modules affected.** `src/capability/registry.ts`; `src/capability/platform.ts`; consumers (`src/capability/runtime.ts` read paths).
+**Files/modules affected.** `src/capabilities/capability/registry.ts`; `src/capabilities/capability/platform.ts`; consumers (`src/capabilities/capability/runtime.ts` read paths).
 
 **Migration boundary.** Stage 3: runtime init becomes `load catalog → build registry → resolve bindings`.
 
@@ -213,7 +213,7 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 **Locked decisions incorporated.** #476 (full R1 fallback, exhaustion → availability not lifecycle), #481 (availability axis; unbound = missing_binding), ADR-0013 §4/§5/§7 (providers; MCP rule; external CLI rule).
 
-**Files/modules affected.** `src/capability/execution-resolver.ts` → provider-resolver; `src/capability/runtime.ts` dispatch; `src/mcp/capability-mapper.ts` → MCP provider bindings; new provider registry + external-cli executor; `src/capability/executors.ts` (strategy-keyed executor registry → provider implementations).
+**Files/modules affected.** `src/capabilities/capability/execution-resolver.ts` → provider-resolver; `src/capabilities/capability/runtime.ts` dispatch; `src/capabilities/mcp/capability-mapper.ts` → MCP provider bindings; new provider registry + external-cli executor; `src/capabilities/capability/executors.ts` (strategy-keyed executor registry → provider implementations).
 
 **Migration boundary.** **Redrawn boundary.** Provider resolution becomes a first-class boundary; fallback is acceptance, not an add-on. Tool/MCP/CLI capability representations collapse into `bindings[].provider.type`.
 
@@ -242,7 +242,7 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 **Locked decisions incorporated.** #477 (consolidation = true governed merge: `{sources, target, definition, sourceDisposition: deprecate|remove}`, conservative merge rules, `remove` only when safe), #480 (update = immutable publication from governed source `id@version`, executor-determined bump, failed update = no-op), #479 (immutability; governance pins exact `id@version`), #481 (six-state fixed acyclic graph: emerging→active/deprecated, active→mature/declining, mature→declining, stagnant→active/deprecated, declining→deprecated, deprecated terminal; transitions governed not metric-driven), #475 (targets reference semantic kind).
 
-**Files/modules affected.** New mutation-contract module (payloads, transition table); `src/evolution/contracts/evolution-contract.ts` (`EvolutionTargetKind` reconcile — `capability` target references catalog id); `src/evolution/capability-lifecycle/contracts/lifecycle-contract.ts` (three-axis separation; the A7 `APPROVED_PENDING_APPLICATION` projection state is **not** part of the new contract — its deletion is CAP-11).
+**Files/modules affected.** New mutation-contract module (payloads, transition table); `src/planning/evolution/contracts/evolution-contract.ts` (`EvolutionTargetKind` reconcile — `capability` target references catalog id); `src/planning/evolution/capability-lifecycle/contracts/lifecycle-contract.ts` (three-axis separation; the A7 `APPROVED_PENDING_APPLICATION` projection state is **not** part of the new contract — its deletion is CAP-11).
 
 **Migration boundary.** Contracts-first; **no executor yet** (CAP-6). The old A7 lifecycle overlay (`registry.ts:100-122`) is not extended.
 
@@ -271,7 +271,7 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 **Locked decisions incorporated.** #480 (update executes an immutable publication from governed source; executor-classified bump; failed update = no-op), #477 (consolidate executes the approved merge), #478 (create executes the authored, approved definition — no placeholder), #481 (transitions are governed executions, not metric-driven).
 
-**Files/modules affected.** New `CapabilityMutationExecutor`; `src/evolution/execution/execution-planner.ts` (rollback re-homing); `src/evolution/execution/execution-runtime.ts`; `src/evolution/execution/execution-authorization.ts` (preserved).
+**Files/modules affected.** New `CapabilityMutationExecutor`; `src/planning/evolution/execution/execution-planner.ts` (rollback re-homing); `src/planning/evolution/execution/execution-runtime.ts`; `src/planning/evolution/execution/execution-authorization.ts` (preserved).
 
 **Migration boundary.** Stage 6. A7 no longer mutates (Stage 7 rewrites A7 in CAP-9). Governed `register` becomes a real, executable operation.
 
@@ -300,7 +300,7 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 **Locked decisions incorporated.** #481 (deprecated excluded; no dormant; active+unavailable legal), #476 (availability never mutates lifecycle).
 
-**Files/modules affected.** `src/capability/runtime.ts`; `src/capability/execution-resolver.ts`; `src/runtime/execution-authorization.ts` (metadata source re-aligned to catalog).
+**Files/modules affected.** `src/capabilities/capability/runtime.ts`; `src/capabilities/capability/execution-resolver.ts`; `src/runtime-state/runtime/execution-authorization.ts` (metadata source re-aligned to catalog).
 
 **Migration boundary.** Stage 8 (runtime eligibility integrated).
 
@@ -328,7 +328,7 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 **Locked decisions incorporated.** #480/§72 (service surface adopted verbatim; `apply` forward-wired because update-executability is now real), #479 (list shows `id@version`; inspect shows eligibility), #476 (availability in `inspect`/`health`).
 
-**Files/modules affected.** `src/tui/capabilities/capability-service.ts` → shared application-level service; `src/cli.ts` capabilities block (rebuild over service; **no `new CapabilityRegistry()`**); `src/cli/commands/tui.ts` bootstrap (single shared-service bootstrap); `src/tui/app.ts`, `src/tui/palette-controller.ts`, `src/tui/capabilities/palette.ts`, `capabilities-view.ts`, `invocation-presenter.ts`, `schema-renderer.ts`.
+**Files/modules affected.** `src/interfaces/tui/capabilities/capability-service.ts` → shared application-level service; `src/cli.ts` capabilities block (rebuild over service; **no `new CapabilityRegistry()`**); `src/interfaces/cli/commands/tui.ts` bootstrap (single shared-service bootstrap); `src/interfaces/tui/app.ts`, `src/interfaces/tui/palette-controller.ts`, `src/interfaces/tui/capabilities/palette.ts`, `capabilities-view.ts`, `invocation-presenter.ts`, `schema-renderer.ts`.
 
 **Migration boundary.** **Redrawn boundary.** Service established early; no second registry created anywhere; the old A7 CLI (`capability-lifecycle-cli.ts`) remains until CAP-11 but is no longer the model — the service is.
 
@@ -357,7 +357,7 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 **Locked decisions incorporated.** #478 (create proposals carry a gap + suggested identity; operator authors the definition; `REQUEST_MORE_EVIDENCE` stays an A3 outcome), #477 (consolidate proposals carry the explicit target definition), #480 (update proposals target a governed source `id@version`), #481 (transitions proposed, not applied), #479 (governance pins exact `id@version` at write).
 
-**Files/modules affected.** `src/evolution/capability-lifecycle/capability-lifecycle-analyzer.ts`; `capability-proposal-builder.ts`; `capability-governance-bridge.ts`; `capability-lifecycle-ledger.ts` (→ `CapabilityGovernanceEvent`, §37); `capability-execution-projection.ts` (superseded — concrete `CapabilityMutation` replaces the `changes` overlay).
+**Files/modules affected.** `src/planning/evolution/capability-lifecycle/capability-lifecycle-analyzer.ts`; `capability-proposal-builder.ts`; `capability-governance-bridge.ts`; `capability-lifecycle-ledger.ts` (→ `CapabilityGovernanceEvent`, §37); `capability-execution-projection.ts` (superseded — concrete `CapabilityMutation` replaces the `changes` overlay).
 
 **Migration boundary.** Stage 7 (rewrite A7). A7 no longer holds a registry overlay or mutates.
 
@@ -385,7 +385,7 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 **Locked decisions incorporated.** #477 (consolidation effectiveness measured), #481 (deprecation outcome measured), design §4.1 (A5 remains outcome authority), #479 (measurement references exact `id@version`).
 
-**Files/modules affected.** `src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` (reconcile); `src/evolution/observation/observation-evidence-bridge.ts` (baseline + post refs); A5 evidence builders (preserved).
+**Files/modules affected.** `src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` (reconcile); `src/planning/evolution/observation/observation-evidence-bridge.ts` (baseline + post refs); A5 evidence builders (preserved).
 
 **Migration boundary.** A5 remains the outcome authority; no new security infra.
 
@@ -408,13 +408,13 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 **Purpose.** Architectural deletion gate: mechanically prevent regression to two capability surfaces.
 
-**Scope.** Remove the inventory's REMOVE set: A7 capability CLI surface (`capability-lifecycle-cli.ts`, `src/cli/commands/capabilities.ts` barrel, `src/cli.ts:2211-2229` block incl. the **second `new CapabilityRegistry()`**); A7 lifecycle machinery (applier, ledger-rehydration `rehydrateLifecycleOverlay`, step-executor, execution-projection, `CapabilityNotExecutableError`, module `index.ts`); `APPROVED_PENDING_APPLICATION` + the A7 `CapabilityProjectionState`; the lifecycle overlay in `src/capability/registry.ts:100-122`; obsolete A7 lifecycle tests. **Install the structural sentinel test** (plan Workstream 13).
+**Scope.** Remove the inventory's REMOVE set: A7 capability CLI surface (`capability-lifecycle-cli.ts`, `src/interfaces/cli/commands/capabilities.ts` barrel, `src/cli.ts:2211-2229` block incl. the **second `new CapabilityRegistry()`**); A7 lifecycle machinery (applier, ledger-rehydration `rehydrateLifecycleOverlay`, step-executor, execution-projection, `CapabilityNotExecutableError`, module `index.ts`); `APPROVED_PENDING_APPLICATION` + the A7 `CapabilityProjectionState`; the lifecycle overlay in `src/capabilities/capability/registry.ts:100-122`; obsolete A7 lifecycle tests. **Install the structural sentinel test** (plan Workstream 13).
 
 **Dependencies.** CAP-8 (replacement surfaces exist), CAP-9, CAP-10.
 
 **Locked decisions incorporated.** #482 (inventory REMOVE list), #475 (no retained `tool` kind), #476 (bindings replace strategy keys).
 
-**Files/modules affected.** `src/cli.ts` capabilities block; `src/evolution/capability-lifecycle/*` (applier, rehydration, step-executor, execution-projection, errors, index, cli); `src/capability/registry.ts` overlay; `lifecycle-contract.ts` (A7 projection state); removed legacy tests.
+**Files/modules affected.** `src/cli.ts` capabilities block; `src/planning/evolution/capability-lifecycle/*` (applier, rehydration, step-executor, execution-projection, errors, index, cli); `src/capabilities/capability/registry.ts` overlay; `lifecycle-contract.ts` (A7 projection state); removed legacy tests.
 
 **Migration boundary.** Stage 9 (retire old surfaces). Removal only after replacement surfaces (CAP-8/9/10) exist.
 

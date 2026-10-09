@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { resolveSkillsCommand } from "../../../../src/cli/commands/skills/run-skills.js";
-import { runSkillCommand, resolveSkillScriptPath } from "../../../../src/cli/commands/skills/run-skill.js";
+import { resolveSkillsCommand } from "../../../../src/interfaces/cli/commands/skills/run-skills.js";
+import { runSkillCommand, resolveSkillScriptPath } from "../../../../src/interfaces/cli/commands/skills/run-skill.js";
 
 describe("resolveSkillsCommand", () => {
   it('maps ["available"] to { type: "available" }', () => {

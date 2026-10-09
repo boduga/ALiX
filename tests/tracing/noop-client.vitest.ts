@@ -23,8 +23,8 @@
  */
 import { describe, it, expect } from "vitest";
 
-import { NOOP_TRACE_CLIENT, NoopTraceClient } from "../../src/tracing/noop-client.js";
-import type { ModelSpanInput, RunOutcome, SpanOutcome, ToolSpanInput, TraceRun, TraceRunInput, TraceSpan } from "../../src/tracing/types.js";
+import { NOOP_TRACE_CLIENT, NoopTraceClient } from "../../src/models/tracing/noop-client.js";
+import type { ModelSpanInput, RunOutcome, SpanOutcome, ToolSpanInput, TraceRun, TraceRunInput, TraceSpan } from "../../src/models/tracing/types.js";
 
 function runInput(overrides: Partial<TraceRunInput> = {}): TraceRunInput {
   return { runId: "noop-run", sessionId: "s1", task: "noop task", ...overrides };

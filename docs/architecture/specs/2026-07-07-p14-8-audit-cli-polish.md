@@ -13,7 +13,7 @@ This is the last slice before the P14 → P15 phase boundary.
 
 ## Current audit CLI surface (P14.5b, already shipped)
 
-`alix governance audit <subcommand>` in `src/cli/commands/governance.ts`:
+`alix governance audit <subcommand>` in `src/interfaces/cli/commands/governance.ts`:
 
 | Subcommand | Status | Notes |
 |------------|--------|-------|
@@ -51,7 +51,7 @@ Five narrow, additive improvements. **No new query-engine module, no analysis, n
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Extend `runAuditList`, `runAuditShow`; add `runAuditTimeline`; add bare-`audit` help in dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Extend `runAuditList`, `runAuditShow`; add `runAuditTimeline`; add bare-`audit` help in dispatch |
 | `tests/cli/audit-cli-polish.test.ts` | New: assertion tests for new flags, timeline output, `--related`, help text |
 
 No changes to `src/governance/*` (query helpers, stores, types, decorators all unchanged).
@@ -60,7 +60,7 @@ No changes to `src/governance/*` (query helpers, stores, types, decorators all u
 
 - `src/governance/audit-store.ts` — `FileAuditStore.list()` / `listChronological()` / `getById()`
 - `src/governance/audit-query.js` — existing `queryByTraceId`, `queryByActor`, etc. (reused, not extended)
-- `src/cli/commands/governance.ts` — audit handlers + dispatch
+- `src/interfaces/cli/commands/governance.ts` — audit handlers + dispatch
 
 ## Invariants preserved
 

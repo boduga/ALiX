@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { ApprovalManager } from "../../src/tui/approval-manager.js";
-import type { ApprovalManagerDeps } from "../../src/tui/approval-manager.js";
+import { ApprovalManager } from "../../src/interfaces/tui/approval-manager.js";
+import type { ApprovalManagerDeps } from "../../src/interfaces/tui/approval-manager.js";
 
 describe("TUI approval continuation", () => {
   let pendingList: Array<{ id: string; capabilities?: string[]; reason: string; createdAt: string }> = [];

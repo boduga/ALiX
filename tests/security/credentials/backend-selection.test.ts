@@ -28,11 +28,11 @@ import {
   createCredentialStoreForBackend,
   resolveCredentialPassphrase,
   CREDENTIAL_PASSPHRASE_ENV,
-} from "../../../src/security/credentials/backend-selection.js";
+} from "../../../src/governance/security/credentials/backend-selection.js";
 import {
   setStateDirOverride,
   clearStateDirOverride,
-} from "../../../src/security/platform/user-state-paths.js";
+} from "../../../src/governance/security/platform/user-state-paths.js";
 
 /** Point the state dir at a fresh temp dir; return the credentials dir. */
 async function isolateStateDir(): Promise<{ dir: string; credDir: string }> {

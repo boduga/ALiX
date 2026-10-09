@@ -13,8 +13,8 @@
 ## File Structure
 
 ### Create
-- `src/kernel/coordination-types.ts` — `CoordinationRun`, `WorkerAssignment`, `WorkerStatus`, helper constructors
-- `src/kernel/coordination-store.ts` — File-backed `CoordinationStore` (CRUD operations on `.alix/coordination/`)
+- `src/coordination/kernel/coordination-types.ts` — `CoordinationRun`, `WorkerAssignment`, `WorkerStatus`, helper constructors
+- `src/coordination/kernel/coordination-store.ts` — File-backed `CoordinationStore` (CRUD operations on `.alix/coordination/`)
 - `tests/kernel/coordination-store.test.ts` — unit tests for persistence
 
 ---
@@ -71,7 +71,7 @@ The existing `TaskNode` (in `task-graph.ts`) is the graph executor's unit. A `Wo
 ### Task 1: Coordination types
 
 **Files:**
-- Create: `src/kernel/coordination-types.ts`
+- Create: `src/coordination/kernel/coordination-types.ts`
 
 - [ ] **Step 1: Write the type definitions**
 
@@ -273,7 +273,7 @@ Expected: clean compile. Note: needs `randomUUID` import — add `import { rando
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/coordination-types.ts
+git add src/coordination/kernel/coordination-types.ts
 git commit -m "feat(coordination): add CoordinationRun, WorkerAssignment types with constructors"
 ```
 
@@ -282,7 +282,7 @@ git commit -m "feat(coordination): add CoordinationRun, WorkerAssignment types w
 ### Task 2: Coordination store
 
 **Files:**
-- Create: `src/kernel/coordination-store.ts`
+- Create: `src/coordination/kernel/coordination-store.ts`
 
 - [ ] **Step 1: Write the CoordinationStore class**
 
@@ -440,7 +440,7 @@ Expected: clean compile.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/coordination-store.ts
+git add src/coordination/kernel/coordination-store.ts
 git commit -m "feat(coordination): add CoordinationStore with file-backed persistence"
 ```
 
@@ -466,14 +466,14 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
 import {
   createCoordinationRun,
   createWorkerAssignment,
   transitionWorkerStatus,
   recomputeRunStatus,
-} from "../../src/kernel/coordination-types.js";
-import type { CoordinationRun, WorkerAssignment } from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/coordination-types.js";
+import type { CoordinationRun, WorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 
 describe("CoordinationStore", () => {
   let tmpDir: string;
@@ -646,4 +646,4 @@ git commit -m "test(coordination): add unit tests for CoordinationStore and stat
 1. `npm run build` — clean compile
 2. `node --test dist/tests/kernel/coordination-store.test.js` — all pass
 3. `npm run test:node:ci` — existing tests still pass
-4. `git nexus detect_changes` — show only `src/kernel/coordination-types.ts`, `src/kernel/coordination-store.ts`, `tests/kernel/coordination-store.test.ts`
+4. `git nexus detect_changes` — show only `src/coordination/kernel/coordination-types.ts`, `src/coordination/kernel/coordination-store.ts`, `tests/kernel/coordination-store.test.ts`

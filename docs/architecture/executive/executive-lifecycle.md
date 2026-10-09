@@ -439,28 +439,28 @@ alix executive recommend
 
 | Source File | Responsibility |
 |-------------|---------------|
-| `src/executive/planning-engine.ts` | Plan creation from dashboard signals |
-| `src/executive/plan-store.ts` | PersistedExecutionPlan I/O |
-| `src/executive/execution-state-store.ts` | PlanExecutionState I/O |
-| `src/executive/step-runner.ts` | Single-step execution with evidence |
-| `src/executive/execution-engine.ts` | Plan orchestration, runReadySteps |
-| `src/executive/plan-approval-gate.ts` | Plan approve/reject gate |
-| `src/executive/executive-bridge.ts` | Step → P5 proposal bridge |
-| `src/executive/executive-remediate.ts` | Remediation wizard core (pure types, validators, builder) |
-| `src/executive/executive-orchestrator.ts` | Lifecycle orchestration hook + reconciliation |
-| `src/executive/executive-dashboard-loader.ts` | Dashboard data aggregation |
-| `src/executive/executive-health.ts` | Health signal computation |
-| `src/executive/outcome-evaluator.ts` | Plan outcome evaluation |
-| `src/executive/outcome-store.ts` | OutcomeReportStore |
-| `src/executive/trend-store.ts` | Learning trend persistence |
-| `src/executive/recommendation-engine.ts` | Recommendation computation from trends |
-| `src/executive/executive-recommend-store.ts` | RecommendationReportStore |
-| `src/executive/executive-effectiveness.ts` | Effectiveness dispositions |
-| `src/executive/subsystem-correlation.ts` | Cross-subsystem analysis |
-| `src/cli/commands/executive.ts` | CLI dispatcher (router) |
-| `src/cli/commands/executive-*-handler.ts` | Individual CLI handlers (one per subcommand) |
-| `src/executive/executive-orchestrate-handler.ts` | Recovery CLI handler |
-| `src/executive/executive-remediate-handler.ts` | Remediation CLI handler |
+| `src/execution/executive/planning-engine.ts` | Plan creation from dashboard signals |
+| `src/execution/executive/plan-store.ts` | PersistedExecutionPlan I/O |
+| `src/execution/executive/execution-state-store.ts` | PlanExecutionState I/O |
+| `src/execution/executive/step-runner.ts` | Single-step execution with evidence |
+| `src/execution/executive/execution-engine.ts` | Plan orchestration, runReadySteps |
+| `src/execution/executive/plan-approval-gate.ts` | Plan approve/reject gate |
+| `src/execution/executive/executive-bridge.ts` | Step → P5 proposal bridge |
+| `src/execution/executive/executive-remediate.ts` | Remediation wizard core (pure types, validators, builder) |
+| `src/execution/executive/executive-orchestrator.ts` | Lifecycle orchestration hook + reconciliation |
+| `src/execution/executive/executive-dashboard-loader.ts` | Dashboard data aggregation |
+| `src/execution/executive/executive-health.ts` | Health signal computation |
+| `src/execution/executive/outcome-evaluator.ts` | Plan outcome evaluation |
+| `src/execution/executive/outcome-store.ts` | OutcomeReportStore |
+| `src/execution/executive/trend-store.ts` | Learning trend persistence |
+| `src/execution/executive/recommendation-engine.ts` | Recommendation computation from trends |
+| `src/execution/executive/executive-recommend-store.ts` | RecommendationReportStore |
+| `src/execution/executive/executive-effectiveness.ts` | Effectiveness dispositions |
+| `src/execution/executive/subsystem-correlation.ts` | Cross-subsystem analysis |
+| `src/interfaces/cli/commands/executive.ts` | CLI dispatcher (router) |
+| `src/interfaces/cli/commands/executive-*-handler.ts` | Individual CLI handlers (one per subcommand) |
+| `src/execution/executive/executive-orchestrate-handler.ts` | Recovery CLI handler |
+| `src/execution/executive/executive-remediate-handler.ts` | Remediation CLI handler |
 
 ---
 

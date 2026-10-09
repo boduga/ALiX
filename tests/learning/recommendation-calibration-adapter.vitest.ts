@@ -7,9 +7,9 @@ import { tmpdir } from "node:os";
 /** Repo root resolved from test file location (before cwd mock). */
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 import { importedBindings } from "../helpers/import-graph.js";
-import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
-import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
-import { RecommendationCalibrationAdapter } from "../../src/learning/recommendation-calibration-adapter.js";
+import { OutcomeStore } from "../../src/planning/adaptation/outcome-store.js";
+import type { OutcomeRecord } from "../../src/planning/adaptation/outcome-types.js";
+import { RecommendationCalibrationAdapter } from "../../src/planning/learning/recommendation-calibration-adapter.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
@@ -158,7 +158,7 @@ describe("RecommendationCalibrationAdapter", () => {
 
   it("is pure: the adapter file does not import LearningStore", () => {
     const bindings = importedBindings(
-      `${REPO_ROOT}/src/learning/recommendation-calibration-adapter.ts`,
+      `${REPO_ROOT}/src/planning/learning/recommendation-calibration-adapter.ts`,
     );
     expect(bindings.has("LearningStore")).toBe(false);
   });

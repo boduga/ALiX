@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { buildVerificationPlan, addSkippedCheck, type VerificationCheck } from "../../src/verifier/planner.js";
+import { buildVerificationPlan, addSkippedCheck, type VerificationCheck } from "../../src/execution/verifier/planner.js";
 
 describe("VerificationPlanner", () => {
   it("builds plan with single check", () => {

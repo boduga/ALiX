@@ -24,10 +24,10 @@ import {
   SIGNING_ERROR_CODES,
   type ConfigSignature,
   type TrustReport,
-} from "../../src/config/signing.js";
-import { ConfigMutationService, computeConfigHash } from "../../src/config/mutation.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
+} from "../../src/operations/config/signing.js";
+import { ConfigMutationService, computeConfigHash } from "../../src/operations/config/mutation.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

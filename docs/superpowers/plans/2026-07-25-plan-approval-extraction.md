@@ -4,7 +4,7 @@
 
 **Goal:** Extract the duplicated approve/reject/edit/detail state machine from `plan-phase.ts` into a shared `runApprovalLoop()` with a `PlanApprovalIO` adapter interface.
 
-**Architecture:** New `src/run/plan-approval.ts` file contains `PlanApprovalIO`, `PlanDecision`, and `runApprovalLoop()`. The two existing functions (`resolvePlanDecisionViaGate`, `promptForPlanApproval`) become thin wrappers.
+**Architecture:** New `src/execution/run/plan-approval.ts` file contains `PlanApprovalIO`, `PlanDecision`, and `runApprovalLoop()`. The two existing functions (`resolvePlanDecisionViaGate`, `promptForPlanApproval`) become thin wrappers.
 
 **Spec:** `docs/superpowers/specs/2026-07-25-plan-approval-extraction-design.md`
 
@@ -22,24 +22,24 @@
 ### Task 1: Create shared module + tests + wire both paths
 
 **Files:**
-- Create: `src/run/plan-approval.ts`
-- Modify: `src/run/plan-phase.ts` (delete 2 functions, add 2 adapter calls)
+- Create: `src/execution/run/plan-approval.ts`
+- Modify: `src/execution/run/plan-phase.ts` (delete 2 functions, add 2 adapter calls)
 - Create: `tests/run/plan-approval.vitest.ts`
 
 **Interfaces:**
-- Produces: `PlanApprovalIO`, `PlanDecision`, `runApprovalLoop()` from `src/run/plan-approval.ts`
+- Produces: `PlanApprovalIO`, `PlanDecision`, `runApprovalLoop()` from `src/execution/run/plan-approval.ts`
 - Consumes: `SidecarFs`, `PlanPhaseResult`, `PlanApprovalGate`, `parsePlanTasks`, `openPlanInEditor`, `persistPlanTaskSidecar`, `clearPlanTaskSidecar` — all existing in `plan-phase.ts`
 
 - [ ] **Step 1: Read `plan-phase.ts` lines 222-283 and 418-492** to confirm the exact function signatures and shared imports
 
-- [ ] **Step 2: Create `src/run/plan-approval.ts`** with the exact code from the design spec — types, interface, and `runApprovalLoop()`
+- [ ] **Step 2: Create `src/execution/run/plan-approval.ts`** with the exact code from the design spec — types, interface, and `runApprovalLoop()`
 
 - [ ] **Step 3: Write failing tests** in `tests/run/plan-approval.vitest.ts` with a mock IO adapter:
 
 ```ts
 import { describe, it, expect, vi } from 'vitest';
-import { runApprovalLoop } from '../../src/run/plan-approval.js';
-import type { PlanApprovalIO, PlanDecision } from '../../src/run/plan-approval.js';
+import { runApprovalLoop } from '../../src/execution/run/plan-approval.js';
+import type { PlanApprovalIO, PlanDecision } from '../../src/execution/run/plan-approval.js';
 
 // Mock IO that returns decisions from a predefined sequence
 function mockIO(decisions: PlanDecision[]): { io: PlanApprovalIO; details: string[] } {
@@ -161,6 +161,6 @@ Expected: ~3274 tests pass
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/run/plan-approval.ts src/run/plan-phase.ts tests/run/plan-approval.vitest.ts
+git add src/execution/run/plan-approval.ts src/execution/run/plan-phase.ts tests/run/plan-approval.vitest.ts
 git commit -m "refactor(run): extract ApprovalMachine from duplicated plan approval logic"
 ```

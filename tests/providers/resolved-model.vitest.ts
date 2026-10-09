@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { openrouterSpec } from "../../src/providers/specs/openrouter-spec.js";
-import { complete, stream, _setFetchForTesting } from "../../src/providers/unified-complete.js";
-import { streamToResponse } from "../../src/run/helpers.js";
-import type { ModelAdapter, NormalizedRequest } from "../../src/providers/types.js";
+import { openrouterSpec } from "../../src/models/providers/specs/openrouter-spec.js";
+import { complete, stream, _setFetchForTesting } from "../../src/models/providers/unified-complete.js";
+import { streamToResponse } from "../../src/execution/run/helpers.js";
+import type { ModelAdapter, NormalizedRequest } from "../../src/models/providers/types.js";
 
 const req: NormalizedRequest = { systemPrompt: "s", messages: [{ role: "user", content: "hi" }] };
 

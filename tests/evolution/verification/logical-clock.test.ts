@@ -6,7 +6,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { LogicalClock } from "../../../src/evolution/verification/index.js";
+import { LogicalClock } from "../../../src/planning/evolution/verification/index.js";
 
 describe("LogicalClock", () => {
   it("starts at tick 0", () => {

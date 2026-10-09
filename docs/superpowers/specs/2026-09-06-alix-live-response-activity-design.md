@@ -335,7 +335,7 @@ interface AgentActivity {
 > Test 7.7 asserts `Cancelling → Cancelled` — so the live phase cannot be a
 > terminal state or a render-only alias. The ten states above remain the
 > diagnostic/terminal vocabulary; see the union comment in
-> `src/agent/agent-activity.ts`.
+> `src/agents/agent/agent-activity.ts`.
 
 `elapsedMs` may be calculated by the renderer from `startedAt`; it does
 not need to be emitted every second.
@@ -807,7 +807,7 @@ type AgentActivityState =
 > while an operator cancel propagates, and Test 7.7 asserts the transition
 > `Cancelling → Cancelled` — so the live in-progress phase cannot be a
 > terminal state or a render-only alias. The comment on the `AgentActivityState`
-> union in `src/agent/agent-activity.ts` carries the same note.
+> union in `src/agents/agent/agent-activity.ts` carries the same note.
 
 Avoid creating duplicate representations if an existing execution-state
 contract already has an appropriate seam.

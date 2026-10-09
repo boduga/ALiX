@@ -14,12 +14,12 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { handleSubsystemCorrelationCommand } from "../../../src/cli/commands/executive-subsystem-correlation-handler.js";
-import { RecommendationReportStore } from "../../../src/executive/recommendation-report-store.js";
-import type { RecommendationReport, ExecutiveRecommendation, NewRecommendationReport } from "../../../src/executive/recommendation-report-store.js";
-import type { ExecutiveOutcomeEvaluationReport, SubsystemDelta } from "../../../src/executive/outcome-evaluator.js";
-import type { ExecutiveSubsystemName } from "../../../src/executive/executive-health.js";
-import type { RecommendationDisposition } from "../../../src/executive/recommendation-effectiveness.js";
+import { handleSubsystemCorrelationCommand } from "../../../src/interfaces/cli/commands/executive-subsystem-correlation-handler.js";
+import { RecommendationReportStore } from "../../../src/execution/executive/recommendation-report-store.js";
+import type { RecommendationReport, ExecutiveRecommendation, NewRecommendationReport } from "../../../src/execution/executive/recommendation-report-store.js";
+import type { ExecutiveOutcomeEvaluationReport, SubsystemDelta } from "../../../src/execution/executive/outcome-evaluator.js";
+import type { ExecutiveSubsystemName } from "../../../src/execution/executive/executive-health.js";
+import type { RecommendationDisposition } from "../../../src/execution/executive/recommendation-effectiveness.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

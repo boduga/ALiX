@@ -29,7 +29,7 @@ Both streams converge in a shared security middleware pipeline in the Inspector 
 
 ### 1.2 Middleware Pipeline
 
-One `src/server/security-middleware.ts` module owns the request lifecycle. All Inspector routes (REST + SSE) pass through the same deterministic pipeline:
+One `src/interfaces/server/security-middleware.ts` module owns the request lifecycle. All Inspector routes (REST + SSE) pass through the same deterministic pipeline:
 
 ```
 request size/method validation
@@ -42,7 +42,7 @@ request size/method validation
 → security audit event
 ```
 
-The security subsystem (`src/security/`) provides pure policy primitives (auth verification, permission maps, redaction rules, rate limit state, origin policies). The middleware layer wires them into the HTTP lifecycle.
+The security subsystem (`src/governance/security/`) provides pure policy primitives (auth verification, permission maps, redaction rules, rate limit state, origin policies). The middleware layer wires them into the HTTP lifecycle.
 
 ### 1.3 Security Context
 
@@ -126,7 +126,7 @@ type RedactionClassification =
 
 **Ingress redaction** — applied before `TelemetryEnvelope` or audit payload is persisted:
 - Runs in the telemetry sink before JSONL append
-- Uses the same `SecretScanner` patterns from `src/security/` + schema-aware key-name rules
+- Uses the same `SecretScanner` patterns from `src/governance/security/` + schema-aware key-name rules
 
 **Egress redaction** — applied before Inspector responses, SSE events, CLI output, exports:
 - Runs as the final middleware step before `res.end()`
@@ -160,11 +160,11 @@ Do not include secret hashes in externally visible output — hashes can become 
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/security/redaction/redactor.ts` | CREATE | Core `SecurityRedactor` with safeguards |
-| `src/security/redaction/classifications.ts` | CREATE | Classification enum and type |
-| `src/security/redaction/redaction-policy.ts` | CREATE | Allowlists, key-name rules, depth config |
-| `src/observability/telemetry-envelope.ts` | MODIFY | Wire ingress redaction into `TelemetrySink` |
-| `src/server/security-middleware.ts` | CREATE | Wire egress redaction into response pipeline |
+| `src/governance/security/redaction/redactor.ts` | CREATE | Core `SecurityRedactor` with safeguards |
+| `src/governance/security/redaction/classifications.ts` | CREATE | Classification enum and type |
+| `src/governance/security/redaction/redaction-policy.ts` | CREATE | Allowlists, key-name rules, depth config |
+| `src/operations/observability/telemetry-envelope.ts` | MODIFY | Wire ingress redaction into `TelemetrySink` |
+| `src/interfaces/server/security-middleware.ts` | CREATE | Wire egress redaction into response pipeline |
 | `tests/security/redaction/*.test.ts` | CREATE | Unit and integration tests |
 | `tests/observability/telemetry-envelope.test.ts` | MODIFY | Add redaction tests |
 
@@ -239,12 +239,12 @@ Even loopback defaults to token authentication for sensitive endpoints (approval
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/security/inspector/auth-service.ts` | CREATE | Token generation, verification, rotation, revocation |
-| `src/security/inspector/authorization.ts` | CREATE | Role/permission mapping, permission checks |
-| `src/security/inspector/security-context.ts` | CREATE | `InspectorSecurityContext`, `InspectorPrincipal`, `InspectorPermission` types |
-| `src/server/security-middleware.ts` | CREATE | Middleware pipeline — auth → authz → origin → rate → handler → redaction → audit |
-| `src/cli/commands/security.ts` | CREATE | `alix security *` CLI commands (delegates to `auth-service.ts`) |
-| `src/server/server.ts` | MODIFY | Wire middleware before all route dispatching |
+| `src/governance/security/inspector/auth-service.ts` | CREATE | Token generation, verification, rotation, revocation |
+| `src/governance/security/inspector/authorization.ts` | CREATE | Role/permission mapping, permission checks |
+| `src/governance/security/inspector/security-context.ts` | CREATE | `InspectorSecurityContext`, `InspectorPrincipal`, `InspectorPermission` types |
+| `src/interfaces/server/security-middleware.ts` | CREATE | Middleware pipeline — auth → authz → origin → rate → handler → redaction → audit |
+| `src/interfaces/cli/commands/security.ts` | CREATE | `alix security *` CLI commands (delegates to `auth-service.ts`) |
+| `src/interfaces/server/server.ts` | MODIFY | Wire middleware before all route dispatching |
 | `tests/security/inspector/*.test.ts` | CREATE | Unit and integration tests |
 | `tests/server/server.test.ts` | MODIFY | Auth integration tests |
 
@@ -308,11 +308,11 @@ In-memory token-bucket rate limiter per `(principalId + clientIp + routeClass)`.
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/security/inspector/origin-policy.ts` | CREATE | Origin allowlist, validation logic |
-| `src/security/inspector/rate-limiter.ts` | CREATE | Token-bucket rate limiter with eviction |
-| `src/security/inspector/connection-limiter.ts` | CREATE | Connection tracking, limits, cleanup |
-| `src/server/security-middleware.ts` | MODIFY | Add origin check, rate limit, SSE controls |
-| `src/server/observability-stream.ts` | MODIFY | Add connection tracking, payload redaction |
+| `src/governance/security/inspector/origin-policy.ts` | CREATE | Origin allowlist, validation logic |
+| `src/governance/security/inspector/rate-limiter.ts` | CREATE | Token-bucket rate limiter with eviction |
+| `src/governance/security/inspector/connection-limiter.ts` | CREATE | Connection tracking, limits, cleanup |
+| `src/interfaces/server/security-middleware.ts` | MODIFY | Add origin check, rate limit, SSE controls |
+| `src/interfaces/server/observability-stream.ts` | MODIFY | Add connection tracking, payload redaction |
 | `tests/security/inspector/rate-limiter.test.ts` | CREATE | Token bucket tests |
 | `tests/security/inspector/origin-policy.test.ts` | CREATE | Origin validation tests |
 | `tests/server/observability-stream.test.ts` | MODIFY | SSE security tests |
@@ -410,13 +410,13 @@ alix audit checkpoint
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/security/audit/canonical-json.ts` | CREATE | Deterministic JSON serialization |
-| `src/security/audit/audit-chain.ts` | CREATE | Hash-chain logic, genesis, migration boundary |
-| `src/security/audit/audit-verifier.ts` | CREATE | Walk, verify, report |
-| `src/security/audit/audit-checkpoint.ts` | CREATE | Periodic signed checkpoint (optional) |
-| `src/audit/audit-store.ts` | MODIFY | Wire hash chain into append, add `AuditIntegrity` |
-| `src/audit/audit-types.ts` | MODIFY | Add `AuditIntegrity`, `migrationBoundary` |
-| `src/cli/commands/security.ts` | MODIFY | Add `alix audit verify`, `alix audit checkpoint` |
+| `src/governance/security/audit/canonical-json.ts` | CREATE | Deterministic JSON serialization |
+| `src/governance/security/audit/audit-chain.ts` | CREATE | Hash-chain logic, genesis, migration boundary |
+| `src/governance/security/audit/audit-verifier.ts` | CREATE | Walk, verify, report |
+| `src/governance/security/audit/audit-checkpoint.ts` | CREATE | Periodic signed checkpoint (optional) |
+| `src/governance/audit/audit-store.ts` | MODIFY | Wire hash chain into append, add `AuditIntegrity` |
+| `src/governance/audit/audit-types.ts` | MODIFY | Add `AuditIntegrity`, `migrationBoundary` |
+| `src/interfaces/cli/commands/security.ts` | MODIFY | Add `alix audit verify`, `alix audit checkpoint` |
 | `tests/security/audit/*.test.ts` | CREATE | Unit and integration tests |
 
 ---
@@ -510,12 +510,12 @@ type ConfigTrustState =
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/security/config/config-digest.ts` | CREATE | Canonical serialization + SHA-256 of config sections |
-| `src/security/config/config-signing.ts` | CREATE | Ed25519 sign/verify, manifest creation, key management |
-| `src/security/config/config-provenance.ts` | CREATE | Provenance record creation, listing, verification |
-| `src/security/config/trust-policy.ts` | CREATE | Trust state evaluation, mode behavior |
-| `src/config/loader.ts` | MODIFY | Wire signature verification, provenance on mutation |
-| `src/cli/commands/security.ts` | MODIFY | Add `alix security keys`, `alix config sign/verify/provenance` |
+| `src/governance/security/config/config-digest.ts` | CREATE | Canonical serialization + SHA-256 of config sections |
+| `src/governance/security/config/config-signing.ts` | CREATE | Ed25519 sign/verify, manifest creation, key management |
+| `src/governance/security/config/config-provenance.ts` | CREATE | Provenance record creation, listing, verification |
+| `src/governance/security/config/trust-policy.ts` | CREATE | Trust state evaluation, mode behavior |
+| `src/operations/config/loader.ts` | MODIFY | Wire signature verification, provenance on mutation |
+| `src/interfaces/cli/commands/security.ts` | MODIFY | Add `alix security keys`, `alix config sign/verify/provenance` |
 | `tests/security/config/*.test.ts` | CREATE | Unit and integration tests |
 
 ---
@@ -557,9 +557,9 @@ Known accepted findings require: owner, rationale, expiration date.
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/security/supply-chain/dependency-policy.ts` | CREATE | Policy types, severity classification |
-| `src/security/supply-chain/package-verifier.ts` | CREATE | `npm pack` verification, allowlist checks |
-| `src/security/supply-chain/security-exceptions.ts` | CREATE | Accepted-finding registry with expiry |
+| `src/governance/security/supply-chain/dependency-policy.ts` | CREATE | Policy types, severity classification |
+| `src/governance/security/supply-chain/package-verifier.ts` | CREATE | `npm pack` verification, allowlist checks |
+| `src/governance/security/supply-chain/security-exceptions.ts` | CREATE | Accepted-finding registry with expiry |
 | `scripts/check-supply-chain.sh` | CREATE | Full CI supply-chain check script |
 | `.github/workflows/publish.yml` | MODIFY or CREATE | Add audit, lockfile check, shrinkwrap |
 | `tests/security/supply-chain/*.test.ts` | CREATE | Unit tests |
@@ -640,22 +640,22 @@ The gate:
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/security/acceptance/security-gate.ts` | CREATE | Gate orchestrator, check registry |
-| `src/security/acceptance/security-report.ts` | CREATE | Machine-readable report format |
+| `src/governance/security/acceptance/security-gate.ts` | CREATE | Gate orchestrator, check registry |
+| `src/governance/security/acceptance/security-report.ts` | CREATE | Machine-readable report format |
 | `tests/security/acceptance/adversarial-auth.test.ts` | CREATE | Auth abuse tests |
 | `tests/security/acceptance/adversarial-redaction.test.ts` | CREATE | Redaction edge cases |
 | `tests/security/acceptance/adversarial-audit.test.ts` | CREATE | Audit chain integrity tests |
 | `tests/security/acceptance/adversarial-rate-limit.test.ts` | CREATE | Rate-limit abuse tests |
 | `tests/security/acceptance/security-gate.test.ts` | CREATE | Gate self-test |
 | `scripts/release-gate.sh` | MODIFY | Add security gate step |
-| `src/server/security-middleware.ts` | MODIFY | Add active-check endpoint |
+| `src/interfaces/server/security-middleware.ts` | MODIFY | Add active-check endpoint |
 
 ---
 
 ## 9. Module Layout
 
 ```
-src/security/
+src/governance/security/
   redaction/
     redactor.ts               ← SecurityRedactor with safeguards
     classifications.ts        ← Classifications enum
@@ -690,24 +690,24 @@ src/security/
     security-gate.ts          ← Gate orchestrator, check registry
     security-report.ts        ← Machine-readable report format
 
-src/server/
+src/interfaces/server/
   security-middleware.ts      ← Middleware pipeline integration
 
-src/cli/commands/
+src/interfaces/cli/commands/
   security.ts                ← alix security * CLI commands
 
-src/audit/
+src/governance/audit/
   audit-store.ts             ← MODIFY: wire hash chain
   audit-types.ts             ← MODIFY: add integrity types
 
-src/config/
+src/operations/config/
   loader.ts                  ← MODIFY: wire signature verification, provenance
 
-src/observability/
+src/operations/observability/
   telemetry-envelope.ts      ← MODIFY: wire ingress redaction
   observability-routes.ts    ← MODIFY: add security audit events
 
-src/server/
+src/interfaces/server/
   server.ts                  ← MODIFY: wire middleware pipeline
   observability-stream.ts    ← MODIFY: add connection controls, payload redaction
   coordination-routes.ts     ← MODIFY: add security audit events

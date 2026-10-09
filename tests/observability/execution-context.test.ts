@@ -6,11 +6,11 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { EMPTY_CONTEXT, hasExecutionContext, mergeExecutionContext } from "../../src/observability/execution-context.js";
-import { buildRuntimeDiagnostic, createMultiplexDiagnosticSink, consoleSink } from "../../src/runtime/runtime-diagnostics.js";
-import { buildDiagnostic } from "../../src/contracts/contract-diagnostics.js";
-import { runtimeDiagToEvent, contractDiagToEvent } from "../../src/observability/diagnostic-event.js";
-import { DiagnosticEventStore, createDiagnosticStoreSink } from "../../src/observability/diagnostic-event-store.js";
+import { EMPTY_CONTEXT, hasExecutionContext, mergeExecutionContext } from "../../src/operations/observability/execution-context.js";
+import { buildRuntimeDiagnostic, createMultiplexDiagnosticSink, consoleSink } from "../../src/runtime-state/runtime/runtime-diagnostics.js";
+import { buildDiagnostic } from "../../src/runtime-state/contracts/contract-diagnostics.js";
+import { runtimeDiagToEvent, contractDiagToEvent } from "../../src/operations/observability/diagnostic-event.js";
+import { DiagnosticEventStore, createDiagnosticStoreSink } from "../../src/operations/observability/diagnostic-event-store.js";
 
 // ---------------------------------------------------------------------------
 // ExecutionContext

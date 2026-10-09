@@ -6,7 +6,7 @@ import { createScenario } from "../benchmark/scenario.js";
 import { RealEventLogEnvironment } from "../benchmark/real-eventlog-environment.js";
 import { runSingleReal, runHorizonsReal, cleanupEnvs } from "../benchmark/real-harness.js";
 import { runSingle, runHorizons } from "../benchmark/harness.js";
-import { project, toExecutionState } from "../src/runtime/execution-state/execution-state-projector.js";
+import { project, toExecutionState } from "../src/runtime-state/runtime/execution-state/execution-state-projector.js";
 
 describe("benchmark real EventLog/StepExecutor integration — issue #639", () => {
   it("real EventLog replaces FakeExecutionEnvironment for horizon 10 (file authoritative, state disposable)", async () => {
@@ -97,7 +97,7 @@ describe("benchmark real EventLog/StepExecutor integration — issue #639", () =
     cleanupEnvs(reportReal.envs);
   });
 
-  it("no new abstraction — reuses src/runtime/execution-state/* (projector/store/context-builder/harness)", async () => {
+  it("no new abstraction — reuses src/runtime-state/runtime/execution-state/* (projector/store/context-builder/harness)", async () => {
     const scenario = createScenario({ seed: 7, horizon: 10 });
     const env = new RealEventLogEnvironment(scenario);
     await env.init();

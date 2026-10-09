@@ -3,7 +3,7 @@
 **Date:** 2026-07-10
 **Status:** Design
 **Phase:** M1 — Runtime Contract Standardization
-**Depends on:** Existing ALiX Runtime (src/agent/, src/providers/, src/tools/, src/mcp/, src/events/, src/autonomy/)
+**Depends on:** Existing ALiX Runtime (src/agents/agent/, src/models/providers/, src/capabilities/tools/, src/capabilities/mcp/, src/runtime-state/events/, src/planning/autonomy/)
 **Checkpoint target:** `alix-m1-runtime-contract-standardization-complete`
 
 ---
@@ -38,13 +38,13 @@ The following already exist and are NOT being built by M1:
 
 | Area | Files | Existing Capabilities |
 |------|-------|----------------------|
-| Agent Runtime | src/agent/ | Agent creation, execution loop, streaming, messages, sub-agent spawning, mutations |
-| Providers | src/providers/ | 15 LLM providers, registry, discovery, circuit breakers, capability metadata, health checks, spec validation |
-| Tools | src/tools/ | Tool registry, executor, routing, file/shell/web tools, collaboration tools, safety wrappers, capability map |
-| MCP | src/mcp/ | Client, server lifecycle, discovery, tool catalog, provenance, selection, transport abstraction, caching |
-| Events | src/events/ | Event log, event types, append-only recording |
-| Autonomy | src/autonomy/ | State machine, scope tracking, run limits |
-| Memory | src/utils/memory/ | Memory store, recall, context building |
+| Agent Runtime | src/agents/agent/ | Agent creation, execution loop, streaming, messages, sub-agent spawning, mutations |
+| Providers | src/models/providers/ | 15 LLM providers, registry, discovery, circuit breakers, capability metadata, health checks, spec validation |
+| Tools | src/capabilities/tools/ | Tool registry, executor, routing, file/shell/web tools, collaboration tools, safety wrappers, capability map |
+| MCP | src/capabilities/mcp/ | Client, server lifecycle, discovery, tool catalog, provenance, selection, transport abstraction, caching |
+| Events | src/runtime-state/events/ | Event log, event types, append-only recording |
+| Autonomy | src/planning/autonomy/ | State machine, scope tracking, run limits |
+| Memory | src/operations/utils/memory/ | Memory store, recall, context building |
 
 M1 does NOT rebuild any of these. It formalizes their interfaces so downstream consumers can depend on contracts instead of implementations.
 
@@ -52,12 +52,12 @@ M1 does NOT rebuild any of these. It formalizes their interfaces so downstream c
 
 ## 4. Contract Ownership Rule
 
-M-series contracts become the only dependency boundary for future platform consumers. Future modules (X-series, A-series, P11.9) must import contracts from `src/runtime/`, not concrete implementations from `src/agent/`, `src/providers/`, `src/tools/`, or `src/mcp/`, unless explicitly marked as runtime-internal.
+M-series contracts become the only dependency boundary for future platform consumers. Future modules (X-series, A-series, P11.9) must import contracts from `src/runtime-state/runtime/`, not concrete implementations from `src/agents/agent/`, `src/models/providers/`, `src/capabilities/tools/`, or `src/capabilities/mcp/`, unless explicitly marked as runtime-internal.
 
 Dependency direction:
 
 ```text
-                Contracts (src/runtime/)
+                Contracts (src/runtime-state/runtime/)
                     ▲
                     |
         ┌───────────┴───────────┐
@@ -88,12 +88,12 @@ M1 produces contracts. Downstream consumers implement against those contracts.
 
 ## 6. M1.1 — Agent Runtime Contract
 
-**Source:** `src/autonomy/scope-tracker.ts`, `src/autonomy/state-machine.ts`, `src/agent/agent.ts`
+**Source:** `src/planning/autonomy/scope-tracker.ts`, `src/planning/autonomy/state-machine.ts`, `src/agents/agent/agent.ts`
 
 ### 5.1 Agent State
 
 ```typescript
-// Source: src/autonomy/scope-tracker.ts (line 7)
+// Source: src/planning/autonomy/scope-tracker.ts (line 7)
 export type AgentState =
   | "idle"
   | "planning"
@@ -110,7 +110,7 @@ export type AgentState =
 ### 5.2 Agent Identity Context
 
 ```typescript
-// Source: src/agent/agent.ts (line 20+)
+// Source: src/agents/agent/agent.ts (line 20+)
 export type AgentContext = {
   sessionId: string;
   sessionDir: string;
@@ -126,7 +126,7 @@ export type AgentContext = {
 ### 5.3 Run Controls
 
 ```typescript
-// Source: src/autonomy/state-machine.ts
+// Source: src/planning/autonomy/state-machine.ts
 export type RunLimits = {
   maxIterations: number;
   maxRepairs: number;
@@ -159,7 +159,7 @@ export type RunResult = {
 ### 5.4 Scope Tracker
 
 ```typescript
-// Source: src/autonomy/scope-tracker.ts
+// Source: src/planning/autonomy/scope-tracker.ts
 export type TaskScope = {
   goal: string;
   files: string[];
@@ -179,12 +179,12 @@ export type ScopeSnapshot = {
 
 ## 7. M1.2 — Provider Contract
 
-**Source:** `src/providers/types.ts`, `src/providers/base.ts`, `src/providers/registry.ts`
+**Source:** `src/models/providers/types.ts`, `src/models/providers/base.ts`, `src/models/providers/registry.ts`
 
 ### 6.1 Model Capabilities
 
 ```typescript
-// Source: src/providers/types.ts
+// Source: src/models/providers/types.ts
 export type ModelCapabilities = {
   provider: string;
   model: string;
@@ -218,7 +218,7 @@ export type NormalizedMessage = {
 ### 6.2 Provider Interface
 
 ```typescript
-// Source: src/providers/base.ts
+// Source: src/models/providers/base.ts
 export interface ModelAdapter {
   readonly provider: string;
   readonly model: string;
@@ -259,7 +259,7 @@ The provider layer describes capability. It does NOT decide best provider, cheap
 ### 7.4 Provider Registry
 
 ```typescript
-// Source: src/providers/registry.ts
+// Source: src/models/providers/registry.ts
 export interface ProviderRegistry {
   getProvider(model: string): ModelAdapter;
   hasProvider(model: string): boolean;
@@ -272,12 +272,12 @@ export interface ProviderRegistry {
 
 ## 8. M1.3 — Tool Contract
 
-**Source:** `src/tools/types.ts`, `src/tools/executor.ts`, `src/tools/tool-registry.ts`
+**Source:** `src/capabilities/tools/types.ts`, `src/capabilities/tools/executor.ts`, `src/capabilities/tools/tool-registry.ts`
 
 ### 7.1 Tool Call Request
 
 ```typescript
-// Source: src/tools/types.ts
+// Source: src/capabilities/tools/types.ts
 export type ToolCallRequest = {
   toolCallId: string;
   name: string;
@@ -290,7 +290,7 @@ export type ToolCallRequest = {
 ### 7.2 Tool Result
 
 ```typescript
-// Source: src/tools/types.ts — discriminated union
+// Source: src/capabilities/tools/types.ts — discriminated union
 export type ToolResult =
   | { kind: "success"; content?: string; output?: string; value?: string;
       matches?: FileMatch[]; changedFiles?: string[]; exitCode?: number;
@@ -315,7 +315,7 @@ This separation matters for X-series execution safety.
 ### 8.4 Tool Names & Typed Args
 
 ```typescript
-// Source: src/tools/types.ts
+// Source: src/capabilities/tools/types.ts
 export type ToolName = "file.read" | "file.create" | "file.delete" | "file.exists"
   | "dir.search" | "shell.run" | "patch.apply" | "done";
 
@@ -331,12 +331,12 @@ export type ToolArgs = {
 
 ## 9. M1.4 — Event Contract
 
-**Source:** `src/events/types.ts`, `src/events/event-log.ts`
+**Source:** `src/runtime-state/events/types.ts`, `src/runtime-state/events/event-log.ts`
 
 ### 8.1 Core Event
 
 ```typescript
-// Source: src/events/types.ts (line 12)
+// Source: src/runtime-state/events/types.ts (line 12)
 export type EventActor = "user" | "agent" | "system" | "tool" | "policy" | "verifier" | "subagent" | "authorization" | "coordination";
 
 export type EventMeta = {
@@ -371,7 +371,7 @@ export type NewEvent<TType extends string = string, TPayload = unknown> = Omit<
 ### 8.2 Event Type Categories
 
 ```typescript
-// Source: src/events/types.ts
+// Source: src/runtime-state/events/types.ts
 // 15+ event type categories with typed payloads:
 // TOOL:    tool.requested, tool.started, tool.output, tool.completed, tool.failed
 // PATCH:   patch.proposed, patch.applied, patch.rolled_back, etc.
@@ -392,7 +392,7 @@ export type NewEvent<TType extends string = string, TPayload = unknown> = Omit<
 ### 8.3 Event Log Interface
 
 ```typescript
-// Source: src/events/event-log.ts
+// Source: src/runtime-state/events/event-log.ts
 export interface EventLogContract {
   readonly path: string;
   init(): Promise<void>;
@@ -450,12 +450,12 @@ export interface ContextTransfer {
 
 ## 11. M1.6 — Memory Contract
 
-**Source:** `src/utils/memory/types.ts`, `src/utils/memory/store.ts`, `src/utils/memory/recall.ts`
+**Source:** `src/operations/utils/memory/types.ts`, `src/operations/utils/memory/store.ts`, `src/operations/utils/memory/recall.ts`
 
 ### 10.1 Memory Entry
 
 ```typescript
-// Source: src/utils/memory/types.ts
+// Source: src/operations/utils/memory/types.ts
 export type MemoryType = "user" | "project" | "feedback" | "reference";
 
 export type MemoryEntry = {
@@ -474,7 +474,7 @@ export type MemoryEntry = {
 ### 10.2 Memory Config
 
 ```typescript
-// Source: src/utils/memory/types.ts
+// Source: src/operations/utils/memory/types.ts
 export type MemoryConfig = {
   decayEnabled: boolean;
   decayDays: number;
@@ -487,7 +487,7 @@ export type MemoryConfig = {
 ### 10.3 Memory Store Interface
 
 ```typescript
-// Source: src/utils/memory/store.ts
+// Source: src/operations/utils/memory/store.ts
 export interface MemoryStoreContract {
   save(entry: MemoryEntry): Promise<void>;
   read(name: string): Promise<MemoryEntry | null>;
@@ -525,16 +525,16 @@ This bridge connects the runtime to P14–P30 governance, ensuring every runtime
 
 | Slice | File | Purpose |
 |-------|------|---------|
-| M1.1 | `src/runtime/agent-contract.ts` | Agent identity, lifecycle, capabilities |
-| M1.2 | `src/runtime/provider-contract.ts` | Provider contract, capability, health |
-| M1.3 | `src/runtime/tool-contract.ts` | Tool contract, provenance, result |
-| M1.4 | `src/runtime/event-contract.ts` | Universal event model, correlation |
-| M1.5 | `src/runtime/context-contract.ts` | Context identity, transfer |
-| M1.6 | `src/runtime/memory-contract.ts` | Memory provider, entry, query |
-| M1.7 | `src/runtime/observability-contract.ts` | Runtime evidence bridge |
+| M1.1 | `src/runtime-state/runtime/agent-contract.ts` | Agent identity, lifecycle, capabilities |
+| M1.2 | `src/runtime-state/runtime/provider-contract.ts` | Provider contract, capability, health |
+| M1.3 | `src/runtime-state/runtime/tool-contract.ts` | Tool contract, provenance, result |
+| M1.4 | `src/runtime-state/runtime/event-contract.ts` | Universal event model, correlation |
+| M1.5 | `src/runtime-state/runtime/context-contract.ts` | Context identity, transfer |
+| M1.6 | `src/runtime-state/runtime/memory-contract.ts` | Memory provider, entry, query |
+| M1.7 | `src/runtime-state/runtime/observability-contract.ts` | Runtime evidence bridge |
 | M1.0 | `docs/architecture/specs/<date>-m1-0-*.md` | Design spec |
 
-Note: Contracts are placed in `src/runtime/` — a new top-level directory for M-series contracts, separate from existing `src/agent/`, `src/providers/`, etc. which hold implementations.
+Note: Contracts are placed in `src/runtime-state/runtime/` — a new top-level directory for M-series contracts, separate from existing `src/agents/agent/`, `src/models/providers/`, etc. which hold implementations.
 
 ### 12.2 Touched Files
 
@@ -554,7 +554,7 @@ No self-modifying foundation.
 
 ### 12.4 Untouched Files
 
-- All files in `src/agent/`, `src/providers/`, `src/tools/`, `src/mcp/`, `src/events/`, `src/autonomy/`, `src/utils/memory/`
+- All files in `src/agents/agent/`, `src/models/providers/`, `src/capabilities/tools/`, `src/capabilities/mcp/`, `src/runtime-state/events/`, `src/planning/autonomy/`, `src/operations/utils/memory/`
 
 ---
 
@@ -564,13 +564,13 @@ Each contract file gets a type-level test verifying the documented types match t
 
 ### M1.1–M1.7 — Contract Tests (7 tests)
 
-1. AgentState type matches `src/autonomy/scope-tracker.ts` (10 states: idle, planning, executing, verifying, repairing, summarizing, waiting_approval, completed, failed, stopped)
-2. RunLimits/RunResult types match `src/autonomy/state-machine.ts`
-3. ModelCapabilities/CostProfile types match `src/providers/types.ts`
-4. ToolCallRequest/ToolResult types match `src/tools/types.ts`
-5. AlixEvent generic type matches `src/events/types.ts`
-6. EventLogContract interface matches `src/events/event-log.ts`
-7. MemoryEntry/MemoryConfig types match `src/utils/memory/types.ts`
+1. AgentState type matches `src/planning/autonomy/scope-tracker.ts` (10 states: idle, planning, executing, verifying, repairing, summarizing, waiting_approval, completed, failed, stopped)
+2. RunLimits/RunResult types match `src/planning/autonomy/state-machine.ts`
+3. ModelCapabilities/CostProfile types match `src/models/providers/types.ts`
+4. ToolCallRequest/ToolResult types match `src/capabilities/tools/types.ts`
+5. AlixEvent generic type matches `src/runtime-state/events/types.ts`
+6. EventLogContract interface matches `src/runtime-state/events/event-log.ts`
+7. MemoryEntry/MemoryConfig types match `src/operations/utils/memory/types.ts`
 
 **Total: 7 tests.**
 
@@ -591,13 +591,13 @@ Each contract file gets a type-level test verifying the documented types match t
 
 ```text
 M1.0 — Design Spec
-M1.1 — Agent Runtime Contract (src/runtime/agent-contract.ts) — 1 test
-M1.2 — Provider Contract (src/runtime/provider-contract.ts) — 1 test
-M1.3 — Tool Contract (src/runtime/tool-contract.ts) — 1 test
-M1.4 — Event Contract (src/runtime/event-contract.ts) — 1 test
-M1.5 — Context Contract (src/runtime/context-contract.ts) — 1 test
-M1.6 — Memory Contract (src/runtime/memory-contract.ts) — 1 test
-M1.7 — Observability Contract (src/runtime/observability-contract.ts) — 1 test
+M1.1 — Agent Runtime Contract (src/runtime-state/runtime/agent-contract.ts) — 1 test
+M1.2 — Provider Contract (src/runtime-state/runtime/provider-contract.ts) — 1 test
+M1.3 — Tool Contract (src/runtime-state/runtime/tool-contract.ts) — 1 test
+M1.4 — Event Contract (src/runtime-state/runtime/event-contract.ts) — 1 test
+M1.5 — Context Contract (src/runtime-state/runtime/context-contract.ts) — 1 test
+M1.6 — Memory Contract (src/runtime-state/runtime/memory-contract.ts) — 1 test
+M1.7 — Observability Contract (src/runtime-state/runtime/observability-contract.ts) — 1 test
 M1.8 — Contract Compatibility Audit — verifies contracts match actual runtime
 M1.9 — Checkpoint
 ```

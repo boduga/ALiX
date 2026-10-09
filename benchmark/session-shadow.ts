@@ -23,22 +23,22 @@
  * @module benchmark/session-shadow
  */
 
-import { EventLog } from "../src/events/event-log.js";
-import { payloadString, type AlixEvent } from "../src/events/types.js";
+import { EventLog } from "../src/runtime-state/events/event-log.js";
+import { payloadString, type AlixEvent } from "../src/runtime-state/events/types.js";
 import type { UniversalBenchmarkRow } from "./universal-row.js";
 import { shadowReportToUniversal } from "./universal-row.js";
 import {
   project,
   toExecutionState,
   type ProjectorEvent,
-} from "../src/runtime/execution-state/execution-state-projector.js";
-import type { ExecutionState } from "../src/runtime/execution-state/execution-state.js";
+} from "../src/runtime-state/runtime/execution-state/execution-state-projector.js";
+import type { ExecutionState } from "../src/runtime-state/runtime/execution-state/execution-state.js";
 import {
   buildExecutionContext,
   type EvidenceInput,
   type ObservationInput,
   type ToolInput,
-} from "../src/runtime/context/context-builder.js";
+} from "../src/runtime-state/runtime/context/context-builder.js";
 import { estimateTokens } from "./tokens.js";
 
 // ─── Candidate session → projector bridge ───────────────────────────

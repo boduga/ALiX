@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cppTokenizer } from '../../../../src/tui/blocks/langs/cpp.js';
+import { cppTokenizer } from '../../../../src/interfaces/tui/blocks/langs/cpp.js';
 
 describe('cppTokenizer', () => {
   it('tokenizes keywords', () => {

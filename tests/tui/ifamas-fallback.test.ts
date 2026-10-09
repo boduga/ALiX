@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatIfamasPanel } from "../../src/tui/ifamas-panel.js";
-import type { IfamasTracePanel } from "../../src/tui/ifamas-panel.js";
+import { formatIfamasPanel } from "../../src/interfaces/tui/ifamas-panel.js";
+import type { IfamasTracePanel } from "../../src/interfaces/tui/ifamas-panel.js";
 
 describe("/ifamas fallback", () => {
   function makePanelData(overrides: Partial<IfamasTracePanel> = {}): IfamasTracePanel {

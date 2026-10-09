@@ -4,7 +4,7 @@
 
 **Architecture:** A single shared discovery seam that branches by provider. OpenRouter uses a richer catalog (which already contains per-model `pricing` and `supported_parameters`) for full `cost`/`capabilities` matching; every other provider uses the existing `listModels()` for the model list + context limits, ignoring the unverifiable `cost`/`capabilities` filters. Selection ranks cheapest-when-cost-known, otherwise largest-context.
 
-**Tech Stack:** TypeScript. Existing: `src/providers/catalog.ts` (`listModels`), `src/providers/free-model-catalog.ts`, `src/providers/free-model-resolver.ts`, `src/providers/registry.ts` (`createProvider`), `src/providers/routing-adapter.ts` (`buildRoutingAdapter`). Vitest for tests.
+**Tech Stack:** TypeScript. Existing: `src/models/providers/catalog.ts` (`listModels`), `src/models/providers/free-model-catalog.ts`, `src/models/providers/free-model-resolver.ts`, `src/models/providers/registry.ts` (`createProvider`), `src/models/providers/routing-adapter.ts` (`buildRoutingAdapter`). Vitest for tests.
 
 ## Global Constraints
 
@@ -13,7 +13,7 @@
 - All existing `createProvider` / `buildRoutingAdapter` `{provider, model}` callers remain byte-identical (additive + backward compatible).
 - `provider` resolution behavior must be identical across every consumer (via the single shared seam).
 - Node: `pnpm build`, `pnpm test:vitest`, and the compiled `pnpm test:node` suites must stay green.
-- DOX (`src/providers/AGENTS.md`) must be updated to reflect the new filenames and semantics; the GitNexus index is refreshed after the rename (`node .gitnexus/run.cjs analyze`).
+- DOX (`src/models/providers/AGENTS.md`) must be updated to reflect the new filenames and semantics; the GitNexus index is refreshed after the rename (`node .gitnexus/run.cjs analyze`).
 
 ---
 
@@ -87,8 +87,8 @@ Rename for honesty (free-* names no longer accurate):
 
 | Old | New |
 |-----|-----|
-| `src/providers/free-model-catalog.ts` | `src/providers/model-discovery.ts` |
-| `src/providers/free-model-resolver.ts` | `src/providers/model-resolver.ts` |
+| `src/models/providers/free-model-catalog.ts` | `src/models/providers/model-discovery.ts` |
+| `src/models/providers/free-model-resolver.ts` | `src/models/providers/model-resolver.ts` |
 
 Exports renamed accordingly:
 - `fetchFreeModelCatalog` → `discoverOpenRouterModels`
@@ -96,12 +96,12 @@ Exports renamed accordingly:
 - `resolveModelSelectionId` → stays (same name, wider behavior, gains `{ apiKey }`)
 
 Rename touches all importing callers + tests:
-- `src/providers/registry.ts` (imports `resolveModelSelectionId`)
-- `src/providers/routing-adapter.ts` (imports `resolveModelSelectionId`, `supportsRequest`, `deriveRequestRequirements`)
-- `src/providers/openrouter-provider.ts` (uses `resolveConcreteFreeModel` / free resolver for the free route)
+- `src/models/providers/registry.ts` (imports `resolveModelSelectionId`)
+- `src/models/providers/routing-adapter.ts` (imports `resolveModelSelectionId`, `supportsRequest`, `deriveRequestRequirements`)
+- `src/models/providers/openrouter-provider.ts` (uses `resolveConcreteFreeModel` / free resolver for the free route)
 - `tests/config/model-selection-policy.vitest.ts`
 - `tests/providers/free-model-catalog.vitest.ts`, `tests/providers/free-model-resolver.vitest.ts`, `tests/providers/openrouter-free-route.vitest.ts`, `tests/providers/resolved-model.vitest.ts`, `tests/providers/catalog.vitest.ts`, `tests/providers/access-restriction-registry.vitest.ts`
-- `src/providers/AGENTS.md` (DOX) — rename rows + update the policy-selection contract bullet
+- `src/models/providers/AGENTS.md` (DOX) — rename rows + update the policy-selection contract bullet
 - Refresh GitNexus index after rename
 
 **OpenRouterProvider free-route note:** the self-healing free route depends on the OpenRouter free resolver. It must keep working after the rename — the free model selection remains "largest-context among currently-free" via the generalized engine, and restricted-model exclusion (access-restriction registry) is preserved as the `exclude` set passed into `selectModelFromDiscovery`.

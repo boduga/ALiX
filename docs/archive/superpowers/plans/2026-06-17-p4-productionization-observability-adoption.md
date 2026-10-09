@@ -43,7 +43,7 @@ P4.5 Kernel extraction readiness (dependency audit → ports/adapters → public
 - Create: `docs/architecture/{system-overview,coordination-kernel,collaboration-system,approval-and-policy,replanning,observability}.md`
 - Create: `docs/support-matrix.md`
 - Create: `docs/migrations/`, `docs/compatibility.md`
-- Create: `src/cli/commands/certify.ts`
+- Create: `src/interfaces/cli/commands/certify.ts`
 - Update: `README.md`, `CHANGELOG.md`, `package.json`
 
 - [ ] **P4.0a: Architecture docs** — 6 documents covering responsibilities, interfaces, durable state, event flow, failure/recovery behavior, security boundaries, extension points
@@ -61,9 +61,9 @@ P4.5 Kernel extraction readiness (dependency audit → ports/adapters → public
 **Files:**
 - Create: `docs/testing/skipped-tests.md`
 - Create: `tests/recovery/`
-- Create: `src/testing/concurrency-harness.ts`, `tests/stress/`
-- Create: `src/testing/fault-injection/`
-- Create: `src/recovery/`
+- Create: `src/operations/testing/concurrency-harness.ts`, `tests/stress/`
+- Create: `src/operations/testing/fault-injection/`
+- Create: `src/execution/recovery/`
 - Modify: CI matrix for cross-platform (Linux/macOS/Windows)
 
 - [ ] **P4.1a: Skipped-test elimination** — inventory every skipped test, classify (platform/external/flaky/obsolete/unsupported/disabled), remove obsolete skips, replace external deps with fakes, gate platform tests correctly, add CI skip-count reporting, fail on unapproved new skips. Target: 0 unexplained skipped.
@@ -82,8 +82,8 @@ P4.5 Kernel extraction readiness (dependency audit → ports/adapters → public
 
 **Files:**
 - Create: `src/monitoring/{metric-types,metric-registry,metric-sink,metrics-store,system-monitor,health-checker,alert-manager}.ts`
-- Create: `src/cli/commands/monitoring.ts` (or enhance existing)
-- Modify: `src/server/server.ts` (monitoring API routes)
+- Create: `src/interfaces/cli/commands/monitoring.ts` (or enhance existing)
+- Modify: `src/interfaces/server/server.ts` (monitoring API routes)
 - Create: `tests/monitoring/`
 
 - [ ] **P4.2a: Unified metrics contract** — closed-vocabulary `MetricsSink` with `increment()`, `gauge()`, `observe()`. No run/worker ID labels. Unit-encoded, described.
@@ -106,11 +106,11 @@ P4.5 Kernel extraction readiness (dependency audit → ports/adapters → public
 **Goal:** Turn existing observability surfaces into an operator-grade experience.
 
 **Files:**
-- Modify: `src/ui/app.js`, `src/ui/index.html`, `src/ui/styles.css`
-- Modify: `src/server/server.ts` (additional API routes)
-- Create: `src/server/{replan-routes,agent-routes}.ts`
-- Modify: `src/cli/commands/coordination.ts` (replan subcommands)
-- Modify: `src/cli/commands/approval.ts` (inbox subcommands)
+- Modify: `src/interfaces/ui/app.js`, `src/interfaces/ui/index.html`, `src/interfaces/ui/styles.css`
+- Modify: `src/interfaces/server/server.ts` (additional API routes)
+- Create: `src/interfaces/server/{replan-routes,agent-routes}.ts`
+- Modify: `src/interfaces/cli/commands/coordination.ts` (replan subcommands)
+- Modify: `src/interfaces/cli/commands/approval.ts` (inbox subcommands)
 - Add PTY tests for TUI interactions
 
 - [ ] **P4.3a: Unified operations timeline** — filter by category/run/worker, search, auto-follow, pause/resume, copy/export, time range, severity. One stream for response/tool/thinking/hook/approval/ownership/coordination/conflict/replan/result/alert.
@@ -133,8 +133,8 @@ P4.5 Kernel extraction readiness (dependency audit → ports/adapters → public
 - Create: `examples/repository-modernization/`
 - Create: `examples/incident-investigation/`
 - Create: `examples/documentation-release/`
-- Create: `src/cli/commands/setup.ts` (extend to `quickstart`)
-- Create: `src/cli/commands/support-bundle.ts`
+- Create: `src/interfaces/cli/commands/setup.ts` (extend to `quickstart`)
+- Create: `src/interfaces/cli/commands/support-bundle.ts`
 - Create: `docs/{getting-started,installation,first-task,model-profiles,approval-workflow,coordination,replanning,monitoring,recovery,troubleshooting,operator-handbook,developer-guide,extension-guide}.md`
 
 - [ ] **P4.4a: Repository modernization reference app** — analyze repo, detect outdated patterns, propose plan, assign agents, edit, test, detect conflicts, replan, aggregate. Includes fixture repo, tutorial, demo, benchmark, acceptance test.
@@ -148,15 +148,15 @@ P4.5 Kernel extraction readiness (dependency audit → ports/adapters → public
 
 ### P4.5 — Kernel Extraction Readiness
 
-**Goal:** Prepare `src/kernel/` for possible extraction without prematurely splitting packages.
+**Goal:** Prepare `src/coordination/kernel/` for possible extraction without prematurely splitting packages.
 
 **Files:**
 - Create: `docs/kernel/{dependency-audit,public-api}.md`
-- Create: `src/kernel/index.ts` (public API barrel)
+- Create: `src/coordination/kernel/index.ts` (public API barrel)
 
 - [ ] **P4.5a: Dependency audit** — classify imports as kernel-safe/runtime-specific/CLI-specific/TUI-specific/server-specific/filesystem-specific
 - [ ] **P4.5b: Ports/adapters** — introduce interfaces for clock, ID generator, filesystem, event/audit/metrics sink, model adapter, policy evaluator, approval/ownership/result store. Remove hidden `process.cwd()`, `Date.now()`, `Math.random()`, `process.env`, `console` from kernel.
-- [ ] **P4.5c: Public API inventory** — classify every export as public/experimental/internal/deprecated. Create `src/kernel/index.ts`.
+- [ ] **P4.5c: Public API inventory** — classify every export as public/experimental/internal/deprecated. Create `src/coordination/kernel/index.ts`.
 - [ ] **P4.5d: Boundary linting** — rules preventing kernel → CLI/TUI/server/UI imports. Only CLI/TUI/server/runtime → kernel allowed.
 - [ ] **P4.5e: Consumer contract tests** — minimal consumer importing kernel through public APIs only. Test plan, schedule, authorize, approve, execute, aggregate, replan.
 - [ ] **P4.5f: Extraction decision gate** — extract only when independent consumer exists, public API stable, persistence contracts versioned, no UI/runtime imports remain, consumer tests green, release strategy defined.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ScrollbackLine } from '../../../src/tui/views/bottom-anchored-viewport.js';
-import { reconcileWorkbenchScrollAnchor } from '../../../src/tui/workbench/layout/scroll-anchor.js';
+import type { ScrollbackLine } from '../../../src/interfaces/tui/views/bottom-anchored-viewport.js';
+import { reconcileWorkbenchScrollAnchor } from '../../../src/interfaces/tui/workbench/layout/scroll-anchor.js';
 
 function rows(itemId: string, count: number): ScrollbackLine[] {
   return Array.from({ length: count }, (_, wrappedOffset) => ({

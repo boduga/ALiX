@@ -1,6 +1,6 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { SymbolExtractor } from "../../src/repomap/symbol-extractor.js";
+import { SymbolExtractor } from "../../src/context/repomap/symbol-extractor.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, mkdir } from "node:fs/promises";

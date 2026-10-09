@@ -70,7 +70,7 @@ N: docs/architecture/specs/2026-07-06-p14-3-decision-capture.md  # Spec
 N: docs/architecture/plans/2026-07-06-p14-3-decision-capture.md  # This plan
 N: src/governance/decision-capture.ts                               # Implementation
 N: tests/governance/decision-capture.test.ts                        # Tests
-A: src/cli/commands/governance.ts                                   # Add decide subcommand
+A: src/interfaces/cli/commands/governance.ts                                   # Add decide subcommand
 ```
 
 ## Acceptance Checklist

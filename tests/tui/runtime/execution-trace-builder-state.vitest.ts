@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 function evt(seq: number, type: string, payload: Record<string, unknown> = {}): AlixEvent {
   return {

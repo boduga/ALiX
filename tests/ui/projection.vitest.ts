@@ -1,7 +1,7 @@
 /**
  * Browser projection vocabulary tests (R4/V10).
  *
- * `src/ui/projection.js` is a plain-JS module served statically (no build), so
+ * `src/interfaces/ui/projection.js` is a plain-JS module served statically (no build), so
  * it carries no TypeScript declarations. The `@ts-expect-error` import keeps it
  * importable from this typed lane. These tests are the running-lane coverage the
  * prior `tests/ui/*.test.js` files never had (they were `.js` and no lane
@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain-JS browser module without TypeScript declarations
-import { buildUiProjection, projectSubagentEvents, createReplayState, visibleEventsForReplay } from "../../src/ui/projection.js";
+import { buildUiProjection, projectSubagentEvents, createReplayState, visibleEventsForReplay } from "../../src/interfaces/ui/projection.js";
 
 type Event = { seq: number; type: string; actor?: string; payload?: Record<string, unknown>; timestamp: string };
 const evt = (seq: number, type: string, payload: Record<string, unknown> = {}, actor = "system"): Event => ({

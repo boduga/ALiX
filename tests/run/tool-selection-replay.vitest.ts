@@ -16,15 +16,15 @@ import {
   TOOL_SELECTION_EXPERIMENT,
   type ToolSelectionScope,
   type ToolSelectionSelector,
-} from '../../src/decision/tool-selection-replay.js';
-import { buildSelectionObservation } from '../../src/observability/tool-selection-observation.js';
+} from '../../src/planning/decision/tool-selection-replay.js';
+import { buildSelectionObservation } from '../../src/operations/observability/tool-selection-observation.js';
 import {
   builtinNameOf,
   builtinCandidateId,
   candidateIdDomain,
   candidateIdFor,
   freezeToolCandidates,
-} from '../../src/decision/tool-selection-candidates.js';
+} from '../../src/planning/decision/tool-selection-candidates.js';
 
 const frozen = freezeToolCandidates({
   builtin: [

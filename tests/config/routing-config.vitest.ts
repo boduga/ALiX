@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildRoutingAdapter } from "../../src/providers/routing-adapter.js";
-import { RoutingModelAdapter } from "../../src/providers/routing-adapter.js";
+import { buildRoutingAdapter } from "../../src/models/providers/routing-adapter.js";
+import { RoutingModelAdapter } from "../../src/models/providers/routing-adapter.js";
 
 describe("buildRoutingAdapter", () => {
   it("no routing → plain provider, not a RoutingModelAdapter (offline-safe)", async () => {

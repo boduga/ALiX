@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { assembleEvolutionSnapshot } from '../../../src/tui/runtime/evolution/evolution-snapshot-assembler.js';
-import type { EvolutionAssemblerInputs } from '../../../src/tui/runtime/evolution/evolution-snapshot-assembler.js';
+import { assembleEvolutionSnapshot } from '../../../src/interfaces/tui/runtime/evolution/evolution-snapshot-assembler.js';
+import type { EvolutionAssemblerInputs } from '../../../src/interfaces/tui/runtime/evolution/evolution-snapshot-assembler.js';
 
 // Minimal canonical-artifact fixtures (A9/A2.5-shaped).
 const forecast = {

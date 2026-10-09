@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { NativeExecutor } from '../../src/capability/executors.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
 import {
   NativeProviderExecutor, ToolProviderExecutor, UnavailableProviderExecutor,
   isFallbackEligibleKind, classifyErrorKind,
-} from '../../src/capability/provider-executor.js';
-import type { Capability, CapabilityContext } from '../../src/capability/types.js';
-import type { CapabilityProviderBinding } from '../../src/capability/canonical/provider.js';
-import type { ToolCallRequest } from '../../src/tools/types.js';
-import type { ExecuteResult } from '../../src/tools/executor.js';
-import { McpProviderExecutor, ExternalCliProviderExecutor, type SpawnLike } from '../../src/capability/provider-executor.js';
+} from '../../src/capabilities/capability/provider-executor.js';
+import type { Capability, CapabilityContext } from '../../src/capabilities/capability/types.js';
+import type { CapabilityProviderBinding } from '../../src/capabilities/capability/canonical/provider.js';
+import type { ToolCallRequest } from '../../src/capabilities/tools/types.js';
+import type { ExecuteResult } from '../../src/capabilities/tools/executor.js';
+import { McpProviderExecutor, ExternalCliProviderExecutor, type SpawnLike } from '../../src/capabilities/capability/provider-executor.js';
 
 function cap(id = 'core.echo'): Capability {
   return { id, version: '1.0', kind: 'core', title: 'Echo', description: 'x',

@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { EventLog } from "../../src/events/event-log.js";
-import type { AlixEvent, EventMeta } from "../../src/events/types.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { AlixEvent, EventMeta } from "../../src/runtime-state/events/types.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

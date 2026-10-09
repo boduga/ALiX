@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildEvolutionLinks } from '../../../src/tui/runtime/evolution/evolution-link-builder.js';
+import { buildEvolutionLinks } from '../../../src/interfaces/tui/runtime/evolution/evolution-link-builder.js';
 
 const forecast = { forecastId: 'forecast-1', subject: 'proposal-1', subjectCapability: 'cap-a' } as any;
 const forecast2 = { forecastId: 'forecast-2', subject: 'proposal-1', subjectCapability: 'cap-a' } as any;

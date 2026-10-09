@@ -4,8 +4,8 @@ import {
   MetricRegistry,
   createMetricRegistry,
   SECURITY_METRIC_DEFINITIONS,
-} from "../../src/observability/metric-registry.js";
-import { AGENT_ACTIVITY_STATES } from "../../src/agent/agent-activity.js";
+} from "../../src/operations/observability/metric-registry.js";
+import { AGENT_ACTIVITY_STATES } from "../../src/agents/agent/agent-activity.js";
 
 /** The six Phase 9 agent activity/liveness metric definitions. */
 function agentMetricDefs(reg: MetricRegistry) {

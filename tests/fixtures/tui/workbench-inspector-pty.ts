@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
-import type { AlixEvent } from '../../../src/events/types.js';
-import { AgentRosterProjection } from '../../../src/tui/workbench/projections/agent-roster-projection.js';
-import { TaskProjection } from '../../../src/tui/workbench/projections/task-projection.js';
-import { ArtifactProjection } from '../../../src/tui/workbench/projections/artifact-projection.js';
-import type { WorkbenchStore } from '../../../src/tui/workbench/app/workbench-store.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { AgentRosterProjection } from '../../../src/interfaces/tui/workbench/projections/agent-roster-projection.js';
+import { TaskProjection } from '../../../src/interfaces/tui/workbench/projections/task-projection.js';
+import { ArtifactProjection } from '../../../src/interfaces/tui/workbench/projections/artifact-projection.js';
+import type { WorkbenchStore } from '../../../src/interfaces/tui/workbench/app/workbench-store.js';
 import { createWorkbenchRenderHarness } from './workbench-render-harness.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../../tests/fixtures/tui/workbench-preview-events.json', import.meta.url), 'utf8')) as {

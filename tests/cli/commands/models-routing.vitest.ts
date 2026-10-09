@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { handleModelsCommand } from "../../../src/cli/commands/models.js";
+import { handleModelsCommand } from "../../../src/interfaces/cli/commands/models.js";
 
 const chainCases: Array<{ provider: string; model: string; role: string }> = [];
 
@@ -7,7 +7,7 @@ vi.mock("../../../src/models/routing-cli.js", () => ({
   describeRoutingChain: () => chainCases,
 }));
 
-vi.mock("../../../src/config/loader.js", () => ({
+vi.mock("../../../src/operations/config/loader.js", () => ({
   loadConfig: async () => ({ models: { default: {} } }),
 }));
 

@@ -15,4 +15,4 @@ Recovery falls back to `beginningCursor()` when the checkpoint is missing,
 malformed, or incompatible. Write cadence is every successful sample (~100 byte
 file); no throttle.
 
-Operator timeline (chat) and the platform (`src/capability/`) are unchanged.
+Operator timeline (chat) and the platform (`src/capabilities/capability/`) are unchanged.

@@ -7,11 +7,11 @@
 **Supersedes:** M0.21 hardcoded `daemonShellAlias()` in `daemon-server.ts`
 **Spec:** `docs/superpowers/specs/2026-06-10-daemon-intent-router-design.md`
 
-**Goal:** Create a shared `taskRouter()` in `src/runtime/` that classifies tasks into four execution paths (tool, chat, grounded_chat, agent), then wire both TUI modes (no-daemon and daemon) through it. Remove `daemonShellAlias()`.
+**Goal:** Create a shared `taskRouter()` in `src/runtime-state/runtime/` that classifies tasks into four execution paths (tool, chat, grounded_chat, agent), then wire both TUI modes (no-daemon and daemon) through it. Remove `daemonShellAlias()`.
 
 **Design at a glance:**
-- `src/runtime/task-router.ts` — pure classification, no side effects, no daemon dependency
-- `src/runtime/route-executor.ts` — `executeRoute()` dispatch + `RuntimeExecutor` interface
+- `src/runtime-state/runtime/task-router.ts` — pure classification, no side effects, no daemon dependency
+- `src/runtime-state/runtime/route-executor.ts` — `executeRoute()` dispatch + `RuntimeExecutor` interface
 - No-daemon TUI: `taskRouter()` → `executeRoute()` locally
 - Daemon TUI: `taskRouter()` first, then send the classified route to daemon
 - Daemon receives pre-classified route, executes with its own executor
@@ -22,12 +22,12 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/runtime/task-router.ts` | **Create** | `taskRouter()`, `TaskRoute` type, grounded_chat detection |
-| `src/runtime/route-executor.ts` | **Create** | `executeRoute()` dispatch, `RuntimeExecutor` interface, local executor |
-| `src/cli/commands/tui.ts` | **Modify** | Route through taskRouter() for both daemon and no-daemon paths |
-| `src/daemon/daemon-server.ts` | **Modify** | Remove `daemonShellAlias()`, handle pre-classified routes |
-| `src/daemon/daemon-types.ts` | **Modify** | Add route-based command type |
-| `src/daemon/daemon-router.ts` | **Delete** | Merged into shared `src/runtime/task-router.ts` |
+| `src/runtime-state/runtime/task-router.ts` | **Create** | `taskRouter()`, `TaskRoute` type, grounded_chat detection |
+| `src/runtime-state/runtime/route-executor.ts` | **Create** | `executeRoute()` dispatch, `RuntimeExecutor` interface, local executor |
+| `src/interfaces/cli/commands/tui.ts` | **Modify** | Route through taskRouter() for both daemon and no-daemon paths |
+| `src/operations/daemon/daemon-server.ts` | **Modify** | Remove `daemonShellAlias()`, handle pre-classified routes |
+| `src/operations/daemon/daemon-types.ts` | **Modify** | Add route-based command type |
+| `src/operations/daemon/daemon-router.ts` | **Delete** | Merged into shared `src/runtime-state/runtime/task-router.ts` |
 | `tests/runtime/task-router.test.ts` | **Create** | Route classification unit tests |
 | `tests/runtime/route-executor.test.ts` | **Create** | Route execution tests |
 | `tests/daemon/daemon-server.test.ts` | **Create** | Route-based daemon integration tests |
@@ -37,7 +37,7 @@
 ### Task 1: Create shared task-router.ts
 
 **Files:**
-- Create: `src/runtime/task-router.ts`
+- Create: `src/runtime-state/runtime/task-router.ts`
 
 - [ ] **Step 1: Write the shared router module**
 
@@ -133,7 +133,7 @@ Expected: no errors (pure functional module, no unusual imports).
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/runtime/task-router.ts
+git add src/runtime-state/runtime/task-router.ts
 git commit -m "feat(runtime): add shared task router with tool/chat/grounded_chat/agent classification"
 ```
 
@@ -142,7 +142,7 @@ git commit -m "feat(runtime): add shared task router with tool/chat/grounded_cha
 ### Task 2: Create route-executor.ts
 
 **Files:**
-- Create: `src/runtime/route-executor.ts`
+- Create: `src/runtime-state/runtime/route-executor.ts`
 
 - [ ] **Step 1: Write the executor interface and dispatch**
 
@@ -302,7 +302,7 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/runtime/route-executor.ts
+git add src/runtime-state/runtime/route-executor.ts
 git commit -m "feat(runtime): add route executor interface and local implementation"
 ```
 
@@ -311,7 +311,7 @@ git commit -m "feat(runtime): add route executor interface and local implementat
 ### Task 3: Wire no-daemon TUI through taskRouter
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add imports**
 
@@ -366,7 +366,7 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): wire no-daemon TUI through shared task router"
 ```
 
@@ -375,9 +375,9 @@ git commit -m "feat(tui): wire no-daemon TUI through shared task router"
 ### Task 4: Update daemon-side to handle pre-classified routes
 
 **Files:**
-- Modify: `src/daemon/daemon-server.ts`
-- Modify: `src/daemon/daemon-types.ts`
-- Delete: `src/daemon/daemon-router.ts`
+- Modify: `src/operations/daemon/daemon-server.ts`
+- Modify: `src/operations/daemon/daemon-types.ts`
+- Delete: `src/operations/daemon/daemon-router.ts`
 
 - [ ] **Step 1: Add route-aware command type to daemon-types.ts**
 
@@ -543,7 +543,7 @@ async function executeGroundedChatRoute(
 - [ ] **Step 6: Remove daemon-router.ts**
 
 ```bash
-git rm src/daemon/daemon-router.ts
+git rm src/operations/daemon/daemon-router.ts
 ```
 
 - [ ] **Step 7: Verify build**
@@ -557,7 +557,7 @@ Expected: no errors.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/daemon/daemon-server.ts src/daemon/daemon-types.ts
+git add src/operations/daemon/daemon-server.ts src/operations/daemon/daemon-types.ts
 git commit -m "feat(daemon): handle pre-classified routes, remove daemonShellAlias() and daemon-router.ts"
 ```
 
@@ -566,7 +566,7 @@ git commit -m "feat(daemon): handle pre-classified routes, remove daemonShellAli
 ### Task 5: Update TUI daemon path to send classified route
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Replace the daemon-mode execution block**
 
@@ -588,7 +588,7 @@ In `runTui()`, find the daemon path (`if (daemonMode) { ... }`). Change it to cl
 
 - [ ] **Step 2: Update submitTaskViaDaemon to accept and send route**
 
-In `src/tui/daemon-client.ts`, update the options type and the socket write:
+In `src/interfaces/tui/daemon-client.ts`, update the options type and the socket write:
 
 ```typescript
 export interface DaemonClientOptions {
@@ -619,7 +619,7 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts src/tui/daemon-client.ts
+git add src/interfaces/cli/commands/tui.ts src/interfaces/tui/daemon-client.ts
 git commit -m "feat(tui): classify task locally before sending route to daemon"
 ```
 
@@ -635,7 +635,7 @@ git commit -m "feat(tui): classify task locally before sending route to daemon"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { taskRouter, isGroundedChatTask } from "../../src/runtime/task-router.js";
+import { taskRouter, isGroundedChatTask } from "../../src/runtime-state/runtime/task-router.js";
 
 describe("taskRouter", () => {
   // ── Tool routes (shell commands) ──
@@ -788,7 +788,7 @@ git commit -m "test(runtime): add task router classification unit tests"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { executeRoute, type RuntimeContext, type RuntimeExecutor } from "../../src/runtime/route-executor.js";
+import { executeRoute, type RuntimeContext, type RuntimeExecutor } from "../../src/runtime-state/runtime/route-executor.js";
 
 describe("executeRoute dispatch", () => {
   const mockCtx: RuntimeContext = {
@@ -1035,13 +1035,13 @@ git log --oneline HEAD~5..HEAD
 ```
 
 Expected files:
-- `src/runtime/task-router.ts` (new)
-- `src/runtime/route-executor.ts` (new)
-- `src/cli/commands/tui.ts` (modified)
-- `src/tui/daemon-client.ts` (modified)
-- `src/daemon/daemon-server.ts` (modified)
-- `src/daemon/daemon-types.ts` (modified)
-- `src/daemon/daemon-router.ts` (deleted)
+- `src/runtime-state/runtime/task-router.ts` (new)
+- `src/runtime-state/runtime/route-executor.ts` (new)
+- `src/interfaces/cli/commands/tui.ts` (modified)
+- `src/interfaces/tui/daemon-client.ts` (modified)
+- `src/operations/daemon/daemon-server.ts` (modified)
+- `src/operations/daemon/daemon-types.ts` (modified)
+- `src/operations/daemon/daemon-router.ts` (deleted)
 - `tests/runtime/task-router.test.ts` (new)
 - `tests/runtime/route-executor.test.ts` (new)
 - `tests/daemon/daemon-server.test.ts` (new)
@@ -1070,5 +1070,5 @@ git push origin m0.24-task-router
 | Daemon "latest Node.js" responds | `node dist/src/cli.js tui --daemon --mode bypass` | grounded_chat response |
 | Same task, same route (both modes) | Both TUI modes on `"explain OOP"` | Both return chat response |
 | `daemonShellAlias()` is gone | `grep -rn daemonShellAlias src/` | no matches |
-| `daemon-router.ts` is gone | `ls src/daemon/daemon-router.ts 2>&1` | "No such file" |
-| `taskRouter()` is in src/runtime/ | `grep -n "export function taskRouter" src/runtime/task-router.ts` | line found |
+| `daemon-router.ts` is gone | `ls src/operations/daemon/daemon-router.ts 2>&1` | "No such file" |
+| `taskRouter()` is in src/runtime-state/runtime/ | `grep -n "export function taskRouter" src/runtime-state/runtime/task-router.ts` | line found |

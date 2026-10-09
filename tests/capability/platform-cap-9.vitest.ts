@@ -24,14 +24,14 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { CapabilityProposalGenerator } from "../../src/capability/evolution/proposals.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { CapabilityProposalGenerator } from "../../src/capabilities/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
   ProposalSignalSink,
-} from "../../src/capability/evolution/proposals.js";
-import { EventLog } from "../../src/events/event-log.js";
+} from "../../src/capabilities/capability/evolution/proposals.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 class FakeSignalChannel implements ProposalSignalSink, ProposalSignalSource {
   constructor(private readonly seedSignals: ReadonlyArray<CapabilityEvolutionSignal>) {}

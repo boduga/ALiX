@@ -4,7 +4,7 @@
 
 **Goal:** CAP-8 lands the unified `CapabilityService` facade (design §72) — read methods (`list`/`inspect`/`search`/`health`/`recommend`) over CAP-2 catalog + CAP-3 registry + CAP-4 resolver, the one mutation method (`apply`) delegates verbatim to CAP-6, `propose`/`measure` are forward-wired stubs, `history` projects EventLog facts — CLI capabilities commands migrate to `service.*` so a second surface becomes a structural-sentinel hard failure.
 
-**Architecture:** the existing CAP-7 `src/capability/capability-service.ts` stub is **broadened in place** (same module identity per locked ruling #stub). Constructor-injected with the exact ownership-graph dependency list: `new CapabilityService(catalog, resolver, mutationExecutor, eventLog)` — `CapabilityResolver` already owns the `CapabilityRegistry` dep so the service does NOT double-inject. Read methods project catalog+registry state into the five narrow typed result shapes (`CapabilityListResult | CapabilityInspectResult | CapabilitySearchResult | CapabilityHealthResult | CapabilityHistoryResult`); no generic envelope. `apply()` is a thin pass-through to `CapabilityMutationExecutor.executeStep(step, ctx)` — CAP-6 owns the only mutation execution path (locked ruling #1). `propose()` and `measure()` throw `CapabilityServiceNotImplementedError` with `code: "not_implemented_yet"` (locked ruling #4). `recommend()` is read-only (locked ruling #3). `health()` returns `CapabilityHealthResult`, never `ProviderCandidate[]` (locked ruling #9). `history()` is a narrow EventLog projection filtered by capability id (locked ruling #5). Composition root (`src/capability/platform.ts`) wires registry → resolver → executor → eventLog → service; no singleton. A three-axis AST/import-graph sentinel (composition root, import boundary, migrated call-site) structurally enforces no second surface (locked rulings #2 & #10). CLI capabilities commands migrate to `service.*` (locked ruling #7).
+**Architecture:** the existing CAP-7 `src/capabilities/capability/capability-service.ts` stub is **broadened in place** (same module identity per locked ruling #stub). Constructor-injected with the exact ownership-graph dependency list: `new CapabilityService(catalog, resolver, mutationExecutor, eventLog)` — `CapabilityResolver` already owns the `CapabilityRegistry` dep so the service does NOT double-inject. Read methods project catalog+registry state into the five narrow typed result shapes (`CapabilityListResult | CapabilityInspectResult | CapabilitySearchResult | CapabilityHealthResult | CapabilityHistoryResult`); no generic envelope. `apply()` is a thin pass-through to `CapabilityMutationExecutor.executeStep(step, ctx)` — CAP-6 owns the only mutation execution path (locked ruling #1). `propose()` and `measure()` throw `CapabilityServiceNotImplementedError` with `code: "not_implemented_yet"` (locked ruling #4). `recommend()` is read-only (locked ruling #3). `health()` returns `CapabilityHealthResult`, never `ProviderCandidate[]` (locked ruling #9). `history()` is a narrow EventLog projection filtered by capability id (locked ruling #5). Composition root (`src/capabilities/capability/platform.ts`) wires registry → resolver → executor → eventLog → service; no singleton. A three-axis AST/import-graph sentinel (composition root, import boundary, migrated call-site) structurally enforces no second surface (locked rulings #2 & #10). CLI capabilities commands migrate to `service.*` (locked ruling #7).
 
 **Tech Stack:** TypeScript (ESM, strict), Vitest (`.vitest.ts` for unit/service tests matching `tests/capability/capability-service-delegation.vitest.ts`), `pnpm exec vitest run tests/capability/`. node:test (`node --test dist/tests/...`) for the supersession forbidden-file test (matches `cap-7-supersession.test.ts`). `pnpm exec tsc --noEmit` after each task as the type gate (Vitest does NOT typecheck). `pnpm run build` for full typecheck + emit pipeline before final sweep. Three-axis sentinel is run as `pnpm exec vitest run tests/capability/three-axis-sentinel.vitest.ts` (test-only task).
 
@@ -17,19 +17,19 @@ These constraints are reproduced verbatim from the **10 locked rulings** (sign-o
 - **Locked ruling #7 — CLI migration; sentinel phrasing (verbatim):** *"CAP-8 migrates the capability CLI commands to `CapabilityService`. Existing non-CLI direct consumers are tolerated only as explicitly tracked CAP-11 migration debt; no new direct registry/resolver consumers may be introduced."*
 
 - **Locked ruling #10 — three-axis structural sentinel (AST/import-graph based, not just grep):**
-  - **Axis 1:** `new CapabilityRegistry()` / `new CapabilityResolver()` only in the composition root (`src/capability/platform.ts`).
+  - **Axis 1:** `new CapabilityRegistry()` / `new CapabilityResolver()` only in the composition root (`src/capabilities/capability/platform.ts`).
   - **Axis 2:** outside the service/composition layer, no direct imports of `CapabilityRegistry` or `CapabilityResolver` (catches `getCapabilityRegistry()`-style bypass).
   - **Axis 3:** CLI capabilities commands (CAP-8 migrated) only use `CapabilityService`.
   - Test produces **distinct failure messages per axis**.
 
-- **Locked ruling #stub — extend in place (verbatim):** *"CAP-8 extends the existing CAP-7 `src/capability/capability-service.ts` stub in place. Same module identity, new authoritative contract. No rename, no compatibility facade, no parallel service. If CAP-7 stub constructor/method shape conflicts with CAP-8 contract, replace in place."* The CAP-7 stub's `{ resolver, registry }` options-object constructor and `resolve(...)` method are replaced in place by the new four-arg constructor and the eight-method surface from design §72. The CAP-7 unit-test file `tests/capability/capability-service-delegation.vitest.ts` is RETIRED (its delegation invariant is reasserted in Task 6/8 by structural-sentinel tests against the broadened service).
+- **Locked ruling #stub — extend in place (verbatim):** *"CAP-8 extends the existing CAP-7 `src/capabilities/capability/capability-service.ts` stub in place. Same module identity, new authoritative contract. No rename, no compatibility facade, no parallel service. If CAP-7 stub constructor/method shape conflicts with CAP-8 contract, replace in place."* The CAP-7 stub's `{ resolver, registry }` options-object constructor and `resolve(...)` method are replaced in place by the new four-arg constructor and the eight-method surface from design §72. The CAP-7 unit-test file `tests/capability/capability-service-delegation.vitest.ts` is RETIRED (its delegation invariant is reasserted in Task 6/8 by structural-sentinel tests against the broadened service).
 
 - **Forbidden files** — CAP-8 must not modify any of:
-  - `src/capability/initial-capabilities.ts`
-  - `src/tools/tool-registry.ts`
-  - `src/policy/capability-registry.ts`
-  - Production files under `src/capability/canonical/*`
-  - The pre-CAP-7 TUI façade `src/tui/capabilities/capability-service.ts` (CAP-11 migration debt)
+  - `src/capabilities/capability/initial-capabilities.ts`
+  - `src/capabilities/tools/tool-registry.ts`
+  - `src/governance/policy/capability-registry.ts`
+  - Production files under `src/capabilities/capability/canonical/*`
+  - The pre-CAP-7 TUI façade `src/interfaces/tui/capabilities/capability-service.ts` (CAP-11 migration debt)
   - Verified in Task 9's supersession test.
 
 - **Test conventions** — match existing `tests/capability/` naming and shape:
@@ -60,7 +60,7 @@ These constraints are reproduced verbatim from the **10 locked rulings** (sign-o
 | #8 | Narrow typed result shapes per method, no generic envelope | Tasks 1 & 2 |
 | #9 | `health()` only on service; resolution stays on `CapabilityResolver`; returns narrow `CapabilityHealthResult`, not `ProviderCandidate[]` | Task 3 |
 | #10 | Three-axis structural sentinel (composition root, import boundary, migrated call-site), distinct failure per axis | Task 8 |
-| #stub | Extend `src/capability/capability-service.ts` in place; no rename, no facade, no parallel service | All tasks (every task touches the same module) |
+| #stub | Extend `src/capabilities/capability/capability-service.ts` in place; no rename, no facade, no parallel service | All tasks (every task touches the same module) |
 
 ### AC coverage matrix (ticket #492)
 
@@ -79,8 +79,8 @@ These constraints are reproduced verbatim from the **10 locked rulings** (sign-o
 ### Task 1: Typed result-shape contracts + `CapabilityServiceNotImplementedError` + CapabilityServiceOptions
 
 **Files:**
-- Create: `src/capability/types/service-results.ts` — pure type module
-- Create: `src/capability/errors/service-not-implemented.ts` — `CapabilityServiceNotImplementedError`
+- Create: `src/capabilities/capability/types/service-results.ts` — pure type module
+- Create: `src/capabilities/capability/errors/service-not-implemented.ts` — `CapabilityServiceNotImplementedError`
 - Test: `tests/capability/service-results.vitest.ts`
 
 **Interfaces:**
@@ -125,8 +125,8 @@ import type {
   CapabilityListResult, CapabilityInspectResult, CapabilitySearchResult,
   CapabilityHealthResult, CapabilityHistoryResult, CapabilityRecommendResult,
   CapabilityApplyResult, CapabilityServiceOptions,
-} from '../../src/capability/types/service-results.js';
-import { CapabilityServiceNotImplementedError } from '../../src/capability/errors/service-not-implemented.js';
+} from '../../src/capabilities/capability/types/service-results.js';
+import { CapabilityServiceNotImplementedError } from '../../src/capabilities/capability/errors/service-not-implemented.js';
 
 describe('CapabilityServiceNotImplementedError (locked ruling #4 — stable contract)', () => {
   it('has name = "CapabilityServiceNotImplementedError"', () => {
@@ -227,7 +227,7 @@ Expected: FAIL — `service-results.ts` and `service-not-implemented.ts` do not 
 
 - [ ] **Step 3: Create the type module + error class**
 
-Create `src/capability/types/service-results.ts`:
+Create `src/capabilities/capability/types/service-results.ts`:
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -398,7 +398,7 @@ export interface CapabilityServiceOptions {
 }
 ```
 
-Create `src/capability/errors/service-not-implemented.ts`:
+Create `src/capabilities/capability/errors/service-not-implemented.ts`:
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -441,7 +441,7 @@ Expected: PASS (all 9 assertions), 0 tsc errors. The `// @ts-expect-error` direc
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/types/service-results.ts src/capability/errors/service-not-implemented.ts tests/capability/service-results.vitest.ts
+git add src/capabilities/capability/types/service-results.ts src/capabilities/capability/errors/service-not-implemented.ts tests/capability/service-results.vitest.ts
 git commit -m "feat(capability): CAP-8 typed result-shape contracts + CapabilityServiceNotImplementedError"
 ```
 
@@ -450,7 +450,7 @@ git commit -m "feat(capability): CAP-8 typed result-shape contracts + Capability
 ### Task 2: Broadened CapabilityService class — constructor injection + read methods (`list`/`inspect`/`search`)
 
 **Files:**
-- Modify: `src/capability/capability-service.ts` (replace CAP-7 stub in place per ruling #stub)
+- Modify: `src/capabilities/capability/capability-service.ts` (replace CAP-7 stub in place per ruling #stub)
 - Test: `tests/capability/capability-service-read.vitest.ts`
 - Modify: `tests/capability/capability-service-delegation.vitest.ts` (DELETE — see design contract)
 
@@ -479,19 +479,19 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unlinkSync } from 'node:fs';
-import { CapabilityService } from '../../src/capability/capability-service.js';
-import { CapabilityResolver } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import { CapabilityMutationExecutor } from '../../src/evolution/execution/capability-mutation-executor.js';
-import { EventLog } from '../../src/events/event-log.js';
-import { CapabilityNotFoundError } from '../../src/capability/errors.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
-import type { CapabilityServiceOptions } from '../../src/capability/types/service-results.js';
+import { CapabilityService } from '../../src/capabilities/capability/capability-service.js';
+import { CapabilityResolver } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import { CapabilityMutationExecutor } from '../../src/planning/evolution/execution/capability-mutation-executor.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { CapabilityNotFoundError } from '../../src/capabilities/capability/errors.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
+import type { CapabilityServiceOptions } from '../../src/capabilities/capability/types/service-results.js';
 
 let dir: string;
 let sessionDir: string;
@@ -511,7 +511,7 @@ function setup(): { service: CapabilityService; catalog: CapabilityCatalog; regi
   return { service: new CapabilityService(opts), catalog, registry, registryAny: registry as unknown };
 }
 // `CapabilityRegistry` is not in scope at top of file — use the imported registry via registryAny or import directly.
-import { CapabilityRegistry } from '../../src/capability/registry.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
 
 function def(over: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return {
@@ -624,7 +624,7 @@ Expected: FAIL — `CapabilityService` constructor takes the options-object `{ r
 
 - [ ] **Step 3: Replace the CAP-7 stub in place**
 
-Replace `src/capability/capability-service.ts` with:
+Replace `src/capabilities/capability/capability-service.ts` with:
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -640,7 +640,7 @@ Replace `src/capability/capability-service.ts` with:
  * reaches capability semantics through this surface.
  *
  * Locked ruling #stub (verbatim): "CAP-8 extends the existing CAP-7
- * src/capability/capability-service.ts stub in place. Same module identity,
+ * src/capabilities/capability/capability-service.ts stub in place. Same module identity,
  * new authoritative contract. No rename, no compatibility facade, no parallel
  * service. If CAP-7 stub constructor/method shape conflicts with CAP-8
  * contract, replace in place."
@@ -813,7 +813,7 @@ Expected: PASS (all 7 assertions), 0 tsc errors. The existing `tests/capability/
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/capability-service.ts tests/capability/capability-service-read.vitest.ts
+git add src/capabilities/capability/capability-service.ts tests/capability/capability-service-read.vitest.ts
 git rm tests/capability/capability-service-delegation.vitest.ts
 git commit -m "feat(capability): CAP-8 broaden CapabilityService — constructor + list/inspect/search/recommend"
 ```
@@ -823,7 +823,7 @@ git commit -m "feat(capability): CAP-8 broaden CapabilityService — constructor
 ### Task 3: `health()` delegating to `CapabilityResolver` — narrow `CapabilityHealthResult`
 
 **Files:**
-- Modify: `src/capability/capability-service.ts`
+- Modify: `src/capabilities/capability/capability-service.ts`
 - Test: `tests/capability/capability-service-health.vitest.ts`
 
 **Interfaces:**
@@ -848,20 +848,20 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityService } from '../../src/capability/capability-service.js';
-import { CapabilityResolver } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import { CapabilityMutationExecutor } from '../../src/evolution/execution/capability-mutation-executor.js';
-import { EventLog } from '../../src/events/event-log.js';
-import { CapabilityNotFoundError } from '../../src/capability/errors.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
-import type { CapabilityServiceOptions } from '../../src/capability/types/service-results.js';
+import { CapabilityService } from '../../src/capabilities/capability/capability-service.js';
+import { CapabilityResolver } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import { CapabilityMutationExecutor } from '../../src/planning/evolution/execution/capability-mutation-executor.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { CapabilityNotFoundError } from '../../src/capabilities/capability/errors.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
+import type { CapabilityServiceOptions } from '../../src/capabilities/capability/types/service-results.js';
 
 let dir: string;
 let sessionDir: string;
@@ -969,7 +969,7 @@ Expected: FAIL — `service.health` does not exist.
 
 - [ ] **Step 3: Implement `health()` on `CapabilityService`**
 
-Append to `src/capability/capability-service.ts`:
+Append to `src/capabilities/capability/capability-service.ts`:
 
 ```ts
   /**
@@ -1021,7 +1021,7 @@ Append to `src/capability/capability-service.ts`:
   }
 ```
 
-Update the import at the top of `src/capability/capability-service.ts` to include `CapabilityHealthResult`:
+Update the import at the top of `src/capabilities/capability/capability-service.ts` to include `CapabilityHealthResult`:
 
 ```ts
 import type {
@@ -1052,7 +1052,7 @@ Expected: PASS (7 assertions), 0 tsc errors. The `Object.keys(h).sort()` check p
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/capability-service.ts tests/capability/capability-service-health.vitest.ts
+git add src/capabilities/capability/capability-service.ts tests/capability/capability-service-health.vitest.ts
 git commit -m "feat(capability): CAP-8 service.health() — narrow CapabilityHealthResult via resolver (ruling #9)"
 ```
 
@@ -1061,7 +1061,7 @@ git commit -m "feat(capability): CAP-8 service.health() — narrow CapabilityHea
 ### Task 4: `apply()` delegating to CAP-6 `CapabilityMutationExecutor.executeStep`
 
 **Files:**
-- Modify: `src/capability/capability-service.ts`
+- Modify: `src/capabilities/capability/capability-service.ts`
 - Test: `tests/capability/capability-service-apply.vitest.ts`
 
 **Interfaces:**
@@ -1088,19 +1088,19 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityService } from '../../src/capability/capability-service.js';
-import { CapabilityResolver } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import { CapabilityMutationExecutor } from '../../src/evolution/execution/capability-mutation-executor.js';
-import { EventLog } from '../../src/events/event-log.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
-import type { CapabilityServiceOptions } from '../../src/capability/types/service-results.js';
+import { CapabilityService } from '../../src/capabilities/capability/capability-service.js';
+import { CapabilityResolver } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import { CapabilityMutationExecutor } from '../../src/planning/evolution/execution/capability-mutation-executor.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
+import type { CapabilityServiceOptions } from '../../src/capabilities/capability/types/service-results.js';
 
 let dir: string;
 let sessionDir: string;
@@ -1179,7 +1179,7 @@ describe('AC#1/AC#3 + locked ruling #1 — service.apply() delegates verbatim to
     // Structural sentinel: read service module source and assert it does NOT
     // import or call catalog.register / mutationPort / capturePreState, etc.
     const { readFileSync } = await import('node:fs');
-    const src = readFileSync(new URL('../../src/capability/capability-service.ts', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../src/capabilities/capability/capability-service.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/catalog\.register\(/);
     expect(src).not.toMatch(/mutationPort/);
     expect(src).not.toMatch(/capturePreState|restorePreState/);
@@ -1198,7 +1198,7 @@ Expected: FAIL — `service.apply` is not a method on the broadened service; the
 
 - [ ] **Step 3: Implement `apply()` on `CapabilityService`**
 
-Append to `src/capability/capability-service.ts`:
+Append to `src/capabilities/capability/capability-service.ts`:
 
 ```ts
   /**
@@ -1239,7 +1239,7 @@ Append to `src/capability/capability-service.ts`:
   }
 ```
 
-Update the import block at the top of `src/capability/capability-service.ts`:
+Update the import block at the top of `src/capabilities/capability/capability-service.ts`:
 
 ```ts
 import type {
@@ -1267,7 +1267,7 @@ Expected: PASS (4 assertions), 0 tsc errors. The structural source-text test pin
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/capability-service.ts tests/capability/capability-service-apply.vitest.ts
+git add src/capabilities/capability/capability-service.ts tests/capability/capability-service-apply.vitest.ts
 git commit -m "feat(capability): CAP-8 service.apply() — verbatim delegation to CAP-6 executor (ruling #1)"
 ```
 
@@ -1276,7 +1276,7 @@ git commit -m "feat(capability): CAP-8 service.apply() — verbatim delegation t
 ### Task 5: `propose()` + `measure()` forward-wired stubs + `recommend()` is read-only
 
 **Files:**
-- Modify: `src/capability/capability-service.ts`
+- Modify: `src/capabilities/capability/capability-service.ts`
 - Test: `tests/capability/capability-service-governed.vitest.ts`
 
 **Interfaces:**
@@ -1302,20 +1302,20 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { CapabilityService } from '../../src/capability/capability-service.js';
-import { CapabilityResolver } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import { CapabilityMutationExecutor } from '../../src/evolution/execution/capability-mutation-executor.js';
-import { EventLog } from '../../src/events/event-log.js';
-import { CapabilityServiceNotImplementedError } from '../../src/capability/errors/service-not-implemented.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
-import type { CapabilityServiceOptions } from '../../src/capability/types/service-results.js';
+import { CapabilityService } from '../../src/capabilities/capability/capability-service.js';
+import { CapabilityResolver } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import { CapabilityMutationExecutor } from '../../src/planning/evolution/execution/capability-mutation-executor.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { CapabilityServiceNotImplementedError } from '../../src/capabilities/capability/errors/service-not-implemented.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
+import type { CapabilityServiceOptions } from '../../src/capabilities/capability/types/service-results.js';
 
 let dir: string;
 let sessionDir: string;
@@ -1380,7 +1380,7 @@ describe('Locked ruling #4 — propose() / measure() are forward-wired stubs', (
   it('propose()/measure() do not invoke unrelated capability machinery', () => {
     // Structural: service source does NOT import the proposal builder / measurer
     // / capability-evolution-types writers.
-    const src = readFileSync(new URL('../../src/capability/capability-service.ts', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../src/capabilities/capability/capability-service.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/capability-proposal-builder|capability-lifecycle-measurer|capability-evolution-intelligence/);
     expect(src).not.toMatch(/throw new Error\(.unimplemented.|NoOp/);
     // The only error is the stable class.
@@ -1390,7 +1390,7 @@ describe('Locked ruling #4 — propose() / measure() are forward-wired stubs', (
 
 describe('Locked ruling #3 — recommend() never triggers A7 governance machinery', () => {
   it('service source does not import proposal builder (structural pin)', () => {
-    const src = readFileSync(new URL('../../src/capability/capability-service.ts', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../src/capabilities/capability/capability-service.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/capability-proposal-builder/);
     expect(src).not.toMatch(/generateProposal|buildProposal|proposeMutation/);
   });
@@ -1407,7 +1407,7 @@ Expected: FAIL — `service.propose` / `service.measure` are not methods on the 
 
 - [ ] **Step 3: Implement `propose()` + `measure()` forward-wired stubs**
 
-Append to `src/capability/capability-service.ts`:
+Append to `src/capabilities/capability/capability-service.ts`:
 
 ```ts
   /**
@@ -1428,7 +1428,7 @@ Append to `src/capability/capability-service.ts`:
   }
 ```
 
-Update the import block at the top of `src/capability/capability-service.ts`:
+Update the import block at the top of `src/capabilities/capability/capability-service.ts`:
 
 ```ts
 import { CapabilityNotFoundError } from "./errors.js";
@@ -1447,7 +1447,7 @@ Expected: PASS (5 assertions), 0 tsc errors. Locked ruling #4 stable-contract in
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/capability-service.ts tests/capability/capability-service-governed.vitest.ts
+git add src/capabilities/capability/capability-service.ts tests/capability/capability-service-governed.vitest.ts
 git commit -m "feat(capability): CAP-8 service.propose() / service.measure() forward-wired stubs (ruling #4)"
 ```
 
@@ -1456,11 +1456,11 @@ git commit -m "feat(capability): CAP-8 service.propose() / service.measure() for
 ### Task 6: `history()` EventLog projection — narrow `CapabilityHistoryResult`
 
 **Files:**
-- Modify: `src/capability/capability-service.ts`
+- Modify: `src/capabilities/capability/capability-service.ts`
 - Test: `tests/capability/capability-service-history.vitest.ts`
 
 **Interfaces:**
-- Consumes: `EventLog.readAll()`, `AlixEvent` shape from `src/events/types.ts`.
+- Consumes: `EventLog.readAll()`, `AlixEvent` shape from `src/runtime-state/events/types.ts`.
 - Produces: `history(id: string, opts?: { limit?: number; beforeSeq?: number }): Promise<CapabilityHistoryResult>` — async (EventLog reads are async).
 
 **Design contract:**
@@ -1482,19 +1482,19 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityService } from '../../src/capability/capability-service.js';
-import { CapabilityResolver } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import { CapabilityMutationExecutor } from '../../src/evolution/execution/capability-mutation-executor.js';
-import { EventLog } from '../../src/events/event-log.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
-import type { CapabilityServiceOptions } from '../../src/capability/types/service-results.js';
+import { CapabilityService } from '../../src/capabilities/capability/capability-service.js';
+import { CapabilityResolver } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import { CapabilityMutationExecutor } from '../../src/planning/evolution/execution/capability-mutation-executor.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
+import type { CapabilityServiceOptions } from '../../src/capabilities/capability/types/service-results.js';
 
 let dir: string;
 let sessionDir: string;
@@ -1567,7 +1567,7 @@ describe('Locked ruling #5 + AC#6 — history() is EventLog projection (NO catal
     // Structural sentinel: service source does NOT import catalog registry
     // snapshot helpers.
     const { readFileSync } = require('node:fs');
-    const src = readFileSync(new URL('../../src/capability/capability-service.ts', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../src/capabilities/capability/capability-service.ts', import.meta.url), 'utf8');
     // Structural sentinel scoped to the history() method body (task-6 implementer correction):
     // whole-file regex would fail unconditionally because list()/inspect() already use catalog.
     const historyBody = src.match(/async history\([^)]*\)[^}]*\{[\s\S]*?\n  \}/)?.[0] ?? '';
@@ -1602,7 +1602,7 @@ Expected: FAIL — `service.history` is not a method.
 
 - [ ] **Step 3: Implement `history()` on `CapabilityService`**
 
-Append to `src/capability/capability-service.ts`:
+Append to `src/capabilities/capability/capability-service.ts`:
 
 ```ts
   /**
@@ -1662,7 +1662,7 @@ Expected: PASS (5 assertions), 0 tsc errors. The structural source-text test pin
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/capability-service.ts tests/capability/capability-service-history.vitest.ts
+git add src/capabilities/capability/capability-service.ts tests/capability/capability-service-history.vitest.ts
 git commit -m "feat(capability): CAP-8 service.history() — narrow EventLog projection (ruling #5)"
 ```
 
@@ -1671,8 +1671,8 @@ git commit -m "feat(capability): CAP-8 service.history() — narrow EventLog pro
 ### Task 7: Composition-root wiring + barrel export
 
 **Files:**
-- Modify: `src/capability/platform.ts` (construct `CapabilityService` and expose it)
-- Modify: `src/capability/index.ts` (no change needed — barrel already re-exports `capability-service.ts`)
+- Modify: `src/capabilities/capability/platform.ts` (construct `CapabilityService` and expose it)
+- Modify: `src/capabilities/capability/index.ts` (no change needed — barrel already re-exports `capability-service.ts`)
 - Test: `tests/capability/composition-root-wiring.vitest.ts`
 
 **Interfaces:**
@@ -1695,9 +1695,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityPlatform } from '../../src/capability/platform.js';
-import { CapabilityService } from '../../src/capability/capability-service.js';
-import { EventLog } from '../../src/events/event-log.js';
+import { CapabilityPlatform } from '../../src/capabilities/capability/platform.js';
+import { CapabilityService } from '../../src/capabilities/capability/capability-service.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
 
 let dir: string;
 let sessionDir: string;
@@ -1745,7 +1745,7 @@ Expected: FAIL — `platform.service` does not exist; `eventLog` is not in `Capa
 
 - [ ] **Step 3: Extend `CapabilityPlatform` to wire the service**
 
-Modify `src/capability/platform.ts`. Add the import:
+Modify `src/capabilities/capability/platform.ts`. Add the import:
 
 ```ts
 import { CapabilityService } from "./capability-service.js";
@@ -1788,7 +1788,7 @@ Expected: PASS (3 assertions), 0 tsc errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/platform.ts tests/capability/composition-root-wiring.vitest.ts
+git add src/capabilities/capability/platform.ts tests/capability/composition-root-wiring.vitest.ts
 git commit -m "feat(capability): CAP-8 composition-root wiring — platform exposes CapabilityService (ruling #6)"
 ```
 
@@ -1798,7 +1798,7 @@ git commit -m "feat(capability): CAP-8 composition-root wiring — platform expo
 
 **Files:**
 - Create: `tests/capability/three-axis-sentinel.vitest.ts`
-- Modify: `src/cli/commands/capabilities.ts` (and downstream consumer if needed)
+- Modify: `src/interfaces/cli/commands/capabilities.ts` (and downstream consumer if needed)
 - Test: `tests/capability/cli-migration.test.ts`
 
 **Interfaces:**
@@ -1809,14 +1809,14 @@ git commit -m "feat(capability): CAP-8 composition-root wiring — platform expo
 
 **Design contract:**
 - Locked ruling #10 verbatim phrasing for each axis:
-  - **Axis 1** ("composition-root construction"): scan all `src/**/*.ts` files EXCEPT `src/capability/platform.ts`. Any `new CapabilityRegistry(` or `new CapabilityResolver(` is a violation.
-  - **Axis 2** ("import-boundary"): files outside `src/capability/**` and outside `src/cli/commands/capabilities.ts` (the migrated CLI seam) MUST NOT import `CapabilityRegistry` or `CapabilityResolver` by name. A consumer reaching for `getCapabilityRegistry()` (a singleton bypass) is also a violation. The sentinel greps for import statements and identifier usage.
-  - **Axis 3** ("migrated call site"): `src/cli/commands/capabilities.ts` (and any capability CLI sub-commands) MUST import and use `CapabilityService` (not direct registry/resolver). Existing TUI/Web consumers tolerated only as tracked CAP-11 debt.
-- Locked ruling #7 (CLI migration): this task rewires `src/cli/commands/capabilities.ts` to consume `service.*` for the listing/inspect operations. The five A4 mutations are invoked via `service.apply(...)` (Task 4). The capability lifecycle analyzer/measurer paths used by the CLI delegate through `service.recommend`, `service.search`, etc.
+  - **Axis 1** ("composition-root construction"): scan all `src/**/*.ts` files EXCEPT `src/capabilities/capability/platform.ts`. Any `new CapabilityRegistry(` or `new CapabilityResolver(` is a violation.
+  - **Axis 2** ("import-boundary"): files outside `src/capabilities/capability/**` and outside `src/interfaces/cli/commands/capabilities.ts` (the migrated CLI seam) MUST NOT import `CapabilityRegistry` or `CapabilityResolver` by name. A consumer reaching for `getCapabilityRegistry()` (a singleton bypass) is also a violation. The sentinel greps for import statements and identifier usage.
+  - **Axis 3** ("migrated call site"): `src/interfaces/cli/commands/capabilities.ts` (and any capability CLI sub-commands) MUST import and use `CapabilityService` (not direct registry/resolver). Existing TUI/Web consumers tolerated only as tracked CAP-11 debt.
+- Locked ruling #7 (CLI migration): this task rewires `src/interfaces/cli/commands/capabilities.ts` to consume `service.*` for the listing/inspect operations. The five A4 mutations are invoked via `service.apply(...)` (Task 4). The capability lifecycle analyzer/measurer paths used by the CLI delegate through `service.recommend`, `service.search`, etc.
 - Each axis produces a distinct failure message — `axis 1: <file>` / `axis 2: <file>` / `axis 3: <file>`.
 
 **CLI migration design contract:**
-- Find the existing CLI capabilities command implementation (`src/cli/commands/capabilities.ts` currently re-exports `handleCapabilitiesCommand` from `src/evolution/capability-lifecycle/capability-lifecycle-cli.ts`). The CLI currently constructs OR calls into the legacy `capability-lifecycle-*` modules which may import registry/resolver directly.
+- Find the existing CLI capabilities command implementation (`src/interfaces/cli/commands/capabilities.ts` currently re-exports `handleCapabilitiesCommand` from `src/planning/evolution/capability-lifecycle/capability-lifecycle-cli.ts`). The CLI currently constructs OR calls into the legacy `capability-lifecycle-*` modules which may import registry/resolver directly.
 - The migrated path: replace internal references to `registry`/`resolver` with `service.list()`, `service.inspect()`, `service.health()`, `service.search()`, `service.apply(...)`. Where the CLI previously read registry state to format output, it now reads `service.list()` / `service.inspect(id)` results.
 - Sentinel axis 3 enforces: the migrated file imports `CapabilityService` and references `service.*`; references to `registry` / `resolver` are absent or wrapped behind a delegation call.
 
@@ -1831,10 +1831,10 @@ import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_SRC = fileURLToPath(new URL('../../src/', import.meta.url));
-const COMPOSITION_ROOT = fileURLToPath(new URL('../../src/capability/platform.ts', import.meta.url));
-const CAPABILITY_DIR = fileURLToPath(new URL('../../src/capability/', import.meta.url));
+const COMPOSITION_ROOT = fileURLToPath(new URL('../../src/capabilities/capability/platform.ts', import.meta.url));
+const CAPABILITY_DIR = fileURLToPath(new URL('../../src/capabilities/capability/', import.meta.url));
 const MIGRATED_CLI_FILES = new Set<string>([
-  fileURLToPath(new URL('../../src/cli/commands/capabilities.ts', import.meta.url)),
+  fileURLToPath(new URL('../../src/interfaces/cli/commands/capabilities.ts', import.meta.url)),
 ]);
 
 const CAPABILITY_REGISTRY_RE = /new\s+CapabilityRegistry\s*\(/g;
@@ -1911,11 +1911,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const CAPABILITIES_CLI = fileURLToPath(new URL('../../src/cli/commands/capabilities.ts', import.meta.url));
-const LIFECYCLE_CLI = fileURLToPath(new URL('../../src/evolution/capability-lifecycle/capability-lifecycle-cli.ts', import.meta.url));
+const CAPABILITIES_CLI = fileURLToPath(new URL('../../src/interfaces/cli/commands/capabilities.ts', import.meta.url));
+const LIFECYCLE_CLI = fileURLToPath(new URL('../../src/planning/evolution/capability-lifecycle/capability-lifecycle-cli.ts', import.meta.url));
 
 describe('CLI capabilities migration (locked ruling #7)', () => {
-  it('src/cli/commands/capabilities.ts routes through CapabilityService', () => {
+  it('src/interfaces/cli/commands/capabilities.ts routes through CapabilityService', () => {
     const text = readFileSync(CAPABILITIES_CLI, 'utf8');
     assert.match(text, /CapabilityService/, 'must import or reference CapabilityService');
     assert.doesNotMatch(text, /new\s+CapabilityRegistry\s*\(/);
@@ -1946,12 +1946,12 @@ pnpm run build && node --test dist/tests/capability/cli-migration.test.js
 ```
 
 Expected: FAIL on both:
-- axis 3 fails: `src/cli/commands/capabilities.ts` (and/or the underlying `capability-lifecycle-cli.ts`) does NOT import `CapabilityService` and DOES reference `registry.query` / `catalog.register`.
+- axis 3 fails: `src/interfaces/cli/commands/capabilities.ts` (and/or the underlying `capability-lifecycle-cli.ts`) does NOT import `CapabilityService` and DOES reference `registry.query` / `catalog.register`.
 - axis 1 may already PASS (the platform is the only constructor — `single-registry.vitest.ts` enforces this previously), but the test will pin it.
 
 - [ ] **Step 3: Migrate CLI capabilities commands to `service.*`**
 
-Modify `src/cli/commands/capabilities.ts`:
+Modify `src/interfaces/cli/commands/capabilities.ts`:
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -1971,7 +1971,7 @@ Modify `src/cli/commands/capabilities.ts`:
 export { handleCapabilitiesCommand } from "../../evolution/capability-lifecycle/capability-lifecycle-cli.js";
 ```
 
-And rewrite `src/evolution/capability-lifecycle/capability-lifecycle-cli.ts` so its internal references to `registry`, `catalog`, `resolver` are replaced by calls into the `CapabilityService` exposed by the platform. The minimal migration is:
+And rewrite `src/planning/evolution/capability-lifecycle/capability-lifecycle-cli.ts` so its internal references to `registry`, `catalog`, `resolver` are replaced by calls into the `CapabilityService` exposed by the platform. The minimal migration is:
 - Replace `registry.query(q)` with `service.search(q)` / `service.list()`.
 - Replace `registry.find(id)` / `registry.get(id)` with `service.inspect(id)`.
 - Replace direct `catalog.register(...)` with `service.apply({ step: { operation: 'capability.create', ... } })`.
@@ -2001,7 +2001,7 @@ If the sentinel axis 1 surfaces a violation, the implementor MUST move the const
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/capabilities.ts src/evolution/capability-lifecycle/capability-lifecycle-cli.ts tests/capability/three-axis-sentinel.vitest.ts tests/capability/cli-migration.test.ts
+git add src/interfaces/cli/commands/capabilities.ts src/planning/evolution/capability-lifecycle/capability-lifecycle-cli.ts tests/capability/three-axis-sentinel.vitest.ts tests/capability/cli-migration.test.ts
 git commit -m "feat(capability): CAP-8 three-axis sentinel + CLI capabilities migration to service.* (rulings #7, #10)"
 ```
 
@@ -2019,11 +2019,11 @@ git commit -m "feat(capability): CAP-8 three-axis sentinel + CLI capabilities mi
 **Design contract:**
 - Mirrors CAP-6/CAP-7 supersession test pattern.
 - Forbidden files for CAP-8:
-  - `src/capability/initial-capabilities.ts` (CAP-1 seed list; out of CAP-8 scope)
-  - `src/tools/tool-registry.ts` (CAP-1 legacy tool surface)
-  - `src/policy/capability-registry.ts` (legacy policy registry)
-  - Production files under `src/capability/canonical/*` (CAP-1/CAP-2 stable surface)
-  - `src/tui/capabilities/capability-service.ts` (TUI façade — CAP-11 migration debt, out of CAP-8)
+  - `src/capabilities/capability/initial-capabilities.ts` (CAP-1 seed list; out of CAP-8 scope)
+  - `src/capabilities/tools/tool-registry.ts` (CAP-1 legacy tool surface)
+  - `src/governance/policy/capability-registry.ts` (legacy policy registry)
+  - Production files under `src/capabilities/capability/canonical/*` (CAP-1/CAP-2 stable surface)
+  - `src/interfaces/tui/capabilities/capability-service.ts` (TUI façade — CAP-11 migration debt, out of CAP-8)
 - The test asserts: any file in the worktree branch (`main...HEAD`) that is one of these paths results in test failure.
 - Test is node:test, run via `pnpm run build && node --test dist/tests/capability/cap-8-supersession.test.js`.
 
@@ -2044,13 +2044,13 @@ import { execSync } from 'node:child_process';
  *  CAP-6/CAP-7 supersession test pattern. */
 
 const FORBIDDEN = [
-  'src/capability/initial-capabilities.ts',
-  'src/tools/tool-registry.ts',
-  'src/policy/capability-registry.ts',
-  'src/tui/capabilities/capability-service.ts', // CAP-11 migration debt — pre-CAP-7 TUI façade. Task 7 modified this file to satisfy locked ruling #12's "EventLog supplied by composition root and same instance injected into CapabilityService" invariant. Allowlist entry required; see ALLOWED_BUT_TRACKED below.
+  'src/capabilities/capability/initial-capabilities.ts',
+  'src/capabilities/tools/tool-registry.ts',
+  'src/governance/policy/capability-registry.ts',
+  'src/interfaces/tui/capabilities/capability-service.ts', // CAP-11 migration debt — pre-CAP-7 TUI façade. Task 7 modified this file to satisfy locked ruling #12's "EventLog supplied by composition root and same instance injected into CapabilityService" invariant. Allowlist entry required; see ALLOWED_BUT_TRACKED below.
 ];
 const FORBIDDEN_DIR_PREFIXES = [
-  'src/capability/canonical/',
+  'src/capabilities/capability/canonical/',
 ];
 
 // ALLOWED_BUT_TRACKED: narrow exception list mirroring the Task 8 `CAP11_DEBT_FILES` allowlist pattern.
@@ -2058,7 +2058,7 @@ const FORBIDDEN_DIR_PREFIXES = [
 // a locked ruling. CAP-11 (TUI/Web migration debt owner) must amend brief + plan before
 // touching any ALLOWED_BUT_TRACKED file again. DO NOT add new entries here in CAP-8.
 const ALLOWED_BUT_TRACKED: ReadonlySet<string> = new Set([
-  'src/tui/capabilities/capability-service.ts', // Task 7 ruling #12 EventLog wiring
+  'src/interfaces/tui/capabilities/capability-service.ts', // Task 7 ruling #12 EventLog wiring
 ]);
 
 function changedFiles(): string[] {
@@ -2156,7 +2156,7 @@ git commit -m "chore(capability): CAP-8 supersession forbidden-file guard"
 
 10. **Three-axis structural sentinel (AST/import-graph based, not just grep).** Distinct failure messages per axis. Encoded in Task 8.
 
-11. **#stub** (verbatim): *"CAP-8 extends the existing CAP-7 `src/capability/capability-service.ts` stub in place. Same module identity, new authoritative contract. No rename, no compatibility facade, no parallel service. If CAP-7 stub constructor/method shape conflicts with CAP-8 contract, replace in place."* Encoded across Tasks 2-7 (every task touches `src/capability/capability-service.ts`).
+11. **#stub** (verbatim): *"CAP-8 extends the existing CAP-7 `src/capabilities/capability/capability-service.ts` stub in place. Same module identity, new authoritative contract. No rename, no compatibility facade, no parallel service. If CAP-7 stub constructor/method shape conflicts with CAP-8 contract, replace in place."* Encoded across Tasks 2-7 (every task touches `src/capabilities/capability/capability-service.ts`).
 
 ---
 
@@ -2183,17 +2183,17 @@ git commit -m "chore(capability): CAP-8 supersession forbidden-file guard"
 - `CapabilityHealthResult.reason` typed as the union `"missing_binding" | "provider_unavailable" | "lifecycle_ineligible" | undefined` (Tasks 1 + 3).
 
 **3. Forbidden-file guard:** Task 9 supersession test asserts CAP-8 worktree does not touch:
-- `src/capability/initial-capabilities.ts`
-- `src/tools/tool-registry.ts`
-- `src/policy/capability-registry.ts`
-- Production files under `src/capability/canonical/*`
-- `src/tui/capabilities/capability-service.ts` (CAP-11 migration debt)
+- `src/capabilities/capability/initial-capabilities.ts`
+- `src/capabilities/tools/tool-registry.ts`
+- `src/governance/policy/capability-registry.ts`
+- Production files under `src/capabilities/capability/canonical/*`
+- `src/interfaces/tui/capabilities/capability-service.ts` (CAP-11 migration debt)
 
 **4. Test convention:** `.vitest.ts` for Vitest unit/service tests (Tasks 1-3, 5, 6, 7, 8 plus the axis-1/2/3 sentinel); `.test.ts` for node:test (Tasks 8 cli-migration, Task 9 supersession). Both run via the existing `pnpm test` script (no `tsx` — node:test runs `node --test dist/tests/...`).
 
 **5. CAP-7 stub replacement:** `tests/capability/capability-service-delegation.vitest.ts` is **deleted** in Task 2 because the CAP-7 stub's `resolve(id, ctx)` method is removed (locked ruling #stub: no compatibility facade). The delegation invariant is reasserted in Task 8's axis-1/axis-2 sentinel — which is structurally stronger than the behavioural CAP-7 test.
 
-**6. Composition-root change:** `src/capability/platform.ts` constructor is extended to accept `eventLog: EventLog` (REQUIRED per locked ruling #12). Existing platform tests (CAP-1/CAP-3/CAP-5/CAP-6/CAP-7) construct `CapabilityPlatform` without an eventLog — those tests MUST be updated to construct with an explicit test EventLog fixture (task-7 implementer verified this). The production bootstrap MUST supply an authoritative EventLog. Pre-existing CI failures on `unit`/`tui-smoke`/`supply-chain` remain pre-existing per ticket #484.
+**6. Composition-root change:** `src/capabilities/capability/platform.ts` constructor is extended to accept `eventLog: EventLog` (REQUIRED per locked ruling #12). Existing platform tests (CAP-1/CAP-3/CAP-5/CAP-6/CAP-7) construct `CapabilityPlatform` without an eventLog — those tests MUST be updated to construct with an explicit test EventLog fixture (task-7 implementer verified this). The production bootstrap MUST supply an authoritative EventLog. Pre-existing CI failures on `unit`/`tui-smoke`/`supply-chain` remain pre-existing per ticket #484.
 
 **7. `tsx` not installed:** node:test steps use `node --test dist/tests/...` after `pnpm run build`, not `tsx`. (CAP-6 lesson — the project does not install `tsx`.)
 
@@ -2223,10 +2223,10 @@ git commit -m "chore(capability): CAP-8 supersession forbidden-file guard"
 4. **CAP-11 migration debt tracking** — locked ruling #7 tolerates existing non-CLI direct consumers only as "explicitly tracked CAP-11 migration debt." TUI/Web consumers are NOT migrated by CAP-8; CAP-11 owns that work.
 
 5. **Task 8 corrections (added 2026-08-12):**
-   - **Axis 2 regex must anchor on `capability/` module path** — `capability/(?:registry|provider-resolver)\.js`. The brief's compressed regex `[^"']*(?:registry|provider-resolver)\.js` over-matched `policy/capability-registry.js` (a completely different `CapabilityRegistry` class — pre-CAP-2 narrow scope). Without this anchor the sentinel flags `src/policy/policy-engine.ts` and `src/runtime/execution-authorization.ts` on every run.
-   - **CAP-11 debt allowlist is REQUIRED** — the sentinel must exclude the 5 pre-existing non-`src/capability/**` files that import `CapabilityRegistry` today: `src/evolution/capability-lifecycle/capability-lifecycle-rehydration.ts`, `src/evolution/capability-lifecycle/capability-lifecycle-applier.ts`, `src/evolution/capability-lifecycle/capability-lifecycle-step-executor.ts`, `src/evolution/execution/capability-mutation-executor.ts`, `src/integrations/session-capabilities.ts`. Listed by absolute path in a `CAP11_DEBT_FILES` `ReadonlySet<string>` with a comment forbidding new entries in CAP-8.
+   - **Axis 2 regex must anchor on `capability/` module path** — `capability/(?:registry|provider-resolver)\.js`. The brief's compressed regex `[^"']*(?:registry|provider-resolver)\.js` over-matched `policy/capability-registry.js` (a completely different `CapabilityRegistry` class — pre-CAP-2 narrow scope). Without this anchor the sentinel flags `src/governance/policy/policy-engine.ts` and `src/runtime-state/runtime/execution-authorization.ts` on every run.
+   - **CAP-11 debt allowlist is REQUIRED** — the sentinel must exclude the 5 pre-existing non-`src/capabilities/capability/**` files that import `CapabilityRegistry` today: `src/planning/evolution/capability-lifecycle/capability-lifecycle-rehydration.ts`, `src/planning/evolution/capability-lifecycle/capability-lifecycle-applier.ts`, `src/planning/evolution/capability-lifecycle/capability-lifecycle-step-executor.ts`, `src/planning/evolution/execution/capability-mutation-executor.ts`, `src/capabilities/integrations/session-capabilities.ts`. Listed by absolute path in a `CAP11_DEBT_FILES` `ReadonlySet<string>` with a comment forbidding new entries in CAP-8.
    - **`CapabilitiesCLIDeps.registry` re-typed as `unknown`** — the A7.0 governance `CapabilityLifecycleApplier` is a CAP-11 debt file. To avoid naming `CapabilityRegistry` in this module, the `registry` field is re-typed as `unknown` and the cast at the applier boundary uses `ConstructorParameters<typeof CapabilityLifecycleApplier>[0]["registry"]` — TypeScript extracts the applier's registry type without writing `CapabilityRegistry` in source.
-   - **Docstring in `src/cli/commands/capabilities.ts` rephrased** to "Direct constructor invocations of the platform registry / resolver types" — axis 3 is grep-based and matched the original JSDoc phrase "new CapabilityRegistry(" by accident.
+   - **Docstring in `src/interfaces/cli/commands/capabilities.ts` rephrased** to "Direct constructor invocations of the platform registry / resolver types" — axis 3 is grep-based and matched the original JSDoc phrase "new CapabilityRegistry(" by accident.
    - **CLI migration scope is bounded** to the 8 commands listed in the implementer's report. `alix capabilities apply <id>` keeps the legacy `registry` param (CAP-11 debt); `recommend`/`propose`/`history`/`health`/`measure` are unchanged.
 
 ---

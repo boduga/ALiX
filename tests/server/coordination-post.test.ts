@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Readable } from "node:stream";
-import { registerCoordinationRoutes, cancelAllBackgroundRuns } from "../../src/server/coordination-routes.js";
+import { registerCoordinationRoutes, cancelAllBackgroundRuns } from "../../src/interfaces/server/coordination-routes.js";
 
 function mockRes() {
   const chunks: string[] = [];

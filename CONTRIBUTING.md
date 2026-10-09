@@ -31,7 +31,7 @@ test: add context compiler cache tests
 - No classes where functions suffice (prefer pure functions for testability)
 - `vitest` for unit specs (`*.vitest.ts`, colocated under `tests/`) and `node:test` for the node test suite (`tests/**/*.test.ts`); not mocha/jest
 - Errors use `ApiError` in providers, `ToolResult` in tools
-- Events use typed payloads from `src/events/types.ts`
+- Events use typed payloads from `src/runtime-state/events/types.ts`
 
 ## Project Structure
 

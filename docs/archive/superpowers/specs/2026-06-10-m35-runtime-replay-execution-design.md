@@ -77,7 +77,7 @@ For steps that originally required approval, the ReplayExecutor:
 
 ## 5. ReplayPlan model
 
-**File:** `src/runtime/replay-plan.ts` (NEW)
+**File:** `src/runtime-state/runtime/replay-plan.ts` (NEW)
 
 ```typescript
 export type ReplayMode = "dry-run" | "sandbox";
@@ -134,7 +134,7 @@ The builder:
 
 ## 6. ReplayExecutor flow
 
-**File:** `src/runtime/replay-executor.ts` (NEW)
+**File:** `src/runtime-state/runtime/replay-executor.ts` (NEW)
 
 ```
 buildReplayPlan(preview, events, mode)
@@ -359,7 +359,7 @@ Replay events appear in the Trace timeline automatically via `toTraceEvent()` in
 
 ### replay.* events
 
-**File:** `src/events/types.ts` (MODIFY)
+**File:** `src/runtime-state/events/types.ts` (MODIFY)
 
 ```typescript
 export const REPLAY_EVENT_TYPES = {
@@ -447,7 +447,7 @@ if (type.startsWith("replay.")) {
 
 ## 11. TUI keyboard shortcut
 
-In `src/cli/commands/tui.ts`, when detail is open and mode is "replay":
+In `src/interfaces/cli/commands/tui.ts`, when detail is open and mode is "replay":
 
 ```typescript
 if (task.toLowerCase() === "x") {
@@ -506,16 +506,16 @@ The confirmation uses a two-step prompt: user types `replay yes` to confirm. Thi
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/runtime/replay-plan.ts` | **NEW** | ReplayPlan type + builder |
-| `src/runtime/replay-executor.ts` | **NEW** | ReplayExecutor class + wrappers |
-| `src/runtime/replay-preview.ts` | MODIFY | Export traceChainContext for plan builder |
-| `src/events/types.ts` | MODIFY | Add `REPLAY_EVENT_TYPES`, `Replay*Payload`, replay source |
-| `src/runtime/trace-events.ts` | MODIFY | Add `"replay"` to TraceSourceType, add replay mapping in `toTraceEvent()` |
-| `src/policy/policy-gate.ts` | MODIFY | Add `"replay"` to `ToolPolicyRequest.source` type |
-| `src/tui/trace-detail.ts` | MODIFY | Add `renderReplayResult()` for execution output |
-| `src/tui/panel-renderer.ts` | MODIFY | Add `"replay-result"` detail mode, wire execution |
-| `src/tui/store.ts` | MODIFY | Add replay state (latest result, executing flag) |
-| `src/cli/commands/tui.ts` | MODIFY | Add `x` shortcut, `/replay` command, confirmation flow |
+| `src/runtime-state/runtime/replay-plan.ts` | **NEW** | ReplayPlan type + builder |
+| `src/runtime-state/runtime/replay-executor.ts` | **NEW** | ReplayExecutor class + wrappers |
+| `src/runtime-state/runtime/replay-preview.ts` | MODIFY | Export traceChainContext for plan builder |
+| `src/runtime-state/events/types.ts` | MODIFY | Add `REPLAY_EVENT_TYPES`, `Replay*Payload`, replay source |
+| `src/runtime-state/runtime/trace-events.ts` | MODIFY | Add `"replay"` to TraceSourceType, add replay mapping in `toTraceEvent()` |
+| `src/governance/policy/policy-gate.ts` | MODIFY | Add `"replay"` to `ToolPolicyRequest.source` type |
+| `src/interfaces/tui/trace-detail.ts` | MODIFY | Add `renderReplayResult()` for execution output |
+| `src/interfaces/tui/panel-renderer.ts` | MODIFY | Add `"replay-result"` detail mode, wire execution |
+| `src/interfaces/tui/store.ts` | MODIFY | Add replay state (latest result, executing flag) |
+| `src/interfaces/cli/commands/tui.ts` | MODIFY | Add `x` shortcut, `/replay` command, confirmation flow |
 | `tests/runtime/replay-plan.test.ts` | **NEW** | Plan building tests |
 | `tests/runtime/replay-executor.test.ts` | **NEW** | Execution tests |
 | `tests/tui/replay-execution-detail.test.ts` | **NEW** | Result rendering tests |

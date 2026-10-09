@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import type { DashboardSnapshot } from '../../../src/tui/snapshot.js';
-import { createInitialPerTabState, SessionPhase } from '../../../src/tui/state.js';
-import { projectOperatorShell } from '../../../src/tui/workbench/model/operator-shell.js';
-import { getWorkbenchPreviewTheme } from '../../../src/tui/workbench/model/preview-theme.js';
-import { paintOperatorShell } from '../../../src/tui/workbench/views/operator-shell.js';
-import { TuiApp, type TuiAppOptions } from '../../../src/tui/app.js';
-import { MockInput, MockOutput } from '../../../src/tui/io.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import type { DashboardSnapshot } from '../../../src/interfaces/tui/snapshot.js';
+import { createInitialPerTabState, SessionPhase } from '../../../src/interfaces/tui/state.js';
+import { projectOperatorShell } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
+import { getWorkbenchPreviewTheme } from '../../../src/interfaces/tui/workbench/model/preview-theme.js';
+import { paintOperatorShell } from '../../../src/interfaces/tui/workbench/views/operator-shell.js';
+import { TuiApp, type TuiAppOptions } from '../../../src/interfaces/tui/app.js';
+import { MockInput, MockOutput } from '../../../src/interfaces/tui/io.js';
 
 function visible(frame: string): string {
   return frame.replace(/\x1b\[[0-9;]*m/gu, '');
@@ -130,7 +130,7 @@ describe('Agent Workbench operator shell', () => {
     const canvas = new TerminalCanvas(64, 24);
     const state = createInitialPerTabState();
     state.pendingApprovals = [{
-      id: 'ap-1', toolName: 'patch.apply', target: 'src/tui/app.ts', requestedAt: 1,
+      id: 'ap-1', toolName: 'patch.apply', target: 'src/interfaces/tui/app.ts', requestedAt: 1,
     }];
     const model = projectOperatorShell(snapshot(), state, 'ask');
 
@@ -139,7 +139,7 @@ describe('Agent Workbench operator shell', () => {
 
     expect(frame).toContain('ask');
     expect(frame).toContain('1 approval • patch.apply • a approve • d deny');
-    expect(frame).not.toContain('src/tui/app.ts');
+    expect(frame).not.toContain('src/interfaces/tui/app.ts');
     expect(frame).not.toContain('TOKENS 3,918');
   });
 

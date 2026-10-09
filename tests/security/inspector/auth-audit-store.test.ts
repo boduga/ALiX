@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AuthAuditStore } from "../../../src/security/inspector/auth-audit-store.js";
+import { AuthAuditStore } from "../../../src/governance/security/inspector/auth-audit-store.js";
 
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), "auth-audit-"));

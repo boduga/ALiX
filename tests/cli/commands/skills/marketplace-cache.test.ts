@@ -7,7 +7,7 @@ import {
   listRepoSkills,
   listAvailableSkills,
   marketplaceIndexPath,
-} from "../../../../src/cli/commands/skills/marketplace.js";
+} from "../../../../src/interfaces/cli/commands/skills/marketplace.js";
 
 const testDir = join(process.cwd(), ".test-alix-marketplace-cache");
 const REPO = "https://github.com/acme/skills";

@@ -246,8 +246,8 @@ JSON gains `effectivenessOutcome` on each `RecommendationEntry` and the four new
 ## Sentinel
 
 No sentinel changes needed. All files being modified are already in `EXECUTIVE_FILES`:
-- `src/executive/recommendation-effectiveness.ts` — already listed (P10.8a)
-- `src/cli/commands/executive-effectiveness-handler.ts` — already listed (P10.8a)
+- `src/execution/executive/recommendation-effectiveness.ts` — already listed (P10.8a)
+- `src/interfaces/cli/commands/executive-effectiveness-handler.ts` — already listed (P10.8a)
 
 The handler pattern is `EffectivenessStore.list()` (read-only) → no `ProposalStore.save` or forbidden symbols. The existing sentinel allows `ProposalStore.load(` — reading proposals is already permitted. `EffectivenessStore` doesn't appear in the forbidden list because it was never added (read-only store).
 
@@ -255,8 +255,8 @@ The handler pattern is `EffectivenessStore.list()` (read-only) → no `ProposalS
 
 | File | Change |
 |---|---|
-| `src/executive/recommendation-effectiveness.ts` | Add `EffectivenessOutcome` type, `applyEffectivenessData()` pure function, extend `RecommendationEntry`, `SignalCalibration`. Extend `computeRecommendationEffectiveness()` tallying. |
-| `src/cli/commands/executive-effectiveness-handler.ts` | Import `EffectivenessStore`, load effectiveness data, call `applyEffectivenessData()`, update terminal render. |
+| `src/execution/executive/recommendation-effectiveness.ts` | Add `EffectivenessOutcome` type, `applyEffectivenessData()` pure function, extend `RecommendationEntry`, `SignalCalibration`. Extend `computeRecommendationEffectiveness()` tallying. |
+| `src/interfaces/cli/commands/executive-effectiveness-handler.ts` | Import `EffectivenessStore`, load effectiveness data, call `applyEffectivenessData()`, update terminal render. |
 | `tests/executive/recommendation-effectiveness.vitest.ts` | Add `applyEffectivenessData` tests, effectiveness-aware `SignalCalibration` tests. |
 | `tests/cli/commands/executive-effectiveness-cli.vitest.ts` | Add effectiveness-aware CLI tests. |
 

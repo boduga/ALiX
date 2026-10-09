@@ -4,7 +4,7 @@ import {
   DEFAULT_EVIDENCE_WINDOW_DAYS,
   DEFAULT_LEARNING_ENGINE_OPTIONS,
   type LearningProposal,
-} from "../../src/evolution/learning/contracts/learning-contract.js";
+} from "../../src/planning/evolution/learning/contracts/learning-contract.js";
 
 describe("A8 contract smoke", () => {
   it("default options are populated", () => {

@@ -14,7 +14,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 
-const BRIEF_SRC = resolve(__dirname, "../../src/adaptation/strategic-brief.ts");
+const BRIEF_SRC = resolve(__dirname, "../../src/planning/adaptation/strategic-brief.ts");
 const source = readFileSync(BRIEF_SRC, "utf-8");
 const specifiers = [...importedSpecifiers(BRIEF_SRC)];
 const bindings = importedBindings(BRIEF_SRC);

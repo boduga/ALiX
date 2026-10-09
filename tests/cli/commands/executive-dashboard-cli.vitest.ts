@@ -12,11 +12,11 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { runDashboard } from "../../../src/cli/commands/executive-dashboard-handler.js";
-import { RecommendationReportStore, type RecommendationReport } from "../../../src/executive/recommendation-report-store.js";
-import { OutcomeReportStore } from "../../../src/executive/outcome-store.js";
-import type { ExecutiveOutcomeEvaluationReport, SubsystemDelta } from "../../../src/executive/outcome-evaluator.js";
-import type { ExecutiveSubsystemName } from "../../../src/executive/executive-health.js";
+import { runDashboard } from "../../../src/interfaces/cli/commands/executive-dashboard-handler.js";
+import { RecommendationReportStore, type RecommendationReport } from "../../../src/execution/executive/recommendation-report-store.js";
+import { OutcomeReportStore } from "../../../src/execution/executive/outcome-store.js";
+import type { ExecutiveOutcomeEvaluationReport, SubsystemDelta } from "../../../src/execution/executive/outcome-evaluator.js";
+import type { ExecutiveSubsystemName } from "../../../src/execution/executive/executive-health.js";
 
 function captureConsole() {
   const out: string[] = [];

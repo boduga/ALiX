@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { typescriptTokenizer } from '../../../../src/tui/blocks/langs/typescript.js';
+import { typescriptTokenizer } from '../../../../src/interfaces/tui/blocks/langs/typescript.js';
 
 describe('typescriptTokenizer', () => {
   it('tokenizes keywords', () => {

@@ -19,7 +19,7 @@ import type {
   SubagentRole,
   SubagentRoleConfig,
   SubagentStyle,
-} from "../config/schema.js";
+} from "../operations/config/schema.js";
 
 export type AgentPolicyBucket = "read" | "write" | "research";
 

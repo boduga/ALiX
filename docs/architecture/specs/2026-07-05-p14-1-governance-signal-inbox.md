@@ -204,7 +204,7 @@ Total: 54 tests.
 
 ```text
 src/governance/governance-signal.ts               # 644 lines — types, store, normalizers, dedup
-src/cli/commands/governance.ts                     # Amended — inbox + inbox refresh handlers
+src/interfaces/cli/commands/governance.ts                     # Amended — inbox + inbox refresh handlers
 tests/governance/governance-signal.test.ts         # 763 lines — 54 tests
 ```
 

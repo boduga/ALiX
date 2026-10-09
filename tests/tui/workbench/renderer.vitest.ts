@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { layoutComposer } from '../../../src/tui/workbench/views/composer-view.js';
-import { diffFrameRows, renderFramePatches } from '../../../src/tui/workbench/render/frame-differ.js';
-import { displayWidth, graphemes } from '../../../src/tui/workbench/render/terminal-text.js';
+import { layoutComposer } from '../../../src/interfaces/tui/workbench/views/composer-view.js';
+import { diffFrameRows, renderFramePatches } from '../../../src/interfaces/tui/workbench/render/frame-differ.js';
+import { displayWidth, graphemes } from '../../../src/interfaces/tui/workbench/render/terminal-text.js';
 
 describe('Workbench renderer primitives', () => {
   it('emits only changed rows after the first frame', () => {

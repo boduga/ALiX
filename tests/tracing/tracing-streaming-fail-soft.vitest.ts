@@ -9,7 +9,7 @@
  *         │  mid-stream error / abort
  *         ▼
  *     request 2   provider.complete(request)   → one model span (stream: false)
- *         │  (fail-soft fallback — src/run/helpers.ts streamToResponse)
+ *         │  (fail-soft fallback — src/execution/run/helpers.ts streamToResponse)
  *         ▼
  *     logical outcome = whatever the fallback commits to (ERROR here)
  *
@@ -23,7 +23,7 @@
  * request carrying its OWN model span, and the run must commit to the ERROR
  * outcome with the error attached to the span whose stream actually failed.
  *
- * The re-issue loop is read from production (src/run/helpers.ts:351-360):
+ * The re-issue loop is read from production (src/execution/run/helpers.ts:351-360):
  * `streamToResponse` runs a `for await` over `provider.stream(request)`; a
  * mid-stream throw is caught, and unless `provider.isRoutingAdapter` (the
  * routing adapter already made its fallback decision — post-commit failure is
@@ -78,18 +78,18 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { EventLog } from "../../src/events/event-log.js";
-import { MemoryStore } from "../../src/utils/memory/store.js";
-import { ScopeTracker } from "../../src/autonomy/scope-tracker.js";
-import { TaskStateMachine, RunLimiter } from "../../src/autonomy/state-machine.js";
-import { createContextBudget } from "../../src/config/context-budget.js";
-import { ToolExecutor } from "../../src/tools/executor.js";
-import { runTaskLoop, type TaskLoopDeps } from "../../src/run/task-loop.js";
-import { withProviderContracts } from "../../src/providers/provider-contract-validation.js";
-import { createTraceClient } from "../../src/tracing/client-factory.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import type { ExecutionContext } from "../../src/observability/execution-context.js";
-import type { ModelAdapter, NormalizedResponse, StreamChunk, ToolDef } from "../../src/providers/types.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { MemoryStore } from "../../src/operations/utils/memory/store.js";
+import { ScopeTracker } from "../../src/planning/autonomy/scope-tracker.js";
+import { TaskStateMachine, RunLimiter } from "../../src/planning/autonomy/state-machine.js";
+import { createContextBudget } from "../../src/operations/config/context-budget.js";
+import { ToolExecutor } from "../../src/capabilities/tools/executor.js";
+import { runTaskLoop, type TaskLoopDeps } from "../../src/execution/run/task-loop.js";
+import { withProviderContracts } from "../../src/models/providers/provider-contract-validation.js";
+import { createTraceClient } from "../../src/models/tracing/client-factory.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import type { ExecutionContext } from "../../src/operations/observability/execution-context.js";
+import type { ModelAdapter, NormalizedResponse, StreamChunk, ToolDef } from "../../src/models/providers/types.js";
 
 import {
   FakeLangfuseSpanProcessor,

@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
 
 const SOAK_LEVEL = process.env.ALIX_SOAK_LEVEL || "ci";
 const EVENT_COUNT = SOAK_LEVEL === "bench" ? 10000 : 1000;

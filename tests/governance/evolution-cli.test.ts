@@ -11,11 +11,11 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvolutionStateMachine } from "../../src/evolution/evolution-state-machine.js";
-import { ExecutionEvidenceStore } from "../../src/runtime/execution-evidence-store.js";
+import { EvolutionStateMachine } from "../../src/planning/evolution/evolution-state-machine.js";
+import { ExecutionEvidenceStore } from "../../src/runtime-state/runtime/execution-evidence-store.js";
 import { handleEvolutionCommand } from "../../src/governance/evolution-cli.js";
-import { EvolutionState } from "../../src/evolution/contracts/evolution-contract.js";
-import { InMemoryGovernanceDecisionStore } from "../../src/evolution/governance/decision-store.js";
+import { EvolutionState } from "../../src/planning/evolution/contracts/evolution-contract.js";
+import { InMemoryGovernanceDecisionStore } from "../../src/planning/evolution/governance/decision-store.js";
 
 // ---------------------------------------------------------------------------
 // Capture console for testing

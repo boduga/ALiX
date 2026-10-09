@@ -11,7 +11,7 @@ import {
   recordDecision,
   writeDebugPayload,
   type RecordDecisionInput,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 function input(overrides?: Partial<RecordDecisionInput>): RecordDecisionInput {
   return {

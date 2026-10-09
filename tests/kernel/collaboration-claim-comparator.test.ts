@@ -9,9 +9,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ClaimComparator, COMPARATOR_VERSION } from "../../src/kernel/collaboration-claim-comparator.js";
-import { normalizeClaim, extractClaim } from "../../src/kernel/collaboration-claim-normalizer.js";
-import type { FindingClaim } from "../../src/kernel/collaboration-conflict-types.js";
+import { ClaimComparator, COMPARATOR_VERSION } from "../../src/coordination/kernel/collaboration-claim-comparator.js";
+import { normalizeClaim, extractClaim } from "../../src/coordination/kernel/collaboration-claim-normalizer.js";
+import type { FindingClaim } from "../../src/coordination/kernel/collaboration-conflict-types.js";
 
 const cmp = new ClaimComparator();
 

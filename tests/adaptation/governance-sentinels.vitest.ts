@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { AgentCardApplier } from "../../src/adaptation/appliers/agent-card-applier.js";
-import { SkillApplier } from "../../src/adaptation/appliers/skill-applier.js";
-import { RevertApplier } from "../../src/adaptation/revert-applier.js";
-import { selectApplier } from "../../src/cli/commands/adaptation.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { AgentCardApplier } from "../../src/planning/adaptation/appliers/agent-card-applier.js";
+import { SkillApplier } from "../../src/planning/adaptation/appliers/skill-applier.js";
+import { RevertApplier } from "../../src/planning/adaptation/revert-applier.js";
+import { selectApplier } from "../../src/interfaces/cli/commands/adaptation.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 import { importedSpecifiers, codeOnly } from "../helpers/import-graph.js";
 
 /** Read a file's source text for structural/grep-based checks. */
@@ -43,7 +43,7 @@ function isWhitelisted(filePath: string): boolean {
 
 describe("Governance Invariants — no auto-approve", () => {
   it("must not assign status 'approved' outside approval-gate.ts or test/type files", () => {
-    const dir = path.resolve(__dirname, "../../src/adaptation");
+    const dir = path.resolve(__dirname, "../../src/planning/adaptation");
     const files = fs.readdirSync(dir, { recursive: true }) as string[];
     const tsFiles = files.filter(
       (f) => f.endsWith(".ts") && !f.endsWith(".d.ts"),
@@ -63,7 +63,7 @@ describe("Governance Invariants — no auto-approve", () => {
 
 describe("Governance Invariants — no auto-apply", () => {
   it("must not assign status 'applied' outside approval-gate.ts or test/type files", () => {
-    const dir = path.resolve(__dirname, "../../src/adaptation");
+    const dir = path.resolve(__dirname, "../../src/planning/adaptation");
     const files = fs.readdirSync(dir, { recursive: true }) as string[];
     const tsFiles = files.filter(
       (f) => f.endsWith(".ts") && !f.endsWith(".d.ts"),
@@ -83,7 +83,7 @@ describe("Governance Invariants — no auto-apply", () => {
 
 describe("Governance Invariants — no auto-revert", () => {
   it("AutomaticProposalGenerator must not produce revert_proposal actions", async () => {
-    const source = codeOnly(sourceOf("../../src/adaptation/auto-proposal-generator.ts"));
+    const source = codeOnly(sourceOf("../../src/planning/adaptation/auto-proposal-generator.ts"));
     // The string "revert_proposal" should not appear in the generator source
     // (it's allowed in types/imports but not in any action-producing code path)
     const occurrences = source.match(/"revert_proposal"/g);
@@ -95,7 +95,7 @@ describe("Governance Invariants — no auto-revert", () => {
   });
 
   it("CapabilityEvolutionProposalGenerator must not produce revert_proposal actions", async () => {
-    const source = codeOnly(sourceOf("../../src/adaptation/capability-evolution-proposal-generator.ts"));
+    const source = codeOnly(sourceOf("../../src/planning/adaptation/capability-evolution-proposal-generator.ts"));
     const actionAssignments = source.match(/action:\s*"revert_proposal"/g);
     expect(actionAssignments).toBeNull();
   });
@@ -110,8 +110,8 @@ describe("Governance Invariants — generator boundaries", () => {
   ];
 
   for (const target of [
-    "../../src/adaptation/auto-proposal-generator.ts",
-    "../../src/adaptation/capability-evolution-proposal-generator.ts",
+    "../../src/planning/adaptation/auto-proposal-generator.ts",
+    "../../src/planning/adaptation/capability-evolution-proposal-generator.ts",
   ]) {
     it(`${target.split("/").pop()} must not import ApprovalGate or appliers`, () => {
       const specifiers = [...importedSpecifiers(path.resolve(__dirname, target))];

@@ -10,7 +10,7 @@
 
 The P8.5a.1 Source Recon found that **all four P8 calibration adapters are blocked by missing source persistence**, not by missing adapters. The first and most addressable gap is:
 
-- The CLI hard-codes `confidence: 1` in every `OutcomeRecord` (`src/cli/commands/decision.ts:864`).
+- The CLI hard-codes `confidence: 1` in every `OutcomeRecord` (`src/interfaces/cli/commands/decision.ts:864`).
 - The actual `ApprovalRecommendation` object — which carries the real `confidence` value — is never persisted anywhere.
 - P8.1's `RecommendationCalibrationBuilder` needs per-record confidence bucketing; without real values, the bucket breakdown is meaningless.
 - The Evidence Chain cannot traverse `OutcomeRecord → ApprovalRecommendation → confidence bucket → LearningSignal` because the recommendation node doesn't exist.
@@ -69,15 +69,15 @@ class ApprovalRecommendationStore {
 
 ### 4. Where does the write hook live?
 
-In the CLI's `runRecommend` function (`src/cli/commands/decision.ts`), immediately after `recommendation-engine.recommend(ctx, riskScore)` returns the `ApprovalRecommendation`. The CLI's `runRecommend` already builds the response from the recommendation; appending to the store is one line of additional logic.
+In the CLI's `runRecommend` function (`src/interfaces/cli/commands/decision.ts`), immediately after `recommendation-engine.recommend(ctx, riskScore)` returns the `ApprovalRecommendation`. The CLI's `runRecommend` already builds the response from the recommendation; appending to the store is one line of additional logic.
 
-**Why in the CLI, not in `recommendation-engine`?** The engine is documented as *"Pure, deterministic, read-only"* (`src/adaptation/recommendation-engine.ts:4`). The CLI is the orchestration layer. Putting the side effect there keeps the engine's contract intact.
+**Why in the CLI, not in `recommendation-engine`?** The engine is documented as *"Pure, deterministic, read-only"* (`src/planning/adaptation/recommendation-engine.ts:4`). The CLI is the orchestration layer. Putting the side effect there keeps the engine's contract intact.
 
 **What if the store write fails?** The CLI logs the error and continues. The recommendation is still shown to the operator; the user can re-record the outcome later. The store write is a best-effort persistence enhancement, not a gating operation.
 
 ### 5. What does the outcome CLI change?
 
-Three changes to `runOutcomeRecord` (`src/cli/commands/decision.ts:855-868`):
+Three changes to `runOutcomeRecord` (`src/interfaces/cli/commands/decision.ts:855-868`):
 
 1. Accept `--recommendation-confidence <0-1>` as an optional override flag.
 2. If `--recommendation rec-456` is given AND `rec-456` exists in the store → use `rec.confidence`.
@@ -117,11 +117,11 @@ export interface OutcomeRecord extends OutcomeArtifact {
 
 This produces a type where `confidence` is honestly optional, with no inherited-required-to-override gap. The `DecisionArtifact` base is unchanged; only the local re-declaration on `OutcomeRecord` carries the optionality.
 
-**This is a small type change to `src/adaptation/outcome-types.ts`.** It is the only existing-type modification in this phase.
+**This is a small type change to `src/planning/adaptation/outcome-types.ts`.** It is the only existing-type modification in this phase.
 
 ### 7. What about the P8.5a.0 unchanged-types invariance test?
 
-The test in `tests/learning/unchanged-types-invariance.vitest.ts` captures SHA-256 baselines of the six protected files at the P8.5a.0 state. `src/adaptation/outcome-types.ts` is one of them. Modifying it to make `confidence` optional **breaks the baseline**.
+The test in `tests/learning/unchanged-types-invariance.vitest.ts` captures SHA-256 baselines of the six protected files at the P8.5a.0 state. `src/planning/adaptation/outcome-types.ts` is one of them. Modifying it to make `confidence` optional **breaks the baseline**.
 
 **Resolution:** the invariance test is **not** casually re-baselined. Instead, the test is updated in P7.5p.1c to encode an **explicit allowed delta**:
 
@@ -143,25 +143,25 @@ The test's purpose is preserved (locking the phase's state going forward) while 
 
 ## Files created
 
-- `src/adaptation/approval-recommendation-store.ts` — the new store
+- `src/planning/adaptation/approval-recommendation-store.ts` — the new store
 - `tests/adaptation/approval-recommendation-store.vitest.ts` — store tests
 
 ## Files modified
 
-- `src/adaptation/outcome-types.ts` — `confidence?: number` on `OutcomeRecord`
-- `src/cli/commands/decision.ts` — `runRecommend` write hook, `runOutcomeRecord` lookup + override
+- `src/planning/adaptation/outcome-types.ts` — `confidence?: number` on `OutcomeRecord`
+- `src/interfaces/cli/commands/decision.ts` — `runRecommend` write hook, `runOutcomeRecord` lookup + override
 - `tests/learning/unchanged-types-invariance.vitest.ts` — update baseline on P7.5p.1c commit
 
 ## Files NOT modified
 
-- `src/adaptation/risk-score-types.ts`
-- `src/adaptation/governance-review-types.ts`
-- `src/adaptation/adaptation-types.ts`
-- `src/adaptation/decision-types.ts`
-- `src/learning/learning-types.ts`
-- `src/learning/evidence-chain-types.ts`
-- `src/learning/forward-ref-extractors.ts`
-- `src/learning/evidence-chain-store.ts`
+- `src/planning/adaptation/risk-score-types.ts`
+- `src/planning/adaptation/governance-review-types.ts`
+- `src/planning/adaptation/adaptation-types.ts`
+- `src/planning/adaptation/decision-types.ts`
+- `src/planning/learning/learning-types.ts`
+- `src/planning/learning/evidence-chain-types.ts`
+- `src/planning/learning/forward-ref-extractors.ts`
+- `src/planning/learning/evidence-chain-store.ts`
 - The 8 existing stores
 - The P8.5a.0 sentinels
 

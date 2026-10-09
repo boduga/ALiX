@@ -2,11 +2,11 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import type { SkillManifest } from "../../src/skills/types.js";
+import type { SkillManifest } from "../../src/capabilities/skills/types.js";
 import {
   getSlashCatalog, invalidateSlashCatalog, setSlashCatalogLoaderForTest,
   setSlashCatalogProjectDir,
-} from "../../src/skills/slash-catalog.js";
+} from "../../src/capabilities/skills/slash-catalog.js";
 
 function m(name: string): SkillManifest {
   return { name, description: name, version: "1.0.0", is_core: false };

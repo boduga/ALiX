@@ -6,8 +6,8 @@
 // can detect a silently truncated answer.
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { openaiBaseSpec } from "../../src/providers/specs/_openai-base.js";
-import { deepseekSpec } from "../../src/providers/specs/deepseek-spec.js";
+import { openaiBaseSpec } from "../../src/models/providers/specs/_openai-base.js";
+import { deepseekSpec } from "../../src/models/providers/specs/deepseek-spec.js";
 
 describe("openaiBaseSpec finish_reason", () => {
   it("fromResponse surfaces finish_reason as finishReason", () => {

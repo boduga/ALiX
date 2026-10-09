@@ -18,9 +18,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
-import type { ReconcileResult } from "../../../src/executive/executive-orchestrator.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
-import type { PlanExecutionState } from "../../../src/executive/executive-plan-types.js";
+import type { ReconcileResult } from "../../../src/execution/executive/executive-orchestrator.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
+import type { PlanExecutionState } from "../../../src/execution/executive/executive-plan-types.js";
 
 // ---------------------------------------------------------------------------
 // Module-level mock control variables
@@ -37,44 +37,44 @@ let mockReconcileChildProposal: any;
 // PlanStore/ExecutionEngine/StepRunner/EvidenceEventWriter need only exist
 // for the non-dry-run construction path; they are passed to the mocked
 // reconcileChildProposal and never invoked directly by the test handler.
-vi.mock("../../../src/executive/plan-store.js", () => ({
+vi.mock("../../../src/execution/executive/plan-store.js", () => ({
   PlanStore: class {
     constructor() { /* noop for mock */ }
   },
 }));
-vi.mock("../../../src/executive/step-runner.js", () => ({
+vi.mock("../../../src/execution/executive/step-runner.js", () => ({
   StepRunner: class {
     constructor() { /* noop for mock */ }
   },
 }));
-vi.mock("../../../src/executive/execution-engine.js", () => ({
+vi.mock("../../../src/execution/executive/execution-engine.js", () => ({
   ExecutionEngine: class {
     constructor() { /* noop for mock */ }
     runReadySteps = vi.fn();
   },
 }));
-vi.mock("../../../src/workflow/evidence-writer.js", () => ({
+vi.mock("../../../src/coordination/workflow/evidence-writer.js", () => ({
   EvidenceEventWriter: class {
     constructor() { /* noop for mock */ }
   },
 }));
 
-vi.mock("../../../src/adaptation/adaptation-proposal-store.js", () => ({
+vi.mock("../../../src/planning/adaptation/adaptation-proposal-store.js", () => ({
   AdaptationProposalStore: class {
     list = mockList;
   },
 }));
 
-vi.mock("../../../src/executive/execution-state-store.js", () => ({
+vi.mock("../../../src/execution/executive/execution-state-store.js", () => ({
   ExecutionStateStore: class {
     load = mockStateLoad;
   },
 }));
 
-vi.mock("../../../src/executive/executive-orchestrator.js", async () => {
+vi.mock("../../../src/execution/executive/executive-orchestrator.js", async () => {
   const actual = await vi.importActual<
-    typeof import("../../../src/executive/executive-orchestrator.js")
-  >("../../../src/executive/executive-orchestrator.js");
+    typeof import("../../../src/execution/executive/executive-orchestrator.js")
+  >("../../../src/execution/executive/executive-orchestrator.js");
   return {
     ...actual,
     // Deferred wrapper: mockReconcileChildProposal is assigned in beforeEach,
@@ -84,7 +84,7 @@ vi.mock("../../../src/executive/executive-orchestrator.js", async () => {
   };
 });
 
-import { handleOrchestrateCommand } from "../../../src/cli/commands/executive-orchestrate-handler.js";
+import { handleOrchestrateCommand } from "../../../src/interfaces/cli/commands/executive-orchestrate-handler.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

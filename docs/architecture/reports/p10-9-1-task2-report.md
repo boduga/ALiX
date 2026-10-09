@@ -99,18 +99,18 @@ For each locked invariant from the plan (A–E):
 
 | Path | Change |
 |---|---|
-| `src/executive/trend-store.ts` | Additive `loadById(id)` method. No behavior change to existing methods. |
-| `src/cli/commands/executive-evaluate-handler.ts` | Replaced time-window lookup with symmetric snapshot-stack resolution + auto-current capture + baseline-fail-loud. Local wiring of `ExecutiveSnapshotStore` + `createDefaultSnapshotProvider`. All ops wrapped in try/catch (best-effort). |
-| `src/executive/automatic-outcome-hook.ts` | Same three changes mirrored. Added optional `execDir` parameter to constructor for backward compatibility; production factory `createAutomaticOutcomeEvaluator(execDir)` now threads `execDir` through. |
+| `src/execution/executive/trend-store.ts` | Additive `loadById(id)` method. No behavior change to existing methods. |
+| `src/interfaces/cli/commands/executive-evaluate-handler.ts` | Replaced time-window lookup with symmetric snapshot-stack resolution + auto-current capture + baseline-fail-loud. Local wiring of `ExecutiveSnapshotStore` + `createDefaultSnapshotProvider`. All ops wrapped in try/catch (best-effort). |
+| `src/execution/executive/automatic-outcome-hook.ts` | Same three changes mirrored. Added optional `execDir` parameter to constructor for backward compatibility; production factory `createAutomaticOutcomeEvaluator(execDir)` now threads `execDir` through. |
 | `tests/cli/commands/executive-evaluate-cli.vitest.ts` | Existing 11 tests updated to use the new `writeSnapshots` helper (no test removed). Verifies the snapshot-stack path produces `completed` for plans with both baseline + current snapshots. |
 | `tests/executive/trend-store-load-by-id.vitest.ts` | (See above; includes loadById tests + loadLatest/findBaseline additive-invariant tests.) |
 
 ## Files NOT modified (deliberate)
 
-- `src/executive/outcome-evaluator.ts` — the pure evaluator stays untouched, per the constraints. Resolution happens at the read sites, not in the evaluator.
-- `src/executive/executive-snapshot-store.ts` — unchanged (Task 1 already covered the read methods).
-- `src/executive/executive-snapshot-provider.ts` — unchanged (Task 1 already covered `captureBaseline` + `captureCurrent`).
-- `src/executive/executive-observation-provider.ts` — unchanged (Task 1 already covered the single-seam pattern).
+- `src/execution/executive/outcome-evaluator.ts` — the pure evaluator stays untouched, per the constraints. Resolution happens at the read sites, not in the evaluator.
+- `src/execution/executive/executive-snapshot-store.ts` — unchanged (Task 1 already covered the read methods).
+- `src/execution/executive/executive-snapshot-provider.ts` — unchanged (Task 1 already covered `captureBaseline` + `captureCurrent`).
+- `src/execution/executive/executive-observation-provider.ts` — unchanged (Task 1 already covered the single-seam pattern).
 - `tests/executive/executive-sentinels.vitest.ts` — `trend-store.ts` already in allowlist with scoped write-path exception. No new files to add.
 
 ## Concerns / deviations
@@ -154,7 +154,7 @@ path that ships to production.
 
 | File | Change |
 |---|---|
-| `src/executive/automatic-outcome-hook.ts` | `execDir` is now required (3-arg constructor only). The `if (this.execDir)` branch collapsed to the snapshot-stack path; the `findBaseline + loadLatest` fallback is gone. Non-null `execDir!` assertion removed (typed `string`). JSDoc updated to document `execDir` as REQUIRED with no legacy fallback. |
+| `src/execution/executive/automatic-outcome-hook.ts` | `execDir` is now required (3-arg constructor only). The `if (this.execDir)` branch collapsed to the snapshot-stack path; the `findBaseline + loadLatest` fallback is gone. Non-null `execDir!` assertion removed (typed `string`). JSDoc updated to document `execDir` as REQUIRED with no legacy fallback. |
 | `tests/executive/automatic-outcome-hook.vitest.ts` | All 9 tests migrated to `createAutomaticOutcomeEvaluator(execDir)` factory. Each test now seeds the snapshot stack (`snapshots/<planId>-baseline.json` + `snapshots/<planId>-current.json`) plus a `trends.jsonl` file containing the referenced `ExecutiveTrendSnapshot`s. Test intent preserved (terminalTimestamp determination, idempotency, integrity preservation, best-effort, no evaluator mutation, skip-without-terminal-timestamp). |
 
 ### Public API
@@ -162,7 +162,7 @@ path that ships to production.
 `createAutomaticOutcomeEvaluator(executiveDir: string)` signature
 unchanged — it already threaded `executiveDir` through to the
 constructor. Production call site
-(`src/executive/execution-engine.ts`) still uses the factory.
+(`src/execution/executive/execution-engine.ts`) still uses the factory.
 
 `evaluatePlanOutcome` (pure evaluator) untouched.
 

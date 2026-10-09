@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SnapshotBuilder, type DaemonMetricsCollector, type ApprovalCollector } from '../../src/tui/snapshot-builder.js';
-import type { AgentSession } from '../../src/agent/session.js';
-import type { PolicyGate } from '../../src/policy/policy-gate.js';
-import type { EventLog } from '../../src/events/event-log.js';
-import type { DaemonMetricsSnapshot } from '../../src/tui/snapshot.js';
+import { SnapshotBuilder, type DaemonMetricsCollector, type ApprovalCollector } from '../../src/interfaces/tui/snapshot-builder.js';
+import type { AgentSession } from '../../src/agents/agent/session.js';
+import type { PolicyGate } from '../../src/governance/policy/policy-gate.js';
+import type { EventLog } from '../../src/runtime-state/events/event-log.js';
+import type { DaemonMetricsSnapshot } from '../../src/interfaces/tui/snapshot.js';
 
 function mkFakes() {
   const session = {

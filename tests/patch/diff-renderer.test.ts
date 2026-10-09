@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { DiffRenderer } from "../../src/patch/diff-renderer.js";
+import { DiffRenderer } from "../../src/execution/patch/diff-renderer.js";
 
 describe("DiffRenderer", () => {
   it("renders unified diff with colors", () => {

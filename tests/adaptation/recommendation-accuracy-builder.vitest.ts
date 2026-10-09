@@ -8,8 +8,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { RecommendationAccuracyBuilder } from "../../src/adaptation/recommendation-accuracy-builder.js";
-import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
+import { RecommendationAccuracyBuilder } from "../../src/planning/adaptation/recommendation-accuracy-builder.js";
+import type { OutcomeRecord } from "../../src/planning/adaptation/outcome-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

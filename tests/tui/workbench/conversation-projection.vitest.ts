@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { ExecutionTraceEntry } from '../../../src/tui/runtime/execution-trace.js';
-import type { TimelineEntry } from '../../../src/tui/runtime/timeline-builder.js';
-import { ConversationProjection } from '../../../src/tui/workbench/projections/conversation-projection.js';
+import type { ExecutionTraceEntry } from '../../../src/interfaces/tui/runtime/execution-trace.js';
+import type { TimelineEntry } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import { ConversationProjection } from '../../../src/interfaces/tui/workbench/projections/conversation-projection.js';
 
 const fixturePath = fileURLToPath(new URL('../../fixtures/tui/workbench-third-trace.json', import.meta.url));
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as {

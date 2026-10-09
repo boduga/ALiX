@@ -15,13 +15,13 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { CapabilityMeasurement } from "../../src/evolution/observation/capability-measurement.js";
-import type { OutcomeDecider } from "../../src/evolution/observation/capability-measurement.js";
-import type { ProposalSignalSink, CapabilityEvolutionSignal } from "../../src/capability/evolution/proposals.js";
-import type { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import type { ObservationResult } from "../../src/evolution/observation/contracts/observation-contract.js";
-import type { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import type { EventLog } from "../../src/events/event-log.js";
+import { CapabilityMeasurement } from "../../src/planning/evolution/observation/capability-measurement.js";
+import type { OutcomeDecider } from "../../src/planning/evolution/observation/capability-measurement.js";
+import type { ProposalSignalSink, CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/proposals.js";
+import type { ObservationEngine } from "../../src/planning/evolution/observation/observation-engine.js";
+import type { ObservationResult } from "../../src/planning/evolution/observation/contracts/observation-contract.js";
+import type { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import type { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 // --- minimal in-memory fakes ---
 

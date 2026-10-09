@@ -24,7 +24,7 @@ Build a terminal-native TUI for ALiX that serves as the **primary interaction su
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ ALiX TUI (src/tui/)                                     │
+│ ALiX TUI (src/interfaces/tui/)                                     │
 ├─────────────────────────────────────────────────────────┤
 │ Input Layer                                             │
 │  - readline + custom keymap                             │
@@ -58,7 +58,7 @@ Build a terminal-native TUI for ALiX that serves as the **primary interaction su
             │ Same event log
             ▼
 ┌─────────────────────────────────────────────────────────┐
-│ Browser Inspector (src/ui/)                             │
+│ Browser Inspector (src/interfaces/ui/)                             │
 │  - Timeline view                                       │
 │  - Session replay                                      │
 │  - Approval panel                                       │
@@ -69,7 +69,7 @@ Build a terminal-native TUI for ALiX that serves as the **primary interaction su
 
 ## Core Components
 
-### 1. Input Layer (`src/tui/input/`)
+### 1. Input Layer (`src/interfaces/tui/input/`)
 
 **Files:**
 - `reader.ts` — Custom readline wrapper with vi/emacs keybindings
@@ -83,7 +83,7 @@ Build a terminal-native TUI for ALiX that serves as the **primary interaction su
 - Ctrl+Z: Suspend to background
 - Tab: Completion for file paths, commands
 
-### 2. Render Loop (`src/tui/render.ts`)
+### 2. Render Loop (`src/interfaces/tui/render.ts`)
 
 **Files:**
 - `render.ts` — 60fps render loop with diff-based updates
@@ -96,7 +96,7 @@ Build a terminal-native TUI for ALiX that serves as the **primary interaction su
 - Clear line for progress updates
 - Save/restore cursor position for spinners
 
-### 3. Widgets (`src/tui/widgets/`)
+### 3. Widgets (`src/interfaces/tui/widgets/`)
 
 Each widget is a class that:
 - Tracks its own state
@@ -226,7 +226,7 @@ Each widget is a class that:
 - Repo index shows stale warning
 - /memory command in TUI shows this panel
 
-### 4. State Store (`src/tui/store.ts`)
+### 4. State Store (`src/interfaces/tui/store.ts`)
 
 **Files:**
 - `store.ts` — Centralized state for TUI rendering

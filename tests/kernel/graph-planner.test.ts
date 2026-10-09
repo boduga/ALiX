@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateGraphSchema, createFallbackGraph, normalizeNodeCapabilities, buildPlanPrompt, DEFAULT_CAPABILITY_CATALOG, GraphPlanner, isLocalStateGoal, applyLocalStateRouting } from "../../src/kernel/graph-planner.js";
-import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
-import type { TaskGraph } from "../../src/kernel/task-graph.js";
+import { validateGraphSchema, createFallbackGraph, normalizeNodeCapabilities, buildPlanPrompt, DEFAULT_CAPABILITY_CATALOG, GraphPlanner, isLocalStateGoal, applyLocalStateRouting } from "../../src/coordination/kernel/graph-planner.js";
+import { buildDefaultToolIndex } from "../../src/capabilities/tools/tool-registry.js";
+import type { TaskGraph } from "../../src/coordination/kernel/task-graph.js";
 
 describe("GraphPlanner", () => {
 

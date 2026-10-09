@@ -15,9 +15,9 @@ ALiX now has a single Capability Platform. This checkpoint records the closeout 
 ONE canonical `CapabilityCatalog` (persistent JSONL store: `definitions.jsonl` + `bindings.jsonl`). ONE `CapabilityRegistry` (M-series projection). ONE `CapabilityService` (composition-root-owned facade for all read/inspection/governance paths). The CLI/TUI/Web/agent/runtime surfaces all consume the canonical universe through `CapabilityService`.
 
 **Evidence:**
-- `src/capability/platform.ts` — composition root
+- `src/capabilities/capability/platform.ts` — composition root
 - `tests/capability/single-registry.vitest.ts` — single-registry invariant
-- `tests/capability/cap-12-sentinel.vitest.ts` axis 1 — only ONE `new CapabilityRegistry(` in `src/` (at `src/capability/platform.ts`)
+- `tests/capability/cap-12-sentinel.vitest.ts` axis 1 — only ONE `new CapabilityRegistry(` in `src/` (at `src/capabilities/capability/platform.ts`)
 - `tests/capability/cap-12-sentinel.vitest.ts` axis 3 — `tests/evolution/capability-lifecycle/` does not exist
 
 ---
@@ -28,7 +28,7 @@ Providers are implementations; capability identity is provider-independent. `Cap
 
 **Evidence:**
 - `tests/capability/cap-12-migration-fixture.vitest.ts` — 35 axes covering 8 legacy Capability rows + canonical projection
-- `src/capability/legacy-adapter.ts` — M-series ↔ canonical conversion
+- `src/capabilities/capability/legacy-adapter.ts` — M-series ↔ canonical conversion
 - `tests/capability/cap-12-migration-fixture.vitest.ts` — provider binding survival (8 axes)
 
 ---
@@ -72,7 +72,7 @@ Propose → A3 approve → A4 apply → registry/catalog mutation. The A7 propos
 
 **Evidence:**
 - `tests/capability/cap-12-migration-fixture.vitest.ts` row 5 — `cli → external-cli` mapping
-- `src/capability/canonical/provider.ts` — `ProviderType` union
+- `src/capabilities/capability/canonical/provider.ts` — `ProviderType` union
 
 ---
 
@@ -113,7 +113,7 @@ Duration    4.09s
 | Legacy A7.0/A7.1 source machinery | DELETED in CAP-11 | `tests/capability/cap-11-structural-cleanup-sentinel.vitest.ts` |
 | `tests/evolution/capability-lifecycle/*` | DELETED in CAP-11 | `tests/capability/cap-12-sentinel.vitest.ts` axis 3 |
 | A7.0/A7.1 design/plan/checkpoint docs | MARKED SUPERSEDED | `docs/architecture/checkpoints/2026-08-10-a7-*.md` + `docs/superpowers/specs/2026-08-10-a7-*.md` + `docs/superpowers/plans/2026-08-10-a7-*.md` |
-| `src/capability/legacy-adapter.ts` | RETAINED (read-only adapter for inverse direction) | `tests/capability/cap-12-migration-fixture.vitest.ts` |
+| `src/capabilities/capability/legacy-adapter.ts` | RETAINED (read-only adapter for inverse direction) | `tests/capability/cap-12-migration-fixture.vitest.ts` |
 | `APPROVED_PENDING_APPLICATION` state | DELETED in CAP-11 | `tests/capability/cap-12-sentinel.vitest.ts` axis 2 |
 
 The legacy two-surface CLI and its `APPROVED_PENDING_APPLICATION` state are gone. There is no second capability surface.
@@ -130,23 +130,23 @@ All 19 §20 criteria green:
 | 2 | CLI does not create a second registry | CAP-8, CAP-11 | `tests/capability/cap-12-sentinel.vitest.ts` axis 1 + axis 4 | PASS |
 | 3 | TUI and Web UI do not maintain duplicate catalogs | CAP-8, CAP-11 | `tests/capability/cap-12-sentinel.vitest.ts` axis 1 + axis 4 | PASS |
 | 4 | capability identity is provider-independent | CAP-1, CAP-4 | `tests/capability/cap-12-migration-fixture.vitest.ts` | PASS |
-| 5 | MCP is a provider/integration boundary | CAP-4 | `src/capability/canonical/provider.ts` | PASS |
+| 5 | MCP is a provider/integration boundary | CAP-4 | `src/capabilities/capability/canonical/provider.ts` | PASS |
 | 6 | external CLI tools are providers | CAP-4 | `tests/capability/cap-12-migration-fixture.vitest.ts` row 5 | PASS |
-| 7 | `gh` can implement a capability | CAP-4 | `src/capability/canonical/provider.ts` (`external-cli`) | PASS |
-| 8 | GitNexus can implement a capability | CAP-4 | `src/capability/canonical/provider.ts` (`mcp`/`agent`) | PASS |
+| 7 | `gh` can implement a capability | CAP-4 | `src/capabilities/capability/canonical/provider.ts` (`external-cli`) | PASS |
+| 8 | GitNexus can implement a capability | CAP-4 | `src/capabilities/capability/canonical/provider.ts` (`mcp`/`agent`) | PASS |
 | 9 | provider fallback works without changing capability identity | CAP-4 | `tests/capability/fallback.vitest.ts` test 1, 5 | PASS |
 | 10 | current capability state comes from the registry | CAP-3 | `tests/capability/registry.vitest.ts` | PASS |
 | 11 | A7 ledger is history/governance, not current capability state | CAP-9 | `tests/capability/cap-12-e2e.vitest.ts` step 14 | PASS |
 | 12 | A7 register can be approved and actually applied | CAP-6, CAP-9 | `tests/capability/cap-12-e2e.vitest.ts` step 9-11 | PASS |
 | 13 | registration applies a complete definition, not a placeholder | CAP-2, CAP-6, CAP-9 | `tests/capability/capability-service-apply.vitest.ts` | PASS |
-| 14 | A4 remains the mutation boundary | CAP-6 | `src/capability/evolution/execution/capability-mutation-executor.ts` | PASS |
+| 14 | A4 remains the mutation boundary | CAP-6 | `src/capabilities/capability/evolution/execution/capability-mutation-executor.ts` | PASS |
 | 15 | A5 measures actual post-application outcomes | CAP-10 | `tests/capability/cap-12-e2e.vitest.ts` step 13 | PASS |
 | 16 | deprecated capabilities are excluded from normal runtime selection | CAP-7 | `tests/capability/lifecycle-eligibility.vitest.ts` | PASS |
 | 17 | CLI/runtime catalog parity test is green | CAP-8, CAP-12 | `tests/capability/cli-runtime-parity.vitest.ts` | PASS |
 | 18 | provider failure/capability failure distinction is tested | CAP-4 | `tests/capability/fallback.vitest.ts` test 6 | PASS |
 | 19 | documentation no longer presents A7.0/A7.1 split-registry assumptions as active architecture | CAP-11, CAP-12 | `tests/capability/cap-12-sentinel.vitest.ts` axis 4 + `docs/architecture/README.md` | PASS |
 
-**§20 #12 caveat:** The `apply()` path's candidate → mutation mapping currently hardcodes `capability.transition` (CAP-9 conservative stub at `src/capability/capability-service.ts:702,704`). The `gap → capability.create` mapping is a deferred CAP-N follow-up. The e2e test asserts the proposal lifecycle (proposal.submitted → proposal.approved → proposal.executed) and the catalog preservation (no spurious additions/removals), which is the actual behavior of the current production path. The carve-out was user-approved (2026-08-14).
+**§20 #12 caveat:** The `apply()` path's candidate → mutation mapping currently hardcodes `capability.transition` (CAP-9 conservative stub at `src/capabilities/capability/capability-service.ts:702,704`). The `gap → capability.create` mapping is a deferred CAP-N follow-up. The e2e test asserts the proposal lifecycle (proposal.submitted → proposal.approved → proposal.executed) and the catalog preservation (no spurious additions/removals), which is the actual behavior of the current production path. The carve-out was user-approved (2026-08-14).
 
 **§20 #12 closed by CAP-N at 518e226d — 2026-08-14.** `apply()` now routes per `sourcePatternId`: `gap` → `capability.create`, `deprecation_signal` → `capability.remove`, others → `capability.transition`. E2E step 12b (`tests/capability/cap-12-e2e.vitest.ts`) asserts a gap proposal actually grows the catalog by one. The §20 #12 evidence row now reads plain "PASS" without caveat.
 

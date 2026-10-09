@@ -9,13 +9,13 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../src/events/event-log.js';
-import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
-import { createContextBudget } from '../../src/config/context-budget.js';
-import { TaskStateMachine, RunLimiter } from '../../src/autonomy/state-machine.js';
-import { ScopeTracker } from '../../src/autonomy/scope-tracker.js';
-import { MemoryStore } from '../../src/utils/memory/store.js';
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse, ToolCall, TokenUsage } from '../../src/providers/types.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { runTaskLoop, type TaskLoopDeps } from '../../src/execution/run/task-loop.js';
+import { createContextBudget } from '../../src/operations/config/context-budget.js';
+import { TaskStateMachine, RunLimiter } from '../../src/planning/autonomy/state-machine.js';
+import { ScopeTracker } from '../../src/planning/autonomy/scope-tracker.js';
+import { MemoryStore } from '../../src/operations/utils/memory/store.js';
+import type { ModelAdapter, NormalizedRequest, NormalizedResponse, ToolCall, TokenUsage } from '../../src/models/providers/types.js';
 
 type RecordedRequest = {
   systemPrompt: string;

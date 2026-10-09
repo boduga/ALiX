@@ -22,13 +22,13 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/daemon/daemon-manager.ts` | **Modify** | Global paths for PID/status/socket |
-| `src/daemon/daemon-server.ts` | **Modify** | Accept `cwd` per request, route sessions to project dir |
-| `src/daemon/daemon-types.ts` | **Modify** | Add `cwd` to `DaemonCommand.run` |
-| `src/daemon/task-registry.ts` | **Modify** | Global file path, `cwd` field in records |
-| `src/tui/daemon-client.ts` | **Modify** | Connect to global socket, send `cwd` |
+| `src/operations/daemon/daemon-manager.ts` | **Modify** | Global paths for PID/status/socket |
+| `src/operations/daemon/daemon-server.ts` | **Modify** | Accept `cwd` per request, route sessions to project dir |
+| `src/operations/daemon/daemon-types.ts` | **Modify** | Add `cwd` to `DaemonCommand.run` |
+| `src/operations/daemon/task-registry.ts` | **Modify** | Global file path, `cwd` field in records |
+| `src/interfaces/tui/daemon-client.ts` | **Modify** | Connect to global socket, send `cwd` |
 | `src/cli.ts` | **Modify** | Use global daemon paths for submit/status commands |
-| `src/cli/commands/tui.ts` | **Modify** | Minor: already passes `cwd` — verify |
+| `src/interfaces/cli/commands/tui.ts` | **Modify** | Minor: already passes `cwd` — verify |
 | `tests/daemon/daemon-manager.test.ts` | **Modify** | Update for global paths |
 | `tests/daemon/daemon-server.test.ts` | **Modify** | Update for cwd-per-request protocol |
 | `tests/daemon/daemon-universal.test.ts` | **Create** | Cross-workspace integration test |
@@ -39,7 +39,7 @@
 ### Task 1: Move task registry to global dir, add cwd field
 
 **Files:**
-- Modify: `src/daemon/task-registry.ts`
+- Modify: `src/operations/daemon/task-registry.ts`
 
 - [ ] **Step 1: Change file path to ~/.alix/ and add cwd**
 
@@ -98,7 +98,7 @@ Expected: no errors. Update callers in daemon-server.ts if needed.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/daemon/task-registry.ts
+git add src/operations/daemon/task-registry.ts
 git commit -m "feat(daemon): move task registry to ~/.alix/, add cwd field to records"
 ```
 
@@ -107,7 +107,7 @@ git commit -m "feat(daemon): move task registry to ~/.alix/, add cwd field to re
 ### Task 2: Move daemon manager to global paths
 
 **Files:**
-- Modify: `src/daemon/daemon-manager.ts`
+- Modify: `src/operations/daemon/daemon-manager.ts`
 
 - [ ] **Step 1: Change paths from project-local to global**
 
@@ -179,7 +179,7 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/daemon/daemon-manager.ts
+git add src/operations/daemon/daemon-manager.ts
 git commit -m "feat(daemon): move daemon manager paths to ~/.alix/ global dir"
 ```
 
@@ -188,7 +188,7 @@ git commit -m "feat(daemon): move daemon manager paths to ~/.alix/ global dir"
 ### Task 3: Update daemon protocol types
 
 **Files:**
-- Modify: `src/daemon/daemon-types.ts`
+- Modify: `src/operations/daemon/daemon-types.ts`
 
 - [ ] **Step 1: Add cwd to DaemonCommand.run**
 
@@ -204,7 +204,7 @@ export type DaemonCommand =
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/daemon/daemon-types.ts
+git add src/operations/daemon/daemon-types.ts
 git commit -m "feat(daemon): add cwd to DaemonCommand.run protocol"
 ```
 
@@ -213,7 +213,7 @@ git commit -m "feat(daemon): add cwd to DaemonCommand.run protocol"
 ### Task 4: Update daemon server for per-request cwd
 
 **Files:**
-- Modify: `src/daemon/daemon-server.ts`
+- Modify: `src/operations/daemon/daemon-server.ts`
 
 This is the largest change. The server currently uses a single startup `cwd` for everything. Now it needs to:
 
@@ -340,7 +340,7 @@ Expected: no errors. If `homedir()` import creates issues, check it's available 
 - [ ] **Step 10: Commit**
 
 ```bash
-git add src/daemon/daemon-server.ts
+git add src/operations/daemon/daemon-server.ts
 git commit -m "feat(daemon): accept per-request cwd, route sessions to project dirs, use global status"
 ```
 
@@ -349,7 +349,7 @@ git commit -m "feat(daemon): accept per-request cwd, route sessions to project d
 ### Task 5: Update daemon client for global socket
 
 **Files:**
-- Modify: `src/tui/daemon-client.ts`
+- Modify: `src/interfaces/tui/daemon-client.ts`
 
 - [ ] **Step 1: Connect to global socket and pass cwd**
 
@@ -396,7 +396,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/daemon-client.ts
+git add src/interfaces/tui/daemon-client.ts
 git commit -m "feat(tui): connect to global daemon socket, send cwd with run request"
 ```
 
@@ -676,11 +676,11 @@ git diff --stat HEAD
 ```
 
 Expected files:
-- `src/daemon/daemon-manager.ts` (modified)
-- `src/daemon/daemon-server.ts` (modified)
-- `src/daemon/daemon-types.ts` (modified)
-- `src/daemon/task-registry.ts` (modified)
-- `src/tui/daemon-client.ts` (modified)
+- `src/operations/daemon/daemon-manager.ts` (modified)
+- `src/operations/daemon/daemon-server.ts` (modified)
+- `src/operations/daemon/daemon-types.ts` (modified)
+- `src/operations/daemon/task-registry.ts` (modified)
+- `src/interfaces/tui/daemon-client.ts` (modified)
 - `src/cli.ts` (maybe)
 - `tests/daemon/daemon-manager.test.ts` (modified)
 - `tests/daemon/daemon-server.test.ts` (modified)

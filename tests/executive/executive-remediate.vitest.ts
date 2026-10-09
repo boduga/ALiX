@@ -23,11 +23,11 @@ import {
   type RemediationContext,
   type ChildProposalDraft,
   type RemediationProvider,
-} from "../../src/executive/executive-remediate.js";
+} from "../../src/execution/executive/executive-remediate.js";
 import type {
   AdaptationProposal,
   ProposalTarget,
-} from "../../src/adaptation/adaptation-types.js";
+} from "../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Fixture helpers

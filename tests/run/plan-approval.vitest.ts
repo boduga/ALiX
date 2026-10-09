@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { runApprovalLoop } from "../../src/run/plan-approval.js";
-import type { PlanApprovalIO, PlanDecision } from "../../src/run/plan-approval.js";
+import { runApprovalLoop } from "../../src/execution/run/plan-approval.js";
+import type { PlanApprovalIO, PlanDecision } from "../../src/execution/run/plan-approval.js";
 
 // ---------------------------------------------------------------------------
 // Mock IO adapter — returns predefined decisions in sequence.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DaemonMetricsCollectorImpl } from '../../src/tui/daemon-metrics-collector.js';
+import { DaemonMetricsCollectorImpl } from '../../src/interfaces/tui/daemon-metrics-collector.js';
 
 describe('DaemonMetricsCollector — initial state', () => {
   it('returns a valid offline snapshot when no PID is given', async () => {

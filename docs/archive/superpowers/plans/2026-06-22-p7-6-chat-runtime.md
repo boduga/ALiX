@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - NodeNext module resolution — all local imports use `.js` extension
-- DecisionArtifact pattern — ChatSession extends DecisionArtifact from `src/adaptation/decision-types.js`
+- DecisionArtifact pattern — ChatSession extends DecisionArtifact from `src/planning/adaptation/decision-types.js`
 - Append-only stores — no update, no delete, no compaction
 - Session metadata and messages stored separately (two JSONL files) to prevent O(n²) growth on long conversations
 - Chat ≠ Execution — Chat may inspect, route, create intents, or propose, but must not directly mutate state

@@ -4,13 +4,13 @@ import {
   ContextBudgetOverflowError,
   type CandidateContextItem,
   type ContextItemProvenance,
-} from "../../src/config/context-assembly.js";
+} from "../../src/operations/config/context-assembly.js";
 import {
   createContextBudget,
   preflight,
   type ContextBudget,
-} from "../../src/config/context-budget.js";
-import type { ModelDescriptor } from "../../src/config/context-limits.js";
+} from "../../src/operations/config/context-budget.js";
+import type { ModelDescriptor } from "../../src/operations/config/context-limits.js";
 
 // ─── Fixtures ────────────────────────────────────────────────────────────
 

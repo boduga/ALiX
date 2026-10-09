@@ -9,8 +9,8 @@ import assert from "node:assert/strict";
 import {
   RecommendationEngine,
   createVerificationEvidence,
-} from "../../../src/evolution/verification/index.js";
-import type { VerificationEvidenceInput, ConfidenceProfile } from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
+import type { VerificationEvidenceInput, ConfidenceProfile } from "../../../src/planning/evolution/verification/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

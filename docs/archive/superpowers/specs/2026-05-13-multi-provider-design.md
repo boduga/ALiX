@@ -14,7 +14,7 @@
 
 ## 1. Shared Base Class
 
-**File:** `src/providers/base.ts`
+**File:** `src/models/providers/base.ts`
 
 `BaseProvider` contains all shared logic:
 
@@ -67,7 +67,7 @@ export abstract class BaseProvider implements ModelAdapter {
 
 ## 2. Provider Adapters
 
-Each provider is one file in `src/providers/`:
+Each provider is one file in `src/models/providers/`:
 
 ### 2a. OpenAI Provider — `openai-provider.ts`
 
@@ -185,7 +185,7 @@ Each provider is one file in `src/providers/`:
 
 ## 3. Registry Factory
 
-**File:** `src/providers/registry.ts`
+**File:** `src/models/providers/registry.ts`
 
 ```typescript
 import { AnthropicProvider } from "./anthropic-provider.js";
@@ -241,7 +241,7 @@ export function listProviders(): Array<{ id: string; name: string; envKey: strin
 
 ## 4. Config Schema Updates
 
-**File:** `src/config/schema.ts`
+**File:** `src/operations/config/schema.ts`
 
 Update `ModelConfig.provider`:
 
@@ -254,7 +254,7 @@ type ModelConfig = {
 };
 ```
 
-Add provider defaults to `src/config/defaults.ts`:
+Add provider defaults to `src/operations/config/defaults.ts`:
 
 ```typescript
 model: {
@@ -297,7 +297,7 @@ const PROVIDERS = [
 
 ## 6. Edit Format Policy
 
-**File:** `src/patch/edit-format-policy.ts`
+**File:** `src/execution/patch/edit-format-policy.ts`
 
 Update `defaultEditFormatForProvider`:
 

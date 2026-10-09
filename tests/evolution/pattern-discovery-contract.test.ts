@@ -16,18 +16,18 @@ import {
   validatePatternObservation,
   validateEvolutionCandidate,
   validateEvolutionProposalDraft,
-} from "../../src/evolution/contracts/pattern-discovery-contract.js";
+} from "../../src/planning/evolution/contracts/pattern-discovery-contract.js";
 import type {
   PatternCategory,
   PatternObservation,
   EvolutionCandidate,
   EvolutionProposalDraft,
   DiscoveryResult,
-} from "../../src/evolution/contracts/pattern-discovery-contract.js";
+} from "../../src/planning/evolution/contracts/pattern-discovery-contract.js";
 import type {
   EvolutionTarget,
   EvolutionRiskClass,
-} from "../../src/evolution/contracts/evolution-contract.js";
+} from "../../src/planning/evolution/contracts/evolution-contract.js";
 
 // ---------------------------------------------------------------------------
 // Constants

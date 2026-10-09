@@ -27,7 +27,7 @@ import {
   thresholdProfileForEngine,
   type CalibrationSample,
   type ThresholdProfile,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 function provenance(overrides?: { sampleCount?: number }) {
   return createCalibrationProvenance({

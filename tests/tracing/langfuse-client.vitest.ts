@@ -18,7 +18,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import type { TracingConfig } from "../../src/config/schema.js";
+import type { TracingConfig } from "../../src/operations/config/schema.js";
 import type {
   ModelSpanInput,
   RunOutcome,
@@ -27,7 +27,7 @@ import type {
   TraceRun,
   TraceRunInput,
   TraceSpan,
-} from "../../src/tracing/types.js";
+} from "../../src/models/tracing/types.js";
 
 // ---------------------------------------------------------------------------
 // Superset fake — vi.mock for both @langfuse/tracing and @langfuse/otel
@@ -243,7 +243,7 @@ vi.mock("@langfuse/otel", () => ({ LangfuseSpanProcessor: FakeProcessor }));
 
 // The adapter is dynamically imported by createTraceClient on the enabled path.
 // Static import here is fine: vi.mock is hoisted before module evaluation.
-import { LangfuseTraceClient } from "../../src/tracing/langfuse-client.js";
+import { LangfuseTraceClient } from "../../src/models/tracing/langfuse-client.js";
 
 function lastProcessor(): InstanceType<typeof FakeProcessor> {
   const p = fakeProcessorInstances.at(-1);

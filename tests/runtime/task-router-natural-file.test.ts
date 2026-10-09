@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { taskRouter } from "../../src/runtime/task-router.js";
+import { taskRouter } from "../../src/runtime-state/runtime/task-router.js";
 
 function toolCmd(route: unknown): string {
   const r = route as { kind: "tool"; args: { command: string } };

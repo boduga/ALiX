@@ -14,8 +14,8 @@ ALiX currently has **24 hardcoded model name strings** across 4 files:
 
 | File | Count | What |
 |------|-------|------|
-| `src/config/defaults.ts` | 12 | MODEL_TIERS (6) + subagent tiers (6) |
-| `src/providers/catalog.ts` | ~11 | DEFAULT_MODELS — fallback per-provider |
+| `src/operations/config/defaults.ts` | 12 | MODEL_TIERS (6) + subagent tiers (6) |
+| `src/models/providers/catalog.ts` | ~11 | DEFAULT_MODELS — fallback per-provider |
 | `src/agents/subagent-manager.ts` | 1 | Hardcoded `llama3.2:3b` fallback |
 
 These hardcoded names:
@@ -95,11 +95,11 @@ runTask runs normally
 
 | File | Change |
 |------|--------|
-| `src/config/defaults.ts` | Remove MODEL_TIERS. Remove subagent model names from DEFAULT_CONFIG. Keep structural defaults. |
-| `src/config/loader.ts` | Add load-time validation: throw if model missing. Add inheritance: for each unset tier, copy from config.model. |
-| `src/config/validator.ts` | Remove VALID_PROVIDERS hardcoded list. |
-| `src/config/schema.ts` | Change `model.provider` union type to `provider: string` (live API is the validator now). |
-| `src/providers/catalog.ts` | Remove DEFAULT_MODELS map. |
+| `src/operations/config/defaults.ts` | Remove MODEL_TIERS. Remove subagent model names from DEFAULT_CONFIG. Keep structural defaults. |
+| `src/operations/config/loader.ts` | Add load-time validation: throw if model missing. Add inheritance: for each unset tier, copy from config.model. |
+| `src/operations/config/validator.ts` | Remove VALID_PROVIDERS hardcoded list. |
+| `src/operations/config/schema.ts` | Change `model.provider` union type to `provider: string` (live API is the validator now). |
+| `src/models/providers/catalog.ts` | Remove DEFAULT_MODELS map. |
 | `src/agents/subagent-manager.ts` | Replace hardcoded fallback with throw (unreachable after loader fix). |
 
 ### Other files that may need test updates

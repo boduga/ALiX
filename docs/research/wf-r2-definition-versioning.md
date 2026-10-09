@@ -66,13 +66,13 @@ Sources:
 | Precedent | Form | Location |
 |---|---|---|
 | `package.json` (npm package `alix`) | SemVer-ish `"0.5.0"` | `/home/babasola/Projects/Monolith/package.json` (name `alix`, `"version": "0.5.0"`) |
-| `Capability.version` | **plain string, currently `"1.0"`** — not full SemVer | `/home/babasola/Projects/Monolith/src/capability/types.ts:6` (`version: string;`); `/home/babasola/Projects/Monolith/src/capability/initial-capabilities.ts:12,25,34,44` (all `version: "1.0"`) |
-| `CapabilityManifest` schema version | monotonic integer literal `version: 1` (serialization format version, distinct from definition version) | `/home/babasola/Projects/Monolith/src/capability/registry.ts:16-20,133-135` (`export(): CapabilityManifest` returns `{ version: 1, ... }`) |
-| Agent/tool cards (registry) | full SemVer `"1.0.0"` | `/home/babasola/Projects/Monolith/src/registry/card-loader.ts:18-21` (agent cards) and tool-card entries (`version: "1.0.0"`) |
-| MCP client identity | `serverInfo.version` string, `clientVersion = "1.0"` default | `/home/babasola/Projects/Monolith/src/mcp/client.ts:32,50` |
-| Capability projection store | integer schema version guard (`'capability projection state: invalid or unsupported version'`) | `/home/babasola/Projects/Monolith/src/tui/runtime/capability-projection.ts:185` |
-| Governance history | append-only JSONL stores keyed by id + timestamp (e.g. `execution-attempts`, evidence), `id:`/timestamps, no `id@version` pins today | `/home/babasola/Projects/Monolith/src/governance/audit-store.ts`, `src/governance/execution-store.ts`, `src/adaptation/*-store.ts`, `src/security/evidence/evidence-store.ts` |
-| Lifecycle overlay (A7) | runtime projection keyed by capabilityId only — **no version component** | `/home/babasola/Projects/Monolith/src/capability/registry.ts:100-122` (`applyLifecycleTransition`/`listLifecycleStates`); `LifecycleState` in `src/adaptation/capability-evolution-types.ts:15-21` |
+| `Capability.version` | **plain string, currently `"1.0"`** — not full SemVer | `/home/babasola/Projects/Monolith/src/capabilities/capability/types.ts:6` (`version: string;`); `/home/babasola/Projects/Monolith/src/capabilities/capability/initial-capabilities.ts:12,25,34,44` (all `version: "1.0"`) |
+| `CapabilityManifest` schema version | monotonic integer literal `version: 1` (serialization format version, distinct from definition version) | `/home/babasola/Projects/Monolith/src/capabilities/capability/registry.ts:16-20,133-135` (`export(): CapabilityManifest` returns `{ version: 1, ... }`) |
+| Agent/tool cards (registry) | full SemVer `"1.0.0"` | `/home/babasola/Projects/Monolith/src/capabilities/registry/card-loader.ts:18-21` (agent cards) and tool-card entries (`version: "1.0.0"`) |
+| MCP client identity | `serverInfo.version` string, `clientVersion = "1.0"` default | `/home/babasola/Projects/Monolith/src/capabilities/mcp/client.ts:32,50` |
+| Capability projection store | integer schema version guard (`'capability projection state: invalid or unsupported version'`) | `/home/babasola/Projects/Monolith/src/interfaces/tui/runtime/capability-projection.ts:185` |
+| Governance history | append-only JSONL stores keyed by id + timestamp (e.g. `execution-attempts`, evidence), `id:`/timestamps, no `id@version` pins today | `/home/babasola/Projects/Monolith/src/governance/audit-store.ts`, `src/governance/execution-store.ts`, `src/planning/adaptation/*-store.ts`, `src/governance/security/evidence/evidence-store.ts` |
+| Lifecycle overlay (A7) | runtime projection keyed by capabilityId only — **no version component** | `/home/babasola/Projects/Monolith/src/capabilities/capability/registry.ts:100-122` (`applyLifecycleTransition`/`listLifecycleStates`); `LifecycleState` in `src/planning/adaptation/capability-evolution-types.ts:15-21` |
 
 Pre-existing precedent to note: ALiX already distinguishes **definition `version`** (per-capability string) from **schema `version`** (integer manifest/projection format). The greenfield spec §8 codifies the `id@version` split (`tool.file.read@1.0`, logical identity `tool.file.read`).
 

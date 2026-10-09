@@ -113,16 +113,16 @@ alix run "<task>"
 **Key directories:**
 - `src/cli.ts` — CLI entrypoint and command routing
 - `src/run.ts` — agent loop and session orchestration
-- `src/providers/` — 12 provider adapters with shared `BaseProvider`
-- `src/tools/` — built-in tool implementations
-- `src/mcp/` — MCP server registry, tool deferral, stdio transport
-- `src/policy/` — policy engine and approval queue
-- `src/patch/` — patch engine with preimage validation
-- `src/hooks/` — hook discovery and runner
-- `src/utils/tokens.ts` — tiktoken encoder cache and budget truncation
-- `src/utils/session-digest.ts` — event log replay and digest synthesis
-- `src/server/` — local inspector SSE server
-- `src/ui/` — vanilla JavaScript inspector UI
+- `src/models/providers/` — 12 provider adapters with shared `BaseProvider`
+- `src/capabilities/tools/` — built-in tool implementations
+- `src/capabilities/mcp/` — MCP server registry, tool deferral, stdio transport
+- `src/governance/policy/` — policy engine and approval queue
+- `src/execution/patch/` — patch engine with preimage validation
+- `src/operations/hooks/` — hook discovery and runner
+- `src/operations/utils/tokens.ts` — tiktoken encoder cache and budget truncation
+- `src/operations/utils/session-digest.ts` — event log replay and digest synthesis
+- `src/interfaces/server/` — local inspector SSE server
+- `src/interfaces/ui/` — vanilla JavaScript inspector UI
 
 ---
 

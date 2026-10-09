@@ -3,10 +3,10 @@
 // P11.2 — Integration tests for ReasoningEngine with mock stores.
 
 import { describe, it, expect } from "vitest";
-import { ReasoningEngine } from "../../src/reasoning/reasoning-engine.js";
-import { DEFAULT_REASONING_CONFIG } from "../../src/reasoning/reasoning-config.js";
-import { RootCauseAnalysisError } from "../../src/reasoning/reasoning-types.js";
-import type { CorrelationGraph, CorrelationSubsystemId, CorrelationGraphStatus, CorrelationNode, CorrelationEdge } from "../../src/correlation/correlation-types.js";
+import { ReasoningEngine } from "../../src/planning/reasoning/reasoning-engine.js";
+import { DEFAULT_REASONING_CONFIG } from "../../src/planning/reasoning/reasoning-config.js";
+import { RootCauseAnalysisError } from "../../src/planning/reasoning/reasoning-types.js";
+import type { CorrelationGraph, CorrelationSubsystemId, CorrelationGraphStatus, CorrelationNode, CorrelationEdge } from "../../src/operations/correlation/correlation-types.js";
 
 // ---------------------------------------------------------------------------
 // Mocks

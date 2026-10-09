@@ -15,28 +15,28 @@
 ## File Structure
 
 **Modified files:**
-- `src/tui/render.ts` — Complete rewrite (~160 lines)
-- `src/tui/ansi.ts` — Add `getTerminalHeight()` helper
+- `src/interfaces/tui/render.ts` — Complete rewrite (~160 lines)
+- `src/interfaces/tui/ansi.ts` — Add `getTerminalHeight()` helper
 
 **New files:**
 - `tests/tui/split-screen.test.ts` — Layout & output buffer tests
 
 **Unchanged (referenced):**
-- `src/tui/store.ts`, `src/tui/index.ts`, `src/tui/events.ts`
-- All `src/tui/widgets/*` — still produce strings, no changes
-- `src/tui/diff-render.ts` — kept for reference
-- `src/cli/commands/tui.ts` — no changes
+- `src/interfaces/tui/store.ts`, `src/interfaces/tui/index.ts`, `src/interfaces/tui/events.ts`
+- All `src/interfaces/tui/widgets/*` — still produce strings, no changes
+- `src/interfaces/tui/diff-render.ts` — kept for reference
+- `src/interfaces/cli/commands/tui.ts` — no changes
 
 ---
 
 ## Task 1: Add terminal helper
 
 **Files:**
-- Modify: `src/tui/ansi.ts`
+- Modify: `src/interfaces/tui/ansi.ts`
 
 - [ ] **Step 1: Add `getTerminalHeight()`**
 
-Append to `src/tui/ansi.ts`:
+Append to `src/interfaces/tui/ansi.ts`:
 
 ```typescript
 /** Get the current terminal height in lines */
@@ -54,7 +54,7 @@ npx tsc -p tsconfig.json 2>&1 | tail -3
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/ansi.ts
+git add src/interfaces/tui/ansi.ts
 git commit -m "feat(tui): add getTerminalHeight helper"
 ```
 
@@ -63,7 +63,7 @@ git commit -m "feat(tui): add getTerminalHeight helper"
 ## Task 2: Rewrite `render.ts` (split-screen layout)
 
 **Files:**
-- Modify: `src/tui/render.ts`
+- Modify: `src/interfaces/tui/render.ts`
 
 This is the big one. Replace the entire `TuiRenderer` class. The new design:
 
@@ -83,7 +83,7 @@ This is the big one. Replace the entire `TuiRenderer` class. The new design:
 - [ ] **Step 1: Write complete new `render.ts`**
 
 ```typescript
-// src/tui/render.ts — Split-screen TUI renderer with bottom-pinned status bar.
+// src/interfaces/tui/render.ts — Split-screen TUI renderer with bottom-pinned status bar.
 //
 // Layout:
 //   Lines 0 to (terminalHeight - 5):  Append-only output buffer
@@ -235,8 +235,8 @@ If there are type errors from the `ApprovableWidget` interface or old tests refe
 Create a quick one-off script or use `alix tui` to verify:
 ```bash
 node -e "
-const { TuiRenderer } = require('./dist/src/tui/render.js');
-const { createTuiStore } = require('./dist/src/tui/store.js');
+const { TuiRenderer } = require('./dist/src/interfaces/tui/render.js');
+const { createTuiStore } = require('./dist/src/interfaces/tui/store.js');
 const store = createTuiStore({ sessionId:'test' });
 const r = new TuiRenderer(store);
 r.start();
@@ -249,7 +249,7 @@ setTimeout(() => { r.appendOutput('> world'); r.stop(); }, 200);
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/render.ts
+git add src/interfaces/tui/render.ts
 git commit -m "refactor(tui): split-screen layout with bottom-pinned status bar"
 ```
 
@@ -258,12 +258,12 @@ git commit -m "refactor(tui): split-screen layout with bottom-pinned status bar"
 ## Task 3: Update `Tui` class to expose `appendOutput`
 
 **Files:**
-- Modify: `src/tui/index.ts`
+- Modify: `src/interfaces/tui/index.ts`
 
 - [ ] **Step 1: Read current file**
 
 ```bash
-cat src/tui/index.ts
+cat src/interfaces/tui/index.ts
 ```
 
 - [ ] **Step 2: Add `appendOutput` method**
@@ -283,7 +283,7 @@ npx tsc -p tsconfig.json 2>&1 | tail -3
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/index.ts
+git add src/interfaces/tui/index.ts
 git commit -m "feat(tui): expose appendOutput from Tui class"
 ```
 
@@ -292,12 +292,12 @@ git commit -m "feat(tui): expose appendOutput from Tui class"
 ## Task 4: Wire `appendOutput` from the TUI command
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Read current file**
 
 ```bash
-cat src/cli/commands/tui.ts
+cat src/interfaces/cli/commands/tui.ts
 ```
 
 - [ ] **Step 2: Add streaming output to the TUI**
@@ -329,7 +329,7 @@ npx tsc -p tsconfig.json 2>&1 | tail -3
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): wire streaming output to split-screen TUI"
 ```
 

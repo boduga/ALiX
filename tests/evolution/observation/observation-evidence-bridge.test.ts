@@ -3,8 +3,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildObservationEvidence } from "../../../src/evolution/observation/observation-evidence-bridge.js";
-import type { ObservationResult } from "../../../src/evolution/observation/contracts/observation-contract.js";
+import { buildObservationEvidence } from "../../../src/planning/evolution/observation/observation-evidence-bridge.js";
+import type { ObservationResult } from "../../../src/planning/evolution/observation/contracts/observation-contract.js";
 
 const BASE_TIME = "2026-07-12T00:00:00.000Z";
 

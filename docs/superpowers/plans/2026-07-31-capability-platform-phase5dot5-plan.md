@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **`src/capability/*`, `timelineEvents[]`, ChatView, AgentView, and the capability presenter are UNTOUCHED** (D8).
+- **`src/capabilities/capability/*`, `timelineEvents[]`, ChatView, AgentView, and the capability presenter are UNTOUCHED** (D8).
 - **Cursor opacity preserved end-to-end (D1/D2):** `seq` is never exposed through the public EventLog cursor API; serialization happens only inside `EventLog.serializeCursor`/`deserializeCursor`. `ProjectionCheckpoint` stays cursor-object based in the runtime layer — no `cursorString` in the collector (D7).
 - **`EventLog` owns cursor semantics; `ProjectionCheckpointStore` owns persistence mechanics** — the store never reads the cursor string, never touches the EventLog, never runs projection logic (D3).
 - **Checkpoint is a commit marker (D5):** `readSince → builder.update → save(candidate) → (success) advance checkpoint + publish snapshot; (failure) keep old checkpoint + old cache, retry next sample.` A published `RuntimeSnapshot` always has a corresponding durable checkpoint position.
@@ -26,7 +26,7 @@
 ### Task 1: EventLog cursor serialization
 
 **Files:**
-- Modify: `src/events/event-log.ts`
+- Modify: `src/runtime-state/events/event-log.ts`
 - Test: `tests/events/event-log-cursor.vitest.ts` (add serialization tests)
 
 **Interfaces:**
@@ -71,7 +71,7 @@ Add to `tests/events/event-log-cursor.vitest.ts`:
 Run: `npx vitest run tests/events/event-log-cursor.vitest.ts --config vitest.config.mts`
 Expected: FAIL — `serializeCursor`/`deserializeCursor` do not exist.
 
-- [ ] **Step 3: Implement serialization in `src/events/event-log.ts`**
+- [ ] **Step 3: Implement serialization in `src/runtime-state/events/event-log.ts`**
 
 Add the version constant and the two public methods (after `cursorsEqual`):
 
@@ -122,7 +122,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/events --config vitest.config.mts`
 ```bash
-git add src/events/event-log.ts tests/events/event-log-cursor.vitest.ts
+git add src/runtime-state/events/event-log.ts tests/events/event-log-cursor.vitest.ts
 git commit -m "feat(capabilities): EventLog cursor serialize/deserialize (versioned, owner-agnostic)"
 ```
 
@@ -131,7 +131,7 @@ git commit -m "feat(capabilities): EventLog cursor serialize/deserialize (versio
 ### Task 2: `ProjectionCheckpointStore`
 
 **Files:**
-- Create: `src/tui/runtime/projection-checkpoint-store.ts`
+- Create: `src/interfaces/tui/runtime/projection-checkpoint-store.ts`
 - Test: `tests/tui/runtime/projection-checkpoint-store.vitest.ts` (new)
 
 **Interfaces:**
@@ -146,8 +146,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FileProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
-import { EventLog } from '../../../src/events/event-log.js';
+import { FileProjectionCheckpointStore } from '../../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
+import { EventLog } from '../../../src/runtime-state/events/event-log.js';
 
 function makeSerialized(log: EventLog, seq = 5): { cursor: string; committedAt: number } {
   return { cursor: log.serializeCursor(log.getCursor()), committedAt: 1000 };
@@ -209,7 +209,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the store**
 
 ```typescript
-// src/tui/runtime/projection-checkpoint-store.ts
+// src/interfaces/tui/runtime/projection-checkpoint-store.ts
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -287,7 +287,7 @@ Expected: PASS (update the test to the corrected string-based store contract: `s
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui/runtime --config vitest.config.mts`
 ```bash
-git add src/tui/runtime/projection-checkpoint-store.ts tests/tui/runtime/projection-checkpoint-store.vitest.ts
+git add src/interfaces/tui/runtime/projection-checkpoint-store.ts tests/tui/runtime/projection-checkpoint-store.vitest.ts
 git commit -m "feat(capabilities): atomic ProjectionCheckpointStore with versioned envelope"
 ```
 
@@ -296,7 +296,7 @@ git commit -m "feat(capabilities): atomic ProjectionCheckpointStore with version
 ### Task 3: Collector integration — constructor injection, async recovery, save-as-commit-marker
 
 **Files:**
-- Modify: `src/tui/runtime-collector.ts`
+- Modify: `src/interfaces/tui/runtime-collector.ts`
 - Test: `tests/tui/runtime/runtime-collector.vitest.ts` (extend the fake EventLog with serialize/deserialize; add recovery + D5 tests)
 
 **Interfaces:**
@@ -308,8 +308,8 @@ git commit -m "feat(capabilities): atomic ProjectionCheckpointStore with version
 Extend `tests/tui/runtime/runtime-collector.vitest.ts`. The existing fake EventLog needs `serializeCursor`/`deserializeCursor`; add an in-memory store:
 
 ```typescript
-import { RuntimeCollectorImpl } from '../../src/tui/runtime-collector.js';
-import type { ProjectionCheckpointStore } from '../../src/tui/runtime/projection-checkpoint-store.js';
+import { RuntimeCollectorImpl } from '../../src/interfaces/tui/runtime-collector.js';
+import type { ProjectionCheckpointStore } from '../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
 
 function makeCheckpointStore(): ProjectionCheckpointStore & { saved: Array<{ cursor: string; committedAt: number }> } {
   let stored: { cursor: string; committedAt: number } | null = null;
@@ -409,7 +409,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
 Run: `npx vitest run tests/tui/runtime/runtime-collector.vitest.ts --config vitest.config.mts`
 Expected: FAIL — constructor arity / `start` returns void / no serialize/deserialize on the fake.
 
-- [ ] **Step 3: Rewrite `src/tui/runtime-collector.ts`**
+- [ ] **Step 3: Rewrite `src/interfaces/tui/runtime-collector.ts`**
 
 1. **Rename `updatedAt` → `committedAt` on the `ProjectionCheckpoint` interface** (it currently lives at the top of `runtime-collector.ts` with `updatedAt` from Phase 5 — the review refinement reframes it as "the instant this projection became durable"):
 
@@ -517,7 +517,7 @@ Expected: PASS (the existing 3 Phase-5 tests + the 4 new durable-checkpoint test
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/runtime-collector.ts tests/tui/runtime/runtime-collector.vitest.ts
+git add src/interfaces/tui/runtime-collector.ts tests/tui/runtime/runtime-collector.vitest.ts
 git commit -m "feat(capabilities): durable checkpoint — constructor injection, async recovery, save-as-commit-marker"
 ```
 
@@ -526,7 +526,7 @@ git commit -m "feat(capabilities): durable checkpoint — constructor injection,
 ### Task 4: Bootstrap wiring (`tui.ts`)
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 - Test: `tests/cli/commands/tui-thin-bootstrap.vitest.ts` (verify the collector is constructed with the store)
 
 **Interfaces:**
@@ -553,7 +553,7 @@ The concrete failing signal BEFORE this task: after Task 3, `new RuntimeCollecto
 
 Expected: FAIL — the `tui.ts` one-arg `new RuntimeCollectorImpl(eventLog)` no longer typechecks after Task 3 (TS2554). If the harness test also fails, that confirms the wiring gap.
 
-- [ ] **Step 3: Update `src/cli/commands/tui.ts`**
+- [ ] **Step 3: Update `src/interfaces/cli/commands/tui.ts`**
 
 1. Add the import (near the `RuntimeCollectorImpl` import at line 10):
 ```typescript
@@ -584,7 +584,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/cli/commands/tui.ts tests/cli/commands/tui-thin-bootstrap.vitest.ts
+git add src/interfaces/cli/commands/tui.ts tests/cli/commands/tui-thin-bootstrap.vitest.ts
 git commit -m "feat(capabilities): wire durable projection checkpoint into TUI bootstrap"
 ```
 
@@ -599,7 +599,7 @@ git commit -m "feat(capabilities): wire durable projection checkpoint into TUI b
 - [ ] **Step 1: Full build + full suites**
 
 Run: `npm run build` and `npx vitest run tests/capability tests/tui tests/events --config vitest.config.mts`
-Expected: clean, all pass. Then `git diff --name-only origin/main -- src/capability/` → empty (D8 gate).
+Expected: clean, all pass. Then `git diff --name-only origin/main -- src/capabilities/capability/` → empty (D8 gate).
 
 - [ ] **Step 2: Update spec status**
 
@@ -625,7 +625,7 @@ Recovery falls back to `beginningCursor()` when the checkpoint is missing,
 malformed, or incompatible. Write cadence is every successful sample (the file
 is ~100 bytes); no throttle.
 
-The operator timeline and platform (src/capability/) are unchanged.
+The operator timeline and platform (src/capabilities/capability/) are unchanged.
 ```
 
 - [ ] **Step 4: Commit**
@@ -644,4 +644,4 @@ git commit -m "docs(capabilities): Phase-5.5 usage note + spec status to impleme
 - ✅ Collector resumes from the saved checkpoint after restart; save is a commit marker (checkpoint advances only after durable save; save-failure preserves old checkpoint + old cache + retries next sample); async `start()` awaits recovery before the first sample.
 - ✅ Write cadence = every successful sample, persist-before-publish.
 - ✅ Constructor injection: collector never instantiates the store; `tui.ts` constructs `FileProjectionCheckpointStore(sessionDir)` and injects it.
-- ✅ `src/capability/*`, `timelineEvents[]`, ChatView, AgentView, capability presenter untouched; vitest green; `tsc --noEmit` clean.
+- ✅ `src/capabilities/capability/*`, `timelineEvents[]`, ChatView, AgentView, capability presenter untouched; vitest green; `tsc --noEmit` clean.

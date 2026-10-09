@@ -11,13 +11,13 @@
  * contract drift apart, these tests will fail to compile.
  *
  * Seven audits covering:
- * 1. AgentState     — src/autonomy/scope-tracker.ts
- * 2. RunLimits      — src/autonomy/state-machine.ts
- * 3. ModelCapabilities — src/providers/types.ts
- * 4. ToolCallRequest   — src/tools/types.ts
- * 5. AlixEvent      — src/events/types.ts
- * 6. EventLogContract — src/events/event-log.ts  (class → interface)
- * 7. MemoryEntry    — src/utils/memory/types.ts
+ * 1. AgentState     — src/planning/autonomy/scope-tracker.ts
+ * 2. RunLimits      — src/planning/autonomy/state-machine.ts
+ * 3. ModelCapabilities — src/models/providers/types.ts
+ * 4. ToolCallRequest   — src/capabilities/tools/types.ts
+ * 5. AlixEvent      — src/runtime-state/events/types.ts
+ * 6. EventLogContract — src/runtime-state/events/event-log.ts  (class → interface)
+ * 7. MemoryEntry    — src/operations/utils/memory/types.ts
  */
 
 import { describe, it } from "node:test";
@@ -25,23 +25,23 @@ import assert from "node:assert/strict";
 
 // ── Contract types ──────────────────────────────────────────────────
 
-import type { AgentState } from "../../src/runtime/contracts/agent-contract.js";
-import type { RunLimits } from "../../src/runtime/contracts/agent-contract.js";
-import type { ModelCapabilities } from "../../src/runtime/contracts/provider-contract.js";
-import type { ToolCallRequest } from "../../src/runtime/contracts/tool-contract.js";
-import type { AlixEvent } from "../../src/runtime/contracts/event-contract.js";
-import type { EventLogContract } from "../../src/runtime/contracts/event-contract.js";
-import type { MemoryEntry } from "../../src/runtime/contracts/memory-contract.js";
+import type { AgentState } from "../../src/runtime-state/runtime/contracts/agent-contract.js";
+import type { RunLimits } from "../../src/runtime-state/runtime/contracts/agent-contract.js";
+import type { ModelCapabilities } from "../../src/runtime-state/runtime/contracts/provider-contract.js";
+import type { ToolCallRequest } from "../../src/runtime-state/runtime/contracts/tool-contract.js";
+import type { AlixEvent } from "../../src/runtime-state/runtime/contracts/event-contract.js";
+import type { EventLogContract } from "../../src/runtime-state/runtime/contracts/event-contract.js";
+import type { MemoryEntry } from "../../src/runtime-state/runtime/contracts/memory-contract.js";
 
 // ── Source types (aliased for disambiguation) ────────────────────────
 
-import type { AgentState as SourceAgentState } from "../../src/autonomy/scope-tracker.js";
-import type { RunLimits as SourceRunLimits } from "../../src/autonomy/state-machine.js";
-import type { ModelCapabilities as SourceModelCapabilities } from "../../src/providers/types.js";
-import type { ToolCallRequest as SourceToolCallRequest } from "../../src/tools/types.js";
-import type { AlixEvent as SourceAlixEvent } from "../../src/events/types.js";
-import { EventLog } from "../../src/events/event-log.js";
-import type { MemoryEntry as SourceMemoryEntry } from "../../src/utils/memory/types.js";
+import type { AgentState as SourceAgentState } from "../../src/planning/autonomy/scope-tracker.js";
+import type { RunLimits as SourceRunLimits } from "../../src/planning/autonomy/state-machine.js";
+import type { ModelCapabilities as SourceModelCapabilities } from "../../src/models/providers/types.js";
+import type { ToolCallRequest as SourceToolCallRequest } from "../../src/capabilities/tools/types.js";
+import type { AlixEvent as SourceAlixEvent } from "../../src/runtime-state/events/types.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { MemoryEntry as SourceMemoryEntry } from "../../src/operations/utils/memory/types.js";
 
 // ── Tests ────────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { ContextStage, ContextPipeline, RepoMapStage, buildRepoMap, RankingStage, BudgetingStage, SemanticSearchStage, type RankingOutput, type ContextItem } from "../../src/repomap/context-pipeline.js";
-import { ContextCompiler } from "../../src/repomap/context-compiler.js";
+import { ContextStage, ContextPipeline, RepoMapStage, buildRepoMap, RankingStage, BudgetingStage, SemanticSearchStage, type RankingOutput, type ContextItem } from "../../src/context/repomap/context-pipeline.js";
+import { ContextCompiler } from "../../src/context/repomap/context-compiler.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, mkdir } from "node:fs/promises";
@@ -93,7 +93,7 @@ describe("RepoMapStage", () => {
 });
 
 describe("RankingStage", () => {
-  async function createTestRepo(): Promise<{ root: string; repoMap: import("../../src/repomap/context-pipeline.js").RepoMapOutput }> {
+  async function createTestRepo(): Promise<{ root: string; repoMap: import("../../src/context/repomap/context-pipeline.js").RepoMapOutput }> {
     const dir = join(tmpdir(), `ranking-test-${Date.now()}`);
     await mkdir(dir, { recursive: true });
     await mkdir(join(dir, "src"), { recursive: true });
@@ -102,7 +102,7 @@ describe("RankingStage", () => {
     await writeFile(join(dir, "src", "index.ts"), "export const foo = 1;");
     await writeFile(join(dir, "src", "utils.ts"), "export const bar = 2;");
     await writeFile(join(dir, "tests", "index.test.ts"), "import { foo } from '../src/index';\nassert.equal(foo, 1);");
-    const repoMap: import("../../src/repomap/context-pipeline.js").RepoMapOutput = await buildRepoMap(dir);
+    const repoMap: import("../../src/context/repomap/context-pipeline.js").RepoMapOutput = await buildRepoMap(dir);
     return { root: dir, repoMap };
   }
 
@@ -151,7 +151,7 @@ describe("RankingStage", () => {
 });
 
 describe("BudgetingStage", () => {
-  async function createTestRepo(): Promise<{ root: string; repoMap: import("../../src/repomap/context-pipeline.js").RepoMapOutput }> {
+  async function createTestRepo(): Promise<{ root: string; repoMap: import("../../src/context/repomap/context-pipeline.js").RepoMapOutput }> {
     const dir = join(tmpdir(), `budgeting-test-${Date.now()}`);
     await mkdir(dir, { recursive: true });
     await mkdir(join(dir, "src"), { recursive: true });
@@ -160,7 +160,7 @@ describe("BudgetingStage", () => {
     await writeFile(join(dir, "src", "index.ts"), "export const foo = 1;");
     await writeFile(join(dir, "src", "utils.ts"), "export const bar = 2;");
     await writeFile(join(dir, "tests", "index.test.ts"), "import { foo } from '../src/index';\nassert.equal(foo, 1);");
-    const repoMap: import("../../src/repomap/context-pipeline.js").RepoMapOutput = await buildRepoMap(dir);
+    const repoMap: import("../../src/context/repomap/context-pipeline.js").RepoMapOutput = await buildRepoMap(dir);
     return { root: dir, repoMap };
   }
 

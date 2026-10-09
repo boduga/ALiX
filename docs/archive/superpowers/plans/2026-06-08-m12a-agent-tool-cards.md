@@ -6,7 +6,7 @@
 
 **Goal:** Add typed `AgentCard` and `ToolCard` schemas plus an in-memory `CardRegistry` with register/list/find-by-capability, validation, and duplicate ID rejection.
 
-**Architecture:** Three small files in `src/registry/` — types with validation functions for each card type, and a `CardRegistry` class that holds agents and tools in `Map<string, T>` structures. Validation happens on registration. Duplicate IDs are rejected. Disabled cards are excluded from list/find results by default.
+**Architecture:** Three small files in `src/capabilities/registry/` — types with validation functions for each card type, and a `CardRegistry` class that holds agents and tools in `Map<string, T>` structures. Validation happens on registration. Duplicate IDs are rejected. Disabled cards are excluded from list/find results by default.
 
 **Tech Stack:** TypeScript, node:test.
 
@@ -16,9 +16,9 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/registry/agent-card.ts` | **Create** | `AgentCard` type, `validateAgentCard()` |
-| `src/registry/tool-card.ts` | **Create** | `ToolCard` type, `validateToolCard()` |
-| `src/registry/card-registry.ts` | **Create** | `CardRegistry` class |
+| `src/capabilities/registry/agent-card.ts` | **Create** | `AgentCard` type, `validateAgentCard()` |
+| `src/capabilities/registry/tool-card.ts` | **Create** | `ToolCard` type, `validateToolCard()` |
+| `src/capabilities/registry/card-registry.ts` | **Create** | `CardRegistry` class |
 | `tests/registry/card-registry.test.ts` | **Create** | Tests for all registry operations |
 
 ---
@@ -26,7 +26,7 @@
 ### Task 1: Create AgentCard type
 
 **Files:**
-- Create: `src/registry/agent-card.ts`
+- Create: `src/capabilities/registry/agent-card.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -81,7 +81,7 @@ npm run build 2>&1 | tail -3
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/registry/agent-card.ts
+git add src/capabilities/registry/agent-card.ts
 git commit -m "feat(registry): add AgentCard type and validation"
 ```
 
@@ -90,7 +90,7 @@ git commit -m "feat(registry): add AgentCard type and validation"
 ### Task 2: Create ToolCard type
 
 **Files:**
-- Create: `src/registry/tool-card.ts`
+- Create: `src/capabilities/registry/tool-card.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -147,7 +147,7 @@ npm run build 2>&1 | tail -3
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/registry/tool-card.ts
+git add src/capabilities/registry/tool-card.ts
 git commit -m "feat(registry): add ToolCard type and validation"
 ```
 
@@ -156,7 +156,7 @@ git commit -m "feat(registry): add ToolCard type and validation"
 ### Task 3: Create CardRegistry
 
 **Files:**
-- Create: `src/registry/card-registry.ts`
+- Create: `src/capabilities/registry/card-registry.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -228,7 +228,7 @@ npm run build 2>&1 | tail -3
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/registry/card-registry.ts
+git add src/capabilities/registry/card-registry.ts
 git commit -m "feat(registry): add CardRegistry with register/list/find-by-capability"
 ```
 
@@ -244,11 +244,11 @@ git commit -m "feat(registry): add CardRegistry with register/list/find-by-capab
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateAgentCard } from "../../src/registry/agent-card.js";
-import { validateToolCard } from "../../src/registry/tool-card.js";
-import { CardRegistry } from "../../src/registry/card-registry.js";
-import type { AgentCard } from "../../src/registry/agent-card.js";
-import type { ToolCard } from "../../src/registry/tool-card.js";
+import { validateAgentCard } from "../../src/capabilities/registry/agent-card.js";
+import { validateToolCard } from "../../src/capabilities/registry/tool-card.js";
+import { CardRegistry } from "../../src/capabilities/registry/card-registry.js";
+import type { AgentCard } from "../../src/capabilities/registry/agent-card.js";
+import type { ToolCard } from "../../src/capabilities/registry/tool-card.js";
 
 describe("AgentCard validation", () => {
 

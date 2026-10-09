@@ -16,10 +16,10 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/tui/AlixApp.tsx` | **Create** | Ink root component — Static for history, Text for streaming, TokenBar, TextInput |
-| `src/tui/index.ts` | **Rewrite** | Tui class wrapping Ink render, implementing appendOutput/resetOutput/init/destroy |
-| `src/cli/commands/tui.ts` | **Rewrite** | runTui entry point — no stdin management, just wire runTask + Tui |
-| `src/tui/render.ts` | **Delete** | Replaced by Ink components |
+| `src/interfaces/tui/AlixApp.tsx` | **Create** | Ink root component — Static for history, Text for streaming, TokenBar, TextInput |
+| `src/interfaces/tui/index.ts` | **Rewrite** | Tui class wrapping Ink render, implementing appendOutput/resetOutput/init/destroy |
+| `src/interfaces/cli/commands/tui.ts` | **Rewrite** | runTui entry point — no stdin management, just wire runTask + Tui |
+| `src/interfaces/tui/render.ts` | **Delete** | Replaced by Ink components |
 | `package.json` | **Modify** | Add ink, ink-text-input, react, react-dom deps and JSX config |
 | `tsconfig.json` | **Modify** | Add `jsx: "react-jsx"`, `jsxImportSource: "react"` |
 | `tests/tui/tui-renderer-integration.test.ts` | **Rewrite** | Test Tui class instead of TuiRenderer |
@@ -92,7 +92,7 @@ git commit -m "chore(deps): add ink, ink-text-input, react for TUI rewrite"
 ### Task 2: Create AlixApp.tsx — Ink root component
 
 **Files:**
-- Create: `src/tui/AlixApp.tsx`
+- Create: `src/interfaces/tui/AlixApp.tsx`
 
 This is the core component. It manages:
 - `<Static>` for completed output lines (never re-render)
@@ -313,7 +313,7 @@ Expected: no errors on AlixApp.tsx.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/AlixApp.tsx
+git add src/interfaces/tui/AlixApp.tsx
 git commit -m "feat(tui): Ink root component with Static output, streaming line, TokenBar, TextInput"
 ```
 
@@ -322,7 +322,7 @@ git commit -m "feat(tui): Ink root component with Static output, streaming line,
 ### Task 3: Rewrite Tui class wrapper
 
 **Files:**
-- Rewrite: `src/tui/index.ts`
+- Rewrite: `src/interfaces/tui/index.ts`
 
 Replace the old Tui class that created `TuiRenderer` (which is being deleted) with one that renders Ink and exposes the imperative API.
 
@@ -411,7 +411,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/index.ts
+git add src/interfaces/tui/index.ts
 git commit -m "refactor(tui): Tui class now wraps Ink render instead of TuiRenderer"
 ```
 
@@ -420,7 +420,7 @@ git commit -m "refactor(tui): Tui class now wraps Ink render instead of TuiRende
 ### Task 4: Rewrite runTui entry point
 
 **Files:**
-- Rewrite: `src/cli/commands/tui.ts`
+- Rewrite: `src/interfaces/cli/commands/tui.ts`
 
 Remove all stdin management (raw mode, readLine, echoTask, PromptBar). The new version just reads config, creates Tui, wires runTask, and mounts.
 
@@ -526,7 +526,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "refactor(tui): runTui now uses Ink Tui class, no raw stdin management"
 ```
 
@@ -535,21 +535,21 @@ git commit -m "refactor(tui): runTui now uses Ink Tui class, no raw stdin manage
 ### Task 5: Delete render.ts and update index exports
 
 **Files:**
-- Delete: `src/tui/render.ts`
-- Modify: `src/tui/index.ts` exports section
+- Delete: `src/interfaces/tui/render.ts`
+- Modify: `src/interfaces/tui/index.ts` exports section
 
 - [ ] **Step 1: Remove render.ts**
 
 ```bash
-rm src/tui/render.ts
+rm src/interfaces/tui/render.ts
 ```
 
-- [ ] **Step 2: Update exports in src/tui/index.ts**
+- [ ] **Step 2: Update exports in src/interfaces/tui/index.ts**
 
 Remove the unused widget exports (they still exist as files but aren't needed by the Ink TUI). Keep only what's actually used:
 
 ```typescript
-// Add at bottom of src/tui/index.ts:
+// Add at bottom of src/interfaces/tui/index.ts:
 export { createTuiStore } from "./store.js";
 ```
 
@@ -571,7 +571,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/render.ts src/tui/index.ts
+git add src/interfaces/tui/render.ts src/interfaces/tui/index.ts
 git commit -m "refactor(tui): remove render.ts, clean up widget exports"
 ```
 
@@ -595,7 +595,7 @@ describe("Tui", () => {
   it("appendOutput queues lines and resetOutput inserts separator", () => {
     // Tui wraps Ink which needs a real terminal. For unit tests we verify
     // the internal state management works correctly by checking the API shape.
-    const { Tui } = require("../../dist/src/tui/index.js");
+    const { Tui } = require("../../dist/src/interfaces/tui/index.js");
     const tui = new Tui({ sessionId: "test", maxTokens: 100000 });
     assert.ok(typeof tui.appendOutput === "function", "appendOutput exists");
     assert.ok(typeof tui.resetOutput === "function", "resetOutput exists");

@@ -4,8 +4,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createProvider } from "../../src/providers/registry.js";
-import { ContractValidationError } from "../../src/providers/provider-contract-validation.js";
+import { createProvider } from "../../src/models/providers/registry.js";
+import { ContractValidationError } from "../../src/models/providers/provider-contract-validation.js";
 
 describe("createProvider with contract validation", () => {
   it("returns a working adapter for mock provider", async () => {

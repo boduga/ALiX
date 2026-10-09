@@ -49,7 +49,7 @@
       "sessionId": "076c220f-10bc-40e5-a9d9-2f05a0c0ad8f",
       "scopeId": "scope_1",
       "iteration": 0,
-      "objective": "Summarize what src/decision/tool-selection-corpus.ts defines, section by section.",
+      "objective": "Summarize what src/planning/decision/tool-selection-corpus.ts defines, section by section.",
       "eligibility": {
         "selection": "eligible",
         "outcome": "eligible",
@@ -717,7 +717,7 @@
       "sessionId": "8fd733e3-66c8-4a5b-9947-c3ec1b79b793",
       "scopeId": "scope_1",
       "iteration": 0,
-      "objective": "List the files under src/decision/ longer than 200 lines with their line counts.",
+      "objective": "List the files under src/planning/decision/ longer than 200 lines with their line counts.",
       "eligibility": {
         "selection": "eligible",
         "outcome": "eligible",
@@ -985,7 +985,7 @@
       "sessionId": "7f2d6e8f-57ba-4554-b142-7c37ffa05b10",
       "scopeId": "scope_1",
       "iteration": 0,
-      "objective": "Compare the contracts in src/decision/AGENTS.md and src/run/task-loop/AGENTS.md and report every place they disagree.",
+      "objective": "Compare the contracts in src/planning/decision/AGENTS.md and src/execution/run/task-loop/AGENTS.md and report every place they disagree.",
       "eligibility": {
         "selection": "eligible",
         "outcome": "eligible",
@@ -1383,7 +1383,7 @@
       "sessionId": "ee162d4e-9597-430a-a52c-bc0dcd2bd5b9",
       "scopeId": "scope_1",
       "iteration": 0,
-      "objective": "Verify that the exclusion vocabulary in src/decision/tool-selection-corpus.ts contains exactly the seven preregistered codes.",
+      "objective": "Verify that the exclusion vocabulary in src/planning/decision/tool-selection-corpus.ts contains exactly the seven preregistered codes.",
       "eligibility": {
         "selection": "eligible",
         "outcome": "eligible",
@@ -1516,7 +1516,7 @@
       "sessionId": "53f3a078-0a49-4402-9f48-c4fa143ce2c7",
       "scopeId": "scope_1",
       "iteration": 0,
-      "objective": "Check whether any file outside src/decision/ imports the tool-selection scorer or the replay engine.",
+      "objective": "Check whether any file outside src/planning/decision/ imports the tool-selection scorer or the replay engine.",
       "eligibility": {
         "selection": "eligible",
         "outcome": "eligible",

@@ -33,7 +33,7 @@ ExecutorRegistry        ← who executes?      pluggable backends
 EventBus                ← who observes?      system events → AlixEvent adapter
 ```
 
-**Domain integrations live OUTSIDE the capability package** (`src/integrations/`), so the platform core stays reusable and dependency-free.
+**Domain integrations live OUTSIDE the capability package** (`src/capabilities/integrations/`), so the platform core stays reusable and dependency-free.
 
 ## Global Invariants
 
@@ -44,28 +44,28 @@ EventBus                ← who observes?      system events → AlixEvent adapt
 5. **No competing event ecosystem.** `CapabilityEvent` is the platform-internal surface; an adapter maps it onto the existing `AlixEvent`/`EventLog` pipeline.
 6. **Capability IDs are validated** against `^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$` at registration — rejects `SessionList`, `foo`, `../../bad`.
 7. **Permissions are normalized** — a single `Permission` union used consistently: capability `requiredPermissions`, context `permissions`, plan step `permissions`.
-8. **Errors are typed** — `src/capability/errors.ts` defines capability-domain errors (not bare `Error`).
+8. **Errors are typed** — `src/capabilities/capability/errors.ts` defines capability-domain errors (not bare `Error`).
 9. **Phase 1 is a library with no UI assumptions.** No Explorer, Palette, plugin discovery, remote execution, workflow composition, or invocation persistence.
-10. Follow existing codebase conventions: NodeNext ESM (`import ... from "./x.js"`), strict mode, vitest. Platform files under `src/capability/`; domain integrations under `src/integrations/`; tests under `tests/capability/`.
+10. Follow existing codebase conventions: NodeNext ESM (`import ... from "./x.js"`), strict mode, vitest. Platform files under `src/capabilities/capability/`; domain integrations under `src/capabilities/integrations/`; tests under `tests/capability/`.
 11. Every task ends green: `npm run build` passes and the task's tests pass.
 
 ## Repository Layout
 
 | File | Role |
 |---|---|
-| `src/capability/types.ts` | `Capability`, `CapabilityStatus`, `CapabilityContext`, `Invocation`, `InvocationResult`, `InvocationStatus`, `Permission`, `CapabilityEvent`, `AsyncEventQueue` |
-| `src/capability/errors.ts` | Typed capability errors |
-| `src/capability/registry.ts` | `CapabilityRegistry` — metadata only, ID validation |
-| `src/capability/hook-registry.ts` | `HookRegistry` — lifecycle hooks, separate from metadata |
-| `src/capability/execution-resolver.ts` | `ExecutionResolver`, `ExecutionPlan` (with `capabilityId`), `ExecutionPlanStep` |
-| `src/capability/executors.ts` | `ExecutorRegistry`, `CapabilityExecutor`, `NativeExecutor`, `ToolExecutorAdapter` |
-| `src/capability/event-bus.ts` | `EventBus` + `toAlixEvent` adapter seam |
-| `src/capability/runtime.ts` | `CapabilityRuntime` — no invocation registry, cancellation-safe, status getter |
-| `src/capability/platform.ts` | `CapabilityPlatform` — composes the five services |
-| `src/capability/initial-capabilities.ts` | Pure capability definitions (no domain deps) |
-| `src/capability/tool-adapter.ts` | Existing `ToolExecutor` → `tool` strategy adapter |
-| `src/integrations/session-capabilities.ts` | Domain wiring: session impl behind `core.session.*` |
-| `src/capability/index.ts` | Public barrel (does NOT export integrations) |
+| `src/capabilities/capability/types.ts` | `Capability`, `CapabilityStatus`, `CapabilityContext`, `Invocation`, `InvocationResult`, `InvocationStatus`, `Permission`, `CapabilityEvent`, `AsyncEventQueue` |
+| `src/capabilities/capability/errors.ts` | Typed capability errors |
+| `src/capabilities/capability/registry.ts` | `CapabilityRegistry` — metadata only, ID validation |
+| `src/capabilities/capability/hook-registry.ts` | `HookRegistry` — lifecycle hooks, separate from metadata |
+| `src/capabilities/capability/execution-resolver.ts` | `ExecutionResolver`, `ExecutionPlan` (with `capabilityId`), `ExecutionPlanStep` |
+| `src/capabilities/capability/executors.ts` | `ExecutorRegistry`, `CapabilityExecutor`, `NativeExecutor`, `ToolExecutorAdapter` |
+| `src/capabilities/capability/event-bus.ts` | `EventBus` + `toAlixEvent` adapter seam |
+| `src/capabilities/capability/runtime.ts` | `CapabilityRuntime` — no invocation registry, cancellation-safe, status getter |
+| `src/capabilities/capability/platform.ts` | `CapabilityPlatform` — composes the five services |
+| `src/capabilities/capability/initial-capabilities.ts` | Pure capability definitions (no domain deps) |
+| `src/capabilities/capability/tool-adapter.ts` | Existing `ToolExecutor` → `tool` strategy adapter |
+| `src/capabilities/integrations/session-capabilities.ts` | Domain wiring: session impl behind `core.session.*` |
+| `src/capabilities/capability/index.ts` | Public barrel (does NOT export integrations) |
 | `tests/capability/*.vitest.ts` | Tests per module |
 
 ---
@@ -73,8 +73,8 @@ EventBus                ← who observes?      system events → AlixEvent adapt
 ### Task 1: Capability contracts + errors
 
 **Files:**
-- Create: `src/capability/types.ts`
-- Create: `src/capability/errors.ts`
+- Create: `src/capabilities/capability/types.ts`
+- Create: `src/capabilities/capability/errors.ts`
 - Test: `tests/capability/types.vitest.ts`
 
 **Interfaces:**
@@ -85,8 +85,8 @@ EventBus                ← who observes?      system events → AlixEvent adapt
 ```typescript
 // tests/capability/types.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { AsyncEventQueue } from '../../src/capability/types.js';
-import type { Capability } from '../../src/capability/types.js';
+import { AsyncEventQueue } from '../../src/capabilities/capability/types.js';
+import type { Capability } from '../../src/capabilities/capability/types.js';
 
 describe('Capability type contract', () => {
   it('is structurally typed for a minimal core capability', () => {
@@ -164,7 +164,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the type + error modules**
 
 ```typescript
-// src/capability/types.ts
+// src/capabilities/capability/types.ts
 export type Permission = "operator" | "admin" | "developer" | "internal";
 
 /** Pure-data capability definition. Fully serializable — no functions. */
@@ -295,7 +295,7 @@ export class AsyncEventQueue<T> implements AsyncIterable<T> {
 ```
 
 ```typescript
-// src/capability/errors.ts
+// src/capabilities/capability/errors.ts
 /** Typed capability-domain errors. Consumers (TUI, Web, MCP) map these
  *  onto their own error surfaces without string-parsing messages. */
 export class CapabilityNotFoundError extends Error {
@@ -342,7 +342,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/types.ts src/capability/errors.ts tests/capability/types.vitest.ts
+git add src/capabilities/capability/types.ts src/capabilities/capability/errors.ts tests/capability/types.vitest.ts
 git commit -m "feat(capability): add pure-data contracts, typed errors, AsyncEventQueue"
 ```
 
@@ -351,8 +351,8 @@ git commit -m "feat(capability): add pure-data contracts, typed errors, AsyncEve
 ### Task 2: CapabilityRegistry + HookRegistry
 
 **Files:**
-- Create: `src/capability/registry.ts`
-- Create: `src/capability/hook-registry.ts`
+- Create: `src/capabilities/capability/registry.ts`
+- Create: `src/capabilities/capability/hook-registry.ts`
 - Test: `tests/capability/registry.vitest.ts`
 
 **Interfaces:**
@@ -364,10 +364,10 @@ git commit -m "feat(capability): add pure-data contracts, typed errors, AsyncEve
 ```typescript
 // tests/capability/registry.vitest.ts
 import { describe, it, expect, vi } from 'vitest';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { HookRegistry } from '../../src/capability/hook-registry.js';
-import { CapabilityValidationError } from '../../src/capability/errors.js';
-import type { Capability } from '../../src/capability/types.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { HookRegistry } from '../../src/capabilities/capability/hook-registry.js';
+import { CapabilityValidationError } from '../../src/capabilities/capability/errors.js';
+import type { Capability } from '../../src/capabilities/capability/types.js';
 
 function makeCap(over: Partial<Capability> = {}): Capability {
   return {
@@ -468,7 +468,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the registry + hook registry**
 
 ```typescript
-// src/capability/registry.ts
+// src/capabilities/capability/registry.ts
 import { CapabilityValidationError } from "./errors.js";
 import type { Capability, CapabilityStatus } from "./types.js";
 
@@ -566,7 +566,7 @@ export class CapabilityRegistry {
 ```
 
 ```typescript
-// src/capability/hook-registry.ts
+// src/capabilities/capability/hook-registry.ts
 import type { CapabilityContext, InvocationResult } from "./types.js";
 
 export type CapabilityHooks = {
@@ -599,7 +599,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/registry.ts src/capability/hook-registry.ts tests/capability/registry.vitest.ts
+git add src/capabilities/capability/registry.ts src/capabilities/capability/hook-registry.ts tests/capability/registry.vitest.ts
 git commit -m "feat(capability): add CapabilityRegistry (ID validation) + HookRegistry"
 ```
 
@@ -608,7 +608,7 @@ git commit -m "feat(capability): add CapabilityRegistry (ID validation) + HookRe
 ### Task 3: ExecutionResolver + ExecutionPlan
 
 **Files:**
-- Create: `src/capability/execution-resolver.ts`
+- Create: `src/capabilities/capability/execution-resolver.ts`
 - Test: `tests/capability/execution-resolver.vitest.ts`
 
 **Interfaces:**
@@ -622,10 +622,10 @@ git commit -m "feat(capability): add CapabilityRegistry (ID validation) + HookRe
 ```typescript
 // tests/capability/execution-resolver.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { ExecutionResolver } from '../../src/capability/execution-resolver.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityNotFoundError } from '../../src/capability/errors.js';
-import type { Capability, CapabilityContext } from '../../src/capability/types.js';
+import { ExecutionResolver } from '../../src/capabilities/capability/execution-resolver.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityNotFoundError } from '../../src/capabilities/capability/errors.js';
+import type { Capability, CapabilityContext } from '../../src/capabilities/capability/types.js';
 
 function ctx(): CapabilityContext {
   return {
@@ -678,7 +678,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the resolver**
 
 ```typescript
-// src/capability/execution-resolver.ts
+// src/capabilities/capability/execution-resolver.ts
 import { CapabilityNotFoundError } from "./errors.js";
 import type { Capability, CapabilityContext, Permission } from "./types.js";
 import type { CapabilityRegistry } from "./registry.js";
@@ -733,7 +733,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/execution-resolver.ts tests/capability/execution-resolver.vitest.ts
+git add src/capabilities/capability/execution-resolver.ts tests/capability/execution-resolver.vitest.ts
 git commit -m "feat(capability): add ExecutionResolver with capabilityId-bearing ExecutionPlan"
 ```
 
@@ -742,7 +742,7 @@ git commit -m "feat(capability): add ExecutionResolver with capabilityId-bearing
 ### Task 4: Executors + ExecutorRegistry
 
 **Files:**
-- Create: `src/capability/executors.ts`
+- Create: `src/capabilities/capability/executors.ts`
 - Test: `tests/capability/executors.vitest.ts`
 
 **Interfaces:**
@@ -754,8 +754,8 @@ git commit -m "feat(capability): add ExecutionResolver with capabilityId-bearing
 ```typescript
 // tests/capability/executors.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { ExecutorRegistry, NativeExecutor } from '../../src/capability/executors.js';
-import type { Capability, CapabilityContext } from '../../src/capability/types.js';
+import { ExecutorRegistry, NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import type { Capability, CapabilityContext } from '../../src/capabilities/capability/types.js';
 
 function cap(strategy: string): Capability {
   return {
@@ -805,7 +805,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the executors module**
 
 ```typescript
-// src/capability/executors.ts
+// src/capabilities/capability/executors.ts
 import type { Capability, CapabilityContext, ExecutorRunResult } from "./types.js";
 
 export interface CapabilityExecutor {
@@ -858,7 +858,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/executors.ts tests/capability/executors.vitest.ts
+git add src/capabilities/capability/executors.ts tests/capability/executors.vitest.ts
 git commit -m "feat(capability): add ExecutorRegistry, NativeExecutor, ToolExecutorAdapter"
 ```
 
@@ -867,7 +867,7 @@ git commit -m "feat(capability): add ExecutorRegistry, NativeExecutor, ToolExecu
 ### Task 5: EventBus + AlixEvent adapter
 
 **Files:**
-- Create: `src/capability/event-bus.ts`
+- Create: `src/capabilities/capability/event-bus.ts`
 - Test: `tests/capability/event-bus.vitest.ts`
 
 **Interfaces:**
@@ -879,8 +879,8 @@ git commit -m "feat(capability): add ExecutorRegistry, NativeExecutor, ToolExecu
 ```typescript
 // tests/capability/event-bus.vitest.ts
 import { describe, it, expect, vi } from 'vitest';
-import { EventBus, toAlixEvent } from '../../src/capability/event-bus.js';
-import type { CapabilityEvent } from '../../src/capability/types.js';
+import { EventBus, toAlixEvent } from '../../src/capabilities/capability/event-bus.js';
+import type { CapabilityEvent } from '../../src/capabilities/capability/types.js';
 
 describe('EventBus', () => {
   it('delivers emitted events to subscribers in order', () => {
@@ -921,7 +921,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the EventBus + adapter seam**
 
 ```typescript
-// src/capability/event-bus.ts
+// src/capabilities/capability/event-bus.ts
 import type { CapabilityEvent } from "./types.js";
 
 export type EventHandler = (event: CapabilityEvent) => void;
@@ -970,7 +970,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/event-bus.ts tests/capability/event-bus.vitest.ts
+git add src/capabilities/capability/event-bus.ts tests/capability/event-bus.vitest.ts
 git commit -m "feat(capability): add EventBus + AlixEvent adapter seam"
 ```
 
@@ -979,7 +979,7 @@ git commit -m "feat(capability): add EventBus + AlixEvent adapter seam"
 ### Task 6: CapabilityRuntime (no registry/history, cancellation-safe, status getter)
 
 **Files:**
-- Create: `src/capability/runtime.ts`
+- Create: `src/capabilities/capability/runtime.ts`
 - Test: `tests/capability/runtime.vitest.ts`
 
 **Interfaces:**
@@ -991,13 +991,13 @@ git commit -m "feat(capability): add EventBus + AlixEvent adapter seam"
 ```typescript
 // tests/capability/runtime.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { CapabilityRuntime } from '../../src/capability/runtime.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { HookRegistry } from '../../src/capability/hook-registry.js';
-import { ExecutionResolver } from '../../src/capability/execution-resolver.js';
-import { ExecutorRegistry, NativeExecutor } from '../../src/capability/executors.js';
-import { EventBus } from '../../src/capability/event-bus.js';
-import { CapabilityNotFoundError, ExecutorNotFoundError } from '../../src/capability/errors.js';
+import { CapabilityRuntime } from '../../src/capabilities/capability/runtime.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { HookRegistry } from '../../src/capabilities/capability/hook-registry.js';
+import { ExecutionResolver } from '../../src/capabilities/capability/execution-resolver.js';
+import { ExecutorRegistry, NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { EventBus } from '../../src/capabilities/capability/event-bus.js';
+import { CapabilityNotFoundError, ExecutorNotFoundError } from '../../src/capabilities/capability/errors.js';
 
 function setup() {
   const reg = new CapabilityRegistry();
@@ -1147,7 +1147,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the runtime**
 
 ```typescript
-// src/capability/runtime.ts
+// src/capabilities/capability/runtime.ts
 import { randomUUID } from "node:crypto";
 import { CapabilityNotFoundError, ExecutorNotFoundError } from "./errors.js";
 import { AsyncEventQueue, type CapabilityContext, type CapabilityEvent, type EventBusLike, type ExecutorRunResult, type Invocation, type InvocationResult, type InvocationStatus, type Permission } from "./types.js";
@@ -1314,7 +1314,7 @@ Expected: PASS. Key behaviors: status getter is live; cancel-before-start preven
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/runtime.ts tests/capability/runtime.vitest.ts
+git add src/capabilities/capability/runtime.ts tests/capability/runtime.vitest.ts
 git commit -m "feat(capability): add cancellation-safe, history-free CapabilityRuntime"
 ```
 
@@ -1323,7 +1323,7 @@ git commit -m "feat(capability): add cancellation-safe, history-free CapabilityR
 ### Task 7: CapabilityPlatform bootstrap
 
 **Files:**
-- Create: `src/capability/platform.ts`
+- Create: `src/capabilities/capability/platform.ts`
 - Test: `tests/capability/platform.vitest.ts`
 
 **Interfaces:**
@@ -1335,9 +1335,9 @@ git commit -m "feat(capability): add cancellation-safe, history-free CapabilityR
 ```typescript
 // tests/capability/platform.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { CapabilityPlatform } from '../../src/capability/platform.js';
-import { registerInitialCapabilities } from '../../src/capability/initial-capabilities.js';
-import { registerSessionCapabilities } from '../../src/integrations/session-capabilities.js';
+import { CapabilityPlatform } from '../../src/capabilities/capability/platform.js';
+import { registerInitialCapabilities } from '../../src/capabilities/capability/initial-capabilities.js';
+import { registerSessionCapabilities } from '../../src/capabilities/integrations/session-capabilities.js';
 
 describe('CapabilityPlatform bootstrap', () => {
   it('composes all five services and invokes end-to-end', async () => {
@@ -1366,7 +1366,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the platform bootstrap**
 
 ```typescript
-// src/capability/platform.ts
+// src/capabilities/capability/platform.ts
 import { CapabilityRegistry } from "./registry.js";
 import { HookRegistry } from "./hook-registry.js";
 import { ExecutionResolver } from "./execution-resolver.js";
@@ -1414,7 +1414,7 @@ export class CapabilityPlatform {
 - [ ] **Step 4: Commit the platform bootstrap alone**
 
 ```bash
-git add src/capability/platform.ts
+git add src/capabilities/capability/platform.ts
 git commit -m "feat(capability): add CapabilityPlatform bootstrap composition"
 ```
 
@@ -1425,8 +1425,8 @@ git commit -m "feat(capability): add CapabilityPlatform bootstrap composition"
 ### Task 8: Initial capability definitions (pure, platform-internal)
 
 **Files:**
-- Create: `src/capability/initial-capabilities.ts`
-- Modify: `src/capability/index.ts` (barrel)
+- Create: `src/capabilities/capability/initial-capabilities.ts`
+- Modify: `src/capabilities/capability/index.ts` (barrel)
 - Test: `tests/capability/initial-capabilities.vitest.ts`
 
 **Interfaces:**
@@ -1436,9 +1436,9 @@ git commit -m "feat(capability): add CapabilityPlatform bootstrap composition"
 
 ```
 Existing ALiX Function
-        │  wrapped as a handler in src/integrations/
+        │  wrapped as a handler in src/capabilities/integrations/
         ▼
-Capability Definition     (src/capability/initial-capabilities.ts — declarative)
+Capability Definition     (src/capabilities/capability/initial-capabilities.ts — declarative)
         │  bound to a handler
         ▼
 Executor Adapter          (NativeExecutor.registerHandler / tool adapter)
@@ -1452,9 +1452,9 @@ Invocation                (consumers invoke by id, never see the executor)
 ```typescript
 // tests/capability/initial-capabilities.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { registerInitialCapabilities } from '../../src/capability/initial-capabilities.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { registerInitialCapabilities } from '../../src/capabilities/capability/initial-capabilities.js';
 
 describe('initial capabilities', () => {
   it('registers core session + tool capabilities', () => {
@@ -1479,14 +1479,14 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the pure definitions module**
 
 ```typescript
-// src/capability/initial-capabilities.ts
+// src/capabilities/capability/initial-capabilities.ts
 import type { Capability } from "./types.js";
 import type { CapabilityRegistry } from "./registry.js";
 import type { NativeExecutor } from "./executors.js";
 
 /** Pure capability definitions — NO domain dependencies. Existing ALiX
  *  functionality migrates behind these; handlers are wired separately in
- *  src/integrations/ (see session-capabilities.ts, tool-adapter.ts). */
+ *  src/capabilities/integrations/ (see session-capabilities.ts, tool-adapter.ts). */
 export function registerInitialCapabilities(reg: CapabilityRegistry, _native: NativeExecutor): void {
   const caps: Capability[] = [
     {
@@ -1534,7 +1534,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Update the barrel**
 
-In `src/capability/index.ts`:
+In `src/capabilities/capability/index.ts`:
 ```typescript
 export * from "./types.js";
 export * from "./errors.js";
@@ -1554,7 +1554,7 @@ Run: `npm run build`
 Expected: clean.
 
 ```bash
-git add src/capability/ tests/capability/
+git add src/capabilities/capability/ tests/capability/
 git commit -m "feat(capability): add pure initial capability definitions"
 ```
 
@@ -1563,11 +1563,11 @@ git commit -m "feat(capability): add pure initial capability definitions"
 ### Task 9: Existing tool integration (adapter)
 
 **Files:**
-- Create: `src/capability/tool-adapter.ts`
+- Create: `src/capabilities/capability/tool-adapter.ts`
 - Test: `tests/capability/tool-adapter.vitest.ts`
 
 **Interfaces:**
-- Consumes: `ToolExecutorAdapter` (Task 4), `CapabilityPlatform` (Task 7), initial tool capabilities (Task 8), and the existing `ToolExecutor` from `src/tools/executor.ts`.
+- Consumes: `ToolExecutorAdapter` (Task 4), `CapabilityPlatform` (Task 7), initial tool capabilities (Task 8), and the existing `ToolExecutor` from `src/capabilities/tools/executor.ts`.
 - Produces: `createToolExecutorAdapter(executor)`.
 
 - [ ] **Step 1: Write the failing test**
@@ -1575,10 +1575,10 @@ git commit -m "feat(capability): add pure initial capability definitions"
 ```typescript
 // tests/capability/tool-adapter.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { CapabilityPlatform } from '../../src/capability/platform.js';
-import { registerInitialCapabilities } from '../../src/capability/initial-capabilities.js';
-import { createToolExecutorAdapter } from '../../src/capability/tool-adapter.js';
-import type { ToolCallRequest, ToolResult } from '../../src/tools/types.js';
+import { CapabilityPlatform } from '../../src/capabilities/capability/platform.js';
+import { registerInitialCapabilities } from '../../src/capabilities/capability/initial-capabilities.js';
+import { createToolExecutorAdapter } from '../../src/capabilities/capability/tool-adapter.js';
+import type { ToolCallRequest, ToolResult } from '../../src/capabilities/tools/types.js';
 
 describe('tool executor adapter', () => {
   it('runs tool.file.read through the existing ToolExecutor contract', async () => {
@@ -1606,7 +1606,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the adapter**
 
 ```typescript
-// src/capability/tool-adapter.ts
+// src/capabilities/capability/tool-adapter.ts
 import { ToolExecutorAdapter } from "./executors.js";
 import type { ToolCallRequest, ToolResult } from "../tools/types.js";
 
@@ -1643,7 +1643,7 @@ Run: `npm run build && npx vitest run tests/capability/`
 Expected: build clean, all tests pass.
 
 ```bash
-git add src/capability/ tests/capability/
+git add src/capabilities/capability/ tests/capability/
 git commit -m "feat(capability): adapt existing ToolExecutor behind tool strategy"
 ```
 
@@ -1652,13 +1652,13 @@ git commit -m "feat(capability): adapt existing ToolExecutor behind tool strateg
 ### Task 10: Domain integration (session) OUTSIDE the capability package
 
 **Files:**
-- Create: `src/integrations/session-capabilities.ts`
+- Create: `src/capabilities/integrations/session-capabilities.ts`
 - Modify: `tests/capability/platform.vitest.ts` (already imports from integrations)
 - Test: `tests/capability/platform.vitest.ts` (platform end-to-end via integration)
 
 **Interfaces:**
 - Consumes: `CapabilityRegistry`, `NativeExecutor`, `CapabilityPlatform` (Tasks 2, 4, 7), `core.session.*` definitions (Task 8), the real session API from `src/session/resume.js`.
-- Produces: `registerSessionCapabilities(reg, native)` in `src/integrations/` — the domain wiring lives OUTSIDE the capability package so the platform core stays reusable.
+- Produces: `registerSessionCapabilities(reg, native)` in `src/capabilities/integrations/` — the domain wiring lives OUTSIDE the capability package so the platform core stays reusable.
 
 - [ ] **Step 1: Verify the real session API surface**
 
@@ -1671,12 +1671,12 @@ Confirm the actual export names. If `listSessions`/`sessionInfo` differ, use the
 - [ ] **Step 2: Create the integration**
 
 ```typescript
-// src/integrations/session-capabilities.ts
+// src/capabilities/integrations/session-capabilities.ts
 import type { CapabilityRegistry } from "../capability/registry.js";
 import type { NativeExecutor } from "../capability/executors.js";
 
 /** Wires the real session implementation behind core.session.*.
- *  Lives in src/integrations/ — NOT the capability package — so the
+ *  Lives in src/capabilities/integrations/ — NOT the capability package — so the
  *  platform core stays free of domain dependencies. */
 export async function registerSessionCapabilities(reg: CapabilityRegistry, native: NativeExecutor): Promise<void> {
   const { listSessions, sessionInfo } = await import("../session/resume.js");
@@ -1707,7 +1707,7 @@ Run: `npm run build && npx vitest run tests/capability/`
 Expected: clean build, all tests pass.
 
 ```bash
-git add src/integrations/ tests/capability/
+git add src/capabilities/integrations/ tests/capability/
 git commit -m "feat(capability): add session integration outside the capability package"
 ```
 
@@ -1734,7 +1734,7 @@ Expected: clean build, all capability tests pass.
 A reusable execution substrate: Registry (what exists), Resolver (how it runs),
 Runtime (invocation lifecycle), Executors (who executes), EventBus (who observes).
 
-Domain integrations live in `src/integrations/`; the platform core is dependency-free.
+Domain integrations live in `src/capabilities/integrations/`; the platform core is dependency-free.
 
 ## Consumer example
 
@@ -1757,8 +1757,8 @@ const sessionCaps = platform.query({ kinds: ["core"], category: "session" });
 
 ## Migration pattern
 
-Existing function → Capability definition (`src/capability/initial-capabilities.ts`)
-→ Executor adapter (`src/integrations/` or `tool-adapter.ts`) → Invocation.
+Existing function → Capability definition (`src/capabilities/capability/initial-capabilities.ts`)
+→ Executor adapter (`src/capabilities/integrations/` or `tool-adapter.ts`) → Invocation.
 ```
 
 - [ ] **Step 3: Update spec status + commit**

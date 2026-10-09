@@ -3,7 +3,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TestSuiteObservationProvider, parseTestOutput } from "../../../../src/evolution/observation/providers/test-suite-provider.js";
+import { TestSuiteObservationProvider, parseTestOutput } from "../../../../src/planning/evolution/observation/providers/test-suite-provider.js";
 
 describe("parseTestOutput", () => {
   it("parses Node test runner output with passes", () => {

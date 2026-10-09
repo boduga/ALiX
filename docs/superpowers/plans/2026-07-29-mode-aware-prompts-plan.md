@@ -21,18 +21,18 @@
 
 | File | Role | Change |
 |---|---|---|
-| `src/run/intent-classifier.ts` | NEW — intent classification module | `IntentClassifier.classify()` based on tool names + args |
-| `src/agent/system-prompt.ts` | Prompt constants | Add `RESEARCH_SUPPLEMENT`, `MUTATION_SUPPLEMENT`, `VALIDATION_SUPPLEMENT` constants. Export them. |
-| `src/run/task-loop.ts` | Agent loop | Import classifier, call after tool loop, pass intent via deps or callback |
-| `src/agent/agent-loop.ts` | System prompt assembly | Accept intent, append supplement to base prompt |
-| `src/tui/views/agent-view.ts` | TUI scrollback | Render mode badge in status row |
+| `src/execution/run/intent-classifier.ts` | NEW — intent classification module | `IntentClassifier.classify()` based on tool names + args |
+| `src/agents/agent/system-prompt.ts` | Prompt constants | Add `RESEARCH_SUPPLEMENT`, `MUTATION_SUPPLEMENT`, `VALIDATION_SUPPLEMENT` constants. Export them. |
+| `src/execution/run/task-loop.ts` | Agent loop | Import classifier, call after tool loop, pass intent via deps or callback |
+| `src/agents/agent/agent-loop.ts` | System prompt assembly | Accept intent, append supplement to base prompt |
+| `src/interfaces/tui/views/agent-view.ts` | TUI scrollback | Render mode badge in status row |
 
 ---
 
 ### Task 1: Create IntentClassifier
 
 **Files:**
-- Create: `src/run/intent-classifier.ts`
+- Create: `src/execution/run/intent-classifier.ts`
 
 **Interfaces:**
 - Produces: `AgentIntent` type, `IntentClassifier` class
@@ -42,7 +42,7 @@ The classifier inspects tool calls from one iteration and determines the dominan
 - [ ] **Step 1: Create the file**
 
 ```typescript
-// src/run/intent-classifier.ts
+// src/execution/run/intent-classifier.ts
 // Classifies the agent's current intent from observed tool calls.
 // Sticky: mode only changes after ≥2 consecutive contradictory iterations.
 
@@ -137,13 +137,13 @@ Expected: clean build.
 ### Task 2: Add prompt supplements
 
 **Files:**
-- Modify: `src/agent/system-prompt.ts`
+- Modify: `src/agents/agent/system-prompt.ts`
 
 Add three mode-specific supplement constants.
 
 - [ ] **Step 1: Add supplement constants**
 
-In `src/agent/system-prompt.ts`, at the end:
+In `src/agents/agent/system-prompt.ts`, at the end:
 
 ```typescript
 export const RESEARCH_SUPPLEMENT =
@@ -187,7 +187,7 @@ Expected: clean build.
 ### Task 3: Wire intent classifier into task-loop
 
 **Files:**
-- Modify: `src/run/task-loop.ts`
+- Modify: `src/execution/run/task-loop.ts`
 
 The loop creates an `IntentClassifier` instance and calls `classify()` after each tool-execution iteration. The resulting intent is stored as loop state and passed through to `setupSystemPrompt()`.
 
@@ -248,13 +248,13 @@ Expected: clean build.
 ### Task 4: Wire intent into agent-loop.ts
 
 **Files:**
-- Modify: `src/agent/agent-loop.ts`
+- Modify: `src/agents/agent/agent-loop.ts`
 
 The `setupSystemPrompt` function (or equivalent in agent-loop.ts) currently builds SYSTEM_PROMPT from the base prompt, workspace, skills, etc. It needs to accept an intent and append the supplement.
 
 - [ ] **Step 1: Find the prompt assembly**
 
-In `src/agent/agent-loop.ts`, find where SYSTEM_PROMPT is built (around line 279-318). After the `lines.join("\n\n")` line, add:
+In `src/agents/agent/agent-loop.ts`, find where SYSTEM_PROMPT is built (around line 279-318). After the `lines.join("\n\n")` line, add:
 
 ```typescript
 // Append mode-specific supplement
@@ -293,11 +293,11 @@ Expected: clean build.
 ### Task 5: Render mode badge in TUI
 
 **Files:**
-- Modify: `src/tui/views/agent-view.ts`
+- Modify: `src/interfaces/tui/views/agent-view.ts`
 
 - [ ] **Step 1: Add mode to PerTabState**
 
-In `src/tui/state.ts`:
+In `src/interfaces/tui/state.ts`:
 
 ```typescript
 export interface PerTabState {

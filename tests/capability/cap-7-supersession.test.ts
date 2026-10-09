@@ -10,9 +10,9 @@ import { execSync } from "node:child_process";
  *  CAP-6 supersession test pattern. */
 
 const FORBIDDEN = [
-  "src/capability/initial-capabilities.ts",
-  "src/tools/tool-registry.ts",
-  "src/policy/capability-registry.ts",
+  "src/capabilities/capability/initial-capabilities.ts",
+  "src/capabilities/tools/tool-registry.ts",
+  "src/governance/policy/capability-registry.ts",
 ];
 
 /** Files that are otherwise forbidden BUT had a small, justified change
@@ -29,14 +29,14 @@ const ALLOWED_BUT_TRACKED = new Set<string>([
   // The function only ever calls `reg.register(cap)`, so this is a pure
   // interface narrowing: no behavioural divergence, no legacy-surface
   // resurrection (CAP-11 already superseded this file).
-  "src/capability/initial-capabilities.ts",
+  "src/capabilities/capability/initial-capabilities.ts",
   // Tool/Capability Taxonomy Unification — this plan intentionally rewrites
-  // `src/tools/tool-registry.ts` (canonical tool-metadata source) and deletes
-  // `src/policy/capability-registry.ts` (dead policy registry). Explicit
+  // `src/capabilities/tools/tool-registry.ts` (canonical tool-metadata source) and deletes
+  // `src/governance/policy/capability-registry.ts` (dead policy registry). Explicit
   // supersession precedent (CAP-8 pattern): intentional supersession, not
   // test weakening.
-  "src/tools/tool-registry.ts",
-  "src/policy/capability-registry.ts",
+  "src/capabilities/tools/tool-registry.ts",
+  "src/governance/policy/capability-registry.ts",
 ]);
 
 function changedFiles(): string[] {
@@ -62,11 +62,11 @@ function addedOrModified(): string[] {
 describe("CAP-7 supersession — forbidden-file guard", () => {
   it("does not modify the canonical CAP-2 surface", () => {
     const changed = changedFiles();
-    const canonicalHits = changed.filter((p) => p.startsWith("src/capability/canonical/"));
+    const canonicalHits = changed.filter((p) => p.startsWith("src/capabilities/capability/canonical/"));
     assert.equal(
       canonicalHits.length,
       0,
-      `CAP-7 must not touch src/capability/canonical/* — found: ${canonicalHits.join(", ")}`,
+      `CAP-7 must not touch src/capabilities/capability/canonical/* — found: ${canonicalHits.join(", ")}`,
     );
   });
 

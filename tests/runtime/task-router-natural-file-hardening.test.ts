@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { taskRouter } from "../../src/runtime/task-router.js";
+import { taskRouter } from "../../src/runtime-state/runtime/task-router.js";
 
 /**
  * Assert a prompt routes to the governed agent path as a workspace mutation

@@ -22,7 +22,7 @@ import { randomUUID } from "node:crypto";
 import {
   handleGovernanceLineageCommand,
   renderLineageShow,
-} from "../../src/cli/commands/governance-lineage.js";
+} from "../../src/interfaces/cli/commands/governance-lineage.js";
 import {
   buildLineageIndex,
   buildLineageRecord,

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * Tests for src/runtime/action-classifier.ts.
+ * Tests for src/runtime-state/runtime/action-classifier.ts.
  *
  * The action classifier is a deterministic, side-effect-free helper that
  * decides whether an incoming prompt should be answered directly
@@ -24,9 +24,9 @@ import {
   evaluateArithmetic,
   modelClassifyAction,
   type ActionClassification,
-} from "../../src/runtime/action-classifier.js";
-import { taskRouter } from "../../src/runtime/task-router.js";
-import type { ModelAdapter, NormalizedRequest } from "../../src/providers/types.js";
+} from "../../src/runtime-state/runtime/action-classifier.js";
+import { taskRouter } from "../../src/runtime-state/runtime/task-router.js";
+import type { ModelAdapter, NormalizedRequest } from "../../src/models/providers/types.js";
 
 // ── T22 #400 — Layer 2 temperature determinism ────────────────────
 
@@ -178,9 +178,9 @@ describe("classifyAction — workspace/action dominance", () => {
   });
 
   it("routes a workspace-path code search to workspace_action (not external_retrieval)", () => {
-    // Regression: "Search for the regex … in src/cli/commands/" was classified
+    // Regression: "Search for the regex … in src/interfaces/cli/commands/" was classified
     // external_retrieval → web-only grounded_chat, so the agent could not grep.
-    const result = classifyAction("Search for the regex ^export async function handle.*Command in src/cli/commands/");
+    const result = classifyAction("Search for the regex ^export async function handle.*Command in src/interfaces/cli/commands/");
     assert.equal(result.intent, "workspace_action");
   });
 
@@ -548,7 +548,7 @@ describe("classifyAction — local-machine probe recognition contract", () => {
 //
 // Reconcile: the legacy `hasWorkspaceWriteIntent` carve-out at
 // task-router.ts:475-477 is now deleted. MUTATION_ANCHORS in
-// src/runtime/action-classifier.ts is a strict superset of that carve-out
+// src/runtime-state/runtime/action-classifier.ts is a strict superset of that carve-out
 // and surfaces the intent at Layer 1.
 //
 // The full contract lives at docs/intent-contracts/workspace-mutation.md.
@@ -688,7 +688,7 @@ describe("classifyAction — workspace-mutation recognition contract", () => {
 
 // ── Classification: shell-execution (T9 #385) ────────────────────────
 //
-// T9 graduates shell_execution to Layer 1 (src/runtime/action-classifier.ts)
+// T9 graduates shell_execution to Layer 1 (src/runtime-state/runtime/action-classifier.ts)
 // via a SHELL_EXECUTION_ANCHORS regex family. The recognizer surfaces the
 // intent deterministically so the closed-world invariant test can pin the
 // (shell_execution, tool) chain at Layer 1 → Layer 3 without relying on

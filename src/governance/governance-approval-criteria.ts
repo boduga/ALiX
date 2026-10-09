@@ -18,10 +18,10 @@
  */
 
 import { join } from "node:path";
-import { EvidenceChainStore } from "../learning/evidence-chain-store.js";
+import { EvidenceChainStore } from "../planning/learning/evidence-chain-store.js";
 import { GovernanceStore } from "./governance-store.js";
-import { assembleProposalExplanation } from "../explain/proposal-explanation-assembler.js";
-import type { AdaptationProposal, ProposalTarget } from "../adaptation/adaptation-types.js";
+import { assembleProposalExplanation } from "../operations/explain/proposal-explanation-assembler.js";
+import type { AdaptationProposal, ProposalTarget } from "../planning/adaptation/adaptation-types.js";
 import type { GovernanceCriteriaResult } from "./governance-types.js";
 
 // ---------------------------------------------------------------------------

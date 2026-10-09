@@ -89,14 +89,14 @@ This is the structural enforcement of the Learning ≠ Mutation boundary at the 
 
 **Recommendation: one PR, 4 commits.** (If the reviewer prefers a smaller blast radius, the natural split point is after commit 3: PR-A = 3 pure adapters, PR-B = orchestrator. I recommend against this — the orchestrator is what proves the adapters work end-to-end.)
 
-### Decision 4 — Adapter file location: flat in `src/learning/`, with `-calibration-adapter` naming
+### Decision 4 — Adapter file location: flat in `src/planning/learning/`, with `-calibration-adapter` naming
 
-The existing builders live flat in `src/learning/` (`recommendation-calibration-builder.ts`, etc.). Three adapters + a refresh orchestrator is small enough to keep flat. To make a future migration to `src/learning/adapters/` trivial (expected growth: routing, telemetry, explain, evidence adapters), the files use a consistent `-calibration-adapter.ts` suffix:
+The existing builders live flat in `src/planning/learning/` (`recommendation-calibration-builder.ts`, etc.). Three adapters + a refresh orchestrator is small enough to keep flat. To make a future migration to `src/planning/learning/adapters/` trivial (expected growth: routing, telemetry, explain, evidence adapters), the files use a consistent `-calibration-adapter.ts` suffix:
 
 ```text
-src/learning/recommendation-calibration-adapter.ts
-src/learning/risk-calibration-adapter.ts
-src/learning/governance-calibration-adapter.ts
+src/planning/learning/recommendation-calibration-adapter.ts
+src/planning/learning/risk-calibration-adapter.ts
+src/planning/learning/governance-calibration-adapter.ts
 ```
 
 **Recommendation: flat, `-calibration-adapter.ts` suffix.** Matches the existing flat convention; the suffix pairs each adapter with its builder (`*-calibration-builder.ts`) and makes a later `git mv` into a subdir mechanical.
@@ -110,7 +110,7 @@ src/learning/governance-calibration-adapter.ts
 Every adapter returns the same shape so the orchestrator can summarize uniformly:
 
 ```ts
-// src/learning/adapter-diagnostics.ts
+// src/planning/learning/adapter-diagnostics.ts
 export interface AdapterDiagnostics {
   /** Which adapter produced this (e.g. "recommendation"). */
   adapter: "recommendation" | "risk" | "governance";
@@ -137,7 +137,7 @@ This gives the orchestrator operational visibility (per the design-change reques
 ### P8.1 — Recommendation adapter
 
 ```ts
-// src/learning/recommendation-calibration-adapter.ts
+// src/planning/learning/recommendation-calibration-adapter.ts
 export interface RecommendationAdapterOptions {
   windowDays?: number;       // default 30
   generatedAt?: string;      // injected for determinism in tests
@@ -168,7 +168,7 @@ export class RecommendationCalibrationAdapter {
 ### P8.2 — Risk adapter
 
 ```ts
-// src/learning/risk-calibration-adapter.ts
+// src/planning/learning/risk-calibration-adapter.ts
 export class RiskCalibrationAdapter {
   constructor(
     private readonly riskStore: RiskScoreStore,
@@ -185,7 +185,7 @@ export class RiskCalibrationAdapter {
 ### P8.3 — Governance adapter
 
 ```ts
-// src/learning/governance-calibration-adapter.ts
+// src/planning/learning/governance-calibration-adapter.ts
 export class GovernanceCalibrationAdapter {
   constructor(
     private readonly reviewStore: GovernanceReviewStore,
@@ -211,7 +211,7 @@ alix learning refresh [--window 30] [--adapter <recommendation|risk|governance>]
 ```
 
 ```ts
-// Runs in src/cli/commands/ (the single LearningStore writer in this phase)
+// Runs in src/interfaces/cli/commands/ (the single LearningStore writer in this phase)
 async function runLearningRefresh(args: string[]): Promise<void> {
   // 1. Parse --window (default 30), --adapter (default: all 3), --dry-run, --json
   // 2. For each selected adapter: adapter.calibrate({ windowDays }) → CalibrationResult
@@ -270,11 +270,11 @@ The three adapters MUST be independent: each reads its own source store(s), and 
 
 ## Files created
 
-- `src/learning/adapter-diagnostics.ts` — shared `AdapterResult` / `AdapterDiagnostics` types
-- `src/learning/recommendation-calibration-adapter.ts` — P8.1 adapter
-- `src/learning/risk-calibration-adapter.ts` — P8.2 adapter
-- `src/learning/governance-calibration-adapter.ts` — P8.3 adapter
-- `src/cli/commands/learning-refresh.ts` (or inline in an existing learning CLI file — see plan) — the orchestrator
+- `src/planning/learning/adapter-diagnostics.ts` — shared `AdapterResult` / `AdapterDiagnostics` types
+- `src/planning/learning/recommendation-calibration-adapter.ts` — P8.1 adapter
+- `src/planning/learning/risk-calibration-adapter.ts` — P8.2 adapter
+- `src/planning/learning/governance-calibration-adapter.ts` — P8.3 adapter
+- `src/interfaces/cli/commands/learning-refresh.ts` (or inline in an existing learning CLI file — see plan) — the orchestrator
 - `tests/learning/recommendation-calibration-adapter.vitest.ts`
 - `tests/learning/risk-calibration-adapter.vitest.ts`
 - `tests/learning/governance-calibration-adapter.vitest.ts`
@@ -283,7 +283,7 @@ The three adapters MUST be independent: each reads its own source store(s), and 
 
 ## Files modified
 
-- `src/cli/commands/decision.ts` — retire the `lens_scores_not_persisted` sentinel (replace with a live `GovernanceAdapter`-backed run) [P8.5a.2c]
+- `src/interfaces/cli/commands/decision.ts` — retire the `lens_scores_not_persisted` sentinel (replace with a live `GovernanceAdapter`-backed run) [P8.5a.2c]
 - `src/cli.ts` (or the learning-command router) — register `alix learning refresh` [P8.5a.2d]
 
 ## Files NOT modified

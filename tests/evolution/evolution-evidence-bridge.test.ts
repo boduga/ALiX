@@ -13,11 +13,11 @@ import {
   evolutionStateToOutcome,
   evolutionEventToEvidence,
   EvolutionEvidenceBridge,
-} from "../../src/evolution/evolution-evidence-bridge.js";
-import { EvolutionState } from "../../src/evolution/contracts/evolution-contract.js";
-import type { EvolutionTransitionEvent } from "../../src/evolution/evolution-state-machine.js";
-import type { ExecutionEvidence } from "../../src/runtime/contracts/execution-intent-contract.js";
-import type { ExecutionEvidenceEmitter, ExecutionEventType } from "../../src/runtime/contracts/execution-runtime-contract.js";
+} from "../../src/planning/evolution/evolution-evidence-bridge.js";
+import { EvolutionState } from "../../src/planning/evolution/contracts/evolution-contract.js";
+import type { EvolutionTransitionEvent } from "../../src/planning/evolution/evolution-state-machine.js";
+import type { ExecutionEvidence } from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
+import type { ExecutionEvidenceEmitter, ExecutionEventType } from "../../src/runtime-state/runtime/contracts/execution-runtime-contract.js";
 
 // ---------------------------------------------------------------------------
 // Constants

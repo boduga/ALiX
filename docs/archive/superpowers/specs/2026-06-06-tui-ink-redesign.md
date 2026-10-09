@@ -88,19 +88,19 @@ class Tui {
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/tui/AlixApp.tsx` | **NEW** | Ink root component with Static/stream/TokenBar/TextInput |
-| `src/tui/index.ts` | **REWRITE** | Tui class wrapping Ink render |
-| `src/cli/commands/tui.ts` | **REWRITE** | runTui entry point, simpler no stdin management |
-| `src/tui/render.ts` | **REMOVE** | No longer needed — all rendering via Ink |
+| `src/interfaces/tui/AlixApp.tsx` | **NEW** | Ink root component with Static/stream/TokenBar/TextInput |
+| `src/interfaces/tui/index.ts` | **REWRITE** | Tui class wrapping Ink render |
+| `src/interfaces/cli/commands/tui.ts` | **REWRITE** | runTui entry point, simpler no stdin management |
+| `src/interfaces/tui/render.ts` | **REMOVE** | No longer needed — all rendering via Ink |
 | `package.json` | **MODIFY** | Add `ink`, `ink-text-input`, `react` deps |
 | `tests/tui/` | **UPDATE** | Fix tests for new renderer |
 
 ## What Stays Unchanged
 
-- `src/tui/store.ts` — state model unchanged
-- `src/tui/widgets/` — widget classes still produce strings (for potential future use)
-- `src/tui/events.ts` — EventLogBridge unchanged
-- `src/events/event-log.ts` — no changes
+- `src/interfaces/tui/store.ts` — state model unchanged
+- `src/interfaces/tui/widgets/` — widget classes still produce strings (for potential future use)
+- `src/interfaces/tui/events.ts` — EventLogBridge unchanged
+- `src/runtime-state/events/event-log.ts` — no changes
 
 ## Edge Cases
 

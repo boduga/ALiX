@@ -20,26 +20,26 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 
 // Executive APIs
-import { PlanStore } from "../../../src/executive/plan-store.js";
-import { ExecutionStateStore } from "../../../src/executive/execution-state-store.js";
-import { PlanApprovalGate } from "../../../src/executive/plan-approval-gate.js";
-import { StepRunner } from "../../../src/executive/step-runner.js";
-import { ExecutionEngine } from "../../../src/executive/execution-engine.js";
-import { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
-import { buildExecutionPlan } from "../../../src/executive/execution-plan-builder.js";
-import type { ExecutionPlan } from "../../../src/executive/execution-plan-builder.js";
-import type { ExecutiveObjective, ExecutiveObjectiveReport } from "../../../src/executive/objective-engine.js";
-import type { PersistedExecutionPlan, PlanExecutionState } from "../../../src/executive/executive-plan-types.js";
+import { PlanStore } from "../../../src/execution/executive/plan-store.js";
+import { ExecutionStateStore } from "../../../src/execution/executive/execution-state-store.js";
+import { PlanApprovalGate } from "../../../src/execution/executive/plan-approval-gate.js";
+import { StepRunner } from "../../../src/execution/executive/step-runner.js";
+import { ExecutionEngine } from "../../../src/execution/executive/execution-engine.js";
+import { EvidenceEventWriter } from "../../../src/coordination/workflow/evidence-writer.js";
+import { buildExecutionPlan } from "../../../src/execution/executive/execution-plan-builder.js";
+import type { ExecutionPlan } from "../../../src/execution/executive/execution-plan-builder.js";
+import type { ExecutiveObjective, ExecutiveObjectiveReport } from "../../../src/execution/executive/objective-engine.js";
+import type { PersistedExecutionPlan, PlanExecutionState } from "../../../src/execution/executive/executive-plan-types.js";
 
 // Proposal APIs
-import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+import { AdaptationProposalStore } from "../../../src/planning/adaptation/adaptation-proposal-store.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
 
 // CLI handlers
-import { handleRemediateCommand } from "../../../src/cli/commands/executive-remediate-handler.js";
-import { handleOrchestrateCommand } from "../../../src/cli/commands/executive-orchestrate-handler.js";
-import { handleEvaluate } from "../../../src/cli/commands/executive-evaluate-handler.js";
-import { runDashboard } from "../../../src/cli/commands/executive-dashboard-handler.js";
+import { handleRemediateCommand } from "../../../src/interfaces/cli/commands/executive-remediate-handler.js";
+import { handleOrchestrateCommand } from "../../../src/interfaces/cli/commands/executive-orchestrate-handler.js";
+import { handleEvaluate } from "../../../src/interfaces/cli/commands/executive-evaluate-handler.js";
+import { runDashboard } from "../../../src/interfaces/cli/commands/executive-dashboard-handler.js";
 
 // Fixture helpers
 import { bootstrapMinimalFixture } from "../../executive/fixture-helpers.js";

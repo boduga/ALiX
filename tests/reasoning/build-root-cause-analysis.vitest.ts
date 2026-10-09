@@ -3,10 +3,10 @@
 // P11.2 — Pure function tests for buildRootCauseAnalysis.
 
 import { describe, it, expect } from "vitest";
-import { buildRootCauseAnalysis } from "../../src/reasoning/build-root-cause-analysis.js";
-import { DEFAULT_CORRELATION_CONFIG } from "../../src/correlation/correlation-config.js";
-import type { CorrelationGraph, CorrelationEdge, CorrelationNode, CorrelationSubsystemId } from "../../src/correlation/correlation-types.js";
-import type { ReasoningEngineConfig } from "../../src/reasoning/reasoning-types.js";
+import { buildRootCauseAnalysis } from "../../src/planning/reasoning/build-root-cause-analysis.js";
+import { DEFAULT_CORRELATION_CONFIG } from "../../src/operations/correlation/correlation-config.js";
+import type { CorrelationGraph, CorrelationEdge, CorrelationNode, CorrelationSubsystemId } from "../../src/operations/correlation/correlation-types.js";
+import type { ReasoningEngineConfig } from "../../src/planning/reasoning/reasoning-types.js";
 
 // ---------------------------------------------------------------------------
 // Factory helpers

@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { resolveCapabilities } from "../../src/registry/capability-resolver.js";
-import { loadCardRegistry } from "../../src/registry/card-loader.js";
-import type { CardRegistry } from "../../src/registry/card-registry.js";
+import { resolveCapabilities } from "../../src/capabilities/registry/capability-resolver.js";
+import { loadCardRegistry } from "../../src/capabilities/registry/card-loader.js";
+import type { CardRegistry } from "../../src/capabilities/registry/card-registry.js";
 
 const RETIRED_AGENT_IDS = new Set([
   "orchestrator.core",

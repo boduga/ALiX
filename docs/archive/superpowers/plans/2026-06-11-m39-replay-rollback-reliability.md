@@ -16,14 +16,14 @@
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/runtime/replay-status-index.ts` | **NEW** | Global index of replay lifecycle statuses |
-| `src/runtime/replay-lock.ts` | **NEW** | Per-replay file lock with stale detection |
-| `src/runtime/rollback-progress.ts` | **NEW** | Per-rollback step-level progress tracking |
-| `src/runtime/rollback-executor.ts` | MODIFY | Add idempotency, lock, progress, resume |
-| `src/runtime/replay-diff-store.ts` | MODIFY | Update status index on first capture |
-| `src/runtime/replay-executor.ts` | MODIFY | Set "completed" status after approved-live replay |
-| `src/tui/trace-detail.ts` | MODIFY | Status badges on replayId |
-| `src/cli/commands/tui.ts` | MODIFY | Add `--resume` flag to `/rollback` |
+| `src/runtime-state/runtime/replay-status-index.ts` | **NEW** | Global index of replay lifecycle statuses |
+| `src/runtime-state/runtime/replay-lock.ts` | **NEW** | Per-replay file lock with stale detection |
+| `src/runtime-state/runtime/rollback-progress.ts` | **NEW** | Per-rollback step-level progress tracking |
+| `src/runtime-state/runtime/rollback-executor.ts` | MODIFY | Add idempotency, lock, progress, resume |
+| `src/runtime-state/runtime/replay-diff-store.ts` | MODIFY | Update status index on first capture |
+| `src/runtime-state/runtime/replay-executor.ts` | MODIFY | Set "completed" status after approved-live replay |
+| `src/interfaces/tui/trace-detail.ts` | MODIFY | Status badges on replayId |
+| `src/interfaces/cli/commands/tui.ts` | MODIFY | Add `--resume` flag to `/rollback` |
 | `tests/runtime/replay-status-index.test.ts` | **NEW** | Status index CRUD |
 | `tests/runtime/replay-lock.test.ts` | **NEW** | Lock acquire/release/stale |
 | `tests/runtime/rollback-idempotency.test.ts` | **NEW** | Idempotent rollback |
@@ -34,7 +34,7 @@
 ### Task 1: Build ReplayStatusIndex
 
 **Files:**
-- Create: `src/runtime/replay-status-index.ts`
+- Create: `src/runtime-state/runtime/replay-status-index.ts`
 - Create: `tests/runtime/replay-status-index.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -47,7 +47,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ReplayStatusIndex } from "../../src/runtime/replay-status-index.js";
+import { ReplayStatusIndex } from "../../src/runtime-state/runtime/replay-status-index.js";
 
 describe("ReplayStatusIndex", () => {
   let tmpDir: string;
@@ -104,7 +104,7 @@ describe("ReplayStatusIndex", () => {
 
 - [ ] **Step 2: Create ReplayStatusIndex**
 
-Create `src/runtime/replay-status-index.ts`:
+Create `src/runtime-state/runtime/replay-status-index.ts`:
 
 ```typescript
 /**
@@ -216,7 +216,7 @@ Expected: 5 tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/runtime/replay-status-index.ts tests/runtime/replay-status-index.test.ts
+git add src/runtime-state/runtime/replay-status-index.ts tests/runtime/replay-status-index.test.ts
 git commit -m "feat(runtime): add replay status index"
 ```
 
@@ -225,7 +225,7 @@ git commit -m "feat(runtime): add replay status index"
 ### Task 2: Build ReplayLock
 
 **Files:**
-- Create: `src/runtime/replay-lock.ts`
+- Create: `src/runtime-state/runtime/replay-lock.ts`
 - Create: `tests/runtime/replay-lock.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -238,7 +238,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ReplayLock, DEFAULT_LOCK_TTL_MS } from "../../src/runtime/replay-lock.js";
+import { ReplayLock, DEFAULT_LOCK_TTL_MS } from "../../src/runtime-state/runtime/replay-lock.js";
 
 describe("ReplayLock", () => {
   let tmpDir: string;
@@ -310,7 +310,7 @@ describe("ReplayLock", () => {
 
 - [ ] **Step 2: Create ReplayLock**
 
-Create `src/runtime/replay-lock.ts`:
+Create `src/runtime-state/runtime/replay-lock.ts`:
 
 ```typescript
 /**
@@ -436,7 +436,7 @@ Expected: 7 tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/runtime/replay-lock.ts tests/runtime/replay-lock.test.ts
+git add src/runtime-state/runtime/replay-lock.ts tests/runtime/replay-lock.test.ts
 git commit -m "feat(runtime): add replay lock and stale lock detection"
 ```
 
@@ -445,12 +445,12 @@ git commit -m "feat(runtime): add replay lock and stale lock detection"
 ### Task 3: Build rollback progress tracking
 
 **Files:**
-- Create: `src/runtime/rollback-progress.ts`
+- Create: `src/runtime-state/runtime/rollback-progress.ts`
 - The test file will be in Task 5 (combined with idempotency)
 
 - [ ] **Step 1: Create RollbackProgressStore**
 
-Create `src/runtime/rollback-progress.ts`:
+Create `src/runtime-state/runtime/rollback-progress.ts`:
 
 ```typescript
 /**
@@ -555,7 +555,7 @@ Expected: Clean compile.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/runtime/rollback-progress.ts
+git add src/runtime-state/runtime/rollback-progress.ts
 git commit -m "feat(runtime): add rollback progress tracking"
 ```
 
@@ -564,12 +564,12 @@ git commit -m "feat(runtime): add rollback progress tracking"
 ### Task 4: Integrate status index into ReplayDiffStore and ReplayExecutor
 
 **Files:**
-- Modify: `src/runtime/replay-diff-store.ts`
-- Modify: `src/runtime/replay-executor.ts`
+- Modify: `src/runtime-state/runtime/replay-diff-store.ts`
+- Modify: `src/runtime-state/runtime/replay-executor.ts`
 
 - [ ] **Step 1: Update ReplayDiffStore to set "capturing" on first record**
 
-In `src/runtime/replay-diff-store.ts`, add import:
+In `src/runtime-state/runtime/replay-diff-store.ts`, add import:
 
 ```typescript
 import type { ReplayStatusIndex } from "./replay-status-index.js";
@@ -601,7 +601,7 @@ export class ReplayDiffStore {
 
 - [ ] **Step 2: Update ReplayExecutor to set "completed" status after approved-live replay**
 
-In `src/runtime/replay-executor.ts`, in the `execute()` method, after the main loop and before the return, add:
+In `src/runtime-state/runtime/replay-executor.ts`, in the `execute()` method, after the main loop and before the return, add:
 
 ```typescript
 // Update status index
@@ -640,7 +640,7 @@ Expected: Clean compile.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/runtime/replay-diff-store.ts src/runtime/replay-executor.ts
+git add src/runtime-state/runtime/replay-diff-store.ts src/runtime-state/runtime/replay-executor.ts
 git commit -m "fix(runtime): integrate status index into replay lifecycle"
 ```
 
@@ -649,7 +649,7 @@ git commit -m "fix(runtime): integrate status index into replay lifecycle"
 ### Task 5: Make RollbackExecutor idempotent and resumable
 
 **Files:**
-- Modify: `src/runtime/rollback-executor.ts`
+- Modify: `src/runtime-state/runtime/rollback-executor.ts`
 - Create: `tests/runtime/rollback-idempotency.test.ts`
 - Create: `tests/runtime/rollback-resume.test.ts`
 
@@ -663,13 +663,13 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { RollbackExecutor } from "../../src/runtime/rollback-executor.js";
-import { ReplayDiffStore } from "../../src/runtime/replay-diff-store.js";
-import { ReplayStatusIndex } from "../../src/runtime/replay-status-index.js";
-import { RollbackProgressStore } from "../../src/runtime/rollback-progress.js";
-import { ReplayLock } from "../../src/runtime/replay-lock.js";
-import { buildRollbackPlan } from "../../src/runtime/rollback-plan.js";
-import { EventLog } from "../../src/events/event-log.js";
+import { RollbackExecutor } from "../../src/runtime-state/runtime/rollback-executor.js";
+import { ReplayDiffStore } from "../../src/runtime-state/runtime/replay-diff-store.js";
+import { ReplayStatusIndex } from "../../src/runtime-state/runtime/replay-status-index.js";
+import { RollbackProgressStore } from "../../src/runtime-state/runtime/rollback-progress.js";
+import { ReplayLock } from "../../src/runtime-state/runtime/replay-lock.js";
+import { buildRollbackPlan } from "../../src/runtime-state/runtime/rollback-plan.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 describe("RollbackExecutor idempotency", () => {
   let tmpDir: string;
@@ -694,7 +694,7 @@ describe("RollbackExecutor idempotency", () => {
     progressStore = new RollbackProgressStore(tmpDir);
     replayLock = new ReplayLock(tmpDir);
 
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     approvalStore = new ApprovalStore(tmpDir);
     await approvalStore.load();
 
@@ -758,7 +758,7 @@ describe("RollbackExecutor idempotency", () => {
 
 - [ ] **Step 2: Modify RollbackExecutor**
 
-In `src/runtime/rollback-executor.ts`:
+In `src/runtime-state/runtime/rollback-executor.ts`:
 
 Add imports:
 ```typescript
@@ -947,13 +947,13 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { RollbackExecutor } from "../../src/runtime/rollback-executor.js";
-import { ReplayDiffStore } from "../../src/runtime/replay-diff-store.js";
-import { ReplayStatusIndex } from "../../src/runtime/replay-status-index.js";
-import { RollbackProgressStore } from "../../src/runtime/rollback-progress.js";
-import { ReplayLock } from "../../src/runtime/replay-lock.js";
-import { buildRollbackPlan } from "../../src/runtime/rollback-plan.js";
-import { EventLog } from "../../src/events/event-log.js";
+import { RollbackExecutor } from "../../src/runtime-state/runtime/rollback-executor.js";
+import { ReplayDiffStore } from "../../src/runtime-state/runtime/replay-diff-store.js";
+import { ReplayStatusIndex } from "../../src/runtime-state/runtime/replay-status-index.js";
+import { RollbackProgressStore } from "../../src/runtime-state/runtime/rollback-progress.js";
+import { ReplayLock } from "../../src/runtime-state/runtime/replay-lock.js";
+import { buildRollbackPlan } from "../../src/runtime-state/runtime/rollback-plan.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 describe("RollbackExecutor resume", () => {
   let tmpDir: string;
@@ -978,7 +978,7 @@ describe("RollbackExecutor resume", () => {
     progressStore = new RollbackProgressStore(tmpDir);
     replayLock = new ReplayLock(tmpDir);
 
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     approvalStore = new ApprovalStore(tmpDir);
     await approvalStore.load();
 
@@ -1084,7 +1084,7 @@ Expected: All pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/runtime/rollback-executor.ts tests/runtime/rollback-idempotency.test.ts tests/runtime/rollback-resume.test.ts
+git add src/runtime-state/runtime/rollback-executor.ts tests/runtime/rollback-idempotency.test.ts tests/runtime/rollback-resume.test.ts
 git commit -m "fix(runtime): make rollback execution idempotent and resumable"
 ```
 
@@ -1093,12 +1093,12 @@ git commit -m "fix(runtime): make rollback execution idempotent and resumable"
 ### Task 6: Add status badges and --resume flag in TUI
 
 **Files:**
-- Modify: `src/tui/trace-detail.ts`
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/tui/trace-detail.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add status badge to renderReplayResult**
 
-In `src/tui/trace-detail.ts`, modify `renderReplayResult`:
+In `src/interfaces/tui/trace-detail.ts`, modify `renderReplayResult`:
 
 Add import:
 ```typescript
@@ -1140,7 +1140,7 @@ function statusBadge(status: ReplayStatus): string {
 
 - [ ] **Step 2: Add --resume flag to /rollback command**
 
-In `src/cli/commands/tui.ts`, find the `/rollback` command handler. Add `--resume` flag detection:
+In `src/interfaces/cli/commands/tui.ts`, find the `/rollback` command handler. Add `--resume` flag detection:
 
 ```typescript
 const resume = args.includes("--resume");
@@ -1171,7 +1171,7 @@ Expected: Clean compile.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/trace-detail.ts src/cli/commands/tui.ts
+git add src/interfaces/tui/trace-detail.ts src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): show replay rollback status badges and add --resume flag"
 ```
 

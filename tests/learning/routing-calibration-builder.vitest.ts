@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   RoutingCalibrationBuilder,
   type RoutingObservation,
-} from "../../src/learning/routing-calibration-builder.js";
+} from "../../src/planning/learning/routing-calibration-builder.js";
 
 const SOURCE_REPORT = "route-cal-1";
 const GENERATED_AT = "2026-06-22T00:00:00.000Z";

@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { ExecutionStateMachine } from "../../src/runtime/execution-state-machine.js";
+import { ExecutionStateMachine } from "../../src/runtime-state/runtime/execution-state-machine.js";
 import {
   ExecutionState,
   IllegalStateTransitionError,
@@ -16,22 +16,22 @@ import {
   DuplicateExecutionError,
   type ExecutionEvidenceEmitter,
   type ExecutionEventType,
-} from "../../src/runtime/contracts/execution-runtime-contract.js";
-import type { ExecutionIntent } from "../../src/runtime/contracts/execution-intent-contract.js";
+} from "../../src/runtime-state/runtime/contracts/execution-runtime-contract.js";
+import type { ExecutionIntent } from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 
 // ---------------------------------------------------------------------------
 // Test-only evidence collector
 // ---------------------------------------------------------------------------
 
 class TestEvidenceCollector implements ExecutionEvidenceEmitter {
-  readonly records: Array<{ eventType: ExecutionEventType; evidence: import("../../src/runtime/contracts/execution-intent-contract.js").ExecutionEvidence }> = [];
+  readonly records: Array<{ eventType: ExecutionEventType; evidence: import("../../src/runtime-state/runtime/contracts/execution-intent-contract.js").ExecutionEvidence }> = [];
 
-  emit(eventType: ExecutionEventType, evidence: import("../../src/runtime/contracts/execution-intent-contract.js").ExecutionEvidence): void {
+  emit(eventType: ExecutionEventType, evidence: import("../../src/runtime-state/runtime/contracts/execution-intent-contract.js").ExecutionEvidence): void {
     this.records.push({ eventType, evidence });
   }
 
-  get byEventType(): Map<ExecutionEventType, import("../../src/runtime/contracts/execution-intent-contract.js").ExecutionEvidence[]> {
-    const map = new Map<ExecutionEventType, import("../../src/runtime/contracts/execution-intent-contract.js").ExecutionEvidence[]>();
+  get byEventType(): Map<ExecutionEventType, import("../../src/runtime-state/runtime/contracts/execution-intent-contract.js").ExecutionEvidence[]> {
+    const map = new Map<ExecutionEventType, import("../../src/runtime-state/runtime/contracts/execution-intent-contract.js").ExecutionEvidence[]>();
     for (const r of this.records) {
       const list = map.get(r.eventType) ?? [];
       list.push(r.evidence);

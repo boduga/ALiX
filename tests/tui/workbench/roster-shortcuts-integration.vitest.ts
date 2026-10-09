@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createWorkbenchRenderHarness } from '../../fixtures/tui/workbench-render-harness.js';
-import type { WorkbenchUiAction } from '../../../src/tui/workbench/model/ui-action.js';
-import type { WorkbenchUiState } from '../../../src/tui/workbench/model/ui-state.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { paintWorkbenchDiagnosticOverlay } from '../../../src/tui/workbench/views/diagnostic-overlay.js';
+import type { WorkbenchUiAction } from '../../../src/interfaces/tui/workbench/model/ui-action.js';
+import type { WorkbenchUiState } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import { paintWorkbenchDiagnosticOverlay } from '../../../src/interfaces/tui/workbench/views/diagnostic-overlay.js';
 
 function harness() {
   const base = createWorkbenchRenderHarness();

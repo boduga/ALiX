@@ -5,16 +5,16 @@ import type {
   LearningFinding,
   ProposalGovernanceRecord,
   RecommendationRecord,
-} from "../../src/evolution/learning/contracts/learning-contract.js";
-import { detectUnderperformer, UNDERPERFORMER_DETECTOR_KIND } from "../../src/evolution/learning/detectors/underperformer-detector.js";
+} from "../../src/planning/evolution/learning/contracts/learning-contract.js";
+import { detectUnderperformer, UNDERPERFORMER_DETECTOR_KIND } from "../../src/planning/evolution/learning/detectors/underperformer-detector.js";
 import {
   detectOutcomeContradictions,
   OUTCOME_CONTRADICTION_DETECTOR_KIND,
-} from "../../src/evolution/learning/detectors/outcome-contradiction-detector.js";
+} from "../../src/planning/evolution/learning/detectors/outcome-contradiction-detector.js";
 import {
   detectRepeatedPatternFailures,
   REPEATED_PATTERN_FAILURE_DETECTOR_KIND,
-} from "../../src/evolution/learning/detectors/repeated-pattern-failure-detector.js";
+} from "../../src/planning/evolution/learning/detectors/repeated-pattern-failure-detector.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -694,10 +694,10 @@ import type {
   EnrichedProposalRecord,
   LearningAdapter,
   LearningProposal,
-} from "../../src/evolution/learning/contracts/learning-contract.js";
-import { LearningEngine } from "../../src/evolution/learning/learning-engine.js";
-import { buildLearningProposal } from "../../src/evolution/learning/learning-proposal-builder.js";
-import { buildGovernanceRecommendation } from "../../src/evolution/learning/governance-bridge.js";
+} from "../../src/planning/evolution/learning/contracts/learning-contract.js";
+import { LearningEngine } from "../../src/planning/evolution/learning/learning-engine.js";
+import { buildLearningProposal } from "../../src/planning/evolution/learning/learning-proposal-builder.js";
+import { buildGovernanceRecommendation } from "../../src/planning/evolution/learning/governance-bridge.js";
 
 /** Adapter that returns a fixed record set. */
 function fakeAdapter<T>(records: ReadonlyArray<T>): LearningAdapter<T> {

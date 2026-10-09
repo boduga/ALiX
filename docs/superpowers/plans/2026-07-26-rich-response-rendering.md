@@ -6,14 +6,14 @@
 
 **Architecture:** Five pure layers (block parser → inline parser → tokenizer → theme → renderer). Each layer is independent and testable. The renderer is the only consumer of the `Theme` interface; everything else is transport-independent. The existing `TerminalCanvas` is already ANSI-aware, so styled strings write straight through.
 
-**Tech Stack:** TypeScript (strict), Vitest, Node `node:util`-free (raw `\x1b[...m` codes — same pattern as `src/tui/box.ts`). Zero new deps.
+**Tech Stack:** TypeScript (strict), Vitest, Node `node:util`-free (raw `\x1b[...m` codes — same pattern as `src/interfaces/tui/box.ts`). Zero new deps.
 
 ## Global Constraints
 
 - **No new package dependencies.** All ANSI styling uses raw `\x1b[...m` codes. Do NOT use `styleText` from `node:util` — it can confuse `TerminalCanvas`'s per-cell `ansiPrefix` accumulation depending on how it segments output.
 - **`TerminalCanvas.write()` is ANSI-aware.** Embedded escape codes do NOT consume grid columns; they stamp `ansiPrefix` onto each cell. Always wrap styled text with a closing reset (`\x1b[22m` for bold, `\x1b[23m` for italic, `\x1b[27m` for inverse, `\x1b[0m` as the catch-all) so styles don't bleed onto adjacent rows.
 - **`wrapText()` and `truncateVisible()` are ANSI-aware.** They count only visible columns. Use them as-is; do NOT reimplement truncation.
-- **Block parser v2 is a strict superset of the existing parser.** Add new block kinds (`heading`, `quote`, `rule`) but do not change behavior for existing kinds (`text`, `code`, `list`). Re-export from `src/agent/response-blocks.ts` so existing call sites keep working.
+- **Block parser v2 is a strict superset of the existing parser.** Add new block kinds (`heading`, `quote`, `rule`) but do not change behavior for existing kinds (`text`, `code`, `list`). Re-export from `src/agents/agent/response-blocks.ts` so existing call sites keep working.
 - **Code blocks skip the inline parser.** Inline emphasis inside code is literal characters, not formatting.
 - **Existing test idioms carry over:** `rowHasStyle(y, '36m')` for cell-level style assertions; `renderFrame().replace(/\x1b\[[0-9;]*m/g, '')` for plain-text assertions; `(c as any).buffer` for raw cell inspection. See `tests/tui/views/chat-view.vitest.ts` and `tests/agent-view-formatting.vitest.ts` for examples.
 - **One commit per task.** Conventional-commit style: `feat(tui): ...`, `refactor(tui): ...`, `test(tui): ...`.
@@ -28,25 +28,25 @@
 
 | Path | Purpose |
 |---|---|
-| `src/tui/blocks/types.ts` | Pure types: `ResponseBlock` v2, `InlineSpan`, `Token`, `Theme` interface, `StyledRow`. |
-| `src/tui/blocks/theme.ts` | Default dark `Theme` instance. |
-| `src/tui/blocks/inline.ts` | `parseInline(text: string): InlineSpan[]` — bold/italic/inline-code/escapes. |
-| `src/tui/blocks/parser.ts` | `parseBlocks(md: string): ResponseBlock[]` — extends existing parser. |
-| `src/tui/blocks/tokenize.ts` | `tokenize(code, lang): Token[]` dispatcher + plain fallback wiring. |
-| `src/tui/blocks/langs/python.ts` | Python tokenizer. |
-| `src/tui/blocks/langs/typescript.ts` | TS/JS tokenizer. |
-| `src/tui/blocks/langs/json.ts` | JSON tokenizer. |
-| `src/tui/blocks/langs/bash.ts` | Bash tokenizer. |
-| `src/tui/blocks/langs/plain.ts` | Plain fallback tokenizer. |
-| `src/tui/blocks/render.ts` | `renderBlocks(blocks, theme, width): StyledRow[]`. |
+| `src/interfaces/tui/blocks/types.ts` | Pure types: `ResponseBlock` v2, `InlineSpan`, `Token`, `Theme` interface, `StyledRow`. |
+| `src/interfaces/tui/blocks/theme.ts` | Default dark `Theme` instance. |
+| `src/interfaces/tui/blocks/inline.ts` | `parseInline(text: string): InlineSpan[]` — bold/italic/inline-code/escapes. |
+| `src/interfaces/tui/blocks/parser.ts` | `parseBlocks(md: string): ResponseBlock[]` — extends existing parser. |
+| `src/interfaces/tui/blocks/tokenize.ts` | `tokenize(code, lang): Token[]` dispatcher + plain fallback wiring. |
+| `src/interfaces/tui/blocks/langs/python.ts` | Python tokenizer. |
+| `src/interfaces/tui/blocks/langs/typescript.ts` | TS/JS tokenizer. |
+| `src/interfaces/tui/blocks/langs/json.ts` | JSON tokenizer. |
+| `src/interfaces/tui/blocks/langs/bash.ts` | Bash tokenizer. |
+| `src/interfaces/tui/blocks/langs/plain.ts` | Plain fallback tokenizer. |
+| `src/interfaces/tui/blocks/render.ts` | `renderBlocks(blocks, theme, width): StyledRow[]`. |
 
 **Modify (3 files):**
 
 | Path | Change |
 |---|---|
-| `src/agent/response-blocks.ts` | Re-export `parseBlocks` from new location so the existing import path keeps working. No behavior change. |
-| `src/tui/views/agent-view.ts` | Replace `renderAgentResponse` body with a call to `renderBlocks`. Keep `RenderedLine` shape unchanged. |
-| `src/tui/views/chat-view.ts` | Wire `parseBlocks` + `renderBlocks` (currently bypasses the parser entirely). |
+| `src/agents/agent/response-blocks.ts` | Re-export `parseBlocks` from new location so the existing import path keeps working. No behavior change. |
+| `src/interfaces/tui/views/agent-view.ts` | Replace `renderAgentResponse` body with a call to `renderBlocks`. Keep `RenderedLine` shape unchanged. |
+| `src/interfaces/tui/views/chat-view.ts` | Wire `parseBlocks` + `renderBlocks` (currently bypasses the parser entirely). |
 
 **Test (10 files):**
 
@@ -69,8 +69,8 @@
 ### Task 1: Foundation types + Theme
 
 **Files:**
-- Create: `src/tui/blocks/types.ts`
-- Create: `src/tui/blocks/theme.ts`
+- Create: `src/interfaces/tui/blocks/types.ts`
+- Create: `src/interfaces/tui/blocks/theme.ts`
 - Create: `tests/tui/blocks/theme.vitest.ts`
 
 **Interfaces:**
@@ -85,7 +85,7 @@ Create `tests/tui/blocks/theme.vitest.ts` with:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { defaultTheme } from '../../../src/tui/blocks/theme.js';
+import { defaultTheme } from '../../../src/interfaces/tui/blocks/theme.js';
 
 describe('defaultTheme', () => {
   it('returns non-empty styled strings for every Theme method', () => {
@@ -128,14 +128,14 @@ describe('defaultTheme', () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/blocks/theme.vitest.ts 2>&1 | tail -10`
-Expected: FAIL — `Cannot find module '../../../src/tui/blocks/theme.js'`.
+Expected: FAIL — `Cannot find module '../../../src/interfaces/tui/blocks/theme.js'`.
 
-- [ ] **Step 3: Write `src/tui/blocks/types.ts`**
+- [ ] **Step 3: Write `src/interfaces/tui/blocks/types.ts`**
 
 Create the file with this exact content:
 
 ```ts
-// src/tui/blocks/types.ts
+// src/interfaces/tui/blocks/types.ts
 // Pure type definitions for the rich response rendering pipeline.
 // No runtime code — every interface here is transport-independent and
 // has zero knowledge of ANSI, canvases, or terminals.
@@ -222,12 +222,12 @@ export interface StyledRow {
 }
 ```
 
-- [ ] **Step 4: Write `src/tui/blocks/theme.ts`**
+- [ ] **Step 4: Write `src/interfaces/tui/blocks/theme.ts`**
 
 Create the file with this exact content:
 
 ```ts
-// src/tui/blocks/theme.ts
+// src/interfaces/tui/blocks/theme.ts
 // Default dark Theme. Uses raw ANSI codes (NOT node:util styleText)
 // so TerminalCanvas's per-cell ansiPrefix accumulation works correctly.
 //
@@ -337,7 +337,7 @@ Expected: 0 errors. (The `HeadingLevel` re-export after the const might trigger 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/tui/blocks/types.ts src/tui/blocks/theme.ts tests/tui/blocks/theme.vitest.ts && git commit -m "feat(tui): add rich-renderer foundation — types + default Theme"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/blocks/types.ts src/interfaces/tui/blocks/theme.ts tests/tui/blocks/theme.vitest.ts && git commit -m "feat(tui): add rich-renderer foundation — types + default Theme"
 ```
 
 ---
@@ -345,8 +345,8 @@ cd /home/babasola/Projects/Monolith && git add src/tui/blocks/types.ts src/tui/b
 ### Task 2: Plain tokenizer + dispatcher skeleton
 
 **Files:**
-- Create: `src/tui/blocks/langs/plain.ts`
-- Create: `src/tui/blocks/tokenize.ts`
+- Create: `src/interfaces/tui/blocks/langs/plain.ts`
+- Create: `src/interfaces/tui/blocks/tokenize.ts`
 - Create: `tests/tui/blocks/tokenize.vitest.ts`
 
 **Interfaces:**
@@ -359,7 +359,7 @@ Create `tests/tui/blocks/tokenize.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { tokenize } from '../../../src/tui/blocks/tokenize.js';
+import { tokenize } from '../../../src/interfaces/tui/blocks/tokenize.js';
 
 describe('tokenize', () => {
   it('returns plain tokens for unknown languages', () => {
@@ -393,12 +393,12 @@ describe('tokenize', () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/blocks/tokenize.vitest.ts 2>&1 | tail -10`
-Expected: FAIL — `Cannot find module '../../../src/tui/blocks/tokenize.js'`.
+Expected: FAIL — `Cannot find module '../../../src/interfaces/tui/blocks/tokenize.js'`.
 
-- [ ] **Step 3: Write `src/tui/blocks/langs/plain.ts`**
+- [ ] **Step 3: Write `src/interfaces/tui/blocks/langs/plain.ts`**
 
 ```ts
-// src/tui/blocks/langs/plain.ts
+// src/interfaces/tui/blocks/langs/plain.ts
 // Fallback tokenizer. Every char becomes a plain token. Preserves
 // newlines verbatim so the renderer can emit blank lines inside code
 // blocks.
@@ -428,7 +428,7 @@ export const plainTokenizer: Tokenizer = {
 
 Add `Tokenizer` to the types.ts at the bottom (this is a small extension to Task 1's types):
 
-Open `src/tui/blocks/types.ts` and append at the end:
+Open `src/interfaces/tui/blocks/types.ts` and append at the end:
 
 ```ts
 /** A language-specific tokenizer. Each language implements this interface. */
@@ -438,10 +438,10 @@ export interface Tokenizer {
 }
 ```
 
-- [ ] **Step 4: Write `src/tui/blocks/tokenize.ts`**
+- [ ] **Step 4: Write `src/interfaces/tui/blocks/tokenize.ts`**
 
 ```ts
-// src/tui/blocks/tokenize.ts
+// src/interfaces/tui/blocks/tokenize.ts
 // Dispatcher: maps `language` to a language-specific tokenizer. Falls
 // back to plain for unknown languages. Language-specific tokenizers are
 // registered in Tasks 7-10 (Python, TypeScript, JSON, Bash).
@@ -495,7 +495,7 @@ Expected: 0 errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/tui/blocks/langs/plain.ts src/tui/blocks/tokenize.ts src/tui/blocks/types.ts tests/tui/blocks/tokenize.vitest.ts && git commit -m "feat(tui): add plain fallback tokenizer + tokenize dispatcher"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/blocks/langs/plain.ts src/interfaces/tui/blocks/tokenize.ts src/interfaces/tui/blocks/types.ts tests/tui/blocks/tokenize.vitest.ts && git commit -m "feat(tui): add plain fallback tokenizer + tokenize dispatcher"
 ```
 
 ---
@@ -503,7 +503,7 @@ cd /home/babasola/Projects/Monolith && git add src/tui/blocks/langs/plain.ts src
 ### Task 3: Inline parser (bold / italic / code / escapes)
 
 **Files:**
-- Create: `src/tui/blocks/inline.ts`
+- Create: `src/interfaces/tui/blocks/inline.ts`
 - Create: `tests/tui/blocks/inline.vitest.ts`
 
 **Interfaces:**
@@ -516,7 +516,7 @@ Create `tests/tui/blocks/inline.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { parseInline } from '../../../src/tui/blocks/inline.js';
+import { parseInline } from '../../../src/interfaces/tui/blocks/inline.js';
 
 describe('parseInline', () => {
   it('returns a single text span for plain text', () => {
@@ -596,10 +596,10 @@ describe('parseInline', () => {
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/blocks/inline.vitest.ts 2>&1 | tail -10`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Write `src/tui/blocks/inline.ts`**
+- [ ] **Step 3: Write `src/interfaces/tui/blocks/inline.ts`**
 
 ```ts
-// src/tui/blocks/inline.ts
+// src/interfaces/tui/blocks/inline.ts
 // Inline-formatting parser. Walks the input string once, emitting a
 // sequence of InlineSpan. Recognizes **bold**, *italic*, `inline code`,
 // [text](href) links, and backslash-escaped punctuation.
@@ -756,7 +756,7 @@ Expected: 0 errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/tui/blocks/inline.ts tests/tui/blocks/inline.vitest.ts && git commit -m "feat(tui): add inline parser for bold/italic/code/links/escapes"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/blocks/inline.ts tests/tui/blocks/inline.vitest.ts && git commit -m "feat(tui): add inline parser for bold/italic/code/links/escapes"
 ```
 
 ---
@@ -764,9 +764,9 @@ cd /home/babasola/Projects/Monolith && git add src/tui/blocks/inline.ts tests/tu
 ### Task 4: Block parser v2 (headings, quotes, rules)
 
 **Files:**
-- Create: `src/tui/blocks/parser.ts`
+- Create: `src/interfaces/tui/blocks/parser.ts`
 - Create: `tests/tui/blocks/parser.vitest.ts`
-- Modify: `src/agent/response-blocks.ts:1-3` — add re-export.
+- Modify: `src/agents/agent/response-blocks.ts:1-3` — add re-export.
 
 **Interfaces:**
 - Consumes: nothing new (reuses existing `matchFenceOpen`, `matchFenceClose`, `matchListItem` patterns; this task introduces a new `parseBlocks` that emits the `ResponseBlock` v2 type union).
@@ -778,7 +778,7 @@ Create `tests/tui/blocks/parser.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { parseBlocks } from '../../../src/tui/blocks/parser.js';
+import { parseBlocks } from '../../../src/interfaces/tui/blocks/parser.js';
 
 describe('parseBlocks', () => {
   it('returns empty array for empty input', () => {
@@ -885,10 +885,10 @@ describe('parseBlocks', () => {
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/blocks/parser.vitest.ts 2>&1 | tail -10`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Write `src/tui/blocks/parser.ts`**
+- [ ] **Step 3: Write `src/interfaces/tui/blocks/parser.ts`**
 
 ```ts
-// src/tui/blocks/parser.ts
+// src/interfaces/tui/blocks/parser.ts
 // Block parser v2. Linear scan over the input, dispatching each line
 // to a mode detector (heading → code → quote → rule → list → text).
 // Order matters: code must run before list (so a code line starting
@@ -1085,11 +1085,11 @@ function matchRule(line: string): boolean {
 }
 ```
 
-- [ ] **Step 4: Re-export from `src/agent/response-blocks.ts`**
+- [ ] **Step 4: Re-export from `src/agents/agent/response-blocks.ts`**
 
 Open the file. At the bottom, append a re-export so existing import paths (`from '../../agent/response-blocks.js'`) keep resolving to the new parser. Be careful — the existing file exports `parseResponseBlocks` (with `ResponseBlock`), which has a different signature than the new `parseBlocks`. So we re-export under the new name; we do NOT replace the old function.
 
-Add to the bottom of `src/agent/response-blocks.ts`:
+Add to the bottom of `src/agents/agent/response-blocks.ts`:
 
 ```ts
 // Re-export the v2 parser so callers that want heading/quote/rule support
@@ -1111,7 +1111,7 @@ Expected: 0 tsc errors; existing parser tests still pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/tui/blocks/parser.ts src/agent/response-blocks.ts tests/tui/blocks/parser.vitest.ts && git commit -m "feat(tui): add block parser v2 — headings, quotes, rules"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/blocks/parser.ts src/agents/agent/response-blocks.ts tests/tui/blocks/parser.vitest.ts && git commit -m "feat(tui): add block parser v2 — headings, quotes, rules"
 ```
 
 ---
@@ -1119,11 +1119,11 @@ cd /home/babasola/Projects/Monolith && git add src/tui/blocks/parser.ts src/agen
 ### Task 5: Renderer — text/heading/quote/rule/list (no code yet)
 
 **Files:**
-- Create: `src/tui/blocks/render.ts`
+- Create: `src/interfaces/tui/blocks/render.ts`
 - Create: `tests/tui/blocks/render.vitest.ts`
 
 **Interfaces:**
-- Consumes: `parseBlocks` from Task 4; `parseInline` from Task 3; `defaultTheme` from Task 1; `wrapText` from `src/tui/views/wrap-text.js` (existing, ANSI-aware).
+- Consumes: `parseBlocks` from Task 4; `parseInline` from Task 3; `defaultTheme` from Task 1; `wrapText` from `src/interfaces/tui/views/wrap-text.js` (existing, ANSI-aware).
 - Produces: `renderBlocks(blocks: readonly ResponseBlock[], theme: Theme, width: number): StyledRow[]` — walks each block, calls the right theme method per inline span, wraps to `width`, returns `StyledRow[]`. **Code blocks are handled in Task 6** — this task returns a placeholder row `[code]` for code blocks.
 
 - [ ] **Step 1: Write the failing test**
@@ -1132,9 +1132,9 @@ Create `tests/tui/blocks/render.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { renderBlocks } from '../../../src/tui/blocks/render.js';
-import { parseBlocks } from '../../../src/tui/blocks/parser.js';
-import { defaultTheme } from '../../../src/tui/blocks/theme.js';
+import { renderBlocks } from '../../../src/interfaces/tui/blocks/render.js';
+import { parseBlocks } from '../../../src/interfaces/tui/blocks/parser.js';
+import { defaultTheme } from '../../../src/interfaces/tui/blocks/theme.js';
 
 const W = 60;
 
@@ -1231,10 +1231,10 @@ describe('renderBlocks', () => {
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/blocks/render.vitest.ts 2>&1 | tail -10`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Write `src/tui/blocks/render.ts`**
+- [ ] **Step 3: Write `src/interfaces/tui/blocks/render.ts`**
 
 ```ts
-// src/tui/blocks/render.ts
+// src/interfaces/tui/blocks/render.ts
 // Walks a sequence of ResponseBlock and produces ANSI-styled rows ready
 // to write to a TerminalCanvas. Pure: same input + theme + width → same
 // output. Side-effect free. No knowledge of ANSI codes other than
@@ -1400,7 +1400,7 @@ Expected: 0 errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/tui/blocks/render.ts tests/tui/blocks/render.vitest.ts && git commit -m "feat(tui): add rich renderer for text/heading/quote/rule/list (code in next task)"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/blocks/render.ts tests/tui/blocks/render.vitest.ts && git commit -m "feat(tui): add rich renderer for text/heading/quote/rule/list (code in next task)"
 ```
 
 ---
@@ -1408,10 +1408,10 @@ cd /home/babasola/Projects/Monolith && git add src/tui/blocks/render.ts tests/tu
 ### Task 6: Renderer — code blocks with bordered chrome + tokenization
 
 **Files:**
-- Modify: `src/tui/blocks/render.ts` — replace the `'code'` branch in `renderBlocks`.
+- Modify: `src/interfaces/tui/blocks/render.ts` — replace the `'code'` branch in `renderBlocks`.
 
 **Interfaces:**
-- Consumes: `tokenize` from Task 2; existing `truncateVisible` from `src/tui/views/agent-view.ts:36-54` (copy the function into this file rather than import — it has zero deps and is small).
+- Consumes: `tokenize` from Task 2; existing `truncateVisible` from `src/interfaces/tui/views/agent-view.ts:36-54` (copy the function into this file rather than import — it has zero deps and is small).
 - Produces: code blocks render as bordered boxes with language label and token-colored code lines.
 
 - [ ] **Step 1: Add the failing test cases**
@@ -1458,7 +1458,7 @@ Append to `tests/tui/blocks/render.vitest.ts`:
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/blocks/render.vitest.ts 2>&1 | tail -20`
 Expected: 3 new tests FAIL — code block rendering is still the placeholder.
 
-- [ ] **Step 3: Replace the `'code'` branch in `src/tui/blocks/render.ts`**
+- [ ] **Step 3: Replace the `'code'` branch in `src/interfaces/tui/blocks/render.ts`**
 
 Open the file. Find the `case 'code':` branch:
 
@@ -1582,7 +1582,7 @@ Expected: 0 errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/tui/blocks/render.ts tests/tui/blocks/render.vitest.ts && git commit -m "feat(tui): render code blocks with bordered chrome + tokenization hookup"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/blocks/render.ts tests/tui/blocks/render.vitest.ts && git commit -m "feat(tui): render code blocks with bordered chrome + tokenization hookup"
 ```
 
 ---
@@ -1590,7 +1590,7 @@ cd /home/babasola/Projects/Monolith && git add src/tui/blocks/render.ts tests/tu
 ### Task 7: Python tokenizer
 
 **Files:**
-- Create: `src/tui/blocks/langs/python.ts`
+- Create: `src/interfaces/tui/blocks/langs/python.ts`
 - Create: `tests/tui/blocks/langs/python.vitest.ts`
 
 **Interfaces:**
@@ -1603,7 +1603,7 @@ Create `tests/tui/blocks/langs/python.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { pythonTokenizer } from '../../../src/tui/blocks/langs/python.js';
+import { pythonTokenizer } from '../../../src/interfaces/tui/blocks/langs/python.js';
 
 describe('pythonTokenizer', () => {
   it('tokenizes keywords', () => {
@@ -1665,10 +1665,10 @@ describe('pythonTokenizer', () => {
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/blocks/langs/python.vitest.ts 2>&1 | tail -10`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Write `src/tui/blocks/langs/python.ts`**
+- [ ] **Step 3: Write `src/interfaces/tui/blocks/langs/python.ts`**
 
 ```ts
-// src/tui/blocks/langs/python.ts
+// src/interfaces/tui/blocks/langs/python.ts
 // Single-pass tokenizer for Python. Recognizes:
 //   - keywords: def, return, if, elif, else, for, while, class, import,
 //     from, in, is, not, and, or, try, except, finally, with, as, yield,
@@ -1807,9 +1807,9 @@ export const pythonTokenizer: Tokenizer = {
 };
 ```
 
-- [ ] **Step 4: Register the tokenizer in `src/tui/blocks/tokenize.ts`**
+- [ ] **Step 4: Register the tokenizer in `src/interfaces/tui/blocks/tokenize.ts`**
 
-Open `src/tui/blocks/tokenize.ts`. Find the `TOKENIZERS` const. Replace:
+Open `src/interfaces/tui/blocks/tokenize.ts`. Find the `TOKENIZERS` const. Replace:
 
 ```ts
 const TOKENIZERS: Record<string, Tokenizer> = {
@@ -1852,7 +1852,7 @@ Expected: 0 errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/tui/blocks/langs/python.ts src/tui/blocks/tokenize.ts tests/tui/blocks/langs/python.vitest.ts && git commit -m "feat(tui): add Python tokenizer (keywords, strings, comments, numbers)"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/blocks/langs/python.ts src/interfaces/tui/blocks/tokenize.ts tests/tui/blocks/langs/python.vitest.ts && git commit -m "feat(tui): add Python tokenizer (keywords, strings, comments, numbers)"
 ```
 
 ---
@@ -1860,7 +1860,7 @@ cd /home/babasola/Projects/Monolith && git add src/tui/blocks/langs/python.ts sr
 ### Task 8: TypeScript / JavaScript tokenizer
 
 **Files:**
-- Create: `src/tui/blocks/langs/typescript.ts`
+- Create: `src/interfaces/tui/blocks/langs/typescript.ts`
 - Create: `tests/tui/blocks/langs/typescript.vitest.ts`
 
 **Interfaces:**
@@ -1873,7 +1873,7 @@ Create `tests/tui/blocks/langs/typescript.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { typescriptTokenizer } from '../../../src/tui/blocks/langs/typescript.js';
+import { typescriptTokenizer } from '../../../src/interfaces/tui/blocks/langs/typescript.js';
 
 describe('typescriptTokenizer', () => {
   it('tokenizes keywords', () => {
@@ -1943,10 +1943,10 @@ describe('typescriptTokenizer', () => {
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/blocks/langs/typescript.vitest.ts 2>&1 | tail -10`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Write `src/tui/blocks/langs/typescript.ts`**
+- [ ] **Step 3: Write `src/interfaces/tui/blocks/langs/typescript.ts`**
 
 ```ts
-// src/tui/blocks/langs/typescript.ts
+// src/interfaces/tui/blocks/langs/typescript.ts
 // Tokenizer for TypeScript and JavaScript (shared syntax). Recognizes:
 //   - keywords: function, return, const, let, var, if, else, for, while,
 //     class, import, export, from, default, switch, case, break, continue,
@@ -2148,7 +2148,7 @@ function isRegexForbiddenPrev(prev: Token): boolean {
 }
 ```
 
-- [ ] **Step 4: Register the tokenizer in `src/tui/blocks/tokenize.ts`**
+- [ ] **Step 4: Register the tokenizer in `src/interfaces/tui/blocks/tokenize.ts`**
 
 Find the `TOKENIZERS` const. Add after the python entries:
 
@@ -2180,7 +2180,7 @@ Expected: 0 errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/tui/blocks/langs/typescript.ts src/tui/blocks/tokenize.ts tests/tui/blocks/langs/typescript.vitest.ts && git commit -m "feat(tui): add TypeScript/JavaScript tokenizer (keywords, template literals, regex)"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/blocks/langs/typescript.ts src/interfaces/tui/blocks/tokenize.ts tests/tui/blocks/langs/typescript.vitest.ts && git commit -m "feat(tui): add TypeScript/JavaScript tokenizer (keywords, template literals, regex)"
 ```
 
 ---
@@ -2188,7 +2188,7 @@ cd /home/babasola/Projects/Monolith && git add src/tui/blocks/langs/typescript.t
 ### Task 9: JSON tokenizer
 
 **Files:**
-- Create: `src/tui/blocks/langs/json.ts`
+- Create: `src/interfaces/tui/blocks/langs/json.ts`
 - Create: `tests/tui/blocks/langs/json.vitest.ts`
 
 **Interfaces:**
@@ -2201,7 +2201,7 @@ Create `tests/tui/blocks/langs/json.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { jsonTokenizer } from '../../../src/tui/blocks/langs/json.js';
+import { jsonTokenizer } from '../../../src/interfaces/tui/blocks/langs/json.js';
 
 describe('jsonTokenizer', () => {
   it('tokenizes keys and values as strings', () => {
@@ -2247,10 +2247,10 @@ describe('jsonTokenizer', () => {
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/blocks/langs/json.vitest.ts 2>&1 | tail -10`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Write `src/tui/blocks/langs/json.ts`**
+- [ ] **Step 3: Write `src/interfaces/tui/blocks/langs/json.ts`**
 
 ```ts
-// src/tui/blocks/langs/json.ts
+// src/interfaces/tui/blocks/langs/json.ts
 // Tokenizer for JSON. Recognizes:
 //   - strings (double-quoted only — JSON doesn't support single quotes)
 //   - numbers
@@ -2324,7 +2324,7 @@ export const jsonTokenizer: Tokenizer = {
 
 - [ ] **Step 4: Register the tokenizer**
 
-In `src/tui/blocks/tokenize.ts`, add to `TOKENIZERS`:
+In `src/interfaces/tui/blocks/tokenize.ts`, add to `TOKENIZERS`:
 
 ```ts
   json: jsonTokenizer,
@@ -2345,7 +2345,7 @@ Expected: 6 tests PASS.
 
 ```bash
 cd /home/babasola/Projects/Monolith && npx tsc --noEmit 2>&1 | head -10
-cd /home/babasola/Projects/Monolith && git add src/tui/blocks/langs/json.ts src/tui/blocks/tokenize.ts tests/tui/blocks/langs/json.vitest.ts && git commit -m "feat(tui): add JSON tokenizer (strings, numbers, literals)"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/blocks/langs/json.ts src/interfaces/tui/blocks/tokenize.ts tests/tui/blocks/langs/json.vitest.ts && git commit -m "feat(tui): add JSON tokenizer (strings, numbers, literals)"
 ```
 
 ---
@@ -2353,7 +2353,7 @@ cd /home/babasola/Projects/Monolith && git add src/tui/blocks/langs/json.ts src/
 ### Task 10: Bash tokenizer
 
 **Files:**
-- Create: `src/tui/blocks/langs/bash.ts`
+- Create: `src/interfaces/tui/blocks/langs/bash.ts`
 - Create: `tests/tui/blocks/langs/bash.vitest.ts`
 
 **Interfaces:**
@@ -2366,7 +2366,7 @@ Create `tests/tui/blocks/langs/bash.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { bashTokenizer } from '../../../src/tui/blocks/langs/bash.js';
+import { bashTokenizer } from '../../../src/interfaces/tui/blocks/langs/bash.js';
 
 describe('bashTokenizer', () => {
   it('tokenizes comments', () => {
@@ -2412,10 +2412,10 @@ describe('bashTokenizer', () => {
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/blocks/langs/bash.vitest.ts 2>&1 | tail -10`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Write `src/tui/blocks/langs/bash.ts`**
+- [ ] **Step 3: Write `src/interfaces/tui/blocks/langs/bash.ts`**
 
 ```ts
-// src/tui/blocks/langs/bash.ts
+// src/interfaces/tui/blocks/langs/bash.ts
 // Tokenizer for Bash / POSIX shell. Recognizes:
 //   - comments: # to EOL
 //   - strings: '...', "..."
@@ -2521,7 +2521,7 @@ export const bashTokenizer: Tokenizer = {
 
 - [ ] **Step 4: Register the tokenizer**
 
-In `src/tui/blocks/tokenize.ts`, add to `TOKENIZERS`:
+In `src/interfaces/tui/blocks/tokenize.ts`, add to `TOKENIZERS`:
 
 ```ts
   bash: bashTokenizer,
@@ -2540,7 +2540,7 @@ import { bashTokenizer } from './langs/bash.js';
 ```bash
 cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/blocks/langs/bash.vitest.ts 2>&1 | tail -10
 cd /home/babasola/Projects/Monolith && npx tsc --noEmit 2>&1 | head -10
-cd /home/babasola/Projects/Monolith && git add src/tui/blocks/langs/bash.ts src/tui/blocks/tokenize.ts tests/tui/blocks/langs/bash.vitest.ts && git commit -m "feat(tui): add Bash tokenizer (comments, strings, variables, keywords)"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/blocks/langs/bash.ts src/interfaces/tui/blocks/tokenize.ts tests/tui/blocks/langs/bash.vitest.ts && git commit -m "feat(tui): add Bash tokenizer (comments, strings, variables, keywords)"
 ```
 
 ---
@@ -2548,7 +2548,7 @@ cd /home/babasola/Projects/Monolith && git add src/tui/blocks/langs/bash.ts src/
 ### Task 11: Wire AgentView to use the new renderer
 
 **Files:**
-- Modify: `src/tui/views/agent-view.ts:56-128` — replace `renderAgentResponse` body.
+- Modify: `src/interfaces/tui/views/agent-view.ts:56-128` — replace `renderAgentResponse` body.
 - Modify: `tests/agent-view-formatting.vitest.ts` — add a test that exercises bold + code + heading.
 
 **Interfaces:**
@@ -2598,7 +2598,7 @@ Open `tests/agent-view-formatting.vitest.ts` and find the existing describe bloc
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/agent-view-formatting.vitest.ts 2>&1 | tail -15`
 Expected: New test FAILS — agent-view still uses the old `renderAgentResponse` which doesn't apply theme.
 
-- [ ] **Step 3: Replace `renderAgentResponse` in `src/tui/views/agent-view.ts`**
+- [ ] **Step 3: Replace `renderAgentResponse` in `src/interfaces/tui/views/agent-view.ts`**
 
 Open the file. Replace the entire `renderAgentResponse` function (lines 56-128) with:
 
@@ -2642,7 +2642,7 @@ function renderAgentResponse(
 }
 ```
 
-(Note: `parseResponseBlocks` here is the OLD one — re-exported from `src/agent/response-blocks.ts` — which the agent-view already imports. But that returns the OLD `ResponseBlock` type. We need to use the NEW `parseBlocks` from `../tui/blocks/parser.js`.)
+(Note: `parseResponseBlocks` here is the OLD one — re-exported from `src/agents/agent/response-blocks.ts` — which the agent-view already imports. But that returns the OLD `ResponseBlock` type. We need to use the NEW `parseBlocks` from `../tui/blocks/parser.js`.)
 
 Actually, the cleanest path is to switch the import in agent-view.ts from `parseResponseBlocks` (old) to `parseBlocks` (new). The new one is a strict superset. Find the import at the top of `agent-view.ts`:
 
@@ -2683,7 +2683,7 @@ Expected: 0 errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/tui/views/agent-view.ts tests/agent-view-formatting.vitest.ts && git commit -m "feat(tui): wire AgentView to rich renderer (bold/italic/code/headings/quotes/rules)"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/views/agent-view.ts tests/agent-view-formatting.vitest.ts && git commit -m "feat(tui): wire AgentView to rich renderer (bold/italic/code/headings/quotes/rules)"
 ```
 
 ---
@@ -2691,7 +2691,7 @@ cd /home/babasola/Projects/Monolith && git add src/tui/views/agent-view.ts tests
 ### Task 12: Wire ChatView to use the new renderer (it currently bypasses parsing entirely)
 
 **Files:**
-- Modify: `src/tui/views/chat-view.ts:42-82` — replace the per-line `wrapText` loop with `parseBlocks` + `renderBlocks`.
+- Modify: `src/interfaces/tui/views/chat-view.ts:42-82` — replace the per-line `wrapText` loop with `parseBlocks` + `renderBlocks`.
 - Modify: `tests/tui/views/chat-view.vitest.ts` — add a test that asserts fenced code blocks now render with borders in chat-view too.
 
 **Interfaces:**
@@ -2724,7 +2724,7 @@ Open `tests/tui/views/chat-view.vitest.ts` and append a new test inside the exis
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/tui/views/chat-view.vitest.ts 2>&1 | tail -15`
 Expected: New test FAILS — chat-view renders the response as plain text, so the border characters don't appear.
 
-- [ ] **Step 3: Update `src/tui/views/chat-view.ts`**
+- [ ] **Step 3: Update `src/interfaces/tui/views/chat-view.ts`**
 
 Open the file. Find the section that walks turns and wraps each one (around lines 42-82):
 
@@ -2808,7 +2808,7 @@ Expected: 0 errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/tui/views/chat-view.ts tests/tui/views/chat-view.vitest.ts && git commit -m "feat(tui): wire ChatView to rich renderer (fenced code, lists, bold, headings)"
+cd /home/babasola/Projects/Monolith && git add src/interfaces/tui/views/chat-view.ts tests/tui/views/chat-view.vitest.ts && git commit -m "feat(tui): wire ChatView to rich renderer (fenced code, lists, bold, headings)"
 ```
 
 ---
@@ -2830,7 +2830,7 @@ Expected: All tests PASS, count is the previous baseline + ~85 new tests across 
 - [ ] **Step 3: Run gitnexus detect_changes**
 
 Run the `mcp__gitnexus__detect_changes` tool with `repo: "ALiX"`.
-Expected: the report names the new files (`src/tui/blocks/*`, `tests/tui/blocks/*`) and the modified files (`src/tui/views/agent-view.ts`, `src/tui/views/chat-view.ts`, `src/agent/response-blocks.ts`). No HIGH or CRITICAL risk on existing execution flows.
+Expected: the report names the new files (`src/interfaces/tui/blocks/*`, `tests/tui/blocks/*`) and the modified files (`src/interfaces/tui/views/agent-view.ts`, `src/interfaces/tui/views/chat-view.ts`, `src/agents/agent/response-blocks.ts`). No HIGH or CRITICAL risk on existing execution flows.
 
 - [ ] **Step 4: Manual smoke (informational, gates this task as done)**
 

@@ -8,10 +8,10 @@ import { fileURLToPath } from 'node:url';
 import { extractImports, codeOnly } from '../helpers/import-graph.js';
 
 const REPO_SRC = fileURLToPath(new URL('../../src/', import.meta.url));
-const COMPOSITION_ROOT = fileURLToPath(new URL('../../src/capability/platform.ts', import.meta.url));
-const CAPABILITY_DIR = fileURLToPath(new URL('../../src/capability/', import.meta.url));
+const COMPOSITION_ROOT = fileURLToPath(new URL('../../src/capabilities/capability/platform.ts', import.meta.url));
+const CAPABILITY_DIR = fileURLToPath(new URL('../../src/capabilities/capability/', import.meta.url));
 const MIGRATED_CLI_FILES = new Set<string>([
-  fileURLToPath(new URL('../../src/cli/commands/capability.ts', import.meta.url)),
+  fileURLToPath(new URL('../../src/interfaces/cli/commands/capability.ts', import.meta.url)),
 ]);
 
 const CAPABILITY_REGISTRY_RE = /new\s+CapabilityRegistry\s*\(/;
@@ -28,11 +28,11 @@ const CAPABILITY_RESOLVER_RE = /new\s+CapabilityResolver\s*\(/;
  * the bypass the sentinel exists to prevent.
  */
 const CAP11_DEBT_FILES: ReadonlySet<string> = new Set<string>([
-  fileURLToPath(new URL('../../src/evolution/capability-lifecycle/capability-lifecycle-rehydration.ts', import.meta.url)),
-  fileURLToPath(new URL('../../src/evolution/capability-lifecycle/capability-lifecycle-applier.ts', import.meta.url)),
-  fileURLToPath(new URL('../../src/evolution/capability-lifecycle/capability-lifecycle-step-executor.ts', import.meta.url)),
-  fileURLToPath(new URL('../../src/evolution/execution/capability-mutation-executor.ts', import.meta.url)),
-  fileURLToPath(new URL('../../src/integrations/session-capabilities.ts', import.meta.url)),
+  fileURLToPath(new URL('../../src/planning/evolution/capability-lifecycle/capability-lifecycle-rehydration.ts', import.meta.url)),
+  fileURLToPath(new URL('../../src/planning/evolution/capability-lifecycle/capability-lifecycle-applier.ts', import.meta.url)),
+  fileURLToPath(new URL('../../src/planning/evolution/capability-lifecycle/capability-lifecycle-step-executor.ts', import.meta.url)),
+  fileURLToPath(new URL('../../src/planning/evolution/execution/capability-mutation-executor.ts', import.meta.url)),
+  fileURLToPath(new URL('../../src/capabilities/integrations/session-capabilities.ts', import.meta.url)),
 ]);
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -70,7 +70,7 @@ describe('Axis 2 — import boundary (locked ruling #2)', () => {
       // Match imports of the PLATFORM CapabilityRegistry / CapabilityResolver by name
       // from the canonical platform modules only. This MUST NOT match the
       // unrelated policy-side `CapabilityRegistry` class in
-      // `src/policy/capability-registry.ts` (which is a different module with
+      // `src/governance/policy/capability-registry.ts` (which is a different module with
       // the same class name — pre-CAP-2, narrow scope).
       const importsRegistry = records.some(
         (r) => /capability\/(?:registry|provider-resolver)\.js$/.test(r.specifier) && r.bindings.includes('CapabilityRegistry'),

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computePolicyRevision } from "../../src/policy/policy-revision.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { computePolicyRevision } from "../../src/governance/policy/policy-revision.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 function makeConfig(overrides?: Partial<AlixConfig>): AlixConfig {
   return {

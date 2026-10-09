@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { goTokenizer } from '../../../../src/tui/blocks/langs/go.js';
+import { goTokenizer } from '../../../../src/interfaces/tui/blocks/langs/go.js';
 
 describe('goTokenizer', () => {
   it('tokenizes keywords', () => {

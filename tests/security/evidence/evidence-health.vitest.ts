@@ -6,8 +6,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { EvidenceHealthCollector } from "../../../src/security/evidence/evidence-health.js";
-import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
+import { EvidenceHealthCollector } from "../../../src/governance/security/evidence/evidence-health.js";
+import { EvidenceStore } from "../../../src/governance/security/evidence/evidence-store.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

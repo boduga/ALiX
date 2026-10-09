@@ -16,9 +16,9 @@ import { tmpdir } from "node:os";
 
 import { buildGovernanceHealth } from "../../src/governance/governance-health-builder.js";
 import { buildGovernanceAssessment } from "../../src/governance/governance-assessment.js";
-import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
-import { GovernanceReviewStore } from "../../src/adaptation/governance-review-store.js";
-import { LearningStore } from "../../src/learning/learning-store.js";
+import { OutcomeStore } from "../../src/planning/adaptation/outcome-store.js";
+import { GovernanceReviewStore } from "../../src/planning/adaptation/governance-review-store.js";
+import { LearningStore } from "../../src/planning/learning/learning-store.js";
 import type { GovernanceHealthReport } from "../../src/governance/governance-types.js";
 
 // ---------------------------------------------------------------------------

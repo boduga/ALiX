@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { TaskRegistry } from "../../src/daemon/task-registry.js";
+import { TaskRegistry } from "../../src/operations/daemon/task-registry.js";
 
 describe("TaskRegistry", () => {
   let origHome: string | undefined;

@@ -33,7 +33,7 @@ import {
   type DecisionConfig,
   type JevTransport,
   type RiskEscalationActionInput,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 function riskConfig(overrides?: Partial<DecisionConfig>): DecisionConfig {
   return {

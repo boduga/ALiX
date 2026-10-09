@@ -39,7 +39,7 @@ describe("Security headers", () => {
   });
 
   it("/healthz includes all baseline security headers", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
       const headers = await httpGetHeaders(`${url}/healthz`);
@@ -56,7 +56,7 @@ describe("Security headers", () => {
   });
 
   it("API response includes Cache-Control: no-store", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
       const headers = await httpGetHeaders(`${url}/api/approvals`);
@@ -67,7 +67,7 @@ describe("Security headers", () => {
   });
 
   it("SSE response has Cache-Control: no-cache and X-Accel-Buffering: no", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const sessionId = "test-session-headers";
     const eventsDir = join(tmpDir, ".alix", "sessions", sessionId);
     mkdirSync(eventsDir, { recursive: true });

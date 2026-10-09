@@ -10,7 +10,7 @@ import {
   mergeEvents,
   compareEvents,
   type DeterministicEvent,
-} from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
 
 function makeEvent(
   sourceId: string,

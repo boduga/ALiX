@@ -407,7 +407,7 @@ It does not represent:
 Add lightweight collector:
 
 ```
-src/tui/runtime-collector.ts
+src/interfaces/tui/runtime-collector.ts
 ```
 
 Responsibilities:
@@ -513,14 +513,14 @@ No renderer-specific header logic.
 
 | File                                           | Change                                                             |
 | ---------------------------------------------- | ------------------------------------------------------------------ |
-| `src/tui/renderers/blessed-renderer.ts`        | Add sidebar container, child ownership model, fix header rendering |
-| `src/tui/renderers/blessed/sidebar-painter.ts` | Replace generic panel loop with Blessed panel view rendering       |
-| `src/tui/dashboard-renderer.ts`                | Ensure panel view models are shared by Canvas and Blessed          |
-| `src/tui/presentation/builder.ts`              | Add TOKENS/FILES fields, metadata projection                       |
-| `src/tui/presentation/types.ts`                | Extend session metadata                                            |
-| `src/tui/snapshot.ts`                          | Add `filesProcessed` runtime field                                 |
-| `src/tui/runtime-collector.ts`                 | Collect file activity metric                                       |
-| `src/tui/renderers/canvas-renderer.ts`         | Consume new header metadata                                        |
+| `src/interfaces/tui/renderers/blessed-renderer.ts`        | Add sidebar container, child ownership model, fix header rendering |
+| `src/interfaces/tui/renderers/blessed/sidebar-painter.ts` | Replace generic panel loop with Blessed panel view rendering       |
+| `src/interfaces/tui/dashboard-renderer.ts`                | Ensure panel view models are shared by Canvas and Blessed          |
+| `src/interfaces/tui/presentation/builder.ts`              | Add TOKENS/FILES fields, metadata projection                       |
+| `src/interfaces/tui/presentation/types.ts`                | Extend session metadata                                            |
+| `src/interfaces/tui/snapshot.ts`                          | Add `filesProcessed` runtime field                                 |
+| `src/interfaces/tui/runtime-collector.ts`                 | Collect file activity metric                                       |
+| `src/interfaces/tui/renderers/canvas-renderer.ts`         | Consume new header metadata                                        |
 | `tests/tui/blessed-renderer.vitest.ts`         | Sidebar hierarchy, header, status bar tests                        |
 | `tests/tui/view-model.vitest.ts`               | Metadata and status projection tests                               |
 | `tests/tui/snapshot.vitest.ts`                 | Runtime metric tests                                               |

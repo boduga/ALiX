@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../src/events/event-log.js';
-import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
-import { createContextBudget } from '../../src/config/context-budget.js';
-import type { ContextBudget } from '../../src/config/context-budget.js';
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse, NormalizedMessage, TokenUsage } from '../../src/providers/types.js';
-import { TaskStateMachine, RunLimiter } from '../../src/autonomy/state-machine.js';
-import { ScopeTracker } from '../../src/autonomy/scope-tracker.js';
-import { MemoryStore } from '../../src/utils/memory/store.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { runTaskLoop, type TaskLoopDeps } from '../../src/execution/run/task-loop.js';
+import { createContextBudget } from '../../src/operations/config/context-budget.js';
+import type { ContextBudget } from '../../src/operations/config/context-budget.js';
+import type { ModelAdapter, NormalizedRequest, NormalizedResponse, NormalizedMessage, TokenUsage } from '../../src/models/providers/types.js';
+import { TaskStateMachine, RunLimiter } from '../../src/planning/autonomy/state-machine.js';
+import { ScopeTracker } from '../../src/planning/autonomy/scope-tracker.js';
+import { MemoryStore } from '../../src/operations/utils/memory/store.js';
 import type { MutationSessionState } from '../../src/run.js';
 
 function createResolvedModelProvider(opts: { resolvedModel?: string; usage?: TokenUsage; streaming?: boolean }): ModelAdapter {
@@ -32,7 +32,7 @@ function createResolvedModelProvider(opts: { resolvedModel?: string; usage?: Tok
     longContextStrategy: 'trimmed_context',
     complete,
     ...(opts.streaming ? {
-      async *stream(_req: NormalizedRequest): AsyncGenerator<import('../../src/providers/types.js').StreamChunk> {
+      async *stream(_req: NormalizedRequest): AsyncGenerator<import('../../src/models/providers/types.js').StreamChunk> {
         yield { type: 'text_delta', text: 'done. Task completed.' };
         yield { type: 'usage', usage };
         if (opts.resolvedModel) yield { type: 'done', resolvedModel: opts.resolvedModel };

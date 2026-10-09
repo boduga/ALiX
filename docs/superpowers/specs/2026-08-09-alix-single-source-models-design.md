@@ -65,7 +65,7 @@ Resolution precedence (one-way):
 
 ### Explicit resolver
 
-New `src/config/model-resolver.ts`:
+New `src/operations/config/model-resolver.ts`:
 
 ```ts
 resolveModelConfig(config)            // → models.default
@@ -86,7 +86,7 @@ alix models apply-profile <profile>      (unchanged)
 alix models install-profile <profile>    (unchanged)
 ```
 
-- `set-default` writes `models.default` (and derives `model`). Reuses the existing interactive provider+model selection from `src/cli/helpers/provider-selection.ts` (mirrors today's `set-default-model` UX).
+- `set-default` writes `models.default` (and derives `model`). Reuses the existing interactive provider+model selection from `src/interfaces/cli/helpers/provider-selection.ts` (mirrors today's `set-default-model` UX).
 - `set-tier` writes `models.<tier>` (and derives `subagents.<tier>`). Takes positional args `<tier> <provider> <model>` (mirrors today's `set-tier` UX at `cli.ts:735`), validating the tier name against the canonical 6.
 - `apply-profile` / `install-profile` are updated so profile application writes **only** `modelProfile` + `models` — **not** `model` / `subagents`. The loader derives those.
 
@@ -104,14 +104,14 @@ This is the load-bearing rule of the design. It prevents the five-way drift from
 
 | File | Change |
 |---|---|
-| `src/config/loader.ts` | normalize `model` → `models.default`; derive `model`/`subagents` from `models`; fill subagent fallback from `models` |
-| `src/config/model-resolver.ts` | NEW — `resolveModelConfig(config, tier?)` |
-| `src/config/profile-patch.ts` | write `modelProfile` + `models` only; drop `model` / `subagents` writes (loader derives them) |
+| `src/operations/config/loader.ts` | normalize `model` → `models.default`; derive `model`/`subagents` from `models`; fill subagent fallback from `models` |
+| `src/operations/config/model-resolver.ts` | NEW — `resolveModelConfig(config, tier?)` |
+| `src/operations/config/profile-patch.ts` | write `modelProfile` + `models` only; drop `model` / `subagents` writes (loader derives them) |
 | `src/models/model-install.ts` | unchanged read/apply; inherits new patch shape |
-| `src/cli/commands/models.ts` | add `set-default`, `set-tier` handlers |
+| `src/interfaces/cli/commands/models.ts` | add `set-default`, `set-tier` handlers |
 | `src/cli.ts` | remove `config set-default-model` (680-733) and `config set-tier` (735-789) |
-| `src/cli/helpers/provider-selection.ts` | `set-default` reuses the existing interactive provider+model selection |
-| `src/config/schema.ts` | `models` typed as canonical (already present); document precedence in the type |
+| `src/interfaces/cli/helpers/provider-selection.ts` | `set-default` reuses the existing interactive provider+model selection |
+| `src/operations/config/schema.ts` | `models` typed as canonical (already present); document precedence in the type |
 
 ## Data flow
 

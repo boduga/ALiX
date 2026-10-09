@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../../src/events/event-log.js';
-import { FileProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
-import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
-import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
-import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
-import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
+import { EventLog } from '../../../src/runtime-state/events/event-log.js';
+import { FileProjectionCheckpointStore } from '../../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
+import { RuntimeCollectorImpl } from '../../../src/interfaces/tui/runtime-collector.js';
+import { TimelineBuilder } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import { createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
 
 async function makeEnv(sessionId: string) {
   const dir = mkdtempSync(join(tmpdir(), 'alix-restart-'));

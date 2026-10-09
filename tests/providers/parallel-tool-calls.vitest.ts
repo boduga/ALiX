@@ -22,7 +22,7 @@ import {
   isDeepSeekCapableModel,
   isOllamaCapableModel,
   isGenericOpenAICompatCapableModel,
-} from "../../src/providers/parallel-tool-calls.js";
+} from "../../src/models/providers/parallel-tool-calls.js";
 
 describe("parallel-tool-calls catalog hardening (#642)", () => {
   // ── openrouter/free ────────────────────────────────────────────────────

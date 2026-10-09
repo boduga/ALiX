@@ -4,7 +4,7 @@
 
 **Goal:** Close the CAP-12 §20 #12 carve-out by making `apply()` discriminate between candidate `sourcePatternId`s so `gap` candidates emit `capability.create`, `deprecation_signal` emits `capability.remove`, and other patterns continue to emit `capability.transition`. After CAP-N: §20 #12 reads plain "PASS" with no caveat.
 
-**Architecture:** Single-function rewrite of `candidateToExecutionStep` at `src/capability/capability-service.ts:695-715`. Discriminator is the existing `CapabilityEvolutionCandidate.sourcePatternId` (no type changes). For gap candidates, an auto-derived `proposedDefinition` is emitted (sourced from candidate fields). Composition root, executor, catalog, governance, and proposal store are unchanged.
+**Architecture:** Single-function rewrite of `candidateToExecutionStep` at `src/capabilities/capability/capability-service.ts:695-715`. Discriminator is the existing `CapabilityEvolutionCandidate.sourcePatternId` (no type changes). For gap candidates, an auto-derived `proposedDefinition` is emitted (sourced from candidate fields). Composition root, executor, catalog, governance, and proposal store are unchanged.
 
 **Tech Stack:** TypeScript, vitest, pnpm. Existing capability platform architecture.
 
@@ -12,7 +12,7 @@
 
 These are binding on every task — copy verbatim:
 
-- **Carve-out site:** `src/capability/capability-service.ts:695-715` (`candidateToExecutionStep` function). This is the **only** file on the CAP-12 forbidden list that CAP-N modifies. All other CAP-12 forbidden files (`src/capability/platform.ts`, `legacy-adapter.ts`, `registry.ts`, `provider-resolver.ts`, all CAP-1…CAP-11 sentinels) remain FORBIDDEN.
+- **Carve-out site:** `src/capabilities/capability/capability-service.ts:695-715` (`candidateToExecutionStep` function). This is the **only** file on the CAP-12 forbidden list that CAP-N modifies. All other CAP-12 forbidden files (`src/capabilities/capability/platform.ts`, `legacy-adapter.ts`, `registry.ts`, `provider-resolver.ts`, all CAP-1…CAP-11 sentinels) remain FORBIDDEN.
 - **Operation mapping contract (locked):** `sourcePatternId === "gap"` → `capability.create`; `sourcePatternId === "deprecation_signal"` → `capability.remove`; all other source patterns → `capability.transition`. Defensive default is `capability.transition`.
 - **Auto-derived proposedDefinition (locked):** Per spec §4.2 — `id: target.id, version: "0.1.0", kind: "operation", lifecycle: "emerging", bindings: [], argsSchema/resultSchema: empty objects, title/description: candidate.description, tags: [], examples: [], allowFallbacks: false, requiredPermissions: [], category: "uncategorized", risk: candidate.riskClass, extensions: { provenance: { kind: "a7-gap", candidateId: candidate.candidateId } }`.
 - **`sourceId` semantics:** For create intents, the caller continues to pass `""` (already implemented at `capability-service.ts:409`); the function detects create via `sourcePatternId === "gap"`, not via the empty string.
@@ -107,7 +107,7 @@ it("sourcePatternId=consolidation_opportunity routes to capability.transition", 
 ### Task 2: Rewrite `candidateToExecutionStep` per §4.1 mapping
 
 **Files:**
-- Modify: `src/capability/capability-service.ts:695-715` (single function rewrite)
+- Modify: `src/capabilities/capability/capability-service.ts:695-715` (single function rewrite)
 
 **Interfaces:**
 - Consumes: `CapabilityEvolutionCandidate` (existing type, no changes), `sourceId: string`, `currentVersion: string`
@@ -117,7 +117,7 @@ it("sourcePatternId=consolidation_opportunity routes to capability.transition", 
 
 - [ ] **Step 1: Replace the function body**
 
-  Replace lines 695-715 of `src/capability/capability-service.ts` with:
+  Replace lines 695-715 of `src/capabilities/capability/capability-service.ts` with:
 
   ```typescript
   /**
@@ -233,7 +233,7 @@ it("sourcePatternId=consolidation_opportunity routes to capability.transition", 
 
   ```bash
   cd /home/babasola/Projects/Monolith/.claude/worktrees/cap-n-end-to-end-create-path
-  git add src/capability/capability-service.ts
+  git add src/capabilities/capability/capability-service.ts
   git commit -m "feat(capability): CAP-N T2 candidate→mutation routing per sourcePatternId (gap→create, deprecation_signal→remove)"
   ```
 
@@ -315,7 +315,7 @@ it("sourcePatternId=consolidation_opportunity routes to capability.transition", 
 - Create: `tests/capability/cap-n-sentinel.vitest.ts`
 
 **Interfaces:**
-- Consumes: The file `src/capability/capability-service.ts` (read-only).
+- Consumes: The file `src/capabilities/capability/capability-service.ts` (read-only).
 - Produces: A 2-axis structural test that pins the carve-out site is rewritten.
 
 **Steps:**
@@ -334,7 +334,7 @@ it("sourcePatternId=consolidation_opportunity routes to capability.transition", 
 
   const CAPABILITY_SERVICE_PATH = resolve(
     import.meta.dirname,
-    "../../src/capability/capability-service.ts",
+    "../../src/capabilities/capability/capability-service.ts",
   );
 
   function readFunctionBody(name: string): string {
@@ -455,7 +455,7 @@ it("sourcePatternId=consolidation_opportunity routes to capability.transition", 
     --title "CAP-N End-to-End Create-Path Closure (#509)" \
     --body "Closes #509.
 
-  **CAP-N closes the CAP-12 §20 #12 carve-out** at \`src/capability/capability-service.ts:702,704\`. After this PR:
+  **CAP-N closes the CAP-12 §20 #12 carve-out** at \`src/capabilities/capability/capability-service.ts:702,704\`. After this PR:
   - \`apply()\` discriminates per candidate \`sourcePatternId\`:
     - \`gap\` → \`capability.create\` (registers new capability)
     - \`deprecation_signal\` → \`capability.remove\`

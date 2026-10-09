@@ -21,20 +21,20 @@
 
 | File | Role |
 |------|------|
-| `src/reflection/reflection-types.ts` | **Create** — ReflectionReport, Observation, Recommendation, Analyzer, metrics |
-| `src/reflection/evidence-analyzer.ts` | **Create** — Targeted evidence queries by type for failure/stall patterns |
-| `src/reflection/workflow-analyzer.ts` | **Create** — Reads WorkflowCoordinator state file for stall/backlog detection |
-| `src/reflection/capability-analyzer.ts` | **Create** — Reads `capability_routed` / `agent_resolved` evidence for gap detection |
-| `src/reflection/quality-analyzer.ts` | **Create** — Reads `review_completed` evidence for trend analysis |
-| `src/reflection/reflection-agent.ts` | **Create** — Plugin-based composition of analyzers |
-| `src/cli/commands/reflection.ts` | **Create** — `alix reflection report` CLI command |
+| `src/planning/reflection/reflection-types.ts` | **Create** — ReflectionReport, Observation, Recommendation, Analyzer, metrics |
+| `src/planning/reflection/evidence-analyzer.ts` | **Create** — Targeted evidence queries by type for failure/stall patterns |
+| `src/planning/reflection/workflow-analyzer.ts` | **Create** — Reads WorkflowCoordinator state file for stall/backlog detection |
+| `src/planning/reflection/capability-analyzer.ts` | **Create** — Reads `capability_routed` / `agent_resolved` evidence for gap detection |
+| `src/planning/reflection/quality-analyzer.ts` | **Create** — Reads `review_completed` evidence for trend analysis |
+| `src/planning/reflection/reflection-agent.ts` | **Create** — Plugin-based composition of analyzers |
+| `src/interfaces/cli/commands/reflection.ts` | **Create** — `alix reflection report` CLI command |
 | `tests/reflection/` | **Create** — 7 test files for all components |
 
 ---
 ## Task 1: P5.0a — ReflectionReport Schema + Analyzer Interface
 
 **Files:**
-- Create: `src/reflection/reflection-types.ts`
+- Create: `src/planning/reflection/reflection-types.ts`
 - Test: `tests/reflection/reflection-types.vitest.ts`
 
 **Interfaces:**
@@ -44,7 +44,7 @@
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import type { ReflectionReport, Observation, Analyzer, AnalysisResult } from "../../src/reflection/reflection-types.js";
+import type { ReflectionReport, Observation, Analyzer, AnalysisResult } from "../../src/planning/reflection/reflection-types.js";
 
 describe("ReflectionReport types", () => {
   it("constructs a valid ReflectionReport with metrics", () => {
@@ -69,7 +69,7 @@ describe("ReflectionReport types", () => {
 });
 ```
 
-- [ ] **Step 2: Create `src/reflection/reflection-types.ts`**
+- [ ] **Step 2: Create `src/planning/reflection/reflection-types.ts`**
 
 ```typescript
 export type ObservationSeverity = "high" | "medium" | "low";
@@ -130,7 +130,7 @@ export interface Analyzer {
 
 - [ ] **Step 3: Commit**
 ```bash
-git add src/reflection/reflection-types.ts tests/reflection/reflection-types.vitest.ts
+git add src/planning/reflection/reflection-types.ts tests/reflection/reflection-types.vitest.ts
 git commit -m "feat(p5.0a): add ReflectionReport, Analyzer interface, ReflectionMetrics"
 ```
 
@@ -138,7 +138,7 @@ git commit -m "feat(p5.0a): add ReflectionReport, Analyzer interface, Reflection
 ## Task 2: P5.0b — EvidenceAnalyzer
 
 **Files:**
-- Create: `src/reflection/evidence-analyzer.ts`
+- Create: `src/planning/reflection/evidence-analyzer.ts`
 - Test: `tests/reflection/evidence-analyzer.vitest.ts`
 
 **Interfaces:**
@@ -153,7 +153,7 @@ git commit -m "feat(p5.0a): add ReflectionReport, Analyzer interface, Reflection
 ## Task 3: P5.0c — WorkflowAnalyzer
 
 **Files:**
-- Create: `src/reflection/workflow-analyzer.ts`
+- Create: `src/planning/reflection/workflow-analyzer.ts`
 - Test: `tests/reflection/workflow-analyzer.vitest.ts`
 
 **Interfaces:**
@@ -222,7 +222,7 @@ export class WorkflowAnalyzer implements Analyzer {
 ## Task 4: P5.0d — CapabilityAnalyzer
 
 **Files:**
-- Create: `src/reflection/capability-analyzer.ts`
+- Create: `src/planning/reflection/capability-analyzer.ts`
 - Test: `tests/reflection/capability-analyzer.vitest.ts`
 
 **Interfaces:**
@@ -287,7 +287,7 @@ export class CapabilityAnalyzer implements Analyzer {
 ## Task 5: P5.0e — QualityAnalyzer
 
 **Files:**
-- Create: `src/reflection/quality-analyzer.ts`
+- Create: `src/planning/reflection/quality-analyzer.ts`
 - Test: `tests/reflection/quality-analyzer.vitest.ts`
 
 **Interfaces:**
@@ -361,7 +361,7 @@ export class QualityAnalyzer implements Analyzer {
 ## Task 6: P5.0f — ReflectionAgent
 
 **Files:**
-- Create: `src/reflection/reflection-agent.ts`
+- Create: `src/planning/reflection/reflection-agent.ts`
 - Test: `tests/reflection/reflection-agent.vitest.ts`
 
 **Interfaces:**
@@ -418,7 +418,7 @@ export class ReflectionAgent {
 ## Task 7: P5.0g — CLI Command
 
 **Files:**
-- Create: `src/cli/commands/reflection.ts`
+- Create: `src/interfaces/cli/commands/reflection.ts`
 - Modify: `src/cli.ts`
 
 **Interfaces:**

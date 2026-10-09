@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, readFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SkillLoader } from "../../src/extensions/skill-loader.js";
+import { SkillLoader } from "../../src/capabilities/extensions/skill-loader.js";
 
 describe("SkillLoader", () => {
   let tempDir: string;

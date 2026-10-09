@@ -26,7 +26,7 @@
 ### Task 1: Create the priority engine
 
 **Files:**
-- Create: `src/executive/priority-engine.ts`
+- Create: `src/execution/executive/priority-engine.ts`
 
 **Interfaces:**
 - Consumes: `ExecutiveHealthReport` + `ExecutiveTrendSnapshot | null` from trend store
@@ -216,7 +216,7 @@ Expected: clean (0 errors). If errors about importing types from health report, 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/executive/priority-engine.ts
+git add src/execution/executive/priority-engine.ts
 git commit -m "P10.1: create priority engine with factor-based scoring"
 ```
 
@@ -224,7 +224,7 @@ git commit -m "P10.1: create priority engine with factor-based scoring"
 ### Task 2: Create the trend store
 
 **Files:**
-- Create: `src/executive/trend-store.ts`
+- Create: `src/execution/executive/trend-store.ts`
 
 **Interfaces:**
 - Consumes: `ExecutiveHealthReport` from P10.0
@@ -331,7 +331,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/executive/trend-store.ts
+git add src/execution/executive/trend-store.ts
 git commit -m "P10.1: create ExecutiveTrendStore (append-only, derived state)"
 ```
 
@@ -359,9 +359,9 @@ import {
   computePriorityScore,
   computeTrendScore,
   buildPriorityReport,
-} from "../../src/executive/priority-engine.js";
-import type { ExecutiveHealthReport } from "../../src/executive/executive-health.js";
-import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
+} from "../../src/execution/executive/priority-engine.js";
+import type { ExecutiveHealthReport } from "../../src/execution/executive/executive-health.js";
+import type { ExecutiveTrendSnapshot } from "../../src/execution/executive/trend-store.js";
 
 function makeHealthReport(
   overrides?: Partial<ExecutiveHealthReport>,
@@ -508,8 +508,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ExecutiveTrendStore } from "../../src/executive/trend-store.js";
-import type { ExecutiveHealthReport } from "../../src/executive/executive-health.js";
+import { ExecutiveTrendStore } from "../../src/execution/executive/trend-store.js";
+import type { ExecutiveHealthReport } from "../../src/execution/executive/executive-health.js";
 
 function makeHealthReport(generatedAt: string): ExecutiveHealthReport {
   return {
@@ -605,7 +605,7 @@ git commit -m "P10.1: add trend store unit tests"
 ### Task 5: Modify the renderer to show priority
 
 **Files:**
-- Modify: `src/cli/commands/executive-dashboard-renderer.ts`
+- Modify: `src/interfaces/cli/commands/executive-dashboard-renderer.ts`
 
 **Interfaces:**
 - Consumes: `ExecutivePriorityReport` from Task 1
@@ -613,7 +613,7 @@ git commit -m "P10.1: add trend store unit tests"
 
 - [ ] **Step 1: Add the priority import and update the signature**
 
-At the top of `src/cli/commands/executive-dashboard-renderer.ts`, add:
+At the top of `src/interfaces/cli/commands/executive-dashboard-renderer.ts`, add:
 
 ```ts
 import type { ExecutivePriorityReport, ExecutiveSubsystemName } from "../../executive/priority-engine.js";
@@ -720,7 +720,7 @@ Expected: clean. Any type errors should be resolved by the import and signature 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/executive-dashboard-renderer.ts
+git add src/interfaces/cli/commands/executive-dashboard-renderer.ts
 git commit -m "P10.1: add priority column and trend/blast/pri to executive dashboard"
 ```
 
@@ -728,7 +728,7 @@ git commit -m "P10.1: add priority column and trend/blast/pri to executive dashb
 ### Task 6: Modify the handler to run priority engine
 
 **Files:**
-- Modify: `src/cli/commands/executive-dashboard-handler.ts`
+- Modify: `src/interfaces/cli/commands/executive-dashboard-handler.ts`
 
 **Interfaces:**
 - Consumes: `buildExecutiveHealthReport` (P10.0), `buildPriorityReport` (Task 1), `ExecutiveTrendStore` (Task 2), `renderExecutiveDashboard` (Task 5)
@@ -736,7 +736,7 @@ git commit -m "P10.1: add priority column and trend/blast/pri to executive dashb
 
 - [ ] **Step 1: Add imports and call priority engine after aggregator**
 
-Replace the content of `src/cli/commands/executive-dashboard-handler.ts`:
+Replace the content of `src/interfaces/cli/commands/executive-dashboard-handler.ts`:
 
 ```ts
 /**
@@ -805,7 +805,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/executive-dashboard-handler.ts
+git add src/interfaces/cli/commands/executive-dashboard-handler.ts
 git commit -m "P10.1: integrate priority engine + TrendStore into dashboard handler"
 ```
 
@@ -825,18 +825,18 @@ Add the 2 new P10.1 files to `EXECUTIVE_FILES`:
 
 ```ts
 const EXECUTIVE_FILES = [
-  "src/executive/executive-health.ts",
-  "src/executive/priority-engine.ts",
-  "src/executive/trend-store.ts",
-  "src/executive/adapters/agent-health.ts",
-  "src/executive/adapters/tool-health.ts",
-  "src/executive/adapters/workflow-health.ts",
-  "src/executive/adapters/memory-health.ts",
-  "src/executive/adapters/security-health.ts",
-  "src/executive/adapters/adaptation-health.ts",
-  "src/cli/commands/executive-dashboard-renderer.ts",
-  "src/cli/commands/executive-dashboard-handler.ts",
-  "src/cli/commands/executive.ts",
+  "src/execution/executive/executive-health.ts",
+  "src/execution/executive/priority-engine.ts",
+  "src/execution/executive/trend-store.ts",
+  "src/execution/executive/adapters/agent-health.ts",
+  "src/execution/executive/adapters/tool-health.ts",
+  "src/execution/executive/adapters/workflow-health.ts",
+  "src/execution/executive/adapters/memory-health.ts",
+  "src/execution/executive/adapters/security-health.ts",
+  "src/execution/executive/adapters/adaptation-health.ts",
+  "src/interfaces/cli/commands/executive-dashboard-renderer.ts",
+  "src/interfaces/cli/commands/executive-dashboard-handler.ts",
+  "src/interfaces/cli/commands/executive.ts",
 ];
 ```
 
@@ -848,7 +848,7 @@ function checkLine(line: string, forbidden: string[], relPath: string, lineNum: 
   for (const f of forbidden) {
     if (line.includes(f)) {
       // Allow trend-store.ts to call writeFileSync / mkdirSync / appendFileSync
-      if (relPath === "src/executive/trend-store.ts" && (f === "writeFileSync" || f === "mkdirSync" || f === "appendFileSync")) {
+      if (relPath === "src/execution/executive/trend-store.ts" && (f === "writeFileSync" || f === "mkdirSync" || f === "appendFileSync")) {
         continue;
       }
       throw new Error(

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseSessionMode } from "../../src/config/schema.js";
+import { parseSessionMode } from "../../src/operations/config/schema.js";
 
 describe("parseSessionMode", () => {
   it("round-trips every valid mode", () => {

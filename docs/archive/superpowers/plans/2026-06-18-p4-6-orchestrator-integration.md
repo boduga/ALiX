@@ -6,12 +6,12 @@
 
 **Architecture:** Six layers — Orchestrator selects a Skill → Skill defines a Workflow → Coordinator manages state → Agents execute steps → Hooks enforce policy → Evidence records everything. P4.6 builds skills, hooks, and the bindings between them.
 
-**Tech Stack:** TypeScript (TSX/ESM), existing CardRegistry (src/registry/), existing task-classifier, existing agent-loop, P4.5 WorkflowCoordinator + 5 agents, EvidenceStore, Hooks system (new).
+**Tech Stack:** TypeScript (TSX/ESM), existing CardRegistry (src/capabilities/registry/), existing task-classifier, existing agent-loop, P4.5 WorkflowCoordinator + 5 agents, EvidenceStore, Hooks system (new).
 
 ## Global Constraints
 
 - No new orchestrator from scratch. Use existing `CardRegistry`, `capability-resolver`, `agent-loop` infrastructure.
-- P4.5 source files (`src/workflow/`, `src/workflow/agents/`) are not modified — P4.6 is additive.
+- P4.5 source files (`src/coordination/workflow/`, `src/coordination/workflow/agents/`) are not modified — P4.6 is additive.
 - Hooks are synchronous by default (can be async for evidence recording).
 - Skills are JSON/YAML playbooks stored under `.alix/skills/workflow/`.
 - Each hook receives `{ type, agent? , tool? , files? , issueNumber? }` context.
@@ -22,10 +22,10 @@
 
 | File | Role |
 |------|------|
-| `src/workflow/hooks.ts` | **Create** — Hook system: register, run pre/post hooks, hook registry |
-| `src/workflow/skill.ts` | **Create** — Skill types: SkillDefinition, SkillStep, SkillBinding |
-| `src/workflow/workflow-skill.ts` | **Create** — `runWorkflowSkill()`: skill-to-workflow binding |
-| `src/workflow/orchestrator-bridge.ts` | **Create** — Orchestrator selects skill, skill runs workflow |
+| `src/coordination/workflow/hooks.ts` | **Create** — Hook system: register, run pre/post hooks, hook registry |
+| `src/coordination/workflow/skill.ts` | **Create** — Skill types: SkillDefinition, SkillStep, SkillBinding |
+| `src/coordination/workflow/workflow-skill.ts` | **Create** — `runWorkflowSkill()`: skill-to-workflow binding |
+| `src/coordination/workflow/orchestrator-bridge.ts` | **Create** — Orchestrator selects skill, skill runs workflow |
 | `.alix/skills/workflow/issue-lifecycle.json` | **Create** — Built-in skill: intake → plan → review → execute → PR |
 | `tests/workflow/hooks.vitest.ts` | **Create** — Hook system tests |
 | `tests/workflow/workflow-skill.vitest.ts` | **Create** — Skill binding tests |
@@ -35,7 +35,7 @@
 ## Task 1: P4.6a — Hook System
 
 **Files:**
-- Create: `src/workflow/hooks.ts`
+- Create: `src/coordination/workflow/hooks.ts`
 - Test: `tests/workflow/hooks.vitest.ts`
 
 **Interfaces:**
@@ -45,7 +45,7 @@
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { HookManager } from "../../src/workflow/hooks.js";
+import { HookManager } from "../../src/coordination/workflow/hooks.js";
 
 describe("HookManager", () => {
   it("registers and runs a pre-commit hook", async () => {
@@ -101,7 +101,7 @@ describe("HookManager", () => {
 Run: `npx vitest run tests/workflow/hooks.vitest.ts --config vitest.config.mts 2>&1 | head -10`
 Expected: FAIL — `HookManager` module not found.
 
-- [ ] **Step 3: Create `src/workflow/hooks.ts`**
+- [ ] **Step 3: Create `src/coordination/workflow/hooks.ts`**
 
 ```typescript
 /**
@@ -203,7 +203,7 @@ Expected: 6 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/workflow/hooks.ts tests/workflow/hooks.vitest.ts
+git add src/coordination/workflow/hooks.ts tests/workflow/hooks.vitest.ts
 git commit -m "feat(p4.6a): add HookManager — lifecycle interceptors for agent execution stack"
 ```
 
@@ -211,7 +211,7 @@ git commit -m "feat(p4.6a): add HookManager — lifecycle interceptors for agent
 ## Task 2: P4.6b — Skill Definitions and Built-in Workflow Skill
 
 **Files:**
-- Create: `src/workflow/skill.ts`
+- Create: `src/coordination/workflow/skill.ts`
 - Create: `.alix/skills/workflow/issue-lifecycle.json`
 - Test: `tests/workflow/workflow-skill.vitest.ts`
 
@@ -223,7 +223,7 @@ git commit -m "feat(p4.6a): add HookManager — lifecycle interceptors for agent
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { loadSkill, listSkills } from "../../src/workflow/skill.js";
+import { loadSkill, listSkills } from "../../src/coordination/workflow/skill.js";
 
 describe("workflow skills", () => {
   it("loads the built-in issue-lifecycle skill", async () => {
@@ -256,7 +256,7 @@ describe("workflow skills", () => {
 Run: `npx vitest run tests/workflow/workflow-skill.vitest.ts --config vitest.config.mts 2>&1 | head -5`
 Expected: FAIL — `loadSkill` not found.
 
-- [ ] **Step 3: Create `src/workflow/skill.ts`**
+- [ ] **Step 3: Create `src/coordination/workflow/skill.ts`**
 
 ```typescript
 /**
@@ -415,7 +415,7 @@ Expected: 3 tests pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/workflow/skill.ts .alix/skills/workflow/issue-lifecycle.json tests/workflow/workflow-skill.vitest.ts
+git add src/coordination/workflow/skill.ts .alix/skills/workflow/issue-lifecycle.json tests/workflow/workflow-skill.vitest.ts
 git commit -m "feat(p4.6b): add SkillDefinition types and built-in issue-lifecycle skill"
 ```
 
@@ -423,7 +423,7 @@ git commit -m "feat(p4.6b): add SkillDefinition types and built-in issue-lifecyc
 ## Task 3: P4.6c — Skill-to-Workflow Binding
 
 **Files:**
-- Create: `src/workflow/workflow-skill.ts`
+- Create: `src/coordination/workflow/workflow-skill.ts`
 - Test: `tests/workflow/workflow-skill.vitest.ts` (extend)
 
 **Interfaces:**
@@ -437,8 +437,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { runWorkflowSkill } from "../../src/workflow/workflow-skill.js";
-import { loadSkill } from "../../src/workflow/skill.js";
+import { runWorkflowSkill } from "../../src/coordination/workflow/workflow-skill.js";
+import { loadSkill } from "../../src/coordination/workflow/skill.js";
 
 describe("runWorkflowSkill", () => {
   it("runs a plan-only skill through intake → plan → review", async () => {
@@ -465,7 +465,7 @@ describe("runWorkflowSkill", () => {
 Run: `npx vitest run tests/workflow/workflow-skill.vitest.ts --config vitest.config.mts 2>&1 | head -10`
 Expected: FAIL — `runWorkflowSkill` not found.
 
-- [ ] **Step 3: Create `src/workflow/workflow-skill.ts`**
+- [ ] **Step 3: Create `src/coordination/workflow/workflow-skill.ts`**
 
 ```typescript
 /**
@@ -627,7 +627,7 @@ Expected: All skill binding tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/workflow/workflow-skill.ts
+git add src/coordination/workflow/workflow-skill.ts
 git commit -m "feat(p4.6c): add runWorkflowSkill — skill-to-workflow binding"
 ```
 
@@ -635,7 +635,7 @@ git commit -m "feat(p4.6c): add runWorkflowSkill — skill-to-workflow binding"
 ## Task 4: P4.6d — Orchestrator Bridge
 
 **Files:**
-- Create: `src/workflow/orchestrator-bridge.ts`
+- Create: `src/coordination/workflow/orchestrator-bridge.ts`
 - Test: `tests/workflow/orchestrator-bridge.vitest.ts`
 
 **Interfaces:**
@@ -649,10 +649,10 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { WorkflowOrchestrator } from "../../src/workflow/orchestrator-bridge.js";
-import { WorkflowCoordinator } from "../../src/workflow/coordinator.js";
-import { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
+import { WorkflowOrchestrator } from "../../src/coordination/workflow/orchestrator-bridge.js";
+import { WorkflowCoordinator } from "../../src/coordination/workflow/coordinator.js";
+import { EvidenceEventWriter } from "../../src/coordination/workflow/evidence-writer.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
 
 function tmpDir(): string {
   const dir = join("/tmp", "orb-test-" + randomUUID().slice(0, 8));
@@ -716,7 +716,7 @@ describe("WorkflowOrchestrator", () => {
 Run: `npx vitest run tests/workflow/orchestrator-bridge.vitest.ts --config vitest.config.mts 2>&1 | head -10`
 Expected: FAIL — `WorkflowOrchestrator` not found.
 
-- [ ] **Step 3: Create `src/workflow/orchestrator-bridge.ts`**
+- [ ] **Step 3: Create `src/coordination/workflow/orchestrator-bridge.ts`**
 
 ```typescript
 /**
@@ -793,7 +793,7 @@ Expected: All ~12 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/workflow/orchestrator-bridge.ts tests/workflow/orchestrator-bridge.vitest.ts
+git add src/coordination/workflow/orchestrator-bridge.ts tests/workflow/orchestrator-bridge.vitest.ts
 git commit -m "feat(p4.6d): add WorkflowOrchestrator — goal-to-skill-to-workflow routing"
 ```
 

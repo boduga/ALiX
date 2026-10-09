@@ -8,7 +8,7 @@ import {
   EffortEstimateSchema,
   CausalMechanismSchema,
   CorrelationSubsystemIdSchema,
-} from "../../src/contracts/plan-schemas.js";
+} from "../../src/runtime-state/contracts/plan-schemas.js";
 
 describe("EffortEstimateSchema", () => {
   it("accepts valid efforts", () => {

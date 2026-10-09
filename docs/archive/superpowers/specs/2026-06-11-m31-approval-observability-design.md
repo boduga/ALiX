@@ -151,14 +151,14 @@ A viewer can start from `approval.created` and follow `approvalId` forward throu
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/approvals/approval-store.ts` | Modify | Emit `approval.created` and `approval.resolved` events |
-| `src/runtime/continuation-store.ts` | Modify | Emit `continuation.created` and `continuation.consumed` events (add EventLog dep) |
-| `src/runtime/continuation-manager.ts` | Modify | Emit `approval.resumed` and `approval.resume.failed` events |
-| `src/policy/policy-gate.ts` | Modify | Emit `approval.reused` event when reusing pending |
-| `src/tui/store.ts` | Modify | Add `approvals` state shape with approval types |
-| `src/tui/runtime-snapshot.ts` | Modify | Load approval + continuation state into snapshot |
-| `src/tui/panel-renderer.ts` | Modify | Render approval panel (new panel type) |
-| `src/tui/index.ts` | Modify (minor) | Wire panel cycle to include approval panel |
+| `src/governance/approvals/approval-store.ts` | Modify | Emit `approval.created` and `approval.resolved` events |
+| `src/runtime-state/runtime/continuation-store.ts` | Modify | Emit `continuation.created` and `continuation.consumed` events (add EventLog dep) |
+| `src/runtime-state/runtime/continuation-manager.ts` | Modify | Emit `approval.resumed` and `approval.resume.failed` events |
+| `src/governance/policy/policy-gate.ts` | Modify | Emit `approval.reused` event when reusing pending |
+| `src/interfaces/tui/store.ts` | Modify | Add `approvals` state shape with approval types |
+| `src/interfaces/tui/runtime-snapshot.ts` | Modify | Load approval + continuation state into snapshot |
+| `src/interfaces/tui/panel-renderer.ts` | Modify | Render approval panel (new panel type) |
+| `src/interfaces/tui/index.ts` | Modify (minor) | Wire panel cycle to include approval panel |
 | `tests/runtime/approval-observability.test.ts` | Create | Event emission + traceability tests |
 | `tests/tui/approval-panel.test.ts` | Create | Dashboard rendering tests |
 

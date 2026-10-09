@@ -11,16 +11,16 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../src/events/event-log.js';
-import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
-import { createContextBudget } from '../../src/config/context-budget.js';
-import { ContextBudgetOverflowError } from '../../src/config/context-budget.js';
-import type { ContextBudget } from '../../src/config/context-budget.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { runTaskLoop, type TaskLoopDeps } from '../../src/execution/run/task-loop.js';
+import { createContextBudget } from '../../src/operations/config/context-budget.js';
+import { ContextBudgetOverflowError } from '../../src/operations/config/context-budget.js';
+import type { ContextBudget } from '../../src/operations/config/context-budget.js';
 import {
   ensureEncoder,
   estimateBudgetTokens,
   estimateMessageBudgetTokens,
-} from '../../src/utils/tokens.js';
+} from '../../src/operations/utils/tokens.js';
 import type {
   ModelAdapter,
   NormalizedRequest,
@@ -30,12 +30,12 @@ import type {
   ToolCall,
   ToolDef,
   TokenUsage,
-} from '../../src/providers/types.js';
-import type { DeferredToolEntry } from '../../src/mcp/tool-deferral.js';
-import { TaskStateMachine, RunLimiter } from '../../src/autonomy/state-machine.js';
-import { ScopeTracker } from '../../src/autonomy/scope-tracker.js';
-import { MemoryStore } from '../../src/utils/memory/store.js';
-import { ProgressLedger } from '../../src/run/progress-ledger.js';
+} from '../../src/models/providers/types.js';
+import type { DeferredToolEntry } from '../../src/capabilities/mcp/tool-deferral.js';
+import { TaskStateMachine, RunLimiter } from '../../src/planning/autonomy/state-machine.js';
+import { ScopeTracker } from '../../src/planning/autonomy/scope-tracker.js';
+import { MemoryStore } from '../../src/operations/utils/memory/store.js';
+import { ProgressLedger } from '../../src/execution/run/progress-ledger.js';
 import type { MutationSessionState } from '../../src/run.js';
 
 // ── Minimal mock provider that RECORDS what it receives ────────────────

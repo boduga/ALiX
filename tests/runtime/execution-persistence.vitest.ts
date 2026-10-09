@@ -11,14 +11,14 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ExecutionEvidenceStore } from "../../src/runtime/execution-evidence-store.js";
-import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
+import { ExecutionEvidenceStore } from "../../src/runtime-state/runtime/execution-evidence-store.js";
+import { closeAllSharedLedgers } from "../../src/runtime-state/storage/runtime-ledger.js";
 import {
   PersistenceEvidenceEmitter,
   recoverExecutionState,
-} from "../../src/runtime/execution-persistence.js";
-import { ExecutionState } from "../../src/runtime/contracts/execution-runtime-contract.js";
-import type { ExecutionEvidence } from "../../src/runtime/contracts/execution-intent-contract.js";
+} from "../../src/runtime-state/runtime/execution-persistence.js";
+import { ExecutionState } from "../../src/runtime-state/runtime/contracts/execution-runtime-contract.js";
+import type { ExecutionEvidence } from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

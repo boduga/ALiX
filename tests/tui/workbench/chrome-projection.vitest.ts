@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialPerTabState, SessionPhase } from '../../../src/tui/state.js';
-import { projectOperatorShell } from '../../../src/tui/workbench/model/operator-shell.js';
+import { createInitialPerTabState, SessionPhase } from '../../../src/interfaces/tui/state.js';
+import { projectOperatorShell } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
 import { createWorkbenchRenderHarness } from '../../fixtures/tui/workbench-render-harness.js';
 
 describe('preview chrome facts', () => {

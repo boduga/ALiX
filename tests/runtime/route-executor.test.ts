@@ -9,8 +9,8 @@ import {
   type RuntimeContext,
   type RuntimeExecutor,
   type RouteDiagnostic,
-} from "../../src/runtime/route-executor.js";
-import { taskRouter, type TaskRoute } from "../../src/runtime/task-router.js";
+} from "../../src/runtime-state/runtime/route-executor.js";
+import { taskRouter, type TaskRoute } from "../../src/runtime-state/runtime/task-router.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -254,7 +254,7 @@ describe("LocalRuntimeExecutor.executeDirect — import boundaries", () => {
     // We assert there is no *static* import to the tools/executor or
     // agent/agent-loop modules from this file.
     const source = await readFile(
-      resolve(__dirname, "../../src/runtime/route-executor.js"),
+      resolve(__dirname, "../../src/runtime-state/runtime/route-executor.js"),
       "utf8",
     );
     // Look for static import statements (top of file, `import ... from`).

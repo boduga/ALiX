@@ -2,7 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { withTimeout, SideEffectTimeoutError } from "../../src/runtime/side-effect-timeout.js";
+import { withTimeout, SideEffectTimeoutError } from "../../src/runtime-state/runtime/side-effect-timeout.js";
 
 describe("withTimeout", () => {
   // -- Successful operation ------------------------------------------------

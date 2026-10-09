@@ -1,13 +1,13 @@
 /** P6.2 — OperatorQueue comprehensive unit tests */
 
 import { describe, it, expect } from "vitest";
-import { OperatorQueue } from "../../src/adaptation/operator-queue.js";
-import type { QueueInput } from "../../src/adaptation/operator-queue-types.js";
-import type { DecisionContext } from "../../src/adaptation/decision-types.js";
-import type { RiskScore } from "../../src/adaptation/risk-score-types.js";
-import type { ApprovalRecommendation } from "../../src/adaptation/recommendation-types.js";
-import type { GovernanceReview } from "../../src/adaptation/governance-review-types.js";
-import { GOVERNANCE_VERDICT_SEVERITY } from "../../src/adaptation/governance-review-types.js";
+import { OperatorQueue } from "../../src/planning/adaptation/operator-queue.js";
+import type { QueueInput } from "../../src/planning/adaptation/operator-queue-types.js";
+import type { DecisionContext } from "../../src/planning/adaptation/decision-types.js";
+import type { RiskScore } from "../../src/planning/adaptation/risk-score-types.js";
+import type { ApprovalRecommendation } from "../../src/planning/adaptation/recommendation-types.js";
+import type { GovernanceReview } from "../../src/planning/adaptation/governance-review-types.js";
+import { GOVERNANCE_VERDICT_SEVERITY } from "../../src/planning/adaptation/governance-review-types.js";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures

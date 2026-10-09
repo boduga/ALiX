@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ContextProjectionBuilder } from '../../../src/tui/runtime/context-projection.js';
-import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
-import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
-import type { EventLog, EventLogCursor } from '../../../src/events/event-log.js';
-import { EventLogCursorError } from '../../../src/events/event-log.js';
-import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
-import type { AlixEvent } from '../../../src/events/types.js';
-import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
-import type { ContextTurn } from '../../../src/tui/runtime/context-projection.js';
+import { ContextProjectionBuilder } from '../../../src/interfaces/tui/runtime/context-projection.js';
+import { ProjectionIds } from '../../../src/interfaces/tui/runtime/projection-ids.js';
+import { createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import { RuntimeCollectorImpl } from '../../../src/interfaces/tui/runtime-collector.js';
+import type { EventLog, EventLogCursor } from '../../../src/runtime-state/events/event-log.js';
+import { EventLogCursorError } from '../../../src/runtime-state/events/event-log.js';
+import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import type { ContextTurn } from '../../../src/interfaces/tui/runtime/context-projection.js';
 
 /** Mirror the metrics-projection `evt()` helper: every event carries its
  *  timestamp at the event level (ContextProjectionBuilder falls back to
@@ -331,7 +331,7 @@ describe('ContextProjectionBuilder', () => {
   });
 
   it("imports only AlixEvent/payload types — never another projection's DTO (D4)", () => {
-    const src = readFileSync(join(process.cwd(), 'src/tui/runtime/context-projection.ts'), 'utf-8');
+    const src = readFileSync(join(process.cwd(), 'src/interfaces/tui/runtime/context-projection.ts'), 'utf-8');
     // NOTE: the metrics D4 test filters `startsWith('import')` — safe there
     // because MetricsProjection has no importState method. This builder is
     // DURABLE, so `importState(...)` would be caught; filter for a real
@@ -339,7 +339,7 @@ describe('ContextProjectionBuilder', () => {
     const importLines = src.split('\n').filter((l) => l.trim().startsWith('import '));
     expect(importLines.length).toBeGreaterThan(0);
     const specifiers = importLines.map((l) => l.match(/from\s+['"]([^'"]+)['"]/)?.[1] ?? l.trim());
-    const allowed = ['../../events/types.js', './projection-builder.js', './durable-projection-builder.js', './projection-state.js'];
+    const allowed = ['../../../runtime-state/events/types.js', './projection-builder.js', './durable-projection-builder.js', './projection-state.js'];
     for (const spec of specifiers) {
       expect(allowed, `context-projection.ts imports disallowed module: ${spec}`).toContain(spec);
     }

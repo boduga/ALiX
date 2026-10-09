@@ -2,7 +2,7 @@
 
 **Status**: Active (T14 on wayfinder map #376).
 **Owner**: cross-cutting — see ownership matrix below.
-**Recognizer layer**: Layer 1 (`src/runtime/action-classifier.ts`).
+**Recognizer layer**: Layer 1 (`src/runtime-state/runtime/action-classifier.ts`).
 **No-reclassification rule**: pinned by `tests/runtime/action-classifier.test.ts → describe("canonical-intent chain — closed-world invariant")`.
 
 This document is the **template anchor** for T7–T13. Each per-family recognition
@@ -48,7 +48,7 @@ lens consumed by the agent loop (e.g. `agent-loop.ts:140`,
 
 ### Mapping to current `ActionIntent` labels
 
-The current Layer 1 classifier (`src/runtime/action-classifier.ts`) emits 5
+The current Layer 1 classifier (`src/runtime-state/runtime/action-classifier.ts`) emits 5
 `ActionIntent` labels. The 8-intent taxonomy splits one of them into two and
 relabels others to match the canonical vocabulary:
 
@@ -67,7 +67,7 @@ auditability and downstream tooling.
 
 ### Disambiguation from `kernel/model-routing-validation.ts`
 
-`src/kernel/model-routing-validation.ts` defines a **separate** enum also
+`src/coordination/kernel/model-routing-validation.ts` defines a **separate** enum also
 called `CanonicalIntent` (`read_info`, `summarize`, `research`, `fix_bug`,
 `add_feature`, `refactor`, `write_doc`, `audit_config`, `run_command`,
 `generate_plan`). That taxonomy is for **M0.9-F model-tier validation** —
@@ -118,7 +118,7 @@ consuming a previously-computed canonical-intent label from the chain. Each
 finding names the file, the line, the kind of violation, and the proposed
 follow-on.
 
-### Finding 1 — `src/agent/session.ts:973` (Layer 4 prompt gap — RESOLVED by T16 #393)
+### Finding 1 — `src/agents/agent/session.ts:973` (Layer 4 prompt gap — RESOLVED by T16 #393)
 
 ```ts
 const directBasePrompt =
@@ -132,7 +132,7 @@ one-liner, regardless of whether the canonical intent was `arithmetic`,
 
 **Status: RESOLVED by T16 (#393).** `session.ts:973` now calls
 `buildDirectPrompt(route.diagnostic.classification)`, and prompt construction
-lives in `src/runtime/route-prompts.ts` (the Layer 4 Prompt module).
+lives in `src/runtime-state/runtime/route-prompts.ts` (the Layer 4 Prompt module).
 
 Per the note on layer numbering in `layer-3-prompt-audit.md`, the chain
 definition below is authoritative: prompt construction is **Layer 4** — it
@@ -141,7 +141,7 @@ consumes the canonical-intent label propagated forward by the Layer 3
 this a "Layer 3 gap"; that name audits Layer 3's obligation to propagate the
 label forward, not the layer the artifact lives in.)
 
-### Finding 2 — `src/runtime/task-router.ts:475-477` (Layer 3 carve-out)
+### Finding 2 — `src/runtime-state/runtime/task-router.ts:475-477` (Layer 3 carve-out)
 
 ```ts
 const hasWorkspaceWriteIntent =
@@ -160,7 +160,7 @@ T8's Layer 1 recognizer lands, this carve-out becomes a no-op (the regex is
 already a subset of T8's positive corpus) and can be deleted. Document for
 fix in the T8 implementation.
 
-### Finding 3 — `src/runtime/task-router.ts:485` (Layer 2 read in routing fallback)
+### Finding 3 — `src/runtime-state/runtime/task-router.ts:485` (Layer 2 read in routing fallback)
 
 ```ts
 const taskType = classifyTask(task);

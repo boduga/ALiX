@@ -2,7 +2,7 @@
 
 This is the test-planning inventory for the CLI exposed as `alix` by
 `package.json`. The executable wrapper is `bin/alix.js`; command dispatch is in
-`src/cli.ts`, with delegated handlers in `src/cli/commands/`.
+`src/cli.ts`, with delegated handlers in `src/interfaces/cli/commands/`.
 
 Examples assume a built checkout (`pnpm build`) and either the installed
 `alix` binary or `node dist/src/cli.js`. Commands that mutate state should be

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validatePatchOperations, isPathSafe, isProtectedPath, DEFAULT_PATCH_GUARD_CONFIG } from "../src/patch/patch-guard.js";
+import { validatePatchOperations, isPathSafe, isProtectedPath, DEFAULT_PATCH_GUARD_CONFIG } from "../src/execution/patch/patch-guard.js";
 
 const MAX_FILE_SIZE = 500_000;
 

@@ -30,7 +30,7 @@ describe("Integration: Daemon lifecycle", () => {
   });
 
   it("DaemonManager returns null when never started", async () => {
-    const { DaemonManager } = await import("../../src/daemon/daemon-manager.js");
+    const { DaemonManager } = await import("../../src/operations/daemon/daemon-manager.js");
     const mgr = new DaemonManager(tmpDir);
     const status = await mgr.status();
     assert.equal(status, null);
@@ -38,13 +38,13 @@ describe("Integration: Daemon lifecycle", () => {
   });
 
   it("stop does not throw when daemon not running", async () => {
-    const { DaemonManager } = await import("../../src/daemon/daemon-manager.js");
+    const { DaemonManager } = await import("../../src/operations/daemon/daemon-manager.js");
     const mgr = new DaemonManager(tmpDir);
     await mgr.stop(); // should not throw
   });
 
   it("DaemonManager reads written status file", async () => {
-    const { DaemonManager } = await import("../../src/daemon/daemon-manager.js");
+    const { DaemonManager } = await import("../../src/operations/daemon/daemon-manager.js");
     writeFileSync(join(testHome, ".alix", "daemon.json"), JSON.stringify({
       pid: 99999, startedAt: "2026-01-01T00:00:00Z", socketPath: "/tmp/test.sock",
       status: "running", lastHeartbeat: "2026-01-01T00:00:30Z",
@@ -60,22 +60,22 @@ describe("Integration: Daemon lifecycle", () => {
 
 describe("Integration: Policy eval", () => {
   it("RuleEvaluator defaults to deny", async () => {
-    const { RuleEvaluator } = await import("../../src/policy/rule-evaluator.js");
+    const { RuleEvaluator } = await import("../../src/governance/policy/rule-evaluator.js");
     const e = new RuleEvaluator();
     const result = e.evaluate({ capability: "nonexistent" });
     assert.equal(result.decision, "deny");
   });
 
   it("Default policies allow web.search", async () => {
-    const { defaultPolicyRules } = await import("../../src/policy/default-policies.js");
-    const { RuleEvaluator } = await import("../../src/policy/rule-evaluator.js");
+    const { defaultPolicyRules } = await import("../../src/governance/policy/default-policies.js");
+    const { RuleEvaluator } = await import("../../src/governance/policy/rule-evaluator.js");
     const e = new RuleEvaluator(defaultPolicyRules());
     assert.equal(e.evaluate({ capability: "web.search" }).decision, "allow");
     assert.equal(e.evaluate({ capability: "shell.exec" }).decision, "ask");
   });
 
   it("validatePolicyRule rejects empty rule", async () => {
-    const { validatePolicyRule } = await import("../../src/policy/policy-rule.js");
+    const { validatePolicyRule } = await import("../../src/governance/policy/policy-rule.js");
     const result = validatePolicyRule({ id: "", description: "", match: {}, decision: "allow", enabled: true });
     assert.equal(result.valid, false);
   });
@@ -97,7 +97,7 @@ describe("Integration: TaskRegistry", () => {
   });
 
   it("creates, updates, and persists tasks", async () => {
-    const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
+    const { TaskRegistry } = await import("../../src/operations/daemon/task-registry.js");
 
     const r1 = new TaskRegistry();
     await r1.load();
@@ -115,7 +115,7 @@ describe("Integration: TaskRegistry", () => {
   });
 
   it("reconcileOnStartup marks running as failed_orphaned", async () => {
-    const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
+    const { TaskRegistry } = await import("../../src/operations/daemon/task-registry.js");
     const reg = new TaskRegistry();
     await reg.load();
     const t = reg.create("orphaned task", testHome);
@@ -140,7 +140,7 @@ describe("Integration: RuntimeIndex", () => {
       writeFileSync(join(tmpDir, ".alix", "graphs", "graph_a.json"),
         JSON.stringify({ id: "graph_a", status: "completed", nodes: [{ id: "n1", status: "done", title: "Node 1" }] }));
 
-      const { buildRuntimeIndex } = await import("../../src/runtime/runtime-index.js");
+      const { buildRuntimeIndex } = await import("../../src/runtime-state/runtime/runtime-index.js");
       const idx = await buildRuntimeIndex(tmpDir);
       assert.ok(idx.events.length >= 3); // audit + approval + graph + node
       assert.ok(idx.byAction("policy.allowed").length >= 1);
@@ -155,7 +155,7 @@ describe("Integration: Approval store", () => {
   it("creates and resolves approvals", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "int-approval-"));
     try {
-      const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
       const store = new ApprovalStore(tmpDir);
       await store.load();
       const a = await store.request({ reason: "test", capability: "shell.exec" });
@@ -172,7 +172,7 @@ describe("Integration: Audit store", () => {
   it("appends and lists audit records", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "int-audit-"));
     try {
-      const { AuditStore } = await import("../../src/audit/audit-store.js");
+      const { AuditStore } = await import("../../src/governance/audit/audit-store.js");
       const store = new AuditStore(tmpDir);
       await store.append({ action: "policy.allowed", details: { capability: "web.search" } });
       await store.append({ action: "approval.approved", details: { approvalId: "app_1" } });
@@ -186,7 +186,7 @@ describe("Integration: Audit store", () => {
 
 describe("Integration: Card registry", () => {
   it("loads default cards", async () => {
-    const { loadCardRegistry, defaultAgentCards, defaultToolCards } = await import("../../src/registry/card-loader.js");
+    const { loadCardRegistry, defaultAgentCards, defaultToolCards } = await import("../../src/capabilities/registry/card-loader.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "int-cards-"));
     try {
       const reg = await loadCardRegistry(tmpDir);
@@ -198,8 +198,8 @@ describe("Integration: Card registry", () => {
   });
 
   it("resolveCapabilities finds web.search tool", async () => {
-    const { CardRegistry } = await import("../../src/registry/card-registry.js");
-    const { resolveCapabilities } = await import("../../src/registry/capability-resolver.js");
+    const { CardRegistry } = await import("../../src/capabilities/registry/card-registry.js");
+    const { resolveCapabilities } = await import("../../src/capabilities/registry/capability-resolver.js");
     const reg = new CardRegistry();
     reg.registerTool({
       id: "web.search", name: "Web Search", description: "Search tool",

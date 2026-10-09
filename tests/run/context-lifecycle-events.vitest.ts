@@ -10,28 +10,28 @@ import { describe, it, expect } from 'vitest';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { EventLog } from '../../src/events/event-log.js';
-import { closeAllSharedLedgers } from '../../src/storage/runtime-ledger.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { closeAllSharedLedgers } from '../../src/runtime-state/storage/runtime-ledger.js';
 import {
   createContextBudget,
   type ContextBudget,
-} from '../../src/config/context-budget.js';
-import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
+} from '../../src/operations/config/context-budget.js';
+import { runTaskLoop, type TaskLoopDeps } from '../../src/execution/run/task-loop.js';
 import {
   type NormalizedMessage,
   type NormalizedRequest,
   type ToolCall,
   type TokenUsage,
   type ToolDef,
-} from '../../src/providers/types.js';
-import type { DeferredToolEntry } from '../../src/mcp/tool-deferral.js';
+} from '../../src/models/providers/types.js';
+import type { DeferredToolEntry } from '../../src/capabilities/mcp/tool-deferral.js';
 import type { MutationSessionState } from '../../src/run.js';
-import type { TaskStateMachine } from '../../src/autonomy/state-machine.js';
-import type { ScopeTracker } from '../../src/autonomy/scope-tracker.js';
-import type { MemoryStore } from '../../src/utils/memory/store.js';
-import { estimateBudgetTokens, ensureEncoder } from '../../src/utils/tokens.js';
-import type { TokenizerName } from '../../src/config/context-limits.js';
-import { resolveModelDescriptor } from '../../src/config/context-limits.js';
+import type { TaskStateMachine } from '../../src/planning/autonomy/state-machine.js';
+import type { ScopeTracker } from '../../src/planning/autonomy/scope-tracker.js';
+import type { MemoryStore } from '../../src/operations/utils/memory/store.js';
+import { estimateBudgetTokens, ensureEncoder } from '../../src/operations/utils/tokens.js';
+import type { TokenizerName } from '../../src/operations/config/context-limits.js';
+import { resolveModelDescriptor } from '../../src/operations/config/context-limits.js';
 
 /** Token test helpers */
 function longText(tokensHint: number): string {

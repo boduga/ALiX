@@ -229,7 +229,7 @@ rec-rt-20260620  2026-06-20  routing    —                 persistent_instabili
 
 ## Routing
 
-Add to `src/cli/commands/executive.ts`:
+Add to `src/interfaces/cli/commands/executive.ts`:
 
 ```ts
 case "subsystem-correlation": {
@@ -245,8 +245,8 @@ Subcommand list updated to include `subsystem-correlation`.
 ## Sentinel
 
 Two new files:
-- `src/executive/subsystem-correlation.ts` — pure correlation functions + types
-- `src/cli/commands/executive-subsystem-correlation-handler.ts` — CLI handler (reads, no writes)
+- `src/execution/executive/subsystem-correlation.ts` — pure correlation functions + types
+- `src/interfaces/cli/commands/executive-subsystem-correlation-handler.ts` — CLI handler (reads, no writes)
 
 Both added to `EXECUTIVE_FILES`. No write exceptions — the handler only reads stores (load/list). No `ProposalStore.save`, no `RecommendationReportStore.save`.
 
@@ -254,9 +254,9 @@ Both added to `EXECUTIVE_FILES`. No write exceptions — the handler only reads 
 
 | File | Responsibility |
 |---|---|
-| `src/executive/subsystem-correlation.ts` | **Create** — types, `CorrelationMatcher` interface, `SubsystemTimeMatcher`, `computeSubsystemCorrelation()`, aggregation |
-| `src/cli/commands/executive-subsystem-correlation-handler.ts` | **Create** — CLI handler: load reports/outcomes, call pure functions, render |
-| `src/cli/commands/executive.ts` | **Modify** — add `case "subsystem-correlation"` + update subcommand list |
+| `src/execution/executive/subsystem-correlation.ts` | **Create** — types, `CorrelationMatcher` interface, `SubsystemTimeMatcher`, `computeSubsystemCorrelation()`, aggregation |
+| `src/interfaces/cli/commands/executive-subsystem-correlation-handler.ts` | **Create** — CLI handler: load reports/outcomes, call pure functions, render |
+| `src/interfaces/cli/commands/executive.ts` | **Modify** — add `case "subsystem-correlation"` + update subcommand list |
 | `tests/executive/subsystem-correlation.vitest.ts` | **Create** — pure function tests |
 | `tests/cli/commands/executive-subsystem-correlation-cli.vitest.ts` | **Create** — CLI integration tests |
 | `tests/executive/executive-sentinels.vitest.ts` | **Modify** — add 2 new files to `EXECUTIVE_FILES` |

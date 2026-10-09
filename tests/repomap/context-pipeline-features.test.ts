@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { RankingStage, BudgetingStage, type RepoMapOutput, type RankingOutput, type ContextBundle } from "../../src/repomap/context-pipeline.js";
+import { RankingStage, BudgetingStage, type RepoMapOutput, type RankingOutput, type ContextBundle } from "../../src/context/repomap/context-pipeline.js";
 
 /** Minimal RepoMapOutput for testing */
 function makeRepoMap(sourceFiles: string[] = [], deps: Record<string, string[]> = {}): RepoMapOutput {

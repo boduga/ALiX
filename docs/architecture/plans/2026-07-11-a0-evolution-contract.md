@@ -87,7 +87,7 @@ Deterministic Ordering
 Create:
 
 ```
-src/evolution/contracts/evolution-contract.ts
+src/planning/evolution/contracts/evolution-contract.ts
 ```
 
 Create:

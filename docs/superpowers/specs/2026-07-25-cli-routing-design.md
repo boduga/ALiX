@@ -61,13 +61,13 @@ Each command handler follows the established pattern (e.g. `runs.ts`). The handl
 2. Returns exit code instead of calling `process.exit(0)`
 3. Throws `new CliError(message, exitCode)` for structured errors
 
-Existing inline commands are moved one at a time into `src/cli/commands/<name>.ts`. Large multi-subcommand commands (config, security, graph) can be extracted as a group.
+Existing inline commands are moved one at a time into `src/interfaces/cli/commands/<name>.ts`. Large multi-subcommand commands (config, security, graph) can be extracted as a group.
 
 ## Files changed
 
 | File | Action |
 |------|--------|
 | `src/cli.ts` | Replace ~79 if-blocks with `COMMAND_ROUTER` map + router logic. Keep help text. |
-| `src/cli/commands/*.ts` | Extract each inline command block into its own file following the runs.ts pattern. |
+| `src/interfaces/cli/commands/*.ts` | Extract each inline command block into its own file following the runs.ts pattern. |
 
 Only high-touch commands should be extracted first: `run`, `session`, `plan`, `review`, `apply`, `submit`. The remaining ~70 commands can be extracted incrementally.

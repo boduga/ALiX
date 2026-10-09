@@ -335,13 +335,13 @@ The reasons are architectural:
 | Resource | Location |
 |----------|----------|
 | ADR-0006 (A-series decision record) | `docs/architecture/adrs/ADR-0006-a-series-governed-evolution-pipeline.md` |
-| A0 Evolution Contract | `src/evolution/contracts/evolution-contract.ts` |
-| A2 Verification | `src/evolution/verification/` |
-| A3 Governance | `src/evolution/governance/` |
-| A4 Execution | `src/evolution/execution/` |
-| A5 Observation | `src/evolution/observation/` |
+| A0 Evolution Contract | `src/planning/evolution/contracts/evolution-contract.ts` |
+| A2 Verification | `src/planning/evolution/verification/` |
+| A3 Governance | `src/planning/evolution/governance/` |
+| A4 Execution | `src/planning/evolution/execution/` |
+| A5 Observation | `src/planning/evolution/observation/` |
 | A5 Design Spec | `docs/architecture/specs/2026-07-12-a5-outcome-observation-design.md` |
 | A5 Implementation Plan | `docs/superpowers/plans/2026-07-12-a5-outcome-observation-plan.md` |
-| Evidence Contract | `src/evolution/verification/contracts/verification-contract.ts` |
-| Confidence Contract | `src/evolution/verification/contracts/confidence-contract.ts` |
+| Evidence Contract | `src/planning/evolution/verification/contracts/verification-contract.ts` |
+| Confidence Contract | `src/planning/evolution/verification/contracts/confidence-contract.ts` |
 | Evolution CLI | `src/governance/evolution-cli.ts` |

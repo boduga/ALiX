@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveWorkbenchSurfaceGeometry, type WorkbenchRegion } from '../../../src/tui/workbench/layout/responsive-layout.js';
+import { resolveWorkbenchSurfaceGeometry, type WorkbenchRegion } from '../../../src/interfaces/tui/workbench/layout/responsive-layout.js';
 
 function overlaps(a: WorkbenchRegion, b: WorkbenchRegion): boolean {
   return a.width > 0 && a.height > 0 && b.width > 0 && b.height > 0

@@ -21,20 +21,20 @@
 
 | File | Role |
 |------|------|
-| `src/adaptation/adaptation-types.ts` | **Create** — AdaptationProposal, ProposalAction, ProposalStatus types |
-| `src/adaptation/proposal-store.ts` | **Create** — JSON file persistence under `.alix/adaptation/proposals/` |
-| `src/adaptation/recommendation-to-proposal.ts` | **Create** — Maps P5.0 Recommendation → AdaptationProposal |
-| `src/adaptation/approval-gate.ts` | **Create** — approve/reject/apply with evidence |
-| `src/adaptation/appliers/agent-card-applier.ts` | **Create** — write agent card JSON to .alix/cards/agents/ |
-| `src/adaptation/appliers/skill-applier.ts` | **Create** — write skill JSON to .alix/skills/workflow/ |
-| `src/cli/commands/adaptation.ts` | **Create** — `alix adaptation list/show/approve/reject/apply` |
+| `src/planning/adaptation/adaptation-types.ts` | **Create** — AdaptationProposal, ProposalAction, ProposalStatus types |
+| `src/planning/adaptation/proposal-store.ts` | **Create** — JSON file persistence under `.alix/adaptation/proposals/` |
+| `src/planning/adaptation/recommendation-to-proposal.ts` | **Create** — Maps P5.0 Recommendation → AdaptationProposal |
+| `src/planning/adaptation/approval-gate.ts` | **Create** — approve/reject/apply with evidence |
+| `src/planning/adaptation/appliers/agent-card-applier.ts` | **Create** — write agent card JSON to .alix/cards/agents/ |
+| `src/planning/adaptation/appliers/skill-applier.ts` | **Create** — write skill JSON to .alix/skills/workflow/ |
+| `src/interfaces/cli/commands/adaptation.ts` | **Create** — `alix adaptation list/show/approve/reject/apply` |
 | `tests/adaptation/` | **Create** — 6 test files |
 
 ---
 ## Task 1: P5.1a — AdaptationProposal Schema
 
 **Files:**
-- Create: `src/adaptation/adaptation-types.ts`
+- Create: `src/planning/adaptation/adaptation-types.ts`
 - Test: `tests/adaptation/adaptation-types.vitest.ts`
 
 **Interfaces:**
@@ -44,7 +44,7 @@
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 describe("AdaptationProposal types", () => {
   it("constructs a valid proposal", () => {
@@ -74,7 +74,7 @@ describe("AdaptationProposal types", () => {
 });
 ```
 
-- [ ] **Step 2: Create `src/adaptation/adaptation-types.ts`**
+- [ ] **Step 2: Create `src/planning/adaptation/adaptation-types.ts`**
 
 ```typescript
 export type ProposalAction =
@@ -126,7 +126,7 @@ export interface AdaptationProposal {
 
 - [ ] **Step 3: Commit**
 ```bash
-git add src/adaptation/adaptation-types.ts tests/adaptation/adaptation-types.vitest.ts
+git add src/planning/adaptation/adaptation-types.ts tests/adaptation/adaptation-types.vitest.ts
 git commit -m "feat(p5.1a): add AdaptationProposal, ProposalAction, ProposalStatus types"
 ```
 
@@ -134,7 +134,7 @@ git commit -m "feat(p5.1a): add AdaptationProposal, ProposalAction, ProposalStat
 ## Task 2: P5.1b — ProposalStore (JSON persistence)
 
 **Files:**
-- Create: `src/adaptation/proposal-store.ts`
+- Create: `src/planning/adaptation/proposal-store.ts`
 - Test: `tests/adaptation/proposal-store.vitest.ts`
 
 **Interfaces:**
@@ -147,8 +147,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ProposalStore } from "../../src/adaptation/proposal-store.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { ProposalStore } from "../../src/planning/adaptation/proposal-store.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 describe("ProposalStore", () => {
   let dir: string;
@@ -188,7 +188,7 @@ describe("ProposalStore", () => {
 });
 ```
 
-- [ ] **Step 2: Create `src/adaptation/proposal-store.ts`**
+- [ ] **Step 2: Create `src/planning/adaptation/proposal-store.ts`**
 
 ```typescript
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
@@ -230,7 +230,7 @@ export class ProposalStore {
 
 - [ ] **Step 3: Commit**
 ```bash
-git add src/adaptation/proposal-store.ts tests/adaptation/proposal-store.vitest.ts
+git add src/planning/adaptation/proposal-store.ts tests/adaptation/proposal-store.vitest.ts
 git commit -m "feat(p5.1b): add ProposalStore — JSON persistence for AdaptationProposals"
 ```
 
@@ -238,7 +238,7 @@ git commit -m "feat(p5.1b): add ProposalStore — JSON persistence for Adaptatio
 ## Task 3: P5.1c — RecommendationToProposal Converter
 
 **Files:**
-- Create: `src/adaptation/recommendation-to-proposal.ts`
+- Create: `src/planning/adaptation/recommendation-to-proposal.ts`
 - Test: `tests/adaptation/recommendation-to-proposal.vitest.ts`
 
 **Interfaces:**
@@ -253,7 +253,7 @@ git commit -m "feat(p5.1b): add ProposalStore — JSON persistence for Adaptatio
 ## Task 4: P5.1d — Approval Gate (no mutation without approval)
 
 **Files:**
-- Create: `src/adaptation/approval-gate.ts`
+- Create: `src/planning/adaptation/approval-gate.ts`
 - Test: `tests/adaptation/approval-gate.vitest.ts`
 
 **Interfaces:**
@@ -272,7 +272,7 @@ The hard rule lives here. **apply** requires the proposal status to be `"approve
 ## Task 5: P5.1e — Agent Card Applier
 
 **Files:**
-- Create: `src/adaptation/appliers/agent-card-applier.ts`
+- Create: `src/planning/adaptation/appliers/agent-card-applier.ts`
 - Test: `tests/adaptation/appliers/agent-card-applier.vitest.ts`
 
 **Interfaces:**
@@ -288,7 +288,7 @@ The hard rule lives here. **apply** requires the proposal status to be `"approve
 ## Task 6: P5.1f — Skill Applier
 
 **Files:**
-- Create: `src/adaptation/appliers/skill-applier.ts`
+- Create: `src/planning/adaptation/appliers/skill-applier.ts`
 - Test: `tests/adaptation/appliers/skill-applier.vitest.ts`
 
 **Interfaces:**
@@ -304,7 +304,7 @@ The hard rule lives here. **apply** requires the proposal status to be `"approve
 ## Task 7: P5.1g — CLI
 
 **Files:**
-- Create: `src/cli/commands/adaptation.ts`
+- Create: `src/interfaces/cli/commands/adaptation.ts`
 - Modify: `src/cli.ts`
 
 - [ ] Create `handleAdaptationCommand(args)` with subcommands: `list`, `show <id>`, `propose <report.json>`, `approve <id>`, `reject <id>`, `apply <id>`

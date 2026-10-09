@@ -48,7 +48,7 @@ export interface MetricsSummary {
 
 ### Task 2 — CLI handler (`runAuditStats`)
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 Add `case "stats"` to the audit dispatch → `runAuditStats(cwd, args, jsonMode)`.
 
@@ -161,7 +161,7 @@ Seed a `FileAuditStore` with a known set of events, call `runAuditStats` logic m
 | File | Lines | Change type |
 |------|-------|-------------|
 | `src/governance/audit-metrics.ts` | ~200 | New |
-| `src/cli/commands/governance.ts` | ~120 | Extend (dispatch + handler) |
+| `src/interfaces/cli/commands/governance.ts` | ~120 | Extend (dispatch + handler) |
 | `tests/governance/audit-metrics.test.ts` | ~220 | New |
 | `tests/cli/audit-stats.test.ts` | ~60 | New (light integration) |
 | **Total new** | ~600 | |
@@ -170,7 +170,7 @@ Seed a `FileAuditStore` with a known set of events, call `runAuditStats` logic m
 
 - `src/governance/audit-store.ts` — `FileAuditStore.list()` / `listChronological()` for data fetching
 - `src/governance/audit-types.ts` — `GovernanceAuditEvent`, `GovernanceEventType`, `RiskLevel`, `VALID_EVENT_TYPES`, `VALID_DECISIONS`
-- `src/cli/commands/governance.ts` — `parseInlineFlag`, `eventTypeColor`, BOLD/DIM/RESET constants
+- `src/interfaces/cli/commands/governance.ts` — `parseInlineFlag`, `eventTypeColor`, BOLD/DIM/RESET constants
 
 ## Acceptance gate
 

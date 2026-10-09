@@ -1,8 +1,8 @@
-import { TuiApp, type TuiAppOptions } from '../../../src/tui/app.js';
-import { MockInput, MockOutput } from '../../../src/tui/io.js';
-import type { DashboardSnapshot } from '../../../src/tui/snapshot.js';
-import { SessionPhase } from '../../../src/tui/state.js';
-import type { TimelineEntry } from '../../../src/tui/runtime/timeline-builder.js';
+import { TuiApp, type TuiAppOptions } from '../../../src/interfaces/tui/app.js';
+import { MockInput, MockOutput } from '../../../src/interfaces/tui/io.js';
+import type { DashboardSnapshot } from '../../../src/interfaces/tui/snapshot.js';
+import { SessionPhase } from '../../../src/interfaces/tui/state.js';
+import type { TimelineEntry } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
 
 export function createWorkbenchRenderHarness(text = 'pane transcript') {
   const timeline: TimelineEntry[] = Array.from({ length: 8 }, (_, index) => ({

@@ -2,7 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { withRetry, RetryError } from "../../src/runtime/retry.js";
+import { withRetry, RetryError } from "../../src/runtime-state/runtime/retry.js";
 
 describe("withRetry", () => {
   // -- Successful operation -------------------------------------------------

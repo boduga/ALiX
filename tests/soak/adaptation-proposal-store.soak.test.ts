@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
+import { AdaptationProposalStore } from "../../src/planning/adaptation/adaptation-proposal-store.js";
 
 const SOAK_LEVEL = process.env.ALIX_SOAK_LEVEL || "ci";
 const PROPOSAL_COUNT = SOAK_LEVEL === "bench" ? 1000 : 100;

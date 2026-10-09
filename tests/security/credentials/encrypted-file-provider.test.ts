@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EncryptedFileProvider } from "../../../src/security/credentials/encrypted-file-provider.js";
+import { EncryptedFileProvider } from "../../../src/governance/security/credentials/encrypted-file-provider.js";
 
 const PASSPHRASE = "test-passphrase-for-encrypted-store";
 

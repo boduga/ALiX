@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MockProvider } from "../src/providers/mock-provider.js";
+import { MockProvider } from "../src/models/providers/mock-provider.js";
 
 test("mock provider returns a deterministic plan", async () => {
   const provider = new MockProvider();

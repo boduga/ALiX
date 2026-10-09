@@ -6,9 +6,9 @@ import {
   renderInstallReport,
   createInstallGate,
   type InstallGateInput,
-} from "../../src/skills/trust.js";
-import type { ManifestReport } from "../../src/skills/security.js";
-import type { SkillScanResult } from "../../src/skills/security.js";
+} from "../../src/capabilities/skills/trust.js";
+import type { ManifestReport } from "../../src/capabilities/skills/security.js";
+import type { SkillScanResult } from "../../src/capabilities/skills/security.js";
 
 const marketplaces = [
   { name: "anthropics/skills", url: "https://github.com/anthropics/skills" },

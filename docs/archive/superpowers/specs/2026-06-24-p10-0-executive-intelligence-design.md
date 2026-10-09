@@ -57,11 +57,11 @@ Each adapter is ~50 lines. Pure read function, computes a 0–100 score from sub
 | `buildSecurityHealth` | finding count by severity from `security/` | `100 - weighted(severity counts)` |
 | `buildAdaptationHealth` | proposal success rate, revert rate from `adaptation/` | `successRate * 100 - revertPenalty` |
 
-Each adapter lives in `src/executive/adapters/<name>-health.ts`. The aggregator imports them but does not need to know their internals.
+Each adapter lives in `src/execution/executive/adapters/<name>-health.ts`. The aggregator imports them but does not need to know their internals.
 
 ## Tier 3 — Executive aggregator (new)
 
-`buildExecutiveHealthReport(opts)` in `src/executive/executive-health.ts`.
+`buildExecutiveHealthReport(opts)` in `src/execution/executive/executive-health.ts`.
 
 ```ts
 export async function buildExecutiveHealthReport(opts: {
@@ -132,18 +132,18 @@ Executive Priorities
 
 ## Architecture (3 layers, mirrors P8.5b + P9.5)
 
-### 1. Aggregator — `src/executive/executive-health.ts`
+### 1. Aggregator — `src/execution/executive/executive-health.ts`
 
 Pure read-only function. The single boundary that touches the data layer. Returns a typed, JSON-serializable `ExecutiveHealthReport`.
 
-### 2. Renderer — `src/cli/commands/executive-dashboard-renderer.ts`
+### 2. Renderer — `src/interfaces/cli/commands/executive-dashboard-renderer.ts`
 
 Terminal formatter. Consumes the typed report. Renders 2 panels in fixed order. No data access.
 
-### 3. CLI dispatcher — `src/cli/commands/executive.ts` (NEW) + `src/cli/commands/executive-dashboard-handler.ts` (NEW) + `src/cli.ts` (MODIFY)
+### 3. CLI dispatcher — `src/interfaces/cli/commands/executive.ts` (NEW) + `src/interfaces/cli/commands/executive-dashboard-handler.ts` (NEW) + `src/cli.ts` (MODIFY)
 
-- `src/cli/commands/executive.ts` — top-level executive subcommand dispatcher (mirrors `governance.ts`). Registers `dashboard` and future subcommands.
-- `src/cli/commands/executive-dashboard-handler.ts` — extracted `runDashboard` handler (sentinel scoping, mirrors `governance-dashboard-handler.ts`).
+- `src/interfaces/cli/commands/executive.ts` — top-level executive subcommand dispatcher (mirrors `governance.ts`). Registers `dashboard` and future subcommands.
+- `src/interfaces/cli/commands/executive-dashboard-handler.ts` — extracted `runDashboard` handler (sentinel scoping, mirrors `governance-dashboard-handler.ts`).
 - `src/cli.ts` — add `if (command === "executive")` block that dynamic-imports `./cli/commands/executive.js`, mirroring how `governance` is currently wired.
 
 `alix executive dashboard [--window <days>] [--json]`
@@ -182,16 +182,16 @@ export interface ExecutiveHealthReport {
 
 ```ts
 const EXECUTIVE_FILES = [
-  "src/executive/executive-health.ts",
-  "src/executive/adapters/agent-health.ts",
-  "src/executive/adapters/tool-health.ts",
-  "src/executive/adapters/workflow-health.ts",
-  "src/executive/adapters/memory-health.ts",
-  "src/executive/adapters/security-health.ts",
-  "src/executive/adapters/adaptation-health.ts",
-  "src/cli/commands/executive-dashboard-renderer.ts",
-  "src/cli/commands/executive-dashboard-handler.ts",
-  "src/cli/commands/executive.ts",
+  "src/execution/executive/executive-health.ts",
+  "src/execution/executive/adapters/agent-health.ts",
+  "src/execution/executive/adapters/tool-health.ts",
+  "src/execution/executive/adapters/workflow-health.ts",
+  "src/execution/executive/adapters/memory-health.ts",
+  "src/execution/executive/adapters/security-health.ts",
+  "src/execution/executive/adapters/adaptation-health.ts",
+  "src/interfaces/cli/commands/executive-dashboard-renderer.ts",
+  "src/interfaces/cli/commands/executive-dashboard-handler.ts",
+  "src/interfaces/cli/commands/executive.ts",
 ];
 
 const FORBIDDEN_IN_EXECUTIVE = [
@@ -224,16 +224,16 @@ The check enforces: the 10 P10.0 files do not import any of these symbols. It do
 
 | # | Path | Action | Purpose |
 |---|------|--------|---------|
-| 1 | `src/executive/executive-health.ts` | NEW | Aggregator + types |
-| 2 | `src/executive/adapters/agent-health.ts` | NEW | Tier-2 adapter |
-| 3 | `src/executive/adapters/tool-health.ts` | NEW | Tier-2 adapter |
-| 4 | `src/executive/adapters/workflow-health.ts` | NEW | Tier-2 adapter |
-| 5 | `src/executive/adapters/memory-health.ts` | NEW | Tier-2 adapter |
-| 6 | `src/executive/adapters/security-health.ts` | NEW | Tier-2 adapter |
-| 7 | `src/executive/adapters/adaptation-health.ts` | NEW | Tier-2 adapter |
-| 8 | `src/cli/commands/executive.ts` | NEW | Top-level executive subcommand dispatcher |
-| 9 | `src/cli/commands/executive-dashboard-renderer.ts` | NEW | Terminal formatter |
-| 10 | `src/cli/commands/executive-dashboard-handler.ts` | NEW | `runDashboard` handler (sentinel scoping) |
+| 1 | `src/execution/executive/executive-health.ts` | NEW | Aggregator + types |
+| 2 | `src/execution/executive/adapters/agent-health.ts` | NEW | Tier-2 adapter |
+| 3 | `src/execution/executive/adapters/tool-health.ts` | NEW | Tier-2 adapter |
+| 4 | `src/execution/executive/adapters/workflow-health.ts` | NEW | Tier-2 adapter |
+| 5 | `src/execution/executive/adapters/memory-health.ts` | NEW | Tier-2 adapter |
+| 6 | `src/execution/executive/adapters/security-health.ts` | NEW | Tier-2 adapter |
+| 7 | `src/execution/executive/adapters/adaptation-health.ts` | NEW | Tier-2 adapter |
+| 8 | `src/interfaces/cli/commands/executive.ts` | NEW | Top-level executive subcommand dispatcher |
+| 9 | `src/interfaces/cli/commands/executive-dashboard-renderer.ts` | NEW | Terminal formatter |
+| 10 | `src/interfaces/cli/commands/executive-dashboard-handler.ts` | NEW | `runDashboard` handler (sentinel scoping) |
 | 11 | `src/cli.ts` | MODIFY | Add `executive` top-level command |
 | 12 | `tests/executive/executive-health.vitest.ts` | NEW | 7-9 aggregator tests |
 | 13 | `tests/cli/commands/executive-dashboard-cli.vitest.ts` | NEW | 2-3 CLI tests |

@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import {
   objectiveEvidenceRequirements,
   buildRequirementCandidates,
-} from '../../src/run/task-loop/predicates.js';
+} from '../../src/execution/run/task-loop/predicates.js';
 
 const verificationTools = (task: string, taskType = 'other'): string[] =>
   buildRequirementCandidates(objectiveEvidenceRequirements(task, taskType))

@@ -56,8 +56,8 @@ git commit -m "docs(p10-7b): add implementation plan"
 ### Task 1: Rename `confidence` → `signalConfidence` in P10.7a files
 
 **Files:**
-- Modify: `src/executive/recommendation-engine.ts` (interface field + 4 classifier branch assignments)
-- Modify: `src/cli/commands/executive-recommend-handler.ts` (renderer `r.confidence`)
+- Modify: `src/execution/executive/recommendation-engine.ts` (interface field + 4 classifier branch assignments)
+- Modify: `src/interfaces/cli/commands/executive-recommend-handler.ts` (renderer `r.confidence`)
 - Modify: `tests/executive/recommendation-engine.vitest.ts` (assertion field name)
 - Modify: `tests/cli/commands/executive-recommend-cli.vitest.ts` (`toHaveProperty("confidence")`)
 
@@ -67,7 +67,7 @@ git commit -m "docs(p10-7b): add implementation plan"
 
 This task changes no semantics — the numeric values are identical, only the field name changes. The discipline is: rename source + tests together, verify the suite is green (no behavior change).
 
-- [ ] **Step 1: Rename in `src/executive/recommendation-engine.ts`**
+- [ ] **Step 1: Rename in `src/execution/executive/recommendation-engine.ts`**
 
 In the `RecommendationDraft` interface, change `confidence: number;` to `signalConfidence: number;`.
 
@@ -100,7 +100,7 @@ confidence: round2(Math.min(
 
 Change each `confidence:` to `signalConfidence:`.
 
-- [ ] **Step 2: Rename in `src/cli/commands/executive-recommend-handler.ts`**
+- [ ] **Step 2: Rename in `src/interfaces/cli/commands/executive-recommend-handler.ts`**
 
 In `renderTable`, change the row render line `r.confidence.toFixed(2).padEnd(6)` to `r.signalConfidence.toFixed(2).padEnd(6)`. There is exactly one occurrence (the table row builder).
 
@@ -140,7 +140,7 @@ Expected: tsc clean; full suite (2022 tests) green.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/executive/recommendation-engine.ts src/cli/commands/executive-recommend-handler.ts tests/executive/recommendation-engine.vitest.ts tests/cli/commands/executive-recommend-cli.vitest.ts
+git add src/execution/executive/recommendation-engine.ts src/interfaces/cli/commands/executive-recommend-handler.ts tests/executive/recommendation-engine.vitest.ts tests/cli/commands/executive-recommend-cli.vitest.ts
 git commit -m "refactor(p10-7b): rename RecommendationDraft.confidence → signalConfidence"
 ```
 
@@ -149,8 +149,8 @@ git commit -m "refactor(p10-7b): rename RecommendationDraft.confidence → signa
 ### Task 2: `RecommendationReportStore` + ID helper + unit tests
 
 **Files:**
-- Create: `src/executive/recommendation-report-id.ts` (helper: `buildRecommendationReportId`)
-- Create: `src/executive/recommendation-report-store.ts` (types + store + integrity error)
+- Create: `src/execution/executive/recommendation-report-id.ts` (helper: `buildRecommendationReportId`)
+- Create: `src/execution/executive/recommendation-report-store.ts` (types + store + integrity error)
 - Create: `tests/executive/recommendation-report-store.vitest.ts` (unit tests)
 
 **Interfaces:**
@@ -170,9 +170,9 @@ import {
   RecommendationReportStore,
   RecommendationReportIntegrityError,
   buildRecommendationReportId,
-} from "../../src/executive/recommendation-report-store.js";
-import type { NewRecommendationReport } from "../../src/executive/recommendation-report-store.js";
-import type { ExecutiveRecommendation } from "../../src/executive/recommendation-report-store.js";
+} from "../../src/execution/executive/recommendation-report-store.js";
+import type { NewRecommendationReport } from "../../src/execution/executive/recommendation-report-store.js";
+import type { ExecutiveRecommendation } from "../../src/execution/executive/recommendation-report-store.js";
 
 function newPayload(over: Partial<NewRecommendationReport> = {}): NewRecommendationReport {
   return {
@@ -315,7 +315,7 @@ Expected: FAIL — `recommendation-report-store.ts` module does not exist.
 
 - [ ] **Step 3: Create the ID helper**
 
-`src/executive/recommendation-report-id.ts`:
+`src/execution/executive/recommendation-report-id.ts`:
 
 ```ts
 /**
@@ -342,7 +342,7 @@ export function buildRecommendationReportId(generatedAt: string): string {
 
 - [ ] **Step 4: Create the store**
 
-`src/executive/recommendation-report-store.ts`:
+`src/execution/executive/recommendation-report-store.ts`:
 
 ```ts
 /**
@@ -566,7 +566,7 @@ Expected: no errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/executive/recommendation-report-id.ts src/executive/recommendation-report-store.ts tests/executive/recommendation-report-store.vitest.ts
+git add src/execution/executive/recommendation-report-id.ts src/execution/executive/recommendation-report-store.ts tests/executive/recommendation-report-store.vitest.ts
 git commit -m "feat(p10-7b): RecommendationReportStore + types + integrity error"
 ```
 
@@ -575,7 +575,7 @@ git commit -m "feat(p10-7b): RecommendationReportStore + types + integrity error
 ### Task 3: CLI `--save` branch + integration tests
 
 **Files:**
-- Modify: `src/cli/commands/executive-recommend-handler.ts` (add `--save` parsing + store call)
+- Modify: `src/interfaces/cli/commands/executive-recommend-handler.ts` (add `--save` parsing + store call)
 - Modify: `tests/cli/commands/executive-recommend-cli.vitest.ts` (add `--save` tests)
 
 **Interfaces:**
@@ -675,7 +675,7 @@ Expected: the 4 new tests FAIL (no `--save` handling); the 6 existing tests stil
 
 - [ ] **Step 3: Modify the handler to support `--save`**
 
-Replace the top of `handleRecommendCommand` and the end-of-handler branch in `src/cli/commands/executive-recommend-handler.ts` so it tracks the loaded outcome report ids, accepts `--save`, and (when set) writes via `RecommendationReportStore`. The complete updated handler:
+Replace the top of `handleRecommendCommand` and the end-of-handler branch in `src/interfaces/cli/commands/executive-recommend-handler.ts` so it tracks the loaded outcome report ids, accepts `--save`, and (when set) writes via `RecommendationReportStore`. The complete updated handler:
 
 ```ts
 /**
@@ -836,7 +836,7 @@ Expected: no errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/executive-recommend-handler.ts tests/cli/commands/executive-recommend-cli.vitest.ts
+git add src/interfaces/cli/commands/executive-recommend-handler.ts tests/cli/commands/executive-recommend-cli.vitest.ts
 git commit -m "feat(p10-7b): --save persists RecommendationReport with evidence ids"
 ```
 
@@ -855,8 +855,8 @@ In `tests/executive/executive-sentinels.vitest.ts`, find the `EXECUTIVE_FILES` a
 
 ```ts
   // P10.7a files
-  "src/executive/recommendation-engine.ts",
-  "src/cli/commands/executive-recommend-handler.ts",
+  "src/execution/executive/recommendation-engine.ts",
+  "src/interfaces/cli/commands/executive-recommend-handler.ts",
 ];
 ```
 
@@ -864,10 +864,10 @@ Append a P10.7b group before the closing `];`:
 
 ```ts
   // P10.7a files
-  "src/executive/recommendation-engine.ts",
-  "src/cli/commands/executive-recommend-handler.ts",
+  "src/execution/executive/recommendation-engine.ts",
+  "src/interfaces/cli/commands/executive-recommend-handler.ts",
   // P10.7b files
-  "src/executive/recommendation-report-store.ts",
+  "src/execution/executive/recommendation-report-store.ts",
 ];
 ```
 
@@ -878,9 +878,9 @@ Find the existing `outcome-store.ts` exception block in the sentinel test loop (
 ```ts
             // Scoped exception: plan-store.ts, execution-state-store.ts,
             // and outcome-store.ts are approved write paths
-            if ((file === "src/executive/plan-store.ts" ||
-                 file === "src/executive/execution-state-store.ts" ||
-                 file === "src/executive/outcome-store.ts") &&
+            if ((file === "src/execution/executive/plan-store.ts" ||
+                 file === "src/execution/executive/execution-state-store.ts" ||
+                 file === "src/execution/executive/outcome-store.ts") &&
                 (forbidden === "writeFileSync" || forbidden === "mkdirSync" ||
                  forbidden === "renameSync" || forbidden === "openSync" ||
                  forbidden === "fsyncSync" || forbidden === "closeSync")) {
@@ -894,10 +894,10 @@ Update it to also include `recommendation-report-store.ts`:
             // Scoped exception: plan-store.ts, execution-state-store.ts,
             // outcome-store.ts, and recommendation-report-store.ts are
             // approved write paths.
-            if ((file === "src/executive/plan-store.ts" ||
-                 file === "src/executive/execution-state-store.ts" ||
-                 file === "src/executive/outcome-store.ts" ||
-                 file === "src/executive/recommendation-report-store.ts") &&
+            if ((file === "src/execution/executive/plan-store.ts" ||
+                 file === "src/execution/executive/execution-state-store.ts" ||
+                 file === "src/execution/executive/outcome-store.ts" ||
+                 file === "src/execution/executive/recommendation-report-store.ts") &&
                 (forbidden === "writeFileSync" || forbidden === "mkdirSync" ||
                  forbidden === "renameSync" || forbidden === "openSync" ||
                  forbidden === "fsyncSync" || forbidden === "closeSync")) {

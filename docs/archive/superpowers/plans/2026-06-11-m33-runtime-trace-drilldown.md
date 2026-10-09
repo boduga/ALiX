@@ -6,7 +6,7 @@
 
 **Goal:** Make each trace row inspectable — select an event, view structured fields, raw JSON payload, linked entity IDs, and chain context of related events.
 
-**Architecture:** Extend `TraceEvent` with `rawEvent` and `sessionFilePath`. Add `traceSelection` state to `TuiState` with navigation mutators. Create `src/tui/trace-detail.ts` with four detail mode renderers. Wire keyboard controls (↑↓ enter j l c esc). Render split-view inside the Trace panel.
+**Architecture:** Extend `TraceEvent` with `rawEvent` and `sessionFilePath`. Add `traceSelection` state to `TuiState` with navigation mutators. Create `src/interfaces/tui/trace-detail.ts` with four detail mode renderers. Wire keyboard controls (↑↓ enter j l c esc). Render split-view inside the Trace panel.
 
 **Tech Stack:** TypeScript/ESM, Node >= 24, TuiStore (existing), panel-renderer (existing)
 
@@ -16,12 +16,12 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/runtime/trace-events.ts` | Modify | Add `rawEvent`, `sessionFilePath` to `TraceEvent`; add `traceChainContext()` helper |
-| `src/tui/store.ts` | Modify | Add `traceSelection` state, selectors, navigation mutators |
-| `src/tui/trace-detail.ts` | Create | Detail renderers for summary/json/links/chain modes |
-| `src/tui/panel-renderer.ts` | Modify | Render split-view Trace panel with selectable rows + detail section |
-| `src/tui/dashboard-renderer.ts` | Modify | Pass `traceSelection` to snapshot bridge |
-| `src/cli/commands/tui.ts` | Modify | Add keyboard handlers: ↑↓ enter j l c esc |
+| `src/runtime-state/runtime/trace-events.ts` | Modify | Add `rawEvent`, `sessionFilePath` to `TraceEvent`; add `traceChainContext()` helper |
+| `src/interfaces/tui/store.ts` | Modify | Add `traceSelection` state, selectors, navigation mutators |
+| `src/interfaces/tui/trace-detail.ts` | Create | Detail renderers for summary/json/links/chain modes |
+| `src/interfaces/tui/panel-renderer.ts` | Modify | Render split-view Trace panel with selectable rows + detail section |
+| `src/interfaces/tui/dashboard-renderer.ts` | Modify | Pass `traceSelection` to snapshot bridge |
+| `src/interfaces/cli/commands/tui.ts` | Modify | Add keyboard handlers: ↑↓ enter j l c esc |
 | `tests/runtime/trace-drilldown.test.ts` | Create | Chain context helper tests |
 | `tests/tui/trace-detail-panel.test.ts` | Create | Selection state and detail rendering tests |
 
@@ -69,7 +69,7 @@ function traceChainContext(
 ### Task 1: Extend TraceEvent and add chain context helper
 
 **Files:**
-- Modify: `src/runtime/trace-events.ts`
+- Modify: `src/runtime-state/runtime/trace-events.ts`
 
 - [ ] **Step 1: Add `rawEvent` and `sessionFilePath` to `TraceEvent`**
 
@@ -176,7 +176,7 @@ Expected: clean build.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/runtime/trace-events.ts
+git add src/runtime-state/runtime/trace-events.ts
 git commit -m "feat(runtime): preserve raw trace payloads, session file paths, and chain context helper"
 ```
 
@@ -185,7 +185,7 @@ git commit -m "feat(runtime): preserve raw trace payloads, session file paths, a
 ### Task 2: Add trace selection state to TuiState
 
 **Files:**
-- Modify: `src/tui/store.ts`
+- Modify: `src/interfaces/tui/store.ts`
 
 - [ ] **Step 1: Import types and add to TuiState**
 
@@ -315,7 +315,7 @@ Expected: clean build, existing tests pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/tui/store.ts
+git add src/interfaces/tui/store.ts
 git commit -m "feat(tui): add trace selection state, detail mode, and navigation mutators"
 ```
 
@@ -324,7 +324,7 @@ git commit -m "feat(tui): add trace selection state, detail mode, and navigation
 ### Task 3: Create trace-detail.ts renderers
 
 **Files:**
-- Create: `src/tui/trace-detail.ts`
+- Create: `src/interfaces/tui/trace-detail.ts`
 
 Four mode renderers that return strings for the detail panel.
 
@@ -402,7 +402,7 @@ export function renderTraceChain(
 }
 ```
 
-- [ ] **Step 1: Write `src/tui/trace-detail.ts`**
+- [ ] **Step 1: Write `src/interfaces/tui/trace-detail.ts`**
 - [ ] **Step 2: Build and verify**
 
 ```bash
@@ -412,7 +412,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/trace-detail.ts
+git add src/interfaces/tui/trace-detail.ts
 git commit -m "feat(tui): add trace detail renderers for summary/json/links/chain modes"
 ```
 
@@ -421,7 +421,7 @@ git commit -m "feat(tui): add trace detail renderers for summary/json/links/chai
 ### Task 4: Render split-view Trace panel
 
 **Files:**
-- Modify: `src/tui/panel-renderer.ts`
+- Modify: `src/interfaces/tui/panel-renderer.ts`
 
 - [ ] **Step 1: Replace the Trace panel branch with split-view rendering**
 
@@ -525,7 +525,7 @@ node --test dist/tests/tui/box.test.js 2>&1 | tail -3
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/panel-renderer.ts
+git add src/interfaces/tui/panel-renderer.ts
 git commit -m "feat(tui): render split-view trace panel with selectable rows and detail section"
 ```
 
@@ -534,7 +534,7 @@ git commit -m "feat(tui): render split-view trace panel with selectable rows and
 ### Task 5: Wire keyboard controls
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add keyboard handlers for trace navigation**
 
@@ -779,7 +779,7 @@ Expected: clean build, tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): wire trace drilldown keyboard controls (↑↓ enter j l c s esc)"
 ```
 
@@ -793,7 +793,7 @@ git commit -m "feat(tui): wire trace drilldown keyboard controls (↑↓ enter j
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { traceChainContext, type TraceEvent } from "../../src/runtime/trace-events.js";
+import { traceChainContext, type TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {
@@ -899,9 +899,9 @@ git commit -m "test(runtime): cover trace drilldown chain context helper"
 ```typescript
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { TuiStore } from "../../src/tui/store.js";
-import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain } from "../../src/tui/trace-detail.js";
-import { traceChainContext, type TraceEvent } from "../../src/runtime/trace-events.js";
+import { TuiStore } from "../../src/interfaces/tui/store.js";
+import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain } from "../../src/interfaces/tui/trace-detail.js";
+import { traceChainContext, type TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {
@@ -1065,7 +1065,7 @@ git commit -m "test(tui): cover trace detail rendering, selection, and mode swit
 ### Task 8: Update dashboard-renderer snapshot bridge
 
 **Files:**
-- Modify: `src/tui/dashboard-renderer.ts`
+- Modify: `src/interfaces/tui/dashboard-renderer.ts`
 
 The `snapshotFromStore` function needs to include `traceSelection` to build a correct snapshot. Add:
 
@@ -1073,7 +1073,7 @@ The `snapshotFromStore` function needs to include `traceSelection` to build a co
     traceSelection: s.traceSelection ?? { selectedIndex: -1, detailOpen: false, detailMode: "summary" },
 ```
 
-- [ ] **Step 1: Edit `src/tui/dashboard-renderer.ts`**
+- [ ] **Step 1: Edit `src/interfaces/tui/dashboard-renderer.ts`**
 
 Add the field to the returned object in `snapshotFromStore()`.
 
@@ -1086,7 +1086,7 @@ npm run build 2>&1 | tail -3
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/dashboard-renderer.ts
+git add src/interfaces/tui/dashboard-renderer.ts
 git commit -m "fix(tui): add traceSelection to dashboard snapshot bridge"
 ```
 

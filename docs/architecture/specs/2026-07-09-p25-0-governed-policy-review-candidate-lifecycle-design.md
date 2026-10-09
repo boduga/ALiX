@@ -422,7 +422,7 @@ Candidate generation must be deterministic. Same P24 signals + same thresholds â
 | P25.2 | `src/governance/policy-review-candidate-builder.ts` | Pure `buildCandidates()` â€” medium/high filter |
 | P25.3 | `src/governance/policy-review-candidate-store.ts` | File-based store with transition validation |
 | P25.4 | `src/governance/policy-review-candidate-report.ts` | Pure report builder + text/json |
-| P25.4 | `src/cli/commands/governance-policy-review.ts` | CLI handler |
+| P25.4 | `src/interfaces/cli/commands/governance-policy-review.ts` | CLI handler |
 | P25.0 | `docs/architecture/specs/2026-07-09-p25-0-*.md` | Design spec |
 | P25.5 | `docs/architecture/checkpoints/2026-07-09-p25-5-*.md` | Checkpoint |
 
@@ -430,7 +430,7 @@ Candidate generation must be deterministic. Same P24 signals + same thresholds â
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "policy-review"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "policy-review"` dispatch |
 
 ### 13.3 Untouched Files
 

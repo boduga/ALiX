@@ -49,14 +49,14 @@ Current state: MVP complete. Provider adapters expose `editFormatPreference`, `r
 
 Key components implemented:
 - ✅ Provider `editFormatPreference` wired into patch tool schema and executor policy
-- ✅ `EditFormatPolicy` defaults and normalization in `src/patch/edit-format-policy.ts`
+- ✅ `EditFormatPolicy` defaults and normalization in `src/execution/patch/edit-format-policy.ts`
 - ✅ Preflight validation for `search_replace` and `structured_patch`
 - ✅ Checkpoint creation before patch apply
 - ✅ Rollback on failed patch application
 - ✅ Policy telemetry via `patch.edit_format_policy`
 
 Future upgrades (completed):
-- `FullFileRewriteGuard` — implemented in `src/patch/full-file-guard.ts`
+- `FullFileRewriteGuard` — implemented in `src/execution/patch/full-file-guard.ts`
 - Executable `unified_diff` — format defined, execution path pending
 - Config-level edit format overrides
 - Runtime use of negotiated provider capabilities for edit format selection
@@ -73,7 +73,7 @@ These make the single-agent loop significantly better without multi-agent comple
 #### P1.1: Frontend Observability — Full Feature Set (Spec Gap #5)
 **Section:** `docs/agentic-harness-research.md` — "### 5. Frontend Observability"
 
-What: Full vanilla JS inspector UI with all views. SSE server exists (`src/server/server.ts`) and basic UI skeleton exists (`src/ui/`). Missing:
+What: Full vanilla JS inspector UI with all views. SSE server exists (`src/interfaces/server/server.ts`) and basic UI skeleton exists (`src/interfaces/ui/`). Missing:
 
 Current state:
 - ✅ Event log → JSONL (working)
@@ -82,8 +82,8 @@ Current state:
 - ✅ Inspector panels: timeline, context, diffs, terminal, approvals, verification, tokens
 - ✅ Replay controls: start, step back/forward, end, play/pause, speed slider
 - ✅ Session comparison endpoint (`/api/sessions/compare`)
-- ✅ Browser projection helpers (`src/ui/projection.js`)
-- ✅ Server-side projection (`src/inspector/projection.ts`)
+- ✅ Browser projection helpers (`src/interfaces/ui/projection.js`)
+- ✅ Server-side projection (`src/interfaces/inspector/projection.ts`)
 - ✅ Session snapshot endpoint (`/api/sessions/:id/snapshot`)
 - ✅ Context bundle events carry actual items (primaryFiles, tests, supportingFiles, pinned)
 - ✅ Model usage events logged per agent message (provider, model, inputTokens, outputTokens)
@@ -116,12 +116,12 @@ These unlock the skill/recipe/MCP extension model.
 What: Clear extension taxonomy with separate trust and packaging rules. Extensions: tools, skills, hooks, recipes, subagents, plugins, MCP.
 
 Current state: All items implemented:
-- ✅ Skills system exists (`src/skills/loader.ts`, `catalog.ts`, `dispatcher.ts`, `factory.ts`, `promotion.ts`, `lifecycle.ts`)
-- ✅ Hooks system exists (`src/hooks/discover.ts`, `runner.ts`)
-- ✅ MCP manager exists (`src/mcp/manager.ts`)
-- ✅ Extension registry with manifest schema (`src/extensions/manifest.ts`)
-- ✅ `ExtensionRegistry` class with discover/install/list/uninstall (`src/extensions/registry.ts`)
-- ✅ `loadExtensions` groups extensions by type into `ExtensionBundle` (`src/extensions/lifecycle.ts`)
+- ✅ Skills system exists (`src/capabilities/skills/loader.ts`, `catalog.ts`, `dispatcher.ts`, `factory.ts`, `promotion.ts`, `lifecycle.ts`)
+- ✅ Hooks system exists (`src/operations/hooks/discover.ts`, `runner.ts`)
+- ✅ MCP manager exists (`src/capabilities/mcp/manager.ts`)
+- ✅ Extension registry with manifest schema (`src/capabilities/extensions/manifest.ts`)
+- ✅ `ExtensionRegistry` class with discover/install/list/uninstall (`src/capabilities/extensions/registry.ts`)
+- ✅ `loadExtensions` groups extensions by type into `ExtensionBundle` (`src/capabilities/extensions/lifecycle.ts`)
 - ✅ `extensions.store` config integration (schema + defaults)
 - ✅ `alix extension` CLI commands (list/install/uninstall/search)
 - ✅ **Permission bundling** — `PermissionLevel`, `ExtensionPermission` types added to manifest

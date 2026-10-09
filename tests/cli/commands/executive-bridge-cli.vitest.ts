@@ -20,11 +20,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, statSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleBridgeCommand } from "../../../src/cli/commands/executive-bridge-handler.js";
-import { RecommendationReportStore } from "../../../src/executive/recommendation-report-store.js";
-import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
-import type { RecommendationReport } from "../../../src/executive/recommendation-report-store.js";
-import type { ExecutiveRecommendation } from "../../../src/executive/recommendation-report-store.js";
+import { handleBridgeCommand } from "../../../src/interfaces/cli/commands/executive-bridge-handler.js";
+import { RecommendationReportStore } from "../../../src/execution/executive/recommendation-report-store.js";
+import { AdaptationProposalStore } from "../../../src/planning/adaptation/adaptation-proposal-store.js";
+import type { RecommendationReport } from "../../../src/execution/executive/recommendation-report-store.js";
+import type { ExecutiveRecommendation } from "../../../src/execution/executive/recommendation-report-store.js";
 
 // ---------------------------------------------------------------------------
 // Mock AdaptationProposalStore for partial-failure test
@@ -37,8 +37,8 @@ import type { ExecutiveRecommendation } from "../../../src/executive/recommendat
 let mockSaveCallCount = 0;
 let mockSaveShouldThrow = false;
 
-vi.mock("../../../src/adaptation/adaptation-proposal-store.js", async () => {
-  const actual = await vi.importActual<any>("../../../src/adaptation/adaptation-proposal-store.js");
+vi.mock("../../../src/planning/adaptation/adaptation-proposal-store.js", async () => {
+  const actual = await vi.importActual<any>("../../../src/planning/adaptation/adaptation-proposal-store.js");
   return {
     ...actual,
     AdaptationProposalStore: class extends actual.AdaptationProposalStore {

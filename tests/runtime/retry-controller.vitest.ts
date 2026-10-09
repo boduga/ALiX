@@ -8,15 +8,15 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { ExecutionStateMachine } from "../../src/runtime/execution-state-machine.js";
-import { RetryController } from "../../src/runtime/retry-controller.js";
+import { ExecutionStateMachine } from "../../src/runtime-state/runtime/execution-state-machine.js";
+import { RetryController } from "../../src/runtime-state/runtime/retry-controller.js";
 import {
   ExecutionState,
   type ExecutionEvidenceEmitter,
   type ExecutionEventType,
   type RetryPolicy,
-} from "../../src/runtime/contracts/execution-runtime-contract.js";
-import type { ExecutionIntent, ExecutionEvidence } from "../../src/runtime/contracts/execution-intent-contract.js";
+} from "../../src/runtime-state/runtime/contracts/execution-runtime-contract.js";
+import type { ExecutionIntent, ExecutionEvidence } from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 
 // ---------------------------------------------------------------------------
 // Test-only evidence collector

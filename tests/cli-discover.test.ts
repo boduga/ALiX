@@ -5,8 +5,8 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { McpManager } from "../src/mcp/manager.js";
-import { loadConfig, _setHomedirOverride } from "../src/config/loader.js";
+import { McpManager } from "../src/capabilities/mcp/manager.js";
+import { loadConfig, _setHomedirOverride } from "../src/operations/config/loader.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 

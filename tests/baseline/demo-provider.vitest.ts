@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DemoBaselineProvider } from "../../src/baseline/providers/demo-provider.js";
+import { DemoBaselineProvider } from "../../src/context/baseline/providers/demo-provider.js";
 
 describe("DemoBaselineProvider", () => {
   const provider = new DemoBaselineProvider();

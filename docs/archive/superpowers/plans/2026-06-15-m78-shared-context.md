@@ -17,22 +17,22 @@
 ## File structure
 
 ### Create
-- `src/kernel/collaboration-types.ts` — `SharedFinding`, `SharedArtifact`, `WorkerContextManifest`, `WorkerContextSnapshot`, `EvidenceRef`, `CollaborationState`
-- `src/kernel/collaboration-validation.ts` — field validation, canonical ordering
-- `src/kernel/collaboration-run-lock.ts` — per-run lock for collaboration store
-- `src/kernel/collaboration-store.ts` — `CollaborationStore` with lock-safe CRUD
-- `src/kernel/worker-collaboration-api.ts` — `WorkerCollaborationAPI` interface + `BoundWorkerCollaborationAPI`
-- `src/kernel/collaboration-context-builder.ts` — builds context from dependency results + shared findings
-- `src/kernel/collaboration-context-renderer.ts` — renders context as untrusted delimited text
-- `src/tools/collaboration-tools.ts` — model-callable collaboration tools
+- `src/coordination/kernel/collaboration-types.ts` — `SharedFinding`, `SharedArtifact`, `WorkerContextManifest`, `WorkerContextSnapshot`, `EvidenceRef`, `CollaborationState`
+- `src/coordination/kernel/collaboration-validation.ts` — field validation, canonical ordering
+- `src/coordination/kernel/collaboration-run-lock.ts` — per-run lock for collaboration store
+- `src/coordination/kernel/collaboration-store.ts` — `CollaborationStore` with lock-safe CRUD
+- `src/coordination/kernel/worker-collaboration-api.ts` — `WorkerCollaborationAPI` interface + `BoundWorkerCollaborationAPI`
+- `src/coordination/kernel/collaboration-context-builder.ts` — builds context from dependency results + shared findings
+- `src/coordination/kernel/collaboration-context-renderer.ts` — renders context as untrusted delimited text
+- `src/capabilities/tools/collaboration-tools.ts` — model-callable collaboration tools
 
 ### Modify
-- `src/kernel/coordination-types.ts` — add `contextManifestRef?`, `contextFingerprint?`, `contextGeneratedAt?`, `contextTokenEstimate?`, `"context_unavailable"` to `WorkerBlockReason`
-- `src/kernel/coordination-store.ts` — extend `WorkerPatch`, normalization
-- `src/kernel/worker-executor.ts` — add `collaboration` to `WorkerExecutionContext`
-- `src/kernel/coordination-scheduler.ts` — build/inject context, reorder dispatch sequence
+- `src/coordination/kernel/coordination-types.ts` — add `contextManifestRef?`, `contextFingerprint?`, `contextGeneratedAt?`, `contextTokenEstimate?`, `"context_unavailable"` to `WorkerBlockReason`
+- `src/coordination/kernel/coordination-store.ts` — extend `WorkerPatch`, normalization
+- `src/coordination/kernel/worker-executor.ts` — add `collaboration` to `WorkerExecutionContext`
+- `src/coordination/kernel/coordination-scheduler.ts` — build/inject context, reorder dispatch sequence
 - `src/run.ts` — add `injectedContext` and `boundTools` options to `runTask()`
-- `src/events/types.ts` — collaboration event types
+- `src/runtime-state/events/types.ts` — collaboration event types
 
 ### Tests
 - `tests/kernel/collaboration-validation.test.ts`
@@ -68,7 +68,7 @@ types + validation
 
 ## M0.78a.1 — Types and validation
 
-**Files:** Create `src/kernel/collaboration-types.ts`, `src/kernel/collaboration-validation.ts`
+**Files:** Create `src/coordination/kernel/collaboration-types.ts`, `src/coordination/kernel/collaboration-validation.ts`
 
 ### Types
 
@@ -164,7 +164,7 @@ export function canonicalizeFinding(input: PublishFindingInput): PublishFindingI
 ### Commit
 
 ```bash
-git add src/kernel/collaboration-types.ts src/kernel/collaboration-validation.ts
+git add src/coordination/kernel/collaboration-types.ts src/coordination/kernel/collaboration-validation.ts
 git commit -m "feat(collaboration): add shared finding artifact and context types"
 ```
 
@@ -172,7 +172,7 @@ git commit -m "feat(collaboration): add shared finding artifact and context type
 
 ## M0.78a.2 — Worker schema integration
 
-**Files:** Modify `src/kernel/coordination-types.ts`, `src/kernel/coordination-store.ts`
+**Files:** Modify `src/coordination/kernel/coordination-types.ts`, `src/coordination/kernel/coordination-store.ts`
 
 Add to `WorkerAssignment`:
 ```typescript
@@ -200,7 +200,7 @@ Update `normalizeWorkerAssignment()` to pass through new fields.
 
 ## M0.78b.1 — Collaboration lock
 
-**Files:** Create `src/kernel/collaboration-run-lock.ts`
+**Files:** Create `src/coordination/kernel/collaboration-run-lock.ts`
 
 Follow the existing `CoordinationRunLock` pattern:
 - Atomic `mkdir` acquisition
@@ -224,7 +224,7 @@ export class CollaborationRunLock {
 
 ## M0.78b.2 — Collaboration store
 
-**Files:** Create `src/kernel/collaboration-store.ts`
+**Files:** Create `src/coordination/kernel/collaboration-store.ts`
 
 State file: `.alix/coordination/shared/<runId>/state.json`
 Manifests: `.alix/coordination/shared/<runId>/manifests/<workerId>-attempt-<n>.json`
@@ -273,7 +273,7 @@ Key rules:
 
 ## M0.78c.1 — Bound worker API
 
-**Files:** Create `src/kernel/worker-collaboration-api.ts`
+**Files:** Create `src/coordination/kernel/worker-collaboration-api.ts`
 
 ```typescript
 export interface WorkerCollaborationAPI {
@@ -301,7 +301,7 @@ Query defaults: max 50 results, exclude invalidated/superseded, deterministic or
 
 ## M0.78c.2 — Model-callable tools
 
-**Files:** Create `src/tools/collaboration-tools.ts`
+**Files:** Create `src/capabilities/tools/collaboration-tools.ts`
 
 Register four tools:
 
@@ -322,7 +322,7 @@ Each tool validates inputs, calls the API, and returns sanitized output (no raw 
 
 ## M0.78d.1 — Context builder
 
-**Files:** Create `src/kernel/collaboration-context-builder.ts`
+**Files:** Create `src/coordination/kernel/collaboration-context-builder.ts`
 
 ### Budgets
 
@@ -369,7 +369,7 @@ Result loading preserves structured warnings for all `ResultLoadResult` statuses
 
 ## M0.78d.2 — Context renderer
 
-**Files:** Create `src/kernel/collaboration-context-renderer.ts`
+**Files:** Create `src/coordination/kernel/collaboration-context-renderer.ts`
 
 Produces `renderedText` with strict delimiters:
 
@@ -391,7 +391,7 @@ Produces `renderedText` with strict delimiters:
 
 ## M0.78d.3 — Scheduler integration
 
-**Files:** Modify `src/kernel/coordination-scheduler.ts`
+**Files:** Modify `src/coordination/kernel/coordination-scheduler.ts`
 
 Add optional dependency:
 ```typescript
@@ -434,7 +434,7 @@ Before execution, reload manifest and verify it belongs to the current run, work
 
 ## M0.78d.4 — Runtime integration
 
-**Files:** Modify `src/kernel/worker-executor.ts`, `src/run.ts`
+**Files:** Modify `src/coordination/kernel/worker-executor.ts`, `src/run.ts`
 
 Extend `WorkerExecutionContext`:
 ```typescript
@@ -468,7 +468,7 @@ If no collaboration factory exists, existing execution behavior is unchanged.
 
 ## M0.78d.5 — Observability
 
-**Files:** Modify `src/events/types.ts`
+**Files:** Modify `src/runtime-state/events/types.ts`
 
 Events:
 ```

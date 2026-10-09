@@ -1,7 +1,7 @@
 # Workspace-state intent — recognition contract
 
 **Status**: Active (PR delivering T1 on wayfinder map #376)
-**Owner**: `src/runtime/action-classifier.ts` (`WORKSPACE_ANCHORS`)
+**Owner**: `src/runtime-state/runtime/action-classifier.ts` (`WORKSPACE_ANCHORS`)
 **Test corpus**: `tests/runtime/action-classifier.test.ts → describe("classifyAction — workspace-state recognition contract")`
 
 ## Intent definition
@@ -21,7 +21,7 @@ Distinct from adjacent intent families:
 
 ## Recognizer
 
-**Mechanism**: deterministic regex (`WORKSPACE_ANCHORS` family in `src/runtime/action-classifier.ts`).
+**Mechanism**: deterministic regex (`WORKSPACE_ANCHORS` family in `src/runtime-state/runtime/action-classifier.ts`).
 **Trigger precedence**: workspace-state dominates retrieval + generation signals (line 406, `classifyAction`).
 **Confidence**: workspace-state matches return `confidence: 0.95` (≥ 0.7 Layer-1 floor), which **short-circuits the model fallback at `task-router.ts:352`** — `modelClassifyAction` is never called for these prompts.
 

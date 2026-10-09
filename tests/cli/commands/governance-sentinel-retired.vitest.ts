@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { execSync } from "node:child_process";
-import { handleDecisionCommand } from "../../../src/cli/commands/decision.js";
+import { handleDecisionCommand } from "../../../src/interfaces/cli/commands/decision.js";
 import { codeOnly } from "../../helpers/import-graph.js";
 
 /**
@@ -30,15 +30,15 @@ import { codeOnly } from "../../helpers/import-graph.js";
  * Captured at module load time — before beforeEach mocks process.cwd().
  */
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-import { GovernanceReviewStore } from "../../../src/adaptation/governance-review-store.js";
+import { GovernanceReviewStore } from "../../../src/planning/adaptation/governance-review-store.js";
 import type {
   GovernanceReview,
   LensScore,
   CouncilVote,
-} from "../../../src/adaptation/governance-review-types.js";
-import { OutcomeStore } from "../../../src/adaptation/outcome-store.js";
-import type { OutcomeRecord } from "../../../src/adaptation/outcome-types.js";
-import type { LensCalibrationReport } from "../../../src/adaptation/outcome-types.js";
+} from "../../../src/planning/adaptation/governance-review-types.js";
+import { OutcomeStore } from "../../../src/planning/adaptation/outcome-store.js";
+import type { OutcomeRecord } from "../../../src/planning/adaptation/outcome-types.js";
+import type { LensCalibrationReport } from "../../../src/planning/adaptation/outcome-types.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let logSpy: ReturnType<typeof vi.spyOn>;

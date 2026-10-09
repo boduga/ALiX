@@ -25,7 +25,7 @@ The runtime functions identically whether or not `summary` is provided. It is pu
 
 ## 3. Type Changes
 
-### 3.1 ToolCallRequest (`src/tools/types.ts`)
+### 3.1 ToolCallRequest (`src/capabilities/tools/types.ts`)
 
 ```typescript
 export type ToolCallRequest = {
@@ -72,7 +72,7 @@ This summary helps the operator follow your progress at a glance.
 
 ## 5. TUI Rendering
 
-### Agent-view scrollback (`src/tui/views/agent-view.ts`)
+### Agent-view scrollback (`src/interfaces/tui/views/agent-view.ts`)
 
 Each tool entry renders as two lines when a summary is present:
 

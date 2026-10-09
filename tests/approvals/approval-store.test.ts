@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
 
 function freshStore(): { store: ApprovalStore; cleanup: () => void } {
   const tmpDir = mkdtempSync(join(tmpdir(), "approval-store-test-"));

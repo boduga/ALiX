@@ -133,7 +133,7 @@ Create a decision subsystem behind narrow typed contracts. Keep
 transport/provider details below the domain API.
 
 Suggested conceptual structure:\
-src/decision/\
+src/planning/decision/\
 contracts.ts\
 registry.ts\
 projections/\

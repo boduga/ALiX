@@ -15,8 +15,8 @@ import {
   versionMatches,
   checkLifecyclePolicy,
   LIFECYCLE_ERROR_CODES,
-} from "../../../src/security/supply-chain/dependency-policy.js";
-import type { AllowlistFile, LifecycleScriptPackage } from "../../../src/security/supply-chain/dependency-policy.js";
+} from "../../../src/governance/security/supply-chain/dependency-policy.js";
+import type { AllowlistFile, LifecycleScriptPackage } from "../../../src/governance/security/supply-chain/dependency-policy.js";
 
 // ---------------------------------------------------------------------------
 // compareVersions

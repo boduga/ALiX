@@ -7,8 +7,8 @@ import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RuntimeLedger, runtimeLedgerPath, drainLedgerEvents, getSharedLedger, closeSharedLedger } from "../../src/storage/runtime-ledger.js";
-import type { RuntimeEvent } from "../../src/contracts/runtime-event.js";
+import { RuntimeLedger, runtimeLedgerPath, drainLedgerEvents, getSharedLedger, closeSharedLedger } from "../../src/runtime-state/storage/runtime-ledger.js";
+import type { RuntimeEvent } from "../../src/runtime-state/contracts/runtime-event.js";
 
 function makeEvent(overrides: Partial<RuntimeEvent> & { eventId: string; entityId: string; entityVersion: number }): RuntimeEvent {
   return {

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { StructuredPatchApplier } from "../../src/patch/structured-patch-applier.js";
+import { StructuredPatchApplier } from "../../src/execution/patch/structured-patch-applier.js";
 
 describe("StructuredPatchApplier", () => {
   it("applies valid unified diff", () => {

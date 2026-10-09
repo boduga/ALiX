@@ -4,13 +4,13 @@
 
 **Goal:** Move the tab row from the top of the 5-row footer to the **middle of the 3-row header** as a third column on the existing content row. Footer remains otherwise unchanged.
 
-**Architecture:** Single-source-of-truth header composition in `src/tui/frame-painter.ts`. The header (rows 0–2) becomes a single 3-zone row: `left metadata | center tabs | right metadata`. The tab-row code currently in the footer (lines 174-186) migrates to the header (row 1). Footer stays unchanged: top border (chat-view/agent-view at `vp.topBorderRow`), prompt row, bottom border (chat-view/agent-view at `vp.bottomBorderRow`), status row. The help-hints text (`↑/↓ navigate | tab next | ? help | q quit`) currently on the tab row stays where it is visually — but the tab row is moving, so the help-hints move with it. They become **right-aligned on the top border** (the dim grey line directly above the prompt), keeping their visual relationship to the input panel. Status row's pipeline fields (TOKENS, FILES, DAEMON, SOPS, RULES, EVENTS) shift to right-aligned — phase radios stay left of center if there's room, otherwise dropped.
+**Architecture:** Single-source-of-truth header composition in `src/interfaces/tui/frame-painter.ts`. The header (rows 0–2) becomes a single 3-zone row: `left metadata | center tabs | right metadata`. The tab-row code currently in the footer (lines 174-186) migrates to the header (row 1). Footer stays unchanged: top border (chat-view/agent-view at `vp.topBorderRow`), prompt row, bottom border (chat-view/agent-view at `vp.bottomBorderRow`), status row. The help-hints text (`↑/↓ navigate | tab next | ? help | q quit`) currently on the tab row stays where it is visually — but the tab row is moving, so the help-hints move with it. They become **right-aligned on the top border** (the dim grey line directly above the prompt), keeping their visual relationship to the input panel. Status row's pipeline fields (TOKENS, FILES, DAEMON, SOPS, RULES, EVENTS) shift to right-aligned — phase radios stay left of center if there's room, otherwise dropped.
 
 **Tech Stack:** TypeScript (ESM, `.js` import suffixes), vitest, GitNexus MCP.
 
 ## Global Constraints
 
-- **GitNexus impact gate (project CLAUDE.md):** BEFORE editing any symbol in `src/tui/`, run `mcp__gitnexus__impact({ target: "<symbol>", direction: "upstream" })` and report blast radius. Warn on HIGH/CRITICAL before proceeding. BEFORE every commit, run `mcp__gitnexus__detect_changes({ scope: "compare", base_ref: "main" })`.
+- **GitNexus impact gate (project CLAUDE.md):** BEFORE editing any symbol in `src/interfaces/tui/`, run `mcp__gitnexus__impact({ target: "<symbol>", direction: "upstream" })` and report blast radius. Warn on HIGH/CRITICAL before proceeding. BEFORE every commit, run `mcp__gitnexus__detect_changes({ scope: "compare", base_ref: "main" })`.
 - **`.js` import suffixes** on all relative imports (ESM).
 - **Pre-existing CI failure (NOT a regression):** `pnpm test:node` fails on `renders ranked candidates with the selected marker` — verified pre-existing at `a425cd05` (main). This task touches `frame-painter.ts`; after each commit, diff the node-tests failure count against main. **Must remain 1.**
 - **Visual smoke required:** the layout can't be verified from unit tests alone (lesson from PR #358). This plan includes a TUI visual-smoke step (Task 3) — Task 3's implementer runs the TUI in this environment if a TTY is available; otherwise the SDD workspace is deleted and the human partner runs the smoke during finishing-a-development-branch.
@@ -22,8 +22,8 @@
 
 ## File Structure (locked in before tasks)
 
-- `src/tui/frame-painter.ts` — **Modify.** Header composition: add tab row to header row 1 (center column between left metadata + right metadata). Remove tab writes at lines 174-186 (footer row `dims.rows - FOOTER_H`). Help-hints text moves to the top border row. Status row: phase radios drop if they would collide; pipeline fields shift to right-aligned.
-- `src/tui/views/scroll-math.ts` — **Verify only.** No constants change.
+- `src/interfaces/tui/frame-painter.ts` — **Modify.** Header composition: add tab row to header row 1 (center column between left metadata + right metadata). Remove tab writes at lines 174-186 (footer row `dims.rows - FOOTER_H`). Help-hints text moves to the top border row. Status row: phase radios drop if they would collide; pipeline fields shift to right-aligned.
+- `src/interfaces/tui/views/scroll-math.ts` — **Verify only.** No constants change.
 - Tests:
   - `tests/tui/views/chat-view-bottom-anchored.vitest.ts` — **Verify only.** No geometry change.
   - `tests/tui/views/agent-view-bottom-anchored.vitest.ts` — **Verify only.**
@@ -35,7 +35,7 @@
 
 ## Task 1: Header composition — add centered tab row + relocate help-hints
 
-**Files:** `src/tui/frame-painter.ts`
+**Files:** `src/interfaces/tui/frame-painter.ts`
 
 **Interface (current → target):**
 
@@ -103,7 +103,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ## Task 2: Right-align status-row pipeline fields; drop phase radios on overflow
 
-**Files:** `src/tui/frame-painter.ts`
+**Files:** `src/interfaces/tui/frame-painter.ts`
 
 **Current** (lines 188-227): status row at `dims.rows - 1` writes `phaseLine + sep + fields` left-aligned starting at col 0. On the agent tab `phaseLine` adds 5 phase radios (UNDERSTANDING, PLANNING, EXECUTING, VERIFYING, SUMMARIZING) before the pipeline fields.
 
@@ -163,12 +163,12 @@ Two commits on the branch; each individually revertable via `git revert <commit>
 
 ## Critical files
 
-- `src/tui/frame-painter.ts` — sole source of header + status row composition. Two edits: header row 1 (add tabs centered between metadata) and footer (remove tab row + help-hints); status row (right-align fields, drop or keep phase radios per Task 2 Step 1).
+- `src/interfaces/tui/frame-painter.ts` — sole source of header + status row composition. Two edits: header row 1 (add tabs centered between metadata) and footer (remove tab row + help-hints); status row (right-align fields, drop or keep phase radios per Task 2 Step 1).
 
 ## Reuses
 
-- **`TAB_ORDER`** in `src/tui/state.ts` (centralized per PR #356 standards-fix #1) — read directly, no new copy.
-- **`computeViewport`** in `src/tui/views/scroll-math.ts` — unchanged. The header/footer rows are still `dims.rows - FOOTER_H` (top border), `dims.rows - FOOTER_H + 1` (prompt), etc. — frame-painter reads these for the tab row migration only via `dims.rows - FOOTER_H` (the old tab position, now empty).
+- **`TAB_ORDER`** in `src/interfaces/tui/state.ts` (centralized per PR #356 standards-fix #1) — read directly, no new copy.
+- **`computeViewport`** in `src/interfaces/tui/views/scroll-math.ts` — unchanged. The header/footer rows are still `dims.rows - FOOTER_H` (top border), `dims.rows - FOOTER_H + 1` (prompt), etc. — frame-painter reads these for the tab row migration only via `dims.rows - FOOTER_H` (the old tab position, now empty).
 - **Dim grey chrome** `\x1b[90m...\x1b[0m` pattern from `chat-view.ts` / `agent-view.ts` border rows — reuse for the help-hints on the top border.
 
 ## Known interactions / out of scope

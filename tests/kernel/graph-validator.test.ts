@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateGraphDag } from "../../src/kernel/graph-validator.js";
-import type { TaskGraph, TaskNode } from "../../src/kernel/task-graph.js";
+import { validateGraphDag } from "../../src/coordination/kernel/graph-validator.js";
+import type { TaskGraph, TaskNode } from "../../src/coordination/kernel/task-graph.js";
 
 function makeNode(id: string, dependencies: string[] = []): TaskNode {
   const now = new Date().toISOString();

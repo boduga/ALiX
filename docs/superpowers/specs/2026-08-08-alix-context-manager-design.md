@@ -61,7 +61,7 @@ so "safe" is an assumption, not a measurement.
    `providerCalibration: Record<Provider, number>` defaulted to 1.2.
 4. **Persistence.** Store alongside `MODEL_OVERRIDES` in
    `~/.alix/calibration.json` (established config-home convention — see
-   `src/security/evidence/skill-install-history.ts:42`, which uses
+   `src/governance/security/evidence/skill-install-history.ts:42`, which uses
    `join(homedir(), ".alix", "security")`). Follow the same pattern as that
    file: read `~/.alix/calibration.json` by default, but accept a store-dir
    override so tests get HOME-isolation. Survives restarts.

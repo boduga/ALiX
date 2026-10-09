@@ -6,7 +6,7 @@
  *
  * Static guards against the four regressions CAP-12 closes:
  * 1. Second-registry regression (CAP-1 invariant) — `new CapabilityRegistry(`
- *    must appear only in `src/capability/platform.ts` (composition root).
+ *    must appear only in `src/capabilities/capability/platform.ts` (composition root).
  *    Any consumer-side construction is a regression: the capability
  *    universe must be reached through the single registered surface.
  * 2. Legacy lifecycle machinery regression (CAP-11 deletion) — the
@@ -42,7 +42,7 @@ import { codeOnly } from "../helpers/import-graph.js";
 
 const ROOT = resolve(import.meta.dirname, "..", "..");
 const SRC = resolve(ROOT, "src");
-const COMPOSITION_ROOT = resolve(SRC, "capability", "platform.ts");
+const COMPOSITION_ROOT = resolve(SRC, "capabilities", "capability", "platform.ts");
 
 function walkTs(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -54,7 +54,7 @@ function walkTs(dir: string, out: string[] = []): string[] {
 }
 
 describe("CAP-12 — Structural sentinel (4 axes)", () => {
-  it("axis 1: no `new CapabilityRegistry(` outside src/capability/platform.ts (CAP-1 invariant)", () => {
+  it("axis 1: no `new CapabilityRegistry(` outside src/capabilities/capability/platform.ts (CAP-1 invariant)", () => {
     const offenders: string[] = [];
     for (const file of walkTs(SRC)) {
       if (file === COMPOSITION_ROOT) continue;
@@ -63,7 +63,7 @@ describe("CAP-12 — Structural sentinel (4 axes)", () => {
     }
     expect(
       offenders,
-      `new CapabilityRegistry( must only appear in src/capability/platform.ts; offenders:\n${offenders.join(
+      `new CapabilityRegistry( must only appear in src/capabilities/capability/platform.ts; offenders:\n${offenders.join(
         "\n",
       )}`,
     ).toEqual([]);

@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityService } from "../../../src/tui/capabilities/capability-service.js";
-import { EventLog } from "../../../src/events/event-log.js";
+import { CapabilityService } from "../../../src/interfaces/tui/capabilities/capability-service.js";
+import { EventLog } from "../../../src/runtime-state/events/event-log.js";
 
 const settle = () => new Promise((r) => setTimeout(r, 50));
 

@@ -61,7 +61,7 @@ async function runHandler(fn: () => Promise<void>): Promise<string> {
 describe("security doctor and gate", () => {
   it("doctor --json produces valid DoctorReport", async () => {
     const { handleSecurityDoctorComprehensive } = await import(
-      "../../src/cli/commands/security.js"
+      "../../src/interfaces/cli/commands/security.js"
     );
     const stdout = await runHandler(() =>
       handleSecurityDoctorComprehensive(["--json"]),
@@ -83,7 +83,7 @@ describe("security doctor and gate", () => {
 
   it("doctor human-readable output has expected sections", async () => {
     const { handleSecurityDoctorComprehensive } = await import(
-      "../../src/cli/commands/security.js"
+      "../../src/interfaces/cli/commands/security.js"
     );
     const stdout = await runHandler(() =>
       handleSecurityDoctorComprehensive([]),
@@ -98,7 +98,7 @@ describe("security doctor and gate", () => {
 
   it("gate --json produces valid GateReport", async () => {
     const { handleSecurityGate } = await import(
-      "../../src/cli/commands/security.js"
+      "../../src/interfaces/cli/commands/security.js"
     );
     const stdout = await runHandler(() =>
       handleSecurityGate(["--json"]),
@@ -125,7 +125,7 @@ describe("security doctor and gate", () => {
 
   it("gate human-readable output has expected sections", async () => {
     const { handleSecurityGate } = await import(
-      "../../src/cli/commands/security.js"
+      "../../src/interfaces/cli/commands/security.js"
     );
     const stdout = await runHandler(() =>
       handleSecurityGate([]),

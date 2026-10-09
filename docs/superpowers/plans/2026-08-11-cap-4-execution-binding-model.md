@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **Provider vocabulary is ADR-0013 §4 verbatim:** `ProviderType = "native" | "tool" | "mcp" | "external-cli" | "daemon" | "agent" | "plugin" | "remote-api"` (already in `src/capability/canonical/provider.ts` — do not redefine).
+- **Provider vocabulary is ADR-0013 §4 verbatim:** `ProviderType = "native" | "tool" | "mcp" | "external-cli" | "daemon" | "agent" | "plugin" | "remote-api"` (already in `src/capabilities/capability/canonical/provider.ts` — do not redefine).
 - **Provider technologies are NOT kinds (#475).** `CapabilityKind` untouched.
 - **Provider registry is type-keyed and duplicate-rejecting** (user ruling): `Map<ProviderType, ProviderExecutor>`; `register` throws on a duplicate type — deterministic wiring. Instance identity lives in `binding.id`/`binding.config`, never in the registry key.
 - **`allowFallbacks` is a first-class `CapabilityDefinition` field** (user ruling): `allowFallbacks?: boolean`, default `true`. Semantics (user ruling): when `false`, the resolver pins to `bindings[0]` only — it may reject `bindings[0]` during resolution if ineligible (unavailable/disabled/unhealthy), but MUST NOT proceed to `bindings[1]`. Pin ≠ blindly invoke.
@@ -19,7 +19,7 @@
 - **Fallback never changes capability identity** (#476): `code.repository.impact` stays `code.repository.impact` across GitNexus/MCP/native. Provider selection is a runtime concern (ADR-0013 §5).
 - **Existing `CircuitBreaker`/`checkProvider` remain the health mechanism** (program CAP-4): the resolver consumes an injectable `isProviderHealthy` probe; wiring real CircuitBreaker instances into the probe is a follow-up (CAP-7/8), not this CAP.
 - **MCP rule (ADR-0013):** MCP protocol plumbing is NOT registered as capabilities; MCP resources stay provider resources unless a meaningful semantic operation. `capability-mapper.ts` is unchanged by CAP-4.
-- **Forbidden files (never touch):** `src/capability/initial-capabilities.ts`, `src/tools/tool-registry.ts`, `src/policy/capability-registry.ts`. `src/capability/canonical/*` is CAP-owned: CAP-4 owns ONLY the `allowFallbacks` field + its validation in `canonical/definition.ts` (user ruling #1 requires it) — do not restructure canonical files otherwise.
+- **Forbidden files (never touch):** `src/capabilities/capability/initial-capabilities.ts`, `src/capabilities/tools/tool-registry.ts`, `src/governance/policy/capability-registry.ts`. `src/capabilities/capability/canonical/*` is CAP-owned: CAP-4 owns ONLY the `allowFallbacks` field + its validation in `canonical/definition.ts` (user ruling #1 requires it) — do not restructure canonical files otherwise.
 - **`CapabilityExecution` / `Capability` (legacy `types.ts`) shape is unchanged.** `NativeExecutor` keeps its dependency-free constructor and `run(capability, ctx, args)` signature (forbidden `initial-capabilities.ts` and `session-capabilities.ts` import it by name).
 - **Capability tests are `.vitest.ts`; ALWAYS run `pnpm exec tsc --noEmit` after each task** (Vitest does not typecheck — CAP-1 lesson).
 
@@ -79,8 +79,8 @@ The runtime's result/event contract surfaces which provider served (and which fa
 ### Task 1: Canonical model — `allowFallbacks` field + availability contract
 
 **Files:**
-- Modify: `src/capability/canonical/definition.ts` (add `allowFallbacks?: boolean` + validation)
-- Modify: `src/capability/registry.ts` (`CapabilityAvailability` collapse, `setAvailability`, refresh default)
+- Modify: `src/capabilities/capability/canonical/definition.ts` (add `allowFallbacks?: boolean` + validation)
+- Modify: `src/capabilities/capability/registry.ts` (`CapabilityAvailability` collapse, `setAvailability`, refresh default)
 - Test: `tests/capability/canonical/definition.vitest.ts` (append allowFallbacks cases)
 - Test: `tests/capability/registry-projection.vitest.ts` (update `enabled` → `available`; add availability tests)
 
@@ -113,7 +113,7 @@ Expected: FAIL — the three new tests fail (validateCapabilityDefinition does n
 
 - [ ] **Step 3: Add `allowFallbacks` to `CapabilityDefinition` + validation**
 
-In `src/capability/canonical/definition.ts`, add the field to the interface (after `bindings`, before `extensions`):
+In `src/capabilities/capability/canonical/definition.ts`, add the field to the interface (after `bindings`, before `extensions`):
 
 ```ts
   /** R1 fallback policy (#476). Omitted/true = try bindings in declared order
@@ -130,7 +130,7 @@ Add to `validateCapabilityDefinition`, after the bindings loop:
   }
 ```
 
-- [ ] **Step 4: Collapse `CapabilityAvailability` in `src/capability/registry.ts`**
+- [ ] **Step 4: Collapse `CapabilityAvailability` in `src/capabilities/capability/registry.ts`**
 
 Replace the interface:
 
@@ -189,7 +189,7 @@ Expected: exit 0 (no other file referenced the old 7-reason union or `.availabil
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/capability/canonical/definition.ts src/capability/registry.ts tests/capability/canonical/definition.vitest.ts tests/capability/registry-projection.vitest.ts
+git add src/capabilities/capability/canonical/definition.ts src/capabilities/capability/registry.ts tests/capability/canonical/definition.vitest.ts tests/capability/registry-projection.vitest.ts
 git commit -m "feat(capability): CAP-4 allowFallbacks field + collapsed availability contract"
 ```
 
@@ -198,8 +198,8 @@ git commit -m "feat(capability): CAP-4 allowFallbacks field + collapsed availabi
 ### Task 2: Provider registry + executor seam (pure additions)
 
 **Files:**
-- Create: `src/capability/provider-registry.ts`
-- Create: `src/capability/provider-executor.ts`
+- Create: `src/capabilities/capability/provider-registry.ts`
+- Create: `src/capabilities/capability/provider-executor.ts`
 - Test: `tests/capability/provider-registry.vitest.ts`
 - Test: `tests/capability/provider-executor.vitest.ts`
 
@@ -230,9 +230,9 @@ Create `tests/capability/provider-registry.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
 
 describe('ProviderExecutorRegistry', () => {
   it('registers and retrieves a provider by type', () => {
@@ -260,15 +260,15 @@ Create `tests/capability/provider-executor.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { NativeExecutor } from '../../src/capability/executors.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
 import {
   NativeProviderExecutor, ToolProviderExecutor, UnavailableProviderExecutor,
   isFallbackEligibleKind, classifyErrorKind,
-} from '../../src/capability/provider-executor.js';
-import type { Capability, CapabilityContext } from '../../src/capability/types.js';
-import type { CapabilityProviderBinding } from '../../src/capability/canonical/provider.js';
-import type { ToolCallRequest } from '../../src/tools/types.js';
-import type { ExecuteResult } from '../../src/tools/executor.js';
+} from '../../src/capabilities/capability/provider-executor.js';
+import type { Capability, CapabilityContext } from '../../src/capabilities/capability/types.js';
+import type { CapabilityProviderBinding } from '../../src/capabilities/capability/canonical/provider.js';
+import type { ToolCallRequest } from '../../src/capabilities/tools/types.js';
+import type { ExecuteResult } from '../../src/capabilities/tools/executor.js';
 
 function cap(id = 'core.echo'): Capability {
   return { id, version: '1.0', kind: 'core', title: 'Echo', description: 'x',
@@ -369,7 +369,7 @@ describe('UnavailableProviderExecutor', () => {
 Run: `pnpm exec vitest run tests/capability/provider-registry.vitest.ts tests/capability/provider-executor.vitest.ts`
 Expected: FAIL — modules do not exist.
 
-- [ ] **Step 3: Create `src/capability/provider-registry.ts`**
+- [ ] **Step 3: Create `src/capabilities/capability/provider-registry.ts`**
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -408,7 +408,7 @@ export class ProviderExecutorRegistry {
 }
 ```
 
-- [ ] **Step 4: Create `src/capability/provider-executor.ts`**
+- [ ] **Step 4: Create `src/capabilities/capability/provider-executor.ts`**
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -522,7 +522,7 @@ Expected: exit 0.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/capability/provider-registry.ts src/capability/provider-executor.ts tests/capability/provider-registry.vitest.ts tests/capability/provider-executor.vitest.ts
+git add src/capabilities/capability/provider-registry.ts src/capabilities/capability/provider-executor.ts tests/capability/provider-registry.vitest.ts tests/capability/provider-executor.vitest.ts
 git commit -m "feat(capability): CAP-4 provider registry (type-keyed) + executor seam"
 ```
 
@@ -531,7 +531,7 @@ git commit -m "feat(capability): CAP-4 provider registry (type-keyed) + executor
 ### Task 3: MCP + external-cli provider executors (pure additions)
 
 **Files:**
-- Modify: `src/capability/provider-executor.ts` (append `McpProviderExecutor` + `ExternalCliProviderExecutor`)
+- Modify: `src/capabilities/capability/provider-executor.ts` (append `McpProviderExecutor` + `ExternalCliProviderExecutor`)
 - Test: `tests/capability/provider-executor.vitest.ts` (append MCP + external-cli suites)
 
 **Interfaces:**
@@ -544,7 +544,7 @@ git commit -m "feat(capability): CAP-4 provider registry (type-keyed) + executor
 Add imports:
 
 ```ts
-import { McpProviderExecutor, ExternalCliProviderExecutor, type SpawnLike } from '../../src/capability/provider-executor.js';
+import { McpProviderExecutor, ExternalCliProviderExecutor, type SpawnLike } from '../../src/capabilities/capability/provider-executor.js';
 ```
 
 Add suites:
@@ -621,7 +621,7 @@ describe('ExternalCliProviderExecutor', () => {
 Run: `pnpm exec vitest run tests/capability/provider-executor.vitest.ts`
 Expected: FAIL — `McpProviderExecutor`/`ExternalCliProviderExecutor`/`SpawnLike` undefined.
 
-- [ ] **Step 3: Append the two executors to `src/capability/provider-executor.ts`**
+- [ ] **Step 3: Append the two executors to `src/capabilities/capability/provider-executor.ts`**
 
 Add imports at the top (append to the existing import block):
 
@@ -718,7 +718,7 @@ Expected: exit 0.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/capability/provider-executor.ts tests/capability/provider-executor.vitest.ts
+git add src/capabilities/capability/provider-executor.ts tests/capability/provider-executor.vitest.ts
 git commit -m "feat(capability): CAP-4 MCP + external-cli provider executors"
 ```
 
@@ -727,7 +727,7 @@ git commit -m "feat(capability): CAP-4 MCP + external-cli provider executors"
 ### Task 4: Provider resolver (pure addition — legacy `ExecutionResolver` stays until Task 5)
 
 **Files:**
-- Create: `src/capability/provider-resolver.ts`
+- Create: `src/capabilities/capability/provider-resolver.ts`
 - Test: `tests/capability/provider-resolver.vitest.ts`
 
 **Interfaces:**
@@ -742,17 +742,17 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ProviderResolver } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityNotFoundError } from '../../src/capability/errors.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import type { CapabilityContext } from '../../src/capability/types.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
+import { ProviderResolver } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityNotFoundError } from '../../src/capabilities/capability/errors.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import type { CapabilityContext } from '../../src/capabilities/capability/types.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
 
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cap4-resolver-')); });
@@ -880,7 +880,7 @@ describe('ProviderResolver', () => {
 Run: `pnpm exec vitest run tests/capability/provider-resolver.vitest.ts`
 Expected: FAIL — module does not exist.
 
-- [ ] **Step 3: Create `src/capability/provider-resolver.ts`**
+- [ ] **Step 3: Create `src/capabilities/capability/provider-resolver.ts`**
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -1003,7 +1003,7 @@ Expected: exit 0.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/capability/provider-resolver.ts tests/capability/provider-resolver.vitest.ts
+git add src/capabilities/capability/provider-resolver.ts tests/capability/provider-resolver.vitest.ts
 git commit -m "feat(capability): CAP-4 provider resolver (ordered, eligibility-filtered candidates)"
 ```
 
@@ -1012,13 +1012,13 @@ git commit -m "feat(capability): CAP-4 provider resolver (ordered, eligibility-f
 ### Task 5: Runtime fallback dispatch + platform wiring (redrawn boundary, part 1)
 
 **Files:**
-- Modify: `src/capability/runtime.ts` (dispatch via candidates + fallback walk + exhaustion → availability)
-- Modify: `src/capability/types.ts` (additive, optional — `InvocationResult.servingProvider?: { providerId: string; providerType: string; bindingIndex: number }`; the legacy `Capability`/`CapabilityExecution` shape is untouched)
-- Modify: `src/capability/errors.ts` (add `ProviderUnavailableError`)
-- Modify: `src/capability/platform.ts` (wire `ProviderExecutorRegistry` + `ProviderResolver`; `registerProvider`; drop `ExecutorRegistry`/`registerExecutor`)
-- Modify: `src/capability/tool-adapter.ts` (`createToolExecutorAdapter` → `createToolProviderExecutor`)
-- Modify: `src/capability/provider-executor.ts` (export `ToolExecutorLike`)
-- Modify: `src/tui/capabilities/capability-service.ts:83` (`registerProvider('tool', createToolProviderExecutor(...))`)
+- Modify: `src/capabilities/capability/runtime.ts` (dispatch via candidates + fallback walk + exhaustion → availability)
+- Modify: `src/capabilities/capability/types.ts` (additive, optional — `InvocationResult.servingProvider?: { providerId: string; providerType: string; bindingIndex: number }`; the legacy `Capability`/`CapabilityExecution` shape is untouched)
+- Modify: `src/capabilities/capability/errors.ts` (add `ProviderUnavailableError`)
+- Modify: `src/capabilities/capability/platform.ts` (wire `ProviderExecutorRegistry` + `ProviderResolver`; `registerProvider`; drop `ExecutorRegistry`/`registerExecutor`)
+- Modify: `src/capabilities/capability/tool-adapter.ts` (`createToolExecutorAdapter` → `createToolProviderExecutor`)
+- Modify: `src/capabilities/capability/provider-executor.ts` (export `ToolExecutorLike`)
+- Modify: `src/interfaces/tui/capabilities/capability-service.ts:83` (`registerProvider('tool', createToolProviderExecutor(...))`)
 - Test: `tests/capability/runtime.vitest.ts` (setup rewrite + `ExecutorNotFoundError` → `ProviderUnavailableError`)
 - Test: `tests/capability/tool-adapter.vitest.ts` (rewrite for `createToolProviderExecutor`)
 - Test: create `tests/capability/fallback.vitest.ts` (the R1 acceptance suite)
@@ -1027,7 +1027,7 @@ git commit -m "feat(capability): CAP-4 provider resolver (ordered, eligibility-f
 - Consumes: `ProviderPlanStep` (Task 4), `ProviderRunResult`/`isFallbackEligibleKind`/`classifyErrorKind` (Task 2), `ProviderUnavailableError` (this task).
 - Produces: `CapabilityRuntime` now constructs as `(registry, hooks, resolver: ProviderResolver, bus)` — 4 args (the executor registry is dropped; candidates carry their executors). `CapabilityPlatform.registerProvider(type, executor)` (the composition seam callers use). `errors.ts` exports `ProviderUnavailableError`. `InvocationResult.servingProvider?: { providerId; providerType; bindingIndex }` (additive — the serving provider is a first-class execution fact; Task 6's barrel exports it via `types.ts`).
 
-- [ ] **Step 1: Add `ProviderUnavailableError` to `src/capability/errors.ts`**
+- [ ] **Step 1: Add `ProviderUnavailableError` to `src/capabilities/capability/errors.ts`**
 
 Append:
 
@@ -1040,7 +1040,7 @@ export class ProviderUnavailableError extends Error {
 }
 ```
 
-- [ ] **Step 2: Rewrite the dispatch in `src/capability/runtime.ts`**
+- [ ] **Step 2: Rewrite the dispatch in `src/capabilities/capability/runtime.ts`**
 
 Update imports (replace the resolver/executor/error imports):
 
@@ -1133,7 +1133,7 @@ Replace the per-step executor loop (the `for (const step of steps) { ... }` body
         await hooks?.afterInvoke?.(r, ctx);
 ```
 
-- [ ] **Step 3: Rewire `src/capability/platform.ts`**
+- [ ] **Step 3: Rewire `src/capabilities/capability/platform.ts`**
 
 Replace imports and body (the `executors` field + `registerExecutor` are gone):
 
@@ -1204,7 +1204,7 @@ export class CapabilityPlatform {
 }
 ```
 
-- [ ] **Step 4: Rewrite `src/capability/tool-adapter.ts`** (replaces `createToolExecutorAdapter`; `ToolExecutorLike` was exported in Task 2)
+- [ ] **Step 4: Rewrite `src/capabilities/capability/tool-adapter.ts`** (replaces `createToolExecutorAdapter`; `ToolExecutorLike` was exported in Task 2)
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -1219,7 +1219,7 @@ export function createToolProviderExecutor(executor: ToolExecutorLike): ToolProv
 }
 ```
 
-- [ ] **Step 5: Update `src/tui/capabilities/capability-service.ts`**
+- [ ] **Step 5: Update `src/interfaces/tui/capabilities/capability-service.ts`**
 
 Change the import + call site (line ~83):
 
@@ -1234,11 +1234,11 @@ import { createToolProviderExecutor } from '../../capability/tool-adapter.js';
 Replace the setup imports/construction:
 
 ```ts
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { ProviderResolver } from '../../src/capability/provider-resolver.js';
-import { ProviderUnavailableError } from '../../src/capability/errors.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { ProviderResolver } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderUnavailableError } from '../../src/capabilities/capability/errors.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
 ```
 (Drop `ExecutorRegistry` + `ExecutionResolver` imports.)
 
@@ -1270,10 +1270,10 @@ The test exercises the full platform path (`registerInitialCapabilities` seeds `
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { CapabilityPlatform } from '../../src/capability/platform.js';
-import { registerInitialCapabilities } from '../../src/capability/initial-capabilities.js';
-import { createToolProviderExecutor } from '../../src/capability/tool-adapter.js';
-import type { ToolCallRequest, ToolResult } from '../../src/tools/types.js';
+import { CapabilityPlatform } from '../../src/capabilities/capability/platform.js';
+import { registerInitialCapabilities } from '../../src/capabilities/capability/initial-capabilities.js';
+import { createToolProviderExecutor } from '../../src/capabilities/capability/tool-adapter.js';
+import type { ToolCallRequest, ToolResult } from '../../src/capabilities/tools/types.js';
 
 describe('tool provider executor', () => {
   function platformWithTool(tool: { execute(req: ToolCallRequest): Promise<ToolResult | { kind: 'denied'; reason: string }> }) {
@@ -1328,20 +1328,20 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityRuntime } from '../../src/capability/runtime.js';
-import { ProviderResolver } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor, ToolProviderExecutor, McpProviderExecutor, ExternalCliProviderExecutor, type SpawnLike } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import { HookRegistry } from '../../src/capability/hook-registry.js';
-import { EventBus } from '../../src/capability/event-bus.js';
-import type { CapabilityContext, ExecutorRunResult } from '../../src/capability/types.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
-import type { ToolCallRequest } from '../../src/tools/types.js';
+import { CapabilityRuntime } from '../../src/capabilities/capability/runtime.js';
+import { ProviderResolver } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor, ToolProviderExecutor, McpProviderExecutor, ExternalCliProviderExecutor, type SpawnLike } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import { HookRegistry } from '../../src/capabilities/capability/hook-registry.js';
+import { EventBus } from '../../src/capabilities/capability/event-bus.js';
+import type { CapabilityContext, ExecutorRunResult } from '../../src/capabilities/capability/types.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
+import type { ToolCallRequest } from '../../src/capabilities/tools/types.js';
 
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cap4-fallback-')); });
@@ -1552,7 +1552,7 @@ Expected: PASS.
 
 - [ ] **Step 9a: Prove every runtime path is provider-bound (legacy-free evidence)**
 
-Run: `grep -rnE "\b(ExecutorRegistry|ExecutionResolver|CapabilityExecutor|ToolExecutorAdapter|registerExecutor)\b" src/capability/provider-executor.ts src/capability/provider-registry.ts src/capability/provider-resolver.ts src/capability/runtime.ts src/capability/platform.ts src/capability/tool-adapter.ts src/tui/capabilities/capability-service.ts`
+Run: `grep -rnE "\b(ExecutorRegistry|ExecutionResolver|CapabilityExecutor|ToolExecutorAdapter|registerExecutor)\b" src/capabilities/capability/provider-executor.ts src/capabilities/capability/provider-registry.ts src/capabilities/capability/provider-resolver.ts src/capabilities/capability/runtime.ts src/capabilities/capability/platform.ts src/capabilities/capability/tool-adapter.ts src/interfaces/tui/capabilities/capability-service.ts`
 Expected: NO code matches (word-boundary anchored — `ProviderExecutorRegistry` is a substring, not a word, so it does NOT match). The single expected exception is the `provider-resolver.ts` doc comment that NAMES `ExecutionResolver` in prose ("replaces strategy-keyed ExecutionResolver dispatch") — a comment is not a dependency; accept it. Everything else zero — no CAP-4 provider executor, the resolver, the registry, the runtime, the platform, the tool adapter, or the TUI service depends on the legacy strategy machinery (Global Constraints "No CAP-4 provider executor may depend on legacy"). The tool path is exercised by `tool-adapter.vitest.ts` (through the platform), the native path by `runtime.vitest.ts`, and mcp/external-cli/tool-fallback by `fallback.vitest.ts`. Task 6 is then pure deletion.
 
 - [ ] **Step 10: Typecheck gate**
@@ -1563,7 +1563,7 @@ Expected: exit 0. (Legacy `ExecutionResolver`/`ExecutorRegistry`/`ToolExecutorAd
 - [ ] **Step 11: Commit**
 
 ```bash
-git add src/capability/runtime.ts src/capability/types.ts src/capability/errors.ts src/capability/platform.ts src/capability/tool-adapter.ts src/capability/provider-executor.ts src/tui/capabilities/capability-service.ts tests/capability/runtime.vitest.ts tests/capability/tool-adapter.vitest.ts tests/capability/fallback.vitest.ts
+git add src/capabilities/capability/runtime.ts src/capabilities/capability/types.ts src/capabilities/capability/errors.ts src/capabilities/capability/platform.ts src/capabilities/capability/tool-adapter.ts src/capabilities/capability/provider-executor.ts src/interfaces/tui/capabilities/capability-service.ts tests/capability/runtime.vitest.ts tests/capability/tool-adapter.vitest.ts tests/capability/fallback.vitest.ts
 git commit -m "feat(capability): CAP-4 runtime fallback dispatch + platform provider wiring"
 ```
 
@@ -1572,12 +1572,12 @@ git commit -m "feat(capability): CAP-4 runtime fallback dispatch + platform prov
 ### Task 6: Remove legacy strategy dispatch (redrawn boundary, part 2)
 
 **Files:**
-- Delete: `src/capability/execution-resolver.ts`
+- Delete: `src/capabilities/capability/execution-resolver.ts`
 - Delete: `tests/capability/execution-resolver.vitest.ts`
-- Modify: `src/capability/executors.ts` (remove `CapabilityExecutor` interface, `ExecutorRegistry`, `ToolExecutorAdapter`; keep `NativeExecutor` + `NativeHandler`)
-- Modify: `src/capability/tool-adapter.ts` (remove `createToolExecutorAdapter`)
-- Modify: `src/capability/errors.ts` (remove `ExecutorNotFoundError` if no longer referenced)
-- Modify: `src/capability/index.ts` (barrel: `execution-resolver.js` → `provider-resolver.js`; add `provider-registry.js` + `provider-executor.js`)
+- Modify: `src/capabilities/capability/executors.ts` (remove `CapabilityExecutor` interface, `ExecutorRegistry`, `ToolExecutorAdapter`; keep `NativeExecutor` + `NativeHandler`)
+- Modify: `src/capabilities/capability/tool-adapter.ts` (remove `createToolExecutorAdapter`)
+- Modify: `src/capabilities/capability/errors.ts` (remove `ExecutorNotFoundError` if no longer referenced)
+- Modify: `src/capabilities/capability/index.ts` (barrel: `execution-resolver.js` → `provider-resolver.js`; add `provider-registry.js` + `provider-executor.js`)
 - Test: `tests/capability/executors.vitest.ts` (remove the `ExecutorRegistry` suite; keep `NativeExecutor`)
 
 **Interfaces:**
@@ -1591,10 +1591,10 @@ Expected: only `executors.vitest.ts` (the `ExecutorRegistry` suite — removed i
 - [ ] **Step 2: Delete the legacy resolver + its test**
 
 ```bash
-git rm src/capability/execution-resolver.ts tests/capability/execution-resolver.vitest.ts
+git rm src/capabilities/capability/execution-resolver.ts tests/capability/execution-resolver.vitest.ts
 ```
 
-- [ ] **Step 3: Trim `src/capability/executors.ts`**
+- [ ] **Step 3: Trim `src/capabilities/capability/executors.ts`**
 
 Remove the `CapabilityExecutor` interface, the `ExecutorRegistry` class, and the `ToolExecutorAdapter` class. The file keeps exactly:
 
@@ -1609,15 +1609,15 @@ export class NativeExecutor implements CapabilityExecutor { ... }
 
 Delete the `describe('ExecutorRegistry', ...)` block (lines ~21-28, which tested `new ExecutorRegistry().register('native', ...)` — the type-keyed `ProviderExecutorRegistry` now covers that in `provider-registry.vitest.ts`). Keep the `describe('NativeExecutor', ...)` suite unchanged.
 
-- [ ] **Step 5: Trim `src/capability/tool-adapter.ts`**
+- [ ] **Step 5: Trim `src/capabilities/capability/tool-adapter.ts`**
 
 The file now contains only `createToolProviderExecutor` (Task 5). Remove any leftover `createToolExecutorAdapter`/`ToolExecutorAdapter` references.
 
-- [ ] **Step 6: Trim `src/capability/errors.ts`**
+- [ ] **Step 6: Trim `src/capabilities/capability/errors.ts`**
 
 Remove `ExecutorNotFoundError` if Step 1 confirmed no references remain.
 
-- [ ] **Step 7: Update `src/capability/index.ts` barrel**
+- [ ] **Step 7: Update `src/capabilities/capability/index.ts` barrel**
 
 ```ts
 export * from "./types.js";
@@ -1645,13 +1645,13 @@ Expected: all PASS; `tsc` exit 0.
 
 - [ ] **Step 9: Structural check — no strategy-keyed dispatch remains**
 
-Run: `grep -rn "execution\.strategy\|\.strategy\b" src/capability/runtime.ts src/capability/execution-resolver.ts 2>/dev/null`
+Run: `grep -rn "execution\.strategy\|\.strategy\b" src/capabilities/capability/runtime.ts src/capabilities/capability/execution-resolver.ts 2>/dev/null`
 Expected: `execution-resolver.ts` no longer exists; `runtime.ts` has no strategy-keyed dispatch (the only `strategy` mention left in the capability path is the legacy `Capability.execution.strategy` field, consumed by `legacy-adapter.ts` for legacy↔canonical conversion — that stays).
 
 - [ ] **Step 10: Commit**
 
 ```bash
-git add -u && git add src/capability/index.ts
+git add -u && git add src/capabilities/capability/index.ts
 git commit -m "refactor(capability): CAP-4 remove legacy strategy-keyed dispatch"
 ```
 

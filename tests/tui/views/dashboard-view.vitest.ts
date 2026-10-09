@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { DashboardView } from '../../../src/tui/views/dashboard-view.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
+import { DashboardView } from '../../../src/interfaces/tui/views/dashboard-view.js';
+import type { ViewRenderContext } from '../../../src/interfaces/tui/views/types.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
 
 function ctx(overrides: Partial<{ snap: any; perTab: any; dims: any }> = {}): ViewRenderContext {
   const dims = overrides.dims ?? { columns: 120, rows: 30 };

@@ -15,9 +15,9 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleCurationCommand } from "../../../src/evolution/knowledge/curation-cli.js";
-import type { GovernanceDecision } from "../../../src/evolution/governance/contracts/decision-contract.js";
-import { DEFAULT_GOVERNANCE_POLICY } from "../../../src/evolution/governance/contracts/decision-contract.js";
+import { handleCurationCommand } from "../../../src/planning/evolution/knowledge/curation-cli.js";
+import type { GovernanceDecision } from "../../../src/planning/evolution/governance/contracts/decision-contract.js";
+import { DEFAULT_GOVERNANCE_POLICY } from "../../../src/planning/evolution/governance/contracts/decision-contract.js";
 
 // ---------------------------------------------------------------------------
 // Capture console for testing

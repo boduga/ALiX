@@ -10,11 +10,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { LensCalibrationBuilder, isWarningVerdict } from "../../src/adaptation/lens-calibration-builder.js";
-import type { LensObservation } from "../../src/adaptation/lens-calibration-builder.js";
-import type { LensName } from "../../src/adaptation/governance-review-types.js";
-import type { GovernanceVerdict } from "../../src/adaptation/governance-review-types.js";
-import type { OutcomeValue } from "../../src/adaptation/outcome-types.js";
+import { LensCalibrationBuilder, isWarningVerdict } from "../../src/planning/adaptation/lens-calibration-builder.js";
+import type { LensObservation } from "../../src/planning/adaptation/lens-calibration-builder.js";
+import type { LensName } from "../../src/planning/adaptation/governance-review-types.js";
+import type { GovernanceVerdict } from "../../src/planning/adaptation/governance-review-types.js";
+import type { OutcomeValue } from "../../src/planning/adaptation/outcome-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

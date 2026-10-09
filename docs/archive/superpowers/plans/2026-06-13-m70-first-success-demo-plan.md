@@ -4,9 +4,9 @@
 
 **Goal:** Complete the "10-minute first success" path for ALiX by adding `alix inspector open` (start the Inspector HTTP server and open a browser) and documenting the full happy path from init through demo.
 
-**Architecture:** One new CLI command that reuses the existing `startServer()` from `src/server/server.ts`, auto-enables the UI regardless of config, and opens the browser with platform-appropriate shell commands. No new server code, no new panels, no new API routes.
+**Architecture:** One new CLI command that reuses the existing `startServer()` from `src/interfaces/server/server.ts`, auto-enables the UI regardless of config, and opens the browser with platform-appropriate shell commands. No new server code, no new panels, no new API routes.
 
-**Tech Stack:** TypeScript, existing `startServer()` from `src/server/server.ts`, `child_process.execFile` for browser open, existing docs.
+**Tech Stack:** TypeScript, existing `startServer()` from `src/interfaces/server/server.ts`, `child_process.execFile` for browser open, existing docs.
 
 **Spec:** This is the full happy path documented end-to-end:
 ```

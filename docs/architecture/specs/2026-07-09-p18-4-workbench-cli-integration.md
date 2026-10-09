@@ -86,7 +86,7 @@ Governance Workbench Summary
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Modified — harden `runWorkbenchQueue`, `runWorkbenchTrace`, `runWorkbenchSummary` |
+| `src/interfaces/cli/commands/governance.ts` | Modified — harden `runWorkbenchQueue`, `runWorkbenchTrace`, `runWorkbenchSummary` |
 | `tests/cli/governance-workbench-cli.test.ts` | New — CLI integration tests |
 
 ## Required tests

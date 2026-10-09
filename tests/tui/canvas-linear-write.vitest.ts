@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import * as terminalText from '../../src/tui/terminal-text.js';
-import { TerminalCanvas } from '../../src/tui/canvas.js';
+import * as terminalText from '../../src/interfaces/tui/terminal-text.js';
+import { TerminalCanvas } from '../../src/interfaces/tui/canvas.js';
 
 describe('canvas single-pass text writes', () => {
   it('segments each styled run once rather than every shrinking suffix', () => {

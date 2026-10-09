@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createTerminalControl, captureStderr, releaseStderr } from '../../src/tui/terminal-control.js';
+import { createTerminalControl, captureStderr, releaseStderr } from '../../src/interfaces/tui/terminal-control.js';
 
 describe('TerminalControl — mode management', () => {
   let writeSpy: ReturnType<typeof vi.fn>;

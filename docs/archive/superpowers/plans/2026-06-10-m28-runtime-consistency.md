@@ -15,12 +15,12 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/cli/commands/tui.ts` | **Modify** | Mutable `activeCwd/activeSessionId/activeSessionDir/activeConfig`; update `softReinitWorkspace` to set all four; pass `getActiveCwd` to WorkspaceManager |
-| `src/tui/workspace-manager.ts` | **Modify** | Add `getActiveCwd()` to deps; use it for relative path resolution in `handleOpen` |
-| `src/daemon/daemon-server.ts` | **Modify** | Deduplicate `session.ended` via guard; enforce `allowedTools` in `executeGroundedChatRoute`; fix non-agent event ordering |
-| `src/runtime/route-executor.ts` | **Modify** | Enforce `allowedTools` in `LocalRuntimeExecutor.executeGroundedChat` |
-| `src/daemon/task-registry.ts` | **Modify** | Add `enqueueSave()` serialized write queue; log failures |
-| `src/daemon/workspace-registry.ts` | **Modify** | Add `enqueueSave()` serialized write queue |
+| `src/interfaces/cli/commands/tui.ts` | **Modify** | Mutable `activeCwd/activeSessionId/activeSessionDir/activeConfig`; update `softReinitWorkspace` to set all four; pass `getActiveCwd` to WorkspaceManager |
+| `src/interfaces/tui/workspace-manager.ts` | **Modify** | Add `getActiveCwd()` to deps; use it for relative path resolution in `handleOpen` |
+| `src/operations/daemon/daemon-server.ts` | **Modify** | Deduplicate `session.ended` via guard; enforce `allowedTools` in `executeGroundedChatRoute`; fix non-agent event ordering |
+| `src/runtime-state/runtime/route-executor.ts` | **Modify** | Enforce `allowedTools` in `LocalRuntimeExecutor.executeGroundedChat` |
+| `src/operations/daemon/task-registry.ts` | **Modify** | Add `enqueueSave()` serialized write queue; log failures |
+| `src/operations/daemon/workspace-registry.ts` | **Modify** | Add `enqueueSave()` serialized write queue |
 | `tests/tui/workspace-manager.test.ts` | **Modify** | Add `getActiveCwd` to mock deps in all tests |
 
 ---
@@ -28,7 +28,7 @@
 ### Task 1: Mutable runtime context in runTui()
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Replace immutable startup vars with mutable active* vars**
 
@@ -160,7 +160,7 @@ Expected: no errors.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "fix(tui): use mutable active runtime context after workspace switch"
 ```
 
@@ -169,7 +169,7 @@ git commit -m "fix(tui): use mutable active runtime context after workspace swit
 ### Task 2: Fix /open relative path resolution
 
 **Files:**
-- Modify: `src/tui/workspace-manager.ts`
+- Modify: `src/interfaces/tui/workspace-manager.ts`
 - Modify: `tests/tui/workspace-manager.test.ts`
 
 - [ ] **Step 1: Add getActiveCwd to WorkspaceManagerDeps**
@@ -218,7 +218,7 @@ Expected: 28 tests still pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/workspace-manager.ts tests/tui/workspace-manager.test.ts
+git add src/interfaces/tui/workspace-manager.ts tests/tui/workspace-manager.test.ts
 git commit -m "fix(tui): resolve /open relative paths against active workspace"
 ```
 
@@ -227,8 +227,8 @@ git commit -m "fix(tui): resolve /open relative paths against active workspace"
 ### Task 3: Enforce grounded_chat allowedTools
 
 **Files:**
-- Modify: `src/daemon/daemon-server.ts` (daemon-side grounded_chat)
-- Modify: `src/runtime/route-executor.ts` (local grounded_chat)
+- Modify: `src/operations/daemon/daemon-server.ts` (daemon-side grounded_chat)
+- Modify: `src/runtime-state/runtime/route-executor.ts` (local grounded_chat)
 
 - [ ] **Step 1: Add allowedTools check to daemon executeGroundedChatRoute**
 
@@ -259,7 +259,7 @@ Replace with:
 
 - [ ] **Step 2: Add same check to LocalRuntimeExecutor.executeGroundedChat**
 
-In `src/runtime/route-executor.ts`, find the same block and apply the same fix:
+In `src/runtime-state/runtime/route-executor.ts`, find the same block and apply the same fix:
 
 ```typescript
   if (response.toolCalls.length > 0) {
@@ -286,7 +286,7 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/daemon/daemon-server.ts src/runtime/route-executor.ts
+git add src/operations/daemon/daemon-server.ts src/runtime-state/runtime/route-executor.ts
 git commit -m "fix(runtime): enforce grounded_chat allowedTools allowlist"
 ```
 
@@ -295,7 +295,7 @@ git commit -m "fix(runtime): enforce grounded_chat allowedTools allowlist"
 ### Task 4: Deduplicate daemon session.ended
 
 **Files:**
-- Modify: `src/daemon/daemon-server.ts`
+- Modify: `src/operations/daemon/daemon-server.ts`
 
 - [ ] **Step 1: Restructure handleRun with finally guard**
 
@@ -440,7 +440,7 @@ Expected: 5 tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/daemon/daemon-server.ts
+git add src/operations/daemon/daemon-server.ts
 git commit -m "fix(daemon): deduplicate session.ended via finally + guard"
 ```
 
@@ -449,8 +449,8 @@ git commit -m "fix(daemon): deduplicate session.ended via finally + guard"
 ### Task 5: Serialize registry writes
 
 **Files:**
-- Modify: `src/daemon/task-registry.ts`
-- Modify: `src/daemon/workspace-registry.ts`
+- Modify: `src/operations/daemon/task-registry.ts`
+- Modify: `src/operations/daemon/workspace-registry.ts`
 
 - [ ] **Step 1: Add enqueueSave to TaskRegistry**
 
@@ -481,7 +481,7 @@ The `save()` method stays as-is — it's the actual write. `enqueueSave()` is th
 
 - [ ] **Step 2: Add enqueueSave to WorkspaceRegistry**
 
-In `src/daemon/workspace-registry.ts`, add the same pattern:
+In `src/operations/daemon/workspace-registry.ts`, add the same pattern:
 
 ```typescript
   private savePromise: Promise<void> = Promise.resolve();
@@ -574,7 +574,7 @@ Expected: all tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/daemon/task-registry.ts src/daemon/workspace-registry.ts
+git add src/operations/daemon/task-registry.ts src/operations/daemon/workspace-registry.ts
 git commit -m "fix(daemon): serialize registry writes via enqueueSave pattern"
 ```
 
@@ -598,12 +598,12 @@ git diff --stat HEAD~5..HEAD
 ```
 
 Expected files:
-- `src/cli/commands/tui.ts`
-- `src/tui/workspace-manager.ts`
-- `src/daemon/daemon-server.ts`
-- `src/runtime/route-executor.ts`
-- `src/daemon/task-registry.ts`
-- `src/daemon/workspace-registry.ts`
+- `src/interfaces/cli/commands/tui.ts`
+- `src/interfaces/tui/workspace-manager.ts`
+- `src/operations/daemon/daemon-server.ts`
+- `src/runtime-state/runtime/route-executor.ts`
+- `src/operations/daemon/task-registry.ts`
+- `src/operations/daemon/workspace-registry.ts`
 - `tests/tui/workspace-manager.test.ts`
 
 - [ ] **Step 3: Push and tag**

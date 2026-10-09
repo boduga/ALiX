@@ -13,18 +13,18 @@
 ## File Structure
 
 ### Create
-- `src/config/performance-budgets.ts` — `PerformanceBudget` type, warningMs/failureMs, `BudgetContext`, `checkBudget()`, `checkAllBudgets()`
-- `src/runtime/timing-events.ts` — `measurePhase()` helper, `TimingEventPayload` type with timingId/operation/outcome/error/metadata
-- `src/cli/commands/performance-doctor.ts` — `runPerformanceDoctor()` passive budget check CLI handler
+- `src/operations/config/performance-budgets.ts` — `PerformanceBudget` type, warningMs/failureMs, `BudgetContext`, `checkBudget()`, `checkAllBudgets()`
+- `src/runtime-state/runtime/timing-events.ts` — `measurePhase()` helper, `TimingEventPayload` type with timingId/operation/outcome/error/metadata
+- `src/interfaces/cli/commands/performance-doctor.ts` — `runPerformanceDoctor()` passive budget check CLI handler
 - `tests/config/performance-budgets.test.ts`
 - `tests/runtime/timing-events.test.ts`
 
 ### Modify
-- `src/runtime/runtime-index.ts` — accept optional `eventLog`/`sessionId` options, wrap build in `measurePhase()`
-- `src/repomap/context-pipeline.ts` or `src/repomap/repomap-lite.ts` — wrap compile in `measurePhase()`
-- `src/tools/tool-router.ts` — wrap `ToolAwareRouter.execute()` in `measurePhase()`
-- `src/runtime/runtime-index.ts` — add `runtime.phase.started/completed`, `tool.route.completed`, `context.compile.completed` to the session-event allowlist
-- `src/server/server.ts` — add timing events to `VISIBLE_EVENTS` SSE array
+- `src/runtime-state/runtime/runtime-index.ts` — accept optional `eventLog`/`sessionId` options, wrap build in `measurePhase()`
+- `src/context/repomap/context-pipeline.ts` or `src/context/repomap/repomap-lite.ts` — wrap compile in `measurePhase()`
+- `src/capabilities/tools/tool-router.ts` — wrap `ToolAwareRouter.execute()` in `measurePhase()`
+- `src/runtime-state/runtime/runtime-index.ts` — add `runtime.phase.started/completed`, `tool.route.completed`, `context.compile.completed` to the session-event allowlist
+- `src/interfaces/server/server.ts` — add timing events to `VISIBLE_EVENTS` SSE array
 - `src/cli.ts` — add small `--performance` dispatch to `performance-doctor.ts`
 - `package.json` — add `test:observability` script (optional)
 
@@ -33,7 +33,7 @@
 ### Task 1: Performance Budget Types and Constants (environment-aware)
 
 **Files:**
-- Create: `src/config/performance-budgets.ts`
+- Create: `src/operations/config/performance-budgets.ts`
 - Create: `tests/config/performance-budgets.test.ts`
 
 - [ ] **Step 1: Create performance-budgets.ts**
@@ -122,7 +122,7 @@ export function checkAllBudgets(
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { checkBudget, checkAllBudgets, PERFORMANCE_BUDGETS } from "../../src/config/performance-budgets.js";
+import { checkBudget, checkAllBudgets, PERFORMANCE_BUDGETS } from "../../src/operations/config/performance-budgets.js";
 
 describe("PERFORMANCE_BUDGETS", () => {
   it("has the expected set of budgets", () => {
@@ -176,7 +176,7 @@ npm run build && node --test dist/tests/config/performance-budgets.test.js
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/config/performance-budgets.ts tests/config/performance-budgets.test.ts
+git add src/operations/config/performance-budgets.ts tests/config/performance-budgets.test.ts
 git commit -m "feat(perf): add environment-aware performance budgets with warning/failure thresholds"
 ```
 
@@ -185,7 +185,7 @@ git commit -m "feat(perf): add environment-aware performance budgets with warnin
 ### Task 2: Correlated measurePhase() Helper
 
 **Files:**
-- Create: `src/runtime/timing-events.ts`
+- Create: `src/runtime-state/runtime/timing-events.ts`
 - Create: `tests/runtime/timing-events.test.ts`
 
 - [ ] **Step 1: Create timing-events.ts**
@@ -272,7 +272,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EventLog } from "../../src/events/event-log.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 describe("measurePhase", () => {
   let dir: string;
@@ -287,7 +287,7 @@ describe("measurePhase", () => {
   afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
   it("emits started + completed on success", async () => {
-    const { measurePhase } = await import("../../src/runtime/timing-events.js");
+    const { measurePhase } = await import("../../src/runtime-state/runtime/timing-events.js");
     const result = await measurePhase(log, "s1", "test.op", async () => "hello");
     assert.equal(result, "hello", "returns the work result");
     const events = await log.readAll();
@@ -300,7 +300,7 @@ describe("measurePhase", () => {
   });
 
   it("emits completed with failure and rethrows on error", async () => {
-    const { measurePhase } = await import("../../src/runtime/timing-events.js");
+    const { measurePhase } = await import("../../src/runtime-state/runtime/timing-events.js");
     await assert.rejects(
       () => measurePhase(log, "s1", "failing.op", async () => { throw new Error("boom"); }),
       /boom/,
@@ -313,7 +313,7 @@ describe("measurePhase", () => {
   });
 
   it("timingId matches between started and completed", async () => {
-    const { measurePhase } = await import("../../src/runtime/timing-events.js");
+    const { measurePhase } = await import("../../src/runtime-state/runtime/timing-events.js");
     await measurePhase(log, "s1", "correlated.op", async () => {});
     const events = await log.readAll();
     const started = events.find((e: any) => e.type === "runtime.phase.started");
@@ -322,7 +322,7 @@ describe("measurePhase", () => {
   });
 
   it("skips instrumentation when log is undefined", async () => {
-    const { measurePhase } = await import("../../src/runtime/timing-events.js");
+    const { measurePhase } = await import("../../src/runtime-state/runtime/timing-events.js");
     const result = await measurePhase(undefined, "s1", "unlogged", async () => 42);
     assert.equal(result, 42);
     const events = await log.readAll();
@@ -341,7 +341,7 @@ npm run build && node --test dist/tests/runtime/timing-events.test.js
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/runtime/timing-events.ts tests/runtime/timing-events.test.ts
+git add src/runtime-state/runtime/timing-events.ts tests/runtime/timing-events.test.ts
 git commit -m "feat(observability): add correlated measurePhase() helper with timingId and outcome"
 ```
 
@@ -350,7 +350,7 @@ git commit -m "feat(observability): add correlated measurePhase() helper with ti
 ### Task 3: Instrument RuntimeIndex with measurePhase()
 
 **Files:**
-- Modify: `src/runtime/runtime-index.ts`
+- Modify: `src/runtime-state/runtime/runtime-index.ts`
 
 - [ ] **Step 1: Add options parameter to buildRuntimeIndex**
 
@@ -401,7 +401,7 @@ Find the event-type allowlist used by `buildRuntimeIndex` for session file scann
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/runtime/runtime-index.ts
+git add src/runtime-state/runtime/runtime-index.ts
 git commit -m "feat(observability): instrument buildRuntimeIndex with measurePhase and add timing events to allowlist"
 ```
 
@@ -410,12 +410,12 @@ git commit -m "feat(observability): instrument buildRuntimeIndex with measurePha
 ### Task 4: Instrument Tool Router and Context Compile
 
 **Files:**
-- Modify: `src/tools/tool-router.ts` (ToolAwareRouter.execute)
-- Modify: `src/repomap/repomap-lite.ts` (buildRepoMapLite)
+- Modify: `src/capabilities/tools/tool-router.ts` (ToolAwareRouter.execute)
+- Modify: `src/context/repomap/repomap-lite.ts` (buildRepoMapLite)
 
 - [ ] **Step 1: Add measurePhase to ToolAwareRouter.execute**
 
-In `src/tools/tool-router.ts`, import `measurePhase` and wrap the execute delegation:
+In `src/capabilities/tools/tool-router.ts`, import `measurePhase` and wrap the execute delegation:
 
 ```typescript
 import { measurePhase } from "../runtime/timing-events.js";
@@ -447,7 +447,7 @@ constructor(
 
 - [ ] **Step 2: Add measurePhase to buildRepoMapLite**
 
-In `src/repomap/repomap-lite.ts`:
+In `src/context/repomap/repomap-lite.ts`:
 ```typescript
 import { measurePhase } from "../runtime/timing-events.js";
 
@@ -469,7 +469,7 @@ export async function buildRepoMapLite(
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tools/tool-router.ts src/repomap/repomap-lite.ts
+git add src/capabilities/tools/tool-router.ts src/context/repomap/repomap-lite.ts
 git commit -m "feat(observability): instrument ToolAwareRouter and buildRepoMapLite with measurePhase"
 ```
 
@@ -478,11 +478,11 @@ git commit -m "feat(observability): instrument ToolAwareRouter and buildRepoMapL
 ### Task 5: Surface Timing Events in Inspector SSE
 
 **Files:**
-- Modify: `src/server/server.ts`
+- Modify: `src/interfaces/server/server.ts`
 
 - [ ] **Step 1: Add timing events to VISIBLE_EVENTS**
 
-Find the `VISIBLE_EVENTS` array in `src/server/server.ts` and add:
+Find the `VISIBLE_EVENTS` array in `src/interfaces/server/server.ts` and add:
 ```typescript
 "runtime.phase.started",
 "runtime.phase.completed",
@@ -491,7 +491,7 @@ Find the `VISIBLE_EVENTS` array in `src/server/server.ts` and add:
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/server/server.ts
+git add src/interfaces/server/server.ts
 git commit -m "feat(observability): add timing events to Inspector SSE visibility list"
 ```
 
@@ -500,7 +500,7 @@ git commit -m "feat(observability): add timing events to Inspector SSE visibilit
 ### Task 6: `alix doctor --performance` CLI (Passive Budget Check)
 
 **Files:**
-- Create: `src/cli/commands/performance-doctor.ts`
+- Create: `src/interfaces/cli/commands/performance-doctor.ts`
 - Modify: `src/cli.ts`
 
 - [ ] **Step 1: Create performance-doctor.ts**
@@ -581,7 +581,7 @@ Expected: if no benchmark data, prints message and exits 2
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/performance-doctor.ts src/cli.ts
+git add src/interfaces/cli/commands/performance-doctor.ts src/cli.ts
 git commit -m "feat(cli): add alix doctor --performance for passive budget checking"
 ```
 

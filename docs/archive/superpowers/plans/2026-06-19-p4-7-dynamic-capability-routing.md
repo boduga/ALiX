@@ -6,7 +6,7 @@
 
 **Architecture:** Extend `SkillStep` with `capability` + `resolve` fields. At runtime, `runWorkflowSkill()` calls the existing `CapabilityResolver` to select the best agent for each step. Hooks and evidence capture the resolution. No changes to the resolver or registry — those already work.
 
-**Tech Stack:** TypeScript (TSX/ESM), existing `CardRegistry` (src/registry/), existing `CapabilityResolver`, existing `SkillStep`/`SkillDefinition`, P4.6 `WorkflowOrchestrator`, P4.6 `HookManager`.
+**Tech Stack:** TypeScript (TSX/ESM), existing `CardRegistry` (src/capabilities/registry/), existing `CapabilityResolver`, existing `SkillStep`/`SkillDefinition`, P4.6 `WorkflowOrchestrator`, P4.6 `HookManager`.
 
 ## Global Constraints
 
@@ -21,10 +21,10 @@
 
 | File | Action | Role |
 |------|--------|------|
-| `src/workflow/skill.ts` | **Modify** — Add `capability`, `resolve` to `SkillStep` |
-| `src/workflow/workflow-skill.ts` | **Modify** — Add `CapabilityResolver` call in step dispatch |
-| `src/workflow/evidence-writer.ts` | **Modify** — Add `recordAgentResolved()`, `recordCapabilityRouted()` |
-| `src/security/evidence/evidence-types.ts` | **Modify** — Add `agent_resolved`, `capability_routed` |
+| `src/coordination/workflow/skill.ts` | **Modify** — Add `capability`, `resolve` to `SkillStep` |
+| `src/coordination/workflow/workflow-skill.ts` | **Modify** — Add `CapabilityResolver` call in step dispatch |
+| `src/coordination/workflow/evidence-writer.ts` | **Modify** — Add `recordAgentResolved()`, `recordCapabilityRouted()` |
+| `src/governance/security/evidence/evidence-types.ts` | **Modify** — Add `agent_resolved`, `capability_routed` |
 | `.alix/skills/workflow/issue-lifecycle.json` | **Modify** — Switch to capability-based steps |
 | `tests/workflow/workflow-skill.vitest.ts` | **Modify** — Add capability routing tests |
 | `tests/workflow/evidence-writer.vitest.ts` | **Modify** — Add routing evidence tests |
@@ -33,8 +33,8 @@
 ## Task 1: P4.7a — Evidence Types for Capability Routing
 
 **Files:**
-- Modify: `src/security/evidence/evidence-types.ts` (add 2 event types)
-- Modify: `src/workflow/evidence-writer.ts` (add 2 typed methods)
+- Modify: `src/governance/security/evidence/evidence-types.ts` (add 2 event types)
+- Modify: `src/coordination/workflow/evidence-writer.ts` (add 2 typed methods)
 - Test: `tests/workflow/evidence-writer.vitest.ts` (extend)
 
 **Interfaces:**
@@ -48,8 +48,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
+import { EvidenceEventWriter } from "../../src/coordination/workflow/evidence-writer.js";
 
 function tmpDir(): string {
   const dir = join("/tmp", "ev-test-" + randomUUID().slice(0, 8));
@@ -110,7 +110,7 @@ Expected: FAIL — `recordAgentResolved` not found.
 
 - [ ] **Step 3: Add evidence types**
 
-Add to `src/security/evidence/evidence-types.ts` in the `EvidenceType` union:
+Add to `src/governance/security/evidence/evidence-types.ts` in the `EvidenceType` union:
 ```typescript
   // P4.7 capability routing
   | "agent_resolved"
@@ -125,7 +125,7 @@ Add to `EVIDENCE_TYPES` set:
 
 - [ ] **Step 4: Add typed methods to EvidenceEventWriter**
 
-Add to `src/workflow/evidence-writer.ts` after the execution section:
+Add to `src/coordination/workflow/evidence-writer.ts` after the execution section:
 
 ```typescript
   // -----------------------------------------------------------------------
@@ -157,7 +157,7 @@ Expected: 3 tests pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/security/evidence/evidence-types.ts src/workflow/evidence-writer.ts
+git add src/governance/security/evidence/evidence-types.ts src/coordination/workflow/evidence-writer.ts
 git commit -m "feat(p4.7a): add agent_resolved and capability_routed evidence types"
 ```
 
@@ -165,13 +165,13 @@ git commit -m "feat(p4.7a): add agent_resolved and capability_routed evidence ty
 ## Task 2: P4.7b — Extend SkillStep with Capability Routing
 
 **Files:**
-- Modify: `src/workflow/skill.ts` (add `capability`, `resolve` to `SkillStep`)
-- Modify: `src/workflow/workflow-skill.ts` (integrate `CapabilityResolver`)
+- Modify: `src/coordination/workflow/skill.ts` (add `capability`, `resolve` to `SkillStep`)
+- Modify: `src/coordination/workflow/workflow-skill.ts` (integrate `CapabilityResolver`)
 - Modify: `.alix/skills/workflow/issue-lifecycle.json` (use capabilities)
 - Test: Extend `tests/workflow/workflow-skill.vitest.ts`
 
 **Interfaces:**
-- Consumes: `CapabilityResolver` from `src/registry/capability-resolver.ts`, `CardRegistry` from `src/registry/card-registry.ts`
+- Consumes: `CapabilityResolver` from `src/capabilities/registry/capability-resolver.ts`, `CardRegistry` from `src/capabilities/registry/card-registry.ts`
 - Produces: Updated `SkillStep` with optional `capability` + `resolve`, updated `runWorkflowSkill()` that resolves capabilities
 
 - [ ] **Step 1: Write the failing test**
@@ -179,7 +179,7 @@ git commit -m "feat(p4.7a): add agent_resolved and capability_routed evidence ty
 Add to `tests/workflow/workflow-skill.vitest.ts`:
 
 ```typescript
-import { loadCardRegistry } from "../../src/registry/card-loader.js";
+import { loadCardRegistry } from "../../src/capabilities/registry/card-loader.js";
 
 describe("capability routing in skills", () => {
   let dir: string;
@@ -271,7 +271,7 @@ describe("capability routing in skills", () => {
 Run: `npx vitest run tests/workflow/workflow-skill.vitest.ts --config vitest.config.mts 2>&1 | head -15`
 Expected: FAIL — `SkillContext` has no `registry` field.
 
-- [ ] **Step 3: Update `src/workflow/skill.ts` — add fields to SkillStep**
+- [ ] **Step 3: Update `src/coordination/workflow/skill.ts` — add fields to SkillStep**
 
 ```typescript
 export interface SkillStep {
@@ -295,7 +295,7 @@ export interface SkillStep {
 }
 ```
 
-- [ ] **Step 4: Update `src/workflow/workflow-skill.ts` — add registry + resolve logic**
+- [ ] **Step 4: Update `src/coordination/workflow/workflow-skill.ts` — add registry + resolve logic**
 
 Change `SkillContext` to include optional `registry`:
 ```typescript
@@ -375,7 +375,7 @@ Expected: All tests pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/workflow/skill.ts src/workflow/workflow-skill.ts .alix/skills/workflow/issue-lifecycle.json tests/workflow/workflow-skill.vitest.ts
+git add src/coordination/workflow/skill.ts src/coordination/workflow/workflow-skill.ts .alix/skills/workflow/issue-lifecycle.json tests/workflow/workflow-skill.vitest.ts
 git commit -m "feat(p4.7b): add capability-based routing to SkillStep and runWorkflowSkill"
 ```
 

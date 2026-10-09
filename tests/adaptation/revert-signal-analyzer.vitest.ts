@@ -7,10 +7,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { RevertSignalAnalyzer } from "../../src/adaptation/revert-signal-analyzer.js";
-import type { EnrichedProposal, BucketSet } from "../../src/adaptation/intelligence-types.js";
-import type { PrimaryMetricKey, MetricDirection } from "../../src/adaptation/effectiveness-types.js";
-import type { ProposalAction } from "../../src/adaptation/adaptation-types.js";
+import { RevertSignalAnalyzer } from "../../src/planning/adaptation/revert-signal-analyzer.js";
+import type { EnrichedProposal, BucketSet } from "../../src/planning/adaptation/intelligence-types.js";
+import type { PrimaryMetricKey, MetricDirection } from "../../src/planning/adaptation/effectiveness-types.js";
+import type { ProposalAction } from "../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

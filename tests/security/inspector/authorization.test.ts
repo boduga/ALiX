@@ -11,9 +11,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { authorize, type AuthorizationResult } from "../../../src/security/inspector/authorization.js";
-import { createSecurityContext, type SecurityContext } from "../../../src/security/inspector/security-context.js";
-import type { RouteDescriptor } from "../../../src/security/inspector/route-policy.js";
+import { authorize, type AuthorizationResult } from "../../../src/governance/security/inspector/authorization.js";
+import { createSecurityContext, type SecurityContext } from "../../../src/governance/security/inspector/security-context.js";
+import type { RouteDescriptor } from "../../../src/governance/security/inspector/route-policy.js";
 
 function makeRoute(overrides: Partial<RouteDescriptor> = {}): RouteDescriptor {
   return {

@@ -6,7 +6,7 @@
 
 **Architecture:** `LLMLensAgent` implements the existing `LensAgent` interface, calling an LLM via `LLMAdapter` (new interface) backed by `ProviderCatalogAdapter` (wraps existing provider catalog). Lenses run in parallel. Strict JSON parsing with authority-language detection. All failures become `insufficient_information`. `GovernanceReviewCouncil` aggregates deterministically (unchanged from P6.5a).
 
-**Tech Stack:** TypeScript (NodeNext), vitest, existing src/providers/ catalog
+**Tech Stack:** TypeScript (NodeNext), vitest, existing src/models/providers/ catalog
 
 ## Global Constraints
 
@@ -28,24 +28,24 @@
 
 ```
 Create:
-  src/adaptation/llm-adapter.ts              — LLMAdapter interface, LLMCompletion type
-  src/adaptation/provider-catalog-adapter.ts  — ProviderCatalogAdapter implements LLMAdapter
-  src/adaptation/llm-lens-agent.ts            — LLMLensAgent implements LensAgent
+  src/planning/adaptation/llm-adapter.ts              — LLMAdapter interface, LLMCompletion type
+  src/planning/adaptation/provider-catalog-adapter.ts  — ProviderCatalogAdapter implements LLMAdapter
+  src/planning/adaptation/llm-lens-agent.ts            — LLMLensAgent implements LensAgent
   tests/adaptation/llm-adapter.vitest.ts      — adapter contract tests
   tests/adaptation/llm-lens-agent.vitest.ts   — parsing, authority, fallback tests
 
 Modify:
-  src/adaptation/governance-review-types.ts   — Widen LensScore with optional provider/model
-  src/adaptation/lens-agent.ts                — Add LENS_JSON_SUFFIX export
-  src/cli/commands/decision.ts                — Replace review stub with live runReview
+  src/planning/adaptation/governance-review-types.ts   — Widen LensScore with optional provider/model
+  src/planning/adaptation/lens-agent.ts                — Add LENS_JSON_SUFFIX export
+  src/interfaces/cli/commands/decision.ts                — Replace review stub with live runReview
   tests/adaptation/governance-review-sentinels.vitest.ts — Add P6.5b sentinel tests
 ```
 
 ### Task 1: Widen LensScore + Add LENS_JSON_SUFFIX
 
 **Files:**
-- Modify: `src/adaptation/governance-review-types.ts` (add optional `provider`/`model` to `LensScore`)
-- Modify: `src/adaptation/lens-agent.ts` (add `LENS_JSON_SUFFIX` export)
+- Modify: `src/planning/adaptation/governance-review-types.ts` (add optional `provider`/`model` to `LensScore`)
+- Modify: `src/planning/adaptation/lens-agent.ts` (add `LENS_JSON_SUFFIX` export)
 - Test: existing tests should pass without changes (optional fields are backward-compatible)
 - Verify: `tests/adaptation/governance-review-council.vitest.ts` still passes
 
@@ -63,7 +63,7 @@ Expected: 21+ tests passing
 - [ ] **Step 2: Add optional provider/model to LensScore**
 
 ```typescript
-// In src/adaptation/governance-review-types.ts, add to LensScore interface:
+// In src/planning/adaptation/governance-review-types.ts, add to LensScore interface:
 export interface LensScore {
   lens: LensName;
   recommendedVerdict: GovernanceVerdict;
@@ -79,7 +79,7 @@ export interface LensScore {
 - [ ] **Step 3: Add LENS_JSON_SUFFIX to lens-agent.ts**
 
 ```typescript
-// At the end of src/adaptation/lens-agent.ts, after LENS_PROMPTS:
+// At the end of src/planning/adaptation/lens-agent.ts, after LENS_PROMPTS:
 
 /**
  * Centralized JSON-only suffix appended to every lens prompt.
@@ -107,7 +107,7 @@ Expected: 984+ tests passing
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/adaptation/governance-review-types.ts src/adaptation/lens-agent.ts
+git add src/planning/adaptation/governance-review-types.ts src/planning/adaptation/lens-agent.ts
 git commit -m "feat(p6.5b): widen LensScore with provider/model, add LENS_JSON_SUFFIX"
 ```
 
@@ -116,8 +116,8 @@ git commit -m "feat(p6.5b): widen LensScore with provider/model, add LENS_JSON_S
 ### Task 2: LLMAdapter Interface + ProviderCatalogAdapter
 
 **Files:**
-- Create: `src/adaptation/llm-adapter.ts`
-- Create: `src/adaptation/provider-catalog-adapter.ts`
+- Create: `src/planning/adaptation/llm-adapter.ts`
+- Create: `src/planning/adaptation/provider-catalog-adapter.ts`
 - Test: `tests/adaptation/llm-adapter.vitest.ts`
 
 **Interfaces:**
@@ -127,7 +127,7 @@ git commit -m "feat(p6.5b): widen LensScore with provider/model, add LENS_JSON_S
 - [ ] **Step 1: Verify ProviderCatalog.complete() signature**
 
 ```bash
-grep -A 20 "interface ProviderCatalog\|class ProviderCatalog\|async complete" src/providers/catalog.ts | head -30
+grep -A 20 "interface ProviderCatalog\|class ProviderCatalog\|async complete" src/models/providers/catalog.ts | head -30
 ```
 
 Verify the exact signature. Adapt `ProviderCatalogAdapter` to match it.
@@ -137,7 +137,7 @@ Verify the exact signature. Adapt `ProviderCatalogAdapter` to match it.
 ```typescript
 // tests/adaptation/llm-adapter.vitest.ts
 import { describe, it, expect } from "vitest";
-import type { LLMAdapter, LLMCompletion } from "../../src/adaptation/llm-adapter.js";
+import type { LLMAdapter, LLMCompletion } from "../../src/planning/adaptation/llm-adapter.js";
 
 describe("LLMAdapter", () => {
   it("has the correct interface shape", () => {
@@ -244,7 +244,7 @@ Expected: 2+ tests passing
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/adaptation/llm-adapter.ts src/adaptation/provider-catalog-adapter.ts tests/adaptation/llm-adapter.vitest.ts
+git add src/planning/adaptation/llm-adapter.ts src/planning/adaptation/provider-catalog-adapter.ts tests/adaptation/llm-adapter.vitest.ts
 git commit -m "feat(p6.5b): LLMAdapter interface and ProviderCatalogAdapter"
 ```
 
@@ -253,7 +253,7 @@ git commit -m "feat(p6.5b): LLMAdapter interface and ProviderCatalogAdapter"
 ### Task 3: LLMLensAgent — LensAgent with Real LLM Execution
 
 **Files:**
-- Create: `src/adaptation/llm-lens-agent.ts`
+- Create: `src/planning/adaptation/llm-lens-agent.ts`
 - Test: `tests/adaptation/llm-lens-agent.vitest.ts`
 
 **Interfaces:**
@@ -265,9 +265,9 @@ git commit -m "feat(p6.5b): LLMAdapter interface and ProviderCatalogAdapter"
 ```typescript
 // tests/adaptation/llm-lens-agent.vitest.ts
 import { describe, it, expect, vi } from "vitest";
-import { LLMLensAgent } from "../../src/adaptation/llm-lens-agent.js";
-import type { LLMAdapter } from "../../src/adaptation/llm-adapter.js";
-import type { GovernanceReviewInput, LensScore } from "../../src/adaptation/governance-review-types.js";
+import { LLMLensAgent } from "../../src/planning/adaptation/llm-lens-agent.js";
+import type { LLMAdapter } from "../../src/planning/adaptation/llm-adapter.js";
+import type { GovernanceReviewInput, LensScore } from "../../src/planning/adaptation/governance-review-types.js";
 
 function makeAdapter(response: string): LLMAdapter {
   return {
@@ -520,7 +520,7 @@ Expected: 992+ tests passing
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/adaptation/llm-lens-agent.ts tests/adaptation/llm-lens-agent.vitest.ts
+git add src/planning/adaptation/llm-lens-agent.ts tests/adaptation/llm-lens-agent.vitest.ts
 git commit -m "feat(p6.5b): LLMLensAgent JSON parsing and authority detection"
 ```
 
@@ -529,7 +529,7 @@ git commit -m "feat(p6.5b): LLMLensAgent JSON parsing and authority detection"
 ### Task 4: CLI — Replace Review Stub with Live Execution
 
 **Files:**
-- Modify: `src/cli/commands/decision.ts`
+- Modify: `src/interfaces/cli/commands/decision.ts`
 
 **Interfaces:**
 - Consumes: `PipelineHealthCollector` infrastructure + `LLMAdapter`/`LLMLensAgent`/`GovernanceReviewCouncil`, all types
@@ -538,7 +538,7 @@ git commit -m "feat(p6.5b): LLMLensAgent JSON parsing and authority detection"
 - [ ] **Step 1: Verify existing CLI tests and review stub**
 
 ```bash
-grep -n "case \"review\"" src/cli/commands/decision.ts
+grep -n "case \"review\"" src/interfaces/cli/commands/decision.ts
 echo "---"
 npx vitest run 2>&1 | tail -3
 ```
@@ -577,10 +577,10 @@ import type { LensName } from "../../adaptation/governance-review-types.js";
 
 ```bash
 # Find how providers are created and configured
-grep -n "createProvider" src/providers/registry.ts src/cli.ts | head -10
+grep -n "createProvider" src/models/providers/registry.ts src/cli.ts | head -10
 echo "---"
 # Check detectProvider signature
-grep -A 8 "detectProvider" src/providers/catalog.ts | head -12
+grep -A 8 "detectProvider" src/models/providers/catalog.ts | head -12
 ```
 
 Expected output confirms:
@@ -656,7 +656,7 @@ Expected: 992+ tests passing
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/decision.ts
+git add src/interfaces/cli/commands/decision.ts
 git commit -m "feat(p6.5b): CLI alix decision review live lens execution"
 ```
 
@@ -675,7 +675,7 @@ Add to `tests/adaptation/governance-review-sentinels.vitest.ts`:
 describe("P6.5b — LLMAdapter must not import provider catalog adapter", () => {
   it("llm-adapter.ts imports nothing from provider modules", () => {
     const source = fs.readFileSync(
-      path.resolve(__dirname, "../../src/adaptation/llm-adapter.ts"), "utf8"
+      path.resolve(__dirname, "../../src/planning/adaptation/llm-adapter.ts"), "utf8"
     );
     const lines = source.split("\n").filter(l => !l.trim().startsWith("//"));
     expect(lines.some(l => l.includes("from \"../providers") || l.includes("from './providers"))).toBe(false);
@@ -685,7 +685,7 @@ describe("P6.5b — LLMAdapter must not import provider catalog adapter", () => 
 describe("P6.5b — ProviderCatalogAdapter implements LLMAdapter", () => {
   it("has complete() method", () => {
     const source = fs.readFileSync(
-      path.resolve(__dirname, "../../src/adaptation/provider-catalog-adapter.ts"), "utf8"
+      path.resolve(__dirname, "../../src/planning/adaptation/provider-catalog-adapter.ts"), "utf8"
     );
     expect(source).toContain("implements LLMAdapter");
     expect(source).toContain("async complete(");
@@ -695,7 +695,7 @@ describe("P6.5b — ProviderCatalogAdapter implements LLMAdapter", () => {
 describe("P6.5b — LENS_JSON_SUFFIX is present in every prompt", () => {
   it("lens-agent.ts exports LENS_JSON_SUFFIX", () => {
     const source = fs.readFileSync(
-      path.resolve(__dirname, "../../src/adaptation/lens-agent.ts"), "utf8"
+      path.resolve(__dirname, "../../src/planning/adaptation/lens-agent.ts"), "utf8"
     );
     expect(source).toContain("export const LENS_JSON_SUFFIX");
   });
@@ -704,7 +704,7 @@ describe("P6.5b — LENS_JSON_SUFFIX is present in every prompt", () => {
 describe("P6.5b — LensScore has optional provider/model", () => {
   it("governance-review-types.ts has provider? and model? fields", () => {
     const source = fs.readFileSync(
-      path.resolve(__dirname, "../../src/adaptation/governance-review-types.ts"), "utf8"
+      path.resolve(__dirname, "../../src/planning/adaptation/governance-review-types.ts"), "utf8"
     );
     expect(source).toContain("provider?:");
     expect(source).toContain("model?:");
@@ -714,7 +714,7 @@ describe("P6.5b — LensScore has optional provider/model", () => {
 describe("P6.5b — CLI validates --lens before provider setup", () => {
   it("runReview validates --lens argument before any provider call", () => {
     const source = fs.readFileSync(
-      path.resolve(__dirname, "../../src/cli/commands/decision.ts"), "utf8"
+      path.resolve(__dirname, "../../src/interfaces/cli/commands/decision.ts"), "utf8"
     );
     // The runReview function must validate lens name before building provider
     // Look for lens validation that exits before provider detection

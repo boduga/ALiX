@@ -16,8 +16,8 @@
  */
 
 import { join } from "node:path";
-import { LearningStore } from "../learning/learning-store.js";
-import { buildDashboardReport } from "../learning/learning-dashboard.js";
+import { LearningStore } from "../planning/learning/learning-store.js";
+import { buildDashboardReport } from "../planning/learning/learning-dashboard.js";
 import type { GovernanceDriftReport, DriftFinding } from "./governance-types.js";
 
 // ---------------------------------------------------------------------------

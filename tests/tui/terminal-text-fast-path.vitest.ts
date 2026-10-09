@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { graphemes, displayWidth, wrapDisplayText } from '../../src/tui/terminal-text.js';
+import { graphemes, displayWidth, wrapDisplayText } from '../../src/interfaces/tui/terminal-text.js';
 
 it('avoids Unicode segmentation for printable ASCII while preserving complex clusters', () => {
   const descriptor = Object.getOwnPropertyDescriptor(Intl, 'Segmenter')!;

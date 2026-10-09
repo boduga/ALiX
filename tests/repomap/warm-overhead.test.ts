@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { ContextCompiler } from "../../src/repomap/context-compiler.js";
+import { ContextCompiler } from "../../src/context/repomap/context-compiler.js";
 
 describe("ContextCompiler.warm() overhead", () => {
   it("measures warm() and compile() timing", { timeout: 300_000, skip: process.env.ALIX_SKIP_SLOW_TESTS !== undefined }, async () => {

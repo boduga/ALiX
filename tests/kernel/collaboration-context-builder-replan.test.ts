@@ -13,16 +13,16 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CollaborationStore } from "../../src/kernel/collaboration-store.js";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { CoordinationResultStore } from "../../src/kernel/coordination-result-store.js";
-import { CollaborationContextBuilder } from "../../src/kernel/collaboration-context-builder.js";
+import { CollaborationStore } from "../../src/coordination/kernel/collaboration-store.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { CoordinationResultStore } from "../../src/coordination/kernel/coordination-result-store.js";
+import { CollaborationContextBuilder } from "../../src/coordination/kernel/collaboration-context-builder.js";
 import {
   createCoordinationRun, createWorkerAssignment,
-} from "../../src/kernel/coordination-types.js";
-import type { PlanTriggerKind } from "../../src/kernel/coordination-types.js";
-import type { TriggerEvidence } from "../../src/kernel/replan-types.js";
-import type { FindingConflict } from "../../src/kernel/collaboration-conflict-types.js";
+} from "../../src/coordination/kernel/coordination-types.js";
+import type { PlanTriggerKind } from "../../src/coordination/kernel/coordination-types.js";
+import type { TriggerEvidence } from "../../src/coordination/kernel/replan-types.js";
+import type { FindingConflict } from "../../src/coordination/kernel/collaboration-conflict-types.js";
 
 const RUN_ID = "run_replan_1";
 

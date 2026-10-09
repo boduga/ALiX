@@ -15,9 +15,9 @@ import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { ModelAdapter } from "../../src/providers/types.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
 import type { RunResult } from "../../src/run.js";
-import type { AgentActivity } from "../../src/agent/agent-activity.js";
+import type { AgentActivity } from "../../src/agents/agent/agent-activity.js";
 
 // ── Session-level wiring tests ─────────────────────────────────────────────
 
@@ -27,21 +27,21 @@ const mocks = vi.hoisted(() => ({
   runTaskLoop: vi.fn(),
 }));
 
-vi.mock("../../src/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
-vi.mock("../../src/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
-vi.mock("../../src/utils/memory/recall.js", () => ({
+vi.mock("../../src/agents/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
+vi.mock("../../src/execution/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
+vi.mock("../../src/operations/utils/memory/recall.js", () => ({
   buildMemoryContext: vi.fn(() => Promise.resolve(undefined)),
   buildMemoryStats: vi.fn(() => Promise.resolve(undefined)),
 }));
-vi.mock("../../src/skills/loader.js", () => ({
+vi.mock("../../src/capabilities/skills/loader.js", () => ({
   loadSkillManifests: vi.fn(() => Promise.resolve([])),
 }));
-vi.mock("../../src/skills/catalog.js", () => ({
+vi.mock("../../src/capabilities/skills/catalog.js", () => ({
   buildSkillCatalog: vi.fn(() => ({
     getMatchedContent: vi.fn(() => Promise.resolve([])),
   })),
 }));
-vi.mock("../../src/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
+vi.mock("../../src/capabilities/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
 
 let wiringTestCwd: string;
 let wiringTestCwdCleanup: (() => void) | null = null;
@@ -109,7 +109,7 @@ function activityStates(): string[] {
 
 describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
   it("Task 2.1 — invocation start emits thinking with provider/model and invocationId", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockResolvedValue({ sessionId: "activity-wiring-session", summary: "done", streamed: false, reason: "completed" });
 
@@ -130,7 +130,7 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
   });
 
   it("Task 2.2 — tool_started → tool_running(toolName); tool_completed → back to thinking", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
       deps.onProgress?.("tool_started", "bash");
@@ -156,7 +156,7 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
   });
 
   it("Task 2.3 — first visible text chunk → streaming, once (no per-chunk events)", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     const onStream = vi.fn();
     configureSessionMocks({ onStream });
     mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
@@ -180,7 +180,7 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(1_000);
-      const { createAgentSession } = await import("../../src/agent/session.js");
+      const { createAgentSession } = await import("../../src/agents/agent/session.js");
       const onStream = vi.fn();
       configureSessionMocks({ onStream });
       let resolveLoop!: (r: RunResult) => void;
@@ -212,7 +212,7 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
   });
 
   it("Task 2.4 — phase transitions map to verifying and summarizing", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
       deps.onProgress?.("tool_started", "bash");
@@ -236,7 +236,7 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
   });
 
   it("tool.completed while streaming stays streaming (does not regress to thinking)", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
       deps.onStream?.({ type: "text", text: "partial" });
@@ -261,7 +261,7 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
   });
 
   it("model_requested → waiting_for_provider until the first visible chunk streams", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
       // The provider call starts; no content has arrived yet.
@@ -284,7 +284,7 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
   });
 
   it("reasoning stream chunks mark progress without ever surfacing streaming", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     const onStream = vi.fn();
     mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
@@ -310,7 +310,7 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(0);
-      const { createAgentSession } = await import("../../src/agent/session.js");
+      const { createAgentSession } = await import("../../src/agents/agent/session.js");
       configureSessionMocks();
       let capturedDeps!: MockTaskLoopDeps;
       let resolveLoop!: (r: RunResult) => void;
@@ -346,7 +346,7 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
   });
 
   it("tool_started resets the streaming latch: after a streamed phase, tool_completed returns to thinking", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
       // Phase 1: model narrates (streaming latch set).
@@ -376,8 +376,8 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(0);
-      const { createAgentSession } = await import("../../src/agent/session.js");
-      const { DEFAULT_LIVENESS_THRESHOLDS } = await import("../../src/agent/agent-liveness.js");
+      const { createAgentSession } = await import("../../src/agents/agent/session.js");
+      const { DEFAULT_LIVENESS_THRESHOLDS } = await import("../../src/agents/agent/agent-liveness.js");
       configureSessionMocks();
       let capturedDeps!: MockTaskLoopDeps;
       let resolveLoop!: (r: RunResult) => void;
@@ -418,8 +418,8 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(0);
-      const { createAgentSession } = await import("../../src/agent/session.js");
-      const { DEFAULT_LIVENESS_THRESHOLDS } = await import("../../src/agent/agent-liveness.js");
+      const { createAgentSession } = await import("../../src/agents/agent/session.js");
+      const { DEFAULT_LIVENESS_THRESHOLDS } = await import("../../src/agents/agent/agent-liveness.js");
       configureSessionMocks();
       let capturedDeps!: MockTaskLoopDeps;
       let resolveLoop!: (r: RunResult) => void;
@@ -473,7 +473,7 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
   });
 
   it("getActivity() is undefined between turns", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockResolvedValue({ sessionId: "activity-wiring-session", summary: "done", streamed: false, reason: "completed" });
 

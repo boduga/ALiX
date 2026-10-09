@@ -16,15 +16,15 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/events/types.ts` | Modify | Add approval lifecycle event type definitions |
-| `src/events/event-log.ts` | Modify (minor) | Register new event types if needed |
-| `src/approvals/approval-store.ts` | Modify | Emit `approval.resolved` events |
-| `src/policy/policy-gate.ts` | Modify | Emit `approval.created` and `approval.reused` events via EventLog |
-| `src/runtime/continuation-manager.ts` | Modify | Emit `approval.resumed`, `approval.resume.failed`, `continuation.consumed` |
-| `src/tui/store.ts` | Modify | Add `approvals` state shape and selectors |
-| `src/tui/runtime-snapshot.ts` | Modify | Load ApprovalStore + ContinuationStore into snapshot |
-| `src/tui/panel-renderer.ts` | Modify | Render Approvals dashboard panel |
-| `src/tui/index.ts` | Modify (minor) | Register Approvals panel in panel cycle |
+| `src/runtime-state/events/types.ts` | Modify | Add approval lifecycle event type definitions |
+| `src/runtime-state/events/event-log.ts` | Modify (minor) | Register new event types if needed |
+| `src/governance/approvals/approval-store.ts` | Modify | Emit `approval.resolved` events |
+| `src/governance/policy/policy-gate.ts` | Modify | Emit `approval.created` and `approval.reused` events via EventLog |
+| `src/runtime-state/runtime/continuation-manager.ts` | Modify | Emit `approval.resumed`, `approval.resume.failed`, `continuation.consumed` |
+| `src/interfaces/tui/store.ts` | Modify | Add `approvals` state shape and selectors |
+| `src/interfaces/tui/runtime-snapshot.ts` | Modify | Load ApprovalStore + ContinuationStore into snapshot |
+| `src/interfaces/tui/panel-renderer.ts` | Modify | Render Approvals dashboard panel |
+| `src/interfaces/tui/index.ts` | Modify (minor) | Register Approvals panel in panel cycle |
 | `tests/runtime/approval-observability.test.ts` | Create | Event emission + traceability chain tests |
 | `tests/tui/approval-panel.test.ts` | Create | Snapshot → store → rendering tests |
 
@@ -56,12 +56,12 @@ export type ApprovalLifecyclePayload = {
 ### Task 1: Add approval lifecycle event types
 
 **Files:**
-- Modify: `src/events/types.ts`
+- Modify: `src/runtime-state/events/types.ts`
 
 - [ ] **Step 1: Read current events/types.ts**
 
 ```bash
-grep -n "export type" src/events/types.ts | head -20
+grep -n "export type" src/runtime-state/events/types.ts | head -20
 ```
 
 - [ ] **Step 2: Add approval event type constants and payload type**
@@ -108,7 +108,7 @@ Expected: clean build.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/events/types.ts
+git add src/runtime-state/events/types.ts
 git commit -m "feat(events): add approval lifecycle event type constants and payload"
 ```
 
@@ -117,7 +117,7 @@ git commit -m "feat(events): add approval lifecycle event type constants and pay
 ### Task 2: Emit approval.created and approval.reused from PolicyGate
 
 **Files:**
-- Modify: `src/policy/policy-gate.ts`
+- Modify: `src/governance/policy/policy-gate.ts`
 
 PolicyGate already takes `EventLog` as an optional dependency. The `handleAskDecision()` method creates approvals via `ApprovalStore.request()` and may reuse existing ones via `findPending()`. It should emit events for both paths.
 
@@ -255,7 +255,7 @@ Expected: 16 tests passing.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/policy/policy-gate.ts
+git add src/governance/policy/policy-gate.ts
 git commit -m "feat(policy): emit approval.created and approval.reused lifecycle events"
 ```
 
@@ -264,7 +264,7 @@ git commit -m "feat(policy): emit approval.created and approval.reused lifecycle
 ### Task 3: Emit approval.resolved from ApprovalStore
 
 **Files:**
-- Modify: `src/approvals/approval-store.ts`
+- Modify: `src/governance/approvals/approval-store.ts`
 
 - [ ] **Step 1: Add eventLog as optional dependency**
 
@@ -318,7 +318,7 @@ Expected: clean build, existing tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/approvals/approval-store.ts
+git add src/governance/approvals/approval-store.ts
 git commit -m "feat(policy): emit approval.resolved event on approval resolution"
 ```
 
@@ -327,7 +327,7 @@ git commit -m "feat(policy): emit approval.resolved event on approval resolution
 ### Task 4: Emit approval.resumed and approval.resume.failed from ContinuationManager
 
 **Files:**
-- Modify: `src/runtime/continuation-manager.ts`
+- Modify: `src/runtime-state/runtime/continuation-manager.ts`
 
 - [ ] **Step 1: Add eventLog to ContinuationManagerDeps**
 
@@ -426,7 +426,7 @@ Expected: 5 tests passing.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/runtime/continuation-manager.ts
+git add src/runtime-state/runtime/continuation-manager.ts
 git commit -m "feat(policy): emit approval.resumed, approval.resume.failed, continuation.consumed events"
 ```
 
@@ -435,12 +435,12 @@ git commit -m "feat(policy): emit approval.resumed, approval.resume.failed, cont
 ### Task 5: Extend RuntimeSnapshot with approvals
 
 **Files:**
-- Modify: `src/tui/runtime-snapshot.ts`
+- Modify: `src/interfaces/tui/runtime-snapshot.ts`
 
 - [ ] **Step 1: Read current RuntimeSnapshot types and buildRuntimeSnapshot**
 
 ```bash
-grep -n "export type RuntimeSnapshot\|export async function buildRuntimeSnapshot" src/tui/runtime-snapshot.ts
+grep -n "export type RuntimeSnapshot\|export async function buildRuntimeSnapshot" src/interfaces/tui/runtime-snapshot.ts
 ```
 
 - [ ] **Step 2: Extend RuntimeSnapshot type**
@@ -526,7 +526,7 @@ Inside `buildRuntimeSnapshot()`, after the daemon check block:
 
 - [ ] **Step 4: Wire snapshot into applySnapshotToStore**
 
-Read `src/tui/store.ts` to find `applySnapshotToStore` and add the mapping:
+Read `src/interfaces/tui/store.ts` to find `applySnapshotToStore` and add the mapping:
 
 ```typescript
 // In applySnapshotToStore, after existing fields:
@@ -544,7 +544,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/runtime-snapshot.ts
+git add src/interfaces/tui/runtime-snapshot.ts
 git commit -m "feat(runtime): include approvals in runtime snapshot"
 ```
 
@@ -553,12 +553,12 @@ git commit -m "feat(runtime): include approvals in runtime snapshot"
 ### Task 6: Add approvals to TuiState
 
 **Files:**
-- Modify: `src/tui/store.ts`
+- Modify: `src/interfaces/tui/store.ts`
 
 - [ ] **Step 1: Read current TuiState**
 
 ```bash
-grep -n "type TuiState" src/tui/store.ts
+grep -n "type TuiState" src/interfaces/tui/store.ts
 ```
 
 - [ ] **Step 2: Add approvals to TuiState**
@@ -632,7 +632,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/tui/store.ts
+git add src/interfaces/tui/store.ts
 git commit -m "feat(tui): add approvals state shape and selectors to TuiState"
 ```
 
@@ -641,13 +641,13 @@ git commit -m "feat(tui): add approvals state shape and selectors to TuiState"
 ### Task 7: Render Approvals dashboard panel
 
 **Files:**
-- Modify: `src/tui/panel-renderer.ts`
-- Modify: `src/tui/index.ts` (minor — panel cycle registration)
+- Modify: `src/interfaces/tui/panel-renderer.ts`
+- Modify: `src/interfaces/tui/index.ts` (minor — panel cycle registration)
 
 - [ ] **Step 1: Read panel-renderer.ts to understand existing pattern**
 
 ```bash
-grep -n "export function\|function render" src/tui/panel-renderer.ts | head -10
+grep -n "export function\|function render" src/interfaces/tui/panel-renderer.ts | head -10
 ```
 
 - [ ] **Step 2: Add approval panel render function**
@@ -688,7 +688,7 @@ export function renderApprovalsPanel(store: TuiStore, tui: Tui): void {
 
 - [ ] **Step 3: Wire into panel cycle**
 
-In `src/tui/index.ts`, find where panels are registered (likely a `PANELS` array or `cyclePanel` switch). Add `"approvals"` as a panel. The existing `chat`, `tools`, `states`, `dashboard` panels follow the pattern:
+In `src/interfaces/tui/index.ts`, find where panels are registered (likely a `PANELS` array or `cyclePanel` switch). Add `"approvals"` as a panel. The existing `chat`, `tools`, `states`, `dashboard` panels follow the pattern:
 
 ```typescript
 const ACTIVE_PANELS = ["chat", "tools", "states", "approvals", "dashboard"] as const;
@@ -719,7 +719,7 @@ Expected: all passing.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/panel-renderer.ts src/tui/index.ts
+git add src/interfaces/tui/panel-renderer.ts src/interfaces/tui/index.ts
 git commit -m "feat(tui): render approvals dashboard panel"
 ```
 
@@ -738,11 +738,11 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PolicyGate } from "../../src/policy/policy-gate.js";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
-import { ContinuationStore } from "../../src/runtime/continuation-store.js";
-import { ContinuationManager } from "../../src/runtime/continuation-manager.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { PolicyGate } from "../../src/governance/policy/policy-gate.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import { ContinuationStore } from "../../src/runtime-state/runtime/continuation-store.js";
+import { ContinuationManager } from "../../src/runtime-state/runtime/continuation-manager.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 function makeConfig(overrides?: Partial<AlixConfig>): AlixConfig {
   const base: AlixConfig = {
@@ -870,7 +870,7 @@ describe("Approval observability", () => {
     const approval = await store.request({ reason: "test", capability: "shell.run" });
     await store.resolve(approval.id, "approved", "ok");
 
-    const { hashArgs } = await import("../../src/tools/executor.js");
+    const { hashArgs } = await import("../../src/capabilities/tools/executor.js");
     const args = { command: "echo done" };
     await contStore.persist({
       approvalId: approval.id,

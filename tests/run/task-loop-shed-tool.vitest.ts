@@ -12,11 +12,11 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../src/events/event-log.js';
-import { explicitMutationTargets, isContinuationMessage, objectiveEvidenceRequirements, runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
-import { objectiveEvidenceGaps } from '../../src/run/task-loop/predicates.js';
-import { createContextBudget } from '../../src/config/context-budget.js';
-import { ensureEncoder } from '../../src/utils/tokens.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { explicitMutationTargets, isContinuationMessage, objectiveEvidenceRequirements, runTaskLoop, type TaskLoopDeps } from '../../src/execution/run/task-loop.js';
+import { objectiveEvidenceGaps } from '../../src/execution/run/task-loop/predicates.js';
+import { createContextBudget } from '../../src/operations/config/context-budget.js';
+import { ensureEncoder } from '../../src/operations/utils/tokens.js';
 import type {
   ModelAdapter,
   NormalizedRequest,
@@ -25,11 +25,11 @@ import type {
   ToolCall,
   ToolDef,
   TokenUsage,
-} from '../../src/providers/types.js';
-import type { DeferredToolEntry } from '../../src/mcp/tool-deferral.js';
-import { TaskStateMachine, RunLimiter } from '../../src/autonomy/state-machine.js';
-import { ScopeTracker } from '../../src/autonomy/scope-tracker.js';
-import { MemoryStore } from '../../src/utils/memory/store.js';
+} from '../../src/models/providers/types.js';
+import type { DeferredToolEntry } from '../../src/capabilities/mcp/tool-deferral.js';
+import { TaskStateMachine, RunLimiter } from '../../src/planning/autonomy/state-machine.js';
+import { ScopeTracker } from '../../src/planning/autonomy/scope-tracker.js';
+import { MemoryStore } from '../../src/operations/utils/memory/store.js';
 import type { MutationSessionState } from '../../src/run.js';
 
 // ── Minimal mock provider that RECORDS what it receives ────────────────
@@ -439,7 +439,7 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
     // #732 — Windows resolves os.homedir() from USERPROFILE, not HOME.
     process.env.USERPROFILE = tmpHome;
     try {
-      const { saveCalibration } = await import('../../src/config/calibration-store.js');
+      const { saveCalibration } = await import('../../src/operations/config/calibration-store.js');
       // Use `remainingTokensPct` so we don't depend on tier drops: any pressure below
       // 90% remaining capacity fires. The test's makeTestDeps uses 100k window with a
       // 1k output floor (99k available); a 50k-char system prompt (~12.5k tokens) +

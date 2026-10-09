@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
-import { InMemoryCacheManager, PersistentCacheManager } from "../../src/utils/cache-manager.js";
+import { InMemoryCacheManager, PersistentCacheManager } from "../../src/operations/utils/cache-manager.js";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

@@ -105,7 +105,7 @@ Scans decision store for eligible decisions without existing proposals. Deduplic
 
 ### Task 6 — CLI: `alix governance actions` (list)
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 - Parses `--status`, `--kind`, `--json` flags
 - Dispatches to `FileActionQueueStore.list()`
@@ -114,7 +114,7 @@ Scans decision store for eligible decisions without existing proposals. Deduplic
 
 ### Task 7 — CLI: `alix governance actions refresh`
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 - Calls `refreshProposals()` with stores wired
 - Reports count of new proposals created
@@ -122,7 +122,7 @@ Scans decision store for eligible decisions without existing proposals. Deduplic
 
 ### Task 8 — CLI: `alix governance actions mark-executed`
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 - Takes `<proposal-id>` positional + `--ref <string>` flag
 - Validates proposal exists and has no terminal transition yet
@@ -131,7 +131,7 @@ Scans decision store for eligible decisions without existing proposals. Deduplic
 
 ### Task 9 — CLI: `alix governance actions dismiss`
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 - Takes `<proposal-id>` positional + `--reason <string>` flag
 - Validates proposal exists and has no terminal transition yet
@@ -140,7 +140,7 @@ Scans decision store for eligible decisions without existing proposals. Deduplic
 
 ### Task 10 — Wire CLI dispatch
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 Add `actions` handler to the governance command dispatch table with subcommands:
 - `actions` → list
@@ -154,14 +154,14 @@ Add `actions` handler to the governance command dispatch table with subcommands:
 |---|---|
 | `src/governance/action-queue.ts` | ~280 |
 | `tests/governance/action-queue.test.ts` | ~400 |
-| `src/cli/commands/governance.ts` (amended) | ~+150 |
+| `src/interfaces/cli/commands/governance.ts` (amended) | ~+150 |
 | **Total new** | ~680 |
 
 ## Dependencies
 
 - `src/governance/decision-capture.ts` — `OperatorDecision`, `DecisionKind`, `DecisionStore` interface
 - `src/governance/governance-signal.ts` — `GovernanceSignal`, `SignalStore` interface
-- `src/cli/commands/governance.ts` — existing `alix governance` dispatch
+- `src/interfaces/cli/commands/governance.ts` — existing `alix governance` dispatch
 
 ## Development order
 

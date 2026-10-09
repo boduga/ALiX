@@ -2,15 +2,15 @@
 //
 // Task 8 — composition-root integration: a REAL RuntimeCollectorImpl sample
 // loop drives the Q-C4 sessionless relay → EvolutionProjection.ingestSessionless
-// → snapshot path end-to-end. Mirrors the wiring in src/cli/commands/tui.ts
+// → snapshot path end-to-end. Mirrors the wiring in src/interfaces/cli/commands/tui.ts
 // (register [ProjectionIds.evolution, projection] on the runtime, pass
 // sessionlessEvents → projection.ingestSessionless), but with in-memory sources
 // so no `.alix/governance` or real EventLog is touched.
 import { describe, expect, it } from 'vitest';
-import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
-import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
-import { EvolutionProjection } from '../../../src/tui/runtime/evolution/evolution-projection.js';
+import { RuntimeCollectorImpl } from '../../../src/interfaces/tui/runtime-collector.js';
+import { createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import { ProjectionIds } from '../../../src/interfaces/tui/runtime/projection-ids.js';
+import { EvolutionProjection } from '../../../src/interfaces/tui/runtime/evolution/evolution-projection.js';
 import { makeEventLog, makeCheckpointStore, SESSION_ID } from './collector-harness.js';
 
 /** The composition-root source wiring — in-memory stand-ins for the tui.ts

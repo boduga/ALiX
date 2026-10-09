@@ -11,9 +11,9 @@ import {
   DEFAULT_OUTPUT_CAP,
   type BudgetedContextItem,
   type ContextBudget,
-} from "../../src/config/context-budget.js";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
-import type { ModelDescriptor } from "../../src/config/context-limits.js";
+} from "../../src/operations/config/context-budget.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
+import type { ModelDescriptor } from "../../src/operations/config/context-limits.js";
 
 function descriptor(windowTokens: number, outputTokenLimit?: number): ModelDescriptor {
   return {

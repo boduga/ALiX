@@ -24,7 +24,7 @@
 
 **Files:**
 - Modify: `src/run.ts:6-21` (type import block + `RunResult`)
-- Modify: `src/agent/system-prompt.ts:91-95` (`FAILURE_REASONS`)
+- Modify: `src/agents/agent/system-prompt.ts:91-95` (`FAILURE_REASONS`)
 
 **Interfaces:**
 - Consumes: nothing (foundation task).
@@ -62,7 +62,7 @@ export type RunResult = {
 
 - [ ] **Step 3: Add the reason to `FAILURE_REASONS`**
 
-In `src/agent/system-prompt.ts`, add the literal inside the set (after `"rejected_scope_expansion",`):
+In `src/agents/agent/system-prompt.ts`, add the literal inside the set (after `"rejected_scope_expansion",`):
 
 ```ts
 export const FAILURE_REASONS = new Set<string>([
@@ -76,12 +76,12 @@ export const FAILURE_REASONS = new Set<string>([
 - [ ] **Step 4: Verify the type surface compiles**
 
 Run: `npx tsc --noEmit`
-Expected: PASS (no errors in `src/run.ts` or `src/agent/system-prompt.ts`).
+Expected: PASS (no errors in `src/run.ts` or `src/agents/agent/system-prompt.ts`).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/run.ts src/agent/system-prompt.ts
+git add src/run.ts src/agents/agent/system-prompt.ts
 git commit -m "C2 #18: add context_budget_overflow reason + payload to RunResult
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
@@ -94,7 +94,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Files:**
 - Modify: `tests/run/task-loop-context-budget.vitest.ts:435-467` (test 1, rename + rewrite)
 - Modify: `tests/run/task-loop-context-budget.vitest.ts:659-692` (test 2, rewrite)
-- Modify: `src/run/task-loop.ts` (add helper after `completeSession` ~line 79; add `catch` clause to the outer `try` ~line 1268)
+- Modify: `src/execution/run/task-loop.ts` (add helper after `completeSession` ~line 79; add `catch` clause to the outer `try` ~line 1268)
 - Test: `tests/run/task-loop-context-budget.vitest.ts`
 
 **Interfaces:**
@@ -105,7 +105,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 Run `impact({target: "runTaskLoop", direction: "upstream"})` (GitNexus MCP, repo ALiX). Report the blast radius (direct callers, affected processes, risk level) to the user. If risk is HIGH/CRITICAL, STOP and surface it. Then confirm the five pre-verified facts against the code (all already confirmed during planning — spot-check, don't re-derive):
 
-1. `ContextBudgetOverflowError` carries a discriminating literal `readonly kind = "context_budget_overflow" as const` — confirmed at `src/config/context-budget.ts:207`.
+1. `ContextBudgetOverflowError` carries a discriminating literal `readonly kind = "context_budget_overflow" as const` — confirmed at `src/operations/config/context-budget.ts:207`.
 2. `reducible` is reliably present on every thrown instance — confirmed: both throw sites construct `new ContextBudgetOverflowError({...})` with `reducible` set (`context-assembly.ts:153`, `task-loop.ts:518`), and the inner catch re-throws the same instance (`task-loop.ts:453-468`).
 3. `overageTokens`, `availableInputTokens`, `mandatoryTokens` are readonly on the class — confirmed (`context-budget.ts:209-213`).
 4. `session.ended` is the correct terminal event — confirmed: every other terminal reason return in `runTaskLoop` appends `session.ended` (max_repairs line 839, max_iterations 1267, rejected_scope_expansion 920).
@@ -194,9 +194,9 @@ Replace the entire `it('throws irreducible when mandatory core plus tool schema 
 Run: `node_modules/.bin/vitest run tests/run/task-loop-context-budget.vitest.ts --config vitest.config.mts`
 Expected: the two rewritten tests FAIL — `runTaskLoop` still throws `ContextBudgetOverflowError`, so the `await runTaskLoop(deps)` call rejects and the test errors out. The other tests in the file still PASS.
 
-- [ ] **Step 4: Add the overflow guard + summary helper to `src/run/task-loop.ts`**
+- [ ] **Step 4: Add the overflow guard + summary helper to `src/execution/run/task-loop.ts`**
 
-Insert after the `completeSession` function (ends ~line 79). Both are module-private. The guard follows the codebase's established `isX(value: unknown): value is X` pattern (e.g. `isCredentialReference` in `src/security/credentials/credential-reference.ts:38`) and discriminates on the class's `kind` literal — no `instanceof`, per the guardrail:
+Insert after the `completeSession` function (ends ~line 79). Both are module-private. The guard follows the codebase's established `isX(value: unknown): value is X` pattern (e.g. `isCredentialReference` in `src/governance/security/credentials/credential-reference.ts:38`) and discriminates on the class's `kind` literal — no `instanceof`, per the guardrail:
 
 ```ts
 /**
@@ -283,7 +283,7 @@ Expected: PASS. (`completeSession` casts `reason as RunResult["reason"]` — the
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/run/task-loop.ts tests/run/task-loop-context-budget.vitest.ts
+git add src/execution/run/task-loop.ts tests/run/task-loop-context-budget.vitest.ts
 git commit -m "C2 #18: runTaskLoop returns graceful RunResult on irreducible overflow
 
 Catch ContextBudgetOverflowError (reducible === false) inside runTaskLoop
@@ -299,8 +299,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 3: Thread the payload through `AgentTurnResult` and render the CLI diagnostic
 
 **Files:**
-- Modify: `src/agent/session.ts:127` (import), `src/agent/session.ts:194-215` (`AgentTurnResult` interface), `src/agent/session.ts:1443-1453` (processTurn return)
-- Modify: `src/cli/commands/run.ts:141-143` (add branch after the `rejected_scope_expansion` check)
+- Modify: `src/agents/agent/session.ts:127` (import), `src/agents/agent/session.ts:194-215` (`AgentTurnResult` interface), `src/agents/agent/session.ts:1443-1453` (processTurn return)
+- Modify: `src/interfaces/cli/commands/run.ts:141-143` (add branch after the `rejected_scope_expansion` check)
 
 **Interfaces:**
 - Consumes: `RunResult.contextBudgetOverflow` from Task 1/2.
@@ -308,9 +308,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 - [ ] **Step 0: GitNexus impact (before ANY edit)**
 
-Run `impact({target: "processTurn", direction: "upstream"})`, `impact({target: "AgentTurnResult", direction: "upstream"})`, and `impact({target: "handler", file_path: "src/cli/commands/run.ts", direction: "upstream"})` (GitNexus MCP, repo ALiX). Report the blast radius to the user. If risk is HIGH/CRITICAL, STOP and surface it before editing.
+Run `impact({target: "processTurn", direction: "upstream"})`, `impact({target: "AgentTurnResult", direction: "upstream"})`, and `impact({target: "handler", file_path: "src/interfaces/cli/commands/run.ts", direction: "upstream"})` (GitNexus MCP, repo ALiX). Report the blast radius to the user. If risk is HIGH/CRITICAL, STOP and surface it before editing.
 
-- [ ] **Step 1: Extend the import in `src/agent/session.ts`**
+- [ ] **Step 1: Extend the import in `src/agents/agent/session.ts`**
 
 `session.ts` already imports from `context-budget.js` at line 127. Add the type to that same line:
 
@@ -366,7 +366,7 @@ with:
 
 - [ ] **Step 4: Add the CLI diagnostic branch**
 
-In `src/cli/commands/run.ts`, immediately after the `rejected_scope_expansion` branch (line 141-143) and before the `try`'s `catch` (line 144), insert:
+In `src/interfaces/cli/commands/run.ts`, immediately after the `rejected_scope_expansion` branch (line 141-143) and before the `try`'s `catch` (line 144), insert:
 
 ```ts
     if (result?.reason === "context_budget_overflow" && result.contextBudgetOverflow) {
@@ -397,7 +397,7 @@ Expected: PASS (unchanged from Task 2 — proves the session/CLI edits didn't di
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/agent/session.ts src/cli/commands/run.ts
+git add src/agents/agent/session.ts src/interfaces/cli/commands/run.ts
 git commit -m "C2 #18: surface overflow payload through AgentTurnResult + CLI diagnostic
 
 The CLI reads AgentTurnResult, not RunResult, so processTurn now threads
@@ -412,7 +412,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 4: Daemon serializes the overflow numbers into `task.failed`
 
 **Files:**
-- Modify: `src/daemon/daemon-server.ts:557-563` (the non-completed failure branch)
+- Modify: `src/operations/daemon/daemon-server.ts:557-563` (the non-completed failure branch)
 
 **Interfaces:**
 - Consumes: `RunResult.contextBudgetOverflow` (flowed untouched through `runTaskCore` → `runTask` → daemon; verified `runTask` returns `result` as-is).
@@ -424,7 +424,7 @@ Run `impact({target: "handleRun", direction: "upstream"})` (GitNexus MCP, repo A
 
 - [ ] **Step 1: Serialize the fields in the failure branch**
 
-In `src/daemon/daemon-server.ts`, replace the final failure branch (currently lines 560-563):
+In `src/operations/daemon/daemon-server.ts`, replace the final failure branch (currently lines 560-563):
 
 ```ts
     } else {
@@ -464,7 +464,7 @@ Expected: PASS (daemon behavior for non-overflow runs is unchanged; the `task.fa
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/daemon/daemon-server.ts
+git add src/operations/daemon/daemon-server.ts
 git commit -m "C2 #18: daemon serializes overflow numbers into task.failed error
 
 When the run failed with context_budget_overflow, the daemon's task.failed

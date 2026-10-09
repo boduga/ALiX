@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import type { PlanDecision, PlanApprovalGate } from "../src/run/plan-approval-gate.js";
+import type { PlanDecision, PlanApprovalGate } from "../src/execution/run/plan-approval-gate.js";
 
 describe("plan-phase", () => {
 
@@ -22,12 +22,12 @@ describe("plan-phase", () => {
   });
 
   it("runPlanPhase module exports the expected function", async () => {
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     assert.ok(typeof runPlanPhase === "function");
   });
 
   it("exports the sidecar helpers (persistPlanTaskSidecar, SidecarFs)", async () => {
-    const mod = await import("../src/run/plan-phase.js");
+    const mod = await import("../src/execution/run/plan-phase.js");
     assert.equal(typeof mod.persistPlanTaskSidecar, "function");
     // The SidecarFs interface is erased at runtime but the function's
     // declared signature accepts an optional 4th argument matching
@@ -142,7 +142,7 @@ describe("plan-phase", () => {
   it("claim verification task skips plan generation (approved, empty plan)", async () => {
     // Regression: the Great Wall claim ask generated a fabricated 6-item
     // modify/create plan that rendered after the verdict — pure noise.
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const mockCtx: any = { sessionId: "claim-skip", config: {}, log: { append: async () => {} } };
     const mockBundle: any = { primaryFiles: [], tests: [], supportingFiles: [] };
     const result = await runPlanPhase(
@@ -177,7 +177,7 @@ describe("plan-phase", () => {
   it("no-changes sentinel plan normalizes to empty planContent (nothing persisted)", async () => {
     // Independent of the classifier: any generated/loaded plan carrying the
     // sentinel is discarded before disk write or timeline emission.
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const testDir = join(process.cwd(), ".test-tmp", "plan-phase-nochanges");
     await mkdir(testDir, { recursive: true });
     const planPath = join(testDir, "no-changes.md");
@@ -207,7 +207,7 @@ describe("plan-phase", () => {
     // Direct unit test of the sidecar helper with an injected writer
     // that always throws. This is the "warning only" contract.
     const { persistPlanTaskSidecar } = await import(
-      "../src/run/plan-phase.js"
+      "../src/execution/run/plan-phase.js"
     );
     const tasks = [
       { id: "s:task:1", index: 1, title: "t", status: "pending" as const },
@@ -246,7 +246,7 @@ describe("plan-phase", () => {
 
   it("persistPlanTaskSidecar: empty task list deletes any existing sidecar", async () => {
     const { persistPlanTaskSidecar } = await import(
-      "../src/run/plan-phase.js"
+      "../src/execution/run/plan-phase.js"
     );
     const unlinks: string[] = [];
     const writes: string[] = [];
@@ -263,7 +263,7 @@ describe("plan-phase", () => {
 
   it("persistPlanTaskSidecar: empty task list ignores ENOENT on unlink", async () => {
     const { persistPlanTaskSidecar } = await import(
-      "../src/run/plan-phase.js"
+      "../src/execution/run/plan-phase.js"
     );
     const fs = {
       write: async () => {},
@@ -283,7 +283,7 @@ describe("plan-phase", () => {
     // Integration test: runPlanPhase with deferred mode (no TTY prompt),
     // a provided planFilePath (skips model call), and a failing sidecar
     // writer. Verifies the whole pipeline is non-fatal on sidecar failure.
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const testDir = join(process.cwd(), ".test-tmp", "plan-phase-sidecar");
     await mkdir(testDir, { recursive: true });
     const planPath = join(testDir, "test-plan.md");
@@ -337,7 +337,7 @@ describe("plan-phase", () => {
   it("runPlanPhase in deferred mode: writes real sidecar on success", async () => {
     // End-to-end: deferred mode + real filesystem. Verify the sidecar
     // file actually lands on disk with the parsed tasks.
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const testDir = join(process.cwd(), ".test-tmp", "plan-phase-sidecar-ok");
     await mkdir(testDir, { recursive: true });
     const planPath = join(testDir, "test-plan.md");
@@ -393,15 +393,15 @@ describe("plan-phase", () => {
   // PlanApprovalGate (Round 2 rebase)
   // -----------------------------------------------------------------------
 
-  it("PlanApprovalGate type contract is exported from src/run/plan-approval-gate.ts", async () => {
-    const gate = await import("../src/run/plan-approval-gate.js");
+  it("PlanApprovalGate type contract is exported from src/execution/run/plan-approval-gate.ts", async () => {
+    const gate = await import("../src/execution/run/plan-approval-gate.js");
     // Type-only exports — interface is erased at runtime, so verify
     // the module shape and ensure the compile-time contract links.
     assert.ok(gate, "plan-approval-gate module should be importable");
   });
 
   it("runPlanPhase forwards opts.gate to the gate and returns approved on gate approve", async () => {
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const testDir = join(process.cwd(), ".test-tmp", "plan-phase-gate-approve");
     await mkdir(testDir, { recursive: true });
     const planPath = join(testDir, "test-plan.md");
@@ -462,7 +462,7 @@ describe("plan-phase", () => {
   });
 
   it("gate reject deletes sidecar and returns rejected with currentTasks", async () => {
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const testDir = join(process.cwd(), ".test-tmp", "plan-phase-gate-reject");
     await mkdir(testDir, { recursive: true });
     const planPath = join(testDir, "test-plan.md");
@@ -512,7 +512,7 @@ describe("plan-phase", () => {
   });
 
   it("gate detail decision triggers print-and-reprompt, then approve on second round", async () => {
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const testDir = join(process.cwd(), ".test-tmp", "plan-phase-gate-detail");
     await mkdir(testDir, { recursive: true });
     const planPath = join(testDir, "test-plan.md");
@@ -554,7 +554,7 @@ describe("plan-phase", () => {
   });
 
   it("gate edit decision re-parses and refreshes sidecar, then approves on second round", async () => {
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const testDir = join(process.cwd(), ".test-tmp", "plan-phase-gate-edit");
     await mkdir(testDir, { recursive: true });
     const planPath = join(testDir, "test-plan.md");
@@ -640,7 +640,7 @@ describe("plan-phase", () => {
   });
 
   it("gate bypasses the no-TTY guard (gate path runs even when process.stdout.isTTY=false)", async () => {
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const testDir = join(process.cwd(), ".test-tmp", "plan-phase-gate-notty");
     await mkdir(testDir, { recursive: true });
     const planPath = join(testDir, "test-plan.md");
@@ -686,7 +686,7 @@ describe("plan-phase", () => {
   });
 
   it("no-TTY without gate still early-returns (regression guard)", async () => {
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const originalIsTTY = (process.stdout as any).isTTY;
     (process.stdout as any).isTTY = false;
     try {
@@ -712,7 +712,7 @@ describe("plan-phase", () => {
   });
 
   it("gate-side sidecar write failure is non-fatal (warning only)", async () => {
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const testDir = join(process.cwd(), ".test-tmp", "plan-phase-gate-sidecar-fail");
     await mkdir(testDir, { recursive: true });
     const planPath = join(testDir, "test-plan.md");

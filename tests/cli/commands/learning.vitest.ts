@@ -10,13 +10,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleLearningCommand } from "../../../src/cli/commands/learning.js";
-import { LearningStore } from "../../../src/learning/learning-store.js";
+import { handleLearningCommand } from "../../../src/interfaces/cli/commands/learning.js";
+import { LearningStore } from "../../../src/planning/learning/learning-store.js";
 import type {
   CalibrationProfile,
   LearningSignal,
-} from "../../../src/learning/learning-types.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+} from "../../../src/planning/learning/learning-types.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // process.cwd override + output capture

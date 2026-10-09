@@ -23,7 +23,7 @@
 ### Task 1: SnapshotStore atomic save
 
 **Files:**
-- Modify: `src/adaptation/snapshot-store.ts`
+- Modify: `src/planning/adaptation/snapshot-store.ts`
 - Test: `tests/adaptation/snapshot-store.vitest.ts`
 
 **Interfaces:**
@@ -122,7 +122,7 @@ Expected: all existing tests still pass, tsc clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/adaptation/snapshot-store.ts tests/adaptation/snapshot-store.vitest.ts
+git add src/planning/adaptation/snapshot-store.ts tests/adaptation/snapshot-store.vitest.ts
 git commit -m "fix(p9.4a): SnapshotStore.save() atomic write (write-tmp → rename)
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
@@ -132,7 +132,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 2: GovernanceChangeApplier
 
 **Files:**
-- Create: `src/adaptation/appliers/governance-change-applier.ts`
+- Create: `src/planning/adaptation/appliers/governance-change-applier.ts`
 - Create: `tests/adaptation/appliers/governance-change-applier.vitest.ts`
 
 **Interfaces:**
@@ -158,11 +158,11 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { SnapshotStore } from "../../../src/adaptation/snapshot-store.js";
-import { GovernanceChangeApplier } from "../../../src/adaptation/appliers/governance-change-applier.js";
-import type { AdaptationProposal, ProposalTarget } from "../../../src/adaptation/adaptation-types.js";
+import { SnapshotStore } from "../../../src/planning/adaptation/snapshot-store.js";
+import { GovernanceChangeApplier } from "../../../src/planning/adaptation/appliers/governance-change-applier.js";
+import type { AdaptationProposal, ProposalTarget } from "../../../src/planning/adaptation/adaptation-types.js";
 import type { GovernanceChangePayload } from "../../../src/governance/governance-types.js";
-import type { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
+import type { EvidenceEventWriter } from "../../../src/coordination/workflow/evidence-writer.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -441,7 +441,7 @@ it("revert governance mutation restores original content", async () => {
   expect(content.calibrations[0].value).toBe(0.75);
 
   // Revert through SnapshotStore → RevertApplier
-  const { RevertApplier } = await import("../../../src/adaptation/revert-applier.js");
+  const { RevertApplier } = await import("../../../src/planning/adaptation/revert-applier.js");
   const revertWriter = { recordRevertFailed: vi.fn(), recordRevertApplied: vi.fn() } as any;
   const revertApplier = new RevertApplier(snapDir, revertWriter);
 
@@ -501,7 +501,7 @@ Expected: all tests FAIL with "Cannot find module" or similar import errors (the
 
 - [ ] **Step 3: Write the minimal implementation**
 
-In `src/adaptation/appliers/governance-change-applier.ts`:
+In `src/planning/adaptation/appliers/governance-change-applier.ts`:
 
 ```ts
 /**
@@ -839,7 +839,7 @@ Expected: all existing tests pass, tsc clean.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/adaptation/appliers/governance-change-applier.ts tests/adaptation/appliers/governance-change-applier.vitest.ts
+git add src/planning/adaptation/appliers/governance-change-applier.ts tests/adaptation/appliers/governance-change-applier.vitest.ts
 git commit -m "feat(p9.4a): GovernanceChangeApplier with confidence_calibration + lens_adjustment
 
 - Single applier with internal routing for 2 supported kinds
@@ -855,7 +855,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 3: selectApplier routing
 
 **Files:**
-- Modify: `src/cli/commands/adaptation.ts`
+- Modify: `src/interfaces/cli/commands/adaptation.ts`
 - Test: `tests/cli/commands/adaptation.vitest.ts`
 
 **Interfaces:**
@@ -946,7 +946,7 @@ Expected: 3 tests FAIL — `selectApplier` doesn't have a `case "governance"` ye
 
 - [ ] **Step 3: Modify selectApplier**
 
-In `src/cli/commands/adaptation.ts`, add after the `case "revert"` block:
+In `src/interfaces/cli/commands/adaptation.ts`, add after the `case "revert"` block:
 
 ```ts
 case "governance": {
@@ -991,7 +991,7 @@ Expected: all tests pass, tsc clean.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/adaptation.ts tests/cli/commands/adaptation.vitest.ts
+git add src/interfaces/cli/commands/adaptation.ts tests/cli/commands/adaptation.vitest.ts
 git commit -m "feat(p9.4a): selectApplier governance routing
 
 - Add case governance → GovernanceChangeApplier
@@ -1006,15 +1006,15 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 **Files:**
 - Review: `tests/governance/governance-sentinels.vitest.ts` (may need updates)
-- New file `governance-change-applier.ts` is in `src/adaptation/appliers/` — NOT under `src/governance/`. The P9 sentinel covers only P9 governance files. The applier is an adaptation applier (like AgentCardApplier), so it does NOT need sentinel enforcement.
+- New file `governance-change-applier.ts` is in `src/planning/adaptation/appliers/` — NOT under `src/governance/`. The P9 sentinel covers only P9 governance files. The applier is an adaptation applier (like AgentCardApplier), so it does NOT need sentinel enforcement.
 
 **Verification checklist:**
 
 - [ ] **Step 1: Verify sentinel does NOT need changes**
 
 ```bash
-# The sentinel's ALL_FILES lists files under src/governance/ and src/cli/commands/governance.ts
-# The new file is at src/adaptation/appliers/governance-change-applier.ts
+# The sentinel's ALL_FILES lists files under src/governance/ and src/interfaces/cli/commands/governance.ts
+# The new file is at src/planning/adaptation/appliers/governance-change-applier.ts
 # The existing P9 sentinel does not cover adaptation/appliers/ — no sentinel change needed.
 grep -c "governance-change-applier" tests/governance/governance-sentinels.vitest.ts
 ```

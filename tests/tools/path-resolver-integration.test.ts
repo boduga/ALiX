@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { FileToolRouter } from "../../src/tools/tool-router.js";
-import { WorkspacePathResolver } from "../../src/runtime/workspace-path.js";
-import type { ToolCallRequest } from "../../src/tools/types.js";
+import { FileToolRouter } from "../../src/capabilities/tools/tool-router.js";
+import { WorkspacePathResolver } from "../../src/runtime-state/runtime/workspace-path.js";
+import type { ToolCallRequest } from "../../src/capabilities/tools/types.js";
 import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

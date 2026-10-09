@@ -14,7 +14,7 @@ import { describe, it, expect } from "vitest";
 import {
   renderSchemaResult,
   renderSchemaShape,
-} from "../../../src/tui/capabilities/schema-renderer.js";
+} from "../../../src/interfaces/tui/capabilities/schema-renderer.js";
 
 describe("renderSchemaResult — data mode", () => {
   it("renders a primitive string result as-is", () => {

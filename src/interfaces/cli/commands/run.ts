@@ -1,0 +1,253 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { EXIT_CODES } from "../../../run.js";
+import { createAgentSession, type AgentTurnResult } from "../../../agents/agent/session.js";
+import { createTraceClient } from "../../../models/tracing/client-factory.js";
+import type { TraceClient } from "../../../models/tracing/client.js";
+import { loadConfig } from "../../../operations/config/loader.js";
+import type { TracingConfig } from "../../../operations/config/schema.js";
+import { ApiError } from "../../../models/providers/base.js";
+import { createModelResolver } from "../../../operations/config/model-resolver.js";
+import { parseRunArgs } from "../run-args.js";
+
+export async function handler(args: string[]): Promise<number> {
+  const { task, noStream, noPlan, sessionMode, resumeSessionId, planFilePath, intent: intentFlag, propose: proposeFlag, readOnly, chat } = parseRunArgs(args);
+
+  if (!task && !resumeSessionId && !chat) {
+    console.error("Usage: alix run \"<task>\" [--no-stream] [--no-plan] [--mode=auto|ask|bypass] [--resume <session-id>] [--plan-file <path>] [--intent] [--propose]");
+    return 1;
+  }
+
+  // Skill route detection (best-effort): check if input matches a discovered skill
+  let matchedSkillId: string | undefined;
+  if (task) {
+    try {
+      const { loadDiscoveredSkillManifests } = await import("../../../capabilities/skills/discovery.js");
+      const { buildSkillCatalog } = await import("../../../capabilities/skills/catalog.js");
+      const manifests = await loadDiscoveredSkillManifests(homedir(), process.cwd());
+      const catalog = buildSkillCatalog(manifests);
+      const matched = catalog.match(task);
+      if (matched.length > 0) {
+        matchedSkillId = matched[0].manifest.name;
+      }
+    } catch {
+      // Skill detection is best-effort; fall through to runTask
+    }
+  }
+
+  let result: AgentTurnResult | undefined;
+  let session: ReturnType<typeof createAgentSession>;
+  // Resolve the process TraceClient once (memoized factory: Noop when
+  // tracing is disabled — the default) so the session's processTurn /
+  // processChat emit one root trace per invocation when tracing is enabled.
+  // Hoisted out of the try so the finally below can shut it down exactly once
+  // at this composition root (run CLI completion is this entry mode's single
+  // "app closing down" choke point; the dispatcher process.exit()s right after
+  // this handler resolves).
+  let runTraceClient: TraceClient | undefined;
+  try {
+    // Resolve the configured default model so direct-generation and grounded
+    // chat routes get a provider (mirrors the TUI). Without this, a
+    // generation-only prompt routed to the direct path returns the
+    // `[chat:no-provider]` placeholder even when models.default is set.
+    // Headless tolerance (#680, mirrors #679): loadConfig resolves EVERY
+    // cred:// ref, so one unreachable backend (no Secret Service bus under
+    // cron) must not kill a run before any turn begins. Fall back with a
+    // warning: no chat-model hint, Noop tracing. Interactive use is
+    // unaffected (config loads, no warning).
+    let chatModelOpt: { chatModel?: { provider: string; model: string } } = {};
+    let tracingConfig: TracingConfig | undefined;
+    try {
+      const loadedConfig = await loadConfig(process.cwd());
+      const defaultModel = createModelResolver(loadedConfig).resolve();
+      if (defaultModel?.provider) {
+        chatModelOpt = { chatModel: { provider: defaultModel.provider, model: defaultModel.name } };
+      }
+      tracingConfig = loadedConfig.tracing;
+    } catch (err) {
+      console.warn(`[run] config unavailable, using flags/defaults: ${err instanceof Error ? err.message : err}`);
+    }
+
+    const { createReplRenderer, createReplEvents } = await import("../renderers/repl.js");
+    const { JsonlSessionStore } = await import("../../../agents/agent/session-store-jsonl.js");
+    runTraceClient = await createTraceClient(tracingConfig);
+    // Headless runs need a real approval queue: without a store every
+    // ask-mode tool call fails closed with "Approval required but no
+    // approval store configured". Mirror the TUI composition root
+    // (tui.ts) — create + load the file-backed store, then pass it into
+    // the session so PolicyGate mints resolvable pending approvals
+    // instead of the infra deny. Fail-open to undefined (legacy deny)
+    // so a broken approvals dir never kills the run before it starts.
+    const { ApprovalStore } = await import("../../../governance/approvals/approval-store.js");
+    let approvalStore: InstanceType<typeof ApprovalStore> | undefined;
+    try {
+      approvalStore = new ApprovalStore(process.cwd());
+      await approvalStore.load();
+    } catch {
+      console.warn("[run] approval store unavailable, tool approvals will be denied");
+      approvalStore = undefined;
+    }
+    if (chat) {
+      // Wire a streaming events subscription into both the session and the
+      // renderer (spec 13) so the REPL renders tokens/tool calls as they
+      // arrive instead of waiting for the final summary.
+      const events = createReplEvents();
+      const sessionsRoot = join(process.cwd(), ".alix", "sessions");
+      const store = new JsonlSessionStore(sessionsRoot);
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events, store, ...(approvalStore ? { approvalStore } : {}), ...chatModelOpt, traceClient: runTraceClient });
+      const renderer = createReplRenderer(session, { events, store });
+      await renderer.start();
+    } else {
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, ...(approvalStore ? { approvalStore } : {}), ...chatModelOpt, traceClient: runTraceClient });
+      result = await session.processTurn(task);
+      if (!result.streamed) {
+        console.log(result.summary);
+      }
+      if (result.sessionId) {
+        console.log(`Session: ${result.sessionId}`);
+      }
+      // Headless ask-mode UX: pending approvals have no TUI panel here,
+      // so surface them with the CLI resolution path instead of leaving
+      // the operator to discover .alix/approvals/approvals.json.
+      if (approvalStore && result.sessionId) {
+        const doneSessionId = result.sessionId;
+        try {
+          const pending = approvalStore.listPending().filter((r) => !r.sessionId || r.sessionId === doneSessionId);
+          if (pending.length > 0) {
+            console.log(`\nPending approvals (${pending.length}):`);
+            for (const p of pending.slice(0, 10)) {
+              const what = p.capabilities?.join(",") ?? p.toolId ?? "unknown";
+              console.log(`  ${p.id} [${what}] ${p.reason ?? ""}`);
+            }
+            console.log(`Approve: alix approvals approve <id> --reason "reviewed"`);
+            console.log(`Then resume: alix run --resume ${result.sessionId} "<task>"`);
+          }
+        } catch {
+          // Hint is best-effort; never fail the run on it.
+        }
+      }
+    }
+
+    // --intent / --propose: capture execution as an ExecutionIntent artifact
+    // --propose is a superset of --intent: it also maps the intent to a proposal
+    if (result && (intentFlag || proposeFlag)) {
+      const { IntentStore } = await import("../../../planning/adaptation/intent-store.js");
+      const intentDir = join(homedir(), ".alix", "execution", "intents");
+      const store = new IntentStore(intentDir);
+
+      const outputSummary = result.summary.slice(0, 200);
+      const source = matchedSkillId ? "skill_run" as const : "cli_run" as const;
+
+      const intent: Record<string, unknown> = {
+        source,
+        input: task,
+        outputSummary,
+        status: "captured" as const,
+        confidence: 1,
+        rationale: matchedSkillId
+          ? `Skill run: ${matchedSkillId} via alix run`
+          : "Task executed via alix run",
+        sourceArtifacts: [
+          { type: "context" as const, id: `session:${result.sessionId}` },
+        ],
+        subject: matchedSkillId ? `Skill run: ${matchedSkillId}` : `Task: ${task.slice(0, 80)}`,
+        outcome: "captured",
+        reasons: matchedSkillId
+          ? [`Skill "${matchedSkillId}" executed via alix run`]
+          : [`Task executed via alix run`],
+      };
+
+      if (matchedSkillId) {
+        intent.skillId = matchedSkillId;
+      }
+
+      // --propose: attach proposedAction + proposedTarget for proposal mapping
+      if (proposeFlag) {
+        if (matchedSkillId) {
+          intent.proposedAction = "adjust_skill_definition";
+          intent.proposedTarget = { kind: "skill", id: matchedSkillId };
+        }
+        // For generic tasks without a skill match, proposedAction/target are
+        // intentionally left unset — the mapper will report the error and we
+        // suggest --intent as the alternative.
+      }
+
+      await store.append(intent as any);
+
+      // Terminal output — intent captured
+      console.log(`\nIntent captured: ${(intent as any).id || "(id pending)"}`);
+      console.log(`  Source:  ${source}${matchedSkillId ? ` (${matchedSkillId})` : ""}`);
+      console.log(`  Status:  captured`);
+      console.log(`  Summary: ${outputSummary.slice(0, 80)}${outputSummary.length > 80 ? "..." : ""}`);
+
+      // --propose: map intent to proposal
+      if (proposeFlag) {
+        if (!intent.proposedAction || !intent.proposedTarget) {
+          console.error(`\n  Cannot create proposal: this task has no proposedAction or proposedTarget.`);
+          console.error(`  Use --intent instead of --propose for generic task capture.`);
+          console.error(`  For skill-matched runs, --propose works automatically.`);
+        } else {
+          const { AdaptationProposalStore } = await import("../../../planning/adaptation/adaptation-proposal-store.js");
+          const { IntentProposalMapper } = await import("../../../planning/adaptation/intent-proposal-mapper.js");
+
+          const proposalsDir = join(process.cwd(), ".alix", "adaptation", "proposals");
+          const proposalStore = new AdaptationProposalStore(proposalsDir);
+          const mapper = new IntentProposalMapper(proposalStore);
+
+          const mappingResult = await mapper.mapToProposal(intent as any, store);
+
+          if (!mappingResult.success) {
+            console.error(`\n  Proposal mapping failed: ${mappingResult.errors.join("; ")}`);
+          } else {
+            console.log(`\n  Proposal created: ${mappingResult.proposal!.id}`);
+            console.log(`  Action: ${intent.proposedAction}`);
+            console.log(`  Target: ${JSON.stringify(intent.proposedTarget)}`);
+            console.log();
+            console.log(`  Use \`alix decision approve ${mappingResult.proposal!.id}\` and \`alix decision apply ${mappingResult.proposal!.id}\` to execute.`);
+          }
+        }
+      }
+    }
+
+    if (result?.reason === "rejected_scope_expansion") {
+      return EXIT_CODES.REJECTED_SCOPE_EXPANSION;
+    }
+    if (result?.reason === "context_budget_overflow" && result.contextBudgetOverflow) {
+      const cbo = result.contextBudgetOverflow;
+      console.error(
+        `\n⚠️  Context budget overflow — the mandatory context core cannot fit.` +
+        `\n    Needs ${cbo.overageTokens} more input tokens (${cbo.availableInputTokens} available, core is ${cbo.mandatoryTokens}).` +
+        `\n\nFix: raise context.budget, or shrink mandatory context components.`
+      );
+      return 1;
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (err instanceof ApiError) {
+      if (msg.includes("credit balance") || msg.includes("upgrade")) {
+        console.error(`\n⚠️  API: Insufficient credits.\n    ${err.detail}\n\nFix: Add credits or switch providers:\n     alix models set-default`);
+      } else if (msg.includes("invalid_request_error") || err.status === 401) {
+        console.error(`\n⚠️  API: Authentication failed.\n    ${err.detail}\n\nFix: Check your API key.`);
+      } else {
+        console.error(`\n⚠️  API error (${err.status}):\n    ${err.detail}`);
+      }
+    } else {
+      console.error(`\n⚠️  ${msg}`);
+    }
+    return 1;
+  } finally {
+    // T14 bounded shutdown — runs before ANY return settles, on success and
+    // error paths alike, and covers both the `--chat` REPL path and the
+    // processTurn path. Bounded by the adapter's flush budget and fail-open,
+    // so tracing can never change the CLI's exit code nor delay the process
+    // beyond the budget.
+    if (runTraceClient) {
+      try {
+        await runTraceClient.shutdown();
+      } catch {
+        // Tracing must never determine a CLI exit; fail-open.
+      }
+    }
+  }
+  return 0;
+}

@@ -211,7 +211,7 @@ Expected: PASS. All 47 existing tests still pass; the new `metadata` assertions 
 
 - [ ] **Step 8: Verify 6 protected type files unchanged**
 
-Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/adaptation/risk-score-types.ts src/adaptation/governance-review-types.ts src/adaptation/adaptation-types.ts src/adaptation/decision-types.ts src/adaptation/learning-types.ts src/adaptation/outcome-types.ts | head -3`
+Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/planning/adaptation/risk-score-types.ts src/planning/adaptation/governance-review-types.ts src/planning/adaptation/adaptation-types.ts src/planning/adaptation/decision-types.ts src/planning/adaptation/learning-types.ts src/planning/adaptation/outcome-types.ts | head -3`
 Expected: empty (no diff). P9.1 metadata amendment is a non-protected file change.
 
 - [ ] **Step 9: Commit**
@@ -235,13 +235,13 @@ the first time in the field."
 ## Task P9.2a — Types extension + GovernanceStore.findRecommendationById
 
 **Files:**
-- Modify: `src/adaptation/adaptation-types.ts` (additive: extend `ProposalAction` and `ProposalTarget` unions)
+- Modify: `src/planning/adaptation/adaptation-types.ts` (additive: extend `ProposalAction` and `ProposalTarget` unions)
 - Create: `src/governance/protected-baselines.ts` (snapshot the current `ProposalAction` and `ProposalTarget.kind` values; the snapshot-equal sentinel test will diff against this)
 - Modify: `src/governance/governance-store.ts` (add `findRecommendationById(id): Promise<{ rec: Recommendation; parent: GovernanceRecommendation } | null>` method)
 - Modify: `tests/governance/governance-store.vitest.ts` (add 2 tests for `findRecommendationById`)
 
 **Interfaces:**
-- Consumes: existing `Proposal` type from `src/adaptation/adaptation-types.ts` (P5)
+- Consumes: existing `Proposal` type from `src/planning/adaptation/adaptation-types.ts` (P5)
 - Produces: `findRecommendationById(id)` on `GovernanceStore` (P9.2 hot path) and `protected-baselines.ts` (P9.2 sentinel baseline)
 
 **Note on granularity:** P9.2 operates on a `Recommendation` item (inner), not a `GovernanceRecommendation` report (outer). The CLI command takes an inner-item ID. The lookup helper traces from the inner item to its containing report.
@@ -320,7 +320,7 @@ Expected: PASS. Both new tests pass.
 
 - [ ] **Step 5: Add the additive extension to `adaptation-types.ts`**
 
-In `src/adaptation/adaptation-types.ts`, find the `ProposalAction` union and add the new value at the end. The current `ProposalAction` is:
+In `src/planning/adaptation/adaptation-types.ts`, find the `ProposalAction` union and add the new value at the end. The current `ProposalAction` is:
 
 ```ts
 export type ProposalAction =
@@ -403,7 +403,7 @@ export const BASELINE_PROPOSAL_TARGET_KINDS: readonly string[] = [
 ] as const;
 ```
 
-(The `agent_card` and `skill` and `revert` values must match the actual `ProposalTarget` variants. Read `src/adaptation/adaptation-types.ts` to confirm; adjust this file if the actual kinds differ from what's shown here.)
+(The `agent_card` and `skill` and `revert` values must match the actual `ProposalTarget` variants. Read `src/planning/adaptation/adaptation-types.ts` to confirm; adjust this file if the actual kinds differ from what's shown here.)
 
 - [ ] **Step 7: Run tsc to confirm no compile errors**
 
@@ -417,14 +417,14 @@ Expected: PASS. The 5 other protected files (other than `adaptation-types.ts`) a
 
 - [ ] **Step 9: Verify the 5 non-`adaptation-types.ts` protected files are unchanged**
 
-Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/adaptation/risk-score-types.ts src/adaptation/governance-review-types.ts src/adaptation/decision-types.ts src/adaptation/learning-types.ts src/adaptation/outcome-types.ts | head -3`
+Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/planning/adaptation/risk-score-types.ts src/planning/adaptation/governance-review-types.ts src/planning/adaptation/decision-types.ts src/planning/adaptation/learning-types.ts src/planning/adaptation/outcome-types.ts | head -3`
 Expected: empty. The only protected-file change in P9.2a is the additive extension to `adaptation-types.ts`.
 
 - [ ] **Step 10: Commit**
 
 ```bash
 cd /home/babasola/Projects/Monolith
-git add src/adaptation/adaptation-types.ts src/governance/governance-store.ts src/governance/protected-baselines.ts tests/governance/governance-store.vitest.ts
+git add src/planning/adaptation/adaptation-types.ts src/governance/governance-store.ts src/governance/protected-baselines.ts tests/governance/governance-store.vitest.ts
 git commit -m "feat(p9.2a): types extension + GovernanceStore.findRecommendationById
 
 Additive extensions to adaptation-types.ts (per ADR-0004 Allowed
@@ -455,7 +455,7 @@ byte-identical to main."
 **Files:**
 - Create: `src/governance/governance-proposal-generator.ts` (the single P9.2 file permitted to import `ProposalStore`; even this file is forbidden from `ApprovalGate` and any applier)
 - Create: `tests/governance/governance-proposal-generator.vitest.ts`
-- Modify: `src/adaptation/proposal-store.ts` (add `markOrphaned(id, reason)` method — required for atomicity recovery)
+- Modify: `src/planning/adaptation/proposal-store.ts` (add `markOrphaned(id, reason)` method — required for atomicity recovery)
 
 **Interfaces:**
 - Consumes: `GovernanceStore.findRecommendationById(id)`, `ProposalStore.save(proposal)`, `ProposalStore.update(id, patch)`, `EvidenceChainStore.appendChain(chain)`, `EvidenceChainStore.getChainForRoot(recommendationId)`
@@ -483,7 +483,7 @@ Expected: FAIL with `store.markOrphaned is not a function`.
 
 - [ ] **Step 3: Implement `markOrphaned` on `ProposalStore`**
 
-In `src/adaptation/proposal-store.ts`, find the `ProposalStore` class and add the new method after `update`. (Note: `ProposalStatus` is unchanged at `pending | approved | rejected | applied | failed`. P9.2 does NOT extend it. Instead, `markOrphaned` writes a `systemState` field — see the additional change in `adaptation-types.ts` below this code block.)
+In `src/planning/adaptation/proposal-store.ts`, find the `ProposalStore` class and add the new method after `update`. (Note: `ProposalStatus` is unchanged at `pending | approved | rejected | applied | failed`. P9.2 does NOT extend it. Instead, `markOrphaned` writes a `systemState` field — see the additional change in `adaptation-types.ts` below this code block.)
 
 ```ts
   /**
@@ -503,10 +503,10 @@ In `src/adaptation/proposal-store.ts`, find the `ProposalStore` class and add th
 
 Also note: **P9.2b does NOT add `"orphaned"` to the `ProposalStatus` union.** That was an earlier design that was corrected (see the "Orphaned system-state semantics" section above). The `ProposalStatus` union stays at the original 5 lifecycle states. Instead, `markOrphaned` writes a `systemState` field on the proposal.
 
-**`systemState` field on `AdaptationProposal`** (read `src/adaptation/adaptation-types.ts` to see the current interface — it does NOT yet have `systemState`; P9.2b adds it as an optional field):
+**`systemState` field on `AdaptationProposal`** (read `src/planning/adaptation/adaptation-types.ts` to see the current interface — it does NOT yet have `systemState`; P9.2b adds it as an optional field):
 
 ```ts
-// In src/adaptation/adaptation-types.ts, add to the AdaptationProposal interface:
+// In src/planning/adaptation/adaptation-types.ts, add to the AdaptationProposal interface:
   /**
    * P9.2 system-state metadata. Used for infrastructure-recovery
    * flags (currently only `orphaned`). Distinct from ProposalStatus:
@@ -531,8 +531,8 @@ In `tests/governance/governance-proposal-generator.vitest.ts` (new file), add:
 ```ts
 import { describe, it, expect, beforeEach } from "vitest";
 import { GovernanceStore } from "../../src/governance/governance-store.js";
-import { ProposalStore } from "../../src/adaptation/proposal-store.js";
-import { EvidenceChainStore } from "../../src/learning/evidence-chain-store.js";
+import { ProposalStore } from "../../src/planning/adaptation/proposal-store.js";
+import { EvidenceChainStore } from "../../src/planning/learning/evidence-chain-store.js";
 import { createGovernanceProposal } from "../../src/governance/governance-proposal-generator.js";
 
 describe("createGovernanceProposal", () => {
@@ -878,14 +878,14 @@ Expected: PASS. All 5 + existing tests pass.
 
 - [ ] **Step 12: Verify the 5 non-`adaptation-types.ts` protected files are still unchanged**
 
-Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/adaptation/risk-score-types.ts src/adaptation/governance-review-types.ts src/adaptation/decision-types.ts src/adaptation/learning-types.ts src/adaptation/outcome-types.ts | head -3`
+Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/planning/adaptation/risk-score-types.ts src/planning/adaptation/governance-review-types.ts src/planning/adaptation/decision-types.ts src/planning/adaptation/learning-types.ts src/planning/adaptation/outcome-types.ts | head -3`
 Expected: empty. The only protected-file change in P9.2b is the additive `ProposalAction += "governance_change"` extension to `adaptation-types.ts` (already done in P9.2a). P9.2b does NOT touch any protected file.
 
 - [ ] **Step 13: Commit**
 
 ```bash
 cd /home/babasola/Projects/Monolith
-git add src/governance/governance-proposal-generator.ts src/adaptation/proposal-store.ts src/adaptation/adaptation-types.ts tests/governance/governance-proposal-generator.vitest.ts tests/adaptation/proposal-store.vitest.ts src/governance/protected-baselines.ts
+git add src/governance/governance-proposal-generator.ts src/planning/adaptation/proposal-store.ts src/planning/adaptation/adaptation-types.ts tests/governance/governance-proposal-generator.vitest.ts tests/adaptation/proposal-store.vitest.ts src/governance/protected-baselines.ts
 git commit -m "feat(p9.2b): ProposalGenerator bridge + ProposalStore.markOrphaned
 
 New module src/governance/governance-proposal-generator.ts:
@@ -914,7 +914,7 @@ idempotency, not-found. All passing. No Forbidden mutations."
 ## Task P9.2c — CLI: `alix governance propose <id>`
 
 **Files:**
-- Modify: `src/cli/commands/governance.ts` (add `propose` subcommand)
+- Modify: `src/interfaces/cli/commands/governance.ts` (add `propose` subcommand)
 - Modify: `tests/cli/commands/governance-integration.vitest.ts` (add 3 tests)
 
 **Interfaces:**
@@ -1065,7 +1065,7 @@ Expected: FAIL with "Unknown subcommand: propose" (or similar — the CLI dispat
 
 - [ ] **Step 3: Implement the `propose` subcommand in the CLI dispatcher**
 
-In `src/cli/commands/governance.ts`, find the `handleGovernanceCommand` function's switch statement. Add the `propose` case alongside the existing cases (`health`, `drift`, `lens-review`, `integrity`, `recommend`):
+In `src/interfaces/cli/commands/governance.ts`, find the `handleGovernanceCommand` function's switch statement. Add the `propose` case alongside the existing cases (`health`, `drift`, `lens-review`, `integrity`, `recommend`):
 
 ```ts
       case "propose": {
@@ -1113,14 +1113,14 @@ Expected: PASS. The 4 existing governance CLI subcommands (health, drift, lens-r
 
 - [ ] **Step 6: Verify 6 protected type files are unchanged from main**
 
-Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/adaptation/risk-score-types.ts src/adaptation/governance-review-types.ts src/adaptation/adaptation-types.ts src/adaptation/decision-types.ts src/adaptation/learning-types.ts src/adaptation/outcome-types.ts | head -3`
+Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/planning/adaptation/risk-score-types.ts src/planning/adaptation/governance-review-types.ts src/planning/adaptation/adaptation-types.ts src/planning/adaptation/decision-types.ts src/planning/adaptation/learning-types.ts src/planning/adaptation/outcome-types.ts | head -3`
 Expected: the only diff is the additive extension to `adaptation-types.ts` from P9.2a (ProposalAction + governance, ProposalTarget + governance). P9.2b does NOT touch any protected file — it adds `systemState` to the `AdaptationProposal` interface, which is on a non-protected file (the `AdaptationProposal` type lives in `adaptation-types.ts` but is not a `ProposalAction`/`ProposalTarget`/`ProposalStatus` member). All other 5 protected files are byte-identical to main.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 cd /home/babasola/Projects/Monolith
-git add src/cli/commands/governance.ts tests/cli/commands/governance-integration.vitest.ts
+git add src/interfaces/cli/commands/governance.ts tests/cli/commands/governance-integration.vitest.ts
 git commit -m "feat(p9.2c): alix governance propose CLI subcommand
 
 New CLI subcommand:
@@ -1188,7 +1188,7 @@ In `tests/governance/governance-sentinels.vitest.ts`, add inside the existing `d
 
   it("adaptation-types.ts ProposalAction is exactly the baseline + P9.2 additions", async () => {
     const { BASELINE_PROPOSAL_ACTIONS } = await import("../../src/governance/protected-baselines.js");
-    const source = readSource("src/adaptation/adaptation-types.ts");
+    const source = readSource("src/planning/adaptation/adaptation-types.ts");
     // Extract the ProposalAction union members via a simple regex.
     const match = source.match(/export type ProposalAction\s*=\s*([\s\S]+?);/);
     expect(match).not.toBeNull();
@@ -1201,7 +1201,7 @@ In `tests/governance/governance-sentinels.vitest.ts`, add inside the existing `d
   });
 
   it("adaptation-types.ts ProposalStatus preserves the 5 lifecycle states (P9.2 does NOT extend it)", async () => {
-    const source = readSource("src/adaptation/adaptation-types.ts");
+    const source = readSource("src/planning/adaptation/adaptation-types.ts");
     const match = source.match(/export type ProposalStatus\s*=\s*([\s\S]+?);/);
     expect(match).not.toBeNull();
     if (!match) return;
@@ -1216,7 +1216,7 @@ In `tests/governance/governance-sentinels.vitest.ts`, add inside the existing `d
 
   it("adaptation-types.ts ProposalTarget kinds is exactly the baseline + P9.2 additions", async () => {
     const { BASELINE_PROPOSAL_TARGET_KINDS } = await import("../../src/governance/protected-baselines.js");
-    const source = readSource("src/adaptation/adaptation-types.ts");
+    const source = readSource("src/planning/adaptation/adaptation-types.ts");
     // ProposalTarget is a discriminated union; extract `kind: "..."` strings.
     const kinds = [...source.matchAll(/kind:\s*"([^"]+)"/g)].map((m) => m[1]);
     // Filter to the ones inside the ProposalTarget union by checking context.
@@ -1238,7 +1238,7 @@ const ALL_FILES = [
   ...GOVERNANCE_BUILDERS,
   "src/governance/governance-store.ts",
   "src/governance/governance-recommendation-generator.ts",
-  "src/cli/commands/governance.ts",
+  "src/interfaces/cli/commands/governance.ts",
 ];
 ```
 
@@ -1272,7 +1272,7 @@ Expected: PASS. The sentinel is the last check; the suite is fully green.
 
 - [ ] **Step 5: Verify the 5 non-`adaptation-types.ts` protected files are unchanged from main**
 
-Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/adaptation/risk-score-types.ts src/adaptation/governance-review-types.ts src/adaptation/decision-types.ts src/adaptation/learning-types.ts src/adaptation/outcome-types.ts | head -3`
+Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/planning/adaptation/risk-score-types.ts src/planning/adaptation/governance-review-types.ts src/planning/adaptation/decision-types.ts src/planning/adaptation/learning-types.ts src/planning/adaptation/outcome-types.ts | head -3`
 Expected: empty.
 
 - [ ] **Step 6: Commit**

@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-08-17
 **Scope:** folder, filename, and symbol naming across `src/`, `tests/`, and docs; all milestones (A/P/CAP/M/X series)
-**Context:** A9 verification + invariant audit (2026-08-17) surfaced the question "is it standard to use milestone names for function/variable names or folder names?" — with `src/evolution/a9/` as the visible case. This ADR records the convention and catalogs the current state.
+**Context:** A9 verification + invariant audit (2026-08-17) surfaced the question "is it standard to use milestone names for function/variable names or folder names?" — with `src/planning/evolution/a9/` as the visible case. This ADR records the convention and catalogs the current state.
 
 ---
 
@@ -22,9 +22,9 @@ Milestone identifiers are only *legitimately* load-bearing when they name a **cr
 
 ### 1. Folders and filenames are named by DOMAIN, never by milestone
 
-- A folder/file says **what the code does** (`src/evolution/forecast/`), not **which milestone built it** (`src/evolution/a9/`).
-- This matches the existing majority: A8 lives in `src/evolution/learning/`, A5 in `src/evolution/observation/`, A2 in `src/evolution/verification/`, the P-series in `src/governance/`, `src/executive/`, etc. **No `a8/`, `a5/`, `a2/`, `p*/` folders exist.**
-- `src/capability/` and its subfolders (`measurement/`, `evolution/`, `canonical/`, `governance/`) are domain names — `capability` is the domain word, not a milestone. **Compliant.**
+- A folder/file says **what the code does** (`src/planning/evolution/forecast/`), not **which milestone built it** (`src/planning/evolution/a9/`).
+- This matches the existing majority: A8 lives in `src/planning/evolution/learning/`, A5 in `src/planning/evolution/observation/`, A2 in `src/planning/evolution/verification/`, the P-series in `src/governance/`, `src/execution/executive/`, etc. **No `a8/`, `a5/`, `a2/`, `p*/` folders exist.**
+- `src/capabilities/capability/` and its subfolders (`measurement/`, `evolution/`, `canonical/`, `governance/`) are domain names — `capability` is the domain word, not a milestone. **Compliant.**
 
 ### 2. Milestone prefixes on SHARED CONTRACT TYPES are renamed to domain when no collision
 
@@ -33,7 +33,7 @@ Milestone identifiers are only *legitimately* load-bearing when they name a **cr
 
 ### 3. Milestone prefixes on constants / helpers / local functions are REDUNDANT when the folder already scopes them
 
-- `A9_*` constants inside `src/evolution/a9/` duplicate the folder scope; `P28_FOOTER` in a governance report; `isA8Relevant`, `readP25Candidate`, `normalizeAllP13Outputs`, `defaultA7ProposalGenerator` are milestone-coupled where a domain name says the same thing. **Rename when touched** (see catalog).
+- `A9_*` constants inside `src/planning/evolution/a9/` duplicate the folder scope; `P28_FOOTER` in a governance report; `isA8Relevant`, `readP25Candidate`, `normalizeAllP13Outputs`, `defaultA7ProposalGenerator` are milestone-coupled where a domain name says the same thing. **Rename when touched** (see catalog).
 
 ### 4. Milestone-labeled TEST/verification artifacts are INTENTIONAL — keep
 
@@ -51,13 +51,13 @@ Milestone identifiers are only *legitimately* load-bearing when they name a **cr
 
 | Item | Proposed domain name | Blast radius |
 |---|---|---|
-| `src/evolution/a9/` folder | `src/evolution/forecast/` | 22 importers |
-| `src/evolution/a9/a9-bridge.ts` | `bridge.ts` (in renamed folder) | part of the 22 |
-| `src/evolution/a9/contracts/a9-contract.ts` | `contract.ts` | part of the 22 |
-| `src/evolution/learning/a2-bridge.ts` | `governance-bridge.ts` | 4 |
-| `src/evolution/observation/a5-capability-measurement.ts` | `capability-measurement.ts` | 10 |
-| `src/capability/evolution/a7-proposals.ts` | `proposals.ts` | 10 |
-| `src/capability/measurement/a5.ts` | `measurement-contract.ts` (or fold into module index) | 2 |
+| `src/planning/evolution/a9/` folder | `src/planning/evolution/forecast/` | 22 importers |
+| `src/planning/evolution/a9/a9-bridge.ts` | `bridge.ts` (in renamed folder) | part of the 22 |
+| `src/planning/evolution/a9/contracts/a9-contract.ts` | `contract.ts` | part of the 22 |
+| `src/planning/evolution/learning/a2-bridge.ts` | `governance-bridge.ts` | 4 |
+| `src/planning/evolution/observation/a5-capability-measurement.ts` | `capability-measurement.ts` | 10 |
+| `src/capabilities/capability/evolution/a7-proposals.ts` | `proposals.ts` | 10 |
+| `src/capabilities/capability/measurement/a5.ts` | `measurement-contract.ts` (or fold into module index) | 2 |
 | `isA8Relevant` (TUI evolution-projection) | `isLearningRelevant` | 2 |
 | `readP25Candidate` (governance-policy-review-outcome) | `readPolicyReviewCandidate` | 2 |
 | `normalizeAllP13Outputs` (governance-signal) | `normalizeSignalOutputs` | 8 |
@@ -71,7 +71,7 @@ Milestone identifiers are only *legitimately* load-bearing when they name a **cr
 |---|---|
 | `CAPABILITY_*` constants | `CAPABILITY` is the domain word, not a milestone |
 | `tests/evolution/a9-*`, `a8-*`, `tests/capability/cap-*` | verification trail (§4) |
-| `src/capability/` + subfolders | domain names (§1) |
+| `src/capabilities/capability/` + subfolders | domain names (§1) |
 | `A9_*` constants (51 uses) | redundant but high-blast-radius; fold into a folder rename, not standalone churn (§3, note) |
 
 > Superseded 2026-08-18: `A9Forecast`/`A9Correlation`/`A9Adapter`/`A5Measurement`/`A3DecisionSurface` and `recommendationToA3Decision` were previously kept under §2/§5; the sweep renamed them to domain names (no collisions). See "Milestone-identifier sweep" below.
@@ -80,7 +80,7 @@ Milestone identifiers are only *legitimately* load-bearing when they name a **cr
 
 ## Adoption rule (for new code)
 
-- New folder / file: **name by domain.** If it's A-milestone work, the folder is `src/evolution/<domain>/` (mirrors A8/A5/A2).
+- New folder / file: **name by domain.** If it's A-milestone work, the folder is `src/planning/evolution/<domain>/` (mirrors A8/A5/A2).
 - New shared contract type crossing module boundaries: **name by domain** unless a real collision or externally-versioned schema requires a namespace prefix.
 - New test / sentinel: **may** carry the milestone label (it is a verification artifact).
 - New constant / helper / local function: **no** milestone prefix — the folder scopes it.
@@ -95,7 +95,7 @@ All Section A catalog items executed with `git mv` + import updates (impact: LOW
 
 | Item | Result |
 |---|---|
-| `src/evolution/a9/` → `src/evolution/forecast/` | done |
+| `src/planning/evolution/a9/` → `src/planning/evolution/forecast/` | done |
 | `a9-bridge.ts` → `bridge.ts` | done |
 | `contracts/a9-contract.ts` → `contracts/contract.ts` | done |
 | `a2-bridge.ts` → `governance-bridge.ts` | done |

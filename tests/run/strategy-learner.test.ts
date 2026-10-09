@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyFailureType, recommendStrategy, getRecommendationConfidence } from "../../src/run/task-loop/strategy-learner.js";
+import { classifyFailureType, recommendStrategy, getRecommendationConfidence } from "../../src/execution/run/task-loop/strategy-learner.js";
 
 test("StrategyLearner - classifyFailureType", async (t) => {
   await t.test("classifies syntax errors", () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { validateCapabilityDefinition } from "../../../src/capability/canonical/definition.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { validateCapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 function makeDef(over: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return {

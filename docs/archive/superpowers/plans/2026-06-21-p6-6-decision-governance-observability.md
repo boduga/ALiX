@@ -35,15 +35,15 @@
 
 ```
 Create:
-  src/adaptation/pipeline-health-types.ts       — PipelineHealthStatus, PipelineHealthInput, PipelineHealthReport
-  src/adaptation/pipeline-health-builder.ts      — PipelineHealthBuilder (pure, deterministic)
-  src/adaptation/pipeline-health-collector.ts    — PipelineHealthCollector (I/O: reads stores)
+  src/planning/adaptation/pipeline-health-types.ts       — PipelineHealthStatus, PipelineHealthInput, PipelineHealthReport
+  src/planning/adaptation/pipeline-health-builder.ts      — PipelineHealthBuilder (pure, deterministic)
+  src/planning/adaptation/pipeline-health-collector.ts    — PipelineHealthCollector (I/O: reads stores)
   tests/adaptation/pipeline-health-types.vitest.ts
   tests/adaptation/pipeline-health-builder.vitest.ts
   tests/adaptation/pipeline-health-collector.vitest.ts
 
 Modify:
-  src/cli/commands/decision.ts                   — Add case "status" + runStatus function
+  src/interfaces/cli/commands/decision.ts                   — Add case "status" + runStatus function
 ```
 
 **Tests:**
@@ -52,7 +52,7 @@ Modify:
 ### Task 1: Pipeline Health Types
 
 **Files:**
-- Create: `src/adaptation/pipeline-health-types.ts`
+- Create: `src/planning/adaptation/pipeline-health-types.ts`
 - Test: `tests/adaptation/pipeline-health-types.vitest.ts`
 
 **Interfaces:**
@@ -64,7 +64,7 @@ Modify:
 ```typescript
 // tests/adaptation/pipeline-health-types.vitest.ts
 import { describe, it, expect } from "vitest";
-import type { PipelineHealthReport, PipelineHealthInput, PipelineHealthStatus } from "../../src/adaptation/pipeline-health-types.js";
+import type { PipelineHealthReport, PipelineHealthInput, PipelineHealthStatus } from "../../src/planning/adaptation/pipeline-health-types.js";
 
 describe("PipelineHealthReport", () => {
   it("extends DecisionArtifact and has all required fields", () => {
@@ -304,7 +304,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/adaptation/pipeline-health-types.ts tests/adaptation/pipeline-health-types.vitest.ts
+git add src/planning/adaptation/pipeline-health-types.ts tests/adaptation/pipeline-health-types.vitest.ts
 git commit -m "feat(p6.6a): PipelineHealth types"
 ```
 
@@ -313,7 +313,7 @@ git commit -m "feat(p6.6a): PipelineHealth types"
 ### Task 2: PipelineHealthBuilder (Pure Computation)
 
 **Files:**
-- Create: `src/adaptation/pipeline-health-builder.ts`
+- Create: `src/planning/adaptation/pipeline-health-builder.ts`
 - Test: `tests/adaptation/pipeline-health-builder.vitest.ts`
 
 **Interfaces:**
@@ -325,8 +325,8 @@ git commit -m "feat(p6.6a): PipelineHealth types"
 ```typescript
 // tests/adaptation/pipeline-health-builder.vitest.ts
 import { describe, it, expect } from "vitest";
-import { PipelineHealthBuilder } from "../../src/adaptation/pipeline-health-builder.js";
-import type { PipelineHealthInput } from "../../src/adaptation/pipeline-health-types.js";
+import { PipelineHealthBuilder } from "../../src/planning/adaptation/pipeline-health-builder.js";
+import type { PipelineHealthInput } from "../../src/planning/adaptation/pipeline-health-types.js";
 
 function makeHealthyInput(overrides: Partial<PipelineHealthInput> = {}): PipelineHealthInput {
   return {
@@ -709,7 +709,7 @@ Expected: 12+ tests passing
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/adaptation/pipeline-health-builder.ts tests/adaptation/pipeline-health-builder.vitest.ts
+git add src/planning/adaptation/pipeline-health-builder.ts tests/adaptation/pipeline-health-builder.vitest.ts
 git commit -m "feat(p6.6a): PipelineHealthBuilder pure computation"
 ```
 
@@ -718,7 +718,7 @@ git commit -m "feat(p6.6a): PipelineHealthBuilder pure computation"
 ### Task 3: PipelineHealthCollector (I/O Layer)
 
 **Files:**
-- Create: `src/adaptation/pipeline-health-collector.ts`
+- Create: `src/planning/adaptation/pipeline-health-collector.ts`
 
 **Interfaces:**
 - Consumes: `ProposalStore`, `EvidenceStore`, `EffectivenessStore`, `IntelligenceStore`, `DecisionContextBuilder`, `StrategicBriefBuilder`, `PipelineHealthInput` from `./pipeline-health-types.js`
@@ -931,7 +931,7 @@ export class PipelineHealthCollector {
 ```typescript
 // tests/adaptation/pipeline-health-collector.vitest.ts
 import { describe, it, expect, vi } from "vitest";
-import { PipelineHealthCollector } from "../../src/adaptation/pipeline-health-collector.js";
+import { PipelineHealthCollector } from "../../src/planning/adaptation/pipeline-health-collector.js";
 
 function makeMockInfra(overrides: Record<string, any> = {}) {
   const defaultStore = { list: vi.fn().mockResolvedValue([]), load: vi.fn().mockResolvedValue({}) };
@@ -1019,7 +1019,7 @@ Expected: 930+ tests passing
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/adaptation/pipeline-health-collector.ts tests/adaptation/pipeline-health-collector.vitest.ts
+git add src/planning/adaptation/pipeline-health-collector.ts tests/adaptation/pipeline-health-collector.vitest.ts
 git commit -m "feat(p6.6a): PipelineHealthCollector I/O layer"
 ```
 
@@ -1028,14 +1028,14 @@ git commit -m "feat(p6.6a): PipelineHealthCollector I/O layer"
 ### Task 4: CLI — `alix decision status`
 
 **Files:**
-- Modify: `src/cli/commands/decision.ts`
+- Modify: `src/interfaces/cli/commands/decision.ts`
 
 **Interfaces:**
 - Consumes: `PipelineHealthCollector` from `../../adaptation/pipeline-health-collector.js`, `PipelineHealthBuilder` from `../../adaptation/pipeline-health-builder.js`, types from `../../adaptation/pipeline-health-types.js`
 
 - [ ] **Step 1: Add imports and runStatus function**
 
-After the existing imports in `src/cli/commands/decision.ts`, add:
+After the existing imports in `src/interfaces/cli/commands/decision.ts`, add:
 
 ```typescript
 import { PipelineHealthCollector } from "../../adaptation/pipeline-health-collector.js";
@@ -1148,7 +1148,7 @@ Expected: 935+ tests passing
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/decision.ts
+git add src/interfaces/cli/commands/decision.ts
 git commit -m "feat(p6.6a): CLI alix decision status command"
 ```
 

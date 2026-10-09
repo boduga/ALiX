@@ -9,8 +9,8 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { MockSecureSseConnection } from "../../src/server/secure-sse.js";
-import { ObservabilityStreamHub } from "../../src/server/observability-stream-hub.js";
+import { MockSecureSseConnection } from "../../src/interfaces/server/secure-sse.js";
+import { ObservabilityStreamHub } from "../../src/interfaces/server/observability-stream-hub.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

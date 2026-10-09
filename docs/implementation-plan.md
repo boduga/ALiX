@@ -75,17 +75,17 @@ fixtures/
 Responsibilities:
 
 - `src/cli.ts`: CLI entrypoint and command dispatch.
-- `src/config/*`: default config, schema validation, user/project/flag merge.
-- `src/events/*`: append-only JSONL event store and replay projections.
-- `src/repomap/*`: MVP repository map.
-- `src/providers/*`: normalized provider interface and mock provider.
-- `src/policy/*`: capability checks and approval queue.
-- `src/tools/*`: file/search and shell execution tools.
-- `src/patch/*`: edit format selection, parsing, validation, applying.
+- `src/operations/config/*`: default config, schema validation, user/project/flag merge.
+- `src/runtime-state/events/*`: append-only JSONL event store and replay projections.
+- `src/context/repomap/*`: MVP repository map.
+- `src/models/providers/*`: normalized provider interface and mock provider.
+- `src/governance/policy/*`: capability checks and approval queue.
+- `src/capabilities/tools/*`: file/search and shell execution tools.
+- `src/execution/patch/*`: edit format selection, parsing, validation, applying.
 - `src/checkpoints/*`: git/file-copy checkpoints and rollback.
-- `src/verifier/*`: command discovery and execution.
-- `src/server/*`: local HTTP/SSE server.
-- `src/ui/*`: vanilla JavaScript inspector.
+- `src/execution/verifier/*`: command discovery and execution.
+- `src/interfaces/server/*`: local HTTP/SSE server.
+- `src/interfaces/ui/*`: vanilla JavaScript inspector.
 
 ## Task 1: npm TypeScript Scaffold
 
@@ -222,12 +222,12 @@ git commit -m "chore: scaffold ALiX TypeScript CLI"
 
 **Files:**
 
-- Create: `src/config/schema.ts`
-- Create: `src/config/defaults.ts`
-- Create: `src/config/loader.ts`
+- Create: `src/operations/config/schema.ts`
+- Create: `src/operations/config/defaults.ts`
+- Create: `src/operations/config/loader.ts`
 - Create: `tests/config-loader.test.ts`
 
-- [x] **Step 1: Create `src/config/schema.ts`**
+- [x] **Step 1: Create `src/operations/config/schema.ts`**
 
 ```ts
 export type Decision = "ask" | "allow" | "deny";
@@ -280,7 +280,7 @@ export type AlixConfig = {
 };
 ```
 
-- [x] **Step 2: Create `src/config/defaults.ts`**
+- [x] **Step 2: Create `src/operations/config/defaults.ts`**
 
 ```ts
 import type { AlixConfig } from "./schema.js";
@@ -327,7 +327,7 @@ export const DEFAULT_CONFIG: AlixConfig = {
 };
 ```
 
-- [x] **Step 3: Create `src/config/loader.ts`**
+- [x] **Step 3: Create `src/operations/config/loader.ts`**
 
 ```ts
 import { readFile } from "node:fs/promises";
@@ -385,7 +385,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig } from "../src/config/loader.js";
+import { loadConfig } from "../src/operations/config/loader.js";
 
 test("loads default config when project config is absent", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
@@ -438,14 +438,14 @@ git commit -m "feat: add ALiX config loader"
 
 **Files:**
 
-- Create: `src/events/types.ts`
-- Create: `src/events/event-log.ts`
-- Create: `src/events/replay.ts`
+- Create: `src/runtime-state/events/types.ts`
+- Create: `src/runtime-state/events/event-log.ts`
+- Create: `src/runtime-state/events/replay.ts`
 - Create: `tests/event-log.test.ts`
 
 - [x] **Step 1: Create event types**
 
-Create `src/events/types.ts`:
+Create `src/runtime-state/events/types.ts`:
 
 ```ts
 export type EventActor = "user" | "agent" | "system" | "tool" | "policy" | "verifier";
@@ -479,7 +479,7 @@ export type SessionProjection = {
 
 - [x] **Step 2: Create append-only event log**
 
-Create `src/events/event-log.ts`:
+Create `src/runtime-state/events/event-log.ts`:
 
 ```ts
 import { mkdir, readFile, appendFile } from "node:fs/promises";
@@ -529,7 +529,7 @@ export class EventLog {
 
 - [x] **Step 3: Create replay projection**
 
-Create `src/events/replay.ts`:
+Create `src/runtime-state/events/replay.ts`:
 
 ```ts
 import type { AlixEvent, SessionProjection } from "./types.js";
@@ -567,8 +567,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../src/events/event-log.js";
-import { replay } from "../src/events/replay.js";
+import { EventLog } from "../src/runtime-state/events/event-log.js";
+import { replay } from "../src/runtime-state/events/replay.js";
 
 test("appends events with increasing sequence numbers", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-events-"));
@@ -624,7 +624,7 @@ git commit -m "feat: add event-sourced session kernel"
 
 **Files:**
 
-- Create: `src/repomap/repomap-lite.ts`
+- Create: `src/context/repomap/repomap-lite.ts`
 - Create: `tests/repomap-lite.test.ts`
 - Create: `fixtures/sample-repo/package.json`
 - Create: `fixtures/sample-repo/src/add.ts`
@@ -661,7 +661,7 @@ if (add(1, 2) !== 3) {
 }
 ```
 
-- [x] **Step 2: Create `src/repomap/repomap-lite.ts`**
+- [x] **Step 2: Create `src/context/repomap/repomap-lite.ts`**
 
 ```ts
 import { readdir, readFile, stat } from "node:fs/promises";
@@ -785,7 +785,7 @@ function extractSymbols(path: string, text: string): SymbolSummary[] {
 ```ts
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildRepoMapLite } from "../src/repomap/repomap-lite.js";
+import { buildRepoMapLite } from "../src/context/repomap/repomap-lite.js";
 
 test("builds a lightweight repo map", async () => {
   const map = await buildRepoMapLite("fixtures/sample-repo");
@@ -817,13 +817,13 @@ git commit -m "feat: add RepoMapLite"
 
 **Files:**
 
-- Create: `src/providers/types.ts`
-- Create: `src/providers/mock-provider.ts`
+- Create: `src/models/providers/types.ts`
+- Create: `src/models/providers/mock-provider.ts`
 - Create: `tests/mock-provider.test.ts`
 
 - [x] **Step 1: Create provider types**
 
-Create `src/providers/types.ts`:
+Create `src/models/providers/types.ts`:
 
 ```ts
 export type ModelCapabilities = {
@@ -870,7 +870,7 @@ export type ModelAdapter = {
 
 - [x] **Step 2: Create mock provider**
 
-Create `src/providers/mock-provider.ts`:
+Create `src/models/providers/mock-provider.ts`:
 
 ```ts
 import type { ModelAdapter, NormalizedRequest, NormalizedResponse } from "./types.js";
@@ -905,7 +905,7 @@ export class MockProvider implements ModelAdapter {
 ```ts
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MockProvider } from "../src/providers/mock-provider.js";
+import { MockProvider } from "../src/models/providers/mock-provider.js";
 
 test("mock provider returns a deterministic plan", async () => {
   const provider = new MockProvider();
@@ -940,13 +940,13 @@ git commit -m "feat: add mock provider adapter"
 
 **Files:**
 
-- Create: `src/policy/policy-engine.ts`
-- Create: `src/policy/approvals.ts`
+- Create: `src/governance/policy/policy-engine.ts`
+- Create: `src/governance/policy/approvals.ts`
 - Create: `tests/policy-engine.test.ts`
 
 - [x] **Step 1: Create policy engine**
 
-Create `src/policy/policy-engine.ts`:
+Create `src/governance/policy/policy-engine.ts`:
 
 ```ts
 import type { AlixConfig, Decision } from "../config/schema.js";
@@ -991,7 +991,7 @@ function isProtectedPath(patterns: string[], path: string): boolean {
 
 - [x] **Step 2: Create approvals queue**
 
-Create `src/policy/approvals.ts`:
+Create `src/governance/policy/approvals.ts`:
 
 ```ts
 import { randomUUID } from "node:crypto";
@@ -1035,9 +1035,9 @@ Create `tests/policy-engine.test.ts`:
 ```ts
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import { decidePolicy } from "../src/policy/policy-engine.js";
-import { ApprovalQueue } from "../src/policy/approvals.js";
+import { DEFAULT_CONFIG } from "../src/operations/config/defaults.js";
+import { decidePolicy } from "../src/governance/policy/policy-engine.js";
+import { ApprovalQueue } from "../src/governance/policy/approvals.js";
 
 test("allows configured read tool", () => {
   const decision = decidePolicy(DEFAULT_CONFIG, { toolCallId: "1", capability: "file.read", path: "src/a.ts" });
@@ -1079,15 +1079,15 @@ git commit -m "feat: add policy engine and approvals"
 
 **Files:**
 
-- Create: `src/patch/edit-format-policy.ts`
-- Create: `src/patch/search-replace.ts`
-- Create: `src/patch/structured-patch.ts`
-- Create: `src/patch/patch-engine.ts`
+- Create: `src/execution/patch/edit-format-policy.ts`
+- Create: `src/execution/patch/search-replace.ts`
+- Create: `src/execution/patch/structured-patch.ts`
+- Create: `src/execution/patch/patch-engine.ts`
 - Create: `tests/patch-engine.test.ts`
 
 - [x] **Step 1: Create edit format policy**
 
-Create `src/patch/edit-format-policy.ts`:
+Create `src/execution/patch/edit-format-policy.ts`:
 
 ```ts
 export type EditFormat = "structured_patch" | "unified_diff" | "search_replace" | "full_file";
@@ -1107,7 +1107,7 @@ export function defaultEditFormatForProvider(provider: string): EditFormat {
 
 - [x] **Step 2: Create search/replace parser**
 
-Create `src/patch/search-replace.ts`:
+Create `src/execution/patch/search-replace.ts`:
 
 ```ts
 export type SearchReplaceBlock = {
@@ -1137,7 +1137,7 @@ export function applySearchReplace(content: string, block: SearchReplaceBlock): 
 
 - [x] **Step 3: Create structured patch types**
 
-Create `src/patch/structured-patch.ts`:
+Create `src/execution/patch/structured-patch.ts`:
 
 ```ts
 export type StructuredPatch = {
@@ -1162,7 +1162,7 @@ export function parseStructuredPatch(input: string): StructuredPatch {
 
 - [x] **Step 4: Create patch engine**
 
-Create `src/patch/patch-engine.ts`:
+Create `src/execution/patch/patch-engine.ts`:
 
 ```ts
 import { readFile, writeFile } from "node:fs/promises";
@@ -1229,8 +1229,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { applyPatch, sha256 } from "../src/patch/patch-engine.js";
-import { defaultEditFormatForProvider } from "../src/patch/edit-format-policy.js";
+import { applyPatch, sha256 } from "../src/execution/patch/patch-engine.js";
+import { defaultEditFormatForProvider } from "../src/execution/patch/edit-format-policy.js";
 
 test("applies exact search replace", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
@@ -1286,7 +1286,7 @@ git commit -m "feat: add patch engine primitives"
 **Files:**
 
 - Create: `src/checkpoints/checkpoint-manager.ts`
-- Create: `src/verifier/verifier.ts`
+- Create: `src/execution/verifier/verifier.ts`
 - Create: `tests/verifier.test.ts`
 
 - [x] **Step 1: Create checkpoint manager**
@@ -1317,7 +1317,7 @@ export async function createFileCheckpoint(root: string, files: string[]): Promi
 
 - [x] **Step 2: Create verifier**
 
-Create `src/verifier/verifier.ts`:
+Create `src/execution/verifier/verifier.ts`:
 
 ```ts
 import { existsSync } from "node:fs";
@@ -1364,7 +1364,7 @@ Create `tests/verifier.test.ts`:
 ```ts
 import test from "node:test";
 import assert from "node:assert/strict";
-import { discoverVerification } from "../src/verifier/verifier.js";
+import { discoverVerification } from "../src/execution/verifier/verifier.js";
 
 test("discovers npm test script", async () => {
   const checks = await discoverVerification("fixtures/sample-repo");
@@ -1544,14 +1544,14 @@ git commit -m "feat: wire CLI run flow"
 
 **Files:**
 
-- Create: `src/server/server.ts`
-- Create: `src/ui/index.html`
-- Create: `src/ui/app.js`
-- Create: `src/ui/styles.css`
+- Create: `src/interfaces/server/server.ts`
+- Create: `src/interfaces/ui/index.html`
+- Create: `src/interfaces/ui/app.js`
+- Create: `src/interfaces/ui/styles.css`
 - Modify: `src/cli.ts`
 - Create: `tests/server.test.ts`
 
-- [x] **Step 1: Create `src/server/server.ts`**
+- [x] **Step 1: Create `src/interfaces/server/server.ts`**
 
 ```ts
 import { createServer } from "node:http";
@@ -1606,7 +1606,7 @@ export function startServer(root: string, port: number): Promise<{ close: () => 
 
 - [x] **Step 2: Create UI files**
 
-Create `src/ui/index.html`:
+Create `src/interfaces/ui/index.html`:
 
 ```html
 <!doctype html>
@@ -1628,7 +1628,7 @@ Create `src/ui/index.html`:
 </html>
 ```
 
-Create `src/ui/app.js`:
+Create `src/interfaces/ui/app.js`:
 
 ```js
 const events = document.querySelector("#events");
@@ -1642,7 +1642,7 @@ function addEvent(text) {
 addEvent("Inspector loaded");
 ```
 
-Create `src/ui/styles.css`:
+Create `src/interfaces/ui/styles.css`:
 
 ```css
 body {
@@ -1669,7 +1669,7 @@ Update `package.json` scripts:
 
 ```json
 "scripts": {
-  "build": "tsc -p tsconfig.json && mkdir -p dist/src/ui && cp src/ui/index.html src/ui/app.js src/ui/styles.css dist/src/ui/",
+  "build": "tsc -p tsconfig.json && mkdir -p dist/src/ui && cp src/interfaces/ui/index.html src/interfaces/ui/app.js src/interfaces/ui/styles.css dist/src/interfaces/ui/",
   "test": "node --test dist/tests/**/*.test.js",
   "check": "npm run build && npm test"
 }
@@ -1698,7 +1698,7 @@ if (command === "serve") {
 ```ts
 import test from "node:test";
 import assert from "node:assert/strict";
-import { startServer } from "../src/server/server.js";
+import { startServer } from "../src/interfaces/server/server.js";
 
 test("serves inspector html", async () => {
   const server = await startServer(process.cwd(), 0);

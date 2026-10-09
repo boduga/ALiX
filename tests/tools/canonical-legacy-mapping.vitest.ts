@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { legacyCapabilityToCanonical } from '../../src/tools/capability-map.js';
-import { buildDefaultToolIndex } from '../../src/tools/tool-registry.js';
+import { legacyCapabilityToCanonical } from '../../src/capabilities/tools/capability-map.js';
+import { buildDefaultToolIndex } from '../../src/capabilities/tools/tool-registry.js';
 
 describe('canonical ↔ legacy capability mapping (INV-4)', () => {
   it('legacyCapabilityToCanonical(entry.policyKey) === entry.capabilityId for every entry', () => {

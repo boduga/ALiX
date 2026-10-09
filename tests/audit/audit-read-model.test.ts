@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { readUnifiedAudit, readGovernanceAudit } from "../../src/audit/audit-read-model.js";
+import { readUnifiedAudit, readGovernanceAudit } from "../../src/governance/audit/audit-read-model.js";
 
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), "audit-read-model-"));

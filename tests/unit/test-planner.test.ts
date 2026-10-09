@@ -1,8 +1,8 @@
 // tests/unit/test-planner.test.ts
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { TestPlanner, createTestPlan } from "../../src/verifier/test-planner.js";
-import type { VerificationCheck } from "../../src/verifier/verifier.js";
+import { TestPlanner, createTestPlan } from "../../src/execution/verifier/test-planner.js";
+import type { VerificationCheck } from "../../src/execution/verifier/verifier.js";
 
 describe("TestPlanner", () => {
   it("orders checks by cost (typecheck < build < test)", () => {

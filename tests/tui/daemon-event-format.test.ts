@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatDaemonEvent } from "../../src/tui/daemon-client.js";
-import type { DaemonResponse } from "../../src/daemon/daemon-types.js";
+import { formatDaemonEvent } from "../../src/interfaces/tui/daemon-client.js";
+import type { DaemonResponse } from "../../src/operations/daemon/daemon-types.js";
 
 describe("Daemon event formatting", () => {
   it("formats session.started", () => {

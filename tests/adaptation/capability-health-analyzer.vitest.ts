@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { CapabilityHealthAnalyzer } from "../../src/adaptation/capability-health-analyzer.js";
+import { CapabilityHealthAnalyzer } from "../../src/planning/adaptation/capability-health-analyzer.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

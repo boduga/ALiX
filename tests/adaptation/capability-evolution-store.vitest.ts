@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CapabilityEvolutionStore } from "../../src/adaptation/capability-evolution-store.js";
-import type { CapabilityEvolutionReport } from "../../src/adaptation/capability-evolution-types.js";
+import { CapabilityEvolutionStore } from "../../src/planning/adaptation/capability-evolution-store.js";
+import type { CapabilityEvolutionReport } from "../../src/planning/adaptation/capability-evolution-types.js";
 
 function makeReport(ts?: string): CapabilityEvolutionReport {
   const generatedAt = ts ?? "2026-06-19T23:30:00.000Z";

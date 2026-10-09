@@ -13,16 +13,16 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { executeRouteGoverned } from "../../src/runtime/governed-route-executor.js";
+import { executeRouteGoverned } from "../../src/runtime-state/runtime/governed-route-executor.js";
 import {
   PersistenceEvidenceEmitter,
   recoverExecutionState,
-} from "../../src/runtime/execution-persistence.js";
-import { ExecutionEvidenceStore } from "../../src/runtime/execution-evidence-store.js";
-import { ExecutionState } from "../../src/runtime/contracts/execution-runtime-contract.js";
-import type { ExecutionEvidenceEmitter } from "../../src/runtime/contracts/execution-runtime-contract.js";
-import type { RuntimeContext, RuntimeExecutor } from "../../src/runtime/route-executor.js";
-import { taskRouter, type TaskRoute } from "../../src/runtime/task-router.js";
+} from "../../src/runtime-state/runtime/execution-persistence.js";
+import { ExecutionEvidenceStore } from "../../src/runtime-state/runtime/execution-evidence-store.js";
+import { ExecutionState } from "../../src/runtime-state/runtime/contracts/execution-runtime-contract.js";
+import type { ExecutionEvidenceEmitter } from "../../src/runtime-state/runtime/contracts/execution-runtime-contract.js";
+import type { RuntimeContext, RuntimeExecutor } from "../../src/runtime-state/runtime/route-executor.js";
+import { taskRouter, type TaskRoute } from "../../src/runtime-state/runtime/task-router.js";
 
 function makeCtx(): RuntimeContext {
   return {

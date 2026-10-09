@@ -103,7 +103,7 @@ export interface ExecutiveSnapshotProvider {
 }
 ```
 
-**Default implementation** lives in `src/executive/executive-snapshot-provider.ts`. It is **pure assembly** — it composes an `ExecutivePlanSnapshot` from an injected observation provider. It depends on:
+**Default implementation** lives in `src/execution/executive/executive-snapshot-provider.ts`. It is **pure assembly** — it composes an `ExecutivePlanSnapshot` from an injected observation provider. It depends on:
 - `ExecutiveObservationProvider` (the seam that discovers report references)
 - A captured-at timestamp source
 
@@ -135,7 +135,7 @@ export interface ExecutiveObservation {
 }
 ```
 
-**Default implementation** lives in `src/executive/executive-observation-provider.ts`. It owns the dependency on:
+**Default implementation** lives in `src/execution/executive/executive-observation-provider.ts`. It owns the dependency on:
 - `ExecutiveTrendStore`
 - `OutcomeReportStore`
 - `RecommendationReportStore`
@@ -150,7 +150,7 @@ This is the **only** file in the snapshot stack that knows how to look up these 
 
 ## Store design
 
-### File: `src/executive/executive-snapshot-store.ts`
+### File: `src/execution/executive/executive-snapshot-store.ts`
 
 ```ts
 export class BaselineAlreadyCapturedError extends Error {
@@ -241,9 +241,9 @@ The engine comment block should document this reasoning explicitly so a future i
 ## Sentinel updates
 
 Add these files to executive purity sentinel `EXECUTIVE_FILES` allowlist:
-- `src/executive/executive-snapshot-store.ts`
-- `src/executive/executive-snapshot-provider.ts`
-- `src/executive/executive-observation-provider.ts`
+- `src/execution/executive/executive-snapshot-store.ts`
+- `src/execution/executive/executive-snapshot-provider.ts`
+- `src/execution/executive/executive-observation-provider.ts`
 
 Same precedent as P10.4b.
 

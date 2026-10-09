@@ -15,10 +15,10 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/policy/policy-gate.ts` | **Create** | `PolicyGate` class with `evaluateToolCall()` and `evaluateCapability()` |
-| `src/tools/executor.ts` | **Modify** | Replace placeholder + legacy policy with single PolicyGate call |
-| `src/policy/runtime-gate.ts` | **Modify** | Call `PolicyGate.evaluateCapability()` for policy decisions |
-| `src/policy/index.ts` | **Modify** | Export PolicyGate and its types |
+| `src/governance/policy/policy-gate.ts` | **Create** | `PolicyGate` class with `evaluateToolCall()` and `evaluateCapability()` |
+| `src/capabilities/tools/executor.ts` | **Modify** | Replace placeholder + legacy policy with single PolicyGate call |
+| `src/governance/policy/runtime-gate.ts` | **Modify** | Call `PolicyGate.evaluateCapability()` for policy decisions |
+| `src/governance/policy/index.ts` | **Modify** | Export PolicyGate and its types |
 | `tests/policy/policy-gate.test.ts` | **Create** | Unit tests covering all decision paths |
 
 ---
@@ -26,7 +26,7 @@
 ### Task 1: Create PolicyGate
 
 **Files:**
-- Create: `src/policy/policy-gate.ts`
+- Create: `src/governance/policy/policy-gate.ts`
 
 - [ ] **Step 1: Write the PolicyGate class**
 
@@ -87,7 +87,7 @@ function resolvePolicyPath(cwd: string, path: string): string {
   return resolve(cwd, path);
 }
 
-/** Infer capability from tool name (mirrors src/tools/executor.ts inferCapability). */
+/** Infer capability from tool name (mirrors src/capabilities/tools/executor.ts inferCapability). */
 function inferCapability(toolName: string): string {
   if (toolName.startsWith("mcp.")) return "mcp.invoke";
   if (toolName === "file.read" || toolName === "file.exists" || toolName === "dir.search" || toolName === "filesystem.list" || toolName === "filesystem.cwd") return "file.read";
@@ -345,7 +345,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/policy/policy-gate.ts
+git add src/governance/policy/policy-gate.ts
 git commit -m "feat(policy): add PolicyGate with evaluateToolCall and evaluateCapability"
 ```
 
@@ -354,7 +354,7 @@ git commit -m "feat(policy): add PolicyGate with evaluateToolCall and evaluateCa
 ### Task 2: Wire PolicyGate into ToolExecutor
 
 **Files:**
-- Modify: `src/tools/executor.ts`
+- Modify: `src/capabilities/tools/executor.ts`
 
 - [ ] **Step 1: Remove the permissive placeholder + legacy policy split**
 
@@ -462,7 +462,7 @@ node --test dist/tests/kernel/graph-executor.test.js 2>&1 | tail -10
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tools/executor.ts
+git add src/capabilities/tools/executor.ts
 git commit -m "fix(tools): replace permissive placeholder + legacy policy with PolicyGate"
 ```
 
@@ -471,7 +471,7 @@ git commit -m "fix(tools): replace permissive placeholder + legacy policy with P
 ### Task 3: Wire PolicyGate into RuntimeGate
 
 **Files:**
-- Modify: `src/policy/runtime-gate.ts`
+- Modify: `src/governance/policy/runtime-gate.ts`
 
 - [ ] **Step 1: Replace direct policy evaluation with PolicyGate.evaluateCapability()**
 
@@ -559,7 +559,7 @@ Expected: tests pass (backward compat path should still work).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/policy/runtime-gate.ts
+git add src/governance/policy/runtime-gate.ts
 git commit -m "feat(policy): wire PolicyGate into RuntimeGate as preferred decision path"
 ```
 
@@ -568,7 +568,7 @@ git commit -m "feat(policy): wire PolicyGate into RuntimeGate as preferred decis
 ### Task 4: Export PolicyGate from policy index
 
 **Files:**
-- Modify: `src/policy/index.ts`
+- Modify: `src/governance/policy/index.ts`
 
 - [ ] **Step 1: Add exports**
 
@@ -590,7 +590,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/policy/index.ts
+git add src/governance/policy/index.ts
 git commit -m "feat(policy): export PolicyGate and types from policy index"
 ```
 
@@ -609,8 +609,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PolicyGate, type PolicyGateDecision, type ToolPolicyRequest, type CapabilityPolicyRequest } from "../../src/policy/policy-gate.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { PolicyGate, type PolicyGateDecision, type ToolPolicyRequest, type CapabilityPolicyRequest } from "../../src/governance/policy/policy-gate.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 function makeConfig(overrides?: Partial<AlixConfig>): AlixConfig {
   return {
@@ -776,7 +776,7 @@ describe("PolicyGate", () => {
   it("creates approval when approval store provided and decision is ask", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "pol-ask-"));
     try {
-      const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
       mkdirSync(join(tmpDir, ".alix", "approvals"), { recursive: true });
       const store = new ApprovalStore(tmpDir);
       await store.load();
@@ -828,7 +828,7 @@ Expected: all tests pass.
 - [ ] **Step 2: Verify ToolExecutor no longer uses placeholder**
 
 ```bash
-grep -n "createPermissivePolicyDecision\|decidePolicy" src/tools/executor.ts
+grep -n "createPermissivePolicyDecision\|decidePolicy" src/capabilities/tools/executor.ts
 ```
 
 Expected: no matches (or only in comments).
@@ -854,5 +854,5 @@ git push origin m0.29-policygate-unification
 | Evasion detected | Unit test | curl|bash → deny |
 | Approval created for ask | Unit test | approvalId set |
 | ToolExecutor logs one event | grep for policy.decision in executor.ts | One, from PolicyGate |
-| `createPermissivePolicyDecision` removed | `grep -n "createPermissivePolicyDecision" src/tools/executor.ts` | No matches |
+| `createPermissivePolicyDecision` removed | `grep -n "createPermissivePolicyDecision" src/capabilities/tools/executor.ts` | No matches |
 | All tests pass | `npm run test:node:ci` | All passing |

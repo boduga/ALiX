@@ -12,7 +12,7 @@ I’ll provide the updated full implementation plan. It is too large to fit clea
 
 **Goal:** Add a pure Markdown-to-`ResponseBlock[]` parser and update the agent tab renderer to consume structured response blocks instead of treating every response as a single wrapped string.
 
-**Architecture:** A new pure function `parseResponseBlocks(md)` in `src/agent/response-blocks.ts` converts Markdown responses into typed presentation blocks using a line-oriented scanner. The parser preserves Markdown as the canonical source and introduces no persistence or protocol changes.
+**Architecture:** A new pure function `parseResponseBlocks(md)` in `src/agents/agent/response-blocks.ts` converts Markdown responses into typed presentation blocks using a line-oriented scanner. The parser preserves Markdown as the canonical source and introduces no persistence or protocol changes.
 
 The agent view renderer consumes `ResponseBlock[]` and dispatches rendering by block type:
 
@@ -20,7 +20,7 @@ The agent view renderer consumes `ResponseBlock[]` and dispatches rendering by b
 * `code` blocks render without Markdown fences, preserve line structure, and use a 2-space indent
 * `list` blocks normalize markers and wrap individual items
 
-The parser is transport-agnostic and lives in `src/agent/` because future phases will reuse the same representation for API, daemon, and web rendering.
+The parser is transport-agnostic and lives in `src/agents/agent/` because future phases will reuse the same representation for API, daemon, and web rendering.
 
 **Tech Stack:** TypeScript, Vitest, existing `TerminalCanvas`, existing `wrapText`.
 
@@ -246,8 +246,8 @@ Output:
 
 | File                                     | Action | Responsibility               |
 | ---------------------------------------- | ------ | ---------------------------- |
-| `src/agent/response-blocks.ts`           | Create | ResponseBlock types + parser |
-| `src/tui/views/agent-view.ts`            | Modify | Structured block rendering   |
+| `src/agents/agent/response-blocks.ts`           | Create | ResponseBlock types + parser |
+| `src/interfaces/tui/views/agent-view.ts`            | Modify | Structured block rendering   |
 | `tests/response-blocks-parser.vitest.ts` | Create | Parser tests                 |
 | `tests/agent-view-formatting.vitest.ts`  | Modify | Renderer tests               |
 
@@ -260,7 +260,7 @@ Output:
 Create:
 
 ```
-src/agent/response-blocks.ts
+src/agents/agent/response-blocks.ts
 ```
 
 ---
@@ -268,7 +268,7 @@ src/agent/response-blocks.ts
 ## Step 1: Create type definitions
 
 ```ts
-// src/agent/response-blocks.ts
+// src/agents/agent/response-blocks.ts
 
 /**
  * Source marker preserved from Markdown list syntax.
@@ -330,7 +330,7 @@ PASS
 ## Step 3: Commit
 
 ```bash
-git add src/agent/response-blocks.ts
+git add src/agents/agent/response-blocks.ts
 
 git commit -m "feat(agent): add ResponseBlock type for structured agent responses"
 ```
@@ -344,7 +344,7 @@ git commit -m "feat(agent): add ResponseBlock type for structured agent response
 Modify:
 
 ```
-src/agent/response-blocks.ts
+src/agents/agent/response-blocks.ts
 ```
 
 Create:
@@ -503,7 +503,7 @@ git commit -m "feat(agent): parseResponseBlocks handles plain text"
 Modify:
 
 ```
-src/agent/response-blocks.ts
+src/agents/agent/response-blocks.ts
 tests/response-blocks-parser.vitest.ts
 ```
 
@@ -628,7 +628,7 @@ git commit -m "feat(agent): parseResponseBlocks recognizes fenced code blocks"
 Modify:
 
 ```text
-src/agent/response-blocks.ts
+src/agents/agent/response-blocks.ts
 tests/response-blocks-parser.vitest.ts
 ```
 
@@ -1040,7 +1040,7 @@ git commit -m "feat(agent): parseResponseBlocks recognizes markdown lists"
 Modify:
 
 ```text
-src/tui/views/agent-view.ts
+src/interfaces/tui/views/agent-view.ts
 tests/agent-view-formatting.vitest.ts
 ```
 
@@ -1415,7 +1415,7 @@ git commit -m "feat(tui): render agent responses through ResponseBlocks"
 Modify:
 
 ```text
-src/tui/views/agent-view.ts
+src/interfaces/tui/views/agent-view.ts
 tests/agent-view-formatting.vitest.ts
 ```
 
@@ -1766,7 +1766,7 @@ All tests pass
 ## Step 6: Commit
 
 ```bash
-git add src/tui/views/agent-view.ts tests/agent-view-formatting.vitest.ts
+git add src/interfaces/tui/views/agent-view.ts tests/agent-view-formatting.vitest.ts
 
 git commit -m "feat(tui): render response lists with normalized formatting"
 ```

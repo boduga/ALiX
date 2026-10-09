@@ -40,7 +40,7 @@ describe("Registry HTTP API", () => {
   });
 
   it("loadCardRegistry loads custom card from disk", async () => {
-    const { loadCardRegistry } = await import("../../src/registry/card-loader.js");
+    const { loadCardRegistry } = await import("../../src/capabilities/registry/card-loader.js");
     const registry = await loadCardRegistry(tmpDir);
     const agents = registry.listAgents(true);
     assert.equal(agents.length, 1);
@@ -48,7 +48,7 @@ describe("Registry HTTP API", () => {
   });
 
   it("default registry when no cards dir exists", async () => {
-    const { loadCardRegistry, defaultAgentCards, defaultToolCards } = await import("../../src/registry/card-loader.js");
+    const { loadCardRegistry, defaultAgentCards, defaultToolCards } = await import("../../src/capabilities/registry/card-loader.js");
     const blankDir = mkdtempSync(join(tmpdir(), "server-registry-blank-"));
     try {
       const registry = await loadCardRegistry(blankDir);
@@ -60,7 +60,7 @@ describe("Registry HTTP API", () => {
   });
 
   it("GET /api/registry/agents returns JSON array", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
       const body = await httpGet(`${url}/api/registry/agents`);
@@ -76,7 +76,7 @@ describe("Registry HTTP API", () => {
   });
 
   it("GET /api/registry/tools returns JSON array with custom tool", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
       const body = await httpGet(`${url}/api/registry/tools`);
@@ -123,7 +123,7 @@ describe("Graph list API", () => {
   });
 
   it("returns [] when no graph dir exists", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const blankDir = mkdtempSync(join(tmpdir(), "no-graphs-"));
     const { url, close } = await startServer(blankDir, "127.0.0.1", 0);
     try {
@@ -136,7 +136,7 @@ describe("Graph list API", () => {
   });
 
   it("returns graph_a with full metadata", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
       const body = await httpGet(`${url}/api/graphs`);
@@ -159,7 +159,7 @@ describe("Graph list API", () => {
   });
 
   it("skips .runs.json files and invalid JSON", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
       const body = await httpGet(`${url}/api/graphs`);
@@ -176,7 +176,7 @@ describe("Graph list API", () => {
 
 describe("Policy API", () => {
   it("GET /api/policy/rules returns default rules array", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "policy-api-test-"));
     try {
       const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
@@ -192,7 +192,7 @@ describe("Policy API", () => {
   });
 
   it("GET /api/policy/eval returns decision", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "policy-eval-api-"));
     try {
       const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
@@ -207,7 +207,7 @@ describe("Policy API", () => {
   });
 
   it("GET /api/policy/eval returns deny for unknown", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "policy-eval-unknown-"));
     try {
       const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
@@ -223,7 +223,7 @@ describe("Policy API", () => {
 
 describe("Approvals API", () => {
   it("GET /api/approvals returns array", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "approvals-api-test-"));
     try {
       const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
@@ -239,7 +239,7 @@ describe("Approvals API", () => {
 
 describe("Audit API", () => {
   it("GET /api/audit returns array", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "audit-api-test-"));
     try {
       const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
@@ -275,7 +275,7 @@ describe("Runtime events API", () => {
   after(() => { rmSync(tmpDir, { recursive: true, force: true }); });
 
   it("GET /api/runtime/events returns array", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
       const body = await httpGet(`${url}/api/runtime/events`);
@@ -286,7 +286,7 @@ describe("Runtime events API", () => {
   });
 
   it("filters by graphId", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
       const body = await httpGet(`${url}/api/runtime/events?graphId=my_graph`);
@@ -298,7 +298,7 @@ describe("Runtime events API", () => {
   });
 
   it("supports order=asc", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
       const body = await httpGet(`${url}/api/runtime/events?order=asc`);
@@ -316,7 +316,7 @@ describe("Runtime events API", () => {
 
 describe("Daemon API", () => {
   it("GET /api/daemon/status returns JSON with running", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "daemon-api-test-"));
     try {
       const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
@@ -330,7 +330,7 @@ describe("Daemon API", () => {
   });
 
   it("GET /api/daemon/tasks returns array", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "daemon-tasks-api-"));
     try {
       const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);

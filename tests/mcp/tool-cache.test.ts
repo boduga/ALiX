@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { SchemaCache } from "../../src/mcp/tool-cache.js";
-import type { ToolDef } from "../../src/providers/types.js";
+import { SchemaCache } from "../../src/capabilities/mcp/tool-cache.js";
+import type { ToolDef } from "../../src/models/providers/types.js";
 
 function makeDef(name: string): ToolDef {
   return { name, description: "test", input_schema: { type: "object" as const, properties: {} } };

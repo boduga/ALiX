@@ -16,23 +16,23 @@
 ## File structure
 
 ### Modify
-- `src/kernel/coordination-types.ts` — add `failureProvenance`, aggregate fields, outcome, `CoordinationRunOutcome`
-- `src/kernel/coordination-store.ts` — add `failureProvenance` to `WorkerPatch`, add `attachAggregate()`, typed `patchWorker()`, normalize new fields
-- `src/kernel/coordination-reconciliation.ts` — structured failure provenance (include dependency-blocked sources, merge multiples)
-- `src/kernel/coordination-result-store.ts` — `loadByRef()` returning structured `ResultLoadResult`, `loadByRun()`, validation, requiresResultRecord()
-- `src/kernel/coordination-scheduler.ts` — `maybeFinalizeRun()` called from every terminal path, optional `completionService` dep
-- `src/cli/commands/coordination.ts` — add `results` command, upgrade `status` with freshness/outcome
-- `src/events/types.ts` — event type constants
+- `src/coordination/kernel/coordination-types.ts` — add `failureProvenance`, aggregate fields, outcome, `CoordinationRunOutcome`
+- `src/coordination/kernel/coordination-store.ts` — add `failureProvenance` to `WorkerPatch`, add `attachAggregate()`, typed `patchWorker()`, normalize new fields
+- `src/coordination/kernel/coordination-reconciliation.ts` — structured failure provenance (include dependency-blocked sources, merge multiples)
+- `src/coordination/kernel/coordination-result-store.ts` — `loadByRef()` returning structured `ResultLoadResult`, `loadByRun()`, validation, requiresResultRecord()
+- `src/coordination/kernel/coordination-scheduler.ts` — `maybeFinalizeRun()` called from every terminal path, optional `completionService` dep
+- `src/interfaces/cli/commands/coordination.ts` — add `results` command, upgrade `status` with freshness/outcome
+- `src/runtime-state/events/types.ts` — event type constants
 
 ### Create
-- `src/kernel/coordination-result-types.ts` — `RunResultSummary`, `FailureChain`, `CoordinationRunOutcome`, `AggregationIssue`, `WorkerResultSummary`, `ResultLoadResult`
-- `src/kernel/coordination-aggregation-fingerprint.ts` — `computeAggregationSourceFingerprint()` (hashes execution-relevant worker state, not `updatedAt`)
-- `src/kernel/coordination-failure-chain.ts` — `buildFailureChains()` (reverse graph, transitive closure, depth, deterministic sort)
-- `src/kernel/coordination-result-aggregator.ts` — `ResultAggregator` with `aggregate()` and `aggregateAndPersist()`
-- `src/kernel/coordination-aggregate-store.ts` — `CoordinationAggregateStore` at `.alix/coordination/results/runs/<runId>.json`
-- `src/kernel/coordination-finalization-lock.ts` — per-run finalization lock (same pattern as `CoordinationRunLock`)
-- `src/kernel/coordination-run-synthesizer.ts` — `RunSynthesizer` interface + `ModelRunSynthesizer`
-- `src/kernel/coordination-completion-service.ts` — `CoordinationCompletionService` with `finalize()` (race-safe, idempotent)
+- `src/coordination/kernel/coordination-result-types.ts` — `RunResultSummary`, `FailureChain`, `CoordinationRunOutcome`, `AggregationIssue`, `WorkerResultSummary`, `ResultLoadResult`
+- `src/coordination/kernel/coordination-aggregation-fingerprint.ts` — `computeAggregationSourceFingerprint()` (hashes execution-relevant worker state, not `updatedAt`)
+- `src/coordination/kernel/coordination-failure-chain.ts` — `buildFailureChains()` (reverse graph, transitive closure, depth, deterministic sort)
+- `src/coordination/kernel/coordination-result-aggregator.ts` — `ResultAggregator` with `aggregate()` and `aggregateAndPersist()`
+- `src/coordination/kernel/coordination-aggregate-store.ts` — `CoordinationAggregateStore` at `.alix/coordination/results/runs/<runId>.json`
+- `src/coordination/kernel/coordination-finalization-lock.ts` — per-run finalization lock (same pattern as `CoordinationRunLock`)
+- `src/coordination/kernel/coordination-run-synthesizer.ts` — `RunSynthesizer` interface + `ModelRunSynthesizer`
+- `src/coordination/kernel/coordination-completion-service.ts` — `CoordinationCompletionService` with `finalize()` (race-safe, idempotent)
 
 ### Tests
 - `tests/kernel/coordination-result-store.test.ts` — updated with loadByRef and validation
@@ -50,13 +50,13 @@
 
 ## M0.77e.1 — Types, outcome, and source fingerprint
 
-**Files:** Create `src/kernel/coordination-result-types.ts`, `src/kernel/coordination-aggregation-fingerprint.ts`
-Modify `src/kernel/coordination-types.ts`, `src/kernel/coordination-store.ts`
+**Files:** Create `src/coordination/kernel/coordination-result-types.ts`, `src/coordination/kernel/coordination-aggregation-fingerprint.ts`
+Modify `src/coordination/kernel/coordination-types.ts`, `src/coordination/kernel/coordination-store.ts`
 
 ### Step 1: Create result types
 
 ```typescript
-// src/kernel/coordination-result-types.ts
+// src/coordination/kernel/coordination-result-types.ts
 export type CoordinationRunOutcome =
   | "success" | "partial_success" | "failure"
   | "cancelled" | "blocked" | "incomplete";
@@ -125,7 +125,7 @@ export type ResultLoadResult =
 ### Step 2: Create source fingerprint
 
 ```typescript
-// src/kernel/coordination-aggregation-fingerprint.ts
+// src/coordination/kernel/coordination-aggregation-fingerprint.ts
 import { createHash } from "node:crypto";
 import type { CoordinationRun } from "./coordination-types.js";
 
@@ -178,7 +178,7 @@ Update `normalizeWorkerAssignment` to include `failureProvenance`.
 
 ```bash
 npm run build
-git add src/kernel/coordination-result-types.ts src/kernel/coordination-aggregation-fingerprint.ts src/kernel/coordination-types.ts src/kernel/coordination-store.ts
+git add src/coordination/kernel/coordination-result-types.ts src/coordination/kernel/coordination-aggregation-fingerprint.ts src/coordination/kernel/coordination-types.ts src/coordination/kernel/coordination-store.ts
 git commit -m "feat(coordination): add run result and outcome types"
 ```
 
@@ -186,7 +186,7 @@ git commit -m "feat(coordination): add run result and outcome types"
 
 ## M0.77e.2 — Structured failure provenance
 
-**Files:** Modify `src/kernel/coordination-reconciliation.ts`
+**Files:** Modify `src/coordination/kernel/coordination-reconciliation.ts`
 
 In the dependency failure propagation fixpoint loop, when a worker is blocked by failed dependencies:
 
@@ -225,7 +225,7 @@ await deps.store.patchWorker(runId, worker.id, {
 
 ```bash
 npm run build
-git add src/kernel/coordination-reconciliation.ts
+git add src/coordination/kernel/coordination-reconciliation.ts
 git commit -m "feat(coordination): persist structured failure provenance"
 ```
 
@@ -233,7 +233,7 @@ git commit -m "feat(coordination): persist structured failure provenance"
 
 ## M0.77e.3 — Result integrity
 
-**Files:** Modify `src/kernel/coordination-result-store.ts`
+**Files:** Modify `src/coordination/kernel/coordination-result-store.ts`
 
 ### Step 1: Add `loadByRef()`
 
@@ -303,7 +303,7 @@ export function requiresResultRecord(worker: WorkerAssignment): boolean {
 
 ```bash
 npm run build
-git add src/kernel/coordination-result-store.ts
+git add src/coordination/kernel/coordination-result-store.ts
 git commit -m "feat(coordination): validate worker result references"
 ```
 
@@ -311,7 +311,7 @@ git commit -m "feat(coordination): validate worker result references"
 
 ## M0.77e.4 — Failure-chain builder
 
-**Files:** Create `src/kernel/coordination-failure-chain.ts`
+**Files:** Create `src/coordination/kernel/coordination-failure-chain.ts`
 
 ```typescript
 import type { CoordinationRun, WorkerAssignment } from "./coordination-types.js";
@@ -381,7 +381,7 @@ export function buildFailureChains(run: CoordinationRun): FailureChain[] {
 
 ```bash
 npm run build && node --test dist/tests/kernel/coordination-failure-chain.test.js
-git add src/kernel/coordination-failure-chain.ts tests/kernel/coordination-failure-chain.test.ts
+git add src/coordination/kernel/coordination-failure-chain.ts tests/kernel/coordination-failure-chain.test.ts
 git commit -m "feat(coordination): add transitive failure-chain builder"
 ```
 
@@ -389,7 +389,7 @@ git commit -m "feat(coordination): add transitive failure-chain builder"
 
 ## M0.77e.5 — Deterministic aggregation
 
-**Files:** Create `src/kernel/coordination-result-aggregator.ts`
+**Files:** Create `src/coordination/kernel/coordination-result-aggregator.ts`
 
 ```typescript
 export class ResultAggregator {
@@ -429,7 +429,7 @@ Outcome rules:
 
 ```bash
 npm run build
-git add src/kernel/coordination-result-aggregator.ts
+git add src/coordination/kernel/coordination-result-aggregator.ts
 git commit -m "feat(coordination): add deterministic run result aggregator"
 ```
 
@@ -437,7 +437,7 @@ git commit -m "feat(coordination): add deterministic run result aggregator"
 
 ## M0.77e.6 — Aggregate store and finalization lock
 
-**Files:** Create `src/kernel/coordination-aggregate-store.ts`, `src/kernel/coordination-finalization-lock.ts`
+**Files:** Create `src/coordination/kernel/coordination-aggregate-store.ts`, `src/coordination/kernel/coordination-finalization-lock.ts`
 
 `CoordinationAggregateStore`: persists at `.alix/coordination/results/runs/<runId>.json`. Atomic write via temp+rename. `persist(summary)` and `load(runId)`. `load()` validates via `validateRunResultSummary()`.
 
@@ -447,7 +447,7 @@ git commit -m "feat(coordination): add deterministic run result aggregator"
 
 ```bash
 npm run build
-git add src/kernel/coordination-aggregate-store.ts src/kernel/coordination-finalization-lock.ts
+git add src/coordination/kernel/coordination-aggregate-store.ts src/coordination/kernel/coordination-finalization-lock.ts
 git commit -m "feat(coordination): add atomic aggregate result store and finalization lock"
 ```
 
@@ -455,7 +455,7 @@ git commit -m "feat(coordination): add atomic aggregate result store and finaliz
 
 ## M0.77e.7 — Completion service
 
-**Files:** Create `src/kernel/coordination-completion-service.ts`
+**Files:** Create `src/coordination/kernel/coordination-completion-service.ts`
 
 ```typescript
 export type CoordinationCompletionServiceDeps = {
@@ -520,7 +520,7 @@ export class CoordinationCompletionService {
 
 ```bash
 npm run build
-git add src/kernel/coordination-completion-service.ts
+git add src/coordination/kernel/coordination-completion-service.ts
 git commit -m "feat(coordination): add race-safe terminal completion service"
 ```
 
@@ -528,7 +528,7 @@ git commit -m "feat(coordination): add race-safe terminal completion service"
 
 ## M0.77e.8 — Optional synthesis
 
-**Files:** Create `src/kernel/coordination-run-synthesizer.ts`
+**Files:** Create `src/coordination/kernel/coordination-run-synthesizer.ts`
 
 ```typescript
 export interface RunSynthesisInput {
@@ -548,7 +548,7 @@ export interface RunSynthesizer {
 
 ```bash
 npm run build
-git add src/kernel/coordination-run-synthesizer.ts
+git add src/coordination/kernel/coordination-run-synthesizer.ts
 git commit -m "feat(coordination): add optional safe model synthesis"
 ```
 
@@ -556,7 +556,7 @@ git commit -m "feat(coordination): add optional safe model synthesis"
 
 ## M0.77e.9 — Terminal integration
 
-**Files:** Modify `src/kernel/coordination-scheduler.ts`
+**Files:** Modify `src/coordination/kernel/coordination-scheduler.ts`
 
 Add optional `completionService` to `CoordinationSchedulerDeps`. Add `maybeFinalizeRun()`:
 
@@ -578,7 +578,7 @@ Call `maybeFinalizeRun()` after:
 
 ```bash
 npm run build
-git add src/kernel/coordination-scheduler.ts
+git add src/coordination/kernel/coordination-scheduler.ts
 git commit -m "feat(coordination): finalize terminal runs from every scheduler path"
 ```
 
@@ -586,7 +586,7 @@ git commit -m "feat(coordination): finalize terminal runs from every scheduler p
 
 ## M0.77e.10 — CLI and observability
 
-**Files:** Modify `src/cli/commands/coordination.ts`, `src/events/types.ts`
+**Files:** Modify `src/interfaces/cli/commands/coordination.ts`, `src/runtime-state/events/types.ts`
 
 ### CLI
 
@@ -622,7 +622,7 @@ export const COORDINATION_EVENT_TYPES = {
 
 ```bash
 npm run build
-git add src/cli/commands/coordination.ts src/events/types.ts
+git add src/interfaces/cli/commands/coordination.ts src/runtime-state/events/types.ts
 git commit -m "feat(cli): add coordination results and JSON output"
 ```
 

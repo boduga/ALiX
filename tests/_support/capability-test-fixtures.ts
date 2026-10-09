@@ -8,7 +8,7 @@
  * on the exact default field set (id, version, kind, title, description, tags,
  * category, risk, requiredPermissions, dependencies, bindings).
  */
-import type { CapabilityDefinition } from "../../src/capability/canonical/definition.js";
+import type { CapabilityDefinition } from "../../src/capabilities/capability/canonical/definition.js";
 
 /**
  * Build a `CapabilityDefinition` with the conservative-merge-required fields

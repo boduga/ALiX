@@ -26,7 +26,7 @@ import {
   type ExecutorOutcome,
   type JevTransport,
   type ReplayFixture,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 const CLAIM = (claim: string, evidence: string[]) => ({
   claim,

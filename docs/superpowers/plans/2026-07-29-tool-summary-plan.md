@@ -20,22 +20,22 @@
 
 | File | Role | Change |
 |---|---|---|
-| `src/providers/specs/_openai-base.ts` | Provider tool-schema builder | Add `summary?: string` to every tool's JSON parameters |
-| `src/providers/base.ts` | Provider response parser | Extract `summary` from parsed args, lift to `ToolCallRequest` |
-| `src/providers/types.ts` | ToolDef / ToolCall types | Add `summary?: string` to `ToolCall` |
-| `src/tools/types.ts` | `ToolCallRequest` | Add `summary?: string` |
-| `src/run/task-loop.ts` | Tool dispatch + log emission | Thread summary through, include in `agent.decision` payload |
-| `src/tui/views/agent-view.ts` | TUI scrollback | Render summary as indented second dim line |
-| `src/agent/system-prompt.ts` | Base prompt | Add "include a 2-5 word summary" instruction |
-| `src/tui/trace-detail.ts` | Event detail view | Show summary when present |
+| `src/models/providers/specs/_openai-base.ts` | Provider tool-schema builder | Add `summary?: string` to every tool's JSON parameters |
+| `src/models/providers/base.ts` | Provider response parser | Extract `summary` from parsed args, lift to `ToolCallRequest` |
+| `src/models/providers/types.ts` | ToolDef / ToolCall types | Add `summary?: string` to `ToolCall` |
+| `src/capabilities/tools/types.ts` | `ToolCallRequest` | Add `summary?: string` |
+| `src/execution/run/task-loop.ts` | Tool dispatch + log emission | Thread summary through, include in `agent.decision` payload |
+| `src/interfaces/tui/views/agent-view.ts` | TUI scrollback | Render summary as indented second dim line |
+| `src/agents/agent/system-prompt.ts` | Base prompt | Add "include a 2-5 word summary" instruction |
+| `src/interfaces/tui/trace-detail.ts` | Event detail view | Show summary when present |
 
 ---
 
 ### Task 1: Add summary to provider tool schemas
 
 **Files:**
-- Modify: `src/providers/specs/_openai-base.ts`
-- Modify: `src/providers/types.ts`
+- Modify: `src/models/providers/specs/_openai-base.ts`
+- Modify: `src/models/providers/types.ts`
 
 **Interfaces:**
 - Consumes: `ToolDef` (existing type)
@@ -45,7 +45,7 @@ The OpenAI-compatible tool schema builder assembles JSON Schema objects for each
 
 - [ ] **Step 1: Add summary to ToolCall type**
 
-In `src/providers/types.ts`, add `summary?: string` to the `ToolCall` type:
+In `src/models/providers/types.ts`, add `summary?: string` to the `ToolCall` type:
 
 ```typescript
 export type ToolCall = {
@@ -58,7 +58,7 @@ export type ToolCall = {
 
 - [ ] **Step 2: Add summary to every tool's JSON schema**
 
-In `src/providers/specs/_openai-base.ts`, after the tool parameters object is built, add an optional `summary` parameter:
+In `src/models/providers/specs/_openai-base.ts`, after the tool parameters object is built, add an optional `summary` parameter:
 
 ```typescript
 // Add optional summary parameter for operator-facing context
@@ -86,7 +86,7 @@ Expected: clean build. The `summary` field is emitted to the model in every tool
 ### Task 2: Extract summary from model response
 
 **Files:**
-- Modify: `src/providers/base.ts`
+- Modify: `src/models/providers/base.ts`
 
 **Interfaces:**
 - Consumes: Parsed tool call args (from `JSON.parse(tc.function.arguments)`)
@@ -96,7 +96,7 @@ When the provider parses the model's tool call response, the `summary` arrives i
 
 - [ ] **Step 1: Extract summary in the parse path**
 
-In `src/providers/base.ts`, in the `parseModelJson` code path or the tool-call construction path:
+In `src/models/providers/base.ts`, in the `parseModelJson` code path or the tool-call construction path:
 
 ```typescript
 // After parsing tool call arguments
@@ -139,7 +139,7 @@ Expected: clean build. Summary is lifted from args to the ToolCall level for all
 ### Task 3: Add summary to ToolCallRequest and thread through dispatch
 
 **Files:**
-- Modify: `src/tools/types.ts`
+- Modify: `src/capabilities/tools/types.ts`
 
 - [ ] **Step 1: Add summary to ToolCallRequest**
 
@@ -156,7 +156,7 @@ export type ToolCallRequest = {
 
 - [ ] **Step 2: Thread summary in task-loop.ts**
 
-In `src/run/task-loop.ts`, find where `toolCalls` from the provider are converted to `ToolCallRequest`. The loop currently uses `toolCall.name` and `toolCall.args` directly. Add `summary`:
+In `src/execution/run/task-loop.ts`, find where `toolCalls` from the provider are converted to `ToolCallRequest`. The loop currently uses `toolCall.name` and `toolCall.args` directly. Add `summary`:
 
 ```typescript
 // Inside the for (const toolCall of toolCalls) loop, when constructing
@@ -184,7 +184,7 @@ Expected: clean build. Summary threads through to the executor.
 ### Task 4: Record summary in event log
 
 **Files:**
-- Modify: `src/run/task-loop.ts`
+- Modify: `src/execution/run/task-loop.ts`
 
 Every `agent.decision` event with `kind: "tool_selection"` currently logs `iteration`, `description`, and `outcome`. Add `summary` from the tool call when present.
 
@@ -218,7 +218,7 @@ Expected: clean build.
 ### Task 5: Render summary in agent-view
 
 **Files:**
-- Modify: `src/tui/views/agent-view.ts`
+- Modify: `src/interfaces/tui/views/agent-view.ts`
 
 **Interfaces:**
 - Consumes: `ScrollbackLine` with tool entries
@@ -269,7 +269,7 @@ Expected: all tests pass.
 ### Task 6: Update system prompt
 
 **Files:**
-- Modify: `src/agent/system-prompt.ts`
+- Modify: `src/agents/agent/system-prompt.ts`
 
 - [ ] **Step 1: Add summary instruction to SYSTEM_PROMPT_BASE**
 
@@ -294,7 +294,7 @@ Expected: clean build.
 ### Task 7: Update trace-detail view
 
 **Files:**
-- Modify: `src/tui/trace-detail.ts`
+- Modify: `src/interfaces/tui/trace-detail.ts`
 
 - [ ] **Step 1: Show summary in event detail**
 

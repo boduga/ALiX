@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: MIT
 
 import { describe, it, expect } from "vitest";
-import { PolicyGate } from "../../src/policy/policy-gate.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import type { ExecutionState } from "../../src/runtime/execution-state/execution-state.js";
+import { PolicyGate } from "../../src/governance/policy/policy-gate.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import type { ExecutionState } from "../../src/runtime-state/runtime/execution-state/execution-state.js";
 import {
   createPolicyTransitionGovernor,
   createPolicyBackedEmitter,
   EXECUTION_STATE_CAPABILITY,
-} from "../../src/runtime/state/policy-governor.js";
-import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
+} from "../../src/runtime-state/runtime/state/policy-governor.js";
+import { closeAllSharedLedgers } from "../../src/runtime-state/storage/runtime-ledger.js";
 
 function makeConfig(overrides?: Record<string, unknown>): AlixConfig {
   const base = {
@@ -113,7 +113,7 @@ describe("policy-governor — real PolicyGate behind TransitionGovernor", () => 
   });
 
   it("createPolicyBackedEmitter wires the adapter into a working emitter", async () => {
-    const { EventLog } = await import("../../src/events/event-log.js");
+    const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
     const { mkdtemp, rm } = await import("node:fs/promises");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { evaluatePattern } from "../../src/run/task-loop/context-helpers.js";
+import { evaluatePattern } from "../../src/execution/run/task-loop/context-helpers.js";
 
 type SessionInfo = { sessionId: string; actor: "system" };
 

@@ -2,7 +2,7 @@
 
 **Status**: Active — T15 audit on wayfinder map #376.
 **Kind**: Audit. **Not** a recognizer contract (contrast T7–T13).
-**Seed**: `docs/intent-contracts/canonical-taxonomy.md` → Re-classification audit → Finding 1 (`src/agent/session.ts:973`).
+**Seed**: `docs/intent-contracts/canonical-taxonomy.md` → Re-classification audit → Finding 1 (`src/agents/agent/session.ts:973`).
 **Anchor doc**: [`canonical-taxonomy.md`](./canonical-taxonomy.md) — chain invariant + ownership matrix (T14, #386).
 
 ## Scope
@@ -22,11 +22,11 @@ to a follow-on ticket.
 The inventory was built in three passes, in this order:
 
 1. **Route surface enumeration.** `TaskRouteKind` is declared once at
-   `src/runtime/task-router.ts:21`. `executeRoute` (`src/runtime/route-executor.ts:60`)
+   `src/runtime-state/runtime/task-router.ts:21`. `executeRoute` (`src/runtime-state/runtime/route-executor.ts:60`)
    is the single canonical dispatcher, switching over all five kinds; the
    `RuntimeExecutor` interface (`route-executor.ts:36–42`) names one executor
    method per kind. Two implementations satisfy it — `LocalRuntimeExecutor`
-   (same process) and the daemon-side functions in `src/daemon/daemon-server.ts`.
+   (same process) and the daemon-side functions in `src/operations/daemon/daemon-server.ts`.
    Both were audited.
 2. **Grep sweep.** `rg -n 'systemPrompt:' src --type ts` and
    `rg -n 'You are ALiX|You are a |You are an ' src --type ts`, with `*.test.ts`
@@ -62,22 +62,22 @@ For each site, three independent questions:
 
 | # | file:line | Route | Canonical intent? | TaskType? | Hardcoded? | Severity |
 |---|---|---|---|---|---|---|
-| 1 | `src/agent/session.ts:972-977` | `direct` | N | N | Y | **violation** |
-| 2 | `src/runtime/route-executor.ts:109` | `direct` | N | N | Y | **violation** |
-| 3 | `src/daemon/daemon-server.ts:327` | `direct` | N | N | Y | **violation** |
-| 4 | `src/agent/session.ts:1606-1610` | `chat` | N | N | Y (config-overridable) | **violation** |
-| 5 | `src/runtime/route-executor.ts:156` | `chat` | N | N | Y | **violation** |
-| 6 | `src/daemon/daemon-server.ts:372` | `chat` | N | N | Y | **violation** |
-| 7 | `src/runtime/route-executor.ts:173` | `grounded_chat` (step 1) | N | N | Y | **violation** |
-| 8 | `src/daemon/daemon-server.ts:395` | `grounded_chat` (step 1) | N | N | Y | **violation** |
-| 9 | `src/runtime/route-executor.ts:204` | `grounded_chat` (step 2, synthesis) | N | N | Y | **violation** |
-| 10 | `src/daemon/daemon-server.ts:424` | `grounded_chat` (step 2, synthesis) | N | N | Y | **violation** |
-| 11 | `src/agent/agent-loop.ts:372` → `src/agent/system-prompt.ts:33` (`SYSTEM_PROMPT_BASE`) | `agent` | N | N | Y | **violation** |
-| 12 | `src/run/task-loop.ts:399-410` (`supplement`) | `agent` | N | N | N (varies by `AgentIntent`) | orthogonal |
-| 13 | `src/run/plan-phase.ts:286,308` (`buildPlanSystemPrompt`) | `agent` (plan phase) | N | N | Y | orthogonal |
+| 1 | `src/agents/agent/session.ts:972-977` | `direct` | N | N | Y | **violation** |
+| 2 | `src/runtime-state/runtime/route-executor.ts:109` | `direct` | N | N | Y | **violation** |
+| 3 | `src/operations/daemon/daemon-server.ts:327` | `direct` | N | N | Y | **violation** |
+| 4 | `src/agents/agent/session.ts:1606-1610` | `chat` | N | N | Y (config-overridable) | **violation** |
+| 5 | `src/runtime-state/runtime/route-executor.ts:156` | `chat` | N | N | Y | **violation** |
+| 6 | `src/operations/daemon/daemon-server.ts:372` | `chat` | N | N | Y | **violation** |
+| 7 | `src/runtime-state/runtime/route-executor.ts:173` | `grounded_chat` (step 1) | N | N | Y | **violation** |
+| 8 | `src/operations/daemon/daemon-server.ts:395` | `grounded_chat` (step 1) | N | N | Y | **violation** |
+| 9 | `src/runtime-state/runtime/route-executor.ts:204` | `grounded_chat` (step 2, synthesis) | N | N | Y | **violation** |
+| 10 | `src/operations/daemon/daemon-server.ts:424` | `grounded_chat` (step 2, synthesis) | N | N | Y | **violation** |
+| 11 | `src/agents/agent/agent-loop.ts:372` → `src/agents/agent/system-prompt.ts:33` (`SYSTEM_PROMPT_BASE`) | `agent` | N | N | Y | **violation** |
+| 12 | `src/execution/run/task-loop.ts:399-410` (`supplement`) | `agent` | N | N | N (varies by `AgentIntent`) | orthogonal |
+| 13 | `src/execution/run/plan-phase.ts:286,308` (`buildPlanSystemPrompt`) | `agent` (plan phase) | N | N | Y | orthogonal |
 | 14 | `src/agents/subagent-cli.ts:212` (`ROLE_INSTRUCTIONS`) | `agent` (delegated) | N | Y — via `src/agents/delegate-tool.ts:28` | Y per role | orthogonal |
-| 15 | `src/kernel/graph-executor.ts:170,306` (`researchPrefix`) | `agent` (graph node) | N | N | Y | orthogonal |
-| 16 | `src/runtime/route-executor.ts:117-150`; `src/daemon/daemon-server.ts:334-360` | `tool` | — | — | — | none |
+| 15 | `src/coordination/kernel/graph-executor.ts:170,306` (`researchPrefix`) | `agent` (graph node) | N | N | Y | orthogonal |
+| 16 | `src/runtime-state/runtime/route-executor.ts:117-150`; `src/operations/daemon/daemon-server.ts:334-360` | `tool` | — | — | — | none |
 
 **Totals**: 16 sites; **11 violations**, 4 orthogonal, 1 none.
 
@@ -90,18 +90,18 @@ route kind that is structurally exempt.
 
 ### Finding 1 — `direct` route: one prompt for two canonical intents
 
-Sites: `src/agent/session.ts:972-977`, `src/runtime/route-executor.ts:109`,
-`src/daemon/daemon-server.ts:327`. This is the seed finding from
+Sites: `src/agents/agent/session.ts:972-977`, `src/runtime-state/runtime/route-executor.ts:109`,
+`src/operations/daemon/daemon-server.ts:327`. This is the seed finding from
 canonical-taxonomy.md, expanded from one site to three.
 
 ```ts
-// src/agent/session.ts:972
+// src/agents/agent/session.ts:972
 const directBasePrompt =
   "You are ALiX, a helpful AI assistant. Answer concisely.";
 ```
 
 ```ts
-// src/runtime/route-executor.ts:108
+// src/runtime-state/runtime/route-executor.ts:108
 const response = await provider.complete({
   systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
   messages: [{ role: "user", content: route.prompt }],
@@ -132,11 +132,11 @@ today.
 
 ### Finding 2 — `chat` route: hardcoded, and divergent across implementations
 
-Sites: `src/agent/session.ts:1606-1610`, `src/runtime/route-executor.ts:156`,
-`src/daemon/daemon-server.ts:372`.
+Sites: `src/agents/agent/session.ts:1606-1610`, `src/runtime-state/runtime/route-executor.ts:156`,
+`src/operations/daemon/daemon-server.ts:372`.
 
 ```ts
-// src/agent/session.ts:1606
+// src/agents/agent/session.ts:1606
 const CHAT_DEFAULT_SYSTEM_PROMPT =
   "You are ALiX in a lightweight chat session. Be brief, direct, and conversational. " +
   "Do not invoke tools, do not run commands, do not edit files. Respond as if you are " +
@@ -164,16 +164,16 @@ T11 land their recognizers, since the conditioning targets do not exist yet.
 
 ### Finding 3 — `grounded_chat` route: intent is known and still unused
 
-Sites: `src/runtime/route-executor.ts:173` and `:204`;
-`src/daemon/daemon-server.ts:395` and `:424`.
+Sites: `src/runtime-state/runtime/route-executor.ts:173` and `:204`;
+`src/operations/daemon/daemon-server.ts:395` and `:424`.
 
 ```ts
-// src/runtime/route-executor.ts:173 — step 1, tool-eliciting call
+// src/runtime-state/runtime/route-executor.ts:173 — step 1, tool-eliciting call
 systemPrompt: "You are ALiX, a helpful AI assistant. If you need current information, use the available tools to search. Answer concisely.",
 ```
 
 ```ts
-// src/runtime/route-executor.ts:204 — step 2, synthesis call
+// src/runtime-state/runtime/route-executor.ts:204 — step 2, synthesis call
 systemPrompt: "Answer the user's question based on the tool result.",
 ```
 
@@ -198,15 +198,15 @@ Unblocked today: `external_retrieval` needs no pending recognizer.
 
 ### Finding 4 — `agent` route: `SYSTEM_PROMPT_BASE` cannot see the intent
 
-Site: `src/agent/agent-loop.ts:372`, sourcing `src/agent/system-prompt.ts:33`.
+Site: `src/agents/agent/agent-loop.ts:372`, sourcing `src/agents/agent/system-prompt.ts:33`.
 
 ```ts
-// src/agent/agent-loop.ts:372
+// src/agents/agent/agent-loop.ts:372
 systemPrompt: SYSTEM_PROMPT,
 ```
 
 ```ts
-// src/agent/system-prompt.ts:33
+// src/agents/agent/system-prompt.ts:33
 export const SYSTEM_PROMPT_BASE =
   "You are ALiX, an AI coding agent. You have access to tools.\n\n" +
   ...
@@ -233,7 +233,7 @@ the Layer-1 label. Hard-blocked on **T7 and T8** — the labels do not exist yet
 
 ### Finding 5 — local/daemon duplication is the structural cause
 
-Sites: `src/runtime/route-executor.ts` vs `src/daemon/daemon-server.ts`,
+Sites: `src/runtime-state/runtime/route-executor.ts` vs `src/operations/daemon/daemon-server.ts`,
 across findings 1–3 (rows 2/3, 5/6, 7/8, 9/10).
 
 Every non-agent route prompt exists **twice**, copy-pasted between
@@ -249,15 +249,15 @@ socket path on the old prompt, and the divergence is invisible to the
 closed-world test (which stops at Layer 3).
 
 **Follow-on**: **T20 — extract route prompts to a shared module** (e.g.
-`src/runtime/route-prompts.ts`) consumed by both executors, so T16–T19 have a
+`src/runtime-state/runtime/route-prompts.ts`) consumed by both executors, so T16–T19 have a
 single edit site. Recommend sequencing **T20 first**, before T16–T18.
 
 ### Finding 6 — `task-loop.ts` supplement: orthogonal, and the proof of concept
 
-Site: `src/run/task-loop.ts:399-410`.
+Site: `src/execution/run/task-loop.ts:399-410`.
 
 ```ts
-// src/run/task-loop.ts:399
+// src/execution/run/task-loop.ts:399
 const supplement = currentIntent === "research" ? RESEARCH_SUPPLEMENT
   : currentIntent === "mutation" ? MUTATION_SUPPLEMENT
   : VALIDATION_SUPPLEMENT;
@@ -293,13 +293,13 @@ This audit does **not** cover:
   enforcement (`route-executor.ts:185`) are Layer-4 concerns. Only the system-
   and user-prompt *text* is inventoried.
 - **MCP server prompts** and `mcpToolIndex` contributions to the model input.
-- **Classifier-internal prompts.** `src/runtime/action-classifier.ts:502` is the
+- **Classifier-internal prompts.** `src/runtime-state/runtime/action-classifier.ts:502` is the
   Layer-1 recognizer's own model-fallback prompt. It constructs a prompt to
   *produce* the canonical intent; it cannot consume one. Not a route site.
-- **Non-route model calls.** `src/skills/factory.ts:36`,
-  `src/adaptation/lens-agent.ts:37-55`, `src/cli/commands/plan.ts:60`,
-  `src/kernel/model-replan-adapter.ts:341,381`,
-  `src/providers/provider-doctor.ts:23`. These never pass through `taskRouter`
+- **Non-route model calls.** `src/capabilities/skills/factory.ts:36`,
+  `src/planning/adaptation/lens-agent.ts:37-55`, `src/interfaces/cli/commands/plan.ts:60`,
+  `src/coordination/kernel/model-replan-adapter.ts:341,381`,
+  `src/models/providers/provider-doctor.ts:23`. These never pass through `taskRouter`
   and have no `ExecutionRoute`.
 - **Prompt *content* quality.** Whether a given prompt is well-written is out of
   scope; this audit asks only whether it is *selected* by the canonical intent.
@@ -337,7 +337,7 @@ definition.**
 
 - **This ticket**: T15 (#390), wayfinder map #376.
 - **Seed**: T14 (#386) — `docs/intent-contracts/canonical-taxonomy.md`,
-  Re-classification audit, Finding 1 (`src/agent/session.ts:973`). T14 recorded
+  Re-classification audit, Finding 1 (`src/agents/agent/session.ts:973`). T14 recorded
   one site and deferred the inventory to a future map; T15 is that inventory,
   expanded 1 → 16 sites.
 - **Referenced contracts**: T7 (`workspace_state`), T8 (`workspace_mutation`),

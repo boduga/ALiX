@@ -8,16 +8,16 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { ExecutionStateMachine } from "../../src/runtime/execution-state-machine.js";
-import { ExecutionRollbackHandler } from "../../src/runtime/execution-rollback.js";
+import { ExecutionStateMachine } from "../../src/runtime-state/runtime/execution-state-machine.js";
+import { ExecutionRollbackHandler } from "../../src/runtime-state/runtime/execution-rollback.js";
 import {
   ExecutionState,
   IllegalStateTransitionError,
   type ExecutionEvidenceEmitter,
   type ExecutionEventType,
   type RollbackIntent,
-} from "../../src/runtime/contracts/execution-runtime-contract.js";
-import type { ExecutionIntent, ExecutionEvidence } from "../../src/runtime/contracts/execution-intent-contract.js";
+} from "../../src/runtime-state/runtime/contracts/execution-runtime-contract.js";
+import type { ExecutionIntent, ExecutionEvidence } from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 
 // ---------------------------------------------------------------------------
 // Test evidence collector

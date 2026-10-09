@@ -3,7 +3,7 @@ import {
   claimsArtifactWritten,
   durableCompletionSummary,
   lastToolResultShowsClientError,
-} from "../../src/run/task-loop.js";
+} from "../../src/execution/run/task-loop.js";
 
 const user = (content: string) => ({ role: "user", content });
 

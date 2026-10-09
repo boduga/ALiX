@@ -13,9 +13,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AuditChainWriter } from "../../../src/security/audit/audit-chain-writer.js";
-import { verifyAuditLog } from "../../../src/security/audit/audit-verifier.js";
-import type { AuditRecordV2 } from "../../../src/audit/audit-types.js";
+import { AuditChainWriter } from "../../../src/governance/security/audit/audit-chain-writer.js";
+import { verifyAuditLog } from "../../../src/governance/security/audit/audit-verifier.js";
+import type { AuditRecordV2 } from "../../../src/governance/audit/audit-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

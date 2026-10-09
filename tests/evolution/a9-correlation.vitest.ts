@@ -10,28 +10,28 @@ import type {
   ForecastContent,
   CapabilityMeasurementRecord,
   ProposalEventRecord,
-} from "../../src/evolution/forecast/contracts/contract.js";
+} from "../../src/planning/evolution/forecast/contracts/contract.js";
 import {
   CORRELATION_VERSION,
   FORECAST_VERSION,
   GENERATOR_VERSION,
-} from "../../src/evolution/forecast/contracts/contract.js";
-import { canonicalizeCorrelation, correlationIdFor, forecastIdFor } from "../../src/evolution/forecast/identity.js";
-import { ForecastsStore } from "../../src/evolution/forecast/forecasts-store.js";
-import { ForecastsAdapter } from "../../src/evolution/forecast/forecasts-adapter.js";
-import { CorrelationEngine } from "../../src/evolution/forecast/correlation-engine.js";
+} from "../../src/planning/evolution/forecast/contracts/contract.js";
+import { canonicalizeCorrelation, correlationIdFor, forecastIdFor } from "../../src/planning/evolution/forecast/identity.js";
+import { ForecastsStore } from "../../src/planning/evolution/forecast/forecasts-store.js";
+import { ForecastsAdapter } from "../../src/planning/evolution/forecast/forecasts-adapter.js";
+import { CorrelationEngine } from "../../src/planning/evolution/forecast/correlation-engine.js";
 import {
   buildCorrelation,
   measurementOutcomeToBand,
-} from "../../src/evolution/forecast/correlation-builder.js";
-import { CorrelationsStore } from "../../src/evolution/forecast/correlations-store.js";
-import { CorrelationsAdapter } from "../../src/evolution/forecast/correlations-adapter.js";
+} from "../../src/planning/evolution/forecast/correlation-builder.js";
+import { CorrelationsStore } from "../../src/planning/evolution/forecast/correlations-store.js";
+import { CorrelationsAdapter } from "../../src/planning/evolution/forecast/correlations-adapter.js";
 // Phase 27 — post-execution integration fixture uses the REAL adapters over
 // EventLog-shaped events (not adapter stubs).
-import { ProposalEventsAdapter } from "../../src/evolution/forecast/adapters/proposal-events-adapter.js";
-import { MeasurementEventsAdapter } from "../../src/evolution/forecast/adapters/measurement-events-adapter.js";
-import type { EventLog } from "../../src/events/event-log.js";
-import type { AlixEvent } from "../../src/events/types.js";
+import { ProposalEventsAdapter } from "../../src/planning/evolution/forecast/adapters/proposal-events-adapter.js";
+import { MeasurementEventsAdapter } from "../../src/planning/evolution/forecast/adapters/measurement-events-adapter.js";
+import type { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
 import { vi } from "vitest";
 
 // ---------------------------------------------------------------------------

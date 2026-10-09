@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { OpenRouterProvider, ProviderAccessError } from "../../src/providers/openrouter-provider.js";
-import { _setOpenRouterDiscoveryFetch, _resetOpenRouterDiscoveryCache } from "../../src/providers/model-discovery.js";
-import { _setAccessRestrictionTtlForTesting, _resetAccessRestrictionRegistryForTesting } from "../../src/providers/access-restriction-registry.js";
-import { _setFetchForTesting } from "../../src/providers/unified-complete.js";
+import { OpenRouterProvider, ProviderAccessError } from "../../src/models/providers/openrouter-provider.js";
+import { _setOpenRouterDiscoveryFetch, _resetOpenRouterDiscoveryCache } from "../../src/models/providers/model-discovery.js";
+import { _setAccessRestrictionTtlForTesting, _resetAccessRestrictionRegistryForTesting } from "../../src/models/providers/access-restriction-registry.js";
+import { _setFetchForTesting } from "../../src/models/providers/unified-complete.js";
 
 const catalog = (models: unknown[]) => new Response(JSON.stringify({ data: models }), {
   status: 200,

@@ -8,8 +8,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleExecutiveCommand } from "../../../src/cli/commands/executive.js";
-import { OutcomeReportStore } from "../../../src/executive/outcome-store.js";
+import { handleExecutiveCommand } from "../../../src/interfaces/cli/commands/executive.js";
+import { OutcomeReportStore } from "../../../src/execution/executive/outcome-store.js";
 
 function captureConsole() {
   const out: string[] = [];

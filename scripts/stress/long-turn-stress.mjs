@@ -19,11 +19,11 @@
 //   then asserts the invocation survived past 120 seconds and completed.
 //
 //   Because every real provider routes its chat traffic through a hard-coded
-//   spec base URL (src/providers/specs/* — e.g. DeepSeek → api.deepseek.com)
+//   spec base URL (src/models/providers/specs/* — e.g. DeepSeek → api.deepseek.com)
 //   there is no code-free way to point the default cloud provider at a black
 //   hole. `--broken-provider` therefore spins up a local OpenAI-compatible
 //   BLACK-HOLE endpoint on localhost:8080 — the exact fixed chat endpoint of
-//   the local-llama spec (src/providers/specs/local-llama-spec.ts) — answers
+//   the local-llama spec (src/models/providers/specs/local-llama-spec.ts) — answers
 //   the launcher's GET /v1/models probe, then swallows every
 //   /v1/chat/completions POST without ever responding. The built-in
 //   `local-llama` provider is pinned to it via a scratch project config, and
@@ -112,7 +112,7 @@ if (HELP) {
 }
 
 // ─── Dist availability ─────────────────────────────────────────────────────
-const SESSION_ENTRY = join(ROOT, "dist", "src", "agent", "session.js");
+const SESSION_ENTRY = join(ROOT, "dist", "src", "agents", "agent", "session.js");
 if (!existsSync(SESSION_ENTRY)) {
   console.error("FAIL(env): dist build missing — run `pnpm build` first.");
   process.exit(3);
@@ -150,7 +150,7 @@ function milestoneLine(state, elapsedMs) {
 // The local-llama provider (the one real provider whose chat traffic we can
 // target without a source change) sends every request to the local-llama
 // SPEC's fixed base URL — http://localhost:8080/v1/chat/completions
-// (src/providers/specs/local-llama-spec.ts). Its env-configurable
+// (src/models/providers/specs/local-llama-spec.ts). Its env-configurable
 // ALIX_LLAMA_BASE_URL only feeds the launcher's health probe, NOT the chat
 // call, so the black hole must occupy exactly that fixed endpoint. It
 // answers the launcher's GET /v1/models probe and then swallows every
@@ -228,10 +228,10 @@ function makeBrokenCwd() {
 // ─── Core: drive one real turn with a live-activity monitor ────────────────
 async function runTurn({ cwd, task, withPlan, broken, brokenWaitMs, maxRunMs }) {
   const { createAgentSession } = await import(
-    join(ROOT, "dist", "src", "agent", "session.js")
+    join(ROOT, "dist", "src", "agents", "agent", "session.js")
   );
   const { ExecutionCancelledError } = await import(
-    join(ROOT, "dist", "src", "runtime", "cancellation-token.js")
+    join(ROOT, "dist", "src", "runtime-state", "runtime", "cancellation-token.js")
   );
 
   const session = createAgentSession({
@@ -413,9 +413,9 @@ async function main() {
 
   // Normal mode: real provider from the active config.
   console.log(`long-turn-stress: NORMAL mode (real provider, real minutes)`);
-  const { loadConfig } = await import(join(ROOT, "dist", "src", "config", "loader.js"));
+  const { loadConfig } = await import(join(ROOT, "dist", "src", "operations", "config", "loader.js"));
   const { tryResolveModelConfig } = await import(
-    join(ROOT, "dist", "src", "config", "model-resolver.js")
+    join(ROOT, "dist", "src", "operations", "config", "model-resolver.js")
   );
   let config;
   try {

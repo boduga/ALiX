@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { persistModelSelection, resolveTierArg } from "../../src/cli/commands/models.js";
+import { persistModelSelection, resolveTierArg } from "../../src/interfaces/cli/commands/models.js";
 
 async function withProjectConfig(initial: Record<string, unknown>) {
   const dir = await mkdtemp(join(tmpdir(), "alix-models-"));

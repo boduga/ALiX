@@ -7,8 +7,8 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { evaluateObjective, ObjectivePathEscapeError, resolveObjectivePath } from "../../src/evals/evaluators/objective-evaluator.js";
-import type { EvalObjective } from "../../src/evals/evals-types.js";
+import { evaluateObjective, ObjectivePathEscapeError, resolveObjectivePath } from "../../src/operations/evals/evaluators/objective-evaluator.js";
+import type { EvalObjective } from "../../src/operations/evals/evals-types.js";
 
 function makeCwd(): string {
   const dir = mkdtempSync(join(tmpdir(), "eval-obj-"));

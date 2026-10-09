@@ -148,7 +148,7 @@ No sorting by operator ID, operator count, or operator performance.
 |------|--------|
 | `src/governance/execution-report.ts` | New — pure report builder |
 | `tests/governance/execution-report.test.ts` | New — tests |
-| `src/cli/commands/governance.ts` | Modified — CLI handler |
+| `src/interfaces/cli/commands/governance.ts` | Modified — CLI handler |
 
 ## Required tests
 

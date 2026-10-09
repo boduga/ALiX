@@ -19,7 +19,7 @@
 - Edge math uses **delta series** (score changes), not raw scores
 - Atomic write pattern: write to `.tmp`, fsync, rename to target
 - Schema version for CorrelationGraph is `"p11.1.0"`
-- Existing helper: `computeHealthScore()` already exists in `src/baseline/baseline-comparator.ts` — do not duplicate
+- Existing helper: `computeHealthScore()` already exists in `src/context/baseline/baseline-comparator.ts` — do not duplicate
 - Existing error type pattern: use `CorrelationGraphLoadError extends Error`
 
 ---
@@ -30,13 +30,13 @@
 
 | File | Responsibility |
 |------|---------------|
-| `src/correlation/correlation-types.ts` | `CorrelationSubsystemId`, `CorrelationNode`, `CorrelationEdge`, `CorrelationGraph`, `CorrelationGraphStatus`, `CorrelationNodeStatus`, `CorrelationDirection`, `CorrelationEngineConfig` |
-| `src/correlation/correlation-config.ts` | `DEFAULT_CORRELATION_CONFIG` constant |
-| `src/correlation/normalize-subsystem.ts` | `executiveToCorrelationSubsystem()` mapping, `EXECUTIVE_TO_CORRELATION` table |
-| `src/correlation/build-correlation-graph.ts` | Pure `buildCorrelationGraph()` — the core algorithm |
-| `src/correlation/correlation-engine.ts` | `CorrelationEngine` orchestrator — loads data, calls pure function |
-| `src/correlation/correlation-graph-store.ts` | `CorrelationGraphStore` — atomic read/write + validation |
-| `src/cli/commands/executive-correlate-handler.ts` | `handleCorrelateCommand()` — CLI handler for `alix executive correlate` |
+| `src/operations/correlation/correlation-types.ts` | `CorrelationSubsystemId`, `CorrelationNode`, `CorrelationEdge`, `CorrelationGraph`, `CorrelationGraphStatus`, `CorrelationNodeStatus`, `CorrelationDirection`, `CorrelationEngineConfig` |
+| `src/operations/correlation/correlation-config.ts` | `DEFAULT_CORRELATION_CONFIG` constant |
+| `src/operations/correlation/normalize-subsystem.ts` | `executiveToCorrelationSubsystem()` mapping, `EXECUTIVE_TO_CORRELATION` table |
+| `src/operations/correlation/build-correlation-graph.ts` | Pure `buildCorrelationGraph()` — the core algorithm |
+| `src/operations/correlation/correlation-engine.ts` | `CorrelationEngine` orchestrator — loads data, calls pure function |
+| `src/operations/correlation/correlation-graph-store.ts` | `CorrelationGraphStore` — atomic read/write + validation |
+| `src/interfaces/cli/commands/executive-correlate-handler.ts` | `handleCorrelateCommand()` — CLI handler for `alix executive correlate` |
 
 ### Test Files
 
@@ -51,23 +51,23 @@
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/executive.ts` | Add `case "correlate"` in the switch statement |
+| `src/interfaces/cli/commands/executive.ts` | Add `case "correlate"` in the switch statement |
 
 ---
 
 ### Task 1: Types and Config
 
 **Files:**
-- Create: `src/correlation/correlation-types.ts`
-- Create: `src/correlation/correlation-config.ts`
+- Create: `src/operations/correlation/correlation-types.ts`
+- Create: `src/operations/correlation/correlation-config.ts`
 
 **Interfaces:**
 - Produces: `CorrelationSubsystemId`, `CorrelationNodeStatus`, `CorrelationDirection`, `CorrelationGraphStatus`, `CorrelationEdge`, `CorrelationNode`, `CorrelationGraph`, `CorrelationEngineConfig`, `CorrelationGraphLoadError`, `DEFAULT_CORRELATION_CONFIG`
 
-- [ ] **Step 1: Create `src/correlation/correlation-types.ts`**
+- [ ] **Step 1: Create `src/operations/correlation/correlation-types.ts`**
 
 ```typescript
-// src/correlation/correlation-types.ts
+// src/operations/correlation/correlation-types.ts
 
 import type { DriftItem } from "../baseline/baseline-types.js";
 
@@ -139,10 +139,10 @@ export class CorrelationGraphLoadError extends Error {
 }
 ```
 
-- [ ] **Step 2: Create `src/correlation/correlation-config.ts`**
+- [ ] **Step 2: Create `src/operations/correlation/correlation-config.ts`**
 
 ```typescript
-// src/correlation/correlation-config.ts
+// src/operations/correlation/correlation-config.ts
 
 import type { CorrelationEngineConfig, CorrelationSubsystemId } from "./correlation-types.js";
 
@@ -171,7 +171,7 @@ Expected: No type errors
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/correlation/correlation-types.ts src/correlation/correlation-config.ts
+git add src/operations/correlation/correlation-types.ts src/operations/correlation/correlation-config.ts
 git commit -m "feat(p11.1): add CorrelationGraph types and config"
 ```
 
@@ -180,17 +180,17 @@ git commit -m "feat(p11.1): add CorrelationGraph types and config"
 ### Task 2: Subsystem Name Normalization
 
 **Files:**
-- Create: `src/correlation/normalize-subsystem.ts`
+- Create: `src/operations/correlation/normalize-subsystem.ts`
 - Test: `tests/correlation/normalize-subsystem.vitest.ts`
 
 **Interfaces:**
 - Consumes: `CorrelationSubsystemId` (from Task 1)
 - Produces: `executiveToCorrelationSubsystem(name: string): CorrelationSubsystemId | null`, `EXECUTIVE_TO_CORRELATION` map
 
-- [ ] **Step 1: Create `src/correlation/normalize-subsystem.ts`**
+- [ ] **Step 1: Create `src/operations/correlation/normalize-subsystem.ts`**
 
 ```typescript
-// src/correlation/normalize-subsystem.ts
+// src/operations/correlation/normalize-subsystem.ts
 
 import type { CorrelationSubsystemId } from "./correlation-types.js";
 
@@ -220,7 +220,7 @@ export function executiveToCorrelationSubsystem(
 // tests/correlation/normalize-subsystem.vitest.ts
 
 import { describe, it, expect } from "vitest";
-import { executiveToCorrelationSubsystem } from "../../src/correlation/normalize-subsystem.js";
+import { executiveToCorrelationSubsystem } from "../../src/operations/correlation/normalize-subsystem.js";
 
 describe("executiveToCorrelationSubsystem", () => {
   it("maps 'workflow' to 'workflow'", () => {
@@ -257,7 +257,7 @@ Expected: All 6 tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/correlation/normalize-subsystem.ts tests/correlation/normalize-subsystem.vitest.ts
+git add src/operations/correlation/normalize-subsystem.ts tests/correlation/normalize-subsystem.vitest.ts
 git commit -m "feat(p11.1): add subsystem name normalization"
 ```
 
@@ -266,17 +266,17 @@ git commit -m "feat(p11.1): add subsystem name normalization"
 ### Task 3: CorrelationGraphStore
 
 **Files:**
-- Create: `src/correlation/correlation-graph-store.ts`
+- Create: `src/operations/correlation/correlation-graph-store.ts`
 - Test: `tests/correlation/correlation-graph-store.vitest.ts`
 
 **Interfaces:**
 - Consumes: `CorrelationGraph`, `CorrelationGraphLoadError` (from Task 1), `CorrelationSubsystemId` (type)
 - Produces: `CorrelationGraphStore` class with `save()`, `loadLatest()`, `exists()`
 
-- [ ] **Step 1: Create `src/correlation/correlation-graph-store.ts`**
+- [ ] **Step 1: Create `src/operations/correlation/correlation-graph-store.ts`**
 
 ```typescript
-// src/correlation/correlation-graph-store.ts
+// src/operations/correlation/correlation-graph-store.ts
 
 import { existsSync, mkdirSync, openSync, readFileSync, renameSync, fsyncSync, closeSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -419,9 +419,9 @@ import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { CorrelationGraphStore } from "../../src/correlation/correlation-graph-store.js";
-import { CorrelationGraphLoadError } from "../../src/correlation/correlation-types.js";
-import type { CorrelationGraph } from "../../src/correlation/correlation-types.js";
+import { CorrelationGraphStore } from "../../src/operations/correlation/correlation-graph-store.js";
+import { CorrelationGraphLoadError } from "../../src/operations/correlation/correlation-types.js";
+import type { CorrelationGraph } from "../../src/operations/correlation/correlation-types.js";
 
 function makeGraph(overrides: Partial<CorrelationGraph> = {}): CorrelationGraph {
   return {
@@ -539,7 +539,7 @@ Expected: All 7 tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/correlation/correlation-graph-store.ts tests/correlation/correlation-graph-store.vitest.ts
+git add src/operations/correlation/correlation-graph-store.ts tests/correlation/correlation-graph-store.vitest.ts
 git commit -m "feat(p11.1): add CorrelationGraphStore with atomic save and validation"
 ```
 
@@ -548,17 +548,17 @@ git commit -m "feat(p11.1): add CorrelationGraphStore with atomic save and valid
 ### Task 4: Core Correlation Algorithm (Pure Function)
 
 **Files:**
-- Create: `src/correlation/build-correlation-graph.ts`
+- Create: `src/operations/correlation/build-correlation-graph.ts`
 - Test: `tests/correlation/build-correlation-graph.vitest.ts`
 
 **Interfaces:**
 - Consumes: `BaselineComparison[]`, `ExecutiveTrendSnapshot[]`, `CorrelationEngineConfig` (from Task 1)
 - Produces: `buildCorrelationGraph(comparisons, snapshots, config): CorrelationGraph`
 
-- [ ] **Step 1: Create `src/correlation/build-correlation-graph.ts`**
+- [ ] **Step 1: Create `src/operations/correlation/build-correlation-graph.ts`**
 
 ```typescript
-// src/correlation/build-correlation-graph.ts
+// src/operations/correlation/build-correlation-graph.ts
 
 import type {
   CorrelationGraph,
@@ -851,10 +851,10 @@ export function buildCorrelationGraph(
 // tests/correlation/build-correlation-graph.vitest.ts
 
 import { describe, it, expect } from "vitest";
-import { buildCorrelationGraph } from "../../src/correlation/build-correlation-graph.js";
-import { DEFAULT_CORRELATION_CONFIG } from "../../src/correlation/correlation-config.js";
-import type { BaselineComparison } from "../../src/baseline/baseline-types.js";
-import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
+import { buildCorrelationGraph } from "../../src/operations/correlation/build-correlation-graph.js";
+import { DEFAULT_CORRELATION_CONFIG } from "../../src/operations/correlation/correlation-config.js";
+import type { BaselineComparison } from "../../src/context/baseline/baseline-types.js";
+import type { ExecutiveTrendSnapshot } from "../../src/execution/executive/trend-store.js";
 
 function makeComparison(subsystem: string, score: number): BaselineComparison {
   const status = score >= 90 ? "excellent" : score >= 70 ? "healthy" : score >= 40 ? "warning" : "critical";
@@ -979,7 +979,7 @@ Expected: All tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/correlation/build-correlation-graph.ts tests/correlation/build-correlation-graph.vitest.ts
+git add src/operations/correlation/build-correlation-graph.ts tests/correlation/build-correlation-graph.vitest.ts
 git commit -m "feat(p11.1): add pure buildCorrelationGraph function"
 ```
 
@@ -988,17 +988,17 @@ git commit -m "feat(p11.1): add pure buildCorrelationGraph function"
 ### Task 5: Orchestrator (CorrelationEngine)
 
 **Files:**
-- Create: `src/correlation/correlation-engine.ts`
+- Create: `src/operations/correlation/correlation-engine.ts`
 - Test: `tests/correlation/correlation-engine.vitest.ts`
 
 **Interfaces:**
 - Consumes: `BaselineRegistry`, `ExecutiveTrendStore`, `CorrelationEngineConfig`
 - Produces: `CorrelationEngine` class with `run()` method
 
-- [ ] **Step 1: Create `src/correlation/correlation-engine.ts`**
+- [ ] **Step 1: Create `src/operations/correlation/correlation-engine.ts`**
 
 ```typescript
-// src/correlation/correlation-engine.ts
+// src/operations/correlation/correlation-engine.ts
 
 import type { BaselineRegistry } from "../baseline/baseline-registry.js";
 import type { ExecutiveTrendStore, ExecutiveTrendSnapshot } from "../executive/trend-store.js";
@@ -1044,10 +1044,10 @@ import { rmSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { CorrelationEngine } from "../../src/correlation/correlation-engine.js";
-import { DEFAULT_CORRELATION_CONFIG } from "../../src/correlation/correlation-config.js";
-import type { BaselineRegistry } from "../../src/baseline/baseline-registry.js";
-import type { ExecutiveTrendStore } from "../../src/executive/trend-store.js";
+import { CorrelationEngine } from "../../src/operations/correlation/correlation-engine.js";
+import { DEFAULT_CORRELATION_CONFIG } from "../../src/operations/correlation/correlation-config.js";
+import type { BaselineRegistry } from "../../src/context/baseline/baseline-registry.js";
+import type { ExecutiveTrendStore } from "../../src/execution/executive/trend-store.js";
 
 function createMockRegistry(): BaselineRegistry {
   return {
@@ -1070,7 +1070,7 @@ describe("CorrelationEngine", () => {
     trendDir = join(dir, ".alix", "executive");
     mkdirSync(trendDir, { recursive: true });
     registry = createMockRegistry();
-    const { ExecutiveTrendStore: Store } = await import("../../src/executive/trend-store.js");
+    const { ExecutiveTrendStore: Store } = await import("../../src/execution/executive/trend-store.js");
     trendStore = new Store(trendDir);
   });
 
@@ -1125,7 +1125,7 @@ Expected: All tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/correlation/correlation-engine.ts tests/correlation/correlation-engine.vitest.ts
+git add src/operations/correlation/correlation-engine.ts tests/correlation/correlation-engine.vitest.ts
 git commit -m "feat(p11.1): add CorrelationEngine orchestrator"
 ```
 
@@ -1134,13 +1134,13 @@ git commit -m "feat(p11.1): add CorrelationEngine orchestrator"
 ### Task 6: CLI Command
 
 **Files:**
-- Create: `src/cli/commands/executive-correlate-handler.ts`
-- Modify: `src/cli/commands/executive.ts` (add `case "correlate"`)
+- Create: `src/interfaces/cli/commands/executive-correlate-handler.ts`
+- Modify: `src/interfaces/cli/commands/executive.ts` (add `case "correlate"`)
 
 - [ ] **Step 1: Create CLI handler**
 
 ```typescript
-// src/cli/commands/executive-correlate-handler.ts
+// src/interfaces/cli/commands/executive-correlate-handler.ts
 
 import { join } from "node:path";
 import { createDefaultBaselineRegistry } from "../../baseline/baseline-registry.js";
@@ -1200,7 +1200,7 @@ function printSummary(graph: CorrelationGraph, isJson: boolean): void {
 
 - [ ] **Step 2: Add `case "correlate"` to executive.ts switch**
 
-Read `src/cli/commands/executive.ts`, find the `switch (subcommand)` block, and add before `default:`:
+Read `src/interfaces/cli/commands/executive.ts`, find the `switch (subcommand)` block, and add before `default:`:
 
 ```typescript
     case "correlate": {
@@ -1219,7 +1219,7 @@ Expected: No type errors
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/executive-correlate-handler.ts src/cli/commands/executive.ts
+git add src/interfaces/cli/commands/executive-correlate-handler.ts src/interfaces/cli/commands/executive.ts
 git commit -m "feat(p11.1): add 'alix executive correlate' CLI command"
 ```
 

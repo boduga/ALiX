@@ -208,18 +208,18 @@ Executive ──► Governance Proposal ──► A2 Verification ──► A3 D
 
 ## 4. Key References
 
-- `src/executive/planning-engine.ts` — Executive plan generation
-- `src/executive/plan-store.ts` — Plan persistence
-- `src/executive/plan-approval-gate.ts` — Per-step approval
-- `src/executive/outcome-evaluator.ts` — Outcome report production
-- `src/executive/outcome-store.ts` — Outcome persistence
-- `src/executive/learning-engine.ts` — Trend computation (read-only)
-- `src/executive/trend-store.ts` — Trend persistence
-- `src/executive/recommendation-engine.ts` — Recommendation generation
-- `src/executive/recommendation-effectiveness.ts` — Effectiveness tracking
-- `src/executive/executive-bridge.ts` — Bridge to A-series governance
-- `src/executive/executive-bridge-recommendations.ts` — Recommendation→governance mapping
-- `src/executive/execution-engine.ts` — Step-by-step execution
-- `src/executive/outcome-report-id.ts` — Deterministic report ID generation
-- `src/executive/automatic-outcome-hook.ts` — Auto-trigger on plan terminal status
-- `src/executive/subsystem-correlation.ts` — Cross-subsystem pattern analysis
+- `src/execution/executive/planning-engine.ts` — Executive plan generation
+- `src/execution/executive/plan-store.ts` — Plan persistence
+- `src/execution/executive/plan-approval-gate.ts` — Per-step approval
+- `src/execution/executive/outcome-evaluator.ts` — Outcome report production
+- `src/execution/executive/outcome-store.ts` — Outcome persistence
+- `src/execution/executive/learning-engine.ts` — Trend computation (read-only)
+- `src/execution/executive/trend-store.ts` — Trend persistence
+- `src/execution/executive/recommendation-engine.ts` — Recommendation generation
+- `src/execution/executive/recommendation-effectiveness.ts` — Effectiveness tracking
+- `src/execution/executive/executive-bridge.ts` — Bridge to A-series governance
+- `src/execution/executive/executive-bridge-recommendations.ts` — Recommendation→governance mapping
+- `src/execution/executive/execution-engine.ts` — Step-by-step execution
+- `src/execution/executive/outcome-report-id.ts` — Deterministic report ID generation
+- `src/execution/executive/automatic-outcome-hook.ts` — Auto-trigger on plan terminal status
+- `src/execution/executive/subsystem-correlation.ts` — Cross-subsystem pattern analysis

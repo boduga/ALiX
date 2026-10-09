@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { ApprovalsView } from '../../../src/tui/views/approvals-view.js';
-import type { PerTabState, ResolvedApproval } from '../../../src/tui/state.js';
+import { ApprovalsView } from '../../../src/interfaces/tui/views/approvals-view.js';
+import type { PerTabState, ResolvedApproval } from '../../../src/interfaces/tui/state.js';
 
 function makePerTab(overrides: Partial<PerTabState> = {}): PerTabState {
   return {

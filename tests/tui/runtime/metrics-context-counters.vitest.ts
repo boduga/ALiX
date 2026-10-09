@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { MetricsProjection } from '../../../src/tui/runtime/metrics-projection.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { MetricsProjection } from '../../../src/interfaces/tui/runtime/metrics-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 /** Mirror the metrics-projection `evt()` helper — same seq + ms convention. */
 function evt(type: string, payload: Record<string, unknown>, seq: number, at = seq * 1000): AlixEvent {

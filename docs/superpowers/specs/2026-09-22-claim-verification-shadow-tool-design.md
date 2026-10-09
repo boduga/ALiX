@@ -3,7 +3,7 @@
 **Date:** 22 September 2026  
 **Status:** Approved specification — ready for implementation  
 **Scope:** One bounded decision, one new tool, one controlled Jev experiment  
-**Primary subsystem:** `src/decision/decisions/claim-verification/`  
+**Primary subsystem:** `src/planning/decision/decisions/claim-verification/`  
 **Model-facing tool:** `alix_verify_claim`  
 **Internal capability/tool name:** `verify.claim`
 
@@ -184,7 +184,7 @@ Removing the Jev engine must not remove `verify.claim`.
 Create:
 
 ```text
-src/decision/decisions/claim-verification/selection-service.ts
+src/planning/decision/decisions/claim-verification/selection-service.ts
 ```
 
 This is the missing selection seam for claim verification.
@@ -223,7 +223,7 @@ The concrete types must reuse existing claim-verification contracts rather than 
 Create:
 
 ```text
-src/tools/claim-verification-tool.ts
+src/capabilities/tools/claim-verification-tool.ts
 ```
 
 Responsibilities:
@@ -261,7 +261,7 @@ ClaimVerificationToolRouter
 to:
 
 ```text
-src/tools/tool-router.ts
+src/capabilities/tools/tool-router.ts
 ```
 
 The router should mirror the existing thin router pattern used by `StateToolRouter`:
@@ -359,12 +359,12 @@ The following changes must land together.
 | File | Required change |
 |---|---|
 | `src/agents/tool-name-map.ts` | `alix_verify_claim -> verify.claim` |
-| `src/run/helpers.ts` | tool manifest entry + input schema |
-| `src/tools/capability-map.ts` | `verify.claim -> verify.claim` |
-| `src/config/defaults.ts` | `permissions.tools["verify.claim"] = "allow"` |
-| `src/tools/tool-registry.ts` | `ToolCapability` entry, risk `low`, policy key `verify.claim` |
-| `src/tools/executor.ts` | add `ClaimVerificationToolRouter` to router chain |
-| `src/agent/agent-loop.ts` | add `alix_verify_claim` to read-only tool filter |
+| `src/execution/run/helpers.ts` | tool manifest entry + input schema |
+| `src/capabilities/tools/capability-map.ts` | `verify.claim -> verify.claim` |
+| `src/operations/config/defaults.ts` | `permissions.tools["verify.claim"] = "allow"` |
+| `src/capabilities/tools/tool-registry.ts` | `ToolCapability` entry, risk `low`, policy key `verify.claim` |
+| `src/capabilities/tools/executor.ts` | add `ClaimVerificationToolRouter` to router chain |
+| `src/agents/agent/agent-loop.ts` | add `alix_verify_claim` to read-only tool filter |
 
 ### 7.1 Approval trap
 
@@ -826,13 +826,13 @@ Canonical default:
 
 Resolve it through the existing user-level state-root convention — a `storeDir`
 parameter defaulting to `join(homedir(), ".alix")`, exactly the pattern used by
-`src/config/calibration-store.ts` and `src/security/evidence/skill-install-history.ts`.
+`src/operations/config/calibration-store.ts` and `src/governance/security/evidence/skill-install-history.ts`.
 Never a hardcoded `~/.alix` literal, and never a bare `~` in a path. Tests pass
 an explicit `storeDir` override, the same determinism mechanism as
 `setStateDirOverride`.
 
 Persistence uses the shared JSONL store (`JsonlStore` in
-`src/storage/jsonl-store.ts`), the same primitives `labels.jsonl` uses,
+`src/runtime-state/storage/jsonl-store.ts`), the same primitives `labels.jsonl` uses,
 following the append-only JSONL file convention of `decisions.jsonl`.
 
 Deliberate asymmetry: the decision journal is project-scoped
@@ -1321,7 +1321,7 @@ path to fetch
 
 The Jev endpoint remains a fixed module-level constant:
 `JEV_SYSTEMONE_ENDPOINT` (`https://api.typesafe.ai/v1/systemone`), declared in
-`src/decision/engines/jev-protocol.ts` and consumed by `src/decision/engines/jev.ts`.
+`src/planning/decision/engines/jev-protocol.ts` and consumed by `src/planning/decision/engines/jev.ts`.
 
 ### 23.2 Store-only credential
 

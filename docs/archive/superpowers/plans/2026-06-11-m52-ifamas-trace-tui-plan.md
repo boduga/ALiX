@@ -15,20 +15,20 @@
 ## File Structure
 
 ### Create
-- `src/tui/ifamas-panel.ts` — `IfamasTracePanel` type + rendering helpers
+- `src/interfaces/tui/ifamas-panel.ts` — `IfamasTracePanel` type + rendering helpers
 - `tests/tui/ifamas-panel.test.ts` — 8 test cases
 
 ### Modify
-- `src/tui/store.ts` — add `"ifamas"` to `TuiPanel`, add `ifamasPanelData` to `TuiState`
-- `src/tui/panel-renderer.ts` — add `s.activePanel === "ifamas"` render branch
-- `src/tui/runtime-snapshot.ts` — accept and carry `IfamasTracePanel` data
+- `src/interfaces/tui/store.ts` — add `"ifamas"` to `TuiPanel`, add `ifamasPanelData` to `TuiState`
+- `src/interfaces/tui/panel-renderer.ts` — add `s.activePanel === "ifamas"` render branch
+- `src/interfaces/tui/runtime-snapshot.ts` — accept and carry `IfamasTracePanel` data
 
 ---
 
-### Task 1: Create `src/tui/ifamas-panel.ts`
+### Task 1: Create `src/interfaces/tui/ifamas-panel.ts`
 
 **Files:**
-- Create: `src/tui/ifamas-panel.ts`
+- Create: `src/interfaces/tui/ifamas-panel.ts`
 
 - [ ] **Step 1: Write the panel model and helpers**
 
@@ -85,7 +85,7 @@ Expected: clean compile
 ### Task 2: Add `"ifamas"` panel to store.ts
 
 **Files:**
-- Modify: `src/tui/store.ts`
+- Modify: `src/interfaces/tui/store.ts`
 
 - [ ] **Step 1: Add `"ifamas"` to TuiPanel**
 
@@ -126,7 +126,7 @@ Expected: clean compile
 ### Task 3: Render the IFÁ-MAS panel in panel-renderer.ts
 
 **Files:**
-- Modify: `src/tui/panel-renderer.ts`
+- Modify: `src/interfaces/tui/panel-renderer.ts`
 
 - [ ] **Step 1: Add the import**
 
@@ -163,7 +163,7 @@ Expected: clean compile
 ### Task 4: Wire into runtime-snapshot.ts
 
 **Files:**
-- Modify: `src/tui/runtime-snapshot.ts`
+- Modify: `src/interfaces/tui/runtime-snapshot.ts`
 
 - [ ] **Step 1: Add `ifamasPanelData` to TuiRuntimeSnapshot**
 
@@ -191,7 +191,7 @@ Expected: clean compile
 ### Task 5: Wire a `/ifamas` TUI command
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add `/ifamas` command handler**
 
@@ -268,8 +268,8 @@ Expected: clean compile
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatIfamasPanel } from "../../src/tui/ifamas-panel.js";
-import type { IfamasTracePanel } from "../../src/tui/ifamas-panel.js";
+import { formatIfamasPanel } from "../../src/interfaces/tui/ifamas-panel.js";
+import type { IfamasTracePanel } from "../../src/interfaces/tui/ifamas-panel.js";
 
 function makePanel(overrides: Partial<IfamasTracePanel> = {}): IfamasTracePanel {
   return {
@@ -336,7 +336,7 @@ describe("formatIfamasPanel", () => {
 
   it("does NOT require ToolExecutor / PolicyGate imports", () => {
     const fs = require("fs");
-    const source = fs.readFileSync("src/tui/ifamas-panel.ts", "utf-8");
+    const source = fs.readFileSync("src/interfaces/tui/ifamas-panel.ts", "utf-8");
     assert.ok(!source.includes("ToolExecutor"));
     assert.ok(!source.includes("PolicyGate"));
     assert.ok(!source.includes("ApprovalStore"));
@@ -356,5 +356,5 @@ Expected: 8/8 tests pass
 1. `npm run build` — clean compile
 2. `node --test dist/tests/tui/ifamas-panel.test.js` — 8/8 pass
 3. `node --test dist/tests/runtime/*.test.js dist/tests/tui/*.test.js dist/tests/agents/*.test.js dist/tests/chronicle/*.test.js` — no regressions
-4. `grep -rn 'ToolExecutor\|PolicyGate\|ApprovalStore' src/tui/ifamas-panel.ts` — no output
+4. `grep -rn 'ToolExecutor\|PolicyGate\|ApprovalStore' src/interfaces/tui/ifamas-panel.ts` — no output
 5. Git diff shows only the expected files

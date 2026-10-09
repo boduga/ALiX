@@ -13,7 +13,7 @@
 ## File Structure
 
 ### Modify
-- `src/tools/tool-router.ts` — add `ToolAwareRouter` decorator that filters tools by intent before passing to downstream routers
+- `src/capabilities/tools/tool-router.ts` — add `ToolAwareRouter` decorator that filters tools by intent before passing to downstream routers
 
 ### Test
 - `tests/tools/tool-index-integration.test.ts` — 8+ tests
@@ -23,7 +23,7 @@
 ### Task 1: Add ToolAwareRouter decorator
 
 **Files:**
-- Modify: `src/tools/tool-router.ts`
+- Modify: `src/capabilities/tools/tool-router.ts`
 
 - [ ] **Step 1: Import the tool registry types**
 
@@ -103,8 +103,8 @@ Expected: clean compile
 ```typescript
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { ToolAwareRouter, FileToolRouter, CompositeToolRouter } from "../../src/tools/tool-router.js";
-import type { ToolCallRequest } from "../../src/tools/types.js";
+import { ToolAwareRouter, FileToolRouter, CompositeToolRouter } from "../../src/capabilities/tools/tool-router.js";
+import type { ToolCallRequest } from "../../src/capabilities/tools/types.js";
 
 describe("ToolAwareRouter", () => {
   const downstream = new CompositeToolRouter([

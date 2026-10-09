@@ -52,7 +52,7 @@ IFÁ-MAS is a **passive symbolic coordination overlay** for ALiX. It does not re
 
 ## 2. Module Inventory
 
-### Core runtime modules (src/runtime/)
+### Core runtime modules (src/runtime-state/runtime/)
 
 | Module | Milestone | Lines | Responsibility |
 |--------|-----------|-------|----------------|
@@ -70,13 +70,13 @@ IFÁ-MAS is a **passive symbolic coordination overlay** for ALiX. It does not re
 | `essence-profile.ts` | M0.45 | 227 | Agent identity + compatibility scoring |
 | `guild-selector.ts` | M0.50 | 71 | Ranked agent selection from compat scores |
 
-### Chronicle modules (src/chronicle/)
+### Chronicle modules (src/context/chronicle/)
 
 | Module | Milestone | Lines | Responsibility |
 |--------|-----------|-------|----------------|
 | `chronicle-store.ts` | M0.46 | 173 | File-backed case memory (JSON) |
 
-### TUI modules (src/tui/)
+### TUI modules (src/interfaces/tui/)
 
 | Module | Milestone | Lines | Responsibility |
 |--------|-----------|-------|----------------|

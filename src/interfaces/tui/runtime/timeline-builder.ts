@@ -1,0 +1,302 @@
+import type { AlixEvent, TimelinePayload } from '../../../runtime-state/events/types.js';
+import type { PlanTask } from '../../../planning/plan-task.js';
+import type { DurableProjectionBuilder } from './durable-projection-builder.js';
+
+export type TimelineKind =
+  | 'chat.message' | 'chat.response'
+  | 'agent.progress' | 'agent.state_changed'
+  | 'agent.message' | 'agent.reasoning' | 'agent.decision' | 'agent.plan' | 'agent.response'
+  | 'agent.session.phase_changed' | 'agent.session.turn.completed' | 'approval.requested'
+  | 'execution.artifact_registered'
+  // #434 — tool lifecycle events project into the timeline so the agent
+  // scrollback can render invocation + result lines in chronological
+  // order (slice #5 of the stage-decorated scrollback). The started
+  // event drives the `→ tool` line; the completed/failed event drives
+  // the `✓` / `✗` line right below it. `tool.requested` and
+  // `tool.output` are admitted for completeness but the agent
+  // scrollback's render filter is what decides which to display.
+  //
+  // NOTE — projection vs. render-filter split:
+  // All five `tool.*` kinds are admitted to the timeline projection so
+  // the projection's vocabulary is complete (any consumer can read the
+  // timeline and reconstruct the lifecycle). The agent scrollback's
+  // render filter in `scroll-math.ts` then re-filters to display only
+  // `tool.started`, `tool.completed`, and `tool.failed`. This is the
+  // double-filter trap from #430: any future render path that reads
+  // `timeline` directly without re-filtering will surface
+  // `tool.requested` and `tool.output` as raw content. If that
+  // becomes a problem, either reject them at the projection boundary
+  // here, or add a shared filter helper that every render path uses.
+  | 'tool.requested' | 'tool.started' | 'tool.output' | 'tool.completed' | 'tool.failed'
+  // T6 — C1 observability: context lifecycle events
+  | 'context.snapshot.created' | 'context.budget.computed' | 'context.assembled'
+  | 'context.preflight.failed' | 'context.irreducible';
+
+/** The timeline projection's supported vocabulary. A builder must own the
+ *  kinds it projects — unrelated event types must not pollute the timeline. */
+export const TIMELINE_TYPES = new Set<TimelineKind>([
+  'chat.message', 'chat.response',
+  'agent.progress', 'agent.state_changed',
+  'agent.message', 'agent.reasoning', 'agent.decision', 'agent.plan', 'agent.response',
+  'agent.session.phase_changed', 'agent.session.turn.completed', 'approval.requested',
+  'execution.artifact_registered',
+  'tool.requested', 'tool.started', 'tool.output', 'tool.completed', 'tool.failed',
+  // T6 — C1 observability: context lifecycle events
+  'context.snapshot.created', 'context.budget.computed', 'context.assembled',
+  'context.preflight.failed', 'context.irreducible',
+]);
+const ACTIVITY_STATES = new Set([
+  'queued', 'starting', 'thinking', 'tool_running', 'waiting', 'waiting_approval',
+  'waiting_dependency', 'verifying', 'completed', 'partial', 'failed', 'cancelling', 'cancelled',
+]);
+
+function isActivityState(value: unknown): value is string {
+  return typeof value === 'string' && ACTIVITY_STATES.has(value);
+}
+
+/** Timeline projection entry (D8). Mirrors ExecutionTraceEntry's readonly
+ *  detached shape. */
+export interface TimelineEntry {
+  readonly id: string;                  // `tl-${firstSequence}` — runtime-local deterministic
+  readonly kind: TimelineKind;
+  readonly actor?: string;              // 'user' = operator input, 'agent' = agent narration (D7); lets the agent view render direction
+  readonly agentId?: string;            // authoritative event correlation when present; never inferred
+  readonly sessionId: string;           // stamped origin (D1/D3)
+  readonly startedAt: number;
+  readonly text?: string;
+  readonly planTasks?: readonly PlanTask[];
+  readonly detail?: string;
+  readonly userSafe?: boolean;
+  readonly activityState?: string;
+  readonly verifiedOutcome?: 'success' | 'failure';
+  readonly sourceEvents: { readonly firstSequence: number; readonly lastSequence?: number };
+}
+
+function cloneEntry(e: TimelineEntry): TimelineEntry {
+  return {
+    id: e.id, kind: e.kind, sessionId: e.sessionId, startedAt: e.startedAt,
+    ...(e.actor !== undefined ? { actor: e.actor } : {}),
+    ...(e.agentId !== undefined ? { agentId: e.agentId } : {}),
+    ...(e.text !== undefined ? { text: e.text } : {}),
+    ...(e.planTasks !== undefined ? { planTasks: e.planTasks.map((task) => ({ ...task })) } : {}),
+    ...(e.detail !== undefined ? { detail: e.detail } : {}),
+    ...(e.userSafe !== undefined ? { userSafe: e.userSafe } : {}),
+    ...(e.activityState !== undefined ? { activityState: e.activityState } : {}),
+    ...(e.verifiedOutcome !== undefined ? { verifiedOutcome: e.verifiedOutcome } : {}),
+    sourceEvents: {
+      firstSequence: e.sourceEvents.firstSequence,
+      ...(e.sourceEvents.lastSequence !== undefined ? { lastSequence: e.sourceEvents.lastSequence } : {}),
+    },
+  };
+}
+
+/** Phase 6.5 durable state: the append-only entries. The `seen` dedup set is
+ *  DERIVABLE from entries (each entry records the seq it was built from in
+ *  sourceEvents.firstSequence), so it is not persisted — importState rebuilds it.
+ *  Declared as a type alias (not interface) so TimelineBuilderState is assignable
+ *  to ProjectionState = Record<string, unknown> (interfaces lack an implicit
+ *  index signature, so they fail strict assignability to Record<string, unknown>). */
+export type TimelineBuilderState = {
+  readonly version: 1;
+  readonly entries: TimelineEntry[];
+};
+
+/** Append-only timeline projection (D4). No lifecycle matching, no terminal
+ *  promotion. Events become entries; entries are never mutated. Filtered by
+ *  the collector's sessionId at the collector boundary; the builder also
+ *  defensively filters here. */
+export class TimelineBuilder implements DurableProjectionBuilder<readonly TimelineEntry[]> {
+  private readonly entries = new Map<string, TimelineEntry>(); // by id; append-only
+  private readonly seen = new Set<string>();                   // `${sessionId}:${seq}:${type}` — compound identity
+
+  constructor(private readonly sessionId: string) {}
+
+  exportState(): TimelineBuilderState {
+    return { version: 1, entries: [...this.entries.values()] };
+  }
+
+  importState(state: Record<string, unknown>): void {
+    const s = state as Partial<TimelineBuilderState>;
+    if (s?.version !== 1 || !Array.isArray(s.entries)) {
+      throw new Error('timeline projection state: invalid or unsupported version');
+    }
+    // State is untrusted persisted data (rides the checkpoint envelope), so the
+    // shape gate is structural, not just the version. Reject non-plain entries
+    // and entries missing the fields importState/update rely on.
+    for (const e of s.entries) {
+      if (
+        e == null || typeof e !== 'object' ||
+        typeof e.id !== 'string' ||
+        typeof e.sessionId !== 'string' ||
+        typeof e.kind !== 'string' ||
+        typeof e.startedAt !== 'number' ||
+        (e.planTasks !== undefined && !isPlanTaskArray(e.planTasks)) ||
+        (e.userSafe !== undefined && typeof e.userSafe !== 'boolean') ||
+        (e.activityState !== undefined && !isActivityState(e.activityState)) ||
+        (e.verifiedOutcome !== undefined && e.verifiedOutcome !== 'success' && e.verifiedOutcome !== 'failure') ||
+        e.sourceEvents == null || typeof e.sourceEvents !== 'object' ||
+        typeof e.sourceEvents.firstSequence !== 'number'
+      ) {
+        throw new Error('timeline projection state: malformed entry');
+      }
+    }
+    this.entries.clear();
+    this.seen.clear();
+    for (const e of s.entries) {
+      // Defensive: only this session's entries (mirrors update()'s filter).
+      if (e.sessionId !== this.sessionId) continue;
+      this.entries.set(e.id, e);
+      this.seen.add(`${e.sessionId}:${e.sourceEvents.firstSequence}:${e.kind}`);
+    }
+  }
+
+  update(events: readonly AlixEvent[]): void {
+    for (const e of events) {
+      if (e.sessionId !== this.sessionId) continue;       // (defensive — collector already filters)
+      // The builder owns its supported vocabulary — unrelated event types
+      // (workflow.*, memory.*, policy.*, runtime.tick, ...) must not pollute
+      // the timeline projection. Whitelist instead of casting blindly.
+      if (!TIMELINE_TYPES.has(e.type as TimelineKind)) continue;
+      // Compound key `${sessionId}:${seq}` for replay detection. NOTE: NOT
+      // `e.id` — EventLog stamps `id: randomUUID()` at append, so a fresh
+      // collector replaying the same events gets DIFFERENT ids. `seq` is
+      // reconstructed deterministically from the log, so it is the stable
+      // replay identity. The sessionId prefix keeps two sessions that both
+      // have seq=1 distinct (D1/D3 — sessionId is the routing dimension).
+      const eventKey = `${e.sessionId}:${e.seq ?? 0}:${e.type}`;
+      if (this.seen.has(eventKey)) continue;
+      this.seen.add(eventKey);
+      const entry = this.build(e);
+      this.entries.set(entry.id, entry);
+    }
+  }
+
+  snapshot(): readonly TimelineEntry[] {
+    // Deterministic ordering by firstSequence (NOT by timestamp — timestamps
+    // can collide or be adjusted; firstSequence is the stable log position).
+    // Tiebreaker on `id` (also a stable, content-independent string) so two
+    // events that share a firstSequence — e.g. an agent-session and a parent
+    // session log both allocating seq=1 — render in a stable order instead of
+    // jumping between renders. Without the tiebreaker, JS sort is stable on
+    // insertion order, which is itself arbitrary across collectors.
+    return [...this.entries.values()]
+      .sort((a, b) =>
+        a.sourceEvents.firstSequence - b.sourceEvents.firstSequence ||
+        a.id.localeCompare(b.id))
+      .map(cloneEntry);
+  }
+
+  reset(): void {
+    this.entries.clear();
+    this.seen.clear();
+  }
+
+  private build(e: AlixEvent): TimelineEntry {
+    // Guarded upstream by TIMELINE_TYPES; the cast is safe here. Never cast
+    // an unverified e.type directly — the whitelist is the vocabulary gate.
+    const kind = e.type as TimelineKind;
+    const p = (e.payload ?? {}) as TimelinePayload;
+    // #432: phase_changed events carry the phase in `payload.phase` (no
+    // `text`), but the agent scrollback's line builder reads `text` to
+    // attribute content to stages. Extract here so the existing field
+    // carries the phase name without adding a new TimelineEntry column.
+    // Same shape extension for turn_completed → "turn N" so any consumer
+    // that wants a textual terminator has one.
+    //
+    // #434: tool.* events carry `toolName` and (for completed/failed)
+    // `error` / `outputPreview` / `durationMs` in the payload. The
+    // agent scrollback's line builder reads `text` to know which tool
+    // ran and `detail` to carry the outcome message. Map here so the
+    // builder does not need to know the raw payload shape.
+    let text: string | undefined = typeof p.text === 'string' ? p.text : undefined;
+    if (text === undefined && typeof p.phase === 'string' && kind === 'agent.session.phase_changed') {
+      text = p.phase;
+    } else if (text === undefined && typeof p.turn === 'number' && kind === 'agent.session.turn.completed') {
+      text = `turn ${p.turn}`;
+    } else if (text === undefined && typeof p.toolName === 'string' &&
+        (kind === 'tool.requested' || kind === 'tool.started' ||
+         kind === 'tool.completed' || kind === 'tool.failed')) {
+      text = p.toolName;
+    } else if (text === undefined && typeof p.prompt === 'string' && kind === 'approval.requested') {
+      // #436 — the inline approval line carries the human-readable prompt
+      // ("Approve write_file on guard.ts?"). The pending banner separately
+      // surfaces toolName/target from `perTab.pendingApprovals[0]` so the
+      // keys always name their target.
+      text = p.prompt;
+    } else if (kind === 'execution.artifact_registered') {
+      const artifact = p as TimelinePayload & { artifactId?: unknown; uri?: unknown; kind?: unknown };
+      const label = typeof artifact.artifactId === 'string' ? artifact.artifactId : 'artifact';
+      const uri = typeof artifact.uri === 'string' ? ` · ${artifact.uri}` : '';
+      const artifactKind = typeof artifact.kind === 'string' ? ` (${artifact.kind})` : '';
+      text = `artifact ${label}${artifactKind}${uri}`;
+    }
+    // ── T6: context lifecycle event text mappings ─────────────────────
+    if (kind === 'context.snapshot.created') {
+      const cand = typeof (p as any).candidateTokens === 'number' ? (p as any).candidateTokens : '--';
+      text = `context snapshot created — candidate: ${typeof cand === 'number' ? cand.toLocaleString() : cand} tokens`;
+    } else if (kind === 'context.budget.computed') {
+      const cwt = typeof (p as any).contextWindowTokens === 'number' ? (p as any).contextWindowTokens : 0;
+      const ait = typeof (p as any).availableInputTokens === 'number' ? (p as any).availableInputTokens : 0;
+      text = `context budget — window ${cwt.toLocaleString()} | available input ${ait.toLocaleString()}`;
+    } else if (kind === 'context.assembled') {
+      const admitted = typeof (p as any).admittedItems === 'number' ? (p as any).admittedItems : 0;
+      const dropped = typeof (p as any).droppedItems === 'number' ? (p as any).droppedItems : 0;
+      const aTok = typeof (p as any).admittedTokens === 'number' ? (p as any).admittedTokens : 0;
+      const dTok = typeof (p as any).droppedTokens === 'number' ? (p as any).droppedTokens : 0;
+      text = `context assembled — ${admitted} items (${aTok.toLocaleString()} tokens) admitted | ${dropped} items (${dTok.toLocaleString()} tokens) dropped`;
+    } else if (kind === 'context.preflight.failed') {
+      const overage = typeof (p as any).overageTokens === 'number' ? (p as any).overageTokens : 0;
+      text = `context preflight FAILED — ${overage.toLocaleString()} tokens over budget`;
+    } else if (kind === 'context.irreducible') {
+      const overage = typeof (p as any).overageTokens === 'number' ? (p as any).overageTokens : 0;
+      const mand = typeof (p as any).mandatoryTokens === 'number' ? (p as any).mandatoryTokens : 0;
+      text = `context IRREDUCIBLE — mandatory core ${mand.toLocaleString()} tokens exceeds budget by ${overage.toLocaleString()}`;
+    }
+    // Tool outcome detail (for completed/failed) — error message for
+    // failures, a short summary for successes. The line builder
+    // appends this verbatim to the `✓` / `✗` line.
+    let detail: string | undefined = typeof p.detail === 'string' ? p.detail : undefined;
+    if (detail === undefined && kind === 'tool.failed' && typeof p.error === 'string') {
+      detail = p.error;
+    } else if (detail === undefined && kind === 'tool.completed' && typeof p.outputPreview === 'string') {
+      detail = p.outputPreview;
+    }
+    const activity = p as TimelinePayload & { operation?: unknown; userSafe?: unknown; state?: unknown; verifiedOutcome?: unknown };
+    if (kind === 'agent.progress') {
+      text = activity.userSafe === true && typeof activity.operation === 'string' ? activity.operation : undefined;
+    } else if (kind === 'agent.state_changed') {
+      text = isActivityState(activity.state) ? activity.state : undefined;
+    }
+    const ts = Date.parse(e.timestamp) || 0;
+    const correlationAgentId = (p as TimelinePayload & { agentId?: unknown }).agentId;
+    return {
+      id: `tl-${e.seq ?? 0}-${kind}`,
+      kind, sessionId: e.sessionId, startedAt: ts,
+      ...(e.actor !== undefined ? { actor: e.actor } : {}),
+      ...(typeof correlationAgentId === 'string' && correlationAgentId.length > 0 ? { agentId: correlationAgentId } : {}),
+      ...(text !== undefined ? { text } : {}),
+      ...(kind === 'agent.plan' && isPlanTaskArray(p.planTasks)
+        ? { planTasks: p.planTasks.map((task) => ({ ...task })) }
+        : {}),
+      ...(detail !== undefined ? { detail } : {}),
+      ...(kind === 'agent.progress' ? { userSafe: activity.userSafe === true } : {}),
+      ...(kind === 'agent.progress' && (activity.verifiedOutcome === 'success' || activity.verifiedOutcome === 'failure') ? { verifiedOutcome: activity.verifiedOutcome } : {}),
+      ...(kind === 'agent.state_changed' && isActivityState(activity.state) ? { activityState: activity.state } : {}),
+      sourceEvents: { firstSequence: e.seq ?? 0 },
+    };
+  }
+}
+
+function isPlanTaskArray(value: unknown): value is readonly PlanTask[] {
+  if (!Array.isArray(value)) return false;
+  return value.every((task) => {
+    if (task == null || typeof task !== 'object') return false;
+    const candidate = task as Partial<PlanTask>;
+    return typeof candidate.id === 'string' &&
+      typeof candidate.index === 'number' &&
+      typeof candidate.title === 'string' &&
+      (candidate.detail === undefined || typeof candidate.detail === 'string') &&
+      (candidate.status === 'pending' || candidate.status === 'in_progress' ||
+        candidate.status === 'completed' || candidate.status === 'skipped');
+  });
+}

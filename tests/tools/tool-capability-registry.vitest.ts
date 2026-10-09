@@ -2,7 +2,7 @@
  * R5.3 — ToolCapabilityRegistry port adapter over the single tool catalogue.
  */
 import { describe, expect, it } from "vitest";
-import { createToolCapabilityRegistry } from "../../src/tools/tool-registry.js";
+import { createToolCapabilityRegistry } from "../../src/capabilities/tools/tool-registry.js";
 
 describe("ToolCapabilityRegistry port (R5.3)", () => {
   const registry = createToolCapabilityRegistry();

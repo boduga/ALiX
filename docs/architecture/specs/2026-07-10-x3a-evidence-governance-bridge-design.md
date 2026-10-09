@@ -242,7 +242,7 @@ Extend `LineageRecord`, `LineageIndex`, and `buildLineageIndex` to include execu
 **Modified files:**
 - `src/governance/governance-lineage-types.ts`
 - `src/governance/governance-lineage-builder.ts`
-- `src/cli/commands/governance-lineage.ts`
+- `src/interfaces/cli/commands/governance-lineage.ts`
 
 **Name scoping:** Execution evidence is a separate concept from P30 lineage. The `phasePresence` field uses an `execution` property rather than overloading `p30`:
 
@@ -279,8 +279,8 @@ byEvidenceId: Map<string, readonly string[]>;    // O(1) navigation
 Extend the proposal explanation system to include execution evidence when available.
 
 **Modified files:**
-- `src/explain/proposal-explanation-types.ts`
-- `src/explain/proposal-explanation-assembler.ts`
+- `src/operations/explain/proposal-explanation-types.ts`
+- `src/operations/explain/proposal-explanation-assembler.ts`
 
 **New layer type:**
 
@@ -319,7 +319,7 @@ Extend `CompliancePackage` and `buildCompliancePackage` to include execution evi
 - `src/governance/governance-reporting-types.ts`
 - `src/governance/governance-reporting-builder.ts`
 - `src/governance/governance-reporting-export.ts`
-- `src/cli/commands/governance-report.ts`
+- `src/interfaces/cli/commands/governance-report.ts`
 
 **Changes to `CompliancePackage`:**
 
@@ -365,16 +365,16 @@ executionEvidence: readonly ExecutionEvidence[];
 | `src/governance/governance-reporting-types.ts` | Add ComplianceExecutionSummary, totalExecutions |
 | `src/governance/governance-reporting-builder.ts` | Accept execution evidence, build execution summaries |
 | `src/governance/governance-reporting-export.ts` | Render execution evidence |
-| `src/explain/proposal-explanation-types.ts` | Add ExecutionLayer |
-| `src/explain/proposal-explanation-assembler.ts` | Load and attach execution evidence |
-| `src/cli/commands/governance-lineage.ts` | Load and pass execution evidence |
-| `src/cli/commands/governance-report.ts` | Load and pass execution evidence |
+| `src/operations/explain/proposal-explanation-types.ts` | Add ExecutionLayer |
+| `src/operations/explain/proposal-explanation-assembler.ts` | Load and attach execution evidence |
+| `src/interfaces/cli/commands/governance-lineage.ts` | Load and pass execution evidence |
+| `src/interfaces/cli/commands/governance-report.ts` | Load and pass execution evidence |
 
 ### Untouched Files
 
-- `src/runtime/execution-governor.ts` — governor unchanged
-- `src/runtime/contracts/execution-intent-contract.ts` — contracts unchanged
-- All `src/agent/`, `src/providers/`, `src/tools/`, `src/mcp/`, `src/events/`
+- `src/runtime-state/runtime/execution-governor.ts` — governor unchanged
+- `src/runtime-state/runtime/contracts/execution-intent-contract.ts` — contracts unchanged
+- All `src/agents/agent/`, `src/models/providers/`, `src/capabilities/tools/`, `src/capabilities/mcp/`, `src/runtime-state/events/`
 - All M0, M1, P5–P10, P11, P14–P27 modules
 
 ---
@@ -462,11 +462,11 @@ X3a may be sealed when:
 - No agent autonomy introduced
 - No policy mutation paths created
 - `grep -R "execution-governor" src/governance/` produces no matches (governance does not import governor)
-- `grep -R "governance" src/runtime/` produces no matches (runtime does not import governance — reverse dependency guard)
+- `grep -R "governance" src/runtime-state/runtime/` produces no matches (runtime does not import governance — reverse dependency guard)
 
 ### Dependency direction criterion
 
-> **No imports from `src/runtime/*` back into governance consumers except immutable contract types.**
+> **No imports from `src/runtime-state/runtime/*` back into governance consumers except immutable contract types.**
 
 The dependency direction is enforced as:
 

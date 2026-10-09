@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 
 // ── Contract types ──────────────────────────────────────────────
 
-import type { ALiXContext, ContextTransfer } from "../../src/runtime/contracts/context-contract.js";
-import { CONTEXT_INVARIANTS } from "../../src/runtime/contracts/context-contract.js";
+import type { ALiXContext, ContextTransfer } from "../../src/runtime-state/runtime/contracts/context-contract.js";
+import { CONTEXT_INVARIANTS } from "../../src/runtime-state/runtime/contracts/context-contract.js";
 
 // ── Tests ───────────────────────────────────────────────────────
 

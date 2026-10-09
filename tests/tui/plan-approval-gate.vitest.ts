@@ -5,7 +5,7 @@ import { existsSync } from "fs";
 
 // Resolved at runtime inside the cases so vi.mock can patch the same module
 // the import resolves to.
-const loadGate = () => import("../../src/tui/plan-approval-gate.js");
+const loadGate = () => import("../../src/interfaces/tui/plan-approval-gate.js");
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -150,7 +150,7 @@ describe("runPlanPhase gate integration", () => {
     await writeFile(planPath, "# Test plan\n\nDo nothing.\n", "utf8");
 
     const { TuiPlanApprovalGate } = await loadGate();
-    const { runPlanPhase } = await import("../../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../../src/execution/run/plan-phase.js");
     const gate = new TuiPlanApprovalGate();
 
     const inflate = setInterval(() => {
@@ -183,7 +183,7 @@ describe("runPlanPhase gate integration", () => {
     await writeFile(planPath, "# Plan\n\n- step 1\n", "utf8");
 
     const { TuiPlanApprovalGate } = await loadGate();
-    const { runPlanPhase } = await import("../../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../../src/execution/run/plan-phase.js");
     const gate = new TuiPlanApprovalGate();
 
     // Race: reject the gate the moment it goes pending.
@@ -214,7 +214,7 @@ describe("runPlanPhase gate integration", () => {
     // Stub promptForPlanApproval-equivalent by intercepting the prompt
     // module. The cleanest way: pass through the read-only fast path so
     // runPlanPhase returns immediately without any prompt or gate.
-    const { runPlanPhase } = await import("../../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../../src/execution/run/plan-phase.js");
     const result = await runPlanPhase(
       mockContext(),
       mockBundle(),
@@ -230,7 +230,7 @@ describe("runPlanPhase gate integration", () => {
     const orig = process.stdout.isTTY;
     (process.stdout as any).isTTY = false;
     try {
-      const { runPlanPhase } = await import("../../src/run/plan-phase.js");
+      const { runPlanPhase } = await import("../../src/execution/run/plan-phase.js");
       const result = await runPlanPhase(
         mockContext(),
         mockBundle(),
@@ -255,7 +255,7 @@ describe("runPlanPhase gate integration", () => {
     (process.stdout as any).isTTY = false;
 
     const { TuiPlanApprovalGate } = await loadGate();
-    const { runPlanPhase } = await import("../../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../../src/execution/run/plan-phase.js");
     const gate = new TuiPlanApprovalGate();
     const inflate = setInterval(() => {
       const p = gate.getPending();
@@ -304,7 +304,7 @@ describe("runPlanPhase gate integration", () => {
     process.env.EDITOR = `${process.execPath} ${editorScript}`;
 
     const { TuiPlanApprovalGate } = await loadGate();
-    const { runPlanPhase } = await import("../../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../../src/execution/run/plan-phase.js");
     const gate = new TuiPlanApprovalGate();
 
     let round = 0;

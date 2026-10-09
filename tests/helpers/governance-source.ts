@@ -1,12 +1,12 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-const GOVERNANCE_BARREL = join(process.cwd(), "src/cli/commands/governance.ts");
-const GOVERNANCE_DIR = join(process.cwd(), "src/cli/commands/governance");
+const GOVERNANCE_BARREL = join(process.cwd(), "src/interfaces/cli/commands/governance.ts");
+const GOVERNANCE_DIR = join(process.cwd(), "src/interfaces/cli/commands/governance");
 
 /**
- * #717 — the former `src/cli/commands/governance.ts` megafile is now a barrel
- * over `src/cli/commands/governance/*.ts`. Source-scan sentinels that used to
+ * #717 — the former `src/interfaces/cli/commands/governance.ts` megafile is now a barrel
+ * over `src/interfaces/cli/commands/governance/*.ts`. Source-scan sentinels that used to
  * read the single file should cover the barrel and every module.
  */
 export function governanceSourcePaths(): string[] {

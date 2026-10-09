@@ -1,5 +1,5 @@
 import { createWorkbenchRenderHarness } from './workbench-render-harness.js';
-import type { TerminalControl } from '../../../src/tui/terminal-control.js';
+import type { TerminalControl } from '../../../src/interfaces/tui/terminal-control.js';
 
 const { app, output, paint } = createWorkbenchRenderHarness();
 const internal = app as unknown as {

@@ -21,8 +21,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ExecutiveTrendStore } from "../../src/executive/trend-store.js";
-import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
+import { ExecutiveTrendStore } from "../../src/execution/executive/trend-store.js";
+import type { ExecutiveTrendSnapshot } from "../../src/execution/executive/trend-store.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

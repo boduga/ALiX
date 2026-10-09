@@ -18,7 +18,7 @@ import {
   parseForwardedChain,
   resolveClientAddress,
   proxyTrustDiagnostic,
-} from "../../../src/security/inspector/client-address.js";
+} from "../../../src/governance/security/inspector/client-address.js";
 
 // ---------------------------------------------------------------------------
 // CIDR parsing

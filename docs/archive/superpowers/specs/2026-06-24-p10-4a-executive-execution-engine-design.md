@@ -85,7 +85,7 @@ P10.4a Orchestrate plan execution ← THIS SPEC
 ## File structure
 
 ```
-src/executive/
+src/execution/executive/
   ├─ planning-engine.ts                 (existing — P10.3)
   ├─ plan-store.ts                      NEW: append-once plan persistence
   ├─ execution-state-store.ts           NEW: mutable state + transition history
@@ -95,11 +95,11 @@ src/executive/
   ├─ step-behavior.ts                   NEW: StepBehavior type + STEP_BEHAVIOR map
   └─ executive-plan-types.ts            NEW: types + correlation IDs
 
-src/cli/commands/
+src/interfaces/cli/commands/
   └─ executive.ts                       MODIFY: add plan subcommand dispatcher
 
-src/events/types.ts                     MODIFY: add 9 P10.4a evidence events
-src/events/event-log.ts                 MODIFY: register new event types
+src/runtime-state/events/types.ts                     MODIFY: add 9 P10.4a evidence events
+src/runtime-state/events/event-log.ts                 MODIFY: register new event types
 
 tests/executive/
   ├─ plan-store.vitest.ts               NEW
@@ -499,7 +499,7 @@ pending → in_progress → failed              (P10.4a: type-only, unreachable)
 | `executive_plan_completed` | `{ planId, totalDurationMs, executionId }` | All steps terminal |
 | `executive_plan_failed` | `{ planId, reason, executionId }` | (P10.4a: unreachable, type exists) |
 
-All 9 events registered in `src/events/types.ts` and `src/events/event-log.ts`. Every event carries the `ExecutiveCorrelation` fields.
+All 9 events registered in `src/runtime-state/events/types.ts` and `src/runtime-state/events/event-log.ts`. Every event carries the `ExecutiveCorrelation` fields.
 
 ---
 

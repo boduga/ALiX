@@ -15,7 +15,7 @@ import {
   normalizeClaim,
   computeTopicKey,
   EXTRACTION_VERSION,
-} from "../../src/kernel/collaboration-claim-normalizer.js";
+} from "../../src/coordination/kernel/collaboration-claim-normalizer.js";
 
 describe("extractClaim", () => {
   it("extracts a boolean claim from 'is true'", () => {
@@ -62,13 +62,13 @@ describe("extractClaim", () => {
     assert.equal(c!.valueType, "digest");
   });
 
-  it("extracts a path-shaped claim from 'path = src/kernel/index.ts'", () => {
+  it("extracts a path-shaped claim from 'path = src/coordination/kernel/index.ts'", () => {
     // The key=value pattern recognizes 'path' as the predicate and
     // classifies string values. A path-like value is treated as a string
     // claim, which is the deterministic normalizer's behavior.
-    const c = extractClaim("entry", "path = src/kernel/index.ts");
+    const c = extractClaim("entry", "path = src/coordination/kernel/index.ts");
     assert.ok(c);
-    assert.equal(c!.value, "src/kernel/index.ts");
+    assert.equal(c!.value, "src/coordination/kernel/index.ts");
     assert.equal(c!.valueType, "string");
     assert.equal(c!.predicate, "path");
   });

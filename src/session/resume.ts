@@ -11,10 +11,10 @@
 import { join } from "node:path";
 import { readdir, readFile, stat, open } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import type { NormalizedMessage } from "../providers/types.js";
+import type { NormalizedMessage } from "../models/providers/types.js";
 import { loadMessages, loadScope, loadState } from "./persist.js";
-import type { ScopeSnapshot } from "../autonomy/scope-tracker.js";
-import type { StateSnapshot } from "../autonomy/state-machine.js";
+import type { ScopeSnapshot } from "../planning/autonomy/scope-tracker.js";
+import type { StateSnapshot } from "../planning/autonomy/state-machine.js";
 import {
   parsePlanTasks,
   type PlanTask,

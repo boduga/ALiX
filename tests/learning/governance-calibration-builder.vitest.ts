@@ -1,10 +1,10 @@
 // tests/learning/governance-calibration-builder.vitest.ts
 import { describe, it, expect } from "vitest";
-import { GovernanceCalibrationBuilder } from "../../src/learning/governance-calibration-builder.js";
+import { GovernanceCalibrationBuilder } from "../../src/planning/learning/governance-calibration-builder.js";
 import type {
   LensCalibrationEntry,
   LensCalibrationReport,
-} from "../../src/adaptation/outcome-types.js";
+} from "../../src/planning/adaptation/outcome-types.js";
 
 const SOURCE_REPORT = "lens-cal-1";
 const GENERATED_AT = "2026-06-22T00:00:00.000Z";

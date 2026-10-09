@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleAdaptationCommand } from "../../../src/cli/commands/adaptation.js";
-import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
-import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+import { handleAdaptationCommand } from "../../../src/interfaces/cli/commands/adaptation.js";
+import { AdaptationProposalStore } from "../../../src/planning/adaptation/adaptation-proposal-store.js";
+import { EvidenceStore } from "../../../src/governance/security/evidence/evidence-store.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
 
 let tempRoot: string;
 let cwdSpy: ReturnType<typeof vi.spyOn>;

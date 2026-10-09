@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **GitNexus impact gate (project CLAUDE.md):** BEFORE editing any symbol in `src/tui/`, run `mcp__gitnexus__impact({ target: "<symbol>", direction: "upstream" })` and report blast radius. Warn on HIGH/CRITICAL before proceeding. BEFORE every commit, run `mcp__gitnexus__detect_changes({ scope: "compare", base_ref: "main" })` and confirm only expected symbols/flows affected.
+- **GitNexus impact gate (project CLAUDE.md):** BEFORE editing any symbol in `src/interfaces/tui/`, run `mcp__gitnexus__impact({ target: "<symbol>", direction: "upstream" })` and report blast radius. Warn on HIGH/CRITICAL before proceeding. BEFORE every commit, run `mcp__gitnexus__detect_changes({ scope: "compare", base_ref: "main" })` and confirm only expected symbols/flows affected.
 - **Preserve behavior exactly.** The test suites `tests/tui/*.vitest.ts` and `tests/tui/views/*.vitest.ts` must pass unchanged after Tasks 1–2. Task 3 only adds a new test.
 - **`.js` import suffixes** on all relative imports (ESM).
 - **Pre-existing CI failures (NOT regressions):** `pnpm test:node` currently fails on `AgentView slash strip` → `renders ranked candidates with the selected marker` — verified pre-existing at `a425cd05` (main). Task 1 touches `agent-view.ts`; after each commit, diff the node-tests failure count against main. If the count changes, you introduced a regression.
@@ -22,16 +22,16 @@
 
 ## File Structure (locked in before tasks)
 
-- `src/tui/views/scroll-math.ts` — **Modify.** Add layout constants + `Viewport` interface + `computeViewport()`; refactor `computeBottomAnchor()` to use it.
-- `src/tui/views/agent-view.ts` — **Modify.** Replace inline geometry with `computeViewport(ctx.dimensions, 'agent')`.
-- `src/tui/views/chat-view.ts` — **Modify.** Replace inline geometry with `computeViewport(ctx.dimensions, 'chat')`.
-- `src/tui/views/dashboard-view.ts` — **Modify.** Import `HEADER_H`/`FOOTER_H` constants instead of redefining.
-- `src/tui/timeline-emitter.ts` — **Create.** EventLog emit methods.
-- `src/tui/slash-controller.ts` — **Create.** Slash-completion state + logic.
-- `src/tui/palette-controller.ts` — **Create.** Command-palette modal key handling + paint.
-- `src/tui/frame-painter.ts` — **Create.** Full-frame painting + plan-approval card + cursor placement.
-- `src/tui/approval-resolver.ts` — **Create.** Approval resolution from the view.
-- `src/tui/app.ts` — **Modify.** Remove extracted methods; keep orchestration.
+- `src/interfaces/tui/views/scroll-math.ts` — **Modify.** Add layout constants + `Viewport` interface + `computeViewport()`; refactor `computeBottomAnchor()` to use it.
+- `src/interfaces/tui/views/agent-view.ts` — **Modify.** Replace inline geometry with `computeViewport(ctx.dimensions, 'agent')`.
+- `src/interfaces/tui/views/chat-view.ts` — **Modify.** Replace inline geometry with `computeViewport(ctx.dimensions, 'chat')`.
+- `src/interfaces/tui/views/dashboard-view.ts` — **Modify.** Import `HEADER_H`/`FOOTER_H` constants instead of redefining.
+- `src/interfaces/tui/timeline-emitter.ts` — **Create.** EventLog emit methods.
+- `src/interfaces/tui/slash-controller.ts` — **Create.** Slash-completion state + logic.
+- `src/interfaces/tui/palette-controller.ts` — **Create.** Command-palette modal key handling + paint.
+- `src/interfaces/tui/frame-painter.ts` — **Create.** Full-frame painting + plan-approval card + cursor placement.
+- `src/interfaces/tui/approval-resolver.ts` — **Create.** Approval resolution from the view.
+- `src/interfaces/tui/app.ts` — **Modify.** Remove extracted methods; keep orchestration.
 - `tests/tui/app-pinned-bottom.vitest.ts` — **Modify (Task 3).** Add slice-lock test + runtime-collector wiring.
 
 ---
@@ -39,11 +39,11 @@
 ## Task 1: `computeViewport` layout helper
 
 **Files:**
-- Modify: `src/tui/views/scroll-math.ts`
-- Modify: `src/tui/views/agent-view.ts:34-88`
-- Modify: `src/tui/views/chat-view.ts:25-65`
-- Modify: `src/tui/views/dashboard-view.ts:42-43`
-- Modify: `src/tui/app.ts:1071-1078, 1090-1128, 1589-1609` (use the helper; do NOT extract anything else yet)
+- Modify: `src/interfaces/tui/views/scroll-math.ts`
+- Modify: `src/interfaces/tui/views/agent-view.ts:34-88`
+- Modify: `src/interfaces/tui/views/chat-view.ts:25-65`
+- Modify: `src/interfaces/tui/views/dashboard-view.ts:42-43`
+- Modify: `src/interfaces/tui/app.ts:1071-1078, 1090-1128, 1589-1609` (use the helper; do NOT extract anything else yet)
 - Modify: `tests/tui/views/scroll-math.vitest.ts:73,78` — `computeBottomAnchor(ctx, kind)` now takes 2 args (drop `76, 26`)
 - Modify: `tests/tui/app-pinned-bottom.vitest.ts:110-115, 205-210` — drop the `textWidth` + `panelRow` args
 - Test: `tests/tui/views/chat-view-bottom-anchored.vitest.ts` (existing — must stay green)
@@ -67,7 +67,7 @@ Expected: blast radius = the views + app.ts. Note the risk level. If HIGH/CRITIC
 
 - [ ] **Step 2: Add the constants + `Viewport` + `computeViewport` to `scroll-math.ts`**
 
-At the top of `src/tui/views/scroll-math.ts` (after the imports, before `buildAgentScrollbackLines`), add:
+At the top of `src/interfaces/tui/views/scroll-math.ts` (after the imports, before `buildAgentScrollbackLines`), add:
 
 ```ts
 /** Shared TUI layout geometry. Single source of truth — the views, app.ts,
@@ -119,7 +119,7 @@ export function computeViewport(
 
 - [ ] **Step 3: Refactor `computeBottomAnchor` to use `computeViewport`**
 
-Replace the existing `computeBottomAnchor` (currently `src/tui/views/scroll-math.ts:133-138`) with:
+Replace the existing `computeBottomAnchor` (currently `src/interfaces/tui/views/scroll-math.ts:133-138`) with:
 
 ```ts
 /** Compute the bottom-anchor offset: the index into the scrollback line array
@@ -137,7 +137,7 @@ Note the signature change: it no longer takes `textWidth` or `panelRow` (both co
 
 - [ ] **Step 4: Update the views to use `computeViewport`**
 
-In `src/tui/views/agent-view.ts`, replace the local constants + inline math (lines 36-45):
+In `src/interfaces/tui/views/agent-view.ts`, replace the local constants + inline math (lines 36-45):
 
 ```ts
     const vp = computeViewport(ctx.dimensions, 'agent');
@@ -153,11 +153,11 @@ Then update the body:
 - The prompt write uses `PROMPT_COL` (currently `13`) → `vp.promptCol`.
 - Update the import: `import { buildAgentScrollbackLines, computeViewport } from './scroll-math.js';`
 
-In `src/tui/views/chat-view.ts`, replace lines 27-35 with `const vp = computeViewport(ctx.dimensions, 'chat');` and update the same symbols (`panelRow`, `scrollbackBottom`, `scrollbackRows`, `textWidth`, `SCROLLBACK_TOP`, `PROMPT_COL` → their `vp.*` equivalents). Update the import to include `computeViewport`.
+In `src/interfaces/tui/views/chat-view.ts`, replace lines 27-35 with `const vp = computeViewport(ctx.dimensions, 'chat');` and update the same symbols (`panelRow`, `scrollbackBottom`, `scrollbackRows`, `textWidth`, `SCROLLBACK_TOP`, `PROMPT_COL` → their `vp.*` equivalents). Update the import to include `computeViewport`.
 
 - [ ] **Step 5: Update `app.ts` callers of `computeBottomAnchor` + inline geometry**
 
-In `src/tui/app.ts`:
+In `src/interfaces/tui/app.ts`:
 
 (a) `resetScrollOffsetToBottom` (lines 1071-1078) — replace the body with:
 
@@ -236,7 +236,7 @@ Run: `mcp__gitnexus__detect_changes({ scope: "compare", base_ref: "main" })`
 Expected: only `computeBottomAnchor`, `computeScrollbackRows` (if still referenced), `AgentView`, `ChatView`, `TuiApp` methods touched.
 
 ```bash
-git add src/tui/views/scroll-math.ts src/tui/views/agent-view.ts src/tui/views/chat-view.ts src/tui/views/dashboard-view.ts src/tui/app.ts tests/tui/views/scroll-math.vitest.ts tests/tui/app-pinned-bottom.vitest.ts
+git add src/interfaces/tui/views/scroll-math.ts src/interfaces/tui/views/agent-view.ts src/interfaces/tui/views/chat-view.ts src/interfaces/tui/views/dashboard-view.ts src/interfaces/tui/app.ts tests/tui/views/scroll-math.vitest.ts tests/tui/app-pinned-bottom.vitest.ts
 git commit -m "refactor(tui): centralize layout geometry in computeViewport helper
 
 Single source of truth for panelRow/scrollbackTop/scrollbackRows/textWidth.
@@ -267,7 +267,7 @@ Run: `mcp__gitnexus__detect_changes({ scope: "compare", base_ref: "main" })`
 Expected: only `computeBottomAnchor`, `computeScrollbackRows` (if still referenced), `AgentView`, `ChatView`, `TuiApp` methods touched.
 
 ```bash
-git add src/tui/views/scroll-math.ts src/tui/views/agent-view.ts src/tui/views/chat-view.ts src/tui/views/dashboard-view.ts src/tui/app.ts
+git add src/interfaces/tui/views/scroll-math.ts src/interfaces/tui/views/agent-view.ts src/interfaces/tui/views/chat-view.ts src/interfaces/tui/views/dashboard-view.ts src/interfaces/tui/app.ts
 git commit -m "refactor(tui): centralize layout geometry in computeViewport helper
 
 Single source of truth for panelRow/scrollbackTop/scrollbackRows/textWidth.
@@ -282,12 +282,12 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 2: Split `TuiApp` into cohesive modules
 
 **Files:**
-- Create: `src/tui/timeline-emitter.ts`
-- Create: `src/tui/slash-controller.ts`
-- Create: `src/tui/palette-controller.ts`
-- Create: `src/tui/frame-painter.ts`
-- Create: `src/tui/approval-resolver.ts`
-- Modify: `src/tui/app.ts` (remove extracted methods; keep orchestration)
+- Create: `src/interfaces/tui/timeline-emitter.ts`
+- Create: `src/interfaces/tui/slash-controller.ts`
+- Create: `src/interfaces/tui/palette-controller.ts`
+- Create: `src/interfaces/tui/frame-painter.ts`
+- Create: `src/interfaces/tui/approval-resolver.ts`
+- Modify: `src/interfaces/tui/app.ts` (remove extracted methods; keep orchestration)
 - Test: `tests/tui/app-pinned-bottom.vitest.ts`, `tests/tui/views/*` (existing — must stay green)
 
 **Interfaces:**
@@ -343,7 +343,7 @@ Run: `mcp__gitnexus__impact({ target: "TuiApp", direction: "upstream" })` and `m
 
 - [ ] **Step 2a: Extract `TimelineEmitter`**
 
-Create `src/tui/timeline-emitter.ts`:
+Create `src/interfaces/tui/timeline-emitter.ts`:
 
 ```ts
 import type { TabId } from './state.js';
@@ -398,11 +398,11 @@ export class TimelineEmitter {
 
 In `app.ts`: delete `emitCtx`, `emitTimelineLog`, `sessionIdForTab`, `appendAgentMessage` (lines 170-211, 1228-1233); add `private readonly timelineEmitter = new TimelineEmitter({ eventLog: this.opts.eventLog, chatSessionId: this.opts.chatSessionId, agentSessionId: this.opts.agentSessionId });` and replace call sites (`this.emitCtx(...)` → `this.timelineEmitter.emitCtx(...)`, `this.emitTimelineLog(...)` → `this.timelineEmitter.emitTimelineLog(...)`, `this.sessionIdForTab(...)` → `this.timelineEmitter.sessionIdForTab(...)`, `this.appendAgentMessage(...)` → `this.timelineEmitter.appendAgentMessage(...)`).
 
-Check: `grep -n "this\.emitCtx\|this\.emitTimelineLog\|this\.sessionIdForTab\|this\.appendAgentMessage" src/tui/app.ts` → only the new field initializer remains.
+Check: `grep -n "this\.emitCtx\|this\.emitTimelineLog\|this\.sessionIdForTab\|this\.appendAgentMessage" src/interfaces/tui/app.ts` → only the new field initializer remains.
 
 - [ ] **Step 2b: Extract `SlashController`**
 
-Create `src/tui/slash-controller.ts`:
+Create `src/interfaces/tui/slash-controller.ts`:
 
 ```ts
 import { parseSlashInput, rankSkillMatches, skillSlashNames } from '../skills/slash.js';
@@ -523,7 +523,7 @@ Keep the test seams (`slashManifestsForTest`, `slashHintForTest`, `slashSelectio
 
 - [ ] **Step 2c: Extract `PaletteController`**
 
-Create `src/tui/palette-controller.ts`:
+Create `src/interfaces/tui/palette-controller.ts`:
 
 ```ts
 import { PaletteModal } from './capabilities/palette.js';
@@ -595,7 +595,7 @@ Note: line 906 (`this.paletteQuery = '';` inside the Ctrl+P open trigger) become
 
 - [ ] **Step 2d: Extract `FramePainter`**
 
-This is the largest extract. Create `src/tui/frame-painter.ts`. `TAB_ORDER`, `SessionPhase`, and `TuiPlanApprovalGate` are module-level in `app.ts` — copy `TAB_ORDER` and import `SessionPhase`/`TuiPlanApprovalGate` locally in `frame-painter.ts` so it never imports from `app.ts`. Define the deps interface in `frame-painter.ts`:
+This is the largest extract. Create `src/interfaces/tui/frame-painter.ts`. `TAB_ORDER`, `SessionPhase`, and `TuiPlanApprovalGate` are module-level in `app.ts` — copy `TAB_ORDER` and import `SessionPhase`/`TuiPlanApprovalGate` locally in `frame-painter.ts` so it never imports from `app.ts`. Define the deps interface in `frame-painter.ts`:
 
 ```ts
 import { TerminalCanvas } from './canvas.js';
@@ -685,7 +685,7 @@ After extraction, `app.ts`:
 
 - [ ] **Step 2e: Extract `ApprovalResolver`**
 
-Create `src/tui/approval-resolver.ts`:
+Create `src/interfaces/tui/approval-resolver.ts`:
 
 ```ts
 import type { TabId, TuiAppState } from './state.js';
@@ -767,7 +767,7 @@ Run: `mcp__gitnexus__detect_changes({ scope: "compare", base_ref: "main" })`
 Expected: only the new module symbols + the app.ts removals; no `handleRaw`/paste/routing behavior change.
 
 ```bash
-git add src/tui/timeline-emitter.ts src/tui/slash-controller.ts src/tui/palette-controller.ts src/tui/frame-painter.ts src/tui/approval-resolver.ts src/tui/app.ts
+git add src/interfaces/tui/timeline-emitter.ts src/interfaces/tui/slash-controller.ts src/interfaces/tui/palette-controller.ts src/interfaces/tui/frame-painter.ts src/interfaces/tui/approval-resolver.ts src/interfaces/tui/app.ts
 git commit -m "refactor(tui): split app.ts god-class into cohesive modules
 
 Extract TimelineEmitter, SlashController, PaletteController, FramePainter,
@@ -801,12 +801,12 @@ Run: `mcp__gitnexus__impact({ target: "TuiApp.paintFullFrame", direction: "upstr
 Modify `tests/tui/app-pinned-bottom.vitest.ts`. Add imports:
 
 ```ts
-import { RuntimeCollectorImpl } from '../../src/tui/runtime-collector.js';
-import { FileProjectionCheckpointStore } from '../../src/tui/runtime/projection-checkpoint-store.js';
-import { TimelineBuilder } from '../../src/tui/runtime/timeline-builder.js';
-import { IncrementalExecutionTraceBuilder } from '../../src/tui/runtime/execution-trace-builder.js';
-import { createProjectionRuntime } from '../../src/tui/runtime/projection-runtime.js';
-import * as viewportModule from '../../src/tui/views/bottom-anchored-viewport.js';
+import { RuntimeCollectorImpl } from '../../src/interfaces/tui/runtime-collector.js';
+import { FileProjectionCheckpointStore } from '../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
+import { TimelineBuilder } from '../../src/interfaces/tui/runtime/timeline-builder.js';
+import { IncrementalExecutionTraceBuilder } from '../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import { createProjectionRuntime } from '../../src/interfaces/tui/runtime/projection-runtime.js';
+import * as viewportModule from '../../src/interfaces/tui/views/bottom-anchored-viewport.js';
 ```
 
 Do NOT modify the existing `makeApp` (lines 10-30) — the existing tests don't need collectors, and adding them there would leak the collectors' `setInterval` pollers (`app.stop()` doesn't stop `runtimeCollectors`). Add a separate helper after `makeApp`:

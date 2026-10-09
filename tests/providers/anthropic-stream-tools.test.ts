@@ -12,8 +12,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { stream, complete, _setFetchForTesting } from "../../src/providers/unified-complete.js";
-import type { StreamChunk, ToolCall, ToolDef } from "../../src/providers/types.js";
+import { stream, complete, _setFetchForTesting } from "../../src/models/providers/unified-complete.js";
+import type { StreamChunk, ToolCall, ToolDef } from "../../src/models/providers/types.js";
 
 // ── SSE fixture builders ────────────────────────────────────────────────
 // Anthropic SSE events, JSON-escaped through JSON.stringify so fixtures read

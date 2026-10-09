@@ -14,7 +14,7 @@ import {
   type ReplayDataset,
   type ReplayExecutor,
   type DeterministicEvent,
-} from "../../../../src/evolution/verification/index.js";
+} from "../../../../src/planning/evolution/verification/index.js";
 
 function makeDataset(): ReplayDataset {
   return {

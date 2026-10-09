@@ -35,7 +35,7 @@ import {
   type EvolutionImplementation,
   type EvolutionValidation,
   type EvolutionActivation,
-} from "../../src/evolution/contracts/evolution-contract.js";
+} from "../../src/planning/evolution/contracts/evolution-contract.js";
 
 // ---------------------------------------------------------------------------
 // Constants

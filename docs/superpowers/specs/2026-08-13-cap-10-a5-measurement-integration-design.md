@@ -73,7 +73,7 @@ CAP-10 inherits the architectural conventions established by CAP-8 (Capability S
 | 14 | Event payload | Mirrors full `CapabilityMeasureResult` |
 | 15 | Outcome shape | Discriminated union (`effective`/`ineffective`/`inconclusive`) |
 | 16 | A5 failure | `CapabilityMeasureFailedError`, no event recorded |
-| 17 | A5 interface location | `src/capability/measurement/a5.ts` |
+| 17 | A5 interface location | `src/capabilities/capability/measurement/a5.ts` |
 | 18 | Composition-root | Optional `measurementEngine?` ctor dep |
 | 19 | A7.1 lifecycle | Untouched (CAP-11 owns both) |
 | 20 | Models | Sonnet implementers, haiku pure-fn, sonnet reviewers, opus final |
@@ -91,7 +91,7 @@ CAP-10 inherits the architectural conventions established by CAP-8 (Capability S
 alix capability measure <id@version> [--baseline <observation-id>]
                        │
                        ▼
-       src/cli/commands/capability-measure.ts
+       src/interfaces/cli/commands/capability-measure.ts
                        │
                        ▼
    CapabilityService.measure({capabilityId, version, baselineObservationId?})
@@ -120,14 +120,14 @@ alix capability measure <id@version> [--baseline <observation-id>]
 
 | Path | Purpose | Owner |
 |------|---------|-------|
-| `src/capability/measurement/a5.ts` | A5 measurement interface (type-only) | CAP-10 |
-| `src/capability/measurement/measurement-event-types.ts` | Event-type discriminated union + payloads | CAP-10 |
-| `src/capability/measurement/outcome-discriminated-union.ts` | `CapabilityMeasurementOutcome` shape | CAP-10 |
-| `src/capability/measurement/capability-measurement-engine.ts` | CAP-10 orchestrator (resolve target, call A5, record event) | CAP-10 |
-| `src/capability/capability-service.ts` | measure() impl + governance() widening | CAP-10 (modify) |
-| `src/capability/platform.ts` | Composition root wiring | CAP-10 (modify) |
-| `src/cli/commands/capability-measure.ts` | CLI command | CAP-10 |
-| `src/evolution/observation/a5-capability-measurement.ts` | A5 implementation | CAP-10 |
+| `src/capabilities/capability/measurement/a5.ts` | A5 measurement interface (type-only) | CAP-10 |
+| `src/capabilities/capability/measurement/measurement-event-types.ts` | Event-type discriminated union + payloads | CAP-10 |
+| `src/capabilities/capability/measurement/outcome-discriminated-union.ts` | `CapabilityMeasurementOutcome` shape | CAP-10 |
+| `src/capabilities/capability/measurement/capability-measurement-engine.ts` | CAP-10 orchestrator (resolve target, call A5, record event) | CAP-10 |
+| `src/capabilities/capability/capability-service.ts` | measure() impl + governance() widening | CAP-10 (modify) |
+| `src/capabilities/capability/platform.ts` | Composition root wiring | CAP-10 (modify) |
+| `src/interfaces/cli/commands/capability-measure.ts` | CLI command | CAP-10 |
+| `src/planning/evolution/observation/a5-capability-measurement.ts` | A5 implementation | CAP-10 |
 | `tests/capability/five-axis-sentinel.vitest.ts` | Axes 1-4 preserved + axis 5 NEW | CAP-10 |
 | `tests/capability/cap-10-supersession.test.ts` | Node:test forbidden-file guard | CAP-10 |
 
@@ -242,18 +242,18 @@ new CapabilityService({
 
 ### 7.2 CAP-10 forbids
 
-- `src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` (must not import, modify, delete, deprecate, or refactor)
-- `src/evolution/capability-lifecycle/*` (A7.1 legacy lifecycle untouched)
-- `src/capability/initial-capabilities.ts` (CAP-8 forbidden)
-- `src/tools/tool-registry.ts` (CAP-8 forbidden)
-- `src/policy/capability-registry.ts` (CAP-8 forbidden)
-- `src/capability/canonical/*` (CAP-8 forbidden)
-- `src/tui/capabilities/capability-service.ts` (CAP-7/9 forbidden TUI façade)
+- `src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` (must not import, modify, delete, deprecate, or refactor)
+- `src/planning/evolution/capability-lifecycle/*` (A7.1 legacy lifecycle untouched)
+- `src/capabilities/capability/initial-capabilities.ts` (CAP-8 forbidden)
+- `src/capabilities/tools/tool-registry.ts` (CAP-8 forbidden)
+- `src/governance/policy/capability-registry.ts` (CAP-8 forbidden)
+- `src/capabilities/capability/canonical/*` (CAP-8 forbidden)
+- `src/interfaces/tui/capabilities/capability-service.ts` (CAP-7/9 forbidden TUI façade)
 
 ### 7.3 CAP-11 owns
 
 - Deletion of `CapabilityLifecycleMeasurer`
-- Deletion of A7.1 legacy lifecycle (`src/evolution/capability-lifecycle/*`)
+- Deletion of A7.1 legacy lifecycle (`src/planning/evolution/capability-lifecycle/*`)
 - Migration of any remaining A7.1 callers
 
 ---
@@ -342,6 +342,6 @@ Thrown when the id@version target does not exist in the catalog. Distinct from `
 - Greenfield Reconciled Program — `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-reconciled-program.md`
 - CAP-8 Spec — locked rulings in `memory/cap-8-rulings-locked.md`
 - CAP-9 Spec — locked rulings in `memory/cap-9-rulings-locked.md`
-- A5 Observation Contract — `src/evolution/observation/contracts/observation-contract.ts`
-- A5 Observation Engine — `src/evolution/observation/observation-engine.ts`
-- Ad-hoc Measurer (CAP-11 deletion) — `src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts`
+- A5 Observation Contract — `src/planning/evolution/observation/contracts/observation-contract.ts`
+- A5 Observation Engine — `src/planning/evolution/observation/observation-engine.ts`
+- Ad-hoc Measurer (CAP-11 deletion) — `src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts`

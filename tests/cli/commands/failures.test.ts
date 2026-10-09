@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleFailuresCommand } from "../../../src/cli/commands/failures.js";
+import { handleFailuresCommand } from "../../../src/interfaces/cli/commands/failures.js";
 import {
   FileFailureMemoryStore,
   createFailureRecord,

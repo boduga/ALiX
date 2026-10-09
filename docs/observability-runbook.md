@@ -255,5 +255,5 @@ Key metrics to compare:
 
 **"Unknown pricing" in cost reports**
 - The model is not in `PricingCatalog.defaultPricingCatalog()`
-- Add pricing entry in `src/observability/cost-attribution.ts`
+- Add pricing entry in `src/operations/observability/cost-attribution.ts`
 - Or accept the `-1` cost sentinel (no fabricated values)

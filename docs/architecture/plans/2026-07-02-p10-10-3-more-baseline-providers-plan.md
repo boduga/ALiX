@@ -10,7 +10,7 @@
 ### Task 1 — Skills Baseline Provider
 
 **Files:**
-- `src/baseline/providers/skills-provider.ts`
+- `src/context/baseline/providers/skills-provider.ts`
 - `tests/baseline/providers/skills-provider.vitest.ts`
 
 **Deliverables:**
@@ -34,7 +34,7 @@
 ### Task 2 — Agent Runtime Health Provider
 
 **Files:**
-- `src/baseline/providers/agent-runtime-health-provider.ts`
+- `src/context/baseline/providers/agent-runtime-health-provider.ts`
 - `tests/baseline/providers/agent-runtime-health-provider.vitest.ts`
 
 **Deliverables:**
@@ -55,7 +55,7 @@
 ### Task 3 — Workflow Runtime Health Provider
 
 **Files:**
-- `src/baseline/providers/workflow-runtime-health-provider.ts`
+- `src/context/baseline/providers/workflow-runtime-health-provider.ts`
 - `tests/baseline/providers/workflow-runtime-health-provider.vitest.ts`
 
 **Deliverables:**
@@ -76,7 +76,7 @@
 ### Task 4 — Factory + Sentinel Update
 
 **Files:**
-- `src/baseline/baseline-registry.ts` (factory update)
+- `src/context/baseline/baseline-registry.ts` (factory update)
 - `tests/baseline/baseline-registry.vitest.ts` (test update)
 - `tests/baseline/baseline-sentinels.vitest.ts` (allowlist)
 

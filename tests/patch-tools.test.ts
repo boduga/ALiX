@@ -4,10 +4,10 @@ import { mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
-import { ToolExecutor } from "../src/tools/executor.js";
-import { DEFAULT_CONFIG, PERMIT_ALL_CONFIG } from "../src/config/defaults.js";
-import { EventLog } from "../src/events/event-log.js";
-import type { AlixConfig } from "../src/config/schema.js";
+import { ToolExecutor } from "../src/capabilities/tools/executor.js";
+import { DEFAULT_CONFIG, PERMIT_ALL_CONFIG } from "../src/operations/config/defaults.js";
+import { EventLog } from "../src/runtime-state/events/event-log.js";
+import type { AlixConfig } from "../src/operations/config/schema.js";
 
 test("patch.apply with checkpointing is routed through executor", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));

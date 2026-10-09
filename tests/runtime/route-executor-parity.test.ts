@@ -7,21 +7,21 @@ import {
   LocalRuntimeExecutor,
   executeRoute,
   type RuntimeContext,
-} from "../../src/runtime/route-executor.js";
-import { DaemonRuntimeExecutor } from "../../src/daemon/daemon-runtime-executor.js";
+} from "../../src/runtime-state/runtime/route-executor.js";
+import { DaemonRuntimeExecutor } from "../../src/operations/daemon/daemon-runtime-executor.js";
 import {
   executeDirectBehavior,
   executeGroundedChatBehavior,
   renderToolResult,
-} from "../../src/runtime/route-execution.js";
-import { taskRouter } from "../../src/runtime/task-router.js";
-import type { TaskRoute } from "../../src/runtime/task-router.js";
+} from "../../src/runtime-state/runtime/route-execution.js";
+import { taskRouter } from "../../src/runtime-state/runtime/task-router.js";
+import type { TaskRoute } from "../../src/runtime-state/runtime/task-router.js";
 
 /**
  * Parity contract — local and daemon execution must produce the same routing
  * behavior for every route kind, with daemon-specific code limited to
  * adaptation (config source + socket sink). There is exactly ONE
- * implementation of each behavior (src/runtime/route-execution.ts); both
+ * implementation of each behavior (src/runtime-state/runtime/route-execution.ts); both
  * executors delegate to it.
  *
  * The daemon executor loads config from disk, so this suite HOME-isolates the
@@ -66,7 +66,7 @@ describe("route executor parity — local vs daemon", () => {
       models: { default: { provider: "mock", name: "mock" } },
       mcpServers: [],
     }));
-    const { loadConfig } = await import("../../src/config/loader.js");
+    const { loadConfig } = await import("../../src/operations/config/loader.js");
     config = await loadConfig(tmpDir);
   });
 

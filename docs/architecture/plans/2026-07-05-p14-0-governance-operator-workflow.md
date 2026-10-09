@@ -95,7 +95,7 @@ src/governance/operator-review.ts                                           # P1
 src/governance/decision-capture.ts                                          # P14.3
 src/governance/action-queue.ts                                              # P14.4
 src/governance/governance-audit.ts                                          # P14.5
-src/cli/commands/governance.ts (amend)                                      # P14.6
+src/interfaces/cli/commands/governance.ts (amend)                                      # P14.6
 
 tests/governance/signal-inbox.test.ts
 tests/governance/operator-review.test.ts

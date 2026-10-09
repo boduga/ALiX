@@ -4,14 +4,14 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildProfilePatch, applyProfilePatch } from "../../src/config/profile-patch.js";
-import { withoutDerivedModelProjections } from "../../src/config/persistence.js";
-import { normalizeModelConfig, loadConfig, _setHomedirOverride } from "../../src/config/loader.js";
-import { persistModelSelection } from "../../src/cli/commands/models.js";
+import { buildProfilePatch, applyProfilePatch } from "../../src/operations/config/profile-patch.js";
+import { withoutDerivedModelProjections } from "../../src/operations/config/persistence.js";
+import { normalizeModelConfig, loadConfig, _setHomedirOverride } from "../../src/operations/config/loader.js";
+import { persistModelSelection } from "../../src/interfaces/cli/commands/models.js";
 import { applyProfile } from "../../src/models/model-install.js";
-import { getProfile } from "../../src/config/profile-registry.js";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { getProfile } from "../../src/operations/config/profile-registry.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 const NO_PROJECTION = "derived model/subagents projection must not be persisted";
 
@@ -111,7 +111,7 @@ test("§12.3 set-tier merges without erasing unrelated tiers and no projections"
 test("§12.4 init writes canonical models with no projections", async () => {
   const { dir, projectConfigPath, cleanup } = await withProjectDir();
   try {
-    const { runInit } = await import("../../src/cli/commands/init.js");
+    const { runInit } = await import("../../src/interfaces/cli/commands/init.js");
     await runInit(dir);
     assert.ok(existsSync(projectConfigPath), ".alix/config.json created");
     const saved = JSON.parse(await readFile(projectConfigPath, "utf8"));

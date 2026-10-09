@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { SignalFrame } from "../../src/runtime/signal-frame.js";
-import type { OfferingPlan } from "../../src/runtime/offering-planner.js";
+import type { SignalFrame } from "../../src/runtime-state/runtime/signal-frame.js";
+import type { OfferingPlan } from "../../src/runtime-state/runtime/offering-planner.js";
 import {
   checkEssenceCompatibility,
   type EssenceProfile,

@@ -13,7 +13,7 @@
 ## File Structure
 
 ### Modify
-- `src/cli/commands/tui.ts` — add `/policy` command handler + `handlePolicyCommand()` helper, update help text
+- `src/interfaces/cli/commands/tui.ts` — add `/policy` command handler + `handlePolicyCommand()` helper, update help text
 
 ### Create
 - `tests/tui/tui-policy-mode.test.ts` — test the real `handlePolicyCommand()` function behavior
@@ -23,7 +23,7 @@
 ### Task 1: Extract `handlePolicyCommand()` pure helper
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add the pure helper function before `runTui()`**
 
@@ -134,8 +134,8 @@ Find the help text around line 399 and add `/policy`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { handlePolicyCommand } from "../../src/cli/commands/tui.js";
-import type { PolicyConfig } from "../../src/cli/commands/tui.js";
+import { handlePolicyCommand } from "../../src/interfaces/cli/commands/tui.js";
+import type { PolicyConfig } from "../../src/interfaces/cli/commands/tui.js";
 
 describe("/policy command", () => {
   it("show default mode returns bypass with warning icon", () => {

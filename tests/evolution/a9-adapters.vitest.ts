@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { EventLog } from "../../src/events/event-log.js";
-import type { AlixEvent } from "../../src/events/types.js";
-import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
-import { ProposalEventsAdapter } from "../../src/evolution/forecast/adapters/proposal-events-adapter.js";
-import { MeasurementEventsAdapter } from "../../src/evolution/forecast/adapters/measurement-events-adapter.js";
-import { EnrichedProposalsAdapter } from "../../src/evolution/forecast/adapters/enriched-proposals-adapter.js";
+import type { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
+import type { EnrichedProposal } from "../../src/planning/adaptation/intelligence-types.js";
+import { ProposalEventsAdapter } from "../../src/planning/evolution/forecast/adapters/proposal-events-adapter.js";
+import { MeasurementEventsAdapter } from "../../src/planning/evolution/forecast/adapters/measurement-events-adapter.js";
+import { EnrichedProposalsAdapter } from "../../src/planning/evolution/forecast/adapters/enriched-proposals-adapter.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

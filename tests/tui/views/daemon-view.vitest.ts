@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { DaemonView } from '../../../src/tui/views/daemon-view.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
+import { DaemonView } from '../../../src/interfaces/tui/views/daemon-view.js';
+import type { ViewRenderContext } from '../../../src/interfaces/tui/views/types.js';
 
 function ctx(snap: any = null): ViewRenderContext {
   return {

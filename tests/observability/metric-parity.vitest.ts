@@ -6,8 +6,8 @@
  * canonical kernel metric name must be registered, so the two cannot drift.
  */
 import { describe, expect, it } from "vitest";
-import { MINIMAL_METRIC_NAMES } from "../../src/kernel/minimal-metrics.js";
-import { PRODUCTION_METRIC_DEFINITIONS } from "../../src/observability/metric-registry.js";
+import { MINIMAL_METRIC_NAMES } from "../../src/coordination/kernel/minimal-metrics.js";
+import { PRODUCTION_METRIC_DEFINITIONS } from "../../src/operations/observability/metric-registry.js";
 
 describe("metric vocabulary parity (R5.4)", () => {
   it("registers every canonical kernel metric name", () => {

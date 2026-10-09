@@ -12,11 +12,11 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AgentCardApplier } from "../../../src/adaptation/appliers/agent-card-applier.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
-import { SnapshotStore } from "../../../src/adaptation/snapshot-store.js";
-import { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
-import type { EvidenceRecord } from "../../../src/security/evidence/evidence-types.js";
+import { AgentCardApplier } from "../../../src/planning/adaptation/appliers/agent-card-applier.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
+import { SnapshotStore } from "../../../src/planning/adaptation/snapshot-store.js";
+import { EvidenceEventWriter } from "../../../src/coordination/workflow/evidence-writer.js";
+import type { EvidenceRecord } from "../../../src/governance/security/evidence/evidence-types.js";
 import { createHash } from "node:crypto";
 
 // ---------------------------------------------------------------------------
@@ -25,7 +25,7 @@ import { createHash } from "node:crypto";
 
 /**
  * Build a minimal but valid AgentCard payload for use in proposal.payload.
- * Matches AgentCard shape from src/registry/agent-card.ts.
+ * Matches AgentCard shape from src/capabilities/registry/agent-card.ts.
  */
 function makeCardPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {

@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { CapabilityDefinitionStore } from "../../../src/capabilities/capability/canonical/catalog-store.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 function makeDef(id: string, version = "1.0.0"): CapabilityDefinition {
   return { id, version, kind: "operation", title: id, description: id, tags: [], category: "test",

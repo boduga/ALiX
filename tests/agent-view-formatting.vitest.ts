@@ -31,12 +31,12 @@
  *   scrollbackRows  = scrollbackBottom - SCROLLBACK_TOP_AGENT + 1
  */
 import { describe, it, expect, vi } from 'vitest';
-import { TerminalCanvas } from '../src/tui/canvas.js';
-import { AgentView } from '../src/tui/views/agent-view.js';
-import { GUTTER_WIDTH } from '../src/tui/views/scroll-math.js';
-import type { ViewRenderContext } from '../src/tui/views/types.js';
-import type { DashboardSnapshot, PerTabState, SessionPhase } from '../src/tui/state.js';
-import type { TimelineEntry } from '../src/tui/runtime/timeline-builder.js';
+import { TerminalCanvas } from '../src/interfaces/tui/canvas.js';
+import { AgentView } from '../src/interfaces/tui/views/agent-view.js';
+import { GUTTER_WIDTH } from '../src/interfaces/tui/views/scroll-math.js';
+import type { ViewRenderContext } from '../src/interfaces/tui/views/types.js';
+import type { DashboardSnapshot, PerTabState, SessionPhase } from '../src/interfaces/tui/state.js';
+import type { TimelineEntry } from '../src/interfaces/tui/runtime/timeline-builder.js';
 import type { PlanTask } from '../src/planning/plan-task.js';
 
 /* ─── Constants ─────────────────────────────────────────────── */
@@ -56,7 +56,7 @@ const W = 80;
  * so the formatting tests can assert the prompt's absolute
  * position regardless of canvas height.
  *
- * `panelRow = rows - BELOW_PROMPT_ROWS(3)` (see src/tui/views/scroll-math.ts)
+ * `panelRow = rows - BELOW_PROMPT_ROWS(3)` (see src/interfaces/tui/views/scroll-math.ts)
  */
 function panelRow(height: number): number {
   return Math.max(0, height - 3);

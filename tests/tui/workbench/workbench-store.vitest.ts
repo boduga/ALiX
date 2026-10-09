@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { reduceWorkbenchUiState, WorkbenchStore } from '../../../src/tui/workbench/app/workbench-store.js';
-import { createInitialWorkbenchUiState } from '../../../src/tui/workbench/model/ui-state.js';
+import { reduceWorkbenchUiState, WorkbenchStore } from '../../../src/interfaces/tui/workbench/app/workbench-store.js';
+import { createInitialWorkbenchUiState } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
 
 describe('WorkbenchStore', () => {
   it('edits the composer immutably, including embedded newlines', () => {

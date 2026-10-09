@@ -15,11 +15,11 @@
 ## File Structure
 
 **Modified files (6):**
-- `src/config/defaults.ts` — Remove MODEL_TIERS, strip model names from DEFAULT_CONFIG.subagents
-- `src/config/loader.ts` — Add validation + tier inheritance
-- `src/config/validator.ts` — Remove VALID_PROVIDERS
-- `src/config/schema.ts` — Change provider types to `string`
-- `src/providers/catalog.ts` — Remove `getDefaultModel()` hardcoded map
+- `src/operations/config/defaults.ts` — Remove MODEL_TIERS, strip model names from DEFAULT_CONFIG.subagents
+- `src/operations/config/loader.ts` — Add validation + tier inheritance
+- `src/operations/config/validator.ts` — Remove VALID_PROVIDERS
+- `src/operations/config/schema.ts` — Change provider types to `string`
+- `src/models/providers/catalog.ts` — Remove `getDefaultModel()` hardcoded map
 - `src/agents/subagent-manager.ts` — Remove hardcoded fallback
 
 **Potentially affected test files:**
@@ -33,7 +33,7 @@
 ## Task 1: Strip model names from `defaults.ts`
 
 **Files:**
-- Modify: `src/config/defaults.ts`
+- Modify: `src/operations/config/defaults.ts`
 
 - [ ] **Step 1: Remove the `MODEL_TIERS` constant**
 
@@ -98,7 +98,7 @@ If anything references `MODEL_TIERS`, note those files for fixing.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/config/defaults.ts
+git add src/operations/config/defaults.ts
 git commit -m "refactor(config): remove MODEL_TIERS and subagent model defaults
 
 All hardcoded model names removed from defaults.ts. User must
@@ -111,12 +111,12 @@ timeout, paths, roles) are kept."
 ## Task 2: Add model validation + tier inheritance to `loader.ts`
 
 **Files:**
-- Modify: `src/config/loader.ts`
+- Modify: `src/operations/config/loader.ts`
 
 - [ ] **Step 1: Read the current `loadConfig` function**
 
 ```bash
-grep -n "export async function loadConfig\|export function mergeConfig" src/config/loader.ts | head -5
+grep -n "export async function loadConfig\|export function mergeConfig" src/operations/config/loader.ts | head -5
 ```
 
 Find where `loadConfig` returns (after merging configs).
@@ -161,7 +161,7 @@ npx tsc -p tsconfig.json 2>&1 | tail -5
 // Add to tests/config-loader.test.ts or a quick inline test:
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { loadConfig } from "../../src/config/loader.js";
+import { loadConfig } from "../../src/operations/config/loader.js";
 
 describe("loadConfig model validation", () => {
   it("throws when no model is configured", async () => {
@@ -178,7 +178,7 @@ Run: `node --test dist/tests/config-loader.test.js 2>&1 | tail -10`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/config/loader.ts
+git add src/operations/config/loader.ts
 git commit -m "feat(config): validate model is configured, inherit tiers from model
 
 loadConfig now throws if model.provider or model.name is missing.
@@ -191,12 +191,12 @@ are filled from the main model automatically."
 ## Task 3: Remove `VALID_PROVIDERS` from `validator.ts`
 
 **Files:**
-- Modify: `src/config/validator.ts`
+- Modify: `src/operations/config/validator.ts`
 
 - [ ] **Step 1: Read current validator**
 
 ```bash
-cat src/config/validator.ts
+cat src/operations/config/validator.ts
 ```
 
 - [ ] **Step 2: Remove `VALID_PROVIDERS`**
@@ -246,7 +246,7 @@ If those tests exist, update them to not check provider validation.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/config/validator.ts src/config/schema.ts
+git add src/operations/config/validator.ts src/operations/config/schema.ts
 git commit -m "refactor(config): remove hardcoded provider validation
 
 VALID_PROVIDERS removed from validator.ts — the live API
@@ -260,12 +260,12 @@ changed from enum to 'provider: string'."
 ## Task 4: Remove `DEFAULT_MODELS` from `catalog.ts`
 
 **Files:**
-- Modify: `src/providers/catalog.ts`
+- Modify: `src/models/providers/catalog.ts`
 
 - [ ] **Step 1: Read the `getDefaultModel` function**
 
 ```bash
-grep -n "getDefaultModel" src/providers/catalog.ts | head -5
+grep -n "getDefaultModel" src/models/providers/catalog.ts | head -5
 ```
 
 - [ ] **Step 2: Remove the hardcoded map**
@@ -302,7 +302,7 @@ npx tsc -p tsconfig.json 2>&1 | tail -5
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/providers/catalog.ts
+git add src/models/providers/catalog.ts
 git commit -m "refactor(providers): remove hardcoded default model map
 
 getDefaultModel() now returns undefined. No hardcoded model names

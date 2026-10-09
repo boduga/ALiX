@@ -16,7 +16,7 @@
 
 import { describe, it, expect } from "vitest";
 import { getEventListeners } from "node:events";
-import type { ModelAdapter } from "../../src/providers/types.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
 
 /** A provider whose stream emits `count` private reasoning chunks (never
  *  written to stdout) then finishes cleanly. */
@@ -47,7 +47,7 @@ function buildProvider(count: number): ModelAdapter {
 
 describe("streamToResponse cancellable path — abort-listener hygiene (Unit F fix round)", () => {
   it("leaves zero abort listeners after a long chunked stream completes", async () => {
-    const { streamToResponse } = await import("../../src/run/helpers.js");
+    const { streamToResponse } = await import("../../src/execution/run/helpers.js");
     const controller = new AbortController();
     const provider = buildProvider(2_000);
 
@@ -67,7 +67,7 @@ describe("streamToResponse cancellable path — abort-listener hygiene (Unit F f
   });
 
   it("keeps the listener count at zero between chunks (no within-turn growth)", async () => {
-    const { streamToResponse } = await import("../../src/run/helpers.js");
+    const { streamToResponse } = await import("../../src/execution/run/helpers.js");
     const controller = new AbortController();
     // Drive the real pump but observe the signal after a bounded chunk burst.
     const provider = buildProvider(10_000);
@@ -80,8 +80,8 @@ describe("streamToResponse cancellable path — abort-listener hygiene (Unit F f
   });
 
   it("a genuine mid-stream abort still rejects promptly (cleanup does not break the race)", async () => {
-    const { streamToResponse } = await import("../../src/run/helpers.js");
-    const { ExecutionCancelledError } = await import("../../src/runtime/cancellation-token.js");
+    const { streamToResponse } = await import("../../src/execution/run/helpers.js");
+    const { ExecutionCancelledError } = await import("../../src/runtime-state/runtime/cancellation-token.js");
     const controller = new AbortController();
     const provider = {
       ...buildProvider(0),
@@ -99,8 +99,8 @@ describe("streamToResponse cancellable path — abort-listener hygiene (Unit F f
   });
 
   it("a cancel that lands during the fail-soft complete() fallback still rejects (Task 6.1 — the fallback call races the signal, never an uninterruptible hang)", async () => {
-    const { streamToResponse } = await import("../../src/run/helpers.js");
-    const { ExecutionCancelledError } = await import("../../src/runtime/cancellation-token.js");
+    const { streamToResponse } = await import("../../src/execution/run/helpers.js");
+    const { ExecutionCancelledError } = await import("../../src/runtime-state/runtime/cancellation-token.js");
     const controller = new AbortController();
     // Stream yields one chunk then throws a mid-stream (non-signal) error —
     // routing adapters are NOT involved, so streamToResponse fail-softs to a

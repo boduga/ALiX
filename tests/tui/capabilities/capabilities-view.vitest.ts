@@ -1,11 +1,11 @@
 // tests/tui/capabilities/capabilities-view.vitest.ts
 import { describe, it, expect, vi } from 'vitest';
-import { CapabilitiesView } from '../../../src/tui/capabilities/capabilities-view.js';
-import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/tui/capabilities/capability-service.js';
-import { createInitialTuiAppState } from '../../../src/tui/state.js';
-import type { DashboardSnapshot, PerTabState } from '../../../src/tui/state.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import type { InvocationPresenter } from '../../../src/tui/capabilities/invocation-presenter.js';
+import { CapabilitiesView } from '../../../src/interfaces/tui/capabilities/capabilities-view.js';
+import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/interfaces/tui/capabilities/capability-service.js';
+import { createInitialTuiAppState } from '../../../src/interfaces/tui/state.js';
+import type { DashboardSnapshot, PerTabState } from '../../../src/interfaces/tui/state.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import type { InvocationPresenter } from '../../../src/interfaces/tui/capabilities/invocation-presenter.js';
 
 /** Snapshot carrying a CapabilityProjection stat for `tool.file.read`. */
 function snapshotWithCapabilityStat(): DashboardSnapshot {

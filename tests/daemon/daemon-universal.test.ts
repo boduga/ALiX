@@ -44,7 +44,7 @@ describe("Universal daemon cross-workspace", { timeout: 60000 }, () => {
 
   async function startDaemon(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const serverJs = join(__dirname, "..", "..", "src", "daemon", "daemon-server.js");
+      const serverJs = join(__dirname, "..", "..", "src", "operations", "daemon", "daemon-server.js");
       serverProcess = spawn(process.execPath, [serverJs, "--socket", socketPath, "--cwd", projectA], {
         stdio: ["ignore", "pipe", "pipe"],
       });

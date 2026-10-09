@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CommandDiscovery } from "../../src/verification/command-discovery.js";
+import { CommandDiscovery } from "../../src/execution/verification/command-discovery.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, mkdir } from "node:fs/promises";

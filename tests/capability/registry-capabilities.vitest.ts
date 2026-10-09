@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { buildDefaultToolIndex, ToolRegistry } from "../../src/tools/tool-registry.js";
-import type { ToolCapability } from "../../src/tools/tool-registry.js";
-import type { Capability } from "../../src/capability/types.js";
+import { buildDefaultToolIndex, ToolRegistry } from "../../src/capabilities/tools/tool-registry.js";
+import type { ToolCapability } from "../../src/capabilities/tools/tool-registry.js";
+import type { Capability } from "../../src/capabilities/capability/types.js";
 import {
   toolCapabilityId,
   projectToolCapability,
   projectRegistryTools,
   registerRegistryToolCapabilities,
-} from "../../src/capability/registry-capabilities.js";
+} from "../../src/capabilities/capability/registry-capabilities.js";
 
 function findTool(name: string): ToolCapability {
   const { registry } = buildDefaultToolIndex();

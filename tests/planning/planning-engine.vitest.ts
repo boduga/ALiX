@@ -7,10 +7,10 @@ import { existsSync, unlinkSync, rmdirSync, mkdirSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RootCauseStore } from "../../src/reasoning/root-cause-store.js";
+import { RootCauseStore } from "../../src/planning/reasoning/root-cause-store.js";
 import { StrategicPlanStore } from "../../src/planning/strategic-plan-store.js";
 import { PlanningEngine } from "../../src/planning/planning-engine.js";
-import type { RootCauseAnalysis } from "../../src/reasoning/reasoning-types.js";
+import type { RootCauseAnalysis } from "../../src/planning/reasoning/reasoning-types.js";
 import { PlanningEngineError } from "../../src/planning/planning-types.js";
 import { DEFAULT_PLANNING_CONFIG } from "../../src/planning/planning-config.js";
 

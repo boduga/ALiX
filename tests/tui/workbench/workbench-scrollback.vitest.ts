@@ -1,16 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { SessionPhase, type PerTabState } from '../../../src/tui/state.js';
-import type { DashboardSnapshot, RuntimeSnapshot } from '../../../src/tui/snapshot.js';
-import type { TimelineEntry } from '../../../src/tui/runtime/timeline-builder.js';
-import type { ExecutionTraceEntry } from '../../../src/tui/runtime/execution-trace.js';
-import type { ViewInputContext, ViewRenderContext } from '../../../src/tui/views/types.js';
-import { AgentView } from '../../../src/tui/views/agent-view.js';
-import { buildWorkbenchScrollbackLines } from '../../../src/tui/workbench/views/workbench-scrollback.js';
-import { getWorkbenchPreviewTheme } from '../../../src/tui/workbench/model/preview-theme.js';
-import { stripAnsi } from '../../../src/tui/box.js';
-import { createInitialWorkbenchUiState } from '../../../src/tui/workbench/model/ui-state.js';
+import { SessionPhase, type PerTabState } from '../../../src/interfaces/tui/state.js';
+import type { DashboardSnapshot, RuntimeSnapshot } from '../../../src/interfaces/tui/snapshot.js';
+import type { TimelineEntry } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import type { ExecutionTraceEntry } from '../../../src/interfaces/tui/runtime/execution-trace.js';
+import type { ViewInputContext, ViewRenderContext } from '../../../src/interfaces/tui/views/types.js';
+import { AgentView } from '../../../src/interfaces/tui/views/agent-view.js';
+import { buildWorkbenchScrollbackLines } from '../../../src/interfaces/tui/workbench/views/workbench-scrollback.js';
+import { getWorkbenchPreviewTheme } from '../../../src/interfaces/tui/workbench/model/preview-theme.js';
+import { stripAnsi } from '../../../src/interfaces/tui/box.js';
+import { createInitialWorkbenchUiState } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
 
 const fixturePath = fileURLToPath(new URL('../../fixtures/tui/workbench-third-trace.json', import.meta.url));
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as {
@@ -249,7 +249,7 @@ describe('Workbench scrollback', () => {
   it('falls back to one inline card while the semantic approval event catches up', () => {
     const renderContext = context('compact', [], []);
     (renderContext.perTab as PerTabState).pendingApprovals = [{
-      id: 'approval-lag', toolName: 'file.write', target: 'src/tui/app.ts', requestedAt: 2,
+      id: 'approval-lag', toolName: 'file.write', target: 'src/interfaces/tui/app.ts', requestedAt: 2,
     }];
 
     const lines = buildWorkbenchScrollbackLines(renderContext, 64);
@@ -257,7 +257,7 @@ describe('Workbench scrollback', () => {
 
     expect(text.match(/APPROVAL REQUIRED/gu)).toHaveLength(1);
     expect(text).toContain('file.write');
-    expect(text).toContain('src/tui/app.ts');
+    expect(text).toContain('src/interfaces/tui/app.ts');
     expect(lines.filter((line) => line.kind === 'approvalCard')).toHaveLength(6);
     expect(lines.every((line) => line.itemId === 'pending-approval:approval-lag')).toBe(true);
   });

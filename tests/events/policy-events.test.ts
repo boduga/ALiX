@@ -4,7 +4,7 @@ import type {
   PolicyDecisionPayload,
   ApprovalRequestedPayload,
   ApprovalResolvedPayload,
-} from "../../src/events/types.js";
+} from "../../src/runtime-state/events/types.js";
 
 describe("Policy Event Payload Types", () => {
   it("PolicyDecisionPayload tracks security decisions", () => {

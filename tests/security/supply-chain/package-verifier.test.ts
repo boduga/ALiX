@@ -9,8 +9,8 @@ import {
   checkSecretContent,
   verifyTarball,
   VERIFIER_ERROR_CODES,
-} from "../../../src/security/supply-chain/package-verifier.js";
-import type { TarballEntry } from "../../../src/security/supply-chain/package-verifier.js";
+} from "../../../src/governance/security/supply-chain/package-verifier.js";
+import type { TarballEntry } from "../../../src/governance/security/supply-chain/package-verifier.js";
 
 // ---------------------------------------------------------------------------
 // checkPathDeny

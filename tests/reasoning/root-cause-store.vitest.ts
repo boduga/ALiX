@@ -6,8 +6,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { RootCauseStore, type RootCauseAnalysisMeta } from "../../src/reasoning/root-cause-store.js";
-import type { RootCauseAnalysis, AnalysisStatus } from "../../src/reasoning/reasoning-types.js";
+import { RootCauseStore, type RootCauseAnalysisMeta } from "../../src/planning/reasoning/root-cause-store.js";
+import type { RootCauseAnalysis, AnalysisStatus } from "../../src/planning/reasoning/reasoning-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

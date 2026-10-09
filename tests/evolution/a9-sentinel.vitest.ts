@@ -4,8 +4,8 @@
  * Two static guards pin corrected facts verified during Phase 0:
  *
  *   1. A9 does NOT consume A8's normalized aggregation layer. A9 is its own
- *      module (`src/evolution/forecast/`); adapters preserve RAW evidence. A9 source
- *      files MUST NOT import `src/evolution/learning/` or its adapters.
+ *      module (`src/planning/evolution/forecast/`); adapters preserve RAW evidence. A9 source
+ *      files MUST NOT import `src/planning/evolution/learning/` or its adapters.
  *      (Corrected fact #3; brief adapter test item 6.)
  *
  *   2. Forecast DETECTORS MUST NOT consume measurement events. Measurement
@@ -21,14 +21,14 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve as pathResolve } from "node:path";
 import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 // Runtime re-pins for identity determinism (Phase 28).
-import { forecastIdFor, correlationIdFor } from "../../src/evolution/forecast/identity.js";
-import type { ForecastContent, CorrelationContent } from "../../src/evolution/forecast/contracts/contract.js";
-import { FORECAST_VERSION, GENERATOR_VERSION, CORRELATION_VERSION } from "../../src/evolution/forecast/contracts/contract.js";
+import { forecastIdFor, correlationIdFor } from "../../src/planning/evolution/forecast/identity.js";
+import type { ForecastContent, CorrelationContent } from "../../src/planning/evolution/forecast/contracts/contract.js";
+import { FORECAST_VERSION, GENERATOR_VERSION, CORRELATION_VERSION } from "../../src/planning/evolution/forecast/contracts/contract.js";
 
-const A9_ROOT = join(process.cwd(), "src", "evolution", "forecast");
+const A9_ROOT = join(process.cwd(), "src", "planning", "evolution", "forecast");
 const A9_DETECTORS_ROOT = join(A9_ROOT, "detectors");
 const SRC_ROOT = join(process.cwd(), "src");
-const A8_LEARNING_ROOT = join(SRC_ROOT, "evolution", "learning");
+const A8_LEARNING_ROOT = join(SRC_ROOT, "planning", "evolution", "learning");
 
 /** True when `file` has a relative import whose resolved path lands under `dir`. */
 function importsUnder(file: string, dir: string): boolean {
@@ -52,16 +52,16 @@ function walkTsFiles(root: string): string[] {
 }
 
 describe("A9 sentinel — A9 does not consume A8's normalized layer (raw evidence preserved)", () => {
-  it("no A9 source file imports src/evolution/learning (A9 is its own module)", () => {
+  it("no A9 source file imports src/planning/evolution/learning (A9 is its own module)", () => {
     const files = walkTsFiles(A9_ROOT);
     expect(files.length, "A9 source tree must contain .ts files").toBeGreaterThan(0);
 
     const offenders: string[] = [];
     for (const file of files) {
       // Resolve the real import graph: any relative specifier whose target
-      // lands under src/evolution/learning is A8's normalized layer.
+      // lands under src/planning/evolution/learning is A8's normalized layer.
       if (importsUnder(file, A8_LEARNING_ROOT)) {
-        offenders.push(`${file}  [A8 normalized aggregation layer (src/evolution/learning)]`);
+        offenders.push(`${file}  [A8 normalized aggregation layer (src/planning/evolution/learning)]`);
       }
     }
     expect(
@@ -138,7 +138,7 @@ describe("A9 sentinel — identity is a deterministic canonical hash (Phase 28)"
 });
 
 describe("A9 sentinel — persistence stays A9-owned (forecasts.jsonl / correlations.jsonl)", () => {
-  it("only src/evolution/forecast defines the two A9-owned store files", () => {
+  it("only src/planning/evolution/forecast defines the two A9-owned store files", () => {
     const offenders: string[] = [];
     for (const file of walkTsFiles(SRC_ROOT)) {
       const src = codeOnly(readFileSync(file, "utf-8"));
@@ -156,7 +156,7 @@ describe("A9 sentinel — persistence stays A9-owned (forecasts.jsonl / correlat
 describe("A9 sentinel — foreign IDs are references; measurement namespace carries no proposal linkage", () => {
   it("CapabilityMeasurementPayload (measurement-event-types.ts) does NOT gain proposalId / sourceProposalIds / forecastId / correlationId", () => {
     const payloadSrc = codeOnly(
-      readFileSync(join(SRC_ROOT, "capability", "measurement", "measurement-event-types.ts"), "utf-8"),
+      readFileSync(join(SRC_ROOT, "capabilities", "capability", "measurement", "measurement-event-types.ts"), "utf-8"),
     );
     for (const forbidden of ["proposalId", "sourceProposalIds", "forecastId", "correlationId"]) {
       expect(
@@ -188,7 +188,7 @@ describe("A9 sentinel — CAP-9 five-event proposal taxonomy unchanged", () => {
       CAPABILITY_GOVERNANCE_EVENT_TYPES,
       GOVERNANCE_EVENT_PREFIX,
       isGovernanceEventType,
-    } = await import("../../src/capability/governance/governance-types.js");
+    } = await import("../../src/capabilities/capability/governance/governance-types.js");
     const proposalKinds = CAPABILITY_GOVERNANCE_EVENT_TYPES.filter((k) => k.startsWith(GOVERNANCE_EVENT_PREFIX));
     expect([...proposalKinds].sort()).toEqual(
       [
@@ -210,7 +210,7 @@ describe("A9 sentinel — A2.5 / A3 taxonomy frozen", () => {
     const {
       GOVERNANCE_RECOMMENDATION_KINDS,
       isValidGovernanceRecommendationKind,
-    } = await import("../../src/evolution/verification/contracts/recommendation-contract.js");
+    } = await import("../../src/planning/evolution/verification/contracts/recommendation-contract.js");
     expect([...GOVERNANCE_RECOMMENDATION_KINDS].sort()).toEqual(
       ["APPROVE", "ESCALATE", "MONITOR", "REJECT", "REQUEST_ADDITIONAL_EVIDENCE", "RISK_GATED_REVIEW"].sort(),
     );
@@ -223,7 +223,7 @@ describe("A9 sentinel — A2.5 / A3 taxonomy frozen", () => {
       VALID_GOVERNANCE_DECISION_KINDS,
       isValidGovernanceDecisionKind,
       validateGovernanceDecision,
-    } = await import("../../src/evolution/governance/contracts/decision-contract.js");
+    } = await import("../../src/planning/evolution/governance/contracts/decision-contract.js");
     expect([...VALID_GOVERNANCE_DECISION_KINDS].sort()).toEqual(
       ["APPROVE", "MONITOR", "REJECT", "REQUEST_MORE_EVIDENCE"].sort(),
     );

@@ -63,7 +63,7 @@ This gives a complete audit trail — failed/blocked evaluations are as meaningf
 
 ## 3. OutcomeReportStore
 
-A new class at `src/executive/outcome-store.ts`. Constructor takes the directory path.
+A new class at `src/execution/executive/outcome-store.ts`. Constructor takes the directory path.
 
 ### `save(report: ExecutiveOutcomeEvaluationReport): string`
 
@@ -154,9 +154,9 @@ The sentinel test at `tests/executive/executive-sentinels.vitest.ts` will be ext
 ```ts
 // Scoped exception: plan-store.ts and execution-state-store.ts are
 // approved write paths for P10.4a plan persistence (atomic save pattern)
-if ((file === "src/executive/plan-store.ts" ||
-     file === "src/executive/execution-state-store.ts" ||
-     file === "src/executive/outcome-store.ts") &&
+if ((file === "src/execution/executive/plan-store.ts" ||
+     file === "src/execution/executive/execution-state-store.ts" ||
+     file === "src/execution/executive/outcome-store.ts") &&
     (forbidden === "writeFileSync" || forbidden === "mkdirSync" ||
      forbidden === "renameSync" || forbidden === "openSync" ||
      forbidden === "fsyncSync" || forbidden === "closeSync")) {
@@ -170,9 +170,9 @@ The file is also added to the `EXECUTIVE_FILES` allowlist in the same test.
 
 | Action | Path | Notes |
 |--------|------|-------|
-| **Create** | `src/executive/outcome-store.ts` | OutcomeReportStore class |
-| **Modify** | `src/cli/commands/executive-evaluate-handler.ts` | Add `--save` flag handling |
-| **Modify** | `src/cli/commands/executive.ts` | Add `outcomes list`, `outcomes show` cases |
+| **Create** | `src/execution/executive/outcome-store.ts` | OutcomeReportStore class |
+| **Modify** | `src/interfaces/cli/commands/executive-evaluate-handler.ts` | Add `--save` flag handling |
+| **Modify** | `src/interfaces/cli/commands/executive.ts` | Add `outcomes list`, `outcomes show` cases |
 | **Modify** | `tests/executive/executive-sentinels.vitest.ts` | Add outcome-store.ts to EXECUTIVE_FILES + write-exception group |
 | **Create** | `tests/executive/outcome-store.vitest.ts` | Unit tests (save/load/hash/listing) |
 | **Modify** | `tests/cli/commands/executive-evaluate-cli.vitest.ts` | Add --save integration tests |
@@ -180,9 +180,9 @@ The file is also added to the `EXECUTIVE_FILES` allowlist in the same test.
 
 ## 7. Files NOT modified
 
-- `src/executive/outcome-evaluator.ts` — unchanged. Pure function stays pure.
-- `src/executive/execution-engine.ts` — no hooks.
-- `src/security/evidence/evidence-types.ts` — no new evidence types.
+- `src/execution/executive/outcome-evaluator.ts` — unchanged. Pure function stays pure.
+- `src/execution/executive/execution-engine.ts` — no hooks.
+- `src/governance/security/evidence/evidence-types.ts` — no new evidence types.
 - No protected type files (ADR-0004).
 
 ## 8. Architectural invariants

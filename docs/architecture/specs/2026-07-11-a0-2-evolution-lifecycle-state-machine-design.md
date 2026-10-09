@@ -409,7 +409,7 @@ It does not:
 Allowed:
 
 ```text
-src/evolution/evolution-state-machine.ts
+src/planning/evolution/evolution-state-machine.ts
 
 tests/evolution/evolution-state-machine.test.ts
 ```

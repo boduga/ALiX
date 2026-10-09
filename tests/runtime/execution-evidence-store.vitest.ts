@@ -11,12 +11,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
+import { closeAllSharedLedgers } from "../../src/runtime-state/storage/runtime-ledger.js";
 import {
   ExecutionEvidenceStore,
   computeEvidenceChecksum,
-} from "../../src/runtime/execution-evidence-store.js";
-import type { ExecutionEvidence } from "../../src/runtime/contracts/execution-intent-contract.js";
+} from "../../src/runtime-state/runtime/execution-evidence-store.js";
+import type { ExecutionEvidence } from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

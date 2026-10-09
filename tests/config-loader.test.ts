@@ -4,12 +4,12 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, _setHomedirOverride, mergeConfig, normalizeModelConfig } from "../src/config/loader.js";
-import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import type { AlixConfig, McpServerConfig } from "../src/config/schema.js";
-import { MODEL_SUBAGENT_TIERS } from "../src/config/schema.js";
-import { CredentialStore } from "../src/security/credentials/credential-store.js";
-import { makeCredentialReference } from "../src/security/credentials/credential-reference.js";
+import { loadConfig, _setHomedirOverride, mergeConfig, normalizeModelConfig } from "../src/operations/config/loader.js";
+import { DEFAULT_CONFIG } from "../src/operations/config/defaults.js";
+import type { AlixConfig, McpServerConfig } from "../src/operations/config/schema.js";
+import { MODEL_SUBAGENT_TIERS } from "../src/operations/config/schema.js";
+import { CredentialStore } from "../src/governance/security/credentials/credential-store.js";
+import { makeCredentialReference } from "../src/governance/security/credentials/credential-reference.js";
 
 function withMockedHomedir(dir: string): () => void {
   _setHomedirOverride(dir);
@@ -40,7 +40,7 @@ test("ConfigMutationService writes to the flat .alix/config.json (path reconcili
   // the set "succeed" but the value never persisted. The fix is to pass
   // the flat dir (`.alix`) to the mutation service; this test pins
   // that mutation writes to the same file loadConfig reads.
-  const { ConfigMutationService } = await import("../src/config/mutation.js");
+  const { ConfigMutationService } = await import("../src/operations/config/mutation.js");
   const dir = await mkdtemp(join(tmpdir(), "alix-config-roundtrip-"));
   try {
     // Seed a config that passes validateConfig. The validator is strict

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { TuiView, ViewRenderContext, ViewInputContext, ViewRenderResult, TerminalDimensions } from '../../../src/tui/views/types.js';
+import type { TuiView, ViewRenderContext, ViewInputContext, ViewRenderResult, TerminalDimensions } from '../../../src/interfaces/tui/views/types.js';
 
 describe('TuiView contract — render purity', () => {
   it('render returns the same rows for the same context', () => {

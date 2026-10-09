@@ -15,9 +15,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { candidateToExecutionStep } from "../../src/capability/capability-service.js";
-import { CapabilityValidationError } from "../../src/capability/errors.js";
-import type { CapabilityEvolutionCandidate } from "../../src/adaptation/capability-evolution-types.js";
+import { candidateToExecutionStep } from "../../src/capabilities/capability/capability-service.js";
+import { CapabilityValidationError } from "../../src/capabilities/capability/errors.js";
+import type { CapabilityEvolutionCandidate } from "../../src/planning/adaptation/capability-evolution-types.js";
 
 function candidate(overrides: Partial<CapabilityEvolutionCandidate> = {}): CapabilityEvolutionCandidate {
   return {

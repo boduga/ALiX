@@ -16,7 +16,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleExplainCommand } from "../../../src/cli/commands/explain.js";
+import { handleExplainCommand } from "../../../src/interfaces/cli/commands/explain.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let logSpy: ReturnType<typeof vi.spyOn>;

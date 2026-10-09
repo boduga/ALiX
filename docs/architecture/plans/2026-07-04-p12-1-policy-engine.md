@@ -6,7 +6,7 @@
 
 **Architecture:** Pure policy engine module with no side effects, no DB, no execution coupling. Feeds into P12.2 risk scoring and P12.3 approval workflow later. CLI integrated via existing `alix governance policies` subcommand.
 
-**Tech Stack:** TypeScript 5.9, Node 24, pnpm, existing governance CLI (`src/cli/commands/governance.ts`)
+**Tech Stack:** TypeScript 5.9, Node 24, pnpm, existing governance CLI (`src/interfaces/cli/commands/governance.ts`)
 
 ## Global Constraints
 
@@ -27,7 +27,7 @@ src/governance/
 tests/governance/
   policy-engine.test.ts         — Unit tests
 
-src/cli/commands/
+src/interfaces/cli/commands/
   governance.ts                 — Add 'policies' subcommand (modify)
 ```
 
@@ -55,7 +55,7 @@ describe("pathMatches", () => {
     assert.strictEqual(pathMatches(".env", ".env"), true);
   });
   it("prefix with ** matches nested", () => {
-    assert.strictEqual(pathMatches("src/security/auth.ts", "src/security/**"), true);
+    assert.strictEqual(pathMatches("src/governance/security/auth.ts", "src/governance/security/**"), true);
   });
   it("non-matching prefix returns false", () => {
     assert.strictEqual(pathMatches("src/main.ts", "deploy/**"), false);
@@ -127,8 +127,8 @@ describe("policyMatches", () => {
     assert.strictEqual(policyMatches(p, { actionType: "x", labels: ["bug"] }), false);
   });
   it("matches on paths", () => {
-    const p: Policy = { id: "t3", description: "x", match: { paths: ["src/security/**"] }, effect: "deny" };
-    assert.strictEqual(policyMatches(p, { actionType: "x", files: ["src/security/auth.ts"] }), true);
+    const p: Policy = { id: "t3", description: "x", match: { paths: ["src/governance/security/**"] }, effect: "deny" };
+    assert.strictEqual(policyMatches(p, { actionType: "x", files: ["src/governance/security/auth.ts"] }), true);
     assert.strictEqual(policyMatches(p, { actionType: "x", files: ["src/main.ts"] }), false);
   });
   it("matches on maxFiles exceeding limit", () => {
@@ -210,7 +210,7 @@ Expected: PASS.
 ```typescript
 describe("evaluatePolicies", () => {
   const policies = [
-    { id: "deny-sec", description: "Security denied", match: { paths: ["src/security/**"] }, effect: "deny" },
+    { id: "deny-sec", description: "Security denied", match: { paths: ["src/governance/security/**"] }, effect: "deny" },
     { id: "approve-src", description: "Source needs approval", match: { paths: ["src/**"] }, effect: "requires_approval" },
     { id: "allow-others", description: "Default allow", match: {}, effect: "allow" },
   ];
@@ -220,7 +220,7 @@ describe("evaluatePolicies", () => {
     assert.strictEqual(r.decision, "allow");
   });
   it("denies when deny policy matches", () => {
-    const r = evaluatePolicies({ actionType: "x", files: ["src/security/auth.ts"] }, policies);
+    const r = evaluatePolicies({ actionType: "x", files: ["src/governance/security/auth.ts"] }, policies);
     assert.strictEqual(r.decision, "deny");
   });
   it("requires_approval when approval policy matches", () => {
@@ -228,7 +228,7 @@ describe("evaluatePolicies", () => {
     assert.strictEqual(r.decision, "requires_approval");
   });
   it("deny beats requires_approval", () => {
-    const r = evaluatePolicies({ actionType: "x", files: ["src/security/auth.ts", "src/main.ts"] }, policies);
+    const r = evaluatePolicies({ actionType: "x", files: ["src/governance/security/auth.ts", "src/main.ts"] }, policies);
     assert.strictEqual(r.decision, "deny");
   });
   it("no policy matched falls back to requires_approval", () => {
@@ -257,7 +257,7 @@ export function evaluatePolicies(context: ActionContext, policies: Policy[] = DE
 
 ```typescript
 export const DEFAULT_POLICIES: Policy[] = [
-  { id: "security-paths-deny", description: "Deny changes to security/auth/infra paths", match: { paths: ["src/security/**", "src/auth/**", "deploy/**", "infra/**"] }, effect: "deny" },
+  { id: "security-paths-deny", description: "Deny changes to security/auth/infra paths", match: { paths: ["src/governance/security/**", "src/auth/**", "deploy/**", "infra/**"] }, effect: "deny" },
   { id: "secrets-deny", description: "Deny changes to secrets and env config", match: { paths: [".env", ".env.*", "**/secrets/**", "**/credentials/**"] }, effect: "deny" },
   { id: "large-change-approval", description: ">10 files requires human approval", match: { maxFiles: 10 }, effect: "requires_approval" },
   { id: "source-change-approval", description: "Source changes require approval", match: { paths: ["src/**"] }, effect: "requires_approval" },
@@ -281,7 +281,7 @@ Expected: all pass.
 
 - [ ] **Step 1: Add `policies` subcommand to governance handler**
 
-In `src/cli/commands/governance.ts`, add:
+In `src/interfaces/cli/commands/governance.ts`, add:
 
 ```typescript
 if (sub === "policies") {
@@ -331,7 +331,7 @@ Expected: 2669+ tests pass (0 regressions).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/governance.ts src/governance/policy-engine.ts tests/governance/
+git add src/interfaces/cli/commands/governance.ts src/governance/policy-engine.ts tests/governance/
 git commit -m "feat(governance): add P12.1 policy engine and CLI"
 ```
 

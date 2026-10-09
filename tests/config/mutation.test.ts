@@ -24,9 +24,9 @@ import {
   computeConfigHash,
   MUTATION_ERROR_CODES,
   type ConfigProvenance,
-} from "../../src/config/mutation.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import { DEFAULT_CONFIG, PERMIT_ALL_CONFIG } from "../../src/config/defaults.js";
+} from "../../src/operations/config/mutation.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import { DEFAULT_CONFIG, PERMIT_ALL_CONFIG } from "../../src/operations/config/defaults.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

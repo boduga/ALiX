@@ -15,9 +15,9 @@
 ## File Structure
 
 ### Modify
-- `src/runtime/trace-events.ts` — add `"ifamas"` to `TraceSourceType`, handle `"ifamas.diagnostic"` in `toTraceEvent()`
-- `src/runtime/ifamas-pipeline.ts` — add optional `eventLog` param to `runIfamasDiagnostic()`
-- `src/cli/commands/tui.ts` — wire EventLog into the `/ifamas` command
+- `src/runtime-state/runtime/trace-events.ts` — add `"ifamas"` to `TraceSourceType`, handle `"ifamas.diagnostic"` in `toTraceEvent()`
+- `src/runtime-state/runtime/ifamas-pipeline.ts` — add optional `eventLog` param to `runIfamasDiagnostic()`
+- `src/interfaces/cli/commands/tui.ts` — wire EventLog into the `/ifamas` command
 
 ### Create
 - `tests/runtime/ifamas-pipeline.test.ts` — new test for event emission (or add to existing)
@@ -28,7 +28,7 @@
 ### Task 1: Add `"ifamas"` source type to trace-events.ts
 
 **Files:**
-- Modify: `src/runtime/trace-events.ts`
+- Modify: `src/runtime-state/runtime/trace-events.ts`
 
 - [ ] **Step 1: Add `"ifamas"` to `TraceSourceType`**
 
@@ -108,7 +108,7 @@ Expected: clean compile
 ### Task 2: Wire event emission in ifamas-pipeline.ts
 
 **Files:**
-- Modify: `src/runtime/ifamas-pipeline.ts`
+- Modify: `src/runtime-state/runtime/ifamas-pipeline.ts`
 
 - [ ] **Step 1: Add optional `eventLog` parameter**
 
@@ -162,7 +162,7 @@ Expected: clean compile
 ### Task 3: Wire EventLog into TUI `/ifamas` command
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Pass the TUI's EventLog to `runIfamasDiagnostic`**
 
@@ -198,7 +198,7 @@ Expected: clean compile
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { toTraceEvent } from "../../src/runtime/trace-events.js";
+import { toTraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 describe("IFÁ-MAS trace event normalization", () => {
   it("converts ifamas.diagnostic event to TraceEvent with sourceType 'ifamas'", () => {
@@ -349,5 +349,5 @@ Expected: All tests pass (existing: 10, ifamas trace: 4, ifamas pipeline emissio
 2. `node --test dist/tests/runtime/ifamas-pipeline.test.js` — 12/12 pass
 3. `node --test dist/tests/runtime/trace-events-ifamas.test.js` — 4/4 pass
 4. `node --test dist/tests/runtime/*.test.js` — no regressions (check total count)
-5. `grep -rn 'ToolExecutor\|PolicyGate\|ApprovalStore' src/runtime/ifamas-pipeline.ts src/runtime/trace-events.ts` — should not appear in ifamas-pipeline, only trace-events if referenced
+5. `grep -rn 'ToolExecutor\|PolicyGate\|ApprovalStore' src/runtime-state/runtime/ifamas-pipeline.ts src/runtime-state/runtime/trace-events.ts` — should not appear in ifamas-pipeline, only trace-events if referenced
 6. Git diff shows only the expected files

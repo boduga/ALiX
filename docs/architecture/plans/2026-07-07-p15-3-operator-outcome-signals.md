@@ -71,7 +71,7 @@ Group `input.decisions` by `decider`, count. Group `input.reviews` by `reviewer`
 
 ### Task 2 — CLI handler
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 Add `case "effectiveness"` to audit dispatch → `runAuditEffectiveness(cwd, args, jsonMode)`.
 
@@ -127,7 +127,7 @@ No operator ranking or comparison in human output. Throughput is a flat list of 
 | File | Lines | Change type |
 |------|-------|-------------|
 | `src/governance/operator-effectiveness.ts` | ~250 | New |
-| `src/cli/commands/governance.ts` | ~100 | Extend (dispatch + handler) |
+| `src/interfaces/cli/commands/governance.ts` | ~100 | Extend (dispatch + handler) |
 | `tests/governance/operator-effectiveness.test.ts` | ~250 | New |
 | **Total new** | ~600 | |
 
@@ -137,7 +137,7 @@ No operator ranking or comparison in human output. Throughput is a flat list of 
 - `src/governance/decision-capture.ts` — `OperatorDecision`, `DecisionStore`
 - `src/governance/operator-review.ts` — `OperatorReview`
 - `src/governance/action-queue.ts` — `GovernanceActionProposal`, `ActionProposalStatusTransition`
-- `src/cli/commands/governance.ts` — CLI dispatch + handler
+- `src/interfaces/cli/commands/governance.ts` — CLI dispatch + handler
 
 ## Acceptance gate
 

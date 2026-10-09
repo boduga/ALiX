@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { rankContextCandidate } from "../../src/repomap/context-ranker.js";
+import { rankContextCandidate } from "../../src/context/repomap/context-ranker.js";
 
 describe("rankContextCandidate", () => {
   it("combines mention, dependency, symbol, test, config, and git activity signals", () => {

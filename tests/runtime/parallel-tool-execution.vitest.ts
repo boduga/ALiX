@@ -15,14 +15,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-import { EventLog } from "../../src/events/event-log.js";
-import { MemoryStore } from "../../src/utils/memory/store.js";
-import { ScopeTracker } from "../../src/autonomy/scope-tracker.js";
-import { TaskStateMachine, RunLimiter } from "../../src/autonomy/state-machine.js";
-import { createContextBudget } from "../../src/config/context-budget.js";
-import { ToolExecutor } from "../../src/tools/executor.js";
-import { runTaskLoop, type TaskLoopDeps } from "../../src/run/task-loop.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { MemoryStore } from "../../src/operations/utils/memory/store.js";
+import { ScopeTracker } from "../../src/planning/autonomy/scope-tracker.js";
+import { TaskStateMachine, RunLimiter } from "../../src/planning/autonomy/state-machine.js";
+import { createContextBudget } from "../../src/operations/config/context-budget.js";
+import { ToolExecutor } from "../../src/capabilities/tools/executor.js";
+import { runTaskLoop, type TaskLoopDeps } from "../../src/execution/run/task-loop.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 import type {
   ModelAdapter,
   NormalizedRequest,
@@ -30,7 +30,7 @@ import type {
   ToolCall,
   ToolDef,
   StreamChunk,
-} from "../../src/providers/types.js";
+} from "../../src/models/providers/types.js";
 import {
   getToolConcurrency,
   canParallelize,
@@ -40,15 +40,15 @@ import {
   DEFAULT_TOOL_EXECUTION_POLICY,
   createToolExecutionPolicy,
   type ToolExecutionPolicy,
-} from "../../src/runtime/tool-scheduler.js";
+} from "../../src/runtime-state/runtime/tool-scheduler.js";
 import {
   buildCorrelatedToolResultMessage,
   toCorrelatedToolResult,
-} from "../../src/runtime/tool-correlation.js";
-import { openaiBaseSpec } from "../../src/providers/specs/_openai-base.js";
-import { localLlamaSpec } from "../../src/providers/specs/local-llama-spec.js";
-import { resolveParallelToolCalls } from "../../src/providers/parallel-tool-calls.js";
-import { _setFetchForTesting } from "../../src/providers/unified-complete.js";
+} from "../../src/runtime-state/runtime/tool-correlation.js";
+import { openaiBaseSpec } from "../../src/models/providers/specs/_openai-base.js";
+import { localLlamaSpec } from "../../src/models/providers/specs/local-llama-spec.js";
+import { resolveParallelToolCalls } from "../../src/models/providers/parallel-tool-calls.js";
+import { _setFetchForTesting } from "../../src/models/providers/unified-complete.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -445,7 +445,7 @@ describe("T6 parallel tool execution — tracer bullet (10 cases + provider fall
   // 8) streaming multi-tool: provider streams two tool_call chunks, scheduler handles both, correlation preserved
   it("8) streaming multi-tool: OpenAI SSE deltas for index 0 and 1 yield two distinct tool_call chunks; local-llama normalizes parallel tool_calls[]", async () => {
     // Unified-complete OpenAI streaming path: two tool deltas at index 0/1
-    const { complete, stream, _setFetchForTesting: _unused } = await import("../../src/providers/unified-complete.js");
+    const { complete, stream, _setFetchForTesting: _unused } = await import("../../src/models/providers/unified-complete.js");
     // Test via the low-level accumulators indirectly: simulate what stream() does with _fetch
     // Instead drive the distributable spec directly: _openai-base fromStreamChunk is single-tool,
     // but unified-complete's parseOpenAiToolDeltaLine handles multi-index. We verify via integration with a fake fetch.

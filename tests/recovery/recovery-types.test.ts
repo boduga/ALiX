@@ -11,9 +11,9 @@ import {
   NoopCrashInjector,
   ThrowingCrashInjector,
   CrashInjectedError,
-} from "../../src/recovery/recovery-types.js";
-import { scan } from "../../src/recovery/recovery-scanner.js";
-import { repair } from "../../src/recovery/recovery-repair.js";
+} from "../../src/execution/recovery/recovery-types.js";
+import { scan } from "../../src/execution/recovery/recovery-scanner.js";
+import { repair } from "../../src/execution/recovery/recovery-repair.js";
 
 // =========================================================================
 // Crash injector tests

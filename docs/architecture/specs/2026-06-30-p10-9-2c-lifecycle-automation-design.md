@@ -44,7 +44,7 @@ Recovery path (scan):
 ## Section 1: Types
 
 ```typescript
-// New file: src/executive/executive-orchestrator.ts
+// New file: src/execution/executive/executive-orchestrator.ts
 
 /** Lineage extracted from a child proposal's payload. */
 export interface ChildLineageInfo {
@@ -437,7 +437,7 @@ Added to `EvidenceType` union and `EVIDENCE_TYPES` set.
 
 ## Section 6: Where the Hook Fires
 
-In `src/cli/commands/adaptation.ts`, `runApply()` function, after `gate.apply()` completes:
+In `src/interfaces/cli/commands/adaptation.ts`, `runApply()` function, after `gate.apply()` completes:
 
 `gate.apply()` handles both outcomes:
 - **Success:** proposal transitions to `applied` → the hook fires with the updated proposal
@@ -497,14 +497,14 @@ When a child proposal reaches `failed` status, the bridge step transitions to `b
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/executive/executive-orchestrator.ts` | **Create** | Types, pure functions, ExecutiveOrchestrator class |
+| `src/execution/executive/executive-orchestrator.ts` | **Create** | Types, pure functions, ExecutiveOrchestrator class |
 | `tests/executive/executive-orchestrator.vitest.ts` | **Create** | Unit tests for pure functions + orchestrator |
-| `src/cli/commands/executive-orchestrate-handler.ts` | **Create** | `handleOrchestrateCommand` for recovery CLI |
+| `src/interfaces/cli/commands/executive-orchestrate-handler.ts` | **Create** | `handleOrchestrateCommand` for recovery CLI |
 | `tests/cli/commands/executive-orchestrate-cli.vitest.ts` | **Create** | CLI integration tests |
-| `src/cli/commands/adaptation.ts` | **Modify** | Wire OrchestrationHook after `gate.apply()` |
-| `src/cli/commands/executive.ts` | **Modify** | Add `"orchestrate"` case |
-| `src/workflow/evidence-writer.ts` | **Modify** | Add `recordExecutiveStepOrchestrated` method |
-| `src/security/evidence/evidence-types.ts` | **Modify** | Add `executive_step_orchestrated` evidence type |
+| `src/interfaces/cli/commands/adaptation.ts` | **Modify** | Wire OrchestrationHook after `gate.apply()` |
+| `src/interfaces/cli/commands/executive.ts` | **Modify** | Add `"orchestrate"` case |
+| `src/coordination/workflow/evidence-writer.ts` | **Modify** | Add `recordExecutiveStepOrchestrated` method |
+| `src/governance/security/evidence/evidence-types.ts` | **Modify** | Add `executive_step_orchestrated` evidence type |
 | Executive purity sentinel | **Modify** | Add new files to `EXECUTIVE_FILES` allowlist |
 
 ## Section 9: Wiring Detail

@@ -161,7 +161,7 @@ capability.InvocationStarted/…              ─┘         │
 - ✅ Running entries never disappear mid-run; terminal entries are bounded (keep-last-N).
 - ✅ All / Tool / Capability / Policy / Runtime filtering works entirely client-side over the trace.
 - ✅ `RuntimeView` never calls `EventLog` and never interprets raw events — dependency chain `EventLog → RuntimeCollector → RuntimeSnapshot → RuntimeView` holds.
-- ✅ `timelineEvents[]` and its views are untouched; `src/capability/*` unmodified.
+- ✅ `timelineEvents[]` and its views are untouched; `src/capabilities/capability/*` unmodified.
 - ✅ Builder is pure and testable; trace entries are immutable DTOs with `sourceEvents` provenance; TUI suite + tsc green.
 
 ## Non-Goals (Phase 4)
@@ -171,7 +171,7 @@ capability.InvocationStarted/…              ─┘         │
 - **Live streaming / WebSocket.** Polling (1s) is the existing pattern; no new transport.
 - **Trace persistence / replay.** Execution entries are runtime DTOs; durability is a later concern.
 - **New tabs / navigation changes.** The trace lives in the existing Runtime tab.
-- **`src/capability/*` modification.** Platform stays UI-unaware.
+- **`src/capabilities/capability/*` modification.** Platform stays UI-unaware.
 
 ## Future Direction
 

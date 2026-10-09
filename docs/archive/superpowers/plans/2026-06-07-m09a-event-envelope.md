@@ -16,7 +16,7 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/kernel/event-envelope.ts` | **Create** | Canonical event types, `EventSink` interface, `CanonicalEventSink` adapter |
+| `src/coordination/kernel/event-envelope.ts` | **Create** | Canonical event types, `EventSink` interface, `CanonicalEventSink` adapter |
 | `tests/kernel/event-envelope.test.ts` | **Create** | Adapter tests |
 
 ---
@@ -24,8 +24,8 @@
 ### Task 1: Create event envelope adapter
 
 **Files:**
-- Create: `src/kernel/event-envelope.ts`
-- Reference: `docs/ALiX_Nexus_OS_Docs_v1.6/implementation/m0.9-starter/src/kernel/event-envelope.ts` (scaffold)
+- Create: `src/coordination/kernel/event-envelope.ts`
+- Reference: `docs/ALiX_Nexus_OS_Docs_v1.6/implementation/m0.9-starter/src/coordination/kernel/event-envelope.ts` (scaffold)
 
 - [ ] **Step 1: Write the adapter**
 
@@ -176,7 +176,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/event-envelope.ts
+git add src/coordination/kernel/event-envelope.ts
 git commit -m "feat(kernel): canonical event envelope and EventSink adapter"
 ```
 
@@ -192,8 +192,8 @@ git commit -m "feat(kernel): canonical event envelope and EventSink adapter"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { toCanonicalEvent, CanonicalEventSink } from "../../src/kernel/event-envelope.js";
-import type { AlixEvent } from "../../src/events/types.js";
+import { toCanonicalEvent, CanonicalEventSink } from "../../src/coordination/kernel/event-envelope.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
 
 describe("toCanonicalEvent", () => {
 

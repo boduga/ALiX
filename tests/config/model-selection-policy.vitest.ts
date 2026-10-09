@@ -12,19 +12,19 @@
  */
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { buildRoutingAdapter, RoutingModelAdapter } from "../../src/providers/routing-adapter.js";
-import { selectDiscoveredModel, resolveSelectionModelId } from "../../src/providers/model-resolver.js";
-import { createProvider } from "../../src/providers/registry.js";
-import { isValidModelConfig } from "../../src/config/schema.js";
-import { createModelResolver } from "../../src/config/model-resolver.js";
+import { buildRoutingAdapter, RoutingModelAdapter } from "../../src/models/providers/routing-adapter.js";
+import { selectDiscoveredModel, resolveSelectionModelId } from "../../src/models/providers/model-resolver.js";
+import { createProvider } from "../../src/models/providers/registry.js";
+import { isValidModelConfig } from "../../src/operations/config/schema.js";
+import { createModelResolver } from "../../src/operations/config/model-resolver.js";
 import {
   _setOpenRouterDiscoveryFetch,
   _resetOpenRouterDiscoveryCache,
-} from "../../src/providers/model-discovery.js";
-import { _resetAccessRestrictionRegistryForTesting } from "../../src/providers/access-restriction-registry.js";
-import * as catalog from "../../src/providers/catalog.js";
+} from "../../src/models/providers/model-discovery.js";
+import { _resetAccessRestrictionRegistryForTesting } from "../../src/models/providers/access-restriction-registry.js";
+import * as catalog from "../../src/models/providers/catalog.js";
 
-import type { DiscoveredModel } from "../../src/providers/model-discovery.js";
+import type { DiscoveredModel } from "../../src/models/providers/model-discovery.js";
 
 const catalogResponse = (models: unknown[]) => new Response(JSON.stringify({ data: models }), {
   status: 200,
@@ -167,7 +167,7 @@ describe("resolveSelectionModelId (shared discovery seam)", () => {
   });
 
   it("excludes models in the bounded-lifetime access-restriction registry", async () => {
-    const { recordAccessRestricted } = await import("../../src/providers/access-restriction-registry.js");
+    const { recordAccessRestricted } = await import("../../src/models/providers/access-restriction-registry.js");
     _setOpenRouterDiscoveryFetch(async () => catalogResponse([
       { id: "big:free", name: "Big", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
       { id: "small:free", name: "Small", context_length: 4_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },

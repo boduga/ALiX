@@ -38,14 +38,14 @@ Each command drives the existing **pure** factory (`createRemediationProposalsFr
 
 ### Wired read paths
 
-`runExecutionReport`, `loadWorkbenchSnapshot`, and `runWorkbenchTrace` now load all four collections via a shared `loadExecutionStores()` helper (`src/cli/commands/governance.ts`) and pass real arrays to `buildExecutionReport` / `buildWorkbenchSnapshot` / `buildLifecycleTrace`. The `runWorkbenchTrace` per-hop indexes (plansByRemediation, approvalsByPlan, remediationsById) are now populated from persisted data.
+`runExecutionReport`, `loadWorkbenchSnapshot`, and `runWorkbenchTrace` now load all four collections via a shared `loadExecutionStores()` helper (`src/interfaces/cli/commands/governance.ts`) and pass real arrays to `buildExecutionReport` / `buildWorkbenchSnapshot` / `buildLifecycleTrace`. The `runWorkbenchTrace` per-hop indexes (plansByRemediation, approvalsByPlan, remediationsById) are now populated from persisted data.
 
 ---
 
 ## 2. Contract / invariants
 
 - **Purity preserved:** the pure modules (`remediation-queue.ts`, `remediation-lifecycle.ts`, `execution-plans.ts`, `execution-approval.ts`, `execution-recorder.ts`, `execution-report.ts`, `governance-workbench.ts`) remain I/O-free. Stores do the I/O; the CLI is the caller boundary.
-- **Store method named `append`, not `save`:** the P9.0 purity sentinel (`tests/governance/governance-sentinels.vitest.ts`) forbids `save(` in `src/cli/commands/governance.ts` to block P8 self-mutation. New P17 stores use `append(` to avoid weakening that P8 protection while still persisting.
+- **Store method named `append`, not `save`:** the P9.0 purity sentinel (`tests/governance/governance-sentinels.vitest.ts`) forbids `save(` in `src/interfaces/cli/commands/governance.ts` to block P8 self-mutation. New P17 stores use `append(` to avoid weakening that P8 protection while still persisting.
 - **Dir:** all four lifecycle stores default to `.alix/governance/`.
 - **Mutation lives under `execution`, not `workbench`** (P18.4).
 

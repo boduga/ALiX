@@ -233,11 +233,11 @@ The event log is persisted as JSONL and replayed during session resume.
 
 - `src/agents/subagent-manager.ts` — SubagentManager (dispatch, ownership, lifecycle)
 - `src/agents/subagent-cli.ts` — SubagentCLI (agent entry point, model invocation, tool execution)
-- `src/config/schema.ts` — `SubagentTask`, `SubagentResult`, `SubagentRole`, `ModelTierConfig`
+- `src/operations/config/schema.ts` — `SubagentTask`, `SubagentResult`, `SubagentRole`, `ModelTierConfig`
 - `src/agents/tool-policy.ts` — Per-role tool filtering
 - `src/agents/ownership-registry.ts` — Path-based ownership enforcement
-- `src/repomap/context-compiler.ts` — ContextBundle construction
-- `src/events/event-log.ts` — EventLog (JSONL session persistence)
-- `src/providers/registry.ts` — Model provider resolution
-- `src/tools/executor.ts` — Tool execution
-- `src/patch/edit-format-policy.ts` — Edit format enforcement for mutation agents
+- `src/context/repomap/context-compiler.ts` — ContextBundle construction
+- `src/runtime-state/events/event-log.ts` — EventLog (JSONL session persistence)
+- `src/models/providers/registry.ts` — Model provider resolution
+- `src/capabilities/tools/executor.ts` — Tool execution
+- `src/execution/patch/edit-format-policy.ts` — Edit format enforcement for mutation agents

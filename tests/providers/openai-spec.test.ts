@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { openaiSpec } from "../../src/providers/specs/openai-spec.js";
+import { openaiSpec } from "../../src/models/providers/specs/openai-spec.js";
 
 describe("openaiSpec", () => {
   it("uses OpenAI's base URL", () => {

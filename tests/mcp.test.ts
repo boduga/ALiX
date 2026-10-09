@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { McpClient } from "../src/mcp/client.js";
-import { McpTransport } from "../src/mcp/transport.js";
-import { McpToolRegistry, type RegisteredTool } from "../src/mcp/registry.js";
-import { mapServerCapabilities } from "../src/mcp/capability-mapper.js";
-import type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification } from "../src/mcp/types.js";
-import type { McpServerCapabilities, Tool } from "../src/mcp/types.js";
+import { McpClient } from "../src/capabilities/mcp/client.js";
+import { McpTransport } from "../src/capabilities/mcp/transport.js";
+import { McpToolRegistry, type RegisteredTool } from "../src/capabilities/mcp/registry.js";
+import { mapServerCapabilities } from "../src/capabilities/mcp/capability-mapper.js";
+import type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification } from "../src/capabilities/mcp/types.js";
+import type { McpServerCapabilities, Tool } from "../src/capabilities/mcp/types.js";
 
 // Mock transport for testing
 class MockTransport implements McpTransport {

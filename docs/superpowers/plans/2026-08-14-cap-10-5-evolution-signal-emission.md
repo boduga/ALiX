@@ -6,7 +6,7 @@
 
 **Architecture:** Outcome is canonical. Pipeline: `OutcomeDecider → final outcome.signals → measured event (commit) → ProposalSignalSink.publish (best-effort)`. Composition root owns one `ProposalSignalChannel` (sink + source in one object, private buffer, non-destructive reads). Failure events carry SHA-256 signal IDs sufficient for CAP-12 replay.
 
-**Tech Stack:** TypeScript · Node `crypto.createHash` · `canonicalStringify` from `src/security/audit/canonical-json.ts` · append-only EventLog.
+**Tech Stack:** TypeScript · Node `crypto.createHash` · `canonicalStringify` from `src/governance/security/audit/canonical-json.ts` · append-only EventLog.
 
 ## Global Constraints
 
@@ -18,11 +18,11 @@ The spec's project-wide requirements — every task's requirements implicitly in
 - **No transient retry queue.** CAP-10.5 emits only `"sink_threw"` classification. `"sink_timeout"` is reserved in the schema for forward compat only.
 - **Stable signal identity.** `signalId = sha256("alix-capability-signal-id-v1:" + canonicalStringify(signal))`. No `crypto.randomUUID()` for these IDs.
 - **Idempotent reads.** `channel.signals()` is non-destructive — returns the same snapshot on repeated calls.
-- **`ProposalSignalChannel` is in its own module** (`src/capability/evolution/proposal-signal-channel.ts`). NOT in `a7-proposals.ts`.
+- **`ProposalSignalChannel` is in its own module** (`src/capabilities/capability/evolution/proposal-signal-channel.ts`). NOT in `a7-proposals.ts`.
 - **Buffer is private.** Tests verify via `channel.publish()` + `channel.signals()` — not buffer inspection.
 - **Default decider policy:** `effective → []`, `ineffective → [underperformer(capabilityId@version, evidenceRefs, confidence)]`, `inconclusive → []`.
 - **CAP-10 surface unchanged.** The CLI, service surface, projection shape, and measured event payload stay byte-equivalent for non-failure paths.
-- **Forbidden files (NEVER touch):** `src/capability/initial-capabilities.ts`, `src/tools/tool-registry.ts`, `src/policy/capability-registry.ts`, production `src/capability/canonical/*`, `src/capability/evolution/a7-proposals.ts` body beyond the additive `ProposalSignalSink` interface insertion (do NOT modify `A7ProposalGenerator` or `ProposalSignalSource`).
+- **Forbidden files (NEVER touch):** `src/capabilities/capability/initial-capabilities.ts`, `src/capabilities/tools/tool-registry.ts`, `src/governance/policy/capability-registry.ts`, production `src/capabilities/capability/canonical/*`, `src/capabilities/capability/evolution/a7-proposals.ts` body beyond the additive `ProposalSignalSink` interface insertion (do NOT modify `A7ProposalGenerator` or `ProposalSignalSource`).
 - **Pre-resolved bug conventions:** use `pnpm exec tsc --noEmit` (not bare `tsc`); use `.js` extensions on relative imports; `Object.freeze(this)` after all property assignments in constructors.
 
 ---
@@ -30,7 +30,7 @@ The spec's project-wide requirements — every task's requirements implicitly in
 ## Task 1: Add `ProposalSignalSink` interface to `a7-proposals.ts`
 
 **Files:**
-- Modify: `src/capability/evolution/a7-proposals.ts` — add `ProposalSignalSink` interface immediately after `ProposalSignalSource`
+- Modify: `src/capabilities/capability/evolution/a7-proposals.ts` — add `ProposalSignalSink` interface immediately after `ProposalSignalSource`
 - Test: existing tests still pass (no new test file)
 
 **Interfaces:**
@@ -39,7 +39,7 @@ The spec's project-wide requirements — every task's requirements implicitly in
 
 - [ ] **Step 1: Read current `a7-proposals.ts` to confirm insertion point**
 
-Open `src/capability/evolution/a7-proposals.ts`. Locate the existing `ProposalSignalSource` interface (around line 93). Note the line directly after its closing `}` — that's the insertion point.
+Open `src/capabilities/capability/evolution/a7-proposals.ts`. Locate the existing `ProposalSignalSource` interface (around line 93). Note the line directly after its closing `}` — that's the insertion point.
 
 - [ ] **Step 2: Add the `ProposalSignalSink` interface**
 
@@ -72,7 +72,7 @@ Expected: all green (no behavior change yet).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/evolution/a7-proposals.ts
+git add src/capabilities/capability/evolution/a7-proposals.ts
 git commit -m "feat(evolution): CAP-10.5 add ProposalSignalSink interface (write-side contract)"
 ```
 
@@ -81,7 +81,7 @@ git commit -m "feat(evolution): CAP-10.5 add ProposalSignalSink interface (write
 ## Task 2: Create `signal-identity.ts` helper
 
 **Files:**
-- Create: `src/capability/evolution/signal-identity.ts`
+- Create: `src/capabilities/capability/evolution/signal-identity.ts`
 - Create: `tests/capability/signal-identity.vitest.ts`
 
 **Interfaces:**
@@ -100,8 +100,8 @@ import { describe, it, expect } from "vitest";
 import {
   computeSignalId,
   isValidSignalId,
-} from "../../src/capability/evolution/signal-identity.js";
-import type { CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capabilities/capability/evolution/signal-identity.js";
+import type { CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/a7-proposals.js";
 
 describe("computeSignalId (CAP-10.5 ruling #R5)", () => {
   const underperformer: CapabilityEvolutionSignal = {
@@ -179,7 +179,7 @@ Expected: FAIL with module-not-found for `signal-identity.js`.
 
 - [ ] **Step 3: Implement `signal-identity.ts`**
 
-Create `src/capability/evolution/signal-identity.ts`:
+Create `src/capabilities/capability/evolution/signal-identity.ts`:
 
 ```typescript
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -237,7 +237,7 @@ Expected: EXIT=0.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/capability/evolution/signal-identity.ts tests/capability/signal-identity.vitest.ts
+git add src/capabilities/capability/evolution/signal-identity.ts tests/capability/signal-identity.vitest.ts
 git commit -m "feat(evolution): CAP-10.5 signal-identity helper — deterministic SHA-256 signal IDs"
 ```
 
@@ -246,7 +246,7 @@ git commit -m "feat(evolution): CAP-10.5 signal-identity helper — deterministi
 ## Task 3: Create `ProposalSignalChannel` concrete class
 
 **Files:**
-- Create: `src/capability/evolution/proposal-signal-channel.ts`
+- Create: `src/capabilities/capability/evolution/proposal-signal-channel.ts`
 - Create: `tests/capability/proposal-signal-channel.vitest.ts`
 
 **Interfaces:**
@@ -262,12 +262,12 @@ Create `tests/capability/proposal-signal-channel.vitest.ts`:
 // SPDX-License-Identifier: MIT
 
 import { describe, it, expect } from "vitest";
-import { ProposalSignalChannel } from "../../src/capability/evolution/proposal-signal-channel.js";
+import { ProposalSignalChannel } from "../../src/capabilities/capability/evolution/proposal-signal-channel.js";
 import type {
   ProposalSignalSink,
   ProposalSignalSource,
   CapabilityEvolutionSignal,
-} from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capabilities/capability/evolution/a7-proposals.js";
 
 const sig = (kind: "gap" | "underperformer"): CapabilityEvolutionSignal =>
   kind === "gap"
@@ -333,7 +333,7 @@ Expected: FAIL with module-not-found for `proposal-signal-channel.js`.
 
 - [ ] **Step 3: Implement `proposal-signal-channel.ts`**
 
-Create `src/capability/evolution/proposal-signal-channel.ts`:
+Create `src/capabilities/capability/evolution/proposal-signal-channel.ts`:
 
 ```typescript
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -390,7 +390,7 @@ Expected: EXIT=0.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/capability/evolution/proposal-signal-channel.ts tests/capability/proposal-signal-channel.vitest.ts
+git add src/capabilities/capability/evolution/proposal-signal-channel.ts tests/capability/proposal-signal-channel.vitest.ts
 git commit -m "feat(evolution): CAP-10.5 ProposalSignalChannel — sink+source composition-root impl"
 ```
 
@@ -399,7 +399,7 @@ git commit -m "feat(evolution): CAP-10.5 ProposalSignalChannel — sink+source c
 ## Task 4: Add `MeasurementSignalsUnpublishedEvent` to event types
 
 **Files:**
-- Modify: `src/capability/measurement/measurement-event-types.ts`
+- Modify: `src/capabilities/capability/measurement/measurement-event-types.ts`
 - Create: `tests/capability/measurement-event-types.vitest.ts`
 
 **Interfaces:**
@@ -420,7 +420,7 @@ import {
   isMeasurementEventType,
   type MeasurementSignalsUnpublishedEvent,
   type MeasurementSignalsUnpublishedFailure,
-} from "../../src/capability/measurement/measurement-event-types.js";
+} from "../../src/capabilities/capability/measurement/measurement-event-types.js";
 
 const baseFailure: MeasurementSignalsUnpublishedFailure = {
   classification: "sink_threw",
@@ -482,7 +482,7 @@ Expected: FAIL with module-not-found for `MeasurementSignalsUnpublishedEvent` ex
 
 Replace the existing `CapabilityMeasurementEventType` and `CAPABILITY_MEASUREMENT_EVENT_TYPES` definitions with the extended versions, and append the new event interface.
 
-Modify `src/capability/measurement/measurement-event-types.ts`:
+Modify `src/capabilities/capability/measurement/measurement-event-types.ts`:
 
 ```typescript
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -643,7 +643,7 @@ Expected: any test that typed `CapabilityMeasurementEvent` against the OLD singl
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/capability/measurement/measurement-event-types.ts tests/capability/measurement-event-types.vitest.ts <any files widened for the union>
+git add src/capabilities/capability/measurement/measurement-event-types.ts tests/capability/measurement-event-types.vitest.ts <any files widened for the union>
 git commit -m "feat(measurement): CAP-10.5 MeasurementSignalsUnpublishedEvent + extended event union"
 ```
 
@@ -652,7 +652,7 @@ git commit -m "feat(measurement): CAP-10.5 MeasurementSignalsUnpublishedEvent + 
 ## Task 5: Modify `A5CapabilityMeasurement` — inject sink + eventLog, implement locked pipeline
 
 **Files:**
-- Modify: `src/evolution/observation/a5-capability-measurement.ts`
+- Modify: `src/planning/evolution/observation/a5-capability-measurement.ts`
 - Modify: `tests/capability/a5-capability-measurement.vitest.ts`
 
 **Interfaces:**
@@ -672,15 +672,15 @@ In `tests/capability/a5-capability-measurement.vitest.ts`, replace the "consults
 // SPDX-License-Identifier: MIT
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { A5CapabilityMeasurement } from "../../src/evolution/observation/a5-capability-measurement.js";
-import type { OutcomeDecider } from "../../src/evolution/observation/a5-capability-measurement.js";
-import type { ProposalSignalSink } from "../../src/capability/evolution/a7-proposals.js";
+import { A5CapabilityMeasurement } from "../../src/planning/evolution/observation/a5-capability-measurement.js";
+import type { OutcomeDecider } from "../../src/planning/evolution/observation/a5-capability-measurement.js";
+import type { ProposalSignalSink } from "../../src/capabilities/capability/evolution/a7-proposals.js";
 import type {
   CapabilityEvolutionSignal,
-} from "../../src/capability/evolution/a7-proposals.js";
-import type { ObservationEngine, ObservationResult } from "../../src/evolution/observation/contracts/observation-contract.js";
-import type { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import type { EventLog } from "../../src/events/event-log.js";
+} from "../../src/capabilities/capability/evolution/a7-proposals.js";
+import type { ObservationEngine, ObservationResult } from "../../src/planning/evolution/observation/contracts/observation-contract.js";
+import type { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import type { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 // --- minimal in-memory fakes ---
 
@@ -901,7 +901,7 @@ Expected: FAIL — `A5CapabilityMeasurement` constructor doesn't accept `signalS
 
 - [ ] **Step 4: Rewrite `a5-capability-measurement.ts`**
 
-Replace the file `src/evolution/observation/a5-capability-measurement.ts` with the new implementation:
+Replace the file `src/planning/evolution/observation/a5-capability-measurement.ts` with the new implementation:
 
 ```typescript
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -911,7 +911,7 @@ Replace the file `src/evolution/observation/a5-capability-measurement.ts` with t
  * CAP-10 — A5 concrete capability-measurement implementation.
  * CAP-10.5 — wiring for sink-based signal emission (ruling #R1, #R2).
  *
- * Implements the `A5Measurement` seam (`src/capability/measurement/a5.ts`).
+ * Implements the `A5Measurement` seam (`src/capabilities/capability/measurement/a5.ts`).
  * Uses `ObservationEngine` (A5.1) for baseline/post observations, computes
  * the outcome via injected `OutcomeDecider`, then publishes the produced
  * signals through the injected `ProposalSignalSink`.
@@ -927,7 +927,7 @@ Replace the file `src/evolution/observation/a5-capability-measurement.ts` with t
  *
  * Architectural boundaries (ruling #5, #7, axis 5):
  *   - Read-only catalog access (provider-name lookup).
- *   - MUST NOT import `src/capability/canonical/catalog` mutators.
+ *   - MUST NOT import `src/capabilities/capability/canonical/catalog` mutators.
  *   - MUST NOT modify outcome.signals after the decider returns.
  *
  * @module evolution/observation/a5-capability-measurement
@@ -1178,7 +1178,7 @@ Expected: callers that instantiated A5 with `signalSource` will fail to compile 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/evolution/observation/a5-capability-measurement.ts tests/capability/a5-capability-measurement.vitest.ts
+git add src/planning/evolution/observation/a5-capability-measurement.ts tests/capability/a5-capability-measurement.vitest.ts
 git commit -m "feat(observation): CAP-10.5 A5 wires sink + EventLog; locked 4-step pipeline"
 ```
 
@@ -1187,7 +1187,7 @@ git commit -m "feat(observation): CAP-10.5 A5 wires sink + EventLog; locked 4-st
 ## Task 6: Update `capability-measurement-engine.ts` to pass `EventLog` and adapt to new A5 ctor
 
 **Files:**
-- Modify: `src/capability/measurement/capability-measurement-engine.ts`
+- Modify: `src/capabilities/capability/measurement/capability-measurement-engine.ts`
 
 **Interfaces:**
 - Consumes: existing `EventLog`, `A5Measurement`
@@ -1195,7 +1195,7 @@ git commit -m "feat(observation): CAP-10.5 A5 wires sink + EventLog; locked 4-st
 
 - [ ] **Step 1: Read current engine**
 
-Open `src/capability/measurement/capability-measurement-engine.ts`. Find where A5 is instantiated (likely inside the engine's constructor or in a factory).
+Open `src/capabilities/capability/measurement/capability-measurement-engine.ts`. Find where A5 is instantiated (likely inside the engine's constructor or in a factory).
 
 - [ ] **Step 2: Identify the A5 construction site**
 
@@ -1235,7 +1235,7 @@ Expected: existing engine tests still pass. Any test that constructed the engine
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/capability/measurement/capability-measurement-engine.ts
+git add src/capabilities/capability/measurement/capability-measurement-engine.ts
 git commit -m "refactor(measurement): CAP-10.5 engine passes signalSink + eventLog to A5"
 ```
 
@@ -1244,7 +1244,7 @@ git commit -m "refactor(measurement): CAP-10.5 engine passes signalSink + eventL
 ## Task 7: Composition root — construct `ProposalSignalChannel` once; update test fakes
 
 **Files:**
-- Modify: `src/capability/platform.ts`
+- Modify: `src/capabilities/capability/platform.ts`
 - Modify: `tests/capability/platform-cap-10.vitest.ts`
 - Modify: `tests/capability/capability-service-governance.vitest.ts`
 - Modify: `tests/capability/capability-measure-cli.test.ts`
@@ -1254,7 +1254,7 @@ git commit -m "refactor(measurement): CAP-10.5 engine passes signalSink + eventL
 - Consumes: `ProposalSignalChannel` from `proposal-signal-channel.js`
 - Produces: `CapabilityPlatform` constructs one channel; passes it (typed as Sink) to A5 and (typed as Source) to A7; test fakes updated to implement both interfaces
 
-- [ ] **Step 1: Modify `src/capability/platform.ts`**
+- [ ] **Step 1: Modify `src/capabilities/capability/platform.ts`**
 
 Find the construction of `a5CapabilityMeasurement` and `proposalGenerator`. Add:
 
@@ -1312,7 +1312,7 @@ Expected: pre-existing failure count unchanged (this codebase has pre-existing n
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/capability/platform.ts tests/capability/platform-cap-10.vitest.ts tests/capability/capability-service-governance.vitest.ts tests/capability/capability-measure-cli.test.ts tests/capability/governance-cli.test.ts
+git add src/capabilities/capability/platform.ts tests/capability/platform-cap-10.vitest.ts tests/capability/capability-service-governance.vitest.ts tests/capability/capability-measure-cli.test.ts tests/capability/governance-cli.test.ts
 git commit -m "refactor(platform): CAP-10.5 composition root owns ProposalSignalChannel; dual views"
 ```
 

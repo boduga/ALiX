@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { RoutingModelAdapter, type RoutingCandidate } from "../../src/providers/routing-adapter.js";
-import { streamToResponse } from "../../src/run/helpers.js";
-import { ApiError } from "../../src/providers/base.js";
-import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "../../src/providers/types.js";
+import { RoutingModelAdapter, type RoutingCandidate } from "../../src/models/providers/routing-adapter.js";
+import { streamToResponse } from "../../src/execution/run/helpers.js";
+import { ApiError } from "../../src/models/providers/base.js";
+import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "../../src/models/providers/types.js";
 
 const req: NormalizedRequest = { systemPrompt: "s", messages: [{ role: "user", content: "hi" }] };
 

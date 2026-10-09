@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { AdaptivePolicy, type ExecutionSignals } from "../../src/adaptive/policy.js";
+import { AdaptivePolicy, type ExecutionSignals } from "../../src/planning/adaptive/policy.js";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -92,7 +92,7 @@ describe("AdaptivePolicy invariants", () => {
   });
 
   it("2. no StepExecutor dependency (static file check)", () => {
-    const src = readFileSync("src/adaptive/policy.ts", "utf8");
+    const src = readFileSync("src/planning/adaptive/policy.ts", "utf8");
     expect(src).not.toMatch(/StepExecutor/);
     // Also must not import executor / runtime execution
     expect(src).not.toMatch(/from\s+["'].*executor.*["']/i);

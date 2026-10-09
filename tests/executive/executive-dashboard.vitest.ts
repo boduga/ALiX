@@ -52,8 +52,8 @@ import {
   buildIntegrityPanel,
   buildAlerts,
   buildSummaryPanel,
-} from "../../src/executive/executive-dashboard.js";
-import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
+} from "../../src/execution/executive/executive-dashboard.js";
+import type { ExecutiveTrendSnapshot } from "../../src/execution/executive/trend-store.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

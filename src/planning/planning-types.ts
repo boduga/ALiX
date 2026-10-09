@@ -6,8 +6,8 @@
 // a prioritized multi-subsystem plan with ranked objectives, causal
 // ordering, estimated effort, and advisory-only recommendations.
 
-import type { CorrelationSubsystemId } from "../correlation/correlation-types.js";
-import type { CausalMechanism } from "../reasoning/reasoning-types.js";
+import type { CorrelationSubsystemId } from "../operations/correlation/correlation-types.js";
+import type { CausalMechanism } from "./reasoning/reasoning-types.js";
 
 // ---------------------------------------------------------------------------
 // Supporting types

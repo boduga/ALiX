@@ -6,11 +6,11 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { IssueIntakeAgent } from "../../../src/workflow/agents/issue-intake-agent.js";
-import { WorkflowCoordinator } from "../../../src/workflow/coordinator.js";
-import { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
-import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
-import type { GhIssueData } from "../../../src/workflow/agents/issue-intake-agent.js";
+import { IssueIntakeAgent } from "../../../src/coordination/workflow/agents/issue-intake-agent.js";
+import { WorkflowCoordinator } from "../../../src/coordination/workflow/coordinator.js";
+import { EvidenceEventWriter } from "../../../src/coordination/workflow/evidence-writer.js";
+import { EvidenceStore } from "../../../src/governance/security/evidence/evidence-store.js";
+import type { GhIssueData } from "../../../src/coordination/workflow/agents/issue-intake-agent.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -35,7 +35,7 @@ Depends on #61
 
 ## Files
 
-- \`src/workflow/agents/issue-intake-agent.ts\`
+- \`src/coordination/workflow/agents/issue-intake-agent.ts\`
 - \`tests/workflow/agents/issue-intake-agent.vitest.ts\`
 `,
     state: "OPEN",
@@ -184,7 +184,7 @@ describe("IssueIntakeAgent", () => {
       expect(result.success).toBe(true);
       if (!result.success) return;
       expect(result.workPackage.estimatedFiles).toContain(
-        "src/workflow/agents/issue-intake-agent.ts",
+        "src/coordination/workflow/agents/issue-intake-agent.ts",
       );
     });
 

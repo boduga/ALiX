@@ -13,18 +13,18 @@ import assert from "node:assert/strict";
 import {
   GovernedExecutionRuntime,
   TestStepExecutor,
-} from "../../../src/evolution/execution/execution-runtime.js";
+} from "../../../src/planning/evolution/execution/execution-runtime.js";
 import {
   createExecutionPlan,
-} from "../../../src/evolution/execution/execution-planner.js";
+} from "../../../src/planning/evolution/execution/execution-planner.js";
 import type {
   ExecutionPlan,
   ExecutionStep,
   RollbackStep,
   ExecutionEnvironment,
-} from "../../../src/evolution/execution/contracts/execution-contract.js";
-import type { EvolutionProposal } from "../../../src/evolution/contracts/evolution-contract.js";
-import type { GovernanceDecision } from "../../../src/evolution/governance/contracts/decision-contract.js";
+} from "../../../src/planning/evolution/execution/contracts/execution-contract.js";
+import type { EvolutionProposal } from "../../../src/planning/evolution/contracts/evolution-contract.js";
+import type { GovernanceDecision } from "../../../src/planning/evolution/governance/contracts/decision-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

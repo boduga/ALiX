@@ -1,8 +1,8 @@
 // tests/self-extend/inspect-extension.test.ts
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { inspectExtensionTool } from "../../src/self-extend/inspect-extension.js";
-import { registerInProcess, _clearInProcessForTesting } from "../../src/self-extend/registry.js";
+import { inspectExtensionTool } from "../../src/capabilities/self-extend/inspect-extension.js";
+import { registerInProcess, _clearInProcessForTesting } from "../../src/capabilities/self-extend/registry.js";
 
 describe("inspect_extension tool", () => {
   beforeEach(() => _clearInProcessForTesting());

@@ -2,7 +2,7 @@
  * P10.4b — adaptation-types.ts additive invariant sentinel.
  *
  * Source-text greps assert that BOTH documented P10.4b additions are present
- * in src/adaptation/adaptation-types.ts:
+ * in src/planning/adaptation/adaptation-types.ts:
  *  1. ProposalAction includes "executive_remediation_request"
  *  2. ProposalTarget includes { kind: "executive_remediation", ... }
  *
@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../..");
-const ADAPTATION_TYPES_PATH = resolve(REPO_ROOT, "src/adaptation/adaptation-types.ts");
+const ADAPTATION_TYPES_PATH = resolve(REPO_ROOT, "src/planning/adaptation/adaptation-types.ts");
 
 function readAdaptationTypesSource(): string {
   return readFileSync(ADAPTATION_TYPES_PATH, "utf8");
@@ -41,6 +41,6 @@ describe("P10.4b — adaptation-types.ts additive invariant", () => {
     // Cross-check: the new file is registered for executive-purity scanning.
     const allowlistPath = resolve(REPO_ROOT, "tests/executive/executive-sentinels.vitest.ts");
     const allowlistSrc = readFileSync(allowlistPath, "utf8");
-    expect(allowlistSrc).toMatch(/"src\/executive\/executive-bridge\.ts"/);
+    expect(allowlistSrc).toMatch(/"src\/execution\/executive\/executive-bridge\.ts"/);
   });
 });

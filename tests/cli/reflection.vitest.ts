@@ -9,8 +9,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import type { ReflectionReport } from "../../src/reflection/reflection-types.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
+import type { ReflectionReport } from "../../src/planning/reflection/reflection-types.js";
 
 // ---------------------------------------------------------------------------
 // Mock state (set per-test and read by the hoisted factory mock)
@@ -21,7 +21,7 @@ let mockReportValue: ReflectionReport | null = null;
 // Hoisted — must be at top level.
 // Only mock ReflectionAgent; EvidenceStore and WorkflowCoordinator use real
 // implementations with temp directories.
-vi.mock("../../src/reflection/reflection-agent.js", () => {
+vi.mock("../../src/planning/reflection/reflection-agent.js", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const MockReflectionAgent = function (this: any) {
     this.generateReport = vi.fn(async () => {
@@ -89,7 +89,7 @@ describe("reflection CLI command", () => {
     });
 
     const { handleReflectionCommand } = await import(
-      "../../src/cli/commands/reflection.js"
+      "../../src/interfaces/cli/commands/reflection.js"
     );
 
     await expect(handleReflectionCommand(["unknown"])).rejects.toThrow("process.exit(1)");
@@ -104,7 +104,7 @@ describe("reflection CLI command", () => {
     });
 
     const { handleReflectionCommand } = await import(
-      "../../src/cli/commands/reflection.js"
+      "../../src/interfaces/cli/commands/reflection.js"
     );
 
     await expect(handleReflectionCommand([])).rejects.toThrow("process.exit(1)");
@@ -156,7 +156,7 @@ describe("reflection CLI command", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     const { handleReflectionCommand } = await import(
-      "../../src/cli/commands/reflection.js"
+      "../../src/interfaces/cli/commands/reflection.js"
     );
 
     await handleReflectionCommand(["report"]);

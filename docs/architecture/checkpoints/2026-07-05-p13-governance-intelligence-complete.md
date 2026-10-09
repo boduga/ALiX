@@ -30,7 +30,7 @@ CLI:    alix governance analytics [--window N] [--json]
 Prerequisite restoration: cherry-picked the P12.5 append-only JSONL store that P13.2 and P13.3 depend on. Types, validation, `FileFailureMemoryStore`, `findSimilar()` scoring, `alix failures` CLI.
 
 ```
-Files:  src/governance/failure-memory.ts, src/cli/commands/failures.ts
+Files:  src/governance/failure-memory.ts, src/interfaces/cli/commands/failures.ts
 Tests:  tests/governance/failure-memory.test.ts (22 tests)
 ```
 

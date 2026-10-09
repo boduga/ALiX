@@ -96,7 +96,7 @@ the cohort, to avoid moving the measured revision:
    success ≠ aggregate outcome present ≠ session verified.
 4. The MCP/external family produced zero scopes by two mechanisms — the
    `alix_mcp_search_tools` short-circuit before `handleToolResult`
-   (`src/run/task-loop/main.ts:1341`) and single-tool external turns that never
+   (`src/execution/run/task-loop/main.ts:1341`) and single-tool external turns that never
    enter the loop.
 5. Jev re-scoring is not idempotent (19/32 → 18/32 agreement across rebuilds).
 6. No-op mutation is unobservable (`changed` never recorded; no `file.updated`

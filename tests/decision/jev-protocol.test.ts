@@ -15,7 +15,7 @@ import {
   toJevRequest,
   toJevRelevanceRequest,
   type JevSystemOneResponse,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 const SEALED_CLAIM = () =>
   projectClaimVerification(

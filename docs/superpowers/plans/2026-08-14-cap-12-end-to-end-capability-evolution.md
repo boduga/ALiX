@@ -41,11 +41,11 @@ These constraints are copied verbatim from the spec (CAP-12 design §2, §3, §1
 - §20 cross-reference to reconciled program §8 (D6 ruling — checkpoint doc carries per-criterion evidence).
 
 **Forbidden files (no edits):**
-- `src/capability/capability-service.ts` body — must not change for CAP-12.
-- `src/capability/platform.ts` body — composition root must not change for CAP-12.
-- `src/capability/legacy-adapter.ts` body — must not change for CAP-12.
-- `src/capability/registry.ts` body — must not change for CAP-12.
-- `src/capability/provider-resolver.ts` body — must not change for CAP-12.
+- `src/capabilities/capability/capability-service.ts` body — must not change for CAP-12.
+- `src/capabilities/capability/platform.ts` body — composition root must not change for CAP-12.
+- `src/capabilities/capability/legacy-adapter.ts` body — must not change for CAP-12.
+- `src/capabilities/capability/registry.ts` body — must not change for CAP-12.
+- `src/capabilities/capability/provider-resolver.ts` body — must not change for CAP-12.
 - All CAP-1…CAP-11 sentinel tests — must not change for CAP-12.
 
 If a task discovers a CAP-1…CAP-11 regression, the task files a `BLOCKED` report and the work pauses for design review.
@@ -68,7 +68,7 @@ If a task discovers a CAP-1…CAP-11 regression, the task files a `BLOCKED` repo
 - Test: `tests/capability/cap-12-migration-fixture.vitest.ts` (assertions; T1 produces the data, T2 produces the assertions per project SDD convention)
 
 **Interfaces:**
-- Consumes: legacy `Capability` type from `src/capability/types.ts` (read-only)
+- Consumes: legacy `Capability` type from `src/capabilities/capability/types.ts` (read-only)
 - Produces: `LEGACY_MIGRATION_BUNDLE: readonly LegacyMigrationRow[]` — each row is `{ legacy: Capability; expectedCanonical: {...} }`
 
 **Step 1: Create the fixture module**
@@ -111,7 +111,7 @@ git commit -m "test(capability): CAP-12 T1 bounded legacy migration fixture (8 r
 
 **Files:**
 - Create: `tests/capability/cap-12-migration-fixture.vitest.ts`
-- Touches: `src/capability/legacy-adapter.ts` (read-only — interface imports only)
+- Touches: `src/capabilities/capability/legacy-adapter.ts` (read-only — interface imports only)
 
 **Step 1: Write the test file**
 
@@ -155,7 +155,7 @@ The test:
 **Step 2: Write the structural sentinel**
 
 The sentinel file contains 4 axes:
-- **Axis 1:** No `new CapabilityRegistry()` outside `src/capability/platform.ts` (CAP-1 invariant regression guard).
+- **Axis 1:** No `new CapabilityRegistry()` outside `src/capabilities/capability/platform.ts` (CAP-1 invariant regression guard).
 - **Axis 2:** No `registerLifecycleApplier`/`applyLifecycleTransition`/`APPROVED_PENDING_APPLICATION` strings in source (CAP-11 regression guard).
 - **Axis 3:** No `tests/evolution/capability-lifecycle/*` test files exist (CAP-11 deletion guard).
 - **Axis 4:** `docs/architecture/README.md` does not present A7.0/A7.1 as active architecture (CAP-12-documentation-migration guard).
@@ -184,7 +184,7 @@ git commit -m "test(capability): CAP-12 T3 CLI/runtime parity test + structural 
 **Step 1: Compose the test harness**
 
 The test file:
-1. Imports the composition root (`src/capability/platform.ts`) and constructs a `CapabilityService` with a tempdir-backed canonical catalog and an in-memory event log.
+1. Imports the composition root (`src/capabilities/capability/platform.ts`) and constructs a `CapabilityService` with a tempdir-backed canonical catalog and an in-memory event log.
 2. Provides 2 fake providers: one `native` (always-available), one `tool` (sometimes-fails — used in T5).
 3. Imports the runtime resolver's `list()` and the CLI handler's `list()`.
 
@@ -444,6 +444,6 @@ Total: ~830 lines of new code/docs, 8 commits, 1 tag.
 - `supply-chain` CI failure (pre-existing main CI failure)
 - `pr_agent` CI failure (pre-existing main CI failure)
 - 12 pre-existing node-test failures (already on main)
-- 3 pre-existing TUI consumer tsc errors (`src/tui/capabilities/capability-service.ts` — out of scope per CAP-11)
+- 3 pre-existing TUI consumer tsc errors (`src/interfaces/tui/capabilities/capability-service.ts` — out of scope per CAP-11)
 
 **Final review:** Opus whole-branch review dispatched after T8 commits clean. The reviewer checks the 19 §20 criteria + 8 §82 surfaces against the checkpoint doc's evidence table.

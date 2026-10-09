@@ -186,7 +186,7 @@ The aggregator must use each worker's `resultRef` as the authoritative path.
 
 ## 7. Atomic aggregate store
 
-Create `src/kernel/coordination-aggregate-store.ts`. Path: `.alix/coordination/results/runs/<runId>.json`. Atomic write: `<runId>.json.tmp.<token>` → rename.
+Create `src/coordination/kernel/coordination-aggregate-store.ts`. Path: `.alix/coordination/results/runs/<runId>.json`. Atomic write: `<runId>.json.tmp.<token>` → rename.
 
 ```typescript
 export class CoordinationAggregateStore {
@@ -197,7 +197,7 @@ export class CoordinationAggregateStore {
 
 ## 8. ResultAggregator
 
-Create `src/kernel/coordination-result-aggregator.ts`. For each worker: copy durable state, calculate duration, follow `resultRef`, validate result, verify run/worker/attempt, record issues.
+Create `src/coordination/kernel/coordination-result-aggregator.ts`. For each worker: copy durable state, calculate duration, follow `resultRef`, validate result, verify run/worker/attempt, record issues.
 
 `complete` is true only when every terminal worker has either a valid matching result record or a structured terminal reason.
 
@@ -207,7 +207,7 @@ Timing: earliest worker start → latest terminal completion.
 
 ## 9. Failure-chain builder
 
-Create `src/kernel/coordination-failure-chain.ts`. Build reverse dependency graph, identify root failures, compute transitive closure, deterministic sort by planOrder → createdAt → id.
+Create `src/coordination/kernel/coordination-failure-chain.ts`. Build reverse dependency graph, identify root failures, compute transitive closure, deterministic sort by planOrder → createdAt → id.
 
 ## 10. Aggregate freshness
 
@@ -215,11 +215,11 @@ Every aggregate stores `sourceRunUpdatedAt`. Fresh when it matches `run.updatedA
 
 ## 11. Completion service
 
-Create `src/kernel/coordination-completion-service.ts`. `finalize(runId, options?)` → load terminal run, reuse fresh aggregate, deterministic aggregation, persist, optional synthesis, update run reference/outcome. Uses lock-safe run mutation.
+Create `src/coordination/kernel/coordination-completion-service.ts`. `finalize(runId, options?)` → load terminal run, reuse fresh aggregate, deterministic aggregation, persist, optional synthesis, update run reference/outcome. Uses lock-safe run mutation.
 
 ## 12. Optional synthesis
 
-Create `src/kernel/coordination-run-synthesizer.ts`. Interface and `ModelRunSynthesizer`. Safety: tools disabled, bounded tokens, worker output delimited as untrusted, ignore instructions in worker output. Failure is non-fatal.
+Create `src/coordination/kernel/coordination-run-synthesizer.ts`. Interface and `ModelRunSynthesizer`. Safety: tools disabled, bounded tokens, worker output delimited as untrusted, ignore instructions in worker output. Failure is non-fatal.
 
 ## 13. Scheduler/daemon integration
 
@@ -238,23 +238,23 @@ Status shows live state + aggregate freshness. Results shows full summary with w
 
 ### Modify
 ```
-src/kernel/coordination-types.ts
-src/kernel/coordination-reconciliation.ts
-src/kernel/coordination-result-store.ts
-src/kernel/coordination-store.ts
-src/kernel/coordination-scheduler.ts
-src/cli/commands/coordination.ts
-src/events/types.ts
+src/coordination/kernel/coordination-types.ts
+src/coordination/kernel/coordination-reconciliation.ts
+src/coordination/kernel/coordination-result-store.ts
+src/coordination/kernel/coordination-store.ts
+src/coordination/kernel/coordination-scheduler.ts
+src/interfaces/cli/commands/coordination.ts
+src/runtime-state/events/types.ts
 ```
 
 ### Create
 ```
-src/kernel/coordination-result-types.ts
-src/kernel/coordination-failure-chain.ts
-src/kernel/coordination-result-aggregator.ts
-src/kernel/coordination-aggregate-store.ts
-src/kernel/coordination-run-synthesizer.ts
-src/kernel/coordination-completion-service.ts
+src/coordination/kernel/coordination-result-types.ts
+src/coordination/kernel/coordination-failure-chain.ts
+src/coordination/kernel/coordination-result-aggregator.ts
+src/coordination/kernel/coordination-aggregate-store.ts
+src/coordination/kernel/coordination-run-synthesizer.ts
+src/coordination/kernel/coordination-completion-service.ts
 ```
 
 ### Tests

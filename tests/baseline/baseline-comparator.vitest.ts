@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { NumericComparator } from "../../src/baseline/baseline-comparator.js";
-import type { BaselineArtifact } from "../../src/baseline/baseline-types.js";
+import { NumericComparator } from "../../src/context/baseline/baseline-comparator.js";
+import type { BaselineArtifact } from "../../src/context/baseline/baseline-types.js";
 
 const comparator = new NumericComparator();
 

@@ -32,7 +32,7 @@ describe("git stash/restore test isolation", () => {
   });
 
   it("stashes changes before running verification", async () => {
-    const { stashChanges } = await import("../../src/skills/test-isolation.js");
+    const { stashChanges } = await import("../../src/capabilities/skills/test-isolation.js");
     writeFileSync(join(testDir, "index.js"), "console.log('modified');");
     const stashId = await stashChanges(testDir);
     assert.ok(stashId !== null && stashId.length > 0, "Should return a stash reference");
@@ -42,7 +42,7 @@ describe("git stash/restore test isolation", () => {
   });
 
   it("restores changes after verification", async () => {
-    const { stashChanges, restoreChanges } = await import("../../src/skills/test-isolation.js");
+    const { stashChanges, restoreChanges } = await import("../../src/capabilities/skills/test-isolation.js");
     writeFileSync(join(testDir, "index.js"), "console.log('modified');");
     const stashId = await stashChanges(testDir);
     const clean = readFileSync(join(testDir, "index.js"), "utf8");
@@ -53,7 +53,7 @@ describe("git stash/restore test isolation", () => {
   });
 
   it("returns null stashId when nothing to stash", async () => {
-    const { stashChanges } = await import("../../src/skills/test-isolation.js");
+    const { stashChanges } = await import("../../src/capabilities/skills/test-isolation.js");
     const stashId = await stashChanges(testDir);
     // No changes -> nothing to stash -> null
     assert.ok(stashId === null || stashId === "");

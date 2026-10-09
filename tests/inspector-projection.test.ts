@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { AlixEvent } from "../src/events/types.js";
-import { buildInspectorSnapshot, compareInspectorSnapshots, projectSubagentEvents } from "../src/inspector/projection.js";
+import type { AlixEvent } from "../src/runtime-state/events/types.js";
+import { buildInspectorSnapshot, compareInspectorSnapshots, projectSubagentEvents } from "../src/interfaces/inspector/projection.js";
 
 function event(seq: number, type: string, payload: unknown, timestamp = `2026-01-01T00:00:${String(seq).padStart(2, "0")}Z`): AlixEvent {
   return {

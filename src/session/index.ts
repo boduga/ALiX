@@ -22,8 +22,8 @@ export type {
 
 export type {
   ScopeSnapshot,
-} from "../autonomy/scope-tracker.js";
+} from "../planning/autonomy/scope-tracker.js";
 
 export type {
   StateSnapshot,
-} from "../autonomy/state-machine.js";
+} from "../planning/autonomy/state-machine.js";

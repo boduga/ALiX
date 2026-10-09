@@ -171,13 +171,13 @@ The `reverificationRequired` flag forces re-verification before the evidence can
 
 ## 5. Key References
 
-- `src/evolution/verification/contracts/verification-contract.ts` — VerificationEvidence, VerificationReport, VerificationRun types
-- `src/evolution/verification/contracts/confidence-contract.ts` — ConfidenceProfile and validation
-- `src/evolution/verification/shared.ts` — Regression inference utilities
-- `src/evolution/verification/evidence/` — Evidence construction and integrity hashing
-- `src/evolution/verification/evaluation/` — Counterfactual evaluator
-- `src/evolution/verification/replay/` — Replay dataset management
-- `src/evolution/verification/recommendation/` — A2.5 recommendation engine
-- `src/evolution/verification/index.ts` — Verification module barrel
-- `src/evolution/governance/decision-engine.ts` — A3 decision engine (consumer of verification evidence)
+- `src/planning/evolution/verification/contracts/verification-contract.ts` — VerificationEvidence, VerificationReport, VerificationRun types
+- `src/planning/evolution/verification/contracts/confidence-contract.ts` — ConfidenceProfile and validation
+- `src/planning/evolution/verification/shared.ts` — Regression inference utilities
+- `src/planning/evolution/verification/evidence/` — Evidence construction and integrity hashing
+- `src/planning/evolution/verification/evaluation/` — Counterfactual evaluator
+- `src/planning/evolution/verification/replay/` — Replay dataset management
+- `src/planning/evolution/verification/recommendation/` — A2.5 recommendation engine
+- `src/planning/evolution/verification/index.ts` — Verification module barrel
+- `src/planning/evolution/governance/decision-engine.ts` — A3 decision engine (consumer of verification evidence)
 - `docs/architecture/adrs/ADR-0006-a-series-governed-evolution-pipeline.md` — A-series pipeline context

@@ -27,7 +27,7 @@ describe("TaskRegistry load", () => {
     const oldHome = process.env.HOME;
     process.env.HOME = testHome;
     try {
-      const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
+      const { TaskRegistry } = await import("../../src/operations/daemon/task-registry.js");
       const reg = new TaskRegistry();
       await reg.load();
       const t = reg.create("test-roundtrip", "/tmp");
@@ -47,7 +47,7 @@ describe("TaskRegistry load", () => {
     const oldHome = process.env.HOME;
     process.env.HOME = testHome;
     try {
-      const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
+      const { TaskRegistry } = await import("../../src/operations/daemon/task-registry.js");
       const reg = new TaskRegistry();
       await reg.load();
       for (let i = 0; i < 20; i++) reg.create(`task-${i}`, "/tmp");
@@ -67,7 +67,7 @@ describe("ApprovalStore load", () => {
 
   beforeEach(async () => {
     dir = tmpDir();
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     store = new ApprovalStore(dir);
     await store.load();
   });
@@ -107,7 +107,7 @@ describe("ApprovalStore load", () => {
     for (let i = 0; i < 200; i++) {
       await store.request({ reason: `reload ${i}`, capability: "cap.test", sessionId: "s1", toolId: `tool.${i}` });
     }
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     const fresh = new ApprovalStore(dir);
     await fresh.load();
     assert.equal(fresh.list().length, 200);
@@ -123,7 +123,7 @@ describe("ContinuationStore load", () => {
   afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
   it("persist, findByApprovalId, remove round-trip", async () => {
-    const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+    const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
     const store = new ContinuationStore(dir);
     await store.load();
     await store.persist({ approvalId: "apr_1", kind: "tool", sessionId: "s1", cwd: dir, toolCall: { toolCallId: "tc1", name: "file.read", capability: "file.read", args: { path: "test.txt" }, argsHash: "abc" }, createdAt: new Date().toISOString() });
@@ -135,7 +135,7 @@ describe("ContinuationStore load", () => {
 
   // Workload-scaled timeout: 1000 persists + 1000 removes take ~20s+ under suite load.
   it("1000 persist/remove cycles", { timeout: 120_000 }, async () => {
-    const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+    const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
     const store = new ContinuationStore(dir);
     await store.load();
     for (let i = 0; i < 1000; i++) {
@@ -147,7 +147,7 @@ describe("ContinuationStore load", () => {
   });
 
   it("concurrent persists resolve correctly", async () => {
-    const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+    const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
     const store = new ContinuationStore(dir);
     await store.load();
     await Promise.all(Array.from({ length: 20 }, (_, i) =>
@@ -180,7 +180,7 @@ describe("RuntimeIndex load", () => {
     ).join("\n") + "\n";
     writeFileSync(join(sessionDir, "events.jsonl"), slines, "utf-8");
 
-    const { buildRuntimeIndex } = await import("../../src/runtime/runtime-index.js");
+    const { buildRuntimeIndex } = await import("../../src/runtime-state/runtime/runtime-index.js");
     const index = await buildRuntimeIndex(dir);
     assert.ok(index.events.length > 0);
 

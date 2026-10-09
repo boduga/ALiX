@@ -12,13 +12,13 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 - `subagent-cli.ts` builds and runs worker turns.
 - `subagent-manager.ts` — subagent lifecycle (spawn/cancel/shutdown) and the
   chat-path ownership lease point: write tasks with `ownedPaths` acquire
-  durable `src/ownership/ownership-registry.ts` leases at spawn (workspace root
+  durable `src/coordination/ownership/ownership-registry.ts` leases at spawn (workspace root
   captured at construction via the `cwd` option; per-task `task.cwd` wins),
   release them before `spawn` resolves, and renew them while running.
   Coordination tasks (`coordinationRunId`/`assignedAgentId` set) skip
   acquisition — the scheduler pre-claims those leases before dispatch.
 - `coordination-objective-review.ts` checks worker evidence and persisted outputs against the assigned objective before coordination reports success.
-- Collaboration handlers live in `src/tools/collaboration-tools.ts` and are exposed to workers through bound tool definitions.
+- Collaboration handlers live in `src/capabilities/tools/collaboration-tools.ts` and are exposed to workers through bound tool definitions.
 
 ## Local Contracts
 
@@ -46,7 +46,7 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 ## Work Guidance
 
 The `alix_execution_state_propose` tool is intercepted in
-`src/run/event-handlers.ts` before the router. It has no registry entry; its
+`src/execution/run/event-handlers.ts` before the router. It has no registry entry; its
 internal identity is defined in the manifest.
 
 - Update the manifest, resolver, worker boundary, prompts, and cutover fixtures together when changing model-facing names.

@@ -23,10 +23,10 @@ import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createAgentSession } from "../../src/agent/session.js";
-import type { ModelAdapter } from "../../src/providers/types.js";
-import { ExecutionCancelledError } from "../../src/runtime/cancellation-token.js";
-import type { TraceClient } from "../../src/tracing/client.js";
+import { createAgentSession } from "../../src/agents/agent/session.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
+import { ExecutionCancelledError } from "../../src/runtime-state/runtime/cancellation-token.js";
+import type { TraceClient } from "../../src/models/tracing/client.js";
 import type {
   ModelSpanInput,
   RunOutcome,
@@ -35,8 +35,8 @@ import type {
   TraceRun,
   TraceRunInput,
   TraceSpan,
-} from "../../src/tracing/types.js";
-import { NOOP_TRACE_CLIENT } from "../../src/tracing/noop-client.js";
+} from "../../src/models/tracing/types.js";
+import { NOOP_TRACE_CLIENT } from "../../src/models/tracing/noop-client.js";
 
 let testCwd: string;
 let testCwdCleanup: (() => void) | null = null;
@@ -57,9 +57,9 @@ const mocks = vi.hoisted(() => ({
   runTaskLoop: vi.fn(),
 }));
 
-vi.mock("../../src/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
-vi.mock("../../src/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
-vi.mock("../../src/providers/registry.js", () => ({
+vi.mock("../../src/agents/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
+vi.mock("../../src/execution/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
+vi.mock("../../src/models/providers/registry.js", () => ({
   createProvider: vi.fn(async () => ({
     id: "mock",
     capabilities: {},
@@ -68,20 +68,20 @@ vi.mock("../../src/providers/registry.js", () => ({
     complete: vi.fn(async () => ({ text: "mock", toolCalls: [] })),
   })),
 }));
-vi.mock("../../src/utils/memory/recall.js", () => ({
+vi.mock("../../src/operations/utils/memory/recall.js", () => ({
   buildMemoryContext: vi.fn(() => Promise.resolve(undefined)),
   buildMemoryStats: vi.fn(() => Promise.resolve(undefined)),
 }));
-vi.mock("../../src/skills/loader.js", () => ({
+vi.mock("../../src/capabilities/skills/loader.js", () => ({
   loadSkillManifests: vi.fn(() => Promise.resolve([])),
 }));
-vi.mock("../../src/skills/catalog.js", () => ({
+vi.mock("../../src/capabilities/skills/catalog.js", () => ({
   buildSkillCatalog: vi.fn(() => ({
     getMatchedContent: vi.fn(() => Promise.resolve([])),
   })),
 }));
-vi.mock("../../src/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
-vi.mock("../../src/tools/executor.js", () => ({
+vi.mock("../../src/capabilities/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
+vi.mock("../../src/capabilities/tools/executor.js", () => ({
   ToolExecutor: class {
     execute = vi.fn(async () => ({ kind: "success", output: "mock" }));
   },

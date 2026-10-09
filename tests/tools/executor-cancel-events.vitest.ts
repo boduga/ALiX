@@ -3,13 +3,13 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { removeTempDirSync } from '../helpers/temp.js';
-import { ToolExecutor } from '../../src/tools/executor.js';
-import type { ToolRouter } from '../../src/tools/tool-router.js';
-import type { EventLog } from '../../src/events/event-log.js';
-import type { AlixEvent, NewEvent } from '../../src/events/types.js';
-import type { AlixConfig } from '../../src/config/schema.js';
-import { ExecutionCancelledError } from '../../src/runtime/cancellation-token.js';
-import { buildExecutionTrace } from '../../src/tui/runtime/execution-trace-builder.js';
+import { ToolExecutor } from '../../src/capabilities/tools/executor.js';
+import type { ToolRouter } from '../../src/capabilities/tools/tool-router.js';
+import type { EventLog } from '../../src/runtime-state/events/event-log.js';
+import type { AlixEvent, NewEvent } from '../../src/runtime-state/events/types.js';
+import type { AlixConfig } from '../../src/operations/config/schema.js';
+import { ExecutionCancelledError } from '../../src/runtime-state/runtime/cancellation-token.js';
+import { buildExecutionTrace } from '../../src/interfaces/tui/runtime/execution-trace-builder.js';
 
 const config: AlixConfig = {
   version: 1, model: { provider: 'mock', name: 'test' },

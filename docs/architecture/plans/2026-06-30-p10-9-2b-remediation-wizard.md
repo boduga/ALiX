@@ -28,7 +28,7 @@
 ### Task 1: Pure types, interfaces, registry, and ExecutiveBridgeRemediator
 
 **Files:**
-- Create: `src/executive/executive-remediate.ts`
+- Create: `src/execution/executive/executive-remediate.ts`
 
 **Interfaces:**
 - Produces: Exports for `ActionSpec`, `RemediationSpec`, `RemediationContext`, `ValidationErrorCode`, `ValidationResult`, `ChildProposalDraft`, `RemediationProvider`, `RemediatorRegistry`, `ExecutiveBridgeRemediator`, `validateRemediationParent`, `validateSpecification`, `validatePayload`, `mergeLineagePayload`, `buildRemediationChildDraft`, `RESERVED_PAYLOAD_KEYS`
@@ -47,7 +47,7 @@ import {
   validatePayload,
   mergeLineagePayload,
   buildRemediationChildDraft,
-} from "../../src/executive/executive-remediate.js";
+} from "../../src/execution/executive/executive-remediate.js";
 // ... types import
 ```
 
@@ -100,7 +100,7 @@ npx vitest run tests/executive/executive-remediate.vitest.ts --config vitest.con
 ```
 Expected: `FAIL` — all tests fail because `executive-remediate.ts` doesn't exist yet.
 
-- [ ] **Step 3: Implement `src/executive/executive-remediate.ts`**
+- [ ] **Step 3: Implement `src/execution/executive/executive-remediate.ts`**
 
 Contains in order:
 
@@ -142,7 +142,7 @@ Expected: All 15+ tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/executive/executive-remediate.ts tests/executive/executive-remediate.vitest.ts
+git add src/execution/executive/executive-remediate.ts tests/executive/executive-remediate.vitest.ts
 git commit -m "P10.9.2b-T1: pure types + RemediationProvider + RemediatorRegistry + builder
 
 - Types: ActionSpec, RemediationSpec, RemediationContext, ChildProposalDraft
@@ -163,8 +163,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 2: CLI handler + executive.ts routing
 
 **Files:**
-- Create: `src/cli/commands/executive-remediate-handler.ts`
-- Modify: `src/cli/commands/executive.ts`
+- Create: `src/interfaces/cli/commands/executive-remediate-handler.ts`
+- Modify: `src/interfaces/cli/commands/executive.ts`
 
 **Interfaces:**
 - Consumes: `createDefaultRegistry()` (factory from `executive-remediate.js`), `ProposalStore`, `nextProposalId` from `recommendation-to-proposal.js`
@@ -180,9 +180,9 @@ import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
-import { handleRemediateCommand } from "../../../src/cli/commands/executive-remediate-handler.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+import { ProposalStore } from "../../../src/planning/adaptation/proposal-store.js";
+import { handleRemediateCommand } from "../../../src/interfaces/cli/commands/executive-remediate-handler.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
 ```
 
 **Test groups (10+ tests):**
@@ -225,7 +225,7 @@ npx vitest run tests/cli/commands/executive-remediate-cli.vitest.ts --config vit
 ```
 Expected: FAIL
 
-- [ ] **Step 3: Implement `src/cli/commands/executive-remediate-handler.ts`**
+- [ ] **Step 3: Implement `src/interfaces/cli/commands/executive-remediate-handler.ts`**
 
 Pattern following `executive-bridge-handler.ts`:
 
@@ -389,7 +389,7 @@ Expected: Clean (no output).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/executive-remediate-handler.ts tests/cli/commands/executive-remediate-cli.vitest.ts src/cli/commands/executive.ts
+git add src/interfaces/cli/commands/executive-remediate-handler.ts tests/cli/commands/executive-remediate-cli.vitest.ts src/interfaces/cli/commands/executive.ts
 git commit -m "P10.9.2b-T2: CLI handler + routing for alix executive remediate
 
 - handleRemediateCommand with interactive and non-interactive modes
@@ -415,8 +415,8 @@ In `tests/executive/executive-sentinels.vitest.ts`, add two entries to the `EXEC
 
 ```typescript
   // P10.9.2b files
-  "src/executive/executive-remediate.ts",
-  "src/cli/commands/executive-remediate-handler.ts",
+  "src/execution/executive/executive-remediate.ts",
+  "src/interfaces/cli/commands/executive-remediate-handler.ts",
 ```
 
 - [ ] **Step 2: Run sentinel tests**

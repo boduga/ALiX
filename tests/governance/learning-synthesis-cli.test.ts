@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { writeFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleGovernanceLearningSynthesisCommand } from "../../src/cli/commands/governance-learning-synthesis.js";
+import { handleGovernanceLearningSynthesisCommand } from "../../src/interfaces/cli/commands/governance-learning-synthesis.js";
 
 let tmpDir: string;
 let bundlePath: string;

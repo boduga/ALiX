@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { renderBottomAnchoredSlice, type ScrollbackLine } from '../../../src/tui/views/bottom-anchored-viewport.js';
+import { renderBottomAnchoredSlice, type ScrollbackLine } from '../../../src/interfaces/tui/views/bottom-anchored-viewport.js';
 import { MockCanvas } from './helpers/mock-canvas.js';
-import type { TerminalCanvas } from '../../../src/tui/canvas.js';
+import type { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
 
 function line(text: string, kind = 'plain'): ScrollbackLine {
   return { kind, text, isFirst: false };

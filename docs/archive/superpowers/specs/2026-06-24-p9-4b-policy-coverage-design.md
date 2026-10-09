@@ -37,7 +37,7 @@ P9.4b adds `policy_coverage` as a third `SUPPORTED_KIND` in the existing `Govern
 
 ## Implementation surface
 
-All changes in `src/adaptation/appliers/governance-change-applier.ts`:
+All changes in `src/planning/adaptation/appliers/governance-change-applier.ts`:
 
 | Change | Detail |
 |--------|--------|

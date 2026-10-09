@@ -2,9 +2,9 @@ import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createAgentSession } from "../../src/agent/session.js";
-import type { ModelAdapter } from "../../src/providers/types.js";
-import { SessionPhase } from "../../src/tui/state.js";
+import { createAgentSession } from "../../src/agents/agent/session.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
+import { SessionPhase } from "../../src/interfaces/tui/state.js";
 
 // Each test gets its own empty cwd — buildRepoMap() recursively walks
 // every regular file under cwd (ContextCompiler.warm()), so pointing at
@@ -28,21 +28,21 @@ const mocks = vi.hoisted(() => ({
   runTaskLoop: vi.fn(),
 }));
 
-vi.mock("../../src/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
-vi.mock("../../src/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
-vi.mock("../../src/utils/memory/recall.js", () => ({
+vi.mock("../../src/agents/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
+vi.mock("../../src/execution/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
+vi.mock("../../src/operations/utils/memory/recall.js", () => ({
   buildMemoryContext: vi.fn(() => Promise.resolve(undefined)),
   buildMemoryStats: vi.fn(() => Promise.resolve(undefined)),
 }));
-vi.mock("../../src/skills/loader.js", () => ({
+vi.mock("../../src/capabilities/skills/loader.js", () => ({
   loadSkillManifests: vi.fn(() => Promise.resolve([])),
 }));
-vi.mock("../../src/skills/catalog.js", () => ({
+vi.mock("../../src/capabilities/skills/catalog.js", () => ({
   buildSkillCatalog: vi.fn(() => ({
     getMatchedContent: vi.fn(() => Promise.resolve([])),
   })),
 }));
-vi.mock("../../src/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
+vi.mock("../../src/capabilities/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
 
 beforeEach(() => {
   mocks.append.mockClear();

@@ -6,7 +6,7 @@
 
 **Architecture:** Pure scoring module with no side effects, no DB, no execution coupling. Feeds into P12.3 approval workflow later. CLI integrated via existing `alix governance risk-score` subcommand.
 
-**Tech Stack:** TypeScript 5.9, Node 24, pnpm, existing governance CLI (`src/cli/commands/governance.ts`)
+**Tech Stack:** TypeScript 5.9, Node 24, pnpm, existing governance CLI (`src/interfaces/cli/commands/governance.ts`)
 
 ## Global Constraints
 
@@ -27,7 +27,7 @@ src/governance/
 tests/governance/
   risk-scoring.test.ts         — Unit tests (all required test cases)
 
-src/cli/commands/
+src/interfaces/cli/commands/
   governance.ts                — Add 'risk-score' subcommand (modify)
 ```
 
@@ -77,13 +77,13 @@ describe("scoreFileScope", () => {
   });
 
   it("source files → medium", () => {
-    const r = scoreFileScope(["src/main.ts", "src/utils/helper.ts"]);
+    const r = scoreFileScope(["src/main.ts", "src/operations/utils/helper.ts"]);
     assert.strictEqual(r.level, "medium");
     assert.strictEqual(r.score, 40);
   });
 
   it("security paths → high", () => {
-    const r = scoreFileScope(["src/security/auth.ts"]);
+    const r = scoreFileScope(["src/governance/security/auth.ts"]);
     assert.strictEqual(r.level, "high");
     assert.strictEqual(r.score, 70);
   });
@@ -499,7 +499,7 @@ describe("computeRiskScore", () => {
 
   it("security paths + edit + typecheck → high", () => {
     const r = computeRiskScore({
-      files: ["src/security/auth.ts"],
+      files: ["src/governance/security/auth.ts"],
       actionType: "edit",
       verificationStatus: "typecheck",
       labels: ["bug"],
@@ -649,11 +649,11 @@ git commit -m "feat(governance): add P12.2 risk scoring types and scoring functi
 ### Task 2: Wire CLI subcommand
 
 **Files:**
-- Modify: `src/cli/commands/governance.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts`
 
 - [ ] **Step 1: Add `risk-score` subcommand to the governance handler**
 
-In `src/cli/commands/governance.ts`, add the `risk-score` case to the switch:
+In `src/interfaces/cli/commands/governance.ts`, add the `risk-score` case to the switch:
 
 ```typescript
 case "risk-score": {
@@ -795,7 +795,7 @@ Expected: all pass
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/governance/risk-scoring.ts src/cli/commands/governance.ts tests/governance/risk-scoring.test.ts
+git add src/governance/risk-scoring.ts src/interfaces/cli/commands/governance.ts tests/governance/risk-scoring.test.ts
 git commit -m "feat(governance): wire P12.2 risk scoring CLI"
 ```
 

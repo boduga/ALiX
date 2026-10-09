@@ -8,7 +8,7 @@
 
 ## Problem
 
-`daemonShellAlias()` in `src/daemon/daemon-server.ts` hardcodes phrase-to-command mappings:
+`daemonShellAlias()` in `src/operations/daemon/daemon-server.ts` hardcodes phrase-to-command mappings:
 
 ```typescript
 function daemonShellAlias(task: string): string | null {
@@ -29,7 +29,7 @@ function daemonShellAlias(task: string): string | null {
 
 ## Solution
 
-Introduce a **shared task router** in `src/runtime/` that classifies task intent into one of four execution paths. Both TUI modes (daemon and no-daemon) call the same router; only the execution backend differs.
+Introduce a **shared task router** in `src/runtime-state/runtime/` that classifies task intent into one of four execution paths. Both TUI modes (daemon and no-daemon) call the same router; only the execution backend differs.
 
 ```
 TUI / CLI / Daemon input
@@ -88,7 +88,7 @@ type TaskRoute =
 ### Router logic (pure classification — no execution)
 
 ```typescript
-// src/runtime/task-router.ts — shared, no side effects
+// src/runtime-state/runtime/task-router.ts — shared, no side effects
 
 const GROUNDED_CHAT_PATTERNS = [
   /\blatest\b/i, /\bcurrent\b/i, /\btoday\b/i, /\brecent\b/i,
@@ -171,7 +171,7 @@ Daemon TUI:
 
 The key insight: **both paths classify the task the same way**. The daemon path serializes the already-classified route to the socket rather than re-classifying on the daemon side. This means:
 
-- Classification logic lives in one place (`src/runtime/task-router.ts`)
+- Classification logic lives in one place (`src/runtime-state/runtime/task-router.ts`)
 - The daemon's `handleRun` receives a pre-classified route, not a raw task string
 - The daemon's `daemonShellAlias()` and its raw-task routing logic are fully removed
 
@@ -216,13 +216,13 @@ The daemon's `handleRun` switches on `route.kind` instead of re-classifying. The
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/runtime/task-router.ts` | **Create** | `taskRouter()`, `TaskRoute` type, route classification (shared, no side effects) |
-| `src/runtime/route-executor.ts` | **Create** | `executeRoute()`, `RuntimeExecutor` interface, local executor implementation |
-| `src/cli/commands/tui.ts` | **Modify** | Wire no-daemon TUI through `taskRouter()` + `executeRoute()` instead of direct `runTask()` |
-| `src/cli/commands/tui.ts` | **Modify** | Wire daemon TUI through `taskRouter()` first, then send route to daemon |
-| `src/daemon/daemon-server.ts` | **Modify** | Remove `daemonShellAlias()`, handle pre-classified routes from client |
-| `src/daemon/daemon-types.ts` | **Modify** | Add route-based command type |
-| `src/daemon/daemon-router.ts` | **Delete** | Not needed — functionality moves to shared `src/runtime/task-router.ts` |
+| `src/runtime-state/runtime/task-router.ts` | **Create** | `taskRouter()`, `TaskRoute` type, route classification (shared, no side effects) |
+| `src/runtime-state/runtime/route-executor.ts` | **Create** | `executeRoute()`, `RuntimeExecutor` interface, local executor implementation |
+| `src/interfaces/cli/commands/tui.ts` | **Modify** | Wire no-daemon TUI through `taskRouter()` + `executeRoute()` instead of direct `runTask()` |
+| `src/interfaces/cli/commands/tui.ts` | **Modify** | Wire daemon TUI through `taskRouter()` first, then send route to daemon |
+| `src/operations/daemon/daemon-server.ts` | **Modify** | Remove `daemonShellAlias()`, handle pre-classified routes from client |
+| `src/operations/daemon/daemon-types.ts` | **Modify** | Add route-based command type |
+| `src/operations/daemon/daemon-router.ts` | **Delete** | Not needed — functionality moves to shared `src/runtime-state/runtime/task-router.ts` |
 | `tests/runtime/task-router.test.ts` | **Create** | Unit tests for route classification |
 | `tests/runtime/route-executor.test.ts` | **Create** | Unit tests for route execution |
 | `tests/daemon/daemon-server.test.ts` | **Modify** | Route-based daemon integration tests |

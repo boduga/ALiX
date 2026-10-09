@@ -11,10 +11,10 @@ import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from "node:
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { AuditChainWriter } from "../../../src/security/audit/audit-chain-writer.js";
-import { canonicalHash } from "../../../src/security/audit/canonical-json.js";
-import type { AuditRecordV2, AnyAuditAction } from "../../../src/audit/audit-types.js";
-import { acquire, type LockHandle } from "../../../src/security/audit/audit-lock.js";
+import { AuditChainWriter } from "../../../src/governance/security/audit/audit-chain-writer.js";
+import { canonicalHash } from "../../../src/governance/security/audit/canonical-json.js";
+import type { AuditRecordV2, AnyAuditAction } from "../../../src/governance/audit/audit-types.js";
+import { acquire, type LockHandle } from "../../../src/governance/security/audit/audit-lock.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

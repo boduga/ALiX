@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FileProjectionCheckpointStore, PersistedProjectionCheckpoint, CHECKPOINT_CONTAINER_VERSION } from '../../../src/tui/runtime/projection-checkpoint-store.js';
-import { EventLog } from '../../../src/events/event-log.js';
+import { FileProjectionCheckpointStore, PersistedProjectionCheckpoint, CHECKPOINT_CONTAINER_VERSION } from '../../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
+import { EventLog } from '../../../src/runtime-state/events/event-log.js';
 
 function makeSerialized(log: EventLog, seq = 5): PersistedProjectionCheckpoint {
   return { version: 1, cursor: log.serializeCursor(log.getCursor()), committedAt: 1000 };

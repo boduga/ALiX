@@ -29,7 +29,7 @@ Every handoff requires matching approved P17 approval and P18 lifecycle visibili
 | P20.1 | `src/governance/handoff-builder.ts` | `tests/governance/handoff-builder.test.ts` |
 | P20.2 | `src/governance/handoff-evidence.ts` | `tests/governance/handoff-evidence.test.ts` |
 | P20.3 | `src/governance/handoff-recorder.ts` | `tests/governance/handoff-recorder.test.ts` |
-| P20.4 | `src/governance/handoff-report.ts`; `src/cli/commands/governance.ts` | `tests/governance/handoff-report.test.ts`; `tests/cli/governance-handoff-cli.test.ts` |
+| P20.4 | `src/governance/handoff-report.ts`; `src/interfaces/cli/commands/governance.ts` | `tests/governance/handoff-report.test.ts`; `tests/cli/governance-handoff-cli.test.ts` |
 | P20.5 | phase report, checkpoint docs | boundary verification commands |
 
 ## Task 1: P20.0 Spec + Plan
@@ -77,7 +77,7 @@ Every handoff requires matching approved P17 approval and P18 lifecycle visibili
 **Files:**
 - Create: `src/governance/handoff-report.ts`
 - Create: `tests/governance/handoff-report.test.ts`
-- Append: `src/cli/commands/governance.ts` (P20-HANDOFF-START/END delimited section)
+- Append: `src/interfaces/cli/commands/governance.ts` (P20-HANDOFF-START/END delimited section)
 - Create: `tests/cli/governance-handoff-cli.test.ts`
 
 - [ ] **Step 1:** Create report builder tests

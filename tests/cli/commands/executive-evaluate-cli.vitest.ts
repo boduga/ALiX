@@ -13,9 +13,9 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync } from "node
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { handleExecutiveCommand } from "../../../src/cli/commands/executive.js";
-import type { PersistedExecutionPlan } from "../../../src/executive/executive-plan-types.js";
-import type { PlanExecutionState } from "../../../src/executive/executive-plan-types.js";
+import { handleExecutiveCommand } from "../../../src/interfaces/cli/commands/executive.js";
+import type { PersistedExecutionPlan } from "../../../src/execution/executive/executive-plan-types.js";
+import type { PlanExecutionState } from "../../../src/execution/executive/executive-plan-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

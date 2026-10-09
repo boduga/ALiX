@@ -23,10 +23,10 @@ import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runTask } from "../../src/run.js";
-import { ExecutionCancelledError } from "../../src/runtime/cancellation-token.js";
-import { NOOP_TRACE_CLIENT } from "../../src/tracing/noop-client.js";
-import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
-import type { TraceClient } from "../../src/tracing/client.js";
+import { ExecutionCancelledError } from "../../src/runtime-state/runtime/cancellation-token.js";
+import { NOOP_TRACE_CLIENT } from "../../src/models/tracing/noop-client.js";
+import { closeAllSharedLedgers } from "../../src/runtime-state/storage/runtime-ledger.js";
+import type { TraceClient } from "../../src/models/tracing/client.js";
 import type {
   ModelSpanInput,
   RunOutcome,
@@ -35,7 +35,7 @@ import type {
   TraceRun,
   TraceRunInput,
   TraceSpan,
-} from "../../src/tracing/types.js";
+} from "../../src/models/tracing/types.js";
 
 let testCwd: string;
 let testCwdCleanup: (() => void) | null = null;
@@ -67,20 +67,20 @@ const mocks = vi.hoisted(() => ({
   evictIfNeeded: vi.fn(),
 }));
 
-vi.mock("../../src/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
-vi.mock("../../src/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
-vi.mock("../../src/tracing/client-factory.js", () => ({
+vi.mock("../../src/agents/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
+vi.mock("../../src/execution/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
+vi.mock("../../src/models/tracing/client-factory.js", () => ({
   createTraceClient: mocks.createTraceClient,
 }));
-vi.mock("../../src/utils/tokens.js", () => ({ ensureEncoder: mocks.ensureEncoder }));
-vi.mock("../../src/hooks/discover.js", () => ({ discoverHooks: mocks.discoverHooks }));
-vi.mock("../../src/utils/memory/recall.js", () => ({
+vi.mock("../../src/operations/utils/tokens.js", () => ({ ensureEncoder: mocks.ensureEncoder }));
+vi.mock("../../src/operations/hooks/discover.js", () => ({ discoverHooks: mocks.discoverHooks }));
+vi.mock("../../src/operations/utils/memory/recall.js", () => ({
   buildMemoryContext: mocks.buildMemoryContext,
   buildMemoryStats: mocks.buildMemoryStats,
 }));
-vi.mock("../../src/skills/loader.js", () => ({ loadSkillManifests: mocks.loadSkillManifests }));
-vi.mock("../../src/skills/catalog.js", () => ({ buildSkillCatalog: mocks.buildSkillCatalog }));
-vi.mock("../../src/skills/lifecycle.js", () => ({ evictIfNeeded: mocks.evictIfNeeded }));
+vi.mock("../../src/capabilities/skills/loader.js", () => ({ loadSkillManifests: mocks.loadSkillManifests }));
+vi.mock("../../src/capabilities/skills/catalog.js", () => ({ buildSkillCatalog: mocks.buildSkillCatalog }));
+vi.mock("../../src/capabilities/skills/lifecycle.js", () => ({ evictIfNeeded: mocks.evictIfNeeded }));
 
 // A fake AgentContext as initAgent would return. config.tracing is the switch
 // the factory receives; most fields are consumed by mocked modules.

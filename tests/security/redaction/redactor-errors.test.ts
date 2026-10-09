@@ -10,9 +10,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { SecretDetector } from "../../../src/security/redaction/secret-detector.js";
-import { createRedactionPolicy } from "../../../src/security/redaction/redaction-policy.js";
-import { redactValue } from "../../../src/security/redaction/redactor.js";
+import { SecretDetector } from "../../../src/governance/security/redaction/secret-detector.js";
+import { createRedactionPolicy } from "../../../src/governance/security/redaction/redaction-policy.js";
+import { redactValue } from "../../../src/governance/security/redaction/redactor.js";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures

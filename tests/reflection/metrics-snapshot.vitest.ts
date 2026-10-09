@@ -20,8 +20,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import { computeMetricsSnapshot } from "../../src/reflection/metrics-snapshot.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
+import { computeMetricsSnapshot } from "../../src/planning/reflection/metrics-snapshot.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

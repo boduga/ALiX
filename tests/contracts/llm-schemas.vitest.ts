@@ -9,7 +9,7 @@ import {
   NormalizedMessageSchema,
   NormalizedRequestSchema,
   StreamChunkSchema,
-} from "../../src/contracts/llm-schemas.js";
+} from "../../src/runtime-state/contracts/llm-schemas.js";
 
 describe("ToolCallSchema", () => {
   it("decodes a valid tool call", () => {

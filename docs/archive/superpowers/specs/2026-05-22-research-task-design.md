@@ -92,7 +92,7 @@ function getToolPolicy(role: SubagentRole): ToolPolicy {
 }
 ```
 
-#### 3. ContextCompiler (`src/repomap/context-compiler.ts`)
+#### 3. ContextCompiler (`src/context/repomap/context-compiler.ts`)
 
 ```typescript
 function rankContext(taskType: string, depth: string): ContextConfig {
@@ -107,7 +107,7 @@ function rankContext(taskType: string, depth: string): ContextConfig {
 }
 ```
 
-#### 4. TaskLoop (`src/run/task-loop.ts`)
+#### 4. TaskLoop (`src/execution/run/task-loop.ts`)
 
 ```typescript
 const RESEARCH_LIMITS = {
@@ -177,11 +177,11 @@ alix research "compare auth strategies for microservices vs monolith"
 |------|---------|
 | `src/task-classifier.ts` | Add research type + depth detection |
 | `src/run.ts` | Wire research exit conditions |
-| `src/run/task-loop.ts` | Add research limits config |
+| `src/execution/run/task-loop.ts` | Add research limits config |
 | `src/subagents/tool-policy.ts` | Add researcher role tool policy |
-| `src/repomap/context-compiler.ts` | Context bias for research |
-| `src/config/schema.ts` | Add WebSource, Synthesis finding types |
-| `src/cli/commands/research.ts` | New CLI command (optional) |
+| `src/context/repomap/context-compiler.ts` | Context bias for research |
+| `src/operations/config/schema.ts` | Add WebSource, Synthesis finding types |
+| `src/interfaces/cli/commands/research.ts` | New CLI command (optional) |
 
 ## Testing
 

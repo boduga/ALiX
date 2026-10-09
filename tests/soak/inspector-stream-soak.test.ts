@@ -14,9 +14,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MockSecureSseConnection } from "../../src/server/secure-sse.js";
-import { ObservabilityStreamHub } from "../../src/server/observability-stream-hub.js";
-import { SessionStreamHub } from "../../src/server/session-stream-hub.js";
+import { MockSecureSseConnection } from "../../src/interfaces/server/secure-sse.js";
+import { ObservabilityStreamHub } from "../../src/interfaces/server/observability-stream-hub.js";
+import { SessionStreamHub } from "../../src/interfaces/server/session-stream-hub.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

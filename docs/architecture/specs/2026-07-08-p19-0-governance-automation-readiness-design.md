@@ -522,7 +522,7 @@ Source sentinels inspect only:
 - `src/governance/dry-run-simulator.ts`;
 - `src/governance/readiness-policy-gate.ts`;
 - `src/governance/execution-readiness-report.ts`;
-- the delimited P19 readiness section of `src/cli/commands/governance.ts`.
+- the delimited P19 readiness section of `src/interfaces/cli/commands/governance.ts`.
 
 They must not scan the entire repository or unrelated CLI sections. Forbidden-call checks must match imports and invocation shapes narrowly enough that generic JavaScript constructs such as an unrelated `.apply(` do not fail P19 verification.
 
@@ -562,7 +562,7 @@ CLI errors return non-zero exit status and human-readable text; `--json` returns
 | P19.1 | `src/governance/execution-readiness.ts` | `tests/governance/execution-readiness.test.ts` |
 | P19.2 | `src/governance/dry-run-simulator.ts` | `tests/governance/dry-run-simulator.test.ts` |
 | P19.3 | `src/governance/readiness-policy-gate.ts` | `tests/governance/readiness-policy-gate.test.ts` |
-| P19.4 | `src/governance/execution-readiness-report.ts`; `src/cli/commands/governance.ts` | `tests/governance/execution-readiness-report.test.ts`; `tests/cli/governance-readiness-cli.test.ts` |
+| P19.4 | `src/governance/execution-readiness-report.ts`; `src/interfaces/cli/commands/governance.ts` | `tests/governance/execution-readiness-report.test.ts`; `tests/cli/governance-readiness-cli.test.ts` |
 | P19.5 | phase report and checkpoint docs | boundary verification commands and document checks |
 
 No P19 store file is permitted.

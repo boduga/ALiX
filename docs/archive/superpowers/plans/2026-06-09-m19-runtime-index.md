@@ -16,7 +16,7 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/runtime/runtime-index.ts` | **Create** | RuntimeIndexEvent type, buildRuntimeIndex(), query methods |
+| `src/runtime-state/runtime/runtime-index.ts` | **Create** | RuntimeIndexEvent type, buildRuntimeIndex(), query methods |
 | `tests/runtime/runtime-index.test.ts` | **Create** | Tests with seeded data in temp dirs |
 
 ---
@@ -24,7 +24,7 @@
 ### Task 1: Create RuntimeIndex module
 
 **Files:**
-- Create: `src/runtime/runtime-index.ts`
+- Create: `src/runtime-state/runtime/runtime-index.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -229,7 +229,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/runtime/runtime-index.ts
+git add src/runtime-state/runtime/runtime-index.ts
 git commit -m "feat(runtime): add RuntimeIndex — on-demand aggregation across backends"
 ```
 
@@ -248,7 +248,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildRuntimeIndex } from "../../src/runtime/runtime-index.js";
+import { buildRuntimeIndex } from "../../src/runtime-state/runtime/runtime-index.js";
 
 function seedDir(): string {
   const tmpDir = mkdtempSync(join(tmpdir(), "runtime-index-test-"));

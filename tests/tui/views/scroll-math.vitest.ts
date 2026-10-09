@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { buildAgentScrollbackLines, buildChatScrollbackLines, computeBottomAnchor, GUTTER_WIDTH, trimStreamedTextToLanded } from '../../../src/tui/views/scroll-math.js';
-import type { TimelineEntry } from '../../../src/tui/runtime/timeline-builder.js';
-import { createInitialPerTabState } from '../../../src/tui/state.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
+import { buildAgentScrollbackLines, buildChatScrollbackLines, computeBottomAnchor, GUTTER_WIDTH, trimStreamedTextToLanded } from '../../../src/interfaces/tui/views/scroll-math.js';
+import type { TimelineEntry } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import { createInitialPerTabState } from '../../../src/interfaces/tui/state.js';
+import type { ViewRenderContext } from '../../../src/interfaces/tui/views/types.js';
 
 function ctx(timeline: any[]): ViewRenderContext {
   return {

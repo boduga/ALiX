@@ -308,5 +308,5 @@ N: docs/architecture/specs/2026-07-06-p14-4-action-queue.md    # This spec
 N: docs/architecture/plans/2026-07-06-p14-4-action-queue.md    # Companion plan
 N: src/governance/action-queue.ts                                # Implementation
 N: tests/governance/action-queue.test.ts                         # Tests
-A: src/cli/commands/governance.ts                                # Add actions subcommands
+A: src/interfaces/cli/commands/governance.ts                                # Add actions subcommands
 ```

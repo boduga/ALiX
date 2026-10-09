@@ -50,7 +50,7 @@ Task 1 — Define Execution Runtime Contracts
 
 Create:
 
-src/runtime/contracts/execution-runtime-contract.ts
+src/runtime-state/runtime/contracts/execution-runtime-contract.ts
 
 ---
 
@@ -156,7 +156,7 @@ Task 2 — Implement Execution State Machine
 
 Create:
 
-src/runtime/execution-state-machine.ts
+src/runtime-state/runtime/execution-state-machine.ts
 
 ---
 
@@ -487,8 +487,8 @@ Must not modify:
 File Changes
 
 Action| File
-CREATE| "src/runtime/contracts/execution-runtime-contract.ts"
-CREATE| "src/runtime/execution-state-machine.ts"
+CREATE| "src/runtime-state/runtime/contracts/execution-runtime-contract.ts"
+CREATE| "src/runtime-state/runtime/execution-state-machine.ts"
 CREATE| "tests/runtime/execution-state-machine.vitest.ts"
 
 ---

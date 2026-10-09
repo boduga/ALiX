@@ -230,14 +230,14 @@ The new `alix decision` subcommand tree is created alongside existing CLI comman
 
 ```
 Create:
-  src/adaptation/decision-types.ts         — DecisionArtifact, DecisionContext, ContextStatus, SourceArtifact
-  src/adaptation/decision-context-builder.ts — DecisionContextBuilder
-  src/cli/commands/decision.ts             — `alix decision` CLI subcommand tree
+  src/planning/adaptation/decision-types.ts         — DecisionArtifact, DecisionContext, ContextStatus, SourceArtifact
+  src/planning/adaptation/decision-context-builder.ts — DecisionContextBuilder
+  src/interfaces/cli/commands/decision.ts             — `alix decision` CLI subcommand tree
   tests/adaptation/decision-context-builder.vitest.ts
   tests/adaptation/decision-governance-sentinels.vitest.ts
 
 Modify:
-  src/cli/index.ts or equivalent router    — register `alix decision` command
+  src/interfaces/cli/index.ts or equivalent router    — register `alix decision` command
 ```
 
 ### Governance Sentinel

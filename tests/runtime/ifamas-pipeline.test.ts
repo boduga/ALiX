@@ -5,11 +5,11 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-import { runIfamasDiagnostic, type IfamasDiagnostic } from "../../src/runtime/ifamas-pipeline.js";
-import { createSignalFrame } from "../../src/runtime/signal-frame.js";
-import type { SignalBits, SignalFrame } from "../../src/runtime/signal-frame.js";
+import { runIfamasDiagnostic, type IfamasDiagnostic } from "../../src/runtime-state/runtime/ifamas-pipeline.js";
+import { createSignalFrame } from "../../src/runtime-state/runtime/signal-frame.js";
+import type { SignalBits, SignalFrame } from "../../src/runtime-state/runtime/signal-frame.js";
 import type { EssenceProfile } from "../../src/agents/essence-profile.js";
-import { ChronicleStore } from "../../src/chronicle/chronicle-store.js";
+import { ChronicleStore } from "../../src/context/chronicle/chronicle-store.js";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -183,7 +183,7 @@ describe("IFÁ-MAS Passive Diagnostic Pipeline", () => {
     // TS compiles tests/ → dist/tests/ (rootDir: "."), so __dirname is dist/tests/runtime/
     const sourcePath = resolve(
       __dirname,
-      "../../../src/runtime/ifamas-pipeline.ts",
+      "../../../src/runtime-state/runtime/ifamas-pipeline.ts",
     );
     const source = readFileSync(sourcePath, "utf8");
 

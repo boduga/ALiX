@@ -14,8 +14,8 @@ import {
   classifyProviderAccess,
   ProviderAccessError,
   type ProviderAccessClass,
-} from "../../src/providers/openrouter-provider.js";
-import { ApiError } from "../../src/providers/base.js";
+} from "../../src/models/providers/openrouter-provider.js";
+import { ApiError } from "../../src/models/providers/base.js";
 
 const HARNESS_DETAIL =
   "thinkingmachines/inkling-small:free is only available on agentic harnesses. " +

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { TimelineBuilder } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 function evt(seq: number, type: string, text: string): AlixEvent {
   return {

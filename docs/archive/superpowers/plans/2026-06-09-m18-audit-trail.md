@@ -16,15 +16,15 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/audit/audit-types.ts` | **Create** | AuditAction, AuditRecord types |
-| `src/audit/audit-store.ts` | **Create** | Append-only JSONL AuditStore |
-| `src/policy/runtime-gate.ts` | **Modify** | Emit audit records from evaluated decisions |
-| `src/approvals/approval-store.ts` | **Modify** | Emit audit on request/resolve |
+| `src/governance/audit/audit-types.ts` | **Create** | AuditAction, AuditRecord types |
+| `src/governance/audit/audit-store.ts` | **Create** | Append-only JSONL AuditStore |
+| `src/governance/policy/runtime-gate.ts` | **Modify** | Emit audit records from evaluated decisions |
+| `src/governance/approvals/approval-store.ts` | **Modify** | Emit audit on request/resolve |
 | `src/cli.ts` | **Modify** | Add audit CLI + wire into graph continue and policy eval |
-| `src/server/server.ts` | **Modify** | Add `GET /api/audit` route |
-| `src/ui/index.html` | **Modify** | Add Audit tab |
-| `src/ui/app.js` | **Modify** | Load + render audit events |
-| `src/ui/styles.css` | **Modify** | Audit timeline CSS |
+| `src/interfaces/server/server.ts` | **Modify** | Add `GET /api/audit` route |
+| `src/interfaces/ui/index.html` | **Modify** | Add Audit tab |
+| `src/interfaces/ui/app.js` | **Modify** | Load + render audit events |
+| `src/interfaces/ui/styles.css` | **Modify** | Audit timeline CSS |
 | `tests/audit/audit-store.test.ts` | **Create** | Tests for append, list, filter |
 | `tests/server/server.test.ts` | **Modify** | `GET /api/audit` smoke test |
 
@@ -33,8 +33,8 @@
 ### Task 1: Audit types and store
 
 **Files:**
-- Create: `src/audit/audit-types.ts`
-- Create: `src/audit/audit-store.ts`
+- Create: `src/governance/audit/audit-types.ts`
+- Create: `src/governance/audit/audit-store.ts`
 - Create: `tests/audit/audit-store.test.ts`
 
 - [ ] **Step 1: Create audit-types.ts**
@@ -167,7 +167,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AuditStore } from "../../src/audit/audit-store.js";
+import { AuditStore } from "../../src/governance/audit/audit-store.js";
 
 describe("AuditStore", () => {
   it("appends and lists records", async () => {
@@ -265,7 +265,7 @@ Expected: 6 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/audit/audit-types.ts src/audit/audit-store.ts tests/audit/audit-store.test.ts
+git add src/governance/audit/audit-types.ts src/governance/audit/audit-store.ts tests/audit/audit-store.test.ts
 git commit -m "feat(audit): add audit event types and append-only JSONL store"
 ```
 
@@ -274,7 +274,7 @@ git commit -m "feat(audit): add audit event types and append-only JSONL store"
 ### Task 2: Wire audit into RuntimeGate
 
 **Files:**
-- Modify: `src/policy/runtime-gate.ts`
+- Modify: `src/governance/policy/runtime-gate.ts`
 
 - [ ] **Step 1: Add audit injection to RuntimeGate**
 
@@ -334,7 +334,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/policy/runtime-gate.ts
+git add src/governance/policy/runtime-gate.ts
 git commit -m "feat(audit): emit audit events from RuntimeGate decisions"
 ```
 
@@ -343,7 +343,7 @@ git commit -m "feat(audit): emit audit events from RuntimeGate decisions"
 ### Task 3: Wire audit into ApprovalStore
 
 **Files:**
-- Modify: `src/approvals/approval-store.ts`
+- Modify: `src/governance/approvals/approval-store.ts`
 
 - [ ] **Step 1: Add AuditStore dependency**
 
@@ -397,7 +397,7 @@ Expected: all tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/approvals/approval-store.ts
+git add src/governance/approvals/approval-store.ts
 git commit -m "feat(audit): emit audit events from approval create and resolve"
 ```
 
@@ -523,15 +523,15 @@ git commit -m "feat(cli): add audit CLI commands and wire audit events into cont
 ### Task 5: Inspector Audit tab
 
 **Files:**
-- Modify: `src/server/server.ts`
-- Modify: `src/ui/index.html`
-- Modify: `src/ui/app.js`
-- Modify: `src/ui/styles.css`
+- Modify: `src/interfaces/server/server.ts`
+- Modify: `src/interfaces/ui/index.html`
+- Modify: `src/interfaces/ui/app.js`
+- Modify: `src/interfaces/ui/styles.css`
 - Modify: `tests/server/server.test.ts`
 
 - [ ] **Step 1: Add GET /api/audit route**
 
-In `src/server/server.ts`, add before the sessions routes:
+In `src/interfaces/server/server.ts`, add before the sessions routes:
 
 ```typescript
       if (url.pathname === "/api/audit") {
@@ -681,7 +681,7 @@ Add to `tests/server/server.test.ts`:
 ```typescript
 describe("Audit API", () => {
   it("GET /api/audit returns array", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "audit-api-test-"));
     try {
       const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
@@ -708,7 +708,7 @@ Expected: all tests pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/server/server.ts src/ui/index.html src/ui/app.js src/ui/styles.css tests/server/server.test.ts
+git add src/interfaces/server/server.ts src/interfaces/ui/index.html src/interfaces/ui/app.js src/interfaces/ui/styles.css tests/server/server.test.ts
 git commit -m "feat(ui): add Inspector Audit tab with action badges and details"
 ```
 

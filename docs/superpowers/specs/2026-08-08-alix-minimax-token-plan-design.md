@@ -29,7 +29,7 @@ This design adds a separate provider entry for the Token Plan so the existing `m
 The new spec reuses `anthropicSpec` via spread — the Token Plan is documented as "Anthropic-Compatible" so the on-the-wire format is identical:
 
 ```ts
-// src/providers/specs/minimax-token-plan-spec.ts
+// src/models/providers/specs/minimax-token-plan-spec.ts
 import { anthropicSpec } from "./anthropic-spec.js";
 import type { ProviderSpec } from "../spec-types.js";
 export const minimaxTokenPlanSpec: ProviderSpec = {
@@ -46,20 +46,20 @@ This means message-format conversion, stream parsing, error mapping, and tool-ca
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `src/providers/minimax-token-plan-provider.ts` | ~45 | Provider class, mirrors `anthropic-provider.ts` |
-| `src/providers/specs/minimax-token-plan-spec.ts` | 5 | Spec that extends `anthropicSpec` |
+| `src/models/providers/minimax-token-plan-provider.ts` | ~45 | Provider class, mirrors `anthropic-provider.ts` |
+| `src/models/providers/specs/minimax-token-plan-spec.ts` | 5 | Spec that extends `anthropicSpec` |
 | `tests/providers/minimax-token-plan.test.ts` | ~40 | Capability + identity tests |
 
 ### Modify
 
 | File | Change |
 |------|--------|
-| `src/providers/catalog.ts` | Add `minimax-token-plan` to `PROVIDERS` (line 33 area); add `listModels` switch case (after line 135); add `DEFAULT_MODELS["minimax-token-plan"] = "MiniMax-M3"` (line 171 area) |
-| `src/providers/unified-complete.ts` | Register `["minimax-token-plan", minimaxTokenPlanSpec]` in `SPECS` Map (line 18-32); add `minimax-token-plan: "MINIMAX_TOKEN_PLAN_KEY"` to `PROVIDER_KEY_ENV` (line 34-48) |
-| `src/providers/registry.ts` | Register lazy provider (line 19-33); add to `listProviders()` (line 61-76) |
-| `src/security/credentials/credential-migration.ts` | Add to `PROVIDER_ENV_MAP` (line 60-71) |
-| `src/config/context-limits.ts` | Add `minimax-token-plan: { contextWindowTokens: 1_048_576, tokenizer: "cl100k_base" }` (alongside line 38) |
-| `src/config/profiles/cloud-minimax.json` | Change `provider: "minimax"` → `provider: "minimax-token-plan"` in all 5 tiers (lines 8-12) |
+| `src/models/providers/catalog.ts` | Add `minimax-token-plan` to `PROVIDERS` (line 33 area); add `listModels` switch case (after line 135); add `DEFAULT_MODELS["minimax-token-plan"] = "MiniMax-M3"` (line 171 area) |
+| `src/models/providers/unified-complete.ts` | Register `["minimax-token-plan", minimaxTokenPlanSpec]` in `SPECS` Map (line 18-32); add `minimax-token-plan: "MINIMAX_TOKEN_PLAN_KEY"` to `PROVIDER_KEY_ENV` (line 34-48) |
+| `src/models/providers/registry.ts` | Register lazy provider (line 19-33); add to `listProviders()` (line 61-76) |
+| `src/governance/security/credentials/credential-migration.ts` | Add to `PROVIDER_ENV_MAP` (line 60-71) |
+| `src/operations/config/context-limits.ts` | Add `minimax-token-plan: { contextWindowTokens: 1_048_576, tokenizer: "cl100k_base" }` (alongside line 38) |
+| `src/operations/config/profiles/cloud-minimax.json` | Change `provider: "minimax"` → `provider: "minimax-token-plan"` in all 5 tiers (lines 8-12) |
 | `tests/manual/run-cli.ts` | Add `minimax-token-plan: "MINIMAX_TOKEN_PLAN_KEY"` to `PROVIDER_ENV_VARS` (line 21-33) |
 | `tests/providers/streaming-regression.test.ts` | Add `[name, spec]` to `STREAMING_SPECS` (line 25) |
 

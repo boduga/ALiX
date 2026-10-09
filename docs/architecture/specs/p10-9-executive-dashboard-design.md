@@ -466,10 +466,10 @@ The loader performs all I/O. The builder is 100% pure. Renderers never compute m
 
 | File | Responsibility | New/Modify |
 |------|---------------|------------|
-| `src/executive/executive-dashboard.ts` | Types, `buildDashboardReport()` + 7 sub-builders | **Create** |
-| `src/executive/executive-dashboard-loader.ts` | `loadDashboardSnapshot()` — async I/O, loads all stores | **Create** |
-| `src/cli/commands/executive-dashboard-handler.ts` | CLI entry point, `TerminalDashboardRenderer`, `JsonDashboardRenderer` | **Modify** (extends existing P10.0 handler) |
-| `src/cli/commands/executive.ts` | Extend existing `case "dashboard"` routing | **Modify** |
+| `src/execution/executive/executive-dashboard.ts` | Types, `buildDashboardReport()` + 7 sub-builders | **Create** |
+| `src/execution/executive/executive-dashboard-loader.ts` | `loadDashboardSnapshot()` — async I/O, loads all stores | **Create** |
+| `src/interfaces/cli/commands/executive-dashboard-handler.ts` | CLI entry point, `TerminalDashboardRenderer`, `JsonDashboardRenderer` | **Modify** (extends existing P10.0 handler) |
+| `src/interfaces/cli/commands/executive.ts` | Extend existing `case "dashboard"` routing | **Modify** |
 | `tests/executive/executive-dashboard.vitest.ts` | Pure builder tests (7 sub-builders × 1–2 tests = ~10 tests) | **Create** |
 | `tests/cli/commands/executive-dashboard-cli.vitest.ts` | Integration tests (JSON, brief, terminal, partial data, subsystem filter) | **Create** |
 | `tests/executive/executive-sentinels.vitest.ts` | Add new files to `EXECUTIVE_FILES` | **Modify** |

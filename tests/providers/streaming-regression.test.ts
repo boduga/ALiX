@@ -7,22 +7,22 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { googleSpec } from "../../src/providers/specs/google-spec.js";
-import { openaiSpec } from "../../src/providers/specs/openai-spec.js";
-import { anthropicSpec } from "../../src/providers/specs/anthropic-spec.js";
-import { ollamaSpec } from "../../src/providers/specs/ollama-spec.js";
-import { deepseekSpec } from "../../src/providers/specs/deepseek-spec.js";
-import { groqSpec } from "../../src/providers/specs/groq-spec.js";
-import { perplexitySpec } from "../../src/providers/specs/perplexity-spec.js";
-import { minimaxSpec } from "../../src/providers/specs/minimax-spec.js";
-import { minimaxTokenPlanSpec } from "../../src/providers/specs/minimax-token-plan-spec.js";
-import { zhipuaiSpec } from "../../src/providers/specs/zhipuai-spec.js";
-import { grokaiSpec } from "../../src/providers/specs/grokai-spec.js";
-import { openrouterSpec } from "../../src/providers/specs/openrouter-spec.js";
-import { localLlamaSpec } from "../../src/providers/specs/local-llama-spec.js";
-import { xiaomiMimoTokenPlanSpec } from "../../src/providers/specs/xiaomi-mimo-token-plan-spec.js";
-import type { ProviderSpec } from "../../src/providers/spec-types.js";
-import type { StreamChunk } from "../../src/providers/types.js";
+import { googleSpec } from "../../src/models/providers/specs/google-spec.js";
+import { openaiSpec } from "../../src/models/providers/specs/openai-spec.js";
+import { anthropicSpec } from "../../src/models/providers/specs/anthropic-spec.js";
+import { ollamaSpec } from "../../src/models/providers/specs/ollama-spec.js";
+import { deepseekSpec } from "../../src/models/providers/specs/deepseek-spec.js";
+import { groqSpec } from "../../src/models/providers/specs/groq-spec.js";
+import { perplexitySpec } from "../../src/models/providers/specs/perplexity-spec.js";
+import { minimaxSpec } from "../../src/models/providers/specs/minimax-spec.js";
+import { minimaxTokenPlanSpec } from "../../src/models/providers/specs/minimax-token-plan-spec.js";
+import { zhipuaiSpec } from "../../src/models/providers/specs/zhipuai-spec.js";
+import { grokaiSpec } from "../../src/models/providers/specs/grokai-spec.js";
+import { openrouterSpec } from "../../src/models/providers/specs/openrouter-spec.js";
+import { localLlamaSpec } from "../../src/models/providers/specs/local-llama-spec.js";
+import { xiaomiMimoTokenPlanSpec } from "../../src/models/providers/specs/xiaomi-mimo-token-plan-spec.js";
+import type { ProviderSpec } from "../../src/models/providers/spec-types.js";
+import type { StreamChunk } from "../../src/models/providers/types.js";
 
 const STREAMING_SPECS: [string, ProviderSpec][] = [
   ["google", googleSpec],

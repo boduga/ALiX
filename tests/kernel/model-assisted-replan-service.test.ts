@@ -24,36 +24,36 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
-import type { CoordinationRun, WorkerAssignment, PlanTriggerKind } from "../../src/kernel/coordination-types.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import type { CoordinationRun, WorkerAssignment, PlanTriggerKind } from "../../src/coordination/kernel/coordination-types.js";
 import {
   computeFingerprint,
   createProposalRecord,
   createTriggerEvidence,
-} from "../../src/kernel/replan-types.js";
-import type { PlanRevisionDraft, ModelReplanContext, SimulatedGraph, ImpactAnalysis, ProposalRecord, TriggerEvidence, ValidationResult } from "../../src/kernel/replan-types.js";
-import { ModelReplanAdapter, ReplanAdapterError } from "../../src/kernel/model-replan-adapter.js";
-import { ReplanValidator } from "../../src/kernel/replan-validator.js";
-import { ReplanSimulator } from "../../src/kernel/replan-simulator.js";
-import { ReplanImpactAnalyzer } from "../../src/kernel/replan-impact-analyzer.js";
-import { ReplanProposalStore } from "../../src/kernel/replan-proposal-store.js";
-import { ReplanApprovalGate, type ApprovalGateResult } from "../../src/kernel/replan-approval-gate.js";
-import { ReplanApplier } from "../../src/kernel/replan-applier.js";
-import { CollaborationContextBuilder } from "../../src/kernel/collaboration-context-builder.js";
-import { ModelAssistedReplanService } from "../../src/kernel/model-assisted-replan-service.js";
-import type { ModelAssistedReplanServiceOptions } from "../../src/kernel/model-assisted-replan-service.js";
-import type { ApprovalStore } from "../../src/approvals/approval-store.js";
-import type { ApprovalRequestInput } from "../../src/approvals/approval-store.js";
-import type { ApprovalRecord, ConsumeResult } from "../../src/approvals/approval-types.js";
-import type { AgentCapabilityMap } from "../../src/kernel/collaborative-planner.js";
-import type { CollaborationContextBudget } from "../../src/kernel/collaboration-context-builder.js";
-import type { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
-import type { CoordinationResultStore } from "../../src/kernel/coordination-result-store.js";
-import type { CollaborationStore } from "../../src/kernel/collaboration-store.js";
-import type { ModelAdapter } from "../../src/providers/types.js";
-import type { CollaborativePlanner, CollaborativePlanResult, ReplanContext, ReplanResult } from "../../src/kernel/collaborative-planner.js";
-import type { PlanningProposal } from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/replan-types.js";
+import type { PlanRevisionDraft, ModelReplanContext, SimulatedGraph, ImpactAnalysis, ProposalRecord, TriggerEvidence, ValidationResult } from "../../src/coordination/kernel/replan-types.js";
+import { ModelReplanAdapter, ReplanAdapterError } from "../../src/coordination/kernel/model-replan-adapter.js";
+import { ReplanValidator } from "../../src/coordination/kernel/replan-validator.js";
+import { ReplanSimulator } from "../../src/coordination/kernel/replan-simulator.js";
+import { ReplanImpactAnalyzer } from "../../src/coordination/kernel/replan-impact-analyzer.js";
+import { ReplanProposalStore } from "../../src/coordination/kernel/replan-proposal-store.js";
+import { ReplanApprovalGate, type ApprovalGateResult } from "../../src/coordination/kernel/replan-approval-gate.js";
+import { ReplanApplier } from "../../src/coordination/kernel/replan-applier.js";
+import { CollaborationContextBuilder } from "../../src/coordination/kernel/collaboration-context-builder.js";
+import { ModelAssistedReplanService } from "../../src/coordination/kernel/model-assisted-replan-service.js";
+import type { ModelAssistedReplanServiceOptions } from "../../src/coordination/kernel/model-assisted-replan-service.js";
+import type { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import type { ApprovalRequestInput } from "../../src/governance/approvals/approval-store.js";
+import type { ApprovalRecord, ConsumeResult } from "../../src/governance/approvals/approval-types.js";
+import type { AgentCapabilityMap } from "../../src/coordination/kernel/collaborative-planner.js";
+import type { CollaborationContextBudget } from "../../src/coordination/kernel/collaboration-context-builder.js";
+import type { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
+import type { CoordinationResultStore } from "../../src/coordination/kernel/coordination-result-store.js";
+import type { CollaborationStore } from "../../src/coordination/kernel/collaboration-store.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
+import type { CollaborativePlanner, CollaborativePlanResult, ReplanContext, ReplanResult } from "../../src/coordination/kernel/collaborative-planner.js";
+import type { PlanningProposal } from "../../src/coordination/kernel/coordination-types.js";
 
 // ─── Test utilities ───────────────────────────────────────────────────────
 

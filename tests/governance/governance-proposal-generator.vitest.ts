@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { GovernanceStore } from "../../src/governance/governance-store.js";
-import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
-import { EvidenceChainStore } from "../../src/learning/evidence-chain-store.js";
+import { AdaptationProposalStore } from "../../src/planning/adaptation/adaptation-proposal-store.js";
+import { EvidenceChainStore } from "../../src/planning/learning/evidence-chain-store.js";
 import { createGovernanceProposal } from "../../src/governance/governance-proposal-generator.js";
 
 describe("createGovernanceProposal", () => {

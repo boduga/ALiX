@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   isValidVersion, parseVersion, formatVersionId, parseVersionId, compareVersions, bumpVersion,
-} from "../../../src/capability/canonical/version.js";
+} from "../../../src/capabilities/capability/canonical/version.js";
 
 describe("Capability versioning (SemVer)", () => {
   it("accepts full SemVer only", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AlixEvent } from "../../src/events/types.js";
-import { saveDecisionsToMemory } from "../../src/run/helpers.js";
-import type { MemoryStore } from "../../src/utils/memory/store.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
+import { saveDecisionsToMemory } from "../../src/execution/run/helpers.js";
+import type { MemoryStore } from "../../src/operations/utils/memory/store.js";
 
 function event(text: string): AlixEvent {
   return {

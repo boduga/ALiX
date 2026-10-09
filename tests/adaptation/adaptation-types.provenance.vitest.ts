@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
-import { RecommendationToProposal } from "../../src/adaptation/recommendation-to-proposal.js";
-import type { Recommendation } from "../../src/reflection/reflection-types.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
+import { RecommendationToProposal } from "../../src/planning/adaptation/recommendation-to-proposal.js";
+import type { Recommendation } from "../../src/planning/reflection/reflection-types.js";
 
 function makeRecommendation(overrides: Partial<Recommendation> = {}): Recommendation {
   return {

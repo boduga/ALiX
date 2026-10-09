@@ -9,8 +9,8 @@ import assert from "node:assert/strict";
 import {
   computeOverallConfidence,
   computeOverallSimilarity,
-} from "../../../src/evolution/verification/index.js";
-import type { HistoricalSimilarityAssessment } from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
+import type { HistoricalSimilarityAssessment } from "../../../src/planning/evolution/verification/index.js";
 
 describe("computeOverallConfidence", () => {
   it("returns 1.0 when all factors are 1.0", () => {

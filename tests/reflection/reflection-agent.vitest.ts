@@ -10,10 +10,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import { ReflectionAgent } from "../../src/reflection/reflection-agent.js";
-import type { Analyzer, AnalysisResult, ReflectionReport } from "../../src/reflection/reflection-types.js";
-import type { EvidenceRecord } from "../../src/security/evidence/evidence-types.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
+import { ReflectionAgent } from "../../src/planning/reflection/reflection-agent.js";
+import type { Analyzer, AnalysisResult, ReflectionReport } from "../../src/planning/reflection/reflection-types.js";
+import type { EvidenceRecord } from "../../src/governance/security/evidence/evidence-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -28,7 +28,7 @@ function mockAnalyzer(name: string, result: AnalysisResult): Analyzer {
 }
 
 /** Create a minimal valid observation. */
-function simpleObs(overrides: Partial<import("../../src/reflection/reflection-types.js").Observation> = {}) {
+function simpleObs(overrides: Partial<import("../../src/planning/reflection/reflection-types.js").Observation> = {}) {
   return {
     type: "workflow_stall" as const,
     severity: "medium" as const,
@@ -41,7 +41,7 @@ function simpleObs(overrides: Partial<import("../../src/reflection/reflection-ty
 }
 
 /** Create a minimal valid recommendation. */
-function simpleRec(overrides: Partial<import("../../src/reflection/reflection-types.js").Recommendation> = {}) {
+function simpleRec(overrides: Partial<import("../../src/planning/reflection/reflection-types.js").Recommendation> = {}) {
   return {
     type: "process_change" as const,
     confidence: 0.8,

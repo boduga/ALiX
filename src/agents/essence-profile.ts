@@ -1,6 +1,6 @@
-import type { SignalFrame, SignalDomain } from "../runtime/signal-frame.js";
-import { decodeSignalCode } from "../runtime/signal-frame.js";
-import type { OfferingPlan } from "../runtime/offering-planner.js";
+import type { SignalFrame, SignalDomain } from "../runtime-state/runtime/signal-frame.js";
+import { decodeSignalCode } from "../runtime-state/runtime/signal-frame.js";
+import type { OfferingPlan } from "../runtime-state/runtime/offering-planner.js";
 
 /* ------------------------------------------------------------------ */
 /*  Named scoring constants                                            */

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { extractInitialScope, createScopeTracker, ScopeTracker } from "../../src/autonomy/scope-tracker.js";
-import { TaskStateMachine, RunLimiter } from "../../src/autonomy/state-machine.js";
+import { extractInitialScope, createScopeTracker, ScopeTracker } from "../../src/planning/autonomy/scope-tracker.js";
+import { TaskStateMachine, RunLimiter } from "../../src/planning/autonomy/state-machine.js";
 import { extractMutationPaths, recordMutationInSessionState } from "../../src/run.js";
 
 describe("extractInitialScope", () => {

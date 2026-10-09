@@ -1,7 +1,7 @@
 # Generation intent — recognition contract
 
 **Status**: Active (T12, PR #389 on wayfinder map #376)
-**Owner**: `src/runtime/action-classifier.ts` (`GENERATION_SIGNALS`)
+**Owner**: `src/runtime-state/runtime/action-classifier.ts` (`GENERATION_SIGNALS`)
 **Test corpus**: `tests/runtime/action-classifier.test.ts → describe("classifyAction — generation recognition contract")`
 
 ## Intent definition
@@ -23,7 +23,7 @@ Distinct from adjacent intent families:
 
 ## Recognizer
 
-**Mechanism**: deterministic regex (`GENERATION_SIGNALS` family in `src/runtime/action-classifier.ts`).
+**Mechanism**: deterministic regex (`GENERATION_SIGNALS` family in `src/runtime-state/runtime/action-classifier.ts`).
 **Trigger precedence**: generation is the **default positive** — it dominates `ambiguous` (line 319) and is short-circuited only by `arithmetic` (Layer 1 → returns `direct` with `answer`) and `workspace_action` (Layer 1 → returns `agent`). Retrieval (`external_retrieval`) is a separate Layer-1 family that does **not** dominate generation; see "No-overlap" below.
 **Confidence**: generation matches return `confidence: 0.85` (≥ 0.7 Layer-1 floor).
 
@@ -114,7 +114,7 @@ For every canonical intent, the artifact must include (per wayfinder map #376 §
 ## Provenance
 
 - T12 (#389) on wayfinder map #376
-- The `ActionIntent` value was previously spelled `standalone_generation` (per `docs/intent-contracts/canonical-taxonomy.md` mapping table — `generation ← standalone_generation, 1:1`). T12 graduated it to the canonical `generation` label to align the runtime label with the canonical intent family vocabulary. The rename touched `src/runtime/action-classifier.ts` (type union, return, confidence case, system prompt, VALID list, three comments), `src/runtime/task-router.ts` (Layer-3 dispatch check at lines 421/454), and the test files that assert the string (`tests/runtime/{action-classifier,task-router,route-executor}.test.ts`, `tests/daemon/daemon-server.test.ts`, `tests/agent/session-direct-path.vitest.ts`).
+- The `ActionIntent` value was previously spelled `standalone_generation` (per `docs/intent-contracts/canonical-taxonomy.md` mapping table — `generation ← standalone_generation, 1:1`). T12 graduated it to the canonical `generation` label to align the runtime label with the canonical intent family vocabulary. The rename touched `src/runtime-state/runtime/action-classifier.ts` (type union, return, confidence case, system prompt, VALID list, three comments), `src/runtime-state/runtime/task-router.ts` (Layer-3 dispatch check at lines 421/454), and the test files that assert the string (`tests/runtime/{action-classifier,task-router,route-executor}.test.ts`, `tests/daemon/daemon-server.test.ts`, `tests/agent/session-direct-path.vitest.ts`).
 - Recognition contract format anchored here is the template for T13 (agent-loop-mode) and any future recognizer addition.
 
 ## Taxonomy binding

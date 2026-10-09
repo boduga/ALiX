@@ -14,7 +14,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importedSpecifiers, importedBindings, codeOnly as stripComments } from "../helpers/import-graph.js";
 
-const QUEUE_SRC = resolve(__dirname, "../../src/adaptation/operator-queue.ts");
+const QUEUE_SRC = resolve(__dirname, "../../src/planning/adaptation/operator-queue.ts");
 const source = readFileSync(QUEUE_SRC, "utf-8");
 const codeOnly = stripComments(source);
 const specifiers = [...importedSpecifiers(QUEUE_SRC)];

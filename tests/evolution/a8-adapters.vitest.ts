@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { EventLog } from "../../src/events/event-log.js";
-import type { AlixEvent } from "../../src/events/types.js";
-import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
-import type { RecommendationStore } from "../../src/evolution/verification/recommendation/recommendation-store.js";
-import { ProposalEventsAdapter } from "../../src/evolution/learning/adapters/proposal-events-adapter.js";
-import { MeasurementEventsAdapter } from "../../src/evolution/learning/adapters/measurement-events-adapter.js";
-import { EnrichedProposalsAdapter } from "../../src/evolution/learning/adapters/enriched-proposals-adapter.js";
-import { RecommendationsAdapter } from "../../src/evolution/learning/adapters/recommendations-adapter.js";
+import type { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
+import type { EnrichedProposal } from "../../src/planning/adaptation/intelligence-types.js";
+import type { RecommendationStore } from "../../src/planning/evolution/verification/recommendation/recommendation-store.js";
+import { ProposalEventsAdapter } from "../../src/planning/evolution/learning/adapters/proposal-events-adapter.js";
+import { MeasurementEventsAdapter } from "../../src/planning/evolution/learning/adapters/measurement-events-adapter.js";
+import { EnrichedProposalsAdapter } from "../../src/planning/evolution/learning/adapters/enriched-proposals-adapter.js";
+import { RecommendationsAdapter } from "../../src/planning/evolution/learning/adapters/recommendations-adapter.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

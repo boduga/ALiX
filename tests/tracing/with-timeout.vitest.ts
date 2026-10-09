@@ -1,13 +1,13 @@
 /**
  * with-timeout.vitest.ts — Task 21 bounded-flush edge behavior.
  *
- * Covers `src/tracing/withTimeout` (design §12/§13): the bounded-wait helper that
+ * Covers `src/models/tracing/withTimeout` (design §12/§13): the bounded-wait helper that
  * enforces ALiX's "flush never blocks agent execution" contract. This file pins
- * the REAL guard behavior (src/tracing/with-timeout.ts:38-52) for the
+ * the REAL guard behavior (src/models/tracing/with-timeout.ts:38-52) for the
  * `flushTimeoutMs` values the brief asks about:
  *
  *   - a non-positive or non-finite ms → "never wait", resolves immediately
- *     (0 / negative / NaN / Infinity). The validator (src/config/validator.ts)
+ *     (0 / negative / NaN / Infinity). The validator (src/operations/config/validator.ts)
  *     REJECTS these at config-load, so the adapter only ever sees positive
  *     integer budgets; this guard is defense-in-depth for any caller that
  *     bypasses validation.
@@ -15,7 +15,7 @@
  *     when the promise outlasts the budget (hang → continue).
  *   - a rejection propagates to the caller (the adapter owns warn-and-continue).
  *
- * Deliberately distinct from `src/runtime/side-effect-timeout.ts` `withTimeout`
+ * Deliberately distinct from `src/runtime-state/runtime/side-effect-timeout.ts` `withTimeout`
  * (which REJECTS on timeout with SideEffectTimeoutError): here a timeout
  * RESOLVES `undefined` — "stop awaiting, continue" (design §13), never an error.
  *
@@ -24,7 +24,7 @@
  *   docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md
  */
 import { describe, it, expect, vi } from "vitest";
-import { withTimeout } from "../../src/tracing/with-timeout.js";
+import { withTimeout } from "../../src/models/tracing/with-timeout.js";
 
 describe("tracing withTimeout · flush-budget edge behavior", () => {
   it("resolves with the promise's value when it settles before the budget", async () => {

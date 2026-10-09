@@ -10,9 +10,9 @@ import { join } from "node:path";
 import {
   migrateCredentials,
   type MigrationResult,
-} from "../../../src/security/credentials/credential-migration.js";
-import { CredentialStore } from "../../../src/security/credentials/credential-store.js";
-import { isCredentialReference } from "../../../src/security/credentials/credential-reference.js";
+} from "../../../src/governance/security/credentials/credential-migration.js";
+import { CredentialStore } from "../../../src/governance/security/credentials/credential-store.js";
+import { isCredentialReference } from "../../../src/governance/security/credentials/credential-reference.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

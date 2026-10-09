@@ -32,7 +32,7 @@ describe("scoreFileScope", () => {
   });
 
   it("source files → medium", () => {
-    const r = scoreFileScope(["src/main.ts", "src/utils/helper.ts"]);
+    const r = scoreFileScope(["src/main.ts", "src/operations/utils/helper.ts"]);
     assert.strictEqual(r.level, "medium");
     assert.strictEqual(r.score, 40);
   });

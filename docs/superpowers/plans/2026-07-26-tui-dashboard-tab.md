@@ -4,14 +4,14 @@
 
 **Goal:** Replace the right-hand sidebar (DAEMON/APPROVALS/RUNTIME/SOPs & POLICY panels) with a new `dashboard` tab as the default landing tab, and expand the chat/agent views to use the full width and height of the terminal.
 
-**Architecture:** The 4 sidebar panels already have dedicated paint functions in `dashboard-renderer.ts` (paintDaemonPanel / paintApprovalsPanel / paintRuntimePanel / paintSopsAndPolicyPanel). The sidebar's `renderSidebar()` is a thin layout wrapper that stacks them. We promote that wrapper to a first-class `DashboardView` (`src/tui/views/dashboard-view.ts`), register it as the first entry in `TAB_ORDER`, and set it as `state.activeTab`'s default. The chat/agent views lose their hard-coded `PANEL_H = 14` reservation so their scrollback uses the full vertical space. `paintFullFrame()` drops the 75/25 split, the vertical divider, the `renderSidebar()` call, and uses the full width for the active view.
+**Architecture:** The 4 sidebar panels already have dedicated paint functions in `dashboard-renderer.ts` (paintDaemonPanel / paintApprovalsPanel / paintRuntimePanel / paintSopsAndPolicyPanel). The sidebar's `renderSidebar()` is a thin layout wrapper that stacks them. We promote that wrapper to a first-class `DashboardView` (`src/interfaces/tui/views/dashboard-view.ts`), register it as the first entry in `TAB_ORDER`, and set it as `state.activeTab`'s default. The chat/agent views lose their hard-coded `PANEL_H = 14` reservation so their scrollback uses the full vertical space. `paintFullFrame()` drops the 75/25 split, the vertical divider, the `renderSidebar()` call, and uses the full width for the active view.
 
 **Tech Stack:** TypeScript, Node.js, blessed-style ANSI escape sequences (raw `canvas.write`).
 
 ## Global Constraints
 
-- TabId union in `src/tui/state.ts:11` must include `'dashboard'`; default `activeTab` in `src/tui/state.ts:142` becomes `'dashboard'`.
-- `TAB_ORDER` in `src/tui/app.ts:45` is a `readonly TabId[]`. First entry is the default tab.
+- TabId union in `src/interfaces/tui/state.ts:11` must include `'dashboard'`; default `activeTab` in `src/interfaces/tui/state.ts:142` becomes `'dashboard'`.
+- `TAB_ORDER` in `src/interfaces/tui/app.ts:45` is a `readonly TabId[]`. First entry is the default tab.
 - The plan approval card overlay (`paintPlanApprovalCard`, called at `app.ts:852`) stays. It renders on top of the active view's scrollback regardless of the view.
 - The bottom status row (TOKENS, FILES, DAEMON, SOPS, RULES, EVENTS) at `app.ts:909-946` stays. It is footer chrome, not a sidebar panel.
 - The 4 per-tab views (`daemon`, `approvals`, `runtime`, `sops`, `policy`) stay in `TAB_ORDER` after `dashboard` so the operator can drill into any panel.
@@ -23,26 +23,26 @@
 ## File Structure
 
 **Create:**
-- `src/tui/views/dashboard-view.ts` — new view; renders the 4 panels in a responsive 2×2 or stacked layout.
+- `src/interfaces/tui/views/dashboard-view.ts` — new view; renders the 4 panels in a responsive 2×2 or stacked layout.
 - `docs/superpowers/plans/2026-07-26-tui-dashboard-tab.md` — this plan (already created).
 
 **Modify:**
-- `src/tui/state.ts` — add `'dashboard'` to `TabId`; set default `activeTab: 'dashboard'`.
-- `src/tui/views/index.ts` — import and register `DashboardView`.
-- `src/tui/app.ts` — add `'dashboard'` as first entry in `TAB_ORDER`; in `paintFullFrame()`, remove the 75/25 split, vertical divider, `renderSidebar()` call; expand the tab row and status row to use full width; update cursor-positioning branch for the new `'dashboard'` tab.
-- `src/tui/views/agent-view.ts` — change `PANEL_H = 14` to `PANEL_H = 0` so the scrollback uses the full vertical viewport.
-- `src/tui/views/chat-view.ts` — same `PANEL_H = 0` change; remove the `renderDashboard(ctx.snap, c, startY)` call at line 84 (those panels now live in the dashboard tab).
+- `src/interfaces/tui/state.ts` — add `'dashboard'` to `TabId`; set default `activeTab: 'dashboard'`.
+- `src/interfaces/tui/views/index.ts` — import and register `DashboardView`.
+- `src/interfaces/tui/app.ts` — add `'dashboard'` as first entry in `TAB_ORDER`; in `paintFullFrame()`, remove the 75/25 split, vertical divider, `renderSidebar()` call; expand the tab row and status row to use full width; update cursor-positioning branch for the new `'dashboard'` tab.
+- `src/interfaces/tui/views/agent-view.ts` — change `PANEL_H = 14` to `PANEL_H = 0` so the scrollback uses the full vertical viewport.
+- `src/interfaces/tui/views/chat-view.ts` — same `PANEL_H = 0` change; remove the `renderDashboard(ctx.snap, c, startY)` call at line 84 (those panels now live in the dashboard tab).
 
 **Delete:**
-- Nothing yet. `src/tui/sidebar.ts` stays — the per-tab view (daemon/approvals/runtime/sops/policy) and the chat/agent views still call its `renderDashboard` for their own bottom-strip; wait — verify before deleting. The actual deletion is out of scope for this plan; we only stop calling `renderSidebar()` from `paintFullFrame`.
+- Nothing yet. `src/interfaces/tui/sidebar.ts` stays — the per-tab view (daemon/approvals/runtime/sops/policy) and the chat/agent views still call its `renderDashboard` for their own bottom-strip; wait — verify before deleting. The actual deletion is out of scope for this plan; we only stop calling `renderSidebar()` from `paintFullFrame`.
 
 ---
 
 ### Task 1: Add 'dashboard' to TabId and set as default
 
 **Files:**
-- Modify: `src/tui/state.ts:11` — TabId union
-- Modify: `src/tui/state.ts:142` — default activeTab
+- Modify: `src/interfaces/tui/state.ts:11` — TabId union
+- Modify: `src/interfaces/tui/state.ts:142` — default activeTab
 
 **Interfaces:**
 - Consumes: nothing.
@@ -50,7 +50,7 @@
 
 - [ ] **Step 1: Add 'dashboard' to TabId**
 
-Open `src/tui/state.ts`. Replace line 11:
+Open `src/interfaces/tui/state.ts`. Replace line 11:
 
 ```typescript
 export type TabId = 'chat' | 'agent' | 'daemon' | 'approvals' | 'runtime' | 'sops' | 'policy';
@@ -84,7 +84,7 @@ Expected: tsc reports errors elsewhere (`'dashboard' not in TAB_ORDER`, `paintFu
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/state.ts
+git add src/interfaces/tui/state.ts
 git commit -m "feat(tui): add 'dashboard' to TabId and set as default"
 ```
 
@@ -93,8 +93,8 @@ git commit -m "feat(tui): add 'dashboard' to TabId and set as default"
 ### Task 2: Create the DashboardView
 
 **Files:**
-- Create: `src/tui/views/dashboard-view.ts`
-- Modify: `src/tui/views/index.ts` — register the new view
+- Create: `src/interfaces/tui/views/dashboard-view.ts`
+- Modify: `src/interfaces/tui/views/index.ts` — register the new view
 
 **Interfaces:**
 - Consumes: `paintDaemonPanel`, `paintApprovalsPanel`, `paintRuntimePanel`, `paintSopsAndPolicyPanel` from `../dashboard-renderer.js`. Each takes `(canvas, snap, x, y, w, h, options?)` (see `dashboard-renderer.ts:77, 155, 243, 336`).
@@ -105,7 +105,7 @@ The view is pure: `render(ctx)` never mutates `ctx`; the same `ctx` always produ
 
 - [ ] **Step 1: Write the new view file**
 
-Create `src/tui/views/dashboard-view.ts` with the following contents:
+Create `src/interfaces/tui/views/dashboard-view.ts` with the following contents:
 
 ```typescript
 import type { PerTabState, TabId } from '../state.js';
@@ -271,7 +271,7 @@ export class DashboardView implements TuiView {
 
 - [ ] **Step 2: Register the new view**
 
-Open `src/tui/views/index.ts`. Add the import:
+Open `src/interfaces/tui/views/index.ts`. Add the import:
 
 ```typescript
 import { DashboardView } from './dashboard-view.js';
@@ -301,7 +301,7 @@ Expected: errors that reference `paintFullFrame` and `TAB_ORDER` (next task) but
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/views/dashboard-view.ts src/tui/views/index.ts
+git add src/interfaces/tui/views/dashboard-view.ts src/interfaces/tui/views/index.ts
 git commit -m "feat(tui): add DashboardView with responsive 2x2/stacked panel layout"
 ```
 
@@ -310,8 +310,8 @@ git commit -m "feat(tui): add DashboardView with responsive 2x2/stacked panel la
 ### Task 3: Wire 'dashboard' into TAB_ORDER and strip the sidebar from paintFullFrame
 
 **Files:**
-- Modify: `src/tui/app.ts:45` — add `'dashboard'` as first entry in `TAB_ORDER`.
-- Modify: `src/tui/app.ts:822-967` — `paintFullFrame()` body: drop the 75/25 split, drop the vertical divider, drop the `renderSidebar()` call, expand tab row and status row to full width, handle the new `'dashboard'` branch in cursor positioning.
+- Modify: `src/interfaces/tui/app.ts:45` — add `'dashboard'` as first entry in `TAB_ORDER`.
+- Modify: `src/interfaces/tui/app.ts:822-967` — `paintFullFrame()` body: drop the 75/25 split, drop the vertical divider, drop the `renderSidebar()` call, expand tab row and status row to full width, handle the new `'dashboard'` branch in cursor positioning.
 
 **Interfaces:**
 - Consumes: `DashboardView` (now registered in `views/index.ts`); `TerminalCanvas` from `./canvas.js`; `paintFullFrame` private method on `TuiApp`.
@@ -319,7 +319,7 @@ git commit -m "feat(tui): add DashboardView with responsive 2x2/stacked panel la
 
 - [ ] **Step 1: Add 'dashboard' to TAB_ORDER**
 
-Open `src/tui/app.ts`. Replace line 45:
+Open `src/interfaces/tui/app.ts`. Replace line 45:
 
 ```typescript
 const TAB_ORDER: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
@@ -333,7 +333,7 @@ const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'ap
 
 - [ ] **Step 2: Replace the paintFullFrame body**
 
-Open `src/tui/app.ts`. Replace the body of `paintFullFrame` (lines 822-967). The replacement is a single contiguous block; do it as one `Edit` with the old block as `old_string` and the new block as `new_string`.
+Open `src/interfaces/tui/app.ts`. Replace the body of `paintFullFrame` (lines 822-967). The replacement is a single contiguous block; do it as one `Edit` with the old block as `old_string` and the new block as `new_string`.
 
 OLD block to find (begins after the `private paintFullFrame(): void {` line, ends before the `private async cleanupSync(): Promise<void> {` line):
 
@@ -617,7 +617,7 @@ NEW block to insert:
 
 - [ ] **Step 3: Drop the unused `renderSidebar` import**
 
-Open `src/tui/app.ts` and delete this line (the import is no longer referenced):
+Open `src/interfaces/tui/app.ts` and delete this line (the import is no longer referenced):
 
 ```typescript
 import { renderSidebar } from './sidebar.js';
@@ -631,7 +631,7 @@ Expected: only errors in `agent-view.ts` and `chat-view.ts` (their `PANEL_H = 14
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/app.ts
+git add src/interfaces/tui/app.ts
 git commit -m "feat(tui): add 'dashboard' to TAB_ORDER, strip sidebar, expand viewport"
 ```
 
@@ -640,7 +640,7 @@ git commit -m "feat(tui): add 'dashboard' to TAB_ORDER, strip sidebar, expand vi
 ### Task 4: Expand the agent scrollback to full height
 
 **Files:**
-- Modify: `src/tui/views/agent-view.ts:170` — `PANEL_H = 14` → `PANEL_H = 0`.
+- Modify: `src/interfaces/tui/views/agent-view.ts:170` — `PANEL_H = 14` → `PANEL_H = 0`.
 
 **Interfaces:**
 - Consumes: `ctx.dimensions.rows` (the full terminal height) and the `FOOTER_H = 3` constant.
@@ -648,7 +648,7 @@ git commit -m "feat(tui): add 'dashboard' to TAB_ORDER, strip sidebar, expand vi
 
 - [ ] **Step 1: Change PANEL_H to 0**
 
-Open `src/tui/views/agent-view.ts`. Replace the `PANEL_H` constant on line 170:
+Open `src/interfaces/tui/views/agent-view.ts`. Replace the `PANEL_H` constant on line 170:
 
 ```typescript
     const PANEL_H = 14;
@@ -670,7 +670,7 @@ Expected: only errors in `chat-view.ts` remain. `agent-view.ts` should compile c
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/views/agent-view.ts
+git add src/interfaces/tui/views/agent-view.ts
 git commit -m "feat(tui): expand agent scrollback to full viewport height"
 ```
 
@@ -679,10 +679,10 @@ git commit -m "feat(tui): expand agent scrollback to full viewport height"
 ### Task 5: Expand the chat scrollback to full height and drop the in-view dashboard
 
 **Files:**
-- Modify: `src/tui/views/chat-view.ts:33` — `PANEL_H = 14` → `PANEL_H = 0`.
-- Modify: `src/tui/views/chat-view.ts:1` — remove the `renderDashboard` import.
-- Modify: `src/tui/views/chat-view.ts:84` — remove the `renderDashboard(ctx.snap, c, startY);` call.
-- Modify: `src/tui/views/chat-view.ts:29-32` — update the comment block above the now-removed `PANEL_H` line.
+- Modify: `src/interfaces/tui/views/chat-view.ts:33` — `PANEL_H = 14` → `PANEL_H = 0`.
+- Modify: `src/interfaces/tui/views/chat-view.ts:1` — remove the `renderDashboard` import.
+- Modify: `src/interfaces/tui/views/chat-view.ts:84` — remove the `renderDashboard(ctx.snap, c, startY);` call.
+- Modify: `src/interfaces/tui/views/chat-view.ts:29-32` — update the comment block above the now-removed `PANEL_H` line.
 
 **Interfaces:**
 - Consumes: same as the agent view — `ctx.dimensions.rows` and the existing `FOOTER_H`.
@@ -690,7 +690,7 @@ git commit -m "feat(tui): expand agent scrollback to full viewport height"
 
 - [ ] **Step 1: Drop the `renderDashboard` import**
 
-Open `src/tui/views/chat-view.ts`. Delete line 1:
+Open `src/interfaces/tui/views/chat-view.ts`. Delete line 1:
 
 ```typescript
 import { renderDashboard } from '../dashboard-renderer.js';
@@ -742,7 +742,7 @@ Expected: zero errors anywhere in `src/`. (Any remaining errors are in the test 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/views/chat-view.ts
+git add src/interfaces/tui/views/chat-view.ts
 git commit -m "feat(tui): expand chat scrollback to full viewport, drop in-view dashboard"
 ```
 

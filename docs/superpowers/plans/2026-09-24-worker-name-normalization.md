@@ -34,7 +34,7 @@
 
 ### Task 2: Dependency input paths
 
-**Files:** `tests/kernel/coordination-planner.test.ts`, `src/kernel/coordination-planner.ts`, `src/kernel/AGENTS.md`
+**Files:** `tests/kernel/coordination-planner.test.ts`, `src/coordination/kernel/coordination-planner.ts`, `src/coordination/kernel/AGENTS.md`
 
 **Interfaces:** After mapping graph dependencies to worker IDs, append an `Input paths:` manifest from direct producer workers with one explicit file ownership path.
 
@@ -56,7 +56,7 @@
 
 ### Task 4: Structured path handoff amendment
 
-**Files:** `src/kernel/coordination-types.ts`, `src/kernel/coordination-planner.ts`, `src/kernel/subagent-worker-executor.ts`, `src/config/schema.ts`, `src/agents/subagent-manager.ts`, `src/agents/subagent-cli.ts`, matching tests and DOX contracts.
+**Files:** `src/coordination/kernel/coordination-types.ts`, `src/coordination/kernel/coordination-planner.ts`, `src/coordination/kernel/subagent-worker-executor.ts`, `src/operations/config/schema.ts`, `src/agents/subagent-manager.ts`, `src/agents/subagent-cli.ts`, matching tests and DOX contracts.
 
 **Interfaces:** `WorkerAssignment.inputPaths` persists producer file paths; `SubagentTask.inputPaths` carries them into the child process; `resolveWorkerInputPath(path, inputPaths)` expands only unique bare filenames before read/exists execution.
 

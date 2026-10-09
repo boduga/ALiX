@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { loadCatalogWithPrecedence, BOOTSTRAP_SOURCE_ORDER } from "../../../src/capability/canonical/bootstrap.js";
-import type { CapabilityBootstrapProvider, CapabilityBootstrapEntry } from "../../../src/capability/canonical/bootstrap.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { loadCatalogWithPrecedence, BOOTSTRAP_SOURCE_ORDER } from "../../../src/capabilities/capability/canonical/bootstrap.js";
+import type { CapabilityBootstrapProvider, CapabilityBootstrapEntry } from "../../../src/capabilities/capability/canonical/bootstrap.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 function makeDef(id: string, title: string): CapabilityDefinition {
   return { id, version: "1.0.0", kind: "operation", title, description: id, tags: [], category: "test",

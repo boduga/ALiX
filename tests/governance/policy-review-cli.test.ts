@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleGovernancePolicyReviewCommand } from "../../src/cli/commands/governance-policy-review.js";
+import { handleGovernancePolicyReviewCommand } from "../../src/interfaces/cli/commands/governance-policy-review.js";
 
 let tmpDir: string;
 let bundlePath: string;

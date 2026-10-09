@@ -53,7 +53,7 @@ packages/tool-repair/
 └── bin/
     └── tool-repair.js                    # CLI entry: JS for node --experimental-strip-types
 
-src/tools/executor.ts                      # [MODIFY] ALiX — inject repair layer
+src/capabilities/tools/executor.ts                      # [MODIFY] ALiX — inject repair layer
 .claude/hooks/PreToolUse/tool-repair.sh    # [CREATE] Claude Code hook
 ```
 
@@ -1234,7 +1234,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `packages/tool-repair/src/adapters/alix.ts` (create)
-- Modify: `src/tools/executor.ts` (inject repair layer)
+- Modify: `src/capabilities/tools/executor.ts` (inject repair layer)
 
 - [ ] **Step 1: Create `packages/tool-repair/src/adapters/alix.ts`**
 
@@ -1293,7 +1293,7 @@ function normalizeModelKey(provider: string, model: string): string {
 }
 ```
 
-- [ ] **Step 2: Modify `src/tools/executor.ts`**
+- [ ] **Step 2: Modify `src/capabilities/tools/executor.ts`**
 
 Add import at top:
 ```typescript
@@ -1386,7 +1386,7 @@ import type { RepairOutcome } from "../../packages/tool-repair/src/types.js";
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/tool-repair/src/adapters/alix.ts src/tools/executor.ts
+git add packages/tool-repair/src/adapters/alix.ts src/capabilities/tools/executor.ts
 git commit -m "feat(tool-repair): integrate repair layer into ALiX ToolExecutor
 
 Tool calls are now validated and repaired before execution. Repair hints

@@ -18,7 +18,7 @@ Four additive features for the alix TUI rich response rendering pipeline, buildi
 
 ## 1. Strikethrough
 
-### Type changes (`src/tui/blocks/types.ts`)
+### Type changes (`src/interfaces/tui/blocks/types.ts`)
 
 Add to the `InlineSpan` discriminated union:
 
@@ -32,7 +32,7 @@ Add to the `Theme` interface:
 strikethrough(text: string): string;
 ```
 
-### Inline parser (`src/tui/blocks/inline.ts`)
+### Inline parser (`src/interfaces/tui/blocks/inline.ts`)
 
 Add detection of `~~text~~` in `parseInline()` using the same pattern as `**bold**`:
 - Match opening `~~`
@@ -42,7 +42,7 @@ Add detection of `~~text~~` in `parseInline()` using the same pattern as `**bold
 
 Insertion order: after `**bold**` and `*italic*` checks, before backtick and link checks. The `~` character is not otherwise meaningful in markdown, so there is no ambiguity.
 
-### Theme (`src/tui/blocks/theme.ts`)
+### Theme (`src/interfaces/tui/blocks/theme.ts`)
 
 ```ts
 strikethrough: (text) => `\x1b[9m${text}\x1b[0m`,
@@ -50,7 +50,7 @@ strikethrough: (text) => `\x1b[9m${text}\x1b[0m`,
 
 ANSI code 9m is the strike-through attribute. Widely supported in modern terminals.
 
-### Render (`src/tui/blocks/render.ts`)
+### Render (`src/interfaces/tui/blocks/render.ts`)
 
 Add `case 'strikethrough'` to `styleInlineSpan()`:
 
@@ -85,7 +85,7 @@ case 'strikethrough': return theme.strikethrough(span.text);
 - `parseInline()` already parses `[text](href)` syntax
 - No autolink detection (bare URLs or `<url>` syntax)
 
-### OSC-8 rendering (`src/tui/blocks/theme.ts`)
+### OSC-8 rendering (`src/interfaces/tui/blocks/theme.ts`)
 
 Replace the `link` implementation:
 
@@ -101,7 +101,7 @@ Strategy: wrap the styled text in OSC-8 sequences. Non-OSC-8 terminals see the u
 
 No Theme interface changes needed — `link()` already takes `(text, href)`.
 
-### Autolink parsing (`src/tui/blocks/inline.ts`)
+### Autolink parsing (`src/interfaces/tui/blocks/inline.ts`)
 
 Add detection in `parseInline()`, after the existing `[text](href)` check:
 
@@ -142,11 +142,11 @@ Trailing punctuation stripping: if the matched URL ends with `.`, `,`, `!`, `?`,
 
 No new `ResponseBlock` type. Callouts ARE quotes — they parse as `{ type: 'quote' }` blocks. The difference is purely at render time: when the first word of a quote's content is `[NOTE]`, `[TIP]`, `[WARNING]`, or `[CAUTION]`, the renderer draws a colored label header instead of just a bar.
 
-### Parser (`src/tui/blocks/parser.ts`)
+### Parser (`src/interfaces/tui/blocks/parser.ts`)
 
 **No changes.** The existing quote parser already collects lines after `>` prefix. A callout's first content line starts with e.g. `[NOTE]` — the parser stores it verbatim as part of the quote text, same as any other quote.
 
-### Theme (`src/tui/blocks/types.ts` + `src/tui/blocks/theme.ts`)
+### Theme (`src/interfaces/tui/blocks/types.ts` + `src/interfaces/tui/blocks/theme.ts`)
 
 Add to `Theme` interface:
 
@@ -174,7 +174,7 @@ Color map:
 
 Icons are ideal but terminal-dependent — include them as a comment in the code but prefix actual output with a simple character (`ℹ`, `💡`, `⚠`, `🔴`). The icon character MUST render in the terminal (all support Unicode in July 2026).
 
-### Renderer (`src/tui/blocks/render.ts`)
+### Renderer (`src/interfaces/tui/blocks/render.ts`)
 
 Update `renderQuote()`:
 
@@ -214,7 +214,7 @@ Edge case: if the entire quote content is just `[NOTE]` with no body, treat it a
 
 ## 4. Pipe Tables
 
-### Type changes (`src/tui/blocks/types.ts`)
+### Type changes (`src/interfaces/tui/blocks/types.ts`)
 
 Add to `ResponseBlock`:
 
@@ -235,7 +235,7 @@ tableBorder: string;
 
 Uses the same pattern as `codeBorder` — a raw ANSI prefix (GRAY) that gets stamped onto border cells.
 
-### Parser (`src/tui/blocks/parser.ts`)
+### Parser (`src/interfaces/tui/blocks/parser.ts`)
 
 Add table detection before the text fallback, after list detection.
 
@@ -263,7 +263,7 @@ Split each row on `|`, trimming whitespace from each cell. Leading/trailing oute
 **Empty tables:**
 A table must have at least one header cell and one data row. A delimiter-only table (no data rows) is not emitted as a table — the parser falls back to text.
 
-### Renderer (`src/tui/blocks/render.ts`)
+### Renderer (`src/interfaces/tui/blocks/render.ts`)
 
 New `renderTable()` function called from the `renderBlocks` switch.
 
@@ -353,11 +353,11 @@ Each commit is independently buildable and testable. No commit breaks existing t
 
 | File | What changes |
 |------|-------------|
-| `src/tui/blocks/types.ts` | InlineSpan + ResponseBlock + Theme interface |
-| `src/tui/blocks/inline.ts` | Autolink + strikethrough parsing |
-| `src/tui/blocks/theme.ts` | Table border, callout label, strikethrough, OSC-8 link |
-| `src/tui/blocks/parser.ts` | Pipe table block parsing |
-| `src/tui/blocks/render.ts` | Table renderer, callout render, strikethrough pass-through |
+| `src/interfaces/tui/blocks/types.ts` | InlineSpan + ResponseBlock + Theme interface |
+| `src/interfaces/tui/blocks/inline.ts` | Autolink + strikethrough parsing |
+| `src/interfaces/tui/blocks/theme.ts` | Table border, callout label, strikethrough, OSC-8 link |
+| `src/interfaces/tui/blocks/parser.ts` | Pipe table block parsing |
+| `src/interfaces/tui/blocks/render.ts` | Table renderer, callout render, strikethrough pass-through |
 
 ## Test Coverage
 

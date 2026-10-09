@@ -12,8 +12,8 @@ import {
   ExpiredEvidenceError,
   IntegrityMismatchError,
   createVerificationEvidence,
-} from "../../../src/evolution/verification/index.js";
-import type { ConfidenceProfile } from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
+import type { ConfidenceProfile } from "../../../src/planning/evolution/verification/index.js";
 
 const PROFILE: ConfidenceProfile = {
   replayFidelity: 0.95,

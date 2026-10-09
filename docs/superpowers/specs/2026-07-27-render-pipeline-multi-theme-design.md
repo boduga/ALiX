@@ -8,7 +8,7 @@
 
 Add a second theme (light) and a theme selection mechanism to the alix TUI render pipeline. The `Theme` interface was designed for this — `defaultTheme`'s documentation reads "Single instance — the interface exists for future variants."
 
-## Theme Registry (`src/tui/blocks/theme.ts`)
+## Theme Registry (`src/interfaces/tui/blocks/theme.ts`)
 
 Export a registry and a resolver:
 

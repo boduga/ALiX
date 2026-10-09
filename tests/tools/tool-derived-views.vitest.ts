@@ -3,7 +3,7 @@ import {
   buildDefaultToolIndex,
   getToolsForCapability,
   getCapabilitiesForTool,
-} from "../../src/tools/tool-registry.js";
+} from "../../src/capabilities/tools/tool-registry.js";
 
 /**
  * Derived capability↔tool views (Task 5).

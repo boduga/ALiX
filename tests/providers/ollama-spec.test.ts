@@ -7,12 +7,12 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ollamaSpec } from "../../src/providers/specs/ollama-spec.js";
+import { ollamaSpec } from "../../src/models/providers/specs/ollama-spec.js";
 import {
   parseOllamaToolCalls,
   extractOllamaContent,
   extractOllamaUsage,
-} from "../../src/providers/specs/ollama-tool-calls.js";
+} from "../../src/models/providers/specs/ollama-tool-calls.js";
 
 // =========================================================================
 // parseOllamaToolCalls — Native /api/chat format

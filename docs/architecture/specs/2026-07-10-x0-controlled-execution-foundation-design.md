@@ -31,7 +31,7 @@ Observation Layer (P14–P30)
 Execution Control Layer (X-Series)
     |   ensures execution happened under explicit, auditable intent
     v
-Runtime Layer (src/agent/, src/tools/, src/mcp/)
+Runtime Layer (src/agents/agent/, src/capabilities/tools/, src/capabilities/mcp/)
     |   performs the actual work
 ```
 
@@ -285,14 +285,14 @@ X2 produces ExecutionEvidence on completion/failure. X3 integrates that evidence
 
 | Slice | File | Purpose |
 |-------|------|---------|
-| X1 | `src/runtime/contracts/execution-intent-contract.ts` | ExecutionIntent types, constraints, lifecycle |
-| X1 | `src/runtime/contracts/execution-governor-contract.ts` | Governor interface, validation types |
-| X2 | `src/runtime/execution-governor.ts` | Governor implementation |
+| X1 | `src/runtime-state/runtime/contracts/execution-intent-contract.ts` | ExecutionIntent types, constraints, lifecycle |
+| X1 | `src/runtime-state/runtime/contracts/execution-governor-contract.ts` | Governor interface, validation types |
+| X2 | `src/runtime-state/runtime/execution-governor.ts` | Governor implementation |
 
 ### Untouched Files
 
-- All files in `src/runtime/contracts/` (M1 contracts remain stable)
-- All files in `src/agent/`, `src/providers/`, `src/tools/`, `src/mcp/`, `src/events/`
+- All files in `src/runtime-state/runtime/contracts/` (M1 contracts remain stable)
+- All files in `src/agents/agent/`, `src/models/providers/`, `src/capabilities/tools/`, `src/capabilities/mcp/`, `src/runtime-state/events/`
 - All P5–P30 modules
 - P11.9 issue run handler and guardrails
 

@@ -1,6 +1,6 @@
 // tests/adaptation/pipeline-health-collector.vitest.ts
 import { describe, it, expect, vi } from "vitest";
-import { PipelineHealthCollector } from "../../src/adaptation/pipeline-health-collector.js";
+import { PipelineHealthCollector } from "../../src/planning/adaptation/pipeline-health-collector.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

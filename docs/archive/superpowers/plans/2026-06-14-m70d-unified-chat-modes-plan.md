@@ -13,7 +13,7 @@
 ## File Structure
 
 ### Modify
-- `src/cli/commands/chat.ts` — full rewrite: parseChatArgs returns Result, ChatMode resolver, WorkspacePathResolver enforcement, agent task-console adapter
+- `src/interfaces/cli/commands/chat.ts` — full rewrite: parseChatArgs returns Result, ChatMode resolver, WorkspacePathResolver enforcement, agent task-console adapter
 - `src/cli.ts` — delegate to new parseChatArgs, remove inline parsing
 
 ### Test
@@ -24,11 +24,11 @@
 ### Task 1: Pure Argument Parser + Validation
 
 **Files:**
-- Modify: `src/cli.ts`, `src/cli/commands/chat.ts`
+- Modify: `src/cli.ts`, `src/interfaces/cli/commands/chat.ts`
 
 - [ ] **Step 1: Move parseChatArgs into chat.ts as a pure function**
 
-Remove the inline `parseChatArgs` from `src/cli.ts`. Add to `src/cli/commands/chat.ts`:
+Remove the inline `parseChatArgs` from `src/cli.ts`. Add to `src/interfaces/cli/commands/chat.ts`:
 
 ```typescript
 export type ParseChatArgsResult =
@@ -103,7 +103,7 @@ if (command === "chat") {
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli.ts src/cli/commands/chat.ts
+git add src/cli.ts src/interfaces/cli/commands/chat.ts
 git commit -m "feat(chat): add pure parseChatArgs with conflict/validation errors"
 ```
 
@@ -112,7 +112,7 @@ git commit -m "feat(chat): add pure parseChatArgs with conflict/validation error
 ### Task 2: ChatMode Resolver and Startup Banner
 
 **Files:**
-- Modify: `src/cli/commands/chat.ts`
+- Modify: `src/interfaces/cli/commands/chat.ts`
 
 - [ ] **Step 1: Add ChatMode type and resolver**
 
@@ -160,7 +160,7 @@ if (resolved.workspaceAccess) console.log("Tools: " + resolved.tools.map(t => t.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/chat.ts
+git add src/interfaces/cli/commands/chat.ts
 git commit -m "feat(chat): add ChatMode resolver with startup banner"
 ```
 
@@ -169,7 +169,7 @@ git commit -m "feat(chat): add ChatMode resolver with startup banner"
 ### Task 3: Workspace Tool Dispatch with Path Safety
 
 **Files:**
-- Modify: `src/cli/commands/chat.ts`
+- Modify: `src/interfaces/cli/commands/chat.ts`
 
 - [ ] **Step 1: Add WorkspacePathResolver and dispatch**
 
@@ -229,7 +229,7 @@ const result = mode === "workspace"
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/chat.ts
+git add src/interfaces/cli/commands/chat.ts
 git commit -m "feat(chat): workspace tools use WorkspacePathResolver for path safety"
 ```
 
@@ -238,7 +238,7 @@ git commit -m "feat(chat): workspace tools use WorkspacePathResolver for path sa
 ### Task 4: Agent Task-Console Adapter
 
 **Files:**
-- Modify: `src/cli/commands/chat.ts`
+- Modify: `src/interfaces/cli/commands/chat.ts`
 
 - [ ] **Step 1: Add agent mode handler**
 
@@ -292,7 +292,7 @@ export async function runChat(opts: ChatOptions = {}): Promise<void> {
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/chat.ts
+git add src/interfaces/cli/commands/chat.ts
 git commit -m "feat(chat): add agent task-console mode via runTask()"
 ```
 

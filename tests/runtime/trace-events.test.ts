@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { toTraceEvent, traceEventsFromLog, formatTraceEvent } from "../../src/runtime/trace-events.js";
+import { toTraceEvent, traceEventsFromLog, formatTraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 describe("toTraceEvent", () => {
   it("converts policy.decision allow event", () => {

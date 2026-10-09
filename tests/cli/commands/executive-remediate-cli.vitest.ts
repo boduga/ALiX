@@ -13,9 +13,9 @@ import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync, readFileSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
-import { handleRemediateCommand } from "../../../src/cli/commands/executive-remediate-handler.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+import { AdaptationProposalStore } from "../../../src/planning/adaptation/adaptation-proposal-store.js";
+import { handleRemediateCommand } from "../../../src/interfaces/cli/commands/executive-remediate-handler.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ExecutionTraceEntry, ExecutionTraceRetention } from '../../../src/tui/runtime/execution-trace.js';
+import type { ExecutionTraceEntry, ExecutionTraceRetention } from '../../../src/interfaces/tui/runtime/execution-trace.js';
 
 describe('ExecutionTraceEntry contract', () => {
   it('is a readonly DTO (type-level: assigning a readonly field must fail to compile)', () => {

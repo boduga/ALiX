@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createCollaborationTools } from "../../src/tools/collaboration-tools.js";
-import type { WorkerCollaborationAPI } from "../../src/kernel/worker-collaboration-api.js";
-import type { FindingConflict } from "../../src/kernel/collaboration-conflict-types.js";
+import { createCollaborationTools } from "../../src/capabilities/tools/collaboration-tools.js";
+import type { WorkerCollaborationAPI } from "../../src/coordination/kernel/worker-collaboration-api.js";
+import type { FindingConflict } from "../../src/coordination/kernel/collaboration-conflict-types.js";
 
 function makeFakeApi(opts: {
   reportConflictResult?: string;

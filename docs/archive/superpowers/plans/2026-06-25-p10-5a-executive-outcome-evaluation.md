@@ -40,7 +40,7 @@
 ### Task 1: TrendStore.findBaseline() method + tests
 
 **Files:**
-- Modify: `src/executive/trend-store.ts` — add `findBaseline(before)` method
+- Modify: `src/execution/executive/trend-store.ts` — add `findBaseline(before)` method
 - Test: `tests/executive/trend-store.vitest.ts` — add findBaseline tests
 
 **Interfaces:**
@@ -53,7 +53,7 @@ Add to `tests/executive/trend-store.vitest.ts`:
 
 ```typescript
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { ExecutiveTrendStore } from "../../src/executive/trend-store.js";
+import { ExecutiveTrendStore } from "../../src/execution/executive/trend-store.js";
 import { mkdtempSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -124,7 +124,7 @@ Expected: FAIL — `findBaseline` method not yet defined.
 
 - [ ] **Step 3: Implement findBaseline**
 
-Add to `src/executive/trend-store.ts` after `loadLatest()`:
+Add to `src/execution/executive/trend-store.ts` after `loadLatest()`:
 
 ```typescript
   /**
@@ -167,7 +167,7 @@ Expected: PASS — all 4 findBaseline tests green, plus any pre-existing trend-s
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/executive/trend-store.ts tests/executive/trend-store.vitest.ts
+git add src/execution/executive/trend-store.ts tests/executive/trend-store.vitest.ts
 git commit -m "feat(p10-5a): add TrendStore.findBaseline() method"
 ```
 
@@ -176,7 +176,7 @@ git commit -m "feat(p10-5a): add TrendStore.findBaseline() method"
 ### Task 2: Outcome evaluator types + pure function + unit tests
 
 **Files:**
-- Create: `src/executive/outcome-evaluator.ts`
+- Create: `src/execution/executive/outcome-evaluator.ts`
 - Test: `tests/executive/outcome-evaluator.vitest.ts`
 
 **Interfaces:**
@@ -245,11 +245,11 @@ Create `tests/executive/outcome-evaluator.vitest.ts`:
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { evaluatePlanOutcome } from "../../src/executive/outcome-evaluator.js";
-import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
-import type { PlanExecutionState } from "../../src/executive/executive-plan-types.js";
-import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
+import { evaluatePlanOutcome } from "../../src/execution/executive/outcome-evaluator.js";
+import type { PersistedExecutionPlan } from "../../src/execution/executive/executive-plan-types.js";
+import type { PlanExecutionState } from "../../src/execution/executive/executive-plan-types.js";
+import type { ExecutiveTrendSnapshot } from "../../src/execution/executive/trend-store.js";
+import type { ExecutionStep } from "../../src/execution/executive/planning-engine.js";
 
 // -----------------------------------------------------------------------
 // Factory helpers
@@ -556,7 +556,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Create outcome-evaluator.ts**
 
-Create `src/executive/outcome-evaluator.ts` with:
+Create `src/execution/executive/outcome-evaluator.ts` with:
 
 ```typescript
 /**
@@ -825,7 +825,7 @@ Expected: PASS — all tests green.
 
 ```bash
 npx tsc --noEmit
-git add src/executive/outcome-evaluator.ts tests/executive/outcome-evaluator.vitest.ts
+git add src/execution/executive/outcome-evaluator.ts tests/executive/outcome-evaluator.vitest.ts
 git commit -m "feat(p10-5a): add outcome-evaluator.ts pure function + unit tests"
 ```
 
@@ -834,8 +834,8 @@ git commit -m "feat(p10-5a): add outcome-evaluator.ts pure function + unit tests
 ### Task 3: CLI evaluate subcommand + integration test
 
 **Files:**
-- Create: `src/cli/commands/executive-evaluate-handler.ts` — handler logic (follows `runDashboard` pattern)
-- Modify: `src/cli/commands/executive.ts` — add `evaluate` case + import
+- Create: `src/interfaces/cli/commands/executive-evaluate-handler.ts` — handler logic (follows `runDashboard` pattern)
+- Modify: `src/interfaces/cli/commands/executive.ts` — add `evaluate` case + import
 - Test: `tests/cli/commands/executive-evaluate-cli.vitest.ts`
 
 **Interfaces:**
@@ -848,7 +848,7 @@ Create `tests/cli/commands/executive-evaluate-cli.vitest.ts`:
 
 ```typescript
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
-import { handleExecutiveCommand } from "../../../src/cli/commands/executive.js";
+import { handleExecutiveCommand } from "../../../src/interfaces/cli/commands/executive.js";
 import { mkdirSync, mkdtempSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1005,7 +1005,7 @@ Expected: FAIL — module `executive-evaluate-handler.ts` not found, or `evaluat
 
 - [ ] **Step 3: Create evaluate handler**
 
-Create `src/cli/commands/executive-evaluate-handler.ts`:
+Create `src/interfaces/cli/commands/executive-evaluate-handler.ts`:
 
 ```typescript
 /**
@@ -1128,7 +1128,7 @@ function renderFailClosed(report: ExecutiveOutcomeEvaluationReport): void {
 
 - [ ] **Step 4: Wire evaluate into executive.ts**
 
-Add to imports in `src/cli/commands/executive.ts`:
+Add to imports in `src/interfaces/cli/commands/executive.ts`:
 
 ```typescript
 import { handleEvaluate } from "./executive-evaluate-handler.js";
@@ -1161,7 +1161,7 @@ Expected: PASS.
 
 ```bash
 npx tsc --noEmit
-git add src/cli/commands/executive.ts src/cli/commands/executive-evaluate-handler.ts tests/cli/commands/executive-evaluate-cli.vitest.ts
+git add src/interfaces/cli/commands/executive.ts src/interfaces/cli/commands/executive-evaluate-handler.ts tests/cli/commands/executive-evaluate-cli.vitest.ts
 git commit -m "feat(p10-5a): add evaluate CLI subcommand with terminal + JSON output"
 ```
 
@@ -1178,7 +1178,7 @@ In `tests/executive/executive-sentinels.vitest.ts`, find the `EXECUTIVE_FILES` a
 
 ```typescript
   // P10.5a files
-  "src/executive/outcome-evaluator.ts",
+  "src/execution/executive/outcome-evaluator.ts",
 ```
 
 - [ ] **Step 2: Run sentinel + all executive tests**

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SubagentManager } from "../../src/agents/subagent-manager.js";
 import { resolveRenewalResult } from "../../src/agents/subagent-manager.js";
-import type { AlixConfig, SubagentRole, SubagentTask } from "../../src/config/schema.js";
+import type { AlixConfig, SubagentRole, SubagentTask } from "../../src/operations/config/schema.js";
 
 /** Minimal subagent tier config so getRoleModel doesn't throw. */
 const TEST_SUBAGENT_CFG: AlixConfig["subagents"] = {

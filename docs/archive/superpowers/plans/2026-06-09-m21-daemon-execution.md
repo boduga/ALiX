@@ -24,8 +24,8 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/daemon/daemon-types.ts` | **Create** | Shared command/response protocol types |
-| `src/daemon/daemon-server.ts` | **Modify** | Replace lifecycle-only `run` with real `runTask()` execution + streaming |
+| `src/operations/daemon/daemon-types.ts` | **Create** | Shared command/response protocol types |
+| `src/operations/daemon/daemon-server.ts` | **Modify** | Replace lifecycle-only `run` with real `runTask()` execution + streaming |
 | `src/cli.ts` | **Modify** | Update `submit` handler for streaming multi-line responses |
 | `tests/daemon/daemon-protocol.test.ts` | **Create** | Protocol type tests |
 
@@ -34,7 +34,7 @@
 ### Task 1: Protocol types
 
 **Files:**
-- Create: `src/daemon/daemon-types.ts`
+- Create: `src/operations/daemon/daemon-types.ts`
 
 - [ ] **Step 1: Define the daemon protocol types**
 
@@ -71,7 +71,7 @@ export type DaemonResponse =
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/daemon/daemon-types.ts
+git add src/operations/daemon/daemon-types.ts
 git commit -m "feat(daemon): add shared command/response protocol types"
 ```
 
@@ -80,7 +80,7 @@ git commit -m "feat(daemon): add shared command/response protocol types"
 ### Task 2: Wire daemon run command to runTask()
 
 **Files:**
-- Modify: `src/daemon/daemon-server.ts`
+- Modify: `src/operations/daemon/daemon-server.ts`
 
 - [ ] **Step 1: Import runTask and protocol types**
 
@@ -186,7 +186,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/daemon/daemon-server.ts
+git add src/operations/daemon/daemon-server.ts
 git commit -m "feat(daemon): wire daemon run command to runTask with event streaming"
 ```
 
@@ -195,7 +195,7 @@ git commit -m "feat(daemon): wire daemon run command to runTask with event strea
 ### Task 3: Task queue
 
 **Files:**
-- Modify: `src/daemon/daemon-server.ts`
+- Modify: `src/operations/daemon/daemon-server.ts`
 
 - [ ] **Step 1: Add a task queue**
 
@@ -243,7 +243,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/daemon/daemon-server.ts
+git add src/operations/daemon/daemon-server.ts
 git commit -m "feat(daemon): add task queue with sequential execution"
 ```
 

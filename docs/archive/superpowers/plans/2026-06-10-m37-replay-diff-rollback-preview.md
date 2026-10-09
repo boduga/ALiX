@@ -16,10 +16,10 @@
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/runtime/replay-diff-store.ts` | **NEW** | ReplayDiffStore — snapshot, diff, index persistence |
-| `src/runtime/replay-executor.ts` | MODIFY | Hook before/after capture in approved-live mutation handlers |
-| `src/events/types.ts` | MODIFY | Add `DIFF_RECORDED` event type and payload |
-| `src/tui/trace-detail.ts` | MODIFY | Add diff/rollback preview renderers to replay result display |
+| `src/runtime-state/runtime/replay-diff-store.ts` | **NEW** | ReplayDiffStore — snapshot, diff, index persistence |
+| `src/runtime-state/runtime/replay-executor.ts` | MODIFY | Hook before/after capture in approved-live mutation handlers |
+| `src/runtime-state/events/types.ts` | MODIFY | Add `DIFF_RECORDED` event type and payload |
+| `src/interfaces/tui/trace-detail.ts` | MODIFY | Add diff/rollback preview renderers to replay result display |
 | `tests/runtime/replay-diff-store.test.ts` | **NEW** | Snapshot, diff, storage tests |
 | `tests/runtime/replay-executor.test.ts` | MODIFY | Test before/after capture hooks during approved-live execution |
 | `tests/tui/replay-diff-display.test.ts` | **NEW** | Diff rendering tests |
@@ -29,11 +29,11 @@
 ### Task 1: Add replay.diff.recorded event type
 
 **Files:**
-- Modify: `src/events/types.ts`
+- Modify: `src/runtime-state/events/types.ts`
 
 - [ ] **Step 1: Add DIFF_RECORDED to REPLAY_EVENT_TYPES and payload**
 
-In `src/events/types.ts`, find the `REPLAY_EVENT_TYPES` constant and add after the last existing entry:
+In `src/runtime-state/events/types.ts`, find the `REPLAY_EVENT_TYPES` constant and add after the last existing entry:
 
 ```typescript
 export const REPLAY_EVENT_TYPES = {
@@ -72,7 +72,7 @@ Expected: Clean compile.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/events/types.ts
+git add src/runtime-state/events/types.ts
 git commit -m "feat(events): add replay.diff.recorded event type"
 ```
 
@@ -81,7 +81,7 @@ git commit -m "feat(events): add replay.diff.recorded event type"
 ### Task 2: Create ReplayDiffStore — snapshot, diff, storage
 
 **Files:**
-- Create: `src/runtime/replay-diff-store.ts`
+- Create: `src/runtime-state/runtime/replay-diff-store.ts`
 - Create: `tests/runtime/replay-diff-store.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -94,7 +94,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ReplayDiffStore } from "../../src/runtime/replay-diff-store.js";
+import { ReplayDiffStore } from "../../src/runtime-state/runtime/replay-diff-store.js";
 
 describe("ReplayDiffStore", () => {
   let tmpDir: string;
@@ -235,7 +235,7 @@ npm run build 2>&1 | tail -5
 
 - [ ] **Step 3: Create ReplayDiffStore**
 
-Create `src/runtime/replay-diff-store.ts`:
+Create `src/runtime-state/runtime/replay-diff-store.ts`:
 
 ```typescript
 /**
@@ -429,7 +429,7 @@ Expected: 7 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/runtime/replay-diff-store.ts tests/runtime/replay-diff-store.test.ts
+git add src/runtime-state/runtime/replay-diff-store.ts tests/runtime/replay-diff-store.test.ts
 git commit -m "feat(runtime): add ReplayDiffStore for snapshot and diff capture"
 ```
 
@@ -438,12 +438,12 @@ git commit -m "feat(runtime): add ReplayDiffStore for snapshot and diff capture"
 ### Task 3: Hook ReplayDiffStore into ReplayExecutor
 
 **Files:**
-- Modify: `src/runtime/replay-executor.ts`
+- Modify: `src/runtime-state/runtime/replay-executor.ts`
 - Modify: `tests/runtime/replay-executor.test.ts`
 
 - [ ] **Step 1: Add diff store to ReplayExecuteOptions**
 
-In `src/runtime/replay-executor.ts`:
+In `src/runtime-state/runtime/replay-executor.ts`:
 
 Add import at top:
 
@@ -687,7 +687,7 @@ In `tests/runtime/replay-executor.test.ts`, add a new test to the approved-live 
 
 ```typescript
 it("captures diff for file.create during approved-live replay", async () => {
-  const { ReplayDiffStore } = await import("../../src/runtime/replay-diff-store.js");
+  const { ReplayDiffStore } = await import("../../src/runtime-state/runtime/replay-diff-store.js");
   const diffStore = new ReplayDiffStore(tmpDir);
   const newFilePath = join(tmpDir, "diff-capture-test.txt");
   const events = [
@@ -737,7 +737,7 @@ Expected: All 12 existing tests pass + 1 new test = 13 tests pass.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/runtime/replay-executor.ts tests/runtime/replay-executor.test.ts
+git add src/runtime-state/runtime/replay-executor.ts tests/runtime/replay-executor.test.ts
 git commit -m "feat(runtime): hook ReplayDiffStore into approved-live file mutation handlers"
 ```
 
@@ -746,7 +746,7 @@ git commit -m "feat(runtime): hook ReplayDiffStore into approved-live file mutat
 ### Task 4: Add diff/rollback preview rendering in TUI
 
 **Files:**
-- Modify: `src/tui/trace-detail.ts`
+- Modify: `src/interfaces/tui/trace-detail.ts`
 - Create: `tests/tui/replay-diff-display.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -756,8 +756,8 @@ Create `tests/tui/replay-diff-display.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { renderReplayDiffSummary, renderRollbackPreview } from "../../src/tui/trace-detail.js";
-import type { ReplayDiffSet, ReplayDiffRecord } from "../../src/runtime/replay-diff-store.js";
+import { renderReplayDiffSummary, renderRollbackPreview } from "../../src/interfaces/tui/trace-detail.js";
+import type { ReplayDiffSet, ReplayDiffRecord } from "../../src/runtime-state/runtime/replay-diff-store.js";
 
 const mockRecords: ReplayDiffRecord[] = [
   {
@@ -847,7 +847,7 @@ Expected: FAIL with "renderReplayDiffSummary not defined".
 
 - [ ] **Step 3: Add diff/rollback renderers to trace-detail.ts**
 
-In `src/tui/trace-detail.ts`, add after the existing render functions:
+In `src/interfaces/tui/trace-detail.ts`, add after the existing render functions:
 
 ```typescript
 import type { ReplayDiffSet } from "../runtime/replay-diff-store.js";
@@ -912,7 +912,7 @@ export function renderRollbackPreview(diffSet: ReplayDiffSet): string[] {
 
 - [ ] **Step 4: Integrate diff display into replay result rendering**
 
-In `src/tui/trace-detail.ts`, modify `renderReplayResult()` to include diff summary when a diff set is available.
+In `src/interfaces/tui/trace-detail.ts`, modify `renderReplayResult()` to include diff summary when a diff set is available.
 
 Since `ReplayResult` doesn't carry the diff set (it's stored on disk), we need a different approach. Options:
 
@@ -921,7 +921,7 @@ Since `ReplayResult` doesn't carry the diff set (it's stored on disk), we need a
 
 Option A is simpler: add `diffSet?: ReplayDiffSet` to `ReplayResult`.
 
-In `src/runtime/replay-executor.ts`, add import:
+In `src/runtime-state/runtime/replay-executor.ts`, add import:
 
 ```typescript
 import type { ReplayDiffSet } from "./replay-diff-store.js";
@@ -991,7 +991,7 @@ Expected: All pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/trace-detail.ts tests/tui/replay-diff-display.test.ts src/runtime/replay-executor.ts
+git add src/interfaces/tui/trace-detail.ts tests/tui/replay-diff-display.test.ts src/runtime-state/runtime/replay-executor.ts
 git commit -m "feat(tui): add replay diff summary and rollback preview renderers"
 ```
 

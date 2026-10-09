@@ -4,9 +4,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { ScriptedMockProvider } from "../../src/evals/providers/scripted-mock-provider.js";
-import { setScriptedScenario, clearScriptedScenario } from "../../src/evals/providers/scripted-mock-carrier.js";
-import type { NormalizedRequest } from "../../src/providers/types.js";
+import { ScriptedMockProvider } from "../../src/operations/evals/providers/scripted-mock-provider.js";
+import { setScriptedScenario, clearScriptedScenario } from "../../src/operations/evals/providers/scripted-mock-carrier.js";
+import type { NormalizedRequest } from "../../src/models/providers/types.js";
 
 const req: NormalizedRequest = { systemPrompt: "", messages: [] };
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { htmlTokenizer } from '../../../../src/tui/blocks/langs/html.js';
+import { htmlTokenizer } from '../../../../src/interfaces/tui/blocks/langs/html.js';
 
 describe('htmlTokenizer', () => {
   it('tokenizes HTML comments', () => {

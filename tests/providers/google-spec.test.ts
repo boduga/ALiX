@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { googleSpec } from "../../src/providers/specs/google-spec.js";
+import { googleSpec } from "../../src/models/providers/specs/google-spec.js";
 
 describe("googleSpec.toRequestBody", () => {
   it("uses Gemini's contents/parts format", () => {

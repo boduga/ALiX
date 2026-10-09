@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { AlixEvent } from '../../../src/events/types.js';
-import { AgentRosterProjection } from '../../../src/tui/workbench/projections/agent-roster-projection.js';
-import { TaskProjection } from '../../../src/tui/workbench/projections/task-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { AgentRosterProjection } from '../../../src/interfaces/tui/workbench/projections/agent-roster-projection.js';
+import { TaskProjection } from '../../../src/interfaces/tui/workbench/projections/task-projection.js';
 
 function event(seq: number, type: string, payload: Record<string, unknown>): AlixEvent {
   return {
@@ -91,7 +91,7 @@ describe('Workbench agent and task projections', () => {
     const events = [
       event(1, 'agent.spawned', { agentId: 'agent-1', parentAgentId: 'root', taskId: 'task-1', role: 'worker', model: 'qwen', operation: 'Inspect' }),
       event(2, 'agent.task_assigned', { agentId: 'agent-1', taskId: 'task-1', title: 'Finish Workbench' }),
-      event(3, 'agent.ownership_changed', { agentId: 'agent-1', taskId: 'task-1', ownedPaths: ['src/tui/app.ts'] }),
+      event(3, 'agent.ownership_changed', { agentId: 'agent-1', taskId: 'task-1', ownedPaths: ['src/interfaces/tui/app.ts'] }),
       event(4, 'agent.state_changed', { agentId: 'agent-1', taskId: 'task-1', state: 'tool_running', operation: 'Run tests' }),
       event(5, 'agent.usage', { agentId: 'agent-1', taskId: 'task-1', inputTokens: 10, outputTokens: 20, costUsd: 0.01 }),
       event(6, 'agent.completed', { agentId: 'agent-1', taskId: 'task-1' }),
@@ -104,13 +104,13 @@ describe('Workbench agent and task projections', () => {
       active: 0,
       agents: [{
         agentId: 'agent-1', parentAgentId: 'root', state: 'completed',
-        ownedPaths: ['src/tui/app.ts'], currentOperation: 'Run tests',
+        ownedPaths: ['src/interfaces/tui/app.ts'], currentOperation: 'Run tests',
         usage: { inputTokens: 10, outputTokens: 20, costUsd: 0.01 },
       }],
     });
     expect(tasks.snapshot()).toMatchObject({
       running: 1,
-      tasks: [{ taskId: 'task-1', agentId: 'agent-1', state: 'running', currentOperation: 'Run tests', ownedPaths: ['src/tui/app.ts'] }],
+      tasks: [{ taskId: 'task-1', agentId: 'agent-1', state: 'running', currentOperation: 'Run tests', ownedPaths: ['src/interfaces/tui/app.ts'] }],
     });
     expect(agents.snapshot().totals).toEqual({
       agents: 1, running: 0, waitingApproval: 0, stalled: 0,

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { localLlamaSpec } from "../../src/providers/specs/local-llama-spec.js";
-import { LocalLlamaProvider } from "../../src/providers/local-llama-provider.js";
+import { localLlamaSpec } from "../../src/models/providers/specs/local-llama-spec.js";
+import { LocalLlamaProvider } from "../../src/models/providers/local-llama-provider.js";
 
 describe("localLlamaSpec", () => {
   it("uses llama-server's OpenAI-compat base URL by default", () => {

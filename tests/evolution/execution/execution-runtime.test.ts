@@ -14,14 +14,14 @@ import {
   GovernedExecutionRuntime,
   TestStepExecutor,
   DEFAULT_RUNTIME_CONFIG,
-} from "../../../src/evolution/execution/execution-runtime.js";
+} from "../../../src/planning/evolution/execution/execution-runtime.js";
 import type {
   ExecutionPlan,
   ExecutionStep,
   ExecutionReport,
   RollbackResult,
-} from "../../../src/evolution/execution/contracts/execution-contract.js";
-import type { RuntimeConfig } from "../../../src/evolution/execution/execution-runtime.js";
+} from "../../../src/planning/evolution/execution/contracts/execution-contract.js";
+import type { RuntimeConfig } from "../../../src/planning/evolution/execution/execution-runtime.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

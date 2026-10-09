@@ -14,10 +14,10 @@
 
 import { describe, it, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse } from "../../src/providers/types.js";
-import type { ModelReplanContext, PlanRevisionDraft } from "../../src/kernel/replan-types.js";
-import { ModelReplanAdapter, ReplanAdapterError } from "../../src/kernel/model-replan-adapter.js";
-import type { ReplanAdapterOptions } from "../../src/kernel/model-replan-adapter.js";
+import type { ModelAdapter, NormalizedRequest, NormalizedResponse } from "../../src/models/providers/types.js";
+import type { ModelReplanContext, PlanRevisionDraft } from "../../src/coordination/kernel/replan-types.js";
+import { ModelReplanAdapter, ReplanAdapterError } from "../../src/coordination/kernel/model-replan-adapter.js";
+import type { ReplanAdapterOptions } from "../../src/coordination/kernel/model-replan-adapter.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 

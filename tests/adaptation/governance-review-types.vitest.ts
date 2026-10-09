@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { GovernanceReview, GovernanceVerdict, LensScore, CouncilVote, GovernanceReviewInput } from "../../src/adaptation/governance-review-types.js";
-import { LENS_PROMPTS } from "../../src/adaptation/lens-agent.js";
+import type { GovernanceReview, GovernanceVerdict, LensScore, CouncilVote, GovernanceReviewInput } from "../../src/planning/adaptation/governance-review-types.js";
+import { LENS_PROMPTS } from "../../src/planning/adaptation/lens-agent.js";
 
 describe("GovernanceReview type shape", () => {
   it("type exists and has required DecisionArtifact fields", () => {

@@ -31,9 +31,9 @@ From the spec, copied verbatim — every task implicitly honors these:
 
 | File | Action | Responsibility |
 |------|--------|----------------|
-| `src/tui/terminal-control.ts` | Modify | Add `enableTerminalModes()` / `disableTerminalModes()` — unified mode sequencing |
-| `src/tui/app.ts` | Modify | Add `handlePaste()`, `collectVisibleTranscript()`, copy dispatch; wire mode init/cleanup |
-| `src/tui/views/types.ts` | Modify | Extend `ViewAction` union with `{ type: 'copyScrollback' }` |
+| `src/interfaces/tui/terminal-control.ts` | Modify | Add `enableTerminalModes()` / `disableTerminalModes()` — unified mode sequencing |
+| `src/interfaces/tui/app.ts` | Modify | Add `handlePaste()`, `collectVisibleTranscript()`, copy dispatch; wire mode init/cleanup |
+| `src/interfaces/tui/views/types.ts` | Modify | Extend `ViewAction` union with `{ type: 'copyScrollback' }` |
 | `tests/tui/app.vitest.ts` | Modify | Add paste and copy tests |
 | `tests/tui/terminal-control.vitest.ts` | Create | Add mode management tests |
 
@@ -42,15 +42,15 @@ From the spec, copied verbatim — every task implicitly honors these:
 ### Task 1: Generalize TerminalControl
 
 **Files:**
-- Modify: `src/tui/terminal-control.ts` (add mode methods)
+- Modify: `src/interfaces/tui/terminal-control.ts` (add mode methods)
 - Create: `tests/tui/terminal-control.vitest.ts`
-- Modify: `src/tui/app.ts` (wire into `start()` and `cleanupSync()`)
+- Modify: `src/interfaces/tui/app.ts` (wire into `start()` and `cleanupSync()`)
 
 **Interfaces:**
 - Produces: `TerminalControl.enableTerminalModes()` and `TerminalControl.disableTerminalModes()` — each writes the escape sequence sequence specified in the Global Constraints
 - Consumes: existing `enterRawMode`, `exitRawMode`, `showCursor`, `enterAltBuffer`, `exitAltBuffer` — the new methods compose these primitives
 
-- [ ] **Step 1: Read `src/tui/app.ts` `start()` and `cleanupSync()` to understand current mode sequencing**
+- [ ] **Step 1: Read `src/interfaces/tui/app.ts` `start()` and `cleanupSync()` to understand current mode sequencing**
 
 ```ts
 // Current start() calls:
@@ -70,7 +70,7 @@ Create `tests/tui/terminal-control.vitest.ts`:
 
 ```ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createTerminalControl } from '../src/tui/terminal-control.js';
+import { createTerminalControl } from '../src/interfaces/tui/terminal-control.js';
 
 describe('TerminalControl — mode management', () => {
   let writeSpy: ReturnType<typeof vi.fn>;
@@ -158,7 +158,7 @@ Wait — this is wrong. The existing `enterRawMode` and `enterAltBuffer` are alr
 
 - [ ] **Step 5: Wire into TuiApp.start() and TuiApp.cleanupSync()**
 
-In `src/tui/app.ts`, in `start()`:
+In `src/interfaces/tui/app.ts`, in `start()`:
 
 ```ts
 // BEFORE:
@@ -193,7 +193,7 @@ Run: `pnpm test:vitest 2>&1 | tail -5`
 Expected: 3168+ tests pass
 
 ```bash
-git add src/tui/terminal-control.ts src/tui/app.ts tests/tui/terminal-control.vitest.ts
+git add src/interfaces/tui/terminal-control.ts src/interfaces/tui/app.ts tests/tui/terminal-control.vitest.ts
 git commit -m "feat(tui): add enableTerminalModes / disableTerminalModes to TerminalControl"
 ```
 
@@ -202,8 +202,8 @@ git commit -m "feat(tui): add enableTerminalModes / disableTerminalModes to Term
 ### Task 2: Bracketed paste + OSC 52 copy
 
 **Files:**
-- Modify: `src/tui/views/types.ts` (add `copyScrollback` to `ViewAction`)
-- Modify: `src/tui/app.ts` (add paste state machine + copy handler)
+- Modify: `src/interfaces/tui/views/types.ts` (add `copyScrollback` to `ViewAction`)
+- Modify: `src/interfaces/tui/app.ts` (add paste state machine + copy handler)
 - Modify: `tests/tui/app.vitest.ts` (add paste + copy tests)
 
 **Interfaces:**
@@ -356,7 +356,7 @@ Expected: 10 new tests fail (6 paste + 4 copy). Existing tests should still pass
 
 - [ ] **Step 4: Extend ViewAction with copyScrollback**
 
-In `src/tui/views/types.ts`:
+In `src/interfaces/tui/views/types.ts`:
 
 ```ts
 export type ViewAction =
@@ -371,7 +371,7 @@ export type ViewAction =
 
 - [ ] **Step 5: Add Alt+C key detection in parseKey**
 
-In `src/tui/app.ts`, inside `parseKey()`, add after the existing ESC+digit block:
+In `src/interfaces/tui/app.ts`, inside `parseKey()`, add after the existing ESC+digit block:
 
 ```ts
 // Alt+letter — used for copy (Alt+C) and future Alt shortcuts.
@@ -383,7 +383,7 @@ if (s.length === 2 && s[0] === '\x1b' && s[1] >= 'a' && s[1] <= 'z') {
 
 - [ ] **Step 6: Add paste state machine + helpers to TuiApp**
 
-In `src/tui/app.ts`, add class fields:
+In `src/interfaces/tui/app.ts`, add class fields:
 
 ```ts
 private pasteState: 'idle' | 'reading' = 'idle';
@@ -445,7 +445,7 @@ Run: `pnpm test:vitest 2>&1 | tail -5`
 Expected: ~3180 tests pass
 
 ```bash
-git add src/tui/views/types.ts src/tui/app.ts tests/tui/app.vitest.ts
+git add src/interfaces/tui/views/types.ts src/interfaces/tui/app.ts tests/tui/app.vitest.ts
 git commit -m "feat(tui): bracketed paste + OSC 52 copy for chat and agent tabs"
 ```
 
@@ -510,7 +510,7 @@ git commit -m "fix(tui): visual polish for copy/paste"
 **Placeholder scan:** No TBD/TODO markers. Every step has concrete code.
 
 **Type consistency:** 
-- `ViewAction` extended in Task 2 is the same type existing in `src/tui/views/types.ts` — already read and confirmed
+- `ViewAction` extended in Task 2 is the same type existing in `src/interfaces/tui/views/types.ts` — already read and confirmed
 - `handlePaste(buf: Buffer): boolean` signature matches the spec exactly
 - `collectVisibleTranscript(tab: TabId): string` uses the existing `TabId` type
 - `pasteState` uses `'idle' | 'reading'` (removed `'pending-esc'` per code review)

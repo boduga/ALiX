@@ -2,10 +2,10 @@
 // delegate to it with provider id "minimax-token-plan". Preserves SPECS,
 // PROVIDER_KEY_ENV, etc. via vi.importActual so the SPECS registration test
 // below continues to work.
-vi.mock("../../src/providers/unified-complete.js", async () => {
+vi.mock("../../src/models/providers/unified-complete.js", async () => {
   const actual = await vi.importActual<
-    typeof import("../../src/providers/unified-complete.js")
-  >("../../src/providers/unified-complete.js");
+    typeof import("../../src/models/providers/unified-complete.js")
+  >("../../src/models/providers/unified-complete.js");
   return {
     ...actual,
     complete: vi.fn(),
@@ -14,8 +14,8 @@ vi.mock("../../src/providers/unified-complete.js", async () => {
 });
 
 import { describe, it, expect, vi } from "vitest";
-import { MiniMaxTokenPlanProvider } from "../../src/providers/minimax-token-plan-provider.js";
-import * as unifiedComplete from "../../src/providers/unified-complete.js";
+import { MiniMaxTokenPlanProvider } from "../../src/models/providers/minimax-token-plan-provider.js";
+import * as unifiedComplete from "../../src/models/providers/unified-complete.js";
 
 describe("MiniMaxTokenPlanProvider", () => {
   it("has id 'minimax-token-plan'", () => {
@@ -126,26 +126,26 @@ describe("MiniMaxTokenPlanProvider", () => {
   });
 
   it("is registered in unified-complete SPECS Map", async () => {
-    const { SPECS } = await import("../../src/providers/unified-complete.js");
+    const { SPECS } = await import("../../src/models/providers/unified-complete.js");
     const spec = SPECS.get("minimax-token-plan");
     expect(spec).toBeDefined();
     expect(spec?.baseUrl).toBe("https://api.minimax.io/anthropic/v1/messages");
   });
 
   it("createProvider returns MiniMaxTokenPlanProvider for id 'minimax-token-plan'", async () => {
-    const { createProvider } = await import("../../src/providers/registry.js");
+    const { createProvider } = await import("../../src/models/providers/registry.js");
     const p = await createProvider({ provider: "minimax-token-plan" }, "sk-cp-test");
     expect(p.id).toBe("minimax-token-plan");
   });
 
   it("listProviders includes 'minimax-token-plan'", async () => {
-    const { listProviders } = await import("../../src/providers/registry.js");
+    const { listProviders } = await import("../../src/models/providers/registry.js");
     const list = listProviders();
     expect(list.find((p) => p.id === "minimax-token-plan")).toBeDefined();
   });
 
   it("listModels calls https://api.minimax.io/anthropic/v1/models with x-api-key", async () => {
-    const { listModels } = await import("../../src/providers/catalog.js");
+    const { listModels } = await import("../../src/models/providers/catalog.js");
     let captured: { url: string; headers: Record<string, string> } | undefined;
     const origFetch = globalThis.fetch;
     globalThis.fetch = (async (url: any, init: any) => {
@@ -167,12 +167,12 @@ describe("MiniMaxTokenPlanProvider", () => {
   });
 
   it("getDefaultModel returns 'MiniMax-M3'", async () => {
-    const { getDefaultModel } = await import("../../src/providers/catalog.js");
+    const { getDefaultModel } = await import("../../src/models/providers/catalog.js");
     expect(getDefaultModel("minimax-token-plan")).toBe("MiniMax-M3");
   });
 
   it("PROVIDERS array includes minimax-token-plan", async () => {
-    const { PROVIDERS } = await import("../../src/providers/catalog.js");
+    const { PROVIDERS } = await import("../../src/models/providers/catalog.js");
     const p = PROVIDERS.find((x) => x.id === "minimax-token-plan");
     expect(p).toEqual({
       id: "minimax-token-plan",

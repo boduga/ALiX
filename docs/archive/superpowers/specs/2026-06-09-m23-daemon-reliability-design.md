@@ -31,7 +31,7 @@ New task status: `failed_orphaned` — a task that was running when the daemon c
 
 | File | Action |
 |------|--------|
-| `src/daemon/task-registry.ts` | Add `failed_orphaned` to status union, add `reconcileOnStartup()` method |
-| `src/daemon/daemon-server.ts` | Call reconcileOnStartup() before `server.listen()` |
-| `src/daemon/daemon-manager.ts` | Add heartbeat write interval |
+| `src/operations/daemon/task-registry.ts` | Add `failed_orphaned` to status union, add `reconcileOnStartup()` method |
+| `src/operations/daemon/daemon-server.ts` | Call reconcileOnStartup() before `server.listen()` |
+| `src/operations/daemon/daemon-manager.ts` | Add heartbeat write interval |
 | `tests/daemon/task-registry.test.ts` | Add reconciliation tests |

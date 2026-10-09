@@ -20,10 +20,10 @@
 ### Task 1: Theme registry + light theme + CLI wiring
 
 **Files:**
-- Modify: `src/tui/blocks/theme.ts` (registry, getTheme, lightTheme)
-- Modify: `src/tui/blocks/render.ts` (optional theme param on renderResponse)
-- Modify: `src/tui/views/agent-view.ts` (pass theme through)
-- Modify: `src/tui/views/chat-view.ts` (pass theme through)
+- Modify: `src/interfaces/tui/blocks/theme.ts` (registry, getTheme, lightTheme)
+- Modify: `src/interfaces/tui/blocks/render.ts` (optional theme param on renderResponse)
+- Modify: `src/interfaces/tui/views/agent-view.ts` (pass theme through)
+- Modify: `src/interfaces/tui/views/chat-view.ts` (pass theme through)
 - Test: `tests/tui/blocks/theme.vitest.ts` (new)
 - Test: `tests/tui/blocks/render.vitest.ts` (light theme smoke test)
 
@@ -109,7 +109,7 @@ In `tests/tui/blocks/theme.vitest.ts` (new file):
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { getTheme, defaultTheme, lightTheme } from '../../../src/tui/blocks/theme.js';
+import { getTheme, defaultTheme, lightTheme } from '../../../src/interfaces/tui/blocks/theme.js';
 
 describe('getTheme', () => {
   it('returns defaultTheme for "dark"', () => {
@@ -185,7 +185,7 @@ Expected: 0 errors.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/tui/blocks/theme.ts src/tui/blocks/render.ts tests/tui/blocks/theme.vitest.ts tests/tui/blocks/render.vitest.ts
+git add src/interfaces/tui/blocks/theme.ts src/interfaces/tui/blocks/render.ts tests/tui/blocks/theme.vitest.ts tests/tui/blocks/render.vitest.ts
 git commit -m "feat(tui): add multi-theme support with light variant and registry
 
 Theme registry (themes['dark'|'light']), getTheme() resolver with

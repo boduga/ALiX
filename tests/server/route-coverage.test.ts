@@ -13,12 +13,12 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { routeRegistry } from "../../src/security/inspector/route-policy.js";
+import { routeRegistry } from "../../src/governance/security/inspector/route-policy.js";
 
 // ---------------------------------------------------------------------------
 // Implemented routes — canonical list must match the handler code in
-// src/server/server.ts, src/server/coordination-routes.ts, and
-// src/observability/observability-routes.ts.
+// src/interfaces/server/server.ts, src/interfaces/server/coordination-routes.ts, and
+// src/operations/observability/observability-routes.ts.
 // ---------------------------------------------------------------------------
 
 interface ImplementedRoute {

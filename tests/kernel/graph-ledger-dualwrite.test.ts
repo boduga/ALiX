@@ -7,17 +7,17 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { persistGraph } from "../../src/kernel/graph-planner.js";
-import { markRunGraphCancelled } from "../../src/kernel/coordination-resume.js";
+import { persistGraph } from "../../src/coordination/kernel/graph-planner.js";
+import { markRunGraphCancelled } from "../../src/coordination/kernel/coordination-resume.js";
 import {
   mirrorGraphAttemptToLedger,
   graphLedgerStatus,
   resetGraphLedgerStatus,
-} from "../../src/kernel/graph-ledger.js";
-import { reconcileGraphLedger } from "../../src/kernel/graph-ledger-reconcile.js";
-import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/storage/runtime-ledger.js";
-import type { TaskGraph } from "../../src/kernel/task-graph.js";
-import type { CoordinationRun } from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/graph-ledger.js";
+import { reconcileGraphLedger } from "../../src/coordination/kernel/graph-ledger-reconcile.js";
+import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/runtime-state/storage/runtime-ledger.js";
+import type { TaskGraph } from "../../src/coordination/kernel/task-graph.js";
+import type { CoordinationRun } from "../../src/coordination/kernel/coordination-types.js";
 
 const dirs: string[] = [];
 
@@ -182,7 +182,7 @@ describe("graph ledger authority (R2.13)", () => {
     assert.ok(graphLedgerStatus(dir).lastProjectionError);
     assert.equal(getSharedLedger(dir).entityVersion(g.id), 1);
 
-    const { loadGraph } = await import("../../src/kernel/graph-executor.js");
+    const { loadGraph } = await import("../../src/coordination/kernel/graph-executor.js");
     const loaded = await loadGraph(g.id, dir);
     assert.equal(loaded.status, "ready"); // authority read, no usable file
 
@@ -201,7 +201,7 @@ describe("graph ledger authority (R2.13)", () => {
     file.status = "completed";
     writeFileSync(filePath, JSON.stringify(file, null, 2));
 
-    const { loadGraph } = await import("../../src/kernel/graph-executor.js");
+    const { loadGraph } = await import("../../src/coordination/kernel/graph-executor.js");
     const loaded = await loadGraph(g.id, dir);
     assert.equal(loaded.status, "ready"); // ledger truth, not the tampered file
   });

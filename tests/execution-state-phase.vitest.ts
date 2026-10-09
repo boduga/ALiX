@@ -5,15 +5,15 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../src/events/event-log.js";
-import { closeAllSharedLedgers } from "../src/storage/runtime-ledger.js";
+import { EventLog } from "../src/runtime-state/events/event-log.js";
+import { closeAllSharedLedgers } from "../src/runtime-state/storage/runtime-ledger.js";
 import {
   buildLiveSendRequest,
   createExecutionStateEmitter,
   emitTurnShadow,
   initExecutionStateEmission,
   reconcileTurnArtifacts,
-} from "../src/run/task-loop/execution-state-phase.js";
+} from "../src/execution/run/task-loop/execution-state-phase.js";
 
 describe("execution-state-phase — session emitter + turn reconcile", () => {
   let sessionDir: string;

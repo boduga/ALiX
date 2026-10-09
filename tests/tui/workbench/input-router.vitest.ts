@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { routeWorkbenchInput } from '../../../src/tui/workbench/input/input-router.js';
+import { routeWorkbenchInput } from '../../../src/interfaces/tui/workbench/input/input-router.js';
 
 const context = (overrides: Partial<Parameters<typeof routeWorkbenchInput>[1]> = {}) => ({
   turnActive: false,

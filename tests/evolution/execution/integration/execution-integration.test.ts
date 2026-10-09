@@ -9,20 +9,20 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { EvolutionStateMachine } from "../../../../src/evolution/evolution-state-machine.js";
-import { EvolutionState } from "../../../../src/evolution/contracts/evolution-contract.js";
-import { authorizeExecution } from "../../../../src/evolution/execution/execution-authorization.js";
-import { createExecutionPlan, DefaultRollbackResolver, createDefaultRollbackResolver } from "../../../../src/evolution/execution/execution-planner.js";
-import { GovernedExecutionRuntime, TestStepExecutor } from "../../../../src/evolution/execution/execution-runtime.js";
-import { buildExecutionEvidence } from "../../../../src/evolution/execution/execution-evidence-bridge.js";
-import type { EvolutionProposal } from "../../../../src/evolution/contracts/evolution-contract.js";
-import type { GovernanceDecision } from "../../../../src/evolution/governance/contracts/decision-contract.js";
-import { computeDecisionIntegrityHash } from "../../../../src/evolution/governance/decision-engine.js";
+import { EvolutionStateMachine } from "../../../../src/planning/evolution/evolution-state-machine.js";
+import { EvolutionState } from "../../../../src/planning/evolution/contracts/evolution-contract.js";
+import { authorizeExecution } from "../../../../src/planning/evolution/execution/execution-authorization.js";
+import { createExecutionPlan, DefaultRollbackResolver, createDefaultRollbackResolver } from "../../../../src/planning/evolution/execution/execution-planner.js";
+import { GovernedExecutionRuntime, TestStepExecutor } from "../../../../src/planning/evolution/execution/execution-runtime.js";
+import { buildExecutionEvidence } from "../../../../src/planning/evolution/execution/execution-evidence-bridge.js";
+import type { EvolutionProposal } from "../../../../src/planning/evolution/contracts/evolution-contract.js";
+import type { GovernanceDecision } from "../../../../src/planning/evolution/governance/contracts/decision-contract.js";
+import { computeDecisionIntegrityHash } from "../../../../src/planning/evolution/governance/decision-engine.js";
 import type {
   ExecutionRequest,
   ExecutionEnvironment,
   ExecutionPlan,
-} from "../../../../src/evolution/execution/contracts/execution-contract.js";
+} from "../../../../src/planning/evolution/execution/contracts/execution-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -25,7 +25,7 @@ import {
   formatMetadata,
   formatTimelineLine,
   computeRelatedEvents,
-} from "../../src/cli/commands/governance.js";
+} from "../../src/interfaces/cli/commands/governance.js";
 
 // ---------------------------------------------------------------------------
 // formatMetadata

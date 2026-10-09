@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { anthropicSpec } from "../../src/providers/specs/anthropic-spec.js";
+import { anthropicSpec } from "../../src/models/providers/specs/anthropic-spec.js";
 
 describe("anthropicSpec.toRequestBody", () => {
   it("puts system prompt at top-level (not in messages)", () => {

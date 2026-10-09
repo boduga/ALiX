@@ -11,15 +11,15 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { CoordinationScheduler } from "../../src/kernel/coordination-scheduler.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { CoordinationScheduler } from "../../src/coordination/kernel/coordination-scheduler.js";
 import {
   createCoordinationRun,
   createWorkerAssignment,
-} from "../../src/kernel/coordination-types.js";
-import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
-import { persistGraph } from "../../src/kernel/graph-planner.js";
-import type { ExecutionAuthorization } from "../../src/runtime/execution-authorization.js";
+} from "../../src/coordination/kernel/coordination-types.js";
+import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
+import { persistGraph } from "../../src/coordination/kernel/graph-planner.js";
+import type { ExecutionAuthorization } from "../../src/runtime-state/runtime/execution-authorization.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 

@@ -1280,7 +1280,7 @@ git commit -m "feat(p9.6): add InvestigationGenerator (drift + integrity produce
 ### Task 5: CLI — `alix governance investigate` sub-namespace
 
 **Files:**
-- Modify: `src/cli/commands/governance.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts`
 - Test: `tests/cli/commands/governance-cli.vitest.ts` (modified in Task 6)
 
 **Interfaces:**
@@ -1589,7 +1589,7 @@ with:
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/governance.ts
+git add src/interfaces/cli/commands/governance.ts
 git commit -m "feat(p9.6): add investigate sub-namespace to governance CLI (list/show/update/generate)"
 ```
 

@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   computeExecutiveProposals,
-} from "../../src/executive/executive-bridge-recommendations.js";
-import type { ExecutiveBridgeResult } from "../../src/executive/executive-bridge-recommendations.js";
-import type { RecommendationReport } from "../../src/executive/recommendation-report-store.js";
-import type { ExecutiveRecommendation } from "../../src/executive/recommendation-report-store.js";
+} from "../../src/execution/executive/executive-bridge-recommendations.js";
+import type { ExecutiveBridgeResult } from "../../src/execution/executive/executive-bridge-recommendations.js";
+import type { RecommendationReport } from "../../src/execution/executive/recommendation-report-store.js";
+import type { ExecutiveRecommendation } from "../../src/execution/executive/recommendation-report-store.js";
 
 const FIXED_NOW = "2026-06-26T00:00:00.000Z";
 

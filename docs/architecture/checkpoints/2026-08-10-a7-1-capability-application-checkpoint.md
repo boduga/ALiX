@@ -45,17 +45,17 @@ human and json mode).
 
 | File | Responsibility |
 |------|----------------|
-| `src/capability/registry.ts` | Lifecycle overlay — `applyLifecycleTransition` (throws on unknown id), `getLifecycleState`, `clearLifecycleState` (idempotent), `unregister` maintains map |
-| `src/evolution/capability-lifecycle/contracts/lifecycle-contract.ts` | Event types widened to `intent\|proposed\|decided\|applied\|measured`; record gains `decision?: GovernanceDecision`, `baselineEvidenceRefs?`, `postObservationRefs?`; per-phase validator rules (applied requires executionId+decisionId, measured requires measurementId + both refs); `CapabilityProjectionState` adds APPLIED/MEASURED |
-| `src/evolution/capability-lifecycle/capability-governance-bridge.ts` | `toLedgerRecord` decided branch persists full A3 `GovernanceDecision` |
-| `src/evolution/capability-lifecycle/capability-execution-projection.ts` | `toExecutionProposal` — decided record → `CapabilityExecutionProposal` (`EvolutionProposal & { changes: CapabilityChangeStep[] }`); promote/deprecate single `capability.transition` step, consolidate = N deprecation steps, register/modify throw `CapabilityNotExecutableError` |
-| `src/evolution/capability-lifecycle/capability-lifecycle-step-executor.ts` | `CapabilityLifecycleStepExecutor implements StepExecutor` — forward `capability.transition` (lazy pre-state capture), `capability.restore_transition` (compensating restore), unknown op → `{success:false}`; `rollbackApplied()` idempotent drain |
-| `src/evolution/execution/execution-planner.ts` | `createDefaultRollbackResolver` registers `capability.transition` → `capability.restore_transition` (automatic, safe) |
-| `src/evolution/capability-lifecycle/capability-lifecycle-applier.ts` | A4 binding: latest-DECIDED rehydration → `authorizeExecution` 7-check gate → `createExecutionPlan` → `GovernedExecutionRuntime.execute` with injected executor → append `applied` (COMMIT POINT) → on append failure `rollbackApplied()` then THROWS (spec §11 exit 1). register/modify blocked `CapabilityNotExecutableError`. |
-| `src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` | A5 post-application observation vs baseline: `measure(id)` appends `measured` record with `measurementId` (a7-meas- hash), `baselineEvidenceRefs`, `postObservationRefs` (A5 `buildObservationEvidence`) |
-| `src/evolution/capability-lifecycle/errors.ts` | `CapabilityNotExecutableError` |
-| `src/evolution/capability-lifecycle/capability-lifecycle-cli.ts` | `alix capabilities apply <id>` / `measure <id>`; fatal paths exit 1 in BOTH human and json mode |
-| `src/evolution/capability-lifecycle/index.ts` | Barrel re-exports |
+| `src/capabilities/capability/registry.ts` | Lifecycle overlay — `applyLifecycleTransition` (throws on unknown id), `getLifecycleState`, `clearLifecycleState` (idempotent), `unregister` maintains map |
+| `src/planning/evolution/capability-lifecycle/contracts/lifecycle-contract.ts` | Event types widened to `intent\|proposed\|decided\|applied\|measured`; record gains `decision?: GovernanceDecision`, `baselineEvidenceRefs?`, `postObservationRefs?`; per-phase validator rules (applied requires executionId+decisionId, measured requires measurementId + both refs); `CapabilityProjectionState` adds APPLIED/MEASURED |
+| `src/planning/evolution/capability-lifecycle/capability-governance-bridge.ts` | `toLedgerRecord` decided branch persists full A3 `GovernanceDecision` |
+| `src/planning/evolution/capability-lifecycle/capability-execution-projection.ts` | `toExecutionProposal` — decided record → `CapabilityExecutionProposal` (`EvolutionProposal & { changes: CapabilityChangeStep[] }`); promote/deprecate single `capability.transition` step, consolidate = N deprecation steps, register/modify throw `CapabilityNotExecutableError` |
+| `src/planning/evolution/capability-lifecycle/capability-lifecycle-step-executor.ts` | `CapabilityLifecycleStepExecutor implements StepExecutor` — forward `capability.transition` (lazy pre-state capture), `capability.restore_transition` (compensating restore), unknown op → `{success:false}`; `rollbackApplied()` idempotent drain |
+| `src/planning/evolution/execution/execution-planner.ts` | `createDefaultRollbackResolver` registers `capability.transition` → `capability.restore_transition` (automatic, safe) |
+| `src/planning/evolution/capability-lifecycle/capability-lifecycle-applier.ts` | A4 binding: latest-DECIDED rehydration → `authorizeExecution` 7-check gate → `createExecutionPlan` → `GovernedExecutionRuntime.execute` with injected executor → append `applied` (COMMIT POINT) → on append failure `rollbackApplied()` then THROWS (spec §11 exit 1). register/modify blocked `CapabilityNotExecutableError`. |
+| `src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` | A5 post-application observation vs baseline: `measure(id)` appends `measured` record with `measurementId` (a7-meas- hash), `baselineEvidenceRefs`, `postObservationRefs` (A5 `buildObservationEvidence`) |
+| `src/planning/evolution/capability-lifecycle/errors.ts` | `CapabilityNotExecutableError` |
+| `src/planning/evolution/capability-lifecycle/capability-lifecycle-cli.ts` | `alix capabilities apply <id>` / `measure <id>`; fatal paths exit 1 in BOTH human and json mode |
+| `src/planning/evolution/capability-lifecycle/index.ts` | Barrel re-exports |
 | `tests/evolution/capability-lifecycle/integration/a7-1-capability-application-integration.test.ts` | End-to-end walk + invariant tests (atomicity, rehydration, register-not-executable) |
 
 **Tests:** `tests/evolution/capability-lifecycle/` (unit suites) +

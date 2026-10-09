@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { ToolSelector } from "../../src/mcp/tool-selector.js";
-import type { DeferredToolEntry } from "../../src/mcp/tool-deferral.js";
+import { ToolSelector } from "../../src/capabilities/mcp/tool-selector.js";
+import type { DeferredToolEntry } from "../../src/capabilities/mcp/tool-deferral.js";
 
 function makeTool(name: string, description: string, server = "test-server"): DeferredToolEntry {
   const handle = createHash("sha256").update(JSON.stringify([server, name])).digest("base64url");

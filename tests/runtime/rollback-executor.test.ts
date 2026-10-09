@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { RollbackExecutor } from "../../src/runtime/rollback-executor.js";
-import { ReplayDiffStore } from "../../src/runtime/replay-diff-store.js";
-import { buildRollbackPlan } from "../../src/runtime/rollback-plan.js";
-import { EventLog } from "../../src/events/event-log.js";
+import { RollbackExecutor } from "../../src/runtime-state/runtime/rollback-executor.js";
+import { ReplayDiffStore } from "../../src/runtime-state/runtime/replay-diff-store.js";
+import { buildRollbackPlan } from "../../src/runtime-state/runtime/rollback-plan.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 describe("RollbackExecutor dry-run mode", () => {
   let tmpDir: string;
@@ -88,7 +88,7 @@ describe("RollbackExecutor approved-live mode", () => {
     executor = new RollbackExecutor(tmpDir, eventLog);
     diffStore = new ReplayDiffStore(tmpDir);
 
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     approvalStore = new ApprovalStore(tmpDir);
     await approvalStore.load();
 

@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { CapabilityGapAnalyzer } from "../../src/adaptation/capability-gap-analyzer.js";
+import { CapabilityGapAnalyzer } from "../../src/planning/adaptation/capability-gap-analyzer.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

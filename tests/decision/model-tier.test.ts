@@ -31,9 +31,9 @@ import {
   toJevModelTierRequest,
   type JevTransport,
   type ModelTierRequestFeatures,
-} from "../../src/decision/index.js";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+} from "../../src/planning/decision/index.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 const ALL_TIERS_MODELS = {
   default: { provider: "openai", name: "gpt-4o" },

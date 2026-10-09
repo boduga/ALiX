@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { HookManager } from "../../src/workflow/hooks.js";
+import { HookManager } from "../../src/coordination/workflow/hooks.js";
 
 describe("HookManager", () => {
   it("registers and runs a pre-commit hook", async () => {

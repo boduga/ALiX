@@ -16,13 +16,13 @@
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/runtime/replay-plan.ts` | MODIFY | Add `"approved-live"` to ReplayMode, add `replayId` to ReplayPlan |
-| `src/runtime/replay-executor.ts` | MODIFY | Add approved-live execution mode with fresh approvals and PolicyGate |
-| `src/events/types.ts` | MODIFY | Add `replayId` to EventMeta |
-| `src/tools/executor.ts` | MODIFY | Add optional `replayId` to ToolCallRequest, propagate to events |
-| `src/tui/trace-detail.ts` | MODIFY | Show replayId in renderReplayResult |
-| `src/cli/commands/tui.ts` | MODIFY | Add `--approved-live` flag with confirmation warning |
-| `src/tui/store.ts` | MODIFY | Add replayId to state, wire into trace event display |
+| `src/runtime-state/runtime/replay-plan.ts` | MODIFY | Add `"approved-live"` to ReplayMode, add `replayId` to ReplayPlan |
+| `src/runtime-state/runtime/replay-executor.ts` | MODIFY | Add approved-live execution mode with fresh approvals and PolicyGate |
+| `src/runtime-state/events/types.ts` | MODIFY | Add `replayId` to EventMeta |
+| `src/capabilities/tools/executor.ts` | MODIFY | Add optional `replayId` to ToolCallRequest, propagate to events |
+| `src/interfaces/tui/trace-detail.ts` | MODIFY | Show replayId in renderReplayResult |
+| `src/interfaces/cli/commands/tui.ts` | MODIFY | Add `--approved-live` flag with confirmation warning |
+| `src/interfaces/tui/store.ts` | MODIFY | Add replayId to state, wire into trace event display |
 | `tests/runtime/replay-plan.test.ts` | MODIFY | Add approved-live mode plan building tests |
 | `tests/runtime/replay-executor.test.ts` | MODIFY | Add approved-live execution tests |
 | `tests/tui/replay-execution-detail.test.ts` | MODIFY | Add replayId rendering test |
@@ -32,12 +32,12 @@
 ### Task 1: Add approved-live to ReplayMode and create ReplayExecutionContext
 
 **Files:**
-- Modify: `src/runtime/replay-plan.ts`
+- Modify: `src/runtime-state/runtime/replay-plan.ts`
 - Modify: `tests/runtime/replay-plan.test.ts`
 
 - [ ] **Step 1: Extend ReplayMode and add replayId to plan**
 
-In `src/runtime/replay-plan.ts`, change the type:
+In `src/runtime-state/runtime/replay-plan.ts`, change the type:
 
 ```typescript
 export type ReplayMode = "dry-run" | "sandbox" | "approved-live";
@@ -79,7 +79,7 @@ export type ReplayPlan = {
 
 - [ ] **Step 2: Generate replayId in buildReplayPlan for approved-live mode**
 
-In `src/runtime/replay-plan.ts`, in the `buildReplayPlan` function, near the top (after `let toolCount = 0`), add:
+In `src/runtime-state/runtime/replay-plan.ts`, in the `buildReplayPlan` function, near the top (after `let toolCount = 0`), add:
 
 ```typescript
 let replayId: string | undefined;
@@ -164,7 +164,7 @@ Expected: 7 tests pass (5 existing + 2 new).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/runtime/replay-plan.ts tests/runtime/replay-plan.test.ts
+git add src/runtime-state/runtime/replay-plan.ts tests/runtime/replay-plan.test.ts
 git commit -m "feat(runtime): add approved-live mode and ReplayExecutionContext"
 ```
 
@@ -173,12 +173,12 @@ git commit -m "feat(runtime): add approved-live mode and ReplayExecutionContext"
 ### Task 2: Add replayId to TraceEvent and EventMeta
 
 **Files:**
-- Modify: `src/runtime/trace-events.ts`
-- Modify: `src/events/types.ts`
+- Modify: `src/runtime-state/runtime/trace-events.ts`
+- Modify: `src/runtime-state/events/types.ts`
 
 - [ ] **Step 1: Add replayId to TraceEvent type**
 
-In `src/runtime/trace-events.ts`, add to the `TraceEvent` type (after `sessionFilePath`):
+In `src/runtime-state/runtime/trace-events.ts`, add to the `TraceEvent` type (after `sessionFilePath`):
 
 ```typescript
 replayId?: string;
@@ -186,7 +186,7 @@ replayId?: string;
 
 - [ ] **Step 2: Add replayId to EventMeta**
 
-In `src/events/types.ts`, find `EventMeta`:
+In `src/runtime-state/events/types.ts`, find `EventMeta`:
 
 ```typescript
 export type EventMeta = {
@@ -221,7 +221,7 @@ Expected: Clean compile.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/runtime/trace-events.ts src/events/types.ts
+git add src/runtime-state/runtime/trace-events.ts src/runtime-state/events/types.ts
 git commit -m "feat(events): add replayId to TraceEvent and EventMeta"
 ```
 
@@ -230,11 +230,11 @@ git commit -m "feat(events): add replayId to TraceEvent and EventMeta"
 ### Task 3: Add replayId to ToolCallRequest and propagate to tool events
 
 **Files:**
-- Modify: `src/tools/executor.ts`
+- Modify: `src/capabilities/tools/executor.ts`
 
 - [ ] **Step 1: Add optional replayId to ToolCallRequest**
 
-In `src/tools/executor.ts`, find:
+In `src/capabilities/tools/executor.ts`, find:
 
 ```typescript
 export type ToolCallRequest = {
@@ -300,7 +300,7 @@ Expected: Clean compile.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tools/executor.ts
+git add src/capabilities/tools/executor.ts
 git commit -m "feat(tools): add replayId to ToolCallRequest and tool events"
 ```
 
@@ -309,7 +309,7 @@ git commit -m "feat(tools): add replayId to ToolCallRequest and tool events"
 ### Task 4: Add approved-live execution to ReplayExecutor
 
 **Files:**
-- Modify: `src/runtime/replay-executor.ts`
+- Modify: `src/runtime-state/runtime/replay-executor.ts`
 - Modify: `tests/runtime/replay-executor.test.ts`
 
 - [ ] **Step 1: Write failing tests**
@@ -317,8 +317,8 @@ git commit -m "feat(tools): add replayId to ToolCallRequest and tool events"
 In `tests/runtime/replay-executor.test.ts`, add to the existing imports:
 
 ```typescript
-import type { ReplayPlan } from "../../src/runtime/replay-plan.js";
-import { PolicyGate } from "../../src/policy/policy-gate.js";
+import type { ReplayPlan } from "../../src/runtime-state/runtime/replay-plan.js";
+import { PolicyGate } from "../../src/governance/policy/policy-gate.js";
 ```
 
 Add a new describe block at the bottom:
@@ -328,7 +328,7 @@ describe("ReplayExecutor approved-live mode", () => {
   let tmpDir: string;
   let eventLog: EventLog;
   let executor: ReplayExecutor;
-  let approvalStore: import("../../src/approvals/approval-store.js").ApprovalStore;
+  let approvalStore: import("../../src/governance/approvals/approval-store.js").ApprovalStore;
 
   before(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), "replay-test-approved-"));
@@ -337,7 +337,7 @@ describe("ReplayExecutor approved-live mode", () => {
     eventLog = new EventLog(logDir);
     await eventLog.init();
     executor = new ReplayExecutor(tmpDir, eventLog);
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     approvalStore = new ApprovalStore(tmpDir);
     await approvalStore.load();
   });
@@ -444,7 +444,7 @@ describe("ReplayExecutor approved-live mode", () => {
 
 - [ ] **Step 2: Add approved-live mode to ReplayExecutor**
 
-In `src/runtime/replay-executor.ts`:
+In `src/runtime-state/runtime/replay-executor.ts`:
 
 Add imports:
 
@@ -737,7 +737,7 @@ Expected: All 10 existing tests pass + new approved-live tests. Some may need ad
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/runtime/replay-executor.ts tests/runtime/replay-executor.test.ts
+git add src/runtime-state/runtime/replay-executor.ts tests/runtime/replay-executor.test.ts
 git commit -m "feat(runtime): add approved-live execution mode with approval gating"
 ```
 
@@ -746,12 +746,12 @@ git commit -m "feat(runtime): add approved-live execution mode with approval gat
 ### Task 5: Wire TUI commands for approved-live mode
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
-- Modify: `src/tui/trace-detail.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
+- Modify: `src/interfaces/tui/trace-detail.ts`
 
 - [ ] **Step 1: Add --approved-live flag handling in TUI**
 
-In `src/cli/commands/tui.ts`, find the `/replay` command handler (around line 399). Modify the mode detection to support `--approved-live`:
+In `src/interfaces/cli/commands/tui.ts`, find the `/replay` command handler (around line 399). Modify the mode detection to support `--approved-live`:
 
 ```typescript
 if (task.startsWith("/replay ")) {
@@ -808,9 +808,9 @@ Note: `approvalStore` needs to be accessible. It's defined in the TUI function s
 
 - [ ] **Step 2: Show replayId in replay result renderer**
 
-In `src/tui/trace-detail.ts`, modify `renderReplayResult()` to show `replayId`. The `ReplayResult` doesn't currently have `replayId` — it needs to be added.
+In `src/interfaces/tui/trace-detail.ts`, modify `renderReplayResult()` to show `replayId`. The `ReplayResult` doesn't currently have `replayId` — it needs to be added.
 
-First, in `src/runtime/replay-executor.ts`, add `replayId` to `ReplayResult`:
+First, in `src/runtime-state/runtime/replay-executor.ts`, add `replayId` to `ReplayResult`:
 
 ```typescript
 export type ReplayResult = {
@@ -860,7 +860,7 @@ Expected: Clean compile.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts src/tui/trace-detail.ts src/runtime/replay-executor.ts
+git add src/interfaces/cli/commands/tui.ts src/interfaces/tui/trace-detail.ts src/runtime-state/runtime/replay-executor.ts
 git commit -m "feat(tui): wire approved-live replay command with confirmation warning"
 ```
 

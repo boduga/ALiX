@@ -17,7 +17,7 @@
 | Audit logs | Medium — operational visibility | `.alix/audit/`, platform state dir |
 | Session data / event logs | Medium — contains agent activity | `.alix/sessions/` |
 | Observability metrics | Low — operational data | `.alix/observability/` |
-| Inspector UI | Medium — admin interface | `dist/src/ui/` |
+| Inspector UI | Medium — admin interface | `dist/src/interfaces/ui/` |
 | SSE streams | Medium — real-time event data | In-memory, server process |
 
 ---

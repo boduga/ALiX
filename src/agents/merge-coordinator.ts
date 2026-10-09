@@ -2,7 +2,7 @@
  * Coordinates results from multiple concurrent subagents.
  * Detects conflicts, summarizes findings, and feeds into parent decision loop.
  */
-import type { SubagentResult, SubagentFinding } from "../config/schema.js";
+import type { SubagentResult, SubagentFinding } from "../operations/config/schema.js";
 
 export type Conflict = {
   path: string;

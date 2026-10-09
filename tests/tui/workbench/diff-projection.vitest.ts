@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { AlixEvent } from '../../../src/events/types.js';
-import { DiffProjection } from '../../../src/tui/workbench/projections/diff-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { DiffProjection } from '../../../src/interfaces/tui/workbench/projections/diff-projection.js';
 
 const event = (seq: number, type: string, payload: Record<string, unknown>): AlixEvent => ({
   id: `e${seq}`, seq, version: 1, sessionId: 's', timestamp: new Date(seq * 1000).toISOString(), actor: 'system', type, payload,

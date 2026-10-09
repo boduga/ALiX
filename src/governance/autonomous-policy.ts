@@ -6,11 +6,11 @@
  * "allow" | "requires_approval" | "deny" and adds governance-specific
  * match dimensions (action types, labels, repos, files, branches).
  *
- * Does NOT replace src/policy/* — that layer handles runtime tool/capability
+ * Does NOT replace src/governance/policy/* — that layer handles runtime tool/capability
  * policies. This layer handles autonomous-run governance decisions.
  */
 
-import type { PolicyDecision } from "../policy/policy-rule.js";
+import type { PolicyDecision } from "./policy/policy-rule.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,7 +58,7 @@ export const DEFAULT_GOVERNANCE_POLICIES: GovernancePolicyRule[] = [
   {
     id: "governance-security-paths-deny",
     description: "Deny autonomous changes to security/auth/infra paths",
-    match: { paths: ["src/security/**", "src/auth/**", "deploy/**", "infra/**"] },
+    match: { paths: ["src/governance/security/**", "src/auth/**", "deploy/**", "infra/**"] },
     decision: "deny",
   },
   {

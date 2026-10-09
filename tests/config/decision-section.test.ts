@@ -1,10 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
-import { mergeConfig } from "../../src/config/loader.js";
-import { validateConfig } from "../../src/config/validator.js";
-import { DEFAULT_DECISION_CONFIG } from "../../src/decision/index.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
+import { mergeConfig } from "../../src/operations/config/loader.js";
+import { validateConfig } from "../../src/operations/config/validator.js";
+import { DEFAULT_DECISION_CONFIG } from "../../src/planning/decision/index.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 const MINIMAL_CONFIG: AlixConfig = {
   version: 1,

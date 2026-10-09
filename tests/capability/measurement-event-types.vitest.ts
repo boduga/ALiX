@@ -14,13 +14,13 @@ import {
   MEASUREMENT_EVENT_PREFIX,
   MEASUREMENT_GOVERNANCE_PREFIX,
   isMeasurementEventType,
-} from "../../src/capability/measurement/measurement-event-types.js";
+} from "../../src/capabilities/capability/measurement/measurement-event-types.js";
 import type {
   CapabilityMeasurementEvent,
   CapabilityMeasurementEventType,
   MeasurementSignalsUnpublishedEvent,
   MeasurementSignalsUnpublishedFailure,
-} from "../../src/capability/measurement/measurement-event-types.js";
+} from "../../src/capabilities/capability/measurement/measurement-event-types.js";
 
 const baseFailure: MeasurementSignalsUnpublishedFailure = {
   classification: "sink_threw",

@@ -10,7 +10,7 @@ import type {
   LearningSignalType,
   LearningProposalType,
   CalibrationTarget,
-} from "../../src/learning/learning-types.js";
+} from "../../src/planning/learning/learning-types.js";
 
 // ---------------------------------------------------------------------------
 // LearningSignal

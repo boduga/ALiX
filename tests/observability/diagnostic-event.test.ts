@@ -6,10 +6,10 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync } from "node:f
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { runtimeDiagToEvent, contractDiagToEvent, nextDiagnosticId } from "../../src/observability/diagnostic-event.js";
-import { DiagnosticEventStore, createDiagnosticStoreSink } from "../../src/observability/diagnostic-event-store.js";
-import { buildRuntimeDiagnostic } from "../../src/runtime/runtime-diagnostics.js";
-import { buildDiagnostic } from "../../src/contracts/contract-diagnostics.js";
+import { runtimeDiagToEvent, contractDiagToEvent, nextDiagnosticId } from "../../src/operations/observability/diagnostic-event.js";
+import { DiagnosticEventStore, createDiagnosticStoreSink } from "../../src/operations/observability/diagnostic-event-store.js";
+import { buildRuntimeDiagnostic } from "../../src/runtime-state/runtime/runtime-diagnostics.js";
+import { buildDiagnostic } from "../../src/runtime-state/contracts/contract-diagnostics.js";
 
 // ---------------------------------------------------------------------------
 // ID generation

@@ -18,14 +18,14 @@
  *   docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md
  */
 import { describe, it, expect, vi } from "vitest";
-import type { TraceClient } from "../../src/tracing/client.js";
+import type { TraceClient } from "../../src/models/tracing/client.js";
 
-vi.mock("../../src/tracing/client-factory.js", () => ({
+vi.mock("../../src/models/tracing/client-factory.js", () => ({
   getProcessTraceClient: vi.fn(),
 }));
 
-import { getProcessTraceClient } from "../../src/tracing/client-factory.js";
-import { shutdownProcessTraceClient } from "../../src/daemon/daemon-tracing-shutdown.js";
+import { getProcessTraceClient } from "../../src/models/tracing/client-factory.js";
+import { shutdownProcessTraceClient } from "../../src/operations/daemon/daemon-tracing-shutdown.js";
 
 const getProcessTraceClientMock = getProcessTraceClient as ReturnType<typeof vi.fn>;
 

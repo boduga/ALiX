@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseExtensionManifest, getExtensionId, isCoreExtension, EXTENSION_TYPES } from "../../src/extensions/manifest.js";
+import { parseExtensionManifest, getExtensionId, isCoreExtension, EXTENSION_TYPES } from "../../src/capabilities/extensions/manifest.js";
 
 describe("parseExtensionManifest", () => {
   it("parses a skill extension", () => {

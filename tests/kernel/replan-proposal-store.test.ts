@@ -17,13 +17,13 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ReplanProposalStore } from "../../src/kernel/replan-proposal-store.js";
+import { ReplanProposalStore } from "../../src/coordination/kernel/replan-proposal-store.js";
 import {
   computeFingerprint,
   createTriggerEvidence,
   createDraftWorkerSpec,
   createProposalRecord,
-} from "../../src/kernel/replan-types.js";
+} from "../../src/coordination/kernel/replan-types.js";
 import type {
   PlanRevisionDraft,
   ProposalRecord,
@@ -31,7 +31,7 @@ import type {
   ValidationResult,
   SimulatedGraph,
   TriggerEvidence,
-} from "../../src/kernel/replan-types.js";
+} from "../../src/coordination/kernel/replan-types.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 

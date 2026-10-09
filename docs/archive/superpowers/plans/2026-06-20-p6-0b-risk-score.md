@@ -23,14 +23,14 @@
 
 ```
 Create:
-  src/adaptation/risk-score-types.ts         — RiskDimension, RiskItem, RiskScore, riskOutcomeFromScore()
-  src/adaptation/risk-score-builder.ts       — scoreGovernance, scoreOperational, scoreCapability,
+  src/planning/adaptation/risk-score-types.ts         — RiskDimension, RiskItem, RiskScore, riskOutcomeFromScore()
+  src/planning/adaptation/risk-score-builder.ts       — scoreGovernance, scoreOperational, scoreCapability,
                                                scoreRevertability, scoreEvidenceQuality, RiskScoreBuilder
   tests/adaptation/risk-score-builder.vitest.ts
   tests/adaptation/risk-score-sentinels.vitest.ts
 
 Modify:
-  src/cli/commands/decision.ts               — add `alix decision risk` subcommand
+  src/interfaces/cli/commands/decision.ts               — add `alix decision risk` subcommand
 ```
 
 ---
@@ -38,7 +38,7 @@ Modify:
 ### Task 1: RiskScore types
 
 **Files:**
-- Create: `src/adaptation/risk-score-types.ts`
+- Create: `src/planning/adaptation/risk-score-types.ts`
 
 - [ ] **Step 1: Create the types file**
 
@@ -123,7 +123,7 @@ export interface RiskScore extends DecisionArtifact {
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/adaptation/risk-score-types.ts
+git add src/planning/adaptation/risk-score-types.ts
 git commit -m "P6.0b: RiskScore type definitions"
 ```
 
@@ -132,7 +132,7 @@ git commit -m "P6.0b: RiskScore type definitions"
 ### Task 2: Pure scoring functions + RiskScoreBuilder
 
 **Files:**
-- Create: `src/adaptation/risk-score-builder.ts`
+- Create: `src/planning/adaptation/risk-score-builder.ts`
 
 - [ ] **Step 1: Create risk-score-builder.ts**
 
@@ -306,7 +306,7 @@ export class RiskScoreBuilder {
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/adaptation/risk-score-builder.ts
+git add src/planning/adaptation/risk-score-builder.ts
 git commit -m "P6.0b: RiskScoreBuilder — pure scoring functions + builder"
 ```
 
@@ -328,8 +328,8 @@ import {
   scoreRevertability,
   scoreEvidenceQuality,
   RiskScoreBuilder,
-} from "../../src/adaptation/risk-score-builder";
-import type { DecisionContext } from "../../src/adaptation/decision-types";
+} from "../../src/planning/adaptation/risk-score-builder";
+import type { DecisionContext } from "../../src/planning/adaptation/decision-types";
 
 function createContext(overrides: Partial<DecisionContext> = {}): DecisionContext {
   return {
@@ -453,11 +453,11 @@ git commit -m "P6.0b: RiskScoreBuilder tests"
 ### Task 4: CLI risk command
 
 **Files:**
-- Modify: `src/cli/commands/decision.ts`
+- Modify: `src/interfaces/cli/commands/decision.ts`
 
 - [ ] **Step 1: Add `alix decision risk` subcommand**
 
-Read the current `src/cli/commands/decision.ts` first. Add a `"risk"` case to the switch statement and a `runRisk` function.
+Read the current `src/interfaces/cli/commands/decision.ts` first. Add a `"risk"` case to the switch statement and a `runRisk` function.
 
 The risk command:
 1. Loads the proposal ID from args
@@ -537,7 +537,7 @@ Expected: All tests pass
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/decision.ts
+git add src/interfaces/cli/commands/decision.ts
 git commit -m "P6.0b: CLI alix decision risk subcommand"
 ```
 
@@ -588,28 +588,28 @@ describe("P6 Governance Invariants — RiskScore must not recommend", () => {
   ];
 
   it("must not import governance/mutation modules", () => {
-    const source = sourceOf("../../src/adaptation/risk-score-builder");
+    const source = sourceOf("../../src/planning/adaptation/risk-score-builder");
     for (const mod of FORBIDDEN_IMPORTS) {
       expect(source).not.toContain(mod);
     }
   });
 
   it("must not reference governance types", () => {
-    const source = sourceOf("../../src/adaptation/risk-score-builder");
+    const source = sourceOf("../../src/planning/adaptation/risk-score-builder");
     for (const type of FORBIDDEN_TYPES) {
       expect(source).not.toContain(type);
     }
   });
 
   it("must not contain recommendation language", () => {
-    const source = sourceOf("../../src/adaptation/risk-score-builder");
+    const source = sourceOf("../../src/planning/adaptation/risk-score-builder");
     for (const word of RECOMMENDATION_WORDS) {
       expect(source).not.toContain(word);
     }
   });
 
   it("must not contain write/approve/apply calls", () => {
-    const source = sourceOf("../../src/adaptation/risk-score-builder");
+    const source = sourceOf("../../src/planning/adaptation/risk-score-builder");
     const forbidden = [".save(", ".update(", ".approve(", ".apply(", ".reject("];
     for (const method of forbidden) {
       expect(source).not.toContain(method);
@@ -619,7 +619,7 @@ describe("P6 Governance Invariants — RiskScore must not recommend", () => {
   it("constructor must not accept stores", () => {
     // Architectural sentinel: RiskScoreBuilder should only receive a DecisionContext,
     // not stores. If its constructor signature changes to accept stores, this fails.
-    const source = sourceOf("../../src/adaptation/risk-score-builder");
+    const source = sourceOf("../../src/planning/adaptation/risk-score-builder");
     // Check the class doesn't reference ProposalStore, EvidenceStore, etc. in constructor
     const storePatterns = ["ProposalStore", "EvidenceStore", "LineageBuilder", "IntelligenceStore", "EffectivenessStore"];
     for (const store of storePatterns) {

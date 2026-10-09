@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { ExecutionIntent, IntentSource, IntentStatus } from "../../src/adaptation/execution-intent-types.js";
+import type { ExecutionIntent, IntentSource, IntentStatus } from "../../src/planning/adaptation/execution-intent-types.js";
 
 // ---------------------------------------------------------------------------
 // Type shape tests — compile-time + runtime validation

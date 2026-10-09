@@ -4,8 +4,8 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CollaborationStore } from "../../src/kernel/collaboration-store.js";
-import { ConflictRepository } from "../../src/kernel/collaboration-conflict-repository.js";
+import { CollaborationStore } from "../../src/coordination/kernel/collaboration-store.js";
+import { ConflictRepository } from "../../src/coordination/kernel/collaboration-conflict-repository.js";
 
 const CLI = join(process.cwd(), "dist", "src", "cli.js");
 const RUN_ID = "run_cli_1";

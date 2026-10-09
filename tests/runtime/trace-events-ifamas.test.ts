@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { toTraceEvent } from "../../src/runtime/trace-events.js";
+import { toTraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 describe("IFÁ-MAS trace event normalization", () => {
   it("converts ifamas.diagnostic event to TraceEvent with sourceType 'ifamas'", () => {

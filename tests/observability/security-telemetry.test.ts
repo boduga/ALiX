@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MetricsStore } from "../../src/observability/metrics-store.js";
-import { createMetricRegistry, type MetricRegistry } from "../../src/observability/metric-registry.js";
-import { SecurityTelemetry, FakeSecurityTelemetry } from "../../src/observability/security-telemetry.js";
+import { MetricsStore } from "../../src/operations/observability/metrics-store.js";
+import { createMetricRegistry, type MetricRegistry } from "../../src/operations/observability/metric-registry.js";
+import { SecurityTelemetry, FakeSecurityTelemetry } from "../../src/operations/observability/security-telemetry.js";
 
 describe("SecurityTelemetry", () => {
   let tmpDir: string;

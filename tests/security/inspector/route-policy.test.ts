@@ -16,7 +16,7 @@ import {
   RoutePolicyRegistry,
   routeRegistry,
   type RouteDescriptor,
-} from "../../../src/security/inspector/route-policy.js";
+} from "../../../src/governance/security/inspector/route-policy.js";
 
 describe("RoutePolicyRegistry", () => {
   describe("register and get", () => {

@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { writeFile, rm, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { discoverHooks } from "../src/hooks/discover.js";
-import { runHook } from "../src/hooks/runner.js";
+import { discoverHooks } from "../src/operations/hooks/discover.js";
+import { runHook } from "../src/operations/hooks/runner.js";
 
 test("discoverHooks reads .alix/hooks.json with pre/post/task checks", async () => {
   const dir = await import("node:fs/promises").then(m => m.mkdtemp("/tmp/alix-hook-test-"));

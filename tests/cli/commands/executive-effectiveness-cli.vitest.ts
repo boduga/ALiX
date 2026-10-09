@@ -17,11 +17,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleEffectivenessCommand } from "../../../src/cli/commands/executive-effectiveness-handler.js";
-import { RecommendationReportStore } from "../../../src/executive/recommendation-report-store.js";
-import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
-import type { RecommendationReport, ExecutiveRecommendation } from "../../../src/executive/recommendation-report-store.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+import { handleEffectivenessCommand } from "../../../src/interfaces/cli/commands/executive-effectiveness-handler.js";
+import { RecommendationReportStore } from "../../../src/execution/executive/recommendation-report-store.js";
+import { AdaptationProposalStore } from "../../../src/planning/adaptation/adaptation-proposal-store.js";
+import type { RecommendationReport, ExecutiveRecommendation } from "../../../src/execution/executive/recommendation-report-store.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -265,7 +265,7 @@ describe("executive effectiveness CLI", () => {
   });
 });
 
-import type { ProposalEffectivenessReport } from "../../../src/adaptation/effectiveness-types.js";
+import type { ProposalEffectivenessReport } from "../../../src/planning/adaptation/effectiveness-types.js";
 
 describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
   /** Seed raw JSON files matching ProposalEffectivenessReport shape, not via store API. */

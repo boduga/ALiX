@@ -31,20 +31,20 @@
 
 | File | Responsibility |
 |------|----------------|
-| `src/providers/specs/minimax-token-plan-spec.ts` | 5-line spec: spreads `anthropicSpec` with new baseUrl |
-| `src/providers/minimax-token-plan-provider.ts` | ~45-line provider class |
+| `src/models/providers/specs/minimax-token-plan-spec.ts` | 5-line spec: spreads `anthropicSpec` with new baseUrl |
+| `src/models/providers/minimax-token-plan-provider.ts` | ~45-line provider class |
 | `tests/providers/minimax-token-plan.test.ts` | Capability + identity tests |
 
 ### Modified files
 
 | File | Change |
 |------|--------|
-| `src/providers/catalog.ts` | 1 line in `PROVIDERS` array, 1 switch case in `listModels`, 1 line in `DEFAULT_MODELS` |
-| `src/providers/unified-complete.ts` | 1 line in `SPECS` Map, 1 line in `PROVIDER_KEY_ENV` |
-| `src/providers/registry.ts` | 1 line in `lazyProviders`, 1 line in `listProviders()` |
-| `src/security/credentials/credential-migration.ts` | 1 line in `PROVIDER_ENV_MAP` |
-| `src/config/context-limits.ts` | 1 line in the per-provider window table |
-| `src/config/profiles/cloud-minimax.json` | 5 line changes (all model tiers) |
+| `src/models/providers/catalog.ts` | 1 line in `PROVIDERS` array, 1 switch case in `listModels`, 1 line in `DEFAULT_MODELS` |
+| `src/models/providers/unified-complete.ts` | 1 line in `SPECS` Map, 1 line in `PROVIDER_KEY_ENV` |
+| `src/models/providers/registry.ts` | 1 line in `lazyProviders`, 1 line in `listProviders()` |
+| `src/governance/security/credentials/credential-migration.ts` | 1 line in `PROVIDER_ENV_MAP` |
+| `src/operations/config/context-limits.ts` | 1 line in the per-provider window table |
+| `src/operations/config/profiles/cloud-minimax.json` | 5 line changes (all model tiers) |
 | `tests/manual/run-cli.ts` | 1 line in `PROVIDER_ENV_VARS` |
 | `tests/providers/streaming-regression.test.ts` | 1 line in `STREAMING_SPECS` array |
 
@@ -53,14 +53,14 @@
 ## Task 1: Add the spec file
 
 **Files:**
-- Create: `src/providers/specs/minimax-token-plan-spec.ts`
+- Create: `src/models/providers/specs/minimax-token-plan-spec.ts`
 
 **Interfaces:**
 - Produces: `minimaxTokenPlanSpec: ProviderSpec` (consumed by Task 3 to add to `SPECS` Map)
 
 - [ ] **Step 1: Create the spec file**
 
-Write at `src/providers/specs/minimax-token-plan-spec.ts`:
+Write at `src/models/providers/specs/minimax-token-plan-spec.ts`:
 
 ```ts
 import { anthropicSpec } from "./anthropic-spec.js";
@@ -78,7 +78,7 @@ Expected: clean exit (no errors mentioning `minimax-token-plan-spec`).
 
 - [ ] **Step 3: Verify the spec is identical to anthropicSpec except baseUrl**
 
-Run: `node -e "import('./src/providers/specs/minimax-token-plan-spec.js').then(m => { console.log('baseUrl:', m.minimaxTokenPlanSpec.baseUrl); })"`
+Run: `node -e "import('./src/models/providers/specs/minimax-token-plan-spec.js').then(m => { console.log('baseUrl:', m.minimaxTokenPlanSpec.baseUrl); })"`
 Expected: `baseUrl: https://api.minimax.io/anthropic`
 
 (If you get a "module not found" error, run the project build first: `pnpm build`.)
@@ -86,7 +86,7 @@ Expected: `baseUrl: https://api.minimax.io/anthropic`
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/providers/specs/minimax-token-plan-spec.ts
+git add src/models/providers/specs/minimax-token-plan-spec.ts
 git commit -m "feat(minimax): add minimax-token-plan-spec (Anthropic-compatible spread)"
 ```
 
@@ -95,7 +95,7 @@ git commit -m "feat(minimax): add minimax-token-plan-spec (Anthropic-compatible 
 ## Task 2: Add the provider class with capability test
 
 **Files:**
-- Create: `src/providers/minimax-token-plan-provider.ts`
+- Create: `src/models/providers/minimax-token-plan-provider.ts`
 - Create: `tests/providers/minimax-token-plan.test.ts`
 
 **Interfaces:**
@@ -107,7 +107,7 @@ Create `tests/providers/minimax-token-plan.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { MiniMaxTokenPlanProvider } from "../../src/providers/minimax-token-plan-provider.js";
+import { MiniMaxTokenPlanProvider } from "../../src/models/providers/minimax-token-plan-provider.js";
 
 describe("MiniMaxTokenPlanProvider", () => {
   it("has id 'minimax-token-plan'", () => {
@@ -161,7 +161,7 @@ Expected: FAIL with "MiniMaxTokenPlanProvider module not found" or "Cannot find 
 
 - [ ] **Step 3: Write the implementation**
 
-Create `src/providers/minimax-token-plan-provider.ts`:
+Create `src/models/providers/minimax-token-plan-provider.ts`:
 
 ```ts
 import { BaseProvider } from "./base.js";
@@ -218,7 +218,7 @@ Expected: PASS with all 5 tests green.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/providers/minimax-token-plan-provider.ts tests/providers/minimax-token-plan.test.ts
+git add src/models/providers/minimax-token-plan-provider.ts tests/providers/minimax-token-plan.test.ts
 git commit -m "feat(minimax): add MiniMaxTokenPlanProvider (sk-cp- key, M3 model)"
 ```
 
@@ -227,8 +227,8 @@ git commit -m "feat(minimax): add MiniMaxTokenPlanProvider (sk-cp- key, M3 model
 ## Task 3: Wire spec into unified-complete
 
 **Files:**
-- Modify: `src/providers/unified-complete.ts:18-32` (`SPECS` Map)
-- Modify: `src/providers/unified-complete.ts:34-48` (`PROVIDER_KEY_ENV`)
+- Modify: `src/models/providers/unified-complete.ts:18-32` (`SPECS` Map)
+- Modify: `src/models/providers/unified-complete.ts:34-48` (`PROVIDER_KEY_ENV`)
 
 **Interfaces:**
 - Consumes: `minimaxTokenPlanSpec` from Task 1
@@ -241,7 +241,7 @@ Add to `tests/providers/minimax-token-plan.test.ts` (append inside the existing 
 
 ```ts
   it("is registered in unified-complete SPECS Map", async () => {
-    const { SPECS } = await import("../../src/providers/unified-complete.js");
+    const { SPECS } = await import("../../src/models/providers/unified-complete.js");
     const spec = SPECS.get("minimax-token-plan");
     expect(spec).toBeDefined();
     expect(spec?.baseUrl).toBe("https://api.minimax.io/anthropic");
@@ -255,7 +255,7 @@ Expected: FAIL with "expected undefined to be defined" or similar.
 
 - [ ] **Step 3: Add the import**
 
-At the top of `src/providers/unified-complete.ts` (alongside the existing spec imports around line 10-13), add:
+At the top of `src/models/providers/unified-complete.ts` (alongside the existing spec imports around line 10-13), add:
 
 ```ts
 import { minimaxTokenPlanSpec } from "./specs/minimax-token-plan-spec.js";
@@ -289,7 +289,7 @@ Expected: 6 tests pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/providers/unified-complete.ts tests/providers/minimax-token-plan.test.ts
+git add src/models/providers/unified-complete.ts tests/providers/minimax-token-plan.test.ts
 git commit -m "feat(minimax): register Token Plan spec in unified-complete"
 ```
 
@@ -298,9 +298,9 @@ git commit -m "feat(minimax): register Token Plan spec in unified-complete"
 ## Task 4: Wire provider class into registry
 
 **Files:**
-- Modify: `src/providers/registry.ts:11` (import)
-- Modify: `src/providers/registry.ts:19-33` (`lazyProviders`)
-- Modify: `src/providers/registry.ts:61-76` (`listProviders`)
+- Modify: `src/models/providers/registry.ts:11` (import)
+- Modify: `src/models/providers/registry.ts:19-33` (`lazyProviders`)
+- Modify: `src/models/providers/registry.ts:61-76` (`listProviders`)
 
 **Interfaces:**
 - Consumes: `MiniMaxTokenPlanProvider` from Task 2
@@ -312,14 +312,14 @@ Add to `tests/providers/minimax-token-plan.test.ts` (inside the existing `descri
 
 ```ts
   it("createProvider returns MiniMaxTokenPlanProvider for id 'minimax-token-plan'", async () => {
-    const { createProvider } = await import("../../src/providers/registry.js");
+    const { createProvider } = await import("../../src/models/providers/registry.js");
     const p = await createProvider({ provider: "minimax-token-plan" }, "sk-cp-test");
     expect(p.id).toBe("minimax-token-plan");
     expect(p).toBeInstanceOf(MiniMaxTokenPlanProvider);
   });
 
   it("listProviders includes 'minimax-token-plan'", async () => {
-    const { listProviders } = await import("../../src/providers/registry.js");
+    const { listProviders } = await import("../../src/models/providers/registry.js");
     const list = listProviders();
     expect(list.find((p) => p.id === "minimax-token-plan")).toBeDefined();
   });
@@ -332,7 +332,7 @@ Expected: FAIL with "createProvider" or "unknown provider" error.
 
 - [ ] **Step 3: Add the import**
 
-In `src/providers/registry.ts`, alongside the existing provider imports (around line 11), add:
+In `src/models/providers/registry.ts`, alongside the existing provider imports (around line 11), add:
 
 ```ts
 import { MiniMaxTokenPlanProvider } from "./minimax-token-plan-provider.js";
@@ -379,7 +379,7 @@ Expected: PASS with all tests including the updated count.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/providers/registry.ts tests/providers/minimax-token-plan.test.ts tests/providers.test.ts
+git add src/models/providers/registry.ts tests/providers/minimax-token-plan.test.ts tests/providers.test.ts
 git commit -m "feat(minimax): register MiniMaxTokenPlanProvider in registry"
 ```
 
@@ -388,9 +388,9 @@ git commit -m "feat(minimax): register MiniMaxTokenPlanProvider in registry"
 ## Task 5: Wire catalog entry (PROVIDERS + listModels + DEFAULT_MODELS)
 
 **Files:**
-- Modify: `src/providers/catalog.ts:25-37` (`PROVIDERS`)
-- Modify: `src/providers/catalog.ts:39-157` (`listModels` switch — add new case)
-- Modify: `src/providers/catalog.ts:163-175` (`DEFAULT_MODELS`)
+- Modify: `src/models/providers/catalog.ts:25-37` (`PROVIDERS`)
+- Modify: `src/models/providers/catalog.ts:39-157` (`listModels` switch — add new case)
+- Modify: `src/models/providers/catalog.ts:163-175` (`DEFAULT_MODELS`)
 
 **Interfaces:**
 - Produces: `PROVIDERS` array now includes `minimax-token-plan` (auto-picks up `tests/providers/catalog.vitest.ts` coverage)
@@ -403,7 +403,7 @@ Add to `tests/providers/minimax-token-plan.test.ts` (inside the existing `descri
 
 ```ts
   it("listModels calls https://api.minimax.io/anthropic/v1/models with x-api-key", async () => {
-    const { listModels } = await import("../../src/providers/catalog.js");
+    const { listModels } = await import("../../src/models/providers/catalog.js");
     let captured: { url: string; headers: Record<string, string> } | undefined;
     const origFetch = globalThis.fetch;
     globalThis.fetch = (async (url: any, init: any) => {
@@ -425,12 +425,12 @@ Add to `tests/providers/minimax-token-plan.test.ts` (inside the existing `descri
   });
 
   it("getDefaultModel returns 'MiniMax-M3'", async () => {
-    const { getDefaultModel } = await import("../../src/providers/catalog.js");
+    const { getDefaultModel } = await import("../../src/models/providers/catalog.js");
     expect(getDefaultModel("minimax-token-plan")).toBe("MiniMax-M3");
   });
 
   it("PROVIDERS array includes minimax-token-plan", async () => {
-    const { PROVIDERS } = await import("../../src/providers/catalog.js");
+    const { PROVIDERS } = await import("../../src/models/providers/catalog.js");
     const p = PROVIDERS.find((x) => x.id === "minimax-token-plan");
     expect(p).toEqual({
       id: "minimax-token-plan",
@@ -448,7 +448,7 @@ Expected: 3 new tests fail.
 
 - [ ] **Step 3: Add to PROVIDERS array**
 
-In `src/providers/catalog.ts`, find the `PROVIDERS` array (lines 25-37). Add the new entry after the existing `minimax` entry:
+In `src/models/providers/catalog.ts`, find the `PROVIDERS` array (lines 25-37). Add the new entry after the existing `minimax` entry:
 
 ```ts
 { id: "minimax-token-plan", name: "MiniMax (Token Plan)", env: "MINIMAX_TOKEN_PLAN_KEY", hint: "sk-cp-..." },
@@ -498,7 +498,7 @@ Expected: PASS — the new env var `MINIMAX_TOKEN_PLAN_KEY` is automatically pic
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/providers/catalog.ts tests/providers/minimax-token-plan.test.ts
+git add src/models/providers/catalog.ts tests/providers/minimax-token-plan.test.ts
 git commit -m "feat(minimax): register Token Plan in catalog (PROVIDERS, listModels, DEFAULT_MODELS)"
 ```
 
@@ -507,8 +507,8 @@ git commit -m "feat(minimax): register Token Plan in catalog (PROVIDERS, listMod
 ## Task 6: Wire credential-migration + context-limits + manual test file
 
 **Files:**
-- Modify: `src/security/credentials/credential-migration.ts:60-71` (`PROVIDER_ENV_MAP`)
-- Modify: `src/config/context-limits.ts:38` (per-provider window table)
+- Modify: `src/governance/security/credentials/credential-migration.ts:60-71` (`PROVIDER_ENV_MAP`)
+- Modify: `src/operations/config/context-limits.ts:38` (per-provider window table)
 - Modify: `tests/manual/run-cli.ts:21-33` (`PROVIDER_ENV_VARS`)
 
 **Interfaces:**
@@ -518,7 +518,7 @@ git commit -m "feat(minimax): register Token Plan in catalog (PROVIDERS, listMod
 
 - [ ] **Step 1: Add to PROVIDER_ENV_MAP (credential-migration)**
 
-In `src/security/credentials/credential-migration.ts`, find the `PROVIDER_ENV_MAP` object (lines 60-71). Add a new entry:
+In `src/governance/security/credentials/credential-migration.ts`, find the `PROVIDER_ENV_MAP` object (lines 60-71). Add a new entry:
 
 ```ts
 "minimax-token-plan": "MINIMAX_TOKEN_PLAN_KEY",
@@ -528,7 +528,7 @@ In `src/security/credentials/credential-migration.ts`, find the `PROVIDER_ENV_MA
 
 - [ ] **Step 2: Add to context-limits**
 
-In `src/config/context-limits.ts`, find the per-provider window table (around line 38). Add a new entry:
+In `src/operations/config/context-limits.ts`, find the per-provider window table (around line 38). Add a new entry:
 
 ```ts
 "minimax-token-plan": { contextWindowTokens: 1_048_576, tokenizer: "cl100k_base" },
@@ -554,7 +554,7 @@ Expected: clean exit (no type errors).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/security/credentials/credential-migration.ts src/config/context-limits.ts tests/manual/run-cli.ts
+git add src/governance/security/credentials/credential-migration.ts src/operations/config/context-limits.ts tests/manual/run-cli.ts
 git commit -m "feat(minimax): register Token Plan in credential-migration, context-limits, manual test"
 ```
 
@@ -563,23 +563,23 @@ git commit -m "feat(minimax): register Token Plan in credential-migration, conte
 ## Task 7: Update cloud-minimax.json profile
 
 **Files:**
-- Modify: `src/config/profiles/cloud-minimax.json` (5 lines — all model tiers)
+- Modify: `src/operations/config/profiles/cloud-minimax.json` (5 lines — all model tiers)
 
 **Interfaces:**
 - Produces: `cloud-minimax.json` profile uses `minimax-token-plan` provider with `MiniMax-M3` model in all 5 tiers
 
 - [ ] **Step 1: Read the current profile to confirm structure**
 
-Run: `cat src/config/profiles/cloud-minimax.json`
+Run: `cat src/operations/config/profiles/cloud-minimax.json`
 Expected: file shows 5 tiers (`default`, `planner`, `coder`, `researcher`, `critic`) each with `provider: "minimax"`, plus an `embeddings` tier with `provider: "openai"`.
 
 - [ ] **Step 2: Update the 5 model tiers**
 
 Using your editor (or `sed -i`), change `provider: "minimax"` to `provider: "minimax-token-plan"` in the 5 model-tier lines ONLY. Do NOT touch the `embeddings` line (it stays `provider: "openai"`).
 
-Run: `sed -i 's/"provider": "minimax",/"provider": "minimax-token-plan",/g' src/config/profiles/cloud-minimax.json`
+Run: `sed -i 's/"provider": "minimax",/"provider": "minimax-token-plan",/g' src/operations/config/profiles/cloud-minimax.json`
 
-Verify with: `cat src/config/profiles/cloud-minimax.json`
+Verify with: `cat src/operations/config/profiles/cloud-minimax.json`
 Expected: 5 model tiers now say `minimax-token-plan`. The `embeddings` tier still says `openai`.
 
 - [ ] **Step 3: Validate the profile shape**
@@ -595,7 +595,7 @@ Expected: PASS or skipped.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/config/profiles/cloud-minimax.json
+git add src/operations/config/profiles/cloud-minimax.json
 git commit -m "feat(minimax): point cloud-minimax profile at Token Plan provider"
 ```
 
@@ -629,7 +629,7 @@ In the `STREAMING_SPECS` array, add an entry after the existing `anthropicSpec` 
 At the top of the file, add:
 
 ```ts
-import { minimaxTokenPlanSpec } from "../../src/providers/specs/minimax-token-plan-spec.js";
+import { minimaxTokenPlanSpec } from "../../src/models/providers/specs/minimax-token-plan-spec.js";
 ```
 
 (Insert alongside the existing spec imports.)
@@ -669,7 +669,7 @@ Expected: e.g. `Test Files  384 passed | 1 skipped (385)` / `Tests  4193 passed 
 
 - [ ] **Step 4: Verify the new provider appears in the CLI menu**
 
-Run: `node -e "import('./src/providers/catalog.js').then(m => { console.log(m.PROVIDERS.find(p => p.id === 'minimax-token-plan')); })"`
+Run: `node -e "import('./src/models/providers/catalog.js').then(m => { console.log(m.PROVIDERS.find(p => p.id === 'minimax-token-plan')); })"`
 Expected: `{ id: 'minimax-token-plan', name: 'MiniMax (Token Plan)', env: 'MINIMAX_TOKEN_PLAN_KEY', hint: 'sk-cp-...' }`
 
 - [ ] **Step 5: Detect any changes staged**

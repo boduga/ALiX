@@ -1,12 +1,12 @@
-import { stripAnsi } from '../../../src/tui/box.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import type { DashboardSnapshot } from '../../../src/tui/snapshot.js';
-import type { AgentRosterSnapshot, AgentSummary } from '../../../src/tui/workbench/model/agent-roster.js';
-import type { TaskSummary } from '../../../src/tui/workbench/model/task-roster.js';
-import type { WorkbenchInspectableItem } from '../../../src/tui/workbench/model/artifact-inspection.js';
-import { getWorkbenchPreviewTheme, type WorkbenchPreviewTheme } from '../../../src/tui/workbench/model/preview-theme.js';
-import { buildAgentInspectorModel } from '../../../src/tui/workbench/model/agent-inspector.js';
-import { paintAgentInspector } from '../../../src/tui/workbench/views/agent-inspector.js';
+import { stripAnsi } from '../../../src/interfaces/tui/box.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import type { DashboardSnapshot } from '../../../src/interfaces/tui/snapshot.js';
+import type { AgentRosterSnapshot, AgentSummary } from '../../../src/interfaces/tui/workbench/model/agent-roster.js';
+import type { TaskSummary } from '../../../src/interfaces/tui/workbench/model/task-roster.js';
+import type { WorkbenchInspectableItem } from '../../../src/interfaces/tui/workbench/model/artifact-inspection.js';
+import { getWorkbenchPreviewTheme, type WorkbenchPreviewTheme } from '../../../src/interfaces/tui/workbench/model/preview-theme.js';
+import { buildAgentInspectorModel } from '../../../src/interfaces/tui/workbench/model/agent-inspector.js';
+import { paintAgentInspector } from '../../../src/interfaces/tui/workbench/views/agent-inspector.js';
 import { createWorkbenchRenderHarness } from '../../fixtures/tui/workbench-render-harness.js';
 
 /**

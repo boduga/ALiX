@@ -211,7 +211,7 @@ assembleProposalExplanation ──┘                          │
 4. Computes panel data (join path distribution, layer availability percentages, chain integrity alerts)
 5. Returns a `DashboardReport` view model
 
-**New file:** `src/learning/learning-dashboard.ts` — contains the `DashboardAggregator`. Pure read-only aggregation, no mutation surface.
+**New file:** `src/planning/learning/learning-dashboard.ts` — contains the `DashboardAggregator`. Pure read-only aggregation, no mutation surface.
 
 **No new store.** The dashboard is ephemeral (like `ProposalExplanation`). On termination, it's gone.
 
@@ -312,7 +312,7 @@ export interface ChainAlert {
 
 ## CLI integration
 
-Wire into `src/cli/commands/learning.ts` as `case "dashboard"` calling `runDashboard(args)`.
+Wire into `src/interfaces/cli/commands/learning.ts` as `case "dashboard"` calling `runDashboard(args)`.
 
 ## Acceptance criteria
 
@@ -361,9 +361,9 @@ Returns a single JSON object matching DashboardReport interface.
 ## File structure
 
 ```text
-src/learning/dashboard-integrity-score.ts        # Pure helper: computeDashboardIntegrityScore(...)
-src/learning/learning-dashboard.ts              # DashboardAggregator + types
-src/cli/commands/dashboard-renderer.ts           # Terminal renderer (terminal boxes, ANSI)
+src/planning/learning/dashboard-integrity-score.ts        # Pure helper: computeDashboardIntegrityScore(...)
+src/planning/learning/learning-dashboard.ts              # DashboardAggregator + types
+src/interfaces/cli/commands/dashboard-renderer.ts           # Terminal renderer (terminal boxes, ANSI)
 tests/learning/learning-dashboard.vitest.ts     # Aggregator tests
 ```
 

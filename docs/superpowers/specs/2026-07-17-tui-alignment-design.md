@@ -10,7 +10,7 @@
 
 The current `alix tui` command renders a single-pane readline-based chat interface with limited operational visibility. This design aligns the TUI with the visual target depicted in the user-provided reference image — a multi-pane dashboard with persistent header, body region (per active tab), tab bar, and status bar — while preserving the existing chat workflow as the default landing tab.
 
-The existing `src/tui/` directory already contains substantial infrastructure: panel widgets (`chronicle`, `coordination`, `cost`, `health`, `ifamas`, `dashboard-renderer.ts`, etc.), ANSI primitives (`ansi.ts`, `box.ts`, `cursor.ts`), and the existing `TuiRenderer` / `TuiStore` / `EventLogBridge`. This design wires those primitives into a unified `TuiApp` application class — no from-scratch rebuild — but adds snapshot-driven data flow, tabbed workspaces, and lifecycle phase tracking.
+The existing `src/interfaces/tui/` directory already contains substantial infrastructure: panel widgets (`chronicle`, `coordination`, `cost`, `health`, `ifamas`, `dashboard-renderer.ts`, etc.), ANSI primitives (`ansi.ts`, `box.ts`, `cursor.ts`), and the existing `TuiRenderer` / `TuiStore` / `EventLogBridge`. This design wires those primitives into a unified `TuiApp` application class — no from-scratch rebuild — but adds snapshot-driven data flow, tabbed workspaces, and lifecycle phase tracking.
 
 ---
 
@@ -535,7 +535,7 @@ it('preserves runtime scroll across tab switches', () => {
 
 ## 10. CLI Bootstrap Refactor
 
-`src/cli/commands/tui.ts` becomes a thin dispatcher:
+`src/interfaces/cli/commands/tui.ts` becomes a thin dispatcher:
 
 ```ts
 import { TuiApp } from '../../tui/app.js';
@@ -595,11 +595,11 @@ The `render()` purity test is the highest-value assertion in the design — it p
 
 In a dedicated final task (after the new architecture is proven via the parity integration test):
 
-1. Remove legacy rendering paths from `src/cli/commands/tui.ts` (the if-only replays data path, the inline chat loops, the inline approval handling).
+1. Remove legacy rendering paths from `src/interfaces/cli/commands/tui.ts` (the if-only replays data path, the inline chat loops, the inline approval handling).
 2. Delete dead code:
    - The `ChatDashboard` widget if it duplicates `dashboard-renderer.ts`.
    - The `state-theater.ts` widget if it's still inline-referencing the legacy TUI.
-   - Any sub-30-line files in `src/tui/widgets/` whose sole purpose was to support the legacy chat-only view.
+   - Any sub-30-line files in `src/interfaces/tui/widgets/` whose sole purpose was to support the legacy chat-only view.
 3. Final pass: simplify imports; ensure no view imports low-level ANSI primitives directly (must go through `box.ts` / `ansi.ts` / `cursor.ts` / `render.ts`).
 4. Run `pnpm typecheck && pnpm test:vitest && pnpm test:node` and confirm clean.
 

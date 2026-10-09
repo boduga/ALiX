@@ -13,7 +13,7 @@
 - Every install decision (approved **and** blocked) must be recorded to the evidence store — best-effort, never fails the install (mirrors `ConfigTrustHistory`).
 - Hard scan denials (denied files, secret-like content, spoofed `is_core`) **cannot** be overridden by `--force`; only the trust confirmation is bypassable.
 - Non-interactive installs (no TTY) of non-core skills fail closed: they require `--force`.
-- No new `cli/` imports inside `src/skills/security.ts` or `src/skills/trust.ts` — security modules stay independent of the CLI. `EXCLUDED_DIRS` and `DEFAULT_MARKETPLACES` are passed in as options/verified-urls.
+- No new `cli/` imports inside `src/capabilities/skills/security.ts` or `src/capabilities/skills/trust.ts` — security modules stay independent of the CLI. `EXCLUDED_DIRS` and `DEFAULT_MARKETPLACES` are passed in as options/verified-urls.
 - Existing test helper pattern: `tests/cli/commands/skills/test-helpers.ts` (`useTestHome`/`restoreTestHome`).
 - New node:test files go under `tests/…` and import from `src/…` with `.js` extensions (tsc-compiled to `dist/`), matching existing tests.
 - Run `pnpm build`, `pnpm test:node` (covers `tests/cli/commands/skills/*` and `tests/security/supply-chain/*`), and `pnpm test:vitest` (covers `tests/security/evidence/*.vitest.ts`) before merging.
@@ -26,23 +26,23 @@
 ## File Structure
 
 **Modified:**
-- `src/skills/types.ts` — `SkillManifest` gains `allowed_tools`, `requires`, `license`; `parseFrontMatter` parses them.
-- `src/security/evidence/evidence-types.ts` — add `"skill_installed"` to the `EvidenceType` union and `EVIDENCE_TYPES` set.
-- `src/config/schema.ts` — `skills.safety` config block.
-- `src/config/defaults.ts` — default `skills.safety` block.
-- `src/cli/commands/skills/marketplace.ts` — `resolveSkillPackageInMarketplaces` (package-first marketplace resolution, Task 4).
-- `src/cli/commands/skills/install.ts` — `atomicInstallSkill` temp+swap writer; `--from` write branches go atomic; `--force` option; scan + gate + evidence in both install paths; marketplace-by-name installs full packages.
-- `src/cli/commands/skills/run-skills.ts` — `--force` pass-through; `run` subcommand; help line.
+- `src/capabilities/skills/types.ts` — `SkillManifest` gains `allowed_tools`, `requires`, `license`; `parseFrontMatter` parses them.
+- `src/governance/security/evidence/evidence-types.ts` — add `"skill_installed"` to the `EvidenceType` union and `EVIDENCE_TYPES` set.
+- `src/operations/config/schema.ts` — `skills.safety` config block.
+- `src/operations/config/defaults.ts` — default `skills.safety` block.
+- `src/interfaces/cli/commands/skills/marketplace.ts` — `resolveSkillPackageInMarketplaces` (package-first marketplace resolution, Task 4).
+- `src/interfaces/cli/commands/skills/install.ts` — `atomicInstallSkill` temp+swap writer; `--from` write branches go atomic; `--force` option; scan + gate + evidence in both install paths; marketplace-by-name installs full packages.
+- `src/interfaces/cli/commands/skills/run-skills.ts` — `--force` pass-through; `run` subcommand; help line.
 - `tests/cli/commands/skills/install.test.ts` — `atomicInstallSkill` tests (Task 4); gate tests + `force: true` on existing package tests (Task 5).
 - `tests/cli/commands/skills/marketplace.test.ts` — `resolveSkillPackageInMarketplaces` tests (Task 4).
 - `tests/cli/commands/skills/run-skills.test.ts` — `run` subcommand parse tests.
 
 **Created:**
-- `src/skills/security.ts` — `checkManifest`, `scanSkillFiles`, `scanSkillDirectory`, `DANGEROUS_SHELL_PATTERNS`.
-- `src/skills/trust.ts` — `assessTrust`, `decideInstall`, `renderInstallReport`, `createInstallGate`.
-- `src/security/evidence/skill-install-history.ts` — `SkillInstallHistory` recorder.
-- `src/skills/sandbox.ts` — `runSandboxed` isolated runner.
-- `src/cli/commands/skills/run-skill.ts` — `alix skills run` handler.
+- `src/capabilities/skills/security.ts` — `checkManifest`, `scanSkillFiles`, `scanSkillDirectory`, `DANGEROUS_SHELL_PATTERNS`.
+- `src/capabilities/skills/trust.ts` — `assessTrust`, `decideInstall`, `renderInstallReport`, `createInstallGate`.
+- `src/governance/security/evidence/skill-install-history.ts` — `SkillInstallHistory` recorder.
+- `src/capabilities/skills/sandbox.ts` — `runSandboxed` isolated runner.
+- `src/interfaces/cli/commands/skills/run-skill.ts` — `alix skills run` handler.
 - `tests/skills/security.test.ts`, `tests/skills/trust.test.ts`, `tests/skills/sandbox.test.ts`.
 - `tests/security/evidence/skill-install-history.vitest.ts`.
 
@@ -51,8 +51,8 @@
 ### Task 1: Manifest parsing + declarative checks (Layer 1)
 
 **Files:**
-- Modify: `src/skills/types.ts` (manifest type + `parseFrontMatter`)
-- Create: `src/skills/security.ts`
+- Modify: `src/capabilities/skills/types.ts` (manifest type + `parseFrontMatter`)
+- Create: `src/capabilities/skills/security.ts`
 - Test: `tests/skills/security.test.ts`
 
 **Interfaces:**
@@ -62,9 +62,9 @@
   - `ManifestReport = { requestedTools: string[]; requires: string[]; license?: string; warnings: string[]; deny: boolean; denyCode?: string }`
   - `MANIFEST_DENY_CODES.SPOOFED_CORE = "SC_SKILL_SPOOFED_CORE"`
 
-- [ ] **Step 1: Extend `SkillManifest` and `parseFrontMatter` in `src/skills/types.ts`**
+- [ ] **Step 1: Extend `SkillManifest` and `parseFrontMatter` in `src/capabilities/skills/types.ts`**
 
-In `src/skills/types.ts`, extend the type (after `created_at`):
+In `src/capabilities/skills/types.ts`, extend the type (after `created_at`):
 
 ```ts
 export type SkillManifest = {
@@ -111,8 +111,8 @@ Inside `parseFrontMatter`'s returned object, add three fields (the manifest key 
 ```ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseSkillContent } from "../../src/skills/types.js";
-import { checkManifest, MANIFEST_DENY_CODES } from "../../src/skills/security.js";
+import { parseSkillContent } from "../../src/capabilities/skills/types.js";
+import { checkManifest, MANIFEST_DENY_CODES } from "../../src/capabilities/skills/security.js";
 
 describe("parseSkillContent manifest extensions", () => {
   it("parses allowed-tools (list), requires, license", () => {
@@ -175,9 +175,9 @@ describe("checkManifest", () => {
 - [ ] **Step 3: Run the tests — expect a compile failure (`security.js` doesn't exist)**
 
 Run: `pnpm build 2>&1 | tail -5`
-Expected: TypeScript error importing `../../src/skills/security.js` (module not found).
+Expected: TypeScript error importing `../../src/capabilities/skills/security.js` (module not found).
 
-- [ ] **Step 4: Create `src/skills/security.ts`**
+- [ ] **Step 4: Create `src/capabilities/skills/security.ts`**
 
 ```ts
 /**
@@ -185,7 +185,7 @@ Expected: TypeScript error importing `../../src/skills/security.js` (module not 
  *
  * Layer 1 (this file's manifest section): surface the declarative fields of a
  * skill manifest and hard-deny known-bad declarations. Skill content is
- * injected verbatim into agent prompts (src/agent/session.ts), so what a
+ * injected verbatim into agent prompts (src/agents/agent/session.ts), so what a
  * manifest declares is part of the trust decision a user makes at install time.
  *
  * Layer 2 (scan section): scan the files a skill package would install with the
@@ -379,7 +379,7 @@ Expected: all 7 tests pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/skills/types.ts src/skills/security.ts tests/skills/security.test.ts
+git add src/capabilities/skills/types.ts src/capabilities/skills/security.ts tests/skills/security.test.ts
 git commit -m "feat(skills): parse allowed-tools/requires/license + manifest checks (safety L1)"
 ```
 
@@ -464,7 +464,7 @@ describe("scanSkillDirectory", () => {
 - [ ] **Step 2: Run the tests — expect FAIL (functions exist from Task 1, so failures are assertion-level; verify each)**
 
 Run: `pnpm build && node --test dist/tests/skills/security.test.js`
-Expected: the newly appended cases fail or reveal mismatches (e.g. pattern not matching `rm -rf /`). If a pattern doesn't match, fix the regex in `src/skills/security.ts` rather than the test.
+Expected: the newly appended cases fail or reveal mismatches (e.g. pattern not matching `rm -rf /`). If a pattern doesn't match, fix the regex in `src/capabilities/skills/security.ts` rather than the test.
 
 - [ ] **Step 3: Make the tests pass**
 
@@ -482,7 +482,7 @@ Expected: all Layer-1 + Layer-2 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/skills/security.ts tests/skills/security.test.ts
+git add src/capabilities/skills/security.ts tests/skills/security.test.ts
 git commit -m "feat(skills): script scan reusing supply-chain verifier + shell heuristics (safety L2)"
 ```
 
@@ -491,8 +491,8 @@ git commit -m "feat(skills): script scan reusing supply-chain verifier + shell h
 ### Task 3: Trust model + install gate + config (Layer 3a)
 
 **Files:**
-- Create: `src/skills/trust.ts`
-- Modify: `src/config/schema.ts`, `src/config/defaults.ts`
+- Create: `src/capabilities/skills/trust.ts`
+- Modify: `src/operations/config/schema.ts`, `src/operations/config/defaults.ts`
 - Test: `tests/skills/trust.test.ts`
 
 **Interfaces:**
@@ -508,9 +508,9 @@ git commit -m "feat(skills): script scan reusing supply-chain verifier + shell h
   - `createInstallGate(promptFn?: (report: string) => Promise<boolean>): (input: InstallGateInput) => Promise<"approve" | "deny">`
   - Config: `skills.safety = { requireConfirmation?: boolean; scanScripts?: boolean; denyNetwork?: boolean; sandboxTimeoutMs?: number }`
 
-- [ ] **Step 1: Add `skills.safety` to `src/config/schema.ts`**
+- [ ] **Step 1: Add `skills.safety` to `src/operations/config/schema.ts`**
 
-In `src/config/schema.ts`, before the `skills?:` block add the type (near the other `type` declarations):
+In `src/operations/config/schema.ts`, before the `skills?:` block add the type (near the other `type` declarations):
 
 ```ts
 export type SkillSafetyConfig = {
@@ -535,7 +535,7 @@ Change the `skills` block to:
   };
 ```
 
-- [ ] **Step 2: Add defaults in `src/config/defaults.ts`**
+- [ ] **Step 2: Add defaults in `src/operations/config/defaults.ts`**
 
 Inside the `skills: { store: {...} }` block, add:
 
@@ -559,9 +559,9 @@ import {
   renderInstallReport,
   createInstallGate,
   type InstallGateInput,
-} from "../../src/skills/trust.js";
-import type { ManifestReport } from "../../src/skills/security.js";
-import type { SkillScanResult } from "../../src/skills/security.js";
+} from "../../src/capabilities/skills/trust.js";
+import type { ManifestReport } from "../../src/capabilities/skills/security.js";
+import type { SkillScanResult } from "../../src/capabilities/skills/security.js";
 
 const marketplaces = [
   { name: "anthropics/skills", url: "https://github.com/anthropics/skills" },
@@ -686,9 +686,9 @@ describe("renderInstallReport", () => {
 - [ ] **Step 4: Run the tests — expect FAIL (module missing)**
 
 Run: `pnpm build 2>&1 | tail -5`
-Expected: module-not-found error for `../../src/skills/trust.js`.
+Expected: module-not-found error for `../../src/capabilities/skills/trust.js`.
 
-- [ ] **Step 5: Create `src/skills/trust.ts`**
+- [ ] **Step 5: Create `src/capabilities/skills/trust.ts`**
 
 ```ts
 /**
@@ -859,7 +859,7 @@ Expected: all tests pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/skills/trust.ts src/config/schema.ts src/config/defaults.ts tests/skills/trust.test.ts
+git add src/capabilities/skills/trust.ts src/operations/config/schema.ts src/operations/config/defaults.ts tests/skills/trust.test.ts
 git commit -m "feat(skills): source trust model + install gate + safety config (safety L3a)"
 ```
 
@@ -876,8 +876,8 @@ The de facto skill format is a package — `SKILL.md` plus `scripts/`, `assets/`
 The safety gate (Task 5) layers on top of this — it runs before the atomic write, scanning `packageFiles`/`sourceDir`, then writing atomically.
 
 **Files:**
-- Modify: `src/cli/commands/skills/marketplace.ts`
-- Modify: `src/cli/commands/skills/install.ts`
+- Modify: `src/interfaces/cli/commands/skills/marketplace.ts`
+- Modify: `src/interfaces/cli/commands/skills/install.ts`
 - Modify: `tests/cli/commands/skills/install.test.ts`
 - Test: `tests/cli/commands/skills/marketplace.test.ts`
 
@@ -894,7 +894,7 @@ The safety gate (Task 5) layers on top of this — it runs before the atomic wri
 Append a new `describe` to the existing file. Imports:
 
 ```ts
-import { resolveSkillPackageInMarketplaces, type Marketplace } from "../../../../src/cli/commands/skills/marketplace.js";
+import { resolveSkillPackageInMarketplaces, type Marketplace } from "../../../../src/interfaces/cli/commands/skills/marketplace.js";
 ```
 
 ```ts
@@ -975,7 +975,7 @@ describe("resolveSkillPackageInMarketplaces", () => {
 Run: `pnpm build 2>&1 | tail -5`
 Expected: `resolveSkillPackageInMarketplaces` is not exported.
 
-- [ ] **Step 3: Add `resolveSkillPackageInMarketplaces` to `src/cli/commands/skills/marketplace.ts`**
+- [ ] **Step 3: Add `resolveSkillPackageInMarketplaces` to `src/interfaces/cli/commands/skills/marketplace.ts`**
 
 Append at the end of `marketplace.ts` (after `runMarketplaceCommand`):
 
@@ -1010,7 +1010,7 @@ Extend the existing imports (add `readdirSync` to the `node:fs` import, add `ato
 
 ```ts
 import { existsSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
-import { runInstall, resolveInstallOptions, atomicInstallSkill } from "../../../../src/cli/commands/skills/install.js";
+import { runInstall, resolveInstallOptions, atomicInstallSkill } from "../../../../src/interfaces/cli/commands/skills/install.js";
 ```
 
 Append a new `describe`:
@@ -1071,7 +1071,7 @@ describe("atomicInstallSkill", () => {
 Run: `pnpm build 2>&1 | tail -5`
 Expected: `atomicInstallSkill` is not exported.
 
-- [ ] **Step 6: Add `atomicInstallSkill` to `src/cli/commands/skills/install.ts` and rewire the `--from` write branches**
+- [ ] **Step 6: Add `atomicInstallSkill` to `src/interfaces/cli/commands/skills/install.ts` and rewire the `--from` write branches**
 
 Add `randomUUID` to the `node:crypto` import (new line at the top):
 
@@ -1155,7 +1155,7 @@ Expected: resolver + atomic tests pass; existing install tests still pass (no ga
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/cli/commands/skills/marketplace.ts src/cli/commands/skills/install.ts tests/cli/commands/skills/install.test.ts tests/cli/commands/skills/marketplace.test.ts
+git add src/interfaces/cli/commands/skills/marketplace.ts src/interfaces/cli/commands/skills/install.ts tests/cli/commands/skills/install.test.ts tests/cli/commands/skills/marketplace.test.ts
 git commit -m "feat(skills): package-faithful marketplace install + atomic copy"
 ```
 
@@ -1164,10 +1164,10 @@ git commit -m "feat(skills): package-faithful marketplace install + atomic copy"
 ### Task 5: Evidence recording + CLI wiring (Layer 3b)
 
 **Files:**
-- Modify: `src/security/evidence/evidence-types.ts`
-- Create: `src/security/evidence/skill-install-history.ts`
-- Modify: `src/cli/commands/skills/install.ts`
-- Modify: `src/cli/commands/skills/run-skills.ts`
+- Modify: `src/governance/security/evidence/evidence-types.ts`
+- Create: `src/governance/security/evidence/skill-install-history.ts`
+- Modify: `src/interfaces/cli/commands/skills/install.ts`
+- Modify: `src/interfaces/cli/commands/skills/run-skills.ts`
 - Modify: `tests/cli/commands/skills/install.test.ts`
 - Modify: `tests/cli/commands/skills/run-skills.test.ts`
 - Test: `tests/security/evidence/skill-install-history.vitest.ts`
@@ -1183,7 +1183,7 @@ git commit -m "feat(skills): package-faithful marketplace install + atomic copy"
 
 - [ ] **Step 1: Add the `skill_installed` evidence type**
 
-In `src/security/evidence/evidence-types.ts`, add to the `EvidenceType` union (after `"executive_step_orchestrated"`):
+In `src/governance/security/evidence/evidence-types.ts`, add to the `EvidenceType` union (after `"executive_step_orchestrated"`):
 
 ```ts
   // P-safety: skill install decisions
@@ -1201,8 +1201,8 @@ import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { SkillInstallHistory } from "../../../src/security/evidence/skill-install-history.js";
-import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
+import { SkillInstallHistory } from "../../../src/governance/security/evidence/skill-install-history.js";
+import { EvidenceStore } from "../../../src/governance/security/evidence/evidence-store.js";
 
 describe("SkillInstallHistory", () => {
   let dir: string;
@@ -1271,7 +1271,7 @@ describe("SkillInstallHistory", () => {
 Run: `pnpm test:vitest -- tests/security/evidence/skill-install-history.vitest.ts`
 Expected: module-not-found for `skill-install-history.js`.
 
-- [ ] **Step 4: Create `src/security/evidence/skill-install-history.ts`**
+- [ ] **Step 4: Create `src/governance/security/evidence/skill-install-history.ts`**
 
 ```ts
 /**
@@ -1334,7 +1334,7 @@ export class SkillInstallHistory {
 Run: `pnpm test:vitest -- tests/security/evidence/skill-install-history.vitest.ts`
 Expected: all pass.
 
-- [ ] **Step 6: Wire the gate + evidence into `src/cli/commands/skills/install.ts`**
+- [ ] **Step 6: Wire the gate + evidence into `src/interfaces/cli/commands/skills/install.ts`**
 
 Add imports at the top of `install.ts` (extend the existing `parseSkillContent` import on line 4 to also pull the type):
 
@@ -1543,7 +1543,7 @@ async function gateInstall(params: {
 
 Note: `gateInstall`'s `manifest` param is typed `SkillManifest | null` and null-checks internally. `resolveSkillInMarketplaces` is already imported at the top of `install.ts`; `DEFAULT_MARKETPLACES`, `resolveSkillPackageInMarketplaces` (from `./marketplace.js`), and `atomicInstallSkill` need imports added in Step 6.
 
-- [ ] **Step 7: Add `--force` and `run` to `src/cli/commands/skills/run-skills.ts`**
+- [ ] **Step 7: Add `--force` and `run` to `src/interfaces/cli/commands/skills/run-skills.ts`**
 
 In `resolveSkillsCommand`'s `install` branch, add `force: flags.has("--force"),`:
 
@@ -1598,7 +1598,7 @@ Add the import:
 import { runSkillCommand } from "./run-skill.js";
 ```
 
-- [ ] **Step 8: Create `src/cli/commands/skills/run-skill.ts`**
+- [ ] **Step 8: Create `src/interfaces/cli/commands/skills/run-skill.ts`**
 
 ```ts
 import { join } from "node:path";
@@ -1733,7 +1733,7 @@ Expected: all pass. Then the vitest evidence suite: `pnpm test:vitest -- tests/s
 - [ ] **Step 13: Commit**
 
 ```bash
-git add src/security/evidence/evidence-types.ts src/security/evidence/skill-install-history.ts src/cli/commands/skills/install.ts src/cli/commands/skills/run-skills.ts src/cli/commands/skills/run-skill.ts tests/cli/commands/skills/install.test.ts tests/cli/commands/skills/run-skills.test.ts tests/security/evidence/skill-install-history.vitest.ts
+git add src/governance/security/evidence/evidence-types.ts src/governance/security/evidence/skill-install-history.ts src/interfaces/cli/commands/skills/install.ts src/interfaces/cli/commands/skills/run-skills.ts src/interfaces/cli/commands/skills/run-skill.ts tests/cli/commands/skills/install.test.ts tests/cli/commands/skills/run-skills.test.ts tests/security/evidence/skill-install-history.vitest.ts
 git commit -m "feat(skills): evidence-recorded install gate wired into CLI (safety L3b)"
 ```
 
@@ -1742,7 +1742,7 @@ git commit -m "feat(skills): evidence-recorded install gate wired into CLI (safe
 ### Task 6: Runtime isolation sandbox (Layer 4)
 
 **Files:**
-- Create: `src/skills/sandbox.ts`
+- Create: `src/capabilities/skills/sandbox.ts`
 - Test: `tests/skills/sandbox.test.ts`
 
 **Interfaces:**
@@ -1756,7 +1756,7 @@ git commit -m "feat(skills): evidence-recorded install gate wired into CLI (safe
 ```ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { runSandboxed } from "../../src/skills/sandbox.js";
+import { runSandboxed } from "../../src/capabilities/skills/sandbox.js";
 
 describe("runSandboxed", () => {
   it("runs a command and captures stdout", async () => {
@@ -1797,9 +1797,9 @@ describe("runSandboxed", () => {
 - [ ] **Step 2: Run the tests — expect FAIL (module missing)**
 
 Run: `pnpm build 2>&1 | tail -5`
-Expected: module-not-found for `../../src/skills/sandbox.js`.
+Expected: module-not-found for `../../src/capabilities/skills/sandbox.js`.
 
-- [ ] **Step 3: Create `src/skills/sandbox.ts`**
+- [ ] **Step 3: Create `src/capabilities/skills/sandbox.ts`**
 
 ```ts
 /**
@@ -1981,7 +1981,7 @@ Expected: all pass. If the `HOME` filter test fails on platforms where `$SECRET`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/skills/sandbox.ts tests/skills/sandbox.test.ts
+git add src/capabilities/skills/sandbox.ts tests/skills/sandbox.test.ts
 git commit -m "feat(skills): sandboxed script runner with env/cwd/timeout isolation (safety L4)"
 ```
 

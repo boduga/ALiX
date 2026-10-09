@@ -32,7 +32,7 @@ import {
   type DecisionConfig,
   type JevTransport,
   type ScoredItem,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 function relevanceConfig(overrides?: Partial<DecisionConfig>): DecisionConfig {
   return {

@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
-import { FailureDatabase } from "../../../src/verifier/embedder/failure-db.js";
+import { FailureDatabase } from "../../../src/execution/verifier/embedder/failure-db.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { unlink } from "node:fs/promises";

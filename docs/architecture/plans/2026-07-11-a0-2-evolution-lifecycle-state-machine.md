@@ -15,7 +15,7 @@ A0.2 delivers a deterministic lifecycle state machine for evolution workflows. E
 
 A0.2 owns lifecycle behavior. It does not persist evidence — transition events are consumed by A0.3 to produce X2/X3b-compatible evidence records.
 
-Pattern reference: X4.1 execution state machine (`src/runtime/execution-state-machine.ts`).
+Pattern reference: X4.1 execution state machine (`src/runtime-state/runtime/execution-state-machine.ts`).
 
 ---
 
@@ -52,7 +52,7 @@ Pattern reference: X4.1 execution state machine (`src/runtime/execution-state-ma
 
 | Action | File |
 |--------|------|
-| CREATE | `src/evolution/evolution-state-machine.ts` |
+| CREATE | `src/planning/evolution/evolution-state-machine.ts` |
 | CREATE | `tests/evolution/evolution-state-machine.test.ts` |
 
 ---

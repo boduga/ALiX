@@ -294,7 +294,7 @@ The explanation ALWAYS renders. It never crashes on missing layers. Each layer e
 
 ### 6. How does Explain fit into the CLI topology?
 
-**New CLI dispatcher: `alix explain`.** Lives in `src/cli/commands/explain.ts` (new file). Switch on subcommand (`proposal` for now; future targets slot in as new cases).
+**New CLI dispatcher: `alix explain`.** Lives in `src/interfaces/cli/commands/explain.ts` (new file). Switch on subcommand (`proposal` for now; future targets slot in as new cases).
 
 **CLI integration:** Wire into the existing top-level CLI dispatcher (`src/cli.ts` or wherever `alix decision`, `alix learning` are routed). Add `case "explain"` that calls `handleExplainCommand(args)`.
 
@@ -385,7 +385,7 @@ Three layers of tests:
 - Missing data renders `not available` lines, not crashes
 
 **(d) Purity sentinel:**
-- `src/cli/commands/explain.ts` and the explanation assembler MUST NOT import any mutation surface (LearningStore write paths, ProposalStore, ApprovalGate, appliers, AutomaticProposalGenerator).
+- `src/interfaces/cli/commands/explain.ts` and the explanation assembler MUST NOT import any mutation surface (LearningStore write paths, ProposalStore, ApprovalGate, appliers, AutomaticProposalGenerator).
 - Sentinel test: grep these files for forbidden imports.
 
 ---
@@ -525,10 +525,10 @@ P9 becomes a much stronger layer because it can reason over human-readable expla
 ## File structure (new files for P8.5c)
 
 ```text
-src/cli/commands/explain.ts                        # CLI dispatcher + renderers
-src/explain/proposal-explanation-types.ts          # ProposalExplanation + layer interfaces
-src/explain/proposal-explanation-assembler.ts      # pure assembler (store reads → ProposalExplanation)
-src/explain/explain-purity-sentinels.vitest.ts     # sentinel test
+src/interfaces/cli/commands/explain.ts                        # CLI dispatcher + renderers
+src/operations/explain/proposal-explanation-types.ts          # ProposalExplanation + layer interfaces
+src/operations/explain/proposal-explanation-assembler.ts      # pure assembler (store reads → ProposalExplanation)
+src/operations/explain/explain-purity-sentinels.vitest.ts     # sentinel test
 tests/explain/proposal-explanation-assembler.vitest.ts  # unit + integration tests
 tests/cli/commands/explain-cli.vitest.ts           # CLI tests
 ```

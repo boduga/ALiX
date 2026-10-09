@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { RunLimiter } from "../../src/autonomy/run-limiter.js";
-import type { RunLimits, RunCounters } from "../../src/autonomy/run-limiter.js";
+import { RunLimiter } from "../../src/planning/autonomy/run-limiter.js";
+import type { RunLimits, RunCounters } from "../../src/planning/autonomy/run-limiter.js";
 
 describe("RunLimiter", () => {
   const limits: RunLimits = {

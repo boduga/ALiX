@@ -13,9 +13,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ReplanSimulator } from "../../src/kernel/replan-simulator.js";
-import { createWorkerAssignment } from "../../src/kernel/coordination-types.js";
-import type { PlanRevisionDraft } from "../../src/kernel/replan-types.js";
+import { ReplanSimulator } from "../../src/coordination/kernel/replan-simulator.js";
+import { createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import type { PlanRevisionDraft } from "../../src/coordination/kernel/replan-types.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 

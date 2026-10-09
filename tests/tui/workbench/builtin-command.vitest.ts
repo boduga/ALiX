@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseWorkbenchBuiltinCommand } from '../../../src/tui/workbench/input/builtin-command.js';
+import { parseWorkbenchBuiltinCommand } from '../../../src/interfaces/tui/workbench/input/builtin-command.js';
 
 describe('Workbench built-in commands', () => {
   it.each([

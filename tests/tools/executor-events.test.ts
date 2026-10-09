@@ -2,10 +2,10 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { join } from "node:path";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { EventLog } from "../../src/events/event-log.js";
-import { ToolExecutor } from "../../src/tools/executor.js";
-import { buildExecutionTrace } from "../../src/tui/runtime/execution-trace-builder.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { ToolExecutor } from "../../src/capabilities/tools/executor.js";
+import { buildExecutionTrace } from "../../src/interfaces/tui/runtime/execution-trace-builder.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 describe("Tool Executor Events", () => {
   const testDir = join(process.cwd(), `.test-tool-executor-events-${Date.now()}`);

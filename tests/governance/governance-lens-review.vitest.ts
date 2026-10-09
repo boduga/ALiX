@@ -14,8 +14,8 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { reviewLenses } from "../../src/governance/governance-lens-review.js";
-import { LearningStore } from "../../src/learning/learning-store.js";
-import type { CalibrationProfile } from "../../src/learning/learning-types.js";
+import { LearningStore } from "../../src/planning/learning/learning-store.js";
+import type { CalibrationProfile } from "../../src/planning/learning/learning-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants

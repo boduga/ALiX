@@ -15,7 +15,7 @@
 ## File Structure
 
 ### Modify
-- `src/runtime/ifamas-pipeline.ts` — add `chronicleStore` writing after successful diagnostic
+- `src/runtime-state/runtime/ifamas-pipeline.ts` — add `chronicleStore` writing after successful diagnostic
 - `tests/runtime/ifamas-pipeline.test.ts` — add tests for chronicle entry creation
 
 ---
@@ -23,7 +23,7 @@
 ### Task 1: Add Chronicle entry creation to ifamas-pipeline.ts
 
 **Files:**
-- Modify: `src/runtime/ifamas-pipeline.ts`
+- Modify: `src/runtime-state/runtime/ifamas-pipeline.ts`
 
 - [ ] **Step 1: After the eventLog emission block, add Chronicle entry writing**
 
@@ -73,7 +73,7 @@ Add after the existing imports:
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ChronicleStore } from "../../src/chronicle/chronicle-store.js";
+import { ChronicleStore } from "../../src/context/chronicle/chronicle-store.js";
 ```
 
 - [ ] **Step 2: Add test for chronicle entry creation**

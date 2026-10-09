@@ -28,51 +28,51 @@ import { join } from "node:path";
 // ---------------------------------------------------------------------------
 // M0 — Foundation
 // ---------------------------------------------------------------------------
-import type { TaskGraph } from "../src/kernel/task-graph.js";
-import { GraphExecutor } from "../src/kernel/graph-executor.js";
+import type { TaskGraph } from "../src/coordination/kernel/task-graph.js";
+import { GraphExecutor } from "../src/coordination/kernel/graph-executor.js";
 
 // ---------------------------------------------------------------------------
 // M1 — Agent Runtime
 // ---------------------------------------------------------------------------
-import { initAgent, type AgentContext } from "../src/agent/agent.js";
-import { CoordinationScheduler } from "../src/kernel/coordination-scheduler.js";
+import { initAgent, type AgentContext } from "../src/agents/agent/agent.js";
+import { CoordinationScheduler } from "../src/coordination/kernel/coordination-scheduler.js";
 
 // ---------------------------------------------------------------------------
 // M2 — Memory Platform
 // ---------------------------------------------------------------------------
-import { MemoryStore } from "../src/utils/memory/store.js";
+import { MemoryStore } from "../src/operations/utils/memory/store.js";
 
 // ---------------------------------------------------------------------------
 // M3 — Tool Platform
 // ---------------------------------------------------------------------------
-import { ToolRegistry } from "../src/tools/tool-registry.js";
+import { ToolRegistry } from "../src/capabilities/tools/tool-registry.js";
 
 // ---------------------------------------------------------------------------
 // M4 — Planning
 // ---------------------------------------------------------------------------
-import { GraphPlanner } from "../src/kernel/graph-planner.js";
+import { GraphPlanner } from "../src/coordination/kernel/graph-planner.js";
 
 // ---------------------------------------------------------------------------
 // M5 — Orchestration
 // ---------------------------------------------------------------------------
-import { DaemonManager } from "../src/daemon/daemon-manager.js";
+import { DaemonManager } from "../src/operations/daemon/daemon-manager.js";
 
 // ---------------------------------------------------------------------------
 // M6 — Intelligence
 // ---------------------------------------------------------------------------
-import { CircuitBreaker } from "../src/providers/circuit-breaker.js";
+import { CircuitBreaker } from "../src/models/providers/circuit-breaker.js";
 
 // ---------------------------------------------------------------------------
 // M7 — Governance
 // ---------------------------------------------------------------------------
-import { PolicyGate } from "../src/policy/policy-gate.js";
-import { AuditStore } from "../src/audit/audit-store.js";
-import { ApprovalStore } from "../src/approvals/approval-store.js";
+import { PolicyGate } from "../src/governance/policy/policy-gate.js";
+import { AuditStore } from "../src/governance/audit/audit-store.js";
+import { ApprovalStore } from "../src/governance/approvals/approval-store.js";
 
 // ---------------------------------------------------------------------------
 // M8 — Observability
 // ---------------------------------------------------------------------------
-import { MetricRegistry } from "../src/observability/metric-registry.js";
+import { MetricRegistry } from "../src/operations/observability/metric-registry.js";
 
 const ROOT = join(process.cwd());
 
@@ -123,15 +123,15 @@ describe("M-series entry-point anchors", () => {
 
 describe("M-series canonical module paths exist on disk", () => {
   const anchors: Array<{ milestone: string; path: string }> = [
-    { milestone: "M0", path: "src/kernel/task-graph.ts" },
-    { milestone: "M1", path: "src/agent/agent.ts" },
-    { milestone: "M2", path: "src/utils/memory/store.ts" },
-    { milestone: "M3", path: "src/tools/tool-registry.ts" },
-    { milestone: "M4", path: "src/kernel/graph-planner.ts" },
-    { milestone: "M5", path: "src/daemon/daemon-manager.ts" },
-    { milestone: "M6", path: "src/providers/circuit-breaker.ts" },
-    { milestone: "M7", path: "src/policy/policy-gate.ts" },
-    { milestone: "M8", path: "src/observability/metric-registry.ts" },
+    { milestone: "M0", path: "src/coordination/kernel/task-graph.ts" },
+    { milestone: "M1", path: "src/agents/agent/agent.ts" },
+    { milestone: "M2", path: "src/operations/utils/memory/store.ts" },
+    { milestone: "M3", path: "src/capabilities/tools/tool-registry.ts" },
+    { milestone: "M4", path: "src/coordination/kernel/graph-planner.ts" },
+    { milestone: "M5", path: "src/operations/daemon/daemon-manager.ts" },
+    { milestone: "M6", path: "src/models/providers/circuit-breaker.ts" },
+    { milestone: "M7", path: "src/governance/policy/policy-gate.ts" },
+    { milestone: "M8", path: "src/operations/observability/metric-registry.ts" },
   ];
 
   it.each(anchors)("$milestone — $path exists", ({ path }) => {
@@ -142,12 +142,12 @@ describe("M-series canonical module paths exist on disk", () => {
 describe("M9 Distributed — expected ABSENT", () => {
   it("no distributed/clustering/federation platform module exists", () => {
     const candidates = [
-      "src/kernel/federation.ts",
+      "src/coordination/kernel/federation.ts",
       "src/cluster.ts",
       "src/federation.ts",
       "src/remote-worker.ts",
-      "src/runtime/remote-worker.ts",
-      "src/daemon/federation.ts",
+      "src/runtime-state/runtime/remote-worker.ts",
+      "src/operations/daemon/federation.ts",
     ];
     const present = candidates.filter((p) => existsSync(join(ROOT, p)));
     expect(present, `M9 is an unimplemented milestone; these must not exist: ${present.join(", ")}`).toEqual([]);

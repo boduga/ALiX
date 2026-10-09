@@ -14,7 +14,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { LensScore } from "../../src/adaptation/governance-review-types.js";
+import type { LensScore } from "../../src/planning/adaptation/governance-review-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,9 +34,9 @@ function stripComments(src: string): string {
 // Source texts
 // ---------------------------------------------------------------------------
 
-const typesSource = sourceOf("../../src/adaptation/governance-review-types.ts");
-const councilSource = sourceOf("../../src/adaptation/governance-review-council.ts");
-const lensSource = sourceOf("../../src/adaptation/lens-agent.ts");
+const typesSource = sourceOf("../../src/planning/adaptation/governance-review-types.ts");
+const councilSource = sourceOf("../../src/planning/adaptation/governance-review-council.ts");
+const lensSource = sourceOf("../../src/planning/adaptation/lens-agent.ts");
 
 const councilCodeOnly = stripComments(councilSource);
 const lensCodeOnly = stripComments(lensSource);
@@ -162,7 +162,7 @@ describe("P6.5 — Purity sentinel", () => {
 
 describe("P6.5b — LLMAdapter must not import provider catalog adapter", () => {
   it("llm-adapter.ts imports nothing from provider modules", () => {
-    const source = sourceOf("../../src/adaptation/llm-adapter.ts");
+    const source = sourceOf("../../src/planning/adaptation/llm-adapter.ts");
     const lines = source.split("\n").filter(l => !l.trim().startsWith("//"));
     expect(lines.some(l => l.includes('from "../providers') || l.includes("from './providers"))).toBe(false);
   });
@@ -170,7 +170,7 @@ describe("P6.5b — LLMAdapter must not import provider catalog adapter", () => 
 
 describe("P6.5b — ProviderCatalogAdapter implements LLMAdapter", () => {
   it("delegates complete() to the model adapter and tags provider/model", async () => {
-    const { ProviderCatalogAdapter } = await import("../../src/adaptation/provider-catalog-adapter.js");
+    const { ProviderCatalogAdapter } = await import("../../src/planning/adaptation/provider-catalog-adapter.js");
     const seen: unknown[] = [];
     const adapter = new ProviderCatalogAdapter(
       {
@@ -191,7 +191,7 @@ describe("P6.5b — ProviderCatalogAdapter implements LLMAdapter", () => {
 
 describe("P6.5b — LENS_JSON_SUFFIX is present in every prompt", () => {
   it("lens-agent.ts exports a non-empty LENS_JSON_SUFFIX", async () => {
-    const { LENS_JSON_SUFFIX } = await import("../../src/adaptation/lens-agent.js");
+    const { LENS_JSON_SUFFIX } = await import("../../src/planning/adaptation/lens-agent.js");
     expect(typeof LENS_JSON_SUFFIX).toBe("string");
     expect(LENS_JSON_SUFFIX).toContain("JSON");
     expect(LENS_JSON_SUFFIX.length).toBeGreaterThan(20);
@@ -219,7 +219,7 @@ describe("P6.5b — LensScore has optional provider/model", () => {
 
 describe("P6.5b — CLI validates --lens before provider setup", () => {
   it("runReview rejects an invalid --lens before any provider call", async () => {
-    const { runReview } = await import("../../src/cli/commands/decision/review.js");
+    const { runReview } = await import("../../src/interfaces/cli/commands/decision/review.js");
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
       throw new Error("process.exit");
     }) as never);

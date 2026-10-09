@@ -4,7 +4,7 @@
 
 **Goal:** Retire the A7.0/A7.1 legacy lifecycle subsystem, including overlay rehydration, the legacy CLI surface, and the canonical `CapabilityPlatform` accessor debt; install a structural sentinel preventing reintroduction. Pure deletion + sentinel enforcement; no new behavior.
 
-**Architecture:** `CapabilityPlatform.service` becomes the sole public capability boundary; `catalog` and `registry` become private composition-root internals. New `src/cli/commands/capability.ts` (singular) is the sole owner of the `alix capability` namespace. The plural `alix capabilities` is removed without alias. CAP-10.5 (evolution-signal emission seam) stays as a separate ticket.
+**Architecture:** `CapabilityPlatform.service` becomes the sole public capability boundary; `catalog` and `registry` become private composition-root internals. New `src/interfaces/cli/commands/capability.ts` (singular) is the sole owner of the `alix capability` namespace. The plural `alix capabilities` is removed without alias. CAP-10.5 (evolution-signal emission seam) stays as a separate ticket.
 
 **Tech Stack:** TypeScript, vitest (sentinel), node:test (supersession + CLI), existing CAP-8/9/10 platforms
 
@@ -15,10 +15,10 @@ These constraints bind every task in this plan. Any deviation requires user appr
 ### Locked rulings (verbatim from `memory/cap-11-rulings-locked.md`)
 
 1. **CAP-10.5 stays separate.** CAP-11 ships no behavior additions. M1 evolution-signal emission seam is an independent CAP-10.5 PR.
-2. **CLI namespace:** Create `src/cli/commands/capability.ts` (singular) as sole namespace dispatcher. Delete `src/cli/commands/capabilities.ts`. Existing `capability-proposals.ts` (CAP-9) and `capability-measure.ts` (CAP-10) stay intact.
+2. **CLI namespace:** Create `src/interfaces/cli/commands/capability.ts` (singular) as sole namespace dispatcher. Delete `src/interfaces/cli/commands/capabilities.ts`. Existing `capability-proposals.ts` (CAP-9) and `capability-measure.ts` (CAP-10) stay intact.
 3. **Sentinel scope:** New `cap-11-structural-cleanup-sentinel.vitest.ts` separate from `five-axis-sentinel.vitest.ts`. Delete `four-axis-sentinel.vitest.ts` (CAP-10 M5 closure). New `cap-11-supersession.test.ts` (node:test) is direct file-existence guard.
 4. **Overlay mechanics:** Delete `rehydrateLifecycleOverlay()`, `JsonlCapabilityLifecycleLedger`, `APPROVED_PENDING_APPLICATION`, `cli.ts` lifecycle wiring, and `CapabilityRegistry.applyLifecycleTransition()`. Keep canonical `lifecycleState` field + `get/set/clear/listLifecycleStates` methods (used by CAP-4/7/8).
-5. **Test removal:** Delete 15 `tests/evolution/capability-lifecycle/*` files + `tests/evolution/execution/capability-mutation-rollback.test.ts`. Preserve + UPDATE `tests/evolution/execution/integration/capability-mutation-executor-integration.test.ts` in place (drop `APPROVED_PENDING_APPLICATION` literal; keep negative-intent assertions). PRESERVE `src/capability/evolution/a7-proposals.ts` (CAP-9 active).
+5. **Test removal:** Delete 15 `tests/evolution/capability-lifecycle/*` files + `tests/evolution/execution/capability-mutation-rollback.test.ts`. Preserve + UPDATE `tests/evolution/execution/integration/capability-mutation-executor-integration.test.ts` in place (drop `APPROVED_PENDING_APPLICATION` literal; keep negative-intent assertions). PRESERVE `src/capabilities/capability/evolution/a7-proposals.ts` (CAP-9 active).
 6. **CLI registration:** Singular `command === "capability"` only. Plural `capabilities` removed entirely — no alias, no redirect, no deprecation warning.
 7. **Doc cleanup:** Banner A7.0/A7.1 checkpoints with `SUPERSEDED by CAP-11 — 2026-08-14`. Update greenfield architecture design §10/§11 + reconciled program CAP-11 status. Historical CAP-3/5/6/10 plans UNCHANGED.
 8. **Platform surface:** `service` is sole public field. `catalog` and `registry` are composition-root internals (no public type exposure).
@@ -27,12 +27,12 @@ These constraints bind every task in this plan. Any deviation requires user appr
 
 ### Forbidden files (CAP-11 must not touch)
 
-- `src/capability/initial-capabilities.ts` (CAP-8 forbidden, preserved)
-- `src/tools/tool-registry.ts` (CAP-8 forbidden)
-- `src/policy/capability-registry.ts` (CAP-8 forbidden)
-- `src/capability/canonical/*` (CAP-8 forbidden)
-- `src/tui/capabilities/capability-service.ts` (CAP-7/9 forbidden TUI façade — pre-CAP-11 debt, NOT CAP-11's deletion)
-- `src/capability/evolution/a7-proposals.ts` (CAP-9 active, preserved)
+- `src/capabilities/capability/initial-capabilities.ts` (CAP-8 forbidden, preserved)
+- `src/capabilities/tools/tool-registry.ts` (CAP-8 forbidden)
+- `src/governance/policy/capability-registry.ts` (CAP-8 forbidden)
+- `src/capabilities/capability/canonical/*` (CAP-8 forbidden)
+- `src/interfaces/tui/capabilities/capability-service.ts` (CAP-7/9 forbidden TUI façade — pre-CAP-11 debt, NOT CAP-11's deletion)
+- `src/capabilities/capability/evolution/a7-proposals.ts` (CAP-9 active, preserved)
 - All CAP-8/9/10 production code (composition-root boundary, optional ctor deps, governance purity, sentinel axes preserved)
 - Any behavior addition (CAP-11 ships no new behavior; pure deletion only)
 
@@ -50,7 +50,7 @@ These constraints bind every task in this plan. Any deviation requires user appr
 - `.js` extensions on relative imports
 - `Object.freeze(this)` after all property assignments
 - Long-form event types (`capability.governance.proposal.*`, etc.)
-- `capability-lifecycle` was a CAP-10 ruling #17 type-only import target; the engine was the orchestrator. After CAP-11, no file imports from `src/evolution/capability-lifecycle/*`.
+- `capability-lifecycle` was a CAP-10 ruling #17 type-only import target; the engine was the orchestrator. After CAP-11, no file imports from `src/planning/evolution/capability-lifecycle/*`.
 
 ### Commit message format
 
@@ -71,8 +71,8 @@ Types: `feat` (additions), `fix` (bug fixes), `refactor` (no behavior change), `
 ### Deleted (source)
 
 ```
-src/evolution/capability-lifecycle/                  # entire directory (13 files)
-src/cli/commands/capabilities.ts                     # CAP-8 re-export shim
+src/planning/evolution/capability-lifecycle/                  # entire directory (13 files)
+src/interfaces/cli/commands/capabilities.ts                     # CAP-8 re-export shim
 ```
 
 ### Deleted (tests)
@@ -86,7 +86,7 @@ tests/capability/four-axis-sentinel.vitest.ts        # CAP-10 M5 closure
 ### Created
 
 ```
-src/cli/commands/capability.ts                      # singular namespace dispatcher
+src/interfaces/cli/commands/capability.ts                      # singular namespace dispatcher
 tests/capability/cap-11-structural-cleanup-sentinel.vitest.ts
 tests/capability/cap-11-supersession.test.ts
 ```
@@ -94,9 +94,9 @@ tests/capability/cap-11-supersession.test.ts
 ### Modified
 
 ```
-src/capability/registry.ts                           # remove applyLifecycleTransition
-src/capability/platform.ts                           # catalog/registry private
-src/capability/measurement/capability-measurement-engine.ts  # drop vacuous doc comment
+src/capabilities/capability/registry.ts                           # remove applyLifecycleTransition
+src/capabilities/capability/platform.ts                           # catalog/registry private
+src/capabilities/capability/measurement/capability-measurement-engine.ts  # drop vacuous doc comment
 src/cli.ts                                           # singular capability block
 tests/capability/cap-9-supersession.test.ts          # acknowledge CAP-11 retirement
 tests/capability/composition-root-wiring.vitest.ts  # injected fixtures
@@ -113,14 +113,14 @@ docs/superpowers/specs/2026-08-10-capability-platform-greenfield-reconciled-prog
 ### Preserved (must not touch)
 
 ```
-src/capability/evolution/a7-proposals.ts             # CAP-9 A7ProposalGenerator
-src/cli/commands/capability-proposals.ts            # CAP-9
-src/cli/commands/capability-measure.ts              # CAP-10
-src/capability/capability-service.ts                 # CAP-8/9/10
-src/capability/types/service-results.ts              # CAP-8/9/10
-src/evolution/observation/a5-capability-measurement.ts  # CAP-10
-src/evolution/execution/capability-mutation-executor.ts  # CAP-4
-src/capability/provider-resolver.ts                  # CAP-4/7
+src/capabilities/capability/evolution/a7-proposals.ts             # CAP-9 A7ProposalGenerator
+src/interfaces/cli/commands/capability-proposals.ts            # CAP-9
+src/interfaces/cli/commands/capability-measure.ts              # CAP-10
+src/capabilities/capability/capability-service.ts                 # CAP-8/9/10
+src/capabilities/capability/types/service-results.ts              # CAP-8/9/10
+src/planning/evolution/observation/a5-capability-measurement.ts  # CAP-10
+src/planning/evolution/execution/capability-mutation-executor.ts  # CAP-4
+src/capabilities/capability/provider-resolver.ts                  # CAP-4/7
 ```
 
 ---
@@ -128,12 +128,12 @@ src/capability/provider-resolver.ts                  # CAP-4/7
 ## Task 1: Delete A7.1 lifecycle source machinery (R4, R5)
 
 **Files:**
-- Delete: `src/evolution/capability-lifecycle/*` (entire directory, 13 files)
-- Delete: `src/capability/registry.ts:applyLifecycleTransition()` method
+- Delete: `src/planning/evolution/capability-lifecycle/*` (entire directory, 13 files)
+- Delete: `src/capabilities/capability/registry.ts:applyLifecycleTransition()` method
 - Modify: any other source file referencing A7.1 symbols
 
 **Interfaces:**
-- Consumes: `CapabilityRegistry.setLifecycleState()` (canonical, KEEP); `LifecycleState` type from `src/adaptation/capability-evolution-types.ts`
+- Consumes: `CapabilityRegistry.setLifecycleState()` (canonical, KEEP); `LifecycleState` type from `src/planning/adaptation/capability-evolution-types.ts`
 - Produces: deleted directory; `CapabilityRegistry` without `applyLifecycleTransition` method
 
 ### Steps
@@ -141,7 +141,7 @@ src/capability/provider-resolver.ts                  # CAP-4/7
 - [ ] **Step 1: Delete the directory**
 
 ```bash
-git rm -r src/evolution/capability-lifecycle/
+git rm -r src/planning/evolution/capability-lifecycle/
 ```
 
 Expected: directory and all 13 files removed from git.
@@ -149,12 +149,12 @@ Expected: directory and all 13 files removed from git.
 - [ ] **Step 2: Remove `applyLifecycleTransition()` from `CapabilityRegistry`**
 
 ```bash
-grep -n "applyLifecycleTransition" src/capability/registry.ts
+grep -n "applyLifecycleTransition" src/capabilities/capability/registry.ts
 ```
 
 Expected: one definition + one comment block. Delete the method (it's an alias for `setLifecycleState`).
 
-In `src/capability/registry.ts`, find the `applyLifecycleTransition` method (~line 133):
+In `src/capabilities/capability/registry.ts`, find the `applyLifecycleTransition` method (~line 133):
 
 ```typescript
 applyLifecycleTransition(id: string, to: LifecycleState): void {
@@ -191,13 +191,13 @@ git add -A && git commit -m "feat(capability): CAP-11 delete A7.1 lifecycle sour
 ## Task 2: Create `capability.ts` singular CLI dispatcher + delete `capabilities.ts` shim (R2)
 
 **Files:**
-- Create: `src/cli/commands/capability.ts`
-- Delete: `src/cli/commands/capabilities.ts`
-- Modify: `src/cli/commands/capability-measure.ts` (no change expected — already exists)
-- Modify: `src/cli/commands/capability-proposals.ts` (no change expected — already exists)
+- Create: `src/interfaces/cli/commands/capability.ts`
+- Delete: `src/interfaces/cli/commands/capabilities.ts`
+- Modify: `src/interfaces/cli/commands/capability-measure.ts` (no change expected — already exists)
+- Modify: `src/interfaces/cli/commands/capability-proposals.ts` (no change expected — already exists)
 
 **Interfaces:**
-- Consumes: `CapabilityService` from `src/capability/capability-service.js`; `capabilityProposalsCommand` from `./capability-proposals.js`; `capabilityMeasureCommand` from `./capability-measure.js`
+- Consumes: `CapabilityService` from `src/capabilities/capability/capability-service.js`; `capabilityProposalsCommand` from `./capability-proposals.js`; `capabilityMeasureCommand` from `./capability-measure.js`
 - Produces: `handleCapabilityCommand(args, deps): Promise<number | void>` dispatcher
 
 ### Steps
@@ -205,12 +205,12 @@ git add -A && git commit -m "feat(capability): CAP-11 delete A7.1 lifecycle sour
 - [ ] **Step 1: Inspect existing handler signatures**
 
 ```bash
-grep -n "export.*function\|export.*async function" src/cli/commands/capability-proposals.ts src/cli/commands/capability-measure.ts
+grep -n "export.*function\|export.*async function" src/interfaces/cli/commands/capability-proposals.ts src/interfaces/cli/commands/capability-measure.ts
 ```
 
 Expected: `capabilityProposalsCommand(args, deps)` + `capabilityMeasureCommand(args, deps)` exported.
 
-- [ ] **Step 2: Create `src/cli/commands/capability.ts`**
+- [ ] **Step 2: Create `src/interfaces/cli/commands/capability.ts`**
 
 ```typescript
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -253,10 +253,10 @@ export async function handleCapabilityCommand(
 }
 ```
 
-- [ ] **Step 3: Delete `src/cli/commands/capabilities.ts` shim**
+- [ ] **Step 3: Delete `src/interfaces/cli/commands/capabilities.ts` shim**
 
 ```bash
-git rm src/cli/commands/capabilities.ts
+git rm src/interfaces/cli/commands/capabilities.ts
 ```
 
 - [ ] **Step 4: Verify typecheck**
@@ -355,24 +355,24 @@ git add src/cli.ts && git commit -m "feat(cli): CAP-11 singular capability regis
 
 ---
 
-## Task 4: Refactor `src/capability/platform.ts` — private catalog/registry (R8)
+## Task 4: Refactor `src/capabilities/capability/platform.ts` — private catalog/registry (R8)
 
 **Files:**
-- Modify: `src/capability/platform.ts`
+- Modify: `src/capabilities/capability/platform.ts`
 
 ### Steps
 
 - [ ] **Step 1: Inspect current public surface**
 
 ```bash
-grep -n "readonly\|public\|export" src/capability/platform.ts | head -20
+grep -n "readonly\|public\|export" src/capabilities/capability/platform.ts | head -20
 ```
 
 Expected: `readonly registry: CapabilityRegistry`, `readonly catalog: CapabilityCatalog`, `readonly service: CapabilityService`.
 
 - [ ] **Step 2: Make `catalog` and `registry` private**
 
-In `src/capability/platform.ts`, change:
+In `src/capabilities/capability/platform.ts`, change:
 
 ```typescript
   readonly registry: CapabilityRegistry;
@@ -406,7 +406,7 @@ Expected: 0 errors on platform itself; tests will fail until T5 refactors them.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/platform.ts && git commit -m "refactor(capability): CAP-11 make catalog/registry private; service is sole public surface"
+git add src/capabilities/capability/platform.ts && git commit -m "refactor(capability): CAP-11 make catalog/registry private; service is sole public surface"
 ```
 
 ---
@@ -552,7 +552,7 @@ git rm tests/capability/four-axis-sentinel.vitest.ts
 
 - [ ] **Step 2: Update `cap-9-supersession.test.ts`**
 
-Find the assertion that "CAP-9 left `src/evolution/capability-lifecycle/*` untouched" and rewrite to:
+Find the assertion that "CAP-9 left `src/planning/evolution/capability-lifecycle/*` untouched" and rewrite to:
 
 ```typescript
 // CAP-9 originally protected this surface; CAP-11 subsequently retired it.
@@ -575,20 +575,20 @@ import assert from "node:assert/strict";
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
 const DELETED_SOURCE_FILES = [
-  "src/evolution/capability-lifecycle/index.ts",
-  "src/evolution/capability-lifecycle/errors.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-analyzer.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-applier.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-cli.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-ledger.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-rehydration.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-step-executor.ts",
-  "src/evolution/capability-lifecycle/capability-execution-projection.ts",
-  "src/evolution/capability-lifecycle/capability-governance-bridge.ts",
-  "src/evolution/capability-lifecycle/capability-proposal-builder.ts",
-  "src/evolution/capability-lifecycle/contracts/lifecycle-contract.ts",
-  "src/cli/commands/capabilities.ts",
+  "src/planning/evolution/capability-lifecycle/index.ts",
+  "src/planning/evolution/capability-lifecycle/errors.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-analyzer.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-applier.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-cli.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-ledger.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-rehydration.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-step-executor.ts",
+  "src/planning/evolution/capability-lifecycle/capability-execution-projection.ts",
+  "src/planning/evolution/capability-lifecycle/capability-governance-bridge.ts",
+  "src/planning/evolution/capability-lifecycle/capability-proposal-builder.ts",
+  "src/planning/evolution/capability-lifecycle/contracts/lifecycle-contract.ts",
+  "src/interfaces/cli/commands/capabilities.ts",
 ];
 
 const DELETED_TEST_FILES = [
@@ -714,7 +714,7 @@ describe("CAP-11 Structural Cleanup Sentinel (ruling #3, #4, #8)", () => {
     }
   });
 
-  it("axis 3: no file imports from src/evolution/capability-lifecycle/*", () => {
+  it("axis 3: no file imports from src/planning/evolution/capability-lifecycle/*", () => {
     const walk = (dir: string): string[] => {
       const out: string[] = [];
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -739,7 +739,7 @@ describe("CAP-11 Structural Cleanup Sentinel (ruling #3, #4, #8)", () => {
     const srcFiles = collectFiles(path.join(REPO_ROOT, "src"));
     for (const f of srcFiles) {
       const text = fs.readFileSync(f, "utf-8");
-      if (f.endsWith("src/capability/platform.ts")) continue;
+      if (f.endsWith("src/capabilities/capability/platform.ts")) continue;
       expect(text, path.relative(REPO_ROOT, f)).not.toMatch(/new\s+CapabilityRegistry\s*\(/);
     }
   });
@@ -747,7 +747,7 @@ describe("CAP-11 Structural Cleanup Sentinel (ruling #3, #4, #8)", () => {
   it("axis 5: CapabilityPlatform.service is the sole public capability surface (no platform.registry / platform.catalog in non-test code)", () => {
     const srcFiles = collectFiles(path.join(REPO_ROOT, "src"));
     for (const f of srcFiles) {
-      if (f.endsWith("src/capability/platform.ts")) continue;
+      if (f.endsWith("src/capabilities/capability/platform.ts")) continue;
       const text = fs.readFileSync(f, "utf-8");
       expect(text, path.relative(REPO_ROOT, f)).not.toMatch(/platform\.registry/);
       expect(text, path.relative(REPO_ROOT, f)).not.toMatch(/platform\.catalog/);
@@ -756,7 +756,7 @@ describe("CAP-11 Structural Cleanup Sentinel (ruling #3, #4, #8)", () => {
 
   it("axis 6: CapabilityRegistry.applyLifecycleTransition removed (ruling #4)", () => {
     const registrySrc = fs.readFileSync(
-      path.join(REPO_ROOT, "src/capability/registry.ts"),
+      path.join(REPO_ROOT, "src/capabilities/capability/registry.ts"),
       "utf-8",
     );
     expect(registrySrc).not.toMatch(/applyLifecycleTransition/);
@@ -786,10 +786,10 @@ function collectFiles(dir: string): string[] {
 - [ ] **Step 5: Drop vacuous doc comment in `capability-measurement-engine.ts`**
 
 ```bash
-grep -n "MUST NOT import" src/capability/measurement/capability-measurement-engine.ts
+grep -n "MUST NOT import" src/capabilities/capability/measurement/capability-measurement-engine.ts
 ```
 
-Remove the bullet: "MUST NOT import `src/evolution/capability-lifecycle/*`." (path is gone; vacuous.)
+Remove the bullet: "MUST NOT import `src/planning/evolution/capability-lifecycle/*`." (path is gone; vacuous.)
 
 - [ ] **Step 6: Run all tests + typecheck**
 
@@ -860,7 +860,7 @@ git add docs/ && git commit -m "docs(architecture): CAP-11 supersession banners 
 | Ticket #495 AC | Plan coverage |
 |----------------|---------------|
 | A7 capability CLI surface removed | T2 (delete `capabilities.ts`) + T3 (`cli.ts` singular block) |
-| A7 lifecycle machinery removed | T1 (delete `src/evolution/capability-lifecycle/*`) |
+| A7 lifecycle machinery removed | T1 (delete `src/planning/evolution/capability-lifecycle/*`) |
 | `APPROVED_PENDING_APPLICATION` removed | T1 (delete literal) + T6 (update test) |
 | Registry lifecycle overlay removed | T1 (delete rehydration) |
 | Obsolete A7 lifecycle tests removed | T6 (delete 15 tests) |

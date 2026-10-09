@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationRunLock } from "../../src/kernel/coordination-run-lock.js";
+import { CoordinationRunLock } from "../../src/coordination/kernel/coordination-run-lock.js";
 
 describe("CoordinationRunLock", () => {
   let cwd: string;

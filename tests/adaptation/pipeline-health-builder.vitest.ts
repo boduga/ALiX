@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { PipelineHealthBuilder } from "../../src/adaptation/pipeline-health-builder.js";
-import type { PipelineHealthInput } from "../../src/adaptation/pipeline-health-types.js";
+import { PipelineHealthBuilder } from "../../src/planning/adaptation/pipeline-health-builder.js";
+import type { PipelineHealthInput } from "../../src/planning/adaptation/pipeline-health-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

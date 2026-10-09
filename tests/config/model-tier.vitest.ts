@@ -3,9 +3,9 @@ import {
   MODEL_SUBAGENT_TIERS,
   MODEL_TIER_VALUES,
   isModelTier,
-} from "../../src/config/schema.js";
-import type { ModelTier } from "../../src/config/schema.js";
-import { PROFILE_TIER_MAP } from "../../src/config/profile-types.js";
+} from "../../src/operations/config/schema.js";
+import type { ModelTier } from "../../src/operations/config/schema.js";
+import { PROFILE_TIER_MAP } from "../../src/operations/config/profile-types.js";
 
 describe("canonical configuration tier vocabulary (schema.ts)", () => {
   it("MODEL_TIER_VALUES is the canonical closed tier set", () => {

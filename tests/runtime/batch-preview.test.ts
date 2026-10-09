@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { ReplayDiffSet } from "../../src/runtime/replay-diff-store.js";
-import { buildBatchRollbackPreview, detectFileOverlaps } from "../../src/runtime/batch-preview.js";
+import type { ReplayDiffSet } from "../../src/runtime-state/runtime/replay-diff-store.js";
+import { buildBatchRollbackPreview, detectFileOverlaps } from "../../src/runtime-state/runtime/batch-preview.js";
 
 describe("buildBatchRollbackPreview", () => {
   it("combines diff sets from multiple replayIds", async () => {

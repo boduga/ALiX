@@ -61,22 +61,22 @@ Transitive dependencies are not expanded. If B depends on A, and C depends on B,
 | Subsystem | Path | ADRs | Maintains |
 |-----------|------|------|-----------|
 | Orchestration | `src/orchestrator/` | 0001 | Dispatch, coordination |
-| Agents | `src/agents/`, `src/agent/` | 0001, 0007 | Subagent lifecycle, tool policy |
-| Runtime | `src/runtime/` | 0002 | Builder, runtime composition |
+| Agents | `src/agents/`, `src/agents/agent/` | 0001, 0007 | Subagent lifecycle, tool policy |
+| Runtime | `src/runtime-state/runtime/` | 0002 | Builder, runtime composition |
 | Session | `src/session/` | 0005, 0008 | Persistence, resume, checkpoints |
-| Security & Audit | `src/security/`, `src/audit/` | 0004, 0009 | Canonical JSON, audit store, credentials, redaction |
+| Security & Audit | `src/governance/security/`, `src/governance/audit/` | 0004, 0009 | Canonical JSON, audit store, credentials, redaction |
 | Governance | `src/gov/`, `src/governance/` | 0006 | CLI, evolution lifecycle |
-| Evolution | `src/evolution/` | 0006, 0011 | A-series pipeline, verification, execution, observation |
-| Capabilities | `src/capability/` | **0013** | Canonical definitions, lifecycle, provider bindings, discovery |
-| Capability integrations | `src/integrations/` | **0013** | Native/tool/MCP/external provider adapters |
-| Executive | `src/executive/` | 0010 | Planning, outcome evaluation, learning, recommendations |
-| Patches | `src/patch/` | 0012 | Edit format policy, preimage validation, rollback |
-| CLI | `src/cli/` | 0013 | Command tree and capability consumer surfaces |
-| Tools | `src/tools/` | 0013 | Tool provider implementation |
-| MCP | `src/mcp/` | 0013 | MCP provider/integration boundary |
-| Providers | `src/providers/` | 0003, 0007 | Model provider interface, routing |
+| Evolution | `src/planning/evolution/` | 0006, 0011 | A-series pipeline, verification, execution, observation |
+| Capabilities | `src/capabilities/capability/` | **0013** | Canonical definitions, lifecycle, provider bindings, discovery |
+| Capability integrations | `src/capabilities/integrations/` | **0013** | Native/tool/MCP/external provider adapters |
+| Executive | `src/execution/executive/` | 0010 | Planning, outcome evaluation, learning, recommendations |
+| Patches | `src/execution/patch/` | 0012 | Edit format policy, preimage validation, rollback |
+| CLI | `src/interfaces/cli/` | 0013 | Command tree and capability consumer surfaces |
+| Tools | `src/capabilities/tools/` | 0013 | Tool provider implementation |
+| MCP | `src/capabilities/mcp/` | 0013 | MCP provider/integration boundary |
+| Providers | `src/models/providers/` | 0003, 0007 | Model provider interface, routing |
 | Checkpoints | `src/checkpoints/` | 0005 | File-level checkpoints |
-| Recovery | `src/recovery/` | 0008 | Crash recovery |
+| Recovery | `src/execution/recovery/` | 0008 | Crash recovery |
 
 ---
 
@@ -88,8 +88,8 @@ Transitive dependencies are not expanded. If B depends on A, and C depends on B,
 Read: ADR-0013 (canonical capability/provider architecture)
 Read: docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md
 Read: docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md
-Read: src/capability/registry.ts, src/capability/types.ts
-Read: src/capability/execution-resolver.ts
+Read: src/capabilities/capability/registry.ts, src/capabilities/capability/types.ts
+Read: src/capabilities/capability/execution-resolver.ts
 ```
 
 **Hard rule:** never create a second `CapabilityRegistry` to serve a UI, CLI, governance module, or adapter.
@@ -98,7 +98,7 @@ Read: src/capability/execution-resolver.ts
 
 ```
 Read: ADR-0013
-Read: src/mcp/
+Read: src/capabilities/mcp/
 Read: provider binding/resolution contracts
 ```
 
@@ -120,7 +120,7 @@ Read: provider executor / argument / environment / cwd policy
 Read: ADR-0013 (capability ownership)
 Read: ADR-0006 (governed evolution pipeline)
 Read: A7 greenfield capability design + plan
-Read: src/evolution/capability-lifecycle/
+Read: src/planning/evolution/capability-lifecycle/
 ```
 
 A7 governs capability lifecycle; A4 remains the mutation boundary; the registry remains current-state authority.
@@ -146,16 +146,16 @@ Read: src/session/persist.ts, src/session/resume.ts
 ```
 Read: ADR-0006 (pipeline), ADR-0011 (verification model)
 Read: ADR-0009 (integrity hashing)
-Read: src/evolution/verification/contracts/verification-contract.ts
-Read: src/security/audit/canonical-json.ts
+Read: src/planning/evolution/verification/contracts/verification-contract.ts
+Read: src/governance/security/audit/canonical-json.ts
 ```
 
 ### Changing governance decisions
 
 ```
 Read: ADR-0006 (pipeline), ADR-0011 (verification model)
-Read: src/evolution/governance/decision-engine.ts
-Read: src/evolution/governance/decision-store.ts
+Read: src/planning/evolution/governance/decision-engine.ts
+Read: src/planning/evolution/governance/decision-store.ts
 ```
 
 ### Changing mutation/editing behavior
@@ -164,7 +164,7 @@ Read: src/evolution/governance/decision-store.ts
 Read: ADR-0012 (patch model)
 Read: ADR-0005 (plan snapshots)
 Read: ADR-0009 (path security)
-Read: src/patch/patch-engine.ts, src/patch/preimage-validator.ts
+Read: src/execution/patch/patch-engine.ts, src/execution/patch/preimage-validator.ts
 ```
 
 ### Changing the evolution pipeline
@@ -172,8 +172,8 @@ Read: src/patch/patch-engine.ts, src/patch/preimage-validator.ts
 ```
 Read: ADR-0006 (pipeline), ADR-0011 (verification), ADR-0012 (patch)
 Read: ADR-0009 (evidence integrity)
-Read: src/evolution/contracts/evolution-contract.ts
-Read: src/evolution/execution/, src/evolution/observation/
+Read: src/planning/evolution/contracts/evolution-contract.ts
+Read: src/planning/evolution/execution/, src/planning/evolution/observation/
 ```
 
 ### Changing model selection or provider routing
@@ -181,8 +181,8 @@ Read: src/evolution/execution/, src/evolution/observation/
 ```
 Read: ADR-0003 (model strategy)
 Read: ADR-0007 (role-to-model mapping)
-Read: src/config/schema.ts (ModelTierConfig)
-Read: src/providers/registry.ts
+Read: src/operations/config/schema.ts (ModelTierConfig)
+Read: src/models/providers/registry.ts
 ```
 
 ### Adding a new ADR

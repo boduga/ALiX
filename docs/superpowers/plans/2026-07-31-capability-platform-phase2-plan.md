@@ -4,35 +4,35 @@
 
 **Goal:** Deliver the Command Palette (Ctrl+P launcher) and the Capabilities tab as the first consumers of the Phase-1 Capability Platform, with an in-process `CapabilityService` that owns the platform, wires the full working set, and routes every invocation through an `InvocationPresenter` into the chat timeline.
 
-**Architecture:** A `src/tui/capabilities/` module is the single boundary. `CapabilityService` owns the process-local `CapabilityPlatform` instance (wired with `registerInitialCapabilities` + `registerSessionCapabilities` + a bootstrap-owned `ToolExecutor` passed in as a dependency), bridges `platform.events` → `toAlixEvent` → `EventLog`, and `invoke()` internally calls `presenter.present({ invocation, capabilityId, args })` so presentation is centralized. The palette (modal overlay) and Capabilities tab (9th view) are launchers only. The platform (`src/capability/*`) is **not modified**.
+**Architecture:** A `src/interfaces/tui/capabilities/` module is the single boundary. `CapabilityService` owns the process-local `CapabilityPlatform` instance (wired with `registerInitialCapabilities` + `registerSessionCapabilities` + a bootstrap-owned `ToolExecutor` passed in as a dependency), bridges `platform.events` → `toAlixEvent` → `EventLog`, and `invoke()` internally calls `presenter.present({ invocation, capabilityId, args })` so presentation is centralized. The palette (modal overlay) and Capabilities tab (9th view) are launchers only. The platform (`src/capabilities/capability/*`) is **not modified**.
 
 **Tech Stack:** TypeScript (NodeNext ESM, strict), vitest, the existing TUI canvas/view/key-dispatch system.
 
 ## Global Constraints
 
-- **Phase 2 adds consumers only — `src/capability/*` is NOT modified.** (Phase-1 invariant 9: the platform has no UI assumptions.)
+- **Phase 2 adds consumers only — `src/capabilities/capability/*` is NOT modified.** (Phase-1 invariant 9: the platform has no UI assumptions.)
 - NodeNext ESM (`import ... from "./x.js"`), strict TS, vitest.
 - Palette behavior is capability-only this phase; UI actions use a separate `PaletteAction` interface (never `Capability`).
 - `CapabilityService.invoke()` presents automatically via the owned `InvocationPresenter` — callers never call `presenter.present` themselves.
 - **Invocation ownership invariant:** only `CapabilityService.invoke()` may create user-facing capability execution — views and palette entries never call `CapabilityRuntime` directly.
 - **Infrastructure is bootstrap-owned:** the CLI bootstrap constructs the `ToolExecutor` (and session wiring) and passes it to the service via `CapabilityServiceOptions.toolExecutor`; the service wires it into the platform but does **not** construct infrastructure.
-- Capabilities flow only `Registry → Runtime → Invocation`; the platform never imports from `src/tui/`.
+- Capabilities flow only `Registry → Runtime → Invocation`; the platform never imports from `src/interfaces/tui/`.
 - Every task ends green: `npx tsc -p tsconfig.json --noEmit` passes and the task's tests pass.
 
 ## Repository Layout
 
 | File | Role |
 |---|---|
-| `src/tui/capabilities/capability-service.ts` | `CapabilityService` — owns platform + presenter; full wiring; invoke() presents; module singleton accessor |
-| `src/tui/capabilities/invocation-presenter.ts` | `InvocationPresenter` interface + `ChatInvocationPresenter` |
-| `src/tui/capabilities/palette.ts` | `PaletteProvider`, `CapabilityProvider`, `ActionProvider` (stub), `PaletteAction`, `PaletteModal` (UI state + key handling) |
-| `src/tui/capabilities/capabilities-view.ts` | `CapabilitiesView` — the 9th tab (TuiView) |
-| `src/tui/capabilities/index.ts` | Barrel |
-| `src/tui/state.ts` | `TabId` + `'capabilities'`; `CapabilityInvocationEntry`; `PerTabState.capabilityInvocations`; initial state |
-| `src/tui/views/chat-view.ts` | Render capability invocation entries in the chat timeline |
-| `src/tui/app.ts` | `TuiAppOptions.capabilityService`; Ctrl+P binding; palette modal state + painting; `TAB_ORDER` += `capabilities` |
-| `src/tui/views/index.ts` | Register `CapabilitiesView` |
-| `src/cli/commands/tui.ts` | Construct `CapabilityService`, `setCapabilityService(...)` before building `TuiApp` |
+| `src/interfaces/tui/capabilities/capability-service.ts` | `CapabilityService` — owns platform + presenter; full wiring; invoke() presents; module singleton accessor |
+| `src/interfaces/tui/capabilities/invocation-presenter.ts` | `InvocationPresenter` interface + `ChatInvocationPresenter` |
+| `src/interfaces/tui/capabilities/palette.ts` | `PaletteProvider`, `CapabilityProvider`, `ActionProvider` (stub), `PaletteAction`, `PaletteModal` (UI state + key handling) |
+| `src/interfaces/tui/capabilities/capabilities-view.ts` | `CapabilitiesView` — the 9th tab (TuiView) |
+| `src/interfaces/tui/capabilities/index.ts` | Barrel |
+| `src/interfaces/tui/state.ts` | `TabId` + `'capabilities'`; `CapabilityInvocationEntry`; `PerTabState.capabilityInvocations`; initial state |
+| `src/interfaces/tui/views/chat-view.ts` | Render capability invocation entries in the chat timeline |
+| `src/interfaces/tui/app.ts` | `TuiAppOptions.capabilityService`; Ctrl+P binding; palette modal state + painting; `TAB_ORDER` += `capabilities` |
+| `src/interfaces/tui/views/index.ts` | Register `CapabilitiesView` |
+| `src/interfaces/cli/commands/tui.ts` | Construct `CapabilityService`, `setCapabilityService(...)` before building `TuiApp` |
 | `tests/tui/capabilities/*.vitest.ts` | Tests per module |
 
 ---
@@ -40,8 +40,8 @@
 ### Task 1: State model — capability invocation entries + chat timeline rendering
 
 **Files:**
-- Modify: `src/tui/state.ts` (TabId union, `CapabilityInvocationEntry`, `PerTabState.capabilityInvocations`, `createInitialPerTabState`)
-- Modify: `src/tui/views/chat-view.ts`
+- Modify: `src/interfaces/tui/state.ts` (TabId union, `CapabilityInvocationEntry`, `PerTabState.capabilityInvocations`, `createInitialPerTabState`)
+- Modify: `src/interfaces/tui/views/chat-view.ts`
 - Test: `tests/tui/capabilities/chat-invocations.vitest.ts`
 
 **Interfaces:**
@@ -52,9 +52,9 @@
 ```typescript
 // tests/tui/capabilities/chat-invocations.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { createInitialTuiAppState, type CapabilityInvocationEntry } from '../../../src/tui/state.js';
-import { ChatView } from '../../../src/tui/views/chat-view.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
+import { createInitialTuiAppState, type CapabilityInvocationEntry } from '../../../src/interfaces/tui/state.js';
+import { ChatView } from '../../../src/interfaces/tui/views/chat-view.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
 
 describe('capability invocation chat entries', () => {
   it('initializes capabilityInvocations empty for every tab', () => {
@@ -92,7 +92,7 @@ Expected: FAIL — `capabilityInvocations` does not exist on PerTabState / `crea
 
 - [ ] **Step 3: Add the state model**
 
-In `src/tui/state.ts`:
+In `src/interfaces/tui/state.ts`:
 
 ```typescript
 // Near the top, extend the TabId union:
@@ -136,7 +136,7 @@ Find `createInitialPerTabState` (or wherever the per-tab initial object literal 
 
 - [ ] **Step 4: Render the entries in the chat view**
 
-In `src/tui/views/chat-view.ts`:
+In `src/interfaces/tui/views/chat-view.ts`:
 
 - Extend the `ScrollbackLine` kind union: `kind: 'user' | 'agent' | 'capability'`.
 - After the turn loop (after line 78, before `const offset = ctx.perTab.scrollOffset;`), append the invocation lines:
@@ -174,7 +174,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit`
 ```bash
-git add src/tui/state.ts src/tui/views/chat-view.ts tests/tui/capabilities/chat-invocations.vitest.ts
+git add src/interfaces/tui/state.ts src/interfaces/tui/views/chat-view.ts tests/tui/capabilities/chat-invocations.vitest.ts
 git commit -m "feat(tui): capability invocation entries in state + chat timeline"
 ```
 
@@ -183,11 +183,11 @@ git commit -m "feat(tui): capability invocation entries in state + chat timeline
 ### Task 2: InvocationPresenter + ChatInvocationPresenter
 
 **Files:**
-- Create: `src/tui/capabilities/invocation-presenter.ts`
+- Create: `src/interfaces/tui/capabilities/invocation-presenter.ts`
 - Test: `tests/tui/capabilities/invocation-presenter.vitest.ts`
 
 **Interfaces:**
-- Consumes: `CapabilityInvocationEntry` (Task 1), `PerTabState` from `src/tui/state.ts`, `Invocation` + `CapabilityEvent` from `src/capability/types.js`, `EventLog` from `src/events/event-log.js`.
+- Consumes: `CapabilityInvocationEntry` (Task 1), `PerTabState` from `src/interfaces/tui/state.ts`, `Invocation` + `CapabilityEvent` from `src/capabilities/capability/types.js`, `EventLog` from `src/runtime-state/events/event-log.js`.
 - Produces: `InvocationPresenter` interface, `ChatInvocationPresenter` (below).
 
 - [ ] **Step 1: Write the failing test**
@@ -195,8 +195,8 @@ git commit -m "feat(tui): capability invocation entries in state + chat timeline
 ```typescript
 // tests/tui/capabilities/invocation-presenter.vitest.ts
 import { describe, it, expect, vi } from 'vitest';
-import { ChatInvocationPresenter, type InvocationPresenter } from '../../../src/tui/capabilities/invocation-presenter.js';
-import type { Invocation, CapabilityEvent } from '../../../src/capability/types.js';
+import { ChatInvocationPresenter, type InvocationPresenter } from '../../../src/interfaces/tui/capabilities/invocation-presenter.js';
+import type { Invocation, CapabilityEvent } from '../../../src/capabilities/capability/types.js';
 
 function makeInvocation(id = 'inv_1', capabilityId = 'core.session.list'): Invocation & { __push(e: CapabilityEvent): void } {
   const events: CapabilityEvent[] = [];
@@ -237,7 +237,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the presenter**
 
 ```typescript
-// src/tui/capabilities/invocation-presenter.ts
+// src/interfaces/tui/capabilities/invocation-presenter.ts
 import type { PerTabState, CapabilityInvocationEntry } from '../state.js';
 import type { Invocation, CapabilityEvent } from '../../capability/types.js';
 
@@ -318,7 +318,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/capabilities/invocation-presenter.ts tests/tui/capabilities/invocation-presenter.vitest.ts
+git add src/interfaces/tui/capabilities/invocation-presenter.ts tests/tui/capabilities/invocation-presenter.vitest.ts
 git commit -m "feat(capabilities): InvocationPresenter routes invocations to the chat timeline"
 ```
 
@@ -327,11 +327,11 @@ git commit -m "feat(capabilities): InvocationPresenter routes invocations to the
 ### Task 3: CapabilityService
 
 **Files:**
-- Create: `src/tui/capabilities/capability-service.ts`
+- Create: `src/interfaces/tui/capabilities/capability-service.ts`
 - Test: `tests/tui/capabilities/capability-service.vitest.ts`
 
 **Interfaces:**
-- Consumes: `CapabilityPlatform` from `src/capability/platform.js`, `registerInitialCapabilities` from `src/capability/initial-capabilities.js`, `registerSessionCapabilities` from `src/integrations/session-capabilities.js`, `createToolExecutorAdapter` from `src/capability/tool-adapter.js`, `toAlixEvent` from `src/capability/event-bus.js`, `ToolExecutor` from `src/tools/executor.js`, `EventLog` from `src/events/event-log.js`, `InvocationPresenter` (Task 2).
+- Consumes: `CapabilityPlatform` from `src/capabilities/capability/platform.js`, `registerInitialCapabilities` from `src/capabilities/capability/initial-capabilities.js`, `registerSessionCapabilities` from `src/capabilities/integrations/session-capabilities.js`, `createToolExecutorAdapter` from `src/capabilities/capability/tool-adapter.js`, `toAlixEvent` from `src/capabilities/capability/event-bus.js`, `ToolExecutor` from `src/capabilities/tools/executor.js`, `EventLog` from `src/runtime-state/events/event-log.js`, `InvocationPresenter` (Task 2).
 - Produces: `CapabilityService` class + `getCapabilityService()` / `setCapabilityService()` / `clearCapabilityService()` module accessors.
 
 - [ ] **Step 1: Write the failing test**
@@ -341,7 +341,7 @@ git commit -m "feat(capabilities): InvocationPresenter routes invocations to the
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   CapabilityService, setCapabilityService, getCapabilityService, clearCapabilityService,
-} from '../../../src/tui/capabilities/capability-service.js';
+} from '../../../src/interfaces/tui/capabilities/capability-service.js';
 import type { InvocationPresenter } from './invocation-presenter.js';
 
 class FakeEventLog {
@@ -397,7 +397,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the service**
 
 ```typescript
-// src/tui/capabilities/capability-service.ts
+// src/interfaces/tui/capabilities/capability-service.ts
 import { CapabilityPlatform } from '../../capability/platform.js';
 import { registerInitialCapabilities } from '../../capability/initial-capabilities.js';
 import { createToolExecutorAdapter } from '../../capability/tool-adapter.js';
@@ -528,7 +528,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/capabilities/capability-service.ts tests/tui/capabilities/capability-service.vitest.ts
+git add src/interfaces/tui/capabilities/capability-service.ts tests/tui/capabilities/capability-service.vitest.ts
 git commit -m "feat(capabilities): CapabilityService — in-process platform + presenter wiring"
 ```
 
@@ -537,8 +537,8 @@ git commit -m "feat(capabilities): CapabilityService — in-process platform + p
 ### Task 4: Command Palette — providers + modal + Ctrl+P binding
 
 **Files:**
-- Create: `src/tui/capabilities/palette.ts`
-- Modify: `src/tui/app.ts` (TuiAppOptions, parseKey, key routing, modal painting)
+- Create: `src/interfaces/tui/capabilities/palette.ts`
+- Modify: `src/interfaces/tui/app.ts` (TuiAppOptions, parseKey, key routing, modal painting)
 - Test: `tests/tui/capabilities/palette.vitest.ts`
 
 **Interfaces:**
@@ -550,8 +550,8 @@ git commit -m "feat(capabilities): CapabilityService — in-process platform + p
 ```typescript
 // tests/tui/capabilities/palette.vitest.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CapabilityProvider, PaletteModal, type PaletteEntry } from '../../../src/tui/capabilities/palette.js';
-import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/tui/capabilities/capability-service.js';
+import { CapabilityProvider, PaletteModal, type PaletteEntry } from '../../../src/interfaces/tui/capabilities/palette.js';
+import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/interfaces/tui/capabilities/capability-service.js';
 import type { InvocationPresenter } from './invocation-presenter.js';
 
 function makeService(): CapabilityService {
@@ -614,7 +614,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the palette module**
 
 ```typescript
-// src/tui/capabilities/palette.ts
+// src/interfaces/tui/capabilities/palette.ts
 import { getCapabilityService } from './capability-service.js';
 import type { Capability } from '../../capability/types.js';
 
@@ -711,7 +711,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Wire the palette into TuiApp**
 
-In `src/tui/app.ts`:
+In `src/interfaces/tui/app.ts`:
 
 1. Import: `import { PaletteModal } from './capabilities/palette.js'; import { getCapabilityService } from './capabilities/capability-service.js';`
 
@@ -803,7 +803,7 @@ In `src/tui/app.ts`:
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui/capabilities --config vitest.config.mts`
 ```bash
-git add src/tui/capabilities/palette.ts src/tui/app.ts tests/tui/capabilities/palette.vitest.ts
+git add src/interfaces/tui/capabilities/palette.ts src/interfaces/tui/app.ts tests/tui/capabilities/palette.vitest.ts
 git commit -m "feat(capabilities): Command Palette over the capability registry"
 ```
 
@@ -812,13 +812,13 @@ git commit -m "feat(capabilities): Command Palette over the capability registry"
 ### Task 5: Capabilities tab
 
 **Files:**
-- Create: `src/tui/capabilities/capabilities-view.ts`
-- Modify: `src/tui/app.ts` (TAB_ORDER)
-- Modify: `src/tui/views/index.ts` (register view)
+- Create: `src/interfaces/tui/capabilities/capabilities-view.ts`
+- Modify: `src/interfaces/tui/app.ts` (TAB_ORDER)
+- Modify: `src/interfaces/tui/views/index.ts` (register view)
 - Test: `tests/tui/capabilities/capabilities-view.vitest.ts`
 
 **Interfaces:**
-- Consumes: `getCapabilityService` (Task 3), `TuiView`/`ViewRenderContext`/`ViewInputContext`/`ViewAction` from `src/tui/views/types.js`, `Capability` type.
+- Consumes: `getCapabilityService` (Task 3), `TuiView`/`ViewRenderContext`/`ViewInputContext`/`ViewAction` from `src/interfaces/tui/views/types.js`, `Capability` type.
 - Produces: `CapabilitiesView` (TuiView).
 
 - [ ] **Step 1: Write the failing test**
@@ -826,10 +826,10 @@ git commit -m "feat(capabilities): Command Palette over the capability registry"
 ```typescript
 // tests/tui/capabilities/capabilities-view.vitest.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CapabilitiesView } from '../../../src/tui/capabilities/capabilities-view.js';
-import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/tui/capabilities/capability-service.js';
-import { createInitialTuiAppState } from '../../../src/tui/state.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
+import { CapabilitiesView } from '../../../src/interfaces/tui/capabilities/capabilities-view.js';
+import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/interfaces/tui/capabilities/capability-service.js';
+import { createInitialTuiAppState } from '../../../src/interfaces/tui/state.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
 import type { InvocationPresenter } from './invocation-presenter.js';
 
 function setup() {
@@ -876,7 +876,7 @@ Expected: FAIL — module not found / `views.capabilities` missing.
 - [ ] **Step 3: Create the view**
 
 ```typescript
-// src/tui/capabilities/capabilities-view.ts
+// src/interfaces/tui/capabilities/capabilities-view.ts
 import type { TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from '../views/types.js';
 import type { TerminalCanvas } from '../canvas.js';
@@ -996,14 +996,14 @@ Expected: PASS.
 
 - [ ] **Step 5: Register the tab**
 
-In `src/tui/app.ts`: add `'capabilities'` to `TAB_ORDER` (after `'policy'`).
-In `src/tui/views/index.ts`: import `CapabilitiesView` and add it to the module-singleton map (`capabilities: new CapabilitiesView()`), plus export it.
+In `src/interfaces/tui/app.ts`: add `'capabilities'` to `TAB_ORDER` (after `'policy'`).
+In `src/interfaces/tui/views/index.ts`: import `CapabilitiesView` and add it to the module-singleton map (`capabilities: new CapabilitiesView()`), plus export it.
 
 - [ ] **Step 6: Build + commit**
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui/capabilities --config vitest.config.mts`
 ```bash
-git add src/tui/capabilities/capabilities-view.ts src/tui/app.ts src/tui/views/index.ts tests/tui/capabilities/capabilities-view.vitest.ts
+git add src/interfaces/tui/capabilities/capabilities-view.ts src/interfaces/tui/app.ts src/interfaces/tui/views/index.ts tests/tui/capabilities/capabilities-view.vitest.ts
 git commit -m "feat(capabilities): Capabilities tab catalog view"
 ```
 
@@ -1012,8 +1012,8 @@ git commit -m "feat(capabilities): Capabilities tab catalog view"
 ### Task 6: Bootstrap wiring + end-to-end integration
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
-- Modify: `src/tui/app.ts` (`TuiAppOptions.capabilityService` already added in Task 4 — verify)
+- Modify: `src/interfaces/cli/commands/tui.ts`
+- Modify: `src/interfaces/tui/app.ts` (`TuiAppOptions.capabilityService` already added in Task 4 — verify)
 - Test: `tests/tui/capabilities/integration.vitest.ts`
 
 **Interfaces:**
@@ -1025,10 +1025,10 @@ git commit -m "feat(capabilities): Capabilities tab catalog view"
 ```typescript
 // tests/tui/capabilities/integration.vitest.ts
 import { describe, it, expect, vi } from 'vitest';
-import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/tui/capabilities/capability-service.js';
-import { ChatInvocationPresenter } from '../../../src/tui/capabilities/invocation-presenter.js';
-import { CapabilityProvider, PaletteModal } from '../../../src/tui/capabilities/palette.js';
-import { createInitialTuiAppState } from '../../../src/tui/state.js';
+import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/interfaces/tui/capabilities/capability-service.js';
+import { ChatInvocationPresenter } from '../../../src/interfaces/tui/capabilities/invocation-presenter.js';
+import { CapabilityProvider, PaletteModal } from '../../../src/interfaces/tui/capabilities/palette.js';
+import { createInitialTuiAppState } from '../../../src/interfaces/tui/state.js';
 
 describe('capabilities integration', () => {
   it('query → palette → invoke → chat timeline end-to-end', async () => {
@@ -1063,7 +1063,7 @@ Expected: FAIL — `core.session.list` not found via the palette (session integr
 
 - [ ] **Step 3: Wire the bootstrap**
 
-In `src/cli/commands/tui.ts`, inside the `runTui`/bootstrap function, after `config` and `eventLog` are created and BEFORE constructing `TuiApp`:
+In `src/interfaces/cli/commands/tui.ts`, inside the `runTui`/bootstrap function, after `config` and `eventLog` are created and BEFORE constructing `TuiApp`:
 
 ```typescript
   // Capability Platform consumer wiring — in-process service owns the
@@ -1085,10 +1085,10 @@ In `src/cli/commands/tui.ts`, inside the `runTui`/bootstrap function, after `con
 
 Note: `currentSessionId` and `config` already exist in `tui.ts`. Pass `capabilityService` into the `TuiAppOptions` as `capabilityService` (the option was added in Task 4).
 
-Then bind the chat presenter in `src/tui/app.ts` (TuiApp owns the state; `this.state` is a field initializer so it is available in the constructor body):
+Then bind the chat presenter in `src/interfaces/tui/app.ts` (TuiApp owns the state; `this.state` is a field initializer so it is available in the constructor body):
 
 ```typescript
-// Static import at the top of src/tui/app.ts:
+// Static import at the top of src/interfaces/tui/app.ts:
 import { ChatInvocationPresenter } from './capabilities/invocation-presenter.js';
 
 // In the TuiApp constructor, after `this.renderer = new TuiRenderer();`:
@@ -1110,7 +1110,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/cli/commands/tui.ts tests/tui/capabilities/integration.vitest.ts
+git add src/interfaces/cli/commands/tui.ts tests/tui/capabilities/integration.vitest.ts
 git commit -m "feat(capabilities): wire CapabilityService into TUI bootstrap"
 ```
 
@@ -1140,7 +1140,7 @@ Ctrl+P opens the command palette: type to fuzzy-search capabilities, Enter
 to invoke. The Capabilities tab (9th tab) browses the catalog — docs,
 schemas, permissions, availability — and Enter invokes from there too.
 
-Every invocation runs through `CapabilityService.invoke()` (src/tui/
+Every invocation runs through `CapabilityService.invoke()` (src/interfaces/tui/
 capabilities/), which routes the lifecycle into the chat timeline (the
 operator's execution history) and bridges events into the EventLog via
 toAlixEvent. The platform itself is UI-unaware.
@@ -1161,7 +1161,7 @@ git commit -m "docs(capabilities): Phase-2 usage note + spec status to implement
 - ✅ Capabilities tab lists all capabilities with live availability + full metadata; Enter invokes.
 - ✅ `CapabilityService.invoke()` presents automatically (centralized presentation policy).
 - ✅ Platform events bridge to EventLog (`capability.*` types).
-- ✅ `src/capability/*` is unmodified; platform keeps its own 46-test suite.
+- ✅ `src/capabilities/capability/*` is unmodified; platform keeps its own 46-test suite.
 - ✅ Full working set wired (initial defs + session integration + tool executor).
 - ✅ Palette architecture supports future `ActionProvider` (UI actions ≠ capabilities).
 - ✅ Vitest green (new + existing), `tsc --noEmit` clean.

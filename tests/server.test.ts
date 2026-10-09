@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { InspectorComparison, InspectorSnapshot } from "../src/events/types.js";
-import { startServer } from "../src/server/server.js";
+import type { InspectorComparison, InspectorSnapshot } from "../src/runtime-state/events/types.js";
+import { startServer } from "../src/interfaces/server/server.js";
 
 function eventLine(seq: number, type: string, payload: unknown = {}, sessionId = "s1"): string {
   return JSON.stringify({

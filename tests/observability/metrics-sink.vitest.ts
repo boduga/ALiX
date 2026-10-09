@@ -2,9 +2,9 @@
  * R5.4 — canonical MetricsSink adapter over MetricsStore.
  */
 import { describe, expect, it } from "vitest";
-import type { MetricRow } from "../../src/observability/metrics-store.js";
-import type { MetricsStore } from "../../src/observability/metrics-store.js";
-import { createMetricsStoreSink } from "../../src/observability/metrics-sink.js";
+import type { MetricRow } from "../../src/operations/observability/metrics-store.js";
+import type { MetricsStore } from "../../src/operations/observability/metrics-store.js";
+import { createMetricsStoreSink } from "../../src/operations/observability/metrics-sink.js";
 
 describe("createMetricsStoreSink (R5.4)", () => {
   it("persists an observation as a MetricRow", async () => {

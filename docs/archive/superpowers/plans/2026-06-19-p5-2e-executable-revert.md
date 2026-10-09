@@ -23,20 +23,20 @@
 
 | File | Role |
 |---|---|
-| `src/adaptation/snapshot-store.ts` | **Create** — save/load/verify snapshots |
-| `src/adaptation/revert-applier.ts` | **Create** — restore from snapshot, integrity verify, record revert evidence |
-| `src/adaptation/adaptation-types.ts` | **Modify** — add `revert_proposal` action + `revert` target kind |
-| `src/adaptation/appliers/agent-card-applier.ts` | **Modify** — snapshot before update/add_capability |
-| `src/adaptation/appliers/skill-applier.ts` | **Modify** — snapshot before adjust_skill_definition |
-| `src/security/evidence/evidence-types.ts` | **Modify** — add `adaptation_snapshot_taken`, `adaptation_revert_failed` |
-| `src/workflow/evidence-writer.ts` | **Modify** — add `recordSnapshotTaken`, `recordRevertFailed` |
-| `src/cli/commands/adaptation.ts` | **Modify** — add `revert` subcommand + route `revert_proposal` to RevertApplier in `selectApplier` |
+| `src/planning/adaptation/snapshot-store.ts` | **Create** — save/load/verify snapshots |
+| `src/planning/adaptation/revert-applier.ts` | **Create** — restore from snapshot, integrity verify, record revert evidence |
+| `src/planning/adaptation/adaptation-types.ts` | **Modify** — add `revert_proposal` action + `revert` target kind |
+| `src/planning/adaptation/appliers/agent-card-applier.ts` | **Modify** — snapshot before update/add_capability |
+| `src/planning/adaptation/appliers/skill-applier.ts` | **Modify** — snapshot before adjust_skill_definition |
+| `src/governance/security/evidence/evidence-types.ts` | **Modify** — add `adaptation_snapshot_taken`, `adaptation_revert_failed` |
+| `src/coordination/workflow/evidence-writer.ts` | **Modify** — add `recordSnapshotTaken`, `recordRevertFailed` |
+| `src/interfaces/cli/commands/adaptation.ts` | **Modify** — add `revert` subcommand + route `revert_proposal` to RevertApplier in `selectApplier` |
 | Tests | Per task |
 
 ## Task 1: Revert types + snapshot store
 
 **Files:**
-- Create: `src/adaptation/snapshot-store.ts`
+- Create: `src/planning/adaptation/snapshot-store.ts`
 - Test: `tests/adaptation/snapshot-store.vitest.ts`
 
 **Interfaces:**
@@ -50,7 +50,7 @@ Snapshot content is base64-encoded. Storage at `.alix/adaptation/snapshots/<prop
 ## Task 2: `revert_proposal` action + target
 
 **Files:**
-- Modify: `src/adaptation/adaptation-types.ts`
+- Modify: `src/planning/adaptation/adaptation-types.ts`
 
 Add to `ProposalAction` union:
 ```ts
@@ -67,8 +67,8 @@ Add to `ProposalTarget` union:
 ## Task 3: `adaptation_snapshot_taken` + `adaptation_revert_failed` evidence
 
 **Files:**
-- Modify: `src/security/evidence/evidence-types.ts`
-- Modify: `src/workflow/evidence-writer.ts`
+- Modify: `src/governance/security/evidence/evidence-types.ts`
+- Modify: `src/coordination/workflow/evidence-writer.ts`
 - Test: `tests/security/evidence/evidence-writer.revert.vitest.ts`
 
 **Step 0:** Impact analysis on `EvidenceType`, `EvidenceEventWriter`.
@@ -77,8 +77,8 @@ Add to `ProposalTarget` union:
 ## Task 4: Before-snapshotting in appliers
 
 **Files:**
-- Modify: `src/adaptation/appliers/agent-card-applier.ts`
-- Modify: `src/adaptation/appliers/skill-applier.ts`
+- Modify: `src/planning/adaptation/appliers/agent-card-applier.ts`
+- Modify: `src/planning/adaptation/appliers/skill-applier.ts`
 - Test: Extend `tests/adaptation/appliers/agent-card-applier.vitest.ts` and `tests/adaptation/appliers/skill-applier.vitest.ts`
 
 **Behavior:**
@@ -89,7 +89,7 @@ Add to `ProposalTarget` union:
 ## Task 5: RevertApplier
 
 **Files:**
-- Create: `src/adaptation/revert-applier.ts`
+- Create: `src/planning/adaptation/revert-applier.ts`
 - Test: `tests/adaptation/revert-applier.vitest.ts`
 
 **Behavior:**
@@ -115,7 +115,7 @@ Add to `ProposalTarget` union:
 ## Task 6: CLI `revert` subcommand + selectApplier routing
 
 **Files:**
-- Modify: `src/cli/commands/adaptation.ts`
+- Modify: `src/interfaces/cli/commands/adaptation.ts`
 - Test: Extend `tests/cli/commands/adaptation.vitest.ts` (or create `adaptation-revert.vitest.ts`)
 
 **Behavior:**

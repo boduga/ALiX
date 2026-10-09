@@ -6,9 +6,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { TaskRegistry, daemonTaskLedgerStatus, resetDaemonTaskLedgerStatus } from "../../src/daemon/task-registry.js";
-import { reconcileDaemonTaskLedger } from "../../src/daemon/daemon-task-ledger-reconcile.js";
-import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/storage/runtime-ledger.js";
+import { TaskRegistry, daemonTaskLedgerStatus, resetDaemonTaskLedgerStatus } from "../../src/operations/daemon/task-registry.js";
+import { reconcileDaemonTaskLedger } from "../../src/operations/daemon/daemon-task-ledger-reconcile.js";
+import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/runtime-state/storage/runtime-ledger.js";
 
 let origHome: string | undefined;
 let testHome: string;

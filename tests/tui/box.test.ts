@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { box, green, yellow, red, dim, bold, truncate, pad, formatAge, statusDot, bar } from "../../src/tui/box.js";
+import { box, green, yellow, red, dim, bold, truncate, pad, formatAge, statusDot, bar } from "../../src/interfaces/tui/box.js";
 
 describe("box helpers", () => {
   it("truncate shortens long strings", () => {

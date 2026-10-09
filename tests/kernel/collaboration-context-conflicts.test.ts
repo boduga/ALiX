@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CollaborationStore } from "../../src/kernel/collaboration-store.js";
-import { CollaborationContextBuilder } from "../../src/kernel/collaboration-context-builder.js";
-import { renderContextSnapshot } from "../../src/kernel/collaboration-context-renderer.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
-import type { FindingConflict } from "../../src/kernel/collaboration-conflict-types.js";
-import type { CoordinationWorkerResultRecord } from "../../src/kernel/coordination-result-store.js";
+import { CollaborationStore } from "../../src/coordination/kernel/collaboration-store.js";
+import { CollaborationContextBuilder } from "../../src/coordination/kernel/collaboration-context-builder.js";
+import { renderContextSnapshot } from "../../src/coordination/kernel/collaboration-context-renderer.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import type { FindingConflict } from "../../src/coordination/kernel/collaboration-conflict-types.js";
+import type { CoordinationWorkerResultRecord } from "../../src/coordination/kernel/coordination-result-store.js";
 
 const RUN_ID = "run_ctx_1";
 const FINDING_ID = "f_target_1";

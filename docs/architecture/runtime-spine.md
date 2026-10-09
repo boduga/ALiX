@@ -33,52 +33,52 @@
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `runTask()` | `src/agent/agent-loop.ts` | Single-task execution loop |
-| `GraphExecutor` | `src/kernel/graph-executor.ts` | Multi-node sequential executor |
-| `GraphPlanner` | `src/kernel/graph-planner.ts` | Model-based graph generation |
-| `daemon-server` | `src/daemon/daemon-server.ts` | Persistent background runtime |
+| `runTask()` | `src/agents/agent/agent-loop.ts` | Single-task execution loop |
+| `GraphExecutor` | `src/coordination/kernel/graph-executor.ts` | Multi-node sequential executor |
+| `GraphPlanner` | `src/coordination/kernel/graph-planner.ts` | Model-based graph generation |
+| `daemon-server` | `src/operations/daemon/daemon-server.ts` | Persistent background runtime |
 
 ### 2. Governance Layer
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `CapabilityResolver` | `src/registry/capability-resolver.ts` | Can ALiX do this? |
-| `RuleEvaluator` | `src/policy/rule-evaluator.ts` | Is ALiX allowed to do this? |
-| `RuntimeGate` | `src/policy/runtime-gate.ts` | Two-layer gate (capability + policy + approval) |
-| `ApprovalStore` | `src/approvals/approval-store.ts` | User approval queue |
-| `AuditStore` | `src/audit/audit-store.ts` | Append-only audit trail |
+| `CapabilityResolver` | `src/capabilities/registry/capability-resolver.ts` | Can ALiX do this? |
+| `RuleEvaluator` | `src/governance/policy/rule-evaluator.ts` | Is ALiX allowed to do this? |
+| `RuntimeGate` | `src/governance/policy/runtime-gate.ts` | Two-layer gate (capability + policy + approval) |
+| `ApprovalStore` | `src/governance/approvals/approval-store.ts` | User approval queue |
+| `AuditStore` | `src/governance/audit/audit-store.ts` | Append-only audit trail |
 
 ### 3. Observability Layer
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `RuntimeIndex` | `src/runtime/runtime-index.ts` | Unified event index (6 backends) |
-| `GraphProjection` | `src/kernel/graph-projection.ts` | Run state reconstruction |
-| `Inspector` | `src/ui/` + `src/server/` | Read-only web UI |
+| `RuntimeIndex` | `src/runtime-state/runtime/runtime-index.ts` | Unified event index (6 backends) |
+| `GraphProjection` | `src/coordination/kernel/graph-projection.ts` | Run state reconstruction |
+| `Inspector` | `src/interfaces/ui/` + `src/interfaces/server/` | Read-only web UI |
 
 ### 4. Registry Layer
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `CardRegistry` | `src/registry/card-registry.ts` | Agent/tool identity |
-| `AgentCard` | `src/registry/agent-card.ts` | Agent capability declarations |
-| `ToolCard` | `src/registry/tool-card.ts` | Tool capability declarations |
+| `CardRegistry` | `src/capabilities/registry/card-registry.ts` | Agent/tool identity |
+| `AgentCard` | `src/capabilities/registry/agent-card.ts` | Agent capability declarations |
+| `ToolCard` | `src/capabilities/registry/tool-card.ts` | Tool capability declarations |
 
 ### 5. Workflow Layer
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `SopRegistry` | `src/sop/sop-registry.ts` | SOP pack catalog |
-| `SOP `research.deep_report` | `src/sop/research-deep-report.ts` | 6-node research workflow |
-| `SOP `infra.docker_compose_audit` | `src/sop/infra-docker-compose-audit.ts` | Docker compose audit |
+| `SopRegistry` | `src/coordination/sop/sop-registry.ts` | SOP pack catalog |
+| `SOP `research.deep_report` | `src/coordination/sop/research-deep-report.ts` | 6-node research workflow |
+| `SOP `infra.docker_compose_audit` | `src/coordination/sop/infra-docker-compose-audit.ts` | Docker compose audit |
 
 ### 6. Daemon Layer
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `DaemonManager` | `src/daemon/daemon-manager.ts` | PID/status lifecycle |
-| `TaskRegistry` | `src/daemon/task-registry.ts` | File-backed task queue |
-| `daemon-server` | `src/daemon/daemon-server.ts` | Unix socket command server |
+| `DaemonManager` | `src/operations/daemon/daemon-manager.ts` | PID/status lifecycle |
+| `TaskRegistry` | `src/operations/daemon/task-registry.ts` | File-backed task queue |
+| `daemon-server` | `src/operations/daemon/daemon-server.ts` | Unix socket command server |
 
 ## Data Flow
 

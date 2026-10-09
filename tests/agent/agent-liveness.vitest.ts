@@ -3,7 +3,7 @@ import {
   AgentLiveness,
   DEFAULT_LIVENESS_THRESHOLDS,
   type AgentLivenessSnapshot,
-} from "../../src/agent/agent-liveness.js";
+} from "../../src/agents/agent/agent-liveness.js";
 
 describe("AgentLiveness", () => {
   let now: number;

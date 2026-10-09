@@ -87,7 +87,7 @@ This instructs the model without needing new infrastructure.
 
 ### Task 2: Add research profile to graph builder
 
-**Files:** `src/sop/research-deep-report.ts`
+**Files:** `src/coordination/sop/research-deep-report.ts`
 
 - [ ] Add `executionProfile: "research"` to all 6 nodes (or at least the search/claims nodes)
 - [ ] Enhanced node goals that explicitly restrict tools:
@@ -100,7 +100,7 @@ This instructs the model without needing new infrastructure.
 
 ### Task 3: Wire research profile in GraphExecutor
 
-**Files:** `src/kernel/graph-executor.ts`, `src/kernel/task-graph.ts`
+**Files:** `src/coordination/kernel/graph-executor.ts`, `src/coordination/kernel/task-graph.ts`
 
 - [ ] Add `ExecutionProfile` type to `task-graph.ts`
 - [ ] Add `executionProfile?: ExecutionProfile` to `TaskNode`
@@ -109,7 +109,7 @@ This instructs the model without needing new infrastructure.
 
 ### Task 4: Artifact path guard
 
-**Files:** `src/sop/artifact-writer.ts`
+**Files:** `src/coordination/sop/artifact-writer.ts`
 
 - [ ] Verify `writeReportArtifacts()` already restricts to `.alix/reports/` (it does)
 - [ ] Write a note in the SOP runner about the artifact path restriction

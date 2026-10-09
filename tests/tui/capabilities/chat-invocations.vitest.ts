@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { createInitialTuiAppState, type TabId } from '../../../src/tui/state.js';
-import { ChatView } from '../../../src/tui/views/chat-view.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
+import { createInitialTuiAppState, type TabId } from '../../../src/interfaces/tui/state.js';
+import { ChatView } from '../../../src/interfaces/tui/views/chat-view.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
 
 describe('capability invocation chat entries', () => {
   it('PerTabState no longer carries the transitional timelineEvents cache (Phase 6 D9 cleanup)', () => {

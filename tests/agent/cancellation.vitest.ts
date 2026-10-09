@@ -30,21 +30,21 @@ const mocks = vi.hoisted(() => ({
   runTaskLoop: vi.fn(),
 }));
 
-vi.mock("../../src/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
-vi.mock("../../src/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
-vi.mock("../../src/utils/memory/recall.js", () => ({
+vi.mock("../../src/agents/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
+vi.mock("../../src/execution/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
+vi.mock("../../src/operations/utils/memory/recall.js", () => ({
   buildMemoryContext: vi.fn(() => Promise.resolve(undefined)),
   buildMemoryStats: vi.fn(() => Promise.resolve(undefined)),
 }));
-vi.mock("../../src/skills/loader.js", () => ({
+vi.mock("../../src/capabilities/skills/loader.js", () => ({
   loadSkillManifests: vi.fn(() => Promise.resolve([])),
 }));
-vi.mock("../../src/skills/catalog.js", () => ({
+vi.mock("../../src/capabilities/skills/catalog.js", () => ({
   buildSkillCatalog: vi.fn(() => ({
     getMatchedContent: vi.fn(() => Promise.resolve([])),
   })),
 }));
-vi.mock("../../src/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
+vi.mock("../../src/capabilities/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
 
 let testCwd: string;
 let testCwdCleanup: (() => void) | null = null;
@@ -59,7 +59,7 @@ afterEach(() => {
 });
 
 interface CancellableLoopDeps {
-  cancellationToken?: import("../../src/runtime/cancellation-token.js").CancellationToken;
+  cancellationToken?: import("../../src/runtime-state/runtime/cancellation-token.js").CancellationToken;
   cancelSignal?: AbortSignal;
 }
 
@@ -139,8 +139,8 @@ const completedResult: RunResult = {
 
 describe("operator cancellation of an agent turn (Tasks 6.1-6.3)", () => {
   it("Task 6.1/6.3 — a held turn cancelled by the operator classifies cancelled (never failed / timeout), activity goes cancelling → cancelled, and the loop seam observes the token + signal", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
-    const { ExecutionCancelledError, CancellationToken } = await import("../../src/runtime/cancellation-token.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
+    const { ExecutionCancelledError, CancellationToken } = await import("../../src/runtime-state/runtime/cancellation-token.js");
     configureSessionMocks();
 
     let capturedDeps!: CancellableLoopDeps;
@@ -217,7 +217,7 @@ describe("operator cancellation of an agent turn (Tasks 6.1-6.3)", () => {
   });
 
   it("a genuine loop failure is still counted failed, never cancelled (classification not inverted)", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockRejectedValue(new Error("provider boom"));
 
@@ -232,14 +232,14 @@ describe("operator cancellation of an agent turn (Tasks 6.1-6.3)", () => {
   });
 
   it("a provider-level abort (AbortError name / 408 shape) is a FAILURE, never an operator cancel", async () => {
-    const { createAgentSession, isCancellationError } = await import("../../src/agent/session.js");
+    const { createAgentSession, isCancellationError } = await import("../../src/agents/agent/session.js");
     // The predicate itself: a provider-internal abort is NOT an operator
     // cancel; only ExecutionCancelledError is.
     const providerAbort = new Error("The operation was aborted");
     providerAbort.name = "AbortError"; // AbortSignal.timeout / fetch abort shape
     expect(isCancellationError(providerAbort)).toBe(false);
     expect(isCancellationError(new Error("boom"))).toBe(false);
-    const { ExecutionCancelledError } = await import("../../src/runtime/cancellation-token.js");
+    const { ExecutionCancelledError } = await import("../../src/runtime-state/runtime/cancellation-token.js");
     expect(isCancellationError(new ExecutionCancelledError("operator stop"))).toBe(true);
 
     // End-to-end: a provider abort thrown out of the loop is classified
@@ -270,7 +270,7 @@ describe("operator cancellation of an agent turn (Tasks 6.1-6.3)", () => {
   });
 
   it("completing a turn then cancelling reports false and leaves no stale summary", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockResolvedValue(completedResult);
 
@@ -283,7 +283,7 @@ describe("operator cancellation of an agent turn (Tasks 6.1-6.3)", () => {
   });
 
   it("an Escape during the post-loop verifying/summarizing window is NOT consumed (returns false) and the turn completes normally", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockResolvedValue(completedResult);
 

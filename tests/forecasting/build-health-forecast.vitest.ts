@@ -3,11 +3,11 @@
 // P11.5 — Pure function tests for buildHealthForecast.
 
 import { describe, it, expect } from "vitest";
-import { buildHealthForecast } from "../../src/forecasting/build-health-forecast.js";
+import { buildHealthForecast } from "../../src/planning/forecasting/build-health-forecast.js";
 import type { StrategicPlan, PlanningObjective } from "../../src/planning/planning-types.js";
-import type { UpdatedConfidenceModel } from "../../src/learning/learning-types.js";
-import type { ForecastingEngineConfig, ForecastingObservationContext } from "../../src/forecasting/forecasting-types.js";
-import type { CorrelationSubsystemId } from "../../src/correlation/correlation-types.js";
+import type { UpdatedConfidenceModel } from "../../src/planning/learning/learning-types.js";
+import type { ForecastingEngineConfig, ForecastingObservationContext } from "../../src/planning/forecasting/forecasting-types.js";
+import type { CorrelationSubsystemId } from "../../src/operations/correlation/correlation-types.js";
 
 function makeObjective(overrides?: Partial<PlanningObjective>): PlanningObjective {
   return {

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mockSpec } from "../../src/providers/specs/mock-spec.js";
+import { mockSpec } from "../../src/models/providers/specs/mock-spec.js";
 
 describe("mockSpec.fromResponse", () => {
   it("echoes input back as text", () => {

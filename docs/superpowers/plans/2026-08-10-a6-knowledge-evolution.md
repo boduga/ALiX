@@ -4,7 +4,7 @@
 
 **Goal:** Build A6 Knowledge Evolution — detect stale, duplicate, contradictory, and compressible knowledge across ALiX's existing stores and route curation proposals through A3 governance.
 
-**Architecture:** `src/evolution/knowledge/` mirrors the A5 `observation/` layout: read-only adapters project store artifacts into a normalized in-memory `KnowledgeArtifact` read model; pure detectors (`detect(artifacts, config)`) emit `CurationFinding[]`; the `curation-proposal-builder` wraps findings into a `CurationProposal` and, only when non-empty, constructs a `GovernanceRecommendation` + `VerificationEvidence` fed to A3's `generateDecision`. A6 never writes to knowledge stores and never instantiates the lifecycle.
+**Architecture:** `src/planning/evolution/knowledge/` mirrors the A5 `observation/` layout: read-only adapters project store artifacts into a normalized in-memory `KnowledgeArtifact` read model; pure detectors (`detect(artifacts, config)`) emit `CurationFinding[]`; the `curation-proposal-builder` wraps findings into a `CurationProposal` and, only when non-empty, constructs a `GovernanceRecommendation` + `VerificationEvidence` fed to A3's `generateDecision`. A6 never writes to knowledge stores and never instantiates the lifecycle.
 
 **Tech Stack:** TypeScript, Node:test (node:test runner), JSONL/Filesystem stores. Follows the A5 `observation/` pattern exactly.
 
@@ -12,14 +12,14 @@
 
 - **A6 never writes to knowledge stores.** Adapters are read-only; detectors are pure.
 - **Detectors are pure** — `detect(artifacts: KnowledgeArtifact[], config: CurationConfig): CurationFinding[]`. No I/O, no store access, no side effects.
-- **Adapters never throw** — wrap reads in try/catch, return `[]` on corrupt/missing artifacts, skip corrupt JSONL lines (reuse the `parseLines` pattern from `src/learning/learning-store.ts`).
+- **Adapters never throw** — wrap reads in try/catch, return `[]` on corrupt/missing artifacts, skip corrupt JSONL lines (reuse the `parseLines` pattern from `src/planning/learning/learning-store.ts`).
 - **Deterministic identity** — `findingId = hash(store, kind, artifactId, targetId?)`; pairwise findings canonicalize by sorting target IDs lexicographically before hashing; `createdAt` is observation metadata, excluded from identity and comparison.
 - **Contradiction detection operates only on `KnowledgeArtifact.claim`** — never free text, never semantic inference. If a store has no structured claim, no contradiction is detected for it.
 - **Zero-findings invariant** — 0 findings → no `CurationProposal` → no A3 call → no `GovernanceDecision`.
 - **A6 does not instantiate the evolution lifecycle.** A3 governs; the existing A-series lifecycle owns transitions.
 - **Store availability is diagnostic, not a finding** — `CurationResult.storeStatus`, never a `CurationFinding`, never a proposal.
 - **CLI dimension names** are the full `CurationFindingKind` names: `stale | duplicate | contradiction | compressible`.
-- All new files must carry the SPDX header used in `src/evolution/observation/` files. All cross-file imports use `.js` extension.
+- All new files must carry the SPDX header used in `src/planning/evolution/observation/` files. All cross-file imports use `.js` extension.
 - **Contract-first:** Task 1 verifies existing A0/A3/A5 interfaces before any new files; do not invent compatibility fields.
 
 ## Executable Invariants
@@ -44,7 +44,7 @@ Each invariant below must be asserted by an explicit test (task noted). These ar
 ### Task 1: Contract verification against A0/A3/A5
 
 **Files:**
-- Read (verify, do not modify): `src/adaptation/decision-types.ts`, `src/governance/governance-types.ts`, `src/evolution/governance/decision-engine.ts`, `src/evolution/verification/evidence/evidence-ledger.ts`, `src/evolution/verification/evidence/verification-evidence.ts`, `src/learning/learning-store.ts`, `src/chronicle/chronicle-store.ts`, `src/governance/failure-memory.ts`, `src/context/pattern-registry.ts`
+- Read (verify, do not modify): `src/planning/adaptation/decision-types.ts`, `src/governance/governance-types.ts`, `src/planning/evolution/governance/decision-engine.ts`, `src/planning/evolution/verification/evidence/evidence-ledger.ts`, `src/planning/evolution/verification/evidence/verification-evidence.ts`, `src/planning/learning/learning-store.ts`, `src/context/chronicle/chronicle-store.ts`, `src/governance/failure-memory.ts`, `src/context/pattern-registry.ts`
 
 **Interfaces:**
 - Consumes: the approved spec `docs/superpowers/specs/2026-08-10-a6-knowledge-evolution-design.md`
@@ -52,7 +52,7 @@ Each invariant below must be asserted by an explicit test (task noted). These ar
 
 - [ ] **Step 1: Verify `DecisionArtifact`**
 
-Run: `sed -n '30,55p' src/adaptation/decision-types.ts`
+Run: `sed -n '30,55p' src/planning/adaptation/decision-types.ts`
 Confirm: it requires `id, subject, outcome, confidence, reasons, generatedAt` (plus optional `warnings, evidenceRefs`). This is why `CurationProposal` must NOT extend it (spec §4.3).
 
 - [ ] **Step 2: Verify `GovernanceRecommendation` and `Recommendation`**
@@ -62,25 +62,25 @@ Confirm: `GovernanceRecommendation extends DecisionArtifact`, has `reportType: "
 
 - [ ] **Step 3: Verify A3 `generateDecision` input contract**
 
-Run: `grep -nE "evidence\.|recommendation\.|policyConfig\." src/evolution/governance/decision-engine.ts | head -20`
+Run: `grep -nE "evidence\.|recommendation\.|policyConfig\." src/planning/evolution/governance/decision-engine.ts | head -20`
 Confirm: it reads `evidence.confidenceProfile.overallConfidence`, `evidence.reproducibilityLevel`, `inferRegressions(evidence)`, and the optional `recommendation`. The builder must supply these.
 
 - [ ] **Step 4: Verify `VerificationEvidenceLedger` read API**
 
-Run: `grep -nE "interface|get\(|listByProposal|listExpired" src/evolution/verification/evidence/evidence-ledger.ts`
+Run: `grep -nE "interface|get\(|listByProposal|listExpired" src/planning/evolution/verification/evidence/evidence-ledger.ts`
 Confirm: `store()`, `get()`, `listByProposal()`, `listExpired()` exist. `listByProposal` and `listExpired` are the read-only evidence inputs for the evidence adapter.
 
 - [ ] **Step 5: Verify `createVerificationEvidence` and `EvidenceClass`**
 
-Run: `sed -n '78,100p' src/evolution/verification/evidence/verification-evidence.ts` and `grep -n "EvidenceClass" src/evolution/verification/contracts/verification-contract.ts`
+Run: `sed -n '78,100p' src/planning/evolution/verification/evidence/verification-evidence.ts` and `grep -n "EvidenceClass" src/planning/evolution/verification/contracts/verification-contract.ts`
 Confirm: `EvidenceClass = "observed" | "derived" | "projected" | "executed"`; `createVerificationEvidence(input)` requires `verificationId, proposalId, replayDatasetId, proposalSnapshotHash, environmentHash, baselineMetrics, candidateMetrics, metricDeltas, behavioralChanges, confidenceProfile, reproducibilityLevel, lineage, verifiedAt`.
 
 - [ ] **Step 6: Verify the four store read APIs**
 
 Run:
 ```bash
-grep -nE "querySignals|queryProfiles|async query" src/learning/learning-store.ts
-grep -nE "loadIndex|list|entries" src/chronicle/chronicle-store.ts
+grep -nE "querySignals|queryProfiles|async query" src/planning/learning/learning-store.ts
+grep -nE "loadIndex|list|entries" src/context/chronicle/chronicle-store.ts
 grep -nE "list\(|getByRun|findSimilar" src/governance/failure-memory.ts
 grep -nE "getStats|recordOutcome" src/context/pattern-registry.ts
 ```
@@ -102,7 +102,7 @@ git commit -m "docs(a6): record contract verification against A0/A3/A5"
 ### Task 2: Curation contracts — types + config
 
 **Files:**
-- Create: `src/evolution/knowledge/contracts/curation-contract.ts`
+- Create: `src/planning/evolution/knowledge/contracts/curation-contract.ts`
 - Test: `tests/evolution/knowledge/curation-contract.test.ts`
 
 **Interfaces:**
@@ -134,7 +134,7 @@ Expected: FAIL — module/type-guards not defined.
 
 - [ ] **Step 3: Implement `curation-contract.ts`**
 
-Write the SPDX header (copy from `src/evolution/observation/observation-contract.ts`). Define all types above plus:
+Write the SPDX header (copy from `src/planning/evolution/observation/observation-contract.ts`). Define all types above plus:
 ```ts
 export function isKnowledgeArtifact(v: unknown): v is KnowledgeArtifact {
   return (
@@ -161,7 +161,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/knowledge/contracts/curation-contract.ts tests/evolution/knowledge/curation-contract.test.ts
+git add src/planning/evolution/knowledge/contracts/curation-contract.ts tests/evolution/knowledge/curation-contract.test.ts
 git commit -m "feat(a6): add curation contract types and config"
 ```
 
@@ -170,7 +170,7 @@ git commit -m "feat(a6): add curation contract types and config"
 ### Task 3: Store adapters — project store artifacts into KnowledgeArtifact[]
 
 **Files:**
-- Create: `src/evolution/knowledge/adapters/learning-store-adapter.ts`, `chronicle-adapter.ts`, `failure-memory-adapter.ts`, `pattern-registry-adapter.ts`, `evidence-adapter.ts`, `src/evolution/knowledge/adapters/index.ts`
+- Create: `src/planning/evolution/knowledge/adapters/learning-store-adapter.ts`, `chronicle-adapter.ts`, `failure-memory-adapter.ts`, `pattern-registry-adapter.ts`, `evidence-adapter.ts`, `src/planning/evolution/knowledge/adapters/index.ts`
 - Test: `tests/evolution/knowledge/knowledge-artifact-adapter.test.ts`
 
 **Interfaces:**
@@ -208,7 +208,7 @@ Expected: FAIL — adapters not defined.
 For each, write SPDX header, constructor, and `async read()` that:
 - resolves the store dir / source
 - if missing or read throws → return `{ artifacts: [], status: { status: "unavailable", store } }`
-- parses JSONL, skipping corrupt lines (reuse the `parseLines` pattern from `src/learning/learning-store.ts`)
+- parses JSONL, skipping corrupt lines (reuse the `parseLines` pattern from `src/planning/learning/learning-store.ts`)
 - maps each artifact to `KnowledgeArtifact` (see spec §4.1 mapping table)
 
 `LearningStoreAdapter` maps:
@@ -224,7 +224,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/evolution/knowledge/adapters/ tests/evolution/knowledge/knowledge-artifact-adapter.test.ts
+git add src/planning/evolution/knowledge/adapters/ tests/evolution/knowledge/knowledge-artifact-adapter.test.ts
 git commit -m "feat(a6): add read-only store adapters"
 ```
 
@@ -233,7 +233,7 @@ git commit -m "feat(a6): add read-only store adapters"
 ### Task 4: Detectors — pure, config-driven
 
 **Files:**
-- Create: `src/evolution/knowledge/detectors/staleness-detector.ts`, `dedup-detector.ts`, `contradiction-detector.ts`, `compression-detector.ts`, `src/evolution/knowledge/detectors/index.ts`
+- Create: `src/planning/evolution/knowledge/detectors/staleness-detector.ts`, `dedup-detector.ts`, `contradiction-detector.ts`, `compression-detector.ts`, `src/planning/evolution/knowledge/detectors/index.ts`
 - Test: `tests/evolution/knowledge/staleness-detector.test.ts`, `dedup-detector.test.ts`, `contradiction-detector.test.ts`, `compression-detector.test.ts`
 
 **Interfaces:**
@@ -243,7 +243,7 @@ git commit -m "feat(a6): add read-only store adapters"
   - `function detectDuplicates(artifacts, config): CurationFinding[]`
   - `function detectContradictions(artifacts): CurationFinding[]` (config not needed for claims-only)
   - `function detectCompressible(artifacts, config): CurationFinding[]`
-  - A shared `computeFindingId(store, kind, artifactId, targetId?): string` in `src/evolution/knowledge/detectors/finding-id.ts` — deterministic SHA-256 hash; **sort target IDs lexicographically before hashing for pairwise findings**
+  - A shared `computeFindingId(store, kind, artifactId, targetId?): string` in `src/planning/evolution/knowledge/detectors/finding-id.ts` — deterministic SHA-256 hash; **sort target IDs lexicographically before hashing for pairwise findings**
   - A shared `normalizeContent(s): string` (lowercase, collapse whitespace) for dedup similarity.
 
 - [ ] **Step 1: Write the failing tests**
@@ -272,7 +272,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/knowledge/detectors/ tests/evolution/knowledge/*detector.test.ts
+git add src/planning/evolution/knowledge/detectors/ tests/evolution/knowledge/*detector.test.ts
 git commit -m "feat(a6): add pure curation detectors"
 ```
 
@@ -281,7 +281,7 @@ git commit -m "feat(a6): add pure curation detectors"
 ### Task 5: Curation engine — orchestrate adapters + detectors
 
 **Files:**
-- Create: `src/evolution/knowledge/curation-engine.ts`, `src/evolution/knowledge/index.ts`
+- Create: `src/planning/evolution/knowledge/curation-engine.ts`, `src/planning/evolution/knowledge/index.ts`
 - Test: `tests/evolution/knowledge/curation-engine.test.ts`
 
 **Interfaces:**
@@ -319,7 +319,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/knowledge/curation-engine.ts src/evolution/knowledge/index.ts tests/evolution/knowledge/curation-engine.test.ts
+git add src/planning/evolution/knowledge/curation-engine.ts src/planning/evolution/knowledge/index.ts tests/evolution/knowledge/curation-engine.test.ts
 git commit -m "feat(a6): add curation engine orchestration"
 ```
 
@@ -328,17 +328,17 @@ git commit -m "feat(a6): add curation engine orchestration"
 ### Task 6: Curation proposal builder — A3 mapping
 
 **Files:**
-- Create: `src/evolution/knowledge/curation-proposal-builder.ts`
+- Create: `src/planning/evolution/knowledge/curation-proposal-builder.ts`
 - Test: `tests/evolution/knowledge/curation-proposal-builder.test.ts`
 
 **Interfaces:**
-- Consumes: `CurationFinding`, `CurationProposal`, `CurationConfig` (Task 2); the **A2.5** `GovernanceRecommendation` + `GovernanceRecommendationKind` from `src/evolution/verification/contracts/recommendation-contract.ts` (Task 1); `createVerificationEvidence`, `VerificationEvidenceInput` (Task 1)
+- Consumes: `CurationFinding`, `CurationProposal`, `CurationConfig` (Task 2); the **A2.5** `GovernanceRecommendation` + `GovernanceRecommendationKind` from `src/planning/evolution/verification/contracts/recommendation-contract.ts` (Task 1); `createVerificationEvidence`, `VerificationEvidenceInput` (Task 1)
 - Produces:
   - `function buildCurationProposal(findings: CurationFinding[]): CurationProposal | null` — returns `null` when findings is empty (zero-findings invariant)
   - `function buildGovernanceRecommendation(proposal: CurationProposal): GovernanceRecommendation` — builds the **A2.5** recommendation shape that `generateDecision` consumes: `recommendationId: "rec-curate-" + proposalId`, `evidenceId` = the evidence produced by `buildEvidenceFromFindings`, `proposalId` = evidence.proposalId, `kind: "APPROVE"` (A6 proposes the bounded curation action for A3 to evaluate — A6 does NOT decide), `confidence` = aggregated finding confidence, `reasoning` = proposal.summary, `supportingEvidence` = finding evidenceRefs, `risks` = finding rationale list, `createdAt` = proposal.createdAt
   - `function buildEvidenceFromFindings(findings: CurationFinding[]): VerificationEvidence` — wraps finding `evidenceRefs` + rationale into a `VerificationEvidence` via `createVerificationEvidence` with `confidenceProfile.overallConfidence` = aggregated finding confidence.
 
-**IMPORTANT — A2.5 not P9.x:** `generateDecision` consumes the **A2.5** `GovernanceRecommendation` from `src/evolution/verification/contracts/recommendation-contract.ts` (fields: `recommendationId, evidenceId, proposalId, kind, confidence, reasoning, supportingEvidence, risks, createdAt`), NOT the P9.x `governance-types.ts` shape. Do not build the P9.x shape. Mirror the existing A2.5 caller `src/evolution/verification/recommendation/recommendation-engine.ts` (its `recommend()` returns `{ recommendationId: "rec-" + evidenceId, evidenceId, proposalId, kind, confidence, reasoning, supportingEvidence, risks, createdAt: evidence.verifiedAt }`).
+**IMPORTANT — A2.5 not P9.x:** `generateDecision` consumes the **A2.5** `GovernanceRecommendation` from `src/planning/evolution/verification/contracts/recommendation-contract.ts` (fields: `recommendationId, evidenceId, proposalId, kind, confidence, reasoning, supportingEvidence, risks, createdAt`), NOT the P9.x `governance-types.ts` shape. Do not build the P9.x shape. Mirror the existing A2.5 caller `src/planning/evolution/verification/recommendation/recommendation-engine.ts` (its `recommend()` returns `{ recommendationId: "rec-" + evidenceId, evidenceId, proposalId, kind, confidence, reasoning, supportingEvidence, risks, createdAt: evidence.verifiedAt }`).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -356,7 +356,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement the builder**
 
-Follow the A2.5 caller pattern in `src/evolution/verification/recommendation/recommendation-engine.ts` and the evidence construction in `src/evolution/verification/evidence/verification-evidence.ts`. For `buildEvidenceFromFindings`, call `createVerificationEvidence` with:
+Follow the A2.5 caller pattern in `src/planning/evolution/verification/recommendation/recommendation-engine.ts` and the evidence construction in `src/planning/evolution/verification/evidence/verification-evidence.ts`. For `buildEvidenceFromFindings`, call `createVerificationEvidence` with:
 ```ts
 {
   verificationId: `a6-curation-${proposalId}`,
@@ -396,7 +396,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/knowledge/curation-proposal-builder.ts tests/evolution/knowledge/curation-proposal-builder.test.ts
+git add src/planning/evolution/knowledge/curation-proposal-builder.ts tests/evolution/knowledge/curation-proposal-builder.test.ts
 git commit -m "feat(a6): add curation proposal builder and A3 mapping"
 ```
 
@@ -406,7 +406,7 @@ git commit -m "feat(a6): add curation proposal builder and A3 mapping"
 
 **Files:**
 - Modify: `src/governance/evolution-cli.ts` (add `curate` case + help text + import)
-- Create: `src/evolution/knowledge/curation-cli.ts`
+- Create: `src/planning/evolution/knowledge/curation-cli.ts`
 - Test: `tests/evolution/knowledge/curation-cli.test.ts`
 
 **Interfaces:**
@@ -450,7 +450,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/knowledge/curation-cli.ts src/governance/evolution-cli.ts tests/evolution/knowledge/curation-cli.test.ts
+git add src/planning/evolution/knowledge/curation-cli.ts src/governance/evolution-cli.ts tests/evolution/knowledge/curation-cli.test.ts
 git commit -m "feat(a6): wire curate CLI command"
 ```
 

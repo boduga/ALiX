@@ -6,7 +6,7 @@
 
 **Goal:** Every `alix run` creates a `WorkflowRun` at command start, emits `workflow.created` and `workflow.completed`/`workflow.failed` events, and surfaces the WorkflowRun ID in CLI output.
 
-**Architecture:** A `WorkflowRunManager` that wraps the current `runTask()` call. It creates a `WorkflowRun` before calling `runTask()`, attaches the workflow ID to all events via `EventMeta`, and transitions the workflow status on completion/failure. The scaffold at `implementation/m0.9-starter/src/kernel/workflow-run.ts` provides the type definitions.
+**Architecture:** A `WorkflowRunManager` that wraps the current `runTask()` call. It creates a `WorkflowRun` before calling `runTask()`, attaches the workflow ID to all events via `EventMeta`, and transitions the workflow status on completion/failure. The scaffold at `implementation/m0.9-starter/src/coordination/kernel/workflow-run.ts` provides the type definitions.
 
 **Tech Stack:** TypeScript, node:test.
 
@@ -16,8 +16,8 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/kernel/workflow-run.ts` | **Create** | `WorkflowRun` types, `createWorkflowRun()`, `WorkflowRunManager` |
-| `src/agent/agent-loop.ts` | **Modify** | Wire `WorkflowRunManager` around `runTask()` |
+| `src/coordination/kernel/workflow-run.ts` | **Create** | `WorkflowRun` types, `createWorkflowRun()`, `WorkflowRunManager` |
+| `src/agents/agent/agent-loop.ts` | **Modify** | Wire `WorkflowRunManager` around `runTask()` |
 | `tests/kernel/workflow-run.test.ts` | **Create** | Tests |
 
 ---
@@ -25,7 +25,7 @@
 ### Task 1: Create WorkflowRun module
 
 **Files:**
-- Create: `src/kernel/workflow-run.ts`
+- Create: `src/coordination/kernel/workflow-run.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -70,13 +70,13 @@ export function transitionWorkflowStatus(run: WorkflowRun, status: WorkflowStatu
 - [ ] **Step 2: Verify build**
 
 ```bash
-npx tsc --noEmit src/kernel/workflow-run.ts 2>&1
+npx tsc --noEmit src/coordination/kernel/workflow-run.ts 2>&1
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/workflow-run.ts
+git add src/coordination/kernel/workflow-run.ts
 git commit -m "feat(kernel): WorkflowRun types and factory"
 ```
 
@@ -85,7 +85,7 @@ git commit -m "feat(kernel): WorkflowRun types and factory"
 ### Task 2: Wire into agent-loop.ts
 
 **Files:**
-- Modify: `src/agent/agent-loop.ts`
+- Modify: `src/agents/agent/agent-loop.ts`
 
 - [ ] **Step 1: Add WorkflowRun creation at start of runTask**
 
@@ -140,7 +140,7 @@ npm run build 2>&1 | tail -10
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/agent/agent-loop.ts
+git add src/agents/agent/agent-loop.ts
 git commit -m "feat(kernel): wrap runTask in WorkflowRun with workflow.created/completed events"
 ```
 
@@ -156,7 +156,7 @@ git commit -m "feat(kernel): wrap runTask in WorkflowRun with workflow.created/c
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createWorkflowRun, transitionWorkflowStatus } from "../../src/kernel/workflow-run.js";
+import { createWorkflowRun, transitionWorkflowStatus } from "../../src/coordination/kernel/workflow-run.js";
 
 describe("WorkflowRun", () => {
 

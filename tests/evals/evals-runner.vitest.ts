@@ -10,8 +10,8 @@ import { join } from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 
-import { runEvalCase, runEvalSuite, installEvalConfig, installSeed, saveRun, loadPreviousRuns } from "../../src/evals/evals-runner.js";
-import { BEHAVIORAL_CASES, SYNTHETIC_CASES } from "../../src/evals/cases/index.js";
+import { runEvalCase, runEvalSuite, installEvalConfig, installSeed, saveRun, loadPreviousRuns } from "../../src/operations/evals/evals-runner.js";
+import { BEHAVIORAL_CASES, SYNTHETIC_CASES } from "../../src/operations/evals/cases/index.js";
 
 describe("behavioral case suite structure", () => {
   it("has EVAL-001..007 with stable kebab-case ids", () => {

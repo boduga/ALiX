@@ -13,8 +13,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createExecutionIntent } from "../../src/runtime/execution-intent-factory.js";
-import { taskRouter, type TaskRoute } from "../../src/runtime/task-router.js";
+import { createExecutionIntent } from "../../src/runtime-state/runtime/execution-intent-factory.js";
+import { taskRouter, type TaskRoute } from "../../src/runtime-state/runtime/task-router.js";
 
 const FIXED_NOW = "2026-08-06T00:00:00.000Z";
 

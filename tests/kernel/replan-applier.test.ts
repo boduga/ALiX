@@ -26,15 +26,15 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
-import { ReplanApplier } from "../../src/kernel/replan-applier.js";
-import type { PlanRevisionDraft, SimulatedGraph } from "../../src/kernel/replan-types.js";
-import type { WorkerAssignment } from "../../src/kernel/coordination-types.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import { ReplanApplier } from "../../src/coordination/kernel/replan-applier.js";
+import type { PlanRevisionDraft, SimulatedGraph } from "../../src/coordination/kernel/replan-types.js";
+import type { WorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-import type { ApplyInput } from "../../src/kernel/replan-applier.js";
+import type { ApplyInput } from "../../src/coordination/kernel/replan-applier.js";
 
 function makeApplyInput(
   draft: PlanRevisionDraft,

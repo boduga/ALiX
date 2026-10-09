@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { McpManager } from "../../src/mcp/manager.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { McpManager } from "../../src/capabilities/mcp/manager.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 function makeConfig(overrides: Partial<AlixConfig> = {}): AlixConfig {
   return {

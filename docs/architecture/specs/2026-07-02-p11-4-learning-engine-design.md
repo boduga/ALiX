@@ -686,7 +686,7 @@ security            | +12     | no        | no_action_improvement    | 0 (audit)
 
 ### 8.5 Registration
 
-Add `case "learn"` to `src/cli/commands/executive.ts` with dynamic import pattern:
+Add `case "learn"` to `src/interfaces/cli/commands/executive.ts` with dynamic import pattern:
 
 ```typescript
 case "learn": {
@@ -764,12 +764,12 @@ Update the `default` case's available subcommands list.
 
 | File | Purpose |
 |---|---|
-| `src/learning/learning-types.ts` | Type definitions: `UpdatedConfidenceModel`, `ConfidenceUpdate`, `LearningSignal`, `LearningEngineConfig`, `LearningEngineError` |
-| `src/learning/learning-config.ts` | Default config export |
-| `src/learning/build-confidence-model.ts` | Pure function `buildConfidenceModel(plan, outcomes, baselineScores, currentScores, context, config) → UpdatedConfidenceModel` |
-| `src/learning/confidence-model-store.ts` | Append-only JSONL store with `save`, `loadLatest`, `loadById`, `list` |
-| `src/learning/learning-engine.ts` | Orchestrator: loads plan/outcomes/scores → calls pure function → saves |
-| `src/cli/commands/executive-learn-handler.ts` | CLI handler for `alix executive learn` |
+| `src/planning/learning/learning-types.ts` | Type definitions: `UpdatedConfidenceModel`, `ConfidenceUpdate`, `LearningSignal`, `LearningEngineConfig`, `LearningEngineError` |
+| `src/planning/learning/learning-config.ts` | Default config export |
+| `src/planning/learning/build-confidence-model.ts` | Pure function `buildConfidenceModel(plan, outcomes, baselineScores, currentScores, context, config) → UpdatedConfidenceModel` |
+| `src/planning/learning/confidence-model-store.ts` | Append-only JSONL store with `save`, `loadLatest`, `loadById`, `list` |
+| `src/planning/learning/learning-engine.ts` | Orchestrator: loads plan/outcomes/scores → calls pure function → saves |
+| `src/interfaces/cli/commands/executive-learn-handler.ts` | CLI handler for `alix executive learn` |
 | `tests/learning/build-confidence-model.vitest.ts` | 12 pure function tests |
 | `tests/learning/learning-engine.vitest.ts` | 3 engine tests |
 | `tests/learning/confidence-model-store.vitest.ts` | 4 store tests |

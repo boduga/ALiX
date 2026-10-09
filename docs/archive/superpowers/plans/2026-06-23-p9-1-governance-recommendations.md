@@ -59,7 +59,7 @@ Run + commit.
 ### P9.1c — CLI + filters
 
 **Files:**
-- Modify: `src/cli/commands/governance.ts` (add `"recommend"` subcommand)
+- Modify: `src/interfaces/cli/commands/governance.ts` (add `"recommend"` subcommand)
 - Modify: `tests/cli/commands/governance-integration.vitest.ts` (add 2 tests)
 
 CLI:

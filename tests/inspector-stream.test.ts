@@ -14,10 +14,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync, appendFileSync, existsSync, statSync, truncateSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir as tmpDir } from "node:os";
-import { startServer } from "../src/server/server.js";
-import { SessionStreamHub } from "../src/server/session-stream-hub.js";
-import { MockSecureSseConnection } from "../src/server/secure-sse.js";
-import { isValidSessionId, sessionEventsPath } from "../src/inspector/session-reader.js";
+import { startServer } from "../src/interfaces/server/server.js";
+import { SessionStreamHub } from "../src/interfaces/server/session-stream-hub.js";
+import { MockSecureSseConnection } from "../src/interfaces/server/secure-sse.js";
+import { isValidSessionId, sessionEventsPath } from "../src/interfaces/inspector/session-reader.js";
 
 // ---------------------------------------------------------------------------
 // SessionStreamHub unit tests (no HTTP server)

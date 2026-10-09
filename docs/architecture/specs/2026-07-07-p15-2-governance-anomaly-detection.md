@@ -109,7 +109,7 @@ Uses audit-metrics.ts helpers (eventTypeDistribution, riskDistribution, etc.)
 | File | Change |
 |------|--------|
 | `src/governance/audit-anomalies.ts` | **New** — pure module, ~300 lines |
-| `src/cli/commands/governance.ts` | Extend audit dispatch (`case "anomalies"`) + `runAuditAnomalies` handler, ~80 lines |
+| `src/interfaces/cli/commands/governance.ts` | Extend audit dispatch (`case "anomalies"`) + `runAuditAnomalies` handler, ~80 lines |
 | `tests/governance/audit-anomalies.test.ts` | **New** — ~300 lines, unit tests per anomaly type with fixture data |
 
 ## Non-goals

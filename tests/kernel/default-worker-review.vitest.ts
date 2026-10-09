@@ -2,16 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { EventLog } from '../../src/events/event-log.js';
-import { captureWorkerEventLog, reviewDefaultWorkerResult } from '../../src/kernel/default-worker-review.js';
-import { DefaultWorkerExecutor } from '../../src/kernel/worker-executor.js';
-import { createCoordinationRun, createWorkerAssignment } from '../../src/kernel/coordination-types.js';
-import { DEFAULT_CONFIG } from '../../src/config/defaults.js';
-import { closeAllSharedLedgers } from '../../src/storage/runtime-ledger.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { captureWorkerEventLog, reviewDefaultWorkerResult } from '../../src/coordination/kernel/default-worker-review.js';
+import { DefaultWorkerExecutor } from '../../src/coordination/kernel/worker-executor.js';
+import { createCoordinationRun, createWorkerAssignment } from '../../src/coordination/kernel/coordination-types.js';
+import { DEFAULT_CONFIG } from '../../src/operations/config/defaults.js';
+import { closeAllSharedLedgers } from '../../src/runtime-state/storage/runtime-ledger.js';
 
 const mocks=vi.hoisted(()=>({complete:vi.fn(),runTask:vi.fn()}));
-vi.mock('../../src/providers/registry.js',()=>({createProvider:async()=>({complete:mocks.complete})}));
-vi.mock('../../src/cli/helpers/api-keys.js',()=>({getApiKey:async()=>undefined}));
+vi.mock('../../src/models/providers/registry.js',()=>({createProvider:async()=>({complete:mocks.complete})}));
+vi.mock('../../src/interfaces/cli/helpers/api-keys.js',()=>({getApiKey:async()=>undefined}));
 vi.mock('../../src/run.js',()=>({runTask:mocks.runTask}));
 afterEach(()=>vi.clearAllMocks());
 async function fixture(){

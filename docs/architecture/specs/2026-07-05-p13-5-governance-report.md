@@ -78,6 +78,6 @@ When `--section` is used, only the requested section key is in the output.
 ## Files
 
 ```
-src/cli/commands/governance.ts       # Amend (add report subcommand handler)
+src/interfaces/cli/commands/governance.ts       # Amend (add report subcommand handler)
 tests/governance/governance-report.test.ts  # Create
 ```

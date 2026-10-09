@@ -1,5 +1,5 @@
-import type { SubagentResult } from "../config/schema.js";
-import type { ModelAdapter } from "../providers/types.js";
+import type { SubagentResult } from "../operations/config/schema.js";
+import type { ModelAdapter } from "../models/providers/types.js";
 
 export type ObjectiveArtifact = { path: string; content?: string; exists?: boolean; error?: string };
 

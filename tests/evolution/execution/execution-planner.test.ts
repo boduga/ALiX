@@ -19,16 +19,16 @@ import {
   DefaultRollbackResolver,
   createDefaultRollbackResolver,
   RollbackResolver,
-} from "../../../src/evolution/execution/execution-planner.js";
-import type { EvolutionProposal } from "../../../src/evolution/contracts/evolution-contract.js";
-import type { GovernanceDecision } from "../../../src/evolution/governance/contracts/decision-contract.js";
-import { computeDecisionIntegrityHash } from "../../../src/evolution/governance/decision-engine.js";
+} from "../../../src/planning/evolution/execution/execution-planner.js";
+import type { EvolutionProposal } from "../../../src/planning/evolution/contracts/evolution-contract.js";
+import type { GovernanceDecision } from "../../../src/planning/evolution/governance/contracts/decision-contract.js";
+import { computeDecisionIntegrityHash } from "../../../src/planning/evolution/governance/decision-engine.js";
 import type {
   ExecutionPlan,
   ExecutionStep,
   RollbackStep,
   ExecutionEnvironment,
-} from "../../../src/evolution/execution/contracts/execution-contract.js";
+} from "../../../src/planning/evolution/execution/contracts/execution-contract.js";
 
 // ---------------------------------------------------------------------------
 // Test data constants

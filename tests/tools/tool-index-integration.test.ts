@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ToolAwareRouter, FileToolRouter, CompositeToolRouter } from "../../src/tools/tool-router.js";
+import { ToolAwareRouter, FileToolRouter, CompositeToolRouter } from "../../src/capabilities/tools/tool-router.js";
 
 describe("ToolAwareRouter", () => {
   const downstream = new CompositeToolRouter([

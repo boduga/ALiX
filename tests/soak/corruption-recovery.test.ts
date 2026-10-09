@@ -26,7 +26,7 @@ describe("Corruption Recovery — ContinuationStore", () => {
       const path = join(dir, ".alix", "approvals", "continuations.json");
       mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
       writeFileSync(path, `[{"approvalId":"incomplete"`, "utf-8");
-      const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+      const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
       const store = new ContinuationStore(dir);
       await store.load();
       assert.equal(store.list().length, 0);
@@ -38,7 +38,7 @@ describe("Corruption Recovery — ContinuationStore", () => {
     try {
       mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
       writeFileSync(join(dir, ".alix", "approvals", "continuations.json"), "[]", "utf-8");
-      const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+      const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
       const store = new ContinuationStore(dir);
       await store.load();
       assert.equal(store.list().length, 0);
@@ -50,7 +50,7 @@ describe("Corruption Recovery — ContinuationStore", () => {
     try {
       mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
       writeFileSync(join(dir, ".alix", "approvals", "continuations.json"), "", "utf-8");
-      const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+      const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
       const store = new ContinuationStore(dir);
       await store.load();
       assert.equal(store.list().length, 0);
@@ -67,7 +67,7 @@ describe("Corruption Recovery — ApprovalStore", () => {
       writeFileSync(ap, "[]", "utf-8");
       const { corruptJsonWithTrailingGarbage } = await import("./fault-injector.js");
       corruptJsonWithTrailingGarbage(ap);
-      const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
       const store = new ApprovalStore(dir);
       await store.load();
     } finally { cleanup(dir); }
@@ -78,7 +78,7 @@ describe("Corruption Recovery — ApprovalStore", () => {
     try {
       mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
       writeFileSync(join(dir, ".alix", "approvals", "approvals.json"), "", "utf-8");
-      const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
       const store = new ApprovalStore(dir);
       await store.load();
       assert.equal(store.list().length, 0);
@@ -97,7 +97,7 @@ describe("Corruption Recovery — EventLog", () => {
       const { corruptJsonlWithMalformedLine } = await import("./fault-injector.js");
       corruptJsonlWithMalformedLine(eventsPath);
 
-      const { EventLog } = await import("../../src/events/event-log.js");
+      const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
       const log = new EventLog(sessionDir);
       await log.init();
       const events = await log.readAll();
@@ -116,7 +116,7 @@ describe("Corruption Recovery — TaskRegistry", () => {
       const oldHome = process.env.HOME;
       process.env.HOME = testHome;
       try {
-        const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
+        const { TaskRegistry } = await import("../../src/operations/daemon/task-registry.js");
         const reg = new TaskRegistry();
         await reg.load();
         const task = reg.create("test-task", "/tmp");

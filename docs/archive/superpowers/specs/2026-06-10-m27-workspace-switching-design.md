@@ -198,9 +198,9 @@ Truncated to 28 characters to stay compact on laptop terminals.
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/tui/workspace-manager.ts` | **Create** | `WorkspaceManager` class, `WorkspaceMatch`, `WorkspaceCommandResult` types, command parsing, workspace resolution |
-| `src/cli/commands/tui.ts` | **Modify** | Wire `WorkspaceManager` into input loop, add `softReinitWorkspace()`, replace prompt with `[name] > ` |
-| `src/tui/store.ts` | **Modify** | Add `sessionDir` to `TuiState` (optional) for re-init access |
+| `src/interfaces/tui/workspace-manager.ts` | **Create** | `WorkspaceManager` class, `WorkspaceMatch`, `WorkspaceCommandResult` types, command parsing, workspace resolution |
+| `src/interfaces/cli/commands/tui.ts` | **Modify** | Wire `WorkspaceManager` into input loop, add `softReinitWorkspace()`, replace prompt with `[name] > ` |
+| `src/interfaces/tui/store.ts` | **Modify** | Add `sessionDir` to `TuiState` (optional) for re-init access |
 | `tests/tui/workspace-manager.test.ts` | **Create** | Unit tests for command parsing, resolution, ambiguity |
 
 ## Testing

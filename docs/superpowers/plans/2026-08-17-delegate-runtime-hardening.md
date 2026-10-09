@@ -14,7 +14,7 @@
 - CLAUDE.md mandates GitNexus `impact` (upstream) BEFORE editing any symbol, and `detect_changes()` before committing. The index is stale (~105 commits behind `main`) — if `impact` returns degraded/empty results, fall back to grep for direct callers and report the blast radius manually.
 - Memory `branch-workflow-policy`: no new work while other branches/PRs are open. Implement in a fresh worktree (`.claude/worktrees/`) — never on `main`.
 - Pre-existing main CI failures (`supply-chain`, `unit`, `tui-smoke`, `graph-executor` "no enforcement" timeout, `fresh-install-onboarding`) reproduce on unmodified `main` — do not chase them.
-- Do not add dependencies. Everything needed is already in `src/patch/` (dead code to be wired).
+- Do not add dependencies. Everything needed is already in `src/execution/patch/` (dead code to be wired).
 - The `#567` status rule is **failed-on-tool-failure only** (user-locked). A write-mode worker that attempts NO writes (concludes "no change needed") reports `success`. There is NO `partial` status and NO evidence-based success requirement in this PR.
 
 ---
@@ -24,8 +24,8 @@
 Wire the existing `PatchParser` + `StructuredPatchApplier` into `applyPatch`, add a `unified_diff` branch, and add an aider-format normalizer so `*** Begin Patch` text converts to unified diff.
 
 **Files:**
-- Modify: `src/patch/patch-parser.ts` (add `normalizeAiderFormat`, call it in `parse`)
-- Modify: `src/patch/patch-engine.ts` (format gate ~72-74, parse branch ~76-81, `applyPatchBody` 190-256, `extractPatchFiles` 272-279, `extractPatchFilePaths` 281-289)
+- Modify: `src/execution/patch/patch-parser.ts` (add `normalizeAiderFormat`, call it in `parse`)
+- Modify: `src/execution/patch/patch-engine.ts` (format gate ~72-74, parse branch ~76-81, `applyPatchBody` 190-256, `extractPatchFiles` 272-279, `extractPatchFilePaths` 281-289)
 - Test: `tests/patch/patch-parser.test.ts`, `tests/patch-engine.test.ts`
 
 **Interfaces:**
@@ -35,7 +35,7 @@ Wire the existing `PatchParser` + `StructuredPatchApplier` into `applyPatch`, ad
 - [ ] **Step 1: Write failing tests for `normalizeAiderFormat`** in `tests/patch/patch-parser.test.ts` (add to the existing file, matching its `describe`/`test` style):
 
 ```ts
-import { normalizeAiderFormat } from "../../src/patch/patch-parser.js";
+import { normalizeAiderFormat } from "../../src/execution/patch/patch-parser.js";
 
 test("normalizeAiderFormat converts *** Update File header to unified diff headers", () => {
   const input = [
@@ -70,7 +70,7 @@ test("normalizeAiderFormat passes through non-aider text unchanged", () => {
 Run: `pnpm build && node --test dist/tests/patch/patch-parser.test.js`
 Expected: FAIL with `normalizeAiderFormat is not a function`.
 
-- [ ] **Step 3: Implement `normalizeAiderFormat`** in `src/patch/patch-parser.ts`:
+- [ ] **Step 3: Implement `normalizeAiderFormat`** in `src/execution/patch/patch-parser.ts`:
 
 ```ts
 const AIDER_FILE_RE = /^\*\*\* (Update File|Add File|Delete File): (.+)$/;
@@ -168,7 +168,7 @@ Expected: FAIL — `Unsupported edit format: unified_diff` (gate at line 72).
 
 - [ ] **Step 7: Implement `unified_diff` in the engine**
 
-`src/patch/patch-engine.ts`:
+`src/execution/patch/patch-engine.ts`:
 
 ```ts
 // line ~72: allow unified_diff
@@ -258,7 +258,7 @@ Expected: PASS — new unified-diff tests green; the pre-existing `buildEditForm
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/patch/patch-parser.ts src/patch/patch-engine.ts tests/patch/patch-parser.test.ts tests/patch-engine.test.ts
+git add src/execution/patch/patch-parser.ts src/execution/patch/patch-engine.ts tests/patch/patch-parser.test.ts tests/patch-engine.test.ts
 git commit -m "fix(patch): wire unified_diff execution + aider format normalization (#565)"
 ```
 
@@ -269,8 +269,8 @@ git commit -m "fix(patch): wire unified_diff execution + aider format normalizat
 Make `unified_diff` a declared, allowed format so explicit `format: "unified_diff"` calls pass the router gate, and tell the model it's acceptable.
 
 **Files:**
-- Modify: `src/patch/edit-format-policy.ts`
-- Modify: `src/run/helpers.ts` (schema at 111-123)
+- Modify: `src/execution/patch/edit-format-policy.ts`
+- Modify: `src/execution/run/helpers.ts` (schema at 111-123)
 - Test: `tests/patch-engine.test.ts` (assertions at 207, 215, 222, 226-231), `tests/patch-tools.test.ts`
 
 **Interfaces:**
@@ -298,7 +298,7 @@ Note: `policy.allowed` is built as `Array.from(new Set([preferred, alternate, ..
 Run: `pnpm build && node --test dist/tests/patch-engine.test.js`
 Expected: FAIL on the updated assertions (current `allowed` omits `unified_diff`).
 
-- [ ] **Step 3: Implement** in `src/patch/edit-format-policy.ts`:
+- [ ] **Step 3: Implement** in `src/execution/patch/edit-format-policy.ts`:
 
 ```ts
 export type ExecutableFormat = Extract<EditFormat, "structured_patch" | "search_replace" | "unified_diff">;
@@ -334,7 +334,7 @@ export function buildEditFormatPolicy(input: EditFormatPolicyInput): EditFormatP
 Run: `pnpm build && node --test dist/tests/patch-engine.test.js`
 Expected: PASS.
 
-- [ ] **Step 5: Update the tool schema** in `src/run/helpers.ts` (lines 118-119):
+- [ ] **Step 5: Update the tool schema** in `src/execution/run/helpers.ts` (lines 118-119):
 
 ```ts
 format: { type: "string", description: "Patch format: 'search_replace', 'structured_patch', or 'unified_diff'. Unified diff is auto-detected; aider '*** Begin Patch' is normalized automatically." },
@@ -361,7 +361,7 @@ Run it: `pnpm build && node --test dist/tests/patch-tools.test.js` — Expected 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/patch/edit-format-policy.ts src/run/helpers.ts tests/patch-engine.test.ts tests/patch-tools.test.ts
+git add src/execution/patch/edit-format-policy.ts src/execution/run/helpers.ts tests/patch-engine.test.ts tests/patch-tools.test.ts
 git commit -m "fix(patch): allow unified_diff as a declared edit format + document it (#565)"
 ```
 
@@ -372,28 +372,28 @@ git commit -m "fix(patch): allow unified_diff as a declared edit format + docume
 Thread `ownedPaths` from the subagent CLI into `PolicyGate` and add a path-scoped rule: a write tool (`file.create`/`file.delete`/`patch.apply`) whose mutation targets are all inside `ownedPaths` is auto-approved; targets outside are denied with a clear reason; unscoped writes (unparseable targets) fail closed. Explicit per-tool `deny` and protected-path rules still win (they run earlier).
 
 **Files:**
-- Modify: `src/runtime/execution-decision.ts` (`ExecutionDecisionRequest` + `ownedPaths?`)
-- Modify: `src/runtime/execution-authorization.ts` (forward `ownedPaths` to `policyGate.evaluateToolCall`)
-- Modify: `src/tools/executor.ts` (constructor param 10 `ownedPaths?`, forward into `execAuth.evaluate`)
-- Modify: `src/policy/policy-gate.ts` (`ToolPolicyRequest.ownedPaths?` + new rule between step 5 and step 6)
+- Modify: `src/runtime-state/runtime/execution-decision.ts` (`ExecutionDecisionRequest` + `ownedPaths?`)
+- Modify: `src/runtime-state/runtime/execution-authorization.ts` (forward `ownedPaths` to `policyGate.evaluateToolCall`)
+- Modify: `src/capabilities/tools/executor.ts` (constructor param 10 `ownedPaths?`, forward into `execAuth.evaluate`)
+- Modify: `src/governance/policy/policy-gate.ts` (`ToolPolicyRequest.ownedPaths?` + new rule between step 5 and step 6)
 - Modify: `src/agents/subagent-cli.ts` (pass `ownedPaths` to `ToolExecutor`)
 - Test: `tests/policy/policy-gate.test.ts`, `tests/executor.test.ts`, `tests/runtime/execution-authorization.test.ts`
 
 **Interfaces:**
-- Consumes: `extractPatchPaths(format, patchText)` from `src/patch/patch-paths.ts`; `resolvePolicyPath(cwd, path)` already in `policy-gate.ts`.
+- Consumes: `extractPatchPaths(format, patchText)` from `src/execution/patch/patch-paths.ts`; `resolvePolicyPath(cwd, path)` already in `policy-gate.ts`.
 - Produces: `ToolPolicyRequest.ownedPaths?: string[]`; `ExecutionDecisionRequest.ownedPaths?: string[]`; `ToolExecutor` 10th constructor arg `ownedPaths?: string[]`.
 - Behavior: with `ownedPaths` set, `evaluateToolCall` returns `{ decision: "allow", matchedRuleId: "owned-path-rule" }` for owned writes and `{ decision: "deny", matchedRuleId: "owned-path-rule" }` for out-of-scope writes. Without `ownedPaths`, behavior is unchanged.
 
 - [ ] **Step 1: Add the `ownedPaths` field to the request types**
 
-`src/runtime/execution-decision.ts` — add `ownedPaths?: string[]` to `ExecutionDecisionRequest` (find the type, add the field with a one-line doc comment).
+`src/runtime-state/runtime/execution-decision.ts` — add `ownedPaths?: string[]` to `ExecutionDecisionRequest` (find the type, add the field with a one-line doc comment).
 
-`src/policy/policy-gate.ts` — add `ownedPaths?: string[]` to `ToolPolicyRequest`.
+`src/governance/policy/policy-gate.ts` — add `ownedPaths?: string[]` to `ToolPolicyRequest`.
 
 - [ ] **Step 2: Write the failing PolicyGate tests** in `tests/policy/policy-gate.test.ts` (reuse the file's existing `PolicyGate` + config fixtures):
 
 ```ts
-import { extractPatchPaths } from "../../src/patch/patch-paths.js";
+import { extractPatchPaths } from "../../src/execution/patch/patch-paths.js";
 
 const gateConfig = (tools: Record<string, string>) => ({
   permissions: { default: "ask", sessionMode: "ask", tools, protectedPaths: [".git", ".env"] },
@@ -472,7 +472,7 @@ Expected: FAIL — the rule does not exist yet (falls through to approval-store-
 
 - [ ] **Step 4: Implement the owned-path rule in `PolicyGate.evaluateToolCall`**
 
-`src/policy/policy-gate.ts`:
+`src/governance/policy/policy-gate.ts`:
 
 ```ts
 import { extractPatchPaths } from "../patch/patch-paths.js";
@@ -530,7 +530,7 @@ Expected: PASS.
 
 - [ ] **Step 6: Thread `ownedPaths` through executor + execution-authorization**
 
-`src/tools/executor.ts` — constructor (add param 10 after `ownershipRegistry`):
+`src/capabilities/tools/executor.ts` — constructor (add param 10 after `ownershipRegistry`):
 
 ```ts
 private ownedPaths?: string[],
@@ -538,7 +538,7 @@ private ownedPaths?: string[],
 
 In `execute()`, add to the `execAuth.evaluate({ ... })` call (193-203): `ownedPaths: this.ownedPaths,`.
 
-`src/runtime/execution-authorization.ts` — in `evaluate()`, forward into `policyGate.evaluateToolCall`: add `ownedPaths: request.ownedPaths,` alongside the existing `args`/`cwd` fields.
+`src/runtime-state/runtime/execution-authorization.ts` — in `evaluate()`, forward into `policyGate.evaluateToolCall`: add `ownedPaths: request.ownedPaths,` alongside the existing `args`/`cwd` fields.
 
 - [ ] **Step 7: Pass `ownedPaths` from the subagent CLI**
 
@@ -593,7 +593,7 @@ Expected: PASS.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/runtime/execution-decision.ts src/runtime/execution-authorization.ts src/tools/executor.ts src/policy/policy-gate.ts src/agents/subagent-cli.ts tests/policy/policy-gate.test.ts tests/executor.test.ts tests/runtime/execution-authorization.test.ts
+git add src/runtime-state/runtime/execution-decision.ts src/runtime-state/runtime/execution-authorization.ts src/capabilities/tools/executor.ts src/governance/policy/policy-gate.ts src/agents/subagent-cli.ts tests/policy/policy-gate.test.ts tests/executor.test.ts tests/runtime/execution-authorization.test.ts
 git commit -m "fix(delegate): auto-approve writes scoped to ownedPaths for headless subagents (#566)"
 ```
 

@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { prescribeOffering } from "../../src/runtime/offering-planner.js";
-import type { SignalFrame, SignalBits, SignalDomain } from "../../src/runtime/signal-frame.js";
-import { createSignalFrame } from "../../src/runtime/signal-frame.js";
+import { prescribeOffering } from "../../src/runtime-state/runtime/offering-planner.js";
+import type { SignalFrame, SignalBits, SignalDomain } from "../../src/runtime-state/runtime/signal-frame.js";
+import { createSignalFrame } from "../../src/runtime-state/runtime/signal-frame.js";
 
 /* ------------------------------------------------------------------ */
 /*  Helper                                                             */

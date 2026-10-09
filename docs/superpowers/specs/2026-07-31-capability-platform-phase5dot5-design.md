@@ -25,11 +25,11 @@ Persist the execution-trace projection's checkpoint to disk so a restarted colle
 | D5a | **Commit-marker invariant (D5, stated once):** *A checkpoint file never represents a projection state that has not been durably published, and a published snapshot never represents a checkpoint position that has not been durably persisted.* |
 | D6 | **Write cadence = every successful sample.** The EventLog is append-only and the file is ~100 bytes; 1 write/sec via atomic tmp+rename is negligible versus LLM calls/rendering. No throttle (optimize correctness first; a throttle is a later option if I/O ever matters). Shutdown-only is rejected (daemon environments have ungraceful exits: SIGKILL, OOM, container eviction). |
 | D7 | **`ProjectionCheckpoint` stays cursor-object based in the runtime layer.** The collector never touches a `cursorString`; serialization happens only at the store boundary (`serializeCursor`/`deserializeCursor`). |
-| D8 | **Boundary.** `src/capability/*`, `timelineEvents[]`, ChatView, AgentView, and the capability presenter are untouched. Timeline Projection (the unification) is still a separate future phase. |
+| D8 | **Boundary.** `src/capabilities/capability/*`, `timelineEvents[]`, ChatView, AgentView, and the capability presenter are untouched. Timeline Projection (the unification) is still a separate future phase. |
 
 ## Architecture
 
-### Cursor serialization (`src/events/event-log.ts`)
+### Cursor serialization (`src/runtime-state/events/event-log.ts`)
 
 ```ts
 interface EventLog {
@@ -51,7 +51,7 @@ Internal representation (module-private, versioned):
 
 The serialized string may contain the sequence internally, but it is only handled inside `serializeCursor`/`deserializeCursor` — **seq is never exposed through the public EventLog cursor API** (D1/D2).
 
-### Checkpoint store (`src/tui/runtime/projection-checkpoint-store.ts`)
+### Checkpoint store (`src/interfaces/tui/runtime/projection-checkpoint-store.ts`)
 
 The store's contract is the **persisted** form — it never sees an `EventLog` or a cursor object (D3/D7):
 
@@ -79,7 +79,7 @@ Storage: `.alix/sessions/<sessionId>/projection-checkpoint.json`
 
 Atomic write: write `<file>.tmp` then `rename` over the target (session-store-jsonl pattern). `load()` returns `null` for a missing file, malformed JSON, or an unknown container `version`. The store owns the envelope (D4); it never reads the cursor string. The collector is the bridge: `load() → deserializeCursor() → ProjectionCheckpoint`, and `ProjectionCheckpoint → serializeCursor() → save()` (D3 dependency graph: `EventLog ↑ Collector ↓ CheckpointStore`).
 
-### Collector wiring (`src/tui/runtime-collector.ts`)
+### Collector wiring (`src/interfaces/tui/runtime-collector.ts`)
 
 `RuntimeCollectorImpl` takes the store via **constructor injection** — it never instantiates it internally (tests inject an in-memory store; filesystem persistence stays outside collector logic; a future backend can swap in):
 
@@ -168,7 +168,7 @@ checkpoint advances + snapshot publishes              beginningCursor() fallback
 - ✅ Write cadence = every successful sample, persist-before-publish.
 - ✅ A persisted checkpoint whose `seq` exceeds the active `EventLog` head does not silently skip events — `deserializeCursor` / `readSince` reject it via `EventLogCursorError`, the collector falls back to `beginningCursor()`, and the in-memory projection re-replays from the start.
 - ✅ Invalid-cursor vs operational errors are discriminated by `instanceof EventLogCursorError` so a disk read / save failure preserves the dashboard while a bad checkpoint always triggers a full replay.
-- ✅ `src/capability/*`, `timelineEvents[]`, ChatView, AgentView, capability presenter untouched; vitest green; `tsc --noEmit` clean.
+- ✅ `src/capabilities/capability/*`, `timelineEvents[]`, ChatView, AgentView, capability presenter untouched; vitest green; `tsc --noEmit` clean.
 
 ## Non-Goals (Phase 5.5)
 

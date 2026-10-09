@@ -74,14 +74,14 @@ private renderStatus(): void {
 
 | File | Change |
 |------|--------|
-| `src/tui/render.ts` | Complete rewrite — split-screen layout, bottom-pinned status |
-| `src/tui/ansi.ts` | Add `savePos`, `restorePos`, terminal-height helpers |
-| `src/tui/index.ts` | Minor — expose `appendOutput()` method |
+| `src/interfaces/tui/render.ts` | Complete rewrite — split-screen layout, bottom-pinned status |
+| `src/interfaces/tui/ansi.ts` | Add `savePos`, `restorePos`, terminal-height helpers |
+| `src/interfaces/tui/index.ts` | Minor — expose `appendOutput()` method |
 | Tests (new) | Verify layout math, output buffer, status rendering |
 
 ## What Stays Unchanged
 
-- `src/tui/store.ts` — no changes
-- `src/tui/widgets/*` — no changes, still produce strings
-- `src/tui/diff-render.ts` — no longer needed (remove or keep for reference)
-- `src/cli/commands/tui.ts` — no changes
+- `src/interfaces/tui/store.ts` — no changes
+- `src/interfaces/tui/widgets/*` — no changes, still produce strings
+- `src/interfaces/tui/diff-render.ts` — no longer needed (remove or keep for reference)
+- `src/interfaces/cli/commands/tui.ts` — no changes

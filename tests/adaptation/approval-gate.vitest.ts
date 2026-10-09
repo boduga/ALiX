@@ -10,11 +10,11 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
-import { ApprovalGate } from "../../src/adaptation/approval-gate.js";
-import { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import type { EvidenceRecord, EvidenceType } from "../../src/security/evidence/evidence-types.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { AdaptationProposalStore } from "../../src/planning/adaptation/adaptation-proposal-store.js";
+import { ApprovalGate } from "../../src/planning/adaptation/approval-gate.js";
+import { EvidenceEventWriter } from "../../src/coordination/workflow/evidence-writer.js";
+import type { EvidenceRecord, EvidenceType } from "../../src/governance/security/evidence/evidence-types.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleRecommendCommand } from "../../../src/cli/commands/executive-recommend-handler.js";
-import { OutcomeReportStore } from "../../../src/executive/outcome-store.js";
-import type { ExecutiveOutcomeEvaluationReport } from "../../../src/executive/outcome-evaluator.js";
+import { handleRecommendCommand } from "../../../src/interfaces/cli/commands/executive-recommend-handler.js";
+import { OutcomeReportStore } from "../../../src/execution/executive/outcome-store.js";
+import type { ExecutiveOutcomeEvaluationReport } from "../../../src/execution/executive/outcome-evaluator.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

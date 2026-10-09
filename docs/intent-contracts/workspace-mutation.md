@@ -1,7 +1,7 @@
 # Workspace-mutation intent — recognition contract
 
 **Status**: Active (T8 on wayfinder map #376)
-**Owner**: `src/runtime/action-classifier.ts` (`MUTATION_ANCHORS`)
+**Owner**: `src/runtime-state/runtime/action-classifier.ts` (`MUTATION_ANCHORS`)
 **Test corpus**: `tests/runtime/action-classifier.test.ts → describe("classifyAction — workspace-mutation recognition contract")`
 
 ## Intent definition
@@ -21,7 +21,7 @@ Distinct from adjacent intent families:
 
 ## Recognizer
 
-**Mechanism**: deterministic regex (`MUTATION_ANCHORS` family in `src/runtime/action-classifier.ts`).
+**Mechanism**: deterministic regex (`MUTATION_ANCHORS` family in `src/runtime-state/runtime/action-classifier.ts`).
 **Trigger precedence**: workspace-mutation fires AFTER workspace-state (state first, then mutation) so that probes with conditional mutation ("is curl installed or do I need to install it") classify as state — preserves T1's documented ambiguous-corpus policy.
 **Confidence**: workspace-mutation matches return `confidence: 0.95` (≥ 0.7 Layer-1 floor), which short-circuits the model fallback.
 

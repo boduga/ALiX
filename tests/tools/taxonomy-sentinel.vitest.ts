@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { ALIX_BUILTIN_EXECUTORS, ALIX_CANONICAL_BUILTIN_TOOLS } from "../../src/agents/tool-manifest.js";
 import { WRITE_TOOLS } from "../../src/agents/tool-policy.js";
-import { CORE_TOOL_NAMES } from "../../src/config/tool-scoping.js";
-import { buildDefaultToolIndex, getToolsForCapability, getCapabilitiesForTool } from "../../src/tools/tool-registry.js";
-import { BASE_TOOLS, READ_ONLY_TOOL_NAMES } from "../../src/run/helpers.js";
+import { CORE_TOOL_NAMES } from "../../src/operations/config/tool-scoping.js";
+import { buildDefaultToolIndex, getToolsForCapability, getCapabilitiesForTool } from "../../src/capabilities/tools/tool-registry.js";
+import { BASE_TOOLS, READ_ONLY_TOOL_NAMES } from "../../src/execution/run/helpers.js";
 
 const REPO_SRC = fileURLToPath(new URL("../../src/", import.meta.url));
 

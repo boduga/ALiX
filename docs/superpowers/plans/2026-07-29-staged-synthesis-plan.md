@@ -20,16 +20,16 @@
 
 | File | Role | Change |
 |---|---|---|
-| `src/run/progress-ledger.ts` | NEW — runtime-owned progress tracker | Class with `recordToolCall()`, `markCurrent()`, `render()` |
-| `src/run/task-loop.ts` | Agent loop | Add checkpoint counters, injection logic, ProgressLedger instance |
-| `src/tui/views/agent-view.ts` | TUI scrollback | Render ledger entries in dim style below the prompt row |
+| `src/execution/run/progress-ledger.ts` | NEW — runtime-owned progress tracker | Class with `recordToolCall()`, `markCurrent()`, `render()` |
+| `src/execution/run/task-loop.ts` | Agent loop | Add checkpoint counters, injection logic, ProgressLedger instance |
+| `src/interfaces/tui/views/agent-view.ts` | TUI scrollback | Render ledger entries in dim style below the prompt row |
 
 ---
 
 ### Task 1: Create ProgressLedger class
 
 **Files:**
-- Create: `src/run/progress-ledger.ts`
+- Create: `src/execution/run/progress-ledger.ts`
 
 **Interfaces:**
 - Produces: `ProgressLedger` class
@@ -39,7 +39,7 @@ The ledger accumulates entries from tool-call execution. Each entry records one 
 - [ ] **Step 1: Create the file with types and class**
 
 ```typescript
-// src/run/progress-ledger.ts
+// src/execution/run/progress-ledger.ts
 // Runtime-owned progress tracker. Derived FROM tool execution —
 // the model never writes to the ledger directly.
 
@@ -127,7 +127,7 @@ Expected: clean build (no importers yet).
 ### Task 2: Wire checkpoints into task-loop.ts
 
 **Files:**
-- Modify: `src/run/task-loop.ts`
+- Modify: `src/execution/run/task-loop.ts`
 
 Add the checkpoint counters and injection logic after the tool-execution loop. The checkpoint fires when ≥5 successful tool calls or ≥30s wall-clock have elapsed since the last checkpoint, AND the model's last text is under 80 characters (meaning it hasn't narrated recently).
 
@@ -226,14 +226,14 @@ Expected: clean build.
 ### Task 3: Render ledger in TUI agent-view
 
 **Files:**
-- Modify: `src/tui/views/agent-view.ts`
+- Modify: `src/interfaces/tui/views/agent-view.ts`
 
 - [ ] **Step 1: Add ledger rendering**
 
 The ledger is part of `PerTabState` or derived from `ToolCallRequest` history. If the ledger lives in the session, the TUI reads it from the snapshot. For now, render it from a new field on `PerTabState`:
 
 ```typescript
-// In PerTabState (src/tui/state.ts)
+// In PerTabState (src/interfaces/tui/state.ts)
 export interface PerTabState {
   // ...existing fields
   progressLedger?: string;  // NEW — rendered text of the progress ledger

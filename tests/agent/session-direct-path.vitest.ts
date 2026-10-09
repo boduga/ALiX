@@ -27,10 +27,10 @@ import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createAgentSession } from "../../src/agent/session.js";
-import type { ModelAdapter } from "../../src/providers/types.js";
-import type { RouteDiagnostic } from "../../src/runtime/task-router.js";
-import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
+import { createAgentSession } from "../../src/agents/agent/session.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
+import type { RouteDiagnostic } from "../../src/runtime-state/runtime/task-router.js";
+import { closeAllSharedLedgers } from "../../src/runtime-state/storage/runtime-ledger.js";
 
 let directTestCwd: string;
 let directTestCwdCleanup: (() => void) | null = null;
@@ -57,9 +57,9 @@ const mocks = vi.hoisted(() => ({
   toolExecutorExecute: vi.fn(async () => ({ kind: "success", output: "mock result" })),
 }));
 
-vi.mock("../../src/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
-vi.mock("../../src/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
-vi.mock("../../src/providers/registry.js", () => ({
+vi.mock("../../src/agents/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
+vi.mock("../../src/execution/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
+vi.mock("../../src/models/providers/registry.js", () => ({
   createProvider: vi.fn(async () => ({
     id: "mock",
     capabilities: {},
@@ -68,24 +68,24 @@ vi.mock("../../src/providers/registry.js", () => ({
     complete: mocks.groundedChatComplete,
   })),
 }));
-vi.mock("../../src/tools/executor.js", () => ({
+vi.mock("../../src/capabilities/tools/executor.js", () => ({
   ToolExecutor: class {
     execute = mocks.toolExecutorExecute;
   },
 }));
-vi.mock("../../src/utils/memory/recall.js", () => ({
+vi.mock("../../src/operations/utils/memory/recall.js", () => ({
   buildMemoryContext: vi.fn(() => Promise.resolve(undefined)),
   buildMemoryStats: vi.fn(() => Promise.resolve(undefined)),
 }));
-vi.mock("../../src/skills/loader.js", () => ({
+vi.mock("../../src/capabilities/skills/loader.js", () => ({
   loadSkillManifests: vi.fn(() => Promise.resolve([])),
 }));
-vi.mock("../../src/skills/catalog.js", () => ({
+vi.mock("../../src/capabilities/skills/catalog.js", () => ({
   buildSkillCatalog: vi.fn(() => ({
     getMatchedContent: vi.fn(() => Promise.resolve([])),
   })),
 }));
-vi.mock("../../src/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
+vi.mock("../../src/capabilities/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
 
 const initContext = {
   sessionId: "direct-test-session",
@@ -313,7 +313,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
   // 1 agent.response, no streaming events, no tokens observed live.
   // The fix: when streaming is enabled (default), use streamToResponse so
   // tokens arrive through the events.onToken sink the in-process TUI wires
-  // up in src/cli/commands/tui.ts.
+  // up in src/interfaces/cli/commands/tui.ts.
   it("generation streams tokens when provider supports streaming and streaming is enabled (default)", async () => {
     const complete = vi.fn(async () => ({ text: "should not be called", toolCalls: [] }));
     const stream = vi.fn(async function* () {

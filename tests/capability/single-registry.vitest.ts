@@ -8,7 +8,7 @@ import { toPosix } from "../helpers/import-graph.js";
  *  tests) for `new CapabilityRegistry(` outside platform.ts. */
 describe("exactly one canonical CapabilityRegistry per runtime universe", () => {
   const ROOT = join(process.cwd(), "src");
-  const EXCLUDED = new Set(["capability/registry.ts", "capability/platform.ts"]);
+  const EXCLUDED = new Set(["capabilities/capability/registry.ts", "capabilities/capability/platform.ts"]);
 
   function walk(dir: string): string[] {
     const out: string[] = [];

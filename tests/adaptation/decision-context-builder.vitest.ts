@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { DecisionContextBuilder } from "../../src/adaptation/decision-context-builder.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { DecisionContextBuilder } from "../../src/planning/adaptation/decision-context-builder.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Mock helpers (same pattern as lineage-builder tests)

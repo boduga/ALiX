@@ -16,7 +16,7 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/kernel/graph-planner.ts` | **Create** | `GraphPlanner` class — calls model, parses, validates, persists |
+| `src/coordination/kernel/graph-planner.ts` | **Create** | `GraphPlanner` class — calls model, parses, validates, persists |
 | `src/cli.ts` | **Modify** | Add `alix graph plan "<task>"` command handler |
 | `.alix/graphs/` | **Create dir** | Graph artifact storage |
 | `tests/kernel/graph-planner.test.ts` | **Create** | Tests for planner logic |
@@ -26,7 +26,7 @@
 ### Task 1: Create GraphPlanner module
 
 **Files:**
-- Create: `src/kernel/graph-planner.ts`
+- Create: `src/coordination/kernel/graph-planner.ts`
 
 - [ ] **Step 1: Write GraphPlanner**
 
@@ -273,7 +273,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/graph-planner.ts
+git add src/coordination/kernel/graph-planner.ts
 git commit -m "feat(graph): add GraphPlanner dry-run planner"
 ```
 
@@ -396,8 +396,8 @@ git commit -m "feat(cli): add alix graph plan command"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateGraphSchema, createFallbackGraph } from "../../src/kernel/graph-planner.js";
-import type { TaskGraph } from "../../src/kernel/task-graph.js";
+import { validateGraphSchema, createFallbackGraph } from "../../src/coordination/kernel/graph-planner.js";
+import type { TaskGraph } from "../../src/coordination/kernel/task-graph.js";
 
 describe("GraphPlanner", () => {
 

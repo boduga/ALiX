@@ -8,7 +8,7 @@ import type {
   EventActor,
   EventMeta,
   NewEvent,
-} from "../../src/runtime/contracts/event-contract.js";
+} from "../../src/runtime-state/runtime/contracts/event-contract.js";
 import {
   EVENT_IMMUTABILITY,
   TOOL_EVENT_TYPES,
@@ -27,16 +27,16 @@ import {
   APPROVAL_EVENT_TYPES,
   REPLAY_EVENT_TYPES,
   ROLLBACK_EVENT_TYPES,
-} from "../../src/runtime/contracts/event-contract.js";
-import type { EventLogContract } from "../../src/runtime/contracts/event-contract.js";
+} from "../../src/runtime-state/runtime/contracts/event-contract.js";
+import type { EventLogContract } from "../../src/runtime-state/runtime/contracts/event-contract.js";
 
 // ── Source types (for structural comparison) ────────────────────
 
-import type { AlixEvent as SourceAlixEvent } from "../../src/events/types.js";
-import type { EventMeta as SourceEventMeta } from "../../src/events/types.js";
-import type { NewEvent as SourceNewEvent } from "../../src/events/types.js";
-import type { EventActor as SourceEventActor } from "../../src/events/types.js";
-import { EventLog } from "../../src/events/event-log.js";
+import type { AlixEvent as SourceAlixEvent } from "../../src/runtime-state/events/types.js";
+import type { EventMeta as SourceEventMeta } from "../../src/runtime-state/events/types.js";
+import type { NewEvent as SourceNewEvent } from "../../src/runtime-state/events/types.js";
+import type { EventActor as SourceEventActor } from "../../src/runtime-state/events/types.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 // ── Tests ───────────────────────────────────────────────────────
 

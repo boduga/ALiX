@@ -89,7 +89,7 @@ Acceptance:
 
 ### Task 1.1 — Separate semantic kind from provider type
 
-Audit `src/capability/types.ts` and all consumers of `Capability.kind` and `execution.strategy`.
+Audit `src/capabilities/capability/types.ts` and all consumers of `Capability.kind` and `execution.strategy`.
 
 Replace implementation-shaped classification with:
 
@@ -147,7 +147,7 @@ Acceptance:
 
 ### Task 2.1 — Define registry ownership
 
-Refactor `src/capability/registry.ts` so the registry owns:
+Refactor `src/capabilities/capability/registry.ts` so the registry owns:
 
 - definitions;
 - lifecycle state;
@@ -240,7 +240,7 @@ A source must produce a definition/binding and submit it to the canonical regist
 
 ### Task 3.3 — Replace bootstrap-only definition ownership
 
-`src/capability/initial-capabilities.ts` becomes a seed provider rather than the only source of truth.
+`src/capabilities/capability/initial-capabilities.ts` becomes a seed provider rather than the only source of truth.
 
 The migration must preserve all current definitions:
 

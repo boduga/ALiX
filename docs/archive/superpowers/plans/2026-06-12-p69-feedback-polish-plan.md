@@ -2,14 +2,14 @@
 
 **Goal:** Show human-readable success output (e.g. `✓ Wrote test.txt`) instead of `(tool completed)` for file operations that produce no stdout.
 
-**Architecture:** Modify `src/runtime/route-executor.ts` to inspect `route.args.command` for file-operation patterns and return descriptive messages instead of `"(tool completed)"` when output is empty.
+**Architecture:** Modify `src/runtime-state/runtime/route-executor.ts` to inspect `route.args.command` for file-operation patterns and return descriptive messages instead of `"(tool completed)"` when output is empty.
 
 ---
 
 ### Task 1: Add feedback formatter
 
 **Files:**
-- Modify: `src/runtime/route-executor.ts`
+- Modify: `src/runtime-state/runtime/route-executor.ts`
 
 Add after the import block, before the `LocalRuntimeExecutor` class:
 

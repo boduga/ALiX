@@ -773,18 +773,18 @@ Structural enforcement of the core invariant: *Learning proposes. Governance app
 
 **1. No mutation imports in learning modules**
 ```
-All files in src/learning/ must not import from:
-  - src/adaptation/proposal-store.ts
-  - src/adaptation/approval-gate.ts
-  - src/adaptation/agent-card-applier.ts
-  - src/adaptation/skill-applier.ts
-  - src/adaptation/revert-applier.ts
-  - src/adaptation/evidence-writer.ts (except EvidenceEventWriter for read-only evidence)
+All files in src/planning/learning/ must not import from:
+  - src/planning/adaptation/proposal-store.ts
+  - src/planning/adaptation/approval-gate.ts
+  - src/planning/adaptation/agent-card-applier.ts
+  - src/planning/adaptation/skill-applier.ts
+  - src/planning/adaptation/revert-applier.ts
+  - src/planning/adaptation/evidence-writer.ts (except EvidenceEventWriter for read-only evidence)
 ```
 
 **2. No direct calibration writes**
 ```
-All files in src/learning/ must not:
+All files in src/planning/learning/ must not:
   - Call writeFileSync / writeFile / appendFile on calibration files
   - Import calibration profile config files with write intent
   - Reference calibration file paths for writing
@@ -792,22 +792,22 @@ All files in src/learning/ must not:
 
 **3. No ApprovalGate bypass**
 ```
-No file in src/learning/ may import ApprovalGate
-No file in src/learning/ may reference approve/apply/reject lifecycle functions
-No file in src/learning/ may call proposalStore.save()
+No file in src/planning/learning/ may import ApprovalGate
+No file in src/planning/learning/ may reference approve/apply/reject lifecycle functions
+No file in src/planning/learning/ may call proposalStore.save()
 ```
 
 **4. No Auto-Generated Learning Proposals**
 ```
-grep for "AutomaticProposalGenerator" in src/learning/ → must not exist
-grep for "proposalStore" in src/learning/ → must not exist
-grep for "approvalGate" in src/learning/ → must not exist
+grep for "AutomaticProposalGenerator" in src/planning/learning/ → must not exist
+grep for "proposalStore" in src/planning/learning/ → must not exist
+grep for "approvalGate" in src/planning/learning/ → must not exist
 ```
 
 **5. ProposalFactory is CLI-only**
 ```
-ProposalFactory is instantiated only in src/cli/commands/learning.ts
-ProposalFactory must not be imported by any src/learning/ module
+ProposalFactory is instantiated only in src/interfaces/cli/commands/learning.ts
+ProposalFactory must not be imported by any src/planning/learning/ module
 ```
 
 **6. LearningStore is append-only**
@@ -934,7 +934,7 @@ Window: 2026-05-23 to 2026-06-22 (30 days)
 ### CLI Implementation
 
 ```
-src/cli/commands/learning.ts
+src/interfaces/cli/commands/learning.ts
   - learningCommand() → route to report or propose
   - runLearningReport() → build report from LearningStore + P7 stores
   - runLearningPropose() → build LearningProposal → ProposalFactory → ProposalStore.save()
@@ -1009,7 +1009,7 @@ Verify that P8 is complete and safe before P9 (Agentic Exchange) begins.
 
 **Governance Sentinels (P8.6)**
 - [ ] All 8 sentinel tests pass
-- [ ] No mutation imports in src/learning/
+- [ ] No mutation imports in src/planning/learning/
 - [ ] No direct calibration writes
 - [ ] No ApprovalGate bypass
 - [ ] No auto-generated learning proposals

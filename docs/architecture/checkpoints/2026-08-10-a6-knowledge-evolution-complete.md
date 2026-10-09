@@ -29,22 +29,22 @@ CLI: `alix governance evolution curate [--dimension ...] [--json]`.
 
 | File | Responsibility |
 |------|----------------|
-| `src/evolution/knowledge/contracts/curation-contract.ts` | `KnowledgeArtifact`, `CurationFinding`, `CurationProposal`, `CurationConfig`, `CurationResult`, `StoreStatus` |
-| `src/evolution/knowledge/adapters/shared.ts` | `AdapterResult`, `parseLines`, `readTextFileOrNull` |
-| `src/evolution/knowledge/adapters/learning-store-adapter.ts` | `LearningStoreAdapter` — signals/profiles/reports → read model |
-| `src/evolution/knowledge/adapters/chronicle-adapter.ts` | `ChronicleAdapter` — chronicle entries → read model |
-| `src/evolution/knowledge/adapters/failure-memory-adapter.ts` | `FailureMemoryAdapter` — failure records → read model |
-| `src/evolution/knowledge/adapters/pattern-registry-adapter.ts` | `PatternRegistryAdapter` — task-type stats → read model |
-| `src/evolution/knowledge/adapters/evidence-adapter.ts` | `EvidenceAdapter` — A5 `VerificationEvidenceLedger` → read model |
-| `src/evolution/knowledge/detectors/finding-id.ts` | `computeFindingId`, `normalizeContent` (deterministic identity) |
-| `src/evolution/knowledge/detectors/staleness-detector.ts` | `detectStale` — age / superseded / outcome_contradiction |
-| `src/evolution/knowledge/detectors/dedup-detector.ts` | `detectDuplicates` — exact / near (Sørensen–Dice) |
-| `src/evolution/knowledge/detectors/contradiction-detector.ts` | `detectContradictions` — claims only (value_clash / outcome_contradiction) |
-| `src/evolution/knowledge/detectors/compression-detector.ts` | `detectCompressible` — low-value + long-lived |
-| `src/evolution/knowledge/curation-engine.ts` | `CurationEngine.curateAll()` — adapters → detectors → findings + store status |
-| `src/evolution/knowledge/curation-proposal-builder.ts` | `buildCurationProposal`, `buildEvidenceFromFindings`, `buildGovernanceRecommendation` (A2.5 mapping) |
-| `src/evolution/knowledge/curation-cli.ts` | CLI handler (`handleCurationCommand`) |
-| `src/evolution/knowledge/index.ts` | Barrel re-exports |
+| `src/planning/evolution/knowledge/contracts/curation-contract.ts` | `KnowledgeArtifact`, `CurationFinding`, `CurationProposal`, `CurationConfig`, `CurationResult`, `StoreStatus` |
+| `src/planning/evolution/knowledge/adapters/shared.ts` | `AdapterResult`, `parseLines`, `readTextFileOrNull` |
+| `src/planning/evolution/knowledge/adapters/learning-store-adapter.ts` | `LearningStoreAdapter` — signals/profiles/reports → read model |
+| `src/planning/evolution/knowledge/adapters/chronicle-adapter.ts` | `ChronicleAdapter` — chronicle entries → read model |
+| `src/planning/evolution/knowledge/adapters/failure-memory-adapter.ts` | `FailureMemoryAdapter` — failure records → read model |
+| `src/planning/evolution/knowledge/adapters/pattern-registry-adapter.ts` | `PatternRegistryAdapter` — task-type stats → read model |
+| `src/planning/evolution/knowledge/adapters/evidence-adapter.ts` | `EvidenceAdapter` — A5 `VerificationEvidenceLedger` → read model |
+| `src/planning/evolution/knowledge/detectors/finding-id.ts` | `computeFindingId`, `normalizeContent` (deterministic identity) |
+| `src/planning/evolution/knowledge/detectors/staleness-detector.ts` | `detectStale` — age / superseded / outcome_contradiction |
+| `src/planning/evolution/knowledge/detectors/dedup-detector.ts` | `detectDuplicates` — exact / near (Sørensen–Dice) |
+| `src/planning/evolution/knowledge/detectors/contradiction-detector.ts` | `detectContradictions` — claims only (value_clash / outcome_contradiction) |
+| `src/planning/evolution/knowledge/detectors/compression-detector.ts` | `detectCompressible` — low-value + long-lived |
+| `src/planning/evolution/knowledge/curation-engine.ts` | `CurationEngine.curateAll()` — adapters → detectors → findings + store status |
+| `src/planning/evolution/knowledge/curation-proposal-builder.ts` | `buildCurationProposal`, `buildEvidenceFromFindings`, `buildGovernanceRecommendation` (A2.5 mapping) |
+| `src/planning/evolution/knowledge/curation-cli.ts` | CLI handler (`handleCurationCommand`) |
+| `src/planning/evolution/knowledge/index.ts` | Barrel re-exports |
 | `src/governance/evolution-cli.ts` | `curate` subcommand wiring (`handleEvolutionCommand`) |
 
 **Tests:** `tests/evolution/knowledge/` — curation-contract, knowledge-artifact-adapter,

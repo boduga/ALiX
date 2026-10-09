@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { SkillCatalog } from "../../src/skills/catalog.js";
-import { parseSkillContent } from "../../src/skills/types.js";
+import { SkillCatalog } from "../../src/capabilities/skills/catalog.js";
+import { parseSkillContent } from "../../src/capabilities/skills/types.js";
 
 const SKILL_MD = "skills/langfuse-traces/SKILL.md";
 

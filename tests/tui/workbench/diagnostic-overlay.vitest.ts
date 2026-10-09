@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { buildWorkbenchDiagnosticLines, paintWorkbenchDiagnosticOverlay } from '../../../src/tui/workbench/views/diagnostic-overlay.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import { buildWorkbenchDiagnosticLines, paintWorkbenchDiagnosticOverlay } from '../../../src/interfaces/tui/workbench/views/diagnostic-overlay.js';
 
 describe('Workbench diagnostic overlays', () => {
   it('renders projected patch activity for in-session review', () => {

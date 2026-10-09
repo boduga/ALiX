@@ -8,14 +8,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { existsSync, unlinkSync, rmdirSync } from "node:fs";
 import { StrategicPlanStore } from "../../src/planning/strategic-plan-store.js";
-import { ConfidenceModelStore } from "../../src/learning/confidence-model-store.js";
-import { LearningEngine } from "../../src/learning/confidence-learning-engine.js";
+import { ConfidenceModelStore } from "../../src/planning/learning/confidence-model-store.js";
+import { LearningEngine } from "../../src/planning/learning/confidence-learning-engine.js";
 import type { StrategicPlan } from "../../src/planning/planning-types.js";
-import type { LearningOutcomeRecord, LearningOutcomeStore } from "../../src/learning/learning-types.js";
-import type { ScoreSnapshotProvider } from "../../src/learning/learning-types.js";
-import { LearningEngineError } from "../../src/learning/learning-types.js";
-import type { CorrelationSubsystemId } from "../../src/correlation/correlation-types.js";
-import { DEFAULT_LEARNING_CONFIG } from "../../src/learning/learning-config.js";
+import type { LearningOutcomeRecord, LearningOutcomeStore } from "../../src/planning/learning/learning-types.js";
+import type { ScoreSnapshotProvider } from "../../src/planning/learning/learning-types.js";
+import { LearningEngineError } from "../../src/planning/learning/learning-types.js";
+import type { CorrelationSubsystemId } from "../../src/operations/correlation/correlation-types.js";
+import { DEFAULT_LEARNING_CONFIG } from "../../src/planning/learning/learning-config.js";
 
 function makePlan(overrides?: Partial<StrategicPlan>): StrategicPlan {
   return {

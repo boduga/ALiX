@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { McpToolDeferral } from "../../src/mcp/tool-deferral.js";
+import { McpToolDeferral } from "../../src/capabilities/mcp/tool-deferral.js";
 
 describe("MCP model tool handles", () => {
   const tools = [

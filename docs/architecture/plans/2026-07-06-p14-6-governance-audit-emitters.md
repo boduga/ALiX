@@ -26,7 +26,7 @@ Each factory is a pure function — no store access, no side effects.
 
 ### Task 2 — CLI integration
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 Add audit `append()` calls at 5 emission points in existing CLI handlers:
 
@@ -64,7 +64,7 @@ Audit failures are non-fatal — logged but do not block the governance operatio
 |------|-------|
 | `src/governance/audit-emitters.ts` | ~120 |
 | `tests/governance/audit-emitters.test.ts` | ~200 |
-| `src/cli/commands/governance.ts` (amended) | ~+60 |
+| `src/interfaces/cli/commands/governance.ts` (amended) | ~+60 |
 | **Total new** | ~380 |
 
 ## Dependencies

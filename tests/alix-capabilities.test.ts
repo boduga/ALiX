@@ -29,17 +29,17 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("task state machine exists", () => {
-      const stateMachineFile = join(rootDir, "src", "autonomy", "state-machine.ts");
+      const stateMachineFile = join(rootDir, "src", "planning", "autonomy", "state-machine.ts");
       assert.ok(existsSync(stateMachineFile), "Task state machine should exist");
     });
 
     test("scope tracker prevents expansion", () => {
-      const scopeTrackerFile = join(rootDir, "src", "autonomy", "scope-tracker.ts");
+      const scopeTrackerFile = join(rootDir, "src", "planning", "autonomy", "scope-tracker.ts");
       assert.ok(existsSync(scopeTrackerFile), "Scope tracker should exist");
     });
 
     test("run limiter enforces max iterations", () => {
-      const runLimiterFile = join(rootDir, "src", "autonomy", "run-limiter.ts");
+      const runLimiterFile = join(rootDir, "src", "planning", "autonomy", "run-limiter.ts");
       if (existsSync(runLimiterFile)) {
         const content = readFileSync(runLimiterFile, "utf-8");
         assert.ok(
@@ -60,7 +60,7 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     ];
 
     test("providers directory exists with expected providers", () => {
-      const providersDir = join(rootDir, "src", "providers");
+      const providersDir = join(rootDir, "src", "models", "providers");
       assert.ok(existsSync(providersDir), "Providers directory should exist");
 
       const files = readdirSync(providersDir);
@@ -71,7 +71,7 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("base provider handles errors consistently", () => {
-      const baseProvider = join(rootDir, "src", "providers", "base.ts");
+      const baseProvider = join(rootDir, "src", "models", "providers", "base.ts");
       const content = readFileSync(baseProvider, "utf-8");
 
       assert.ok(content.includes("error") || content.includes("Error"), "Base provider should handle errors");
@@ -79,9 +79,9 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("provider catalog and registry exist", () => {
-      const catalogFile = join(rootDir, "src", "providers", "catalog.ts");
-      const registryFile = join(rootDir, "src", "providers", "registry.ts");
-      const typesFile = join(rootDir, "src", "providers", "types.ts");
+      const catalogFile = join(rootDir, "src", "models", "providers", "catalog.ts");
+      const registryFile = join(rootDir, "src", "models", "providers", "registry.ts");
+      const typesFile = join(rootDir, "src", "models", "providers", "types.ts");
 
       assert.ok(existsSync(catalogFile), "Provider catalog should exist");
       assert.ok(existsSync(registryFile), "Provider registry should exist");
@@ -89,7 +89,7 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("tiktoken token counting is available", () => {
-      const tokenUtilsFile = join(rootDir, "src", "utils", "tokens.ts");
+      const tokenUtilsFile = join(rootDir, "src", "operations", "utils", "tokens.ts");
       assert.ok(existsSync(tokenUtilsFile), "Token counting utility should exist");
     });
 
@@ -98,12 +98,12 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
   test.describe("Capability 3: Tool System", () => {
 
     test("tools directory exists", () => {
-      const toolsDir = join(rootDir, "src", "tools");
+      const toolsDir = join(rootDir, "src", "capabilities", "tools");
       assert.ok(existsSync(toolsDir), "Tools directory should exist");
     });
 
     test("file tools are implemented", () => {
-      const fileToolsFile = join(rootDir, "src", "tools", "file-tools.ts");
+      const fileToolsFile = join(rootDir, "src", "capabilities", "tools", "file-tools.ts");
       assert.ok(existsSync(fileToolsFile), "File tools should exist");
 
       // Check that it defines tool handlers
@@ -112,7 +112,7 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("shell tool has output truncation", () => {
-      const shellToolFile = join(rootDir, "src", "tools", "shell-tool.ts");
+      const shellToolFile = join(rootDir, "src", "capabilities", "tools", "shell-tool.ts");
 
       if (existsSync(shellToolFile)) {
         const content = readFileSync(shellToolFile, "utf-8");
@@ -124,12 +124,12 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("tool router handles execution and policy", () => {
-      const toolRouterFile = join(rootDir, "src", "tools", "tool-router.ts");
+      const toolRouterFile = join(rootDir, "src", "capabilities", "tools", "tool-router.ts");
       assert.ok(existsSync(toolRouterFile), "Tool router should exist");
     });
 
     test("tool executor exists", () => {
-      const executorFile = join(rootDir, "src", "tools", "executor.ts");
+      const executorFile = join(rootDir, "src", "capabilities", "tools", "executor.ts");
       assert.ok(existsSync(executorFile), "Tool executor should exist");
     });
 
@@ -138,7 +138,7 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
   test.describe("Capability 4: MCP Extensions", () => {
 
     test("MCP manager exists", () => {
-      const mcpDir = join(rootDir, "src", "mcp");
+      const mcpDir = join(rootDir, "src", "capabilities", "mcp");
       assert.ok(existsSync(mcpDir), "MCP directory should exist");
 
       const requiredFiles = ["manager.ts", "client.ts", "registry.ts"];
@@ -151,12 +151,12 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("tool discovery is implemented", () => {
-      const discoveryFile = join(rootDir, "src", "mcp", "tool-discovery.ts");
+      const discoveryFile = join(rootDir, "src", "capabilities", "mcp", "tool-discovery.ts");
       assert.ok(existsSync(discoveryFile), "Tool discovery should exist");
     });
 
     test("tool cache exists", () => {
-      const cacheFile = join(rootDir, "src", "mcp", "tool-cache.ts");
+      const cacheFile = join(rootDir, "src", "capabilities", "mcp", "tool-cache.ts");
       if (existsSync(cacheFile)) {
         const content = readFileSync(cacheFile, "utf-8");
         assert.ok(
@@ -167,17 +167,17 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("tool deferral is implemented", () => {
-      const deferralFile = join(rootDir, "src", "mcp", "tool-deferral.ts");
+      const deferralFile = join(rootDir, "src", "capabilities", "mcp", "tool-deferral.ts");
       assert.ok(existsSync(deferralFile), "Tool deferral should exist");
     });
 
     test("tool selector with scoring", () => {
-      const selectorFile = join(rootDir, "src", "mcp", "tool-selector.ts");
+      const selectorFile = join(rootDir, "src", "capabilities", "mcp", "tool-selector.ts");
       assert.ok(existsSync(selectorFile), "Tool selector should exist");
     });
 
     test("MCP transports exist", () => {
-      const transportsDir = join(rootDir, "src", "mcp", "transports");
+      const transportsDir = join(rootDir, "src", "capabilities", "mcp", "transports");
       assert.ok(existsSync(transportsDir), "MCP transports directory should exist");
     });
 
@@ -186,12 +186,12 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
   test.describe("Capability 5: Patch Engine", () => {
 
     test("patch directory exists", () => {
-      const patchDir = join(rootDir, "src", "patch");
+      const patchDir = join(rootDir, "src", "execution", "patch");
       assert.ok(existsSync(patchDir), "Patch directory should exist");
     });
 
     test("preimage validation is implemented", () => {
-      const preimageFile = join(rootDir, "src", "patch", "preimage-validator.ts");
+      const preimageFile = join(rootDir, "src", "execution", "patch", "preimage-validator.ts");
 
       if (existsSync(preimageFile)) {
         const content = readFileSync(preimageFile, "utf-8");
@@ -208,7 +208,7 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("rollback on failure is implemented", () => {
-      const rollbackFile = join(rootDir, "src", "patch", "rollback-manager.ts");
+      const rollbackFile = join(rootDir, "src", "execution", "patch", "rollback-manager.ts");
 
       if (existsSync(rollbackFile)) {
         const content = readFileSync(rollbackFile, "utf-8");
@@ -220,7 +220,7 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("multiple edit formats supported", () => {
-      const patchDir = join(rootDir, "src", "patch");
+      const patchDir = join(rootDir, "src", "execution", "patch");
       const files = readdirSync(patchDir);
 
       // Check for different edit format implementations
@@ -235,7 +235,7 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("full file guard prevents accidental rewrites", () => {
-      const guardFile = join(rootDir, "src", "patch", "full-file-guard.ts");
+      const guardFile = join(rootDir, "src", "execution", "patch", "full-file-guard.ts");
       assert.ok(existsSync(guardFile), "Full file guard should exist");
     });
 
@@ -244,22 +244,22 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
   test.describe("Capability 6: Policy Engine", () => {
 
     test("policy directory exists", () => {
-      const policyDir = join(rootDir, "src", "policy");
+      const policyDir = join(rootDir, "src", "governance", "policy");
       assert.ok(existsSync(policyDir), "Policy directory should exist");
     });
 
     test("policy gate exists (single policy authority)", () => {
-      const policyFile = join(rootDir, "src", "policy", "policy-gate.ts");
+      const policyFile = join(rootDir, "src", "governance", "policy", "policy-gate.ts");
       assert.ok(existsSync(policyFile), "Policy gate should exist");
     });
 
     test("shell whitelist restricts commands", () => {
-      const whitelistFile = join(rootDir, "src", "policy", "shell-whitelist.ts");
+      const whitelistFile = join(rootDir, "src", "governance", "policy", "shell-whitelist.ts");
       assert.ok(existsSync(whitelistFile), "Shell whitelist should exist");
     });
 
     test("secret scanner is implemented", () => {
-      const securityDir = join(rootDir, "src", "security");
+      const securityDir = join(rootDir, "src", "governance", "security");
       assert.ok(existsSync(securityDir), "Security directory should exist");
 
       const scannerFile = join(securityDir, "secret-scanner.ts");
@@ -267,7 +267,7 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("approval manager exists", () => {
-      const approvalFile = join(rootDir, "src", "policy", "approval-manager.ts");
+      const approvalFile = join(rootDir, "src", "governance", "policy", "approval-manager.ts");
       if (existsSync(approvalFile)) {
         const content = readFileSync(approvalFile, "utf-8");
         assert.ok(
@@ -282,27 +282,27 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
   test.describe("Capability 7: Verification System", () => {
 
     test("verifier directory exists", () => {
-      const verifierDir = join(rootDir, "src", "verifier");
+      const verifierDir = join(rootDir, "src", "execution", "verifier");
       assert.ok(existsSync(verifierDir), "Verifier directory should exist");
     });
 
     test("enhanced verifier exists", () => {
-      const verifierFile = join(rootDir, "src", "verifier", "enhanced-verifier.ts");
+      const verifierFile = join(rootDir, "src", "execution", "verifier", "enhanced-verifier.ts");
       assert.ok(existsSync(verifierFile), "Enhanced verifier should exist");
     });
 
     test("test planner maps tests to source files", () => {
-      const plannerFile = join(rootDir, "src", "verifier", "test-planner.ts");
+      const plannerFile = join(rootDir, "src", "execution", "verifier", "test-planner.ts");
       assert.ok(existsSync(plannerFile), "Test planner should exist");
     });
 
     test("dependency graph understands file relationships", () => {
-      const graphFile = join(rootDir, "src", "verifier", "dep-graph.ts");
+      const graphFile = join(rootDir, "src", "execution", "verifier", "dep-graph.ts");
       assert.ok(existsSync(graphFile), "Dependency graph should exist");
     });
 
     test("risk reporter assesses residual risk", () => {
-      const riskFile = join(rootDir, "src", "verifier", "risk-report.ts");
+      const riskFile = join(rootDir, "src", "execution", "verifier", "risk-report.ts");
       assert.ok(existsSync(riskFile), "Risk reporter should exist");
     });
 
@@ -340,34 +340,34 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
   test.describe("Capability 9: Skills & Extensions", () => {
 
     test("skills directory exists", () => {
-      const skillsDir = join(rootDir, "src", "skills");
+      const skillsDir = join(rootDir, "src", "capabilities", "skills");
       assert.ok(existsSync(skillsDir), "Skills directory should exist");
     });
 
     test("skill loader and catalog exist", () => {
-      const loaderFile = join(rootDir, "src", "skills", "loader.ts");
-      const catalogFile = join(rootDir, "src", "skills", "catalog.ts");
+      const loaderFile = join(rootDir, "src", "capabilities", "skills", "loader.ts");
+      const catalogFile = join(rootDir, "src", "capabilities", "skills", "catalog.ts");
       assert.ok(existsSync(loaderFile), "Skill loader should exist");
       assert.ok(existsSync(catalogFile), "Skill catalog should exist");
     });
 
     test("skill dispatcher exists", () => {
-      const dispatcherFile = join(rootDir, "src", "skills", "dispatcher.ts");
+      const dispatcherFile = join(rootDir, "src", "capabilities", "skills", "dispatcher.ts");
       assert.ok(existsSync(dispatcherFile), "Skill dispatcher should exist");
     });
 
     test("extensions directory exists", () => {
-      const extensionsDir = join(rootDir, "src", "extensions");
+      const extensionsDir = join(rootDir, "src", "capabilities", "extensions");
       assert.ok(existsSync(extensionsDir), "Extensions directory should exist");
     });
 
     test("hook runner supports lifecycle hooks", () => {
-      const hookFile = join(rootDir, "src", "extensions", "hook-runner.ts");
+      const hookFile = join(rootDir, "src", "capabilities", "extensions", "hook-runner.ts");
       assert.ok(existsSync(hookFile), "Hook runner should exist");
     });
 
     test("extension registry exists", () => {
-      const registryFile = join(rootDir, "src", "extensions", "extension-registry.ts");
+      const registryFile = join(rootDir, "src", "capabilities", "extensions", "extension-registry.ts");
       assert.ok(existsSync(registryFile), "Extension registry should exist");
     });
 
@@ -376,12 +376,12 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
   test.describe("Capability 10: Context Intelligence", () => {
 
     test("repomap directory exists", () => {
-      const repomapDir = join(rootDir, "src", "repomap");
+      const repomapDir = join(rootDir, "src", "context", "repomap");
       assert.ok(existsSync(repomapDir), "RepoMap directory should exist");
     });
 
     test("context compiler ranks files", () => {
-      const repomapDir = join(rootDir, "src", "repomap");
+      const repomapDir = join(rootDir, "src", "context", "repomap");
       const compilerFile = join(repomapDir, "context-compiler.ts");
       const pipelineFile = join(repomapDir, "context-pipeline.ts");
 
@@ -390,24 +390,24 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("ranking stage implements scoring", () => {
-      const rankingFile = join(rootDir, "src", "repomap", "context-ranker.ts");
+      const rankingFile = join(rootDir, "src", "context", "repomap", "context-ranker.ts");
       assert.ok(existsSync(rankingFile), "Ranking stage should exist");
     });
 
     test("semantic search stage exists", () => {
-      const repomapDir = join(rootDir, "src", "repomap");
+      const repomapDir = join(rootDir, "src", "context", "repomap");
       const files = readdirSync(repomapDir);
       const hasSemantic = files.some(f => f.includes("embed") || f.includes("semantic"));
       assert.ok(hasSemantic, "Should have semantic search capability");
     });
 
     test("git activity boosting is implemented", () => {
-      const gitFile = join(rootDir, "src", "repomap", "git-activity.ts");
+      const gitFile = join(rootDir, "src", "context", "repomap", "git-activity.ts");
       assert.ok(existsSync(gitFile), "Git activity boosting should exist");
     });
 
     test("token budget enforcement exists", () => {
-      const pipelineFile = join(rootDir, "src", "repomap", "context-pipeline.ts");
+      const pipelineFile = join(rootDir, "src", "context", "repomap", "context-pipeline.ts");
       const content = readFileSync(pipelineFile, "utf-8");
       assert.ok(
         content.includes("token") || content.includes("budget"),
@@ -420,25 +420,25 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
   test.describe("Capability 11: Observability", () => {
 
     test("events directory exists", () => {
-      const eventsDir = join(rootDir, "src", "events");
+      const eventsDir = join(rootDir, "src", "runtime-state", "events");
       assert.ok(existsSync(eventsDir), "Events directory should exist");
     });
 
     test("JSONL event log is implemented", () => {
       const eventFiles = ["event-log.ts", "session-log.ts"];
-      const eventsDir = join(rootDir, "src", "events");
+      const eventsDir = join(rootDir, "src", "runtime-state", "events");
       const found = eventFiles.filter(f => existsSync(join(eventsDir, f)));
 
       assert.ok(found.length >= 1, `Should have event log file, found: ${found.join(", ")}`);
     });
 
     test("inspector UI exists", () => {
-      const inspectorDir = join(rootDir, "src", "inspector");
+      const inspectorDir = join(rootDir, "src", "interfaces", "inspector");
       assert.ok(existsSync(inspectorDir), "Inspector directory should exist");
     });
 
     test("UI assets exist", () => {
-      const uiDir = join(rootDir, "src", "ui");
+      const uiDir = join(rootDir, "src", "interfaces", "ui");
       assert.ok(existsSync(uiDir), "UI directory should exist");
 
       // Check for HTML/JS/CSS files
@@ -448,7 +448,7 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("SSE server supports streaming", () => {
-      const serverDir = join(rootDir, "src", "server");
+      const serverDir = join(rootDir, "src", "interfaces", "server");
       if (existsSync(serverDir)) {
         const files = readdirSync(serverDir);
         const hasServer = files.some(f => f.includes("sse") || f.includes("server"));
@@ -461,17 +461,17 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
   test.describe("Capability 12: Safety Guards", () => {
 
     test("autonomy directory exists", () => {
-      const autonomyDir = join(rootDir, "src", "autonomy");
+      const autonomyDir = join(rootDir, "src", "planning", "autonomy");
       assert.ok(existsSync(autonomyDir), "Autonomy directory should exist");
     });
 
     test("task state machine tracks transitions", () => {
-      const stateMachineFile = join(rootDir, "src", "autonomy", "state-machine.ts");
+      const stateMachineFile = join(rootDir, "src", "planning", "autonomy", "state-machine.ts");
       assert.ok(existsSync(stateMachineFile), "Task state machine should exist");
     });
 
     test("run limiter enforces hard limits", () => {
-      const limiterFile = join(rootDir, "src", "autonomy", "run-limiter.ts");
+      const limiterFile = join(rootDir, "src", "planning", "autonomy", "run-limiter.ts");
 
       if (existsSync(limiterFile)) {
         const content = readFileSync(limiterFile, "utf-8");
@@ -483,7 +483,7 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
     });
 
     test("scope tracker prevents expansion", () => {
-      const scopeFile = join(rootDir, "src", "autonomy", "scope-tracker.ts");
+      const scopeFile = join(rootDir, "src", "planning", "autonomy", "scope-tracker.ts");
       assert.ok(existsSync(scopeFile), "Scope tracker should exist");
     });
 

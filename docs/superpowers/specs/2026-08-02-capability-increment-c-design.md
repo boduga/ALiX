@@ -15,8 +15,8 @@ Two approval vocabularies exist in the EventLog and must both be read:
 
 | Path | Creation | Resolution |
 |---|---|---|
-| CLI (`src/policy/approvals.ts`) | `approval.requested` `{approvalId, prompt, choices}` | `approval.resolved` `{approvalId, decision}` |
-| Store (`src/approvals/approval-store.ts`, `src/policy/policy-gate.ts`) | `approval.created` `{approvalId, capabilities, ...}` | `approval.resolved` `{approvalId, status}` |
+| CLI (`src/governance/policy/approvals.ts`) | `approval.requested` `{approvalId, prompt, choices}` | `approval.resolved` `{approvalId, decision}` |
+| Store (`src/governance/approvals/approval-store.ts`, `src/governance/policy/policy-gate.ts`) | `approval.created` `{approvalId, capabilities, ...}` | `approval.resolved` `{approvalId, status}` |
 
 **Roles:**
 - **Projection responsibility:** normalize *all* approval event vocabularies into one lifecycle model.
@@ -196,7 +196,7 @@ After:   EventLog → ApprovalProjection → ApprovalProjectionCollector → Sna
 
 `pending` includes only live states (`pending`, `resumed`) — the projection moves terminal entries to `completed`, so the adapter's `pending` can never contain a terminal state. The terminal-collapse mapping (`edited`/`expired`/`revoked`/`consumed`/`invalidated` → `denied`) is the projection's internal lifecycle model (`ApprovalProjectionEntry.status`), **not** a field the adapter emits. The adapter maps `ApprovalProjectionEntry` → `ApprovalRecordSnapshot` fields only (`id`, `toolName`, `targetPath`, `args`, `requestedAt`, `requestedBy`); no `status` field is produced.
 
-**`extractTarget` sharing:** move `extractTarget(reason)` from `src/tui/approval-manager.ts` to `src/approvals/extract-target.ts`, consumed by both `ApprovalProjectionCollector` and `ApprovalManager`.
+**`extractTarget` sharing:** move `extractTarget(reason)` from `src/interfaces/tui/approval-manager.ts` to `src/governance/approvals/extract-target.ts`, consumed by both `ApprovalProjectionCollector` and `ApprovalManager`.
 
 **Acceptance criterion:**
 ```text

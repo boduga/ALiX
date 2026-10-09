@@ -4,9 +4,9 @@
 
 **Goal:** Bridge P10.4a's `create_remediation_proposal` step kind into the existing P5/P9 `AdaptationProposal` lifecycle as a **pending** proposal. P10.4b may not approve, apply, or reject proposals.
 
-**Architecture:** Additive module `src/executive/executive-bridge.ts` with two functions: `buildExecutiveRemediationProposal` (pure) and `bridgeCreateRemediationProposal` (effectful wrapper). `ExecutionEngine.runReadySteps` calls the bridge for `create_remediation_proposal` steps, appends the resulting artifact ref to `StepRuntimeState.generatedArtifacts`, and writes evidence. Idempotency is caller-driven via `generatedArtifacts[]`. Two new evidence event types; one new `ProposalAction` union member; one new `ProposalTarget` discriminator.
+**Architecture:** Additive module `src/execution/executive/executive-bridge.ts` with two functions: `buildExecutiveRemediationProposal` (pure) and `bridgeCreateRemediationProposal` (effectful wrapper). `ExecutionEngine.runReadySteps` calls the bridge for `create_remediation_proposal` steps, appends the resulting artifact ref to `StepRuntimeState.generatedArtifacts`, and writes evidence. Idempotency is caller-driven via `generatedArtifacts[]`. Two new evidence event types; one new `ProposalAction` union member; one new `ProposalTarget` discriminator.
 
-**Tech Stack:** TypeScript (strict ESM), vitest, Node 20+, `node:crypto`, `node:fs`. Existing modules: `src/adaptation/adaptation-types.ts`, `src/adaptation/proposal-store.ts`, `src/executive/execution-engine.ts`, `src/workflow/evidence-writer.ts`.
+**Tech Stack:** TypeScript (strict ESM), vitest, Node 20+, `node:crypto`, `node:fs`. Existing modules: `src/planning/adaptation/adaptation-types.ts`, `src/planning/adaptation/proposal-store.ts`, `src/execution/executive/execution-engine.ts`, `src/coordination/workflow/evidence-writer.ts`.
 
 ## Global Constraints
 
@@ -60,8 +60,8 @@ Exactly **two** new evidence event types:
 
 ### Files NOT modified (explicit)
 
-- `src/executive/step-runner.ts` — unchanged. Engine owns the bridge write.
-- `src/executive/executive-plan-types.ts` — no new `StepRuntimeStatus`.
+- `src/execution/executive/step-runner.ts` — unchanged. Engine owns the bridge write.
+- `src/execution/executive/executive-plan-types.ts` — no new `StepRuntimeStatus`.
 
 ### Existing-code invariants (do not break)
 
@@ -76,9 +76,9 @@ Exactly **two** new evidence event types:
 
 | File | Status | Role |
 |---|---|---|
-| `src/adaptation/adaptation-types.ts` | modify | +1 `ProposalAction` member, +1 `ProposalTarget` kind |
-| `src/executive/executive-bridge.ts` | create | Pure builder + effectful wrapper |
-| `src/executive/execution-engine.ts` | modify | Add bridge dispatch for `create_remediation_proposal` steps |
+| `src/planning/adaptation/adaptation-types.ts` | modify | +1 `ProposalAction` member, +1 `ProposalTarget` kind |
+| `src/execution/executive/executive-bridge.ts` | create | Pure builder + effectful wrapper |
+| `src/execution/executive/execution-engine.ts` | modify | Add bridge dispatch for `create_remediation_proposal` steps |
 | `tests/executive/executive-bridge.vitest.ts` | create | 25 tests across 6 describes |
 | `tests/adaptation/adaptation-types-p10-4b-snapshot.vitest.ts` | create | 3 source-text grep sentinel tests |
 | `tests/executive/executive-sentinels.vitest.ts` | modify | Add `executive-bridge.ts` to `EXECUTIVE_FILES` allowlist |
@@ -96,7 +96,7 @@ The bridge is intentionally a small surface — the design avoids premature comp
 ### Task 1: Extend `adaptation-types.ts` with additive union members
 
 **Files:**
-- Modify: `src/adaptation/adaptation-types.ts` (two narrow insertions)
+- Modify: `src/planning/adaptation/adaptation-types.ts` (two narrow insertions)
 - Test: `tests/adaptation/adaptation-types-p10-4b-snapshot.vitest.ts` (created in Task 5, but Tests 1 and 2 of it apply here)
 
 **Interfaces:**
@@ -105,7 +105,7 @@ The bridge is intentionally a small surface — the design avoids premature comp
 
 - [ ] **Step 1: Add `"executive_remediation_request"` to `ProposalAction`**
 
-In `src/adaptation/adaptation-types.ts`, locate the `ProposalAction` union (search for `export type ProposalAction`). Add the new member as the **last** variant:
+In `src/planning/adaptation/adaptation-types.ts`, locate the `ProposalAction` union (search for `export type ProposalAction`). Add the new member as the **last** variant:
 
 ```ts
 export type ProposalAction =
@@ -144,7 +144,7 @@ export type ProposalTarget =
 
 - [ ] **Step 3: Add the `ExecutiveSubsystemName` import**
 
-At the top of `src/adaptation/adaptation-types.ts`, add:
+At the top of `src/planning/adaptation/adaptation-types.ts`, add:
 
 ```ts
 import type { ExecutiveSubsystemName } from "../executive/executive-health.js";
@@ -153,7 +153,7 @@ import type { ExecutiveSubsystemName } from "../executive/executive-health.js";
 Verify the import path resolves by running:
 
 ```bash
-test -f src/executive/executive-health.ts && echo "ok"
+test -f src/execution/executive/executive-health.ts && echo "ok"
 ```
 
 Expected: `ok`.
@@ -177,7 +177,7 @@ Expected: 1860 passing, 0 failing.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/adaptation/adaptation-types.ts
+git add src/planning/adaptation/adaptation-types.ts
 git commit -m "feat(p10-4b): extend adaptation-types.ts with executive_remediation union members"
 ```
 
@@ -186,14 +186,14 @@ git commit -m "feat(p10-4b): extend adaptation-types.ts with executive_remediati
 ### Task 2: `buildExecutiveRemediationProposal` — pure builder
 
 **Files:**
-- Create: `src/executive/executive-bridge.ts`
+- Create: `src/execution/executive/executive-bridge.ts`
 - Create: `tests/executive/executive-bridge.vitest.ts` (skeleton with 15 preconditions + output-shape tests)
 
 **Interfaces:**
 - Consumes: a `PersistedExecutionPlan`, an `ExecutionStep` (must have `action === "create_remediation_proposal"`), a `proposalId: string` (caller-supplied canonical ID, e.g., `proposal-${randomUUID()}`), and a `now: string` (ISO timestamp).
 - Produces: `AdaptationProposal` with `id: proposalId` (non-empty, satisfies `ProposalStore.validateShape`), `status: "pending"`, `action: "executive_remediation_request"`, `target: { kind: "executive_remediation", planId, stepId, objectiveId, subsystem }`, `provenance: "manual"`, `payload` per SDS, `evidenceFingerprints: []`, `sourceConfidence: 0`, `createdAt: now`.
 
-**Why the caller supplies the ID, not the store:** `ProposalStore.save(proposal)` is `Promise<void>` and validates `proposal.id` as a non-empty string *before* writing (see `src/adaptation/proposal-store.ts:14-28`). It does not mutate the input. The bridge must assign the ID itself; relying on `save()` to backfill would break validation.
+**Why the caller supplies the ID, not the store:** `ProposalStore.save(proposal)` is `Promise<void>` and validates `proposal.id` as a non-empty string *before* writing (see `src/planning/adaptation/proposal-store.ts:14-28`). It does not mutate the input. The bridge must assign the ID itself; relying on `save()` to backfill would break validation.
 
 - [ ] **Step 1: Write the failing precondition tests**
 
@@ -201,9 +201,9 @@ Create `tests/executive/executive-bridge.vitest.ts` with the precondition block:
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { buildExecutiveRemediationProposal } from "../../src/executive/executive-bridge.js";
-import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
+import { buildExecutiveRemediationProposal } from "../../src/execution/executive/executive-bridge.js";
+import type { PersistedExecutionPlan } from "../../src/execution/executive/executive-plan-types.js";
+import type { ExecutionStep } from "../../src/execution/executive/planning-engine.js";
 
 const NOW = "2026-06-25T12:00:00.000Z";
 const PROPOSAL_ID = "proposal-test-1";
@@ -280,11 +280,11 @@ Run:
 npx vitest run tests/executive/executive-bridge.vitest.ts
 ```
 
-Expected: FAIL — `Cannot find module '../../src/executive/executive-bridge.js'`.
+Expected: FAIL — `Cannot find module '../../src/execution/executive/executive-bridge.js'`.
 
 - [ ] **Step 2: Create the file with the constant and the builder skeleton**
 
-Create `src/executive/executive-bridge.ts`:
+Create `src/execution/executive/executive-bridge.ts`:
 
 ```ts
 /**
@@ -487,7 +487,7 @@ Expected: 16/16 pass (4 precondition + 12 output-shape).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/executive/executive-bridge.ts tests/executive/executive-bridge.vitest.ts
+git add src/execution/executive/executive-bridge.ts tests/executive/executive-bridge.vitest.ts
 git commit -m "feat(p10-4b): add pure executive proposal builder"
 ```
 
@@ -496,7 +496,7 @@ git commit -m "feat(p10-4b): add pure executive proposal builder"
 ### Task 3: `bridgeCreateRemediationProposal` — effectful wrapper
 
 **Files:**
-- Modify: `src/executive/executive-bridge.ts` (append the wrapper)
+- Modify: `src/execution/executive/executive-bridge.ts` (append the wrapper)
 - Modify: `tests/executive/executive-bridge.vitest.ts` (append 5 wrapper tests)
 
 **Interfaces:**
@@ -507,7 +507,7 @@ git commit -m "feat(p10-4b): add pure executive proposal builder"
 
 - [ ] **Step 1: Append the wrapper type and function**
 
-Append to `src/executive/executive-bridge.ts`:
+Append to `src/execution/executive/executive-bridge.ts`:
 
 ```ts
 import type { GeneratedArtifactRef } from "./executive-plan-types.js";
@@ -555,7 +555,7 @@ Append to `tests/executive/executive-bridge.vitest.ts`:
 import {
   bridgeCreateRemediationProposal,
   type ExecutiveBridgeResult,
-} from "../../src/executive/executive-bridge.js";
+} from "../../src/execution/executive/executive-bridge.js";
 
 describe("bridgeCreateRemediationProposal (effectful wrapper)", () => {
   const step = makeStep();
@@ -616,7 +616,7 @@ Expected: 21/21 pass (4 + 12 + 5).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/executive/executive-bridge.ts tests/executive/executive-bridge.vitest.ts
+git add src/execution/executive/executive-bridge.ts tests/executive/executive-bridge.vitest.ts
 git commit -m "feat(p10-4b): add effectful bridgeCreateRemediationProposal wrapper"
 ```
 
@@ -627,7 +627,7 @@ git commit -m "feat(p10-4b): add effectful bridgeCreateRemediationProposal wrapp
 **Files:**
 - Modify: `tests/executive/executive-bridge.vitest.ts` (append 4 purity tests)
 
-**Purpose:** Source-text greps against `src/executive/executive-bridge.ts` to assert the bridge does not import any mutation-side module. Mirrors the P9.5 purity sentinel pattern.
+**Purpose:** Source-text greps against `src/execution/executive/executive-bridge.ts` to assert the bridge does not import any mutation-side module. Mirrors the P9.5 purity sentinel pattern.
 
 - [ ] **Step 1: Append the 4 purity tests**
 
@@ -640,7 +640,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../..");
-const BRIDGE_SRC = resolve(REPO_ROOT, "src/executive/executive-bridge.ts");
+const BRIDGE_SRC = resolve(REPO_ROOT, "src/execution/executive/executive-bridge.ts");
 
 function readBridgeSource(): string {
   return readFileSync(BRIDGE_SRC, "utf8");
@@ -706,16 +706,16 @@ git commit -m "test(p10-4b): add purity invariant source-text grep tests"
 ### Task 5: Wire the bridge into `ExecutionEngine.executeStepInternal` (shared internal path)
 
 **Files:**
-- Modify: `src/executive/execution-engine.ts` (add bridge dispatch in the shared internal path used by both `runStep` and `runReadySteps`)
+- Modify: `src/execution/executive/execution-engine.ts` (add bridge dispatch in the shared internal path used by both `runStep` and `runReadySteps`)
 
-**Why the shared path, not `runReadySteps`:** Both `runStep(planId, stepId)` (manual single-step) and `runReadySteps(planId)` (batch) delegate to the same private method `executeStepInternal(planId, stepId, executionId)` (see `src/executive/execution-engine.ts:127`). Inserting the bridge dispatch in `executeStepInternal` ensures both entry points produce identical behavior for `create_remediation_proposal` steps. Inserting only in `runReadySteps` would create a silent inconsistency where `runStep` skips the bridge.
+**Why the shared path, not `runReadySteps`:** Both `runStep(planId, stepId)` (manual single-step) and `runReadySteps(planId)` (batch) delegate to the same private method `executeStepInternal(planId, stepId, executionId)` (see `src/execution/executive/execution-engine.ts:127`). Inserting the bridge dispatch in `executeStepInternal` ensures both entry points produce identical behavior for `create_remediation_proposal` steps. Inserting only in `runReadySteps` would create a silent inconsistency where `runStep` skips the bridge.
 
 **Interfaces:**
 - Consumes: existing `ExecutionEngine.executeStepInternal`. Steps with `action === "create_remediation_proposal"` get a new branch: idempotency check → `bridgeCreateRemediationProposal` → `generatedArtifacts.push(...)` → evidence write. On throw: `warnings.push(...)` → `executive_step_bridge_failed` evidence → status unchanged.
 
 - [ ] **Step 1: Add the import to `execution-engine.ts`**
 
-At the top of `src/executive/execution-engine.ts`, add:
+At the top of `src/execution/executive/execution-engine.ts`, add:
 
 ```ts
 import { randomUUID } from "node:crypto";
@@ -726,7 +726,7 @@ import { bridgeCreateRemediationProposal, EXECUTIVE_BRIDGE_VERSION } from "./exe
 
 - [ ] **Step 2: Add `proposalStore` as an optional constructor parameter**
 
-In `src/executive/execution-engine.ts`, locate the `ExecutionEngine` constructor. Add `proposalStore` as the **last** optional parameter. Existing constructors that pass fewer arguments must still work.
+In `src/execution/executive/execution-engine.ts`, locate the `ExecutionEngine` constructor. Add `proposalStore` as the **last** optional parameter. Existing constructors that pass fewer arguments must still work.
 
 ```ts
 import type { ProposalStore } from "../adaptation/proposal-store.js";
@@ -745,7 +745,7 @@ If `proposalStore` is absent, the bridge branch is skipped (the step falls throu
 
 - [ ] **Step 3: Insert the bridge dispatch in `executeStepInternal`**
 
-In `src/executive/execution-engine.ts`, locate the private method `executeStepInternal(planId, stepId, executionId)` (around line 127). The current code is:
+In `src/execution/executive/execution-engine.ts`, locate the private method `executeStepInternal(planId, stepId, executionId)` (around line 127). The current code is:
 
 ```ts
 // Execute via StepRunner (planId + executionId passed, never generated here)
@@ -846,7 +846,7 @@ Expected: 1860+ passing (existing tests unaffected because `proposalStore` is op
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/executive/execution-engine.ts
+git add src/execution/executive/execution-engine.ts
 git commit -m "feat(p10-4b): wire executive bridge dispatch into ExecutionEngine.executeStepInternal"
 ```
 
@@ -859,7 +859,7 @@ git commit -m "feat(p10-4b): wire executive bridge dispatch into ExecutionEngine
 
 **Purpose:** Integration test that exercises the engine's new dispatch branch end-to-end with a fake `StepRunner`, a fake `ProposalStore`, and a fake `EvidenceEventWriter`. Validates: (a) success path through `runReadySteps` writes one proposal + one bridge evidence; (b) idempotency — second call silent; (c) failure path — warning + failed evidence, status unchanged; (d) **`runStep` parity** — manual single-step entry point produces identical bridge behavior to `runReadySteps`. This test catches the "wire only into `runReadySteps`" bug explicitly.
 
-The fake `StepRunner` must match the actual signature `execute(planId, step, executionId): Promise<StepRunnerResult>` (see `src/executive/step-runner.ts:31`). The fake stores must match what `executeStepInternal` actually calls: `planStore.load(planId)`, `stateStore.load(planId)`, `stateStore.update(planId, transition, mutator)`.
+The fake `StepRunner` must match the actual signature `execute(planId, step, executionId): Promise<StepRunnerResult>` (see `src/execution/executive/step-runner.ts:31`). The fake stores must match what `executeStepInternal` actually calls: `planStore.load(planId)`, `stateStore.load(planId)`, `stateStore.update(planId, transition, mutator)`.
 
 - [ ] **Step 1: Write the 4 dispatch tests**
 
@@ -867,20 +867,20 @@ Create `tests/executive/execution-engine-bridge-dispatch.vitest.ts`:
 
 ```ts
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { ExecutionEngine } from "../../src/executive/execution-engine.js";
-import type { PlanStore } from "../../src/executive/plan-store.js";
-import type { ExecutionStateStore } from "../../src/executive/execution-state-store.js";
-import type { StepRunner, StepRunnerResult } from "../../src/executive/step-runner.js";
-import type { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import type { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import { ExecutionEngine } from "../../src/execution/executive/execution-engine.js";
+import type { PlanStore } from "../../src/execution/executive/plan-store.js";
+import type { ExecutionStateStore } from "../../src/execution/executive/execution-state-store.js";
+import type { StepRunner, StepRunnerResult } from "../../src/execution/executive/step-runner.js";
+import type { EvidenceEventWriter } from "../../src/coordination/workflow/evidence-writer.js";
+import type { ProposalStore } from "../../src/planning/adaptation/proposal-store.js";
 import type {
   PersistedExecutionPlan,
   PlanExecutionState,
   StepRuntimeState,
   PlanTransition,
-} from "../../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+} from "../../src/execution/executive/executive-plan-types.js";
+import type { ExecutionStep } from "../../src/execution/executive/planning-engine.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1118,7 +1118,7 @@ Create `tests/adaptation/adaptation-types-p10-4b-snapshot.vitest.ts`:
  * P10.4b — adaptation-types.ts additive invariant sentinel.
  *
  * Source-text greps assert that BOTH documented P10.4b additions are present
- * in src/adaptation/adaptation-types.ts:
+ * in src/planning/adaptation/adaptation-types.ts:
  *  1. ProposalAction includes "executive_remediation_request"
  *  2. ProposalTarget includes { kind: "executive_remediation", ... }
  *
@@ -1136,7 +1136,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../..");
-const ADAPTATION_TYPES_PATH = resolve(REPO_ROOT, "src/adaptation/adaptation-types.ts");
+const ADAPTATION_TYPES_PATH = resolve(REPO_ROOT, "src/planning/adaptation/adaptation-types.ts");
 
 function readAdaptationTypesSource(): string {
   return readFileSync(ADAPTATION_TYPES_PATH, "utf8");
@@ -1186,34 +1186,34 @@ git commit -m "test(p10-4b): add source-text grep sentinel for adaptation-types.
 
 - [ ] **Step 1: Add the allowlist entry**
 
-In `tests/executive/executive-sentinels.vitest.ts`, locate the `EXECUTIVE_FILES` array. Add `"src/executive/executive-bridge.ts"` as the **last** entry before the closing `]`:
+In `tests/executive/executive-sentinels.vitest.ts`, locate the `EXECUTIVE_FILES` array. Add `"src/execution/executive/executive-bridge.ts"` as the **last** entry before the closing `]`:
 
 ```ts
 const EXECUTIVE_FILES = [
-  "src/executive/executive-health.ts",
-  "src/executive/priority-engine.ts",
-  "src/executive/trend-store.ts",
-  "src/executive/adapters/agent-health.ts",
-  "src/executive/adapters/tool-health.ts",
-  "src/executive/adapters/workflow-health.ts",
-  "src/executive/adapters/memory-health.ts",
-  "src/executive/adapters/security-health.ts",
-  "src/executive/adapters/adaptation-health.ts",
-  "src/cli/commands/executive-dashboard-renderer.ts",
-  "src/cli/commands/executive-dashboard-handler.ts",
-  "src/cli/commands/executive.ts",
-  "src/executive/planning-engine.ts",
-  "src/executive/objective-engine.ts",
+  "src/execution/executive/executive-health.ts",
+  "src/execution/executive/priority-engine.ts",
+  "src/execution/executive/trend-store.ts",
+  "src/execution/executive/adapters/agent-health.ts",
+  "src/execution/executive/adapters/tool-health.ts",
+  "src/execution/executive/adapters/workflow-health.ts",
+  "src/execution/executive/adapters/memory-health.ts",
+  "src/execution/executive/adapters/security-health.ts",
+  "src/execution/executive/adapters/adaptation-health.ts",
+  "src/interfaces/cli/commands/executive-dashboard-renderer.ts",
+  "src/interfaces/cli/commands/executive-dashboard-handler.ts",
+  "src/interfaces/cli/commands/executive.ts",
+  "src/execution/executive/planning-engine.ts",
+  "src/execution/executive/objective-engine.ts",
   // P10.4a files
-  "src/executive/step-behavior.ts",
-  "src/executive/executive-plan-types.ts",
-  "src/executive/plan-store.ts",
-  "src/executive/execution-state-store.ts",
-  "src/executive/plan-approval-gate.ts",
-  "src/executive/step-runner.ts",
-  "src/executive/execution-engine.ts",
+  "src/execution/executive/step-behavior.ts",
+  "src/execution/executive/executive-plan-types.ts",
+  "src/execution/executive/plan-store.ts",
+  "src/execution/executive/execution-state-store.ts",
+  "src/execution/executive/plan-approval-gate.ts",
+  "src/execution/executive/step-runner.ts",
+  "src/execution/executive/execution-engine.ts",
   // P10.4b
-  "src/executive/executive-bridge.ts",
+  "src/execution/executive/executive-bridge.ts",
 ];
 ```
 
@@ -1306,7 +1306,7 @@ This plan was written against the locked SDS. Cross-checking:
    - Sentinel for both documented additions ✓ (Task 6)
 
 2. **Plan deviations from SDS, both justified by code reality:**
-   - **Deviation 1: `bridgeCreateRemediationProposal` signature.** SDS line 130/159: `(plan, step, now, append)`. Plan: `(plan, step, proposalId, now, append)`. Justification: `ProposalStore.save()` is `Promise<void>` and validates `id` as a non-empty string at write time (`src/adaptation/proposal-store.ts:14-28`). The bridge cannot pass `id: ""` and rely on `save()` to backfill. The caller supplies a `proposal-${randomUUID()}` ID; the wrapper is unchanged in behavior, just takes the ID as an explicit parameter. **Follow-up: amend the SDS lines 130 and 159 to match the plan's signature, otherwise future readers will see two contradictory contracts.**
+   - **Deviation 1: `bridgeCreateRemediationProposal` signature.** SDS line 130/159: `(plan, step, now, append)`. Plan: `(plan, step, proposalId, now, append)`. Justification: `ProposalStore.save()` is `Promise<void>` and validates `id` as a non-empty string at write time (`src/planning/adaptation/proposal-store.ts:14-28`). The bridge cannot pass `id: ""` and rely on `save()` to backfill. The caller supplies a `proposal-${randomUUID()}` ID; the wrapper is unchanged in behavior, just takes the ID as an explicit parameter. **Follow-up: amend the SDS lines 130 and 159 to match the plan's signature, otherwise future readers will see two contradictory contracts.**
    - **Deviation 2: bridge dispatch site.** SDS line 147: "All bridge state mutation lives in `ExecutionEngine.runReadySteps()`". Plan: lives in `executeStepInternal` (the shared internal method called by both `runStep` and `runReadySteps`). Justification: scoping to `runReadySteps` alone creates a silent inconsistency where manual `runStep` skips the bridge. The shared path is the only correct site. **Follow-up: amend SDS line 147 to "lives in `ExecutionEngine.executeStepInternal()` (shared internal path called by both `runStep` and `runReadySteps`)."**
 
 3. **Placeholder scan** — no "TBD", no "TODO", no "add appropriate error handling" stubs. Every step has either exact code or an exact command.

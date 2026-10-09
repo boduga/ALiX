@@ -16,11 +16,11 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/server/server.ts` | **Modify** | Add `GET /api/graphs` route for graph list |
-| `src/kernel/graph-projection.ts` | **Modify** | Add `requiredCapabilities` and `capabilityResolution` to `NodeRunInfo` |
-| `src/ui/index.html` | **Modify** | Add Graph tab button + panel with selector, overview, node table, rerun command regions |
-| `src/ui/app.js` | **Modify** | Add `loadGraphList()`, `fetchProjection()`, `renderGraphOverview()`, `renderNodeTable()`, `renderNodeDetail()`, `showRerunCommand()` |
-| `src/ui/styles.css` | **Modify** | Graph tab layout, overview cards, node table, detail panel, command snippet box |
+| `src/interfaces/server/server.ts` | **Modify** | Add `GET /api/graphs` route for graph list |
+| `src/coordination/kernel/graph-projection.ts` | **Modify** | Add `requiredCapabilities` and `capabilityResolution` to `NodeRunInfo` |
+| `src/interfaces/ui/index.html` | **Modify** | Add Graph tab button + panel with selector, overview, node table, rerun command regions |
+| `src/interfaces/ui/app.js` | **Modify** | Add `loadGraphList()`, `fetchProjection()`, `renderGraphOverview()`, `renderNodeTable()`, `renderNodeDetail()`, `showRerunCommand()` |
+| `src/interfaces/ui/styles.css` | **Modify** | Graph tab layout, overview cards, node table, detail panel, command snippet box |
 | `tests/server/server.test.ts` | **Modify** | Add HTTP smoke tests for `GET /api/graphs` |
 
 ---
@@ -28,13 +28,13 @@
 ### Task 1 (M0.14-A): Graph list API — `GET /api/graphs`
 
 **Files:**
-- Modify: `src/server/server.ts`
+- Modify: `src/interfaces/server/server.ts`
 
 **What it builds:** A read-only endpoint that scans `.alix/graphs/*.json`, returns lightweight metadata for each graph (id, status, node counts, dates), skips `*.runs.json` and invalid JSON, sorted newest-first.
 
 - [ ] **Step 1: Add `GET /api/graphs` route to `server.ts`**
 
-Insert this route in `src/server/server.ts` before the existing `/api/graphs/{id}/projection` route (around line 84):
+Insert this route in `src/interfaces/server/server.ts` before the existing `/api/graphs/{id}/projection` route (around line 84):
 
 ```typescript
       if (url.pathname === "/api/graphs") {
@@ -99,7 +99,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/server/server.ts
+git add src/interfaces/server/server.ts
 git commit -m "feat(server): add GET /api/graphs listing endpoint"
 ```
 
@@ -150,7 +150,7 @@ describe("Graph list API", () => {
   });
 
   it("GET /api/graphs returns [] when no graph dir exists", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const blankDir = mkdtempSync(join(tmpdir(), "no-graphs-"));
     try {
       const { url, close } = await startServer(blankDir, "127.0.0.1", 0);
@@ -163,7 +163,7 @@ describe("Graph list API", () => {
   });
 
   it("GET /api/graphs returns graph_a with metadata", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
       const body = await httpGet(`${url}/api/graphs`);
@@ -186,7 +186,7 @@ describe("Graph list API", () => {
   });
 
   it("skips .runs.json files and bad JSON", async () => {
-    const { startServer } = await import("../../src/server/server.js");
+    const { startServer } = await import("../../src/interfaces/server/server.js");
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
       const body = await httpGet(`${url}/api/graphs`);
@@ -223,8 +223,8 @@ git commit -m "test(server): add GET /api/graphs smoke tests"
 ### Task 3 (M0.14-A): Graph selector UI
 
 **Files:**
-- Modify: `src/ui/index.html`
-- Modify: `src/ui/app.js`
+- Modify: `src/interfaces/ui/index.html`
+- Modify: `src/interfaces/ui/app.js`
 
 - [ ] **Step 1: Add Graph tab button to `index.html`**
 
@@ -436,7 +436,7 @@ Expected: no errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/ui/index.html src/ui/app.js
+git add src/interfaces/ui/index.html src/interfaces/ui/app.js
 git commit -m "feat(ui): add Graph tab with selector, overview, and node table"
 ```
 
@@ -445,11 +445,11 @@ git commit -m "feat(ui): add Graph tab with selector, overview, and node table"
 ### Task 4 (M0.14-A/B): Graph tab CSS
 
 **Files:**
-- Modify: `src/ui/styles.css`
+- Modify: `src/interfaces/ui/styles.css`
 
 - [ ] **Step 1: Add graph view styles**
 
-Append to `src/ui/styles.css`:
+Append to `src/interfaces/ui/styles.css`:
 
 ```css
 /* === Graph view === */
@@ -720,7 +720,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/ui/styles.css
+git add src/interfaces/ui/styles.css
 git commit -m "feat(ui): add graph tab CSS — selector, overview, node table, detail, rerun"
 ```
 
@@ -729,13 +729,13 @@ git commit -m "feat(ui): add graph tab CSS — selector, overview, node table, d
 ### Task 5 (M0.14-C): Enhance projection with capability data
 
 **Files:**
-- Modify: `src/kernel/graph-projection.ts`
+- Modify: `src/coordination/kernel/graph-projection.ts`
 
 **What it builds:** The `NodeRunInfo` type and `buildGraphProjection()` currently don't include `requiredCapabilities` or `capabilityResolution`. This task adds them so the node table and detail panel can display capability info.
 
 - [ ] **Step 1: Add `requiredCapabilities` and `capabilityResolution` to `NodeRunInfo`**
 
-In `src/kernel/graph-projection.ts`, update the `NodeRunInfo` interface:
+In `src/coordination/kernel/graph-projection.ts`, update the `NodeRunInfo` interface:
 
 ```typescript
 export interface NodeRunInfo {
@@ -787,7 +787,7 @@ Expected: build passes, 5 projection tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/kernel/graph-projection.ts
+git add src/coordination/kernel/graph-projection.ts
 git commit -m "feat(graph): add requiredCapabilities and capabilityResolution to projection"
 ```
 
@@ -796,7 +796,7 @@ git commit -m "feat(graph): add requiredCapabilities and capabilityResolution to
 ### Task 6 (M0.14-D): Node detail panel — CapabilityResolution
 
 **Files:**
-- Modify: `src/ui/app.js`
+- Modify: `src/interfaces/ui/app.js`
 
 - [ ] **Step 1: Add `showNodeDetail` function**
 
@@ -843,7 +843,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/ui/app.js
+git add src/interfaces/ui/app.js
 git commit -m "feat(ui): add capability resolution detail panel per node"
 ```
 
@@ -852,7 +852,7 @@ git commit -m "feat(ui): add capability resolution detail panel per node"
 ### Task 7 (M0.14-E): Rerun command helper
 
 **Files:**
-- Modify: `src/ui/app.js`
+- Modify: `src/interfaces/ui/app.js`
 
 - [ ] **Step 1: Add `showRerunCommand` function**
 
@@ -918,7 +918,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/ui/app.js
+git add src/interfaces/ui/app.js
 git commit -m "feat(ui): add rerun command helper with copy and --force toggle"
 ```
 

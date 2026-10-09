@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createContextPressureTracker } from "../../src/run/context-pressure.js";
-import type { AssembledContext } from "../../src/config/context-assembly.js";
+import { createContextPressureTracker } from "../../src/execution/run/context-pressure.js";
+import type { AssembledContext } from "../../src/operations/config/context-assembly.js";
 
 function assembled(overrides: Partial<AssembledContext> = {}): AssembledContext {
   return {

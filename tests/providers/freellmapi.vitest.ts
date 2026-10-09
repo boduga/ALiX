@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { freellmapiSpec, DEFAULT_FREELLMAPI_BASE_URL } from "../../src/providers/specs/freellmapi-spec.js";
-import { openaiBaseSpec } from "../../src/providers/specs/_openai-base.js";
-import { FreeLLMAPIProvider } from "../../src/providers/freellmapi-provider.js";
-import { complete, _setFetchForTesting } from "../../src/providers/unified-complete.js";
-import { createProvider, listProviders } from "../../src/providers/registry.js";
-import { getDefaultModel, PROVIDERS, listModels } from "../../src/providers/catalog.js";
+import { freellmapiSpec, DEFAULT_FREELLMAPI_BASE_URL } from "../../src/models/providers/specs/freellmapi-spec.js";
+import { openaiBaseSpec } from "../../src/models/providers/specs/_openai-base.js";
+import { FreeLLMAPIProvider } from "../../src/models/providers/freellmapi-provider.js";
+import { complete, _setFetchForTesting } from "../../src/models/providers/unified-complete.js";
+import { createProvider, listProviders } from "../../src/models/providers/registry.js";
+import { getDefaultModel, PROVIDERS, listModels } from "../../src/models/providers/catalog.js";
 import { makeMockFetch } from "./helpers/mock-fetch.js";
 
 afterEach(() => {

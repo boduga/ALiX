@@ -6,11 +6,11 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { PlanningAgent } from "../../../src/workflow/agents/planning-agent.js";
-import { WorkflowCoordinator } from "../../../src/workflow/coordinator.js";
-import { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
-import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
-import type { WorkPackage } from "../../../src/workflow/types.js";
+import { PlanningAgent } from "../../../src/coordination/workflow/agents/planning-agent.js";
+import { WorkflowCoordinator } from "../../../src/coordination/workflow/coordinator.js";
+import { EvidenceEventWriter } from "../../../src/coordination/workflow/evidence-writer.js";
+import { EvidenceStore } from "../../../src/governance/security/evidence/evidence-store.js";
+import type { WorkPackage } from "../../../src/coordination/workflow/types.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -24,9 +24,9 @@ function validWorkPackage(overrides?: Partial<WorkPackage>): WorkPackage {
     priority: "medium",
     complexity: "medium",
     estimatedFiles: [
-      "src/workflow/agents/issue-intake-agent.ts",
+      "src/coordination/workflow/agents/issue-intake-agent.ts",
       "tests/workflow/agents/issue-intake-agent.vitest.ts",
-      "src/workflow/types.ts",
+      "src/coordination/workflow/types.ts",
     ],
     dependencies: [61],
     acceptanceCriteria: [
@@ -133,7 +133,7 @@ describe("PlanningAgent", () => {
     it("derives test files from source files", async () => {
       const wp = validWorkPackage({
         estimatedFiles: [
-          "src/workflow/types.ts",
+          "src/coordination/workflow/types.ts",
         ],
         acceptanceCriteria: ["Add WorkPackage interface"],
       });
@@ -142,7 +142,7 @@ describe("PlanningAgent", () => {
       if (!result.success) return;
       // Setup gets the file, AC subtask gets the test file derived from it
       const acSubtask = result.plan.subtasks[1];
-      expect(acSubtask.testFiles).toContain("tests/workflow/types.test.ts");
+      expect(acSubtask.testFiles).toContain("tests/coordination/workflow/types.test.ts");
     });
 
     it("skips test derivation for existing test files", async () => {

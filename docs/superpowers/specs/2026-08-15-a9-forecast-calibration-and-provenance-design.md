@@ -352,10 +352,10 @@ No foreign surface is modified.
 
 ## 4.1 Module structure
 
-A9 mirrors the architectural shape of A8's `src/evolution/learning/` module without reusing A8 domain contracts.
+A9 mirrors the architectural shape of A8's `src/planning/evolution/learning/` module without reusing A8 domain contracts.
 
 ```text
-src/evolution/a9/
+src/planning/evolution/a9/
 ├── contracts/
 │   └── a9-contract.ts
 │
@@ -1544,7 +1544,7 @@ No data migration is required.
 A9 introduces:
 
 ```text
-src/evolution/a9/
+src/planning/evolution/a9/
 ```
 
 and:
@@ -2219,7 +2219,7 @@ Neither source is modified by A9.
 * A9 recon #546 locked invariants
 * A9 wayfinder map #526
 * A8 organizational learning specification
-* `src/evolution/learning/`
+* `src/planning/evolution/learning/`
 * A6 risk vocabulary and thresholds
 * A2.5 `GovernanceRecommendation`
 * A2.5 → A3 decision mapping

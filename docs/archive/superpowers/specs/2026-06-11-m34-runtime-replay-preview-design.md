@@ -47,7 +47,7 @@ M0.35  replayable
 ## Replay preview model
 
 ```typescript
-// src/runtime/replay-preview.ts
+// src/runtime-state/runtime/replay-preview.ts
 
 export type ReplayAction =
   | "context-only"           // informational, not re-executable
@@ -184,10 +184,10 @@ Boundaries:
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/runtime/replay-preview.ts` | Create | `ReplayPreview`, `ReplayPreviewStep`, `ReplayAction`, `buildReplayPreview()` |
-| `src/tui/trace-detail.ts` | Modify | Add `renderTraceReplay()` renderer |
-| `src/tui/store.ts` | Modify (minor) | No changes needed — `"replay"` is already a valid `TraceDetailMode` via the union? Check if it's in the type. |
-| `src/cli/commands/tui.ts` | Modify | Add `p` keyboard shortcut for replay mode |
+| `src/runtime-state/runtime/replay-preview.ts` | Create | `ReplayPreview`, `ReplayPreviewStep`, `ReplayAction`, `buildReplayPreview()` |
+| `src/interfaces/tui/trace-detail.ts` | Modify | Add `renderTraceReplay()` renderer |
+| `src/interfaces/tui/store.ts` | Modify (minor) | No changes needed — `"replay"` is already a valid `TraceDetailMode` via the union? Check if it's in the type. |
+| `src/interfaces/cli/commands/tui.ts` | Modify | Add `p` keyboard shortcut for replay mode |
 | `tests/runtime/replay-preview.test.ts` | Create | Reconstruction tests |
 | `tests/tui/replay-preview-detail.test.ts` | Create | Rendering tests |
 

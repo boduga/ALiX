@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadCalibration, saveCalibration, deriveCalibrationFactor, getCalibrationFactor } from "../../src/config/calibration-store.js";
+import { loadCalibration, saveCalibration, deriveCalibrationFactor, getCalibrationFactor } from "../../src/operations/config/calibration-store.js";
 
 describe("calibration store", () => {
   it("defaults to a 1.2 factor when no calibration exists", () => {

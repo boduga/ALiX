@@ -25,8 +25,8 @@
 
 | File | Action | Responsibility |
 |------|--------|----------------|
-| `src/adaptation/capability-evolution-proposal-generator.ts` | **Create** | Generator class, options interface, payload builder, dedup check |
-| `src/cli/commands/adaptation.ts` | **Modify** | Add `--capability-evolution` to `runGenerate`, import + route, print result |
+| `src/planning/adaptation/capability-evolution-proposal-generator.ts` | **Create** | Generator class, options interface, payload builder, dedup check |
+| `src/interfaces/cli/commands/adaptation.ts` | **Modify** | Add `--capability-evolution` to `runGenerate`, import + route, print result |
 | `tests/adaptation/capability-evolution-proposal-generator.vitest.ts` | **Create** | Full test suite per the 11-test spec table |
 
 ---
@@ -34,7 +34,7 @@
 ### Task 1: CapabilityEvolutionProposalGenerator
 
 **Files:**
-- Create: `src/adaptation/capability-evolution-proposal-generator.ts`
+- Create: `src/planning/adaptation/capability-evolution-proposal-generator.ts`
 - Test: `tests/adaptation/capability-evolution-proposal-generator.vitest.ts`
 
 **Interfaces:**
@@ -199,8 +199,8 @@ During candidate collection, increment `belowThreshold` for findings that fail t
 ```ts
 // tests/adaptation/capability-evolution-proposal-generator.vitest.ts
 import { describe, it, expect } from "vitest";
-import { CapabilityEvolutionProposalGenerator } from "../../src/adaptation/capability-evolution-proposal-generator.js";
-import type { CapabilityEvolutionReport } from "../../src/adaptation/capability-evolution-types.js";
+import { CapabilityEvolutionProposalGenerator } from "../../src/planning/adaptation/capability-evolution-proposal-generator.js";
+import type { CapabilityEvolutionReport } from "../../src/planning/adaptation/capability-evolution-types.js";
 
 function makeMinimalReport(overrides?: Partial<CapabilityEvolutionReport>): CapabilityEvolutionReport {
   return {
@@ -242,7 +242,7 @@ describe("CapabilityEvolutionProposalGenerator", () => {
 Run: `npx vitest run tests/adaptation/capability-evolution-proposal-generator.vitest.ts -t "gap finding" 2>&1 | tail -10`
 Expected: FAIL — class not defined
 
-- [ ] **Step 3: Write the full generator implementation in `src/adaptation/capability-evolution-proposal-generator.ts`**
+- [ ] **Step 3: Write the full generator implementation in `src/planning/adaptation/capability-evolution-proposal-generator.ts`**
 
 Include the class with:
 - Constructor taking `store: ProposalStore` and `writer: EvidenceEventWriter`
@@ -303,7 +303,7 @@ Expected: All pass
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/adaptation/capability-evolution-proposal-generator.ts tests/adaptation/capability-evolution-proposal-generator.vitest.ts
+git add src/planning/adaptation/capability-evolution-proposal-generator.ts tests/adaptation/capability-evolution-proposal-generator.vitest.ts
 git commit -m "feat: CapabilityEvolutionProposalGenerator — gap/overlap/health/drift findings
 to create_improvement_issue proposals with type-based confidence and dedupeKey"
 ```
@@ -313,14 +313,14 @@ to create_improvement_issue proposals with type-based confidence and dedupeKey"
 ### Task 2: CLI integration
 
 **Files:**
-- Modify: `src/cli/commands/adaptation.ts`
+- Modify: `src/interfaces/cli/commands/adaptation.ts`
 - Test: existing `tests/cli/commands/adaptation-generate.vitest.ts` (or extend if it exists)
 
 **Interfaces:**
 - Consumes: `CapabilityEvolutionProposalGenerator`, `CapabilityEvolutionStore`, `GenerateResult`
 - Produces: extended `runGenerate()` that handles `--capability-evolution` flag
 
-#### Changes to `src/cli/commands/adaptation.ts`
+#### Changes to `src/interfaces/cli/commands/adaptation.ts`
 
 **1. Add imports:**
 
@@ -422,13 +422,13 @@ Expected: All tests pass
 
 - [ ] **Step 5: Run TypeScript check**
 
-Run: `npx tsc --noEmit 2>&1 | grep -E 'capability-evolution-proposal|src/cli/commands/adaptation'`
+Run: `npx tsc --noEmit 2>&1 | grep -E 'capability-evolution-proposal|src/interfaces/cli/commands/adaptation'`
 Expected: No errors
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/adaptation.ts
+git add src/interfaces/cli/commands/adaptation.ts
 git commit -m "feat: CLI — alix adaptation generate --capability-evolution"
 ```
 

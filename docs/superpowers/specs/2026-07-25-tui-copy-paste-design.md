@@ -206,7 +206,7 @@ private flushPaste(): void {
 Introduce a `TuiAction` type so keybindings are decoupled from logic:
 
 ```ts
-// Extend the existing ViewAction union (defined in src/tui/views/types.ts)
+// Extend the existing ViewAction union (defined in src/interfaces/tui/views/types.ts)
 // with one new variant for clipboard copy.
 // Existing variants: handled, moveCursor, scroll, switchTab,
 // resolveApproval, scheduleRefresh
@@ -343,13 +343,13 @@ Terminal copies to system clipboard
 
 | File | Change |
 |------|--------|
-| `src/tui/terminal-control.ts` | Add `enableTerminalModes()` / `disableTerminalModes()` (unify alt buffer + bracketed paste + cursor) |
-| `src/tui/app.ts` — `handleRaw()` | Add `handlePaste()` — raw-byte streaming paste detector, runs before `parseKey()` |
-| `src/tui/app.ts` — `handleRaw()` | Add `Alt+C` → `dispatch({ type: 'copyScrollback' })` |
-| `src/tui/app.ts` — `dispatch()` | Add `'copyScrollback'` case — `collectVisibleTranscript()` + OSC 52 |
-| `src/tui/app.ts` | Add `collectVisibleTranscript(tab)` helper, paste state (`pasteState`, `pasteChunks`) |
-| `src/tui/views/types.ts` | Extend `ViewAction` union with `{ type: 'copyScrollback' }` |
-| `src/tui/app.ts` — `cleanupSync()` | Wrap in `finally` to guarantee `disableTerminalModes()` even on startup failure |
+| `src/interfaces/tui/terminal-control.ts` | Add `enableTerminalModes()` / `disableTerminalModes()` (unify alt buffer + bracketed paste + cursor) |
+| `src/interfaces/tui/app.ts` — `handleRaw()` | Add `handlePaste()` — raw-byte streaming paste detector, runs before `parseKey()` |
+| `src/interfaces/tui/app.ts` — `handleRaw()` | Add `Alt+C` → `dispatch({ type: 'copyScrollback' })` |
+| `src/interfaces/tui/app.ts` — `dispatch()` | Add `'copyScrollback'` case — `collectVisibleTranscript()` + OSC 52 |
+| `src/interfaces/tui/app.ts` | Add `collectVisibleTranscript(tab)` helper, paste state (`pasteState`, `pasteChunks`) |
+| `src/interfaces/tui/views/types.ts` | Extend `ViewAction` union with `{ type: 'copyScrollback' }` |
+| `src/interfaces/tui/app.ts` — `cleanupSync()` | Wrap in `finally` to guarantee `disableTerminalModes()` even on startup failure |
 
 ## Testing
 

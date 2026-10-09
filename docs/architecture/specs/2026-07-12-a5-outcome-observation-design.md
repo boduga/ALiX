@@ -360,15 +360,15 @@ Observation is safe and repeatable — it never triggers governance decisions wi
 
 | Component | Files |
 |-----------|-------|
-| Core types | `src/evolution/observation/contracts/observation-contract.ts` |
-| ObservationEngine | `src/evolution/observation/observation-engine.ts` |
-| CLI Provider | `src/evolution/observation/providers/cli-provider.ts` |
-| Filesystem Provider | `src/evolution/observation/providers/filesystem-provider.ts` |
-| Git Provider | `src/evolution/observation/providers/git-provider.ts` |
-| Ledger Provider | `src/evolution/observation/providers/ledger-provider.ts` |
-| Evidence bridge | `src/evolution/observation/observation-evidence-bridge.ts` |
-| CLI handler | `src/evolution/observation/observation-cli.ts` |
-| Barrel exports | `src/evolution/observation/index.ts` |
+| Core types | `src/planning/evolution/observation/contracts/observation-contract.ts` |
+| ObservationEngine | `src/planning/evolution/observation/observation-engine.ts` |
+| CLI Provider | `src/planning/evolution/observation/providers/cli-provider.ts` |
+| Filesystem Provider | `src/planning/evolution/observation/providers/filesystem-provider.ts` |
+| Git Provider | `src/planning/evolution/observation/providers/git-provider.ts` |
+| Ledger Provider | `src/planning/evolution/observation/providers/ledger-provider.ts` |
+| Evidence bridge | `src/planning/evolution/observation/observation-evidence-bridge.ts` |
+| CLI handler | `src/planning/evolution/observation/observation-cli.ts` |
+| Barrel exports | `src/planning/evolution/observation/index.ts` |
 | Tests | `tests/evolution/observation/` |
 
 ### Out of scope (A5.2+)

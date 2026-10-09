@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { EmbeddingScorer } from "../../../src/verifier/embedder/scorer.js";
+import { EmbeddingScorer } from "../../../src/execution/verifier/embedder/scorer.js";
 
 describe("EmbeddingScorer", () => {
   it("creates embedding from verification context", async () => {

@@ -6,7 +6,7 @@
 
 ## Context
 
-ALiX has a full skills subsystem (`src/skills/`): skills live in `~/.alix/skills/<name>/SKILL.md` with a `SkillManifest` carrying `name`, `description`, `trigger` (a slash command like `/tdd`), `pattern`, and optional `scripts/`. The agent session already loads *auto-matched* skills into its system prompt via `setupSkills()`/`SkillCatalog.match()`, and the CLI has `alix skills run` to execute a skill's script in the Layer-4 sandbox.
+ALiX has a full skills subsystem (`src/capabilities/skills/`): skills live in `~/.alix/skills/<name>/SKILL.md` with a `SkillManifest` carrying `name`, `description`, `trigger` (a slash command like `/tdd`), `pattern`, and optional `scripts/`. The agent session already loads *auto-matched* skills into its system prompt via `setupSkills()`/`SkillCatalog.match()`, and the CLI has `alix skills run` to execute a skill's script in the Layer-4 sandbox.
 
 But the **TUI** has no way to invoke a skill by slash command. Typing `/tdd` into the TUI input today either opens the command palette (`/` on empty chat) or sends the literal text to the agent. This feature gives the TUI a first-class **skill slash-command surface on the agent tab**: typing `/tdd` there resolves the skill, loads it explicitly into the agent session, and submits the rest of the line as the task — while preserving today's auto-matching behavior. The chat tab keeps today's behavior unchanged (`/` opens the palette on empty chat input, otherwise plain text).
 
@@ -26,7 +26,7 @@ But the **TUI** has no way to invoke a skill by slash command. Typing `/tdd` int
 
 ## Architecture
 
-A pure parsing/completion layer (`src/skills/slash.ts`) sits between the TUI input and the agent session. It parses `/trigger rest`, resolves the named skill, and hands the agent session an explicit skill list. The session merges explicit + auto-matched skills (union, dedupe, inject).
+A pure parsing/completion layer (`src/capabilities/skills/slash.ts`) sits between the TUI input and the agent session. It parses `/trigger rest`, resolves the named skill, and hands the agent session an explicit skill list. The session merges explicit + auto-matched skills (union, dedupe, inject).
 
 ```
 [input buffer: "/tdd fix failing parser"]
@@ -51,7 +51,7 @@ Existing system-prompt section; agent acts on the skill
 
 ## Components
 
-### 1. `src/skills/slash.ts` (new — pure, no TUI/CLI imports)
+### 1. `src/capabilities/skills/slash.ts` (new — pure, no TUI/CLI imports)
 
 - `parseSlashInput(buffer: string): { command: string; rest: string } | null`
   - `/^\/(\S+)\s?(.*)$/`; returns `null` when the buffer doesn't start with `/`, or is exactly `/`.
@@ -71,12 +71,12 @@ Existing system-prompt section; agent acts on the skill
   - Returns the catalog's canonical identifier for dedup. **`canonicalSkillId()` is the SOLE dedup authority.** No other field (display name, trigger, path) is ever used to decide whether two skills are the same in the union/dedupe/inject path. This is `manifest.name` for now (the key used by `SkillCatalog.getAll()`/`get()` and the on-disk directory name `<root>/<name>/`), but it is isolated behind this function so that if two skills ever share a display name and the catalog gains a different canonical id (e.g. a path or slug), dedup updates in one place.
   - Contract: the union/dedupe/inject path MUST call `canonicalSkillId()` and nothing else to identify a skill. Documented here and asserted in the alias-collision regression test (see Testing).
 
-### 2. `src/skills/catalog.ts` — add `getByTriggerOrName(ref)`
+### 2. `src/capabilities/skills/catalog.ts` — add `getByTriggerOrName(ref)`
 
 - `getByTriggerOrName(ref: string): SkillEntry | undefined`
   - Dedupes the existing `get()`/`getAll()` by-name-vs-by-trigger lookup into one method used by slash.ts. Accepts `tdd` or `/tdd`.
 
-### 3. `src/skills/session.ts` — thread explicit skills
+### 3. `src/capabilities/skills/session.ts` — thread explicit skills
 
 - `setupSkills(task, factoryConfig, explicitSkills?: string[])` → returns `{ injected: LoadedSkill[]; autoMatched: LoadedSkill[] }`
   - **Union/dedupe/inject happens inside `setupSkills`, not the caller.** Precedence (documented in code):
@@ -104,7 +104,7 @@ Existing system-prompt section; agent acts on the skill
 
 ### 4. Generation-based catalog cache (startup + install/remove invalidation)
 
-- New `src/skills/slash-catalog.ts` — a small async, **generation-based** cache:
+- New `src/capabilities/skills/slash-catalog.ts` — a small async, **generation-based** cache:
   - `getSlashCatalog(): Promise<SkillManifest[]>` — returns the cached list, building once on first access via `loadSkillManifests(skillsHome)`.
   - `invalidateSlashCatalog()` — bumps the generation counter; the next `getSlashCatalog()` rebuilds.
   - **Generation model:** the cache holds `{ generation: number; manifests: SkillManifest[] }`. Every build captures the generation it was built at; `getSlashCatalog()` compares the current generation against the cached build's generation and rebuilds on mismatch. This is race-safe: a build that started before an invalidation, and finishes after it, is detected as stale (its captured generation ≠ current) and discarded — the caller rebuilds. Consumers never read a half-stale list and never block on filesystem during typing (steady-state reads are a pure in-memory return).
@@ -119,7 +119,7 @@ Existing system-prompt section; agent acts on the skill
   - `install.ts` (both install paths) and `removeSkill()` call `invalidateSlashCatalog()` after the skill lands/leaves.
   - The skills home is read from `~/.alix/skills` (matching the existing hardcoded path; `skills.store.path` config plumbing is out of scope).
 
-### 5. `src/tui/app.ts` — input layer
+### 5. `src/interfaces/tui/app.ts` — input layer
 
 **Slash commands are agent-tab only.** The chat tab keeps today's behavior (`/` opens the palette on empty chat input, otherwise plain text). All slash handling below applies to the agent-tab input.
 
@@ -136,7 +136,7 @@ Existing system-prompt section; agent acts on the skill
   - **This creates a consistent rule:** on the agent tab, `/anything` is a slash command; typing `/` naturally enters slash mode. Tab and Enter compose: **Tab to select, Enter to activate**.
 - `dispatchToSession` threads an optional `skills` field through to `processTurn` (agent path). Chat never passes skills.
 
-### 6. `src/tui/views/agent-view.ts` — render the completion strip
+### 6. `src/interfaces/tui/views/agent-view.ts` — render the completion strip
 
 - A couple of canvas rows under the agent-tab prompt line showing matching skill triggers/names; highlighted first match. Discoverability only. (ChatView never receives `ctx.slash`.)
 

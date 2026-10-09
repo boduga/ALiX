@@ -24,7 +24,7 @@ import {
   CapabilityProposalGenerator,
   type CapabilityEvolutionSignal,
   type ProposalSignalSource,
-} from "../../src/capability/evolution/proposals.js";
+} from "../../src/capabilities/capability/evolution/proposals.js";
 
 class FakeSignalSource implements ProposalSignalSource {
   constructor(private readonly items: ReadonlyArray<CapabilityEvolutionSignal>) {}

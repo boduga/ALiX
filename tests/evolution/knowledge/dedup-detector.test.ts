@@ -3,11 +3,11 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { detectDuplicates } from "../../../src/evolution/knowledge/detectors/index.js";
+import { detectDuplicates } from "../../../src/planning/evolution/knowledge/detectors/index.js";
 import {
   DEFAULT_CURATION_CONFIG,
   type KnowledgeArtifact,
-} from "../../../src/evolution/knowledge/contracts/curation-contract.js";
+} from "../../../src/planning/evolution/knowledge/contracts/curation-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

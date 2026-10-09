@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ToolSelector } from "../../src/mcp/tool-selector.js";
-import type { DeferredToolEntry } from "../../src/mcp/tool-deferral.js";
+import { ToolSelector } from "../../src/capabilities/mcp/tool-selector.js";
+import type { DeferredToolEntry } from "../../src/capabilities/mcp/tool-deferral.js";
 
 const makeTool = (name: string, description: string): DeferredToolEntry => ({
   name,

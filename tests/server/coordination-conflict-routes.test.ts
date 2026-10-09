@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startServer } from "../../src/server/server.js";
-import { CollaborationStore } from "../../src/kernel/collaboration-store.js";
-import { ConflictRepository } from "../../src/kernel/collaboration-conflict-repository.js";
+import { startServer } from "../../src/interfaces/server/server.js";
+import { CollaborationStore } from "../../src/coordination/kernel/collaboration-store.js";
+import { ConflictRepository } from "../../src/coordination/kernel/collaboration-conflict-repository.js";
 
 const RUN_ID = "run_srv_1";
 

@@ -76,7 +76,7 @@ P9.2 does NOT consume:
 
 ### 2. What artifact does P9.2 produce?
 
-P9.2 produces **one artifact**: a standard P5 `Proposal` (already typed in `src/adaptation/adaptation-types.ts`) with:
+P9.2 produces **one artifact**: a standard P5 `Proposal` (already typed in `src/planning/adaptation/adaptation-types.ts`) with:
 
 ```ts
 {
@@ -355,7 +355,7 @@ The sentinel test logic:
 4. **Even for the exception file**, the following remain unconditionally forbidden: `ApprovalGate`, `approve(`, `apply(`, `applier`, `runApplier(`, any applier class. These do not need an exception; they are forbidden for every P9 file.
 5. All other checks (write calls, P8 store paths in `governance-store.ts`, etc.) remain unchanged.
 
-The exception file is `src/governance/governance-proposal-generator.ts` only. The CLI dispatcher `src/cli/commands/governance.ts` (which invokes the generator) does NOT get the exception — it must call the generator through a function, not by directly constructing proposals.
+The exception file is `src/governance/governance-proposal-generator.ts` only. The CLI dispatcher `src/interfaces/cli/commands/governance.ts` (which invokes the generator) does NOT get the exception — it must call the generator through a function, not by directly constructing proposals.
 
 ### 8. What does the operator see?
 
@@ -497,7 +497,7 @@ provenance: {
 **Protected type files (additive extension allowed):** The 6 protected type files are **structurally protected**, not byte-identical. P9.2 is approved to add two new members to unions in `adaptation-types.ts`:
 
 ```ts
-// In src/adaptation/adaptation-types.ts
+// In src/planning/adaptation/adaptation-types.ts
 type ProposalAction = ... | "governance_change";   // additive only
 type ProposalTarget = ... | { kind: "governance"; recommendationId: string };  // additive only
 ```
@@ -525,7 +525,7 @@ The sentinel for P9.2 must assert:
 
 ```text
 src/governance/governance-proposal-generator.ts        # The single bridge module
-src/cli/commands/governance.ts                         # + "propose" subcommand (modify)
+src/interfaces/cli/commands/governance.ts                         # + "propose" subcommand (modify)
 tests/governance/governance-proposal-generator.vitest.ts
 tests/cli/commands/governance-integration.vitest.ts    # + "propose" tests (modify)
 tests/governance/governance-sentinels.vitest.ts         # + FILE_EXCEPTIONS (modify)

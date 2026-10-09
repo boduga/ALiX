@@ -9,17 +9,17 @@ import assert from "node:assert/strict";
 import {
   generateDecision,
   decisionKindToTargetState,
-} from "../../../src/evolution/governance/index.js";
-import { createVerificationEvidence } from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/governance/index.js";
+import { createVerificationEvidence } from "../../../src/planning/evolution/verification/index.js";
 import type {
   VerificationEvidenceInput,
   ConfidenceProfile,
-} from "../../../src/evolution/verification/index.js";
-import type { GovernanceRecommendation } from "../../../src/evolution/verification/contracts/recommendation-contract.js";
+} from "../../../src/planning/evolution/verification/index.js";
+import type { GovernanceRecommendation } from "../../../src/planning/evolution/verification/contracts/recommendation-contract.js";
 import type {
   GovernanceDecisionKind,
   GovernancePolicyConfig,
-} from "../../../src/evolution/governance/contracts/decision-contract.js";
+} from "../../../src/planning/evolution/governance/contracts/decision-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

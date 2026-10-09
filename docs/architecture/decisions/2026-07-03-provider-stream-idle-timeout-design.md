@@ -146,7 +146,7 @@ feat(runtime): apply idle timeout to provider streams
 ```
 
 Implementation scope:
-1. Add `withStreamIdleTimeout()` helper to `src/runtime/side-effect-timeout.ts` or a new file.
+1. Add `withStreamIdleTimeout()` helper to `src/runtime-state/runtime/side-effect-timeout.ts` or a new file.
 2. Add optional `streamIdleTimeoutMs` param to `withProviderContracts`.
 3. Wire into the stream wrapper inside `withProviderContracts`.
 4. Add tests: chunk within timeout yields, gap beyond timeout rejects, quick multi-chunk succeeds, diagnostic emitted on timeout.

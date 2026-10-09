@@ -6,8 +6,8 @@ import type {
   CapabilityListResult, CapabilityInspectResult, CapabilitySearchResult,
   CapabilityHealthResult, CapabilityHistoryResult, CapabilityRecommendResult,
   CapabilityApplyResult, CapabilityServiceOptions,
-} from '../../src/capability/types/service-results.js';
-import { CapabilityServiceNotImplementedError } from '../../src/capability/errors/service-not-implemented.js';
+} from '../../src/capabilities/capability/types/service-results.js';
+import { CapabilityServiceNotImplementedError } from '../../src/capabilities/capability/errors/service-not-implemented.js';
 
 describe('CapabilityServiceNotImplementedError (locked ruling #4 — stable contract)', () => {
   it('has name = "CapabilityServiceNotImplementedError"', () => {

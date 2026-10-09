@@ -33,7 +33,7 @@ describe("Memory Growth — RuntimeIndex", () => {
     writeFileSync(join(dir, ".alix", "sessions", "s1", "events.jsonl"), sessionLines, "utf-8");
 
     const before = rssMb();
-    const { buildRuntimeIndex } = await import("../../src/runtime/runtime-index.js");
+    const { buildRuntimeIndex } = await import("../../src/runtime-state/runtime/runtime-index.js");
     await buildRuntimeIndex(dir);
     const after = rssMb();
     console.log(`  RuntimeIndex: RSS ${before} MB → ${after} MB (delta: ${(after - before).toFixed(1)} MB)`);
@@ -46,7 +46,7 @@ describe("Memory Growth — ContinuationStore", () => {
     const dir = mkdtempSync(join(tmpdir(), "mem-cont-"));
     mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
     const before = rssMb();
-    const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+    const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
     const store = new ContinuationStore(dir);
     await store.load();
     for (let i = 0; i < 1000; i++) {
@@ -63,7 +63,7 @@ describe("Memory Growth — ApprovalStore", () => {
     const dir = mkdtempSync(join(tmpdir(), "mem-approve-"));
     mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
     const before = rssMb();
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     const store = new ApprovalStore(dir);
     await store.load();
     for (let i = 0; i < 500; i++) {

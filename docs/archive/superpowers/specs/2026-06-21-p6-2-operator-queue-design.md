@@ -235,14 +235,14 @@ Queue may only: **read existing artifacts, sort, format output**.
 
 ```
 Create:
-  src/adaptation/operator-queue-types.ts   — QueueInput, QueueItem, QueueItemOrdering, RecommendationPriority, RECOMMENDATION_RANK
-  src/adaptation/operator-queue.ts          — OperatorQueue class (pure sorting)
-  src/adaptation/operator-queue.test.ts     — Unit tests
+  src/planning/adaptation/operator-queue-types.ts   — QueueInput, QueueItem, QueueItemOrdering, RecommendationPriority, RECOMMENDATION_RANK
+  src/planning/adaptation/operator-queue.ts          — OperatorQueue class (pure sorting)
+  src/planning/adaptation/operator-queue.test.ts     — Unit tests
   tests/adaptation/operator-queue.vitest.ts — Unit tests
   tests/adaptation/queue-governance-sentinels.vitest.ts — Purity + no-mutation sentinels
 
 Modify:
-  src/cli/commands/decision.ts             — Add `queue` subcommand handler + case in switch
+  src/interfaces/cli/commands/decision.ts             — Add `queue` subcommand handler + case in switch
 ```
 
 ## Tests

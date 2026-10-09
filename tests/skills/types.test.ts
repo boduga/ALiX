@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { parseFrontMatter, parseSkillContent } from "../../src/skills/types.js";
+import { parseFrontMatter, parseSkillContent } from "../../src/capabilities/skills/types.js";
 
 describe("ALiX skill manifest", () => {
   it("parses valid YAML front matter", () => {

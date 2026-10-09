@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { AlixEvent } from '../../../src/events/types.js';
-import { stripAnsi } from '../../../src/tui/box.js';
-import { displayWidth } from '../../../src/tui/terminal-text.js';
-import { buildWorkbenchToolCardLines } from '../../../src/tui/workbench/views/tool-card.js';
-import type { ToolItem } from '../../../src/tui/workbench/model/transcript-item.js';
-import { getWorkbenchPreviewTheme } from '../../../src/tui/workbench/model/preview-theme.js';
-import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
-import { ConversationProjection } from '../../../src/tui/workbench/projections/conversation-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { stripAnsi } from '../../../src/interfaces/tui/box.js';
+import { displayWidth } from '../../../src/interfaces/tui/terminal-text.js';
+import { buildWorkbenchToolCardLines } from '../../../src/interfaces/tui/workbench/views/tool-card.js';
+import type { ToolItem } from '../../../src/interfaces/tui/workbench/model/transcript-item.js';
+import { getWorkbenchPreviewTheme } from '../../../src/interfaces/tui/workbench/model/preview-theme.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import { ConversationProjection } from '../../../src/interfaces/tui/workbench/projections/conversation-projection.js';
 
 function tool(overrides: Partial<ToolItem> = {}): ToolItem {
   return { id: 'call-row', name: 'file.read', status: 'completed', startedAt: 1,

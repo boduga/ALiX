@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 import { describe, it, expect } from "vitest";
-import { ProposalSignalChannel } from "../../src/capability/evolution/proposal-signal-channel.js";
+import { ProposalSignalChannel } from "../../src/capabilities/capability/evolution/proposal-signal-channel.js";
 import type {
   ProposalSignalSink,
   ProposalSignalSource,
   CapabilityEvolutionSignal,
-} from "../../src/capability/evolution/proposals.js";
+} from "../../src/capabilities/capability/evolution/proposals.js";
 
 const sig = (kind: "gap" | "underperformer"): CapabilityEvolutionSignal =>
   kind === "gap"

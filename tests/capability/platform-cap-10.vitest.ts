@@ -19,18 +19,18 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityMeasurement } from "../../src/evolution/observation/capability-measurement.js";
-import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import { CapabilityServiceNotImplementedError } from "../../src/capability/errors/service-not-implemented.js";
-import { CapabilityMeasureInvalidTargetError } from "../../src/capability/errors/measure-invalid-target.js";
-import type { ProposalSignalSink, ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/proposals.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityMeasurement } from "../../src/planning/evolution/observation/capability-measurement.js";
+import { ObservationEngine } from "../../src/planning/evolution/observation/observation-engine.js";
+import { CapabilityServiceNotImplementedError } from "../../src/capabilities/capability/errors/service-not-implemented.js";
+import { CapabilityMeasureInvalidTargetError } from "../../src/capabilities/capability/errors/measure-invalid-target.js";
+import type { ProposalSignalSink, ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/proposals.js";
 
 /** CAP-10.5 — sink+source fake for tests; implements both contracts so a
  *  single instance can stand in for either side of the channel. Used
  *  here for the A5 sink side; A7 side is wired via the composition-root
- *  channel (`src/capability/platform.ts`). */
+ *  channel (`src/capabilities/capability/platform.ts`). */
 class FakeSignalChannel implements ProposalSignalSink, ProposalSignalSource {
   public readonly published: CapabilityEvolutionSignal[] = [];
   async publish(signal: CapabilityEvolutionSignal): Promise<void> {

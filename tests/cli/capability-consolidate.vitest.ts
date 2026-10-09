@@ -33,28 +33,28 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../../src/events/event-log.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 import {
   CapabilityService,
   type OperatorConsolidationInput,
   type CapabilityProposeConsolidationResult,
-} from "../../src/capability/capability-service.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { CapabilityResolver } from "../../src/capability/provider-resolver.js";
-import { ProviderExecutorRegistry } from "../../src/capability/provider-registry.js";
-import { NativeProviderExecutor } from "../../src/capability/provider-executor.js";
-import { NativeExecutor } from "../../src/capability/executors.js";
-import type { CapabilityDefinition } from "../../src/capability/canonical/definition.js";
-import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
+} from "../../src/capabilities/capability/capability-service.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { CapabilityResolver } from "../../src/capabilities/capability/provider-resolver.js";
+import { ProviderExecutorRegistry } from "../../src/capabilities/capability/provider-registry.js";
+import { NativeProviderExecutor } from "../../src/capabilities/capability/provider-executor.js";
+import { NativeExecutor } from "../../src/capabilities/capability/executors.js";
+import type { CapabilityDefinition } from "../../src/capabilities/capability/canonical/definition.js";
+import type { CapabilityMutationExecutor } from "../../src/planning/evolution/execution/capability-mutation-executor.js";
 import { def } from "../_support/capability-test-fixtures.js";
 import {
   capabilityConsolidateCommand,
   parseConsolidateArgs,
   buildConsolidationInput,
-} from "../../src/cli/commands/capability-consolidate.js";
-import { handleCapabilityCommand } from "../../src/cli/commands/capability.js";
+} from "../../src/interfaces/cli/commands/capability-consolidate.js";
+import { handleCapabilityCommand } from "../../src/interfaces/cli/commands/capability.js";
 
 /**
  * Records every `proposeConsolidation` input so the sentinels can compare it

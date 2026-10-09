@@ -7,7 +7,7 @@
  *   Learning never mutates directly.
  *
  * These sentinels are grep-based structural tests that run in CI.
- * If any fails, a mutation path was introduced into src/learning/.
+ * If any fails, a mutation path was introduced into src/planning/learning/.
  *
  * @module
  */
@@ -24,9 +24,9 @@ import { importedSpecifiers, codeOnly } from "../helpers/import-graph.js";
 // ---------------------------------------------------------------------------
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..", "..");
-const SRC_LEARNING = join(ROOT, "src", "learning");
+const SRC_LEARNING = join(ROOT, "src", "planning", "learning");
 
-/** All .ts files under src/learning/ (recursive). */
+/** All .ts files under src/planning/learning/ (recursive). */
 function learningSourceFiles(): string[] {
   if (!existsSync(SRC_LEARNING)) return [];
   return globSync("**/*.ts", { cwd: SRC_LEARNING, absolute: true }).filter(
@@ -69,7 +69,7 @@ function anyMatches(pattern: RegExp): string[] {
 
 describe("P8.6 — Learning Governance Sentinels", () => {
   // -----------------------------------------------------------------------
-  // 1. No mutation imports in src/learning/
+  // 1. No mutation imports in src/planning/learning/
   // -----------------------------------------------------------------------
 
   it("must not import AdaptationProposalStore", () => {

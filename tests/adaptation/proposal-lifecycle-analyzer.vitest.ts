@@ -2,13 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ProposalLifecycleAnalyzer } from "../../src/adaptation/proposal-lifecycle-analyzer.js";
-import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
-import { EffectivenessStore } from "../../src/adaptation/effectiveness-store.js";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
-import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
-import type { IntelligenceOptions } from "../../src/adaptation/intelligence-types.js";
+import { ProposalLifecycleAnalyzer } from "../../src/planning/adaptation/proposal-lifecycle-analyzer.js";
+import { AdaptationProposalStore } from "../../src/planning/adaptation/adaptation-proposal-store.js";
+import { EffectivenessStore } from "../../src/planning/adaptation/effectiveness-store.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
+import type { ProposalEffectivenessReport } from "../../src/planning/adaptation/effectiveness-types.js";
+import type { IntelligenceOptions } from "../../src/planning/adaptation/intelligence-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

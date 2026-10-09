@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { taskRouter } from "../../src/runtime/task-router.js";
+import { taskRouter } from "../../src/runtime-state/runtime/task-router.js";
 
 describe("generation + explicit file output routes to the agent", () => {
   it("routes a long report prompt that names response.md to agent (not direct)", async () => {

@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { EventLog } from "../../src/events/event-log.js";
-import type { AlixEvent } from "../../src/events/types.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
 import { mkdtemp, rm, writeFile, readFile, utimes } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
@@ -185,7 +185,7 @@ describe("EventLog", () => {
   it("allocates unique seqs across concurrent processes", async () => {
     const log = new EventLog(dir);
     await log.init();
-    const moduleUrl = new URL("../../src/events/event-log.js", import.meta.url).href;
+    const moduleUrl = new URL("../../src/runtime-state/events/event-log.js", import.meta.url).href;
     const worker = `
       const { EventLog } = await import(${JSON.stringify(moduleUrl)});
       const log = new EventLog(${JSON.stringify(dir)});

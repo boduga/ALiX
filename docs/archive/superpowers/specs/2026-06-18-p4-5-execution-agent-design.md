@@ -16,10 +16,10 @@ by the ExecutionAgent itself (not just the ReviewAgent):
 
 | Path | Rule |
 |------|------|
-| `src/security/` | REJECT — trust boundary |
-| `src/config/` | REJECT — config signing boundary |
+| `src/governance/security/` | REJECT — trust boundary |
+| `src/operations/config/` | REJECT — config signing boundary |
 | `src/agents/` | REJECT — agent identity boundary |
-| `src/workflow/` | REJECT — governance boundary |
+| `src/coordination/workflow/` | REJECT — governance boundary |
 | `.alix/` | REJECT — evidence + state boundary |
 | `AGENTS.md`, `CLAUDE.md`, `CONTEXT.md` | REJECT |
 
@@ -175,9 +175,9 @@ After all subtasks:
 
 | File | Action |
 |------|--------|
-| `src/workflow/agents/execution-agent.ts` | CREATE |
+| `src/coordination/workflow/agents/execution-agent.ts` | CREATE |
 | `tests/workflow/agents/execution-agent.vitest.ts` | CREATE |
-| `src/security/evidence/evidence-types.ts` | MODIFY — 5 new event types |
+| `src/governance/security/evidence/evidence-types.ts` | MODIFY — 5 new event types |
 
 ---
 

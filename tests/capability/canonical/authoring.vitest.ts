@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { evaluateDefinitionAuthoring } from "../../../src/capability/canonical/authoring.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { evaluateDefinitionAuthoring } from "../../../src/capabilities/capability/canonical/authoring.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 function makeDef(): CapabilityDefinition {
   return { id: "a.b.c", version: "1.0.0", kind: "operation", title: "t", description: "d",

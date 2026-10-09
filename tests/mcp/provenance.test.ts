@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { ToolProvenanceTracker, type ProvenanceEntry } from "../../src/mcp/provenance.js";
+import { ToolProvenanceTracker, type ProvenanceEntry } from "../../src/capabilities/mcp/provenance.js";
 
 describe("ToolProvenanceTracker", () => {
   it("tracks tool source", () => {

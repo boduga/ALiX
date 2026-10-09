@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // process.cwd override helpers
@@ -40,7 +40,7 @@ async function seedProposal(
   overrides: Partial<AdaptationProposal> = {},
 ): Promise<AdaptationProposal> {
   const { AdaptationProposalStore } = await import(
-    "../../../src/adaptation/adaptation-proposal-store.js"
+    "../../../src/planning/adaptation/adaptation-proposal-store.js"
   );
   const store = new AdaptationProposalStore(
     join(tempRoot, ".alix", "adaptation", "proposals"),
@@ -130,7 +130,7 @@ describe("adaptation CLI — readiness integration", () => {
       });
 
       const { handleAdaptationCommand } = await import(
-        "../../../src/cli/commands/adaptation.js"
+        "../../../src/interfaces/cli/commands/adaptation.js"
       );
       const c = captureConsole();
       await handleAdaptationCommand(["list"]);
@@ -151,7 +151,7 @@ describe("adaptation CLI — readiness integration", () => {
       });
 
       const { handleAdaptationCommand } = await import(
-        "../../../src/cli/commands/adaptation.js"
+        "../../../src/interfaces/cli/commands/adaptation.js"
       );
       const c = captureConsole();
       await handleAdaptationCommand(["list"]);
@@ -177,7 +177,7 @@ describe("adaptation CLI — readiness integration", () => {
       });
 
       const { handleAdaptationCommand } = await import(
-        "../../../src/cli/commands/adaptation.js"
+        "../../../src/interfaces/cli/commands/adaptation.js"
       );
       const c = captureConsole();
       await handleAdaptationCommand(["show", "prop-show-rdy"]);
@@ -203,7 +203,7 @@ describe("adaptation CLI — readiness integration", () => {
       });
 
       const { handleAdaptationCommand } = await import(
-        "../../../src/cli/commands/adaptation.js"
+        "../../../src/interfaces/cli/commands/adaptation.js"
       );
       const c = captureConsole();
       await handleAdaptationCommand(["apply", "prop-apply-rdy"]);
@@ -213,7 +213,7 @@ describe("adaptation CLI — readiness integration", () => {
       expect(joined).toContain("Applied:");
 
       const { AdaptationProposalStore } = await import(
-        "../../../src/adaptation/adaptation-proposal-store.js"
+        "../../../src/planning/adaptation/adaptation-proposal-store.js"
       );
       const store = new AdaptationProposalStore(
         join(tempRoot, ".alix", "adaptation", "proposals"),
@@ -226,7 +226,7 @@ describe("adaptation CLI — readiness integration", () => {
       await seedProposal({ id: "prop-need-appr", status: "pending" });
 
       const { handleAdaptationCommand } = await import(
-        "../../../src/cli/commands/adaptation.js"
+        "../../../src/interfaces/cli/commands/adaptation.js"
       );
       const c = captureConsole();
       const exit = mockExit();
@@ -264,7 +264,7 @@ describe("adaptation CLI — readiness integration", () => {
       });
 
       const { handleAdaptationCommand } = await import(
-        "../../../src/cli/commands/adaptation.js"
+        "../../../src/interfaces/cli/commands/adaptation.js"
       );
       const c = captureConsole();
       const exit = mockExit();
@@ -297,7 +297,7 @@ describe("adaptation CLI — readiness integration", () => {
       });
 
       const { handleAdaptationCommand } = await import(
-        "../../../src/cli/commands/adaptation.js"
+        "../../../src/interfaces/cli/commands/adaptation.js"
       );
       const c = captureConsole();
       const exit = mockExit();
@@ -318,7 +318,7 @@ describe("adaptation CLI — readiness integration", () => {
       });
 
       const { handleAdaptationCommand } = await import(
-        "../../../src/cli/commands/adaptation.js"
+        "../../../src/interfaces/cli/commands/adaptation.js"
       );
       const c = captureConsole();
       const exit = mockExit();
@@ -358,7 +358,7 @@ describe("adaptation CLI — readiness integration", () => {
       }));
 
       const { handleAdaptationCommand } = await import(
-        "../../../src/cli/commands/adaptation.js"
+        "../../../src/interfaces/cli/commands/adaptation.js"
       );
       const c = captureConsole();
       const exit = mockExit();

@@ -2,8 +2,8 @@
  * model-doctor.ts — Diagnose system health, provider status, and profile compatibility.
  */
 
-import type { ProfileData } from "../config/profile-types.js";
-import { matchHardware, type SystemInfo } from "../config/profile-registry.js";
+import type { ProfileData } from "../operations/config/profile-types.js";
+import { matchHardware, type SystemInfo } from "../operations/config/profile-registry.js";
 
 export type DoctorSection = { title: string; items: string[] };
 export type DoctorIssue = { severity: "error" | "warning" | "info"; message: string };

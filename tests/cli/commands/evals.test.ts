@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { shellQuote } from "../../../src/cli/commands/evals.js";
+import { shellQuote } from "../../../src/interfaces/cli/commands/evals.js";
 
 describe("shellQuote", () => {
   it("single-quotes plain values", () => {

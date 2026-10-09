@@ -70,7 +70,7 @@ alix executive remediate <proposalId> [--action <type> --target <id> --reason <t
 ## Section 1: Types
 
 ```typescript
-// New file: src/executive/executive-remediate.ts
+// New file: src/execution/executive/executive-remediate.ts
 
 interface ActionSpec {
   action: ProposalAction;
@@ -349,7 +349,7 @@ function buildRemediationChildDraft(
 
 ### Routing
 
-Add case to `src/cli/commands/executive.ts` dispatcher:
+Add case to `src/interfaces/cli/commands/executive.ts` dispatcher:
 
 ```typescript
 case "remediate":
@@ -570,11 +570,11 @@ At most one `RemediationProvider` may support any given proposal. If zero match,
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/executive/executive-remediate.ts` | **Create** | Types, interfaces, `RemediatorRegistry`, `ExecutiveBridgeRemediator`, pure functions, constants |
+| `src/execution/executive/executive-remediate.ts` | **Create** | Types, interfaces, `RemediatorRegistry`, `ExecutiveBridgeRemediator`, pure functions, constants |
 | `tests/executive/executive-remediate.vitest.ts` | **Create** | Unit tests for pure functions |
-| `src/cli/commands/executive-remediate-handler.ts` | **Create** | `handleRemediateCommand`, `runRemediateWizard` |
+| `src/interfaces/cli/commands/executive-remediate-handler.ts` | **Create** | `handleRemediateCommand`, `runRemediateWizard` |
 | `tests/cli/commands/executive-remediate-cli.vitest.ts` | **Create** | CLI integration tests |
-| `src/cli/commands/executive.ts` | **Modify** | Add `"remediate"` case to dispatcher |
+| `src/interfaces/cli/commands/executive.ts` | **Modify** | Add `"remediate"` case to dispatcher |
 | Executive purity sentinel | **Modify** | Add both new files to `EXECUTIVE_FILES` allowlist |
 
 ## Section 7: Success Criteria

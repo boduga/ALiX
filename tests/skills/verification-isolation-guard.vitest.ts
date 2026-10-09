@@ -17,7 +17,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { isVerificationSandbox, stashChanges, runWithIsolation } from '../../src/skills/test-isolation.js';
+import { isVerificationSandbox, stashChanges, runWithIsolation } from '../../src/capabilities/skills/test-isolation.js';
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' });

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isCI, shouldAutoDisableStreaming } from "../../src/agent/stream.js";
+import { isCI, shouldAutoDisableStreaming } from "../../src/agents/agent/stream.js";
 
 describe("isCI", () => {
   it("returns false for an empty env", () => {

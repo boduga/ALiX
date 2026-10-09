@@ -28,7 +28,7 @@ src/governance/replay/
   replay-diff-model.ts                   — Pure diff model (P23.3, 328 lines)
   replay-report.ts                       — Pure report builder (P23.4, 334 lines)
 
-src/cli/commands/
+src/interfaces/cli/commands/
   governance-replay.ts                   — CLI handler (P23.4, 277 lines)
   governance.ts                          — case "replay" dispatch wired
 

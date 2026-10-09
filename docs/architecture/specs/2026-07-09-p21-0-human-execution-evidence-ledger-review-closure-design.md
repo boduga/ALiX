@@ -457,7 +457,7 @@ Half-open interval `[since, until)`. Default: `--since: now - 7 days`, `--until:
 | `src/governance/human-execution-closure-review.ts` | P21.2 review model/store |
 | `src/governance/audited-human-execution-closure.ts` | P21.3 audited recorder |
 | `src/governance/human-execution-closure-report.ts` | P21.4 pure report builder |
-| `src/cli/commands/governance.ts` | Extend CLI dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Extend CLI dispatch |
 | `tests/governance/human-execution-evidence-ledger.test.ts` | New |
 | `tests/governance/human-execution-closure-review.test.ts` | New |
 | `tests/governance/audited-human-execution-closure.test.ts` | New |

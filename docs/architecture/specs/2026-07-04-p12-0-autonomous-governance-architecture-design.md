@@ -54,7 +54,7 @@ interface PolicyMatch {
   actionTypes?: string[];       // e.g. ["issue.run", "issue.pr"]
   labels?: string[];            // e.g. ["bug", "security"]
   repos?: string[];             // e.g. ["boduga/ALiX"]
-  paths?: string[];             // e.g. ["src/security/**"]
+  paths?: string[];             // e.g. ["src/governance/security/**"]
   maxFiles?: number;
   branches?: string[];
 }
@@ -66,7 +66,7 @@ Example policy:
 {
   "id": "security-source-deny",
   "description": "Deny autonomous changes to security source code",
-  "match": { "paths": ["src/security/**", "src/auth/**"] },
+  "match": { "paths": ["src/governance/security/**", "src/auth/**"] },
   "effect": "deny"
 }
 ```

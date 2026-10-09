@@ -27,7 +27,7 @@ Every mutation requires:
 
 ### Routing
 
-`selectApplier()` in `src/cli/commands/adaptation.ts` routes by `proposal.target.kind`:
+`selectApplier()` in `src/interfaces/cli/commands/adaptation.ts` routes by `proposal.target.kind`:
 
 ```ts
 case "governance": {
@@ -289,15 +289,15 @@ All governance mutation snapshots use the same contract (`proposalId`, `filePath
 
 | File | Responsibility |
 |------|---------------|
-| `src/adaptation/appliers/governance-change-applier.ts` | Single applier class, internal routing for supported kinds |
+| `src/planning/adaptation/appliers/governance-change-applier.ts` | Single applier class, internal routing for supported kinds |
 | `tests/adaptation/appliers/governance-change-applier.vitest.ts` | Unit + integration tests (tests 1–17, 22) |
 
 ### Modified files
 
 | File | Change |
 |------|--------|
-| `src/adaptation/snapshot-store.ts` | `save()` becomes atomic (write-tmp → fsync → rename) |
-| `src/cli/commands/adaptation.ts` | Add `case "governance"` to `selectApplier()`; update `default` message |
+| `src/planning/adaptation/snapshot-store.ts` | `save()` becomes atomic (write-tmp → fsync → rename) |
+| `src/interfaces/cli/commands/adaptation.ts` | Add `case "governance"` to `selectApplier()`; update `default` message |
 | `tests/adaptation/snapshot-store.vitest.ts` | Add atomicity tests (tests 14–15) |
 | `tests/cli/commands/adaptation.vitest.ts` | Add routing tests (tests 18–20) |
 | `tests/governance/governance-sentinels.vitest.ts` | Add new applier to allowed-import lists |

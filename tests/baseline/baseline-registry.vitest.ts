@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { BaselineRegistry, createDefaultBaselineRegistry } from "../../src/baseline/baseline-registry.js";
-import { DemoBaselineProvider } from "../../src/baseline/providers/demo-provider.js";
+import { BaselineRegistry, createDefaultBaselineRegistry } from "../../src/context/baseline/baseline-registry.js";
+import { DemoBaselineProvider } from "../../src/context/baseline/providers/demo-provider.js";
 
 describe("BaselineRegistry", () => {
   it("register adds a provider", () => {

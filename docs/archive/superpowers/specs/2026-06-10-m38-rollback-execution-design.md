@@ -270,7 +270,7 @@ Type: rollback yes --replay replay_abc
   Chain:
   ✔ 1. restore   src/index.ts          5ms
        File restored from snapshot
-  ✔ 2. restore   src/utils/helper.ts   3ms
+  ✔ 2. restore   src/operations/utils/helper.ts   3ms
        File restored from snapshot
   ○ 3. skip      src/new-file.ts
        Created files are not restored from snapshot
@@ -284,12 +284,12 @@ Type: rollback yes --replay replay_abc
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/runtime/rollback-plan.ts` | **NEW** | RollbackPlan, RollbackStep types, buildRollbackPlan() |
-| `src/runtime/rollback-executor.ts` | **NEW** | RollbackExecutor with dry-run and approved-live modes |
-| `src/events/types.ts` | MODIFY | Add ROLLBACK_EVENT_TYPES and payload types |
-| `src/runtime/trace-events.ts` | MODIFY | Add "rollback" to TraceSourceType, add rollback mapping in toTraceEvent() |
-| `src/tui/trace-detail.ts` | MODIFY | Add renderRollbackResult() |
-| `src/cli/commands/tui.ts` | MODIFY | Add /rollback command handler |
+| `src/runtime-state/runtime/rollback-plan.ts` | **NEW** | RollbackPlan, RollbackStep types, buildRollbackPlan() |
+| `src/runtime-state/runtime/rollback-executor.ts` | **NEW** | RollbackExecutor with dry-run and approved-live modes |
+| `src/runtime-state/events/types.ts` | MODIFY | Add ROLLBACK_EVENT_TYPES and payload types |
+| `src/runtime-state/runtime/trace-events.ts` | MODIFY | Add "rollback" to TraceSourceType, add rollback mapping in toTraceEvent() |
+| `src/interfaces/tui/trace-detail.ts` | MODIFY | Add renderRollbackResult() |
+| `src/interfaces/cli/commands/tui.ts` | MODIFY | Add /rollback command handler |
 | `tests/runtime/rollback-plan.test.ts` | **NEW** | Plan building tests |
 | `tests/runtime/rollback-executor.test.ts` | **NEW** | Execution tests |
 | `tests/tui/rollback-rendering.test.ts` | **NEW** | Rendering tests |

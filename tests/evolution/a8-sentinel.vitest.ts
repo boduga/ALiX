@@ -38,15 +38,15 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { importedSpecifiers, codeOnly } from "../helpers/import-graph.js";
-import type { LearningProposal } from "../../src/evolution/learning/contracts/learning-contract.js";
-import type { GovernanceRecommendation } from "../../src/evolution/verification/contracts/recommendation-contract.js";
-import { buildGovernanceRecommendation } from "../../src/evolution/learning/governance-bridge.js";
+import type { LearningProposal } from "../../src/planning/evolution/learning/contracts/learning-contract.js";
+import type { GovernanceRecommendation } from "../../src/planning/evolution/verification/contracts/recommendation-contract.js";
+import { buildGovernanceRecommendation } from "../../src/planning/evolution/learning/governance-bridge.js";
 
 // ---------------------------------------------------------------------------
 // Helpers — source-tree walker
 // ---------------------------------------------------------------------------
 
-const A8_ROOT = join(process.cwd(), "src", "evolution", "learning");
+const A8_ROOT = join(process.cwd(), "src", "planning", "evolution", "learning");
 
 /** Recursively walk a directory returning all *.ts files (skipping *.test.ts / *.d.ts). */
 function walkTsFiles(root: string): string[] {

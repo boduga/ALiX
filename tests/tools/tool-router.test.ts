@@ -13,11 +13,11 @@ import {
   ClaimVerificationToolRouter,
   SelfExtendToolRouter,
   WebToolsRouter,
-} from "../../src/tools/tool-router.js";
-import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
-import { ToolExecutor } from "../../src/tools/executor.js";
-import { EventLog } from "../../src/events/event-log.js";
-import type { ToolResult } from "../../src/tools/types.js";
+} from "../../src/capabilities/tools/tool-router.js";
+import { buildDefaultToolIndex } from "../../src/capabilities/tools/tool-registry.js";
+import { ToolExecutor } from "../../src/capabilities/tools/executor.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { ToolResult } from "../../src/capabilities/tools/types.js";
 
 test("ToolRouter interface exists", () => {
   const router = new CompositeToolRouter([]);

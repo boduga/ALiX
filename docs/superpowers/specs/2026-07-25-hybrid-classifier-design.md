@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-25
 **Status:** Draft
-**Supersedes:** Deterministic-only classifier in `src/runtime/action-classifier.ts`
+**Supersedes:** Deterministic-only classifier in `src/runtime-state/runtime/action-classifier.ts`
 
 ## Problem
 
@@ -43,7 +43,7 @@ modelClassifyAction(input, provider)
 
 ## Change 1 — New ModelTier
 
-**File:** `src/config/profile-types.ts`
+**File:** `src/operations/config/profile-types.ts`
 
 Add `"classifier"` to the `ModelTier` union:
 
@@ -77,7 +77,7 @@ model calls for classification can explicitly set the tier to `null`.
 
 ## Change 2 — Confidence Threshold
 
-**File:** `src/runtime/action-classifier.ts`
+**File:** `src/runtime-state/runtime/action-classifier.ts`
 
 Add a `classifyActionWithConfidence(input): { intent, reason, confidence, arithmeticAnswer }`
 variant that returns a `confidence: number` (0.0–1.0) alongside the
@@ -95,7 +95,7 @@ Confidence mapping for existing intents:
 
 ## Change 3 — Model Fallback Function
 
-**File:** `src/runtime/action-classifier.ts`
+**File:** `src/runtime-state/runtime/action-classifier.ts`
 
 New pure-adjacent function:
 
@@ -129,7 +129,7 @@ block routing.
 
 ## Change 4 — Router Integration
 
-**File:** `src/runtime/task-router.ts`
+**File:** `src/runtime-state/runtime/task-router.ts`
 
 `taskRouter` gains an optional second parameter and becomes async:
 
@@ -167,10 +167,10 @@ Three call sites pass `opts.classifierProvider`:
 
 | Caller | Location |
 |--------|----------|
-| `AgentSession.processTurn()` | `src/agent/session.ts:726` |
-| `daemon-server.ts` (run) | `src/daemon/daemon-server.ts:137` |
-| `daemon-server.ts` (direct) | `src/daemon/daemon-server.ts:189` |
-| `daemon-server.ts` (backward) | `src/daemon/daemon-server.ts:468` |
+| `AgentSession.processTurn()` | `src/agents/agent/session.ts:726` |
+| `daemon-server.ts` (run) | `src/operations/daemon/daemon-server.ts:137` |
+| `daemon-server.ts` (direct) | `src/operations/daemon/daemon-server.ts:189` |
+| `daemon-server.ts` (backward) | `src/operations/daemon/daemon-server.ts:468` |
 
 Provider resolution (same pattern as `processChat`'s `ensureChatProvider`):
 

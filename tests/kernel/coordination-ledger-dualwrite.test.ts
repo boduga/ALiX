@@ -7,10 +7,10 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { reconcileCoordinationLedger } from "../../src/kernel/coordination-ledger-reconcile.js";
-import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/storage/runtime-ledger.js";
-import type { CoordinationRun, WorkerAssignment } from "../../src/kernel/coordination-types.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { reconcileCoordinationLedger } from "../../src/coordination/kernel/coordination-ledger-reconcile.js";
+import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/runtime-state/storage/runtime-ledger.js";
+import type { CoordinationRun, WorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 
 const dirs: string[] = [];
 

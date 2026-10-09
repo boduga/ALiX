@@ -10,7 +10,7 @@ Add the **CapabilityProjection** — a lifecycle-reconciliation projection over 
 
 ## Scope
 
-- A new `CapabilityProjection` builder in `src/tui/runtime/`, registered on the outer runtime collector alongside trace + approval.
+- A new `CapabilityProjection` builder in `src/interfaces/tui/runtime/`, registered on the outer runtime collector alongside trace + approval.
 - A `RuntimeSnapshot.capabilities` field (typed).
 - A Capabilities-tab activity panel (Option B): inventory (live registry) + activity (projection) rendered side-by-side, two independent data sources.
 
@@ -98,7 +98,7 @@ Mirrors the trace builder's open/close matching, extended with the tool-telemetr
 
 ## Registration + surface
 
-- **Register:** on the outer runtime collector (`src/cli/commands/tui.ts`), `projectionRuntime.register(ProjectionIds.capability, new CapabilityProjection())`. `ProjectionIds.capability = 'capability'`.
+- **Register:** on the outer runtime collector (`src/interfaces/cli/commands/tui.ts`), `projectionRuntime.register(ProjectionIds.capability, new CapabilityProjection())`. `ProjectionIds.capability = 'capability'`.
 - **RuntimeSnapshot:** gains `readonly capabilities: CapabilityProjectionSnapshot | null` (a typed field, not the generic `projections` map). Assembled in `RuntimeCollectorImpl.sample()` via `snapshotOf<CapabilityProjectionSnapshot>(ProjectionIds.capability) ?? null`.
 - **Consumer (Option B):** the Capabilities tab's right detail pane gains an **Activity** block for the selected capability — its invocation stats (`invocationCount`, `invocationSucceeded`, `invocationFailed`, `invocationCancelled`, avg duration, last invocation, tool-telemetry counters) alongside the existing metadata. The list/inventory stays on the live registry.
 - **Consumer (tab-level summary):** the tab renders a one-line summary above the inventory — `active invocations: N` from the snapshot's top-level `activeInvocations` — an immediate "what's running now?" count (the Goal's *currently-running* answered at tab level). It is snapshot-driven, like the rest of the projection surface, and never renders per-capability.
@@ -128,7 +128,7 @@ Mirrors the trace builder's open/close matching, extended with the tool-telemetr
 ## Global constraints
 
 - NodeNext ESM (`.js` import specifiers), strict TypeScript; vitest under `tests/**/*.vitest.ts`.
-- `EventLog` API stays additive; `src/capability/*` untouched (the projection only READS bridged events; no new emission in this increment).
+- `EventLog` API stays additive; `src/capabilities/capability/*` untouched (the projection only READS bridged events; no new emission in this increment).
 - Checkpoint envelope version STAYS `1`; `projections` envelope already supports arbitrary ids.
 - Durable state JSON-serializable plain objects only.
 - Replay-from-`beginningCursor()` remains the ONLY recovery for an invalid cursor.

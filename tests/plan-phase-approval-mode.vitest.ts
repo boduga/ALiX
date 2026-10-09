@@ -21,7 +21,7 @@ describe("runPlanPhase approvalMode", () => {
   });
 
   it("returns empty plan for read-only task regardless of approvalMode", async () => {
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const r1 = await runPlanPhase(mockContext(), mockBundle(), "what is the weather?", undefined, { approvalMode: "interactive" });
     expect(r1.action).toBe("approved");
     expect((r1 as any).planContent).toBe("");
@@ -32,7 +32,7 @@ describe("runPlanPhase approvalMode", () => {
   });
 
   it("returns empty plan for shell task regardless of approvalMode", async () => {
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     const r = await runPlanPhase(mockContext(), mockBundle(), "ls -la", undefined, { approvalMode: "deferred" });
     expect(r.action).toBe("approved");
     expect((r as any).planContent).toBe("");
@@ -42,7 +42,7 @@ describe("runPlanPhase approvalMode", () => {
     const orig = process.stdout.isTTY;
     (process.stdout as any).isTTY = false;
     try {
-      const { runPlanPhase } = await import("../src/run/plan-phase.js");
+      const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
       const r = await runPlanPhase(mockContext(), mockBundle(), "write a fibonacci function", undefined, { approvalMode: "interactive" });
       expect(r.action).toBe("approved");
       expect((r as any).planContent).toBe("");
@@ -55,7 +55,7 @@ describe("runPlanPhase approvalMode", () => {
     const orig = process.stdout.isTTY;
     (process.stdout as any).isTTY = false;
     try {
-      const { runPlanPhase } = await import("../src/run/plan-phase.js");
+      const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
       const r = await runPlanPhase(mockContext(), mockBundle(), "write a fibonacci function", undefined, { approvalMode: "deferred" });
       // deferred mode skips the TTY guard so it WILL try to generate a plan
       // (which will fail here because generatePlan is not mocked for integration testing)
@@ -70,7 +70,7 @@ describe("runPlanPhase approvalMode", () => {
     const planPath = "/tmp/test-plan-readonly-skip.md";
     await writeFile(planPath, "should not be read");
     try {
-      const { runPlanPhase } = await import("../src/run/plan-phase.js");
+      const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
       // "research" triggers isReadOnlyTask via classifyTask
       const r = await runPlanPhase(mockContext(), mockBundle(), "research quantum computing fundamentals", planPath, { approvalMode: "deferred" });
       expect(r.action).toBe("approved");

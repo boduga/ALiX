@@ -5,8 +5,8 @@ import {
   applyEffectivenessData,
   EFFECTIVENESS_OK,
   EFFECTIVENESS_NO_DATA,
-} from "../../src/executive/recommendation-effectiveness.js";
-import type { ClassifyInput, RecommendationEntry, EffectivenessOutcome } from "../../src/executive/recommendation-effectiveness.js";
+} from "../../src/execution/executive/recommendation-effectiveness.js";
+import type { ClassifyInput, RecommendationEntry, EffectivenessOutcome } from "../../src/execution/executive/recommendation-effectiveness.js";
 
 const GENERATED_AT = "2026-06-26T00:00:00.000Z";
 // Helper: make a basic classify input

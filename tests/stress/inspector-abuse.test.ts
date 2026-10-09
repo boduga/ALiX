@@ -9,11 +9,11 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { RateLimiter, normalizeClientAddress } from "../../src/security/inspector/rate-limiter.js";
-import { ConnectionLimiter } from "../../src/security/inspector/connection-limiter.js";
-import { validateHost } from "../../src/security/inspector/host-policy.js";
-import { MockSecureSseConnection } from "../../src/server/secure-sse.js";
-import { ObservabilityStreamHub } from "../../src/server/observability-stream-hub.js";
+import { RateLimiter, normalizeClientAddress } from "../../src/governance/security/inspector/rate-limiter.js";
+import { ConnectionLimiter } from "../../src/governance/security/inspector/connection-limiter.js";
+import { validateHost } from "../../src/governance/security/inspector/host-policy.js";
+import { MockSecureSseConnection } from "../../src/interfaces/server/secure-sse.js";
+import { ObservabilityStreamHub } from "../../src/interfaces/server/observability-stream-hub.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

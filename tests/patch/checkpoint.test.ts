@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { CheckpointManager } from "../../src/patch/checkpoint.js";
+import { CheckpointManager } from "../../src/execution/patch/checkpoint.js";
 
 describe("CheckpointManager", () => {
   const testDir = join("/tmp", `.test-checkpoints-${Date.now()}`);

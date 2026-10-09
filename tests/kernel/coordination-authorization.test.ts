@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { authorizeWorker } from "../../src/kernel/coordination-authorization.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
+import { authorizeWorker } from "../../src/coordination/kernel/coordination-authorization.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 
 describe("authorizeWorker", () => {
   let run: ReturnType<typeof createCoordinationRun>;

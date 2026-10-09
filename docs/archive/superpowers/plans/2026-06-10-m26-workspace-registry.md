@@ -15,12 +15,12 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/daemon/workspace-registry.ts` | **Create** | `WorkspaceEntry` type, `recordWorkspaceActivity()`, `listWorkspaces()`, `getCurrentWorkspace()` |
-| `src/daemon/daemon-server.ts` | **Modify** | Call `recordWorkspaceActivity()` after task creation |
-| `src/tui/store.ts` | **Modify** | Add `workspaceName`, `workspacePath`, `recentWorkspaces` to `TuiState` |
-| `src/tui/runtime-snapshot.ts` | **Modify** | Read workspace registry from `~/.alix/`, populate workspace fields |
-| `src/tui/panel-renderer.ts` | **Modify** | Show workspace name + path in daemon panel |
-| `src/cli/commands/tui.ts` | **Modify** | Show workspace info in welcome banner |
+| `src/operations/daemon/workspace-registry.ts` | **Create** | `WorkspaceEntry` type, `recordWorkspaceActivity()`, `listWorkspaces()`, `getCurrentWorkspace()` |
+| `src/operations/daemon/daemon-server.ts` | **Modify** | Call `recordWorkspaceActivity()` after task creation |
+| `src/interfaces/tui/store.ts` | **Modify** | Add `workspaceName`, `workspacePath`, `recentWorkspaces` to `TuiState` |
+| `src/interfaces/tui/runtime-snapshot.ts` | **Modify** | Read workspace registry from `~/.alix/`, populate workspace fields |
+| `src/interfaces/tui/panel-renderer.ts` | **Modify** | Show workspace name + path in daemon panel |
+| `src/interfaces/cli/commands/tui.ts` | **Modify** | Show workspace info in welcome banner |
 | `tests/daemon/workspace-registry.test.ts` | **Create** | Unit tests for workspace registry |
 | `tests/daemon/daemon-server.test.ts` | **Modify** | One test verifying workspace registry is written |
 
@@ -29,7 +29,7 @@
 ### Task 1: Create workspace-registry.ts
 
 **Files:**
-- Create: `src/daemon/workspace-registry.ts`
+- Create: `src/operations/daemon/workspace-registry.ts`
 
 - [ ] **Step 1: Write the workspace registry module**
 
@@ -127,7 +127,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/daemon/workspace-registry.ts
+git add src/operations/daemon/workspace-registry.ts
 git commit -m "feat(daemon): add workspace registry with auto-registration on task submission"
 ```
 
@@ -136,7 +136,7 @@ git commit -m "feat(daemon): add workspace registry with auto-registration on ta
 ### Task 2: Wire workspace registration into daemon server
 
 **Files:**
-- Modify: `src/daemon/daemon-server.ts`
+- Modify: `src/operations/daemon/daemon-server.ts`
 
 - [ ] **Step 1: Add import and call in handleCommand**
 
@@ -164,7 +164,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/daemon/daemon-server.ts
+git add src/operations/daemon/daemon-server.ts
 git commit -m "feat(daemon): auto-register workspace on each run request"
 ```
 
@@ -173,7 +173,7 @@ git commit -m "feat(daemon): auto-register workspace on each run request"
 ### Task 3: Add workspace fields to TuiState
 
 **Files:**
-- Modify: `src/tui/store.ts`
+- Modify: `src/interfaces/tui/store.ts`
 
 - [ ] **Step 1: Add workspace fields to the state interface**
 
@@ -213,7 +213,7 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/store.ts
+git add src/interfaces/tui/store.ts
 git commit -m "feat(tui): add workspace name, path, and recent workspaces to store"
 ```
 
@@ -222,7 +222,7 @@ git commit -m "feat(tui): add workspace name, path, and recent workspaces to sto
 ### Task 4: Update runtime-snapshot to read workspace registry
 
 **Files:**
-- Modify: `src/tui/runtime-snapshot.ts`
+- Modify: `src/interfaces/tui/runtime-snapshot.ts`
 
 - [ ] **Step 1: Add workspace fields to TuiRuntimeSnapshot**
 
@@ -272,7 +272,7 @@ Expected: no errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/runtime-snapshot.ts
+git add src/interfaces/tui/runtime-snapshot.ts
 git commit -m "feat(tui): read workspace registry in runtime snapshot"
 ```
 
@@ -281,7 +281,7 @@ git commit -m "feat(tui): read workspace registry in runtime snapshot"
 ### Task 5: Show workspace in daemon panel
 
 **Files:**
-- Modify: `src/tui/panel-renderer.ts`
+- Modify: `src/interfaces/tui/panel-renderer.ts`
 
 - [ ] **Step 1: Update daemon panel rendering**
 
@@ -321,7 +321,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/panel-renderer.ts
+git add src/interfaces/tui/panel-renderer.ts
 git commit -m "feat(tui): show workspace name and recent workspaces in daemon panel"
 ```
 
@@ -330,7 +330,7 @@ git commit -m "feat(tui): show workspace name and recent workspaces in daemon pa
 ### Task 6: Show workspace in TUI welcome banner
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add workspace line to welcome text**
 
@@ -357,7 +357,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): show workspace name in welcome banner"
 ```
 
@@ -376,7 +376,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { recordWorkspaceActivity, listWorkspaces, getWorkspace } from "../../src/daemon/workspace-registry.js";
+import { recordWorkspaceActivity, listWorkspaces, getWorkspace } from "../../src/operations/daemon/workspace-registry.js";
 
 describe("WorkspaceRegistry", () => {
   let origHome: string | undefined;
@@ -504,12 +504,12 @@ git diff --stat HEAD
 ```
 
 Expected files:
-- `src/daemon/workspace-registry.ts` (new)
-- `src/daemon/daemon-server.ts` (modified)
-- `src/tui/store.ts` (modified)
-- `src/tui/runtime-snapshot.ts` (modified)
-- `src/tui/panel-renderer.ts` (modified)
-- `src/cli/commands/tui.ts` (modified)
+- `src/operations/daemon/workspace-registry.ts` (new)
+- `src/operations/daemon/daemon-server.ts` (modified)
+- `src/interfaces/tui/store.ts` (modified)
+- `src/interfaces/tui/runtime-snapshot.ts` (modified)
+- `src/interfaces/tui/panel-renderer.ts` (modified)
+- `src/interfaces/cli/commands/tui.ts` (modified)
 - `tests/daemon/workspace-registry.test.ts` (new)
 
 - [ ] **Step 4: Push and tag**

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { DaemonAgentSession } from "../../src/tui/daemon-client.js";
+import { DaemonAgentSession } from "../../src/interfaces/tui/daemon-client.js";
 
 const DIR_ID = "1791220457513";
 

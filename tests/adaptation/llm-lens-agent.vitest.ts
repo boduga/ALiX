@@ -6,9 +6,9 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { LLMLensAgent } from "../../src/adaptation/llm-lens-agent.js";
-import type { LLMAdapter } from "../../src/adaptation/llm-adapter.js";
-import type { GovernanceReviewInput, LensScore } from "../../src/adaptation/governance-review-types.js";
+import { LLMLensAgent } from "../../src/planning/adaptation/llm-lens-agent.js";
+import type { LLMAdapter } from "../../src/planning/adaptation/llm-adapter.js";
+import type { GovernanceReviewInput, LensScore } from "../../src/planning/adaptation/governance-review-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

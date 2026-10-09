@@ -6,7 +6,7 @@
 
 ## Context
 
-ALiX's TUI (`alix tui`) is a hand-rolled, immediate-mode ANSI app (`src/tui/`). Today, on the agent and chat tabs, the **input prompt** is drawn at row 4 — just below the 3-row header — and the **slash-completion strip** overlays rows 6–12, anchored to the top of the scrollback. As soon as the user scrolls back through history, the prompt stays glued to the top of the scrollback area while the transcript scrolls behind it. The slash strip overlays content from the top, eating rows from the most-recent turns.
+ALiX's TUI (`alix tui`) is a hand-rolled, immediate-mode ANSI app (`src/interfaces/tui/`). Today, on the agent and chat tabs, the **input prompt** is drawn at row 4 — just below the 3-row header — and the **slash-completion strip** overlays rows 6–12, anchored to the top of the scrollback. As soon as the user scrolls back through history, the prompt stays glued to the top of the scrollback area while the transcript scrolls behind it. The slash strip overlays content from the top, eating rows from the most-recent turns.
 
 This is the opposite of how Claude Code behaves. In Claude Code:
 
@@ -88,7 +88,7 @@ Today's slice math at `agent-view.ts:200-205` is bottom-relative. **It will be r
 
 ## Components
 
-### 1. `src/tui/views/bottom-anchored-viewport.ts` (new — pure helper)
+### 1. `src/interfaces/tui/views/bottom-anchored-viewport.ts` (new — pure helper)
 
 - `renderBottomAnchoredSlice(opts: { canvas: TerminalCanvas; allLines: ScrollbackLine[]; top: number; bottomRow: number; offset: number; columns: number; kindStyles: Record<ScrollbackLineKind, (line: ScrollbackLine, rowY: number) => void> }): { firstRow: number; lastRow: number }`
   - Computes the visible window as `[offset, offset + scrollbackRows]` clamped to `[0, allLines.length]`, where `scrollbackRows = bottomRow - top + 1`.
@@ -98,7 +98,7 @@ Today's slice math at `agent-view.ts:200-205` is bottom-relative. **It will be r
   - **Pure function.** No state, no I/O, no mutation of inputs.
   - ~80 lines including tests.
 
-### 2. `src/tui/views/slash-overlay.ts` (new — pure helper)
+### 2. `src/interfaces/tui/views/slash-overlay.ts` (new — pure helper)
 
 - `renderSlashOverlay(opts: { canvas: TerminalCanvas; slash: SlashStrip; panelRow: number; columns: number; maxRows?: number }): { rowsRendered: number; lastRow: number; selectionVisible: boolean }`
   - If `slash.entries.length === 0` and `slash.hint !== null`: renders 1 hint row at `panelRow + 1`. Returns `{ rowsRendered: 1, lastRow: panelRow + 1, selectionVisible: false }`.
@@ -111,7 +111,7 @@ Today's slice math at `agent-view.ts:200-205` is bottom-relative. **It will be r
   - **Pure function.** No state, no I/O, no mutation of inputs.
   - ~50 lines including tests.
 
-### 3. `src/tui/views/agent-view.ts` (modified)
+### 3. `src/interfaces/tui/views/agent-view.ts` (modified)
 
 - `render(ctx)`:
   - Move the status line + intent badge to **row 4** (currently rows 4–5), pinned under the 3-row header. Always visible regardless of scroll position. Status badge `(events: N | step N/M)` left-aligned; intent badge `[E]`/`[V]` indented at column 2.
@@ -134,7 +134,7 @@ Today's slice math at `agent-view.ts:200-205` is bottom-relative. **It will be r
   - Cursor positioning: update `app.ts:1476-1486` (`paintCursor`) to position the cursor at `\x1b[${panelRow + 1};13H` instead of `\x1b[5;13H` for the agent tab. (Same shape for chat tab, column 7 instead of 13.)
   - `handleKey`: unchanged. ArrowUp/Down still scroll the scrollback; the `pinnedBottom` side-effect happens in `app.ts` when handling the `ViewAction.scroll` action.
 
-### 4. `src/tui/views/chat-view.ts` (modified)
+### 4. `src/interfaces/tui/views/chat-view.ts` (modified)
 
 - `render(ctx)`:
   - Compute `panelRow = ctx.dimensions.rows - FOOTER_H(3) - 1`.
@@ -147,7 +147,7 @@ Today's slice math at `agent-view.ts:200-205` is bottom-relative. **It will be r
   - **No slash overlay** — `ctx.slash` is never present for chat (`views/types.ts:34-41` defines it as optional and the agent tab is the only producer).
   - `handleKey`: unchanged. Cursor positioning in `app.ts` updated to match.
 
-### 5. `src/tui/app.ts` (modified — auto-follow wiring)
+### 5. `src/interfaces/tui/app.ts` (modified — auto-follow wiring)
 
 - **State field already exists:** `PerTabState.pinnedBottom: boolean` (`state.ts:54-59`), initialized to `true` (`state.ts:153`). Currently only honored by the runtime tab. **Wired up for chat + agent in this spec.**
 
@@ -165,7 +165,7 @@ Today's slice math at `agent-view.ts:200-205` is bottom-relative. **It will be r
 
 - **`onActivate` for chat + agent:** set `perTab.pinnedBottom = true`. `scrollOffset` set to the new `bottomAnchor` (which is 0 for an empty timeline). **Documented tradeoff:** scroll position is not preserved across tab switches. The runtime tab already does this; this spec propagates the same behavior to chat + agent.
 
-### 6. `src/tui/state.ts` (no changes)
+### 6. `src/interfaces/tui/state.ts` (no changes)
 
 - `PerTabState` already has `scrollOffset`, `pinnedBottom`, `inputBuffer`. No new fields, no new types.
 
@@ -271,7 +271,7 @@ paintCursor in app.ts moves terminal cursor to (panelRow+1, 13|7)
 
 ## Testing
 
-### Unit — `src/tui/views/__tests__/bottom-anchored-viewport.test.ts` (new)
+### Unit — `src/interfaces/tui/views/__tests__/bottom-anchored-viewport.test.ts` (new)
 
 Table-driven on a `MockCanvas`:
 
@@ -285,7 +285,7 @@ Table-driven on a `MockCanvas`:
 
 The helper is a pure function of `offset` and `allLines`; `pinnedBottom` branching lives in the caller (verified in app tests below).
 
-### Unit — `src/tui/views/__tests__/slash-overlay.test.ts` (new)
+### Unit — `src/interfaces/tui/views/__tests__/slash-overlay.test.ts` (new)
 
 Table-driven:
 
@@ -296,7 +296,7 @@ Table-driven:
 - `panelRow + 1 + maxRows > canvas.rows` → renders `max(0, canvas.rows - panelRow - 1)` rows. If 0, `selectionVisible: false`.
 - Selected row gets `>` marker; other rows get ` `.
 
-### Unit — `src/tui/__tests__/app.test.ts` (extended)
+### Unit — `src/interfaces/tui/__tests__/app.test.ts` (extended)
 
 The view-level branching (`pinnedBottom` → `effectiveOffset`) lives in `agent-view.ts` / `chat-view.ts`, but the state transitions that mutate `scrollOffset` / `pinnedBottom` live in `app.ts`. The view tests cover the rendering branch; these tests cover the state mutations.
 
@@ -315,7 +315,7 @@ The view-level branching (`pinnedBottom` → `effectiveOffset`) lives in `agent-
 
 ### Snapshot tests (intentional updates)
 
-Existing canvas snapshots in `src/tui/__tests__/` will fail on the first run because the panel + status line relocated. Update them as part of this PR:
+Existing canvas snapshots in `src/interfaces/tui/__tests__/` will fail on the first run because the panel + status line relocated. Update them as part of this PR:
 
 - The implementer runs the test suite, generates new snapshots, and diffs them against the old.
 - The reviewer audits the diff before approving the snapshot update.

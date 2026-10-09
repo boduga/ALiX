@@ -24,7 +24,7 @@
 | P21.1 | `src/governance/human-execution-closure-types.ts` + `human-execution-evidence-ledger.ts` | `tests/governance/human-execution-evidence-ledger.test.ts` |
 | P21.2 | `src/governance/human-execution-closure-review.ts` | `tests/governance/human-execution-closure-review.test.ts` |
 | P21.3 | `src/governance/audited-human-execution-closure.ts` | `tests/governance/audited-human-execution-closure.test.ts` |
-| P21.4 | `src/governance/human-execution-closure-report.ts` + `src/cli/commands/governance.ts` | `tests/governance/human-execution-closure-report.test.ts` |
+| P21.4 | `src/governance/human-execution-closure-report.ts` + `src/interfaces/cli/commands/governance.ts` | `tests/governance/human-execution-closure-report.test.ts` |
 | P21.5 | Phase report + checkpoint docs | Boundary verification |
 
 ## Task 1: P21.0 Spec + Plan
@@ -68,7 +68,7 @@
 **Files:**
 - Create: `src/governance/human-execution-closure-report.ts`
 - Create: `tests/governance/human-execution-closure-report.test.ts`
-- Extend: `src/cli/commands/governance.ts` (P21-CLOSURE-START/END)
+- Extend: `src/interfaces/cli/commands/governance.ts` (P21-CLOSURE-START/END)
 
 - [ ] Implement buildClosureReport with derived status
 - [ ] Add CLI: handoff evidence append, handoff closure review, handoff closure report

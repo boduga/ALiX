@@ -9,7 +9,7 @@ import {
   classifyUpdateBump,
   validateCapabilityMutation,
   validateConsolidateMerge,
-} from "../../src/capability/mutation-contract.js";
+} from "../../src/capabilities/capability/mutation-contract.js";
 import type {
   CapabilityCreateMutation,
   CapabilityUpdateMutation,
@@ -17,9 +17,9 @@ import type {
   CapabilityConsolidateMutation,
   CapabilityRemoveMutation,
   CapabilityMutation,
-} from "../../src/capability/mutation-contract.js";
-import type { LifecycleState } from "../../src/adaptation/capability-evolution-types.js";
-import type { CapabilityDefinition } from "../../src/capability/canonical/definition.js";
+} from "../../src/capabilities/capability/mutation-contract.js";
+import type { LifecycleState } from "../../src/planning/adaptation/capability-evolution-types.js";
+import type { CapabilityDefinition } from "../../src/capabilities/capability/canonical/definition.js";
 
 const ALL_STATES: readonly LifecycleState[] = [
   "emerging", "active", "mature", "stagnant", "declining", "deprecated",

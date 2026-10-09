@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TuiApp, type TuiAppOptions } from '../../../src/tui/app.js';
-import { MockInput, MockOutput } from '../../../src/tui/io.js';
-import { buildWorkbenchApprovalCardLines } from '../../../src/tui/workbench/views/approval-dialog.js';
+import { TuiApp, type TuiAppOptions } from '../../../src/interfaces/tui/app.js';
+import { MockInput, MockOutput } from '../../../src/interfaces/tui/io.js';
+import { buildWorkbenchApprovalCardLines } from '../../../src/interfaces/tui/workbench/views/approval-dialog.js';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

@@ -197,5 +197,5 @@ Render review session (terminal or JSON)
 ```
 src/governance/operator-review.ts               # Create — types, store, validation, createOperatorReview
 tests/governance/operator-review.test.ts         # Create — tests
-src/cli/commands/governance.ts                   # Amend — add review subcommand handler and switch case
+src/interfaces/cli/commands/governance.ts                   # Amend — add review subcommand handler and switch case
 ```

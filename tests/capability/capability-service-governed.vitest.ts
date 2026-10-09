@@ -18,20 +18,20 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityService } from '../../src/capability/capability-service.js';
-import { CapabilityResolver } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import { CapabilityMutationExecutor } from '../../src/evolution/execution/capability-mutation-executor.js';
-import { EventLog } from '../../src/events/event-log.js';
-import { CapabilityServiceNotImplementedError } from '../../src/capability/errors/service-not-implemented.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
-import type { CapabilityServiceOptions } from '../../src/capability/types/service-results.js';
+import { CapabilityService } from '../../src/capabilities/capability/capability-service.js';
+import { CapabilityResolver } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import { CapabilityMutationExecutor } from '../../src/planning/evolution/execution/capability-mutation-executor.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { CapabilityServiceNotImplementedError } from '../../src/capabilities/capability/errors/service-not-implemented.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
+import type { CapabilityServiceOptions } from '../../src/capabilities/capability/types/service-results.js';
 
 let dir: string;
 let sessionDir: string;
@@ -99,7 +99,7 @@ describe('Locked ruling #4 — propose() / measure() are forward-wired stubs', (
   it('propose()/measure() do not invoke unrelated capability machinery', () => {
     // Structural: service source does NOT import the proposal builder / measurer
     // / capability-evolution intelligence writers.
-    const src = readFileSync(new URL('../../src/capability/capability-service.ts', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../src/capabilities/capability/capability-service.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/capability-proposal-builder|capability-lifecycle-measurer|capability-evolution-intelligence/);
     expect(src).not.toMatch(/throw new Error\(.unimplemented.|NoOp/);
     // The only error is the stable class.
@@ -109,7 +109,7 @@ describe('Locked ruling #4 — propose() / measure() are forward-wired stubs', (
 
 describe('Locked ruling #3 — recommend() never triggers A7 governance machinery', () => {
   it('service source does not import proposal builder (structural pin)', () => {
-    const src = readFileSync(new URL('../../src/capability/capability-service.ts', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../src/capabilities/capability/capability-service.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/capability-proposal-builder/);
     expect(src).not.toMatch(/generateProposal|buildProposal|proposeMutation/);
   });

@@ -27,15 +27,15 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CapabilityCatalog } from "../../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../../src/capability/registry.js";
-import { CapabilityMutationExecutor } from "../../../src/evolution/execution/capability-mutation-executor.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { CapabilityCatalog } from "../../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../../src/capabilities/capability/registry.js";
+import { CapabilityMutationExecutor } from "../../../src/planning/evolution/execution/capability-mutation-executor.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 // Split import: ExecutionStep lives in the execution contract; CapabilityMutation
 // lives in the CAP-5 mutation contract (NOT execution-contract).
-import type { ExecutionStep } from "../../../src/evolution/execution/contracts/execution-contract.js";
-import type { CapabilityMutation } from "../../../src/capability/mutation-contract.js";
+import type { ExecutionStep } from "../../../src/planning/evolution/execution/contracts/execution-contract.js";
+import type { CapabilityMutation } from "../../../src/capabilities/capability/mutation-contract.js";
 
 function def(id = "tool.file.read", overrides: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return { id, version: "1.0.0", kind: "operation", title: "Read file", description: "read", tags: ["file"], category: "files", risk: "low", requiredPermissions: ["operator"], dependencies: [], bindings: [{ type: "tool", id: "tool-1" }], ...overrides };

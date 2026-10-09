@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ShellToolRouter, shellSensitivePathScanText } from "../../src/tools/tool-router.js";
-import { validateShellNetworkCommand } from "../../src/tools/shell-network-policy.js";
-import { WorkspacePathResolver } from "../../src/runtime/workspace-path.js";
+import { ShellToolRouter, shellSensitivePathScanText } from "../../src/capabilities/tools/tool-router.js";
+import { validateShellNetworkCommand } from "../../src/capabilities/tools/shell-network-policy.js";
+import { WorkspacePathResolver } from "../../src/runtime-state/runtime/workspace-path.js";
 
 const ROOT = process.cwd();
 const resolver = new WorkspacePathResolver(ROOT, [".git/**", ".env"]);

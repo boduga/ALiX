@@ -6,8 +6,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleLearningCommand } from "../../../src/cli/commands/learning.js";
-import { OutcomeStore } from "../../../src/adaptation/outcome-store.js";
+import { handleLearningCommand } from "../../../src/interfaces/cli/commands/learning.js";
+import { OutcomeStore } from "../../../src/planning/adaptation/outcome-store.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;

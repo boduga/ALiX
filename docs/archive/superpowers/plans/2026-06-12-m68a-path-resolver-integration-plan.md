@@ -13,7 +13,7 @@
 ## File Structure
 
 ### Modify
-- `src/tools/tool-router.ts` — accept optional `WorkspacePathResolver` in FileToolRouter, add path validation before file operations
+- `src/capabilities/tools/tool-router.ts` — accept optional `WorkspacePathResolver` in FileToolRouter, add path validation before file operations
 
 ### Test
 - `tests/tools/path-resolver-integration.test.ts` — 8+ tests
@@ -23,7 +23,7 @@
 ### Task 1: Wire WorkspacePathResolver into FileToolRouter
 
 **Files:**
-- Modify: `src/tools/tool-router.ts`
+- Modify: `src/capabilities/tools/tool-router.ts`
 
 - [ ] **Step 1: Import the path resolver**
 
@@ -112,9 +112,9 @@ Expected: clean compile
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { FileToolRouter } from "../../src/tools/tool-router.js";
-import { WorkspacePathResolver } from "../../src/runtime/workspace-path.js";
-import type { ToolCallRequest } from "../../src/tools/types.js";
+import { FileToolRouter } from "../../src/capabilities/tools/tool-router.js";
+import { WorkspacePathResolver } from "../../src/runtime-state/runtime/workspace-path.js";
+import type { ToolCallRequest } from "../../src/capabilities/tools/types.js";
 
 const ROOT = "/home/user/project";
 const resolver = new WorkspacePathResolver(ROOT, [".git/**", ".env"]);

@@ -26,13 +26,13 @@ import {
   type CorpusRow,
   type DisagreementLabelRecord,
   type ToolSelectionLabelRecord,
-} from '../../src/decision/tool-selection-corpus.js';
+} from '../../src/planning/decision/tool-selection-corpus.js';
 import {
   builtinCandidateId,
   candidateIdFor,
   freezeToolCandidates,
-} from '../../src/decision/tool-selection-candidates.js';
-import type { ToolSelectionScope } from '../../src/decision/tool-selection-replay.js';
+} from '../../src/planning/decision/tool-selection-candidates.js';
+import type { ToolSelectionScope } from '../../src/planning/decision/tool-selection-replay.js';
 
 const frozen = freezeToolCandidates({
   builtin: [

@@ -8,7 +8,7 @@ import {
   ProposalTargetSchema,
   AdaptationProposalSchema,
   ExecutiveSubsystemNameSchema,
-} from "../../src/contracts/proposal-schemas.js";
+} from "../../src/runtime-state/contracts/proposal-schemas.js";
 
 describe("ProposalStatusSchema", () => {
   it("accepts valid statuses", () => {

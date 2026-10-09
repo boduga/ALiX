@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { RECOMMENDATION_METRIC_MAP } from "../../src/adaptation/effectiveness-types.js";
-import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
+import { RECOMMENDATION_METRIC_MAP } from "../../src/planning/adaptation/effectiveness-types.js";
+import type { ProposalEffectivenessReport } from "../../src/planning/adaptation/effectiveness-types.js";
 
 describe("effectiveness types", () => {
   it("maps capability proposals unresolvedCapabilities (lower is better)", () => {

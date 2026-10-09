@@ -10,7 +10,7 @@ import {
   type CurationFinding,
   type CurationProposal,
   type KnowledgeArtifact,
-} from "../../../src/evolution/knowledge/contracts/curation-contract.js";
+} from "../../../src/planning/evolution/knowledge/contracts/curation-contract.js";
 
 describe("DEFAULT_CURATION_CONFIG", () => {
   it("has the expected default threshold values", () => {

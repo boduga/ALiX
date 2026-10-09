@@ -16,12 +16,12 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/runtime/continuation-store.ts` | Create | `PendingContinuation` type, file-backed persistence at `.alix/approvals/continuations.json` |
-| `src/runtime/continuation-manager.ts` | Create | `resumeApproved()` — verify argsHash, re-execute via ToolExecutor |
-| `src/tui/approval-manager.ts` | Create | `/approvals`, `/approve <id>`, `/deny <id>` TUI commands |
-| `src/cli/commands/tui.ts` | Modify | Wire ApprovalManager into loop, approval display for `ask` results |
-| `src/tools/executor.ts` | Modify | On `ask`: create continuation before returning. On resume: accept external `argsHash` verification |
-| `src/runtime/route-executor.ts` | Modify | Export `hashArgs` or import from executor for continuation replay |
+| `src/runtime-state/runtime/continuation-store.ts` | Create | `PendingContinuation` type, file-backed persistence at `.alix/approvals/continuations.json` |
+| `src/runtime-state/runtime/continuation-manager.ts` | Create | `resumeApproved()` — verify argsHash, re-execute via ToolExecutor |
+| `src/interfaces/tui/approval-manager.ts` | Create | `/approvals`, `/approve <id>`, `/deny <id>` TUI commands |
+| `src/interfaces/cli/commands/tui.ts` | Modify | Wire ApprovalManager into loop, approval display for `ask` results |
+| `src/capabilities/tools/executor.ts` | Modify | On `ask`: create continuation before returning. On resume: accept external `argsHash` verification |
+| `src/runtime-state/runtime/route-executor.ts` | Modify | Export `hashArgs` or import from executor for continuation replay |
 | `tests/runtime/continuation-store.test.ts` | Create | Persistence tests |
 | `tests/runtime/continuation-manager.test.ts` | Create | Resume + safety tests |
 | `tests/tui/approval-manager.test.ts` | Create | Command parsing tests |
@@ -31,12 +31,12 @@
 ### Task 1: ContinuationStore
 
 **Files:**
-- Create: `src/runtime/continuation-store.ts`
+- Create: `src/runtime-state/runtime/continuation-store.ts`
 
 **Types:**
 
 ```typescript
-// src/runtime/continuation-store.ts
+// src/runtime-state/runtime/continuation-store.ts
 
 export type PendingContinuation = {
   approvalId: string;
@@ -72,7 +72,7 @@ export class ContinuationStore {
 }
 ```
 
-- [ ] **Step 1: Write `src/runtime/continuation-store.ts`**
+- [ ] **Step 1: Write `src/runtime-state/runtime/continuation-store.ts`**
 
 ```typescript
 import { readFile, writeFile, mkdir } from "node:fs/promises";
@@ -162,7 +162,7 @@ Expected: clean build, no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/runtime/continuation-store.ts
+git add src/runtime-state/runtime/continuation-store.ts
 git commit -m "feat(policy): add ContinuationStore for pending execution records"
 ```
 
@@ -171,7 +171,7 @@ git commit -m "feat(policy): add ContinuationStore for pending execution records
 ### Task 2: ApprovalManager (TUI)
 
 **Files:**
-- Create: `src/tui/approval-manager.ts`
+- Create: `src/interfaces/tui/approval-manager.ts`
 
 Follow the same pattern as `WorkspaceManager` — a class that parses input and returns structured results. The continuation manager is injected as a dependency so this layer doesn't import executor details.
 
@@ -196,7 +196,7 @@ export interface ApprovalManagerDeps {
 | `/approve <id>` | Call `resolveApproval(id, "approved")` |
 | `/deny <id>` | Call `resolveApproval(id, "denied")` |
 
-- [ ] **Step 1: Write `src/tui/approval-manager.ts`**
+- [ ] **Step 1: Write `src/interfaces/tui/approval-manager.ts`**
 
 ```typescript
 /**
@@ -285,7 +285,7 @@ npm run build 2>&1 | tail -3
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/approval-manager.ts
+git add src/interfaces/tui/approval-manager.ts
 git commit -m "feat(tui): add ApprovalManager for /approvals /approve /deny commands"
 ```
 
@@ -294,7 +294,7 @@ git commit -m "feat(tui): add ApprovalManager for /approvals /approve /deny comm
 ### Task 3: ContinuationManager
 
 **Files:**
-- Create: `src/runtime/continuation-manager.ts`
+- Create: `src/runtime-state/runtime/continuation-manager.ts`
 
 The bridge between an approved approval and actually re-executing the blocked tool call. Takes `ContinuationStore`, `ApprovalStore`, and a `executeTool` callback.
 
@@ -343,7 +343,7 @@ export class ContinuationManager {
 }
 ```
 
-- [ ] **Step 1: Write `src/runtime/continuation-manager.ts`**
+- [ ] **Step 1: Write `src/runtime-state/runtime/continuation-manager.ts`**
 
 ```typescript
 /**
@@ -417,7 +417,7 @@ npm run build 2>&1 | tail -3
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/runtime/continuation-manager.ts
+git add src/runtime-state/runtime/continuation-manager.ts
 git commit -m "feat(runtime): add ContinuationManager with argsHash verification"
 ```
 
@@ -426,7 +426,7 @@ git commit -m "feat(runtime): add ContinuationManager with argsHash verification
 ### Task 4: Wire continuation creation into ToolExecutor
 
 **Files:**
-- Modify: `src/tools/executor.ts`
+- Modify: `src/capabilities/tools/executor.ts`
 
 When PolicyGate returns `ask`, ToolExecutor should create a continuation record before returning the denied response.
 
@@ -482,7 +482,7 @@ Expected: all passing.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tools/executor.ts
+git add src/capabilities/tools/executor.ts
 git commit -m "feat(tools): persist continuation record on ask decision"
 ```
 
@@ -491,7 +491,7 @@ git commit -m "feat(tools): persist continuation record on ask decision"
 ### Task 5: Wire ApprovalManager into TUI loop
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 Wire `ApprovalManager` into the TUI loop. The loop order becomes:
 
@@ -578,7 +578,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): wire ApprovalManager + continuation resume into TUI loop"
 ```
 
@@ -595,7 +595,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ContinuationStore, type PendingContinuation } from "../../src/runtime/continuation-store.js";
+import { ContinuationStore, type PendingContinuation } from "../../src/runtime-state/runtime/continuation-store.js";
 
 const makeCont = (approvalId: string, overrides?: Partial<PendingContinuation>): PendingContinuation => ({
   approvalId,
@@ -685,9 +685,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ContinuationManager } from "../../src/runtime/continuation-manager.js";
-import { ContinuationStore } from "../../src/runtime/continuation-store.js";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
+import { ContinuationManager } from "../../src/runtime-state/runtime/continuation-manager.js";
+import { ContinuationStore } from "../../src/runtime-state/runtime/continuation-store.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
 
 describe("ContinuationManager", () => {
   let tmpDir: string;
@@ -820,7 +820,7 @@ git commit -m "test(policy): add ContinuationManager unit tests for resume + saf
 ```typescript
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { ApprovalManager, type ApprovalManagerDeps } from "../../src/tui/approval-manager.js";
+import { ApprovalManager, type ApprovalManagerDeps } from "../../src/interfaces/tui/approval-manager.js";
 
 describe("ApprovalManager", () => {
   let deps: ApprovalManagerDeps;

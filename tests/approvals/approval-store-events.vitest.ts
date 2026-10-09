@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../src/events/event-log.js';
-import { ApprovalStore } from '../../src/approvals/approval-store.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { ApprovalStore } from '../../src/governance/approvals/approval-store.js';
 
 async function fresh() {
   const dir = mkdtempSync(join(tmpdir(), 'approval-events-'));

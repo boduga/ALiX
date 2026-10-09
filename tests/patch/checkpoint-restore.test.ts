@@ -1,7 +1,7 @@
 /**
  * checkpoint-restore.test.ts — #714 shared restore-semantics pin.
  *
- * One CheckpointManager implementation (src/patch/checkpoint.ts) serves
+ * One CheckpointManager implementation (src/execution/patch/checkpoint.ts) serves
  * every former call site (tool-router create/restore, agent + executor
  * pass-through, runtime-builder close). These tests pin the restore
  * contract all of them rely on.
@@ -13,7 +13,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CheckpointManager } from "../../src/patch/checkpoint.js";
+import { CheckpointManager } from "../../src/execution/patch/checkpoint.js";
 
 describe("CheckpointManager restore semantics (single authority)", () => {
   let dir: string;

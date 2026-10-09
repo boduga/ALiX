@@ -40,8 +40,8 @@ git push -u origin feature/p10-5c-automatic-evaluation-hook
 ### Task 1: Shared `buildOutcomeReportId` helper + `OutcomeReportIntegrityError` class
 
 **Files:**
-- Create: `src/executive/outcome-report-id.ts`
-- Modify: `src/executive/outcome-store.ts`
+- Create: `src/execution/executive/outcome-report-id.ts`
+- Modify: `src/execution/executive/outcome-store.ts`
 - Create: `tests/executive/outcome-report-id.vitest.ts`
 
 **Interfaces:**
@@ -55,7 +55,7 @@ Create `tests/executive/outcome-report-id.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { buildOutcomeReportId } from "../../src/executive/outcome-report-id.js";
+import { buildOutcomeReportId } from "../../src/execution/executive/outcome-report-id.js";
 
 describe("buildOutcomeReportId", () => {
   it("produces sanitized ID from planId and ISO timestamp", () => {
@@ -85,7 +85,7 @@ Expected: FAIL with "Cannot find module" for `outcome-report-id.js`.
 
 - [ ] **Step 3: Create the helper module**
 
-Create `src/executive/outcome-report-id.ts`:
+Create `src/execution/executive/outcome-report-id.ts`:
 
 ```ts
 /**
@@ -119,7 +119,7 @@ export function buildOutcomeReportId(planId: string, generatedAt: string): strin
 
 - [ ] **Step 4: Update `OutcomeReportStore` to use the shared helper**
 
-Modify `src/executive/outcome-store.ts`:
+Modify `src/execution/executive/outcome-store.ts`:
 
 1. Add import:
 ```ts
@@ -209,7 +209,7 @@ Expected: All passing.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/executive/outcome-report-id.ts src/executive/outcome-store.ts tests/executive/outcome-report-id.vitest.ts
+git add src/execution/executive/outcome-report-id.ts src/execution/executive/outcome-store.ts tests/executive/outcome-report-id.vitest.ts
 git commit -m "feat(p10-5c): shared buildOutcomeReportId + OutcomeReportIntegrityError"
 ```
 
@@ -218,7 +218,7 @@ git commit -m "feat(p10-5c): shared buildOutcomeReportId + OutcomeReportIntegrit
 ### Task 2: AutomaticOutcomeEvaluator + unit tests
 
 **Files:**
-- Create: `src/executive/automatic-outcome-hook.ts`
+- Create: `src/execution/executive/automatic-outcome-hook.ts`
 - Modify: `tests/executive/executive-sentinels.vitest.ts` (add file to allowlist)
 - Create: `tests/executive/automatic-outcome-hook.vitest.ts`
 
@@ -233,20 +233,20 @@ Modify `tests/executive/executive-sentinels.vitest.ts`:
 Add to `EXECUTIVE_FILES` array (after the P10.5b entry):
 ```ts
   // P10.5b files
-  "src/executive/outcome-store.ts",
-  "src/executive/outcome-report-id.ts",
+  "src/execution/executive/outcome-store.ts",
+  "src/execution/executive/outcome-report-id.ts",
   // P10.5c files
-  "src/executive/automatic-outcome-hook.ts",
+  "src/execution/executive/automatic-outcome-hook.ts",
   // P10.5a files
-  "src/executive/outcome-evaluator.ts",
+  "src/execution/executive/outcome-evaluator.ts",
 ```
 
 Modify the scoped write-exception to include `outcome-store.ts` and `automatic-outcome-hook.ts`:
 ```ts
-            if ((file === "src/executive/plan-store.ts" ||
-                 file === "src/executive/execution-state-store.ts" ||
-                 file === "src/executive/outcome-store.ts" ||
-                 file === "src/executive/automatic-outcome-hook.ts") &&
+            if ((file === "src/execution/executive/plan-store.ts" ||
+                 file === "src/execution/executive/execution-state-store.ts" ||
+                 file === "src/execution/executive/outcome-store.ts" ||
+                 file === "src/execution/executive/automatic-outcome-hook.ts") &&
                 (forbidden === "writeFileSync" || forbidden === "mkdirSync" ||
                  forbidden === "renameSync" || forbidden === "openSync" ||
                  forbidden === "fsyncSync" || forbidden === "closeSync")) {
@@ -263,17 +263,17 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AutomaticOutcomeEvaluator } from "../../src/executive/automatic-outcome-hook.js";
-import { OutcomeReportStore } from "../../src/executive/outcome-store.js";
-import { ExecutiveTrendStore } from "../../src/executive/trend-store.js";
-import { evaluatePlanOutcome } from "../../src/executive/outcome-evaluator.js";
-import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/executive/executive-plan-types.js";
-import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
+import { AutomaticOutcomeEvaluator } from "../../src/execution/executive/automatic-outcome-hook.js";
+import { OutcomeReportStore } from "../../src/execution/executive/outcome-store.js";
+import { ExecutiveTrendStore } from "../../src/execution/executive/trend-store.js";
+import { evaluatePlanOutcome } from "../../src/execution/executive/outcome-evaluator.js";
+import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/execution/executive/executive-plan-types.js";
+import type { ExecutiveTrendSnapshot } from "../../src/execution/executive/trend-store.js";
 
 // Spy on evaluatePlanOutcome so we can verify call without setting up a full plan
-vi.mock("../../src/executive/outcome-evaluator.js", async () => {
-  const actual = await vi.importActual<typeof import("../../src/executive/outcome-evaluator.js")>(
-    "../../src/executive/outcome-evaluator.js",
+vi.mock("../../src/execution/executive/outcome-evaluator.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/execution/executive/outcome-evaluator.js")>(
+    "../../src/execution/executive/outcome-evaluator.js",
   );
   return {
     ...actual,
@@ -521,7 +521,7 @@ Expected: All tests fail — module doesn't exist.
 
 - [ ] **Step 4: Implement `AutomaticOutcomeEvaluator`**
 
-Create `src/executive/automatic-outcome-hook.ts`:
+Create `src/execution/executive/automatic-outcome-hook.ts`:
 
 ```ts
 /**
@@ -679,7 +679,7 @@ Expected: All sentinel tests pass (no purity violation for `automatic-outcome-ho
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/executive/automatic-outcome-hook.ts tests/executive/automatic-outcome-hook.vitest.ts tests/executive/executive-sentinels.vitest.ts
+git add src/execution/executive/automatic-outcome-hook.ts tests/executive/automatic-outcome-hook.vitest.ts tests/executive/executive-sentinels.vitest.ts
 git commit -m "feat(p10-5c): add AutomaticOutcomeEvaluator + idempotent hook"
 ```
 
@@ -688,7 +688,7 @@ git commit -m "feat(p10-5c): add AutomaticOutcomeEvaluator + idempotent hook"
 ### Task 3: Wire hook into ExecutionEngine + integration tests
 
 **Files:**
-- Modify: `src/executive/execution-engine.ts`
+- Modify: `src/execution/executive/execution-engine.ts`
 - Create or modify: `tests/executive/execution-engine-apply-dispatch.vitest.ts` (or equivalent) — add auto-evaluation integration tests
 
 **Interfaces:**
@@ -708,7 +708,7 @@ Find the appropriate file (likely `execution-engine-apply-dispatch.vitest.ts` or
 Append to the appropriate engine test file:
 
 ```ts
-import { AutomaticOutcomeEvaluator } from "../../../src/executive/automatic-outcome-hook.js";
+import { AutomaticOutcomeEvaluator } from "../../../src/execution/executive/automatic-outcome-hook.js";
 
 describe("ExecutionEngine auto-evaluation hook", () => {
   // ... existing setup helpers ...
@@ -786,7 +786,7 @@ Expected: New integration tests fail — engine constructor doesn't accept hook.
 
 - [ ] **Step 4: Modify ExecutionEngine to accept and wire the hook**
 
-Modify `src/executive/execution-engine.ts`:
+Modify `src/execution/executive/execution-engine.ts`:
 
 1. Add import:
 ```ts
@@ -849,7 +849,7 @@ Note: `maybeCompletePlan` is now `async`. Find all callers of `maybeCompletePlan
 
 4. Update all callers of `maybeCompletePlan` to `await`:
 ```bash
-grep -n "maybeCompletePlan" src/executive/execution-engine.ts
+grep -n "maybeCompletePlan" src/execution/executive/execution-engine.ts
 ```
 
 Add `await` in front of each call (or `.then()` if not awaited, but prefer `await`).
@@ -874,7 +874,7 @@ Expected: All tests pass, no type errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/executive/execution-engine.ts tests/executive/execution-engine-apply-dispatch.vitest.ts
+git add src/execution/executive/execution-engine.ts tests/executive/execution-engine-apply-dispatch.vitest.ts
 git commit -m "feat(p10-5c): wire automatic outcome hook into ExecutionEngine"
 ```
 

@@ -16,7 +16,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   BrowserSessionStore,
-} from "../../../src/security/inspector/browser-session-store.js";
+} from "../../../src/governance/security/inspector/browser-session-store.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

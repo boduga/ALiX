@@ -2,7 +2,7 @@
  * Shared stub ModelAdapter for skill/eval tests (no network, no model).
  * Sequences response texts across complete() calls; records user contents.
  */
-import type { ModelAdapter } from "../../src/providers/types.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
 
 export function stubProvider(texts: string[], onCalls?: string[], onComplete?: () => void): ModelAdapter {
   const queue = [...texts];

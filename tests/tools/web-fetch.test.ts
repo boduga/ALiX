@@ -6,7 +6,7 @@ import {
   createPinnedLookup,
   type WebFetchTransport,
   type PinnedResponse,
-} from "../../src/tools/web-fetch.js";
+} from "../../src/capabilities/tools/web-fetch.js";
 
 const PUBLIC_RESOLVE = async () => ["93.184.216.34"];
 

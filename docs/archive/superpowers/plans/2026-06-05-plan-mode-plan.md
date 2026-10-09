@@ -8,20 +8,20 @@
 
 **Architecture:** A new `plan-phase.ts` module inserted between context compilation and the tool loop in `agent-loop.ts`. The model is called with context but no tools — pure text output. The plan is saved to `.alix/plans/<session>.md`, printed to the user, and approved via a terminal prompt. On approval, the plan is injected into the execution system prompt as a shared commitment.
 
-**Tech Stack:** TypeScript, no new dependencies. Uses existing `prompt()` from `src/cli/commands/prompt.ts`, existing `AgentContext` from `src/agent/agent.ts`.
+**Tech Stack:** TypeScript, no new dependencies. Uses existing `prompt()` from `src/interfaces/cli/commands/prompt.ts`, existing `AgentContext` from `src/agents/agent/agent.ts`.
 
 ---
 
 ## File Structure
 
 ### Create
-- `src/run/plan-phase.ts` — core plan phase logic
+- `src/execution/run/plan-phase.ts` — core plan phase logic
 - `tests/plan-phase.test.ts` — tests for plan phase
 
 ### Modify
 - `src/run.ts` — add `planMode?: boolean` to `RunOpts`
 - `src/cli.ts` — add `--no-plan` flag parsing + update help text
-- `src/agent/agent-loop.ts` — insert plan phase call after context compilation, inject plan into system prompt
+- `src/agents/agent/agent-loop.ts` — insert plan phase call after context compilation, inject plan into system prompt
 - `src/task-classifier.ts` — add `isReadOnlyTask()` helper
 
 ---
@@ -119,10 +119,10 @@ Expected: clean compile
 
 ---
 
-### Task 3: Create `src/run/plan-phase.ts`
+### Task 3: Create `src/execution/run/plan-phase.ts`
 
 **Files:**
-- Create: `src/run/plan-phase.ts`
+- Create: `src/execution/run/plan-phase.ts`
 
 This is the core module. It handles:
 1. Generating a plan by calling the model with NO tools (pure reasoning + text)
@@ -336,7 +336,7 @@ Expected: clean compile
 ### Task 4: Wire plan phase into agent-loop.ts
 
 **Files:**
-- Modify: `src/agent/agent-loop.ts:82-140`
+- Modify: `src/agents/agent/agent-loop.ts:82-140`
 
 **Step 1: Import `runPlanPhase`**
 
@@ -461,7 +461,7 @@ describe("plan-phase", () => {
 
   it("buildPlanSystemPrompt includes context bundle info", async () => {
     // Dynamic import to avoid needing the full module resolution during test
-    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const { runPlanPhase } = await import("../src/execution/run/plan-phase.js");
     // The function exists and is callable
     assert.ok(typeof runPlanPhase === "function");
   });
@@ -551,10 +551,10 @@ Expected: All existing tests still pass.
 
 ```bash
 git add \
-  src/run/plan-phase.ts \
+  src/execution/run/plan-phase.ts \
   src/run.ts \
   src/cli.ts \
-  src/agent/agent-loop.ts \
+  src/agents/agent/agent-loop.ts \
   src/task-classifier.ts \
   tests/plan-phase.test.ts \
   docs/superpowers/specs/2026-06-05-plan-mode-design.md \
@@ -567,7 +567,7 @@ the model generates a structured plan with changes, verification
 steps, and risk assessment. The user approves (Y), rejects (n),
 edits (e), or gets details (d) before execution proceeds.
 
-- New src/run/plan-phase.ts: generate + save + approve plan
+- New src/execution/run/plan-phase.ts: generate + save + approve plan
 - --no-plan flag to skip plan phase
 - Read-only tasks (research) auto-approve plan
 - Approved plan injected into execution system prompt

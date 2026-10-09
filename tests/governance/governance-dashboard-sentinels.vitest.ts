@@ -18,8 +18,8 @@ import { importedBindings, codeOnly } from "../helpers/import-graph.js";
 
 const DASHBOARD_FILES = [
   "src/governance/governance-dashboard.ts",
-  "src/cli/commands/governance-dashboard-renderer.ts",
-  "src/cli/commands/governance-dashboard-handler.ts",
+  "src/interfaces/cli/commands/governance-dashboard-renderer.ts",
+  "src/interfaces/cli/commands/governance-dashboard-handler.ts",
 ];
 
 // Mutation appliers that must never be imported.

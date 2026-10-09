@@ -53,7 +53,7 @@ A0.3 is intentionally a thin translation layer. It performs no persistence, audi
 
 | Action | File                                                |
 | ------ | --------------------------------------------------- |
-| CREATE | `src/evolution/evolution-evidence-bridge.ts`        |
+| CREATE | `src/planning/evolution/evolution-evidence-bridge.ts`        |
 | CREATE | `tests/evolution/evolution-evidence-bridge.test.ts` |
 
 No existing X2, X3b, or X4 contracts are modified.

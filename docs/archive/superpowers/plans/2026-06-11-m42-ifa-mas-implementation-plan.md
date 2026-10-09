@@ -104,7 +104,7 @@ Add a TypeScript module that converts runtime/task/policy/replay state into an 8
 ### New Files
 
 ```
-src/runtime/signal-frame.ts
+src/runtime-state/runtime/signal-frame.ts
 tests/runtime/signal-frame.test.ts
 ```
 
@@ -180,7 +180,7 @@ decode rejects non-binary characters (edge: returns zeros for bad chars)
 ### Commit
 
 ```bash
-git add src/runtime/signal-frame.ts tests/runtime/signal-frame.test.ts
+git add src/runtime-state/runtime/signal-frame.ts tests/runtime/signal-frame.test.ts
 git commit -m "feat(runtime): add SignalFrame encoder prototype"
 ```
 
@@ -195,7 +195,7 @@ Convert SignalFrames into concrete ALiX actions.
 ### New Files
 
 ```
-src/runtime/offering-planner.ts
+src/runtime-state/runtime/offering-planner.ts
 tests/runtime/offering-planner.test.ts
 ```
 
@@ -241,7 +241,7 @@ export function prescribeOffering(signal: SignalFrame): OfferingPrescription;
 ### Commit
 
 ```bash
-git add src/runtime/offering-planner.ts tests/runtime/offering-planner.test.ts
+git add src/runtime-state/runtime/offering-planner.ts tests/runtime/offering-planner.test.ts
 git commit -m "feat(runtime): add Offering planner for SignalFrames"
 ```
 
@@ -331,8 +331,8 @@ Add structured case memory for SignalFrame outcomes.
 ### New Files
 
 ```
-src/chronicle/chronicle-store.ts
-src/chronicle/types.ts
+src/context/chronicle/chronicle-store.ts
+src/context/chronicle/types.ts
 tests/chronicle/chronicle-store.test.ts
 ```
 
@@ -405,7 +405,7 @@ Wrap SignalFrame + OfferingPlan + optional EssenceCompatibility + Chronicle refs
 ### New Files
 
 ```
-src/runtime/bridge-envelope.ts
+src/runtime-state/runtime/bridge-envelope.ts
 tests/runtime/bridge-envelope.test.ts
 ```
 
@@ -450,7 +450,7 @@ Safety fields are derived from decoded signal bits and offering action. Passive 
 ### Commit
 
 ```bash
-git add src/runtime/bridge-envelope.ts tests/runtime/bridge-envelope.test.ts
+git add src/runtime-state/runtime/bridge-envelope.ts tests/runtime/bridge-envelope.test.ts
 git commit -m "feat(runtime): add BridgeEnvelope protocol wrapper"
 ```
 
@@ -465,7 +465,7 @@ Consume a BridgeEnvelope and produce a passive routing recommendation — which 
 ### New Files
 
 ```
-src/runtime/nexus-router.ts
+src/runtime-state/runtime/nexus-router.ts
 tests/runtime/nexus-router.test.ts
 ```
 
@@ -502,7 +502,7 @@ export async function routeViaNexus(input: {
 ### Commit
 
 ```bash
-git add src/runtime/nexus-router.ts tests/runtime/nexus-router.test.ts
+git add src/runtime-state/runtime/nexus-router.ts tests/runtime/nexus-router.test.ts
 git commit -m "feat(runtime): add Nexus diagnostic router"
 ```
 
@@ -517,7 +517,7 @@ Validate BridgeEnvelopes and provide message wrapping/unwrapping utilities. The 
 ### New Files
 
 ```
-src/runtime/bridge-gateway.ts
+src/runtime-state/runtime/bridge-gateway.ts
 tests/runtime/bridge-gateway.test.ts
 ```
 
@@ -541,7 +541,7 @@ Validates 6 structural rule groups (envelopeId, signal, offering, safety, chroni
 ### Commit
 
 ```bash
-git add src/runtime/bridge-gateway.ts tests/runtime/bridge-gateway.test.ts
+git add src/runtime-state/runtime/bridge-gateway.ts tests/runtime/bridge-gateway.test.ts
 git commit -m "feat(runtime): add Bridge protocol gateway"
 ```
 
@@ -595,7 +595,7 @@ Chain all 8 modules (M0.43–M0.50) into a single end-to-end diagnostic pipeline
 ### New Files
 
 ```
-src/runtime/ifamas-pipeline.ts
+src/runtime-state/runtime/ifamas-pipeline.ts
 tests/runtime/ifamas-pipeline.test.ts
 ```
 
@@ -624,7 +624,7 @@ Optional: `eventLog` for trace event emission, `chronicleStore` for past-case lo
 ### Commit
 
 ```bash
-git add src/runtime/ifamas-pipeline.ts tests/runtime/ifamas-pipeline.test.ts
+git add src/runtime-state/runtime/ifamas-pipeline.ts tests/runtime/ifamas-pipeline.test.ts
 git commit -m "feat(runtime): add IFÁ-MAS passive diagnostic pipeline"
 ```
 
@@ -639,17 +639,17 @@ Surface IFÁ-MAS diagnostic artifacts in the TUI. Operator types `/ifamas` to se
 ### New Files
 
 ```
-src/tui/ifamas-panel.ts
+src/interfaces/tui/ifamas-panel.ts
 tests/tui/ifamas-panel.test.ts
 ```
 
 ### Modified Files
 
 ```
-src/tui/store.ts           — +"ifamas" panel type
-src/tui/panel-renderer.ts  — +ifamas render branch
-src/tui/runtime-snapshot.ts — +carry ifamasPanelData
-src/cli/commands/tui.ts    — +/ifamas command
+src/interfaces/tui/store.ts           — +"ifamas" panel type
+src/interfaces/tui/panel-renderer.ts  — +ifamas render branch
+src/interfaces/tui/runtime-snapshot.ts — +carry ifamasPanelData
+src/interfaces/cli/commands/tui.ts    — +/ifamas command
 ```
 
 Read-only display. No execution changes.
@@ -657,7 +657,7 @@ Read-only display. No execution changes.
 ### Commit
 
 ```bash
-git add src/tui/ifamas-panel.ts src/tui/store.ts src/tui/panel-renderer.ts src/tui/runtime-snapshot.ts src/cli/commands/tui.ts tests/tui/ifamas-panel.test.ts
+git add src/interfaces/tui/ifamas-panel.ts src/interfaces/tui/store.ts src/interfaces/tui/panel-renderer.ts src/interfaces/tui/runtime-snapshot.ts src/interfaces/cli/commands/tui.ts tests/tui/ifamas-panel.test.ts
 git commit -m "feat(tui): add IFÁ-MAS diagnostic panel and /ifamas command"
 ```
 
@@ -672,9 +672,9 @@ Record IFÁ-MAS diagnostic artifacts into the event log as structured trace even
 ### Modified Files
 
 ```
-src/runtime/trace-events.ts     — +"ifamas" source type, ifamasPayload, normalizer
-src/runtime/ifamas-pipeline.ts  — +optional eventLog emission
-src/cli/commands/tui.ts         — +wire tuiLog into /ifamas
+src/runtime-state/runtime/trace-events.ts     — +"ifamas" source type, ifamasPayload, normalizer
+src/runtime-state/runtime/ifamas-pipeline.ts  — +optional eventLog emission
+src/interfaces/cli/commands/tui.ts         — +wire tuiLog into /ifamas
 tests/runtime/trace-events-ifamas.test.ts — new
 ```
 
@@ -683,7 +683,7 @@ Non-fatal — diagnostics succeed even if event emission fails.
 ### Commit
 
 ```bash
-git add src/runtime/trace-events.ts src/runtime/ifamas-pipeline.ts src/cli/commands/tui.ts tests/runtime/trace-events-ifamas.test.ts tests/runtime/ifamas-pipeline.test.ts
+git add src/runtime-state/runtime/trace-events.ts src/runtime-state/runtime/ifamas-pipeline.ts src/interfaces/cli/commands/tui.ts tests/runtime/trace-events-ifamas.test.ts tests/runtime/ifamas-pipeline.test.ts
 git commit -m "feat(runtime): persist IFÁ-MAS diagnostic as trace events"
 ```
 
@@ -698,7 +698,7 @@ After each IFÁ-MAS diagnostic run, automatically append a Chronicle entry recor
 ### Modified Files
 
 ```
-src/runtime/ifamas-pipeline.ts — +chronicleStore.append after diagnostic
+src/runtime-state/runtime/ifamas-pipeline.ts — +chronicleStore.append after diagnostic
 tests/runtime/ifamas-pipeline.test.ts — +2 tests
 ```
 
@@ -707,7 +707,7 @@ Non-fatal — diagnostics succeed even if Chronicle writing fails.
 ### Commit
 
 ```bash
-git add src/runtime/ifamas-pipeline.ts tests/runtime/ifamas-pipeline.test.ts
+git add src/runtime-state/runtime/ifamas-pipeline.ts tests/runtime/ifamas-pipeline.test.ts
 git commit -m "feat(chronicle): add learning loop to IFÁ-MAS diagnostic pipeline"
 ```
 
@@ -722,17 +722,17 @@ Let operators search historical IFÁ-MAS Chronicle entries and diagnostic artifa
 ### New Files
 
 ```
-src/tui/chronicle-panel.ts
+src/interfaces/tui/chronicle-panel.ts
 tests/tui/chronicle-panel.test.ts
 ```
 
 ### Modified Files
 
 ```
-src/tui/store.ts              — +"chronicle" panel type
-src/tui/panel-renderer.ts     — +chronicle render branch
-src/tui/runtime-snapshot.ts   — +carry chroniclePanelData
-src/cli/commands/tui.ts       — +/chronicle command
+src/interfaces/tui/store.ts              — +"chronicle" panel type
+src/interfaces/tui/panel-renderer.ts     — +chronicle render branch
+src/interfaces/tui/runtime-snapshot.ts   — +carry chroniclePanelData
+src/interfaces/cli/commands/tui.ts       — +/chronicle command
 ```
 
 Commands: `/chronicle`, `/chronicle signal:<code>`, `/chronicle trace:<id>`, `/chronicle offering:<action>`, `/chronicle route:<target>`.
@@ -740,7 +740,7 @@ Commands: `/chronicle`, `/chronicle signal:<code>`, `/chronicle trace:<id>`, `/c
 ### Commit
 
 ```bash
-git add src/tui/chronicle-panel.ts src/tui/store.ts src/tui/panel-renderer.ts src/tui/runtime-snapshot.ts src/cli/commands/tui.ts tests/tui/chronicle-panel.test.ts
+git add src/interfaces/tui/chronicle-panel.ts src/interfaces/tui/store.ts src/interfaces/tui/panel-renderer.ts src/interfaces/tui/runtime-snapshot.ts src/interfaces/cli/commands/tui.ts tests/tui/chronicle-panel.test.ts
 git commit -m "feat(tui): add IFÁ-MAS Chronicle recall panel and /chronicle command"
 ```
 

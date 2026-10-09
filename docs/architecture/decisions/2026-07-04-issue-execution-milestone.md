@@ -71,7 +71,7 @@ Issue intake (gh issue view)
 
 ```
 src/cli.ts                                          — issue run command dispatch
-src/cli/commands/issue-run-handler.ts               — full handler (~230 lines)
+src/interfaces/cli/commands/issue-run-handler.ts               — full handler (~230 lines)
 tests/cli/commands/issue-run-handler.test.ts         — 13 tests
 docs/architecture/decisions/2026-07-04-autonomous-issue-execution-loop-design.md
 ```

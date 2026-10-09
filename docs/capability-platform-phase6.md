@@ -21,7 +21,7 @@ web UI, CLI, detached workflow) are identical projections over the same log.
 cache while the views migrated to `RuntimeSnapshot.timeline`. The log is now
 the only source of truth for the timeline.
 
-The operator timeline and platform (src/capability/*) are unchanged.
+The operator timeline and platform (src/capabilities/capability/*) are unchanged.
 
 **This phase's architecture is canonical — the projection invariants are
 frozen in [`docs/architecture/eventlog-projection-architecture.md`](architecture/eventlog-projection-architecture.md).**

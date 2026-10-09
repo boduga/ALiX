@@ -20,7 +20,7 @@ describe("pathMatches", () => {
   });
 
   it("prefix with **", () => {
-    assert.strictEqual(pathMatches("src/security/auth.ts", "src/security/**"), true);
+    assert.strictEqual(pathMatches("src/governance/security/auth.ts", "src/governance/security/**"), true);
     assert.strictEqual(pathMatches("deploy/prod.yaml", "deploy/**"), true);
   });
 
@@ -57,8 +57,8 @@ describe("governanceMatch", () => {
   });
 
   it("matches on paths", () => {
-    const policy: GovernancePolicyRule = { id: "t4", description: "x", match: { paths: ["src/security/**"] }, decision: "deny" };
-    assert.strictEqual(governanceMatch(policy, { actionType: "x", files: ["src/security/auth.ts"] }), true);
+    const policy: GovernancePolicyRule = { id: "t4", description: "x", match: { paths: ["src/governance/security/**"] }, decision: "deny" };
+    assert.strictEqual(governanceMatch(policy, { actionType: "x", files: ["src/governance/security/auth.ts"] }), true);
     assert.strictEqual(governanceMatch(policy, { actionType: "x", files: ["src/main.ts"] }), false);
   });
 
@@ -75,7 +75,7 @@ describe("governanceMatch", () => {
 
 describe("evaluateGovernancePolicies", () => {
   const policies: GovernancePolicyRule[] = [
-    { id: "deny-security", description: "Security paths denied", match: { paths: ["src/security/**"] }, decision: "deny" },
+    { id: "deny-security", description: "Security paths denied", match: { paths: ["src/governance/security/**"] }, decision: "deny" },
     { id: "approve-source", description: "Source changes need approval", match: { paths: ["src/**"] }, decision: "ask" },
     { id: "allow-others", description: "Default allow", match: {}, decision: "allow" },
   ];
@@ -87,7 +87,7 @@ describe("evaluateGovernancePolicies", () => {
   });
 
   it("denies when deny policy matches", () => {
-    const result = evaluateGovernancePolicies({ actionType: "issue.run", files: ["src/security/auth.ts"] }, policies);
+    const result = evaluateGovernancePolicies({ actionType: "issue.run", files: ["src/governance/security/auth.ts"] }, policies);
     assert.strictEqual(result.decision, "deny");
     assert.ok(result.reason.includes("Security"));
   });
@@ -98,7 +98,7 @@ describe("evaluateGovernancePolicies", () => {
   });
 
   it("deny beats requires_approval", () => {
-    const result = evaluateGovernancePolicies({ actionType: "issue.run", files: ["src/security/auth.ts", "src/main.ts"] }, policies);
+    const result = evaluateGovernancePolicies({ actionType: "issue.run", files: ["src/governance/security/auth.ts", "src/main.ts"] }, policies);
     assert.strictEqual(result.decision, "deny");
     assert.ok(result.reason.includes("Security"));
   });

@@ -8,17 +8,17 @@
  *
  * These tests are unit-level: they exercise `runLearnCli` directly with
  * fabricated EventLog + GovernanceStore + EnrichedProposal[]. The seam
- * file (`src/cli/commands/governance.ts`) is exercised end-to-end in
+ * file (`src/interfaces/cli/commands/governance.ts`) is exercised end-to-end in
  * T8 (integration + sentinel).
  */
 
 import { describe, it, expect, vi } from "vitest";
-import type { EventLog } from "../../src/events/event-log.js";
-import type { AlixEvent } from "../../src/events/types.js";
-import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
-import type { RecommendationStore } from "../../src/evolution/verification/recommendation/recommendation-store.js";
-import type { GovernanceRecommendation } from "../../src/evolution/verification/contracts/recommendation-contract.js";
-import { runLearnCli } from "../../src/evolution/learning/learning-cli.js";
+import type { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
+import type { EnrichedProposal } from "../../src/planning/adaptation/intelligence-types.js";
+import type { RecommendationStore } from "../../src/planning/evolution/verification/recommendation/recommendation-store.js";
+import type { GovernanceRecommendation } from "../../src/planning/evolution/verification/contracts/recommendation-contract.js";
+import { runLearnCli } from "../../src/planning/evolution/learning/learning-cli.js";
 
 const NOW = "2026-08-14T00:00:00.000Z";
 

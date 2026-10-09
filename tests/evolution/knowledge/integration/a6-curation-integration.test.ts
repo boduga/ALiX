@@ -30,26 +30,26 @@ import { mkdtempSync, rmSync, writeFileSync, readdirSync, readFileSync } from "n
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { CurationEngine } from "../../../../src/evolution/knowledge/curation-engine.js";
-import { LearningStoreAdapter } from "../../../../src/evolution/knowledge/adapters/learning-store-adapter.js";
-import { ChronicleAdapter } from "../../../../src/evolution/knowledge/adapters/chronicle-adapter.js";
-import { FailureMemoryAdapter } from "../../../../src/evolution/knowledge/adapters/failure-memory-adapter.js";
-import { PatternRegistryAdapter } from "../../../../src/evolution/knowledge/adapters/pattern-registry-adapter.js";
-import { EvidenceAdapter } from "../../../../src/evolution/knowledge/adapters/evidence-adapter.js";
-import { detectStale } from "../../../../src/evolution/knowledge/detectors/staleness-detector.js";
-import { detectDuplicates } from "../../../../src/evolution/knowledge/detectors/dedup-detector.js";
-import { detectContradictions } from "../../../../src/evolution/knowledge/detectors/contradiction-detector.js";
-import { detectCompressible } from "../../../../src/evolution/knowledge/detectors/compression-detector.js";
-import { DEFAULT_CURATION_CONFIG } from "../../../../src/evolution/knowledge/contracts/curation-contract.js";
+import { CurationEngine } from "../../../../src/planning/evolution/knowledge/curation-engine.js";
+import { LearningStoreAdapter } from "../../../../src/planning/evolution/knowledge/adapters/learning-store-adapter.js";
+import { ChronicleAdapter } from "../../../../src/planning/evolution/knowledge/adapters/chronicle-adapter.js";
+import { FailureMemoryAdapter } from "../../../../src/planning/evolution/knowledge/adapters/failure-memory-adapter.js";
+import { PatternRegistryAdapter } from "../../../../src/planning/evolution/knowledge/adapters/pattern-registry-adapter.js";
+import { EvidenceAdapter } from "../../../../src/planning/evolution/knowledge/adapters/evidence-adapter.js";
+import { detectStale } from "../../../../src/planning/evolution/knowledge/detectors/staleness-detector.js";
+import { detectDuplicates } from "../../../../src/planning/evolution/knowledge/detectors/dedup-detector.js";
+import { detectContradictions } from "../../../../src/planning/evolution/knowledge/detectors/contradiction-detector.js";
+import { detectCompressible } from "../../../../src/planning/evolution/knowledge/detectors/compression-detector.js";
+import { DEFAULT_CURATION_CONFIG } from "../../../../src/planning/evolution/knowledge/contracts/curation-contract.js";
 import {
   buildCurationProposal,
   buildEvidenceFromFindings,
   buildGovernanceRecommendation,
-} from "../../../../src/evolution/knowledge/curation-proposal-builder.js";
-import { generateDecision } from "../../../../src/evolution/governance/decision-engine.js";
-import { VALID_GOVERNANCE_DECISION_KINDS } from "../../../../src/evolution/governance/contracts/decision-contract.js";
+} from "../../../../src/planning/evolution/knowledge/curation-proposal-builder.js";
+import { generateDecision } from "../../../../src/planning/evolution/governance/decision-engine.js";
+import { VALID_GOVERNANCE_DECISION_KINDS } from "../../../../src/planning/evolution/governance/contracts/decision-contract.js";
 import { PatternRegistry } from "../../../../src/context/pattern-registry.js";
-import { InMemoryVerificationEvidenceLedger } from "../../../../src/evolution/verification/evidence/evidence-ledger.js";
+import { InMemoryVerificationEvidenceLedger } from "../../../../src/planning/evolution/verification/evidence/evidence-ledger.js";
 
 const DAY_MS = 86_400_000;
 

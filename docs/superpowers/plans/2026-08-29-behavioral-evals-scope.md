@@ -65,14 +65,14 @@ That is a successful behavioral evaluation because ALiX correctly reported failu
 
 | Need                       | Existing anchor                                                                                    | Notes                                                                                                                                                          |
 | -------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| In-process headless run    | `runTask(cwd, task, opts)` → `RunResult` — `src/run.ts` re-export of `src/agent/agent-loop.ts:473` | No daemon; `RunResult` includes `sessionId`, `summary`, `reason`, optional `runId`; `reason` includes `completed`, `completed_unverified`, `max_repairs`, etc. |
-| Temp-cwd fixture           | `src/benchmark/cases/no-tool-task.ts`                                                              | Existing `tmpdir()/bench-task-<uuid>` pattern with `.alix/config.json`, mock provider, permissions allow, `runTask`, cleanup                                   |
+| In-process headless run    | `runTask(cwd, task, opts)` → `RunResult` — `src/run.ts` re-export of `src/agents/agent/agent-loop.ts:473` | No daemon; `RunResult` includes `sessionId`, `summary`, `reason`, optional `runId`; `reason` includes `completed`, `completed_unverified`, `max_repairs`, etc. |
+| Temp-cwd fixture           | `src/operations/benchmark/cases/no-tool-task.ts`                                                              | Existing `tmpdir()/bench-task-<uuid>` pattern with `.alix/config.json`, mock provider, permissions allow, `runTask`, cleanup                                   |
 | Delegate runtime           | `src/agents/subagent-cli.ts`                                                                       | `computeSubagentStatus`, `isObjectiveComplete`, `buildResult`; Matrix-G status contract                                                                        |
 | Subprocess delegate        | `SubagentManager.spawn` — `src/agents/subagent-manager.ts:42`                                      | Returns `SubagentResult { id, role, status, findings, events, error? }`                                                                                        |
-| Session evidence           | `<cwd>/.alix/sessions/<id>/events.jsonl`                                                           | `session.ended.reason`; readable through `src/inspector/session-reader.ts`                                                                                     |
-| Mutation ledger            | `MutationSessionState` in `src/run/helpers.ts`                                                     | Useful supporting evidence, but filesystem remains evaluator truth                                                                                             |
-| Existing benchmark harness | `src/benchmark/**`                                                                                 | Latency-oriented; `BenchmarkResult` is not suitable as behavioral scoring schema                                                                               |
-| Existing MockProvider      | `src/providers/mock-provider.ts`                                                                   | Does not emit tool calls; insufficient for deterministic mutation cases                                                                                        |
+| Session evidence           | `<cwd>/.alix/sessions/<id>/events.jsonl`                                                           | `session.ended.reason`; readable through `src/interfaces/inspector/session-reader.ts`                                                                                     |
+| Mutation ledger            | `MutationSessionState` in `src/execution/run/helpers.ts`                                                     | Useful supporting evidence, but filesystem remains evaluator truth                                                                                             |
+| Existing benchmark harness | `src/operations/benchmark/**`                                                                                 | Latency-oriented; `BenchmarkResult` is not suitable as behavioral scoring schema                                                                               |
+| Existing MockProvider      | `src/models/providers/mock-provider.ts`                                                                   | Does not emit tool calls; insufficient for deterministic mutation cases                                                                                        |
 | Provider abstraction       | `ModelAdapter`                                                                                     | Allows creation of a scripted provider without coupling evals to a live model                                                                                  |
 
 ---
@@ -241,7 +241,7 @@ The evaluator must reject or safely handle paths escaping that `cwd`.
 Create:
 
 ```text
-src/evals/evaluators/objective-evaluator.ts
+src/operations/evals/evaluators/objective-evaluator.ts
 ```
 
 The evaluator receives:
@@ -341,7 +341,7 @@ The evaluator must not declare an objective landed merely because the worker emi
 Create:
 
 ```text
-src/evals/evals-types.ts
+src/operations/evals/evals-types.ts
 ```
 
 with a common execution result:
@@ -372,7 +372,7 @@ The scoring engine must consume this normalized representation rather than depen
 Create:
 
 ```text
-src/evals/drivers/
+src/operations/evals/drivers/
   delegate-driver.ts
   main-loop-driver.ts
 ```
@@ -462,7 +462,7 @@ and other main-loop outcomes.
 Create:
 
 ```text
-src/evals/providers/scripted-mock-provider.ts
+src/operations/evals/providers/scripted-mock-provider.ts
 ```
 
 The existing `MockProvider` is insufficient because it emits no tool calls.
@@ -576,7 +576,7 @@ The exact mapping between status and objective should be centralized rather than
 Create:
 
 ```text
-src/evals/evaluators/status-evaluator.ts
+src/operations/evals/evaluators/status-evaluator.ts
 ```
 
 Its responsibility is to answer:
@@ -796,7 +796,7 @@ The cases may share conceptual scenarios but should not be forced into one runti
 Create:
 
 ```text
-src/evals/evals-runner.ts
+src/operations/evals/evals-runner.ts
 ```
 
 Responsibilities:
@@ -902,7 +902,7 @@ Do not yet feed eval results into A2, A5, A9, or another governance mechanism.
 Create:
 
 ```text
-src/cli/commands/evals.ts
+src/interfaces/cli/commands/evals.ts
 ```
 
 Add:
@@ -1145,7 +1145,7 @@ scripted error
 This slice does **not** include:
 
 * latency benchmarking;
-* changes to `src/benchmark/**`;
+* changes to `src/operations/benchmark/**`;
 * live-provider behavioral scoring;
 * formal continuous eval program;
 * dashboards;

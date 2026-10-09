@@ -6,7 +6,7 @@ import {
   ToolParamSchema,
   ToolDefSchema,
   NormalizedToolResultSchema,
-} from "../../src/contracts/provider-tool-schemas.js";
+} from "../../src/runtime-state/contracts/provider-tool-schemas.js";
 
 describe("ToolParamSchema", () => {
   it("decodes a string parameter", () => {

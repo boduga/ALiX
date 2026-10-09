@@ -55,9 +55,9 @@ P12.6 operator CLI              ✅
 - `src/governance/failure-memory.ts` — P12.5
 
 ### CLI
-- `src/cli/commands/governance.ts` — P12.1/P12.6
-- `src/cli/commands/runs.ts` — P12.4/P12.6
-- `src/cli/commands/failures.ts` — P12.5/P12.6
+- `src/interfaces/cli/commands/governance.ts` — P12.1/P12.6
+- `src/interfaces/cli/commands/runs.ts` — P12.4/P12.6
+- `src/interfaces/cli/commands/failures.ts` — P12.5/P12.6
 
 ### Tests
 - `tests/governance/risk-scoring.test.ts` — 48 tests

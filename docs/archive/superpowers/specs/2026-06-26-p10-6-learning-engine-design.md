@@ -111,7 +111,7 @@ This is deterministic: the same store at the same point in time always produces 
 ### 3a. Pure aggregation function
 
 ```
-src/executive/learning-engine.ts
+src/execution/executive/learning-engine.ts
 ```
 
 ```ts
@@ -177,7 +177,7 @@ The function:
 ### 3b. CLI handler
 
 ```
-src/cli/commands/executive-learn-handler.ts
+src/interfaces/cli/commands/executive-learn-handler.ts
 ```
 
 Responsible for:
@@ -192,7 +192,7 @@ export async function handleLearnCommand(args: string[]): Promise<void>
 
 ### 3c. CLI routing
 
-In `src/cli/commands/executive.ts`, add a new case:
+In `src/interfaces/cli/commands/executive.ts`, add a new case:
 
 ```ts
 case "learn": {
@@ -205,8 +205,8 @@ case "learn": {
 
 No new write exceptions. Both new files are pure read-only:
 
-- `src/executive/learning-engine.ts` — pure function, no I/O. Add to `EXECUTIVE_FILES` allowlist.
-- `src/cli/commands/executive-learn-handler.ts` — only calls `list()`/`load()`, no write APIs. Add to `EXECUTIVE_FILES` allowlist.
+- `src/execution/executive/learning-engine.ts` — pure function, no I/O. Add to `EXECUTIVE_FILES` allowlist.
+- `src/interfaces/cli/commands/executive-learn-handler.ts` — only calls `list()`/`load()`, no write APIs. Add to `EXECUTIVE_FILES` allowlist.
 
 If the sentinel linter detects forbidden imports (e.g., `writeFileSync` transitively from `OutcomeReportStore`), add a minimal scoped exception. Expected outcome: no exception needed.
 
@@ -214,18 +214,18 @@ If the sentinel linter detects forbidden imports (e.g., `writeFileSync` transiti
 
 | Action | Path | Notes |
 |--------|------|-------|
-| **Create** | `src/executive/learning-engine.ts` | Pure `computeLearningTrends()` + types |
-| **Create** | `src/cli/commands/executive-learn-handler.ts` | Thin CLI handler |
-| **Modify** | `src/cli/commands/executive.ts` | Add `"learn"` case routing |
+| **Create** | `src/execution/executive/learning-engine.ts` | Pure `computeLearningTrends()` + types |
+| **Create** | `src/interfaces/cli/commands/executive-learn-handler.ts` | Thin CLI handler |
+| **Modify** | `src/interfaces/cli/commands/executive.ts` | Add `"learn"` case routing |
 | **Modify** | `tests/executive/executive-sentinels.vitest.ts` | Add new files to `EXECUTIVE_FILES` |
 | **Create** | `tests/executive/learning-engine.vitest.ts` | 9+ pure unit tests |
 | **Create** | `tests/cli/commands/executive-learn-cli.vitest.ts` | 5+ integration tests |
 
 ### Files NOT modified
 
-- `src/executive/outcome-store.ts` — read only
-- `src/executive/outcome-evaluator.ts` — untouched
-- `src/executive/execution-engine.ts` — untouched
+- `src/execution/executive/outcome-store.ts` — read only
+- `src/execution/executive/outcome-evaluator.ts` — untouched
+- `src/execution/executive/execution-engine.ts` — untouched
 - No protected type files (ADR-0004)
 
 ## 6. Test plan

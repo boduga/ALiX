@@ -5,11 +5,11 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { getProfile, listProfiles } from "../config/profile-registry.js";
-import { buildProfilePatch, applyProfilePatch, PRESERVED_SECTIONS, type ProfilePatch } from "../config/profile-patch.js";
-import { writeConfig } from "../config/persistence.js";
-import type { ProfileData } from "../config/profile-types.js";
-import type { AlixConfig } from "../config/schema.js";
+import { getProfile, listProfiles } from "../operations/config/profile-registry.js";
+import { buildProfilePatch, applyProfilePatch, PRESERVED_SECTIONS, type ProfilePatch } from "../operations/config/profile-patch.js";
+import { writeConfig } from "../operations/config/persistence.js";
+import type { ProfileData } from "../operations/config/profile-types.js";
+import type { AlixConfig } from "../operations/config/schema.js";
 
 export type ApplyResult = { success: boolean; message: string; changes?: ProfilePatch; preserved?: string[] };
 export type InstallResult = { success: boolean; message: string; pulled: string[]; skipped: string[]; errors: string[] };

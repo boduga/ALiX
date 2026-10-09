@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { MinimalMetrics } from "../../src/kernel/minimal-metrics.js";
+import { MinimalMetrics } from "../../src/coordination/kernel/minimal-metrics.js";
 
 describe("MinimalMetrics", () => {
 

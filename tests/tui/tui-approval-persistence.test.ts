@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
 
 describe("TUI approval store cross-instance persistence", () => {
   let tmpDir: string;

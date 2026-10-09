@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { StdioInput, StdioOutput, MockInput, MockOutput } from '../../src/tui/io.js';
+import { StdioInput, StdioOutput, MockInput, MockOutput } from '../../src/interfaces/tui/io.js';
 
 // ---------------------------------------------------------------------------
 // StdioInput / StdioOutput — smoke tests

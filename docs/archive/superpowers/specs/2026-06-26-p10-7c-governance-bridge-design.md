@@ -44,7 +44,7 @@ The proposal lifecycle downstream (approve/reject/apply/issue-creation) is owned
 
 The bridge crosses `.alix/executive/recommendations/` → `.alix/adaptation/proposals/`. The cross-domain write is permitted because:
 - The executive purity sentinel forbids the class-method substring `ProposalStore.save` but allows instance-method calls (`proposalStore.save(...)`, lowercase). The handler holds a `ProposalStore` *instance* and calls `.save()` on it — sentinel-clean.
-- The pure bridge function in `src/executive/` makes no store calls at all. It returns draft `AdaptationProposal` objects for the handler to persist.
+- The pure bridge function in `src/execution/executive/` makes no store calls at all. It returns draft `AdaptationProposal` objects for the handler to persist.
 
 This mirrors the P10.4b executive bridge pattern: pure function + effectful wrapper, with the store accessed via instance at the handler boundary.
 
@@ -180,15 +180,15 @@ The handler's writes:
 The handler's reads:
 - `RecommendationReportStore.load(reportId)` and `RecommendationReportStore.list()` (for latest).
 
-Sentinel: handler is in `src/cli/commands/executive-bridge-handler.ts`, added to `EXECUTIVE_FILES`. **No scoped exception needed** — `proposalStore.save(...)` (lowercase instance) does not match the forbidden `ProposalStore.save` (uppercase class-method) substring.
+Sentinel: handler is in `src/interfaces/cli/commands/executive-bridge-handler.ts`, added to `EXECUTIVE_FILES`. **No scoped exception needed** — `proposalStore.save(...)` (lowercase instance) does not match the forbidden `ProposalStore.save` (uppercase class-method) substring.
 
 ## File structure
 
 | File | Action |
 |---|---|
-| `src/executive/executive-bridge-recommendations.ts` | create: pure `computeExecutiveProposals` + types |
-| `src/cli/commands/executive-bridge-handler.ts` | create: `handleBridgeCommand` (load → compute → save proposals → update report → print) |
-| `src/cli/commands/executive.ts` | modify: add `case "bridge"` (dynamic import + `handleBridgeCommand(rest)`) + update subcommand list |
+| `src/execution/executive/executive-bridge-recommendations.ts` | create: pure `computeExecutiveProposals` + types |
+| `src/interfaces/cli/commands/executive-bridge-handler.ts` | create: `handleBridgeCommand` (load → compute → save proposals → update report → print) |
+| `src/interfaces/cli/commands/executive.ts` | modify: add `case "bridge"` (dynamic import + `handleBridgeCommand(rest)`) + update subcommand list |
 | `tests/executive/executive-bridge-recommendations.vitest.ts` | create: pure function tests |
 | `tests/cli/commands/executive-bridge-cli.vitest.ts` | create: CLI integration tests |
 | `tests/executive/executive-sentinels.vitest.ts` | modify: add 2 new files to `EXECUTIVE_FILES` (no exceptions needed) |

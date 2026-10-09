@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { resolveWorkbenchLayout, resolveWorkbenchSurfaceGeometry } from '../../../src/tui/workbench/layout/responsive-layout.js';
-import { paintRosterDrawer } from '../../../src/tui/workbench/views/roster-drawer.js';
-import { paintOperatorShell } from '../../../src/tui/workbench/views/operator-shell.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import { resolveWorkbenchLayout, resolveWorkbenchSurfaceGeometry } from '../../../src/interfaces/tui/workbench/layout/responsive-layout.js';
+import { paintRosterDrawer } from '../../../src/interfaces/tui/workbench/views/roster-drawer.js';
+import { paintOperatorShell } from '../../../src/interfaces/tui/workbench/views/operator-shell.js';
 
 describe('Workbench responsive drawer', () => {
   it.each([

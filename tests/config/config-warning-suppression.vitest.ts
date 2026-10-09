@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { _setHomedirOverride, loadConfig } from "../../src/config/loader.js";
+import { _setHomedirOverride, loadConfig } from "../../src/operations/config/loader.js";
 
 const dirs: string[] = [];
 

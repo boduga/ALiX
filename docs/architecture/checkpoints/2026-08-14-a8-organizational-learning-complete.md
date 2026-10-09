@@ -33,20 +33,20 @@ CLI: `alix governance evolution learn [--dimension ...] [--json]`.
 
 | File | Responsibility |
 |------|----------------|
-| `src/evolution/learning/contracts/learning-contract.ts` | `LearningFinding`, `LearningProposal`, `LearningEngineOptions`, `ProposalGovernanceRecord`, `MeasurementOutcomeRecord`, `EnrichedProposalRecord`, `RecommendationRecord`, `LearningAdapter<T>`, `DEFAULT_LEARNING_ENGINE_OPTIONS` (with reconnaissance-derived `DEFAULT_MIN_CARDINALITY=3`, `DEFAULT_EVIDENCE_WINDOW_DAYS=30`) |
-| `src/evolution/learning/adapters/proposal-events-adapter.ts` | `ProposalEventsAdapter` — EventLog `capability.governance.proposal.*` events → `ProposalGovernanceRecord[]` |
-| `src/evolution/learning/adapters/measurement-events-adapter.ts` | `MeasurementEventsAdapter` — EventLog `capability.governance.measurement.measured` events → `MeasurementOutcomeRecord[]` |
-| `src/evolution/learning/adapters/enriched-proposals-adapter.ts` | `EnrichedProposalsAdapter` — P10.8a `EnrichedProposal[]` → `EnrichedProposalRecord[]` |
-| `src/evolution/learning/adapters/recommendations-adapter.ts` | `RecommendationsAdapter` — `governance-store.list("recommendations")` → `RecommendationRecord[]` (4th adapter per T4-fix ruling) |
-| `src/evolution/learning/detectors/underperformer-detector.ts` | `detectUnderperformer` — groups `MeasurementOutcomeRecord[]` by capabilityId; emits finding when `ineffective` count ≥ `minCardinality` within window |
-| `src/evolution/learning/detectors/outcome-contradiction-detector.ts` | `detectOutcomeContradictions` — correlates `ProposalGovernanceRecord[]` with `RecommendationRecord[]` by `proposalId`; emits finding when binary-contradiction count ≥ `minCardinality` per capability |
-| `src/evolution/learning/detectors/repeated-pattern-failure-detector.ts` | `detectRepeatedPatternFailures` — groups `proposal.execution_failed` events by `${error}:${capabilityId}` fingerprint (identity-join via submitted events); emits finding when count ≥ `minCardinality` |
-| `src/evolution/learning/learning-proposal-builder.ts` | `buildLearningProposal(findings, now)` — deterministic `proposalId` from sorted findingIds + timestamp |
-| `src/evolution/learning/learning-engine.ts` | `LearningEngine.learn(now)` — runs 3 detectors over 4 adapters in parallel; returns `null` on 0 findings, else `LearningProposal` |
-| `src/evolution/learning/a2-bridge.ts` | `buildGovernanceRecommendation(proposal)` — ALWAYS emits `kind: "MONITOR"`; adapts to actual A2.5 `GovernanceRecommendation` shape |
-| `src/evolution/learning/learning-cli.ts` | `runLearnCli` — JSON + human output; accepts `--dimension` for forward compatibility (no effect in v1) |
-| `src/evolution/learning/index.ts` | Barrel re-exports |
-| `src/cli/commands/governance.ts` | `runEvolutionLearn` subcommand wiring (parallel to A6 `curate`; A6 handler signature untouched) |
+| `src/planning/evolution/learning/contracts/learning-contract.ts` | `LearningFinding`, `LearningProposal`, `LearningEngineOptions`, `ProposalGovernanceRecord`, `MeasurementOutcomeRecord`, `EnrichedProposalRecord`, `RecommendationRecord`, `LearningAdapter<T>`, `DEFAULT_LEARNING_ENGINE_OPTIONS` (with reconnaissance-derived `DEFAULT_MIN_CARDINALITY=3`, `DEFAULT_EVIDENCE_WINDOW_DAYS=30`) |
+| `src/planning/evolution/learning/adapters/proposal-events-adapter.ts` | `ProposalEventsAdapter` — EventLog `capability.governance.proposal.*` events → `ProposalGovernanceRecord[]` |
+| `src/planning/evolution/learning/adapters/measurement-events-adapter.ts` | `MeasurementEventsAdapter` — EventLog `capability.governance.measurement.measured` events → `MeasurementOutcomeRecord[]` |
+| `src/planning/evolution/learning/adapters/enriched-proposals-adapter.ts` | `EnrichedProposalsAdapter` — P10.8a `EnrichedProposal[]` → `EnrichedProposalRecord[]` |
+| `src/planning/evolution/learning/adapters/recommendations-adapter.ts` | `RecommendationsAdapter` — `governance-store.list("recommendations")` → `RecommendationRecord[]` (4th adapter per T4-fix ruling) |
+| `src/planning/evolution/learning/detectors/underperformer-detector.ts` | `detectUnderperformer` — groups `MeasurementOutcomeRecord[]` by capabilityId; emits finding when `ineffective` count ≥ `minCardinality` within window |
+| `src/planning/evolution/learning/detectors/outcome-contradiction-detector.ts` | `detectOutcomeContradictions` — correlates `ProposalGovernanceRecord[]` with `RecommendationRecord[]` by `proposalId`; emits finding when binary-contradiction count ≥ `minCardinality` per capability |
+| `src/planning/evolution/learning/detectors/repeated-pattern-failure-detector.ts` | `detectRepeatedPatternFailures` — groups `proposal.execution_failed` events by `${error}:${capabilityId}` fingerprint (identity-join via submitted events); emits finding when count ≥ `minCardinality` |
+| `src/planning/evolution/learning/learning-proposal-builder.ts` | `buildLearningProposal(findings, now)` — deterministic `proposalId` from sorted findingIds + timestamp |
+| `src/planning/evolution/learning/learning-engine.ts` | `LearningEngine.learn(now)` — runs 3 detectors over 4 adapters in parallel; returns `null` on 0 findings, else `LearningProposal` |
+| `src/planning/evolution/learning/a2-bridge.ts` | `buildGovernanceRecommendation(proposal)` — ALWAYS emits `kind: "MONITOR"`; adapts to actual A2.5 `GovernanceRecommendation` shape |
+| `src/planning/evolution/learning/learning-cli.ts` | `runLearnCli` — JSON + human output; accepts `--dimension` for forward compatibility (no effect in v1) |
+| `src/planning/evolution/learning/index.ts` | Barrel re-exports |
+| `src/interfaces/cli/commands/governance.ts` | `runEvolutionLearn` subcommand wiring (parallel to A6 `curate`; A6 handler signature untouched) |
 
 **Tests:** `tests/evolution/` — `a8-adapters`, `a8-learning-detectors`,
 `a8-cli`, `a8-engine-end-to-end`, `a8-sentinel`. 661/661 tests pass across
@@ -86,10 +86,10 @@ the capability + evolution suites.
 ### Architectural sentinels (HARD pins)
 - [x] Sentinel 1: `Object.keys(LearningProposal).sort()` EXACTLY equals `["findings", "generatedAt", "proposalId"]` — any added field breaks
 - [x] Sentinel 2: bridge emits `kind: "MONITOR"` for both empty-findings and populated proposals; explicit `not.toBe("APPROVE")` and `not.toBe("REJECT")`
-- [x] Sentinel 3: zero forbidden imports across `src/evolution/learning/**` — patterns cover executor/mutation modules (`capability-mutation-executor`, `capability/executors`, `capability/mutation-port`, `capability/mutation-contract`, `capability/provider-executor`, `capability/platform`) and CAP-11 retired-lifecycle markers
+- [x] Sentinel 3: zero forbidden imports across `src/planning/evolution/learning/**` — patterns cover executor/mutation modules (`capability-mutation-executor`, `capability/executors`, `capability/mutation-port`, `capability/mutation-contract`, `capability/provider-executor`, `capability/platform`) and CAP-11 retired-lifecycle markers
 
 ### Composition root wiring
-- [x] A8 `learn` subcommand added parallel to A6 `curate` in `src/cli/commands/governance.ts`
+- [x] A8 `learn` subcommand added parallel to A6 `curate` in `src/interfaces/cli/commands/governance.ts`
 - [x] A6 handler signature UNTOUCHED
 - [x] CAP-12 forbidden files (`governance/governance-types.ts`, `capability/capability-service.ts`) NOT modified
 - [x] Composition: `EventLog(<session>)` + `GovernanceStore(join(cwd, ".alix", "governance"))`; `enrichedProposals: []` documented as future-extension seam (no v1 detector consumes EnrichedProposal[])
@@ -168,7 +168,7 @@ TUI/Web (deferred) ── CAP-11 owns TUI/Web surfaces
 
 ## Module summary
 
-A8 ships a single new module: `src/evolution/learning/`. It contains:
+A8 ships a single new module: `src/planning/evolution/learning/`. It contains:
 - 1 contract file
 - 4 read-only adapters (proposal-events, measurement-events, enriched-proposals, recommendations)
 - 3 pure detectors (underperformer, outcome-contradiction, repeated-pattern-failure)

@@ -2,9 +2,9 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { join } from "node:path";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { EventLog } from "../../src/events/event-log.js";
-import { ToolExecutor } from "../../src/tools/executor.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { ToolExecutor } from "../../src/capabilities/tools/executor.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 /**
  * Integration tests for tool events in the event log.

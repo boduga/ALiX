@@ -9,16 +9,16 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { ServerResponse, IncomingMessage } from "node:http";
-import { handleObservabilityRoute } from "../../src/observability/observability-routes.js";
-import { subscribeObservabilityStream } from "../../src/server/observability-stream.js";
-import { formatHealthPanel } from "../../src/tui/health-panel.js";
-import { formatCostPanel } from "../../src/tui/cost-panel.js";
+import { handleObservabilityRoute } from "../../src/operations/observability/observability-routes.js";
+import { subscribeObservabilityStream } from "../../src/interfaces/server/observability-stream.js";
+import { formatHealthPanel } from "../../src/interfaces/tui/health-panel.js";
+import { formatCostPanel } from "../../src/interfaces/tui/cost-panel.js";
 import {
   ObservabilitySnapshotService,
   overallHealth,
   type RuntimeHealthSnapshot,
-} from "../../src/observability/health-snapshot.js";
-import { AlertEngine } from "../../src/observability/alert-engine.js";
+} from "../../src/operations/observability/health-snapshot.js";
+import { AlertEngine } from "../../src/operations/observability/alert-engine.js";
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 

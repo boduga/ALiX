@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runSandboxed } from "../../src/skills/sandbox.js";
+import { runSandboxed } from "../../src/capabilities/skills/sandbox.js";
 
 const UNSHARE_ENV = "ALIX_UNSHARE";
 

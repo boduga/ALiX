@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { compileOwnershipClaims } from "../../src/kernel/ownership-claim-compiler.js";
+import { compileOwnershipClaims } from "../../src/coordination/kernel/ownership-claim-compiler.js";
 
 describe("compileOwnershipClaims", () => {
   it("converts src/** to recursive src claim", () => {

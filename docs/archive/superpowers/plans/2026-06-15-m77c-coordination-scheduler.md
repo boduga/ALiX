@@ -140,9 +140,9 @@ Authorization requires `cwd`, `sessionMode`, `sessionId`, `capability`, `source`
 
 ### Modify
 ```
-src/kernel/coordination-types.ts
-src/kernel/coordination-planner.ts
-src/kernel/coordination-store.ts
+src/coordination/kernel/coordination-types.ts
+src/coordination/kernel/coordination-planner.ts
+src/coordination/kernel/coordination-store.ts
 src/cli.ts
 daemon composition/startup file
 docs/user-manual.md
@@ -151,16 +151,16 @@ README.md
 
 ### Create
 ```
-src/kernel/coordination-run-lock.ts
-src/kernel/ownership-claim-compiler.ts
-src/kernel/coordination-ownership.ts
-src/kernel/coordination-result-store.ts
-src/kernel/coordination-reconciliation.ts
-src/kernel/coordination-authorization.ts
-src/kernel/worker-executor.ts
-src/kernel/coordination-scheduler.ts
-src/daemon/coordination-scheduler-service.ts
-src/cli/commands/coordination.ts
+src/coordination/kernel/coordination-run-lock.ts
+src/coordination/kernel/ownership-claim-compiler.ts
+src/coordination/kernel/coordination-ownership.ts
+src/coordination/kernel/coordination-result-store.ts
+src/coordination/kernel/coordination-reconciliation.ts
+src/coordination/kernel/coordination-authorization.ts
+src/coordination/kernel/worker-executor.ts
+src/coordination/kernel/coordination-scheduler.ts
+src/operations/daemon/coordination-scheduler-service.ts
+src/interfaces/cli/commands/coordination.ts
 ```
 
 ### Tests
@@ -182,7 +182,7 @@ tests/integration/coordination-scheduler.integration.test.ts
 
 ## M0.77c.1 — Scheduler metadata and backward compatibility
 
-**Files:** Modify `src/kernel/coordination-types.ts`, Modify `src/kernel/coordination-store.ts`
+**Files:** Modify `src/coordination/kernel/coordination-types.ts`, Modify `src/coordination/kernel/coordination-store.ts`
 
 - [ ] **Step 1: Add scheduler types to coordination-types.ts**
 
@@ -297,7 +297,7 @@ Test that old M0.77a workers load with defaults, old M0.77b workers load with de
 
 ```bash
 npm run build
-git add src/kernel/coordination-types.ts src/kernel/coordination-store.ts tests/kernel/coordination-types.test.ts
+git add src/coordination/kernel/coordination-types.ts src/coordination/kernel/coordination-store.ts tests/kernel/coordination-types.test.ts
 git commit -m "feat(coordination): add scheduler metadata and record normalization"
 ```
 
@@ -305,7 +305,7 @@ git commit -m "feat(coordination): add scheduler metadata and record normalizati
 
 ## M0.77c.2 — Ownership claim compiler
 
-**Files:** Create `src/kernel/ownership-claim-compiler.ts`, Create `tests/kernel/ownership-claim-compiler.test.ts`
+**Files:** Create `src/coordination/kernel/ownership-claim-compiler.ts`, Create `tests/kernel/ownership-claim-compiler.test.ts`
 
 - [ ] **Step 1: Create the compiler**
 
@@ -341,7 +341,7 @@ Required: `src/**`, plain file, `**`, wildcard widening, multiple patterns, dedu
 
 ```bash
 npm run build && node --test dist/tests/kernel/ownership-claim-compiler.test.js
-git add src/kernel/ownership-claim-compiler.ts tests/kernel/ownership-claim-compiler.test.ts
+git add src/coordination/kernel/ownership-claim-compiler.ts tests/kernel/ownership-claim-compiler.test.ts
 git commit -m "feat(coordination): add conservative ownership claim compiler"
 ```
 
@@ -349,7 +349,7 @@ git commit -m "feat(coordination): add conservative ownership claim compiler"
 
 ## M0.77c.3 — Planner migration
 
-**Files:** Modify `src/kernel/coordination-planner.ts`, Modify planner tests
+**Files:** Modify `src/coordination/kernel/coordination-planner.ts`, Modify planner tests
 
 - [ ] **Step 1: Use the real claim compiler**
 
@@ -385,7 +385,7 @@ Topological `planOrder`, claims populated, read-only worker claims empty, unknow
 
 ```bash
 npm run build && node --test dist/tests/kernel/coordination-planner.test.js
-git add src/kernel/coordination-planner.ts tests/kernel/coordination-planner.test.ts
+git add src/coordination/kernel/coordination-planner.ts tests/kernel/coordination-planner.test.ts
 git commit -m "feat(coordination): populate scheduler metadata during planning"
 ```
 
@@ -393,7 +393,7 @@ git commit -m "feat(coordination): populate scheduler metadata during planning"
 
 ## M0.77c.4 — Per-run lock and atomic CoordinationStore
 
-**Files:** Create `src/kernel/coordination-run-lock.ts`, Modify `src/kernel/coordination-store.ts`, Create lock and concurrency tests
+**Files:** Create `src/coordination/kernel/coordination-run-lock.ts`, Modify `src/coordination/kernel/coordination-store.ts`, Create lock and concurrency tests
 
 - [ ] **Step 1: Create coordination-run-lock.ts**
 
@@ -444,7 +444,7 @@ Acquire/release, second acquisition blocked, different run IDs concurrent, dead 
 
 ```bash
 npm run build && node --test dist/tests/kernel/coordination-run-lock.test.js dist/tests/kernel/coordination-store-concurrency.test.js
-git add src/kernel/coordination-run-lock.ts src/kernel/coordination-store.ts tests/kernel/coordination-run-lock.test.ts tests/kernel/coordination-store-concurrency.test.ts
+git add src/coordination/kernel/coordination-run-lock.ts src/coordination/kernel/coordination-store.ts tests/kernel/coordination-run-lock.test.ts tests/kernel/coordination-store-concurrency.test.ts
 git commit -m "feat(coordination): add lock-safe atomic run persistence"
 ```
 
@@ -452,7 +452,7 @@ git commit -m "feat(coordination): add lock-safe atomic run persistence"
 
 ## M0.77c.5 — OwnershipRegistry adapter
 
-**Files:** Create `src/kernel/coordination-ownership.ts`, Create `tests/kernel/coordination-ownership.test.ts`
+**Files:** Create `src/coordination/kernel/coordination-ownership.ts`, Create `tests/kernel/coordination-ownership.test.ts`
 
 - [ ] **Step 1: Create the adapter**
 
@@ -490,7 +490,7 @@ Empty claims are no-op acquired, successful batch returns lease IDs, conflict re
 
 ```bash
 npm run build && node --test dist/tests/kernel/coordination-ownership.test.js
-git add src/kernel/coordination-ownership.ts tests/kernel/coordination-ownership.test.ts
+git add src/coordination/kernel/coordination-ownership.ts tests/kernel/coordination-ownership.test.ts
 git commit -m "feat(coordination): add ownership lease adapter"
 ```
 
@@ -498,7 +498,7 @@ git commit -m "feat(coordination): add ownership lease adapter"
 
 ## M0.77c.6 — Result store and executor contract
 
-**Files:** Create `src/kernel/coordination-result-store.ts`, Create `src/kernel/worker-executor.ts`, Create tests
+**Files:** Create `src/coordination/kernel/coordination-result-store.ts`, Create `src/coordination/kernel/worker-executor.ts`, Create tests
 
 - [ ] **Step 1: Create coordination-result-store.ts**
 
@@ -543,7 +543,7 @@ Success result persistence, failure result persistence, atomic overwrite, relati
 
 ```bash
 npm run build && node --test dist/tests/kernel/coordination-result-store.test.js
-git add src/kernel/coordination-result-store.ts src/kernel/worker-executor.ts tests/kernel/coordination-result-store.test.ts tests/kernel/worker-executor.test.ts
+git add src/coordination/kernel/coordination-result-store.ts src/coordination/kernel/worker-executor.ts tests/kernel/coordination-result-store.test.ts tests/kernel/worker-executor.test.ts
 git commit -m "feat(coordination): add worker executor contract and result store"
 ```
 
@@ -551,7 +551,7 @@ git commit -m "feat(coordination): add worker executor contract and result store
 
 ## M0.77c.7 — Reconciliation engine
 
-**Files:** Create `src/kernel/coordination-reconciliation.ts`, Create tests
+**Files:** Create `src/coordination/kernel/coordination-reconciliation.ts`, Create tests
 
 - [ ] **Step 1: Create the reconciliation module**
 
@@ -578,7 +578,7 @@ Stale no-owner worker orphaned, stale different-owner worker orphaned, locally a
 
 ```bash
 npm run build && node --test dist/tests/kernel/coordination-reconciliation.test.js
-git add src/kernel/coordination-reconciliation.ts tests/kernel/coordination-reconciliation.test.ts
+git add src/coordination/kernel/coordination-reconciliation.ts tests/kernel/coordination-reconciliation.test.ts
 git commit -m "feat(coordination): add restart-safe reconciliation"
 ```
 
@@ -586,7 +586,7 @@ git commit -m "feat(coordination): add restart-safe reconciliation"
 
 ## M0.77c.8 — Authorization aggregation
 
-**Files:** Create `src/kernel/coordination-authorization.ts`, Create tests
+**Files:** Create `src/coordination/kernel/coordination-authorization.ts`, Create tests
 
 - [ ] **Step 1: Create the authorization module**
 
@@ -607,7 +607,7 @@ All allowed, one denied, one approval required, empty list denied, evidence incl
 
 ```bash
 npm run build && node --test dist/tests/kernel/coordination-authorization.test.js
-git add src/kernel/coordination-authorization.ts tests/kernel/coordination-authorization.test.ts
+git add src/coordination/kernel/coordination-authorization.ts tests/kernel/coordination-authorization.test.ts
 git commit -m "feat(coordination): add per-capability authorization aggregation"
 ```
 
@@ -615,7 +615,7 @@ git commit -m "feat(coordination): add per-capability authorization aggregation"
 
 ## M0.77c.9 — CoordinationScheduler
 
-**Files:** Create `src/kernel/coordination-scheduler.ts`, Create tests
+**Files:** Create `src/coordination/kernel/coordination-scheduler.ts`, Create tests
 
 - [ ] **Step 1: Create the scheduler class**
 
@@ -703,7 +703,7 @@ Default concurrency one, cap at eight, bounded dispatch, deterministic order, de
 
 ```bash
 npm run build && node --test dist/tests/kernel/coordination-scheduler.test.js
-git add src/kernel/coordination-scheduler.ts tests/kernel/coordination-scheduler.test.ts
+git add src/coordination/kernel/coordination-scheduler.ts tests/kernel/coordination-scheduler.test.ts
 git commit -m "feat(coordination): add bounded ownership-aware scheduler"
 ```
 
@@ -711,7 +711,7 @@ git commit -m "feat(coordination): add bounded ownership-aware scheduler"
 
 ## M0.77c.10 — runUntilIdle()
 
-**Files:** Add to `src/kernel/coordination-scheduler.ts`
+**Files:** Add to `src/coordination/kernel/coordination-scheduler.ts`
 
 - [ ] **Step 1: Add the method**
 
@@ -734,7 +734,7 @@ Success, failure, approval wait, terminal block, idle threshold, timeout, does n
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/coordination-scheduler.ts tests/kernel/coordination-scheduler.test.ts
+git add src/coordination/kernel/coordination-scheduler.ts tests/kernel/coordination-scheduler.test.ts
 git commit -m "feat(coordination): add terminating foreground scheduler loop"
 ```
 
@@ -742,7 +742,7 @@ git commit -m "feat(coordination): add terminating foreground scheduler loop"
 
 ## M0.77c.11 — Lease renewal and heartbeat
 
-**Files:** Add to `src/kernel/coordination-scheduler.ts`
+**Files:** Add to `src/coordination/kernel/coordination-scheduler.ts`
 
 - [ ] **Step 1: Add scheduler methods**
 
@@ -764,7 +764,7 @@ Successful renewal, boolean false treated as failure, renewal failure aborts exe
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/coordination-scheduler.ts tests/kernel/coordination-scheduler.test.ts
+git add src/coordination/kernel/coordination-scheduler.ts tests/kernel/coordination-scheduler.test.ts
 git commit -m "feat(coordination): add heartbeats lease renewal and cancellation"
 ```
 
@@ -772,7 +772,7 @@ git commit -m "feat(coordination): add heartbeats lease renewal and cancellation
 
 ## M0.77c.12 — Daemon hosting
 
-**Files:** Create `src/daemon/coordination-scheduler-service.ts`, Integrate daemon composition
+**Files:** Create `src/operations/daemon/coordination-scheduler-service.ts`, Integrate daemon composition
 
 - [ ] **Step 1: Create the service**
 
@@ -804,7 +804,7 @@ No overlapping ticks, no overlapping renewals, oldest run first, terminal runs s
 
 ```bash
 npm run build && node --test dist/tests/daemon/coordination-scheduler-service.test.js
-git add src/daemon/coordination-scheduler-service.ts daemon-composition-file tests/daemon/coordination-scheduler-service.test.ts
+git add src/operations/daemon/coordination-scheduler-service.ts daemon-composition-file tests/daemon/coordination-scheduler-service.test.ts
 git commit -m "feat(daemon): host coordination scheduling and lease renewal"
 ```
 
@@ -812,7 +812,7 @@ git commit -m "feat(daemon): host coordination scheduling and lease renewal"
 
 ## M0.77c.13 — CLI
 
-**Files:** Create `src/cli/commands/coordination.ts`, Modify `src/cli.ts`
+**Files:** Create `src/interfaces/cli/commands/coordination.ts`, Modify `src/cli.ts`
 
 - [ ] **Step 1: Create CLI handler**
 
@@ -843,7 +843,7 @@ Command parsing, missing arguments, foreground success, approval wait exit, daem
 
 ```bash
 npm run build && node --test dist/tests/cli/coordination.test.js
-git add src/cli/commands/coordination.ts src/cli.ts tests/cli/coordination.test.ts
+git add src/interfaces/cli/commands/coordination.ts src/cli.ts tests/cli/coordination.test.ts
 git commit -m "feat(cli): add coordination scheduler commands"
 ```
 

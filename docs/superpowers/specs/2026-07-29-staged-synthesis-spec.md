@@ -156,9 +156,9 @@ The rendered ledger is injected into messages before each model turn, positioned
 
 | File | Change |
 |---|---|
-| `src/run/task-loop.ts` | Add checkpoint counters, injection logic, ProgressLedger class |
-| `src/tui/views/agent-view.ts` | Render ledger in scrollback (dim style, collapsible) |
-| `src/agent/system-prompt.ts` | No change (checkpoint prompt is hardcoded in the loop, not part of the base prompt) |
+| `src/execution/run/task-loop.ts` | Add checkpoint counters, injection logic, ProgressLedger class |
+| `src/interfaces/tui/views/agent-view.ts` | Render ledger in scrollback (dim style, collapsible) |
+| `src/agents/agent/system-prompt.ts` | No change (checkpoint prompt is hardcoded in the loop, not part of the base prompt) |
 
 ## 5. Non-goals
 

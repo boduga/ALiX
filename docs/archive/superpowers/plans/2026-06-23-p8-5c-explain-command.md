@@ -14,8 +14,8 @@ These constraints apply to every task in this plan and are derived directly from
 
 - **Read-only invariant:** `alix explain` MUST NOT write to any store, evidence chain, adapter, or proposal surface. Sentinel-enforced in Task 5.
 - **Ephemeral explanation:** `ProposalExplanation` is an in-memory value object. Never persisted. Never indexed. Never evolved into a new artifact type.
-- **6 protected type files remain byte-identical to P8.5a.0 baseline:** `risk-score-types.ts`, `governance-review-types.ts`, `adaptation-types.ts`, `decision-types.ts`, `learning-types.ts`, `outcome-types.ts`. The new `ProposalExplanation` types live in `src/explain/proposal-explanation-types.ts` (NEW file — no edits to existing type files).
-- **6 protected type files are joined by one new type file:** `src/learning/evidence-chain-types.ts` (already exists from P8.5a.0) and `src/learning/evidence-chain-store.ts` (already exists). These are NOT touched.
+- **6 protected type files remain byte-identical to P8.5a.0 baseline:** `risk-score-types.ts`, `governance-review-types.ts`, `adaptation-types.ts`, `decision-types.ts`, `learning-types.ts`, `outcome-types.ts`. The new `ProposalExplanation` types live in `src/operations/explain/proposal-explanation-types.ts` (NEW file — no edits to existing type files).
+- **6 protected type files are joined by one new type file:** `src/planning/learning/evidence-chain-types.ts` (already exists from P8.5a.0) and `src/planning/learning/evidence-chain-store.ts` (already exists). These are NOT touched.
 - **Evidence Chain model (corrected):** Source artifacts carry NO `evidenceRefs` backlinks. The EvidenceChainStore carries `ProvenanceLink` relationships as a separate append-only graph. Explain queries the graph; it does not navigate artifact-side backlinks.
 - **Layer shape is registry-aligned:** `signalsByAdapter: Record<string, LearningSignal[]>` — future adapters (P7.5p.4 TelemetryCapture) drop in as new keys without schema or renderer changes.
 - **Missing-data resilience:** Every layer can be absent. The explanation ALWAYS renders with explicit `not available` markers; never crashes.
@@ -32,9 +32,9 @@ These constraints apply to every task in this plan and are derived directly from
 
 | Path | Purpose |
 |---|---|
-| `src/explain/proposal-explanation-types.ts` (new) | `ProposalExplanation` + layer interfaces + `ExplanationIntegrity`. Pure types, no store deps. |
-| `src/explain/proposal-explanation-assembler.ts` (new) | Pure assembler. Reads from 6 stores, walks EvidenceChain, assembles `ProposalExplanation`. NO writes. |
-| `src/cli/commands/explain.ts` (new) | `handleExplainCommand` dispatcher + terminal/JSON renderers. |
+| `src/operations/explain/proposal-explanation-types.ts` (new) | `ProposalExplanation` + layer interfaces + `ExplanationIntegrity`. Pure types, no store deps. |
+| `src/operations/explain/proposal-explanation-assembler.ts` (new) | Pure assembler. Reads from 6 stores, walks EvidenceChain, assembles `ProposalExplanation`. NO writes. |
+| `src/interfaces/cli/commands/explain.ts` (new) | `handleExplainCommand` dispatcher + terminal/JSON renderers. |
 | `tests/explain/proposal-explanation-assembler.vitest.ts` (new) | Unit + integration tests for the assembler (8 tests). |
 | `tests/cli/commands/explain-cli.vitest.ts` (new) | CLI tests for terminal + JSON output + missing-data resilience (5 tests). |
 | `src/cli.ts` (modify, ~10 lines added) | Wire `alix explain` into the top-level dispatcher. |
@@ -60,13 +60,13 @@ Each task produces a self-contained change that can be merged independently if n
 ### Task 1: P8.5c.1 — `ProposalExplanation` types
 
 **Files:**
-- Create: `src/explain/proposal-explanation-types.ts`
+- Create: `src/operations/explain/proposal-explanation-types.ts`
 - Test: (none yet — types only)
 
 **Interfaces produced (consumed by Tasks 2-4):**
 
 ```ts
-// src/explain/proposal-explanation-types.ts
+// src/operations/explain/proposal-explanation-types.ts
 
 import type { LearningSignal, CalibrationProfile } from "../learning/learning-types.js";
 import type { OutcomeValue } from "../adaptation/outcome-types.js";
@@ -180,7 +180,7 @@ export interface ExplanationIntegrity {
 
 - [ ] **Step 1: Create the file**
 
-Write `src/explain/proposal-explanation-types.ts` with the full content above.
+Write `src/operations/explain/proposal-explanation-types.ts` with the full content above.
 
 - [ ] **Step 2: Verify tsc compiles the new types**
 
@@ -190,7 +190,7 @@ Expected: clean. (Pure types — no runtime impact.)
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/explain/proposal-explanation-types.ts
+git add src/operations/explain/proposal-explanation-types.ts
 git commit -m "feat(p8.5c.1): ProposalExplanation + ExplanationIntegrity types"
 ```
 
@@ -199,7 +199,7 @@ git commit -m "feat(p8.5c.1): ProposalExplanation + ExplanationIntegrity types"
 ### Task 2: P8.5c.2 — Assembler (Outcome + Recommendation + Risk + Governance layers via direct-id + proposal-fallback)
 
 **Files:**
-- Create: `src/explain/proposal-explanation-assembler.ts`
+- Create: `src/operations/explain/proposal-explanation-assembler.ts`
 - Create: `tests/explain/proposal-explanation-assembler.vitest.ts`
 
 **Interfaces consumed (from Task 1):**
@@ -212,10 +212,10 @@ import type { ProposalExplanation, OutcomeLayer, RecommendationLayer, RiskLayer,
 
 | Store | File | Method used |
 |---|---|---|
-| `OutcomeStore` | `src/adaptation/outcome-store.ts` | `list()` then filter by `subjectId === proposalId` |
-| `ApprovalRecommendationStore` | `src/adaptation/approval-recommendation-store.ts` | `get(id)` (after OutcomeRecord.recommendationId) then fallback `list()` |
-| `RiskScoreStore` | `src/adaptation/risk-score-store.ts` | `get(id)` (after OutcomeRecord.riskScoreId) then fallback `queryByWindow(windowDays)` |
-| `GovernanceReviewStore` | `src/adaptation/governance-review-store.ts` | `queryByProposal(proposalId)` (P7.5p.3 cross-proposal isolation invariant) |
+| `OutcomeStore` | `src/planning/adaptation/outcome-store.ts` | `list()` then filter by `subjectId === proposalId` |
+| `ApprovalRecommendationStore` | `src/planning/adaptation/approval-recommendation-store.ts` | `get(id)` (after OutcomeRecord.recommendationId) then fallback `list()` |
+| `RiskScoreStore` | `src/planning/adaptation/risk-score-store.ts` | `get(id)` (after OutcomeRecord.riskScoreId) then fallback `queryByWindow(windowDays)` |
+| `GovernanceReviewStore` | `src/planning/adaptation/governance-review-store.ts` | `queryByProposal(proposalId)` (P7.5p.3 cross-proposal isolation invariant) |
 
 **Per-layer resolution priority (locked for P8.5c, refined in Task 3):**
 
@@ -238,11 +238,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { assembleProposalExplanation } from "../../src/explain/proposal-explanation-assembler.js";
-import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
-import { ApprovalRecommendationStore } from "../../src/adaptation/approval-recommendation-store.js";
-import { RiskScoreStore } from "../../src/adaptation/risk-score-store.js";
-import { GovernanceReviewStore } from "../../src/adaptation/governance-review-store.js";
+import { assembleProposalExplanation } from "../../src/operations/explain/proposal-explanation-assembler.js";
+import { OutcomeStore } from "../../src/planning/adaptation/outcome-store.js";
+import { ApprovalRecommendationStore } from "../../src/planning/adaptation/approval-recommendation-store.js";
+import { RiskScoreStore } from "../../src/planning/adaptation/risk-score-store.js";
+import { GovernanceReviewStore } from "../../src/planning/adaptation/governance-review-store.js";
 
 const OUTCOMES_DIR = join(".alix", "adaptation", "outcomes");
 const RECOMMENDATIONS_DIR = join(".alix", "approval-recommendations");
@@ -434,7 +434,7 @@ Expected: FAIL with "Cannot find module .../proposal-explanation-assembler.js"
 - [ ] **Step 3: Implement the assembler (Task 2 scope: direct-id + proposal-fallback)**
 
 ```ts
-// src/explain/proposal-explanation-assembler.ts
+// src/operations/explain/proposal-explanation-assembler.ts
 
 /**
  * P8.5c.2 — ProposalExplanation assembler.
@@ -708,7 +708,7 @@ Expected: 6/6 tests pass, tsc clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/explain/proposal-explanation-assembler.ts tests/explain/proposal-explanation-assembler.vitest.ts
+git add src/operations/explain/proposal-explanation-assembler.ts tests/explain/proposal-explanation-assembler.vitest.ts
 git commit -m "feat(p8.5c.2): assembler with direct-id + proposal-fallback priority order"
 ```
 
@@ -717,7 +717,7 @@ git commit -m "feat(p8.5c.2): assembler with direct-id + proposal-fallback prior
 ### Task 3: P8.5c.3 — Learning + Calibration + EvidenceChain traversal + Integrity refinement
 
 **Files:**
-- Modify: `src/explain/proposal-explanation-assembler.ts` (extend with Learning/Calibration layers + EvidenceChain traversal + Integrity refinement)
+- Modify: `src/operations/explain/proposal-explanation-assembler.ts` (extend with Learning/Calibration layers + EvidenceChain traversal + Integrity refinement)
 - Modify: `tests/explain/proposal-explanation-assembler.vitest.ts` (append 5 more tests)
 
 **Why this is the critical task:** Without EvidenceChain integration, P8.5c would only validate `Stores → Adapters → Learning`, NOT `Stores → Evidence Chain → Learning`. The user's review caught this — P8.5c ships with **real** chain traversal in this task.
@@ -896,7 +896,7 @@ Expected: 5 failures (LearningStore + EvidenceChainStore not imported, chain tra
 
 - [ ] **Step 3: Extend the assembler**
 
-In `src/explain/proposal-explanation-assembler.ts`:
+In `src/operations/explain/proposal-explanation-assembler.ts`:
 
 1. Add imports:
    ```ts
@@ -1123,7 +1123,7 @@ Expected: 11/11 tests pass (6 from Task 2 + 5 new), tsc clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/explain/proposal-explanation-assembler.ts tests/explain/proposal-explanation-assembler.vitest.ts
+git add src/operations/explain/proposal-explanation-assembler.ts tests/explain/proposal-explanation-assembler.vitest.ts
 git commit -m "feat(p8.5c.3): EvidenceChain traversal + learning + calibration layers"
 ```
 
@@ -1132,7 +1132,7 @@ git commit -m "feat(p8.5c.3): EvidenceChain traversal + learning + calibration l
 ### Task 4: P8.5c.4 — `alix explain proposal` CLI + renderers
 
 **Files:**
-- Create: `src/cli/commands/explain.ts`
+- Create: `src/interfaces/cli/commands/explain.ts`
 - Create: `tests/cli/commands/explain-cli.vitest.ts`
 - Modify: `src/cli.ts` (wire `alix explain`)
 
@@ -1146,7 +1146,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleExplainCommand } from "../../../src/cli/commands/explain.js";
+import { handleExplainCommand } from "../../../src/interfaces/cli/commands/explain.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
@@ -1211,10 +1211,10 @@ describe("handleExplainCommand", () => {
 Run: `npx vitest run tests/cli/commands/explain-cli.vitest.ts`
 Expected: FAIL with "Cannot find module .../explain.js"
 
-- [ ] **Step 3: Implement `src/cli/commands/explain.ts`**
+- [ ] **Step 3: Implement `src/interfaces/cli/commands/explain.ts`**
 
 ```ts
-// src/cli/commands/explain.ts
+// src/interfaces/cli/commands/explain.ts
 
 /**
  * P8.5c.4 — `alix explain` CLI dispatcher + renderers.
@@ -1375,7 +1375,7 @@ Expected: all existing tests still pass + the 5 new CLI tests pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/explain.ts tests/cli/commands/explain-cli.vitest.ts src/cli.ts
+git add src/interfaces/cli/commands/explain.ts tests/cli/commands/explain-cli.vitest.ts src/cli.ts
 git commit -m "feat(p8.5c.4): alix explain proposal CLI + terminal/JSON renderers"
 ```
 
@@ -1411,8 +1411,8 @@ const FORBIDDEN_IMPORTS = [
 
 // Files that must remain pure read-only.
 const EXPLAIN_FILES = [
-  "src/explain/proposal-explanation-assembler.ts",
-  "src/cli/commands/explain.ts",
+  "src/operations/explain/proposal-explanation-assembler.ts",
+  "src/interfaces/cli/commands/explain.ts",
 ];
 
 // Write/mutation method calls forbidden in either file.
@@ -1490,8 +1490,8 @@ Expected: all tests pass (existing + new), tsc clean.
 Run:
 ```bash
 git diff main --stat -- \
-  'src/learning/*-types.ts' \
-  'src/adaptation/*-types.ts'
+  'src/planning/learning/*-types.ts' \
+  'src/planning/adaptation/*-types.ts'
 ```
 Expected: empty (no changes to protected type files).
 

@@ -5,7 +5,7 @@
 **Author:** CAP-N spec drafting session
 **Parent program:** CAP-1 → CAP-12 greenfield capability platform (tag `alix-capability-greenfield-complete`)
 **Closes:** CAP-12 §20 #12 carve-out; supersedes the "PASS *with caveat*" verdict
-**Carve-out site:** `src/capability/capability-service.ts:702,704` — `candidateToExecutionStep` hardcodes `operation: "capability.transition"`
+**Carve-out site:** `src/capabilities/capability/capability-service.ts:702,704` — `candidateToExecutionStep` hardcodes `operation: "capability.transition"`
 
 ## 1. Problem
 
@@ -14,7 +14,7 @@ CAP-12 (issue #496) closed the greenfield program with all 19 §20 hard-acceptan
 The carve-out was user-approved 2026-08-14 and recorded in:
 - `docs/architecture/checkpoints/2026-08-14-capability-platform-greenfield-complete.md` §10 (table row) + §10 caveat paragraph
 - tag annotation `alix-capability-greenfield-complete`
-- `src/capability/capability-service.ts:687-689` (in-code comment forecasting CAP-N)
+- `src/capabilities/capability/capability-service.ts:687-689` (in-code comment forecasting CAP-N)
 
 CAP-N closes this carve-out so §20 #12 reads plain "PASS" and the tag annotation can drop the carve-out paragraph.
 
@@ -33,13 +33,13 @@ The CAP-12 e2e step 12 ("catalog preservation") flips to assert catalog growth f
 - **Changing `CapabilityEvolutionCandidate` type.** The existing `sourcePatternId` field is sufficient.
 - **True `capability.update` for underperformers.** Currently routes to `capability.transition`. Future work can tighten the discriminator if needed.
 - **True `capability.consolidate` for consolidation_opportunity.** Same — future work.
-- **CAP-12 forbidden-file policy is partly lifted.** `src/capability/capability-service.ts` is on the CAP-12 forbidden list. CAP-N lifts the restriction for that single file because the carve-out is exactly in that file. All other CAP-12 forbidden files remain forbidden.
+- **CAP-12 forbidden-file policy is partly lifted.** `src/capabilities/capability/capability-service.ts` is on the CAP-12 forbidden list. CAP-N lifts the restriction for that single file because the carve-out is exactly in that file. All other CAP-12 forbidden files remain forbidden.
 
 ## 4. Architecture
 
 ### 4.1 Operation mapping contract (locked)
 
-The mapping lives in `candidateToExecutionStep` at `src/capability/capability-service.ts:695-715`. CAP-N rewrites this function (single function, single file, single carve-out site).
+The mapping lives in `candidateToExecutionStep` at `src/capabilities/capability/capability-service.ts:695-715`. CAP-N rewrites this function (single function, single file, single carve-out site).
 
 | Candidate `sourcePatternId` | Emitted `operation` | `parameters` shape |
 |---|---|---|
@@ -92,7 +92,7 @@ A gap signal arrives at A7 (`a7-proposals.ts`) → A7 emits a `CapabilityEvoluti
 
 ## 6. Composition root
 
-No changes. The composition root at `src/capability/platform.ts` already provides `CapabilityService` with `executor`, `proposalStore`, and `catalog`. The CAP-N change is internal to `candidateToExecutionStep`.
+No changes. The composition root at `src/capabilities/capability/platform.ts` already provides `CapabilityService` with `executor`, `proposalStore`, and `catalog`. The CAP-N change is internal to `candidateToExecutionStep`.
 
 ## 7. Migration boundary
 
@@ -150,7 +150,7 @@ Full capability vitest suite must remain at 552/552 PASS + the new tests (4 unit
 
 - CAP-12 carve-out: `docs/architecture/checkpoints/2026-08-14-capability-platform-greenfield-complete.md` §10
 - CAP-12 e2e test: `tests/capability/cap-12-e2e.vitest.ts`
-- Carve-out site: `src/capability/capability-service.ts:695-715`
-- Mutation contract: `src/capability/mutation-contract.ts` (5 operations defined; CAP-N uses 3)
-- A7 proposal generator: `src/capability/evolution/a7-proposals.ts:192-242` (already emits gap-candidates with `target.id = "new.${candidateId}"`)
+- Carve-out site: `src/capabilities/capability/capability-service.ts:695-715`
+- Mutation contract: `src/capabilities/capability/mutation-contract.ts` (5 operations defined; CAP-N uses 3)
+- A7 proposal generator: `src/capabilities/capability/evolution/a7-proposals.ts:192-242` (already emits gap-candidates with `target.id = "new.${candidateId}"`)
 - ADR-0013 §4/§5/§7 (provider abstraction + execution binding + lifecycle)

@@ -53,7 +53,7 @@
  *     static import (the T10 regression), and the counters prove it stays
  *     unevaluated in every disabled domain.
  *   - Credential resolution: `resolveCredential`
- *     (src/security/credentials/credential-reference.ts) is the function the
+ *     (src/governance/security/credentials/credential-reference.ts) is the function the
  *     tracing keys would flow through, but resolution lives UPSTREAM of
  *     `createTraceClient` — in `loadConfig` (loader.ts resolveTracingCredentials,
  *     gated on `enabled === true`). That loader gate has its own coverage
@@ -95,24 +95,24 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { EventLog } from "../../src/events/event-log.js";
-import { MemoryStore } from "../../src/utils/memory/store.js";
-import { ScopeTracker } from "../../src/autonomy/scope-tracker.js";
-import { TaskStateMachine, RunLimiter } from "../../src/autonomy/state-machine.js";
-import { createContextBudget } from "../../src/config/context-budget.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import type { ExecutionContext } from "../../src/observability/execution-context.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { MemoryStore } from "../../src/operations/utils/memory/store.js";
+import { ScopeTracker } from "../../src/planning/autonomy/scope-tracker.js";
+import { TaskStateMachine, RunLimiter } from "../../src/planning/autonomy/state-machine.js";
+import { createContextBudget } from "../../src/operations/config/context-budget.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import type { ExecutionContext } from "../../src/operations/observability/execution-context.js";
 import type {
   ModelAdapter,
   NormalizedRequest,
   NormalizedResponse,
   ToolCall,
   ToolDef,
-} from "../../src/providers/types.js";
+} from "../../src/models/providers/types.js";
 import type { RunResult } from "../../src/run.js";
-import type { TaskLoopDeps } from "../../src/run/task-loop.js";
-import type { TraceClient } from "../../src/tracing/client.js";
-import type * as NoopNamespace from "../../src/tracing/noop-client.js";
+import type { TaskLoopDeps } from "../../src/execution/run/task-loop.js";
+import type { TraceClient } from "../../src/models/tracing/client.js";
+import type * as NoopNamespace from "../../src/models/tracing/noop-client.js";
 
 import {
   FakeLangfuseSpanProcessor,
@@ -146,10 +146,10 @@ function installProbes() {
     probe.otelModuleEvaluations += 1;
     return { LangfuseSpanProcessor: FakeLangfuseSpanProcessor };
   });
-  vi.doMock("../../src/tracing/langfuse-client.js", async (importOriginal) => {
+  vi.doMock("../../src/models/tracing/langfuse-client.js", async (importOriginal) => {
     probe.adapterModuleEvaluations += 1;
     const actual =
-      await importOriginal<typeof import("../../src/tracing/langfuse-client.js")>();
+      await importOriginal<typeof import("../../src/models/tracing/langfuse-client.js")>();
     return actual;
   });
 }
@@ -159,11 +159,11 @@ function installProbes() {
 // fresh warn-once registry + fresh seams so getProcessTraceClient sees the memo)
 // ---------------------------------------------------------------------------
 
-const tracingFactory = () => import("../../src/tracing/client-factory.js");
-const noopModule = () => import("../../src/tracing/noop-client.js");
-const pcvModule = () => import("../../src/providers/provider-contract-validation.js");
-const execModule = () => import("../../src/tools/executor.js");
-const taskLoopModule = () => import("../../src/run/task-loop.js");
+const tracingFactory = () => import("../../src/models/tracing/client-factory.js");
+const noopModule = () => import("../../src/models/tracing/noop-client.js");
+const pcvModule = () => import("../../src/models/providers/provider-contract-validation.js");
+const execModule = () => import("../../src/capabilities/tools/executor.js");
+const taskLoopModule = () => import("../../src/execution/run/task-loop.js");
 
 async function loadSeams() {
   vi.resetModules();
@@ -368,7 +368,7 @@ function stubWarn() {
 
 /** Freshly import the credential-reference module in the CURRENT reset domain and spy on resolveCredential. */
 async function spyResolveCredential() {
-  const mod = await import("../../src/security/credentials/credential-reference.js");
+  const mod = await import("../../src/governance/security/credentials/credential-reference.js");
   return { resolveSpy: vi.spyOn(mod, "resolveCredential") };
 }
 
@@ -572,14 +572,14 @@ describe("T20 disabled + misconfigured regression guards", () => {
     // without unmocking both probed ids the previous scenario's cached export
     // map silently shadows this throw re-mock and the "enabled" branch would
     // construct normally instead of failing.
-    vi.doUnmock("../../src/tracing/langfuse-client.js");
+    vi.doUnmock("../../src/models/tracing/langfuse-client.js");
     vi.doUnmock("@langfuse/otel");
     vi.resetModules();
     vi.doMock("@langfuse/otel", () => {
       throw new Error("boom");
     });
-    const factory = await import("../../src/tracing/client-factory.js");
-    const noop = await import("../../src/tracing/noop-client.js");
+    const factory = await import("../../src/models/tracing/client-factory.js");
+    const noop = await import("../../src/models/tracing/noop-client.js");
     const warn = stubWarn();
 
     const config = tracingConfig({ enabled: true });
@@ -601,7 +601,7 @@ describe("T20 disabled + misconfigured regression guards", () => {
 
     warn.mockRestore();
     vi.doUnmock("@langfuse/otel");
-    vi.doUnmock("../../src/tracing/langfuse-client.js");
+    vi.doUnmock("../../src/models/tracing/langfuse-client.js");
     vi.resetModules();
   });
 
@@ -623,7 +623,7 @@ describe("T20 disabled + misconfigured regression guards", () => {
     // The enabled branch fired the dynamic import exactly once.
     expect(probe.adapterModuleEvaluations).toBe(1);
     expect(probe.otelModuleEvaluations).toBe(1);
-    expect(client).toBeInstanceOf((await import("../../src/tracing/langfuse-client.js")).LangfuseTraceClient);
+    expect(client).toBeInstanceOf((await import("../../src/models/tracing/langfuse-client.js")).LangfuseTraceClient);
     expect(fakeRecorder.instances).toHaveLength(1);
     const proc = fakeRecorder.instances[0]!;
     resetFakeCalls(proc);

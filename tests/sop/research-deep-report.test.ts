@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildResearchDeepReportGraph } from "../../src/sop/research-deep-report.js";
+import { buildResearchDeepReportGraph } from "../../src/coordination/sop/research-deep-report.js";
 
 describe("research.deep_report", () => {
 

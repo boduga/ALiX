@@ -1,7 +1,7 @@
 // tests/providers/_openai-base.test.ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { openaiBaseSpec } from "../../src/providers/specs/_openai-base.js";
+import { openaiBaseSpec } from "../../src/models/providers/specs/_openai-base.js";
 
 describe("openaiBaseSpec.toRequestBody", () => {
   it("maps system prompt to system message", () => {

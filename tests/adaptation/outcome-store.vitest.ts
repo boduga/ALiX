@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
-import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
+import { OutcomeStore } from "../../src/planning/adaptation/outcome-store.js";
+import type { OutcomeRecord } from "../../src/planning/adaptation/outcome-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

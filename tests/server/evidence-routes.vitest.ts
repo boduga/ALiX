@@ -6,8 +6,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { handleEvidenceRoute, type EvidenceRouteContext } from "../../src/server/evidence-routes.js";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
+import { handleEvidenceRoute, type EvidenceRouteContext } from "../../src/interfaces/server/evidence-routes.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

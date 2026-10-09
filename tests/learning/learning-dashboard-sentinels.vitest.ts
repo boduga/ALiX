@@ -32,9 +32,9 @@ const FORBIDDEN_IMPORTS = [
 ];
 
 const DASHBOARD_FILES = [
-  "src/learning/dashboard-integrity-score.ts",
-  "src/learning/learning-dashboard.ts",
-  "src/cli/commands/dashboard-renderer.ts",
+  "src/planning/learning/dashboard-integrity-score.ts",
+  "src/planning/learning/learning-dashboard.ts",
+  "src/interfaces/cli/commands/dashboard-renderer.ts",
 ];
 
 const FORBIDDEN_WRITE_CALLS = [

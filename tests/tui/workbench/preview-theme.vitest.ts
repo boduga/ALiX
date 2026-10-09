@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { getWorkbenchAgentPresentation, getWorkbenchPreviewTheme } from '../../../src/tui/workbench/model/preview-theme.js';
-import type { WorkbenchAgentState } from '../../../src/tui/workbench/model/agent-roster.js';
-import { displayWidth } from '../../../src/tui/terminal-text.js';
+import { getWorkbenchAgentPresentation, getWorkbenchPreviewTheme } from '../../../src/interfaces/tui/workbench/model/preview-theme.js';
+import type { WorkbenchAgentState } from '../../../src/interfaces/tui/workbench/model/agent-roster.js';
+import { displayWidth } from '../../../src/interfaces/tui/terminal-text.js';
 
 describe('Workbench preview accessibility', () => {
   const states: readonly [WorkbenchAgentState, string][] = [

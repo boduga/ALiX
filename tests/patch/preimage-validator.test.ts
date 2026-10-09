@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { PreimageValidator } from "../../src/patch/preimage-validator.js";
+import { PreimageValidator } from "../../src/execution/patch/preimage-validator.js";
 
 describe("PreimageValidator", () => {
   const testDir = join(process.cwd(), ".test-preimage");

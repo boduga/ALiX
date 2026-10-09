@@ -3,7 +3,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { CurationEngine } from "../../../src/evolution/knowledge/curation-engine.js";
+import { CurationEngine } from "../../../src/planning/evolution/knowledge/curation-engine.js";
 import {
   DEFAULT_CURATION_CONFIG,
   type CurationConfig,
@@ -13,8 +13,8 @@ import {
   type CurationFindingSeverity,
   type KnowledgeArtifact,
   type KnowledgeStore,
-} from "../../../src/evolution/knowledge/contracts/curation-contract.js";
-import type { AdapterResult } from "../../../src/evolution/knowledge/adapters/shared.js";
+} from "../../../src/planning/evolution/knowledge/contracts/curation-contract.js";
+import type { AdapterResult } from "../../../src/planning/evolution/knowledge/adapters/shared.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

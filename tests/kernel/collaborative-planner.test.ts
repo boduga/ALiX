@@ -4,15 +4,15 @@ import {
   normalizeCapability,
   matchCapabilities,
   CollaborativePlanner,
-} from "../../src/kernel/collaborative-planner.js";
+} from "../../src/coordination/kernel/collaborative-planner.js";
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import type { CoordinationPlanner, CoordinationPlanResult } from "../../src/kernel/coordination-planner.js";
-import type { CoordinationRun, PlanningRound, WorkerAssignment, PlanDiffEntry, PlanRevision, PlanTriggerKind } from "../../src/kernel/coordination-types.js";
-import type { CollaborativePlannerOptions, CollaborativePlanResult, ReplanContext, ReplanResult } from "../../src/kernel/collaborative-planner.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import type { CoordinationPlanner, CoordinationPlanResult } from "../../src/coordination/kernel/coordination-planner.js";
+import type { CoordinationRun, PlanningRound, WorkerAssignment, PlanDiffEntry, PlanRevision, PlanTriggerKind } from "../../src/coordination/kernel/coordination-types.js";
+import type { CollaborativePlannerOptions, CollaborativePlanResult, ReplanContext, ReplanResult } from "../../src/coordination/kernel/collaborative-planner.js";
 
 // ─── normalizeCapability ──────────────────────────────────────────────
 

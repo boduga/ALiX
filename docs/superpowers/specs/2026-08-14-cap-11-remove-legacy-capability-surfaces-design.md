@@ -60,7 +60,7 @@ CAP-11 inherits all CAP-8/9/10 conventions: composition-root boundary, optional 
 | # | Ruling | Gist |
 |---|--------|------|
 | 1 | CAP-10.5 stays separate | M1 signal emission is independent ticket; CAP-11 is pure deletion |
-| 2 | CLI namespace | Create `src/cli/commands/capability.ts` (singular) as sole namespace dispatcher |
+| 2 | CLI namespace | Create `src/interfaces/cli/commands/capability.ts` (singular) as sole namespace dispatcher |
 | 3 | Sentinel scope | New `cap-11-structural-cleanup-sentinel.vitest.ts` separate from `five-axis`; delete `four-axis-sentinel.vitest.ts` (M5 closure) |
 | 4 | Overlay mechanics | Remove rehydration machinery only; keep canonical `lifecycleState` on `CapabilityRegistry` |
 | 5 | Test removal | Wholesale deletion of 15 A7.1 tests + rollback test; update mutation-executor-integration in place |
@@ -79,7 +79,7 @@ CAP-11 inherits all CAP-8/9/10 conventions: composition-root boundary, optional 
 ```text
 BEFORE (post-CAP-10)
 ─────────────────────
-src/evolution/capability-lifecycle/
+src/planning/evolution/capability-lifecycle/
 ├── capability-execution-projection.ts
 ├── capability-governance-bridge.ts
 ├── capability-lifecycle-analyzer.ts
@@ -94,9 +94,9 @@ src/evolution/capability-lifecycle/
 ├── errors.ts
 └── index.ts
 
-src/capability/evolution/a7-proposals.ts   ← CAP-9 A7ProposalGenerator (KEEP)
+src/capabilities/capability/evolution/a7-proposals.ts   ← CAP-9 A7ProposalGenerator (KEEP)
 
-src/cli/commands/capabilities.ts           ← CAP-8 re-export shim (DELETE)
+src/interfaces/cli/commands/capabilities.ts           ← CAP-8 re-export shim (DELETE)
 src/cli.ts                                 ← has lifecycle overlay wiring (CLEAN)
 
 tests/evolution/capability-lifecycle/      ← 15 files (DELETE)
@@ -109,13 +109,13 @@ tests/capability/four-axis-sentinel.vitest.ts   ← (DELETE; CAP-10 M5 closure)
 
 AFTER (post-CAP-11)
 ────────────────────
-src/capability/evolution/a7-proposals.ts   ← unchanged (CAP-9 active)
-src/cli/commands/capability.ts             ← NEW: sole namespace dispatcher
-src/cli/commands/capability-proposals.ts   ← unchanged (CAP-9)
-src/cli/commands/capability-measure.ts     ← unchanged (CAP-10)
-src/cli/commands/capabilities.ts           ← DELETED
+src/capabilities/capability/evolution/a7-proposals.ts   ← unchanged (CAP-9 active)
+src/interfaces/cli/commands/capability.ts             ← NEW: sole namespace dispatcher
+src/interfaces/cli/commands/capability-proposals.ts   ← unchanged (CAP-9)
+src/interfaces/cli/commands/capability-measure.ts     ← unchanged (CAP-10)
+src/interfaces/cli/commands/capabilities.ts           ← DELETED
 
-src/capability/platform.ts                 ← catalog/registry private; service public
+src/capabilities/capability/platform.ts                 ← catalog/registry private; service public
 src/cli.ts                                 ← singular `capability` block; no ledger
 
 tests/capability/
@@ -157,7 +157,7 @@ External consumers reach capabilities exclusively via `platform.service.*`. Test
 ### 4.3 CLI namespace shape
 
 ```typescript
-// src/cli/commands/capability.ts (NEW)
+// src/interfaces/cli/commands/capability.ts (NEW)
 export interface CapabilityCommandDeps {
   readonly service: CapabilityService;
   readonly cwd: string;
@@ -211,7 +211,7 @@ No `JsonlCapabilityLifecycleLedger` import. No `rehydrateLifecycleOverlay` call.
 |------|---------|
 | 1 | `APPROVED_PENDING_APPLICATION` literal not present in any source file |
 | 2 | No `lifecycle-overlay` machinery; `rehydrateLifecycleOverlay` not called |
-| 3 | No file under `src/evolution/capability-lifecycle/` exists |
+| 3 | No file under `src/planning/evolution/capability-lifecycle/` exists |
 | 4 | No second CLI registry construction; only `CapabilityPlatform` constructs `CapabilityRegistry` |
 | 5 | Exactly one catalog/registry/service composition root |
 
@@ -220,12 +220,12 @@ No `JsonlCapabilityLifecycleLedger` import. No `rehydrateLifecycleOverlay` call.
 ```typescript
 // Files that MUST NOT exist after CAP-11:
 const DELETED_FILES = [
-  "src/evolution/capability-lifecycle/capability-lifecycle-applier.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-cli.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-rehydration.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-applier.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-cli.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-rehydration.ts",
   // ... 13 files total
-  "src/cli/commands/capabilities.ts",  // CAP-8 shim
+  "src/interfaces/cli/commands/capabilities.ts",  // CAP-8 shim
   "tests/capability/four-axis-sentinel.vitest.ts",
 ];
 
@@ -315,10 +315,10 @@ External code never reaches `platform.registry` / `platform.catalog` — those a
 
 ### 7.1 CAP-11 owns
 
-- Deletion of `src/evolution/capability-lifecycle/*` (13 files)
-- Deletion of `src/cli/commands/capabilities.ts` (CAP-8 shim)
-- Creation of `src/cli/commands/capability.ts` (singular namespace dispatcher)
-- Refactor of `src/capability/platform.ts` to make `catalog`/`registry` private
+- Deletion of `src/planning/evolution/capability-lifecycle/*` (13 files)
+- Deletion of `src/interfaces/cli/commands/capabilities.ts` (CAP-8 shim)
+- Creation of `src/interfaces/cli/commands/capability.ts` (singular namespace dispatcher)
+- Refactor of `src/capabilities/capability/platform.ts` to make `catalog`/`registry` private
 - Refactor of `src/cli.ts` to register only `command === "capability"` (singular)
 - Deletion of `tests/evolution/capability-lifecycle/*` (15 files)
 - Deletion of `tests/evolution/execution/capability-mutation-rollback.test.ts`
@@ -333,12 +333,12 @@ External code never reaches `platform.registry` / `platform.catalog` — those a
 
 ### 7.2 CAP-11 forbids
 
-- `src/capability/evolution/a7-proposals.ts` (CAP-9 active; do not delete)
-- `src/capability/initial-capabilities.ts` (CAP-8 forbidden, preserved)
-- `src/tools/tool-registry.ts` (CAP-8 forbidden)
-- `src/policy/capability-registry.ts` (CAP-8 forbidden)
-- `src/capability/canonical/*` (CAP-8 forbidden)
-- `src/tui/capabilities/capability-service.ts` (CAP-7/9 forbidden TUI façade — pre-CAP-11 debt, NOT CAP-11's deletion)
+- `src/capabilities/capability/evolution/a7-proposals.ts` (CAP-9 active; do not delete)
+- `src/capabilities/capability/initial-capabilities.ts` (CAP-8 forbidden, preserved)
+- `src/capabilities/tools/tool-registry.ts` (CAP-8 forbidden)
+- `src/governance/policy/capability-registry.ts` (CAP-8 forbidden)
+- `src/capabilities/capability/canonical/*` (CAP-8 forbidden)
+- `src/interfaces/tui/capabilities/capability-service.ts` (CAP-7/9 forbidden TUI façade — pre-CAP-11 debt, NOT CAP-11's deletion)
 - All CAP-8/9/10 production code (composition-root boundary, optional ctor deps, governance purity, sentinel axes preserved)
 - Any behavior addition (CAP-11 ships no new behavior; pure deletion only)
 
@@ -418,7 +418,7 @@ The `cap-11-supersession.test.ts` file is the permanent deletion-purity guard. I
 - Behavior additions (CAP-11 ships no new behavior)
 - CAP-10.5 M1 signal emission work
 - CAP-12 e2e loop wiring
-- Deletion of `src/tui/capabilities/capability-service.ts` (CAP-7/9 debt, not CAP-11)
+- Deletion of `src/interfaces/tui/capabilities/capability-service.ts` (CAP-7/9 debt, not CAP-11)
 - Capability-platform feature additions (focus on deletion)
 - Migration tooling for any external A7.1 consumers (none exist in this repo)
 
@@ -435,5 +435,5 @@ The `cap-11-supersession.test.ts` file is the permanent deletion-purity guard. I
 - CAP-11 Rulings — `memory/cap-11-rulings-locked.md` (10 locked)
 - A7.0 Capability Marketplace — `docs/architecture/checkpoints/2026-08-10-a7-capability-marketplace-checkpoint.md`
 - A7.1 Capability Application — `docs/architecture/checkpoints/2026-08-10-a7-1-capability-application-checkpoint.md`
-- A4 Capability Mutation Executor — `src/evolution/execution/capability-mutation-executor.ts`
-- A7 Proposal Generator (CAP-9, preserved) — `src/capability/evolution/a7-proposals.ts`
+- A4 Capability Mutation Executor — `src/planning/evolution/execution/capability-mutation-executor.ts`
+- A7 Proposal Generator (CAP-9, preserved) — `src/capabilities/capability/evolution/a7-proposals.ts`

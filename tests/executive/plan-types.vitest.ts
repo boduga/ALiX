@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { behaviorFor, READ_ONLY_ACTIONS, INVESTIGATION_ACTIONS, MUTATION_ACTIONS, STEP_BEHAVIOR } from "../../src/executive/step-behavior.js";
-import type { ExecutionStepAction } from "../../src/executive/execution-plan-builder.js";
+import { behaviorFor, READ_ONLY_ACTIONS, INVESTIGATION_ACTIONS, MUTATION_ACTIONS, STEP_BEHAVIOR } from "../../src/execution/executive/step-behavior.js";
+import type { ExecutionStepAction } from "../../src/execution/executive/execution-plan-builder.js";
 
-import { validateStateStepIds } from "../../src/executive/executive-plan-types.js";
-import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/executive/executive-plan-types.js";
+import { validateStateStepIds } from "../../src/execution/executive/executive-plan-types.js";
+import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/execution/executive/executive-plan-types.js";
 
 // ---------------------------------------------------------------------------
 // step-behavior tests

@@ -3,8 +3,8 @@ import {
   buildExecutionTrace, createTraceState, reconcileEvents, materializeTrace,
   createExecutionTraceBuilder, createExecutionTraceRetention, computeExecutionTrace,
   IncrementalExecutionTraceBuilder,
-} from '../../../src/tui/runtime/execution-trace-builder.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+} from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 let seq = 0;
 beforeEach(() => { seq = 0; });

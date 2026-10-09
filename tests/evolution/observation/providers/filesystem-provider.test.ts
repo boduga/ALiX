@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { FilesystemObservationProvider } from "../../../../src/evolution/observation/providers/filesystem-provider.js";
+import { FilesystemObservationProvider } from "../../../../src/planning/evolution/observation/providers/filesystem-provider.js";
 
 describe("FilesystemObservationProvider", () => {
   const provider = new FilesystemObservationProvider();

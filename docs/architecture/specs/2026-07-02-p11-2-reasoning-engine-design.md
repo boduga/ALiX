@@ -368,7 +368,7 @@ Findings: 2 degraded subsystems
 
 ### 6.5 Registration
 
-Add `case "reason"` to `src/cli/commands/executive.ts` with dynamic import pattern:
+Add `case "reason"` to `src/interfaces/cli/commands/executive.ts` with dynamic import pattern:
 ```typescript
 case "reason": {
   const { handleReasonCommand } = await import("./executive-reason-handler.js");
@@ -440,12 +440,12 @@ Update the `default` case's available subcommands list.
 
 | File | Purpose |
 |---|---|
-| `src/reasoning/reasoning-types.ts` | Type definitions: `RootCauseAnalysis`, `CausalFinding`, `LikelyCause`, `CausalMechanism`, `ReasoningEngineConfig`, `AnalysisStatus`, `RootCauseAnalysisError` |
-| `src/reasoning/reasoning-config.ts` | Default config export |
-| `src/reasoning/build-root-cause-analysis.ts` | Pure function `buildRootCauseAnalysis(graph, config) → RootCauseAnalysis` |
-| `src/reasoning/root-cause-store.ts` | Append-only JSONL store with `save`, `loadLatest`, `loadById`, `list` |
-| `src/reasoning/reasoning-engine.ts` | Orchestrator: loads graph → calls pure function → saves |
-| `src/cli/commands/executive-reason-handler.ts` | CLI handler for `alix executive reason` |
+| `src/planning/reasoning/reasoning-types.ts` | Type definitions: `RootCauseAnalysis`, `CausalFinding`, `LikelyCause`, `CausalMechanism`, `ReasoningEngineConfig`, `AnalysisStatus`, `RootCauseAnalysisError` |
+| `src/planning/reasoning/reasoning-config.ts` | Default config export |
+| `src/planning/reasoning/build-root-cause-analysis.ts` | Pure function `buildRootCauseAnalysis(graph, config) → RootCauseAnalysis` |
+| `src/planning/reasoning/root-cause-store.ts` | Append-only JSONL store with `save`, `loadLatest`, `loadById`, `list` |
+| `src/planning/reasoning/reasoning-engine.ts` | Orchestrator: loads graph → calls pure function → saves |
+| `src/interfaces/cli/commands/executive-reason-handler.ts` | CLI handler for `alix executive reason` |
 | `tests/reasoning/build-root-cause-analysis.vitest.ts` | 11 pure function tests |
 | `tests/reasoning/reasoning-engine.vitest.ts` | 3 engine tests |
 | `tests/reasoning/root-cause-store.vitest.ts` | 4 store tests |

@@ -18,11 +18,11 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ReplanImpactAnalyzer } from "../../src/kernel/replan-impact-analyzer.js";
-import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
-import { createWorkerAssignment } from "../../src/kernel/coordination-types.js";
-import type { PlanRevisionDraft, SimulatedGraph } from "../../src/kernel/replan-types.js";
-import type { WorkerAssignment } from "../../src/kernel/coordination-types.js";
+import { ReplanImpactAnalyzer } from "../../src/coordination/kernel/replan-impact-analyzer.js";
+import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
+import { createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import type { PlanRevisionDraft, SimulatedGraph } from "../../src/coordination/kernel/replan-types.js";
+import type { WorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 

@@ -9,7 +9,7 @@ import {
   resolveExplicitSkills,
   spliceSkillsSection,
   spliceExplicitIntoFirstTurn,
-} from "../../src/agent/session.js";
+} from "../../src/agents/agent/session.js";
 
 let home: string;
 let origHome: string | undefined;
@@ -230,10 +230,10 @@ describe("Tab 4 fix — processChat unchanged", () => {
     const { dirname, join } = await import("node:path");
     const __dirname = dirname(fileURLToPath(import.meta.url));
     // Test files are compiled to dist/tests/agent/ from tests/agent/. The
-    // chat path lives at src/agent/session/chat.ts (#717 5b split;
-    // src/agent/session.ts is a re-export barrel). From dist/tests/agent/ we
-    // walk up three levels (→ repo root) then into src/agent/.
-    const sessionSrcPath = join(__dirname, "..", "..", "..", "src", "agent", "session", "chat.ts");
+    // chat path lives at src/agents/agent/session/chat.ts (#717 5b split;
+    // src/agents/agent/session.ts is a re-export barrel). From dist/tests/agent/ we
+    // walk up three levels (→ repo root) then into src/agents/agent/.
+    const sessionSrcPath = join(__dirname, "..", "..", "..", "src", "agents", "agent", "session", "chat.ts");
     const src = readFileSync(sessionSrcPath, "utf8");
 
     // Extract the processChat body — since T10 the execution body lives in

@@ -23,11 +23,11 @@
 
 ## Grounding (established by exploration — do not re-derive)
 
-- `ReflectionAgent.computeMetrics()` (`src/reflection/reflection-agent.ts:83-108`) derives all six `ReflectionMetrics` from `EvidenceStore.query()` counts: `workflowsCompleted`←`merge_completed`, `workflowsBlocked`←`workflow_blocked`, `workflowsAborted`←`workflow_aborted`, `capabilitiesRequested`←`capability_routed.total`, `unresolvedCapabilities`←`capability_routed` records with `payload.candidates===0`, `reviewApprovalRate`←`verdict==="approve"` / total. It passes **no time window** today.
-- `EvidenceStore.query()` (`src/security/evidence/evidence-store.ts:177-222`) streams the JSONL and returns `{ records (capped to limit), total (TRUE uncapped count), truncated }`. `matches()` (`:391-397`): `after` keeps `timestamp > after` (exclusive), `before` keeps `timestamp < before` (exclusive). So `{after: T-7d, before: T}` vs `{after: T, before: now}` partitions cleanly around `T`.
+- `ReflectionAgent.computeMetrics()` (`src/planning/reflection/reflection-agent.ts:83-108`) derives all six `ReflectionMetrics` from `EvidenceStore.query()` counts: `workflowsCompleted`←`merge_completed`, `workflowsBlocked`←`workflow_blocked`, `workflowsAborted`←`workflow_aborted`, `capabilitiesRequested`←`capability_routed.total`, `unresolvedCapabilities`←`capability_routed` records with `payload.candidates===0`, `reviewApprovalRate`←`verdict==="approve"` / total. It passes **no time window** today.
+- `EvidenceStore.query()` (`src/governance/security/evidence/evidence-store.ts:177-222`) streams the JSONL and returns `{ records (capped to limit), total (TRUE uncapped count), truncated }`. `matches()` (`:391-397`): `after` keeps `timestamp > after` (exclusive), `before` keeps `timestamp < before` (exclusive). So `{after: T-7d, before: T}` vs `{after: T, before: now}` partitions cleanly around `T`.
 - `ApprovalGate.apply(id, applier)` sets `status:"applied"` + `appliedAt` and records `adaptation_applied` (carries `proposalId`+`appliedAt`) — the anchor for the before/after boundary.
-- `AdaptationProposal.sourceRecommendationType` is preserved by `RecommendationToProposal.convert()` (`src/adaptation/recommendation-to-proposal.ts:108`) → maps each proposal to its intended metric.
-- Goals (`src/workflow/goal-types.ts`) have **no outcome tracking** — effectiveness leans on `ReflectionMetrics`, not goals.
+- `AdaptationProposal.sourceRecommendationType` is preserved by `RecommendationToProposal.convert()` (`src/planning/adaptation/recommendation-to-proposal.ts:108`) → maps each proposal to its intended metric.
+- Goals (`src/coordination/workflow/goal-types.ts`) have **no outcome tracking** — effectiveness leans on `ReflectionMetrics`, not goals.
 
 ---
 
@@ -35,14 +35,14 @@
 
 | File | Role |
 |------|------|
-| `src/reflection/metrics-snapshot.ts` | **Create** — `computeMetricsSnapshot(store, window?)`; shared windowed metrics fn |
-| `src/reflection/reflection-agent.ts` | **Modify** — `computeMetrics()` delegates to the new fn (behavior-identical) |
-| `src/adaptation/effectiveness-types.ts` | **Create** — `ProposalEffectivenessReport`, `MetricsDelta`, `RECOMMENDATION_METRIC_MAP` |
-| `src/adaptation/effectiveness-reporter.ts` | **Create** — `EffectivenessReporter.assess(proposal, opts)` (pure compute) |
-| `src/adaptation/effectiveness-store.ts` | **Create** — `save/load/list` for reports (mirrors `ProposalStore`) |
-| `src/security/evidence/evidence-types.ts` | **Modify** — add `adaptation_effectiveness` to `EvidenceType` + `EVIDENCE_TYPES` |
-| `src/workflow/evidence-writer.ts` | **Modify** — add `recordAdaptationEffectiveness()` (mirrors `recordAdaptationApplied`) |
-| `src/cli/commands/adaptation.ts` | **Modify** — `effectiveness <id>` + `--all` subcommand |
+| `src/planning/reflection/metrics-snapshot.ts` | **Create** — `computeMetricsSnapshot(store, window?)`; shared windowed metrics fn |
+| `src/planning/reflection/reflection-agent.ts` | **Modify** — `computeMetrics()` delegates to the new fn (behavior-identical) |
+| `src/planning/adaptation/effectiveness-types.ts` | **Create** — `ProposalEffectivenessReport`, `MetricsDelta`, `RECOMMENDATION_METRIC_MAP` |
+| `src/planning/adaptation/effectiveness-reporter.ts` | **Create** — `EffectivenessReporter.assess(proposal, opts)` (pure compute) |
+| `src/planning/adaptation/effectiveness-store.ts` | **Create** — `save/load/list` for reports (mirrors `ProposalStore`) |
+| `src/governance/security/evidence/evidence-types.ts` | **Modify** — add `adaptation_effectiveness` to `EvidenceType` + `EVIDENCE_TYPES` |
+| `src/coordination/workflow/evidence-writer.ts` | **Modify** — add `recordAdaptationEffectiveness()` (mirrors `recordAdaptationApplied`) |
+| `src/interfaces/cli/commands/adaptation.ts` | **Modify** — `effectiveness <id>` + `--all` subcommand |
 | tests | `tests/reflection/metrics-snapshot.vitest.ts`, `tests/adaptation/effectiveness-*.vitest.ts`, extend `tests/cli/commands/adaptation.vitest.ts` |
 
 ---
@@ -50,8 +50,8 @@
 ## Task 1: P5.2b.1 — Windowed MetricsSnapshot (extract + reuse)
 
 **Files:**
-- Create: `src/reflection/metrics-snapshot.ts`
-- Modify: `src/reflection/reflection-agent.ts` (delegation only)
+- Create: `src/planning/reflection/metrics-snapshot.ts`
+- Modify: `src/planning/reflection/reflection-agent.ts` (delegation only)
 - Test: `tests/reflection/metrics-snapshot.vitest.ts`
 
 **Interfaces:**
@@ -66,8 +66,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import { computeMetricsSnapshot } from "../../src/reflection/metrics-snapshot.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
+import { computeMetricsSnapshot } from "../../src/planning/reflection/metrics-snapshot.js";
 
 let n = 0;
 function line(type: string, ts: string, payload: Record<string, unknown> = {}) {
@@ -117,7 +117,7 @@ describe("computeMetricsSnapshot", () => {
 
 - [ ] **Step 2: Run test → FAIL** — `npx vitest run tests/reflection/metrics-snapshot.vitest.ts` (module not found).
 
-- [ ] **Step 3: Implement** — `src/reflection/metrics-snapshot.ts`
+- [ ] **Step 3: Implement** — `src/planning/reflection/metrics-snapshot.ts`
 
 ```typescript
 /**
@@ -175,13 +175,13 @@ export async function computeMetricsSnapshot(
 }
 ```
 
-- [ ] **Step 4: Refactor `ReflectionAgent`** — in `src/reflection/reflection-agent.ts`, replace the body of `private async computeMetrics()` with `return computeMetricsSnapshot(this.storeForMetrics);` and add `import { computeMetricsSnapshot } from "./metrics-snapshot.js";`. No other change. Run the existing reflection suite to confirm behavior is identical.
+- [ ] **Step 4: Refactor `ReflectionAgent`** — in `src/planning/reflection/reflection-agent.ts`, replace the body of `private async computeMetrics()` with `return computeMetricsSnapshot(this.storeForMetrics);` and add `import { computeMetricsSnapshot } from "./metrics-snapshot.js";`. No other change. Run the existing reflection suite to confirm behavior is identical.
 
 - [ ] **Step 5: Run tests → PASS** — `npx vitest run tests/reflection/` (new + existing reflection tests green).
 
 - [ ] **Step 6: Commit**
 ```bash
-git add src/reflection/metrics-snapshot.ts src/reflection/reflection-agent.ts tests/reflection/metrics-snapshot.vitest.ts
+git add src/planning/reflection/metrics-snapshot.ts src/planning/reflection/reflection-agent.ts tests/reflection/metrics-snapshot.vitest.ts
 git commit -m "feat(p5.2b.1): extract windowed computeMetricsSnapshot for before/after measurement"
 ```
 
@@ -190,7 +190,7 @@ git commit -m "feat(p5.2b.1): extract windowed computeMetricsSnapshot for before
 ## Task 2: P5.2b.2 — Effectiveness types + metric map
 
 **Files:**
-- Create: `src/adaptation/effectiveness-types.ts`
+- Create: `src/planning/adaptation/effectiveness-types.ts`
 - Test: `tests/adaptation/effectiveness-types.vitest.ts`
 
 **Interfaces:**
@@ -200,8 +200,8 @@ git commit -m "feat(p5.2b.1): extract windowed computeMetricsSnapshot for before
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { RECOMMENDATION_METRIC_MAP } from "../../src/adaptation/effectiveness-types.js";
-import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
+import { RECOMMENDATION_METRIC_MAP } from "../../src/planning/adaptation/effectiveness-types.js";
+import type { ProposalEffectivenessReport } from "../../src/planning/adaptation/effectiveness-types.js";
 
 describe("effectiveness types", () => {
   it("maps capability proposals to unresolvedCapabilities (lower is better)", () => {
@@ -233,7 +233,7 @@ describe("effectiveness types", () => {
 
 - [ ] **Step 2: Run → FAIL** (module not found).
 
-- [ ] **Step 3: Implement** — `src/adaptation/effectiveness-types.ts`
+- [ ] **Step 3: Implement** — `src/planning/adaptation/effectiveness-types.ts`
 
 ```typescript
 /**
@@ -300,7 +300,7 @@ export interface ProposalEffectivenessReport {
 ## Task 3: P5.2b.3 — EffectivenessReporter (pure compute)
 
 **Files:**
-- Create: `src/adaptation/effectiveness-reporter.ts`
+- Create: `src/planning/adaptation/effectiveness-reporter.ts`
 - Test: `tests/adaptation/effectiveness-reporter.vitest.ts`
 
 **Interfaces:**
@@ -314,9 +314,9 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import { EffectivenessReporter } from "../../src/adaptation/effectiveness-reporter.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
+import { EffectivenessReporter } from "../../src/planning/adaptation/effectiveness-reporter.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 let n = 0;
 function line(type: string, ts: string, payload: Record<string, unknown> = {}) {
@@ -370,7 +370,7 @@ describe("EffectivenessReporter", () => {
 });
 ```
 
-- [ ] **Step 2: Run → FAIL**. **Step 3: Implement** `src/adaptation/effectiveness-reporter.ts`:
+- [ ] **Step 2: Run → FAIL**. **Step 3: Implement** `src/planning/adaptation/effectiveness-reporter.ts`:
 
 ```typescript
 /**
@@ -444,13 +444,13 @@ function decide(primary: MetricsDelta | null, dataSufficient: boolean): { recomm
 ## Task 4: P5.2b.4 — EffectivenessStore (persistence)
 
 **Files:**
-- Create: `src/adaptation/effectiveness-store.ts`
+- Create: `src/planning/adaptation/effectiveness-store.ts`
 - Test: `tests/adaptation/effectiveness-store.vitest.ts`
 
 **Interfaces:** mirrors `ProposalStore`. Produces `EffectivenessStore` with `save(report) / load(proposalId) / list()`.
 
 - [ ] **Step 1: Failing test** — round-trip save→load; list returns saved; load missing → null. Mirror `tests/adaptation/proposal-store.vitest.ts` style (mkdtemp, afterEach rm).
-- [ ] **Step 2: Run → FAIL**. **Step 3: Implement** `src/adaptation/effectiveness-store.ts` (copy `ProposalStore` structure; key files by `report.proposalId`; `save/load(proposalId)/list()`).
+- [ ] **Step 2: Run → FAIL**. **Step 3: Implement** `src/planning/adaptation/effectiveness-store.ts` (copy `ProposalStore` structure; key files by `report.proposalId`; `save/load(proposalId)/list()`).
 ```typescript
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -481,8 +481,8 @@ export class EffectivenessStore {
 ## Task 5: P5.2b.5 — `adaptation_effectiveness` evidence event
 
 **Files:**
-- Modify: `src/security/evidence/evidence-types.ts` (add type + set entry)
-- Modify: `src/workflow/evidence-writer.ts` (add writer method)
+- Modify: `src/governance/security/evidence/evidence-types.ts` (add type + set entry)
+- Modify: `src/coordination/workflow/evidence-writer.ts` (add writer method)
 - Test: `tests/security/evidence/evidence-writer.adaptation.vitest.ts` (extend or create)
 
 - [ ] **Step 0: Impact analysis** — `gitnexus_impact({ target: "EvidenceType", ... })` and on the writer. Expected LOW (additive enum member + new method).
@@ -507,7 +507,7 @@ async recordAdaptationEffectiveness(
 ## Task 6: P5.2b.6 — CLI `alix adaptation effectiveness <id> | --all`
 
 **Files:**
-- Modify: `src/cli/commands/adaptation.ts` (new subcommand + helper + help line + `EFFECTIVENESS_DIR` constant)
+- Modify: `src/interfaces/cli/commands/adaptation.ts` (new subcommand + helper + help line + `EFFECTIVENESS_DIR` constant)
 - Test: extend `tests/cli/commands/adaptation.vitest.ts`
 
 - [ ] **Step 0: Impact analysis** — `gitnexus_impact({ target: "handleAdaptationCommand", ... })`. The function is CLI-internal; additive `case` branch.

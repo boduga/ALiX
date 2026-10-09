@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { SkillCatalog, type SkillEntry } from "../../src/skills/catalog.js";
+import { SkillCatalog, type SkillEntry } from "../../src/capabilities/skills/catalog.js";
 
 function entry(name: string, trigger?: string): SkillEntry {
   return {

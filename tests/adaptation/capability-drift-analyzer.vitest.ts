@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { CapabilityDriftAnalyzer } from "../../src/adaptation/capability-drift-analyzer.js";
+import { CapabilityDriftAnalyzer } from "../../src/planning/adaptation/capability-drift-analyzer.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

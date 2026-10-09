@@ -6,8 +6,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
-import { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
+import { EvidenceStore } from "../../../src/governance/security/evidence/evidence-store.js";
+import { EvidenceEventWriter } from "../../../src/coordination/workflow/evidence-writer.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -53,7 +53,7 @@ describe("EvidenceEventWriter revert events", () => {
       const r = await writer.recordSnapshotTaken("prop-1", {
         snapshotFingerprint: "abc123snap",
         contentHash: "sha256def456",
-        filePath: "src/config/card.json",
+        filePath: "src/operations/config/card.json",
       });
 
       expect(r).not.toBeNull();
@@ -61,7 +61,7 @@ describe("EvidenceEventWriter revert events", () => {
       expect(r!.payload.proposalId).toBe("prop-1");
       expect(r!.payload.snapshotFingerprint).toBe("abc123snap");
       expect(r!.payload.contentHash).toBe("sha256def456");
-      expect(r!.payload.filePath).toBe("src/config/card.json");
+      expect(r!.payload.filePath).toBe("src/operations/config/card.json");
     });
 
     it("returns a valid EvidenceRecord shape", async () => {

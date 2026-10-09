@@ -6,11 +6,11 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { runObserve } from "../../../src/evolution/observation/observation-cli.js";
-import { ObservationEngine } from "../../../src/evolution/observation/observation-engine.js";
-import { CliObservationProvider } from "../../../src/evolution/observation/providers/cli-provider.js";
-import { FilesystemObservationProvider } from "../../../src/evolution/observation/providers/filesystem-provider.js";
-import { ExecutionEvidenceStore } from "../../../src/evolution/verification/evidence/evidence-store.js";
+import { runObserve } from "../../../src/planning/evolution/observation/observation-cli.js";
+import { ObservationEngine } from "../../../src/planning/evolution/observation/observation-engine.js";
+import { CliObservationProvider } from "../../../src/planning/evolution/observation/providers/cli-provider.js";
+import { FilesystemObservationProvider } from "../../../src/planning/evolution/observation/providers/filesystem-provider.js";
+import { ExecutionEvidenceStore } from "../../../src/planning/evolution/verification/evidence/evidence-store.js";
 
 describe("runObserve", () => {
   let engine: ObservationEngine;

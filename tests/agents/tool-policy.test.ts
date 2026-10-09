@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getToolPolicy, filterTools, WRITE_TOOLS } from "../../src/agents/tool-policy.js";
 import { ALIX_CANONICAL_BUILTIN_TOOLS } from "../../src/agents/tool-manifest.js";
-import type { ToolDef } from "../../src/providers/types.js";
+import type { ToolDef } from "../../src/models/providers/types.js";
 
 test("getToolPolicy returns read-only for explorer role", () => {
   const policy = getToolPolicy("explorer");

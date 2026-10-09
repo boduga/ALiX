@@ -7,10 +7,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { SubsystemTimeMatcher, computeSubsystemCorrelation, CorrelationMode } from "../../src/executive/subsystem-correlation.js";
-import type { OutcomeReportRef } from "../../src/executive/subsystem-correlation.js";
-import type { RecommendationEntry } from "../../src/executive/recommendation-effectiveness.js";
-import type { ExecutiveOutcomeEvaluationReport, SubsystemDelta } from "../../src/executive/outcome-evaluator.js";
+import { SubsystemTimeMatcher, computeSubsystemCorrelation, CorrelationMode } from "../../src/execution/executive/subsystem-correlation.js";
+import type { OutcomeReportRef } from "../../src/execution/executive/subsystem-correlation.js";
+import type { RecommendationEntry } from "../../src/execution/executive/recommendation-effectiveness.js";
+import type { ExecutiveOutcomeEvaluationReport, SubsystemDelta } from "../../src/execution/executive/outcome-evaluator.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildScopeDenialMessage,
   buildScopeRejectionSummary,
-} from "../../src/run/event-handlers.js";
+} from "../../src/execution/run/event-handlers.js";
 
 test("buildScopeDenialMessage returns proper message format", () => {
   const toolCallId = "call-123";

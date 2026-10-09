@@ -21,7 +21,7 @@ import {
   createProposalRecord,
   createTriggerEvidence,
   createDraftWorkerSpec,
-} from "../../src/kernel/replan-types.js";
+} from "../../src/coordination/kernel/replan-types.js";
 import type {
   PlanRevisionDraft,
   ModelReplanContext,
@@ -31,28 +31,28 @@ import type {
   TriggerEvidence,
   ValidationResult,
   DraftWorkerSpec,
-} from "../../src/kernel/replan-types.js";
-import { ModelReplanAdapter, ReplanAdapterError } from "../../src/kernel/model-replan-adapter.js";
-import { ReplanValidator } from "../../src/kernel/replan-validator.js";
-import { ReplanSimulator } from "../../src/kernel/replan-simulator.js";
-import { ReplanImpactAnalyzer } from "../../src/kernel/replan-impact-analyzer.js";
-import type { AnalyzeResult, AgentAssignment } from "../../src/kernel/replan-impact-analyzer.js";
-import { ReplanProposalStore } from "../../src/kernel/replan-proposal-store.js";
-import { ReplanApprovalGate } from "../../src/kernel/replan-approval-gate.js";
-import { ReplanApplier } from "../../src/kernel/replan-applier.js";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
+} from "../../src/coordination/kernel/replan-types.js";
+import { ModelReplanAdapter, ReplanAdapterError } from "../../src/coordination/kernel/model-replan-adapter.js";
+import { ReplanValidator } from "../../src/coordination/kernel/replan-validator.js";
+import { ReplanSimulator } from "../../src/coordination/kernel/replan-simulator.js";
+import { ReplanImpactAnalyzer } from "../../src/coordination/kernel/replan-impact-analyzer.js";
+import type { AnalyzeResult, AgentAssignment } from "../../src/coordination/kernel/replan-impact-analyzer.js";
+import { ReplanProposalStore } from "../../src/coordination/kernel/replan-proposal-store.js";
+import { ReplanApprovalGate } from "../../src/coordination/kernel/replan-approval-gate.js";
+import { ReplanApplier } from "../../src/coordination/kernel/replan-applier.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
 import {
   createCoordinationRun,
   createWorkerAssignment,
-} from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/coordination-types.js";
 import type {
   CoordinationRun,
   WorkerAssignment,
   PlanTriggerKind,
-} from "../../src/kernel/coordination-types.js";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
-import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
-import type { ModelAdapter } from "../../src/providers/types.js";
+} from "../../src/coordination/kernel/coordination-types.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
 
 // =========================================================================
 // Shared helpers
@@ -131,7 +131,7 @@ function validGraph(overrides?: Partial<SimulatedGraph>): SimulatedGraph {
   };
 }
 
-import type { ApplyInput } from "../../src/kernel/replan-applier.js";
+import type { ApplyInput } from "../../src/coordination/kernel/replan-applier.js";
 
 function makeApplyInput(
   draft: PlanRevisionDraft,

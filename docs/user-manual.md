@@ -420,7 +420,7 @@ alix sop run research.deep_report --topic "test" --plan-only
 
 ### Creating a new SOP
 
-Create a file in `src/sop/<domain>-<name>.ts` exporting a `SopDefinition`:
+Create a file in `src/coordination/sop/<domain>-<name>.ts` exporting a `SopDefinition`:
 
 ```typescript
 export function getMySopDef() {
@@ -443,7 +443,7 @@ export function getMySopDef() {
 }
 ```
 
-Then register it in `src/sop/sop-registry.ts`.
+Then register it in `src/coordination/sop/sop-registry.ts`.
 
 ---
 

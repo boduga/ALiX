@@ -1,5 +1,5 @@
 import type { TaskType } from "../task-classifier.js";
-import type { SubagentRole } from "../config/schema.js";
+import type { SubagentRole } from "../operations/config/schema.js";
 
 export type RoleRecommendation = {
   role: SubagentRole;

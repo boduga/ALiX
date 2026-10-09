@@ -16,22 +16,22 @@ import { tmpdir } from "node:os";
 
 // --- Mocks for the 6 Tier-2 adapters + the 3 governance/learning sources.
 // vi.mock is hoisted; the per-test override is set in beforeEach.
-vi.mock("../../src/executive/adapters/adaptation-health.js", () => ({
+vi.mock("../../src/execution/executive/adapters/adaptation-health.js", () => ({
   buildAdaptationHealth: vi.fn(),
 }));
-vi.mock("../../src/executive/adapters/agent-health.js", () => ({
+vi.mock("../../src/execution/executive/adapters/agent-health.js", () => ({
   buildAgentHealth: vi.fn(),
 }));
-vi.mock("../../src/executive/adapters/tool-health.js", () => ({
+vi.mock("../../src/execution/executive/adapters/tool-health.js", () => ({
   buildToolHealth: vi.fn(),
 }));
-vi.mock("../../src/executive/adapters/workflow-health.js", () => ({
+vi.mock("../../src/execution/executive/adapters/workflow-health.js", () => ({
   buildWorkflowHealth: vi.fn(),
 }));
-vi.mock("../../src/executive/adapters/memory-health.js", () => ({
+vi.mock("../../src/execution/executive/adapters/memory-health.js", () => ({
   buildMemoryHealth: vi.fn(),
 }));
-vi.mock("../../src/executive/adapters/security-health.js", () => ({
+vi.mock("../../src/execution/executive/adapters/security-health.js", () => ({
   buildSecurityHealth: vi.fn(),
 }));
 vi.mock("../../src/governance/governance-health-builder.js", () => ({
@@ -40,20 +40,20 @@ vi.mock("../../src/governance/governance-health-builder.js", () => ({
 vi.mock("../../src/governance/governance-assessment.js", () => ({
   buildGovernanceAssessment: vi.fn(),
 }));
-vi.mock("../../src/learning/learning-dashboard.js", () => ({
+vi.mock("../../src/planning/learning/learning-dashboard.js", () => ({
   buildDashboardReport: vi.fn(),
 }));
 
-import { buildExecutiveHealthReport } from "../../src/executive/executive-health.js";
-import { buildAdaptationHealth } from "../../src/executive/adapters/adaptation-health.js";
-import { buildAgentHealth } from "../../src/executive/adapters/agent-health.js";
-import { buildToolHealth } from "../../src/executive/adapters/tool-health.js";
-import { buildWorkflowHealth } from "../../src/executive/adapters/workflow-health.js";
-import { buildMemoryHealth } from "../../src/executive/adapters/memory-health.js";
-import { buildSecurityHealth } from "../../src/executive/adapters/security-health.js";
+import { buildExecutiveHealthReport } from "../../src/execution/executive/executive-health.js";
+import { buildAdaptationHealth } from "../../src/execution/executive/adapters/adaptation-health.js";
+import { buildAgentHealth } from "../../src/execution/executive/adapters/agent-health.js";
+import { buildToolHealth } from "../../src/execution/executive/adapters/tool-health.js";
+import { buildWorkflowHealth } from "../../src/execution/executive/adapters/workflow-health.js";
+import { buildMemoryHealth } from "../../src/execution/executive/adapters/memory-health.js";
+import { buildSecurityHealth } from "../../src/execution/executive/adapters/security-health.js";
 import { buildGovernanceHealth } from "../../src/governance/governance-health-builder.js";
 import { buildGovernanceAssessment } from "../../src/governance/governance-assessment.js";
-import { buildDashboardReport } from "../../src/learning/learning-dashboard.js";
+import { buildDashboardReport } from "../../src/planning/learning/learning-dashboard.js";
 
 const adapterMock = {
   buildAdaptationHealth: buildAdaptationHealth as unknown as ReturnType<typeof vi.fn>,

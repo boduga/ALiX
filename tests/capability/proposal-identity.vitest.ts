@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { computeProposalId, isValidProposalId } from "../../src/capability/governance/proposal-identity.js";
-import type { CapabilityEvolutionCandidate } from "../../src/adaptation/capability-evolution-types.js";
+import { computeProposalId, isValidProposalId } from "../../src/capabilities/capability/governance/proposal-identity.js";
+import type { CapabilityEvolutionCandidate } from "../../src/planning/adaptation/capability-evolution-types.js";
 
 function mkCandidate(): CapabilityEvolutionCandidate {
   return {

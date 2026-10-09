@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { AdaptationBaselineProvider } from "../../../src/baseline/providers/adaptation-provider.js";
+import { AdaptationBaselineProvider } from "../../../src/context/baseline/providers/adaptation-provider.js";
 
 describe("AdaptationBaselineProvider", () => {
   let provider: AdaptationBaselineProvider;

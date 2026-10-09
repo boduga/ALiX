@@ -1,11 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateAgentCard } from "../../src/registry/agent-card.js";
-import { validateToolCard } from "../../src/registry/tool-card.js";
-import { CardRegistry } from "../../src/registry/card-registry.js";
-import type { AgentCard } from "../../src/registry/agent-card.js";
-import type { ToolCard } from "../../src/registry/tool-card.js";
-import { resolveCapabilities } from "../../src/registry/capability-resolver.js";
+import { validateAgentCard } from "../../src/capabilities/registry/agent-card.js";
+import { validateToolCard } from "../../src/capabilities/registry/tool-card.js";
+import { CardRegistry } from "../../src/capabilities/registry/card-registry.js";
+import type { AgentCard } from "../../src/capabilities/registry/agent-card.js";
+import type { ToolCard } from "../../src/capabilities/registry/tool-card.js";
+import { resolveCapabilities } from "../../src/capabilities/registry/capability-resolver.js";
 
 describe("AgentCard validation", () => {
 

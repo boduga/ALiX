@@ -1196,7 +1196,7 @@ The first implementation should be isolated.
 Proposed structure:
 
 ```text
-src/runtime/execution-state/
+src/runtime-state/runtime/execution-state/
 
     execution-state.ts
     execution-state-schema.ts
@@ -1211,7 +1211,7 @@ src/runtime/execution-state/
 Potential context integration:
 
 ```text
-src/runtime/context/
+src/runtime-state/runtime/context/
 
     context-builder.ts
     substrate-policy.ts

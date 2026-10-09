@@ -12,4 +12,4 @@ RuntimeView`; view never touches EventLog directly. Running entries
 never evicted; terminal entries bounded last 50.
 
 operator timeline (chat) unchanged — stays curated narrative on
-its own `timelineEvents[]` stream. platform (src/capability/) untouched.
+its own `timelineEvents[]` stream. platform (src/capabilities/capability/) untouched.

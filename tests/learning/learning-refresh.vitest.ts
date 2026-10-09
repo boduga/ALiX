@@ -27,32 +27,32 @@ import { tmpdir } from "node:os";
 /** Repo root resolved from test file location (before cwd mock). */
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
-import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
-import { RiskScoreStore } from "../../src/adaptation/risk-score-store.js";
-import type { RiskScore } from "../../src/adaptation/risk-score-types.js";
-import { RISK_DIMENSIONS } from "../../src/adaptation/risk-score-types.js";
-import { GovernanceReviewStore } from "../../src/adaptation/governance-review-store.js";
+import { OutcomeStore } from "../../src/planning/adaptation/outcome-store.js";
+import type { OutcomeRecord } from "../../src/planning/adaptation/outcome-types.js";
+import { RiskScoreStore } from "../../src/planning/adaptation/risk-score-store.js";
+import type { RiskScore } from "../../src/planning/adaptation/risk-score-types.js";
+import { RISK_DIMENSIONS } from "../../src/planning/adaptation/risk-score-types.js";
+import { GovernanceReviewStore } from "../../src/planning/adaptation/governance-review-store.js";
 import type {
   GovernanceReview,
   LensScore,
   CouncilVote,
   LensName,
   GovernanceVerdict,
-} from "../../src/adaptation/governance-review-types.js";
+} from "../../src/planning/adaptation/governance-review-types.js";
 
-import { LearningStore } from "../../src/learning/learning-store.js";
-import { RecommendationCalibrationAdapter } from "../../src/learning/recommendation-calibration-adapter.js";
-import { RiskCalibrationAdapter } from "../../src/learning/risk-calibration-adapter.js";
-import { GovernanceCalibrationAdapter } from "../../src/learning/governance-calibration-adapter.js";
+import { LearningStore } from "../../src/planning/learning/learning-store.js";
+import { RecommendationCalibrationAdapter } from "../../src/planning/learning/recommendation-calibration-adapter.js";
+import { RiskCalibrationAdapter } from "../../src/planning/learning/risk-calibration-adapter.js";
+import { GovernanceCalibrationAdapter } from "../../src/planning/learning/governance-calibration-adapter.js";
 import {
   runLearningRefresh,
-} from "../../src/learning/learning-refresh.js";
+} from "../../src/planning/learning/learning-refresh.js";
 import type {
   AdapterName,
   AdapterResult,
   CalibrationAdapter,
-} from "../../src/learning/adapter-diagnostics.js";
+} from "../../src/planning/learning/adapter-diagnostics.js";
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -400,7 +400,7 @@ describe("runLearningRefresh orchestrator", () => {
     // adapter-purity-sentinels.vitest.ts. Here we assert the orchestrator
     // file IS allowed to mention LearningStore.
     const src = readFileSync(
-      `${REPO_ROOT}/src/learning/learning-refresh.ts`,
+      `${REPO_ROOT}/src/planning/learning/learning-refresh.ts`,
       "utf-8",
     );
     const importLines = src

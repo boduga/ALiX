@@ -194,15 +194,15 @@ Subcommand list updated to include `recommend`.
 
 ## Sentinel
 
-Add `src/executive/recommendation-engine.ts` and `src/cli/commands/executive-recommend-handler.ts` to the executive purity sentinel. No write exceptions — read-only files only.
+Add `src/execution/executive/recommendation-engine.ts` and `src/interfaces/cli/commands/executive-recommend-handler.ts` to the executive purity sentinel. No write exceptions — read-only files only.
 
 ## File Structure
 
 | File | Responsibility |
 |---|---|
-| `src/executive/recommendation-engine.ts` | Pure `computeRecommendations()` function, types, constants, signal detection, templates |
-| `src/cli/commands/executive-recommend-handler.ts` | CLI handler — load reports, compose pipeline, render terminal/JSON |
-| `src/cli/commands/executive.ts` | Add `case "recommend"` + update subcommand list |
+| `src/execution/executive/recommendation-engine.ts` | Pure `computeRecommendations()` function, types, constants, signal detection, templates |
+| `src/interfaces/cli/commands/executive-recommend-handler.ts` | CLI handler — load reports, compose pipeline, render terminal/JSON |
+| `src/interfaces/cli/commands/executive.ts` | Add `case "recommend"` + update subcommand list |
 | `tests/executive/recommendation-engine.vitest.ts` | Pure function tests |
 | `tests/cli/commands/executive-recommend-cli.vitest.ts` | CLI integration tests |
 | `tests/executive/executive-sentinels.vitest.ts` | Add new files to sentinel |

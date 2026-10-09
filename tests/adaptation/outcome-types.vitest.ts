@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { OutcomeValue } from "../../src/adaptation/outcome-types.js";
-import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
-import type { OutcomeEvidence } from "../../src/adaptation/outcome-types.js";
+import type { OutcomeValue } from "../../src/planning/adaptation/outcome-types.js";
+import type { OutcomeRecord } from "../../src/planning/adaptation/outcome-types.js";
+import type { OutcomeEvidence } from "../../src/planning/adaptation/outcome-types.js";
 
 describe("OutcomeValue", () => {
   it("accepts success", () => {

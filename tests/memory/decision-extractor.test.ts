@@ -4,8 +4,8 @@ import {
   DECISION_PATTERNS,
   extractDecisions,
   type DecisionPattern,
-} from "../../src/utils/memory/decision-extractor.js";
-import type { AlixEvent } from "../../src/events/types.js";
+} from "../../src/operations/utils/memory/decision-extractor.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
 
 function createEvent(
   type: string,

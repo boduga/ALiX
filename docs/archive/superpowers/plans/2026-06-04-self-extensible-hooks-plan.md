@@ -4,13 +4,13 @@
 
 **Goal:** Let the agent create TypeScript hooks from natural language — the agent writes the code, loads it in-process, and it becomes live immediately. User never writes code.
 
-**Architecture:** A `create_hook` tool that takes a plain-language description, generates a TypeScript hook module, registers it with `HookRunner`, and makes it active for the current session. Based on `src/extensions/hook-runner.ts` which already supports runtime-registered `HookFn`.
+**Architecture:** A `create_hook` tool that takes a plain-language description, generates a TypeScript hook module, registers it with `HookRunner`, and makes it active for the current session. Based on `src/capabilities/extensions/hook-runner.ts` which already supports runtime-registered `HookFn`.
 
 **Existing infrastructure:**
-- `src/extensions/hook-runner.ts` — `HookRunner` with `register()`, `execute()`, 10 hook types
-- `src/extensions/manifest.ts` — `HOOK_TRIGGERS` and `HookExtension` type
-- `src/extensions/lifecycle.ts` — loads extensions from file system
-- `src/self-extend/` — in-process extension registry (from sub-project #5)
+- `src/capabilities/extensions/hook-runner.ts` — `HookRunner` with `register()`, `execute()`, 10 hook types
+- `src/capabilities/extensions/manifest.ts` — `HOOK_TRIGGERS` and `HookExtension` type
+- `src/capabilities/extensions/lifecycle.ts` — loads extensions from file system
+- `src/capabilities/self-extend/` — in-process extension registry (from sub-project #5)
 
 ---
 
@@ -33,10 +33,10 @@ What's **missing**: a `create_hook` tool that generates this code from a user's 
 ## Task 1: Create `create_hook` tool + hook code generator
 
 **Files:**
-- Create: `src/self-extend/generate-hook.ts` — Prompt-to-TypeScript generator (~80 lines)
-- Create: `src/self-extend/create-hook.ts` — Tool definition (~60 lines)
-- Modify: `src/extensions/hook-runner.ts` — Add `listHooks()` method for introspection
-- Modify: `src/tools/tool-router.ts` — Register new `create_hook` tool
+- Create: `src/capabilities/self-extend/generate-hook.ts` — Prompt-to-TypeScript generator (~80 lines)
+- Create: `src/capabilities/self-extend/create-hook.ts` — Tool definition (~60 lines)
+- Modify: `src/capabilities/extensions/hook-runner.ts` — Add `listHooks()` method for introspection
+- Modify: `src/capabilities/tools/tool-router.ts` — Register new `create_hook` tool
 - Create: `tests/self-extend/generate-hook.test.ts` — Tests
 - Create: `tests/self-extend/create-hook.test.ts` — Tests
 
@@ -45,7 +45,7 @@ What's **missing**: a `create_hook` tool that generates this code from a user's 
 This module takes a plain-language prompt and returns a `HookFn`:
 
 ```typescript
-// src/self-extend/generate-hook.ts
+// src/capabilities/self-extend/generate-hook.ts
 import type { HookEvent, HookResult, HookFn } from "../extensions/hook-runner.js";
 
 export type HookSpec = {
@@ -106,7 +106,7 @@ export function buildHook(prompt: string, hookBody: string): { trigger: string; 
 ### `create-hook.ts` — Tool definition
 
 ```typescript
-// src/self-extend/create-hook.ts
+// src/capabilities/self-extend/create-hook.ts
 export function createHookTool(runner: HookRunner) {
   return {
     name: "create_hook",
@@ -143,7 +143,7 @@ export function createHookTool(runner: HookRunner) {
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseTrigger, buildHook } from "../../src/self-extend/generate-hook.js";
+import { parseTrigger, buildHook } from "../../src/capabilities/self-extend/generate-hook.js";
 
 describe("parseTrigger", () => {
   it("detects pre_tool from 'before every tool call'", () => {
@@ -176,8 +176,8 @@ describe("buildHook", () => {
 ## Task 2: Register `create_hook` tool + add `listHooks` to HookRunner
 
 **Files:**
-- Modify: `src/extensions/hook-runner.ts` — Add `listHooks()` method
-- Modify: `src/tools/tool-router.ts` — Register `create_hook` tool
+- Modify: `src/capabilities/extensions/hook-runner.ts` — Add `listHooks()` method
+- Modify: `src/capabilities/tools/tool-router.ts` — Register `create_hook` tool
 
 Add to `hook-runner.ts`:
 ```typescript
@@ -199,8 +199,8 @@ export class SelfExtendToolRouter implements ToolRouter {
 ## Task 3: Wire into HookRunner in the agent loop
 
 **Files:**
-- Modify: `src/agent/agent.ts` — Create `HookRunner` instance in `AgentContext`
-- Modify: `src/run/task-loop.ts` — Run registered hooks at tool boundaries
+- Modify: `src/agents/agent/agent.ts` — Create `HookRunner` instance in `AgentContext`
+- Modify: `src/execution/run/task-loop.ts` — Run registered hooks at tool boundaries
 
 In `task-loop.ts`, before tool execution:
 ```typescript

@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AlixEvent } from "../src/events/types.js";
-import { readSessionComparison, readSessionEvents, readSessionSnapshot } from "../src/inspector/session-reader.js";
+import type { AlixEvent } from "../src/runtime-state/events/types.js";
+import { readSessionComparison, readSessionEvents, readSessionSnapshot } from "../src/interfaces/inspector/session-reader.js";
 
 function eventLine(seq: number, type: string, payload: unknown = {}, sessionId = "s1"): string {
   return JSON.stringify({

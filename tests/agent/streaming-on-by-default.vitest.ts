@@ -2,15 +2,15 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vites
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgentSession } from "../../src/agent/session.js";
-import { MockProvider } from "../../src/providers/mock-provider.js";
+import { createAgentSession } from "../../src/agents/agent/session.js";
+import { MockProvider } from "../../src/models/providers/mock-provider.js";
 
 const mocks = vi.hoisted(() => ({
   createProvider: vi.fn(),
   shouldAutoDisableStreaming: vi.fn(),
 }));
 
-vi.mock("../../src/providers/registry.js", () => ({
+vi.mock("../../src/models/providers/registry.js", () => ({
   createProvider: mocks.createProvider,
 }));
 
@@ -19,7 +19,7 @@ vi.mock("../../src/providers/registry.js", () => ({
 // gate (shouldAutoDisableStreaming = isCI) is a separate, orthogonal concern
 // covered by tests/agent/stream.test.ts — pin it off here, or the test can
 // never pass under CI=true.
-vi.mock("../../src/agent/stream.js", () => ({
+vi.mock("../../src/agents/agent/stream.js", () => ({
   shouldAutoDisableStreaming: mocks.shouldAutoDisableStreaming,
   isCI: mocks.shouldAutoDisableStreaming,
 }));

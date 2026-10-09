@@ -21,11 +21,11 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../../src/events/event-log.js";
-import { GovernanceProposalStore } from "../../src/capability/governance/governance-proposal-store.js";
-import { CapabilityProposalDuplicateError } from "../../src/capability/errors/proposal-duplicate.js";
-import type { CapabilityEvolutionCandidate } from "../../src/adaptation/capability-evolution-types.js";
-import type { CapabilityMutationResult } from "../../src/capability/governance/governance-types.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { GovernanceProposalStore } from "../../src/capabilities/capability/governance/governance-proposal-store.js";
+import { CapabilityProposalDuplicateError } from "../../src/capabilities/capability/errors/proposal-duplicate.js";
+import type { CapabilityEvolutionCandidate } from "../../src/planning/adaptation/capability-evolution-types.js";
+import type { CapabilityMutationResult } from "../../src/capabilities/capability/governance/governance-types.js";
 
 function mkCandidate(): CapabilityEvolutionCandidate {
   return {

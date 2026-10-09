@@ -13,7 +13,7 @@
 ## File Structure
 
 ### Modify
-- `src/runtime/task-router.ts` — add natural-language file operation patterns
+- `src/runtime-state/runtime/task-router.ts` — add natural-language file operation patterns
 
 ### Create
 - `tests/runtime/task-router-natural-file.test.ts` — guard tests for file intent routing
@@ -23,7 +23,7 @@
 ### Task 1: Extend the natural language router with file operation patterns
 
 **Files:**
-- Modify: `src/runtime/task-router.ts`
+- Modify: `src/runtime-state/runtime/task-router.ts`
 
 **Approach:** Add a `matchNaturalFileOperation()` function that detects file write/append/create/delete/read patterns and returns structured tool commands. Insert it as step 2b in the classification priority (after natural shell phrases, before grounded chat).
 
@@ -164,7 +164,7 @@ Expected: clean compile
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { taskRouter } from "../../src/runtime/task-router.js";
+import { taskRouter } from "../../src/runtime-state/runtime/task-router.js";
 
 describe("natural-language file operation routing", () => {
   // --- File write ---

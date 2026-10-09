@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { ShellWhitelist, parseWhitelistEnv, BLOCKED_COMMANDS } from "../../src/policy/shell-whitelist.js";
+import { ShellWhitelist, parseWhitelistEnv, BLOCKED_COMMANDS } from "../../src/governance/policy/shell-whitelist.js";
 
 describe("ShellWhitelist", () => {
   const config = {

@@ -21,9 +21,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { ALIX_BUILTIN_EXECUTORS, type AlixBuiltinToolName } from "../../src/agents/tool-manifest.js";
-import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
+import { buildDefaultToolIndex } from "../../src/capabilities/tools/tool-registry.js";
 import { NON_WRITE_TOOLS, WRITE_TOOLS } from "../../src/agents/tool-policy.js";
-import { READ_ONLY_TOOL_NAMES } from "../../src/run/helpers.js";
+import { READ_ONLY_TOOL_NAMES } from "../../src/execution/run/helpers.js";
 
 const manifestNames = (Object.keys(ALIX_BUILTIN_EXECUTORS) as AlixBuiltinToolName[]).sort();
 const registryNames = buildDefaultToolIndex().registry.getAll().map((t) => t.name).sort();

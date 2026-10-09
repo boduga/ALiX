@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { roleForWorker, isWriteWorker } from "../../src/kernel/worker-role.js";
+import { roleForWorker, isWriteWorker } from "../../src/coordination/kernel/worker-role.js";
 
 describe("roleForWorker", () => {
   it("routes local-state caps to explorer, never researcher", () => {

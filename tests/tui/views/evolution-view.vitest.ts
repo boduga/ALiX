@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { TAB_ORDER, createInitialPerTabState } from '../../../src/tui/state.js';
-import { getView } from '../../../src/tui/views/index.js';
-import { renderEvolution } from '../../../src/tui/evolution/evolution-render.js';
-import { evolutionKeyAction } from '../../../src/tui/evolution/evolution-keys.js';
-import { EvolutionView } from '../../../src/tui/evolution/evolution-view.js';
+import { TAB_ORDER, createInitialPerTabState } from '../../../src/interfaces/tui/state.js';
+import { getView } from '../../../src/interfaces/tui/views/index.js';
+import { renderEvolution } from '../../../src/interfaces/tui/evolution/evolution-render.js';
+import { evolutionKeyAction } from '../../../src/interfaces/tui/evolution/evolution-keys.js';
+import { EvolutionView } from '../../../src/interfaces/tui/evolution/evolution-view.js';
 
 describe('evolution tab plumbing', () => {
   it('TAB_ORDER contains evolution exactly once, after capabilities', () => {

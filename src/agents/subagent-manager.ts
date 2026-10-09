@@ -1,12 +1,12 @@
 import { spawn, type ChildProcess } from "child_process";
-import { buildChildEnv } from "../runtime/child-env.js";
+import { buildChildEnv } from "../runtime-state/runtime/child-env.js";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
-import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig, ModelTierConfig } from "../config/schema.js";
-import { parseSessionMode } from "../config/schema.js";
-import type { EventLog } from "../events/event-log.js";
-import { OwnershipRegistry, type AcquireRequest } from "../ownership/ownership-registry.js";
-import { resolveOwnedScopePrefix } from "../ownership/path-scope.js";
+import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig, ModelTierConfig } from "../operations/config/schema.js";
+import { parseSessionMode } from "../operations/config/schema.js";
+import type { EventLog } from "../runtime-state/events/event-log.js";
+import { OwnershipRegistry, type AcquireRequest } from "../coordination/ownership/ownership-registry.js";
+import { resolveOwnedScopePrefix } from "../coordination/ownership/path-scope.js";
 
 // Re-export types for consumers
 export type { SubagentTask, SubagentResult };

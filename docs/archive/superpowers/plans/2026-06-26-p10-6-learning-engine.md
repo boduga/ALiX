@@ -43,7 +43,7 @@ git commit -m "docs(p10-6): add implementation plan"
 ### Task 1: `learning-engine.ts` — pure aggregation function + types + unit tests
 
 **Files:**
-- Create: `src/executive/learning-engine.ts`
+- Create: `src/execution/executive/learning-engine.ts`
 - Create: `tests/executive/learning-engine.vitest.ts`
 
 **Interfaces:**
@@ -56,8 +56,8 @@ git commit -m "docs(p10-6): add implementation plan"
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { computeLearningTrends } from "../../src/executive/learning-engine.js";
-import type { ExecutiveOutcomeEvaluationReport } from "../../src/executive/outcome-evaluator.js";
+import { computeLearningTrends } from "../../src/execution/executive/learning-engine.js";
+import type { ExecutiveOutcomeEvaluationReport } from "../../src/execution/executive/outcome-evaluator.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -349,11 +349,11 @@ describe("computeLearningTrends", () => {
 npx vitest run tests/executive/learning-engine.vitest.ts
 ```
 
-Expected: FAIL with `Cannot find module '../../src/executive/learning-engine'` (file doesn't exist yet).
+Expected: FAIL with `Cannot find module '../../src/execution/executive/learning-engine'` (file doesn't exist yet).
 
 - [ ] **Step 3: Write minimal implementation**
 
-`src/executive/learning-engine.ts`:
+`src/execution/executive/learning-engine.ts`:
 
 ```ts
 /**
@@ -608,7 +608,7 @@ Expected: All 14 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/executive/learning-engine.ts tests/executive/learning-engine.vitest.ts
+git add src/execution/executive/learning-engine.ts tests/executive/learning-engine.vitest.ts
 git commit -m "feat(p10-6): add computeLearningTrends pure function + types"
 ```
 
@@ -617,12 +617,12 @@ git commit -m "feat(p10-6): add computeLearningTrends pure function + types"
 ### Task 2: CLI handler (`executive-learn-handler.ts`) + integration tests
 
 **Files:**
-- Create: `src/cli/commands/executive-learn-handler.ts`
+- Create: `src/interfaces/cli/commands/executive-learn-handler.ts`
 - Create: `tests/cli/commands/executive-learn-cli.vitest.ts`
 
 **Interfaces:**
-- Consumes: `OutcomeReportStore` from `../../../src/executive/outcome-store.js` (read-only)
-- Consumes: `computeLearningTrends`, `TrendResult` from `../../../src/executive/learning-engine.js`
+- Consumes: `OutcomeReportStore` from `../../../src/execution/executive/outcome-store.js` (read-only)
+- Consumes: `computeLearningTrends`, `TrendResult` from `../../../src/execution/executive/learning-engine.js`
 - Produces: `handleLearnCommand(args: string[]): Promise<void>` — exported handler
 - Produces: CLI output (terminal table or JSON)
 
@@ -635,9 +635,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleLearnCommand } from "../../../src/cli/commands/executive-learn-handler.js";
-import { OutcomeReportStore } from "../../../src/executive/outcome-store.js";
-import type { ExecutiveOutcomeEvaluationReport } from "../../../src/executive/outcome-evaluator.js";
+import { handleLearnCommand } from "../../../src/interfaces/cli/commands/executive-learn-handler.js";
+import { OutcomeReportStore } from "../../../src/execution/executive/outcome-store.js";
+import type { ExecutiveOutcomeEvaluationReport } from "../../../src/execution/executive/outcome-evaluator.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -795,11 +795,11 @@ describe("executive learn CLI", () => {
 npx vitest run tests/cli/commands/executive-learn-cli.vitest.ts
 ```
 
-Expected: FAIL — `Cannot find module '../../../src/cli/commands/executive-learn-handler'`.
+Expected: FAIL — `Cannot find module '../../../src/interfaces/cli/commands/executive-learn-handler'`.
 
 - [ ] **Step 3: Write minimal CLI handler**
 
-`src/cli/commands/executive-learn-handler.ts`:
+`src/interfaces/cli/commands/executive-learn-handler.ts`:
 
 ```ts
 /**
@@ -936,7 +936,7 @@ Expected: All 5 integration tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/executive-learn-handler.ts tests/cli/commands/executive-learn-cli.vitest.ts
+git add src/interfaces/cli/commands/executive-learn-handler.ts tests/cli/commands/executive-learn-cli.vitest.ts
 git commit -m "feat(p10-6): add executive-learn CLI handler"
 ```
 
@@ -945,7 +945,7 @@ git commit -m "feat(p10-6): add executive-learn CLI handler"
 ### Task 3: CLI routing + sentinel updates
 
 **Files:**
-- Modify: `src/cli/commands/executive.ts` — add `"learn"` case
+- Modify: `src/interfaces/cli/commands/executive.ts` — add `"learn"` case
 - Modify: `tests/executive/executive-sentinels.vitest.ts` — add new files to EXECUTIVE_FILES
 
 **Interfaces:**
@@ -954,7 +954,7 @@ git commit -m "feat(p10-6): add executive-learn CLI handler"
 
 - [ ] **Step 1: Add CLI routing**
 
-In `src/cli/commands/executive.ts`, add a new `case "learn"` before the `default` case:
+In `src/interfaces/cli/commands/executive.ts`, add a new `case "learn"` before the `default` case:
 
 ```ts
     case "learn": {
@@ -969,8 +969,8 @@ In `src/cli/commands/executive.ts`, add a new `case "learn"` before the `default
 
 In `tests/executive/executive-sentinels.vitest.ts`, add both new files to `EXECUTIVE_FILES`:
 
-- `"src/executive/learning-engine.ts"`
-- `"src/cli/commands/executive-learn-handler.ts"`
+- `"src/execution/executive/learning-engine.ts"`
+- `"src/interfaces/cli/commands/executive-learn-handler.ts"`
 
 No scoped write-exception needed — `executive-learn-handler.ts` only uses `list()` and `load()` (read-only `OutcomeReportStore` methods). `learning-engine.ts` is pure.
 
@@ -987,7 +987,7 @@ Expected: All tests pass (including sentinel), no type errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/executive.ts tests/executive/executive-sentinels.vitest.ts
+git add src/interfaces/cli/commands/executive.ts tests/executive/executive-sentinels.vitest.ts
 git commit -m "feat(p10-6): wire learn subcommand + update sentinel"
 ```
 

@@ -25,8 +25,8 @@ import {
   createTokenRecord,
   createRevocation,
   MAX_TOKEN_COUNT,
-} from "../../../src/security/inspector/auth-store.js";
-import { generateToken, sha256 } from "../../../src/security/inspector/token-format.js";
+} from "../../../src/governance/security/inspector/auth-store.js";
+import { generateToken, sha256 } from "../../../src/governance/security/inspector/token-format.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

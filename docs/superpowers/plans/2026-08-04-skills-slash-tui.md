@@ -4,9 +4,9 @@
 
 **Goal:** Give the ALiX TUI a first-class skill slash-command surface — typing `/tdd` resolves the installed skill, injects it explicitly into the agent session, and submits the rest of the line as the task, with in-input completion.
 
-**Architecture:** A pure parsing/completion layer (`src/skills/slash.ts`) sits between the TUI input and the agent session. It parses `/trigger rest`, resolves the skill, and hands the session an explicit skill list. The session merges explicit + auto-matched skills (union → dedupe by canonical id → inject into the "Available Skills" system-prompt section). A generation-based catalog cache (`src/skills/slash-catalog.ts`) keeps typing free of filesystem work. Slash-command mode is **AGENT-TAB ONLY**: on the agent tab, Enter resolves `/anything` as a slash command; the chat tab keeps today's behavior (`/` opens the palette on empty chat input, otherwise plain text).
+**Architecture:** A pure parsing/completion layer (`src/capabilities/skills/slash.ts`) sits between the TUI input and the agent session. It parses `/trigger rest`, resolves the skill, and hands the session an explicit skill list. The session merges explicit + auto-matched skills (union → dedupe by canonical id → inject into the "Available Skills" system-prompt section). A generation-based catalog cache (`src/capabilities/skills/slash-catalog.ts`) keeps typing free of filesystem work. Slash-command mode is **AGENT-TAB ONLY**: on the agent tab, Enter resolves `/anything` as a slash command; the chat tab keeps today's behavior (`/` opens the palette on empty chat input, otherwise plain text).
 
-**Tech Stack:** TypeScript, node:test + vitest, existing `src/skills/{types,loader,catalog}.ts`, existing TUI raw-terminal input layer (`src/tui/app.ts`).
+**Tech Stack:** TypeScript, node:test + vitest, existing `src/capabilities/skills/{types,loader,catalog}.ts`, existing TUI raw-terminal input layer (`src/interfaces/tui/app.ts`).
 
 ## Global Constraints
 
@@ -16,7 +16,7 @@
 - **Catalog is generation-based and cached.** Steady-state completion reads are pure in-memory; `invalidateSlashCatalog()` bumps the generation, install/remove call it.
 - **Slash commands are AGENT-TAB only.** On the agent tab, Enter resolves the slash char: `/anything` → slash command. On the chat tab, `/` keeps today's behavior (palette opener on empty chat input; otherwise plain text — no slash handling). Tab cycles the completion-strip selection (does not modify the buffer); Enter activates the highlighted candidate, else the top `rankSkillMatches` match.
 - **Unknown `/command` is non-fatal:** text stays in the buffer, an inline hint shows "press Tab for completions", NO agent call is made.
-- **Existing `processTurn`/`processChat` callers must not break** — the `options` param is optional. `daemon-client.ts` and `src/cli/commands/tui.ts` stubs need NO change (implementations with fewer params are assignable).
+- **Existing `processTurn`/`processChat` callers must not break** — the `options` param is optional. `daemon-client.ts` and `src/interfaces/cli/commands/tui.ts` stubs need NO change (implementations with fewer params are assignable).
 - `canonicalSkillId` returns `manifest.name` for now (the catalog's key and on-disk dir name). Isolated behind the function so a future canonical-id change updates one place.
 - Ranked completion ordering is a CONTRACT: exact trigger > exact name > prefix trigger > prefix name > fuzzy. Asserted in tests so a future fuzzy upgrade cannot reorder results.
 - Skills home is `~/.alix/skills` (existing hardcoded path). `skills.store.path` config plumbing is OUT of scope.
@@ -27,23 +27,23 @@
 
 | File | Responsibility |
 |------|----------------|
-| `src/skills/slash.ts` (new) | Pure parse/rank/resolve helpers + `canonicalSkillId` |
-| `src/skills/catalog.ts` (modify) | Add `getByTriggerOrName` |
-| `src/skills/slash-catalog.ts` (new) | Generation-based manifest cache (`getSlashCatalog`/`invalidateSlashCatalog`) |
-| `src/agent/session.ts` (modify) | `setupSkills` explicit union, `buildSkillsSection` helper, `processTurn`/`processChat` `options` |
-| `src/cli/commands/skills/install.ts` (modify) | Invalidate cache after install/remove |
-| `src/tui/views/types.ts` (modify) | `SlashStrip`/`SlashStripEntry` + `ViewRenderContext.slash` |
-| `src/tui/app.ts` (modify) | Slash-mode input layer, Tab/Enter routing, `dispatchToSession` skills threading |
-| `src/tui/views/agent-view.ts` (modify) | Render the completion strip + hint (agent tab only) |
+| `src/capabilities/skills/slash.ts` (new) | Pure parse/rank/resolve helpers + `canonicalSkillId` |
+| `src/capabilities/skills/catalog.ts` (modify) | Add `getByTriggerOrName` |
+| `src/capabilities/skills/slash-catalog.ts` (new) | Generation-based manifest cache (`getSlashCatalog`/`invalidateSlashCatalog`) |
+| `src/agents/agent/session.ts` (modify) | `setupSkills` explicit union, `buildSkillsSection` helper, `processTurn`/`processChat` `options` |
+| `src/interfaces/cli/commands/skills/install.ts` (modify) | Invalidate cache after install/remove |
+| `src/interfaces/tui/views/types.ts` (modify) | `SlashStrip`/`SlashStripEntry` + `ViewRenderContext.slash` |
+| `src/interfaces/tui/app.ts` (modify) | Slash-mode input layer, Tab/Enter routing, `dispatchToSession` skills threading |
+| `src/interfaces/tui/views/agent-view.ts` (modify) | Render the completion strip + hint (agent tab only) |
 
 Tests: `tests/skills/slash.test.ts` (new), `tests/skills/slash-catalog.test.ts` (new), `tests/skills/catalog.test.ts` (modify), `tests/agent/session-skills.test.ts` (new), `tests/cli/commands/skills/install.test.ts` (modify), `tests/tui/app.vitest.ts` (modify), `tests/tui/views/agent-view.test.ts` (new).
 
 ---
 
-### Task 1: Pure slash helpers — `src/skills/slash.ts`
+### Task 1: Pure slash helpers — `src/capabilities/skills/slash.ts`
 
 **Files:**
-- Create: `src/skills/slash.ts`
+- Create: `src/capabilities/skills/slash.ts`
 - Test: `tests/skills/slash.test.ts`
 
 **Interfaces:**
@@ -61,11 +61,11 @@ Create `tests/skills/slash.test.ts`:
 ```ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { SkillManifest } from "../../src/skills/types.js";
+import type { SkillManifest } from "../../src/capabilities/skills/types.js";
 import {
   parseSlashInput, skillSlashNames, rankSkillMatches,
   resolveSkillName, canonicalSkillId,
-} from "../../src/skills/slash.js";
+} from "../../src/capabilities/skills/slash.js";
 
 function m(partial: Partial<SkillManifest> & { name: string; description: string }): SkillManifest {
   return { version: "1.0.0", is_core: false, ...partial };
@@ -152,11 +152,11 @@ describe("canonicalSkillId", () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `node --test dist/tests/skills/slash.test.js` (after `pnpm build`) or `pnpm build && node --test dist/tests/skills/slash.test.js`
-Expected: FAIL — "Cannot find module .../src/skills/slash.js"
+Expected: FAIL — "Cannot find module .../src/capabilities/skills/slash.js"
 
 - [ ] **Step 3: Write the minimal implementation**
 
-Create `src/skills/slash.ts`:
+Create `src/capabilities/skills/slash.ts`:
 
 ```ts
 import type { SkillManifest } from "./types.js";
@@ -255,7 +255,7 @@ Expected: PASS (all cases)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/skills/slash.ts tests/skills/slash.test.ts
+git add src/capabilities/skills/slash.ts tests/skills/slash.test.ts
 git commit -m "feat(skills): pure slash-command helpers — parse, rank, resolve, canonical id"
 ```
 
@@ -264,7 +264,7 @@ git commit -m "feat(skills): pure slash-command helpers — parse, rank, resolve
 ### Task 2: `SkillCatalog.getByTriggerOrName`
 
 **Files:**
-- Modify: `src/skills/catalog.ts` (add method to `SkillCatalog` class)
+- Modify: `src/capabilities/skills/catalog.ts` (add method to `SkillCatalog` class)
 - Test: `tests/skills/catalog.test.ts`
 
 **Interfaces:**
@@ -278,7 +278,7 @@ Add to `tests/skills/catalog.test.ts` (if the file doesn't exist, create it):
 ```ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { SkillCatalog, type SkillEntry } from "../../src/skills/catalog.js";
+import { SkillCatalog, type SkillEntry } from "../../src/capabilities/skills/catalog.js";
 
 function entry(name: string, trigger?: string): SkillEntry {
   return {
@@ -314,7 +314,7 @@ Expected: FAIL — `getByTriggerOrName is not a function`
 
 - [ ] **Step 3: Write the minimal implementation**
 
-In `src/skills/catalog.ts`, inside the `SkillCatalog` class (after the existing `get` method):
+In `src/capabilities/skills/catalog.ts`, inside the `SkillCatalog` class (after the existing `get` method):
 
 ```ts
   /**
@@ -337,16 +337,16 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/skills/catalog.ts tests/skills/catalog.test.ts
+git add src/capabilities/skills/catalog.ts tests/skills/catalog.test.ts
 git commit -m "feat(skills): SkillCatalog.getByTriggerOrName — resolve slash ref to entry"
 ```
 
 ---
 
-### Task 3: Generation-based catalog cache — `src/skills/slash-catalog.ts`
+### Task 3: Generation-based catalog cache — `src/capabilities/skills/slash-catalog.ts`
 
 **Files:**
-- Create: `src/skills/slash-catalog.ts`
+- Create: `src/capabilities/skills/slash-catalog.ts`
 - Test: `tests/skills/slash-catalog.test.ts`
 
 **Interfaces:**
@@ -363,10 +363,10 @@ Create `tests/skills/slash-catalog.test.ts`:
 ```ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { SkillManifest } from "../../src/skills/types.js";
+import type { SkillManifest } from "../../src/capabilities/skills/types.js";
 import {
   getSlashCatalog, invalidateSlashCatalog, setSlashCatalogLoaderForTest,
-} from "../../src/skills/slash-catalog.js";
+} from "../../src/capabilities/skills/slash-catalog.js";
 
 function m(name: string): SkillManifest {
   return { name, description: name, version: "1.0.0", is_core: false };
@@ -427,11 +427,11 @@ describe("slash-catalog generation cache", () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `pnpm build && node --test dist/tests/skills/slash-catalog.test.js`
-Expected: FAIL — "Cannot find module .../src/skills/slash-catalog.js"
+Expected: FAIL — "Cannot find module .../src/capabilities/skills/slash-catalog.js"
 
 - [ ] **Step 3: Write the minimal implementation**
 
-Create `src/skills/slash-catalog.ts`:
+Create `src/capabilities/skills/slash-catalog.ts`:
 
 ```ts
 import { join } from "node:path";
@@ -505,7 +505,7 @@ Expected: PASS (including the generation-race case)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/skills/slash-catalog.ts tests/skills/slash-catalog.test.ts
+git add src/capabilities/skills/slash-catalog.ts tests/skills/slash-catalog.test.ts
 git commit -m "feat(skills): generation-based slash catalog cache with race-safe invalidation"
 ```
 
@@ -514,7 +514,7 @@ git commit -m "feat(skills): generation-based slash catalog cache with race-safe
 ### Task 4: Thread explicit skills through the agent session
 
 **Files:**
-- Modify: `src/agent/session.ts`
+- Modify: `src/agents/agent/session.ts`
 - Test: `tests/agent/session-skills.test.ts` (new)
 
 **Interfaces:**
@@ -535,7 +535,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { setupSkills, buildSkillsSection } from "../../src/agent/session.js";
+import { setupSkills, buildSkillsSection } from "../../src/agents/agent/session.js";
 
 let home: string;
 let origHome: string | undefined;
@@ -632,7 +632,7 @@ Expected: FAIL — `setupSkills`/`buildSkillsSection` not exported / explicit no
 
 - [ ] **Step 3: Write the minimal implementation**
 
-In `src/agent/session.ts`:
+In `src/agents/agent/session.ts`:
 
 **(a)** Add a module-scope `explicitSkills` next to `currentTask` (line ~588):
 
@@ -749,7 +749,7 @@ In `composeSystemPrompt`:
   processTurn(message: string, options?: { skills?: string[] }): Promise<AgentTurnResult>;
 ```
 
-> No change needed in `daemon-client.ts` or `src/cli/commands/tui.ts` — their implementations take only `(text: string)`, which is assignable to the widened signature. Documented limitation: the daemon transport does not forward `options.skills` (out of scope; the local `AgentSession` path is the target).
+> No change needed in `daemon-client.ts` or `src/interfaces/cli/commands/tui.ts` — their implementations take only `(text: string)`, which is assignable to the widened signature. Documented limitation: the daemon transport does not forward `options.skills` (out of scope; the local `AgentSession` path is the target).
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -759,7 +759,7 @@ Expected: PASS (all cases). Also run `pnpm build` — the interface + call-site 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/agent/session.ts tests/agent/session-skills.test.ts
+git add src/agents/agent/session.ts tests/agent/session-skills.test.ts
 git commit -m "feat(skills): union explicit+auto skill injection in session; transactional explicit load"
 ```
 
@@ -768,7 +768,7 @@ git commit -m "feat(skills): union explicit+auto skill injection in session; tra
 ### Task 5: Invalidate the slash catalog on install/remove
 
 **Files:**
-- Modify: `src/cli/commands/skills/install.ts`
+- Modify: `src/interfaces/cli/commands/skills/install.ts`
 - Test: `tests/cli/commands/skills/install.test.ts` (modify)
 
 **Interfaces:**
@@ -779,7 +779,7 @@ git commit -m "feat(skills): union explicit+auto skill injection in session; tra
 Add to `tests/cli/commands/skills/install.test.ts`:
 
 ```ts
-import { invalidateSlashCatalog, setSlashCatalogLoaderForTest } from "../../../../src/skills/slash-catalog.js";
+import { invalidateSlashCatalog, setSlashCatalogLoaderForTest } from "../../../../src/capabilities/skills/slash-catalog.js";
 ```
 
 Add a test verifying the cache is invalidated after a successful install:
@@ -792,7 +792,7 @@ Add a test verifying the cache is invalidated after a successful install:
       await runInstall({ from: writeFixture("---\nname: brand\ndescription: B\n---\nBody"), force: true });
       // A subsequent read must rebuild (loader called again) because install
       // invalidated the generation.
-      await import("../../../../src/skills/slash-catalog.js").then(async (m) => {
+      await import("../../../../src/capabilities/skills/slash-catalog.js").then(async (m) => {
         const before = loads;
         await m.getSlashCatalog();
         assert.equal(loads, before + 1, "catalog rebuilt after install");
@@ -812,7 +812,7 @@ Expected: FAIL — catalog not invalidated after install (loads unchanged)
 
 - [ ] **Step 3: Write the minimal implementation**
 
-In `src/cli/commands/skills/install.ts`:
+In `src/interfaces/cli/commands/skills/install.ts`:
 
 **(a)** Add the import:
 
@@ -835,7 +835,7 @@ Expected: PASS (install suite still green + new invalidation case)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/skills/install.ts tests/cli/commands/skills/install.test.ts
+git add src/interfaces/cli/commands/skills/install.ts tests/cli/commands/skills/install.test.ts
 git commit -m "feat(skills): invalidate slash catalog on skill install and remove"
 ```
 
@@ -844,8 +844,8 @@ git commit -m "feat(skills): invalidate slash catalog on skill install and remov
 ### Task 6: TUI input layer — slash mode, Tab cycle, Enter routing, dispatch threading
 
 **Files:**
-- Modify: `src/tui/app.ts`
-- Modify: `src/tui/views/types.ts` (add `SlashStrip`, `SlashStripEntry`, `ViewRenderContext.slash`)
+- Modify: `src/interfaces/tui/app.ts`
+- Modify: `src/interfaces/tui/views/types.ts` (add `SlashStrip`, `SlashStripEntry`, `ViewRenderContext.slash`)
 - Test: `tests/tui/app.vitest.ts` (modify — the existing harness drives `handleRaw`)
 
 **Interfaces:**
@@ -947,7 +947,7 @@ Expected: FAIL — seams missing, slash behavior not implemented
 
 - [ ] **Step 3: Write the minimal implementation**
 
-**`src/tui/views/types.ts`** — add the strip types and extend the render context:
+**`src/interfaces/tui/views/types.ts`** — add the strip types and extend the render context:
 
 ```ts
 /** One candidate row in the slash-completion strip. */
@@ -976,7 +976,7 @@ In `ViewRenderContext` (add a field):
   readonly slash?: SlashStrip;
 ```
 
-**`src/tui/app.ts`**:
+**`src/interfaces/tui/app.ts`**:
 
 **(a)** Add imports:
 
@@ -1177,7 +1177,7 @@ Expected: PASS (existing + new slash cases). Also `pnpm build` must typecheck (c
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/app.ts src/tui/views/types.ts tests/tui/app.vitest.ts
+git add src/interfaces/tui/app.ts src/interfaces/tui/views/types.ts tests/tui/app.vitest.ts
 git commit -m "feat(tui): slash-command input layer — Tab cycle, Enter routing, dispatch threading"
 ```
 
@@ -1186,7 +1186,7 @@ git commit -m "feat(tui): slash-command input layer — Tab cycle, Enter routing
 ### Task 7: Render the completion strip in the agent view
 
 **Files:**
-- Modify: `src/tui/views/agent-view.ts`
+- Modify: `src/interfaces/tui/views/agent-view.ts`
 - Test: `tests/tui/views/agent-view.test.ts` (new)
 
 **Interfaces:**
@@ -1199,9 +1199,9 @@ Create `tests/tui/views/agent-view.test.ts`:
 ```ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TerminalCanvas } from "../../../src/tui/canvas.js";
-import { AgentView } from "../../../src/tui/views/agent-view.js";
-import type { ViewRenderContext } from "../../../src/tui/views/types.js";
+import { TerminalCanvas } from "../../../src/interfaces/tui/canvas.js";
+import { AgentView } from "../../../src/interfaces/tui/views/agent-view.js";
+import type { ViewRenderContext } from "../../../src/interfaces/tui/views/types.js";
 
 function stripCtx(slash: any): ViewRenderContext {
   const canvas = new TerminalCanvas(60, 20);
@@ -1247,7 +1247,7 @@ Expected: FAIL — strip not rendered
 
 - [ ] **Step 3: Write the minimal implementation**
 
-In `src/tui/views/agent-view.ts`, after the prompt line is drawn, render the strip as an overlay. The strip only exists on the agent tab (Task 6 computes `ctx.slash` only there):
+In `src/interfaces/tui/views/agent-view.ts`, after the prompt line is drawn, render the strip as an overlay. The strip only exists on the agent tab (Task 6 computes `ctx.slash` only there):
 
 ```ts
     // Slash-command completion strip (agent tab only) — drawn last so it
@@ -1273,7 +1273,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/views/agent-view.ts tests/tui/views/agent-view.test.ts
+git add src/interfaces/tui/views/agent-view.ts tests/tui/views/agent-view.test.ts
 git commit -m "feat(tui): render slash-command completion strip in the agent view"
 ```
 

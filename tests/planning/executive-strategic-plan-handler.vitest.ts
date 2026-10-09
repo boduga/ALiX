@@ -41,7 +41,7 @@ describe("handleStrategicPlanCommand", () => {
 
     try {
       const { handleStrategicPlanCommand } = await import(
-        "../../src/cli/commands/executive-strategic-plan-handler.js"
+        "../../src/interfaces/cli/commands/executive-strategic-plan-handler.js"
       );
       await handleStrategicPlanCommand(["--latest"]);
 
@@ -62,7 +62,7 @@ describe("handleStrategicPlanCommand", () => {
 
     try {
       // First save a root cause analysis so the engine has data
-      const { RootCauseStore } = await import("../../src/reasoning/root-cause-store.js");
+      const { RootCauseStore } = await import("../../src/planning/reasoning/root-cause-store.js");
       const rootStore = new RootCauseStore(join(tmpDir, ".alix", "reasoning"));
       await rootStore.save({
         schemaVersion: "p11.2.0",
@@ -75,7 +75,7 @@ describe("handleStrategicPlanCommand", () => {
       });
 
       const { handleStrategicPlanCommand } = await import(
-        "../../src/cli/commands/executive-strategic-plan-handler.js"
+        "../../src/interfaces/cli/commands/executive-strategic-plan-handler.js"
       );
       await handleStrategicPlanCommand([]);
 

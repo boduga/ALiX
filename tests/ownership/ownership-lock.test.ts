@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { OwnershipLock } from "../../src/ownership/ownership-lock.js";
+import { OwnershipLock } from "../../src/coordination/ownership/ownership-lock.js";
 
 describe("OwnershipLock", () => {
   let dir: string;

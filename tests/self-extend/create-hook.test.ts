@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { HookRunner } from "../../src/extensions/hook-runner.js";
-import { createHookTool } from "../../src/self-extend/create-hook.js";
+import { HookRunner } from "../../src/capabilities/extensions/hook-runner.js";
+import { createHookTool } from "../../src/capabilities/self-extend/create-hook.js";
 
 describe("create_hook tool", () => {
   it("returns a tool definition", () => {

@@ -1,0 +1,677 @@
+/**
+ * Event handlers for the task runner.
+ *
+ * Extracted from run.ts to handle:
+ * - Tool call responses
+ * - Approval requests (scope expansion)
+ * - Verification results
+ */
+
+import { ALIX_BUILTIN_EXECUTORS } from "../../agents/tool-manifest.js";
+import { buildOfferedExecutableTools, resolveExecutableToolName, ToolNotFoundError } from "../../agents/tool-name-resolver.js";
+import { TOOL_EVENT_TYPES, POLICY_EVENT_TYPES } from "../../runtime-state/events/types.js";
+import type { NormalizedMessage, ToolCall, ToolDef } from "../../models/providers/types.js";
+import type { ScopeTracker } from "../../planning/autonomy/scope-tracker.js";
+import type { MutationSessionState } from "../../run.js";
+import { extractMutationPaths } from "../../run.js";
+import { buildErrorMessage } from "../../run.js";
+import { ToolDiscovery } from "../../capabilities/mcp/tool-discovery.js";
+import type { ToolExecutor } from "../../capabilities/tools/executor.js";
+import { McpManager } from "../../capabilities/mcp/manager.js";
+import { promptUser, BASE_TOOLS } from "./helpers.js";
+import type { CorrelationContext } from "../../runtime-state/runtime/tool-correlation.js";
+import { buildCorrelatedToolResultMessage } from "../../runtime-state/runtime/tool-correlation.js";
+import { toolResultText } from "../../capabilities/tools/result-text.js";
+import type { EventLog } from "../../runtime-state/events/event-log.js";
+import type { DeferredToolEntry } from "../../capabilities/mcp/tool-deferral.js";
+import type { AgentProgressKind } from "../../agents/agent/agent-liveness.js";
+import type { ExecutionStateEmitter } from "../../runtime-state/runtime/execution-state/execution-state-emitter.js";
+import { tryHandleStateProposal } from "../../capabilities/tools/state-proposal-tool.js";
+
+export type EventHandlerDeps = {
+  executor: ToolExecutor;
+  mcpManager: McpManager | null;
+  mcpDiscovery: ToolDiscovery | null;
+  scope: ScopeTracker;
+  session: { sessionId: string; actor: "system" };
+  /** Roster execution identity for bound-tool approval attribution; falls back
+   *  to the executor's session id when absent (never a generic "alix"). */
+  agentId?: string;
+  sessionState: MutationSessionState;
+  log: EventLog;
+  selectedTools: { name: string; execName: string }[];
+  mcpToolIndex: DeferredToolEntry[];
+  offeredTools?: ReadonlyArray<{ name: string }>;
+  boundTools?: import("../../capabilities/tools/collaboration-tools.js").BoundTool[];
+  config: { permissions: { sessionMode?: "auto" | "ask" | "bypass" } };
+  verbose?: boolean; // Print tool outputs to stdout
+  /**
+   * Operator-cancel signal (Task 6.1 tool propagation). Threaded into each
+   * ToolCallRequest so an interruptible in-flight tool (shell.run) can map an
+   * operator abort onto its own child-kill and surface an
+   * ExecutionCancelledError — never a tool failure. Optional; omitted when
+   * cancellation is not armed.
+   */
+  cancelSignal?: AbortSignal;
+  /**
+   * Session-level governed execution-state emitter (opt-in). When present,
+   * `alix_execution_state_propose` tool calls are routed through the harness
+   * instead of the ToolExecutor. Optional; absent preserves legacy dispatch.
+   */
+  executionStateEmitter?: ExecutionStateEmitter | null;
+  /** Exact operator-requested mutation targets for strict single-file tasks. */
+  allowedMutationPaths?: readonly string[];
+  /**
+   * Turn-level progress sink (liveness marks + activity transitions), owned
+   * by the session layer. Used here ONLY for the approval wait: entering
+   * `waitForApproval` would otherwise leave the activity indicator stuck on
+   * `tool_running` ("Running …") with no marks until the operator decides.
+   * Optional; omitted by callers without a live turn (tests, replay).
+   */
+  onProgress?: (kind: AgentProgressKind, description?: string) => void;
+  /** Authoritative run id for the enclosing execution (Task 12 tool spans). */
+  runId?: string;
+  /**
+   * Per-turn signature counter for read-only search tools. When provided, an
+   * identical (tool + args) search call beyond {@link SEARCH_REPEAT_LIMIT} is
+   * short-circuited with a corrective message instead of re-executing — this
+   * breaks the "same grep 20×" loop a confused model can fall into.
+   */
+  searchCallGuard?: Map<string, number>;
+};
+
+/** Read-only search tools subject to the repeated-call guard. */
+const GUARDED_SEARCH_TOOLS = new Set(["grep.search", "glob.match"]);
+/** How many near-identical search calls are allowed before the guard fires. */
+const SEARCH_REPEAT_LIMIT = 3;
+/**
+ * Hard per-tool cap for a single turn. Even when a model varies the args
+ * slightly to evade the exact-signature guard (e.g. `path: "src/x"` →
+ * `"src/x/"`, or a tweaked pattern), this many calls to ONE search tool is a
+ * loop; the next call is short-circuited with a synthesize-now nudge.
+ */
+const SEARCH_TOOL_CALL_LIMIT = 8;
+
+/**
+ * Normalize a search call into a stable signature so near-identical calls
+ * collapse: path/pattern are trimmed and trailing slashes dropped, `include`
+ * and `extensions` are sorted, and the pure result-bound `headLimit` is ignored
+ * (it cannot change what is found, only how much is returned).
+ */
+function searchSignature(execName: string, args: unknown): string {
+  const a = (args ?? {}) as Record<string, unknown>;
+  const s = (v: unknown): string => (typeof v === "string" ? v.trim().replace(/\/+$/, "") : "");
+  const list = (v: unknown): string => (Array.isArray(v) ? [...v].map(String).sort().join(",") : "");
+  switch (execName) {
+    case "grep.search":
+      return `grep.search:${s(a.pattern)}:${s(a.path)}:${a.caseSensitive === true}:${list(a.include)}`;
+    case "glob.match":
+      return `glob.match:${s(a.pattern)}:${s(a.path)}`;
+    default:
+      return `${execName}:${JSON.stringify(args ?? {})}`;
+  }
+}
+
+/**
+ * Markers that a `web_search` query is really a LOCAL workspace search. A model
+ * (esp. a weak/free one) that conflates "search" with the web otherwise burns a
+ * turn on `web_search` and gets nothing, because it cannot see the workspace.
+ */
+const LOCAL_CODE_HINT =
+  /(?:^|[\s"'`(])(?:\.{0,2}\/)?(?:src|tests?|packages|apps|lib|scripts)\/|\b(?:export|import|function|class|interface|const|let|var|def)\s+[A-Za-z_$]|\bworkspace\b|\brepo(?:sitory)?\b|\bcodebase\b|=>|===|\.\.\//i;
+
+/**
+ * Handle MCP tool search requests
+ */
+export async function handleMcpToolSearch(
+  toolCall: ToolCall,
+  deps: EventHandlerDeps
+): Promise<{ handled: boolean; message?: NormalizedMessage }> {
+  if (toolCall.name !== "alix_mcp_search_tools"
+    || (deps.offeredTools && !deps.offeredTools.some(tool => tool.name === toolCall.name))) {
+    return { handled: false };
+  }
+
+  // No executor-id literal to check here: this path already passed the exact
+  // offered-name gate above, so a hardcoded copy of the manifest value was a
+  // second place to forget. It read as a drift guard but compared a
+  // manifest-derived constant to itself — renaming the entry is what made
+  // `tsc` flag it, which was the only reason it ever caught anything.
+  const query = (toolCall.args.query as string) ?? "";
+  if (!deps.mcpDiscovery) {
+    return { handled: true, message: { role: "assistant", content: "MCP tools are not configured." } };
+  }
+  const result = await deps.mcpDiscovery.search(query);
+  const matchedTools =
+    result.kind === "success" && result.output
+      ? result.output.split("\n").filter((l) => l.startsWith("  - ")).map((l) => l.slice(5, l.indexOf(":")))
+      : [];
+  await deps.log.append({
+    sessionId: deps.session.sessionId,
+    actor: "system",
+    type: "mcp.tool_discovered",
+    payload: { query, matchedTools },
+  });
+  const output = result.kind === "success" ? result.output ?? "" : result.message;
+
+  return {
+    handled: true,
+    message: { role: "user", content: `[Tool Result]\n${output}` },
+  };
+}
+
+/**
+ * §2 shed-tool contract: a tool scoped OUT of T1b is called by the model.
+ *  Re-admit that ONE tool's schema (additive-only) so the call can be retried.
+ *  Returns { handled, reintroduce } — the caller re-adds the schema to the
+ *  wire tools and lets the model retry the call once.
+ *
+ *  Pure lookup. Does NOT log the event (the caller owns the emit so the
+ *  retry-attempt counter and the wire-tools append stay in one place).
+ */
+export function handleShedToolCall(
+  toolCall: ToolCall,
+  scopedOutNames: Set<string>,
+  fullRegistry: Array<ToolDef | DeferredToolEntry>
+): { handled: boolean; reintroduce?: ToolDef | DeferredToolEntry } {
+  if (!scopedOutNames.has(toolCall.name)) return { handled: false };
+  const tool = fullRegistry.find((t) => t.name === toolCall.name);
+  if (!tool) return { handled: false };
+  return { handled: true, reintroduce: tool };
+}
+
+/**
+ * Handle scope expansion requests for files outside initial scope
+ */
+export async function handleScopeExpansion(
+  toolCall: ToolCall,
+  deps: EventHandlerDeps
+): Promise<{ handled: boolean; continue?: boolean; denied?: boolean }> {
+  const execName = Object.hasOwn(ALIX_BUILTIN_EXECUTORS, toolCall.name)
+    ? ALIX_BUILTIN_EXECUTORS[toolCall.name as keyof typeof ALIX_BUILTIN_EXECUTORS]
+    : toolCall.name;
+  const isMutation =
+    execName === "file.create" ||
+    execName === "file.write" ||
+    execName === "file.delete" ||
+    execName === "patch.apply";
+
+  if (!isMutation) {
+    return { handled: false };
+  }
+
+  const pathsToCheck = extractMutationPaths(execName, toolCall.args);
+  const deniedPaths = pathsToCheck.filter((path: string) => deps.scope.checkMutation(path) === "denied");
+
+  if (deniedPaths.length > 0) {
+    await deps.log.append({
+      ...deps.session,
+      actor: "policy",
+      type: "autonomy.scope_denied",
+      payload: { paths: deniedPaths, toolCallId: toolCall.id, toolName: execName },
+    });
+    return {
+      handled: true,
+      continue: false,
+      denied: true,
+    };
+  }
+
+  const expansionPaths = pathsToCheck.filter((path: string) => deps.scope.checkMutation(path) === "scope_expansion");
+
+  if (expansionPaths.length === 0) {
+    return { handled: false };
+  }
+
+  // Track that scope expansion is pending
+  deps.sessionState.pendingScopeExpansion = true;
+  await deps.log.append({
+    ...deps.session,
+    actor: "policy",
+    type: "autonomy.scope_expansion",
+    payload: { paths: expansionPaths, toolCallId: toolCall.id, toolName: execName },
+  });
+
+  // In auto/bypass mode, auto-approve scope expansion immediately
+  if (deps.config.permissions.sessionMode === "auto" || deps.config.permissions.sessionMode === "bypass") {
+    for (const path of expansionPaths) {
+      deps.scope.approveScope(path);
+    }
+    deps.sessionState.pendingScopeExpansion = false;
+    await deps.log.append({
+      ...deps.session,
+      actor: "policy",
+      type: "autonomy.scope_auto_approved",
+      payload: { paths: expansionPaths, mode: deps.config.permissions.sessionMode },
+    });
+    return { handled: true, continue: true };
+  }
+
+  if (process.stdin.isTTY) {
+    const answer = await promptUser(
+      `Scope expansion: ${expansionPaths.map((path: string) => `"${path}"`).join(", ")} outside the initial scope. Type "approve" to allow or "deny" to block: `
+    );
+    await deps.log.append({
+      ...deps.session,
+      actor: "user",
+      type: "autonomy.scope_approval",
+      payload: { answer, paths: expansionPaths },
+    });
+
+    if (answer.toLowerCase() === "approve") {
+      for (const path of expansionPaths) {
+        deps.scope.approveScope(path);
+      }
+      deps.sessionState.pendingScopeExpansion = false;
+      await deps.log.append({
+        ...deps.session,
+        actor: "policy",
+        type: "autonomy.scope_approved",
+        payload: { paths: expansionPaths },
+      });
+      return { handled: true, continue: true };
+    } else {
+      for (const path of expansionPaths) {
+        deps.scope.denyScope(path);
+      }
+      await deps.log.append({
+        ...deps.session,
+        actor: "policy",
+        type: "autonomy.scope_denied",
+        payload: { paths: expansionPaths },
+      });
+      return { handled: true, continue: false, denied: true };
+    }
+  }
+
+  // Non-TTY ask mode cannot prompt. Persist denial and fail fast.
+  for (const path of expansionPaths) {
+    deps.scope.setPending(path);
+    deps.scope.denyScope(path);
+  }
+  await deps.log.append({
+    ...deps.session,
+    actor: "policy",
+    type: "autonomy.scope_skipped",
+    payload: { reason: "non_tty_session", paths: expansionPaths },
+  });
+  await deps.log.append({
+    ...deps.session,
+    actor: "policy",
+    type: "autonomy.scope_denied",
+    payload: { paths: expansionPaths },
+  });
+
+  return { handled: true, continue: false, denied: true };
+}
+
+/**
+ * Build scope denial message for tool result
+ */
+export function buildScopeDenialMessage(toolCallId: string, deniedPaths: string[]): NormalizedMessage {
+  return {
+    role: "user",
+    content: `<tool_result id="${toolCallId}">\nError: These files were denied by the user: ${deniedPaths.join(", ")}. Do NOT attempt to modify them again.\n</tool_result>`,
+  };
+}
+
+/**
+ * Build scope rejection summary for session
+ */
+export function buildScopeRejectionSummary(expansionPaths: string[]): string {
+  return `Scope expansion rejected in non-TTY ask mode for: ${expansionPaths.join(", ")}`;
+}
+
+/**
+ * Handle a single tool call execution and return result
+ */
+export async function handleToolCall(
+  toolCall: ToolCall,
+  deps: EventHandlerDeps,
+  failedTools: string[],
+  fatalToolErrors: string[],
+  correlation: CorrelationContext = { executionId: "exec-test", invocationId: "inv-test" },
+): Promise<{
+  message?: NormalizedMessage;
+  continue?: boolean;
+  completed?: boolean;
+  summary?: string;
+  /** Explicit executor outcome for invocation-local evidence observers. */
+  succeeded?: boolean;
+  error?: { message: string; retryable?: boolean };
+  /** Propagated from a successful result so completion evidence can record
+   *  what the call changed (e.g. a coordination run's worker-written files). */
+  changed?: boolean;
+  changedFiles?: string[];
+}> {
+  const visibleTools = deps.offeredTools ?? [...BASE_TOOLS, ...deps.selectedTools];
+  const offered = buildOfferedExecutableTools(visibleTools, deps.mcpToolIndex);
+  let execName: string;
+  try {
+    execName = resolveExecutableToolName(toolCall.name, offered);
+  } catch (error) {
+    if (!(error instanceof ToolNotFoundError)) throw error;
+    // The resolver rejection path is the only place the model's RAW requested
+    // name is still in hand — `ToolExecutor` records the post-resolution
+    // executor, so without this event a hallucinated name leaves no trace in
+    // the audit trail at all.
+    await deps.log.append({
+      ...deps.session,
+      actor: "system",
+      type: TOOL_EVENT_TYPES.REJECTED,
+      payload: {
+        toolCallId: toolCall.id,
+        requestedName: toolCall.name,
+        reason: "name-not-offered",
+        availableCount: error.offeredTools.length,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
+      },
+    });
+    // T5 correlation: typed attributes via helper — no loose Record, no spread
+    const correlationAttrs = ` invocationId="${correlation.invocationId}" executionId="${correlation.executionId}"`;
+    return {
+      continue: true,
+      message: {
+        role: "user",
+        content: `<tool_result id="${toolCall.id}"${correlationAttrs}>\nError: Unknown tool "${toolCall.name}". Available tools: ${error.offeredTools.join(", ")}. Invoke exactly one of these by name and wait for the result.\n</tool_result>`,
+      },
+    };
+  }
+
+  // Model-proposal tool (opt-in execution-state emission) is intercepted
+  // only after the exact offered-name gate.
+  const stateProposal = await tryHandleStateProposal(toolCall, deps.executionStateEmitter ?? null);
+  if (stateProposal) return stateProposal;
+
+  const boundTool = deps.boundTools?.find((tool) => tool.definition.name === toolCall.name);
+  if (boundTool) {
+    // R1.5: bound tools carry a policy decision before dispatch — the same
+    // gate every routed tool passes. allow → run; ask → durable approval wait;
+    // deny/unknown → denial. The handler never runs ungoverned.
+    const auth = await deps.executor.authorizeBoundTool({
+      toolCallId: toolCall.id,
+      name: toolCall.name,
+      args: (toolCall.args ?? {}) as Record<string, unknown>,
+      sessionId: deps.session.sessionId,
+      agentId: deps.agentId,
+    });
+    let authorized = auth.decision === "allow";
+    if (auth.decision === "ask") {
+      if (auth.approvalId) {
+        deps.onProgress?.("approval_pending", execName);
+        const approvalId = auth.approvalId;
+        const outcome = await waitForApproval(approvalId, deps);
+        authorized = outcome === "approved";
+        await deps.log.append({
+          sessionId: deps.session.sessionId,
+          actor: "system",
+          type: POLICY_EVENT_TYPES.APPROVAL_RESOLVED,
+          payload: { approvalId, decision: outcome === "approved" ? "approved" : "denied" },
+        });
+      } else {
+        // ask without a durable pending record (no approval store) → fail closed
+        authorized = false;
+      }
+    }
+    if (!authorized) {
+      const reason =
+        auth.decision === "ask"
+          ? `Approval ${auth.approvalId ?? ""} not granted for ${toolCall.name}`.trim()
+          : `Denied by policy: ${auth.reason}`;
+      return {
+        message: {
+          role: "user",
+          content: buildCorrelatedToolResultMessage(toolCall.id, `Access denied: ${reason}`, correlation),
+        },
+        succeeded: false,
+      };
+    }
+    try {
+      const output = await boundTool.handler((toolCall.args ?? {}) as Record<string, unknown>);
+      return {
+        succeeded: true,
+        message: {
+          role: "user",
+          content: buildCorrelatedToolResultMessage(toolCall.id, output, correlation),
+        },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failedTools.push(execName);
+      fatalToolErrors.push(execName);
+      return {
+        message: {
+          role: "user",
+          content: buildCorrelatedToolResultMessage(toolCall.id, `Error: ${message}`, correlation),
+        },
+        error: { message, retryable: false },
+      };
+    }
+  }
+
+  // Web-search routing guard: a query that is plainly a local workspace search
+  // is redirected to the workspace tools instead of hitting the public web.
+  if (execName === "web.search") {
+    const query = typeof (toolCall.args as { query?: unknown } | undefined)?.query === "string"
+      ? (toolCall.args as { query: string }).query
+      : "";
+    if (LOCAL_CODE_HINT.test(query)) {
+      return {
+        continue: true,
+        message: {
+          role: "user",
+          content: `<tool_result id="${toolCall.id}">\nError: web_search cannot access the local workspace — it only searches the public internet. This is a LOCAL search: you MUST call alix_grep_search (file contents/regex) or alix_glob_match (filenames) instead, right now. These tools are available and need no approval. Do not refuse and do not suggest shell commands. Example:\n<alix_grep_search><pattern>^export async function handle.*Command</pattern><path>src/interfaces/cli/commands</path></alix_grep_search>\n</tool_result>`,
+        },
+      };
+    }
+  }
+
+  // Repeated-search guard: a near-identical read-only search call past the
+  // limit is short-circuited so a stuck model cannot burn the iteration budget.
+  // Two tiers: an exact (normalized) signature cap, and a hard per-tool cap that
+  // catches loops where the model varies args to evade the signature. Only
+  // active when the caller supplies a per-turn counter.
+  if (deps.searchCallGuard && GUARDED_SEARCH_TOOLS.has(execName)) {
+    const signature = searchSignature(execName, toolCall.args);
+    const count = (deps.searchCallGuard.get(signature) ?? 0) + 1;
+    deps.searchCallGuard.set(signature, count);
+    const toolKey = `tool:${execName}`;
+    const toolCount = (deps.searchCallGuard.get(toolKey) ?? 0) + 1;
+    deps.searchCallGuard.set(toolKey, toolCount);
+    if (count > SEARCH_REPEAT_LIMIT) {
+      return {
+        continue: true,
+        message: {
+          role: "user",
+          content: `<tool_result id="${toolCall.id}">\nError: repeated search call — "${execName}" with these (or equivalent) arguments has already run ${count - 1} times and will return the same result. Use the previous result, change the pattern/scope (e.g. narrower \`path\`, different \`include\`), or answer with what you have.\n</tool_result>`,
+        },
+      };
+    }
+    if (toolCount > SEARCH_TOOL_CALL_LIMIT) {
+      return {
+        continue: true,
+        message: {
+          role: "user",
+          content: `<tool_result id="${toolCall.id}">\nError: you have called "${execName}" ${toolCount - 1} times this turn — that is a search loop, not progress. Stop searching and answer now with the results you already have. If they are insufficient, state exactly what is missing.\n</tool_result>`,
+        },
+      };
+    }
+  }
+
+  // First attempt — T5 correlation: pass executionId → invocationId → toolCallId to executor via typed CorrelationContext (no Record spread). T12: thread runId for tool-span parent resolution where the caller provides it.
+  let execResult = await deps.executor.execute({
+    toolCallId: toolCall.id,
+    name: execName,
+    args: toolCall.args,
+    summary: toolCall.summary,
+    executionId: correlation.executionId,
+    invocationId: correlation.invocationId,
+    ...(deps.cancelSignal ? { signal: deps.cancelSignal } : {}),
+    ...(deps.allowedMutationPaths?.length ? { allowedMutationPaths: deps.allowedMutationPaths } : {}),
+    runId: deps.runId,
+  });
+
+  // If the executor reports "Approval required (id)", wait for the operator
+  // to resolve that approval and then re-execute the same tool call.
+  // Without this, the LLM sees "Access denied" as a generic failure and
+  // retries in the next iteration, generating a fresh approval id every time
+  // (the "23 pending shell.run" pile-up bug).
+  if (execResult.kind === "denied") {
+    // Approval-gated denials carry the pending id structurally (executor.ts
+    // sets approvalId); the reason-prefix fallback covers hand-constructed
+    // denials (tests, tool adapters) that omit the field.
+    const approvalId =
+      execResult.approvalId ??
+      execResult.reason.match(/^Approval required \(([^)]+)\):/)?.[1];
+    if (approvalId) {
+      // Signal the approval wait BEFORE blocking: without this mark the
+      // activity indicator keeps showing "Running <tool>…" for the whole
+      // operator think-time (and the stall watchdog stays silent, since a
+      // live tool is never relabelled). The session maps this to the
+      // `awaiting_approval` activity state.
+      deps.onProgress?.("approval_pending", execName);
+      const outcome = await waitForApproval(approvalId, deps);
+      if (outcome === "approved") {
+        // The re-execution below is a fresh tool run — restamp the activity
+        // timer so it doesn't keep counting the approval wait.
+        deps.onProgress?.("tool_started", execName);
+        execResult = await deps.executor.execute({
+          toolCallId: toolCall.id,
+          name: execName,
+          args: toolCall.args,
+          summary: toolCall.summary,
+          executionId: correlation.executionId,
+          invocationId: correlation.invocationId,
+          ...(deps.cancelSignal ? { signal: deps.cancelSignal } : {}),
+          ...(deps.allowedMutationPaths?.length ? { allowedMutationPaths: deps.allowedMutationPaths } : {}),
+          runId: deps.runId,
+        });
+      } else {
+        // Denied or expired — keep the original denied result so the
+        // generic Access denied path runs, but the LLM only sees ONE
+        // denial (no infinite retry loop).
+        await deps.log.append({
+          sessionId: deps.session.sessionId,
+          actor: "system",
+          type: POLICY_EVENT_TYPES.APPROVAL_RESOLVED,
+          payload: { approvalId, decision: "denied" },
+        });
+      }
+    }
+  }
+
+  // Track MCP tool provenance
+  if (execResult.kind === "success" && execName.startsWith("mcp.")) {
+    const mcpName = toolCall.name;
+    await deps.log.append({
+      sessionId: deps.session.sessionId,
+      actor: "system",
+      type: "mcp.tool_used",
+      payload: {
+        toolName: mcpName,
+        execName,
+        sessionToolsTotal: deps.mcpToolIndex.length,
+        sessionToolsSelected: deps.selectedTools.length,
+      },
+    });
+  }
+
+  if (execResult.kind === "error") {
+    failedTools.push(execName);
+    if ((execResult as { retryable?: boolean }).retryable === false) {
+      fatalToolErrors.push(execName);
+    }
+  }
+
+  // Success text goes through the shared renderer: search tools answer with
+  // `matches[]`, so reading only `output`/`content` handed the model an empty
+  // <tool_result> for every grep that actually matched.
+  const resultContent =
+    execResult.kind === "success"
+      ? (toolResultText(execResult) || "[no output]")
+      : execResult.kind === "denied"
+        ? `Access denied: ${(execResult as { reason: string }).reason}`
+        : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
+
+  // Stream tool output to stdout if verbose mode - only for read-only tools
+  if (deps.verbose && execResult.kind === "success" && resultContent) {
+    const isReadOnly = ["file.read", "grep.search", "glob.match", "file.exists"].includes(execName);
+    const isPwd = execName === "shell.run" && (toolCall.args.command as string)?.includes("pwd");
+    if (isReadOnly || isPwd) {
+      const truncated = resultContent.length > 200 ? resultContent.slice(0, 200) + "\n[...truncated]" : resultContent;
+      console.log(`\n> ${execName}: ${truncated}\n`);
+    }
+  }
+
+  if (execResult.kind === "success" && (execResult as { completed?: boolean }).completed) {
+    return {
+      continue: true,
+      completed: true,
+    };
+  }
+
+  // T5: retain hierarchy in the tool result message so next model turn receives all results with explicit correlation — typed helper, no manual string concat
+  const correlatedContent = buildCorrelatedToolResultMessage(toolCall.id, resultContent, correlation);
+  return {
+    message: { role: "user", content: correlatedContent },
+    succeeded: execResult.kind === "success",
+    ...(execResult.kind === "error" ? { error: { message: execResult.message, retryable: execResult.retryable } } : {}),
+    // `changed` is tri-state and must stay that way across this boundary.
+    // Collapsing "the tool set no flag" into `false` erases the difference
+    // between a provable no-op (`file.create` → `already_exists_identical`)
+    // and a tool that simply does not report changes (`file.delete`, or any
+    // executor that omits the field). The task loop's mutation gate reads that
+    // distinction: an explicit `false` means "this wrote nothing", while absent
+    // means "undecided", and reading either as the other either lets a no-op
+    // pass as proof of mutation or breaks every legitimate delete.
+    ...(execResult.kind === "success"
+      ? {
+          ...(execResult.changed === undefined ? {} : { changed: execResult.changed }),
+          changedFiles: execResult.changedFiles ?? [],
+          // Structured identity travels with the result so the task loop can
+          // look up the run's completion dimensions (C6).
+          ...(execResult.coordinationRunId ? { coordinationRunId: execResult.coordinationRunId } : {}),
+        }
+      : {}),
+  };
+}
+
+/**
+ * Poll the approval store until the given approval id is resolved.
+ * Returns:
+ *   - "approved"  — the operator approved the request; retry the tool call
+ *   - "denied"    — the operator denied; surface as Access denied
+ *   - "expired"   — the approval timed out without resolution
+ *
+ * Polling interval: 500ms. Hard timeout: 5 minutes. These bounds keep the
+ * loop responsive in the TUI (operator sees pending status update every 0.5s)
+ * while also preventing a stuck approval from blocking forever.
+ */
+async function waitForApproval(
+  approvalId: string,
+  deps: EventHandlerDeps,
+): Promise<"approved" | "denied" | "expired"> {
+  const POLL_MS = 500;
+  const TIMEOUT_MS = 5 * 60_000;
+  const deadline = Date.now() + TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const record = deps.executor.getApproval?.(approvalId);
+    if (!record) {
+      // Approval record was removed (e.g. cleared on shutdown) — treat as denied
+      return "denied";
+    }
+    const status = record.status;
+    if (status === "approved") return "approved";
+    if (status === "denied" || status === "rejected") return "denied";
+    if (status === "expired") return "expired";
+    // Re-mark every poll tick: operator think-time is not execution
+    // progress, but it is also not a stall — without a fresh mark the
+    // liveness watchdog would flag warning/stalled on a slow decision.
+    // The session layer transitions activity exactly once (first mark).
+    deps.onProgress?.("approval_pending");
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+  }
+  return "expired";
+}

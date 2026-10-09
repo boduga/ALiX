@@ -11,9 +11,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AuditChainWriter } from "../../../src/security/audit/audit-chain-writer.js";
-import { verifyAuditLog } from "../../../src/security/audit/audit-verifier.js";
-import { activateAuditChain } from "../../../src/cli/commands/security.js";
+import { AuditChainWriter } from "../../../src/governance/security/audit/audit-chain-writer.js";
+import { verifyAuditLog } from "../../../src/governance/security/audit/audit-verifier.js";
+import { activateAuditChain } from "../../../src/interfaces/cli/commands/security.js";
 
 function seedLegacy(auditDir: string, count = 2): void {
   mkdirSync(auditDir, { recursive: true });

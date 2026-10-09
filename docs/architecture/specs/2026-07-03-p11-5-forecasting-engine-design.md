@@ -526,12 +526,12 @@ When P11.4 processes new outcomes, the forecast serves as a baseline:
 
 | File | Purpose |
 |---|---|
-| `src/forecasting/forecasting-types.ts` | Type definitions: `HealthForecast`, `ScoreProjection`, `ForecastingEngineConfig`, `ForecastingObservationContext`, `HealthForecastSummary`, `ForecasterError` |
-| `src/forecasting/forecasting-config.ts` | Default config export |
-| `src/forecasting/build-health-forecast.ts` | Pure function `buildHealthForecast()` |
-| `src/forecasting/health-forecast-store.ts` | Append-only JSONL store with validation |
-| `src/forecasting/forecasting-engine.ts` | Orchestrator |
-| `src/cli/commands/executive-forecast-handler.ts` | CLI handler for `alix executive forecast` |
+| `src/planning/forecasting/forecasting-types.ts` | Type definitions: `HealthForecast`, `ScoreProjection`, `ForecastingEngineConfig`, `ForecastingObservationContext`, `HealthForecastSummary`, `ForecasterError` |
+| `src/planning/forecasting/forecasting-config.ts` | Default config export |
+| `src/planning/forecasting/build-health-forecast.ts` | Pure function `buildHealthForecast()` |
+| `src/planning/forecasting/health-forecast-store.ts` | Append-only JSONL store with validation |
+| `src/planning/forecasting/forecasting-engine.ts` | Orchestrator |
+| `src/interfaces/cli/commands/executive-forecast-handler.ts` | CLI handler for `alix executive forecast` |
 | `tests/forecasting/build-health-forecast.vitest.ts` | 10 pure function tests |
 | `tests/forecasting/forecasting-engine.vitest.ts` | 3 engine tests |
 | `tests/forecasting/health-forecast-store.vitest.ts` | 4 store tests |

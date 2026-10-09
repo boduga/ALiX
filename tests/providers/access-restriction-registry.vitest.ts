@@ -13,7 +13,7 @@ import {
   accessRestrictedModelIds,
   _resetAccessRestrictionRegistryForTesting,
   _setAccessRestrictionTtlForTesting,
-} from "../../src/providers/access-restriction-registry.js";
+} from "../../src/models/providers/access-restriction-registry.js";
 
 describe("access-restriction-registry", () => {
   beforeEach(() => {

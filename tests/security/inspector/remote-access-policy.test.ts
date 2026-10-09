@@ -20,8 +20,8 @@ import {
   detectConnectionSecurity,
   shouldSetSecureCookie,
   type RemoteAccessConfig,
-} from "../../../src/security/inspector/remote-access-policy.js";
-import type { AlixConfig } from "../../../src/config/schema.js";
+} from "../../../src/governance/security/inspector/remote-access-policy.js";
+import type { AlixConfig } from "../../../src/operations/config/schema.js";
 
 function makeUiConfig(overrides?: Partial<AlixConfig["ui"]>): Pick<AlixConfig, "ui"> {
   return {

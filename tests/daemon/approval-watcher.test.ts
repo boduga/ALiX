@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ApprovalWatcher } from "../../src/daemon/approval-watcher.js";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
+import { ApprovalWatcher } from "../../src/operations/daemon/approval-watcher.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
 
 describe("ApprovalWatcher", () => {
   let cwd: string;

@@ -6,7 +6,7 @@
 
 ## The gate
 
-`src/runtime/task-router.ts:445-447`:
+`src/runtime-state/runtime/task-router.ts:445-447`:
 
 ```ts
 if (
@@ -28,7 +28,7 @@ The model fallback (Layer 2) runs only when **both** hold:
 
 ### Finding A — the `confidence < CONFIDENCE_THRESHOLD` arm is currently dead
 
-`confidenceForIntent` (`src/runtime/action-classifier.ts:691`) assigns every
+`confidenceForIntent` (`src/runtime-state/runtime/action-classifier.ts:691`) assigns every
 non-ambiguous intent a **fixed** confidence ≥ 0.75:
 
 | Intent | Fixed confidence |
@@ -60,7 +60,7 @@ such a change is caught and reviewed.
 - **Layer-2 floor** (`MODEL_CONFIDENCE_THRESHOLD = 0.7`, T24 #402): decides
   whether the model's *output* is *trusted* for routing.
 
-Both are exported constants in `src/runtime/action-classifier.ts` and tune
+Both are exported constants in `src/runtime-state/runtime/action-classifier.ts` and tune
 independently. A model label below the Layer-2 floor (or with a missing
 confidence, which T23 defaults to 0) is treated as `ambiguous` and falls
 through to the safe default route — never a high-risk path.
@@ -85,5 +85,5 @@ invoked. Pinned by closed-world test #3.
 
 - `taskRouter(task, opts)` — `opts.classifierProvider?: ModelAdapter`. When set,
   the gate is armed. When omitted, Layer 2 is disabled and the legacy path is
-  used. Session wiring: `src/agent/session.ts` resolves `classifierModel` /
+  used. Session wiring: `src/agents/agent/session.ts` resolves `classifierModel` /
   `chatModel` into the provider passed to `taskRouter`.

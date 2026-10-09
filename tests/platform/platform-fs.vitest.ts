@@ -10,9 +10,9 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir, platform, EOL } from "node:os";
-import { EventLog } from "../../src/events/event-log.js";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
-import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import { closeAllSharedLedgers } from "../../src/runtime-state/storage/runtime-ledger.js";
 
 describe("platform filesystem semantics", () => {
   it(`runs on this platform (${platform()}) with native line endings`, () => {

@@ -350,7 +350,7 @@ P27 has no write path. The CLI reads from three data sources (P24 bundle, P25 st
 | P27.1 | `src/governance/learning-synthesis-types.ts` | Trace model, report types |
 | P27.2 | `src/governance/learning-synthesis-analytics.ts` | Pure analytics functions |
 | P27.3 | `src/governance/learning-synthesis-report.ts` | Pure report builder + text/json |
-| P27.4 | `src/cli/commands/governance-learning-synthesis.ts` | CLI handler |
+| P27.4 | `src/interfaces/cli/commands/governance-learning-synthesis.ts` | CLI handler |
 | P27.0 | `docs/architecture/specs/<date>-p27-0-*.md` | Design spec |
 | P27.5 | `docs/architecture/checkpoints/<date>-p27-5-*.md` | Checkpoint |
 
@@ -358,7 +358,7 @@ P27 has no write path. The CLI reads from three data sources (P24 bundle, P25 st
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "learning-synthesis"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "learning-synthesis"` dispatch |
 
 ### 11.3 Untouched Files
 

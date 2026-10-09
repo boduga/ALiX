@@ -176,8 +176,8 @@ These rules will continue to apply through P10.10, P11, and later strategic-plan
 ## References
 
 - `docs/architecture/plans/p10-9-1-operational-completeness.md` — implementation plan
-- `src/executive/executive-snapshot-store.ts` — store (immutable baseline)
-- `src/executive/executive-snapshot-provider.ts` — provider (pure assembly)
-- `src/executive/executive-observation-provider.ts` — observation seam (only store-aware layer)
-- `src/executive/execution-engine.ts` — calls provider at first step execution
+- `src/execution/executive/executive-snapshot-store.ts` — store (immutable baseline)
+- `src/execution/executive/executive-snapshot-provider.ts` — provider (pure assembly)
+- `src/execution/executive/executive-observation-provider.ts` — observation seam (only store-aware layer)
+- `src/execution/executive/execution-engine.ts` — calls provider at first step execution
 - P8.5a.0 evidence chain implementation — precedent for write-once immutability

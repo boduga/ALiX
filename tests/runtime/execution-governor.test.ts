@@ -8,15 +8,15 @@ import type {
   ExecutionIntent,
   ExecutionIntentEvent,
   ExecutionEvidence,
-} from "../../src/runtime/contracts/execution-intent-contract.js";
+} from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 
-import { ExecutionGovernorImpl } from "../../src/runtime/execution-governor.js";
+import { ExecutionGovernorImpl } from "../../src/runtime-state/runtime/execution-governor.js";
 import type {
   ExecutionGovernor,
   ValidationResult,
   AuthorizationResult,
   ExecutionSession,
-} from "../../src/runtime/execution-governor.js";
+} from "../../src/runtime-state/runtime/execution-governor.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 

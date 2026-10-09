@@ -153,7 +153,7 @@ Constraints:
 - The checkpoint layer MUST never know builder-specific state types (`ApprovalProjectionSnapshot`, `TraceState`, `TimelineState`) — only `Record<string, unknown>` / the opaque envelope.
 - Deterministic replay: a builder's `update()` MUST be a pure function of its input events — `Date.now()`/`Math.random()` in an update path breaks replay (same log must produce same state). Event timestamps are parsed strictly; a malformed timestamp throws rather than falling back to `Date.now()`.
 
-**State types live in their own module** — `src/tui/runtime/projection-state.ts` — to avoid a layering inversion. `ProjectionRuntime` currently imports `ProjectionStateSnapshot` from `projection-checkpoint-store.ts`, which inverts the intended dependency:
+**State types live in their own module** — `src/interfaces/tui/runtime/projection-state.ts` — to avoid a layering inversion. `ProjectionRuntime` currently imports `ProjectionStateSnapshot` from `projection-checkpoint-store.ts`, which inverts the intended dependency:
 
 ```
 bad:                          good:
@@ -163,7 +163,7 @@ ProjectionRuntime              ProjectionCheckpointStore   ProjectionRuntime
 ProjectionCheckpointStore              ProjectionState (projection-state.ts)
 ```
 
-Move `ProjectionState` and `ProjectionStateSnapshot` into `src/tui/runtime/projection-state.ts`; both `projection-runtime.ts` and `projection-checkpoint-store.ts` import from it. (Same for the phase-6.5 `ProjectionStateSnapshot` type currently defined in the checkpoint store.)
+Move `ProjectionState` and `ProjectionStateSnapshot` into `src/interfaces/tui/runtime/projection-state.ts`; both `projection-runtime.ts` and `projection-checkpoint-store.ts` import from it. (Same for the phase-6.5 `ProjectionStateSnapshot` type currently defined in the checkpoint store.)
 
 ## Snapshot contract
 
@@ -250,8 +250,8 @@ Keep the `state` field permanently — a future contributor must not "clean up" 
 
 ## ApprovalProjection
 
-- **Host:** the runtime collector (outer sessionId) — approval events are stamped with the outer sessionId (`src/policy/approvals.ts:44`), so it projects alongside the trace. Independent of `buildTimeline`.
-- **Events consumed:** `approval.requested` / `approval.resolved` / `approval.expired` / `approval.consumed` / `approval.revoked` / `approval.resumed` (already defined in `src/events/types.ts`).
+- **Host:** the runtime collector (outer sessionId) — approval events are stamped with the outer sessionId (`src/governance/policy/approvals.ts:44`), so it projects alongside the trace. Independent of `buildTimeline`.
+- **Events consumed:** `approval.requested` / `approval.resolved` / `approval.expired` / `approval.consumed` / `approval.revoked` / `approval.resumed` (already defined in `src/runtime-state/events/types.ts`).
 - **Semantics:** **state machine / active-state** — a third distinct projection style alongside append-only (timeline) and lifecycle-reconciliation (trace).
 
   ```ts
@@ -334,7 +334,7 @@ Replace the hard-coded `state: { timeline, trace }` assembly with the runtime's 
 ## Acceptance criteria
 
 - ✅ `RuntimeCollectorImpl` contains **zero projection-specific code** — no `this.timelineBuilder`, no `this.traceBuilder`, no `if (id === "trace")`, in update/reset/export paths. The collector is blind to projection identity.
-- ✅ **Static inspection confirms `ProjectionRuntime` is the only owner** of projection update dispatch, reset, and export/import. Grep `src/tui/runtime-collector.ts` for `\.update(`, `\.reset(`, `\.exportState(`, `\.importState(`, `\.snapshot(` and verify the only matches are on `this.projectionRuntime.` (tests can pass while a hidden `this.traceBuilder.reset()` survives — grep catches it).
+- ✅ **Static inspection confirms `ProjectionRuntime` is the only owner** of projection update dispatch, reset, and export/import. Grep `src/interfaces/tui/runtime-collector.ts` for `\.update(`, `\.reset(`, `\.exportState(`, `\.importState(`, `\.snapshot(` and verify the only matches are on `this.projectionRuntime.` (tests can pass while a hidden `this.traceBuilder.reset()` survives — grep catches it).
 - ✅ Adding ApprovalProjection requires: builder implementation + registration + durable state contract + projection tests. **Must NOT modify: `RuntimeCollectorImpl`, `RuntimeSnapshot`, or the checkpoint transaction flow.** (The strengthened bar prevents "technically modified the collector while claiming the platform works.")
 - ✅ Existing Phase 6/6.5 behavior is byte-for-byte equivalent for timeline + trace (all `tests/tui/runtime` pass unchanged — 88/88 + the state tests).
 - ✅ Replay/recovery still works (D12 invalid-cursor → replay from `beginningCursor()`, persisted state never trusted on invalid cursor).
@@ -344,7 +344,7 @@ Replace the hard-coded `state: { timeline, trace }` assembly with the runtime's 
 
 - NodeNext ESM (`.js` import specifiers), strict TypeScript.
 - vitest tests under `tests/**/*.vitest.ts`.
-- `EventLog` API stays additive; `src/capability/*` untouched.
+- `EventLog` API stays additive; `src/capabilities/capability/*` untouched.
 - Checkpoint envelope `version` STAYS `1` — the `state` → `projections` rename is a **schema change to the 6.5 `state` field**; see migration note below. Backward compatibility is required for Phase-6.5-era checkpoints.
 - Durable state must remain JSON-serializable plain objects only.
 - Replay-from-`beginningCursor()` remains the ONLY recovery for an invalid cursor; persisted state never trusted on an invalid cursor.

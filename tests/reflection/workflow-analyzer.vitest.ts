@@ -6,10 +6,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import type { WorkflowStateEntry, WorkflowState } from "../../src/workflow/types.js";
+import type { WorkflowStateEntry, WorkflowState } from "../../src/coordination/workflow/types.js";
 
 // We import from the source file under test
-import { WorkflowAnalyzer } from "../../src/reflection/workflow-analyzer.js";
+import { WorkflowAnalyzer } from "../../src/planning/reflection/workflow-analyzer.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

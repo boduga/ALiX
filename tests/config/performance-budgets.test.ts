@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { checkBudget, checkAllBudgets, PERFORMANCE_BUDGETS } from "../../src/config/performance-budgets.js";
+import { checkBudget, checkAllBudgets, PERFORMANCE_BUDGETS } from "../../src/operations/config/performance-budgets.js";
 
 describe("PERFORMANCE_BUDGETS", () => {
   it("has the expected set of budgets", () => {

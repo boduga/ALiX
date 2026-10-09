@@ -12,7 +12,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ConnectionLimiter } from "../../../src/security/inspector/connection-limiter.js";
+import { ConnectionLimiter } from "../../../src/governance/security/inspector/connection-limiter.js";
 
 // ---------------------------------------------------------------------------
 // Basic reserve/release

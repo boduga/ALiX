@@ -3,11 +3,11 @@ import type {
   ForecastAdapter,
   EnrichedProposalRecord,
   ProposalEventRecord,
-} from "../../src/evolution/forecast/contracts/contract.js";
-import { ForecastEngine, type ForecastEngineAdapters } from "../../src/evolution/forecast/forecast-engine.js";
-import { buildForecast } from "../../src/evolution/forecast/forecast-builder.js";
-import type { DetectorFinding } from "../../src/evolution/forecast/contracts/contract.js";
-import { GENERATOR_VERSION, FORECAST_VERSION } from "../../src/evolution/forecast/contracts/contract.js";
+} from "../../src/planning/evolution/forecast/contracts/contract.js";
+import { ForecastEngine, type ForecastEngineAdapters } from "../../src/planning/evolution/forecast/forecast-engine.js";
+import { buildForecast } from "../../src/planning/evolution/forecast/forecast-builder.js";
+import type { DetectorFinding } from "../../src/planning/evolution/forecast/contracts/contract.js";
+import { GENERATOR_VERSION, FORECAST_VERSION } from "../../src/planning/evolution/forecast/contracts/contract.js";
 
 const NOW = "2026-08-14T00:00:00.000Z";
 

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildToolCallSchema } from "../../src/providers/specs/_tool-schema.js";
+import { buildToolCallSchema } from "../../src/models/providers/specs/_tool-schema.js";
 
 describe("buildToolCallSchema", () => {
   it("returns an object schema", () => {

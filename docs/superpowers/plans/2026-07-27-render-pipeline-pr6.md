@@ -13,15 +13,15 @@
 - Every commit must independently pass `npx vitest run` (baseline: 333 TUI tests)
 - Every commit must produce `npx tsc --noEmit`: 0 errors
 - Production files are bare `.ts` extension; imports use `.js` extension (i.e. `from './theme.js'`)
-- Test files live in `tests/tui/blocks/` and import from `../../../src/tui/blocks/` with `.js` extension
+- Test files live in `tests/tui/blocks/` and import from `../../../src/interfaces/tui/blocks/` with `.js` extension
 - Use `describe` / `it` / `expect` vitest pattern (not `test` directly)
-- All ANSI codes use shared constants from `src/tui/ansi-constants.ts` (never raw escape sequences inline)
+- All ANSI codes use shared constants from `src/interfaces/tui/ansi-constants.ts` (never raw escape sequences inline)
 - Pass `theme: Theme` explicitly — never hardcode ANSI in renderers
 
 ---
 ## File Structure
 
-### Production files (all under `src/tui/blocks/`)
+### Production files (all under `src/interfaces/tui/blocks/`)
 
 | File | Responsibility | Changes |
 |------|----------------|---------|
@@ -46,10 +46,10 @@
 The smallest change — adds `~~text~~` support to the inline parser and renders it via ANSI code 9m.
 
 **Files:**
-- Modify: `src/tui/blocks/types.ts` (InlineSpan + Theme interface)
-- Modify: `src/tui/blocks/inline.ts` (strikethrough parsing)
-- Modify: `src/tui/blocks/theme.ts` (strikethrough method)
-- Modify: `src/tui/blocks/render.ts` (styleInlineSpan case)
+- Modify: `src/interfaces/tui/blocks/types.ts` (InlineSpan + Theme interface)
+- Modify: `src/interfaces/tui/blocks/inline.ts` (strikethrough parsing)
+- Modify: `src/interfaces/tui/blocks/theme.ts` (strikethrough method)
+- Modify: `src/interfaces/tui/blocks/render.ts` (styleInlineSpan case)
 - Test: `tests/tui/blocks/inline.vitest.ts`
 - Test: `tests/tui/blocks/render.vitest.ts`
 
@@ -73,7 +73,7 @@ strikethrough(text: string): string;
 In `tests/tui/blocks/inline.vitest.ts`, add a new `describe('strikethrough')` block:
 
 ```ts
-import { STRIKE_OPEN, STRIKE_CLOSE } from '../../../src/tui/ansi-constants.js';
+import { STRIKE_OPEN, STRIKE_CLOSE } from '../../../src/interfaces/tui/ansi-constants.js';
 
 describe('strikethrough', () => {
   it('parses ~~strikethrough~~', () => {
@@ -169,7 +169,7 @@ Expected: 0 errors.
 - [ ] **Step 10: Commit**
 
 ```bash
-git add src/tui/blocks/types.ts src/tui/blocks/inline.ts src/tui/ansi-constants.ts src/tui/blocks/theme.ts src/tui/blocks/render.ts tests/tui/blocks/inline.vitest.ts
+git add src/interfaces/tui/blocks/types.ts src/interfaces/tui/blocks/inline.ts src/interfaces/tui/ansi-constants.ts src/interfaces/tui/blocks/theme.ts src/interfaces/tui/blocks/render.ts tests/tui/blocks/inline.vitest.ts
 git commit -m "feat(tui): add strikethrough ~~ inline span
 
 ANSI SGR 9m via shared STRIKE_OPEN/STRIKE_CLOSE constants.
@@ -185,8 +185,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 Changes `theme.link()` to emit OSC-8 hyperlink escape sequences, and adds autolink parsing (bare URLs and `<url>` syntax) to the inline parser.
 
 **Files:**
-- Modify: `src/tui/blocks/theme.ts` (link impl → OSC-8)
-- Modify: `src/tui/blocks/inline.ts` (autolink parsing)
+- Modify: `src/interfaces/tui/blocks/theme.ts` (link impl → OSC-8)
+- Modify: `src/interfaces/tui/blocks/inline.ts` (autolink parsing)
 - Test: `tests/tui/blocks/inline.vitest.ts`
 
 **Interfaces:**
@@ -369,7 +369,7 @@ Expected: 0 errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/tui/blocks/inline.ts src/tui/blocks/theme.ts tests/tui/blocks/inline.vitest.ts tests/tui/blocks/render.vitest.ts
+git add src/interfaces/tui/blocks/inline.ts src/interfaces/tui/blocks/theme.ts tests/tui/blocks/inline.vitest.ts tests/tui/blocks/render.vitest.ts
 git commit -m "feat(tui): add OSC-8 hyperlinks and autolinks
 
 theme.link() now emits OSC-8 hyperlink escapes for terminals that
@@ -386,9 +386,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 Extends quote block rendering to detect and style `[NOTE]`, `[TIP]`, `[WARNING]`, `[CAUTION]`, `[IMPORTANT]` markers at the start of quoted content.
 
 **Files:**
-- Modify: `src/tui/blocks/types.ts` (Theme.calloutLabel)
-- Modify: `src/tui/blocks/theme.ts` (calloutLabel implementation)
-- Modify: `src/tui/blocks/render.ts` (renderQuote update)
+- Modify: `src/interfaces/tui/blocks/types.ts` (Theme.calloutLabel)
+- Modify: `src/interfaces/tui/blocks/theme.ts` (calloutLabel implementation)
+- Modify: `src/interfaces/tui/blocks/render.ts` (renderQuote update)
 - Test: `tests/tui/blocks/render.vitest.ts`
 
 **Interfaces:**
@@ -549,7 +549,7 @@ Expected: 0 errors.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/tui/blocks/types.ts src/tui/blocks/theme.ts src/tui/blocks/render.ts tests/tui/blocks/render.vitest.ts
+git add src/interfaces/tui/blocks/types.ts src/interfaces/tui/blocks/theme.ts src/interfaces/tui/blocks/render.ts tests/tui/blocks/render.vitest.ts
 git commit -m "feat(tui): add callout/admonition rendering
 
 Extends quote rendering to detect [NOTE], [TIP], [WARNING], [CAUTION],
@@ -566,10 +566,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 Adds a new `'table'` `ResponseBlock` variant, parser detection + cell parsing, and bordered rendering via new `renderTable()` function.
 
 **Files:**
-- Modify: `src/tui/blocks/types.ts` (table ResponseBlock + Theme.tableBorder)
-- Modify: `src/tui/blocks/theme.ts` (tableBorder)
-- Modify: `src/tui/blocks/parser.ts` (table detection + parsing)
-- Modify: `src/tui/blocks/render.ts` (renderTable function + switch case)
+- Modify: `src/interfaces/tui/blocks/types.ts` (table ResponseBlock + Theme.tableBorder)
+- Modify: `src/interfaces/tui/blocks/theme.ts` (tableBorder)
+- Modify: `src/interfaces/tui/blocks/parser.ts` (table detection + parsing)
+- Modify: `src/interfaces/tui/blocks/render.ts` (renderTable function + switch case)
 - Test: `tests/tui/blocks/parser.vitest.ts`
 - Test: `tests/tui/blocks/render.vitest.ts`
 
@@ -1163,7 +1163,7 @@ Expected: baseline + ~30 new tests, all green.
 - [ ] **Step 10: Commit**
 
 ```bash
-git add src/tui/blocks/types.ts src/tui/blocks/theme.ts src/tui/blocks/parser.ts src/tui/blocks/render.ts tests/tui/blocks/parser.vitest.ts tests/tui/blocks/render.vitest.ts
+git add src/interfaces/tui/blocks/types.ts src/interfaces/tui/blocks/theme.ts src/interfaces/tui/blocks/parser.ts src/interfaces/tui/blocks/render.ts tests/tui/blocks/parser.vitest.ts tests/tui/blocks/render.vitest.ts
 git commit -m "feat(tui): add pipe table support
 
 New 'table' ResponseBlock type with GFM-compatible parsing (pipe

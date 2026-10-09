@@ -12,14 +12,14 @@ import {
   FailureMemoryAdapter,
   LearningStoreAdapter,
   PatternRegistryAdapter,
-} from "../../../src/evolution/knowledge/adapters/index.js";
+} from "../../../src/planning/evolution/knowledge/adapters/index.js";
 import { PatternRegistry } from "../../../src/context/pattern-registry.js";
-import { InMemoryVerificationEvidenceLedger } from "../../../src/evolution/verification/evidence/evidence-ledger.js";
-import { createVerificationEvidence } from "../../../src/evolution/verification/evidence/verification-evidence.js";
-import type { CalibrationProfile, LearningReport, LearningSignal } from "../../../src/learning/learning-types.js";
-import type { ChronicleEntry } from "../../../src/chronicle/chronicle-store.js";
+import { InMemoryVerificationEvidenceLedger } from "../../../src/planning/evolution/verification/evidence/evidence-ledger.js";
+import { createVerificationEvidence } from "../../../src/planning/evolution/verification/evidence/verification-evidence.js";
+import type { CalibrationProfile, LearningReport, LearningSignal } from "../../../src/planning/learning/learning-types.js";
+import type { ChronicleEntry } from "../../../src/context/chronicle/chronicle-store.js";
 import type { FailureRecord } from "../../../src/governance/failure-memory.js";
-import type { KnowledgeArtifact } from "../../../src/evolution/knowledge/contracts/curation-contract.js";
+import type { KnowledgeArtifact } from "../../../src/planning/evolution/knowledge/contracts/curation-contract.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures

@@ -22,7 +22,7 @@ import {
   loadOrCreateCheckpointKeyPair,
   type CheckpointKeyPair,
   type SignedCheckpoint,
-} from "../../../src/security/audit/audit-checkpoint.js";
+} from "../../../src/governance/security/audit/audit-checkpoint.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

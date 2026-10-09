@@ -337,22 +337,22 @@ resolvedModel
 
 | File                                     | Responsibility                                                    |
 | ---------------------------------------- | ----------------------------------------------------------------- |
-| `src/providers/types.ts`                 | `NormalizedResponse.resolvedModel?`, stream done `resolvedModel?` |
-| `src/providers/spec-types.ts`            | optional `ProviderSpec.resolveModel`                              |
-| `src/providers/specs/openrouter-spec.ts` | extract provider-reported model                                   |
-| `src/providers/unified-complete.ts`      | attach `resolvedModel` to complete/stream                         |
-| `src/contracts/llm-schemas.ts`           | widen normalized response/done schemas                            |
-| `src/providers/free-model-catalog.ts`    | catalog fetch, parsing, caching                                   |
-| `src/providers/free-model-resolver.ts`   | pure request-aware free-model selection                           |
-| `src/providers/openrouter-provider.ts`   | `openrouter/free` logical route                                   |
-| `src/providers/routing-adapter.ts`       | ordered capability-aware routing                                  |
-| `src/config/schema.ts`                   | routing configuration                                             |
-| `src/agent/agent.ts`                     | routing adapter composition                                       |
-| `src/run/helpers.ts`                     | collect `resolvedModel` from stream                               |
-| `src/agent/messages.ts`                  | usage payload                                                     |
-| `src/run/task-loop.ts`                   | usage + metric resolved model                                     |
+| `src/models/providers/types.ts`                 | `NormalizedResponse.resolvedModel?`, stream done `resolvedModel?` |
+| `src/models/providers/spec-types.ts`            | optional `ProviderSpec.resolveModel`                              |
+| `src/models/providers/specs/openrouter-spec.ts` | extract provider-reported model                                   |
+| `src/models/providers/unified-complete.ts`      | attach `resolvedModel` to complete/stream                         |
+| `src/runtime-state/contracts/llm-schemas.ts`           | widen normalized response/done schemas                            |
+| `src/models/providers/free-model-catalog.ts`    | catalog fetch, parsing, caching                                   |
+| `src/models/providers/free-model-resolver.ts`   | pure request-aware free-model selection                           |
+| `src/models/providers/openrouter-provider.ts`   | `openrouter/free` logical route                                   |
+| `src/models/providers/routing-adapter.ts`       | ordered capability-aware routing                                  |
+| `src/operations/config/schema.ts`                   | routing configuration                                             |
+| `src/agents/agent/agent.ts`                     | routing adapter composition                                       |
+| `src/execution/run/helpers.ts`                     | collect `resolvedModel` from stream                               |
+| `src/agents/agent/messages.ts`                  | usage payload                                                     |
+| `src/execution/run/task-loop.ts`                   | usage + metric resolved model                                     |
 | `src/models/routing-cli.ts`              | catalog/routing descriptions                                      |
-| `src/cli/commands/models.ts`             | CLI commands                                                      |
+| `src/interfaces/cli/commands/models.ts`             | CLI commands                                                      |
 
 Tests:
 
@@ -375,12 +375,12 @@ tests/cli/models-routing-command.vitest.ts
 Modify:
 
 ```text
-src/providers/types.ts
-src/providers/spec-types.ts
-src/providers/specs/openrouter-spec.ts
-src/providers/unified-complete.ts
-src/contracts/llm-schemas.ts
-src/run/helpers.ts
+src/models/providers/types.ts
+src/models/providers/spec-types.ts
+src/models/providers/specs/openrouter-spec.ts
+src/models/providers/unified-complete.ts
+src/runtime-state/contracts/llm-schemas.ts
+src/execution/run/helpers.ts
 ```
 
 Test:
@@ -395,10 +395,10 @@ Create `tests/providers/resolved-model.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { openrouterSpec } from "../../src/providers/specs/openrouter-spec.js";
-import { complete, stream, _setFetchForTesting } from "../../src/providers/unified-complete.js";
-import { streamToResponse } from "../../src/run/helpers.js";
-import type { ModelAdapter, NormalizedRequest } from "../../src/providers/types.js";
+import { openrouterSpec } from "../../src/models/providers/specs/openrouter-spec.js";
+import { complete, stream, _setFetchForTesting } from "../../src/models/providers/unified-complete.js";
+import { streamToResponse } from "../../src/execution/run/helpers.js";
+import type { ModelAdapter, NormalizedRequest } from "../../src/models/providers/types.js";
 
 const req: NormalizedRequest = { systemPrompt: "s", messages: [{ role: "user", content: "hi" }] };
 
@@ -468,7 +468,7 @@ Expected: FAIL — `openrouterSpec.resolveModel` is not a function; `complete` r
 
 ## Step 3 — Implement
 
-### `src/providers/types.ts`
+### `src/models/providers/types.ts`
 
 Add to `NormalizedResponse`:
 
@@ -483,7 +483,7 @@ Widen the done chunk:
   | { type: "done"; resolvedModel?: string }
 ```
 
-### `src/providers/spec-types.ts`
+### `src/models/providers/spec-types.ts`
 
 Add to `ProviderSpec`:
 
@@ -492,7 +492,7 @@ Add to `ProviderSpec`:
   resolveModel?: (res: unknown) => string | undefined;
 ```
 
-### `src/providers/specs/openrouter-spec.ts`
+### `src/models/providers/specs/openrouter-spec.ts`
 
 ```ts
 export const openrouterSpec: ProviderSpec = {
@@ -505,7 +505,7 @@ export const openrouterSpec: ProviderSpec = {
 };
 ```
 
-### `src/providers/unified-complete.ts` — `complete()`
+### `src/models/providers/unified-complete.ts` — `complete()`
 
 After `const json = await res.json();`:
 
@@ -519,7 +519,7 @@ After `const json = await res.json();`:
   return response;
 ```
 
-### `src/providers/unified-complete.ts` — `stream()`
+### `src/models/providers/unified-complete.ts` — `stream()`
 
 In the line loop, BEFORE the `parseOpenAiToolDeltaLine` call:
 
@@ -542,7 +542,7 @@ Wrap the spec dispatch so the terminal done chunk carries the sniffed model:
         else if (chunk) yield chunk;
 ```
 
-### `src/contracts/llm-schemas.ts`
+### `src/runtime-state/contracts/llm-schemas.ts`
 
 `NormalizedResponseSchema`:
 
@@ -565,7 +565,7 @@ export const DoneChunkSchema = Schema.Struct({
 });
 ```
 
-### `src/run/helpers.ts` — `streamToResponse`
+### `src/execution/run/helpers.ts` — `streamToResponse`
 
 Add state:
 
@@ -617,7 +617,7 @@ Expected: clean.
 Create:
 
 ```text
-src/providers/free-model-catalog.ts
+src/models/providers/free-model-catalog.ts
 ```
 
 Test:
@@ -748,7 +748,7 @@ Do not silently use stale data indefinitely.
 Create:
 
 ```text
-src/providers/free-model-resolver.ts
+src/models/providers/free-model-resolver.ts
 ```
 
 ## Interface
@@ -933,7 +933,7 @@ it("supportsRequest filters on capabilities", () => {
 Modify:
 
 ```text
-src/providers/openrouter-provider.ts
+src/models/providers/openrouter-provider.ts
 ```
 
 Test:
@@ -1089,7 +1089,7 @@ non-account 403/404 remains terminal (no retry)
 Create:
 
 ```text
-src/providers/routing-adapter.ts
+src/models/providers/routing-adapter.ts
 ```
 
 Test:
@@ -1321,7 +1321,7 @@ Streaming commitment notes (INV-5, Task 6):
 
 ### Required tests (`tests/providers/routing-adapter.vitest.ts`)
 
-Use fake adapters whose `complete`/`stream` throw `new ApiError(status, ...)` (imported from `src/providers/base.js`) or return canned responses:
+Use fake adapters whose `complete`/`stream` throw `new ApiError(status, ...)` (imported from `src/models/providers/base.js`) or return canned responses:
 
 ```text
 primary succeeds → its response returned
@@ -1436,7 +1436,7 @@ it("returns fallback resolvedModel when fallback stream succeeds")
 
 ## Step 3 — Make INV-5 hold end-to-end: suppress the streamToResponse fail-soft for routed providers
 
-`streamToResponse` (`src/run/helpers.ts:331-337`) currently catches ANY mid-stream error and re-runs `provider.complete(request)`. For a routing adapter that would re-run the whole chain and concatenate candidate-A text with a fresh response — violating INV-5. Add a guard so the fail-soft applies only to non-routing providers:
+`streamToResponse` (`src/execution/run/helpers.ts:331-337`) currently catches ANY mid-stream error and re-runs `provider.complete(request)`. For a routing adapter that would re-run the whole chain and concatenate candidate-A text with a fresh response — violating INV-5. Add a guard so the fail-soft applies only to non-routing providers:
 
 ```ts
   } catch (err) {
@@ -1454,7 +1454,7 @@ Test (`tests/providers/routing-adapter.vitest.ts`): a routed provider whose stre
 
 # Task 7: Circuit-breaker integration
 
-The Task 5 implementation already satisfies INV-6: there is NO router-local `cooldowns: Map<string, number>` — the adapter delegates suppression to the existing `CircuitBreaker` (`src/providers/circuit-breaker.ts`). Do not reintroduce a parallel state machine.
+The Task 5 implementation already satisfies INV-6: there is NO router-local `cooldowns: Map<string, number>` — the adapter delegates suppression to the existing `CircuitBreaker` (`src/models/providers/circuit-breaker.ts`). Do not reintroduce a parallel state machine.
 
 Additive change (Task 5 code depends on it; preserves the existing `call()`/`onSuccess`/`onFailure`/`reset` API unchanged):
 
@@ -1518,7 +1518,7 @@ Streaming and complete must have consistent breaker accounting.
 Modify:
 
 ```text
-src/config/schema.ts
+src/operations/config/schema.ts
 ```
 
 ## Configuration
@@ -1564,12 +1564,12 @@ Example:
 Modify:
 
 ```text
-src/agent/agent.ts
+src/agents/agent/agent.ts
 ```
 
 ## `buildRoutingAdapter`
 
-Lives in `src/providers/routing-adapter.ts`. Signature:
+Lives in `src/models/providers/routing-adapter.ts`. Signature:
 
 ```ts
 export async function buildRoutingAdapter(
@@ -1637,7 +1637,7 @@ The no-routing case returns exactly what `createProvider(...)` returns today —
 
 ## Agent wiring
 
-Replace `src/agent/agent.ts:116-123` with:
+Replace `src/agents/agent/agent.ts:116-123` with:
 
 ```ts
   const model = resolveModelConfig(config);
@@ -1653,7 +1653,7 @@ Add the import (next to the existing `createProvider` import):
 import { buildRoutingAdapter } from "../providers/routing-adapter.js";
 ```
 
-Remove the now-unused `createProvider` import from `src/agent/agent.ts` (verify no other use: `rg "createProvider" src/agent/agent.ts` — the replaced block is the only one). `modelProvider`/`modelName` local names disappear with the block; later uses at `agent.ts:124` (edit format policy) and `:181` now read `model.provider` / `model.name` from the resolved `model`.
+Remove the now-unused `createProvider` import from `src/agents/agent/agent.ts` (verify no other use: `rg "createProvider" src/agents/agent/agent.ts` — the replaced block is the only one). `modelProvider`/`modelName` local names disappear with the block; later uses at `agent.ts:124` (edit format policy) and `:181` now read `model.provider` / `model.name` from the resolved `model`.
 
 Tests: `tests/config/routing-config.vitest.ts` — `buildRoutingAdapter` with `{ provider: "mock", name: "mock-model" }` (no routing) must NOT be an instance of `RoutingModelAdapter` and must have `id === "mock"` (offline-safe; `MockProvider` is network-free); with `{ provider: "openrouter", name: "openai/gpt-4o", routing: { freeFallback: true } }` must BE a `RoutingModelAdapter`.
 
@@ -1664,8 +1664,8 @@ Tests: `tests/config/routing-config.vitest.ts` — `buildRoutingAdapter` with `{
 ## Files
 
 ```text
-src/agent/messages.ts
-src/run/task-loop.ts
+src/agents/agent/messages.ts
+src/execution/run/task-loop.ts
 ```
 
 ## Usage payload
@@ -1682,7 +1682,7 @@ Existing payloads without the field remain valid.
 
 ### Exact call sites
 
-`src/agent/messages.ts:50-52` — the payload builder (source of truth; note `task-loop` imports it via the `../run.js` re-export, so only messages.ts is edited here):
+`src/agents/agent/messages.ts:50-52` — the payload builder (source of truth; note `task-loop` imports it via the `../run.js` re-export, so only messages.ts is edited here):
 
 ```ts
 export function buildModelUsageEventPayload(provider: string, model: string, usage: { inputTokens: number; outputTokens: number }, resolvedModel?: string) {
@@ -1696,7 +1696,7 @@ export function buildModelUsageEventPayload(provider: string, model: string, usa
 }
 ```
 
-`src/run/task-loop.ts` — thread the resolved model from both call paths:
+`src/execution/run/task-loop.ts` — thread the resolved model from both call paths:
 
 * declare state next to `usage` (line ~746): `let resolvedModel: string | undefined;`
 * streaming branch (line ~760, after `usage = result.usage;`): `resolvedModel = result.resolvedModel;`
@@ -1749,7 +1749,7 @@ src/models/routing-cli.ts
 Modify:
 
 ```text
-src/cli/commands/models.ts
+src/interfaces/cli/commands/models.ts
 ```
 
 Commands:
@@ -1818,7 +1818,7 @@ No fallbacks configured.
 
 ### Unconfigured-model error path
 
-`describeRoutingChain` → `resolveModelConfig` throws `NO_MODEL_CONFIGURED_MESSAGE` when no `models.default` exists (`src/config/model-resolver.ts:56`). The handler loads with `requireModel: false`, so it MUST catch and degrade gracefully — never a stack trace:
+`describeRoutingChain` → `resolveModelConfig` throws `NO_MODEL_CONFIGURED_MESSAGE` when no `models.default` exists (`src/operations/config/model-resolver.ts:56`). The handler loads with `requireModel: false`, so it MUST catch and degrade gracefully — never a stack trace:
 
 ```ts
 export async function handleModelsRouting(args: string[]): Promise<void> {

@@ -9,8 +9,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { ApprovalGate } from "../../src/adaptation/approval-gate.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { ApprovalGate } from "../../src/planning/adaptation/approval-gate.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

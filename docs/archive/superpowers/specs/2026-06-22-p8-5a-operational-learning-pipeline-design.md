@@ -248,7 +248,7 @@ A test asserts the unchanged-types invariant: `git diff` on existing type files 
 | Check | Why |
 |---|---|
 | `EvidenceChainStore` has no `delete`/`update`/`clear`/`truncate` method | Append-only invariant |
-| `src/learning/evidence-chain*` does not import `ProposalStore`, `ApprovalGate`, appliers, or `AutomaticProposalGenerator` | Learning layer can't reach governance mutation |
+| `src/planning/learning/evidence-chain*` does not import `ProposalStore`, `ApprovalGate`, appliers, or `AutomaticProposalGenerator` | Learning layer can't reach governance mutation |
 | `alix explain` handler is read-only (no file writes, no `propose`, no `approve`, no `apply`) | The audit command can't mutate |
 | All P8 sentinels still pass | No regression |
 | The chain type extends `DecisionArtifact` | The chain itself is a first-class governed artifact |
@@ -273,7 +273,7 @@ The user explicitly directed: **"I would not guess. I would inspect the codebase
 
 | Question | Source | Status (per pre-P8.5a recon) |
 |---|---|---|
-| Recommendation Calibration source? | `OutcomeStore` (src/adaptation/outcome-store.ts) | ✅ exists |
+| Recommendation Calibration source? | `OutcomeStore` (src/planning/adaptation/outcome-store.ts) | ✅ exists |
 | Risk Calibration source? | `RiskScore` (per-decision) — **but is it persisted?** | ⚠️ needs verification |
 | Governance Calibration source? | `LensCalibrationReport` (P7c) | ✅ exists |
 | Routing Calibration source? | `RoutingObservation[]` — **telemetry store?** | ❌ does not exist |

@@ -5,14 +5,14 @@
  * classifications, hash-chain fields, and structural validation.
  *
  * #713 step 3 — the governance event vocabulary is a subset of the single
- * canonical dotted audit vocabulary (`src/audit/audit-types.ts`). Legacy
+ * canonical dotted audit vocabulary (`src/governance/audit/audit-types.ts`). Legacy
  * underscored names written before the unification are mapped on read via
  * `normalizeGovernanceEventType` (no stored-data rewrite).
  *
  * @module
  */
 
-import type { AuditAction } from "../audit/audit-types.js";
+import type { AuditAction } from "./audit/audit-types.js";
 
 // ---------------------------------------------------------------------------
 // Exported enums / union types

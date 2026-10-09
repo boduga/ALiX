@@ -3,8 +3,8 @@ import {
   paintApprovalsPanel,
   paintSopsAndPolicyPanel,
   renderDashboard,
-} from '../../src/tui/dashboard-renderer.js';
-import { TerminalCanvas } from '../../src/tui/canvas.js';
+} from '../../src/interfaces/tui/dashboard-renderer.js';
+import { TerminalCanvas } from '../../src/interfaces/tui/canvas.js';
 
 /** Strip ANSI escape sequences from a rendered line so visible width can be measured. */
 function stripAnsi(s: string): string {

@@ -39,7 +39,7 @@
 | P24.3 | `src/governance/calibration-confidence-bands.ts` | Pure `buildConfidenceBands()` — evidence certainty classification |
 | P24.4 | `src/governance/calibration-report.ts` | Pure `buildCalibrationReport()` + text/json renderers |
 | P24.4 | `src/governance/drift-finding-adapter.ts` | `toDriftFindings()` — maps PolicyDriftSignal[] → DriftFinding[] |
-| P24.4 | `src/cli/commands/governance-calibration.ts` | CLI handler for `alix governance calibration {detect|report|bands}` |
+| P24.4 | `src/interfaces/cli/commands/governance-calibration.ts` | CLI handler for `alix governance calibration {detect|report|bands}` |
 | P24.0 | `docs/architecture/specs/2026-07-09-p24-0-governance-calibration-policy-drift-intelligence-design.md` | Design spec (done) |
 | P24.5 | `docs/architecture/checkpoints/2026-07-09-p24-5-checkpoint.md` | Checkpoint doc |
 
@@ -47,7 +47,7 @@
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "calibration"` dispatch (dynamic import) |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "calibration"` dispatch (dynamic import) |
 
 ### Untouched Files
 
@@ -1940,8 +1940,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 6: P24.4 — CLI Handler (governance-calibration.ts) + Dispatch
 
 **Files:**
-- Create: `src/cli/commands/governance-calibration.ts`
-- Modify: `src/cli/commands/governance.ts` (add `case "calibration"` dispatch)
+- Create: `src/interfaces/cli/commands/governance-calibration.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts` (add `case "calibration"` dispatch)
 - Test: `tests/governance/calibration-cli.test.ts`
 
 **Interfaces:**
@@ -1955,7 +1955,7 @@ Create `tests/governance/calibration-cli.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { handleGovernanceCalibrationCommand } from "../../src/cli/commands/governance-calibration.js";
+import { handleGovernanceCalibrationCommand } from "../../src/interfaces/cli/commands/governance-calibration.js";
 
 describe("handleGovernanceCalibrationCommand", () => {
 
@@ -2024,7 +2024,7 @@ Expected: FAIL (module not found)
 
 - [ ] **Step 3: Write the CLI handler**
 
-Create `src/cli/commands/governance-calibration.ts`:
+Create `src/interfaces/cli/commands/governance-calibration.ts`:
 
 ```typescript
 /**
@@ -2300,7 +2300,7 @@ export function handleGovernanceCalibrationCommand(args: string[], opts: { cwd: 
 
 - [ ] **Step 4: Wire dispatch in governance.ts**
 
-Read `src/cli/commands/governance.ts` and find the subcommand switch. Add after the `case "replay"` block:
+Read `src/interfaces/cli/commands/governance.ts` and find the subcommand switch. Add after the `case "replay"` block:
 
 ```typescript
     case "calibration": {
@@ -2322,7 +2322,7 @@ Expected: Clean compile
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/governance-calibration.ts src/cli/commands/governance.ts tests/governance/calibration-cli.test.ts
+git add src/interfaces/cli/commands/governance-calibration.ts src/interfaces/cli/commands/governance.ts tests/governance/calibration-cli.test.ts
 git commit -m "feat(P24.4): calibration CLI — detect|report|bands subcommands
 
 Adds alix governance calibration {detect|report|bands} with --window,

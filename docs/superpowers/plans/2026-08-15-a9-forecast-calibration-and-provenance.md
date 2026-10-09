@@ -213,11 +213,11 @@ Before changing code, verify the implementation plan against the current reposit
 Inspect:
 
 ```text
-src/evolution/learning/
-src/evolution/governance/
-src/capability/governance/
-src/capability/
-src/adaptation/
+src/planning/evolution/learning/
+src/planning/evolution/governance/
+src/capabilities/capability/governance/
+src/capabilities/capability/
+src/planning/adaptation/
 ```
 
 Specifically locate:
@@ -291,7 +291,7 @@ That would reopen Q8.
 Create:
 
 ```text
-src/evolution/a9/contracts/a9-contract.ts
+src/planning/evolution/a9/contracts/a9-contract.ts
 ```
 
 Define:
@@ -390,7 +390,7 @@ Create an A9-local identity seam if no suitable existing generic canonicalizatio
 Recommended:
 
 ```text
-src/evolution/a9/identity.ts
+src/planning/evolution/a9/identity.ts
 ```
 
 Responsibilities:
@@ -440,7 +440,7 @@ Verify:
 Create:
 
 ```text
-src/evolution/a9/risk-band.ts
+src/planning/evolution/a9/risk-band.ts
 ```
 
 Implement:
@@ -482,7 +482,7 @@ Do not introduce alternate thresholds.
 Create:
 
 ```text
-src/evolution/a9/adapters/
+src/planning/evolution/a9/adapters/
 ```
 
 ## 8.1 Proposal events adapter
@@ -630,7 +630,7 @@ Verify:
 Create:
 
 ```text
-src/evolution/a9/detectors/
+src/planning/evolution/a9/detectors/
 ```
 
 or the equivalent structure if the repository's conventions favor a flatter module.
@@ -720,7 +720,7 @@ Do not correlate using:
 Create:
 
 ```text
-src/evolution/a9/forecast-builder.ts
+src/planning/evolution/a9/forecast-builder.ts
 ```
 
 Pure function:
@@ -777,7 +777,7 @@ No persistence metadata may affect the ID.
 Create:
 
 ```text
-src/evolution/a9/forecast-engine.ts
+src/planning/evolution/a9/forecast-engine.ts
 ```
 
 Constructor receives adapters from the composition root.
@@ -829,7 +829,7 @@ the result must be identical.
 Implement:
 
 ```text
-src/evolution/a9/forecasts-store.ts
+src/planning/evolution/a9/forecasts-store.ts
 ```
 
 or the repository-equivalent store seam.
@@ -867,7 +867,7 @@ Do not expose mutation methods.
 Implement:
 
 ```text
-src/evolution/a9/forecasts-adapter.ts
+src/planning/evolution/a9/forecasts-adapter.ts
 ```
 
 This is a read-only projection over:
@@ -895,7 +895,7 @@ The lookup must not mutate stored records.
 Create:
 
 ```text
-src/evolution/a9/correlation-engine.ts
+src/planning/evolution/a9/correlation-engine.ts
 ```
 
 This is the most contract-sensitive implementation phase.
@@ -1060,7 +1060,7 @@ No primary designation.
 Create:
 
 ```text
-src/evolution/a9/correlation-builder.ts
+src/planning/evolution/a9/correlation-builder.ts
 ```
 
 Pure function:
@@ -1132,7 +1132,7 @@ Do not mutate an existing correlation.
 Implement:
 
 ```text
-src/evolution/a9/correlations-adapter.ts
+src/planning/evolution/a9/correlations-adapter.ts
 ```
 
 Read-only queries:
@@ -1165,7 +1165,7 @@ No new measurement-group artifact.
 Create:
 
 ```text
-src/evolution/a9/a9-bridge.ts
+src/planning/evolution/a9/a9-bridge.ts
 ```
 
 Implement:
@@ -1848,7 +1848,7 @@ Before closeout, inspect the changed-file set.
 Expected A9-owned additions:
 
 ```text
-src/evolution/a9/**
+src/planning/evolution/a9/**
 tests/evolution/a9-*.vitest.ts
 ```
 

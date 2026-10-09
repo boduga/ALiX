@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildErrorMessage, buildToolsForProvider } from "../../src/agent/messages.js";
+import { buildErrorMessage, buildToolsForProvider } from "../../src/agents/agent/messages.js";
 
 describe("buildErrorMessage", () => {
   it("formats error with kind and message", () => {

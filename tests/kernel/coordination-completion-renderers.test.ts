@@ -13,11 +13,11 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { buildCoordinationRunView } from "../../src/kernel/coordination-view.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
-import { formatCoordinationPanel } from "../../src/tui/coordination-panel.js";
-import { createCoordinationHandlers, COORDINATION_STATUS_TOOL } from "../../src/kernel/coordination-tools.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { buildCoordinationRunView } from "../../src/coordination/kernel/coordination-view.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import { formatCoordinationPanel } from "../../src/interfaces/tui/coordination-panel.js";
+import { createCoordinationHandlers, COORDINATION_STATUS_TOOL } from "../../src/coordination/kernel/coordination-tools.js";
 
 function testConfig() {
   return {

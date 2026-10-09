@@ -17,9 +17,9 @@ import { join } from "node:path";
 import { importedBindings, importedSpecifiers, codeOnly } from "../helpers/import-graph.js";
 
 const CHAIN_LAYER_FILES = [
-  "src/learning/evidence-chain-types.ts",
-  "src/learning/forward-ref-extractors.ts",
-  "src/learning/evidence-chain-store.ts",
+  "src/planning/learning/evidence-chain-types.ts",
+  "src/planning/learning/forward-ref-extractors.ts",
+  "src/planning/learning/evidence-chain-store.ts",
 ];
 
 // Symbol-form forbidden imports.
@@ -79,7 +79,7 @@ describe("evidence-chain-sentinels: no approval call sites", () => {
 describe("evidence-chain-sentinels: append-only store", () => {
   it("EvidenceChainStore has no forbidden mutation methods", async () => {
     const { EvidenceChainStore } = await import(
-      "../../src/learning/evidence-chain-store.js"
+      "../../src/planning/learning/evidence-chain-store.js"
     );
     const store = new EvidenceChainStore();
     const proto = Object.getPrototypeOf(store) as Record<string, unknown>;
@@ -102,24 +102,24 @@ describe("evidence-chain-sentinels: append-only store", () => {
 describe("evidence-chain-sentinels: no source-artifact mutation surface", () => {
   it("appendChain accepts only a chain record (length === 1)", async () => {
     const { EvidenceChainStore } = await import(
-      "../../src/learning/evidence-chain-store.js"
+      "../../src/planning/learning/evidence-chain-store.js"
     );
     const store = new EvidenceChainStore();
     expect(store.appendChain.length).toBe(1);
   });
 });
 
-describe("evidence-chain-sentinels: chain lives in src/learning/", () => {
-  it("the chain layer files are all under src/learning/", () => {
+describe("evidence-chain-sentinels: chain lives in src/planning/learning/", () => {
+  it("the chain layer files are all under src/planning/learning/", () => {
     for (const file of CHAIN_LAYER_FILES) {
-      expect(file.startsWith("src/learning/")).toBe(true);
+      expect(file.startsWith("src/planning/learning/")).toBe(true);
     }
   });
 });
 
 describe("evidence-chain-sentinels: no leaky helper", () => {
-  it("no file in src/cli/ or src/adaptation/ imports from the chain layer yet", () => {
-    const all = [...walk("src/cli"), ...walk("src/adaptation")];
+  it("no file in src/interfaces/cli/ or src/planning/adaptation/ imports from the chain layer yet", () => {
+    const all = [...walk("src/interfaces/cli"), ...walk("src/planning/adaptation")];
     for (const file of all) {
       if (file.includes("/learning/")) continue;
       const specifiers = [...importedSpecifiers(file)];

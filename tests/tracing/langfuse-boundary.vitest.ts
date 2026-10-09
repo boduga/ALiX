@@ -5,33 +5,33 @@
  * scan asserting the runtime tree never couples to the Langfuse SDK outside
  * the tracing facade.
  *
- * Boundary contract (design §1, §3 "only", src/tracing/AGENTS.md "Dependency
+ * Boundary contract (design §1, §3 "only", src/models/tracing/AGENTS.md "Dependency
  * direction"):
  *
  *   1. The ONLY file allowed to import the Langfuse SDK surface — "langfuse"
  *      (v3), "@langfuse/tracing"/"@langfuse/otel", and their
  *      "@opentelemetry/*" companion packages (api, context-async-hooks,
- *      sdk-trace-base) — is src/tracing/langfuse-client.ts, the adapter, and
+ *      sdk-trace-base) — is src/models/tracing/langfuse-client.ts, the adapter, and
  *      it MUST contain such an import. Any other SDK import anywhere under
  *      src/ is a violation.
  *
  *   2. The ONLY file allowed a DYNAMIC `import("langfuse")` (T10 lazy-load):
  *      a direct dynamic import of the SDK is the design of
- *      src/tracing/client-factory.ts (Task 10 fix 5306a39f). Today the
+ *      src/models/tracing/client-factory.ts (Task 10 fix 5306a39f). Today the
  *      factory's enabled branch dynamic-imports `./langfuse-client.js` (and
  *      through it the SDK graph on the enabled path) rather than the package
  *      directly, so no dynamic SDK import currently exists anywhere.
  *
- *   3. src/tracing/langfuse-client.ts is INTERNAL to src/tracing/. No module
- *      outside src/tracing/ may import it (static OR dynamic) — consumers
+ *   3. src/models/tracing/langfuse-client.ts is INTERNAL to src/models/tracing/. No module
+ *      outside src/models/tracing/ may import it (static OR dynamic) — consumers
  *      (src/agent, src/providers, src/tools, src/run, everywhere) reach the
- *      facade only via src/tracing/client.ts (TraceClient interface), the
+ *      facade only via src/models/tracing/client.ts (TraceClient interface), the
  *      factory (getProcessTraceClient / createTraceClient), or the ALiX-shaped
- *      types (src/tracing/types.ts). Nothing imports the adapter.
+ *      types (src/models/tracing/types.ts). Nothing imports the adapter.
  *
- *   4. The four instrumented seams — src/agent/agent-loop.ts, src/agent/
- *      session/state.ts, src/providers/provider-contract-validation.ts,
- *      src/tools/executor.ts — import ONLY from the facade surface
+ *   4. The four instrumented seams — src/agents/agent/agent-loop.ts, src/agents/agent/
+ *      session/state.ts, src/models/providers/provider-contract-validation.ts,
+ *      src/capabilities/tools/executor.ts — import ONLY from the facade surface
  *      (tracing/client, tracing/client-factory, tracing/types). Spot-pinned
  *      here so a reviewer can read the exact specifiers.
  *
@@ -67,9 +67,9 @@ const ROOT = resolve(import.meta.dirname, "../..");
 const SRC = join(ROOT, "src");
 
 /** The adapter — the repo's single SDK-importing file (design §1). */
-const ALLOWED_ADAPTER = "tracing/langfuse-client.ts";
+const ALLOWED_ADAPTER = "models/tracing/langfuse-client.ts";
 /** The only file a dynamic `import("langfuse")` is designed for (T10). */
-const ALLOWED_DYNAMIC_FACTORY = "tracing/client-factory.ts";
+const ALLOWED_DYNAMIC_FACTORY = "models/tracing/client-factory.ts";
 
 // All runtime sources, relative to SRC. Scans src/ only (dist/ is build
 // output of src and would double-report); skips declaration files. No test
@@ -139,7 +139,7 @@ describe("Langfuse architectural boundary (Task 22)", () => {
   // ---------------------------------------------------------------------
   // 1. Only the adapter may import the SDK — and it must.
   // ---------------------------------------------------------------------
-  it("only src/tracing/langfuse-client.ts imports the langfuse SDK (static & require)", () => {
+  it("only src/models/tracing/langfuse-client.ts imports the langfuse SDK (static & require)", () => {
     const violations: string[] = [];
 
     for (const rel of SRC_FILES) {
@@ -155,7 +155,7 @@ describe("Langfuse architectural boundary (Task 22)", () => {
     expect(violations, `outside ${ALLOWED_ADAPTER}, found ${violations.length} langfuse import(s)`).toEqual([]);
   });
 
-  it("src/tracing/langfuse-client.ts DOES statically import the langfuse SDK", () => {
+  it("src/models/tracing/langfuse-client.ts DOES statically import the langfuse SDK", () => {
     const adapterImports = sdkSpecifiers(ALLOWED_ADAPTER);
     expect(
       adapterImports.length > 0 || requiresSdk(ALLOWED_ADAPTER),
@@ -180,23 +180,23 @@ describe("Langfuse architectural boundary (Task 22)", () => {
   });
 
   // ---------------------------------------------------------------------
-  // 3. The adapter is internal to src/tracing/ — no consumer imports it.
+  // 3. The adapter is internal to src/models/tracing/ — no consumer imports it.
   // ---------------------------------------------------------------------
-  it("no module outside src/tracing/ imports langfuse-client (the adapter is internal)", () => {
+  it("no module outside src/models/tracing/ imports langfuse-client (the adapter is internal)", () => {
     const violations: string[] = [];
 
     for (const rel of SRC_FILES) {
-      if (rel.startsWith("tracing/")) continue;
+      if (rel.startsWith("models/tracing/")) continue;
       for (const spec of adapterSpecifiers(rel)) {
         violations.push(`${rel}: imports "${spec}"`);
       }
     }
 
-    expect(violations, `outside src/tracing/, found ${violations.length} langfuse-client reference(s)`).toEqual([]);
+    expect(violations, `outside src/models/tracing/, found ${violations.length} langfuse-client reference(s)`).toEqual([]);
   });
 
   it("spot-check: the sanctioned consumer seams (agent/providers/tools/run) never name the adapter", () => {
-    const seamDirs = ["agent", "providers", "tools", "run"];
+    const seamDirs = ["agents/agent", "models/providers", "capabilities/tools", "execution/run"];
     const offending: string[] = [];
 
     for (const dir of seamDirs) {
@@ -222,7 +222,7 @@ describe("Langfuse architectural boundary (Task 22)", () => {
   const SEAM_FILES: Array<{ rel: string; facadeOnly: string[] }> = [
     // agent-loop: factory (createTraceClient) + types
     {
-      rel: "agent/agent-loop.ts",
+      rel: "agents/agent/agent-loop.ts",
       facadeOnly: ["tracing/client-factory", "tracing/client", "tracing/types"],
     },
     // session: TraceClient interface + types + Noop default (Task 10).
@@ -230,17 +230,17 @@ describe("Langfuse architectural boundary (Task 22)", () => {
     // owns the TraceClient facade default (the barrel `agent/session.ts` only
     // re-exports, and main.ts is now a thin coordinator).
     {
-      rel: "agent/session/state.ts",
+      rel: "agents/agent/session/state.ts",
       facadeOnly: ["tracing/client-factory", "tracing/client", "tracing/types", "tracing/noop-client"],
     },
     // provider wrapper: factory (getProcessTraceClient) + interface + types
     {
-      rel: "providers/provider-contract-validation.ts",
+      rel: "models/providers/provider-contract-validation.ts",
       facadeOnly: ["tracing/client-factory", "tracing/client", "tracing/types"],
     },
     // tool executor: factory (getProcessTraceClient) + interface + types
     {
-      rel: "tools/executor.ts",
+      rel: "capabilities/tools/executor.ts",
       facadeOnly: ["tracing/client-factory", "tracing/client", "tracing/types"],
     },
   ];
@@ -248,7 +248,7 @@ describe("Langfuse architectural boundary (Task 22)", () => {
   for (const { rel, facadeOnly } of SEAM_FILES) {
     it(`${rel} reaches tracing ONLY via the facade (client / client-factory / types)`, () => {
       const tracingSpecifiers = importedSpecifiersOf(rel).filter((s) =>
-        /(?:\.\.\/|\.\/)tracing\//.test(s),
+        /tracing\//.test(s),
       );
 
       const violations: string[] = [];

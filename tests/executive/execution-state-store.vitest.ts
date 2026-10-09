@@ -3,8 +3,8 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { ExecutionStateStore } from "../../src/executive/execution-state-store.js";
-import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
+import { ExecutionStateStore } from "../../src/execution/executive/execution-state-store.js";
+import type { PersistedExecutionPlan } from "../../src/execution/executive/executive-plan-types.js";
 
 function makePlan(overrides?: Partial<PersistedExecutionPlan>): PersistedExecutionPlan {
   return {

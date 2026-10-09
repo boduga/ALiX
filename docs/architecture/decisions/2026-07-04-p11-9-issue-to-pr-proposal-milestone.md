@@ -60,7 +60,7 @@ alix issue run --repo owner/repo --issue 123 --proposal --verify --pr --comment
 ## Files changed
 
 ```
-src/cli/commands/
+src/interfaces/cli/commands/
   issue-run-handler.ts              — P11.9 flags: --proposal, --pr
   issue-changed-files-guardrail.ts  — Guardrail evaluation
   issue-verification-runner.ts      — Command suite runner

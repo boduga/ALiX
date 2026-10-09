@@ -368,7 +368,7 @@ describe("computeFailureAnalysis", () => {
     const records = [
       makeRecord({
         failureType: "test_failure" as const,
-        filePaths: ["src/auth/login.ts", "src/db/query.ts"],
+        filePaths: ["src/auth/login.ts", "src/operations/db/query.ts"],
         timestamp: "2026-07-01T12:00:00Z",
       }),
       makeRecord({
@@ -379,10 +379,10 @@ describe("computeFailureAnalysis", () => {
     ];
     const analysis = computeFailureAnalysis(records);
     const cluster = analysis.clusters[0];
-    // "src/auth/login.ts" appears 2 times, "src/db/query.ts" appears 1 time
+    // "src/auth/login.ts" appears 2 times, "src/operations/db/query.ts" appears 1 time
     // Sorted by desc freq: login.ts first, then query.ts
     assert.strictEqual(cluster.commonFilePaths[0], "src/auth/login.ts");
-    assert.strictEqual(cluster.commonFilePaths[1], "src/db/query.ts");
+    assert.strictEqual(cluster.commonFilePaths[1], "src/operations/db/query.ts");
   });
 
   it("collects associatedPolicyIds deduplicated and sorted alphabetically", () => {
@@ -417,20 +417,20 @@ describe("computeFailureAnalysis", () => {
       }),
       makeRecord({
         failureType: "test_failure" as const,
-        filePaths: ["src/db/query.ts"],
+        filePaths: ["src/operations/db/query.ts"],
         timestamp: "2026-07-03T12:00:00Z",
       }),
     ];
     const analysis = computeFailureAnalysis(records);
     assert.ok(analysis.recurringFilePaths.includes("src/auth/login.ts"));
-    assert.ok(!analysis.recurringFilePaths.includes("src/db/query.ts"));
+    assert.ok(!analysis.recurringFilePaths.includes("src/operations/db/query.ts"));
   });
 
   it("recurringFilePathCounts reflects correct counts", () => {
     const records = [
       makeRecord({
         failureType: "test_failure" as const,
-        filePaths: ["src/auth/login.ts", "src/db/query.ts"],
+        filePaths: ["src/auth/login.ts", "src/operations/db/query.ts"],
         timestamp: "2026-07-01T12:00:00Z",
       }),
       makeRecord({
@@ -440,7 +440,7 @@ describe("computeFailureAnalysis", () => {
       }),
       makeRecord({
         failureType: "test_failure" as const,
-        filePaths: ["src/db/query.ts"],
+        filePaths: ["src/operations/db/query.ts"],
         timestamp: "2026-07-03T12:00:00Z",
       }),
     ];
@@ -449,7 +449,7 @@ describe("computeFailureAnalysis", () => {
       analysis.recurringFilePathCounts["src/auth/login.ts"],
       2,
     );
-    assert.strictEqual(analysis.recurringFilePathCounts["src/db/query.ts"], 2);
+    assert.strictEqual(analysis.recurringFilePathCounts["src/operations/db/query.ts"], 2);
   });
 
   it("recurringFilePaths sorted by desc count then alphabetically", () => {

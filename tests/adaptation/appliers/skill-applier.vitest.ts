@@ -20,11 +20,11 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { SkillApplier } from "../../../src/adaptation/appliers/skill-applier.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
-import { SnapshotStore } from "../../../src/adaptation/snapshot-store.js";
-import { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
-import type { EvidenceRecord } from "../../../src/security/evidence/evidence-types.js";
+import { SkillApplier } from "../../../src/planning/adaptation/appliers/skill-applier.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
+import { SnapshotStore } from "../../../src/planning/adaptation/snapshot-store.js";
+import { EvidenceEventWriter } from "../../../src/coordination/workflow/evidence-writer.js";
+import type { EvidenceRecord } from "../../../src/governance/security/evidence/evidence-types.js";
 import { createHash } from "node:crypto";
 
 // ---------------------------------------------------------------------------
@@ -33,7 +33,7 @@ import { createHash } from "node:crypto";
 
 /**
  * Build a minimal but valid SkillDefinition payload (matches the shape in
- * src/workflow/skill.ts). Used both to seed files and as proposal payloads.
+ * src/coordination/workflow/skill.ts). Used both to seed files and as proposal payloads.
  */
 function makeSkillDefinition(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {

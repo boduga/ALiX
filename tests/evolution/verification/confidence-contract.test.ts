@@ -11,11 +11,11 @@ import assert from "node:assert/strict";
 import {
   validateConfidenceProfile,
   validateHistoricalSimilarityAssessment,
-} from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
 import type {
   ConfidenceProfile,
   HistoricalSimilarityAssessment,
-} from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
 
 // ---------------------------------------------------------------------------
 // Validate — ConfidenceProfile

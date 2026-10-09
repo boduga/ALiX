@@ -16,7 +16,7 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/kernel/graph-executor.ts` | **Create** | `GraphExecutor` class — load, validate, sort, execute, normalize |
+| `src/coordination/kernel/graph-executor.ts` | **Create** | `GraphExecutor` class — load, validate, sort, execute, normalize |
 | `src/cli.ts` | **Modify** | Add `alix graph run <graphId>` and `alix graph list` |
 | `tests/kernel/graph-executor.test.ts` | **Create** | Tests |
 
@@ -25,7 +25,7 @@
 ### Task 1: Create GraphExecutor module
 
 **Files:**
-- Create: `src/kernel/graph-executor.ts`
+- Create: `src/coordination/kernel/graph-executor.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -180,7 +180,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/graph-executor.ts
+git add src/coordination/kernel/graph-executor.ts
 git commit -m "feat(graph): add GraphExecutor sequential runner"
 ```
 
@@ -261,8 +261,8 @@ git commit -m "feat(cli): add alix graph run and alix graph list commands"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { sortNodesByDependencies, normalizeNode, loadGraph } from "../../src/kernel/graph-executor.js";
-import type { TaskNode, TaskGraph } from "../../src/kernel/task-graph.js";
+import { sortNodesByDependencies, normalizeNode, loadGraph } from "../../src/coordination/kernel/graph-executor.js";
+import type { TaskNode, TaskGraph } from "../../src/coordination/kernel/task-graph.js";
 
 describe("GraphExecutor", () => {
 

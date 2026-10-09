@@ -20,12 +20,12 @@ import {
   validateVerificationRun,
   validateVerificationReport,
   validateVerificationEvidence,
-} from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
 import type {
   VerificationRun,
   VerificationReport,
   VerificationEvidence,
-} from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
 
 // ---------------------------------------------------------------------------
 // VerificationStatus

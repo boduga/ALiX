@@ -3,8 +3,8 @@
 
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
-import { ObservationEngine } from "../../../src/evolution/observation/observation-engine.js";
-import type { Observation, ObservationResult, ObservationProvider } from "../../../src/evolution/observation/contracts/observation-contract.js";
+import { ObservationEngine } from "../../../src/planning/evolution/observation/observation-engine.js";
+import type { Observation, ObservationResult, ObservationProvider } from "../../../src/planning/evolution/observation/contracts/observation-contract.js";
 
 function makeMockProvider(name: string): ObservationProvider {
   return {

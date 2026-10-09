@@ -5,7 +5,7 @@ import {
   estimateMessageBudgetTokens,
   tokenCountCacheSize,
   clearTokenCountCache,
-} from "../../src/utils/tokens.js";
+} from "../../src/operations/utils/tokens.js";
 
 describe("token estimation cache (#699)", () => {
   it("encodes repeated text once and returns identical metadata", async () => {

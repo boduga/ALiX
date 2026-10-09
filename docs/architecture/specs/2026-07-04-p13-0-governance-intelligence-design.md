@@ -196,7 +196,7 @@ src/governance/ledger-analytics.ts           # P13.1
 src/governance/failure-clustering.ts         # P13.2
 src/governance/policy-suggestions.ts         # P13.3
 src/governance/approval-friction.ts          # P13.4
-src/cli/commands/governance.ts               # P13.5 (amend)
+src/interfaces/cli/commands/governance.ts               # P13.5 (amend)
 tests/governance/ledger-analytics.test.ts
 tests/governance/failure-clustering.test.ts
 tests/governance/policy-suggestions.test.ts

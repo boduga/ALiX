@@ -29,10 +29,10 @@ finalizes a terminal run **only if `deps.completionService` is injected**. No
 scheduler construction site injects one:
 
 ```text
-src/cli/commands/coordination.ts:173,223,251,336
-src/daemon/daemon-server.ts:82
-src/kernel/coordination-tools.ts:187
-src/server/coordination-routes.ts:422,595   → none pass completionService
+src/interfaces/cli/commands/coordination.ts:173,223,251,336
+src/operations/daemon/daemon-server.ts:82
+src/coordination/kernel/coordination-tools.ts:187
+src/interfaces/server/coordination-routes.ts:422,595   → none pass completionService
 ```
 
 The only callers of `finalize()` are `alix coordination results`
@@ -191,14 +191,14 @@ actually runs (the branch that is dead today).
 ## 6. Scope estimate and recommendation
 
 ```text
-src/kernel/coordination-types.ts          + dimension types + derivation (pure)
-src/kernel/coordination-completion-service.ts  + finalize-on-terminal entry
-src/kernel/coordination-scheduler.ts       inject the service (or drop the dead branch)
-src/kernel/coordination-view.ts            expose the dimensions + derived label
-src/kernel/coordination-tools.ts           status/results render the derivation
-src/cli/commands/coordination.ts           results/status render the derivation
-src/tui/coordination-panel.ts              label from the derivation
-src/run/task-loop/main.ts                  session gate consumes verification
+src/coordination/kernel/coordination-types.ts          + dimension types + derivation (pure)
+src/coordination/kernel/coordination-completion-service.ts  + finalize-on-terminal entry
+src/coordination/kernel/coordination-scheduler.ts       inject the service (or drop the dead branch)
+src/coordination/kernel/coordination-view.ts            expose the dimensions + derived label
+src/coordination/kernel/coordination-tools.ts           status/results render the derivation
+src/interfaces/cli/commands/coordination.ts           results/status render the derivation
+src/interfaces/tui/coordination-panel.ts              label from the derivation
+src/execution/run/task-loop/main.ts                  session gate consumes verification
 tests/kernel/coordination-*                invariants + derivation table
 ```
 

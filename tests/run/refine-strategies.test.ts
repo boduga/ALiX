@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { selectStrategy, buildRefinePrompt, applyStrategy, getStrategy } from "../../src/run/task-loop/refine-strategies.js";
+import { selectStrategy, buildRefinePrompt, applyStrategy, getStrategy } from "../../src/execution/run/task-loop/refine-strategies.js";
 
 test("RefineStrategies - selectStrategy", async (t) => {
   await t.test("selects simplify for syntax errors", () => {

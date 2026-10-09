@@ -22,15 +22,15 @@ Baseline health (from the self-healing free-route run, `6bac0fd4`): `pnpm build`
 
 | M | Roadmap claim | Verdict | Notes |
 |---|---|---|---|
-| M0 Foundation | 🟡 Substantial | ✅ VERIFIED | `src/kernel/`: event-envelope, workflow-run, task-graph, policy-decision, minimal-metrics; migration `0001_m09_kernel.sql` |
-| M1 Agent Runtime | 🟡 | ✅ code (path corrected) | Agent runtime `src/agent/`; workers `src/kernel/worker-executor.ts`; scheduling `src/kernel/coordination-scheduler.ts` |
-| M2 Memory Platform | 🟡 | ✅ code (path corrected) | Stores `src/utils/memory/` (store/recall/consolidate); failure memory `src/governance/failure-memory.ts`; context assembly/budget `src/config/context-assembly.ts`, `context-budget.ts` |
-| M3 Tool Platform | 🟡 | ✅ VERIFIED | `src/tools/` (registry, capability-map, safe-shell, executor, tool-router) + `src/mcp/` |
-| M4 Planning | 🟢 Partial | ✅ PARTIAL (matches claim) | `src/kernel/graph-planner.ts`, replan set (9 files), `src/planning/` |
-| M5 Orchestration | 🟢 Partial | ✅ PARTIAL (matches claim) | `src/daemon/`, `src/kernel/coordination-scheduler.ts`, `src/runtime/runtime-index.ts`; no true event bus (log-based) |
-| M6 Intelligence | 🟡 | ✅ VERIFIED | `src/providers/` (many), circuit-breaker, catalog, routing-adapter |
-| M7 Governance | 🟡 | ✅ VERIFIED | `src/policy/` (PolicyGate), `src/audit/` (AuditStore), `src/approvals/` (ApprovalStore), `src/tools/safe-shell.ts` |
-| M8 Observability | 🟡 | ✅ code (path corrected) | `src/observability/` (metric-registry, metrics-store, telemetry-envelope, diagnostic) + `src/kernel/minimal-metrics.ts`; replay `src/runtime/replay-*` |
+| M0 Foundation | 🟡 Substantial | ✅ VERIFIED | `src/coordination/kernel/`: event-envelope, workflow-run, task-graph, policy-decision, minimal-metrics; migration `0001_m09_kernel.sql` |
+| M1 Agent Runtime | 🟡 | ✅ code (path corrected) | Agent runtime `src/agents/agent/`; workers `src/coordination/kernel/worker-executor.ts`; scheduling `src/coordination/kernel/coordination-scheduler.ts` |
+| M2 Memory Platform | 🟡 | ✅ code (path corrected) | Stores `src/operations/utils/memory/` (store/recall/consolidate); failure memory `src/governance/failure-memory.ts`; context assembly/budget `src/operations/config/context-assembly.ts`, `context-budget.ts` |
+| M3 Tool Platform | 🟡 | ✅ VERIFIED | `src/capabilities/tools/` (registry, capability-map, safe-shell, executor, tool-router) + `src/capabilities/mcp/` |
+| M4 Planning | 🟢 Partial | ✅ PARTIAL (matches claim) | `src/coordination/kernel/graph-planner.ts`, replan set (9 files), `src/planning/` |
+| M5 Orchestration | 🟢 Partial | ✅ PARTIAL (matches claim) | `src/operations/daemon/`, `src/coordination/kernel/coordination-scheduler.ts`, `src/runtime-state/runtime/runtime-index.ts`; no true event bus (log-based) |
+| M6 Intelligence | 🟡 | ✅ VERIFIED | `src/models/providers/` (many), circuit-breaker, catalog, routing-adapter |
+| M7 Governance | 🟡 | ✅ VERIFIED | `src/governance/policy/` (PolicyGate), `src/governance/audit/` (AuditStore), `src/governance/approvals/` (ApprovalStore), `src/capabilities/tools/safe-shell.ts` |
+| M8 Observability | 🟡 | ✅ code (path corrected) | `src/operations/observability/` (metric-registry, metrics-store, telemetry-envelope, diagnostic) + `src/coordination/kernel/minimal-metrics.ts`; replay `src/runtime-state/runtime/replay-*` |
 | M9 Distributed | 🔴 Not started | ✅ VERIFIED ABSENT (correct) | No federation/clustering/remote-worker platform. `failure-clustering.ts` = failure-pattern grouping, not cross-machine clustering |
 
 **M-series takeaway:** All M0–M8 capability code exists. Roadmap paths were stale for M1/M2/M8; corrected in §4.
@@ -50,15 +50,15 @@ Caveats (non-blocking):
 
 ### 3.2 A-Series — Autonomous Evolution (A0–A9)
 
-**10/10 ✅ VERIFIED.** `src/evolution/` uses domain dirs per ADR-0014 (no `a9`/`a8`/`a5`/`a2` milestone folders — renamed to `forecast/`, `learning/`, `observation/`, `verification/`).
+**10/10 ✅ VERIFIED.** `src/planning/evolution/` uses domain dirs per ADR-0014 (no `a9`/`a8`/`a5`/`a2` milestone folders — renamed to `forecast/`, `learning/`, `observation/`, `verification/`).
 
 ### 3.3 CAP — Capability greenfield (CAP-1…12, CAP-N/O/P)
 
-**✅ VERIFIED.** `src/capability/` (registry, canonical, measurement, evolution, governance) + CAP-12 single-registry sentinel test. Note: canonical card-role type is `CapabilityDefinition` / `CapabilityCatalog` / `RegisteredCapability` — no `CapabilityCard` symbol exists (naming expectation, not a doc lie).
+**✅ VERIFIED.** `src/capabilities/capability/` (registry, canonical, measurement, evolution, governance) + CAP-12 single-registry sentinel test. Note: canonical card-role type is `CapabilityDefinition` / `CapabilityCatalog` / `RegisteredCapability` — no `CapabilityCard` symbol exists (naming expectation, not a doc lie).
 
 ### 3.4 X-Series — Controlled Execution (X1–X4)
 
-**✅ VERIFIED.** `src/runtime/` + `src/evolution/execution/`: `ExecutionStateMachine`, `RetryController`, `cancellation-token`, `execution-rollback`, `execution-evidence-store` (checksummed), `execution-persistence` (wired at `src/agent/session.ts:1095`).
+**✅ VERIFIED.** `src/runtime-state/runtime/` + `src/planning/evolution/execution/`: `ExecutionStateMachine`, `RetryController`, `cancellation-token`, `execution-rollback`, `execution-evidence-store` (checksummed), `execution-persistence` (wired at `src/agents/agent/session.ts:1095`).
 
 Git tags corroborate every series: `alix-a0…a9-*-complete`, `alix-capability-greenfield-complete`, `alix-cap-6…11-*-complete`, `alix-x1-x2-controlled-execution-complete`, `alix-x3a/x3b-*-complete`, `alix-x4-…-complete`, `alix-p4…p30-*-complete`.
 
@@ -68,9 +68,9 @@ Git tags corroborate every series: `alix-a0…a9-*-complete`, `alix-capability-g
 
 `docs/roadmap/m-series-platform.md` — M-series rows updated to match real locations:
 
-- **M1** Agent Runtime: `runtime/` → `src/agent/` + kernel worker/scheduler
-- **M2** Memory Platform: `src/context/` (Context Manager/calibration/tiering) → `src/utils/memory/` + `governance/failure-memory.ts` + `config/context-assembly.ts` / `context-budget.ts`. (`src/context/` contains only pattern-registry, semantic-search, session-outcome.)
-- **M8** Observability: `src/metrics/` (does not exist) → `src/observability/` + `kernel/minimal-metrics.ts`
+- **M1** Agent Runtime: `runtime/` → `src/agents/agent/` + kernel worker/scheduler
+- **M2** Memory Platform: `src/context/` (Context Manager/calibration/tiering) → `src/operations/utils/memory/` + `governance/failure-memory.ts` + `config/context-assembly.ts` / `context-budget.ts`. (`src/context/` contains only pattern-registry, semantic-search, session-outcome.)
+- **M8** Observability: `src/metrics/` (does not exist) → `src/operations/observability/` + `kernel/minimal-metrics.ts`
 
 Corrections align with locations already documented in `docs/architecture/` (runtime-spine, M1 contract-standardization, observability decisions).
 
@@ -81,5 +81,5 @@ Corrections align with locations already documented in `docs/architecture/` (run
 ## 5. Non-blocking follow-ups
 
 1. ~~**P17/P18 dead-store reads**~~ — **DONE 2026-08-29** (see `docs/architecture/checkpoints/2026-08-29-p17-p18-execution-persistence-wiring.md`): added `RemediationStore`, `ExecutionPlanStore`, `ExecutionApprovalStore`, wired `alix governance execution` lifecycle write subcommands, corrected the `ExecutionStore` dir (`.alix/governance/`), and pointed the report/workbench reads at the stores.
-2. ~~**Missing child AGENTS.md** for `src/observability/` and `src/utils/memory/`~~ — **DONE 2026-08-29** (`7544fcda`): both child docs written and added to the root Child DOX Index.
+2. ~~**Missing child AGENTS.md** for `src/operations/observability/` and `src/operations/utils/memory/`~~ — **DONE 2026-08-29** (`7544fcda`): both child docs written and added to the root Child DOX Index.
 3. ~~**Sentinels for key M-series milestones**~~ — **DONE 2026-08-29**: `tests/m-series-sentinels.vitest.ts` pins M0–M8 canonical entry points (static imports + disk anchors) and asserts M9 Distributed is ABSENT. Vitest total 5265 → 5284.

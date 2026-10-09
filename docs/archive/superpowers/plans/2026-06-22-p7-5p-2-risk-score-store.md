@@ -25,7 +25,7 @@
 ## Task 1: P7.5p.2a — RiskScoreStore
 
 **Files:**
-- Create: `src/adaptation/risk-score-store.ts`
+- Create: `src/planning/adaptation/risk-score-store.ts`
 - Create: `tests/adaptation/risk-score-store.vitest.ts`
 
 **Interfaces:**
@@ -34,7 +34,7 @@
 
 - [ ] **Step 1.1: Write the store**
 
-Create `src/adaptation/risk-score-store.ts`:
+Create `src/planning/adaptation/risk-score-store.ts`:
 
 ```ts
 /**
@@ -133,8 +133,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { RiskScoreStore } from "../../src/adaptation/risk-score-store.js";
-import type { RiskScore } from "../../src/adaptation/risk-score-types.js";
+import { RiskScoreStore } from "../../src/planning/adaptation/risk-score-store.js";
+import type { RiskScore } from "../../src/planning/adaptation/risk-score-types.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
@@ -265,7 +265,7 @@ Expected: 8 passing.
 - [ ] **Step 1.4: Commit**
 
 ```bash
-git add src/adaptation/risk-score-store.ts tests/adaptation/risk-score-store.vitest.ts
+git add src/planning/adaptation/risk-score-store.ts tests/adaptation/risk-score-store.vitest.ts
 git commit -m "feat(p7.5p.2a): RiskScoreStore — append-only JSONL"
 ```
 
@@ -274,7 +274,7 @@ git commit -m "feat(p7.5p.2a): RiskScoreStore — append-only JSONL"
 ## Task 2: P7.5p.2b — runRecommend write hook
 
 **Files:**
-- Modify: `src/cli/commands/decision.ts` (add import + hook)
+- Modify: `src/interfaces/cli/commands/decision.ts` (add import + hook)
 - Create: `tests/cli/commands/decision-recommend-risk-persistence.vitest.ts`
 
 **Interfaces:**
@@ -283,11 +283,11 @@ git commit -m "feat(p7.5p.2a): RiskScoreStore — append-only JSONL"
 
 - [ ] **Step 2.1: Read the current runRecommend path**
 
-Read `src/cli/commands/decision.ts` lines around `runRecommend`. Find the existing `riskScoreBuilder.build(ctx)` call and the existing `recommendationEngine.recommend(ctx, riskScore)` call. The write hook MUST be inserted between them.
+Read `src/interfaces/cli/commands/decision.ts` lines around `runRecommend`. Find the existing `riskScoreBuilder.build(ctx)` call and the existing `recommendationEngine.recommend(ctx, riskScore)` call. The write hook MUST be inserted between them.
 
 - [ ] **Step 2.2: Add the import**
 
-Add at the existing import block in `src/cli/commands/decision.ts`:
+Add at the existing import block in `src/interfaces/cli/commands/decision.ts`:
 
 ```ts
 import { RiskScoreStore } from "../../adaptation/risk-score-store.js";
@@ -331,7 +331,7 @@ Expected: all passing.
 - [ ] **Step 2.6: Commit**
 
 ```bash
-git add src/cli/commands/decision.ts tests/cli/commands/decision-recommend-risk-persistence.vitest.ts
+git add src/interfaces/cli/commands/decision.ts tests/cli/commands/decision-recommend-risk-persistence.vitest.ts
 git commit -m "feat(p7.5p.2b): persist RiskScore in runRecommend"
 ```
 
@@ -340,8 +340,8 @@ git commit -m "feat(p7.5p.2b): persist RiskScore in runRecommend"
 ## Task 3: P7.5p.2c — riskScoreId field + invariance test update
 
 **Files:**
-- Modify: `src/adaptation/outcome-types.ts` (add `riskScoreId?: string`)
-- Modify: `src/cli/commands/decision.ts` (lookup + override block in `runOutcomeRecord`)
+- Modify: `src/planning/adaptation/outcome-types.ts` (add `riskScoreId?: string`)
+- Modify: `src/interfaces/cli/commands/decision.ts` (lookup + override block in `runOutcomeRecord`)
 - Modify: `tests/learning/unchanged-types-invariance.vitest.ts` (encode P7.5p.2c allowed delta)
 - Create: `tests/cli/commands/decision-outcome-risk-score-id.vitest.ts`
 
@@ -351,7 +351,7 @@ git commit -m "feat(p7.5p.2b): persist RiskScore in runRecommend"
 
 - [ ] **Step 3.1: Add the `riskScoreId` field to `OutcomeRecord`** (NOT `OutcomeArtifact`)
 
-Edit `src/adaptation/outcome-types.ts`. Leave `OutcomeArtifact` focused on `confidence` optionality only — do NOT add `riskScoreId` there. The `OutcomeArtifact` wrapper has a single responsibility: it exists to make the inherited-required `confidence` field optional. Adding more fields to it dilutes that purpose.
+Edit `src/planning/adaptation/outcome-types.ts`. Leave `OutcomeArtifact` focused on `confidence` optionality only — do NOT add `riskScoreId` there. The `OutcomeArtifact` wrapper has a single responsibility: it exists to make the inherited-required `confidence` field optional. Adding more fields to it dilutes that purpose.
 
 Instead, add `riskScoreId` directly on the `OutcomeRecord` interface as a new optional field. Find the existing `OutcomeRecord` block:
 
@@ -411,7 +411,7 @@ export interface OutcomeRecord extends OutcomeArtifact {
 
 - [ ] **Step 3.2: Add lookup + override in `runOutcomeRecord`**
 
-In `src/cli/commands/decision.ts`, find the existing P7.5p.1c lookup block (the one that resolves `recommendationId` → `rec.confidence`). Adjacent to it, add the `riskScoreId` resolution. Read the existing block first to confirm the exact location and pattern.
+In `src/interfaces/cli/commands/decision.ts`, find the existing P7.5p.1c lookup block (the one that resolves `recommendationId` → `rec.confidence`). Adjacent to it, add the `riskScoreId` resolution. Read the existing block first to confirm the exact location and pattern.
 
 The logic:
 
@@ -449,12 +449,12 @@ Create `tests/cli/commands/decision-outcome-risk-score-id.vitest.ts`. Mirror the
 
 - [ ] **Step 3.5: Update the invariance test**
 
-Edit `tests/learning/unchanged-types-invariance.vitest.ts`. The test currently captures `ALLOWED_DELTA_CONTENT` at module-load time from `src/adaptation/outcome-types.ts`. The new test code:
+Edit `tests/learning/unchanged-types-invariance.vitest.ts`. The test currently captures `ALLOWED_DELTA_CONTENT` at module-load time from `src/planning/adaptation/outcome-types.ts`. The new test code:
 
 ```ts
 // 1 file that may differ from the P8.5a.0 baseline by EXACTLY the
 // approved P7.5p.1 + P7.5p.2 additions.
-const ALLOWED_DELTA_PROTECTED = "src/adaptation/outcome-types.ts";
+const ALLOWED_DELTA_PROTECTED = "src/planning/adaptation/outcome-types.ts";
 
 // The post-change content is captured at module-load time. This is
 // the "approved delta" — if the file changes again, the test fails
@@ -475,7 +475,7 @@ Update the doc comment block at the top of the test to mention the new allowed a
  * Locks protected P8 type files at their P8.5a.0 state via SHA-256 baseline.
  * ...
  *
- * After P7.5p.1c, `src/adaptation/outcome-types.ts` is allowed to differ
+ * After P7.5p.1c, `src/planning/adaptation/outcome-types.ts` is allowed to differ
  * from the baseline by exactly the addition of the `confidence?: number`
  * field on `OutcomeRecord` (via the Omit<DecisionArtifact, "confidence">
  * & { confidence?: number } pattern).
@@ -500,7 +500,7 @@ Expected: all passing.
 
 Run:
 ```bash
-git diff main --stat -- 'src/adaptation/risk-score-types.ts' 'src/adaptation/governance-review-types.ts' 'src/adaptation/adaptation-types.ts' 'src/adaptation/decision-types.ts' 'src/learning/learning-types.ts'
+git diff main --stat -- 'src/planning/adaptation/risk-score-types.ts' 'src/planning/adaptation/governance-review-types.ts' 'src/planning/adaptation/adaptation-types.ts' 'src/planning/adaptation/decision-types.ts' 'src/planning/learning/learning-types.ts'
 ```
 
 Expected: empty output (zero diff against main for the 5 strict-protected files).
@@ -513,7 +513,7 @@ Expected: clean exit, no type errors.
 - [ ] **Step 3.9: Commit**
 
 ```bash
-git add src/adaptation/outcome-types.ts src/cli/commands/decision.ts tests/cli/commands/decision-outcome-risk-score-id.vitest.ts tests/learning/unchanged-types-invariance.vitest.ts
+git add src/planning/adaptation/outcome-types.ts src/interfaces/cli/commands/decision.ts tests/cli/commands/decision-outcome-risk-score-id.vitest.ts tests/learning/unchanged-types-invariance.vitest.ts
 git commit -m "feat(p7.5p.2c): outcome CLI reads riskScoreId from store + invariance update"
 ```
 
@@ -556,6 +556,6 @@ After review approval, merge with `gh pr merge <N> --squash --delete-branch` and
 
 - **Test fixture `RiskScore` minimum required fields:** id, subject, outcome, confidence, reasons, generatedAt, overallRisk, risks, dimensions, sourceArtifacts. The `dimensions` field must be a `Record<RiskDimension, number>` with all 5 dimensions present (governance, operational, capability, revertability, evidence_quality).
 - **`RiskScore.id` format:** `risk-<proposalId>` (deterministic — same proposal always produces the same id). This is what enables the join with `OutcomeRecord.subjectId` in P8.2.
-- **The `riskScoreId` carries forward from recommendation-engine:** `ApprovalRecommendation.riskScoreId` is set by `recommendation-engine.recommend()` at line 202 of `src/adaptation/recommendation-engine.ts` to `riskScore?.id`. So when the outcome CLI reads `rec.riskScoreId` from the store, it gets the deterministic `risk-<proposalId>` value.
+- **The `riskScoreId` carries forward from recommendation-engine:** `ApprovalRecommendation.riskScoreId` is set by `recommendation-engine.recommend()` at line 202 of `src/planning/adaptation/recommendation-engine.ts` to `riskScore?.id`. So when the outcome CLI reads `rec.riskScoreId` from the store, it gets the deterministic `risk-<proposalId>` value.
 - **No new CLI command is added.** The `--risk-score-id` flag is added to the existing `decision outcome` subcommand.
 - **CI failures on main are pre-existing** (`chat-modes.test.js`, `manifest.test.js`, `registry.test.js`, `card-loader.test.js`, `context-events.test.js`). P7.5p.2 does NOT touch any of those code paths.

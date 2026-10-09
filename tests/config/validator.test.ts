@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateConfig } from "../../src/config/validator.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { validateConfig } from "../../src/operations/config/validator.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 function makeValidConfig(): AlixConfig {
   return {

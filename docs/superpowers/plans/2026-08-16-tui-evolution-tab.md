@@ -25,22 +25,22 @@
 ## File Structure
 
 **New files:**
-- `src/tui/runtime/evolution/evolution-projection-snapshot.ts` — `EvolutionProjectionSnapshot`, `StageStatus`, `StageState<T>`, spine/row/`EvolutionLink` types. Pure types, no logic.
-- `src/tui/runtime/evolution/evolution-link-builder.ts` — `buildEvolutionLinks(args)`: pure link-index builder (5 kinds, many-to-many, no primary). Depends only on the snapshot types + decision mapping.
-- `src/tui/runtime/evolution/evolution-snapshot-assembler.ts` — `assembleEvolutionSnapshot(inputs)`: pure read-model assembly (spine, stage states with empty≠unavailable). Depends on types + link builder.
-- `src/tui/runtime/evolution/evolution-projection.ts` — `EvolutionProjection implements DurableProjectionBuilder<EvolutionProjectionSnapshot>`: sessionless ingest (seq-dedup), A8 change gate, async snapshot assembly, `exportState`/`importState`.
-- `src/tui/evolution/evolution-view.ts` — `EvolutionView implements TuiView` (tab `evolution`): render + handleKey + lazy-init selection.
-- `src/tui/evolution/evolution-render.ts` — pure render helpers: spine lines, stage-collapsed rows, inspector pane, render caps (10/+N more, 50/page).
-- `src/tui/evolution/evolution-keys.ts` — pure key→action mapping (Q-L2 table).
+- `src/interfaces/tui/runtime/evolution/evolution-projection-snapshot.ts` — `EvolutionProjectionSnapshot`, `StageStatus`, `StageState<T>`, spine/row/`EvolutionLink` types. Pure types, no logic.
+- `src/interfaces/tui/runtime/evolution/evolution-link-builder.ts` — `buildEvolutionLinks(args)`: pure link-index builder (5 kinds, many-to-many, no primary). Depends only on the snapshot types + decision mapping.
+- `src/interfaces/tui/runtime/evolution/evolution-snapshot-assembler.ts` — `assembleEvolutionSnapshot(inputs)`: pure read-model assembly (spine, stage states with empty≠unavailable). Depends on types + link builder.
+- `src/interfaces/tui/runtime/evolution/evolution-projection.ts` — `EvolutionProjection implements DurableProjectionBuilder<EvolutionProjectionSnapshot>`: sessionless ingest (seq-dedup), A8 change gate, async snapshot assembly, `exportState`/`importState`.
+- `src/interfaces/tui/evolution/evolution-view.ts` — `EvolutionView implements TuiView` (tab `evolution`): render + handleKey + lazy-init selection.
+- `src/interfaces/tui/evolution/evolution-render.ts` — pure render helpers: spine lines, stage-collapsed rows, inspector pane, render caps (10/+N more, 50/page).
+- `src/interfaces/tui/evolution/evolution-keys.ts` — pure key→action mapping (Q-L2 table).
 
 **Modified files:**
-- `src/tui/runtime-collector.ts` — `sessionlessEvents?` option + `splitSessionless` relay (Task 1).
-- `src/tui/runtime/projection-ids.ts` — add `evolution: 'evolution'` (Task 2).
-- `src/tui/runtime/projection-runtime.ts` — add `snapshotOfAsync<T>(id)` (Task 2).
-- `src/tui/snapshot.ts` — add `evolution?: EvolutionProjectionSnapshot | null` to `RuntimeSnapshot` (Task 2).
-- `src/tui/state.ts` — `TabId` + `evolution`, `TAB_ORDER`, `PerTabState` evolution fields, `createInitialPerTabState` (Task 6).
-- `src/tui/views/index.ts` — import + register `EvolutionView` (Task 6).
-- `src/cli/commands/tui.ts` — construct adapters + `LearningEngine` + `EvolutionProjection`, register on the runtime collector, wire `sessionlessEvents` relay (Task 8).
+- `src/interfaces/tui/runtime-collector.ts` — `sessionlessEvents?` option + `splitSessionless` relay (Task 1).
+- `src/interfaces/tui/runtime/projection-ids.ts` — add `evolution: 'evolution'` (Task 2).
+- `src/interfaces/tui/runtime/projection-runtime.ts` — add `snapshotOfAsync<T>(id)` (Task 2).
+- `src/interfaces/tui/snapshot.ts` — add `evolution?: EvolutionProjectionSnapshot | null` to `RuntimeSnapshot` (Task 2).
+- `src/interfaces/tui/state.ts` — `TabId` + `evolution`, `TAB_ORDER`, `PerTabState` evolution fields, `createInitialPerTabState` (Task 6).
+- `src/interfaces/tui/views/index.ts` — import + register `EvolutionView` (Task 6).
+- `src/interfaces/cli/commands/tui.ts` — construct adapters + `LearningEngine` + `EvolutionProjection`, register on the runtime collector, wire `sessionlessEvents` relay (Task 8).
 
 **Test files:**
 - `tests/tui/runtime/runtime-collector-sessionless.vitest.ts` (Task 1)
@@ -56,7 +56,7 @@
 ### Task 1: Sessionless-event relay in RuntimeCollector (Q-C4 — blocking foundation)
 
 **Files:**
-- Modify: `src/tui/runtime-collector.ts`
+- Modify: `src/interfaces/tui/runtime-collector.ts`
 - Test: `tests/tui/runtime/runtime-collector-sessionless.vitest.ts`
 
 **Interfaces:**
@@ -69,7 +69,7 @@
 ```ts
 // tests/tui/runtime/runtime-collector-sessionless.vitest.ts
 import { describe, expect, it } from 'vitest';
-import { splitSessionless } from '../../../src/tui/runtime-collector.js';
+import { splitSessionless } from '../../../src/interfaces/tui/runtime-collector.js';
 
 function ev(seq: number, sessionId: string): any {
   return { seq, sessionId, type: 'test.event', timestamp: '', payload: {} };
@@ -99,7 +99,7 @@ Expected: FAIL — `splitSessionless` is not exported (module resolution error).
 
 - [ ] **Step 3: Implement `splitSessionless` + relay option**
 
-In `src/tui/runtime-collector.ts`, add to `RuntimeCollectorOptions` (after `projectionRuntime`):
+In `src/interfaces/tui/runtime-collector.ts`, add to `RuntimeCollectorOptions` (after `projectionRuntime`):
 
 ```ts
 /**
@@ -189,7 +189,7 @@ Expected: PASS (existing collector/dashboard behavior unchanged).
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/tui/runtime-collector.ts tests/tui/runtime/runtime-collector-sessionless.vitest.ts
+git add src/interfaces/tui/runtime-collector.ts tests/tui/runtime/runtime-collector-sessionless.vitest.ts
 git commit -m "feat(tui): Q-C4 sessionless-event relay on RuntimeCollector"
 ```
 
@@ -198,10 +198,10 @@ git commit -m "feat(tui): Q-C4 sessionless-event relay on RuntimeCollector"
 ### Task 2: Evolution projection registration seam (async snapshot flow — blocking foundation)
 
 **Files:**
-- Modify: `src/tui/runtime/projection-ids.ts`
-- Modify: `src/tui/runtime/projection-runtime.ts`
-- Modify: `src/tui/snapshot.ts`
-- Modify: `src/tui/runtime-collector.ts`
+- Modify: `src/interfaces/tui/runtime/projection-ids.ts`
+- Modify: `src/interfaces/tui/runtime/projection-runtime.ts`
+- Modify: `src/interfaces/tui/snapshot.ts`
+- Modify: `src/interfaces/tui/runtime-collector.ts`
 - Test: `tests/tui/runtime/runtime-collector-evolution.vitest.ts`
 
 **Interfaces:**
@@ -217,8 +217,8 @@ git commit -m "feat(tui): Q-C4 sessionless-event relay on RuntimeCollector"
 ```ts
 // tests/tui/runtime/runtime-collector-evolution.vitest.ts
 import { describe, expect, it } from 'vitest';
-import { ProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
+import { ProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import { ProjectionIds } from '../../../src/interfaces/tui/runtime/projection-ids.js';
 
 class AsyncSnapBuilder {
   async snapshot(): Promise<{ generatedAt: number }> {
@@ -249,7 +249,7 @@ Expected: FAIL — `snapshotOfAsync` does not exist.
 
 - [ ] **Step 3: Add `ProjectionIds.evolution`**
 
-In `src/tui/runtime/projection-ids.ts`:
+In `src/interfaces/tui/runtime/projection-ids.ts`:
 
 ```ts
 export const ProjectionIds = {
@@ -265,7 +265,7 @@ export const ProjectionIds = {
 
 - [ ] **Step 4: Add `snapshotOfAsync` to `ProjectionRuntime`**
 
-In `src/tui/runtime/projection-runtime.ts`, after `snapshotOf`:
+In `src/interfaces/tui/runtime/projection-runtime.ts`, after `snapshotOf`:
 
 ```ts
 /** Await-able snapshot extraction. A builder whose `snapshot()` returns a
@@ -281,7 +281,7 @@ async snapshotOfAsync<TSnapshot>(id: string): Promise<TSnapshot | undefined> {
 
 - [ ] **Step 5: Add `evolution` field to `RuntimeSnapshot`**
 
-In `src/tui/snapshot.ts`, import the snapshot type and add after `context` (line ~129):
+In `src/interfaces/tui/snapshot.ts`, import the snapshot type and add after `context` (line ~129):
 
 ```ts
 import type { EvolutionProjectionSnapshot } from './runtime/evolution/evolution-projection-snapshot.js';
@@ -296,7 +296,7 @@ import type { EvolutionProjectionSnapshot } from './runtime/evolution/evolution-
 
 - [ ] **Step 6: Collect the evolution snapshot in `sample()`**
 
-In `src/tui/runtime-collector.ts`, in `nextCache` assembly (line ~244), add after `context:`:
+In `src/interfaces/tui/runtime-collector.ts`, in `nextCache` assembly (line ~244), add after `context:`:
 
 ```ts
         evolution: (await this.projectionRuntime.snapshotOfAsync<EvolutionProjectionSnapshot>(ProjectionIds.evolution)) ?? null,
@@ -314,7 +314,7 @@ Expected: PASS (existing runtime tests unaffected).
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/tui/runtime/projection-ids.ts src/tui/runtime/projection-runtime.ts src/tui/snapshot.ts src/tui/runtime-collector.ts tests/tui/runtime/runtime-collector-evolution.vitest.ts
+git add src/interfaces/tui/runtime/projection-ids.ts src/interfaces/tui/runtime/projection-runtime.ts src/interfaces/tui/snapshot.ts src/interfaces/tui/runtime-collector.ts tests/tui/runtime/runtime-collector-evolution.vitest.ts
 git commit -m "feat(tui): evolution projection registration seam (ProjectionIds.evolution + snapshotOfAsync)"
 ```
 
@@ -323,8 +323,8 @@ git commit -m "feat(tui): evolution projection registration seam (ProjectionIds.
 ### Task 3: Evolution snapshot contract + link index (pure types + reference-by-id links)
 
 **Files:**
-- Create: `src/tui/runtime/evolution/evolution-projection-snapshot.ts`
-- Create: `src/tui/runtime/evolution/evolution-link-builder.ts`
+- Create: `src/interfaces/tui/runtime/evolution/evolution-projection-snapshot.ts`
+- Create: `src/interfaces/tui/runtime/evolution/evolution-link-builder.ts`
 - Test: `tests/tui/runtime/evolution-link-builder.vitest.ts`
 
 **Interfaces:**
@@ -334,7 +334,7 @@ git commit -m "feat(tui): evolution projection registration seam (ProjectionIds.
 
 - [ ] **Step 1: Define the snapshot contract**
 
-`src/tui/runtime/evolution/evolution-projection-snapshot.ts`:
+`src/interfaces/tui/runtime/evolution/evolution-projection-snapshot.ts`:
 
 ```ts
 /**
@@ -477,7 +477,7 @@ export interface EvolutionProjectionSnapshot {
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { buildEvolutionLinks } from '../../../src/tui/runtime/evolution/evolution-link-builder.js';
+import { buildEvolutionLinks } from '../../../src/interfaces/tui/runtime/evolution/evolution-link-builder.js';
 
 const forecast = { forecastId: 'forecast-1', subject: 'proposal-1', subjectCapability: 'cap-a' } as any;
 const forecast2 = { forecastId: 'forecast-2', subject: 'proposal-1', subjectCapability: 'cap-a' } as any;
@@ -552,7 +552,7 @@ Expected: FAIL — `buildEvolutionLinks` not exported.
 
 - [ ] **Step 4: Implement the link builder**
 
-`src/tui/runtime/evolution/evolution-link-builder.ts`:
+`src/interfaces/tui/runtime/evolution/evolution-link-builder.ts`:
 
 ```ts
 /** Q-S4 — reference-by-id evolution link index. Links are projection metadata
@@ -626,7 +626,7 @@ Expected: PASS — `EvolutionProjectionSnapshot` import now resolves to the real
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/tui/runtime/evolution/evolution-projection-snapshot.ts src/tui/runtime/evolution/evolution-link-builder.ts tests/tui/runtime/evolution-link-builder.vitest.ts
+git add src/interfaces/tui/runtime/evolution/evolution-projection-snapshot.ts src/interfaces/tui/runtime/evolution/evolution-link-builder.ts tests/tui/runtime/evolution-link-builder.vitest.ts
 git commit -m "feat(tui): evolution snapshot contract + reference-by-id link index"
 ```
 
@@ -635,7 +635,7 @@ git commit -m "feat(tui): evolution snapshot contract + reference-by-id link ind
 ### Task 4: Pure snapshot assembler (spine, empty≠unavailable, derived decisions)
 
 **Files:**
-- Create: `src/tui/runtime/evolution/evolution-snapshot-assembler.ts`
+- Create: `src/interfaces/tui/runtime/evolution/evolution-snapshot-assembler.ts`
 - Test: `tests/tui/runtime/evolution-snapshot-assembler.vitest.ts`
 
 **Interfaces:**
@@ -649,7 +649,7 @@ git commit -m "feat(tui): evolution snapshot contract + reference-by-id link ind
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { assembleEvolutionSnapshot } from '../../../src/tui/runtime/evolution/evolution-snapshot-assembler.js';
+import { assembleEvolutionSnapshot } from '../../../src/interfaces/tui/runtime/evolution/evolution-snapshot-assembler.js';
 
 // Minimal canonical-artifact fixtures (A9/A2.5-shaped).
 const forecast = {
@@ -763,7 +763,7 @@ Expected: FAIL — `assembleEvolutionSnapshot` not exported.
 
 - [ ] **Step 3: Implement the assembler**
 
-`src/tui/runtime/evolution/evolution-snapshot-assembler.ts`:
+`src/interfaces/tui/runtime/evolution/evolution-snapshot-assembler.ts`:
 
 ```ts
 /** Pure read-model assembly: canonical artifacts + source health → one
@@ -979,7 +979,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/runtime/evolution/evolution-snapshot-assembler.ts tests/tui/runtime/evolution-snapshot-assembler.vitest.ts
+git add src/interfaces/tui/runtime/evolution/evolution-snapshot-assembler.ts tests/tui/runtime/evolution-snapshot-assembler.vitest.ts
 git commit -m "feat(tui): pure evolution snapshot assembler — spine, empty!=unavailable, derived decisions"
 ```
 
@@ -988,7 +988,7 @@ git commit -m "feat(tui): pure evolution snapshot assembler — spine, empty!=un
 ### Task 5: EvolutionProjection — durable, change-gated, restart-safe builder
 
 **Files:**
-- Create: `src/tui/runtime/evolution/evolution-projection.ts`
+- Create: `src/interfaces/tui/runtime/evolution/evolution-projection.ts`
 - Test: `tests/tui/runtime/evolution-projection.vitest.ts`
 
 **Interfaces:**
@@ -1002,7 +1002,7 @@ git commit -m "feat(tui): pure evolution snapshot assembler — spine, empty!=un
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { EvolutionProjection } from '../../../src/tui/runtime/evolution/evolution-projection.js';
+import { EvolutionProjection } from '../../../src/interfaces/tui/runtime/evolution/evolution-projection.js';
 
 const now = 1_700_000_000_000;
 function clock(): number { return now; }
@@ -1123,7 +1123,7 @@ Expected: FAIL — `EvolutionProjection` not exported.
 
 - [ ] **Step 3: Implement the projection**
 
-`src/tui/runtime/evolution/evolution-projection.ts`:
+`src/interfaces/tui/runtime/evolution/evolution-projection.ts`:
 
 ```ts
 /**
@@ -1344,7 +1344,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/runtime/evolution/evolution-projection.ts tests/tui/runtime/evolution-projection.vitest.ts
+git add src/interfaces/tui/runtime/evolution/evolution-projection.ts tests/tui/runtime/evolution-projection.vitest.ts
 git commit -m "feat(tui): EvolutionProjection — durable, change-gated A8, restart-safe relay ingestion"
 ```
 
@@ -1353,14 +1353,14 @@ git commit -m "feat(tui): EvolutionProjection — durable, change-gated A8, rest
 ### Task 6: Evolution tab plumbing (TabId, TAB_ORDER, PerTabState, view registry)
 
 **Files:**
-- Modify: `src/tui/state.ts`
-- Modify: `src/tui/views/index.ts`
+- Modify: `src/interfaces/tui/state.ts`
+- Modify: `src/interfaces/tui/views/index.ts`
 - Test: `tests/tui/views/evolution-view.vitest.ts`
 
 **Interfaces:**
 - Produces: `TabId` includes `'evolution'`; `TAB_ORDER` gains `'evolution'` exactly once (last, after `'capabilities'`); `PerTabState` gains `evolutionSelectedCapabilityId?: string`, `evolutionStageCursor?: 'lifecycle'|'learning'|'forecasts'|'decisions'|'measurements'|'correlations' | null` (Q-L2 correction — the RIGHT-pane stage cursor; `Enter`/`→` expands the stage the cursor is on), `evolutionArtifactCursor?: number | null` (within an expanded stage), `evolutionInspector?: { type: 'forecast'|'recommendation'|'decision'|'measurement'|'correlation'; id: string } | null`, `evolutionFlatView?: 'forecasts'|'decisions'|'measurements'|'correlations' | null`.
 - Consumes: `EvolutionView` (Task 7) — this task registers the view by importing it; if Task 7 hasn't landed, register a minimal placeholder view first, then Task 7 replaces it.
-- **PLAN GAP (fixed by implementer, commit ce369e35):** adding `'evolution'` to `TabId` makes `TuiApp.defaultViews` (src/tui/app.ts, `Record<TabId, TuiView>`) and `createInitialTuiAppState`'s `views` record fail typecheck (TS2741) and would crash on tab cycling to the evolution tab. Both must gain `evolution: getView('evolution')!` / `evolution: createInitialPerTabState()`. Commit `src/tui/app.ts` with this task.
+- **PLAN GAP (fixed by implementer, commit ce369e35):** adding `'evolution'` to `TabId` makes `TuiApp.defaultViews` (src/interfaces/tui/app.ts, `Record<TabId, TuiView>`) and `createInitialTuiAppState`'s `views` record fail typecheck (TS2741) and would crash on tab cycling to the evolution tab. Both must gain `evolution: getView('evolution')!` / `evolution: createInitialPerTabState()`. Commit `src/interfaces/tui/app.ts` with this task.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1368,8 +1368,8 @@ git commit -m "feat(tui): EvolutionProjection — durable, change-gated A8, rest
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { TAB_ORDER, createInitialPerTabState } from '../../../src/tui/state.js';
-import { getView } from '../../../src/tui/views/index.js';
+import { TAB_ORDER, createInitialPerTabState } from '../../../src/interfaces/tui/state.js';
+import { getView } from '../../../src/interfaces/tui/views/index.js';
 
 describe('evolution tab plumbing', () => {
   it('TAB_ORDER contains evolution exactly once, after capabilities', () => {
@@ -1398,7 +1398,7 @@ Expected: FAIL — `'evolution'` is not a `TabId` / no view registered.
 
 - [ ] **Step 3: Add `evolution` to TabId, TAB_ORDER, PerTabState**
 
-In `src/tui/state.ts`:
+In `src/interfaces/tui/state.ts`:
 
 ```ts
 export type TabId =
@@ -1424,7 +1424,7 @@ In `createInitialPerTabState` (seed block), add the four fields as `undefined` (
 
 - [ ] **Step 4: Register the view**
 
-In `src/tui/views/index.ts`, import `EvolutionView` from `../evolution/evolution-view.js`, add `evolution: new EvolutionView()` to the `_views` record, and add `EvolutionView` to the view re-exports. (If Task 7 hasn't landed, create a minimal `EvolutionView` stub with `readonly id: TabId = 'evolution'` and `render: () => ({ rows: [] })` — Task 7 replaces it.)
+In `src/interfaces/tui/views/index.ts`, import `EvolutionView` from `../evolution/evolution-view.js`, add `evolution: new EvolutionView()` to the `_views` record, and add `EvolutionView` to the view re-exports. (If Task 7 hasn't landed, create a minimal `EvolutionView` stub with `readonly id: TabId = 'evolution'` and `render: () => ({ rows: [] })` — Task 7 replaces it.)
 
 - [ ] **Step 5: Run the tests**
 
@@ -1434,7 +1434,7 @@ Expected: PASS. `app.vitest.ts` regression confirms the extra tab doesn't break 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/state.ts src/tui/views/index.ts tests/tui/views/evolution-view.vitest.ts
+git add src/interfaces/tui/state.ts src/interfaces/tui/views/index.ts tests/tui/views/evolution-view.vitest.ts
 git commit -m "feat(tui): evolution tab plumbing — TabId, TAB_ORDER, PerTabState, view registry"
 ```
 
@@ -1443,9 +1443,9 @@ git commit -m "feat(tui): evolution tab plumbing — TabId, TAB_ORDER, PerTabSta
 ### Task 7: Evolution view — spine, stage-collapsed drill-down, inspector, keys
 
 **Files:**
-- Create: `src/tui/evolution/evolution-keys.ts`
-- Create: `src/tui/evolution/evolution-render.ts`
-- Create: `src/tui/evolution/evolution-view.ts`
+- Create: `src/interfaces/tui/evolution/evolution-keys.ts`
+- Create: `src/interfaces/tui/evolution/evolution-render.ts`
+- Create: `src/interfaces/tui/evolution/evolution-view.ts`
 - Test: `tests/tui/views/evolution-view.vitest.ts` (extend)
 
 **Interfaces:**
@@ -1466,8 +1466,8 @@ git commit -m "feat(tui): evolution tab plumbing — TabId, TAB_ORDER, PerTabSta
 Extend `tests/tui/views/evolution-view.vitest.ts`:
 
 ```ts
-import { renderEvolution } from '../../../src/tui/evolution/evolution-render.js';
-import { evolutionKeyAction } from '../../../src/tui/evolution/evolution-keys.js';
+import { renderEvolution } from '../../../src/interfaces/tui/evolution/evolution-render.js';
+import { evolutionKeyAction } from '../../../src/interfaces/tui/evolution/evolution-keys.js';
 
 // A minimal snapshot: one capability, one forecast, one decision, one measurement.
 const snap = {
@@ -1557,7 +1557,7 @@ Expected: FAIL — `renderEvolution` / `evolutionKeyAction` not exported.
 
 - [ ] **Step 3: Implement the key mapping**
 
-`src/tui/evolution/evolution-keys.ts`:
+`src/interfaces/tui/evolution/evolution-keys.ts`:
 
 ```ts
 /** Q-L2 — evolution-tab keybindings (pure). `q` returns to the root spine
@@ -1591,7 +1591,7 @@ export function evolutionKeyAction(key: string, _perTab: Readonly<ViewInputConte
 
 - [ ] **Step 4: Implement the renderer**
 
-`src/tui/evolution/evolution-render.ts` (pure — returns text rows):
+`src/interfaces/tui/evolution/evolution-render.ts` (pure — returns text rows):
 
 ```ts
 /** Q-L1..L4 — evolution-tab rendering (pure). Render caps are PRESENTATION
@@ -1729,7 +1729,7 @@ function renderInspector(snap: EvolutionProjectionSnapshot, target: { type: Evol
 
 - [ ] **Step 5: Implement the view**
 
-`src/tui/evolution/evolution-view.ts`:
+`src/interfaces/tui/evolution/evolution-view.ts`:
 
 ```ts
 /** Q5/Q-L1 — the `evolution` tab: capability-spine overview with stage-collapsed
@@ -1786,7 +1786,7 @@ Expected: PASS.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/tui/evolution/ tests/tui/views/evolution-view.vitest.ts
+git add src/interfaces/tui/evolution/ tests/tui/views/evolution-view.vitest.ts
 git commit -m "feat(tui): evolution view — capability spine, stage-collapsed drill-down, inspector, Q-L2 keys"
 ```
 
@@ -1795,7 +1795,7 @@ git commit -m "feat(tui): evolution view — capability spine, stage-collapsed d
 ### Task 8: Composition root — wire adapters, LearningEngine, projection, relay
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 - Test: `tests/tui/runtime/evolution-composition-root.vitest.ts`
 
 **Interfaces:**
@@ -1808,10 +1808,10 @@ git commit -m "feat(tui): evolution view — capability spine, stage-collapsed d
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
-import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
-import { EvolutionProjection } from '../../../src/tui/runtime/evolution/evolution-projection.js';
+import { RuntimeCollectorImpl } from '../../../src/interfaces/tui/runtime-collector.js';
+import { createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import { ProjectionIds } from '../../../src/interfaces/tui/runtime/projection-ids.js';
+import { EvolutionProjection } from '../../../src/interfaces/tui/runtime/evolution/evolution-projection.js';
 
 // Wire a real EvolutionProjection with in-memory sources + a real collector
 // over a tiny in-memory EventLog, feed governance/measurement events, and assert
@@ -1839,7 +1839,7 @@ describe('evolution composition', () => {
 });
 ```
 
-- [ ] **Step 2: Implement the composition wiring in `src/cli/commands/tui.ts`**
+- [ ] **Step 2: Implement the composition wiring in `src/interfaces/cli/commands/tui.ts`**
 
 In `runTui`, after the platform/`CapabilityService` construction and BEFORE `runtimeProjectionRuntime` (line ~130), construct the evolution projection:
 
@@ -1889,7 +1889,7 @@ const runtimeCollector = new RuntimeCollectorImpl({
 });
 ```
 
-> **Note:** `capabilityService` must be constructed BEFORE this block (it currently is — `new CapabilityPlatform({ eventLog })` inside the TUI capability-service). Verify the variable name in `tui.ts` (it may be the `CapabilityService` instance passed into `TuiApp`); if the service isn't constructed until later, move this block after it. `runTui` is `async`, so the `await createEnrichedProposalsSource(...)` is legal. `isLifecycleEligible` is imported from `src/capability/lifecycle-eligibility.js`.
+> **Note:** `capabilityService` must be constructed BEFORE this block (it currently is — `new CapabilityPlatform({ eventLog })` inside the TUI capability-service). Verify the variable name in `tui.ts` (it may be the `CapabilityService` instance passed into `TuiApp`); if the service isn't constructed until later, move this block after it. `runTui` is `async`, so the `await createEnrichedProposalsSource(...)` is legal. `isLifecycleEligible` is imported from `src/capabilities/capability/lifecycle-eligibility.js`.
 
 - [ ] **Step 3: Complete the integration test**
 
@@ -1913,7 +1913,7 @@ Expected: PASS (all existing TUI tests + the new evolution tests).
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts tests/tui/runtime/evolution-composition-root.vitest.ts
+git add src/interfaces/cli/commands/tui.ts tests/tui/runtime/evolution-composition-root.vitest.ts
 git commit -m "feat(tui): wire evolution projection + sessionless relay in the composition root"
 ```
 

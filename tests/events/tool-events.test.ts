@@ -6,7 +6,7 @@ import type {
   ToolOutputPayload,
   ToolCompletedPayload,
   ToolFailedPayload,
-} from "../../src/events/types.js";
+} from "../../src/runtime-state/events/types.js";
 
 describe("Tool Event Payload Types", () => {
   it("ToolRequestPayload tracks tool call details", () => {

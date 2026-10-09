@@ -6,10 +6,10 @@ import {
   roleForWorker,
   ownedPathsForWorker,
   taskForWorker,
-} from "../../src/kernel/subagent-worker-executor.js";
-import type { AlixConfig, SubagentTask } from "../../src/config/schema.js";
-import type { WorkerAssignment } from "../../src/kernel/coordination-types.js";
-import { createWorkerAssignment } from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/subagent-worker-executor.js";
+import type { AlixConfig, SubagentTask } from "../../src/operations/config/schema.js";
+import type { WorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import { createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 
 const TEST_SUBAGENT_CFG: AlixConfig["subagents"] = {
   enabled: true,

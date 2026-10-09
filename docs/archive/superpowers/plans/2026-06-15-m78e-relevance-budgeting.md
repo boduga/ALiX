@@ -17,21 +17,21 @@
 ## File structure
 
 ### Create
-- `src/kernel/collaboration-relevance-types.ts` — `RelevanceScore`, `ContextBudget` (validated), `FindingStatus`, `CompressionMetadata`, `OmittedByReason`, `BudgetAllocationResult`
-- `src/kernel/collaboration-evidence-quality.ts` — `EvidentQualityReport`, evidence source scoring, broken-reference penalty
-- `src/kernel/collaboration-freshness.ts` — `computeFindingStatus()` with clock injection, stale-attempt/dependency/artifact detection
-- `src/kernel/collaboration-relevance-scorer.ts` — `RelevanceScorer` with component scoring, stable tie-breaks, clamped 0–100
-- `src/kernel/collaboration-budget-allocator.ts` — `BudgetAllocator` with invariant validation, explicit result selection, bucket enforcement, dedup
-- `src/kernel/collaboration-semantic-reranker.ts` — async `SemanticReranker` interface + identity fallback + bounded scoring blend
-- `src/kernel/collaboration-compression.ts` — `ContextCompressor` with Unicode-safe truncation, extractive mode, accurate metadata
+- `src/coordination/kernel/collaboration-relevance-types.ts` — `RelevanceScore`, `ContextBudget` (validated), `FindingStatus`, `CompressionMetadata`, `OmittedByReason`, `BudgetAllocationResult`
+- `src/coordination/kernel/collaboration-evidence-quality.ts` — `EvidentQualityReport`, evidence source scoring, broken-reference penalty
+- `src/coordination/kernel/collaboration-freshness.ts` — `computeFindingStatus()` with clock injection, stale-attempt/dependency/artifact detection
+- `src/coordination/kernel/collaboration-relevance-scorer.ts` — `RelevanceScorer` with component scoring, stable tie-breaks, clamped 0–100
+- `src/coordination/kernel/collaboration-budget-allocator.ts` — `BudgetAllocator` with invariant validation, explicit result selection, bucket enforcement, dedup
+- `src/coordination/kernel/collaboration-semantic-reranker.ts` — async `SemanticReranker` interface + identity fallback + bounded scoring blend
+- `src/coordination/kernel/collaboration-compression.ts` — `ContextCompressor` with Unicode-safe truncation, extractive mode, accurate metadata
 
 ### Modify
-- `src/kernel/collaboration-types.ts` — add `workerAttempt` to `SharedFinding`/`SharedArtifact`; add `ScoredManifestFinding`; bump manifest `schemaVersion` to `"1.1"`; add `omittedByReason`; correct snapshot `dependencyResults` type
-- `src/kernel/collaboration-validation.ts` — add `validateContextBudget()`, add `normalizeManifestV1_0()`
-- `src/kernel/collaboration-store.ts` — derive `workerAttempt` from `CollaborationActor` on publish
-- `src/kernel/collaboration-context-builder.ts` — inject deps, delegate to scorer/allocator/reranker/compressor, expand fingerprint, build explainable manifest
-- `src/kernel/collaboration-context-renderer.ts` — include explainability in rendered output
-- `src/events/types.ts` — relevance/budget event types
+- `src/coordination/kernel/collaboration-types.ts` — add `workerAttempt` to `SharedFinding`/`SharedArtifact`; add `ScoredManifestFinding`; bump manifest `schemaVersion` to `"1.1"`; add `omittedByReason`; correct snapshot `dependencyResults` type
+- `src/coordination/kernel/collaboration-validation.ts` — add `validateContextBudget()`, add `normalizeManifestV1_0()`
+- `src/coordination/kernel/collaboration-store.ts` — derive `workerAttempt` from `CollaborationActor` on publish
+- `src/coordination/kernel/collaboration-context-builder.ts` — inject deps, delegate to scorer/allocator/reranker/compressor, expand fingerprint, build explainable manifest
+- `src/coordination/kernel/collaboration-context-renderer.ts` — include explainability in rendered output
+- `src/runtime-state/events/types.ts` — relevance/budget event types
 
 ### Tests
 - `tests/kernel/collaboration-relevance-types.test.ts`
@@ -49,7 +49,7 @@
 
 ## M0.78e.1 — Schema and attempt provenance
 
-**Files:** Modify `src/kernel/collaboration-types.ts`, `src/kernel/collaboration-store.ts`, `src/kernel/collaboration-validation.ts`
+**Files:** Modify `src/coordination/kernel/collaboration-types.ts`, `src/coordination/kernel/collaboration-store.ts`, `src/coordination/kernel/collaboration-validation.ts`
 
 Add `workerAttempt: number` to `SharedFinding` and `SharedArtifact`. The store derives it from `CollaborationActor.workerAttempt` on publish.
 
@@ -65,7 +65,7 @@ Add `normalizeManifestV1_0()` that fills `score: 0`, `selectionReasons: [], comp
 
 ## M0.78e.2 — Relevance and budget types
 
-**Files:** Create `src/kernel/collaboration-relevance-types.ts`
+**Files:** Create `src/coordination/kernel/collaboration-relevance-types.ts`
 
 ```typescript
 export type CompressionMode = "none" | "truncated" | "extractive";
@@ -118,7 +118,7 @@ Add `validateContextBudget()` in `collaboration-validation.ts` — rejects negat
 
 ## M0.78e.3 — Freshness
 
-**Files:** Create `src/kernel/collaboration-freshness.ts`
+**Files:** Create `src/coordination/kernel/collaboration-freshness.ts`
 
 ```typescript
 export interface Clock { now(): Date; }
@@ -149,7 +149,7 @@ export function computeRecencyScore(createdAt: string, clock: Clock): number {
 
 ## M0.78e.4 — Evidence quality
 
-**Files:** Create `src/kernel/collaboration-evidence-quality.ts`
+**Files:** Create `src/coordination/kernel/collaboration-evidence-quality.ts`
 
 ```typescript
 export type EvidenceQualityReport = { score: number; reasons: string[]; verifiedCount: number; unresolvedCount: number; };
@@ -174,7 +174,7 @@ export function assessEvidenceQuality(evidenceRefs: EvidenceRef[], artifacts: Sh
 
 ## M0.78e.5 — Deterministic scoring
 
-**Files:** Create `src/kernel/collaboration-relevance-scorer.ts`
+**Files:** Create `src/coordination/kernel/collaboration-relevance-scorer.ts`
 
 ```typescript
 export class RelevanceScorer {
@@ -205,7 +205,7 @@ Tie-break: score desc → direct dep first → evidence quality desc → created
 
 ## M0.78e.6 — Budget allocation
 
-**Files:** Create `src/kernel/collaboration-budget-allocator.ts`
+**Files:** Create `src/coordination/kernel/collaboration-budget-allocator.ts`
 
 - `allocate()` returns `BudgetAllocationResult`
 - Reserve system + task budget
@@ -221,7 +221,7 @@ Tie-break: score desc → direct dep first → evidence quality desc → created
 
 ## M0.78e.7 — Semantic reranking
 
-**Files:** Create `src/kernel/collaboration-semantic-reranker.ts`
+**Files:** Create `src/coordination/kernel/collaboration-semantic-reranker.ts`
 
 ```typescript
 export interface SemanticReranker {
@@ -237,7 +237,7 @@ Identity fallback returns candidates as-is. Embedding implementation: compute si
 
 ## M0.78e.8 — Compression
 
-**Files:** Create `src/kernel/collaboration-compression.ts`
+**Files:** Create `src/coordination/kernel/collaboration-compression.ts`
 
 ```typescript
 export interface ContextCompressor {
@@ -253,7 +253,7 @@ Unicode-safe truncation, prefer sentence boundaries, accurate token metadata, st
 
 ## M0.78e.9 — Builder integration
 
-**Files:** Modify `src/kernel/collaboration-context-builder.ts`
+**Files:** Modify `src/coordination/kernel/collaboration-context-builder.ts`
 
 Inject deps via `CollaborationContextBuilderDeps`. Flow: load results → load findings → compute status → score → (optional rerank) → compress → allocate → build manifest + snapshot. Expand fingerprint to include relevance config, compression metadata, scores.
 

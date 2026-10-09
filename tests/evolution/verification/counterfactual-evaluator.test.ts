@@ -8,8 +8,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   CounterfactualEvaluator,
-} from "../../../src/evolution/verification/index.js";
-import type { ConfidenceProfile } from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
+import type { ConfidenceProfile } from "../../../src/planning/evolution/verification/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

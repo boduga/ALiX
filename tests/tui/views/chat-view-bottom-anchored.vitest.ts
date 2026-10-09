@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ChatView } from '../../../src/tui/views/chat-view.js';
+import { ChatView } from '../../../src/interfaces/tui/views/chat-view.js';
 import { MockCanvas } from './helpers/mock-canvas.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
-import { createInitialPerTabState } from '../../../src/tui/state.js';
-import type { TerminalCanvas } from '../../../src/tui/canvas.js';
-import * as viewportModule from '../../../src/tui/views/bottom-anchored-viewport.js';
-import type { ScrollbackLine } from '../../../src/tui/views/bottom-anchored-viewport.js';
+import type { ViewRenderContext } from '../../../src/interfaces/tui/views/types.js';
+import { createInitialPerTabState } from '../../../src/interfaces/tui/state.js';
+import type { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import * as viewportModule from '../../../src/interfaces/tui/views/bottom-anchored-viewport.js';
+import type { ScrollbackLine } from '../../../src/interfaces/tui/views/bottom-anchored-viewport.js';
 
 /**
  * Bottom-anchored prompt row: one above the 5-row footer.
@@ -13,7 +13,7 @@ import type { ScrollbackLine } from '../../../src/tui/views/bottom-anchored-view
  * so the tests can assert the prompt's absolute position
  * regardless of canvas height.
  *
- * `panelRow = rows - BELOW_PROMPT_ROWS(3)` (see src/tui/views/scroll-math.ts)
+ * `panelRow = rows - BELOW_PROMPT_ROWS(3)` (see src/interfaces/tui/views/scroll-math.ts)
  */
 function panelRow(height: number): number {
   return Math.max(0, height - 3);

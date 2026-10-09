@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
-import { EnhancedVerifier } from "../../src/verifier/enhanced-verifier.js";
+import { EnhancedVerifier } from "../../src/execution/verifier/enhanced-verifier.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, mkdir, unlink } from "node:fs/promises";

@@ -20,17 +20,17 @@ import {
   executeRouteGoverned,
   ExecutionNotApprovedError,
   CollectingEvidenceEmitter,
-} from "../../src/runtime/governed-route-executor.js";
-import { ExecutionStateMachine } from "../../src/runtime/execution-state-machine.js";
+} from "../../src/runtime-state/runtime/governed-route-executor.js";
+import { ExecutionStateMachine } from "../../src/runtime-state/runtime/execution-state-machine.js";
 import {
   ExecutionState,
   type ExecutionEvidenceEmitter,
   type ExecutionEventType,
-} from "../../src/runtime/contracts/execution-runtime-contract.js";
-import type { ExecutionEvidence, ExecutionIntentEvent } from "../../src/runtime/contracts/execution-intent-contract.js";
-import { ExecutionGovernorImpl, type ExecutionGovernor } from "../../src/runtime/execution-governor.js";
-import type { RuntimeContext, RuntimeExecutor } from "../../src/runtime/route-executor.js";
-import { taskRouter, type TaskRoute } from "../../src/runtime/task-router.js";
+} from "../../src/runtime-state/runtime/contracts/execution-runtime-contract.js";
+import type { ExecutionEvidence, ExecutionIntentEvent } from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
+import { ExecutionGovernorImpl, type ExecutionGovernor } from "../../src/runtime-state/runtime/execution-governor.js";
+import type { RuntimeContext, RuntimeExecutor } from "../../src/runtime-state/runtime/route-executor.js";
+import { taskRouter, type TaskRoute } from "../../src/runtime-state/runtime/task-router.js";
 
 const FIXED_NOW = "2026-08-06T00:00:00.000Z";
 // Far-future intent lifetime so the governor's real-clock expiration check

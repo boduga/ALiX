@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { derivePermissions } from "../../src/server/security-middleware.js";
+import { derivePermissions } from "../../src/interfaces/server/security-middleware.js";
 
 describe("derivePermissions", () => {
   it("grants coordination:execute to admin and operator", () => {

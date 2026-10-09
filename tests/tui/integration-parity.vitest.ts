@@ -20,7 +20,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
+import { TuiApp, type TuiAppOptions } from '../../src/interfaces/tui/app.js';
 
 describe('TuiApp — parity with legacy chat input', () => {
   let builder: { build: ReturnType<typeof vi.fn>; buildSync: ReturnType<typeof vi.fn> };

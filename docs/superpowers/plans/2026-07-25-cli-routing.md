@@ -10,7 +10,7 @@
 
 **Files:**
 - Modify: `src/cli.ts` — add router map at top, replace if-blocks with dispatcher
-- Extract: `src/cli/commands/run.ts`, `session.ts`, `plan.ts`, `review.ts`, `apply.ts`, `submit.ts`
+- Extract: `src/interfaces/cli/commands/run.ts`, `session.ts`, `plan.ts`, `review.ts`, `apply.ts`, `submit.ts`
 
 **The COMMAND_ROUTER map** (add near top of file):
 

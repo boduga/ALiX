@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseBlocks } from '../../../src/tui/blocks/parser.js';
+import { parseBlocks } from '../../../src/interfaces/tui/blocks/parser.js';
 
 describe('parseBlocks', () => {
   it('returns empty array for empty input', () => {

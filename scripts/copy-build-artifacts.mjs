@@ -14,8 +14,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
 
 // Copy config profiles
-const profilesSrc = resolve(root, "src/config/profiles");
-const profilesDest = resolve(root, "dist/src/config/profiles");
+const profilesSrc = resolve(root, "src/operations/config/profiles");
+const profilesDest = resolve(root, "dist/src/operations/config/profiles");
 mkdirSync(profilesDest, { recursive: true });
 if (existsSync(profilesSrc)) {
   for (const file of readdirSync(profilesSrc).filter((f) => f.endsWith(".json"))) {
@@ -25,16 +25,16 @@ if (existsSync(profilesSrc)) {
 
 // Copy UI assets
 const uiFiles = ["index.html", "app.js", "projection.js", "styles.css"];
-const uiSrc = resolve(root, "src/ui");
-const uiDest = resolve(root, "dist/src/ui");
+const uiSrc = resolve(root, "src/interfaces/ui");
+const uiDest = resolve(root, "dist/src/interfaces/ui");
 mkdirSync(uiDest, { recursive: true });
 for (const file of uiFiles) {
   cpSync(resolve(uiSrc, file), resolve(uiDest, file));
 }
 
 // Copy DB migrations
-const dbSrc = resolve(root, "src/db/migrations");
-const dbDest = resolve(root, "dist/src/db/migrations");
+const dbSrc = resolve(root, "src/operations/db/migrations");
+const dbDest = resolve(root, "dist/src/operations/db/migrations");
 mkdirSync(dbDest, { recursive: true });
 if (existsSync(dbSrc)) {
   for (const file of readdirSync(dbSrc).filter((f) => f.endsWith(".sql"))) {
@@ -43,8 +43,8 @@ if (existsSync(dbSrc)) {
 }
 
 // Copy refine-strategy templates (read module-relative at runtime)
-const strategiesSrc = resolve(root, "src/run/task-loop/refine-strategies");
-const strategiesDest = resolve(root, "dist/src/run/task-loop/refine-strategies");
+const strategiesSrc = resolve(root, "src/execution/run/task-loop/refine-strategies");
+const strategiesDest = resolve(root, "dist/src/execution/run/task-loop/refine-strategies");
 mkdirSync(strategiesDest, { recursive: true });
 if (existsSync(strategiesSrc)) {
   for (const file of readdirSync(strategiesSrc).filter((f) => f.endsWith(".md"))) {

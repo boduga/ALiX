@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { computeLearningTrends } from "../../src/executive/learning-trends.js";
-import type { ExecutiveSubsystemName } from "../../src/executive/executive-health.js";
-import type { ExecutiveOutcomeEvaluationReport, ObjectiveOutcome } from "../../src/executive/outcome-evaluator.js";
-import type { ExecutiveObjectiveType } from "../../src/executive/objective-engine.js";
+import { computeLearningTrends } from "../../src/execution/executive/learning-trends.js";
+import type { ExecutiveSubsystemName } from "../../src/execution/executive/executive-health.js";
+import type { ExecutiveOutcomeEvaluationReport, ObjectiveOutcome } from "../../src/execution/executive/outcome-evaluator.js";
+import type { ExecutiveObjectiveType } from "../../src/execution/executive/objective-engine.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures

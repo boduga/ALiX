@@ -9,7 +9,7 @@
 
 Narrow, additive polish to the existing `alix governance audit` CLI. Five improvements: configurable limit + new filters on `list`, a new `timeline` subcommand, `show --related` correlation, bare-`audit` help, and metadata pretty-print. No new intelligence, no new query-engine module.
 
-**All changes are in `src/cli/commands/governance.ts` + one new test file.** No `src/governance/*` edits.
+**All changes are in `src/interfaces/cli/commands/governance.ts` + one new test file.** No `src/governance/*` edits.
 
 ## Exact semantics (added during refinement — unambiguous implementation/review)
 
@@ -62,7 +62,7 @@ Before editing any handler, run `gitnexus_impact({target: "<handlerName>", direc
 
 ### Task 1 — `list --limit` + new filters
 
-**File:** `src/cli/commands/governance.ts` → `runAuditList` (~line 2405)
+**File:** `src/interfaces/cli/commands/governance.ts` → `runAuditList` (~line 2405)
 
 - Parse `--limit N` (default 50). Replace the hardcoded `events.slice(0, 50)` and the "... and N more" counter to use the limit.
 - Add inline filters (no new module):
@@ -74,7 +74,7 @@ Before editing any handler, run `gitnexus_impact({target: "<handlerName>", direc
 
 ### Task 2 — `audit timeline` subcommand
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 - Add `"timeline"` to the dispatch switch (~line 2379) → `runAuditTimeline(cwd, args, jsonMode)`.
 - New `runAuditTimeline`:
@@ -85,14 +85,14 @@ Before editing any handler, run `gitnexus_impact({target: "<handlerName>", direc
 
 ### Task 3 — `show --related`
 
-**File:** `src/cli/commands/governance.ts` → `runAuditShow` (~line 2488)
+**File:** `src/interfaces/cli/commands/governance.ts` → `runAuditShow` (~line 2488)
 
 - Parse `--related` flag.
 - After the existing detail block, if `--related` AND the event has `traceId`/`sessionId`/`parentEventId`: query correlated events (exclude the event itself), print a compact "Related events (N)" list (reuse the list-line formatter). `--json` includes a `related: [...]` field.
 
 ### Task 4 — Bare `audit` help + metadata pretty-print
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 - (a) In the audit dispatch, when `sub` is undefined/empty (no subcommand), print a help block: subcommand list (`list`, `show`, `timeline`, `trace`, `actor`, `policy`, `verify`, `export`) + 2–3 example invocations. Do not `process.exit(1)` harshly — exit 0 for explicit help.
 - (b) In `runAuditShow`, replace `JSON.stringify(event.metadata)` (single line) with an indented key:value render (one line per metadata key), falling back to JSON for nested objects/arrays.
@@ -121,7 +121,7 @@ Seed a `FileAuditStore` in a temp dir with a handful of known events (varying ev
 
 | File | Lines | Change type |
 |------|-------|-------------|
-| `src/cli/commands/governance.ts` | ~120 | Extend (list/show/dispatch) + new `runAuditTimeline` |
+| `src/interfaces/cli/commands/governance.ts` | ~120 | Extend (list/show/dispatch) + new `runAuditTimeline` |
 | `tests/cli/audit-cli-polish.test.ts` | ~220 | New |
 | **Total new** | ~340 | |
 

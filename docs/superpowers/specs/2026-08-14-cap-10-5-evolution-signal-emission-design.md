@@ -6,7 +6,7 @@
 
 **Architecture:** The outcome remains authoritative. A5 publishes `outcome.signals` through a new `ProposalSignalSink` interface after the measured event has been persisted; the sink publishes into a composition-root-owned `ProposalSignalChannel` that A7 reads from via the existing `ProposalSignalSource` interface. Channel is delivery, not source of truth. Failures record `signals_unpublished` events with deterministic SHA-256 signal IDs sufficient for CAP-12 replay.
 
-**Tech Stack:** TypeScript · Node `crypto.createHash` · existing `canonicalStringify` from `src/security/audit/canonical-json.ts` · append-only EventLog.
+**Tech Stack:** TypeScript · Node `crypto.createHash` · existing `canonicalStringify` from `src/governance/security/audit/canonical-json.ts` · append-only EventLog.
 
 ---
 
@@ -18,13 +18,13 @@ This design supersedes the M1-deferral note in `docs/superpowers/specs/2026-08-1
 
 | Path | Role |
 |---|---|
-| `src/capability/evolution/proposal-signal-channel.ts` | `ProposalSignalChannel` concrete class — sink + source in one object. |
-| `src/capability/evolution/signal-identity.ts` | `computeSignalId(signal)` helper. |
-| `src/capability/evolution/a7-proposals.ts` (modified) | Add `ProposalSignalSink` interface (next to existing `ProposalSignalSource`). |
-| `src/evolution/observation/a5-capability-measurement.ts` (modified) | Inject `signalSink` (not `signalSource`); implement locked 4-step pipeline; default decider emits `underperformer` for `ineffective`. |
-| `src/capability/measurement/measurement-event-types.ts` (modified) | Add `MeasurementSignalsUnpublishedEvent` discriminated-union variant. |
-| `src/capability/measurement/capability-measurement-engine.ts` (modified) | Pass `eventLog` to A5 so it can append `signals_unpublished`. |
-| `src/capability/platform.ts` (modified) | Construct one `ProposalSignalChannel`; inject as sink to A5 and source to A7. |
+| `src/capabilities/capability/evolution/proposal-signal-channel.ts` | `ProposalSignalChannel` concrete class — sink + source in one object. |
+| `src/capabilities/capability/evolution/signal-identity.ts` | `computeSignalId(signal)` helper. |
+| `src/capabilities/capability/evolution/a7-proposals.ts` (modified) | Add `ProposalSignalSink` interface (next to existing `ProposalSignalSource`). |
+| `src/planning/evolution/observation/a5-capability-measurement.ts` (modified) | Inject `signalSink` (not `signalSource`); implement locked 4-step pipeline; default decider emits `underperformer` for `ineffective`. |
+| `src/capabilities/capability/measurement/measurement-event-types.ts` (modified) | Add `MeasurementSignalsUnpublishedEvent` discriminated-union variant. |
+| `src/capabilities/capability/measurement/capability-measurement-engine.ts` (modified) | Pass `eventLog` to A5 so it can append `signals_unpublished`. |
+| `src/capabilities/capability/platform.ts` (modified) | Construct one `ProposalSignalChannel`; inject as sink to A5 and source to A7. |
 
 **Authoritative artifacts (test):**
 
@@ -57,7 +57,7 @@ This design supersedes the M1-deferral note in `docs/superpowers/specs/2026-08-1
 | **R1** | Outcome canonical; explicit sink provides delivery. `ProposalSignalSink` is a new interface alongside `ProposalSignalSource`. | Grilling Q1 (Option B'). |
 | **R2** | Best-effort publish; failure records `signals_unpublished` event and returns successful outcome. | Grilling Q2 (Option A). |
 | **R3** | Decider-driven signal population. Default: `effective → []`, `ineffective → [underperformer]`, `inconclusive → []`. A5 never modifies signals after decider returns. | Grilling Q3 (Option A). |
-| **R4** | `ProposalSignalChannel` is a single concrete class in **`src/capability/evolution/proposal-signal-channel.ts`** (separate module, not in `a7-proposals.ts`). Implements both interfaces. Buffer is private. | Grilling Q4 (Option A, separate module). |
+| **R4** | `ProposalSignalChannel` is a single concrete class in **`src/capabilities/capability/evolution/proposal-signal-channel.ts`** (separate module, not in `a7-proposals.ts`). Implements both interfaces. Buffer is private. | Grilling Q4 (Option A, separate module). |
 | **R5** | `MeasurementSignalsUnpublishedEvent` lives in `measurement-event-types.ts`. Schema: `measurementEventId`, `signalCount`, `signalIds`, `failure.{classification, cause}`, `occurredAt`, `actor.{kind, component}`. `signalIds` are SHA-256 hex of canonical-JSON signal. `signalCount === signalIds.length`. `classification` is `"sink_threw"` only in CAP-10.5. | Grilling Q5 (Option A + hashed IDs). |
 
 Detailed memory entry: `memory/cap-10-5-rulings-locked.md`.
@@ -69,15 +69,15 @@ Detailed memory entry: `memory/cap-10-5-rulings-locked.md`.
 ### 4.1 Module placement
 
 ```
-src/capability/evolution/
+src/capabilities/capability/evolution/
 ├── a7-proposals.ts                (CAP-9 contract; gains ProposalSignalSink interface)
 ├── proposal-signal-channel.ts     (NEW; ProposalSignalChannel concrete class)
 └── signal-identity.ts             (NEW; computeSignalId helper)
 
-src/evolution/observation/
+src/planning/evolution/observation/
 └── a5-capability-measurement.ts   (modified; injects signalSink + EventLog)
 
-src/capability/measurement/
+src/capabilities/capability/measurement/
 ├── measurement-event-types.ts     (modified; adds signals_unpublished variant)
 └── capability-measurement-engine.ts (modified; passes EventLog to A5)
 ```
@@ -85,12 +85,12 @@ src/capability/measurement/
 ### 4.2 Type surface (delta from CAP-10)
 
 ```ts
-// src/capability/evolution/a7-proposals.ts — added next to ProposalSignalSource
+// src/capabilities/capability/evolution/a7-proposals.ts — added next to ProposalSignalSource
 export interface ProposalSignalSink {
   publish(signal: CapabilityEvolutionSignal): Promise<void>;
 }
 
-// src/capability/evolution/signal-identity.ts — new file
+// src/capabilities/capability/evolution/signal-identity.ts — new file
 import { createHash } from "node:crypto";
 import { canonicalStringify } from "../../security/audit/canonical-json.js";
 import type { CapabilityEvolutionSignal } from "./a7-proposals.js";
@@ -108,7 +108,7 @@ export function isValidSignalId(value: unknown): value is string {
 ```
 
 ```ts
-// src/capability/evolution/proposal-signal-channel.ts — new file
+// src/capabilities/capability/evolution/proposal-signal-channel.ts — new file
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSink,
@@ -129,7 +129,7 @@ export class ProposalSignalChannel implements ProposalSignalSink, ProposalSignal
 ```
 
 ```ts
-// src/capability/measurement/measurement-event-types.ts — appended
+// src/capabilities/capability/measurement/measurement-event-types.ts — appended
 export type MeasurementSignalsUnpublishedFailure =
   | { readonly classification: "sink_threw"; readonly cause: string }
   | { readonly classification: "sink_timeout"; readonly cause: string };
@@ -278,7 +278,7 @@ The returned outcome is identical to the no-failure path. The caller (`Capabilit
 `CapabilityPlatform` (the only composition root for capability-platform internals) constructs **one** `ProposalSignalChannel`:
 
 ```ts
-// src/capability/platform.ts — modified construction
+// src/capabilities/capability/platform.ts — modified construction
 const channel = new ProposalSignalChannel();
 
 const a5Measurement = new A5CapabilityMeasurement({
@@ -311,13 +311,13 @@ CAP-10.5 is **purely additive**:
 - A7 proposal generation is unchanged in behavior (reads from the same channel, which now has actual content instead of an empty buffer).
 - Tests that injected `NoopSignalSource` / `FakeSignalSource` keep working — those classes still satisfy `ProposalSignalSource` for A7's read-side; for A5's write-side they must be replaced or extended to also implement `ProposalSignalSink`. The plan tasks handle this in-place.
 
-The forbidden file list for CAP-10.5 is identical to CAP-10's plus the new `src/evolution/capability-lifecycle/*` (already gone per CAP-11 R5):
+The forbidden file list for CAP-10.5 is identical to CAP-10's plus the new `src/planning/evolution/capability-lifecycle/*` (already gone per CAP-11 R5):
 
-- `src/capability/initial-capabilities.ts` — never touch
-- `src/tools/tool-registry.ts` — never touch
-- `src/policy/capability-registry.ts` — never touch
-- `src/capability/canonical/*` (production) — never touch
-- `src/capability/evolution/a7-proposals.ts` (production) — only add `ProposalSignalSink` interface, do not modify `A7ProposalGenerator` body or `ProposalSignalSource`
+- `src/capabilities/capability/initial-capabilities.ts` — never touch
+- `src/capabilities/tools/tool-registry.ts` — never touch
+- `src/governance/policy/capability-registry.ts` — never touch
+- `src/capabilities/capability/canonical/*` (production) — never touch
+- `src/capabilities/capability/evolution/a7-proposals.ts` (production) — only add `ProposalSignalSink` interface, do not modify `A7ProposalGenerator` body or `ProposalSignalSource`
 
 ---
 
@@ -399,7 +399,7 @@ Six axes guarding deletion-purity and architecture-purity:
 1. **No read-side write in A5.** `a5-capability-measurement.ts` does NOT import `ProposalSignalSource` (only `ProposalSignalSink`).
 2. **No source-side write in channel API.** `ProposalSignalChannel.publish` is the sole write method; no other method mutates buffer state.
 3. **No mutation of outcome.signals in A5.** Static check: `measureCapability` body does not call any mutation API on the signals array. (Compile-time — checked via grep + AST scan.)
-4. **Single channel construction site.** `new ProposalSignalChannel(` appears exactly once in `src/` — at the composition root (`src/capability/platform.ts`).
+4. **Single channel construction site.** `new ProposalSignalChannel(` appears exactly once in `src/` — at the composition root (`src/capabilities/capability/platform.ts`).
 5. **`signals_unpublished` event type present.** Static check: the event-type discriminator string and the `MeasurementSignalsUnpublishedEvent` interface are both present.
 6. **Default decider emits underperformer for ineffective.** Behavior test: default decider called with `ineffective` returns `[underperformer(...)]` with correct fields; with `effective`/`inconclusive` returns `[]`.
 
@@ -468,7 +468,7 @@ No interface change. No consumer change.
 - `memory/cap-10-a5-measurement-integration-complete.md` — CAP-10 closure; M1 deferral rationale.
 - `docs/superpowers/specs/2026-08-13-cap-10-a5-measurement-integration-design.md` — CAP-10 design (ruling #12, #16).
 - `docs/superpowers/plans/2026-08-13-cap-10-a5-measurement-integration.md` — CAP-10 plan (line 817, 1207, 1266).
-- `src/capability/governance/proposal-identity.ts` — CAP-9 SHA-256 + canonical-JSON pattern; CAP-10.5 mirrors it for `computeSignalId`.
-- `src/security/audit/canonical-json.ts` — `canonicalStringify` utility.
+- `src/capabilities/capability/governance/proposal-identity.ts` — CAP-9 SHA-256 + canonical-JSON pattern; CAP-10.5 mirrors it for `computeSignalId`.
+- `src/governance/security/audit/canonical-json.ts` — `canonicalStringify` utility.
 - `docs/superpowers/specs/2026-08-14-cap-11-remove-legacy-capability-surfaces-design.md` — precedent for sentinel-as-architecture-guard.
 - `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md` — §10/§11 governance event prefix pattern.

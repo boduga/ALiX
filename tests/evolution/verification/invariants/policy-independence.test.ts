@@ -13,7 +13,7 @@ import {
   CounterfactualEvaluator,
   RecommendationEngine,
   createVerificationEvidence,
-} from "../../../../src/evolution/verification/index.js";
+} from "../../../../src/planning/evolution/verification/index.js";
 
 describe("Invariant: Policy independence", () => {
   it("counterfactual classification is independent of recommendation config", () => {

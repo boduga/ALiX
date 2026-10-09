@@ -1,10 +1,10 @@
 // tests/correlation/build-correlation-graph.vitest.ts
 
 import { describe, it, expect } from "vitest";
-import { buildCorrelationGraph } from "../../src/correlation/build-correlation-graph.js";
-import { DEFAULT_CORRELATION_CONFIG } from "../../src/correlation/correlation-config.js";
-import type { BaselineComparison } from "../../src/baseline/baseline-types.js";
-import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
+import { buildCorrelationGraph } from "../../src/operations/correlation/build-correlation-graph.js";
+import { DEFAULT_CORRELATION_CONFIG } from "../../src/operations/correlation/correlation-config.js";
+import type { BaselineComparison } from "../../src/context/baseline/baseline-types.js";
+import type { ExecutiveTrendSnapshot } from "../../src/execution/executive/trend-store.js";
 
 function makeComparison(subsystem: string, score: number): BaselineComparison {
   const status = score >= 90 ? "excellent" : score >= 70 ? "healthy" : score >= 40 ? "warning" : "critical";

@@ -1,8 +1,8 @@
 // tests/http-transport.test.ts
 import test from "node:test";
 import assert from "node:assert/strict";
-import { HttpTransport } from "../src/mcp/transports/http-transport.js";
-import type { JsonRpcRequest, JsonRpcNotification } from "../src/mcp/types.js";
+import { HttpTransport } from "../src/capabilities/mcp/transports/http-transport.js";
+import type { JsonRpcRequest, JsonRpcNotification } from "../src/capabilities/mcp/types.js";
 
 const originalFetch = globalThis.fetch;
 

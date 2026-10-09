@@ -23,7 +23,7 @@
 | P23.1 | `src/governance/replay/replay-input-assembler.ts` + `src/governance/replay/types.ts` | `tests/governance/replay-input-assembler.test.ts` |
 | P23.2 | `src/governance/replay/counterfactual-readiness-evaluator.ts` | `tests/governance/counterfactual-readiness-evaluator.test.ts` |
 | P23.3 | `src/governance/replay/replay-diff-model.ts` | `tests/governance/replay-diff-model.test.ts` |
-| P23.4 | `src/governance/replay/replay-report.ts` + `src/cli/commands/governance-replay.ts` | `tests/governance/replay-report.test.ts` |
+| P23.4 | `src/governance/replay/replay-report.ts` + `src/interfaces/cli/commands/governance-replay.ts` | `tests/governance/replay-report.test.ts` |
 | P23.5 | Phase report + checkpoint docs | Boundary verification |
 
 ## Task 1: P23.0 Spec + Plan

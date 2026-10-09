@@ -20,14 +20,14 @@ CLI: `alix governance evolution execute <evolution-id> [--dry-run] [--json]`.
 
 | File | Responsibility |
 |------|----------------|
-| `src/evolution/execution/contracts/execution-contract.ts` | A4.0: `ExecutionRequest`, `ExecutionAuthorization`, `ExecutionPlan` types |
-| `src/evolution/execution/execution-authorization.ts` | A4.0: 7-check pre-flight authorization gate |
-| `src/evolution/execution/execution-planner.ts` | A4.1: Deterministic plan generation, `RollbackResolver` |
-| `src/evolution/execution/execution-runtime.ts` | A4.2: Sequential execution, checkpointing, rollback |
-| `src/evolution/execution/execution-evidence-bridge.ts` | A4.3: Report → evidence construction, integrity hashing, lineage |
-| `src/evolution/execution/execution-rollback.ts` | A4.4: Rollback & recovery |
-| `src/evolution/execution/execution-cli.ts` | A4.5: CLI handler (`runExecute`) |
-| `src/evolution/execution/index.ts` | Barrel re-exports |
+| `src/planning/evolution/execution/contracts/execution-contract.ts` | A4.0: `ExecutionRequest`, `ExecutionAuthorization`, `ExecutionPlan` types |
+| `src/planning/evolution/execution/execution-authorization.ts` | A4.0: 7-check pre-flight authorization gate |
+| `src/planning/evolution/execution/execution-planner.ts` | A4.1: Deterministic plan generation, `RollbackResolver` |
+| `src/planning/evolution/execution/execution-runtime.ts` | A4.2: Sequential execution, checkpointing, rollback |
+| `src/planning/evolution/execution/execution-evidence-bridge.ts` | A4.3: Report → evidence construction, integrity hashing, lineage |
+| `src/planning/evolution/execution/execution-rollback.ts` | A4.4: Rollback & recovery |
+| `src/planning/evolution/execution/execution-cli.ts` | A4.5: CLI handler (`runExecute`) |
+| `src/planning/evolution/execution/index.ts` | Barrel re-exports |
 
 **Tests:** `tests/evolution/execution/` — execution-contract, execution-authorization,
 execution-planner, execution-runtime, execution-evidence-bridge, execution-rollback,

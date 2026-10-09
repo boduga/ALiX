@@ -5,8 +5,8 @@ import {
   isEffectiveOutcome,
   isIneffectiveOutcome,
   isInconclusiveOutcome,
-} from "../../src/capability/measurement/outcome-discriminated-union.js";
-import type { CapabilityMeasurementOutcome } from "../../src/capability/measurement/outcome-discriminated-union.js";
+} from "../../src/capabilities/capability/measurement/outcome-discriminated-union.js";
+import type { CapabilityMeasurementOutcome } from "../../src/capabilities/capability/measurement/outcome-discriminated-union.js";
 
 function mkOutcome(kind: "effective" | "ineffective" | "inconclusive"): CapabilityMeasurementOutcome {
   return {

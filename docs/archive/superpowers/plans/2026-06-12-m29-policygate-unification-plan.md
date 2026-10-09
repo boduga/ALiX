@@ -13,11 +13,11 @@
 ## File Structure
 
 ### Modify
-- `src/runtime/runtime.ts` — remove `policyEngine: PolicyEngine` from Runtime interface
-- `src/runtime/runtime-builder.ts` — stop constructing PolicyEngine, remove PolicyEngine imports
-- `src/agent/agent.ts` — remove PolicyEngine construction (already unused; ToolExecutor uses PolicyGate directly)
-- `src/policy/runtime-gate.ts` — make PolicyGate required, remove the fallback to `policyEvaluator.evaluate()`; remove `RuleEvaluator` from the interface
-- `src/policy/index.ts` — export PolicyGate types instead of PolicyEngine
+- `src/runtime-state/runtime/runtime.ts` — remove `policyEngine: PolicyEngine` from Runtime interface
+- `src/runtime-state/runtime/runtime-builder.ts` — stop constructing PolicyEngine, remove PolicyEngine imports
+- `src/agents/agent/agent.ts` — remove PolicyEngine construction (already unused; ToolExecutor uses PolicyGate directly)
+- `src/governance/policy/runtime-gate.ts` — make PolicyGate required, remove the fallback to `policyEvaluator.evaluate()`; remove `RuleEvaluator` from the interface
+- `src/governance/policy/index.ts` — export PolicyGate types instead of PolicyEngine
 
 ### Tests
 - `tests/policy/runtime-gate.test.ts` — update to pass PolicyGate instead of relying on policyEvaluator fallback
@@ -27,7 +27,7 @@
 ### Task 1: Remove PolicyEngine from Runtime interface
 
 **Files:**
-- Modify: `src/runtime/runtime.ts`
+- Modify: `src/runtime-state/runtime/runtime.ts`
 
 - [ ] **Step 1: Remove policyEngine import and field**
 
@@ -58,7 +58,7 @@ Expected: errors in runtime-builder.ts and any other file referencing `r.policyE
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/runtime/runtime.ts
+git add src/runtime-state/runtime/runtime.ts
 git commit -m "refactor(runtime): remove PolicyEngine from Runtime interface"
 ```
 
@@ -67,7 +67,7 @@ git commit -m "refactor(runtime): remove PolicyEngine from Runtime interface"
 ### Task 2: Remove PolicyEngine from RuntimeBuilder
 
 **Files:**
-- Modify: `src/runtime/runtime-builder.ts`
+- Modify: `src/runtime-state/runtime/runtime-builder.ts`
 
 - [ ] **Step 1: Remove PolicyEngine construction and imports**
 
@@ -131,7 +131,7 @@ Expected: all pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/runtime/runtime-builder.ts
+git add src/runtime-state/runtime/runtime-builder.ts
 git commit -m "refactor(runtime): remove PolicyEngine construction from RuntimeBuilder"
 ```
 
@@ -140,7 +140,7 @@ git commit -m "refactor(runtime): remove PolicyEngine construction from RuntimeB
 ### Task 3: Remove PolicyEngine from agent.ts
 
 **Files:**
-- Modify: `src/agent/agent.ts`
+- Modify: `src/agents/agent/agent.ts`
 
 - [ ] **Step 1: Remove PolicyEngine creation**
 
@@ -165,7 +165,7 @@ Expected: clean compile
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/agent/agent.ts
+git add src/agents/agent/agent.ts
 git commit -m "refactor(agent): remove unused PolicyEngine construction"
 ```
 
@@ -174,7 +174,7 @@ git commit -m "refactor(agent): remove unused PolicyEngine construction"
 ### Task 4: Collapse runtime-gate.ts to require PolicyGate
 
 **Files:**
-- Modify: `src/policy/runtime-gate.ts`
+- Modify: `src/governance/policy/runtime-gate.ts`
 - Test: `tests/policy/runtime-gate.test.ts`
 
 - [ ] **Step 1: Read existing tests to understand the test structure**
@@ -230,7 +230,7 @@ Expected: all tests pass
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/policy/runtime-gate.ts tests/policy/runtime-gate.test.ts
+git add src/governance/policy/runtime-gate.ts tests/policy/runtime-gate.test.ts
 git commit -m "refactor(policy): make PolicyGate required in runtime-gate, remove RuleEvaluator fallback"
 ```
 
@@ -239,7 +239,7 @@ git commit -m "refactor(policy): make PolicyGate required in runtime-gate, remov
 ### Task 5: Update policy index exports
 
 **Files:**
-- Modify: `src/policy/index.ts`
+- Modify: `src/governance/policy/index.ts`
 
 - [ ] **Step 1: Change exports to prefer PolicyGate**
 
@@ -268,7 +268,7 @@ Expected: clean compile
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/policy/index.ts
+git add src/governance/policy/index.ts
 git commit -m "chore(policy): deprecate PolicyEngine exports in favor of PolicyGate"
 ```
 

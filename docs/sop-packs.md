@@ -41,14 +41,14 @@ alix sop run research.deep_report --topic "test" --plan-only
 
 ## Creating a New SOP
 
-1. Create a file in `src/sop/<domain>-<name>.ts`
+1. Create a file in `src/coordination/sop/<domain>-<name>.ts`
 2. Export a function that returns a `SopDefinition` with:
    - `id` — unique identifier (e.g. `infra.docker_compose_audit`)
    - `name` — human-readable name
    - `description` — one-line summary
    - `manifest` — author, version, tags, nodeCount, requiredCapabilities
    - `buildGraph` — function that returns a `TaskGraph` + `reportDir`
-3. Register it in `src/sop/sop-registry.ts`
+3. Register it in `src/coordination/sop/sop-registry.ts`
 
 ## Validation
 

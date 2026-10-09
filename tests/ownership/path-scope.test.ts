@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { pathScopesOverlap, scopeContains, pathInScope, normalizePathScope, resolveOwnedScopePrefix, claimScopesOverlap } from "../../src/ownership/path-scope.js";
+import { pathScopesOverlap, scopeContains, pathInScope, normalizePathScope, resolveOwnedScopePrefix, claimScopesOverlap } from "../../src/coordination/ownership/path-scope.js";
 import { resolve } from "node:path";
-import type { PathScope } from "../../src/ownership/ownership-types.js";
+import type { PathScope } from "../../src/coordination/ownership/ownership-types.js";
 
 function makeScope(root: string, recursive: boolean): PathScope {
   return { kind: "path", root, recursive };

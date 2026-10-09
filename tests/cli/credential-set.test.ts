@@ -51,7 +51,7 @@ afterEach(() => {
 
 describe("handleCredentialSet — interactive provider picker", () => {
   it("rejects the `provider` keyword in non-TTY contexts with a helpful usage error", async () => {
-    const { handleCredentialSet } = await import("../../src/cli/commands/security.js");
+    const { handleCredentialSet } = await import("../../src/interfaces/cli/commands/security.js");
     await assert.rejects(
       handleCredentialSet(["provider", "default", "sk-or-v1-test"]),
       /__TEST_EXIT__/,
@@ -69,7 +69,7 @@ describe("handleCredentialSet — interactive provider picker", () => {
   });
 
   it("treats the keyword as case-insensitive", async () => {
-    const { handleCredentialSet } = await import("../../src/cli/commands/security.js");
+    const { handleCredentialSet } = await import("../../src/interfaces/cli/commands/security.js");
     for (const variant of ["Provider", "PROVIDER", "provider"]) {
       captured = [];
       exitCode = undefined;
@@ -89,7 +89,7 @@ describe("handleCredentialSet — interactive provider picker", () => {
   it("shows the original positional usage when args are missing AND keyword not used", async () => {
     // The non-keyword, missing-args path is unchanged — guard against
     // accidentally re-routing through the picker on a typo.
-    const { handleCredentialSet } = await import("../../src/cli/commands/security.js");
+    const { handleCredentialSet } = await import("../../src/interfaces/cli/commands/security.js");
     await assert.rejects(
       handleCredentialSet(["openrouter"]),
       /__TEST_EXIT__/,

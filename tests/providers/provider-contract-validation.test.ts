@@ -2,8 +2,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk } from "../../src/providers/types.js";
-import { withProviderContracts, ContractValidationError } from "../../src/providers/provider-contract-validation.js";
+import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk } from "../../src/models/providers/types.js";
+import { withProviderContracts, ContractValidationError } from "../../src/models/providers/provider-contract-validation.js";
 
 // ---------------------------------------------------------------------------
 // Fake adapter for testing

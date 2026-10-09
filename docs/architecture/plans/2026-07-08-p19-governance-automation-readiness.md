@@ -47,7 +47,7 @@ Every P19 computation requires a matching approved P17 approval. Every gate deci
 | `tests/governance/readiness-policy-gate.test.ts` | P19.3 disposition and hard-boundary tests |
 | `src/governance/execution-readiness-report.ts` | P19.4 time-windowed read-only report |
 | `tests/governance/execution-readiness-report.test.ts` | P19.4 joins, counts, sorting, visibility |
-| `src/cli/commands/governance.ts` | Delimited P19 readiness dispatcher and renderers |
+| `src/interfaces/cli/commands/governance.ts` | Delimited P19 readiness dispatcher and renderers |
 | `tests/cli/governance-readiness-cli.test.ts` | CLI fixture bundle, text/JSON/errors, source sentinels |
 | `src/governance/AGENTS.md` | Governance subsystem DOX contract |
 | `AGENTS.md` | Add governance child DOX index entry |
@@ -1707,7 +1707,7 @@ git commit -m "feat(governance): report execution readiness"
 
 **Files:**
 
-- Modify: `src/cli/commands/governance.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts`
 - Create: `tests/cli/governance-readiness-cli.test.ts`
 - Verify: `tests/cli/commands/governance-integration.vitest.ts`
 - Verify: `tests/cli/commands/governance-cli.vitest.ts`
@@ -1720,7 +1720,7 @@ Run:
 ```text
 gitnexus_impact({
   target: "handleGovernanceCommand",
-  file_path: "src/cli/commands/governance.ts",
+  file_path: "src/interfaces/cli/commands/governance.ts",
   direction: "upstream",
   includeTests: true
 })
@@ -2114,7 +2114,7 @@ it("P19 source has no execution, mutation, write, audit, or policy-write imports
 });
 
 it("scans only delimited P19 CLI section", () => {
-  const source = readFileSync("src/cli/commands/governance.ts", "utf8");
+  const source = readFileSync("src/interfaces/cli/commands/governance.ts", "utf8");
   const start = source.indexOf("// P19-READINESS-START");
   const end = source.indexOf("// P19-READINESS-END");
   assert.ok(start >= 0 && end > start);
@@ -2146,7 +2146,7 @@ Expected: P19 CLI suite and all 3 existing direct-caller suites pass.
 Stage both files, run GitNexus change detection, verify only governance CLI dispatch and new tests are affected, then:
 
 ```bash
-git add src/cli/commands/governance.ts tests/cli/governance-readiness-cli.test.ts
+git add src/interfaces/cli/commands/governance.ts tests/cli/governance-readiness-cli.test.ts
 git commit -m "feat(cli): expose governance readiness views"
 ```
 

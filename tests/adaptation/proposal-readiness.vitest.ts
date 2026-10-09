@@ -9,11 +9,11 @@ import {
   computeProposalReadiness,
   getApplySupport,
   type ProposalReadinessInfo,
-} from "../../src/adaptation/proposal-readiness.js";
+} from "../../src/planning/adaptation/proposal-readiness.js";
 import type {
   AdaptationProposal,
   ProposalTarget,
-} from "../../src/adaptation/adaptation-types.js";
+} from "../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Minimal inline factory — avoids importing the full type

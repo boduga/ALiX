@@ -85,7 +85,7 @@ type AgentActivityState =
 > transition `Cancelling → Cancelled` — so the live in-progress phase cannot
 > be a terminal state or a render-only alias. `cancelling` is that member; the
 > ten states above remain the diagnostic/terminal vocabulary. The comment on
-> the `AgentActivityState` union in `src/agent/agent-activity.ts` carries the
+> the `AgentActivityState` union in `src/agents/agent/agent-activity.ts` carries the
 > same note at the point of definition.
 
 Avoid creating duplicate representations if an existing execution-state

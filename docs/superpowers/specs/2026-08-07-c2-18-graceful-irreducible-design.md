@@ -17,9 +17,9 @@ currently surfaced to the user in raw/ungraceful ways:
 
 The error is thrown at 3 sites:
 
-- `src/config/context-assembly.ts:153` — `assembleContext`
-- `src/config/context-budget.ts:254` — `assertFits` (unused in main path)
-- `src/run/task-loop.ts:518` — preflight backstop
+- `src/operations/config/context-assembly.ts:153` — `assembleContext`
+- `src/operations/config/context-budget.ts:254` — `assertFits` (unused in main path)
+- `src/execution/run/task-loop.ts:518` — preflight backstop
 
 It **escapes `runTaskLoop`** (task-loop.ts:256): its main `try` (~line 299) has
 only a `finally`, no `catch`. It propagates through `runTaskCore`
@@ -124,7 +124,7 @@ $ alix run ...
 → human-readable diagnostic with token counts
 ```
 
-An explicit branch in `src/cli/commands/run.ts` matches `result.reason ===
+An explicit branch in `src/interfaces/cli/commands/run.ts` matches `result.reason ===
 "context_budget_overflow"`, renders the friendly diagnostic below from
 `result.contextBudgetOverflow`, and returns generic exit `1`. Without this
 branch the payload would be silently dropped on the CLI surface.
@@ -196,12 +196,12 @@ observability through the daemon surface while honoring the guardrail.
 
 | File | Change |
 |---|---|
-| `src/run/task-loop.ts` | Add `catch` for irreducible overflow → return failed `RunResult` |
+| `src/execution/run/task-loop.ts` | Add `catch` for irreducible overflow → return failed `RunResult` |
 | `src/run.ts` | Extend `reason` union + add `contextBudgetOverflow?` field |
-| `src/agent/system-prompt.ts` | Add `"context_budget_overflow"` to `FAILURE_REASONS` |
-| `src/agent/session.ts` | Pass `contextBudgetOverflow` through `AgentTurnResult` (the CLI + TUI read this type, not `RunResult`) |
-| `src/cli/commands/run.ts` | Explicit branch for `context_budget_overflow` → friendly diagnostic + generic exit 1 |
-| `src/daemon/daemon-server.ts` | Serialize overflow numbers into task.failed `error` string |
+| `src/agents/agent/system-prompt.ts` | Add `"context_budget_overflow"` to `FAILURE_REASONS` |
+| `src/agents/agent/session.ts` | Pass `contextBudgetOverflow` through `AgentTurnResult` (the CLI + TUI read this type, not `RunResult`) |
+| `src/interfaces/cli/commands/run.ts` | Explicit branch for `context_budget_overflow` → friendly diagnostic + generic exit 1 |
+| `src/operations/daemon/daemon-server.ts` | Serialize overflow numbers into task.failed `error` string |
 | `tests/run/task-loop-context-budget.vitest.ts` | Reconcile throw assertion → return assertion |
 
 Out of scope: shared reason-constants module; serializable DTO for

@@ -40,7 +40,7 @@ import {
   fromJevResponse,
   type DecisionConfig,
   type JevTransport,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 function jevConfig(overrides?: Partial<DecisionConfig>): DecisionConfig {
   return {

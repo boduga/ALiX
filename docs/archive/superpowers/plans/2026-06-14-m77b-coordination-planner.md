@@ -13,12 +13,12 @@
 ## File Structure
 
 ### Modify
-- `src/kernel/coordination-types.ts` — add `taskGraphId?`/`taskGraphRef?` to `CoordinationRun`; extend `createWorkerAssignment` with optional `id`, `status`, `error`
+- `src/coordination/kernel/coordination-types.ts` — add `taskGraphId?`/`taskGraphRef?` to `CoordinationRun`; extend `createWorkerAssignment` with optional `id`, `status`, `error`
 
 ### Create
-- `src/kernel/graph-validator.ts` — runtime-safe DAG validation (identity, structure, cycle detection)
-- `src/kernel/mutation-classifier.ts` — `ToolRegistry`-based mutation classification
-- `src/kernel/coordination-planner.ts` — `CoordinationPlanner` with injectable planner/store/registry
+- `src/coordination/kernel/graph-validator.ts` — runtime-safe DAG validation (identity, structure, cycle detection)
+- `src/coordination/kernel/mutation-classifier.ts` — `ToolRegistry`-based mutation classification
+- `src/coordination/kernel/coordination-planner.ts` — `CoordinationPlanner` with injectable planner/store/registry
 
 ### Tests (all mock-based, no real LLM calls)
 - `tests/kernel/graph-validator.test.ts`
@@ -31,7 +31,7 @@
 
 ### Task 1: Extend coordination-types.ts
 
-**Files:** Modify `src/kernel/coordination-types.ts`
+**Files:** Modify `src/coordination/kernel/coordination-types.ts`
 
 Add `taskGraphId?: string` and `taskGraphRef?: string` to `CoordinationRun` interface (after `workers`). Update `createCoordinationRun()` to accept and pass through both. Extend `createWorkerAssignment()` to accept optional `id`, `status`, `error`:
 
@@ -70,7 +70,7 @@ export function createWorkerAssignment(opts: {
 
 ### Task 2: GraphValidator
 
-**Files:** Create `src/kernel/graph-validator.ts`, `tests/kernel/graph-validator.test.ts`
+**Files:** Create `src/coordination/kernel/graph-validator.ts`, `tests/kernel/graph-validator.test.ts`
 
 Runtime-safe DAG validator. Accepts `unknown` because injected planners are a runtime boundary. Returns `DagValidationResult` with distinct `valid` and `safeToPersist` fields:
 
@@ -96,7 +96,7 @@ Validation order: graph is object → IDs are filesystem-safe (regex `^[A-Za-z0-
 
 ### Task 3: MutationClassifier
 
-**Files:** Create `src/kernel/mutation-classifier.ts`, `tests/kernel/mutation-classifier.test.ts`
+**Files:** Create `src/coordination/kernel/mutation-classifier.ts`, `tests/kernel/mutation-classifier.test.ts`
 
 ```typescript
 export type MutationClass = "known-write" | "unknown-write" | "no-write";
@@ -130,7 +130,7 @@ export function classifyCapabilities(
 
 ### Task 4: CoordinationPlanner
 
-**Files:** Create `src/kernel/coordination-planner.ts`
+**Files:** Create `src/coordination/kernel/coordination-planner.ts`
 
 Key design decisions:
 

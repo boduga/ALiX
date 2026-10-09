@@ -332,7 +332,7 @@ No I/O. No real subsystem data. Pure in-memory fixture.
 ## 11. File Map
 
 ```
-src/baseline/
+src/context/baseline/
   baseline-types.ts          — BaselineArtifact<T>, DriftItem, BaselineComparison,
                                HealthStatus, BaselineSubsystem, ProviderState, ProviderInfo
   baseline-provider.ts       — BaselineProvider interface
@@ -343,7 +343,7 @@ src/baseline/
   providers/
     demo-provider.ts         — DemoBaselineProvider
 
-src/cli/commands/
+src/interfaces/cli/commands/
   baseline.ts                — CLI dispatcher
 
 tests/baseline/
@@ -360,7 +360,7 @@ tests/cli/commands/
 
 ## 12. Hard Boundaries
 
-- No imports from `src/executive/` or `src/adaptation/`
+- No imports from `src/execution/executive/` or `src/planning/adaptation/`
 - No imports from real subsystem providers
 - No file I/O for baselines (in-memory only)
 - No changes to Executive dashboard, plan generation, or recommendation pipeline

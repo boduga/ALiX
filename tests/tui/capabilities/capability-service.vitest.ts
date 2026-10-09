@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   CapabilityService, setCapabilityService, getCapabilityService, clearCapabilityService,
-} from '../../../src/tui/capabilities/capability-service.js';
-import type { InvocationPresenter } from '../../../src/tui/capabilities/invocation-presenter.js';
+} from '../../../src/interfaces/tui/capabilities/capability-service.js';
+import type { InvocationPresenter } from '../../../src/interfaces/tui/capabilities/invocation-presenter.js';
 
 class FakeEventLog {
   events: Array<Record<string, unknown>> = [];

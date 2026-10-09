@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join as joinPath } from "node:path";
-import { sortNodesByDependencies, normalizeNode, loadGraph, GraphExecutor } from "../../src/kernel/graph-executor.js";
-import type { TaskNode, TaskGraph } from "../../src/kernel/task-graph.js";
-import { CardRegistry } from "../../src/registry/card-registry.js";
-import { _setHomedirOverride } from "../../src/config/loader.js";
+import { sortNodesByDependencies, normalizeNode, loadGraph, GraphExecutor } from "../../src/coordination/kernel/graph-executor.js";
+import type { TaskNode, TaskGraph } from "../../src/coordination/kernel/task-graph.js";
+import { CardRegistry } from "../../src/capabilities/registry/card-registry.js";
+import { _setHomedirOverride } from "../../src/operations/config/loader.js";
 
 // #726 — isolate the config loader from the operator's real ~/.config/alix.
 // The project config written below pins the mock provider, but `loadConfig()`
@@ -25,7 +25,7 @@ after(() => {
 /**
  * Write a project-level .alix/config.json that pins the mock provider.
  *
- * `loadConfig()` in src/config/loader.ts always reads BOTH the user config
+ * `loadConfig()` in src/operations/config/loader.ts always reads BOTH the user config
  * (~/.config/alix/config.json) AND the project config (<cwd>/.alix/config.json).
  * On any developer machine where the user config is set up (real API keys,
  * a real provider), the tmpdir-isolated tests below would otherwise fall
@@ -106,7 +106,7 @@ describe("GraphExecutor", () => {
   });
 
   it("rerunNode throws for unknown graph", async () => {
-    const { GraphExecutor } = await import("../../src/kernel/graph-executor.js");
+    const { GraphExecutor } = await import("../../src/coordination/kernel/graph-executor.js");
     const exec = new GraphExecutor("/tmp");
     await assert.rejects(
       () => exec.rerunNode("nonexistent", "node_a"),
@@ -135,7 +135,7 @@ describe("GraphExecutor", () => {
       }],
       edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
     }));
-    const exec = new (await import("../../src/kernel/graph-executor.js")).GraphExecutor(tmpDir);
+    const exec = new (await import("../../src/coordination/kernel/graph-executor.js")).GraphExecutor(tmpDir);
     await assert.rejects(
       () => exec.rerunNode(graphId, "node_a"),
       /status is "done"/,
@@ -208,7 +208,7 @@ describe("GraphExecutor", () => {
       edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
     }));
 
-    const { PolicyGate } = await import("../../src/policy/policy-gate.js");
+    const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
     const mockConfig = { version: 1 as const, model: { provider: "mock", name: "test" }, permissions: { default: "allow" as const, tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] }, context: { repoMap: false, repoMapMode: "lite" as const, maxRepoMapTokens: 1000, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] }, runtime: { provider: "process" as const, shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] }, ui: { enabled: false, host: "localhost", port: 3000, transport: "sse" as const } };
     const registry = new CardRegistry();
     const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true, policyGate: new PolicyGate(mockConfig, {}), config: mockConfig });
@@ -229,7 +229,7 @@ describe("GraphExecutor", () => {
     const { mkdtempSync, rmSync, writeFileSync, mkdirSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "exec-enforce-approval-"));
     writeMockConfig(tmpDir, writeFileSync, join, mkdirSync);
 

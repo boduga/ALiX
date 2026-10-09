@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { MemoryStore } from "../../../src/utils/memory/store.js";
+import { MemoryStore } from "../../../src/operations/utils/memory/store.js";
 
 test("MemoryStore init() creates base directory", async () => {
   const testDir = "/tmp/memory-test-init-" + Date.now();

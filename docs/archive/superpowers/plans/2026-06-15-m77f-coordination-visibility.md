@@ -12,16 +12,16 @@
 ## Files
 
 ### Create
-- `src/kernel/coordination-view.ts` — `buildCoordinationRunView()` shared projection
-- `src/tui/coordination-panel.ts` — TUI coordination panel
-- `src/server/coordination-routes.ts` — Inspector HTTP routes
+- `src/coordination/kernel/coordination-view.ts` — `buildCoordinationRunView()` shared projection
+- `src/interfaces/tui/coordination-panel.ts` — TUI coordination panel
+- `src/interfaces/server/coordination-routes.ts` — Inspector HTTP routes
 
 ### Modify
-- `src/cli/commands/coordination.ts` — add list/inspect/watch/workers/approvals/ownership/events
-- `src/tui/index.ts` — register coordination panel
-- `src/tui/panel-manager.ts` — add coordination panel type
-- `src/server/server.ts` — register coordination routes
-- `src/events/types.ts` — ensure coordination events in VISIBLE_EVENTS
+- `src/interfaces/cli/commands/coordination.ts` — add list/inspect/watch/workers/approvals/ownership/events
+- `src/interfaces/tui/index.ts` — register coordination panel
+- `src/interfaces/tui/panel-manager.ts` — add coordination panel type
+- `src/interfaces/server/server.ts` — register coordination routes
+- `src/runtime-state/events/types.ts` — ensure coordination events in VISIBLE_EVENTS
 
 ### Tests
 - `tests/kernel/coordination-view.test.ts`
@@ -32,7 +32,7 @@
 
 ## M0.77f.1 — Shared read model
 
-**Files:** Create `src/kernel/coordination-view.ts`
+**Files:** Create `src/coordination/kernel/coordination-view.ts`
 
 Build a single `buildCoordinationRunView(runId)` that composes from:
 
@@ -54,7 +54,7 @@ CoordinationRunView, RunSummary, WorkerView, ApprovalView, OwnershipLeaseView, C
 
 ## M0.77f.2 — Expanded CLI
 
-**Files:** Modify `src/cli/commands/coordination.ts`
+**Files:** Modify `src/interfaces/cli/commands/coordination.ts`
 
 Add commands:
 ```
@@ -75,7 +75,7 @@ All support `--json`. The `list` command shows all runs in a table. `watch` poll
 
 ## M0.77f.3 — TUI coordination panel
 
-**Files:** Create `src/tui/coordination-panel.ts`, Modify `src/tui/index.ts`, `src/tui/panel-manager.ts`
+**Files:** Create `src/interfaces/tui/coordination-panel.ts`, Modify `src/interfaces/tui/index.ts`, `src/interfaces/tui/panel-manager.ts`
 
 A `CoordinationPanel` class that:
 - Shows run header (ID, status, outcome, worker counts)
@@ -94,7 +94,7 @@ Accessible via panel cycle or `/coordination` command.
 
 ## M0.77f.4 — Inspector API
 
-**Files:** Create `src/server/coordination-routes.ts`, Modify `src/server/server.ts`
+**Files:** Create `src/interfaces/server/coordination-routes.ts`, Modify `src/interfaces/server/server.ts`
 
 HTTP routes:
 ```

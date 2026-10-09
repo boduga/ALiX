@@ -34,7 +34,7 @@ the code).
   Plan are the design. If implementation legitimately diverges from the spec,
   correct the spec — do not let the status doc become a second spec.
 - **Verified facts must be traceable to code.** Claims about the live wire
-  shape belong in `src/decision/engines/jev-protocol.ts` (where
+  shape belong in `src/planning/decision/engines/jev-protocol.ts` (where
   `JEV_WIRE_FORMAT_STATUS` records the verification) with the status doc
   summarising. Never assert a wire detail here that the protocol types do not.
 - **Caveats are part of the record.** Circular fixture metrics, a single
@@ -52,8 +52,8 @@ the code).
   `Date:` header and may drift; current engine configuration lives in code. Treat it as
   background on what the vendor said, never as ALiX state: where the two could
   be confused, the code and `ALiX-Jev-Status.md` win. Preserve primary-source provenance so later disagreements can be traced.
-- **Name collision:** `src/cli/commands/decision/` is the governance-lens CLI
-  and is unrelated to `src/decision/`. The Jev surface is `alix jev`.
+- **Name collision:** `src/interfaces/cli/commands/decision/` is the governance-lens CLI
+  and is unrelated to `src/planning/decision/`. The Jev surface is `alix jev`.
 
 ## Work Guidance
 

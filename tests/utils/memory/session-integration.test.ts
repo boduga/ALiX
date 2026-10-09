@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { buildSessionDigest, buildSessionDigestWithMemory } from "../../../src/utils/session-digest.js";
+import { buildSessionDigest, buildSessionDigestWithMemory } from "../../../src/operations/utils/session-digest.js";
 
 test("buildSessionDigestWithMemory exists and can be called", async () => {
   const sessionDir = join(process.env.TMPDIR || "/tmp", "test-session-" + Date.now());

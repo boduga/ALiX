@@ -9,11 +9,11 @@
 
 ## Task 1 — Types and config
 
-**Files:** `src/reasoning/reasoning-types.ts`, `src/reasoning/reasoning-config.ts`
+**Files:** `src/planning/reasoning/reasoning-types.ts`, `src/planning/reasoning/reasoning-config.ts`
 
 ### Steps
 
-1. Create `src/reasoning/reasoning-types.ts` with:
+1. Create `src/planning/reasoning/reasoning-types.ts` with:
    - `CausalMechanism` type union
    - `LikelyCause` interface (with optional `chainPath`, optional `coOccurrenceRate` for concurrent_degradation template)
    - `CausalFinding` interface
@@ -22,7 +22,7 @@
    - `ReasoningEngineConfig` interface
    - `RootCauseAnalysisError` class (extends Error, code "ROOT_CAUSE_ANALYSIS_ERROR")
 
-2. Create `src/reasoning/reasoning-config.ts` with:
+2. Create `src/planning/reasoning/reasoning-config.ts` with:
    - `DEFAULT_REASONING_CONFIG` export (minCauseConfidence=0.40, maxCausesPerSubsystem=3, degradationThreshold=40)
 
 ### Verification
@@ -34,7 +34,7 @@
 
 ## Task 2 — Pure function: `buildRootCauseAnalysis()`
 
-**File:** `src/reasoning/build-root-cause-analysis.ts`
+**File:** `src/planning/reasoning/build-root-cause-analysis.ts`
 
 ### Steps
 
@@ -80,7 +80,7 @@
 
 ## Task 3 — Store: `RootCauseStore`
 
-**File:** `src/reasoning/root-cause-store.ts`
+**File:** `src/planning/reasoning/root-cause-store.ts`
 
 ### Steps
 
@@ -112,7 +112,7 @@
 
 ## Task 4 — Engine orchestrator: `ReasoningEngine`
 
-**File:** `src/reasoning/reasoning-engine.ts`
+**File:** `src/planning/reasoning/reasoning-engine.ts`
 
 ### Steps
 
@@ -134,7 +134,7 @@
 
 ## Task 5 — CLI handler
 
-**File:** `src/cli/commands/executive-reason-handler.ts`
+**File:** `src/interfaces/cli/commands/executive-reason-handler.ts`
 
 ### Steps
 
@@ -148,15 +148,15 @@
    - JSON mode: full JSON dump
    - Summary mode: table format matching P11.1's correlate handler style
 
-3. Register in `src/cli/commands/executive.ts`:
+3. Register in `src/interfaces/cli/commands/executive.ts`:
    - Add `case "reason":` with dynamic import
    - Add "reason" to the default-case available subcommands list
 
 ### Verification
 
 - `npx tsc --noEmit` passes
-- CLI smoke test: `npx tsx src/cli/alix.ts executive reason --latest` prints helpful message
-- `npx tsx src/cli/alix.ts executive reason --json --latest` outputs JSON (or error about no data)
+- CLI smoke test: `npx tsx src/interfaces/cli/alix.ts executive reason --latest` prints helpful message
+- `npx tsx src/interfaces/cli/alix.ts executive reason --json --latest` outputs JSON (or error about no data)
 
 ---
 
@@ -245,8 +245,8 @@ After all tasks:
 ```bash
 npx tsc --noEmit
 npx vitest run tests/reasoning/ 2>&1 | tail -10
-npx tsx src/cli/alix.ts executive reason --latest
-npx tsx src/cli/alix.ts executive reason --json --latest
+npx tsx src/interfaces/cli/alix.ts executive reason --latest
+npx tsx src/interfaces/cli/alix.ts executive reason --json --latest
 ```
 
 Expected: typecheck clean, 20 tests passing, CLI prints helpful "no analysis" message.

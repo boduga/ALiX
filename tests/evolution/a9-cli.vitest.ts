@@ -17,9 +17,9 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { runForecastCli } from "../../src/evolution/forecast/forecast-cli.js";
-import type { EventLog } from "../../src/events/event-log.js";
-import type { AlixEvent } from "../../src/events/types.js";
+import { runForecastCli } from "../../src/planning/evolution/forecast/forecast-cli.js";
+import type { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
 
 const NOW = "2026-08-14T00:00:00.000Z";
 
@@ -59,14 +59,14 @@ function makeEvent(
 
 /** Minimal EnrichedProposal fixture (adapter reads proposal + wrapper fields). */
 function enrichedProposal(
-  overrides: Partial<import("../../src/adaptation/intelligence-types.js").EnrichedProposal["proposal"]> = {},
+  overrides: Partial<import("../../src/planning/adaptation/intelligence-types.js").EnrichedProposal["proposal"]> = {},
   wrapper: Partial<
     Record<
       "effectivenessReport" | "revertProposalId" | "timeToApprovalHours" | "timeToApplyHours",
       unknown
     >
   > = {},
-): import("../../src/adaptation/intelligence-types.js").EnrichedProposal {
+): import("../../src/planning/adaptation/intelligence-types.js").EnrichedProposal {
   return {
     proposal: {
       id: "prop-1",
@@ -140,7 +140,7 @@ describe("runForecastCli — successful forecast", () => {
     expect(result.output).toContain("HIGH");
 
     // Persisted to the A9-owned store.
-    const { ForecastsStore } = await import("../../src/evolution/forecast/forecasts-store.js");
+    const { ForecastsStore } = await import("../../src/planning/evolution/forecast/forecasts-store.js");
     const stored = await new ForecastsStore(dir).list();
     expect(stored).toHaveLength(1);
     expect(stored[0]!.subject).toBe("prop-1");
@@ -180,7 +180,7 @@ describe("runForecastCli — deterministic no-findings output", () => {
     );
     expect(result.exitCode).toBe(0);
     expect(result.output).toBe("No pre-execution risk forecasts detected.");
-    const { ForecastsStore } = await import("../../src/evolution/forecast/forecasts-store.js");
+    const { ForecastsStore } = await import("../../src/planning/evolution/forecast/forecasts-store.js");
     expect(await new ForecastsStore(dir).list()).toEqual([]);
   });
 });
@@ -455,7 +455,7 @@ describe("runForecastCli — single-binary surface, no correlation command", () 
   });
 
   it("the forecast CLI module exposes no correlation mutation command", async () => {
-    const mod = await import("../../src/evolution/forecast/forecast-cli.js");
+    const mod = await import("../../src/planning/evolution/forecast/forecast-cli.js");
     const exportNames = Object.keys(mod);
     // No runCorrelationCli / correlate command surface on the CLI.
     expect(exportNames).not.toContain("runCorrelationCli");
