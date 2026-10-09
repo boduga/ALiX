@@ -524,7 +524,7 @@ export class ToolExecutor {
       cwd: this.root,
       sessionMode: this.config.permissions.sessionMode ?? "ask",
       sessionId: this.sessionId(),
-      agentId: request.agentId ?? this.sessionId(),
+      agentId: request.agentId ?? "alix",
       source: "tool",
       ownedPaths: this.ownedPaths,
     });

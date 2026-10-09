@@ -3,9 +3,15 @@
 // R1 boundary freeze — ApprovalDecisionPort.
 // Decisions carry actor + source provenance. No silent inference.
 
+import type { ApprovalStatus } from "../approvals/approval-types.js";
 import type { AuthorizationSource } from "./authorized-execution-port.js";
 
-export type ApprovalDecisionValue = "approved" | "denied" | "pending" | "expired";
+/** The approval statuses a decision record can carry — a subset of the
+ *  canonical `ApprovalStatus` (reused, not redeclared). */
+export type ApprovalDecisionValue = Extract<
+  ApprovalStatus,
+  "approved" | "denied" | "pending" | "expired"
+>;
 
 export interface ApprovalDecision {
   decision: ApprovalDecisionValue;

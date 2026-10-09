@@ -592,6 +592,10 @@ async function handleCancelRun(cwd: string, runId: string, r: SecureJsonResponde
       const { OwnershipRegistry } = await import("../ownership/ownership-registry.js");
       const { buildDefaultToolIndex } = await import("../tools/tool-registry.js");
       const config = await loadConfig(cwd);
+      // R1.5: share the project approval store with the scheduler's gate so
+      // ask-mode worker capabilities can mint durable approvals.
+      const { loadApprovalStore } = await import("../approvals/approval-store.js");
+      const approvalStore = await loadApprovalStore(cwd);
       const scheduler = createCoordinationScheduler(
         {
           cwd,
@@ -599,7 +603,7 @@ async function handleCancelRun(cwd: string, runId: string, r: SecureJsonResponde
           configProvider: async () => config,
           store,
           authorization: new ExecutionAuthorization({
-            policyGate: new PolicyGate(config, {}),
+            policyGate: new PolicyGate(config, { approvalStore }),
             toolRegistry: buildDefaultToolIndex().registry,
           }),
           ownershipRegistry: new OwnershipRegistry(cwd),

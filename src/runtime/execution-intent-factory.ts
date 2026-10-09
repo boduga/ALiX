@@ -189,8 +189,11 @@ export function createExecutionIntent(
     approvalReference: opts.approvalReference ?? `auto:${intentId}`,
     approvedBy: opts.approvedBy ?? SYNTHETIC_APPROVER,
     approvedAt: opts.approvedAt ?? now,
-    // R1.5: synthesized `auto:` approvals are system-authored, never operator.
-    authorizationSource: opts.authorizationSource ?? (opts.approvalReference ? "policy" : "system"),
+    // R1.5: synthesized `auto:` approvals are system-authored, never operator;
+    // only an explicit non-auto approval reference reads as policy.
+    authorizationSource:
+      opts.authorizationSource ??
+      (opts.approvalReference && !opts.approvalReference.startsWith("auto:") ? "policy" : "system"),
   };
 
   const intent: ExecutionIntent = {

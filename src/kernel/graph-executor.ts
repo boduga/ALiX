@@ -240,7 +240,7 @@ export class GraphExecutor {
           const result: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
             planMode: false,
             skipContext: isResearch ? true : undefined,
-            sessionMode: node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
+            sessionMode: this.enforceCapabilities || node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
           });
           summary = result.summary;
           if (result.reason && result.reason !== "completed") {
@@ -298,8 +298,9 @@ export class GraphExecutor {
     }
 
     // R1.5: a rerun requires FRESH authorization — same composed gate as
-    // execute(). No path may reach runTask without a current policy decision.
-    if (this.enforceCapabilities && node.requiredCapabilities && node.requiredCapabilities.length > 0) {
+    // execute(). No path may reach runTask without a current policy decision,
+    // including a node that declares no required capabilities.
+    if (this.enforceCapabilities) {
       if (!this.policyGate || !this.config) {
         return {
           nodeId: node.id, title: node.title, status: "blocked",
@@ -340,7 +341,7 @@ export class GraphExecutor {
         planMode: false,
         skipContext: isResearch ? true : undefined,
         disableSkillFactory: isResearch ? true : undefined,
-        sessionMode: node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
+        sessionMode: this.enforceCapabilities || node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
       });
       summary = result.summary;
       if (result.reason && result.reason !== "completed") {

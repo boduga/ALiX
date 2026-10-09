@@ -1,11 +1,14 @@
 // src/contracts/context-compiler.ts
 //
-// R1 boundary freeze — ContextCompiler.
+// R1 boundary freeze — OutboundContextCompiler.
 // Provenance-aware outbound context. Redaction before remote
 // inference is enforced by implementers; this port makes the
 // redaction claim explicit rather than silent.
+//
+// Named `OutboundContextCompiler` (not `ContextCompiler`) to avoid colliding
+// with the repo-context `ContextCompiler` class in `src/repomap/`.
 
-export interface ContextProvenance {
+export interface OutboundProvenance {
   source: string;
   redacted: boolean;
   at: string;
@@ -13,10 +16,10 @@ export interface ContextProvenance {
 
 export interface OutboundContext {
   content: string;
-  provenance: ContextProvenance[];
+  provenance: OutboundProvenance[];
   redacted: boolean;
 }
 
-export interface ContextCompiler {
+export interface OutboundContextCompiler {
   compile(input: unknown): Promise<OutboundContext>;
 }

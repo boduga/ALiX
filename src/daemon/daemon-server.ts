@@ -69,6 +69,10 @@ async function startCoordinationService(): Promise<void> {
   const config = await loadConfig(defaultCwd);
   const store = new CoordinationStore(defaultCwd);
   const toolRegistry = buildDefaultToolIndex().registry;
+  // R1.5: the coordination scheduler's gate must share the project approval
+  // store, or ask-mode worker capabilities fail closed headless.
+  const { loadApprovalStore } = await import("../approvals/approval-store.js");
+  const approvalStore = await loadApprovalStore(defaultCwd);
 
   let executor: import("../kernel/worker-executor.js").CoordinationWorkerExecutor;
   if (config.subagents?.enabled) {
@@ -85,7 +89,7 @@ async function startCoordinationService(): Promise<void> {
     configProvider: async () => config,
     store,
     authorization: new ExecutionAuthorization({
-      policyGate: new PolicyGate(config, {}),
+      policyGate: new PolicyGate(config, { approvalStore }),
       toolRegistry,
     }),
     ownershipRegistry: new OwnershipRegistry(defaultCwd),

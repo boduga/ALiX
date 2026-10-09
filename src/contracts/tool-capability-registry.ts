@@ -4,14 +4,16 @@
 // One contract for tool/capability resolution. MCP and agent
 // manifests adapt to this contract; they do not define parallel
 // taxonomies through this port.
+//
+// The entry reuses the canonical catalogue type (`ToolCapability`) rather than
+// redeclaring its fields (src/contracts/AGENTS.md: reuse domain types).
 
-export interface ToolCapabilityEntry {
-  name: string;
-  capabilityId: string;
-  policyKey: string;
-  risk: "low" | "medium" | "high" | "critical";
-  mutates: boolean;
-}
+import type { ToolCapability } from "../tools/tool-registry.js";
+
+export type ToolCapabilityEntry = Pick<
+  ToolCapability,
+  "name" | "capabilityId" | "policyKey" | "risk" | "mutates"
+>;
 
 export interface ToolCapabilityRegistry {
   resolve(name: string): ToolCapabilityEntry | undefined;

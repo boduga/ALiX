@@ -145,12 +145,11 @@ export async function handleSopCommand(args: string[]): Promise<void> {
       const { GraphExecutor } = await import("../../kernel/graph-executor.js");
       const { loadCardRegistry } = await import("../../registry/card-loader.js");
       const { PolicyGate } = await import("../../policy/policy-gate.js");
-      const { ApprovalStore } = await import("../../approvals/approval-store.js");
+      const { loadApprovalStore } = await import("../../approvals/approval-store.js");
       const enforceCapabilities = true;
       const config = await loadConfig(sopCwd);
       const registry = await loadCardRegistry(sopCwd);
-      const approvalStore = new ApprovalStore(sopCwd);
-      await approvalStore.load();
+      const approvalStore = await loadApprovalStore(sopCwd);
       const executor = new GraphExecutor(sopCwd, { registry, enforceCapabilities, policyGate: new PolicyGate(config, { approvalStore }), config, approvalStore });
       console.log("Executing...");
       console.log("  (capability enforcement enabled)");
