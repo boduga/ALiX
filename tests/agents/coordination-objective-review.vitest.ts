@@ -98,4 +98,54 @@ describe("coordination objective review", () => {
     });
     expect(result.status).toBe("success");
   });
+
+  it("accepts a text deliverable carried only in the worker finding", async () => {
+    const textResult: SubagentResult = {
+      ...candidate,
+      findings: [{ type: "summary", content: "Deliverable: HELLO WORLD", confidence: "high" }],
+    };
+    const result = await reviewCoordinationResult({
+      result: textResult,
+      objective: "Respond with the exact text 'HELLO WORLD'.",
+      mutatedPaths: [],
+      evidence: [],
+      provider: reviewer('{"satisfied":true,"summary":"Finding carries the required HELLO WORLD text.","gaps":[]}', request => {
+        expect(request.systemPrompt).toContain("text with no required file");
+        expect(JSON.stringify(request.messages)).toContain("HELLO WORLD");
+      }),
+    });
+    expect(result.status).toBe("success");
+  });
+
+  it("re-asks once with a corrective hint when the reviewer returns a malformed verdict", async () => {
+    let calls = 0;
+    const contents: string[] = [];
+    const provider: Pick<ModelAdapter, "complete"> = {
+      complete: async request => {
+        calls++;
+        contents.push(String((request.messages[0] as { content?: unknown }).content ?? ""));
+        return calls === 1
+          ? { text: "Here is my verdict: all good", toolCalls: [] }
+          : { text: '{"satisfied":true,"summary":"Supported.","gaps":[]}', toolCalls: [] };
+      },
+    };
+    const result = await reviewCoordinationResult({ result: candidate, objective: "Verify facts", mutatedPaths: [], evidence: [], provider });
+    expect(result.status).toBe("success");
+    expect(calls).toBe(2);
+    expect(contents[1]).toContain("not a valid verdict");
+  });
+
+  it("fails closed after a retried malformed verdict", async () => {
+    let calls = 0;
+    const provider: Pick<ModelAdapter, "complete"> = {
+      complete: async () => {
+        calls++;
+        return { text: "still not json", toolCalls: [] };
+      },
+    };
+    const result = await reviewCoordinationResult({ result: candidate, objective: "Verify facts", mutatedPaths: [], evidence: [], provider });
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("Objective review");
+    expect(calls).toBe(2);
+  });
 });
