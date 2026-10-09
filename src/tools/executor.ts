@@ -199,8 +199,7 @@ export class ToolExecutor {
     sessionId?: string;
     agentId?: string;
   }): Promise<{ decision: "allow" | "ask" | "deny"; approvalId?: string; reason: string }> {
-    const { PolicyGate } = await import("../policy/policy-gate.js");
-    const policyGate = new PolicyGate(this.config, { eventLog: this.log, approvalStore: this.approvalStore });
+    const policyGate = await this.policyGate();
     const decision = await policyGate.evaluateToolCall({
       requestId: request.toolCallId,
       toolName: request.name,
@@ -208,7 +207,7 @@ export class ToolExecutor {
       cwd: this.root,
       sessionMode: this.config.permissions.sessionMode ?? "ask",
       sessionId: request.sessionId,
-      agentId: request.agentId ?? "alix",
+      agentId: request.agentId ?? this.sessionId(),
       source: "tool",
     });
     return {
@@ -216,6 +215,17 @@ export class ToolExecutor {
       ...(decision.approvalId ? { approvalId: decision.approvalId } : {}),
       reason: decision.reason,
     };
+  }
+
+  /** One memoized PolicyGate per executor — shared by bound-tool and routed dispatch. */
+  private policyGateInstance?: import("../policy/policy-gate.js").PolicyGate;
+
+  private async policyGate(): Promise<import("../policy/policy-gate.js").PolicyGate> {
+    if (!this.policyGateInstance) {
+      const { PolicyGate } = await import("../policy/policy-gate.js");
+      this.policyGateInstance = new PolicyGate(this.config, { eventLog: this.log, approvalStore: this.approvalStore });
+    }
+    return this.policyGateInstance;
   }
 
   private sessionId(): string {
@@ -497,8 +507,7 @@ export class ToolExecutor {
     // Unified authorization via ExecutionAuthorization — composes PolicyGate,
     // OwnershipGate, and audit/event emission into a single decision.
     const { ExecutionAuthorization } = await import("../runtime/execution-authorization.js");
-    const { PolicyGate } = await import("../policy/policy-gate.js");
-    const policyGate = new PolicyGate(this.config, { eventLog: this.log, approvalStore: this.approvalStore });
+    const policyGate = await this.policyGate();
     const execAuth = new ExecutionAuthorization({
       policyGate,
       toolRegistry: this.toolRegistry,
@@ -515,7 +524,7 @@ export class ToolExecutor {
       cwd: this.root,
       sessionMode: this.config.permissions.sessionMode ?? "ask",
       sessionId: this.sessionId(),
-      agentId: request.agentId ?? "alix",
+      agentId: request.agentId ?? this.sessionId(),
       source: "tool",
       ownedPaths: this.ownedPaths,
     });

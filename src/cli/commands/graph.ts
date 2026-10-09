@@ -103,11 +103,10 @@ export async function handleGraphRun(args: string[]): Promise<void> {
   const { GraphExecutor } = await import("../../kernel/graph-executor.js");
   const { loadCardRegistry } = await import("../../registry/card-loader.js");
   const { PolicyGate } = await import("../../policy/policy-gate.js");
-  const { ApprovalStore } = await import("../../approvals/approval-store.js");
+  const { loadApprovalStore } = await import("../../approvals/approval-store.js");
   const config = await loadConfig(cwd);
   const registry = await loadCardRegistry(cwd);
-  const approvalStore = new ApprovalStore(cwd);
-  await approvalStore.load();
+  const approvalStore = await loadApprovalStore(cwd);
   // R1.5: enforcement is always on (the constructor default); the legacy
   // --enforce-capabilities flag is accepted as a no-op for compatibility.
   const executor = new GraphExecutor(cwd, { registry, policyGate: new PolicyGate(config, { approvalStore }), config, approvalStore });
@@ -140,11 +139,10 @@ export async function handleGraphRerun(args: string[]): Promise<void> {
   const { GraphExecutor } = await import("../../kernel/graph-executor.js");
   const { loadCardRegistry } = await import("../../registry/card-loader.js");
   const { PolicyGate } = await import("../../policy/policy-gate.js");
-  const { ApprovalStore } = await import("../../approvals/approval-store.js");
+  const { loadApprovalStore } = await import("../../approvals/approval-store.js");
   const config = await loadConfig(cwd);
   const registry = await loadCardRegistry(cwd);
-  const approvalStore = new ApprovalStore(cwd);
-  await approvalStore.load();
+  const approvalStore = await loadApprovalStore(cwd);
   const executor = new GraphExecutor(cwd, { registry, policyGate: new PolicyGate(config, { approvalStore }), config, approvalStore });
 
   try {
@@ -166,14 +164,17 @@ export async function handleGraphContinue(args: string[]): Promise<void> {
   const { loadGraph, GraphExecutor } = await import("../../kernel/graph-executor.js");
   const { loadCardRegistry } = await import("../../registry/card-loader.js");
   const { PolicyGate } = await import("../../policy/policy-gate.js");
-  const { ApprovalStore } = await import("../../approvals/approval-store.js");
+  const { loadApprovalStore } = await import("../../approvals/approval-store.js");
 
   try {
     const graph = await loadGraph(graphId, cwd);
     const config = await loadConfig(cwd);
     const registry = await loadCardRegistry(cwd);
-    const approvalStore = new ApprovalStore(cwd);
-    await approvalStore.load();
+    const approvalStore = await loadApprovalStore(cwd);
+    if (!approvalStore) {
+      console.log("No approval store available for this workspace.");
+      process.exit(0);
+    }
     const policyGate = new PolicyGate(config, { approvalStore });
 
     // Find first blocked/failed node

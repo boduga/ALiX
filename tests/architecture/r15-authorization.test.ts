@@ -186,6 +186,38 @@ describe("R1.5 authorization containment", () => {
     }
   });
 
+  it("bound-tool authorization is governed by the PolicyGate, not ungoverned (R1.5)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "alix-r15-bound-"));
+    try {
+      const { EventLog } = await import("../../src/events/event-log.js");
+      const { ToolExecutor } = await import("../../src/tools/executor.js");
+      const { loadConfig } = await import("../../src/config/loader.js");
+      const log = new EventLog(join(dir, ".alix", "sessions", "s1"));
+      await log.init();
+      const config = await loadConfig(dir, { suppressWarnings: true });
+      const executor = new ToolExecutor(config, log, dir);
+      const request = {
+        toolCallId: "tc-bound-1",
+        name: "alix_collaboration_publish_finding",
+        args: { finding: "x" },
+        sessionId: "s1",
+        agentId: "worker-7",
+      };
+
+      // Bypass mode: the gate is consulted and allows.
+      config.permissions.sessionMode = "bypass";
+      assert.equal((await executor.authorizeBoundTool(request)).decision, "allow");
+
+      // Ask mode with NO durable approval store must NOT silently allow — the
+      // bound tool is governed, not executed ungoverned.
+      config.permissions.sessionMode = "ask";
+      const gated = await executor.authorizeBoundTool(request);
+      assert.notEqual(gated.decision, "allow", "ask without a store fails closed, never silent allow");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("synthesized approvals carry system authorization source, never operator", async () => {
     const { createExecutionIntent } = await import("../../src/runtime/execution-intent-factory.js");
     const route = { kind: "direct" as const, prompt: "hello" };

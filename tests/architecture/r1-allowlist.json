@@ -609,6 +609,13 @@
     "rule": "status-store-writes"
   },
   {
+    "imported": "src/approvals/approval-store.ts",
+    "importer": "src/kernel/default-worker-review.ts",
+    "reason": "R0 B4 \u2014 R1.5: worker review executor wired to the project ApprovalStore (the 4th construction site); migrated with the other approval-store reads",
+    "removalPhase": "R2",
+    "rule": "status-store-writes"
+  },
+  {
     "imported": "src/daemon/task-registry.ts",
     "importer": "src/tools/state-query.ts",
     "reason": "R0 B3 \u2014 daemon registry is detached runtime truth",

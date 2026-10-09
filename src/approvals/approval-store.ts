@@ -856,3 +856,18 @@ export class ApprovalStore {
     return latest;
   }
 }
+
+/**
+ * R1.5 — the one project ApprovalStore bootstrap. Loads a store and
+ * fails open to `undefined` when the approvals directory is unavailable, so a
+ * broken store never kills a run before it starts (the gate then fails closed).
+ */
+export async function loadApprovalStore(cwd: string): Promise<ApprovalStore | undefined> {
+  try {
+    const store = new ApprovalStore(cwd);
+    await store.load();
+    return store;
+  } catch {
+    return undefined;
+  }
+}

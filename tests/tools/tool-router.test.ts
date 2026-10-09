@@ -740,6 +740,42 @@ test("file.create refuses to overwrite a path the caller does not own", async ()
   await rm(`/tmp/${path}`, { force: true });
 });
 
+test("file.delete owned-scope parity table (router second net, R1.5)", async () => {
+  // Broader than the implementation: the delete backstop is the same owned
+  // decision as file.create's overwrite net, so it gets a parity table, not a
+  // spot check. Each case owns its own file so one deletion cannot mask another.
+  const ws = `del-parity-${process.pid}`;
+  await mkdir(`/tmp/${ws}/nested`, { recursive: true });
+
+  const cases: Array<{ owned: string[] | undefined; path: string; allowed: boolean }> = [
+    { owned: [`${ws}/**`], path: `${ws}/inside.txt`, allowed: true },
+    { owned: [`${ws}/**`], path: `${ws}/nested/deep.txt`, allowed: true },
+    { owned: [`${ws}/exact.txt`], path: `${ws}/exact.txt`, allowed: true },
+    { owned: [`${ws}/other.txt`], path: `${ws}/exact2.txt`, allowed: false },
+    { owned: [`${ws}/**`], path: `${ws}/../outside-${process.pid}.txt`, allowed: false },
+    { owned: ["**"], path: `${ws}/inside2.txt`, allowed: true },
+    // No declared ownership (operator context) is unaffected.
+    { owned: undefined, path: `${ws}/inside3.txt`, allowed: true },
+  ];
+
+  try {
+    for (const { owned, path, allowed } of cases) {
+      await writeFile(`/tmp/${path.replace("../", "")}`, "x");
+      const router = new FileToolRouter("/tmp");
+      const result = await router.execute({
+        toolCallId: "1",
+        name: "file.delete",
+        args: { path },
+        ...(owned ? { ownedPaths: owned } : {}),
+      });
+      assert.strictEqual(result.kind, allowed ? "success" : "error", `${JSON.stringify(owned)} -> ${path}`);
+    }
+  } finally {
+    await rm(`/tmp/${ws}`, { recursive: true, force: true });
+    await rm(`/tmp/outside-${process.pid}.txt`, { force: true });
+  }
+});
+
 test("file.create is race-safe when workers concurrently create identical content", async () => {
   const router = new FileToolRouter("/tmp");
   const path = `concurrent-idempotent-create-${process.pid}-${Date.now()}.txt`;

@@ -52,14 +52,8 @@ export class RuntimeBuilder {
     // resolvable pending approvals instead of headless fail-closed denies.
     // Fail-open to undefined (legacy deny) if the approvals dir is broken —
     // a broken store must never kill the run before it starts.
-    let approvalStore: import("../approvals/approval-store.js").ApprovalStore | undefined;
-    try {
-      const { ApprovalStore } = await import("../approvals/approval-store.js");
-      approvalStore = new ApprovalStore(this._root);
-      await approvalStore.load();
-    } catch {
-      approvalStore = undefined;
-    }
+    const { loadApprovalStore } = await import("../approvals/approval-store.js");
+    const approvalStore = await loadApprovalStore(this._root);
     this._toolExecutor = new ToolExecutor(config, this._eventLog, this._root, undefined, undefined, undefined, undefined, approvalStore);
 
     // Build context compiler — max-token budget from the canonical models

@@ -472,14 +472,8 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
   // behaviors and the agent runTask path. Previously neither had one, so every
   // ask-mode decision failed closed headless (or, on the agent path with
   // sessionMode bypass, silently allowed).
-  const { ApprovalStore } = await import("../approvals/approval-store.js");
-  let daemonApprovalStore: InstanceType<typeof ApprovalStore> | undefined;
-  try {
-    daemonApprovalStore = new ApprovalStore(requestCwd);
-    await daemonApprovalStore.load();
-  } catch {
-    daemonApprovalStore = undefined;
-  }
+  const { loadApprovalStore } = await import("../approvals/approval-store.js");
+  const daemonApprovalStore = await loadApprovalStore(requestCwd);
 
   try {
     // Route execution — tool/chat/grounded_chat/direct cross the RuntimeExecutor
