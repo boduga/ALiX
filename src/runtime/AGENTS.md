@@ -14,6 +14,11 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
 - `context/` — State-aware prompt builder P+Σ+O+E+Tools (see `context/AGENTS.md`).
 - `tool-scheduler.ts` — Concurrency-aware ToolExecutionPolicy {allowParallel, maxParallel:4} + authoritative ToolConcurrency safe/exclusive (fail-closed unknown→serial), effectiveParallel=model&&harness&&safe, Promise.all chunked scheduler.
 - `tool-correlation.ts` — Result correlation: hierarchy executionId → invocationId → toolCallId, every parallel result retains all three so call_1 → result_1 never ambiguous; events carry hierarchy, messages retain correlation, next model turn receives full array.
+- `continuation-store.ts` — PendingContinuation persistence (`.alix/approvals/continuations.json`), keyed by approvalId. R2.14: the ledger is AUTHORITATIVE — `load()` rebuilds from `readLatestByEntityType("continuation")` (tombstones suppress file copies; file covers legacy zero-fact records; ledger errors count and throw); `persist`/`remove` append `continuation.created`/`updated`/`removed` BEFORE the in-memory mutation and file write (append failure counts then throws — no JSON-only state, memory untouched); file writes are tolerated and counted as `projectionFailures` in `continuationLedgerStatus(cwd)`.
+- `continuation-ledger-reconcile.ts` — read-only comparison of `continuations.json` vs ledger (argsHash/integrity fields compared; `missing_in_ledger` / `record_mismatch` / `projection_stale` / `projection_missing` / `version_behind` / `ledger_payload_invalid`); surfaced in the `alix approvals reconcile` output alongside approvals.
+- `replay-status-index.ts` — **ledger authoritative (R2.17)**: `load()` rebuilds from `readLatestByEntityType("replay")` (file covers legacy zero-fact entries; ledger errors count and throw); `setStatus` appends `replay.status_created`/`status_updated` FIRST (throws on failure) then writes the index file (tolerated + counted as `projectionFailures` in `replayLedgerStatus(cwd)`).
+- `execution-evidence-store.ts` — **ledger authoritative (R2.17)**: `append` appends `evidence.recorded` FIRST (throws on failure; EVERY physical append mirrors — duplicate evidenceIds are legal under the append-only contract, callers own deduplication) then writes JSONL (tolerated + counted); `list()` replays ALL ledger events in seq order (line-level duplicates preserved) merged with legacy JSONL records that have no ledger facts; ledger cwd derived by stripping a trailing `.alix/<x>` segment; ledger errors count and throw. Status: `evidenceLedgerStatus(cwd)`.
+- `runtime-evidence-ledger-reconcile.ts` — read-only `reconcileReplayLedger` + `reconcileEvidenceLedger` (evidence reads BOTH production locations: `.alix/governance/execution-evidence.jsonl` and `<cwd>/execution-evidence.jsonl`); sections of `alix runtime reconcile-executions` (exit 1 on any drift).
 
 **Backends aggregated (7 sources):**
 1. `audit/audit.jsonl` — policy/runtime audit events
@@ -26,7 +31,12 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
 
 ## Local Contracts
 
-- No new storage — all data read from existing backends at query time.
+- **The R2 transactional ledger is a storage authority, not a query-time
+  backend.** Domains that flipped (execution-state R2.12, continuations
+  R2.14, replay + evidence R2.17) read and write
+  `<root>/.alix/runtime-ledger.db` through `src/storage/runtime-ledger.ts`;
+  their JSON files are compatibility projections rebuilt from the ledger.
+  The read-only runtime index still aggregates the seven file backends below.
 - **Execution intents carry authorization provenance (R1.5).** `createExecutionIntent`
   tags source from the `AuthorizationSource` union
   (`src/contracts/authorized-execution-port.ts`): synthesized `auto:` approvals

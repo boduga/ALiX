@@ -17,6 +17,23 @@ import { randomUUID } from "node:crypto";
 import type { CoordinationRun, CoordinationRunOutcome, CoordinationRunStatus, WorkerAssignment, WorkerStatus } from "./coordination-types.js";
 import { transitionWorkerStatus, recomputeRunStatus } from "./coordination-types.js";
 import { CoordinationRunLock } from "./coordination-run-lock.js";
+import { getSharedLedger, appendFact, type LedgerFactCounters } from "../storage/runtime-ledger.js";
+
+/** Event types this domain writes to the R2 ledger (reconciliation vocabulary). */
+export const COORDINATION_LEDGER_EVENT_TYPES = [
+  "coordination.run.created",
+  "coordination.run.persisted",
+  "coordination.run.deleted",
+] as const;
+export type CoordinationLedgerEventType = (typeof COORDINATION_LEDGER_EVENT_TYPES)[number];
+
+/**
+ * R2.3 authoritative payload: the FULL run record. The ledger is the truth;
+ * the JSON file is a disposable compatibility projection of it.
+ */
+function runLedgerPayload(run: CoordinationRun): { run: CoordinationRun } {
+  return { run };
+}
 
 /**
  * Normalize a WorkerAssignment loaded from earlier coordination milestones.
@@ -51,10 +68,92 @@ export class CoordinationStore {
   /** Workspace root this store is scoped to (used by run-lifecycle helpers). */
   readonly cwd: string;
   private readonly baseDir: string;
+  /**
+   * R2.3 authority counters. The LEDGER is the commit; append failure throws
+   * (fail-closed — an unavailable authoritative store must not silently fall
+   * back to JSON). JSON projection failures are tolerated and counted: the
+   * projection is rebuildable, reconciliation reports the drift.
+   */
+  private readonly ledgerCounters: LedgerFactCounters = { appends: 0, failures: 0 };
+  private projectionFailures = 0;
+  private lastProjectionError: string | undefined;
 
   constructor(cwd: string) {
     this.cwd = cwd;
     this.baseDir = join(cwd, ".alix", "coordination");
+  }
+
+  /**
+   * Append the authoritative event FIRST (the commit). Throws on any append
+   * failure — version conflict inside the per-run lock means a lost update,
+   * and an unavailable ledger means the domain cannot mutate.
+   */
+  private commitToLedger(runId: string, mode: "snapshot" | "deleted", payload: Record<string, unknown>, occurredAt: string): void {
+    const expected = getSharedLedger(this.cwd).entityVersion(runId);
+    const eventType: CoordinationLedgerEventType =
+      mode === "deleted"
+        ? "coordination.run.deleted"
+        : expected === 0
+          ? "coordination.run.created"
+          : "coordination.run.persisted";
+    appendFact(this.cwd, this.ledgerCounters, {
+      eventType,
+      entityType: "coordinationRun",
+      entityId: runId,
+      payload,
+      coordinationRunId: runId,
+      correlationId: runId,
+      actor: { type: "system", id: "coordination-store" },
+      occurredAt,
+      expectedVersion: expected,
+      errorLabel: "coordination ledger",
+    });
+  }
+
+  /**
+   * Write the compatibility projection AFTER the ledger commit. A failure
+   * here is counted, not thrown — the ledger already holds the truth and
+   * reconciliation reports projection drift for rebuild.
+   */
+  private async projectJson(runId: string, run: CoordinationRun): Promise<void> {
+    try {
+      await this.ensureDir();
+      await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
+    } catch (err) {
+      this.projectionFailures += 1;
+      this.lastProjectionError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  /** Observable authority health (R2: failures must never be silent). */
+  ledgerStatus(): { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string } {
+    const c = this.ledgerCounters;
+    return {
+      appends: c.appends,
+      failures: c.failures,
+      projectionFailures: this.projectionFailures,
+      ...(c.lastError !== undefined ? { lastError: c.lastError } : {}),
+      ...(this.lastProjectionError !== undefined ? { lastProjectionError: this.lastProjectionError } : {}),
+    };
+  }
+
+  /**
+   * Authority read: reconstruct the run from its latest ledger event.
+   * Null only when the entity has NO ledger facts (legacy/pre-ledger run —
+   * caller falls back to the JSON projection). Ledger db errors THROW; they
+   * are never masked by a JSON fallback in an authoritative domain.
+   */
+  private loadFromLedger(runId: string): { kind: "run"; run: CoordinationRun } | { kind: "deleted" } | { kind: "legacy" } {
+    // Scoped by entityType: the id space is shared with other domains
+    // (e.g. collaboration mirrors the same runId under its own type).
+    const last = getSharedLedger(this.cwd).lastEvent(runId, "coordinationRun");
+    if (!last) return { kind: "legacy" };
+    if (last.eventType === "coordination.run.deleted") return { kind: "deleted" };
+    const payload = last.payload as { run?: CoordinationRun } | null;
+    if (!payload?.run) {
+      throw new Error(`coordination ledger event for ${runId} missing run payload`);
+    }
+    return { kind: "run", run: payload.run };
   }
 
   private runPath(runId: string): string {
@@ -88,15 +187,25 @@ export class CoordinationStore {
     }
   }
 
-  /** Save a coordination run (atomic write via tmp + rename). */
+  /** Save a coordination run: ledger commit first, JSON projection second. */
   async save(run: CoordinationRun): Promise<void> {
-    await this.ensureDir();
     run.updatedAt = new Date().toISOString();
-    await this.writeAtomic(this.runPath(run.id), JSON.stringify(run, null, 2));
+    this.commitToLedger(run.id, "snapshot", runLedgerPayload(run), run.updatedAt);
+    await this.projectJson(run.id, run);
   }
 
-  /** Load a coordination run by ID. */
+  /**
+   * Load a coordination run by ID — LEDGER first (authority). Falls back to
+   * the JSON projection only for legacy runs with zero ledger facts.
+   */
   async load(runId: string): Promise<CoordinationRun | null> {
+    const authority = this.loadFromLedger(runId);
+    if (authority.kind === "deleted") return null;
+    if (authority.kind === "run") {
+      authority.run.workers = authority.run.workers.map(normalizeWorkerAssignment);
+      return authority.run;
+    }
+    // Legacy pre-ledger run: the projection is the only record that exists.
     const path = this.runPath(runId);
     if (!existsSync(path)) return null;
     try {
@@ -110,15 +219,17 @@ export class CoordinationStore {
   }
 
   /**
-   * Load with bounded retries for transient read failures (Windows Defender
-   * EBUSY on tmp+rename churn, partial reads). Missing files fail fast.
-   * Returns null after exhausting attempts.
+   * Load with bounded retries for transient failures. Missing entities
+   * (neither ledger nor projection) return null; ledger errors THROW —
+   * an authoritative store must not be masked by retries or fallbacks.
    */
   async loadWithRetry(runId: string, attempts = 3): Promise<CoordinationRun | null> {
-    if (!existsSync(this.runPath(runId))) return null;
     for (let i = 0; i < attempts; i++) {
       const run = await this.load(runId);
       if (run) return run;
+      // Distinguish "absent" from transient legacy-file reads: a ledger
+      // entity that exists but reads null (deleted) is final — stop early.
+      if (this.loadFromLedger(runId).kind === "deleted") return null;
       if (i < attempts - 1) {
         await new Promise(resolve => setTimeout(resolve, i === 0 ? 25 : 50));
       }
@@ -126,20 +237,40 @@ export class CoordinationStore {
     return null;
   }
 
-  /** List all coordination runs, newest first. */
+  /**
+   * List all coordination runs, newest first — reconstructed from the
+   * ledger, merged with legacy projection-only runs.
+   */
   async list(): Promise<CoordinationRun[]> {
-    if (!existsSync(this.baseDir)) return [];
-    const files = await readdir(this.baseDir);
+    const latest = getSharedLedger(this.cwd).readLatestByEntityType("coordinationRun");
     const runs: CoordinationRun[] = [];
-    for (const file of files) {
-      if (!file.endsWith(".json")) continue;
-      try {
-        const raw = await readFile(join(this.baseDir, file), "utf-8");
-        const run = JSON.parse(raw) as CoordinationRun;
-        run.workers = run.workers.map(normalizeWorkerAssignment);
-        runs.push(run);
-      } catch {
-        // skip corrupt files
+    const ledgerIds = new Set<string>();
+    for (const event of latest) {
+      ledgerIds.add(event.entityId);
+      if (event.eventType === "coordination.run.deleted") continue;
+      const payload = event.payload as { run?: CoordinationRun } | null;
+      if (!payload?.run) {
+        throw new Error(`coordination ledger event for ${event.entityId} missing run payload`);
+      }
+      const run = payload.run;
+      run.workers = run.workers.map(normalizeWorkerAssignment);
+      runs.push(run);
+    }
+    // Legacy projection-only runs (no ledger facts yet).
+    if (existsSync(this.baseDir)) {
+      const files = await readdir(this.baseDir);
+      for (const file of files) {
+        if (!file.endsWith(".json")) continue;
+        const runId = file.slice(0, -5);
+        if (ledgerIds.has(runId)) continue;
+        try {
+          const raw = await readFile(join(this.baseDir, file), "utf-8");
+          const run = JSON.parse(raw) as CoordinationRun;
+          run.workers = run.workers.map(normalizeWorkerAssignment);
+          runs.push(run);
+        } catch {
+          // skip corrupt files
+        }
       }
     }
     return runs.sort((a, b) =>
@@ -153,11 +284,20 @@ export class CoordinationStore {
     return all.filter(r => r.status === status);
   }
 
-  /** Delete a coordination run. */
+  /** Delete a coordination run: ledger terminal event first, projection second. */
   async delete(runId: string): Promise<boolean> {
-    const path = this.runPath(runId);
-    if (!existsSync(path)) return false;
-    await unlink(path);
+    const fileExists = existsSync(this.runPath(runId));
+    const hasLedgerFacts = getSharedLedger(this.cwd).entityVersion(runId) > 0;
+    if (!fileExists && !hasLedgerFacts) return false;
+    this.commitToLedger(runId, "deleted", { deleted: true }, new Date().toISOString());
+    if (fileExists) {
+      try {
+        await unlink(this.runPath(runId));
+      } catch (err) {
+        this.projectionFailures += 1;
+        this.lastProjectionError = err instanceof Error ? err.message : String(err);
+      }
+    }
     return true;
   }
 
@@ -235,7 +375,9 @@ export class CoordinationStore {
       await mutate(run);
       run.status = recomputeRunStatus(run);
       run.updatedAt = new Date().toISOString();
-      await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
+      // R2.3 authority: ledger append is the commit; JSON is projection.
+      this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
+      await this.projectJson(runId, run);
       return run;
     } finally {
       lock.release();
@@ -272,7 +414,8 @@ export class CoordinationStore {
       await mutate(run);
       run.planRevision += 1;
       run.updatedAt = new Date().toISOString();
-      await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
+      this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
+      await this.projectJson(runId, run);
       return run;
     } finally {
       lock.release();
@@ -347,7 +490,8 @@ export class CoordinationStore {
       run.aggregationFailure = undefined;
       run.status = recomputeRunStatus(run);
       run.updatedAt = new Date().toISOString();
-      await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
+      this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
+      await this.projectJson(runId, run);
       return { attached: true, run };
     } finally {
       lock.release();

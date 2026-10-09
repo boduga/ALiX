@@ -16,6 +16,7 @@
 import { loadConfig } from "../../config/loader.js";
 import { parseSessionMode } from "../../config/schema.js";
 import { CoordinationStore } from "../../kernel/coordination-store.js";
+import { reconcileCoordinationLedger } from "../../kernel/coordination-ledger-reconcile.js";
 import { buildCoordinationRunView } from "../../kernel/coordination-view.js";
 import { CoordinationPlanner } from "../../kernel/coordination-planner.js";
 import { createPlannerGenerator } from "../../kernel/planner-model.js";
@@ -54,7 +55,7 @@ export async function handleCoordination(args: string[]): Promise<void> {
   const cwd = process.cwd();
   const subcommand = args[0];
   if (!subcommand) {
-    console.error("Usage: alix coordination <run|tick|resume|status|results|cancel|list|inspect|watch|workers|approvals|ownership|events> ...");
+    console.error("Usage: alix coordination <run|tick|resume|status|results|cancel|list|inspect|watch|workers|approvals|ownership|events|reconcile> ...");
     process.exit(1);
   }
 
@@ -65,6 +66,7 @@ export async function handleCoordination(args: string[]): Promise<void> {
     case "status": return handleStatus(args.slice(1));
     case "results": return handleResults(args.slice(1));
     case "cancel": return handleCancel(args.slice(1));
+    case "reconcile": return handleReconcile(cwd);
     case "list":
       return handleList(cwd);
     case "inspect":
@@ -436,6 +438,55 @@ function printResultSummary(summary: any): void {
   if (summary.finalSummary) {
     console.log(`\nSynthesis:\n${summary.finalSummary}`);
   }
+}
+
+/**
+ * R2: compare the coordination JSON store against the transactional ledger.
+ * Read-only. Exits 1 when drift is found so scripts/CI can gate on it.
+ */
+async function handleReconcile(cwd: string): Promise<void> {
+  const report = await reconcileCoordinationLedger(cwd);
+  console.log(`Coordination ledger reconciliation`);
+  console.log(`  runs scanned:     ${report.scannedRuns}`);
+  console.log(`  ledger events:    ${report.ledgerEventsRead}`);
+  console.log(`  truncated reads:  ${report.truncated}`);
+  const unknown = Object.entries(report.unknownEventTypes);
+  if (unknown.length > 0) {
+    console.log(`  unknown event types:`);
+    for (const [type, count] of unknown) console.log(`    ${type}: ${count}`);
+  }
+  if (report.issues.length === 0) {
+    console.log(`  issues:           none`);
+  } else {
+    console.log(`  issues:           ${report.issues.length}`);
+    for (const issue of report.issues) {
+      console.log(`    [${issue.kind}] ${issue.runId}: ${issue.detail}`);
+    }
+  }
+
+  // R2.10: collaboration shared-state section (same workspace ledger).
+  const { reconcileCollaborationLedger } = await import("../../kernel/collaboration-ledger-reconcile.js");
+  const collab = await reconcileCollaborationLedger(cwd);
+  console.log(`\nCollaboration ledger reconciliation`);
+  console.log(`  states scanned:   ${collab.scannedStates}`);
+  console.log(`  ledger entities:  ${collab.ledgerEntities}`);
+  console.log(`  ledger events:    ${collab.ledgerEventsRead}`);
+  console.log(`  truncated reads:  ${collab.truncated}`);
+  const collabUnknown = Object.entries(collab.unknownEventTypes);
+  if (collabUnknown.length > 0) {
+    console.log(`  unknown event types:`);
+    for (const [type, count] of collabUnknown) console.log(`    ${type}: ${count}`);
+  }
+  if (collab.issues.length === 0) {
+    console.log(`  issues:           none`);
+  } else {
+    console.log(`  issues:           ${collab.issues.length}`);
+    for (const issue of collab.issues) {
+      console.log(`    [${issue.kind}] ${issue.runId}: ${issue.detail}`);
+    }
+  }
+
+  process.exit(report.ok && collab.ok ? 0 : 1);
 }
 
 async function handleList(cwd: string): Promise<void> {

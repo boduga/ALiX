@@ -139,12 +139,14 @@ Usage:
   alix workflow transition <i> <s>  Manually transition an issue
   alix runtime events     Show unified runtime events (--graph, --session, --approval, --action, --limit)
   alix runtime timeline <graphId>  Show timeline for a graph across all sources
+  alix runtime reconcile-executions  Compare execution-state snapshots against the R2 ledger
   alix baseline <subcommand>      Baseline intelligence: list, providers, health, show
   alix daemon start      Start the background daemon
   alix daemon stop       Stop the background daemon
   alix daemon status     Show daemon status
   alix daemon tasks      List daemon tasks (--status <filter>)
   alix daemon cancel <id>  Cancel a daemon task
+  alix daemon reconcile  Compare daemon task registry against the R2 ledger
   alix daemon doctor     Daemon health check
   alix submit "<task>"   Submit a task to the daemon
   alix runs list [--limit N] [--json]  List ledger entries (newest first)
@@ -161,6 +163,7 @@ Usage:
   alix approvals show <id>  Show approval details
   alix approvals approve <id> [--reason "..."]  Approve a pending request
   alix approvals deny <id> [--reason "..."]  Deny a pending request
+  alix approvals reconcile  Compare approvals projection against the R2 ledger
   alix schedule list     List approved scheduled jobs
   alix schedule show <name>  Show a scheduled job
   alix schedule run-now <name>  Enqueue one run now
@@ -225,6 +228,12 @@ if (command === "graph" && args[0] === "inspect") {
 if (command === "graph" && args[0] === "export") {
   const { handleGraphExport } = await import("./cli/commands/graph.js");
   await handleGraphExport(args);
+}
+
+// --- alix graph reconcile --- compare graph files against the R2 ledger ---
+if (command === "graph" && args[0] === "reconcile") {
+  const { handleGraphReconcile } = await import("./cli/commands/graph.js");
+  await handleGraphReconcile(args);
 }
 
 // --- alix sop --- SOP management ---

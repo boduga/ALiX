@@ -442,6 +442,13 @@
   },
   {
     "imported": "src/kernel/coordination-store.ts",
+    "importer": "src/kernel/coordination-ledger-reconcile.ts",
+    "reason": "R0 B1 \u2014 R2 reconcile reads the authoritative coordinator to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
+    "removalPhase": "R6",
+    "rule": "status-store-writes"
+  },
+  {
+    "imported": "src/kernel/coordination-store.ts",
     "importer": "src/kernel/coordination-planner.ts",
     "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
@@ -550,6 +557,20 @@
     "importer": "src/runtime/context/retrieval.ts",
     "reason": "R0 B7/B8 \u2014 snapshot-ahead-of-log divergence risk",
     "removalPhase": "R2",
+    "rule": "status-store-writes"
+  },
+  {
+    "imported": "src/runtime/continuation-store.ts",
+    "importer": "src/runtime/continuation-ledger-reconcile.ts",
+    "reason": "R0 B5 \u2014 R2 reconcile reads the authoritative continuation store to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
+    "removalPhase": "R6",
+    "rule": "status-store-writes"
+  },
+  {
+    "imported": "src/runtime/execution-state/execution-state-store.ts",
+    "importer": "src/runtime/execution-state/execution-ledger-reconcile.ts",
+    "reason": "R0 B7 \u2014 R2 reconcile reads the authoritative snapshot store to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
+    "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {

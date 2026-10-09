@@ -41,6 +41,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
+import { getSharedLedger, appendFact, currentEntityVersion, type LedgerFactCounters } from "../../storage/runtime-ledger.js";
 import { dirname, join } from "node:path";
 import {
   EXECUTION_STATE_SCHEMA_VERSION,
@@ -143,7 +144,7 @@ function validateExecutionId(id: string): void {
   }
 }
 
-function stateFilePath(baseDir: string, executionId: string): string {
+export function stateFilePath(baseDir: string, executionId: string): string {
   validateExecutionId(executionId);
   // Base already points at .alix/executions — each execution is a subfolder.
   return join(baseDir, executionId, "state.json");
@@ -279,7 +280,23 @@ function readSnapshotFile(filePath: string): StateSnapshot {
  * The store never rewrites EventLog history; it only materializes a disposable snapshot.
  */
 export class ExecutionStateStore {
-  constructor(private readonly baseDir: string = ".alix/executions") {}
+  /** R2.12 authority counters (ledger authoritative). */
+  private readonly ledgerCounters: LedgerFactCounters = { appends: 0, failures: 0 };
+  private projectionFailures = 0;
+  private lastProjectionError: string | undefined;
+  /** Workspace root for the shared ledger (baseDir is <cwd>/.alix/executions). */
+  private readonly baseDirCwd: string;
+
+  constructor(private readonly baseDir: string = ".alix/executions") {
+    const execSuffix = join(".alix", "executions");
+    // Workspace root for the shared ledger: strip `.alix/executions` from the
+    // canonical layout; any custom/test dir IS its own root (ledger lives at
+    // <baseDir>/.alix/runtime-ledger.db) — deriving dirname() here would make
+    // sibling custom dirs share one ledger (cross-test/session contamination).
+    this.baseDirCwd = baseDir.endsWith(execSuffix)
+      ? baseDir.slice(0, baseDir.length - execSuffix.length).replace(/[\\/]+$/, "") || "."
+      : baseDir;
+  }
 
   // ── Load ───────────────────────────────────────────────────────
 
@@ -288,6 +305,10 @@ export class ExecutionStateStore {
    * Returns null if no snapshot exists. Throws StateCorruptionError on invalid/corrupt file.
    */
   loadSnapshot(executionId: string): StateSnapshot | null {
+    // R2.12 authority: ledger first; the file projection only covers
+    // legacy executions with zero ledger facts.
+    const authority = this.authoritySnapshot(executionId);
+    if (authority !== null) return authority;
     const path = stateFilePath(this.baseDir, executionId);
     if (!existsSync(path)) return null;
     return readSnapshotFile(path);
@@ -322,6 +343,73 @@ export class ExecutionStateStore {
    * Version monotonicity: new state's `version` must be `expectedVersion + 1` (or 0 for create).
    * No partial mutation on conflict — file is untouched.
    */
+  /**
+   * R2.12 append the FLAT persisted snapshot — THE COMMIT (ledger is
+   * authoritative). Failure is counted, then THROWN: an unavailable
+   * authoritative store must never leave a JSON-only mutation behind.
+   */
+  private appendStateFact(flat: FlatPersistedState): void {
+    const expected = currentEntityVersion(this.baseDirCwd, this.ledgerCounters, flat.executionId);
+    appendFact(this.baseDirCwd, this.ledgerCounters, {
+      eventType: expected === 0 ? "execution.state_created" : "execution.state_saved",
+      entityType: "execution",
+      entityId: flat.executionId,
+      payload: { state: flat },
+      correlationId: flat.executionId,
+      actor: { type: "system", id: "execution-state-store" },
+      occurredAt: flat.savedAt,
+      expectedVersion: expected,
+      errorLabel: "execution-state ledger",
+    });
+  }
+
+  /**
+   * R2.12 ledger-authority read: reconstruct StateSnapshot from the latest
+   * ledger fact (flat payload). Null when the entity has NO ledger facts
+   * (legacy/pre-ledger → caller falls back to the file projection). Ledger
+   * db errors are counted AND rethrown — never masked by a file fallback.
+   */
+  private authoritySnapshot(executionId: string): StateSnapshot | null {
+    let last: ReturnType<ReturnType<typeof getSharedLedger>["lastEvent"]>;
+    try {
+      last = getSharedLedger(this.baseDirCwd).lastEvent(executionId, "execution");
+    } catch (err) {
+      this.ledgerCounters.failures += 1;
+      this.ledgerCounters.lastError = err instanceof Error ? err.message : String(err);
+      throw err;
+    }
+    if (!last) return null;
+    const payload = last.payload as { state?: FlatPersistedState } | null;
+    if (!payload?.state) {
+      throw new Error(`execution-state ledger event for ${executionId} missing state payload`);
+    }
+    const flat = payload.state;
+    const core = extractExecutionStateFromFlat(flat as unknown as Record<string, unknown>);
+    const vr = validateExecutionState(core);
+    if (!vr.valid) {
+      throw new StateCorruptionError(`Ledger state invalid: ${vr.errors.join("; ")}`);
+    }
+    return {
+      state: core,
+      projectionVersion: typeof flat.projectionVersion === "string" ? flat.projectionVersion : DEFAULT_PROJECTION_VERSION,
+      historyRevision: typeof flat.historyRevision === "number" ? flat.historyRevision : core.step,
+      historyHash: typeof flat.historyHash === "string" ? flat.historyHash : "",
+      savedAt: typeof flat.savedAt === "string" ? flat.savedAt : new Date().toISOString(),
+    };
+  }
+
+  /** Observable authority health (R2: failures must never be silent). */
+  ledgerStatus(): { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string } {
+    const c = this.ledgerCounters;
+    return {
+      appends: c.appends,
+      failures: c.failures,
+      projectionFailures: this.projectionFailures,
+      ...(c.lastError !== undefined ? { lastError: c.lastError } : {}),
+      ...(this.lastProjectionError !== undefined ? { lastProjectionError: this.lastProjectionError } : {}),
+    };
+  }
+
   save(
     state: ExecutionState,
     expectedVersion: number | null,
@@ -391,8 +479,19 @@ export class ExecutionStateStore {
       savedAt: new Date().toISOString(),
     };
 
-    const content = JSON.stringify(persisted, null, 2) + "\n";
-    atomicWriteFile(path, content);
+    // R2.12 authority: the ledger append IS the commit — it runs BEFORE the
+    // projection and throws on failure (no JSON-only state can exist).
+    this.appendStateFact(persisted);
+
+    // Projection second: failure tolerated and counted — the ledger holds
+    // the truth and reconciliation reports projection drift for rebuild.
+    try {
+      const content = JSON.stringify(persisted, null, 2) + "\n";
+      atomicWriteFile(path, content);
+    } catch (err) {
+      this.projectionFailures += 1;
+      this.lastProjectionError = err instanceof Error ? err.message : String(err);
+    }
 
     return { committed: true, version: state.version };
   }
@@ -458,6 +557,16 @@ export class ExecutionStateStore {
     const historyRevision = events.length > 0 ? (events[events.length - 1]?.seq ?? events.length) : 0;
     const historyHash = computeHistoryHash(events);
 
+    // R2.6 version-checked rebuild: never let a replay overwrite a NEWER
+    // committed snapshot with an older projection (B7 — delete-then-write
+    // had no guard at all).
+    const existing = this.loadSnapshot(executionId);
+    if (existing && existing.state.version > state.version) {
+      throw new Error(
+        `Rebuild refused for ${executionId}: existing snapshot v${existing.state.version} is newer than projected v${state.version}`,
+      );
+    }
+
     // Delete existing snapshot (disposable) — EventLog untouched
     this.delete(executionId);
 
@@ -483,8 +592,15 @@ export class ExecutionStateStore {
     };
 
     const path = stateFilePath(this.baseDir, executionId);
-    const content = JSON.stringify(flatToPersist, null, 2) + "\n";
-    atomicWriteFile(path, content);
+    // R2.12 authority: append first (throws), projection tolerated.
+    this.appendStateFact(flatToPersist);
+    try {
+      const content = JSON.stringify(flatToPersist, null, 2) + "\n";
+      atomicWriteFile(path, content);
+    } catch (err) {
+      this.projectionFailures += 1;
+      this.lastProjectionError = err instanceof Error ? err.message : String(err);
+    }
 
     return state;
   }

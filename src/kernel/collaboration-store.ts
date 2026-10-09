@@ -16,10 +16,40 @@ import { randomUUID } from "node:crypto";
 import { CollaborationRunLock } from "./collaboration-run-lock.js";
 import { validatePublishFindingInput, canonicalizeFindingInput, normalizeStateV1_0 } from "./collaboration-validation.js";
 import type { FindingConflict, ConflictStatus } from "./collaboration-conflict-types.js";
-import type {
-  SharedFinding, SharedArtifact, WorkerContextManifest, CollaborationState,
-  CollaborationActor, FindingFilter, PublishFindingInput, PublishArtifactInput,
+import { getSharedLedger, appendFact, currentEntityVersion } from "../storage/runtime-ledger.js";
+import {
+  collabEntityId,
+  type SharedFinding, type SharedArtifact, type WorkerContextManifest, type CollaborationState,
+  type CollaborationActor, type FindingFilter, type PublishFindingInput, type PublishArtifactInput,
 } from "./collaboration-types.js";
+
+// ─── R2.10 dual-write status (per workspace) ─────────────────────────
+type CollaborationLedgerStatus = { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string };
+const statusByCwd = new Map<string, CollaborationLedgerStatus>();
+
+function statusFor(cwd: string): CollaborationLedgerStatus {
+  let s = statusByCwd.get(cwd);
+  if (!s) {
+    s = { appends: 0, failures: 0, projectionFailures: 0 };
+    statusByCwd.set(cwd, s);
+  }
+  return s;
+}
+
+/** Observable authority health (R2: failures must never be silent). */
+export function collaborationLedgerStatus(cwd: string): CollaborationLedgerStatus {
+  const s = statusFor(cwd);
+  return {
+    ...s,
+    ...(s.lastError !== undefined ? { lastError: s.lastError } : {}),
+    ...(s.lastProjectionError !== undefined ? { lastProjectionError: s.lastProjectionError } : {}),
+  };
+}
+
+/** Reset counters (tests). */
+export function resetCollaborationLedgerStatus(cwd: string): void {
+  statusByCwd.delete(cwd);
+}
 
 const DEFAULT_STATE: CollaborationState = {
   schemaVersion: "1.0",
@@ -76,7 +106,32 @@ export class CollaborationStore {
     }
   }
 
+  /**
+   * R2.16 authority read: rebuild from the ledger (`collab:<runId>` namespaced
+   * entity). The file projection covers only legacy states with zero ledger
+   * facts. Ledger db errors count and THROW — never masked by a file
+   * fallback.
+   */
   private async loadState(): Promise<void> {
+    let last: ReturnType<ReturnType<typeof getSharedLedger>["lastEvent"]>;
+    try {
+      last = getSharedLedger(this.cwd).lastEvent(collabEntityId(this.runId), "collaborationState");
+    } catch (err) {
+      const s = statusFor(this.cwd);
+      s.failures += 1;
+      s.lastError = err instanceof Error ? err.message : String(err);
+      throw err;
+    }
+    if (last) {
+      const payload = last.payload as { state?: CollaborationState } | null;
+      if (!payload?.state) {
+        throw new Error(`collaboration ledger event for ${this.runId} missing state payload`);
+      }
+      this.state = normalizeStateV1_0(payload.state);
+      return;
+    }
+
+    // Legacy projection-only state.
     if (!existsSync(this.statePath)) {
       this.state = { ...createDefaultState(), runId: this.runId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
       return;
@@ -98,6 +153,28 @@ export class CollaborationStore {
     await renameFile(tmpPath, this.statePath);
   }
 
+  /**
+   * R2.16 append the post-mutation state — THE COMMIT (ledger is
+   * authoritative). Must run BEFORE the file write. Failure counts, then
+   * THROWS: no JSON-only collaboration state can exist.
+   */
+  private appendStateFact(): void {
+    const s = statusFor(this.cwd);
+    const expected = currentEntityVersion(this.cwd, s, collabEntityId(this.runId));
+    appendFact(this.cwd, s, {
+      eventType: expected === 0 ? "collaboration.state_created" : "collaboration.state_updated",
+      entityType: "collaborationState",
+      entityId: collabEntityId(this.runId),
+      payload: { state: this.state },
+      coordinationRunId: this.runId,
+      correlationId: this.runId,
+      actor: { type: "system", id: "collaboration-store" },
+      occurredAt: this.state.updatedAt,
+      expectedVersion: expected,
+      errorLabel: "collaboration ledger",
+    });
+  }
+
   async mutate<T>(fn: (state: CollaborationState) => T | Promise<T>): Promise<T> {
     const lock = new CollaborationRunLock(this.cwd, this.runId);
     const acquired = await lock.acquire();
@@ -106,7 +183,16 @@ export class CollaborationStore {
       await this.loadState();
       const result = await fn(this.state);
       this.state.revision++;
-      await this.saveState();
+      // R2.16 authority: append FIRST (throws on failure → in-memory bump is
+      // discarded on the next loadState), then the projection (tolerated).
+      this.appendStateFact();
+      try {
+        await this.saveState();
+      } catch (err) {
+        const s = statusFor(this.cwd);
+        s.projectionFailures += 1;
+        s.lastProjectionError = err instanceof Error ? err.message : String(err);
+      }
       return result;
     } finally {
       lock.release();

@@ -68,6 +68,10 @@ describe("TaskRegistry", () => {
     assert.equal(reg.findQueued(r.id), undefined);
     const r2 = reg.create("still queued", testHome);
     assert.ok(reg.findQueued(r2.id));
+    // Hygiene: terminal-ize the running record so later reconcileOnStartup
+    // counts in this shared-registry suite stay deterministic (R2.15 made
+    // ledger reads reliably durable across tests).
+    reg.update(r.id, { status: "completed" });
   });
 
   it("reconcileOnStartup marks running as failed_orphaned", async () => {

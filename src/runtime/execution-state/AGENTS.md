@@ -11,6 +11,7 @@ Bounded decision-state projection — patch-only contract (EventLog authoritativ
 - `execution-state-store.ts` — ExecutionStateStore durable snapshot: filesystem `.alix/executions/<id>/state.json` (atomic tmp→fsync→rename), OCC CAS `save(state, expectedVersion)` (1 row commit, 0 → STATE_VERSION_CONFLICT), delete, flat CheckpointedExecutionState persistence (`...ExecutionState, projectionVersion/historyRevision/historyHash/savedAt`), rebuildFromEvents (delete→replay→reconstruct), single-writer POC invariant.
 - `execution-state-emitter.ts` — `ExecutionStateEmitter`: live governed emission of `execution.*` events into the session EventLog. `bootstrap(objective)` appends genesis (`execution.created` + `running`) and rebuilds the snapshot via `rebuildFromEvents`; `setObjective`/`setStatus`/`registerArtifact`/`bindCapability`/`applyConstraint` each run a patch-only `StateTransitionProposal` through the canonical `StateTransitionHarness` (schema → version CAS → patch-only governor → apply → CAS persist → emit). Opt-in via `isExecutionStateEmitEnabled` (`ALIX_EXECUTION_STATE_EMIT=1`, default off) and `executionStateStoreDir` (`ALIX_EXECUTION_STATE_DIR`, default `.alix/executions`); fail-soft (`lastError`, never throws into the task loop).
 - `state-transition.ts` — alias re-export of canonical harness `src/runtime/state/state-transition.ts`.
+- `execution-ledger-reconcile.ts` — R2.6 read-only comparison of `state.json` snapshots against the transactional ledger (`missing_in_ledger` / `record_mismatch` / `projection_missing` / `version_behind` / `ledger_payload_invalid`); counts unknown event types, reports truncated reads. CLI: `alix runtime reconcile-executions` (exit 1 on drift).
 
 ## Local Contracts
 
@@ -22,6 +23,34 @@ Bounded decision-state projection — patch-only contract (EventLog authoritativ
 - Store: EventLog authoritative, state disposable (INV-10); atomic tmp→rename, deterministic JSON, corruption detection (StateCorruptionError), OCC version check (STATE_VERSION_CONFLICT, single-writer POC, no auto-rebase), flat+envelope read compat, rebuild delete→replay equality (INV-P7).
 - Emitter: genesis is the only direct EventLog append (the harness cannot create); every later mutation is patch-only through the harness and the governor denies any `action` (tools execute in the task loop). State derived, EventLog authoritative; failures never propagate into the loop.
 - Contract, projector, store, and emitter orchestration belong here; prompt building and governor implementations remain in their owning modules.
+- **The execution-state ledger is authoritative (R2.12); the snapshot file
+  is a compatibility projection.** `save` and `rebuildFromEvents` append the
+  FLAT persisted envelope to the shared transactional ledger (entityType
+  `execution`, events `execution.state_created`/`state_saved`) BEFORE the
+  file write — the append IS the commit; failure counts then THROWS (no
+  JSON-only state). Projection write failure is tolerated and counted in
+  `ledgerStatus().projectionFailures`. `loadSnapshot` reads the ledger first
+  (`lastEvent(id, "execution")`, flat payload → StateSnapshot with envelope
+  fields, core extracted) and consults the file only for legacy executions
+  with zero ledger facts; ledger db errors count and rethrow. Ledger cwd:
+  canonical `.alix/executions` layout strips to the workspace root, any
+  custom/test dir IS its own root (`<dir>/.alix/runtime-ledger.db`) — never
+  dirname(), which makes sibling dirs share one ledger. `stateFilePath` is
+  exported for the reconciler. `delete()` removes the projection FILE only —
+  authority facts persist, so `load()` still returns the state after a
+  delete (recovery without EventLog replay; projections self-heal on the
+  next save; `exists()` is the file-level check).
+- **`execution.action_executed` is evidence, not a state patch.** The
+  projector accepts it via a non-state execution allowlist: payload must
+  carry `kind`; it advances historyRevision/historyHash only (no version
+  bump). Unknown `execution.*` types still fail closed.
+- **Emitter events are executionId-tagged.** Every harness-emitted payload
+  carries `executionId`; bootstrap replay filters positively-tagged events
+  for other executions (untagged legacy events are included), so a shared
+  session EventLog cannot collide on duplicate `execution.created`.
+- **Rebuilds are version-checked (B7).** `rebuildFromEvents` refuses to
+  overwrite an existing snapshot whose version is newer than the projected
+  state — a replay can never resurrect older history over a newer commit.
 
 ## Work Guidance
 
@@ -35,6 +64,7 @@ Bounded decision-state projection — patch-only contract (EventLog authoritativ
 - `project(history)` / `applyEvent` / `projectFromCheckpoint` deterministic, checkpoint invariant verified (state@47+48..100==full 1..100).
 - Store: save/load CAS (commit vs STATE_VERSION_CONFLICT), atomic .tmp→rename, delete idempotent, flat persistence with projectionVersion/historyRevision/historyHash, rebuildFromEvents delete→replay equality and corruption detection.
 - `vitest run tests/execution-state-emitter.vitest.ts` — opt-in flag, genesis emits `execution.created`+`running`, idempotent bootstrap, objective/artifact/capability/constraint via harness (events present), fail-soft without genesis, idempotent artifact registration.
+- `tests/runtime/execution-ledger-dualwrite.test.ts` — ledger authority (append-fail fail-closed, projection-failure tolerance, tampered-file ignored by load), reconciliation drift (legacy/tamper), `action_executed` evidence projection, unknown-type fail-closed, version-checked rebuild.
 
 ## Child DOX Index
 

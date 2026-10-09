@@ -15,6 +15,47 @@ import { createHash } from "node:crypto";
 import type { ExecutionEvidence } from "./contracts/execution-intent-contract.js";
 import { canonicalStringify } from "../security/audit/canonical-json.js";
 import { JsonlStore } from "../storage/jsonl-store.js";
+import { appendFact, drainLedgerEvents } from "../storage/runtime-ledger.js";
+
+/** Ledger event vocabulary for the evidence domain (R2.11). */
+export const EVIDENCE_LEDGER_EVENT_TYPES = [
+  "evidence.recorded",
+] as const;
+
+// ─── R2.11 dual-write status (per workspace root) ────────────────────
+type EvidenceLedgerStatus = { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string };
+const statusByCwd = new Map<string, EvidenceLedgerStatus>();
+
+function statusFor(cwd: string): EvidenceLedgerStatus {
+  let s = statusByCwd.get(cwd);
+  if (!s) {
+    s = { appends: 0, failures: 0, projectionFailures: 0 };
+    statusByCwd.set(cwd, s);
+  }
+  return s;
+}
+
+/** Observable authority health (R2: failures must never be silent). */
+export function evidenceLedgerStatus(cwd: string): EvidenceLedgerStatus {
+  const s = statusFor(cwd);
+  return {
+    ...s,
+    ...(s.lastError !== undefined ? { lastError: s.lastError } : {}),
+    ...(s.lastProjectionError !== undefined ? { lastProjectionError: s.lastProjectionError } : {}),
+  };
+}
+
+/** Reset counters (tests). */
+export function resetEvidenceLedgerStatus(cwd: string): void {
+  statusByCwd.delete(cwd);
+}
+
+/** Workspace root for the shared ledger: strip a trailing `.alix/<x>` segment. */
+function ledgerCwdFor(storeDir: string): string {
+  const parts = storeDir.split(/[\\/]/);
+  if (parts[parts.length - 2] === ".alix") return parts.slice(0, -2).join("/") || ".";
+  return storeDir;
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -46,9 +87,37 @@ export class ExecutionEvidenceStore {
    * Append-only — never overwrites existing records.
    * Preserves insertion order. Callers own deduplication.
    */
+  /**
+   * R2.17 authority: append the evidence fact FIRST (the commit — throws on
+   * failure; immutable evidence means an already-mirrored id is an idempotent
+   * skip), then the JSONL projection (tolerated + counted).
+   */
   async append(evidence: ExecutionEvidence): Promise<void> {
-    this.ensureStoreDir();
-    await this.store.appendRecord(evidence);
+    const cwd = ledgerCwdFor(this.storeDir);
+    const s = statusFor(cwd);
+    // Append-only contract: EVERY physical append mirrors (duplicate
+    // evidenceIds are legal — callers own deduplication), so the ledger
+    // preserves line-level history too.
+    appendFact(cwd, s, {
+      eventType: "evidence.recorded",
+      entityType: "executionEvidence",
+      entityId: evidence.evidenceId,
+      payload: { evidence },
+      // intentId is optional on hand-built fixtures — never let it
+      // produce a NULL correlation_id (NOT NULL column).
+      correlationId: evidence.intentId ?? evidence.evidenceId,
+      actor: { type: "system", id: "execution-evidence-store" },
+      occurredAt: (evidence as { verifiedAt?: string }).verifiedAt ?? new Date().toISOString(),
+      errorLabel: "evidence ledger",
+    });
+
+    try {
+      this.ensureStoreDir();
+      await this.store.appendRecord(evidence);
+    } catch (err) {
+      s.projectionFailures += 1;
+      s.lastProjectionError = err instanceof Error ? err.message : String(err);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -90,11 +159,41 @@ export class ExecutionEvidenceStore {
    * checksum does not match the calculated checksum are skipped.
    * Malformed JSON lines are also skipped with a warning.
    */
+  /**
+   * R2.17 authority read: latest ledger fact per evidence id, merged with
+   * JSONL records that have no ledger facts (legacy). Ledger db errors count
+   * and THROW — never masked by a file fallback.
+   */
   async list(): Promise<ExecutionEvidence[]> {
-    if (!existsSync(this.filePath())) {
-      return [];
+    const cwd = ledgerCwdFor(this.storeDir);
+    // ALL events (not latest-per-entity): append-only contract preserves
+    // duplicate evidenceIds line-for-line, in ledger-seq order.
+    let rows: ReturnType<typeof drainLedgerEvents>["events"];
+    try {
+      rows = drainLedgerEvents(cwd, new Set(["executionEvidence"])).events;
+    } catch (err) {
+      const s = statusFor(cwd);
+      s.failures += 1;
+      s.lastError = err instanceof Error ? err.message : String(err);
+      throw err;
     }
-    return this.readAll();
+
+    const ledgerIds = new Set(rows.map(r => r.entityId));
+    const records: ExecutionEvidence[] = [];
+    if (existsSync(this.filePath())) {
+      for (const record of await this.readAll()) {
+        if (ledgerIds.has(record.evidenceId)) continue; // covered below, in order
+        records.push(record);
+      }
+    }
+    for (const row of rows) {
+      const payload = row.payload as { evidence?: ExecutionEvidence } | null;
+      if (!payload?.evidence) {
+        throw new Error(`evidence ledger event for ${row.entityId} missing evidence payload`);
+      }
+      records.push(payload.evidence);
+    }
+    return records;
   }
 
   // ---------------------------------------------------------------------------

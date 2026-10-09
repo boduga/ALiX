@@ -8,6 +8,8 @@
 
 - `task-graph.ts` — TaskNode/TaskGraph types, status transitions, risk levels
 - `graph-executor.ts` — Sequential multi-node executor with capability resolution, policy enforcement, approval integration
+- `graph-ledger.ts` — R2.7/R2.13 graph-domain ledger writes (`.alix/runtime-ledger.db`): `mirrorGraphToLedger` (entityType `graph`, events `graph.created`/`graph.persisted`, full TaskGraph payload) + `mirrorGraphAttemptToLedger` (entityType `graphAttempt`, `graph.attempt_recorded`, per-attempt entity, idempotent) — the ledger is AUTHORITATIVE, append failure counts then THROWS; `graphLedgerStatus(cwd)` surfaces counted appends/failures, and `countGraphProjectionFailure` counts tolerated JSON projection failures. `graphAttemptEntityId`/`parseGraphAttemptEntityId` are the one place the attempt entity id is encoded/decoded.
+- `graph-ledger-reconcile.ts` — read-only comparison of `.alix/graphs/*.json` + `*.runs.json` against the ledger (`missing_in_ledger` / `record_mismatch` / `projection_missing` / `version_behind` / `ledger_payload_invalid`); counts unknown event types, reports truncated reads. CLI: `alix graph reconcile` (exit 1 on drift).
 - `graph-projection.ts` — Reconstruct run state from events and graph JSON
 - `graph-planner.ts` — Model-based graph generation from goals (v2 prompt, capability catalog, deterministic normalize, one repair retry)
 - `coordination-planner.ts` — Graph → CoordinationRun/workers (registry-sourced cap normalize, goal-path ownership scopes, agentPool labels)
@@ -31,6 +33,22 @@
 ## Local Contracts
 
 - GraphExecutor runs nodes sequentially, stops on first failure.
+- **The coordination ledger is authoritative (R2.3); JSON is a compatibility
+  projection.** Every mutation (`save`, `updateRun`,
+  `updateRunWithRevisionCheck`, `attachAggregateIfUnfinalized`, `delete`)
+  appends a `coordination.run.{created,persisted,deleted}` event carrying the
+  FULL run record to the shared transactional ledger
+  (`src/storage/runtime-ledger.ts`, project `.alix/runtime-ledger.db`) BEFORE
+  writing the JSON file — the ledger append is the commit. Append failure
+  throws (an unavailable authoritative store must never fall back to a
+  JSON-only commit); projection write failure is tolerated and counted in
+  `ledgerStatus().projectionFailures`. Reads are ledger-first: `load`/`list`
+  reconstruct from the latest ledger event and fall back to JSON only for
+  legacy runs with zero ledger facts. Reconcile with `alix coordination
+  reconcile` (read-only; exit 1 on drift) or `reconcileCoordinationLedger(cwd)`
+  (`coordination-ledger-reconcile.ts`), which reports projection drift
+  (missing/stale/mismatch), counts unknown event types, and reports truncated
+  reads.
 - **Capability enforcement is ON by default (R1.5).** `enforceCapabilities`
   defaults to `true`; the composed gate (CapabilityResolver → RuntimeGate →
   ApprovalStore) evaluates before `runTask`. Missing policyGate/config blocks
@@ -69,7 +87,37 @@
 - Coordination plans publish queued/dependency-waiting canonical `agent.*` lifecycle rows before dispatch. Retry-attempt results are non-terminal presentation facts; only scheduler exhaustion/completion publishes terminal worker state, and dependency failure publishes an explicit blocked state.
 - Write workers reserve their final two model iterations for mutation/completion tools while owned outputs remain unwritten, preventing broad reconnaissance from consuming the entire bounded iteration budget.
 - `--enforce-capabilities` enables two-layer gate (CapabilityResolver + RuntimeGate).
+- **The collaboration ledger is authoritative (R2.16); `state.json` is a
+  compatibility projection.** `mutate` (per-run lock) appends
+  `collaboration.state_created`/`state_updated` (full `CollaborationState`)
+  BEFORE the file write — the append IS the commit (counted, then thrown;
+  the in-memory revision bump is discarded on the next `loadState`, so no
+  JSON-only state can exist); `saveState` failures are tolerated and counted
+  as `projectionFailures` in `collaborationLedgerStatus(cwd)`. `loadState`
+  reads the ledger first (`lastEvent("collab:<runId>",
+  "collaborationState")`; file only for legacy zero-fact states; ledger db
+  errors count and throw). The ledger entity id is namespaced
+  `collab:<runId>` — `runtime_entities` keys by entity_id alone and the raw
+  runId belongs to the coordination domain. Reconciled as a section of
+  `alix coordination reconcile`.
+- **Ledger reconcilers are scoped by entityType.** All seven domain
+  reconcilers (`coordination`/`collaboration`/`approvals`/`continuations`/
+  `execution`/`graphs`/`daemonTasks`) drain only their own entity types, and
+  `CoordinationStore.loadFromLedger` reads `lastEvent(runId, "coordinationRun")`
+  — multi-domain ledgers share one workspace file, so unscoped reads mix
+  domains (false orphans, wrong payload errors).
 - `graph-projection.ts` returns `GraphRunProjection` with node status, timestamps, attempts.
+- **The graph ledger is authoritative (R2.13); JSON files are a
+  compatibility projection.** `mirrorGraphToLedger`/
+  `mirrorGraphAttemptToLedger` append BEFORE each graph-file write — the
+  append IS the commit (counted, then THROWN; no JSON-only mutation);
+  projection writes are tolerated and counted via
+  `countGraphProjectionFailure`. Sites: `persistGraph` (planner),
+  `rerunNode` graph+attempt (executor), `markRunGraphCancelled` (resume,
+  still best-effort at the call site — append failures counted in
+  `graphLedgerStatus()` before the throw is absorbed). `loadGraph` reads
+  the ledger first (`lastEvent(graphId, "graph")`, file only for legacy
+  zero-fact graphs; ledger errors throw).
 - All graph definitions persist to `.alix/graphs/<graphId>.json`.
 - Rerun attempts append to `.alix/graphs/<graphId>.runs.json`.
 - Terminal worker status patches (`completed`/`failed`/`pending` from `executeWorker`) go through bounded `patchWorkerWithRetry` (5 attempts, 50/100/200/400ms); `updateRun` retries transient in-lock loads via `loadWithRetry` (3×, 25/50ms) and all atomic writes go through `writeAtomic` (tmp+rename with EPERM/EACCES/EBUSY rename retry). A silent null from a transient read (e.g. Windows Defender EBUSY) must not orphan a worker as `running` and idle-stop `runUntilIdle`.
@@ -119,12 +167,15 @@
 - `tests/kernel/graph-executor.test.ts` — executor, sorting, enforcement, rerun
 - `tests/kernel/graph-projection.test.ts` — projection reconstruction
 - `tests/kernel/graph-planner.test.ts` — plan generation, cap normalize, repair retry
+- `tests/kernel/graph-ledger-dualwrite.test.ts` — graph/attempt mirrors, cancel mirror, reconciliation drift (legacy/tamper/attempt both directions), ledger-failure tolerance
+- `tests/kernel/collaboration-ledger-dualwrite.test.ts` — authority reads over tampered files, append-fail fail-closed, projection-failure tolerance, namespaced entity id, reconciliation drift (legacy/tamper)
 - `tests/kernel/coordination-planner.test.ts` — workers, scopes, agentPool labels
 - `tests/kernel/coordination-scheduler.test.ts` — dispatch, watchdog, heartbeats
 - `tests/kernel/coordination-tools.test.ts` — chat handlers
 - `tests/kernel/subagent-worker-executor.test.ts` — role map, parallel, cancel
 - `tests/kernel/coordination-scheduler-replan.test.ts` — mid-execution replanning; waits on settled state (`waitUntil`), never a fixed sleep
 - `tests/kernel/replan-proposal-store.test.ts` — proposal CRUD; timestamp assertions use the injected clock
+- `tests/kernel/coordination-ledger-dualwrite.test.ts` — ledger-first authority (tampered projection ignored), append-failure fail-closed, projection-failure tolerance, legacy fallback, reconciliation drift (status/worker/missing/stale/unknown-type), delete semantics
 
 ## Child DOX Index
 
