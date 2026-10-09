@@ -596,19 +596,14 @@ export class SubagentCLI {
     const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy)
       .filter(t => !nestedRunBlocklist.has(t.name));
 
-    const executor = createToolExecutor(
+    const executor = createToolExecutor({
       config,
-      eventLog,
-      projectRoot,
-      mcpManager ?? undefined,
-      buildEditFormatPolicy({ provider: effectiveProvider, preferred: provider.editFormatPreference }),
-      undefined, // extraHandlers
-      undefined, // checkpointManager
-      undefined, // approvalStore
-      undefined, // workspacePathResolver
-      undefined, // ownershipRegistry
-      mode === "write" ? ownedPaths : undefined,
-    );
+      log: eventLog,
+      root: projectRoot,
+      mcpManager: mcpManager ?? undefined,
+      editFormatPolicy: buildEditFormatPolicy({ provider: effectiveProvider, preferred: provider.editFormatPreference }),
+      ownedPaths: mode === "write" ? ownedPaths : undefined,
+    });
 
     // Build system prompt with role instructions and context
     const roleInstructions = ROLE_INSTRUCTIONS[role] ?? "You are a subagent.";

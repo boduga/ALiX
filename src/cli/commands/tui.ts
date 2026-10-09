@@ -390,7 +390,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // this boundary is safe and matches other call sites' typed config.
   // R1.5: the session's approvalStore is wired so capability-invoked tools
   // mint resolvable approvals instead of headless denies.
-  const toolExecutor = createToolExecutor(config as import('../../config/schema.js').AlixConfig, eventLog, process.cwd(), undefined, undefined, undefined, undefined, approvalStore);
+  const toolExecutor = createToolExecutor({ config: config as import('../../config/schema.js').AlixConfig, log: eventLog, root: process.cwd(), approvalStore });
   capabilityService = new CapabilityService(undefined, {
     eventLog,
     sessionId: currentSessionId,

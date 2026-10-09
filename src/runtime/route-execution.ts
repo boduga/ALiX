@@ -236,16 +236,7 @@ async function newToolCallId(): Promise<string> {
 async function makeToolExecutor(config: any, deps: ToolExecutionDeps): Promise<any> {
   if (deps.toolExecutorFactory) return deps.toolExecutorFactory(config, deps);
   const { createToolExecutor } = await import("../tools/tool-executor-factory.js");
-  return createToolExecutor(
-    config,
-    deps.eventLog,
-    deps.cwd,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    deps.approvalStore,
-  );
+  return createToolExecutor({ config, log: deps.eventLog, root: deps.cwd, approvalStore: deps.approvalStore });
 }
 
 /** Tool route — execute the requested tool and render its result. */

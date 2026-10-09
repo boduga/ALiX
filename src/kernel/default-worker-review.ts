@@ -54,8 +54,10 @@ export async function reviewDefaultWorkerResult(
       error: `Objective review unavailable: ${error instanceof Error ? error.message : String(error)}${mutatedPaths.length ? `\nChanged: ${mutatedPaths.join(", ")}` : ""}`,
     };
   }
+  // R1.5: wire the project approval store (fail-open) so this executor is
+  // governed like the other three construction sites.
   const approvalStore = await loadApprovalStore(context.cwd);
-  const executor = createToolExecutor(context.config, log, context.cwd, undefined, undefined, undefined, undefined, approvalStore);
+  const executor = createToolExecutor({ config: context.config, log, root: context.cwd, approvalStore });
   const artifacts = async (): Promise<ObjectiveArtifact[]> => Promise.all(mutatedPaths.map(async path => {
     if (signal.aborted) return { path, error: "Execution cancelled" };
     const read = await executor.execute({ toolCallId: randomUUID(), name: "file.read", args: { path }, signal });

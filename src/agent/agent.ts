@@ -190,10 +190,19 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     cwd, config, sessionId, approvalStore: opts.approvalStore, eventLog: log,
   });
 
-  const toolExecutor = createToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, {
-    ...(delegateHandler ? { delegate: delegateHandler } : {}),
-    ...coordinationHandlers,
-  }, checkpointManager, opts.approvalStore);
+  const toolExecutor = createToolExecutor({
+    config,
+    log,
+    root: cwd,
+    mcpManager: mcpManager ?? undefined,
+    editFormatPolicy,
+    extraHandlers: {
+      ...(delegateHandler ? { delegate: delegateHandler } : {}),
+      ...coordinationHandlers,
+    },
+    checkpointManager,
+    approvalStore: opts.approvalStore,
+  });
 
   // Scope tracking: derive initial scope from task string
   const initialScope = extractInitialScope(opts.task);

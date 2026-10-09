@@ -55,7 +55,7 @@ export class RuntimeBuilder {
     // a broken store must never kill the run before it starts.
     const { loadApprovalStore } = await import("../approvals/approval-store.js");
     const approvalStore = await loadApprovalStore(this._root);
-    this._toolExecutor = createToolExecutor(config, this._eventLog, this._root, undefined, undefined, undefined, undefined, approvalStore);
+    this._toolExecutor = createToolExecutor({ config, log: this._eventLog, root: this._root, approvalStore });
 
     // Build context compiler — max-token budget from the canonical models
     // source (§10), never the derived `model` projection.
