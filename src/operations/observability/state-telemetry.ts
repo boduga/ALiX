@@ -16,7 +16,7 @@
 import { createTelemetryEnvelope, type TelemetrySink } from "./telemetry-envelope.js";
 import type { MetricRegistry } from "./metric-registry.js";
 import type { MetricsStore, MetricRow } from "./metrics-store.js";
-import { createMetricsStoreSink, type MetricsStoreSink } from "./metrics-sink.js";
+import { createMetricsStoreSink, trackSinkAppend, type MetricsStoreSink } from "./metrics-sink.js";
 
 // ---------------------------------------------------------------------------
 // Options
@@ -326,22 +326,7 @@ export class StateTelemetry {
     this.metricsSink ??= createMetricsStoreSink(this.store, {
       onError: (error) => console.error(`[StateTelemetry] failed to emit ${row.name}:`, error),
     });
-    const sink = this.metricsSink;
-    const p = (async () => {
-      sink.observe({
-        name: row.name,
-        value: row.value,
-        type: row.type,
-        at: row.timestamp,
-        ...(row.labels ? { labels: row.labels } : {}),
-      });
-      await sink.flush();
-    })();
-    this.pendingWrites.push(p);
-    p.finally(() => {
-      const idx = this.pendingWrites.indexOf(p);
-      if (idx >= 0) this.pendingWrites.splice(idx, 1);
-    });
+    trackSinkAppend(this.pendingWrites, this.metricsSink, row);
   }
 
   protected emitEnvelope(row: MetricRow): void {

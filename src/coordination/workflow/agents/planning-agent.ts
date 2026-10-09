@@ -252,10 +252,10 @@ export class PlanningAgent {
       return null;
     }
 
-    const toTestPath = (relative: string): string => {
+    const toTestPath = (testDir: string, relative: string): string => {
       const ext = relative.match(/\.(\w+)$/)?.[1] ?? "";
       const base = ext ? relative.slice(0, -(ext.length + 1)) : relative;
-      return `tests/${base}.test.${ext}`;
+      return `${testDir}${base}.test.${ext}`;
     };
 
     // R6 subsystem map (src prefix → real tests dir).
@@ -270,22 +270,19 @@ export class PlanningAgent {
     ];
     for (const [srcPrefix, testDir] of subsystemPrefixes) {
       if (filePath.startsWith(srcPrefix)) {
-        const relative = filePath.slice(srcPrefix.length);
-        const ext = relative.match(/\.(\w+)$/)?.[1] ?? "";
-        const base = ext ? relative.slice(0, -(ext.length + 1)) : relative;
-        return `${testDir}${base}.test.${ext}`;
+        return toTestPath(testDir, filePath.slice(srcPrefix.length));
       }
     }
 
     const srcPrefixes = ["src/", "lib/", "app/"];
     for (const prefix of srcPrefixes) {
       if (filePath.startsWith(prefix)) {
-        return toTestPath(filePath.slice(prefix.length));
+        return toTestPath("tests/", filePath.slice(prefix.length));
       }
     }
 
     // Fallback: prepend tests/ and insert .test before extension
-    return toTestPath(filePath);
+    return toTestPath("tests/", filePath);
   }
 
   /**

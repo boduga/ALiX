@@ -146,6 +146,12 @@ describe("PlanningAgent", () => {
     });
 
     it("maps R6 subsystem sources to their real test directories", async () => {
+      // The mapped directories must exist — derivation must never invent
+      // a mirrored tree that is not on disk.
+      const { existsSync } = await import("node:fs");
+      for (const dir of ["tests/kernel", "tests/workflow", "tests/policy", "tests/agents"]) {
+        expect(existsSync(dir)).toBe(true);
+      }
       const wp = validWorkPackage({
         estimatedFiles: [
           "src/coordination/kernel/owner-liveness.ts",

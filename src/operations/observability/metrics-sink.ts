@@ -21,6 +21,33 @@ export interface MetricsStoreSink extends MetricsSink {
   flush(): Promise<void>;
 }
 
+/**
+ * Fire-and-forget a row through a store sink, tracking the write for flush.
+ * Shared by the typed telemetry wrappers so their `safeAppend` paths stay
+ * one shape (observe → flush → track, failures via the sink's `onError`).
+ */
+export function trackSinkAppend(
+  pendingWrites: Promise<void>[],
+  sink: MetricsStoreSink,
+  row: MetricRow,
+): void {
+  const task = (async () => {
+    sink.observe({
+      name: row.name,
+      value: row.value,
+      type: row.type,
+      at: row.timestamp,
+      ...(row.labels ? { labels: row.labels } : {}),
+    });
+    await sink.flush();
+  })();
+  pendingWrites.push(task);
+  void task.finally(() => {
+    const idx = pendingWrites.indexOf(task);
+    if (idx >= 0) pendingWrites.splice(idx, 1);
+  });
+}
+
 export interface MetricsStoreSinkOptions {
   /**
    * Observe a store failure without changing the port's fail-open contract.

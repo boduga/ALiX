@@ -66,6 +66,11 @@ export function resolveCataloguedExecutor(
   return catalog.resolve(executorName);
 }
 
+/** Fallback vocabulary when the catalogue has no row (never a second taxonomy). */
+function uncataloguedFallback(toolName: string): string {
+  return toolName.startsWith("mcp.") ? "mcp.invoke" : "tool.invoke";
+}
+
 /**
  * Map a tool name to its config-facing policy key.
  *
@@ -75,7 +80,7 @@ export function resolveCataloguedExecutor(
  */
 export function inferCapability(toolName: string): string {
   return resolveCataloguedExecutor(capabilityCatalog, toolName)?.policyKey
-    ?? (toolName.startsWith("mcp.") ? "mcp.invoke" : "tool.invoke");
+    ?? uncataloguedFallback(toolName);
 }
 
 /**
@@ -88,7 +93,7 @@ export function inferCapability(toolName: string): string {
  */
 export function canonicalCapabilityOf(toolName: string): string {
   return resolveCataloguedExecutor(capabilityCatalog, toolName)?.capabilityId
-    ?? (toolName.startsWith("mcp.") ? "mcp.invoke" : "tool.invoke");
+    ?? uncataloguedFallback(toolName);
 }
 
 /** True when no tool for the capability mutates state (registry-derived). */

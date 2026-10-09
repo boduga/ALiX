@@ -13,7 +13,7 @@
 
 import type { MetricRegistry } from "./metric-registry.js";
 import type { MetricsStore, MetricRow } from "./metrics-store.js";
-import { createMetricsStoreSink, type MetricsStoreSink } from "./metrics-sink.js";
+import { createMetricsStoreSink, trackSinkAppend, type MetricsStoreSink } from "./metrics-sink.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -123,22 +123,7 @@ export class SecurityTelemetry {
     this.metricsSink ??= createMetricsStoreSink(this.store, {
       onError: (error) => console.error(`[SecurityTelemetry] failed to emit ${row.name}:`, error),
     });
-    const sink = this.metricsSink;
-    const promise = (async () => {
-      sink.observe({
-        name: row.name,
-        value: row.value,
-        type: row.type,
-        at: row.timestamp,
-        ...(row.labels ? { labels: row.labels } : {}),
-      });
-      await sink.flush();
-    })();
-    this.pendingWrites.push(promise);
-    promise.finally(() => {
-      const idx = this.pendingWrites.indexOf(promise);
-      if (idx >= 0) this.pendingWrites.splice(idx, 1);
-    });
+    trackSinkAppend(this.pendingWrites, this.metricsSink, row);
   }
 
   /**
