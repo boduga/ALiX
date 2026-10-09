@@ -384,13 +384,13 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // platform; the bootstrap owns infrastructure construction (ToolExecutor
   // here); TuiApp binds the chat-timeline presenter (it owns the state).
   const { CapabilityService, setCapabilityService } = await import('../../tui/capabilities/capability-service.js');
-  const { ToolExecutor } = await import('../../tools/executor.js');
+  const { createToolExecutor } = await import('../../tools/tool-executor-factory.js');
   // config is deliberately Record<string, any> here (loadConfig may fall back
   // to a stub); ToolExecutor reads fields defensively, so a type-only cast at
   // this boundary is safe and matches other call sites' typed config.
   // R1.5: the session's approvalStore is wired so capability-invoked tools
   // mint resolvable approvals instead of headless denies.
-  const toolExecutor = new ToolExecutor(config as import('../../config/schema.js').AlixConfig, eventLog, process.cwd(), undefined, undefined, undefined, undefined, approvalStore);
+  const toolExecutor = createToolExecutor(config as import('../../config/schema.js').AlixConfig, eventLog, process.cwd(), undefined, undefined, undefined, undefined, approvalStore);
   capabilityService = new CapabilityService(undefined, {
     eventLog,
     sessionId: currentSessionId,

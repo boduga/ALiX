@@ -36,7 +36,7 @@ export function resolveEffectiveModel(
 }
 import { EventLog } from "../events/event-log.js";
 import { createProvider } from "../providers/registry.js";
-import { ToolExecutor } from "../tools/executor.js";
+import { createToolExecutor } from "../tools/tool-executor-factory.js";
 import type { ToolDef, ToolCall, NormalizedMessage } from "../providers/types.js";
 import { buildToolsForProvider } from "../run.js";
 import { McpManager } from "../mcp/manager.js";
@@ -596,7 +596,7 @@ export class SubagentCLI {
     const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy)
       .filter(t => !nestedRunBlocklist.has(t.name));
 
-    const executor = new ToolExecutor(
+    const executor = createToolExecutor(
       config,
       eventLog,
       projectRoot,

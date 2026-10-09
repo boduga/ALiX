@@ -4,7 +4,8 @@ import type { AlixConfig } from "../config/schema.js";
 import { loadConfig } from "../config/loader.js";
 import { createModelResolver } from "../config/model-resolver.js";
 import { EventLog } from "../events/event-log.js";
-import { ToolExecutor } from "../tools/executor.js";
+import type { ToolExecutor } from "../tools/executor.js";
+import { createToolExecutor } from "../tools/tool-executor-factory.js";
 import { CheckpointManager } from "../patch/checkpoint.js";
 import { ContextCompiler } from "../repomap/context-compiler.js";
 import { createScopeTracker, type ScopeTracker } from "../autonomy/scope-tracker.js";
@@ -60,7 +61,7 @@ export class RuntimeBuilder {
     } catch {
       approvalStore = undefined;
     }
-    this._toolExecutor = new ToolExecutor(config, this._eventLog, this._root, undefined, undefined, undefined, undefined, approvalStore);
+    this._toolExecutor = createToolExecutor(config, this._eventLog, this._root, undefined, undefined, undefined, undefined, approvalStore);
 
     // Build context compiler — max-token budget from the canonical models
     // source (§10), never the derived `model` projection.

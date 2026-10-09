@@ -9,7 +9,7 @@
 import type { TraceEvent } from "./trace-events.js";
 import { traceChainContext } from "./trace-events.js";
 import type { ReplayPreview, ReplayAction } from "./replay-preview.js";
-import { hashArgs } from "../tools/executor.js";
+import { hashArgs } from "../tools/hash-args.js";
 import { classifySideEffect } from "./replay-executor.js";
 
 export type ReplayExecutionContext = {

@@ -235,8 +235,8 @@ async function newToolCallId(): Promise<string> {
  */
 async function makeToolExecutor(config: any, deps: ToolExecutionDeps): Promise<any> {
   if (deps.toolExecutorFactory) return deps.toolExecutorFactory(config, deps);
-  const { ToolExecutor } = await import("../tools/executor.js");
-  return new ToolExecutor(
+  const { createToolExecutor } = await import("../tools/tool-executor-factory.js");
+  return createToolExecutor(
     config,
     deps.eventLog,
     deps.cwd,
@@ -378,7 +378,7 @@ export async function executeGroundedChatBehavior(
       const chosenCandidateId = frozen.find(candidate => candidate.label === canonical(tc.name))?.candidateId;
       const [{ emitSelectionObservation }, { hashArgs }] = await Promise.all([
         import("../observability/tool-selection-observation.js"),
-        import("../tools/executor.js"),
+        import("../tools/hash-args.js"),
       ]);
       await emitSelectionObservation(
         deps.eventLog,
