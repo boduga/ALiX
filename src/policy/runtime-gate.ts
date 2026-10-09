@@ -87,7 +87,7 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
         graphId: node.graphId,
         source: "graph",
       });
-      const ruleId = (decision as { policyRuleId?: string }).policyRuleId;
+      const ruleId = decision.policyRuleId;
       if (decision.status === "denied") {
         overall = { decision: "deny", ruleId, reason: decision.reason };
         break;

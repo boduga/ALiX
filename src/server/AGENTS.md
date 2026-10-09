@@ -18,9 +18,11 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
   (authenticated routes); loopback development passes through per the global
   auth posture like every other authenticated route. Runs execute detached —
   the client polls the existing GET routes. Inspector-hosted runs persist
-  `hostKind`/`sessionMode`; on startup the server reclaims workers whose host
-  process died (dead `executionOwnerId` PID) and resumes them under their
-  original approval mode. `cancelAllBackgroundRuns()` runs on server close,
+  `hostKind`/`sessionMode`; on startup the server reclaims through the single
+  `shouldReclaimWorker` verdict (provably dead owner, or ownerless on a stale
+  heartbeat) and resumes under the run's original approval mode; a still-live
+  worker (including ownerless on a fresh heartbeat) blocks resume.
+  `cancelAllBackgroundRuns()` runs on server close,
   aborting in-flight runs and their worker children. A run whose workers are
   all terminal is never resumed. Ask-mode worker capabilities
   create approvals through the server-side ApprovalStore, visible in the

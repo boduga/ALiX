@@ -29,7 +29,7 @@ import { buildCoordinationRunView } from "../kernel/coordination-view.js";
 import { CollaborationStore } from "../kernel/collaboration-store.js";
 import { ConflictRepository } from "../kernel/collaboration-conflict-repository.js";
 import { parseSessionMode } from "../config/schema.js";
-import { isOwnerAlive } from "../kernel/owner-liveness.js";
+import { shouldReclaimWorker, DEFAULT_ORPHAN_THRESHOLD_MS } from "../kernel/owner-liveness.js";
 import type { CoordinationScheduler } from "../kernel/coordination-scheduler.js";
 import type { SecurityContext } from "../security/inspector/security-context.js";
 import type { SecureJsonResponder } from "./secure-response.js";
@@ -545,9 +545,19 @@ export async function resumeInspectorRuns(cwd: string): Promise<number> {
       // to retry.
       const hasActionableWorker = run.workers.some(w => w.status === "pending" || w.status === "running");
       if (!hasActionableWorker) continue;
+      // Same verdict reconciliation/resume use (R3.3) — a running worker is
+      // "live" only when the shared reclaim verdict says it is NOT
+      // reclaimable (ownerless + fresh heartbeat counts as live). Never
+      // reintroduce a second liveness rule here.
       const hasLiveWorker = run.workers.some(w =>
         w.status === "running" &&
-        (w.executionOwnerId ? isOwnerAlive(w.executionOwnerId) : false),
+        !shouldReclaimWorker({
+          status: w.status,
+          lastHeartbeatAt: w.lastHeartbeatAt,
+          executionOwnerId: w.executionOwnerId,
+          locallyActive: false,
+          orphanThresholdMs: DEFAULT_ORPHAN_THRESHOLD_MS,
+        }),
       );
       if (hasLiveWorker) continue;
       // Resume under the run's original approval mode, not the current

@@ -151,7 +151,7 @@ after each.
 
 | Step | Scope | Status |
 |---|---|---|
-| R3.0 | Persist this file; refresh GitNexus index (was 25 commits stale) | ⬜ |
+| R3.0 | Persist this file; refresh GitNexus index (was 25 commits stale) | ✅ |
 | R3.1 | Remove `src/orchestrator/` dead name: move `refine-strategies.ts`, `strategy-learner.ts`, `refine-strategies/*.md` into `src/run/task-loop/`; fix `STRATEGIES_DIR` cwd bug → module-relative (+ verify dist `.md` packaging); move `tests/orchestrator/` | ⬜ |
 | R3.2 | Ownership: kill ephemeral map in `SubagentManager` (subagent-manager.ts:89) AND `src/agents/ownership-registry.ts` (agent.ts delegate path, allowlist R3 entry); collapse 3 matchers (planner infer `claimsOverlap` coordination-planner.ts:388 / lease overlap / `isWithinOwnedScope`) into `src/ownership/path-scope.ts` primitives; allowlist outcome: −1 dead entry (agents registry), +1 sanctioned entry (`subagent-manager.ts` durable construction), 7 durable construction entries relabeled `removalPhase: R6` (retained — the durable registry IS the authority; construction sites revisit at physical moves); extend parity TABLE `tests/ownership/path-scope.test.ts`. Governance `pathMatches` (autonomous-policy.ts:98) is OUT of scope — policy globs ≠ ownership. Run `tests/policy/policy-gate.test.ts` + `tests/tools/tool-router.test.ts` + parity table per DOX | ⬜ |
 | R3.3 | Liveness: merge 2 defs — PID probe (`src/kernel/owner-liveness.ts`) + heartbeat staleness (`coordination-reconciliation.ts:56-79`) → single worker-liveness decision; rewire coordination-resume, coordination-routes.ts:547. Lock-file `isPidAlive` copies stay (lock concern, not flagged by R0) | ✅ |
