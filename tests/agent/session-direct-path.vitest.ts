@@ -30,6 +30,7 @@ import { tmpdir } from "node:os";
 import { createAgentSession } from "../../src/agent/session.js";
 import type { ModelAdapter } from "../../src/providers/types.js";
 import type { RouteDiagnostic } from "../../src/runtime/task-router.js";
+import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
 
 let directTestCwd: string;
 let directTestCwdCleanup: (() => void) | null = null;
@@ -40,6 +41,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  closeAllSharedLedgers();
   directTestCwdCleanup?.();
 });
 

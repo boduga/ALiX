@@ -14,6 +14,7 @@ import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventLog } from '../../src/events/event-log.js';
+import { closeAllSharedLedgers } from '../../src/storage/runtime-ledger.js';
 import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
 import { extractToolSelectionScopes } from '../../src/decision/tool-selection-replay.js';
 import { createContextBudget } from '../../src/config/context-budget.js';
@@ -142,7 +143,7 @@ async function makeDeps(overrides: {
     systemPrompt: 'You are a test assistant.',
   };
 
-  return { deps, log, cleanup: () => rmSync(tmpRoot, { recursive: true, force: true }) };
+  return { deps, log, cleanup: () => { closeAllSharedLedgers(); rmSync(tmpRoot, { recursive: true, force: true }); } };
 }
 
 // Every suite in this file asserts that scopes reach the log, and selection

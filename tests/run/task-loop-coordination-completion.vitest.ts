@@ -20,6 +20,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventLog } from '../../src/events/event-log.js';
+import { closeAllSharedLedgers } from '../../src/storage/runtime-ledger.js';
 import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
 import {
   COORDINATION_EVIDENCE_GAP,
@@ -176,7 +177,7 @@ async function seedVerifiedCoordinationRunSession(): Promise<{
     cwd,
     coordinationRunId: run.id,
     result: { kind: 'success', output: `Coordination run: ${run.id}`, coordinationRunId: run.id },
-    cleanup: () => rmSync(cwd, { recursive: true, force: true }),
+    cleanup: () => { closeAllSharedLedgers(); rmSync(cwd, { recursive: true, force: true }); },
   };
 }
 
@@ -481,7 +482,7 @@ describe('runTaskLoop coordination-failure completion gate', () => {
       expect(result.reason).toBe('completed_unverified');
       expect(result.summary).toContain('Task remains incomplete');
       expect(provider.requests).toHaveLength(4);
-    } finally { process.chdir(previous); rmSync(cwd, { recursive: true, force: true }); }
+    } finally { process.chdir(previous); closeAllSharedLedgers(); rmSync(cwd, { recursive: true, force: true }); }
   });
 
   it('continues after a real progress checkpoint instead of completing its Next promise', async () => {
@@ -832,6 +833,7 @@ describe('runTaskLoop coordination-failure completion gate', () => {
       ).toBe(true);
     } finally {
       process.chdir(prevCwd);
+      closeAllSharedLedgers();
       rmSync(tmpCwd, { recursive: true, force: true });
     }
   });

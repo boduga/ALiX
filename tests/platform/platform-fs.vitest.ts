@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { tmpdir, platform, EOL } from "node:os";
 import { EventLog } from "../../src/events/event-log.js";
 import { ApprovalStore } from "../../src/approvals/approval-store.js";
+import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
 
 describe("platform filesystem semantics", () => {
   it(`runs on this platform (${platform()}) with native line endings`, () => {
@@ -31,6 +32,7 @@ describe("platform filesystem semantics", () => {
       await fd.close();
       await expect(writeFile(p, "{}", { flag: "wx" } as never)).rejects.toThrow();
     } finally {
+      closeAllSharedLedgers();
       rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -49,6 +51,7 @@ describe("platform filesystem semantics", () => {
       expect(new Set(seqs).size).toBe(seqs.length);
       expect(await log.readAll()).toHaveLength(10);
     } finally {
+      closeAllSharedLedgers();
       rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -64,6 +67,7 @@ describe("platform filesystem semantics", () => {
       await fresh.load();
       expect(fresh.get(record.id)?.reason).toBe("platform test");
     } finally {
+      closeAllSharedLedgers();
       rmSync(dir, { recursive: true, force: true });
     }
   });

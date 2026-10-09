@@ -25,6 +25,7 @@ import { tmpdir } from "node:os";
 import { runTask } from "../../src/run.js";
 import { ExecutionCancelledError } from "../../src/runtime/cancellation-token.js";
 import { NOOP_TRACE_CLIENT } from "../../src/tracing/noop-client.js";
+import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
 import type { TraceClient } from "../../src/tracing/client.js";
 import type {
   ModelSpanInput,
@@ -47,6 +48,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  closeAllSharedLedgers();
   testCwdCleanup?.();
 });
 

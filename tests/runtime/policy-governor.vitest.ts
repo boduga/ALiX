@@ -10,6 +10,7 @@ import {
   createPolicyBackedEmitter,
   EXECUTION_STATE_CAPABILITY,
 } from "../../src/runtime/state/policy-governor.js";
+import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
 
 function makeConfig(overrides?: Record<string, unknown>): AlixConfig {
   const base = {
@@ -136,6 +137,7 @@ describe("policy-governor — real PolicyGate behind TransitionGovernor", () => 
       expect(emitter.getState()?.objective).toBe("updated objective");
       expect(emitter.lastError).toBeNull();
     } finally {
+      closeAllSharedLedgers();
       await rm(sessionDir, { recursive: true, force: true });
       await rm(storeDir, { recursive: true, force: true });
     }

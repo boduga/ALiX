@@ -9,6 +9,18 @@ import { CoordinationScheduler } from '../../src/kernel/coordination-scheduler.j
 import { OwnershipRegistry } from '../../src/ownership/ownership-registry.js';
 import { taskForWorker } from '../../src/kernel/subagent-worker-executor.js';
 import { loadWorkerDependencyResults, renderWorkerExecutionPrompt } from '../../src/kernel/coordination-worker-context.js';
+import { closeAllSharedLedgers } from '../../src/storage/runtime-ledger.js';
+
+// Fire-and-forget scheduler finalization can reopen the shared ledger after
+// a single close; retry close+rm until the late writer settles (Windows EBUSY,
+// POSIX unlinks silently).
+async function removeWorkspace(cwd:string):Promise<void>{
+ for(let attempt=0;;attempt++){
+  closeAllSharedLedgers();
+  try{await rm(cwd,{recursive:true,force:true});return;}
+  catch(err){if(attempt>=9)throw err;await new Promise(r=>setTimeout(r,25*(attempt+1)));}
+ }
+}
 
 function fixture() {
  const run = createCoordinationRun({ sessionId:'session',rootGoal:'Report current president of Nigeria with verified source URLs.',coordinatorAgentId:'parent' });
@@ -32,7 +44,7 @@ describe('coordination worker context',()=>{
    expect((await store.load(run.id))?.workers.map(w=>({id:w.id,status:w.status,error:w.error}))).toEqual([{id:producer.id,status:'completed',error:undefined},{id:worker.id,status:'completed',error:undefined}]);
    expect(downstream).toContain('Nigeria');expect(downstream).toContain('Bola Tinubu');expect(downstream).toContain('https://example.org/president');expect(downstream).toContain('"attempt":1');
    expect(downstream).toContain('Additional producer finding');expect(contextBuilds).toBe(1);
-  }finally{scheduler?.shutdown();await rm(cwd,{recursive:true,force:true});}
+  }finally{scheduler?.shutdown();await removeWorkspace(cwd);}
  });
  it('passes original objective and validated findings into actual child task',async()=>{
   const cwd=await mkdtemp(join(tmpdir(),'alix-worker-context-'));
@@ -44,7 +56,7 @@ describe('coordination worker context',()=>{
    const task=taskForWorker(worker,run.sessionId,cwd,context);
    expect(task.prompt).toContain('Nigeria');expect(task.prompt).toContain('Bola Tinubu');expect(task.prompt).toContain('https://example.org/president');expect(task.prompt).toContain('untrusted');expect(task.prompt).toContain('docs/report.md');
    expect(renderWorkerExecutionPrompt(worker,context)).toContain('Original coordination objective');
-  }finally{await rm(cwd,{recursive:true,force:true});}
+  }finally{await removeWorkspace(cwd);}
  });
  it.each(['runId','workerId','agentId','attempt'] as const)('rejects mismatched result %s',async(field)=>{
   const {run,producer,worker}=fixture();producer.resultRef='.alix/coordination/results/research.json';

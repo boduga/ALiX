@@ -25,6 +25,7 @@ import {
   reconstructSession,
   sessionInfo,
 } from "../src/session/resume.js";
+import { closeAllSharedLedgers } from "../src/storage/runtime-ledger.js";
 
 const SESSIONS_DIR = ".alix/sessions";
 const PLANS_DIR = ".alix/plans";
@@ -40,6 +41,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  closeAllSharedLedgers();
   if (cleanup) await cleanup();
   cleanup = null;
 });

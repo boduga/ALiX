@@ -14,10 +14,11 @@ import { tmpdir } from "node:os";
 import { emitRunEvidence } from "../../src/agent/agent-loop.js";
 import { PersistenceEvidenceEmitter } from "../../src/runtime/execution-persistence.js";
 import { ExecutionEvidenceStore } from "../../src/runtime/execution-evidence-store.js";
+import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
 
 function withStore(fn: (store: ExecutionEvidenceStore) => Promise<void>): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), "run-evidence-"));
-  return fn(new ExecutionEvidenceStore(dir)).finally(() => rmSync(dir, { recursive: true, force: true }));
+  return fn(new ExecutionEvidenceStore(dir)).finally(() => { closeAllSharedLedgers(); rmSync(dir, { recursive: true, force: true }); });
 }
 
 describe("emitRunEvidence — governed runTask evidence", () => {

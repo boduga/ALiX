@@ -6,6 +6,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventLog } from "../src/events/event-log.js";
+import { closeAllSharedLedgers } from "../src/storage/runtime-ledger.js";
 import {
   ExecutionStateEmitter,
   isExecutionStateEmitEnabled,
@@ -21,6 +22,7 @@ describe("ExecutionStateEmitter — governed live execution.* emission", () => {
   });
 
   afterEach(async () => {
+    closeAllSharedLedgers();
     await rm(sessionDir, { recursive: true, force: true });
     await rm(storeDir, { recursive: true, force: true });
   });
