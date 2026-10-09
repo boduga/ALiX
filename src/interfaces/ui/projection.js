@@ -17,6 +17,15 @@ const SUBAGENT_START_TYPES = new Set(["subagent.started", "agent.spawned"]);
 const SUBAGENT_SUCCESS_TYPES = new Set(["subagent.completed", "agent.completed"]);
 const SUBAGENT_FAILURE_TYPES = new Set(["subagent.failed", "agent.failed", "agent.cancelled"]);
 
+// Exported for the TS↔JS vocabulary parity test (renames break loudly);
+// the browser global below stays the runtime surface.
+export {
+  AGENT_LIFECYCLE_TYPES,
+  SUBAGENT_START_TYPES,
+  SUBAGENT_SUCCESS_TYPES,
+  SUBAGENT_FAILURE_TYPES,
+};
+
 export function projectSubagentEvents(events) {
   const isCanonicalSubagent = (e) =>
     AGENT_LIFECYCLE_TYPES.has(e.type) &&

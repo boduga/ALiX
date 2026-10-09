@@ -8,7 +8,7 @@ Browser-based session inspector for live event streaming, replay, graph executio
 
 - `index.html` — HTML shell and Inspector tab panels
 - `app.js` — Main driver: SSE connection, replay controls, rendering all panels
-- `projection.js` — Client-side event projection (buildUiProjection, createReplayState, visibleEventsForReplay, projectSubagentEvents); reads the canonical event vocabulary (R4/V10).
+- `projection.js` — Client-side event projection (buildUiProjection, createReplayState, visibleEventsForReplay, projectSubagentEvents); reads the canonical event vocabulary (R4/V10). Also exports the lifecycle sets for the TS↔JS parity test (`tests/ui/projection-lifecycle-parity.vitest.ts`) — renames break loudly there.
 - `styles.css` — Dark-themed styling
 
 ## Local Contracts

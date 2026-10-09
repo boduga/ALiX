@@ -103,7 +103,7 @@ export const EVENT_IMMUTABILITY: EventImmutabilityAssertion = {
  * | Coordination          | `COORDINATION_EVENT_TYPES` | 9     |
  * | Collaboration         | `COLLABORATION_EVENT_TYPES`| 10    |
  * | Conflict              | `CONFLICT_EVENT_TYPES`     | 9     |
- * | Subagent              | `SUBAGENT_EVENT_TYPES`     | 2     |
+  * | Subagent              | `SUBAGENT_EVENT_TYPES`     | 4     |
   * | Context               | `CONTEXT_EVENT_TYPES`      | 17    |
  * | Policy                | `POLICY_EVENT_TYPES`       | 3     |
  * | Artifact              | `ARTIFACT_EVENT_TYPES`     | 1     |

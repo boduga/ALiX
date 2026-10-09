@@ -12,6 +12,7 @@ import { resolvePolicyPath } from "../governance/policy/policy-gate.js";
 import { ALIX_BUILTIN_EXECUTORS } from "./tool-manifest.js";
 import { createModelResolver } from "../operations/config/model-resolver.js";
 import { getSubagentRole } from "../operations/config/subagent-config.js";
+import { SUBAGENT_EVENT_TYPES } from "../runtime-state/events/types.js";
 
 /**
  * §10.3: resolve the effective model for a subagent invocation with
@@ -833,7 +834,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
       // Log completion
       await eventLog.append({
         actor: "subagent",
-        type: "subagent.completed",
+        type: SUBAGENT_EVENT_TYPES.COMPLETED,
         sessionId,
         payload: { subagentId: taskId, role, iterations, textLength: text.length },
       });
@@ -847,7 +848,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
 
       await eventLog.append({
         actor: "subagent",
-        type: "subagent.failed",
+        type: SUBAGENT_EVENT_TYPES.FAILED,
         sessionId,
         payload: { subagentId: taskId, role, error: errorMsg },
       });
