@@ -30,7 +30,7 @@ Bounded, state-aware prompt assembly — P + Σ + O + E + Tools with tiered budg
 
 ## Verification
 
-- `pnpm build && pnpm typecheck` — types compile, `dist/src/runtime-state/runtime/context/context-builder.js` + `dist/src/runtime-state/runtime/context/retrieval.js` emitted.
+- `pnpm build && pnpm typecheck` — `src/runtime-state/runtime/context/context-builder.ts` + `src/runtime-state/runtime/context/retrieval.ts` compile and emit to `dist/`.
 - Manual smoke: `renderExecutionState` contains `<execution_state>` not raw JSON; `renderObservation` truncates >8k chars with evidence-ref and `truncated=true`; `renderEvidence` admits ≤10, drops remainder, sorts by score, caps ~16k chars; `renderTools` suppresses `deny_tool` constrained tools; `buildExecutionContext` prompt bounded (500 pending → capped 20, diff <2k chars), history absent by default, `toCandidateItems` maps state → `current_execution_state` protected and `assembleContext` keeps state under budget pressure.
 - Retrieval smoke: `ContextRetrieval` file indexes — `getEvidenceByIdSync('ev-...')` + `getHistorySliceSync(seq)` + `getEventsByExecutionIdSync(id)` + `getCheckpointSync(id)` all read real `.alix/sessions/events.jsonl` and `ExecutionStateStore` (not scenario stub); `RealEventLogEnvironment` delegates to `retrieval` (`hasRealEventLogFile` + cache prime); benchmark coverage uses real indexes (`tests/benchmark-real-eventlog.vitest.ts`).
 
