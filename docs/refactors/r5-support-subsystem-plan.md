@@ -1,6 +1,6 @@
 # R5 — Support Subsystem Convergence Plan
 
-**Status:** in progress — R5.0 ✅, R5.1 ✅, R5.2 ✅, R5.3a ✅, R5.3b ✅.
+**Status:** in progress — R5.0 ✅, R5.1 ✅, R5.2 ✅, R5.3a ✅, R5.3b ✅, R5.4 ✅.
 **Phase register:** `docs/refactors/r0-findings-r3-plan.md` (R5 row + "R5 security note (do not lose)").
 **Provenance:** four read-only recon passes against HEAD `r4-complete` (`e9008d88`). Line numbers verified in that session.
 
@@ -89,7 +89,7 @@ Python/psutil runtime path exists (`psutil` is doc-only). The daemon path hardco
 | R5.2 | **`models.*` cutover:** route all reads through the `ModelResolver` port / one resolver; kill flat reads (`hardware-detect.ts`, `providers/registry.ts`, `subagents.enabled` branches) and the post-load `agent.ts` mutation; remove the 3 `model-resolver-impls` allowlist entries. | ✅ |
 | R5.3a | **ONE tool/capability catalogue (taxonomy):** wire the `ToolCapabilityRegistry` port over the canonical catalogue; scope the freeze rule (exempt each definition's home module); rename the collaborative-planner's colliding `CapabilityRegistry` interface; remove the 6 `tool-taxonomy-defs` entries. | ✅ |
 | R5.3b | **Tool dispatch:** move `hashArgs` out of `executor.ts` and route `ToolExecutor` construction through a sanctioned seam; remove the 8 `direct-tool-dispatch` entries. Agent-execution path — separate sub-step. | ✅ |
-| R5.4 | **One metric vocabulary:** implement the `MetricsSink` port; reconcile `MinimalMetrics`/`MetricRegistry`/tracing/TUI; only then remove the 4 `metrics-vocabs` entries. | ⬜ |
+| R5.4 | **One metric vocabulary:** implement the `MetricsSink` port; reconcile `MinimalMetrics`/`MetricRegistry`/tracing/TUI; only then remove the 4 `metrics-vocabs` entries. | ✅ |
 | R5.5 | Resolve/reclassify the 4 `status-store-writes` `R5` entries (`src/cli/commands/adaptation/main.ts`, `executive-evaluate-handler.ts`, `executive-orchestrate-handler.ts`, `executive.ts` → `src/executive/execution-state-store.ts`) — decide whether they belong to R5 or move to R6. | ⬜ |
 | R5.6 | DOX (`src/config`, `src/providers`, `src/tools`, `src/capability`, `src/security`, `src/observability` + ports) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r5-*`. | ⬜ |
 
@@ -141,6 +141,14 @@ Same freeze-rule shape as R5.2: `tool-taxonomy-defs` watched five symbol names a
 3. Remaining `executor.ts` references are all type-only; `event-handlers.ts` now `import type`.
 4. Freeze: added `IMPORT_RULE_EXEMPT` to the import-rule scan; `direct-tool-dispatch` allows only `tool-executor-factory.ts`. Removed all 10 `direct-tool-dispatch` entries (the 8 R5 plus 2 R1.5 that were also made stale).
 5. DOX: `src/tools/AGENTS.md` records the single construction seam.
+
+## R5.4 (one metric vocabulary) — ✅ done
+1. `src/kernel/minimal-metrics.ts`: `MINIMAL_METRIC_NAMES` is now a runtime `as const` list that derives the `MetricName` union — one source instead of a hand-written union.
+2. `src/observability/metrics-sink.ts`: `createMetricsStoreSink(store)` implements the `MetricsSink` R1 port over the append-only `MetricsStore` (fire-and-forget drain, awaitable `flush`).
+3. Parity pin: `tests/observability/metric-parity.vitest.ts` asserts every `MINIMAL_METRIC_NAMES` entry is registered in `PRODUCTION_METRIC_DEFINITIONS`, so the kernel and observability vocabularies cannot drift. `tests/observability/metrics-sink.vitest.ts` covers the adapter.
+4. Freeze `metrics-vocabs`: added `exempt` for the four definition homes (kernel/observability/tracing/TUI are distinct concerns adapting to the port). Removed the 4 `metrics-vocabs` entries.
+5. DOX: `src/observability/AGENTS.md` records the port adapter + parity.
+6. Deferred (documented): routing the live emitters (kernel/tracing/TUI) through `MetricsSink` is a behavioral follow-up; the port is the declared boundary and the name parity is pinned.
 
 ## Resume here (fresh session)
 

@@ -91,34 +91,6 @@
     "rule": "eventlog-append-producers"
   },
   {
-    "imported": "definition:metrics-vocabulary",
-    "importer": "src/kernel/minimal-metrics.ts",
-    "reason": "R0 metrics fragmentation \u2014 parallel vocabulary, unify via MetricsSink",
-    "removalPhase": "R5",
-    "rule": "metrics-vocabs"
-  },
-  {
-    "imported": "definition:metrics-vocabulary",
-    "importer": "src/observability/metric-registry.ts",
-    "reason": "R0 metrics fragmentation \u2014 parallel vocabulary, unify via MetricsSink",
-    "removalPhase": "R5",
-    "rule": "metrics-vocabs"
-  },
-  {
-    "imported": "definition:metrics-vocabulary",
-    "importer": "src/tracing/client-factory.ts",
-    "reason": "R0 metrics fragmentation \u2014 parallel vocabulary, unify via MetricsSink",
-    "removalPhase": "R5",
-    "rule": "metrics-vocabs"
-  },
-  {
-    "imported": "definition:metrics-vocabulary",
-    "importer": "src/tui/daemon-metrics-collector.ts",
-    "reason": "R0 metrics fragmentation \u2014 parallel vocabulary, unify via MetricsSink",
-    "removalPhase": "R5",
-    "rule": "metrics-vocabs"
-  },
-  {
     "imported": "src/ownership/ownership-registry.ts",
     "importer": "src/cli/commands/coordination.ts",
     "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
