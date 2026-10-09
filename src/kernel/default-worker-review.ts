@@ -6,10 +6,10 @@ import type { RunResult } from "../run.js";
 import { deriveCoordinationChangedFiles } from "./coordination-evidence.js";
 import { renderWorkerExecutionPrompt } from "./coordination-worker-context.js";
 import { reviewCoordinationResult, type ObjectiveArtifact } from "../agents/coordination-objective-review.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 import { createProvider } from "../providers/registry.js";
 import { getApiKey } from "../cli/helpers/api-keys.js";
-import { ToolExecutor } from "../tools/executor.js";
+import { createToolExecutor } from "../tools/tool-executor-factory.js";
 import { loadApprovalStore } from "../approvals/approval-store.js";
 import { toolResultText } from "../tools/result-text.js";
 import { randomUUID } from "node:crypto";
@@ -46,7 +46,7 @@ export async function reviewDefaultWorkerResult(
   const mutatedPaths = deriveCoordinationChangedFiles({ events: mutationEvents }, { cwd: context.cwd });
   let provider;
   try {
-    const model = resolveModelConfig(context.config, "critic");
+    const model = createModelResolver(context.config).require("critic");
     provider = await createProvider(model, await getApiKey(model.provider));
   } catch (error) {
     return {
@@ -57,7 +57,7 @@ export async function reviewDefaultWorkerResult(
   // R1.5: wire the project approval store (fail-open) so this executor is
   // governed like the other three construction sites.
   const approvalStore = await loadApprovalStore(context.cwd);
-  const executor = new ToolExecutor(context.config, log, context.cwd, undefined, undefined, undefined, undefined, approvalStore);
+  const executor = createToolExecutor({ config: context.config, log, root: context.cwd, approvalStore });
   const artifacts = async (): Promise<ObjectiveArtifact[]> => Promise.all(mutatedPaths.map(async path => {
     if (signal.aborted) return { path, error: "Execution cancelled" };
     const read = await executor.execute({ toolCallId: randomUUID(), name: "file.read", args: { path }, signal });

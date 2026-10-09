@@ -3,7 +3,7 @@ import type { RunResult } from '../../run.js';
 import type { EnhancedVerifier } from '../../verifier/enhanced-verifier.js';
 import type { ContextRotThreshold } from '../../config/calibration-store.js';
 import type { createContextPressureTracker } from '../context-pressure.js';
-import type { resolveModelConfig } from '../../config/model-resolver.js';
+import type { ModelConfig } from '../../config/schema.js';
 import type { runHook } from '../../hooks/runner.js';
 import { shouldRunVerification, discoverVerification, requiresRepositoryVerification, runVerification, type VerificationCheck, type VerificationResult } from '../../verifier/verifier.js';
 import { buildRefinePrompt, selectStrategy } from './refine-strategies.js';
@@ -27,7 +27,7 @@ export type CompletionContext = Pick<TaskLoopDeps, 'config' | 'hooks' | 'log' | 
   evidenceTaskType: string;
   successfulToolEvidence: SuccessfulToolEvidence[];
   hasMutations: boolean;
-  model: ReturnType<typeof resolveModelConfig>;
+  model: ModelConfig;
   contextRotThreshold: ContextRotThreshold | undefined;
   contextPressure: ReturnType<typeof createContextPressureTracker>;
   lastInvocationId: string;

@@ -7,7 +7,7 @@
  */
 
 import { loadConfig } from "../../config/loader.js";
-import { resolveModelConfig } from "../../config/model-resolver.js";
+import { createModelResolver } from "../../config/model-resolver.js";
 
 export async function handleProviderDoctor(args: string[]): Promise<void> {
   const config = await loadConfig(process.cwd());
@@ -20,7 +20,7 @@ export async function handleProviderDoctor(args: string[]): Promise<void> {
   // Gather configured providers — the effective default comes from the
   // canonical `models` source (§10), never the loader projection.
   const providers: { id: string; model: string }[] = [];
-  const main = resolveModelConfig(config);
+  const main = createModelResolver(config).require();
   providers.push({ id: main.provider, model: main.name });
 
   if ((config as any).models) {

@@ -125,7 +125,7 @@ describe("Approval observability", () => {
     const approval = await store.request({ reason: "test", capability: "shell.run" });
     await store.resolve(approval.id, "approved", "ok");
 
-    const { hashArgs } = await import("../../src/tools/executor.js");
+    const { hashArgs } = await import("../../src/tools/hash-args.js");
     const args = { command: "echo done" };
     await contStore.persist({
       approvalId: approval.id,

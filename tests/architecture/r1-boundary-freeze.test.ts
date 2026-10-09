@@ -77,6 +77,12 @@ const IMPORT_RULE_TARGETS: Record<string, string[]> = {
   ],
 };
 
+/** Import rules: importer files sanctioned to import a protected target. */
+const IMPORT_RULE_EXEMPT: Record<string, string[]> = {
+  // R5.3b — the ONE sanctioned ToolExecutor construction seam.
+  "direct-tool-dispatch": ["src/tools/tool-executor-factory.ts"],
+};
+
 const UI_DIRS = ["src/tui/", "src/ui/", "src/inspector/"];
 const UI_RULE_TARGETS = [
   "src/kernel/coordination-store.ts",
@@ -93,24 +99,22 @@ const UI_RULE_TARGETS = [
   "src/ownership/ownership-registry.ts",
 ];
 
-const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: string }> = {
+const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: string; exempt?: string[] }> = {
   "model-resolver-impls": {
-    files: [
-      "src/config/model-resolver.ts",
-      "src/providers/model-resolver.ts",
-      "src/decision/decisions/model-tier/resolution.ts",
-    ],
-    symbols: [
-      "resolveModelConfig",
-      "tryResolveModelConfig",
-      "selectModelFromDiscovery",
-      "resolveModelSelectionId",
-      "resolveConcreteFreeModel",
-      "resolveTierModel",
-    ],
+    // R5.2 — one canonical resolver module, exposed through the ModelResolver
+    // port. Watch the canonical factory everywhere *except* its home module, so
+    // a second resolver definition anywhere else fails the freeze.
+    files: ["src/config/model-resolver.ts"],
+    symbols: ["createModelResolver"],
+    exempt: ["src/config/model-resolver.ts"],
     marker: "definition:model-resolution",
   },
   "tool-taxonomy-defs": {
+    // R5.3 — one canonical tool catalogue (`src/tools/tool-registry.ts`,
+    // exposed through the ToolCapabilityRegistry port) plus the named
+    // subsystems that adapt to it. The watched definitions are allowed only in
+    // the home modules listed under `exempt` (rule-level, as `exempt` is a
+    // file list); a definition outside them fails the freeze.
     files: [
       "src/tools/tool-registry.ts",
       "src/capability/registry.ts",
@@ -120,14 +124,26 @@ const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: st
     ],
     symbols: [
       "buildDefaultToolIndex",
+      "createToolCapabilityRegistry",
       "ALIX_BUILTIN_EXECUTORS",
       "CapabilityRegistry",
       "CardRegistry",
       "McpToolRegistry",
     ],
+    exempt: [
+      "src/tools/tool-registry.ts",
+      "src/capability/registry.ts",
+      "src/registry/card-registry.ts",
+      "src/mcp/registry.ts",
+      "src/agents/tool-manifest.ts",
+    ],
     marker: "definition:tool-taxonomy",
   },
   "metrics-vocabs": {
+    // R5.4 — one metric-observation vocabulary through the `MetricsSink` port.
+    // The four named vocabularies are distinct concerns (kernel counters,
+    // registry definitions, tracing spans, daemon snapshots); each definition
+    // is allowed only in its home module.
     files: [
       "src/kernel/minimal-metrics.ts",
       "src/observability/metric-registry.ts",
@@ -140,6 +156,12 @@ const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: st
       "getProcessTraceClient",
       "createTraceClient",
       "DaemonMetricsCollectorImpl",
+    ],
+    exempt: [
+      "src/kernel/minimal-metrics.ts",
+      "src/observability/metric-registry.ts",
+      "src/tracing/client-factory.ts",
+      "src/tui/daemon-metrics-collector.ts",
     ],
     marker: "definition:metrics-vocabulary",
   },
@@ -222,6 +244,7 @@ function scanImports(): Violation[] {
         if (!resolved) continue;
         for (const [rule, targets] of Object.entries(IMPORT_RULE_TARGETS)) {
           if (targets.some((t) => resolved === t || resolved.endsWith("/" + t))) {
+            if (IMPORT_RULE_EXEMPT[rule]?.includes(importer)) continue;
             found.set(`${rule}|${importer}|${resolved}`, { rule, importer, imported: resolved });
           }
         }
@@ -255,6 +278,7 @@ function scanDefinitions(): Violation[] {
     while ((m = defRe.exec(content)) !== null) defined.add(m[1]);
     if (defined.size === 0) continue;
     for (const [rule, cfg] of Object.entries(DEF_RULES)) {
+      if (cfg.exempt?.includes(importer)) continue;
       if (cfg.symbols.some((s) => defined.has(s))) {
         found.set(`${rule}|${importer}|${cfg.marker}`, {
           rule,

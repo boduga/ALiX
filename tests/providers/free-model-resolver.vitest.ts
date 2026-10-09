@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveConcreteFreeModel, deriveRequestRequirements, supportsRequest } from "../../src/providers/model-resolver.js";
+import { resolveConcreteFreeSelection, deriveRequestRequirements, supportsRequest } from "../../src/providers/model-resolver.js";
 import type { DiscoveredModel } from "../../src/providers/model-discovery.js";
 import type { NormalizedRequest, ModelCapabilities } from "../../src/providers/types.js";
 
@@ -15,14 +15,14 @@ const model = (overrides: Partial<DiscoveredModel>): DiscoveredModel => ({
 
 const req: NormalizedRequest = { systemPrompt: "s", messages: [{ role: "user", content: "hi" }] };
 
-describe("resolveConcreteFreeModel", () => {
+describe("resolveConcreteFreeSelection", () => {
   it("picks the largest verified context among eligible models", () => {
     const catalog = [
       model({ id: "small", inputContextLimit: 8_000 }),
       model({ id: "big", inputContextLimit: 64_000 }),
       model({ id: "mid", inputContextLimit: 32_000 }),
     ];
-    expect(resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false })?.id).toBe("big");
+    expect(resolveConcreteFreeSelection(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false })?.id).toBe("big");
   });
 
   it("breaks ties deterministically by lexical model ID", () => {
@@ -31,7 +31,7 @@ describe("resolveConcreteFreeModel", () => {
       model({ id: "a/free" }),
       model({ id: "m/free" }),
     ];
-    expect(resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false })?.id).toBe("a/free");
+    expect(resolveConcreteFreeSelection(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false })?.id).toBe("a/free");
   });
 
   it("filters on tools requirement", () => {
@@ -39,7 +39,7 @@ describe("resolveConcreteFreeModel", () => {
       model({ id: "plain" }),
       model({ id: "tooled", supportsTools: true }),
     ];
-    expect(resolveConcreteFreeModel(catalog, { needsTools: true, needsStructuredOutput: false, needsVision: false })?.id).toBe("tooled");
+    expect(resolveConcreteFreeSelection(catalog, { needsTools: true, needsStructuredOutput: false, needsVision: false })?.id).toBe("tooled");
   });
 
   it("filters on structured-output requirement", () => {
@@ -47,7 +47,7 @@ describe("resolveConcreteFreeModel", () => {
       model({ id: "plain" }),
       model({ id: "structured", supportsStructuredOutput: true }),
     ];
-    expect(resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: true, needsVision: false })?.id).toBe("structured");
+    expect(resolveConcreteFreeSelection(catalog, { needsTools: false, needsStructuredOutput: true, needsVision: false })?.id).toBe("structured");
   });
 
   it("filters on vision requirement", () => {
@@ -55,21 +55,21 @@ describe("resolveConcreteFreeModel", () => {
       model({ id: "plain" }),
       model({ id: "vision", supportsVision: true }),
     ];
-    expect(resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: true })?.id).toBe("vision");
+    expect(resolveConcreteFreeSelection(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: true })?.id).toBe("vision");
   });
 
   it("rejects models with insufficient context", () => {
     const catalog = [model({ id: "small", inputContextLimit: 8_000 })];
-    expect(resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false, maxInputTokens: 16_000 })).toBeUndefined();
+    expect(resolveConcreteFreeSelection(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false, maxInputTokens: 16_000 })).toBeUndefined();
   });
 
   it("rejects unknown context when a concrete context requirement exists", () => {
     const catalog = [model({ id: "unknown-ctx", inputContextLimit: undefined })];
-    expect(resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false, maxInputTokens: 10_000 })).toBeUndefined();
+    expect(resolveConcreteFreeSelection(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false, maxInputTokens: 10_000 })).toBeUndefined();
   });
 
   it("returns undefined when no model is eligible", () => {
-    expect(resolveConcreteFreeModel([], { needsTools: false, needsStructuredOutput: false, needsVision: false })).toBeUndefined();
+    expect(resolveConcreteFreeSelection([], { needsTools: false, needsStructuredOutput: false, needsVision: false })).toBeUndefined();
   });
 
   it("resolves different models for different capability sets (no global concrete cache)", () => {
@@ -77,8 +77,8 @@ describe("resolveConcreteFreeModel", () => {
       model({ id: "plain", inputContextLimit: 128_000 }),
       model({ id: "vision", inputContextLimit: 16_000, supportsVision: true }),
     ];
-    const forPlain = resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false });
-    const forVision = resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: true });
+    const forPlain = resolveConcreteFreeSelection(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false });
+    const forVision = resolveConcreteFreeSelection(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: true });
     expect(forPlain?.id).toBe("plain");
     expect(forVision?.id).toBe("vision");
   });
@@ -90,10 +90,10 @@ describe("resolveConcreteFreeModel", () => {
     ];
     const reqs = { needsTools: false, needsStructuredOutput: false, needsVision: false };
     // Same-size tie breaks lexical -> "a/free" first.
-    expect(resolveConcreteFreeModel(catalog, reqs)?.id).toBe("a/free");
+    expect(resolveConcreteFreeSelection(catalog, reqs)?.id).toBe("a/free");
     // Excluding "a/free" must yield "b/free" without reordering the input.
-    expect(resolveConcreteFreeModel(catalog, reqs, new Set(["a/free"]))?.id).toBe("b/free");
-    expect(resolveConcreteFreeModel(catalog, reqs, new Set(["a/free", "b/free"]))).toBeUndefined();
+    expect(resolveConcreteFreeSelection(catalog, reqs, new Set(["a/free"]))?.id).toBe("b/free");
+    expect(resolveConcreteFreeSelection(catalog, reqs, new Set(["a/free", "b/free"]))).toBeUndefined();
   });
 });
 

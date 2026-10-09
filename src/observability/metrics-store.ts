@@ -257,37 +257,49 @@ export class RollupStore {
    */
   async rollUp(): Promise<number> {
     const rawStore = new MetricsStore(this.cwd);
-    const grouped = new Map<string, number[]>();
+    // Group by name AND type: a gauge is a point-in-time value and must not be
+    // averaged/histogrammed with counters of the same name.
+    const grouped = new Map<string, { type: MetricType; values: number[] }>();
     const now = new Date();
     const hourAgo = new Date(now.getTime() - 3600000).toISOString();
 
     for await (const row of rawStore.readWindow({ after: hourAgo })) {
-      const arr = grouped.get(row.name) ?? [];
-      arr.push(row.value);
-      grouped.set(row.name, arr);
+      const key = `${row.name}\u0000${row.type}`;
+      const entry = grouped.get(key) ?? { type: row.type, values: [] };
+      entry.values.push(row.value);
+      grouped.set(key, entry);
     }
 
     let count = 0;
     if (grouped.size === 0) return 0;
 
     const ws = createWriteStream(join(this.rollupDir, "hourly.jsonl"), { flags: "a" });
-    for (const [name, values] of grouped) {
+    for (const [key, { type, values }] of grouped) {
+      const name = key.slice(0, key.indexOf("\u0000"));
       const sum = values.reduce((a, b) => a + b, 0);
       const sorted = [...values].sort((a, b) => a - b);
+      const isGauge = type === "gauge";
       const row = JSON.stringify({
         name,
-        type: "histogram_sample",
-        value: sum / values.length,
+        type: isGauge ? "gauge" : "histogram_sample",
+        // A gauge reports its most recent value; counters report the mean.
+        value: isGauge ? values[values.length - 1] : sum / values.length,
         timestamp: now.toISOString(),
-        labels: {
-          count: String(values.length),
-          sum: String(sum),
-          min: String(sorted[0]),
-          max: String(sorted[sorted.length - 1]),
-          p50: String(sorted[Math.floor(values.length * 0.5)]),
-          p95: String(sorted[Math.floor(values.length * 0.95)]),
-          p99: String(sorted[Math.floor(values.length * 0.99)]),
-        },
+        labels: isGauge
+          ? {
+              count: String(values.length),
+              min: String(sorted[0]),
+              max: String(sorted[sorted.length - 1]),
+            }
+          : {
+              count: String(values.length),
+              sum: String(sum),
+              min: String(sorted[0]),
+              max: String(sorted[sorted.length - 1]),
+              p50: String(sorted[Math.floor(values.length * 0.5)]),
+              p95: String(sorted[Math.floor(values.length * 0.95)]),
+              p99: String(sorted[Math.floor(values.length * 0.99)]),
+            },
       }) + "\n";
       ws.write(row, "utf-8");
       count++;

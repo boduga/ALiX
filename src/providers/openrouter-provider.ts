@@ -1,7 +1,7 @@
 import { ApiError, BaseProvider } from "./base.js";
 import { complete, stream } from "./unified-complete.js";
 import { discoverOpenRouterModels, isFreeModel } from "./model-discovery.js";
-import { resolveConcreteFreeModel, deriveRequestRequirements } from "./model-resolver.js";
+import { resolveConcreteFreeSelection, deriveRequestRequirements } from "./model-resolver.js";
 import { recordAccessRestricted, accessRestrictedModelIds } from "./access-restriction-registry.js";
 import type { DiscoveredModel } from "./model-discovery.js";
 import type { ModelCallOptions, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
@@ -108,7 +108,7 @@ async function resolveConcreteModel(
   // access-control 403 stays out of the pool (across requests) until its TTL
   // expires — while never excluding it permanently.
   const excludeAll = new Set<string>([...exclude, ...accessRestrictedModelIds()]);
-  return resolveConcreteFreeModel(catalog, requirements, excludeAll);
+  return resolveConcreteFreeSelection(catalog, requirements, excludeAll);
 }
 
 export class OpenRouterProvider extends BaseProvider {

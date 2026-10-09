@@ -85,6 +85,57 @@ function shouldRedact(
 // ---------------------------------------------------------------------------
 
 /**
+ * Redact secret spans within a single string **in place**, preserving the
+ * surrounding text and length.  Used by the outbound (egress) gate, where the
+ * full prompt must survive redaction — unlike `redactString`, this never
+ * truncates the result to a preview.
+ *
+ * Never throws: returns a safe sentinel on failure.
+ */
+export function redactText(
+  value: string,
+  policy: RedactionPolicy,
+  detector: SecretDetector,
+): string {
+  try {
+    if (typeof value !== "string") return value;
+    if (value.length === 0) return value;
+
+    const spans = detector.detect(value);
+    if (spans.length === 0) return value;
+
+    // Only redact spans whose classification is configured for redaction
+    const relevantSpans = spans.filter((s) =>
+      shouldRedact(s.classification, policy),
+    );
+    if (relevantSpans.length === 0) return value;
+
+    // Sort by start desc so replacements don't shift indices
+    const sorted = [...relevantSpans].sort((a, b) => b.start - a.start);
+
+    let accumulator = "";
+    let lastEnd = value.length;
+
+    for (const span of sorted) {
+      // Text after this span (already processed or trailing)
+      const suffix = accumulator.length > 0
+        ? accumulator
+        : value.slice(span.end, lastEnd);
+      accumulator = markerFor(span.classification, policy) + suffix;
+      lastEnd = span.start;
+    }
+    // Prepend text before the first (earliest) span
+    if (lastEnd > 0) {
+      const prefix = value.slice(0, lastEnd);
+      accumulator = prefix + accumulator;
+    }
+    return accumulator;
+  } catch {
+    return SENTINEL_REDACTION_ERROR;
+  }
+}
+
+/**
  * Redact secret spans within a single string value.
  *
  * - If the classification is preserved by the profile, the string
@@ -99,53 +150,20 @@ function redactString(
   state: RedactorState,
 ): string {
   try {
-    // Skip non-string primitives
     if (typeof value !== "string") return value;
     if (value.length === 0) return value;
 
-    // Scan for secrets
-    const spans = state.detector.detect(value);
-    if (spans.length === 0) return value;
-
-    // Build result by iterating spans in reverse (so indices stay valid)
-    let result = value;
-    // Only redact spans whose classification is configured for redaction
-    const relevantSpans = spans.filter((s) =>
-      shouldRedact(s.classification, state.policy),
-    );
-
-    if (relevantSpans.length === 0) return value;
-
-    // Sort by start desc so replacements don't shift indices
-    const sorted = [...relevantSpans].sort((a, b) => b.start - a.start);
-
-    let accumulator = "";
-    let lastEnd = value.length;
-
-    for (const span of sorted) {
-      // Text after this span (already processed or trailing)
-      const suffix = accumulator.length > 0
-        ? accumulator
-        : value.slice(span.end, lastEnd);
-      accumulator = markerFor(span.classification, state.policy) + suffix;
-      lastEnd = span.start;
-    }
-    // Prepend text before the first (earliest) span
-    if (lastEnd > 0) {
-      const prefix = value.slice(0, lastEnd);
-      accumulator = prefix + accumulator;
-    }
-
-    result = accumulator;
+    const redacted = redactText(value, state.policy, state.detector);
+    if (redacted === value) return value;
 
     // Truncate extremely long redacted values
-    if (result.length > MAX_SAFE_STRING_LENGTH) {
-      const preview = result.slice(0, MAX_PREVIEW_LENGTH);
-      const suffix = truncatedSuffix(result);
-      result = preview + suffix;
+    if (redacted.length > MAX_SAFE_STRING_LENGTH) {
+      const preview = redacted.slice(0, MAX_PREVIEW_LENGTH);
+      const suffix = truncatedSuffix(redacted);
+      return preview + suffix;
     }
 
-    return result;
+    return redacted;
   } catch {
     return SENTINEL_REDACTION_ERROR;
   }

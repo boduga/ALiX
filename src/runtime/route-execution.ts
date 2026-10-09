@@ -13,7 +13,7 @@
 
 import type { TaskRoute } from "./task-router.js";
 import { buildExternalRetrievalPrompt } from "./route-prompts.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 import { ALIX_EXECUTOR_TO_MODEL_FACING } from "../agents/tool-manifest.js";
 import { resolveExecutableToolName } from "../agents/tool-name-resolver.js";
 import type { ModelAdapter, ToolDef } from "../providers/types.js";
@@ -51,7 +51,7 @@ export interface ExecutionDeps {
   renderApprovalPrompt?: boolean;
   /**
    * Test seam: override provider construction. Defaults to
-   * `createProvider(resolveModelConfig(config))`. Production adapters never
+   * `createProvider(createModelResolver(config).require())`. Production adapters never
    * set this — it exists so a test can hand the shared grounded_chat
    * behavior a provider that returns a tool call (e.g. to pin the
    * allowlist-rejection path without a network call).
@@ -103,7 +103,7 @@ export interface ToolExecutionDeps extends ExecutionDeps {
 async function makeProvider(config: any, deps: ExecutionDeps): Promise<ModelAdapter> {
   if (deps.providerFactory) return deps.providerFactory(config);
   const { createProvider } = await import("../providers/registry.js");
-  return createProvider(resolveModelConfig(config));
+  return createProvider(createModelResolver(config).require());
 }
 
 /**
@@ -235,17 +235,8 @@ async function newToolCallId(): Promise<string> {
  */
 async function makeToolExecutor(config: any, deps: ToolExecutionDeps): Promise<any> {
   if (deps.toolExecutorFactory) return deps.toolExecutorFactory(config, deps);
-  const { ToolExecutor } = await import("../tools/executor.js");
-  return new ToolExecutor(
-    config,
-    deps.eventLog,
-    deps.cwd,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    deps.approvalStore,
-  );
+  const { createToolExecutor } = await import("../tools/tool-executor-factory.js");
+  return createToolExecutor({ config, log: deps.eventLog, root: deps.cwd, approvalStore: deps.approvalStore });
 }
 
 /** Tool route — execute the requested tool and render its result. */
@@ -378,7 +369,7 @@ export async function executeGroundedChatBehavior(
       const chosenCandidateId = frozen.find(candidate => candidate.label === canonical(tc.name))?.candidateId;
       const [{ emitSelectionObservation }, { hashArgs }] = await Promise.all([
         import("../observability/tool-selection-observation.js"),
-        import("../tools/executor.js"),
+        import("../tools/hash-args.js"),
       ]);
       await emitSelectionObservation(
         deps.eventLog,

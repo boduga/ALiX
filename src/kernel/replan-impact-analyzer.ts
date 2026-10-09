@@ -13,7 +13,7 @@
  */
 
 import { matchCapabilities } from "./collaborative-planner.js";
-import type { CapabilityRegistry } from "./collaborative-planner.js";
+import type { AgentCapabilityMap } from "./collaborative-planner.js";
 import type { PlanRevisionDraft, OwnershipImpact, PolicyDecision, ImpactAnalysis, SimulatedGraph } from "./replan-types.js";
 import type { WorkerAssignment } from "./coordination-types.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
@@ -74,7 +74,7 @@ export interface AnalyzeResult {
 
 export interface ReplanImpactAnalyzerOptions {
   /** Maps agent IDs to their declared capabilities. */
-  capabilityRegistry: CapabilityRegistry;
+  capabilityRegistry: AgentCapabilityMap;
   /** Real ownership registry for lease conflict detection. */
   ownershipRegistry: OwnershipRegistry;
   /**

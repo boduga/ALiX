@@ -2,9 +2,10 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AlixConfig } from "../config/schema.js";
 import { loadConfig } from "../config/loader.js";
-import { tryResolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 import { EventLog } from "../events/event-log.js";
-import { ToolExecutor } from "../tools/executor.js";
+import type { ToolExecutor } from "../tools/executor.js";
+import { createToolExecutor } from "../tools/tool-executor-factory.js";
 import { CheckpointManager } from "../patch/checkpoint.js";
 import { ContextCompiler } from "../repomap/context-compiler.js";
 import { createScopeTracker, type ScopeTracker } from "../autonomy/scope-tracker.js";
@@ -54,13 +55,13 @@ export class RuntimeBuilder {
     // a broken store must never kill the run before it starts.
     const { loadApprovalStore } = await import("../approvals/approval-store.js");
     const approvalStore = await loadApprovalStore(this._root);
-    this._toolExecutor = new ToolExecutor(config, this._eventLog, this._root, undefined, undefined, undefined, undefined, approvalStore);
+    this._toolExecutor = createToolExecutor({ config, log: this._eventLog, root: this._root, approvalStore });
 
     // Build context compiler — max-token budget from the canonical models
     // source (§10), never the derived `model` projection.
     this._contextCompiler = new ContextCompiler({
       root: this._root,
-      maxTokens: tryResolveModelConfig(config)?.maxContextTokens,
+      maxTokens: createModelResolver(config).resolve()?.maxContextTokens,
       eventLog: this._eventLog,
       sessionId,
     });

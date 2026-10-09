@@ -213,7 +213,7 @@ export type DerivedSubagentConfig =
  * tier?
  *
  * Used only at external boundaries: CLI arguments, config-file values, and
- * other arbitrary strings. `resolveModelConfig()` does not need this check
+ * other arbitrary strings. `createModelResolver()` does not need this check
  * because its API accepts `ModelTier`.
  */
 export function isModelTier(
@@ -229,7 +229,7 @@ export function isModelTier(
  * provider plus either a concrete model or a selection policy.
  *
  * Shared by the loader projection (`normalizeModelConfig`) and
- * `resolveModelConfig()` so both agree on what counts as "configured".
+ * `createModelResolver()` so both agree on what counts as "configured".
  * Lives in schema.ts next to `isModelTier` so the resolver stays a pure,
  * dependency-light module (runtime readers that import it do not transitively
  * pull the loader, signing, or credential-store modules).

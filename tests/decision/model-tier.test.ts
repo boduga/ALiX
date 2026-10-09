@@ -24,7 +24,7 @@ import {
   projectModelTier,
   registerJevEngine,
   renderModelTierState,
-  resolveTierModel,
+  resolveEnabledTierModel,
   runModelTierShadow,
   selectModelTier,
   tierMatchesCurrentRouting,
@@ -193,7 +193,7 @@ describe("local tier baseline", () => {
 describe("tier resolution through canonical config", () => {
   it("resolves a tier only via models.*", () => {
     const config = alixConfig();
-    assert.deepEqual(resolveTierModel(config, "coding"), { provider: "anthropic", name: "claude-sonnet-4" });
+    assert.deepEqual(resolveEnabledTierModel(config, "coding"), { provider: "anthropic", name: "claude-sonnet-4" });
     assert.deepEqual(describeCurrentRouting(config), {
       tier: "default",
       provider: "openai",
@@ -210,18 +210,18 @@ describe("tier resolution through canonical config", () => {
   it("ignores the legacy model projection (no second source of truth)", () => {
     const config = alixConfig({ default: { provider: "openai", name: "gpt-4o" }, coding: { provider: "anthropic", name: "claude-sonnet-4" } });
     const legacy = { ...config, model: { provider: "legacy", name: "legacy-model" } };
-    assert.deepEqual(resolveTierModel(legacy, "coding"), { provider: "anthropic", name: "claude-sonnet-4" });
+    assert.deepEqual(resolveEnabledTierModel(legacy, "coding"), { provider: "anthropic", name: "claude-sonnet-4" });
   });
 
   it("arch 11: fails closed on an unknown or unconfigured tier", () => {
     const config = alixConfig({ default: { provider: "openai", name: "gpt-4o" } });
-    assert.throws(() => resolveTierModel(config, "coding"), /Unknown or disabled model tier/);
-    assert.throws(() => resolveTierModel(config, "vision" as never), /Unknown or disabled model tier/);
-    assert.deepEqual(resolveTierModel(config, "default"), { provider: "openai", name: "gpt-4o" });
+    assert.throws(() => resolveEnabledTierModel(config, "coding"), /Unknown or disabled model tier/);
+    assert.throws(() => resolveEnabledTierModel(config, "vision" as never), /Unknown or disabled model tier/);
+    assert.deepEqual(resolveEnabledTierModel(config, "default"), { provider: "openai", name: "gpt-4o" });
   });
 
   it("resolves the image tier to its configured model", () => {
-    assert.deepEqual(resolveTierModel(alixConfig(), "image"), {
+    assert.deepEqual(resolveEnabledTierModel(alixConfig(), "image"), {
       provider: "google",
       name: "gemini-2.5-flash-image",
     });
@@ -529,7 +529,7 @@ describe("selectModelTier integration seam", () => {
     });
     assert.equal(result.mode, "active");
     assert.equal(result.tier, "coding");
-    assert.deepEqual(resolveTierModel(alixConfig(), result.tier as "coding"), {
+    assert.deepEqual(resolveEnabledTierModel(alixConfig(), result.tier as "coding"), {
       provider: "anthropic",
       name: "claude-sonnet-4",
     });

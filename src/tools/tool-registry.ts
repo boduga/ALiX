@@ -16,6 +16,8 @@
  * No runtime integration with routers or PolicyGate yet.
  */
 
+import type { ToolCapabilityEntry, ToolCapabilityRegistry } from "../contracts/tool-capability-registry.js";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -451,6 +453,40 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
   }
 
   return { registry, index: idx };
+}
+
+// ---------------------------------------------------------------------------
+// ToolCapabilityRegistry port adapter (R5.3)
+// ---------------------------------------------------------------------------
+
+/** Project a full `ToolCapability` onto the canonical port entry. */
+function toCapabilityEntry(capability: ToolCapability): ToolCapabilityEntry {
+  return {
+    name: capability.name,
+    capabilityId: capability.capabilityId,
+    policyKey: capability.policyKey,
+    risk: capability.risk,
+    mutates: capability.mutates,
+  };
+}
+
+/**
+ * The canonical `ToolCapabilityRegistry` (R1 port) over the single tool
+ * catalogue. This is the ONE tool/capability resolution surface other
+ * subsystems (MCP, agent manifest, card display) adapt to — they derive from
+ * or conform to this catalogue rather than defining a parallel taxonomy.
+ */
+export function createToolCapabilityRegistry(): ToolCapabilityRegistry {
+  const { registry } = buildDefaultToolIndex();
+  return {
+    resolve(name: string): ToolCapabilityEntry | undefined {
+      const capability = registry.lookup(name);
+      return capability ? toCapabilityEntry(capability) : undefined;
+    },
+    list(): readonly ToolCapabilityEntry[] {
+      return registry.getAll().map(toCapabilityEntry);
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------

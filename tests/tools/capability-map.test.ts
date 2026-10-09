@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import { inferCapability, canonicalCapabilityOf, isReadonlyCapability, requiresApproval, legacyCapabilityToCanonical } from "../../src/tools/capability-map.js";
 import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
-import { hashArgs } from "../../src/tools/executor.js";
+import { hashArgs } from "../../src/tools/hash-args.js";
 import { BASE_TOOLS } from "../../src/run/helpers.js";
 import { ALIX_BUILTIN_EXECUTORS } from "../../src/agents/tool-manifest.js";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";

@@ -5,7 +5,7 @@
  *  - "off"    — keep the existing routing policy; no engine call.
  *  - "shadow" — observe + journal, keep the existing routing policy.
  *  - "active" — return the selected tier for the caller to resolve through the
- *               canonical configuration (`resolveTierModel`).
+ *               canonical configuration (`resolveEnabledTierModel`).
  *
  * "off" is the default, so wiring this call site changes no routing until an
  * operator flips `modelTier.enabled` (and, per the plan, only after evaluation).

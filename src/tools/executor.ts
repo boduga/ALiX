@@ -1,9 +1,9 @@
 import "node:fs";
 import "node:fs/promises";
 import { resolve } from "node:path";
-import { createHash } from "node:crypto";
+import { hashArgs } from "./hash-args.js";
 import type { AlixConfig } from "../config/schema.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 import type { EventLog } from "../events/event-log.js";
 import { TOOL_EVENT_TYPES, ARTIFACT_EVENT_TYPES } from "../events/types.js";
 import type { ToolOutputPayload, ToolCompletedPayload, ToolFailedPayload, ArtifactCreatedPayload } from "../events/types.js";
@@ -55,21 +55,6 @@ function sanitizeArgs(args: Record<string, unknown>): Record<string, unknown> {
       sensitive.some((s) => k.toLowerCase().includes(s)) ? "[REDACTED]" : v,
     ])
   );
-}
-
-export function hashArgs(args: Record<string, unknown>): string {
-  // Stable SHA-256 using JSON.stringify with sorted keys for deterministic output
-  const stable = JSON.stringify(args, (_key: string, value: unknown) =>
-    value !== null && typeof value === "object" && !Array.isArray(value)
-      ? Object.keys(value as Record<string, unknown>)
-          .sort()
-          .reduce<Record<string, unknown>>((acc, k) => {
-            acc[k] = (value as Record<string, unknown>)[k];
-            return acc;
-          }, {})
-      : value
-  );
-  return createHash("sha256").update(stable).digest("hex");
 }
 
 export type ExecuteResult =
@@ -157,7 +142,7 @@ export class ToolExecutor {
 
     // Initialize tool repair layer
     try {
-      const resolved = resolveModelConfig(config);
+      const resolved = createModelResolver(config).require();
       this.repair = new AlixToolRepair(resolved.provider, resolved.name);
     } catch {
       this.repair = null;
