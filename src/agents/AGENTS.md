@@ -42,6 +42,7 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
   belong to neither role set.
 - Worker findings preserve substantive model text plus bounded, explicitly untrusted executed tool evidence. All result payload families use `toolResultText`; preliminary commentary must not discard retrieved facts or URLs.
 - Coordinated workers treat ownership scopes as permission limits. Write workers must demonstrate a mutation, but need not write every permitted file. Completion review checks requested deliverables against executed evidence and persisted output content, including confirmed deletions. Invalid, unsupported, or failed reviews preserve mutation evidence and return partial/failure rather than success. Review summaries precede raw evidence so downstream budgets retain the substantive answer.
+- **A text deliverable needs no persisted file.** `reviewCoordinationResult` (`coordination-objective-review.ts`) judges a worker's stated finding as the deliverable when the assigned objective asks for a response/answer/summary rather than a file; only file deliverables require the persisted output. A malformed reviewer verdict is re-asked once before failing closed.
 
 ## Work Guidance
 
