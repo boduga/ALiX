@@ -9,7 +9,8 @@ import { buildRepoMapLite } from "../repomap/repomap-lite.js";
 import { buildRoutingAdapter } from "../providers/routing-adapter.js";
 import type { ModelAdapter } from "../providers/types.js";
 import type { McpManager } from "../mcp/manager.js";
-import { ToolExecutor } from "../tools/executor.js";
+import type { ToolExecutor } from "../tools/executor.js";
+import { createToolExecutor } from "../tools/tool-executor-factory.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import { CheckpointManager } from "../patch/checkpoint.js";
 import "../utils/session-digest.js";
@@ -189,7 +190,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     cwd, config, sessionId, approvalStore: opts.approvalStore, eventLog: log,
   });
 
-  const toolExecutor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, {
+  const toolExecutor = createToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, {
     ...(delegateHandler ? { delegate: delegateHandler } : {}),
     ...coordinationHandlers,
   }, checkpointManager, opts.approvalStore);

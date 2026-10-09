@@ -9,7 +9,7 @@ import { reviewCoordinationResult, type ObjectiveArtifact } from "../agents/coor
 import { createModelResolver } from "../config/model-resolver.js";
 import { createProvider } from "../providers/registry.js";
 import { getApiKey } from "../cli/helpers/api-keys.js";
-import { ToolExecutor } from "../tools/executor.js";
+import { createToolExecutor } from "../tools/tool-executor-factory.js";
 import { loadApprovalStore } from "../approvals/approval-store.js";
 import { toolResultText } from "../tools/result-text.js";
 import { randomUUID } from "node:crypto";
@@ -54,10 +54,8 @@ export async function reviewDefaultWorkerResult(
       error: `Objective review unavailable: ${error instanceof Error ? error.message : String(error)}${mutatedPaths.length ? `\nChanged: ${mutatedPaths.join(", ")}` : ""}`,
     };
   }
-  // R1.5: wire the project approval store (fail-open) so this executor is
-  // governed like the other three construction sites.
   const approvalStore = await loadApprovalStore(context.cwd);
-  const executor = new ToolExecutor(context.config, log, context.cwd, undefined, undefined, undefined, undefined, approvalStore);
+  const executor = createToolExecutor(context.config, log, context.cwd, undefined, undefined, undefined, undefined, approvalStore);
   const artifacts = async (): Promise<ObjectiveArtifact[]> => Promise.all(mutatedPaths.map(async path => {
     if (signal.aborted) return { path, error: "Execution cancelled" };
     const read = await executor.execute({ toolCallId: randomUUID(), name: "file.read", args: { path }, signal });

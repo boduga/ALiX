@@ -55,7 +55,7 @@ import { MetricsStore } from "../../observability/metrics-store.js";
 import { createMetricRegistry } from "../../observability/metric-registry.js";
 import { StateTelemetry } from "../../observability/state-telemetry.js";
 import { CONTEXT_EVENT_TYPES, TOOL_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload, type ToolingScopeReintroducedPayload } from "../../events/types.js";
-import { hashArgs } from "../../tools/executor.js";
+import { hashArgs } from "../../tools/hash-args.js";
 import { loadCalibration, type ContextRotThreshold } from "../../config/calibration-store.js";
 import { createModelResolver } from "../../config/model-resolver.js";
 import { buildOfferedExecutableTools } from '../../agents/tool-name-resolver.js';

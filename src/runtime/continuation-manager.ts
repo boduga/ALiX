@@ -64,7 +64,7 @@ export class ContinuationManager {
     }
 
     // 3. Verify argsHash integrity
-    const { hashArgs } = await import("../tools/executor.js");
+    const { hashArgs } = await import("../tools/hash-args.js");
     const currentHash = hashArgs(cont.toolCall.args);
     if (currentHash !== cont.toolCall.argsHash) {
       // Emit resume.failed — args mismatch

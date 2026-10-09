@@ -16,7 +16,7 @@ import type { MutationSessionState } from "../run.js";
 import { extractMutationPaths } from "../run.js";
 import { buildErrorMessage } from "../run.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
-import { ToolExecutor } from "../tools/executor.js";
+import type { ToolExecutor } from "../tools/executor.js";
 import { McpManager } from "../mcp/manager.js";
 import { promptUser, BASE_TOOLS } from "./helpers.js";
 import type { CorrelationContext } from "../runtime/tool-correlation.js";

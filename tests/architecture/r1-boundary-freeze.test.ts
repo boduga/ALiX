@@ -77,6 +77,12 @@ const IMPORT_RULE_TARGETS: Record<string, string[]> = {
   ],
 };
 
+/** Import rules: importer files sanctioned to import a protected target. */
+const IMPORT_RULE_EXEMPT: Record<string, string[]> = {
+  // R5.3b — the ONE sanctioned ToolExecutor construction seam.
+  "direct-tool-dispatch": ["src/tools/tool-executor-factory.ts"],
+};
+
 const UI_DIRS = ["src/tui/", "src/ui/", "src/inspector/"];
 const UI_RULE_TARGETS = [
   "src/kernel/coordination-store.ts",
@@ -228,6 +234,7 @@ function scanImports(): Violation[] {
         if (!resolved) continue;
         for (const [rule, targets] of Object.entries(IMPORT_RULE_TARGETS)) {
           if (targets.some((t) => resolved === t || resolved.endsWith("/" + t))) {
+            if (IMPORT_RULE_EXEMPT[rule]?.includes(importer)) continue;
             found.set(`${rule}|${importer}|${resolved}`, { rule, importer, imported: resolved });
           }
         }

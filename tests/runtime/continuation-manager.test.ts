@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { ContinuationManager } from "../../src/runtime/continuation-manager.js";
 import { ContinuationStore } from "../../src/runtime/continuation-store.js";
 import { ApprovalStore } from "../../src/approvals/approval-store.js";
-import { hashArgs } from "../../src/tools/executor.js";
+import { hashArgs } from "../../src/tools/hash-args.js";
 
 describe("ContinuationManager", () => {
   let tmpDir: string;

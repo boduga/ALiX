@@ -1,6 +1,6 @@
 # R5 — Support Subsystem Convergence Plan
 
-**Status:** in progress — R5.0 (plan) ✅, R5.1 (egress redaction) ✅, R5.2 (`models.*` cutover) ✅, R5.3a (tool catalogue taxonomy) ✅.
+**Status:** in progress — R5.0 ✅, R5.1 ✅, R5.2 ✅, R5.3a ✅, R5.3b ✅.
 **Phase register:** `docs/refactors/r0-findings-r3-plan.md` (R5 row + "R5 security note (do not lose)").
 **Provenance:** four read-only recon passes against HEAD `r4-complete` (`e9008d88`). Line numbers verified in that session.
 
@@ -88,7 +88,7 @@ Python/psutil runtime path exists (`psutil` is doc-only). The daemon path hardco
 | R5.1 | **Outbound redaction gate:** remote/local provider predicate + shared redactor applied to every provider-bound `systemPrompt`/`messages` before send; fail-closed for remote. Owner seams: `route-execution.ts`, `run/task-loop/main.ts`, `planner-model.ts`, `subagent-cli.ts` (and siblings). Tests assert a secret in assembled prompt never reaches a remote adapter. | ✅ |
 | R5.2 | **`models.*` cutover:** route all reads through the `ModelResolver` port / one resolver; kill flat reads (`hardware-detect.ts`, `providers/registry.ts`, `subagents.enabled` branches) and the post-load `agent.ts` mutation; remove the 3 `model-resolver-impls` allowlist entries. | ✅ |
 | R5.3a | **ONE tool/capability catalogue (taxonomy):** wire the `ToolCapabilityRegistry` port over the canonical catalogue; scope the freeze rule (exempt each definition's home module); rename the collaborative-planner's colliding `CapabilityRegistry` interface; remove the 6 `tool-taxonomy-defs` entries. | ✅ |
-| R5.3b | **Tool dispatch:** move `hashArgs` out of `executor.ts` and route `ToolExecutor` construction through a sanctioned seam; remove the 8 `direct-tool-dispatch` entries. Agent-execution path — separate sub-step. | ⬜ |
+| R5.3b | **Tool dispatch:** move `hashArgs` out of `executor.ts` and route `ToolExecutor` construction through a sanctioned seam; remove the 8 `direct-tool-dispatch` entries. Agent-execution path — separate sub-step. | ✅ |
 | R5.4 | **One metric vocabulary:** implement the `MetricsSink` port; reconcile `MinimalMetrics`/`MetricRegistry`/tracing/TUI; only then remove the 4 `metrics-vocabs` entries. | ⬜ |
 | R5.5 | Resolve/reclassify the 4 `status-store-writes` `R5` entries (`src/cli/commands/adaptation/main.ts`, `executive-evaluate-handler.ts`, `executive-orchestrate-handler.ts`, `executive.ts` → `src/executive/execution-state-store.ts`) — decide whether they belong to R5 or move to R6. | ⬜ |
 | R5.6 | DOX (`src/config`, `src/providers`, `src/tools`, `src/capability`, `src/security`, `src/observability` + ports) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r5-*`. | ⬜ |
@@ -134,6 +134,13 @@ Same freeze-rule shape as R5.2: `tool-taxonomy-defs` watched five symbol names a
 3. Freeze rule `tool-taxonomy-defs`: added the port symbol; every watched definition is now allowed only in its home module via `exempt` (rule-level file list). Removed the 6 `tool-taxonomy-defs` entries.
 4. Added `tests/tools/tool-capability-registry.vitest.ts` (port resolve/list shape) and DOX in `src/tools/AGENTS.md`.
 5. Deferred to **R5.3b**: the 8 `direct-tool-dispatch` entries (moving `hashArgs` out of `executor.ts`; routing `ToolExecutor` construction through a sanctioned seam) — an agent-execution-path change.
+
+## R5.3b (tool dispatch) — ✅ done
+1. Moved the pure `hashArgs` helper to `src/tools/hash-args.ts`; updated `replay-plan.ts`, `route-execution.ts`, `continuation-manager.ts`, `task-loop/main.ts`, and tests.
+2. Added `src/tools/tool-executor-factory.ts` (`createToolExecutor(...ConstructorParameters<typeof ToolExecutor>)`); migrated every construction site (`agent.ts`, `subagent-cli.ts`, `tui.ts`, `default-worker-review.ts`, `route-execution.ts`, `runtime-builder.ts`).
+3. Remaining `executor.ts` references are all type-only; `event-handlers.ts` now `import type`.
+4. Freeze: added `IMPORT_RULE_EXEMPT` to the import-rule scan; `direct-tool-dispatch` allows only `tool-executor-factory.ts`. Removed all 10 `direct-tool-dispatch` entries (the 8 R5 plus 2 R1.5 that were also made stale).
+5. DOX: `src/tools/AGENTS.md` records the single construction seam.
 
 ## Resume here (fresh session)
 
