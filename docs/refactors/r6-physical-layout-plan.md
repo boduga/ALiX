@@ -1,6 +1,17 @@
 # R6 — Physical layout into the 12-subsystem structure
 
-**Status:** NOT STARTED — the only remaining phase of the R0–R6 campaign.
+**Status:** ✅ DONE — `refactor/r6-layout`. All `src/` top-level dirs relocated;
+final roots are exactly the 12 subsystems (`agents`, `capabilities`, `context`,
+`coordination`, `execution`, `governance`, `interfaces`, `models`, `operations`,
+`planning`, `runtime-state`, `session`) plus the entry files `index.ts`,
+`cli.ts`, `run.ts`, `task-classifier.ts`. `src/agent` folded into
+`src/agents/agent`; `src/adaptive` into `src/planning/adaptive`; `src/patch`
+into `src/execution/patch`; `src/adaptation` into `src/planning/adaptation`.
+Tests were NOT relocated (they still mirror the pre-R6 layout); the planning
+agent's `src/`→`tests/` test-derivation heuristic now yields
+`tests/<subsystem>/<path>`, tracked as follow-up debt.
+
+**Original status note:** the last remaining phase of the R0–R6 campaign.
 **Predecessor:** R0–R5 all merged (`main` = R5 merge `674f7883`; R1 `#867`,
 R2 `#868`, R3 `#869`, R4 `#870`, R5 `#871`, plus follow-ups `#872`/`#873`/`#874`).
 **Nature:** mechanical. R1–R5 made the boundaries real (ports, ledger authority,
