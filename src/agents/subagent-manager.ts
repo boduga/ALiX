@@ -95,6 +95,23 @@ function resolvedCredentialPayload(config: AlixConfig | undefined): string | und
 /** Renew active chat-delegate leases well inside the registry's 30-min TTL. */
 const LEASE_RENEW_INTERVAL_MS = 10 * 60 * 1000;
 
+/**
+ * Decide what a single lease-renewal pass does with a task's entry.
+ *
+ * A task released while `renew` was awaited is no longer tracked
+ * (`tracked === false`): the pass must NOT re-insert it (that resurrects a
+ * released task and leaks its leases) — instead the caller releases the ids
+ * this pass just renewed. Extracted as a pure function so this
+ * release/renew race is unit-testable without waiting out the real interval.
+ */
+export function resolveRenewalResult(
+  tracked: boolean,
+  kept: string[],
+): { action: "set" | "delete" | "release"; releaseIds: string[] } {
+  if (!tracked) return { action: "release", releaseIds: kept };
+  return kept.length > 0 ? { action: "set", releaseIds: [] } : { action: "delete", releaseIds: [] };
+}
+
 export class SubagentManager {
   private running = new Map<string, RunningSubagent>();
   private callbacks: SubagentResultCallback[] = [];
@@ -214,8 +231,18 @@ export class SubagentManager {
             const ok = await registry.renew(id).catch(() => false);
             if (ok) kept.push(id);
           }
-          if (kept.length > 0) this.leasesByTask.set(taskId, { ...entry, ids: kept });
-          else this.leasesByTask.delete(taskId);
+          const outcome = resolveRenewalResult(this.leasesByTask.has(taskId), kept);
+          if (outcome.action === "set") {
+            this.leasesByTask.set(taskId, { ...entry, ids: kept });
+          } else if (outcome.action === "delete") {
+            this.leasesByTask.delete(taskId);
+          } else {
+            // Task released during the awaits: release the ids this pass
+            // renewed rather than resurrecting a released task.
+            for (const id of outcome.releaseIds) {
+              await registry.release(id).catch(() => false);
+            }
+          }
         }
         if (this.leasesByTask.size === 0 && this.renewTimer) {
           clearInterval(this.renewTimer);

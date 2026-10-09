@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   acquireWorkerOwnership,
+  releaseWorkerLeases,
   releaseWorkerOwnership,
   renewWorkerOwnership,
 } from "../../src/kernel/coordination-ownership.js";
@@ -186,3 +187,44 @@ describe("renewWorkerOwnership", () => {
     assert.equal(renewed.renewed.length, 1);
   });
 });
+
+describe("releaseWorkerLeases (R3.4 lease-retention regression)", () => {
+  it("retains failed lease ids instead of blanket-clearing the record", async () => {
+    // A registry where "lease_b" cannot be released (already gone / error):
+    // the failed id MUST stay on the record for a later retry, not be dropped.
+    const registry = {
+      release: async (id: string) => id !== "lease_b",
+    } as unknown as OwnershipRegistry;
+    const worker: { leaseIds?: string[] } = { leaseIds: ["lease_a", "lease_b"] };
+
+    const result = await releaseWorkerLeases(registry, worker);
+
+    assert.deepEqual(result.released, ["lease_a"]);
+    assert.deepEqual(result.failed, ["lease_b"]);
+    assert.deepEqual(worker.leaseIds, ["lease_b"]);
+  });
+
+  it("clears leaseIds only when every lease released", async () => {
+    const registry = {
+      release: async () => true,
+    } as unknown as OwnershipRegistry;
+    const worker: { leaseIds?: string[] } = { leaseIds: ["lease_a", "lease_b"] };
+
+    const result = await releaseWorkerLeases(registry, worker);
+
+    assert.deepEqual(result.released, ["lease_a", "lease_b"]);
+    assert.deepEqual(result.failed, []);
+    assert.deepEqual(worker.leaseIds, []);
+  });
+
+  it("empty leaseIds is a no-op", async () => {
+    const registry = {
+      release: async () => true,
+    } as unknown as OwnershipRegistry;
+    const worker: { leaseIds?: string[] } = {};
+    const result = await releaseWorkerLeases(registry, worker);
+    assert.deepEqual(result, { released: [], failed: [] });
+    assert.equal(worker.leaseIds, undefined);
+  });
+});
+
