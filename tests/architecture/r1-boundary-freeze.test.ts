@@ -140,6 +140,10 @@ const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: st
     marker: "definition:tool-taxonomy",
   },
   "metrics-vocabs": {
+    // R5.4 — one metric-observation vocabulary through the `MetricsSink` port.
+    // The four named vocabularies are distinct concerns (kernel counters,
+    // registry definitions, tracing spans, daemon snapshots); each definition
+    // is allowed only in its home module.
     files: [
       "src/kernel/minimal-metrics.ts",
       "src/observability/metric-registry.ts",
@@ -152,6 +156,12 @@ const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: st
       "getProcessTraceClient",
       "createTraceClient",
       "DaemonMetricsCollectorImpl",
+    ],
+    exempt: [
+      "src/kernel/minimal-metrics.ts",
+      "src/observability/metric-registry.ts",
+      "src/tracing/client-factory.ts",
+      "src/tui/daemon-metrics-collector.ts",
     ],
     marker: "definition:metrics-vocabulary",
   },

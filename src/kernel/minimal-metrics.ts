@@ -6,39 +6,48 @@
  * All metrics are stored in-memory and exposed via alix metrics.
  */
 
-export type MetricName =
-  | "workflow_runs_total"
-  | "model_calls_total"
-  | "tool_calls_total"
-  | "tool_failures_total"
-  | "policy_decisions_total"
-  | "policy_denials_total"
-  | "workflow_duration_ms"
+/**
+ * Canonical kernel metric-name set — one runtime list that also derives the
+ * `MetricName` union. The observability registry
+ * (`PRODUCTION_METRIC_DEFINITIONS`) must include every name here; the parity is
+ * pinned by `tests/observability/metric-parity.vitest.ts`.
+ */
+export const MINIMAL_METRIC_NAMES = [
+  "workflow_runs_total",
+  "model_calls_total",
+  "tool_calls_total",
+  "tool_failures_total",
+  "policy_decisions_total",
+  "policy_denials_total",
+  "workflow_duration_ms",
   // D4: 12 conflict metrics (plan §18). `collaboration_conflicts_by_type`
   // was previously declared here but had no emitter and was removed; it
   // can be re-introduced once a typed label vocabulary is defined.
-  | "collaboration_conflict_candidates_total"
-  | "collaboration_conflicts_detected_total"
-  | "collaboration_conflicts_updated_total"
-  | "collaboration_conflicts_resolved_total"
-  | "collaboration_conflicts_dismissed_total"
-  | "collaboration_conflict_detection_duration_ms"
-  | "collaboration_conflict_pairs_omitted_total"
-  | "collaboration_conflict_model_compare_total"
-  | "collaboration_conflict_model_compare_failed_total"
-  | "collaboration_conflict_context_included_total"
-  | "collaboration_conflict_context_omitted_total"
+  "collaboration_conflict_candidates_total",
+  "collaboration_conflicts_detected_total",
+  "collaboration_conflicts_updated_total",
+  "collaboration_conflicts_resolved_total",
+  "collaboration_conflicts_dismissed_total",
+  "collaboration_conflict_detection_duration_ms",
+  "collaboration_conflict_pairs_omitted_total",
+  "collaboration_conflict_model_compare_total",
+  "collaboration_conflict_model_compare_failed_total",
+  "collaboration_conflict_context_included_total",
+  "collaboration_conflict_context_omitted_total",
   // Live-response agent activity + liveness observability (Phase 9). The
   // `agent_*` gauges are observations emitted at discrete sites (activity
   // transitions, liveness watchdog transitions, terminal outcome); the
   // counters are per-invocation increments. Token accounting stays with
   // `model.usage` — no token metrics are declared here.
-  | "agent_activity_state"
-  | "agent_activity_duration_ms"
-  | "agent_last_progress_age_ms"
-  | "agent_stall_warning_total"
-  | "agent_invocation_cancelled_total"
-  | "agent_invocation_failed_total";
+  "agent_activity_state",
+  "agent_activity_duration_ms",
+  "agent_last_progress_age_ms",
+  "agent_stall_warning_total",
+  "agent_invocation_cancelled_total",
+  "agent_invocation_failed_total",
+] as const;
+
+export type MetricName = (typeof MINIMAL_METRIC_NAMES)[number];
 
 export type GaugeName = Extract<
   MetricName,
