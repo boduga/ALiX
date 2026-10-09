@@ -14,9 +14,9 @@ durable copy. Update it when phases change status.
 | R1.5 | Authorization containment: enforceCapabilities default ON, daemon ask+wired store, continuation revalidation, bound-tool policy gate, file.delete owned check, X-series `authorizationSource`, 4 executor sites wired | ✅ `ca27b8e1` |
 | R2 | Transactional ledger strangler → authority for 9 domains + 11 reconcile CLIs (audit excluded, documented) | ✅ tags `r2-ledger-authoritative` |
 | R3 | **Coordination consolidation** — R3.0–R3.8 complete (R3.7 GraphExecutor adapted, not retired) | ✅ |
-| R4 | TUI/API projection convergence: fix in order V3 success-inference, V1 live-session painter reads, V5 approval dual truth, V6 live evolution reads, V7 inferred workflow steps, V4 quarantine `runtime-snapshot.ts`/`store.ts`, legacy Inspector vocabulary; Workbench shows "unknown/awaiting canonical event", never infers; one snapshot contract shared TUI+browser | ⬜ |
-| R5 | Support subsystems: finish `models.*` cutover (3 resolvers → 1, kill flat reads); ONE tool/capability catalogue + MCP/manifest adapters; **outbound redaction gate before any remote-provider call = security correction, not cleanup**; one metric vocabulary (Node-native collectors; psutil refs in metrics doc are catalogue-only, Python) | ⬜ |
-| R6 | Physical directory moves into the 12-subsystem layout — LAST, mechanical after boundaries real | ⬜ |
+| R4 | TUI/API projection convergence: fix in order V3 success-inference, V1 live-session painter reads, V5 approval dual truth, V6 live evolution reads, V7 inferred workflow steps, V4 quarantine `runtime-snapshot.ts`/`store.ts`, legacy Inspector vocabulary; Workbench shows "unknown/awaiting canonical event", never infers; one snapshot contract shared TUI+browser | ✅ `#870` (contract-vs-legacy precedence + agent-id guard fixed in `e97ea249`; the one-shared-snapshot-contract item is carried debt — `ui/projection.js` ↔ `inspector/projection.ts` remain twins) |
+| R5 | Support subsystems: finish `models.*` cutover (3 resolvers → 1, kill flat reads); ONE tool/capability catalogue + MCP/manifest adapters; **outbound redaction gate before any remote-provider call = security correction, not cleanup**; one metric vocabulary (Node-native collectors; psutil refs in metrics doc are catalogue-only, Python) | ✅ `#871` (redaction gate, single model resolver, streaming fix, gauge-aware metrics; carried debt: `ToolCapabilityRegistry`/`MetricsSink` have no production consumer, `subagents.enabled` flat reads deferred) |
+| R6 | Physical directory moves into the 12-subsystem layout — LAST, mechanical after boundaries real. Also resolves the 4 `status-store-writes` executive read-path entries reclassified from R5 (`src/cli/commands/adaptation/main.ts`, `executive-evaluate-handler.ts`, `executive-orchestrate-handler.ts`, `executive.ts` → `src/executive/execution-state-store.ts`) | ⬜ **only remaining phase** |
 
 ### 12-subsystem end-state (4 layers: Experience → Coordination → Control → Execution&Platform)
 
@@ -28,12 +28,13 @@ authorizes / executor acts; capabilities describe / tools implement; EventLog
 overrides; interfaces command+display only; observability measures, controls
 nothing; operator owns the user relationship.
 
-### R5 security note (do not lose)
+### R5 security note — RESOLVED R5.1
 
-Memory/context content reaches remote providers unredacted today: provider
-send paths (`route-execution.ts`, `agent-loop.ts`, `planner-model.ts`,
-`subagent-cli.ts`) send system prompts incl. memory+repomap with no redaction
-gate; tracing redacts only the captured copy. Treat as vulnerability class.
+The outbound redaction gap (memory/context reaching remote providers
+unredacted) was the R5.1 correction: `withProviderContracts` now runs
+`redactOutboundRequest` on every provider `complete`/`stream` call, fail-closed
+for remote providers (`provider-locality.ts`). Owner seam:
+`src/providers/AGENTS.md`.
 
 ## Verification gates
 
