@@ -752,6 +752,49 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     expect(result.reason).toBe('completed_unverified');
   });
 
+  it('recovery + empty done: a superseded failure does not block the synthesis re-prompt', async () => {
+    // First coordination.run fails, the retry is verified, then the model
+    // calls alix_done with NO prose. The earlier failure must not be treated
+    // as the current state: the loop must re-prompt for a synthesis and
+    // accept it, instead of terminating with the stale error.
+    const seeded = await seedVerifiedCoordinationRunSession();
+    let coordRetries = 0;
+    const provider = createScriptedProvider([
+      { text: '', toolCalls: [{ name: 'alix_coordination_run', id: 'c1', args: { goal: 'x' } }] },
+      { text: '', toolCalls: [{ name: 'alix_coordination_run', id: 'c2', args: { goal: 'x' } }] },
+      { text: '', toolCalls: [{ name: 'alix_done', id: 'd1', args: {} }] },
+      { text: 'HELLO WORLD' },
+    ]);
+    const { deps, log } = await makeTestDeps({
+      provider,
+      task: NO_COORD_TASK,
+      taskType: 'docs',
+      providerTools: [coordinationTool, doneTool],
+      executor: {
+        execute: async ({ name }: { name: string }) => {
+          if (name !== 'coordination.run') {
+            if (name === 'task.complete') return { kind: 'success' as const, output: 'Task complete.', completed: true };
+            return { kind: 'success' as const, output: 'ok' };
+          }
+          coordRetries++;
+          return coordRetries === 1
+            ? { kind: 'error' as const, message: 'worker pool failed', retryable: false }
+            : seeded.result;
+        },
+      } as unknown as TaskLoopDeps['executor'],
+      maxIterations: 5,
+      cwd: seeded.cwd,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.reason).toBe('completed');
+    expect(result.summary).not.toContain('worker pool failed');
+    const ended = (await log.readAll()).filter((e) => e.type === 'session.ended');
+    expect((ended.at(-1)!.payload as { reason?: string }).reason).toBe('completed');
+    seeded.cleanup();
+  });
+
   it('trackCompleted: the done tool cannot complete while the coordination gate is set', async () => {
     const provider = createScriptedProvider([
       {
