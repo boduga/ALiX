@@ -17,7 +17,7 @@ import { randomUUID } from "node:crypto";
 import type { CoordinationRun, CoordinationRunOutcome, CoordinationRunStatus, WorkerAssignment, WorkerStatus } from "./coordination-types.js";
 import { transitionWorkerStatus, recomputeRunStatus } from "./coordination-types.js";
 import { CoordinationRunLock } from "./coordination-run-lock.js";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { getSharedLedger, appendFact, type LedgerFactCounters } from "../storage/runtime-ledger.js";
 
 /** Event types this domain writes to the R2 ledger (reconciliation vocabulary). */
 export const COORDINATION_LEDGER_EVENT_TYPES = [
@@ -74,7 +74,7 @@ export class CoordinationStore {
    * back to JSON). JSON projection failures are tolerated and counted: the
    * projection is rebuildable, reconciliation reports the drift.
    */
-  private ledgerAppends = 0;
+  private readonly ledgerCounters: LedgerFactCounters = { appends: 0, failures: 0 };
   private projectionFailures = 0;
   private lastProjectionError: string | undefined;
 
@@ -89,35 +89,25 @@ export class CoordinationStore {
    * and an unavailable ledger means the domain cannot mutate.
    */
   private commitToLedger(runId: string, mode: "snapshot" | "deleted", payload: Record<string, unknown>, occurredAt: string): void {
-    const ledger = getSharedLedger(this.cwd);
-    const expected = ledger.entityVersion(runId);
+    const expected = getSharedLedger(this.cwd).entityVersion(runId);
     const eventType: CoordinationLedgerEventType =
       mode === "deleted"
         ? "coordination.run.deleted"
         : expected === 0
           ? "coordination.run.created"
           : "coordination.run.persisted";
-    const res = ledger.append({
-      event: {
-        eventId: randomUUID(),
-        eventType,
-        schemaVersion: 1,
-        entityType: "coordinationRun",
-        entityId: runId,
-        entityVersion: expected + 1,
-        coordinationRunId: runId,
-        correlationId: runId,
-        actor: { type: "system", id: "coordination-store" },
-        occurredAt,
-        recordedAt: new Date().toISOString(),
-        payload,
-      },
+    appendFact(this.cwd, this.ledgerCounters, {
+      eventType,
+      entityType: "coordinationRun",
+      entityId: runId,
+      payload,
+      coordinationRunId: runId,
+      correlationId: runId,
+      actor: { type: "system", id: "coordination-store" },
+      occurredAt,
       expectedVersion: expected,
+      errorLabel: "coordination ledger",
     });
-    if (!res.ok) {
-      throw new Error(`coordination ledger append failed (${res.reason}): ${res.detail}`);
-    }
-    this.ledgerAppends += 1;
   }
 
   /**
@@ -136,10 +126,13 @@ export class CoordinationStore {
   }
 
   /** Observable authority health (R2: failures must never be silent). */
-  ledgerStatus(): { appends: number; projectionFailures: number; lastProjectionError?: string } {
+  ledgerStatus(): { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string } {
+    const c = this.ledgerCounters;
     return {
-      appends: this.ledgerAppends,
+      appends: c.appends,
+      failures: c.failures,
       projectionFailures: this.projectionFailures,
+      ...(c.lastError !== undefined ? { lastError: c.lastError } : {}),
       ...(this.lastProjectionError !== undefined ? { lastProjectionError: this.lastProjectionError } : {}),
     };
   }

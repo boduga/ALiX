@@ -10,9 +10,8 @@ import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { randomUUID } from "node:crypto";
 import { resolveDaemonTasksPath } from "./daemon-paths.js";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { getSharedLedger, appendFact, currentEntityVersion } from "../storage/runtime-ledger.js";
 
 export type DaemonTaskStatus =
   | "queued" | "running" | "completed" | "failed"
@@ -127,87 +126,51 @@ export class TaskRegistry {
   }
 
   /**
-   * R2.9 mirror the classified diff to the transactional ledger. The daemon
-   * registry is GLOBAL, so the ledger is the per-user one at ~/.alix.
-   * Called only AFTER a successful file write.
+   * R2.15 commit the classified diff to the transactional ledger. The daemon
+   * registry is GLOBAL, so the ledger is the per-user one at ~/.alix. This is
+   * THE COMMIT and is called synchronously by every mutator so an append
+   * failure reaches the caller instead of being swallowed by the queued
+   * projection write.
    */
-  private mirrorDiff(): void {
-    try {
-      const ledger = getSharedLedger(this.ledgerCwd);
-      const currentIds = new Set<string>();
-      for (const task of this.tasks) {
-        currentIds.add(task.id);
-        const serialized = JSON.stringify(task);
-        const prior = this.lastMirrored.get(task.id);
-        if (prior === serialized) continue;
-        const expected = ledger.entityVersion(task.id);
-        const eventType = expected === 0 ? "daemonTask.created" : "daemonTask.updated";
-        const res = ledger.append({
-          event: {
-            eventId: randomUUID(),
-            eventType,
-            schemaVersion: 1,
-            entityType: "daemonTask",
-            entityId: task.id,
-            entityVersion: expected + 1,
-            correlationId: task.id,
-            sessionId: task.sessionId,
-            actor: { type: "system", id: "task-registry" },
-            occurredAt: task.updatedAt,
-            recordedAt: new Date().toISOString(),
-            payload: { task },
-          },
-          expectedVersion: expected,
-        });
-        if (res.ok) {
-          ledgerStatus.appends += 1;
-          this.lastMirrored.set(task.id, serialized);
-        } else {
-          ledgerStatus.failures += 1;
-          ledgerStatus.lastError = `${res.reason}: ${res.detail}`;
-          throw new Error(`daemonTask ledger append failed (${res.reason}): ${res.detail}`);
-        }
-      }
-      for (const id of [...this.lastMirrored.keys()]) {
-        if (currentIds.has(id)) continue;
-        const expected = ledger.entityVersion(id);
-        const res = ledger.append({
-          event: {
-            eventId: randomUUID(),
-            eventType: "daemonTask.removed",
-            schemaVersion: 1,
-            entityType: "daemonTask",
-            entityId: id,
-            entityVersion: expected + 1,
-            correlationId: id,
-            actor: { type: "system", id: "task-registry" },
-            occurredAt: new Date().toISOString(),
-            recordedAt: new Date().toISOString(),
-            payload: { removed: true },
-          },
-          expectedVersion: expected,
-        });
-        if (res.ok) {
-          ledgerStatus.appends += 1;
-          this.lastMirrored.delete(id);
-        } else {
-          ledgerStatus.failures += 1;
-          ledgerStatus.lastError = `${res.reason}: ${res.detail}`;
-          throw new Error(`daemonTask ledger append failed (${res.reason}): ${res.detail}`);
-        }
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("daemonTask ledger append failed")) throw err;
-      ledgerStatus.failures += 1;
-      ledgerStatus.lastError = err instanceof Error ? err.message : String(err);
-      throw err;
+  private commitToLedger(): void {
+    const currentIds = new Set<string>();
+    for (const task of this.tasks) {
+      currentIds.add(task.id);
+      const serialized = JSON.stringify(task);
+      if (this.lastMirrored.get(task.id) === serialized) continue;
+      const expected = currentEntityVersion(this.ledgerCwd, ledgerStatus, task.id);
+      appendFact(this.ledgerCwd, ledgerStatus, {
+        eventType: expected === 0 ? "daemonTask.created" : "daemonTask.updated",
+        entityType: "daemonTask",
+        entityId: task.id,
+        payload: { task },
+        correlationId: task.id,
+        sessionId: task.sessionId,
+        actor: { type: "system", id: "task-registry" },
+        occurredAt: task.updatedAt,
+        expectedVersion: expected,
+        errorLabel: "daemonTask ledger",
+      });
+      this.lastMirrored.set(task.id, serialized);
+    }
+    for (const id of [...this.lastMirrored.keys()]) {
+      if (currentIds.has(id)) continue;
+      appendFact(this.ledgerCwd, ledgerStatus, {
+        eventType: "daemonTask.removed",
+        entityType: "daemonTask",
+        entityId: id,
+        payload: { removed: true },
+        correlationId: id,
+        actor: { type: "system", id: "task-registry" },
+        occurredAt: new Date().toISOString(),
+        errorLabel: "daemonTask ledger",
+      });
+      this.lastMirrored.delete(id);
     }
   }
 
-  private async save(): Promise<void> {
-    // R2.15 authority: append the classified diff FIRST (throws on failure →
-    // enqueueSave logs and the projection is skipped — no JSON-only state).
-    this.mirrorDiff();
+  /** Write the JSON projection; failures are counted, never thrown. */
+  private async projectJson(): Promise<void> {
     try {
       const dir = join(this.filePath, "..");
       if (!existsSync(dir)) await mkdir(dir, { recursive: true });
@@ -217,16 +180,16 @@ export class TaskRegistry {
     } catch (err) {
       ledgerStatus.projectionFailures += 1;
       ledgerStatus.lastProjectionError = err instanceof Error ? err.message : String(err);
-      throw err; // enqueueSave's catch logs it
+      throw err; // enqueueProjection's catch logs it
     }
   }
 
-  /** Serialized write — ensures concurrent saves don't race. */
-  private enqueueSave(): void {
+  /** Serialized projection write — ensures concurrent writes don't race. */
+  private enqueueProjection(): void {
     this.savePromise = this.savePromise
-      .then(() => this.save())
+      .then(() => this.projectJson())
       .catch((err) => {
-        console.error("[task-registry] save failed", err);
+        console.error("[task-registry] projection save failed", err);
       });
   }
 
@@ -242,17 +205,31 @@ export class TaskRegistry {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    this.tasks.push(record);
+    const before = this.tasks;
+    this.tasks = [...this.tasks, record];
     this.pruneCompleted();
-    this.enqueueSave();
+    try {
+      this.commitToLedger();
+    } catch (err) {
+      this.tasks = before; // roll back the in-memory mutation — no durable fact
+      throw err;
+    }
+    this.enqueueProjection();
     return record;
   }
 
   update(id: string, changes: Partial<DaemonTaskRecord>): DaemonTaskRecord | null {
     const idx = this.tasks.findIndex(t => t.id === id);
     if (idx < 0) return null;
+    const before = this.tasks[idx];
     this.tasks[idx] = { ...this.tasks[idx], ...changes, updatedAt: new Date().toISOString() };
-    this.enqueueSave();
+    try {
+      this.commitToLedger();
+    } catch (err) {
+      this.tasks[idx] = before; // roll back the in-memory mutation
+      throw err;
+    }
+    this.enqueueProjection();
     return this.tasks[idx];
   }
 
@@ -295,7 +272,10 @@ export class TaskRegistry {
       }
     }
 
-    if (reconciled > 0) this.enqueueSave();
+    if (reconciled > 0) {
+      this.commitToLedger();
+      this.enqueueProjection();
+    }
     return { reconciled, totalBefore };
   }
 

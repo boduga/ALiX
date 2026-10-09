@@ -17,7 +17,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { CONTINUATION_LEDGER_EVENT_TYPES } from "./continuation-store.js";
 import type { PendingContinuation } from "./continuation-store.js";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { drainLedgerEvents, type LedgerEventRow } from "../storage/runtime-ledger.js";
 
 export type ContinuationReconcileIssueKind =
   | "missing_in_ledger"
@@ -44,38 +44,6 @@ export interface ContinuationReconcileReport {
 }
 
 const KNOWN_TYPES = new Set<string>(CONTINUATION_LEDGER_EVENT_TYPES);
-
-interface LedgerEventRow {
-  eventType: string;
-  entityType: string;
-  entityId: string;
-  entityVersion: number;
-  payload: unknown;
-  ledgerSeq: number;
-}
-
-function drainLedgerEvents(cwd: string, entityTypes: ReadonlySet<string>, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
-  const ledger = getSharedLedger(cwd);
-  const events: LedgerEventRow[] = [];
-  let cursor = 0;
-  for (let page = 0; page < maxPages; page++) {
-    const rows = ledger.readEvents({ sinceSeq: cursor, limit: pageSize });
-    for (const r of rows) {
-      if (!entityTypes.has(r.entityType)) continue;
-      events.push({
-        eventType: r.eventType,
-        entityType: r.entityType,
-        entityId: r.entityId,
-        entityVersion: r.entityVersion,
-        payload: r.payload,
-        ledgerSeq: r.ledgerSeq,
-      });
-      cursor = r.ledgerSeq;
-    }
-    if (rows.length < pageSize) return { events, truncated: false };
-  }
-  return { events, truncated: true };
-}
 
 export async function reconcileContinuationLedger(cwd: string): Promise<ContinuationReconcileReport> {
   const issues: ContinuationReconcileIssue[] = [];

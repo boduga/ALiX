@@ -443,8 +443,8 @@
   {
     "imported": "src/kernel/coordination-store.ts",
     "importer": "src/kernel/coordination-ledger-reconcile.ts",
-    "reason": "R0 B1 \u2014 reconciliation reads the R0-flagged authoritative JSON store for comparison; drops when the ledger projection replaces store reads",
-    "removalPhase": "R2",
+    "reason": "R0 B1 \u2014 R2 reconcile reads the authoritative coordinator to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
+    "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {
@@ -562,15 +562,15 @@
   {
     "imported": "src/runtime/continuation-store.ts",
     "importer": "src/runtime/continuation-ledger-reconcile.ts",
-    "reason": "R0 B5 \u2014 reconciliation reads the R0-flagged continuation store for comparison; drops when the ledger projection replaces store reads",
-    "removalPhase": "R2",
+    "reason": "R0 B5 \u2014 R2 reconcile reads the authoritative continuation store to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
+    "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/runtime/execution-state/execution-state-store.ts",
     "importer": "src/runtime/execution-state/execution-ledger-reconcile.ts",
-    "reason": "R0 B7 \u2014 reconciliation reads the R0-flagged snapshot store for comparison; drops when the ledger projection replaces snapshot reads",
-    "removalPhase": "R2",
+    "reason": "R0 B7 \u2014 R2 reconcile reads the authoritative snapshot store to report projection drift; the comparison read is retained (ledger is already authority), revisit at the R6 physical moves",
+    "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {

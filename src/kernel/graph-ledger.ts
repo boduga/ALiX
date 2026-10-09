@@ -1,20 +1,39 @@
 // src/kernel/graph-ledger.ts
 //
-// R2.7 — graph domain dual-write to the transactional ledger (strangler).
-// The JSON files under `.alix/graphs/` stay authoritative in this phase;
-// every graph-file write site mirrors:
+// R2.7/R2.13 — graph domain ledger writes. The transactional ledger is
+// AUTHORITATIVE; the JSON files under `.alix/graphs/` are a compatibility
+// projection. Every graph-file write site appends FIRST:
 //   - the graph definition/status → entityType "graph" (events
 //     `graph.created` / `graph.persisted`, full TaskGraph payload)
 //   - each rerun attempt record → entityType "graphAttempt" (event
 //     `graph.attempt_recorded`, payload { attempt }), entity per attempt so
 //     replay/reconcile can count them exactly.
 //
-// Mirror failures are COUNTED, never thrown — reconciliation reports drift.
-// R0 B2 (graph rewrite without facts) is the defect this closes.
+// A ledger append is the commit: its failure is counted, then THROWN — no
+// JSON-only graph mutation can exist. Projection (JSON) failures are
+// tolerated and counted. R0 B2 (graph rewrite without facts) is the defect
+// this closes.
 
-import { randomUUID } from "node:crypto";
 import type { TaskGraph } from "./task-graph.js";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { currentEntityVersion, appendFact } from "../storage/runtime-ledger.js";
+
+/**
+ * Entity id for one rerun attempt — kept in ONE place because
+ * `runtime_entities` keys by entity_id and the reconciler must decode it
+ * back without ad-hoc string surgery.
+ */
+export function graphAttemptEntityId(graphId: string, attempt: number): string {
+  return `${graphId}#attempt-${attempt}`;
+}
+
+/** Decode a `graphAttemptEntityId`; null when the id is not attempt-shaped. */
+export function parseGraphAttemptEntityId(entityId: string): { graphId: string; attempt: number } | null {
+  const idx = entityId.lastIndexOf("#attempt-");
+  if (idx <= 0) return null;
+  const attempt = Number(entityId.slice(idx + "#attempt-".length));
+  if (!Number.isInteger(attempt)) return null;
+  return { graphId: entityId.slice(0, idx), attempt };
+}
 
 export const GRAPH_LEDGER_EVENT_TYPES = [
   "graph.created",
@@ -70,39 +89,19 @@ export function resetGraphLedgerStatus(cwd: string): void {
  */
 export function mirrorGraphToLedger(cwd: string, graph: TaskGraph): void {
   const s = statusFor(cwd);
-  try {
-    const ledger = getSharedLedger(cwd);
-    const expected = ledger.entityVersion(graph.id);
-    const eventType = expected === 0 ? "graph.created" : "graph.persisted";
-    const res = ledger.append({
-      event: {
-        eventId: randomUUID(),
-        eventType,
-        schemaVersion: 1,
-        entityType: "graph",
-        entityId: graph.id,
-        entityVersion: expected + 1,
-        correlationId: graph.id,
-        actor: { type: "system", id: "graph-store" },
-        occurredAt: graph.updatedAt ?? new Date().toISOString(),
-        recordedAt: new Date().toISOString(),
-        payload: { graph },
-      },
-      expectedVersion: expected,
-    });
-    if (res.ok) {
-      s.appends += 1;
-      return;
-    }
-    s.failures += 1;
-    s.lastError = `${res.reason}: ${res.detail}`;
-    throw new Error(`graph ledger append failed (${res.reason}): ${res.detail}`);
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith("graph ledger append failed")) throw err;
-    s.failures += 1;
-    s.lastError = err instanceof Error ? err.message : String(err);
-    throw err;
-  }
+  const expected = currentEntityVersion(cwd, s, graph.id);
+  const eventType = expected === 0 ? "graph.created" : "graph.persisted";
+  appendFact(cwd, s, {
+    eventType,
+    entityType: "graph",
+    entityId: graph.id,
+    payload: { graph },
+    correlationId: graph.id,
+    actor: { type: "system", id: "graph-store" },
+    occurredAt: graph.updatedAt ?? new Date().toISOString(),
+    expectedVersion: expected,
+    errorLabel: "graph ledger",
+  });
 }
 
 /**
@@ -115,38 +114,18 @@ export function mirrorGraphAttemptToLedger(
   attempt: { attempt: number; nodeId?: string; status?: string; startedAt?: string; completedAt?: string; durationMs?: number; summary?: string; error?: string },
 ): void {
   const s = statusFor(cwd);
-  try {
-    const ledger = getSharedLedger(cwd);
-    const entityId = `${graphId}#attempt-${attempt.attempt}`;
-    const expected = ledger.entityVersion(entityId);
-    if (expected > 0) return; // already recorded — attempts are immutable
-    const res = ledger.append({
-      event: {
-        eventId: randomUUID(),
-        eventType: "graph.attempt_recorded",
-        schemaVersion: 1,
-        entityType: "graphAttempt",
-        entityId,
-        entityVersion: 1,
-        correlationId: graphId,
-        actor: { type: "system", id: "graph-store" },
-        occurredAt: attempt.completedAt ?? attempt.startedAt ?? new Date().toISOString(),
-        recordedAt: new Date().toISOString(),
-        payload: { attempt },
-      },
-      expectedVersion: 0,
-    });
-    if (res.ok) {
-      s.appends += 1;
-      return;
-    }
-    s.failures += 1;
-    s.lastError = `${res.reason}: ${res.detail}`;
-    throw new Error(`graph attempt ledger append failed (${res.reason}): ${res.detail}`);
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith("graph attempt ledger append failed")) throw err;
-    s.failures += 1;
-    s.lastError = err instanceof Error ? err.message : String(err);
-    throw err;
-  }
+  const entityId = graphAttemptEntityId(graphId, attempt.attempt);
+  if (currentEntityVersion(cwd, s, entityId) > 0) return; // already recorded — attempts are immutable
+  appendFact(cwd, s, {
+    eventType: "graph.attempt_recorded",
+    entityType: "graphAttempt",
+    entityId,
+    payload: { attempt },
+    correlationId: graphId,
+    actor: { type: "system", id: "graph-store" },
+    occurredAt: attempt.completedAt ?? attempt.startedAt ?? new Date().toISOString(),
+    expectedVersion: 0,
+    entityVersion: 1,
+    errorLabel: "graph attempt ledger",
+  });
 }

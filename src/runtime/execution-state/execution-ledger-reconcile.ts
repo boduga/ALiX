@@ -16,7 +16,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { stateFilePath } from "./execution-state-store.js";
 import { executionStateStoreDir } from "./execution-state-emitter.js";
-import { getSharedLedger } from "../../storage/runtime-ledger.js";
+import { drainLedgerEvents, type LedgerEventRow } from "../../storage/runtime-ledger.js";
 import type { ExecutionState } from "./execution-state.js";
 
 export type ExecutionReconcileIssueKind =
@@ -43,38 +43,6 @@ export interface ExecutionReconcileReport {
 }
 
 const KNOWN_TYPES = new Set(["execution.state_created", "execution.state_saved"]);
-
-interface LedgerEventRow {
-  eventType: string;
-  entityType: string;
-  entityId: string;
-  entityVersion: number;
-  payload: unknown;
-  ledgerSeq: number;
-}
-
-function drainLedgerEvents(cwd: string, entityTypes: ReadonlySet<string>, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
-  const ledger = getSharedLedger(cwd);
-  const events: LedgerEventRow[] = [];
-  let cursor = 0;
-  for (let page = 0; page < maxPages; page++) {
-    const rows = ledger.readEvents({ sinceSeq: cursor, limit: pageSize });
-    for (const r of rows) {
-      if (!entityTypes.has(r.entityType)) continue;
-      events.push({
-        eventType: r.eventType,
-        entityType: r.entityType,
-        entityId: r.entityId,
-        entityVersion: r.entityVersion,
-        payload: r.payload,
-        ledgerSeq: r.ledgerSeq,
-      });
-      cursor = r.ledgerSeq;
-    }
-    if (rows.length < pageSize) return { events, truncated: false };
-  }
-  return { events, truncated: true };
-}
 
 export async function reconcileExecutionLedger(
   storeDir: string = executionStateStoreDir(),

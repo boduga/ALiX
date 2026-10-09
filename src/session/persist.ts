@@ -7,11 +7,10 @@
 import { mkdir, writeFile, readFile, appendFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, basename } from "node:path";
-import { randomUUID } from "node:crypto";
 import type { NormalizedMessage } from "../providers/types.js";
 import type { ScopeSnapshot } from "../autonomy/scope-tracker.js";
 import type { StateSnapshot } from "../autonomy/state-machine.js";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { getSharedLedger, appendFact, currentEntityVersion } from "../storage/runtime-ledger.js";
 
 const MESSAGES_FILE = "messages.jsonl";
 const SCOPE_FILE = "scope.json";
@@ -23,6 +22,20 @@ export const SESSION_LEDGER_EVENT_TYPES = [
   "session.scope_saved",
   "session.state_saved",
 ] as const;
+
+/**
+ * Ledger entity ids for the session domain. Kept here (not inline at each
+ * call site) so persist and the reconciler cannot drift.
+ */
+export function sessionMessageEntityId(sessionId: string, index: number): string {
+  return `${sessionId}#msg-${index}`;
+}
+export function sessionScopeEntityId(sessionId: string): string {
+  return `scope:${sessionId}`;
+}
+export function sessionStateEntityId(sessionId: string): string {
+  return `state:${sessionId}`;
+}
 
 // ─── R2.18 dual-write status (per workspace root) ─────────────────────
 type SessionLedgerStatus = { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string };
@@ -79,40 +92,20 @@ function appendSessionFact(
 ): void {
   const root = ledgerRootFor(sessionDir);
   const s = statusFor(root);
-  try {
-    const ledger = getSharedLedger(root);
-    const expected = ledger.entityVersion(entityId);
-    if (expected > 0 && entityType === "sessionMessage") return; // immutable index — already mirrored
-    const res = ledger.append({
-      event: {
-        eventId: randomUUID(),
-        eventType,
-        schemaVersion: 1,
-        entityType,
-        entityId,
-        entityVersion: expected + 1,
-        sessionId: sessionIdOf(sessionDir),
-        correlationId: entityId,
-        actor: { type: "system", id: "session-persist" },
-        occurredAt,
-        recordedAt: new Date().toISOString(),
-        payload,
-      },
-      expectedVersion: expected,
-    });
-    if (res.ok) {
-      s.appends += 1;
-      return;
-    }
-    s.failures += 1;
-    s.lastError = `${res.reason}: ${res.detail}`;
-    throw new Error(`session ledger append failed (${res.reason}): ${res.detail}`);
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith("session ledger append failed")) throw err;
-    s.failures += 1;
-    s.lastError = err instanceof Error ? err.message : String(err);
-    throw err;
-  }
+  const expected = currentEntityVersion(root, s, entityId);
+  if (expected > 0 && entityType === "sessionMessage") return; // immutable index — already mirrored
+  appendFact(root, s, {
+    eventType,
+    entityType,
+    entityId,
+    payload,
+    correlationId: entityId,
+    sessionId: sessionIdOf(sessionDir),
+    actor: { type: "system", id: "session-persist" },
+    occurredAt,
+    expectedVersion: expected,
+    errorLabel: "session ledger",
+  });
 }
 
 function countProjectionFailure(sessionDir: string, err: unknown): void {
@@ -149,7 +142,7 @@ export async function saveMessages(
     appendSessionFact(
       sessionDir,
       "sessionMessage",
-      `${sessionId}#msg-${index}`,
+      sessionMessageEntityId(sessionId, index),
       "session.message_appended",
       { message: m, index, sessionId },
       new Date().toISOString(),
@@ -178,7 +171,7 @@ export async function saveScope(
   appendSessionFact(
     sessionDir,
     "sessionScope",
-    `scope:${sessionIdOf(sessionDir)}`,
+    sessionScopeEntityId(sessionIdOf(sessionDir)),
     "session.scope_saved",
     { scope, sessionId: sessionIdOf(sessionDir) },
     new Date().toISOString(),
@@ -206,7 +199,7 @@ export async function saveState(
   appendSessionFact(
     sessionDir,
     "sessionState",
-    `state:${sessionIdOf(sessionDir)}`,
+    sessionStateEntityId(sessionIdOf(sessionDir)),
     "session.state_saved",
     { state, sessionId: sessionIdOf(sessionDir) },
     new Date().toISOString(),

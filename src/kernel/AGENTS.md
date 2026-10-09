@@ -8,7 +8,7 @@
 
 - `task-graph.ts` — TaskNode/TaskGraph types, status transitions, risk levels
 - `graph-executor.ts` — Sequential multi-node executor with capability resolution, policy enforcement, approval integration
-- `graph-ledger.ts` — R2.7 graph-domain dual-write to the transactional ledger (`.alix/runtime-ledger.db`): `mirrorGraphToLedger` (entityType `graph`, events `graph.created`/`graph.persisted`, full TaskGraph payload) + `mirrorGraphAttemptToLedger` (entityType `graphAttempt`, `graph.attempt_recorded`, per-attempt entity, idempotent); `graphLedgerStatus(cwd)` surfaces counted failures (never thrown).
+- `graph-ledger.ts` — R2.7/R2.13 graph-domain ledger writes (`.alix/runtime-ledger.db`): `mirrorGraphToLedger` (entityType `graph`, events `graph.created`/`graph.persisted`, full TaskGraph payload) + `mirrorGraphAttemptToLedger` (entityType `graphAttempt`, `graph.attempt_recorded`, per-attempt entity, idempotent) — the ledger is AUTHORITATIVE, append failure counts then THROWS; `graphLedgerStatus(cwd)` surfaces counted appends/failures, and `countGraphProjectionFailure` counts tolerated JSON projection failures. `graphAttemptEntityId`/`parseGraphAttemptEntityId` are the one place the attempt entity id is encoded/decoded.
 - `graph-ledger-reconcile.ts` — read-only comparison of `.alix/graphs/*.json` + `*.runs.json` against the ledger (`missing_in_ledger` / `record_mismatch` / `projection_missing` / `version_behind` / `ledger_payload_invalid`); counts unknown event types, reports truncated reads. CLI: `alix graph reconcile` (exit 1 on drift).
 - `graph-projection.ts` — Reconstruct run state from events and graph JSON
 - `graph-planner.ts` — Model-based graph generation from goals (v2 prompt, capability catalog, deterministic normalize, one repair retry)

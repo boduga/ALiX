@@ -13,11 +13,12 @@
 //   version_behind    — sessionMessage entity version ≠ event count
 //   ledger_payload_invalid — live event missing its payload
 
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { SESSION_LEDGER_EVENT_TYPES } from "./persist.js";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { SESSION_LEDGER_EVENT_TYPES, sessionScopeEntityId, sessionStateEntityId } from "./persist.js";
+import { drainLedgerEvents, type LedgerEventRow } from "../storage/runtime-ledger.js";
+import { streamJsonlLines } from "../storage/jsonl-store.js";
 
 export type SessionReconcileIssueKind =
   | "missing_in_ledger"
@@ -47,40 +48,6 @@ export interface SessionReconcileReport {
 const KNOWN_TYPES = new Set<string>(SESSION_LEDGER_EVENT_TYPES);
 const SESSION_TYPES = new Set(["sessionMessage", "sessionScope", "sessionState"]);
 
-interface LedgerEventRow {
-  eventType: string;
-  entityType: string;
-  entityId: string;
-  sessionId?: string;
-  entityVersion: number;
-  payload: unknown;
-  ledgerSeq: number;
-}
-
-function drain(cwd: string, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
-  const ledger = getSharedLedger(cwd);
-  const events: LedgerEventRow[] = [];
-  let cursor = 0;
-  for (let page = 0; page < maxPages; page++) {
-    const rows = ledger.readEvents({ sinceSeq: cursor, limit: pageSize });
-    for (const r of rows) {
-      if (!SESSION_TYPES.has(r.entityType)) continue;
-      events.push({
-        eventType: r.eventType,
-        entityType: r.entityType,
-        entityId: r.entityId,
-        sessionId: r.sessionId,
-        entityVersion: r.entityVersion,
-        payload: r.payload,
-        ledgerSeq: r.ledgerSeq,
-      });
-      cursor = r.ledgerSeq;
-    }
-    if (rows.length < pageSize) return { events, truncated: false };
-  }
-  return { events, truncated: true };
-}
-
 export async function reconcileSessionLedger(cwd: string): Promise<SessionReconcileReport> {
   const issues: SessionReconcileIssue[] = [];
   const unknownEventTypes: Record<string, number> = {};
@@ -90,7 +57,7 @@ export async function reconcileSessionLedger(cwd: string): Promise<SessionReconc
     ? (await readdir(sessionsDir, { withFileTypes: true })).filter(e => e.isDirectory()).map(e => e.name)
     : [];
 
-  const { events, truncated } = drain(cwd);
+  const { events, truncated } = drainLedgerEvents(cwd, SESSION_TYPES);
   for (const e of events) {
     if (!KNOWN_TYPES.has(e.eventType)) {
       unknownEventTypes[e.eventType] = (unknownEventTypes[e.eventType] ?? 0) + 1;
@@ -121,17 +88,19 @@ export async function reconcileSessionLedger(cwd: string): Promise<SessionReconc
 
     // messages.jsonl — legacy lines without facts vs ledger index coverage
     const msgPath = join(dir, "messages.jsonl");
-    let fileLines: string[] = [];
+    let fileLineCount = 0;
     if (existsSync(msgPath)) {
-      fileLines = (await readFile(msgPath, "utf-8")).split("\n").filter(Boolean);
+      for await (const { line } of streamJsonlLines(msgPath)) {
+        if (line.trim()) fileLineCount += 1;
+      }
     }
-    scannedMessages += fileLines.length;
+    scannedMessages += fileLineCount;
     const facts = messagesBySession.get(sessionId) ?? [];
     const factIndexes = new Set(facts.map(f => f.index).filter((i): i is number => typeof i === "number"));
-    if (fileLines.length > 0 && facts.length === 0) {
-      issues.push({ sessionId, kind: "missing_in_ledger", detail: `${fileLines.length} message line(s) with zero ledger facts (legacy pre-ledger session)` });
+    if (fileLineCount > 0 && facts.length === 0) {
+      issues.push({ sessionId, kind: "missing_in_ledger", detail: `${fileLineCount} message line(s) with zero ledger facts (legacy pre-ledger session)` });
     } else {
-      for (let i = 0; i < fileLines.length; i++) {
+      for (let i = 0; i < fileLineCount; i++) {
         if (!factIndexes.has(i)) {
           issues.push({ sessionId, kind: "missing_in_ledger", detail: `message index ${i} present in messages.jsonl but not mirrored` });
         }
@@ -179,8 +148,8 @@ export async function reconcileSessionLedger(cwd: string): Promise<SessionReconc
         issues.push({ sessionId, kind: "record_mismatch", detail: `${file} unreadable while a live ledger ${label} fact exists` });
       }
     };
-    compareSnapshot("scope.json", `scope:${sessionId}`, "scope", (p) => (p as { scope?: unknown }).scope);
-    compareSnapshot("state.json", `state:${sessionId}`, "state", (p) => (p as { state?: unknown }).state);
+    compareSnapshot("scope.json", sessionScopeEntityId(sessionId), "scope", (p) => (p as { scope?: unknown }).scope);
+    compareSnapshot("state.json", sessionStateEntityId(sessionId), "state", (p) => (p as { state?: unknown }).state);
   }
 
   // Ledger-side: facts for sessions with no projection dir at all.

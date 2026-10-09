@@ -8,8 +8,7 @@
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { randomUUID } from "node:crypto";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { getSharedLedger, appendFact, currentEntityVersion } from "../storage/runtime-ledger.js";
 
 /** Ledger event vocabulary for the replay-index domain (R2.11). */
 export const REPLAY_LEDGER_EVENT_TYPES = [
@@ -167,39 +166,18 @@ export class ReplayStatusIndex {
    */
   private appendEntry(entry: ReplayStatusEntry): void {
     const s = statusFor(this.cwd);
-    try {
-      const ledger = getSharedLedger(this.cwd);
-      const expected = ledger.entityVersion(entry.replayId);
-      const eventType = expected === 0 ? "replay.status_created" : "replay.status_updated";
-      const res = ledger.append({
-        event: {
-          eventId: randomUUID(),
-          eventType,
-          schemaVersion: 1,
-          entityType: "replay",
-          entityId: entry.replayId,
-          entityVersion: expected + 1,
-          correlationId: entry.replayId,
-          actor: { type: "system", id: "replay-status-index" },
-          occurredAt: entry.updatedAt,
-          recordedAt: new Date().toISOString(),
-          payload: { entry },
-        },
-        expectedVersion: expected,
-      });
-      if (res.ok) {
-        s.appends += 1;
-        return;
-      }
-      s.failures += 1;
-      s.lastError = `${res.reason}: ${res.detail}`;
-      throw new Error(`replay ledger append failed (${res.reason}): ${res.detail}`);
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("replay ledger append failed")) throw err;
-      s.failures += 1;
-      s.lastError = err instanceof Error ? err.message : String(err);
-      throw err;
-    }
+    const expected = currentEntityVersion(this.cwd, s, entry.replayId);
+    appendFact(this.cwd, s, {
+      eventType: expected === 0 ? "replay.status_created" : "replay.status_updated",
+      entityType: "replay",
+      entityId: entry.replayId,
+      payload: { entry },
+      correlationId: entry.replayId,
+      actor: { type: "system", id: "replay-status-index" },
+      occurredAt: entry.updatedAt,
+      expectedVersion: expected,
+      errorLabel: "replay ledger",
+    });
   }
 
   async ensureReplay(replayId: string, mode?: string): Promise<void> {

@@ -17,7 +17,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { APPROVAL_LEDGER_EVENT_TYPES } from "./approval-types.js";
 import type { ApprovalRecord } from "./approval-types.js";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { drainLedgerEvents, type LedgerEventRow } from "../storage/runtime-ledger.js";
 
 export type ApprovalReconcileIssueKind =
   | "missing_in_ledger"
@@ -44,38 +44,6 @@ export interface ApprovalReconcileReport {
 }
 
 const KNOWN_TYPES = new Set<string>(APPROVAL_LEDGER_EVENT_TYPES);
-
-interface LedgerEventRow {
-  eventType: string;
-  entityType: string;
-  entityId: string;
-  entityVersion: number;
-  payload: unknown;
-  ledgerSeq: number;
-}
-
-function drainLedgerEvents(cwd: string, entityTypes: ReadonlySet<string>, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
-  const ledger = getSharedLedger(cwd);
-  const events: LedgerEventRow[] = [];
-  let cursor = 0;
-  for (let page = 0; page < maxPages; page++) {
-    const rows = ledger.readEvents({ sinceSeq: cursor, limit: pageSize });
-    for (const r of rows) {
-      if (!entityTypes.has(r.entityType)) continue;
-      events.push({
-        eventType: r.eventType,
-        entityType: r.entityType,
-        entityId: r.entityId,
-        entityVersion: r.entityVersion,
-        payload: r.payload,
-        ledgerSeq: r.ledgerSeq,
-      });
-      cursor = r.ledgerSeq;
-    }
-    if (rows.length < pageSize) return { events, truncated: false };
-  }
-  return { events, truncated: true };
-}
 
 /**
  * Read the approvals projection exactly as external readers do: snapshot

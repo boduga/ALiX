@@ -219,3 +219,13 @@ export const COLLABORATION_LEDGER_EVENT_TYPES = [
   "collaboration.state_created",
   "collaboration.state_updated",
 ] as const;
+
+/**
+ * Ledger entity id for one collaboration run. Namespaced because
+ * `runtime_entities` keys by entity_id alone and the raw runId belongs to
+ * the coordination domain — an unqualified id would collide on version CAS.
+ * Kept beside the event vocabulary so the store and reconciler agree.
+ */
+export function collabEntityId(runId: string): string {
+  return `collab:${runId}`;
+}

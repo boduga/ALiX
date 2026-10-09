@@ -40,8 +40,8 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { createHash, randomUUID } from "node:crypto";
-import { getSharedLedger } from "../../storage/runtime-ledger.js";
+import { createHash } from "node:crypto";
+import { getSharedLedger, appendFact, currentEntityVersion, type LedgerFactCounters } from "../../storage/runtime-ledger.js";
 import { dirname, join } from "node:path";
 import {
   EXECUTION_STATE_SCHEMA_VERSION,
@@ -280,10 +280,8 @@ function readSnapshotFile(filePath: string): StateSnapshot {
  * The store never rewrites EventLog history; it only materializes a disposable snapshot.
  */
 export class ExecutionStateStore {
-  /** R2.6 dual-write counters (JSON authoritative this phase). */
-  private ledgerAppends = 0;
-  private ledgerFailures = 0;
-  private lastLedgerError: string | undefined;
+  /** R2.12 authority counters (ledger authoritative). */
+  private readonly ledgerCounters: LedgerFactCounters = { appends: 0, failures: 0 };
   private projectionFailures = 0;
   private lastProjectionError: string | undefined;
   /** Workspace root for the shared ledger (baseDir is <cwd>/.alix/executions). */
@@ -351,38 +349,18 @@ export class ExecutionStateStore {
    * authoritative store must never leave a JSON-only mutation behind.
    */
   private appendStateFact(flat: FlatPersistedState): void {
-    try {
-      const ledger = getSharedLedger(this.baseDirCwd);
-      const expected = ledger.entityVersion(flat.executionId);
-      const res = ledger.append({
-        event: {
-          eventId: randomUUID(),
-          eventType: expected === 0 ? "execution.state_created" : "execution.state_saved",
-          schemaVersion: 1,
-          entityType: "execution",
-          entityId: flat.executionId,
-          entityVersion: expected + 1,
-          correlationId: flat.executionId,
-          actor: { type: "system", id: "execution-state-store" },
-          occurredAt: flat.savedAt,
-          recordedAt: new Date().toISOString(),
-          payload: { state: flat },
-        },
-        expectedVersion: expected,
-      });
-      if (res.ok) {
-        this.ledgerAppends += 1;
-        return;
-      }
-      this.ledgerFailures += 1;
-      this.lastLedgerError = `${res.reason}: ${res.detail}`;
-      throw new Error(`execution-state ledger append failed (${res.reason}): ${res.detail}`);
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("execution-state ledger append failed")) throw err;
-      this.ledgerFailures += 1;
-      this.lastLedgerError = err instanceof Error ? err.message : String(err);
-      throw err;
-    }
+    const expected = currentEntityVersion(this.baseDirCwd, this.ledgerCounters, flat.executionId);
+    appendFact(this.baseDirCwd, this.ledgerCounters, {
+      eventType: expected === 0 ? "execution.state_created" : "execution.state_saved",
+      entityType: "execution",
+      entityId: flat.executionId,
+      payload: { state: flat },
+      correlationId: flat.executionId,
+      actor: { type: "system", id: "execution-state-store" },
+      occurredAt: flat.savedAt,
+      expectedVersion: expected,
+      errorLabel: "execution-state ledger",
+    });
   }
 
   /**
@@ -396,8 +374,8 @@ export class ExecutionStateStore {
     try {
       last = getSharedLedger(this.baseDirCwd).lastEvent(executionId, "execution");
     } catch (err) {
-      this.ledgerFailures += 1;
-      this.lastLedgerError = err instanceof Error ? err.message : String(err);
+      this.ledgerCounters.failures += 1;
+      this.ledgerCounters.lastError = err instanceof Error ? err.message : String(err);
       throw err;
     }
     if (!last) return null;
@@ -422,11 +400,12 @@ export class ExecutionStateStore {
 
   /** Observable authority health (R2: failures must never be silent). */
   ledgerStatus(): { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string } {
+    const c = this.ledgerCounters;
     return {
-      appends: this.ledgerAppends,
-      failures: this.ledgerFailures,
+      appends: c.appends,
+      failures: c.failures,
       projectionFailures: this.projectionFailures,
-      ...(this.lastLedgerError !== undefined ? { lastError: this.lastLedgerError } : {}),
+      ...(c.lastError !== undefined ? { lastError: c.lastError } : {}),
       ...(this.lastProjectionError !== undefined ? { lastProjectionError: this.lastProjectionError } : {}),
     };
   }

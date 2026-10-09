@@ -14,9 +14,9 @@
 import { readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { GRAPH_LEDGER_EVENT_TYPES } from "./graph-ledger.js";
+import { GRAPH_LEDGER_EVENT_TYPES, graphAttemptEntityId, parseGraphAttemptEntityId } from "./graph-ledger.js";
 import type { TaskGraph } from "./task-graph.js";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { drainLedgerEvents, type LedgerEventRow } from "../storage/runtime-ledger.js";
 
 export type GraphReconcileIssueKind =
   | "missing_in_ledger"
@@ -44,38 +44,6 @@ export interface GraphReconcileReport {
 }
 
 const KNOWN_TYPES = new Set<string>(GRAPH_LEDGER_EVENT_TYPES);
-
-interface LedgerEventRow {
-  eventType: string;
-  entityType: string;
-  entityId: string;
-  entityVersion: number;
-  payload: unknown;
-  ledgerSeq: number;
-}
-
-function drainLedgerEvents(cwd: string, entityTypes: ReadonlySet<string>, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
-  const ledger = getSharedLedger(cwd);
-  const events: LedgerEventRow[] = [];
-  let cursor = 0;
-  for (let page = 0; page < maxPages; page++) {
-    const rows = ledger.readEvents({ sinceSeq: cursor, limit: pageSize });
-    for (const r of rows) {
-      if (!entityTypes.has(r.entityType)) continue;
-      events.push({
-        eventType: r.eventType,
-        entityType: r.entityType ?? "unknown",
-        entityId: r.entityId,
-        entityVersion: r.entityVersion,
-        payload: r.payload,
-        ledgerSeq: r.ledgerSeq,
-      });
-      cursor = r.ledgerSeq;
-    }
-    if (rows.length < pageSize) return { events, truncated: false };
-  }
-  return { events, truncated: true };
-}
 
 interface GraphProjection {
   graph: TaskGraph;
@@ -169,7 +137,7 @@ export async function reconcileGraphLedger(cwd: string): Promise<GraphReconcileR
     }
     for (const attempt of attempts) {
       scannedAttempts += 1;
-      const entityId = `${graph.id}#attempt-${attempt.attempt}`;
+      const entityId = graphAttemptEntityId(graph.id, attempt.attempt);
       if (!attemptsByEntity.has(entityId)) {
         issues.push({
           graphId: graph.id,
@@ -201,13 +169,15 @@ export async function reconcileGraphLedger(cwd: string): Promise<GraphReconcileR
     });
   }
   for (const entityId of attemptsByEntity.keys()) {
-    const [graphId, attemptPart] = entityId.split("#attempt-");
+    const parsed = parseGraphAttemptEntityId(entityId);
+    if (!parsed) continue;
+    const { graphId, attempt } = parsed;
     const projection = projections.find(p => p.graph.id === graphId);
-    if (projection && !projection.attempts.some(a => String(a.attempt) === attemptPart)) {
+    if (projection && !projection.attempts.some(a => a.attempt === attempt)) {
       issues.push({
         graphId,
         kind: "projection_missing",
-        detail: `rerun attempt ${attemptPart} recorded in the ledger but absent from runs.json`,
+        detail: `rerun attempt ${attempt} recorded in the ledger but absent from runs.json`,
       });
     }
   }

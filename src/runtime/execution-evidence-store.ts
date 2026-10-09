@@ -11,11 +11,11 @@
 
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { ExecutionEvidence } from "./contracts/execution-intent-contract.js";
 import { canonicalStringify } from "../security/audit/canonical-json.js";
 import { JsonlStore } from "../storage/jsonl-store.js";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { appendFact, drainLedgerEvents } from "../storage/runtime-ledger.js";
 
 /** Ledger event vocabulary for the evidence domain (R2.11). */
 export const EVIDENCE_LEDGER_EVENT_TYPES = [
@@ -95,42 +95,21 @@ export class ExecutionEvidenceStore {
   async append(evidence: ExecutionEvidence): Promise<void> {
     const cwd = ledgerCwdFor(this.storeDir);
     const s = statusFor(cwd);
-    try {
-      const ledger = getSharedLedger(cwd);
-      // Append-only contract: EVERY physical append mirrors (duplicate
-      // evidenceIds are legal — callers own deduplication), so the ledger
-      // preserves line-level history too.
-      const expected = ledger.entityVersion(evidence.evidenceId);
-      const res = ledger.append({
-        event: {
-          eventId: randomUUID(),
-          eventType: "evidence.recorded",
-          schemaVersion: 1,
-          entityType: "executionEvidence",
-          entityId: evidence.evidenceId,
-          entityVersion: expected + 1,
-          // intentId is optional on hand-built fixtures — never let it
-          // produce a NULL correlation_id (NOT NULL column).
-          correlationId: evidence.intentId ?? evidence.evidenceId,
-          actor: { type: "system", id: "execution-evidence-store" },
-          occurredAt: (evidence as { verifiedAt?: string }).verifiedAt ?? new Date().toISOString(),
-          recordedAt: new Date().toISOString(),
-          payload: { evidence },
-        },
-        expectedVersion: expected,
-      });
-      if (!res.ok) {
-        s.failures += 1;
-        s.lastError = `${res.reason}: ${res.detail}`;
-        throw new Error(`evidence ledger append failed (${res.reason}): ${res.detail}`);
-      }
-      s.appends += 1;
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("evidence ledger append failed")) throw err;
-      s.failures += 1;
-      s.lastError = err instanceof Error ? err.message : String(err);
-      throw err;
-    }
+    // Append-only contract: EVERY physical append mirrors (duplicate
+    // evidenceIds are legal — callers own deduplication), so the ledger
+    // preserves line-level history too.
+    appendFact(cwd, s, {
+      eventType: "evidence.recorded",
+      entityType: "executionEvidence",
+      entityId: evidence.evidenceId,
+      payload: { evidence },
+      // intentId is optional on hand-built fixtures — never let it
+      // produce a NULL correlation_id (NOT NULL column).
+      correlationId: evidence.intentId ?? evidence.evidenceId,
+      actor: { type: "system", id: "execution-evidence-store" },
+      occurredAt: (evidence as { verifiedAt?: string }).verifiedAt ?? new Date().toISOString(),
+      errorLabel: "evidence ledger",
+    });
 
     try {
       this.ensureStoreDir();
@@ -189,22 +168,9 @@ export class ExecutionEvidenceStore {
     const cwd = ledgerCwdFor(this.storeDir);
     // ALL events (not latest-per-entity): append-only contract preserves
     // duplicate evidenceIds line-for-line, in ledger-seq order.
-    let rows: Array<{ entityId: string; payload: unknown; ledgerSeq: number }>;
+    let rows: ReturnType<typeof drainLedgerEvents>["events"];
     try {
-      const ledger = getSharedLedger(cwd);
-      const collected: typeof rows = [];
-      let cursor = 0;
-      for (let page = 0; page < 50; page++) {
-        const batch = ledger.readEvents({ sinceSeq: cursor, limit: 2000 });
-        for (const r of batch) {
-          if (r.entityType === "executionEvidence") {
-            collected.push({ entityId: r.entityId, payload: r.payload, ledgerSeq: r.ledgerSeq });
-          }
-          cursor = r.ledgerSeq;
-        }
-        if (batch.length < 2000) break;
-      }
-      rows = collected;
+      rows = drainLedgerEvents(cwd, new Set(["executionEvidence"])).events;
     } catch (err) {
       const s = statusFor(cwd);
       s.failures += 1;

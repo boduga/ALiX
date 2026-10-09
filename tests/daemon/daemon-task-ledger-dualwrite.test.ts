@@ -176,6 +176,28 @@ describe("daemon task registry ledger authority (R2.15)", () => {
     assert.ok(kinds.includes("projection_missing"), JSON.stringify(report.issues));
   });
 
+  it("create throws and rolls back when the ledger append fails (R2.15 fail-closed)", async () => {
+    const reg = new TaskRegistry();
+    await reg.load();
+
+    // Break the ledger AFTER a successful load: the append (the commit) must
+    // reach the caller rather than being swallowed by the queued projection.
+    closeSharedLedger(testHome);
+    rmSync(runtimeLedgerPath(testHome), { force: true });
+    mkdirSync(runtimeLedgerPath(testHome), { recursive: true });
+
+    assert.throws(
+      () => reg.create("will fail", testHome),
+      /SQLITE|unable|not a database|ledger append failed/i,
+    );
+    // Rolled back: the failed record is not visible and no JSON was written.
+    assert.equal(reg.list().length, 0);
+    assert.equal(daemonTaskLedgerStatus().failures >= 1, true);
+    assert.ok(daemonTaskLedgerStatus().lastError);
+
+    rmSync(runtimeLedgerPath(testHome), { recursive: true, force: true });
+  });
+
   it("fresh registry reconciles clean with zero records", async () => {
     const report = await reconcileDaemonTaskLedger(registryPath(), testHome);
     assert.equal(report.scannedRecords, 0);

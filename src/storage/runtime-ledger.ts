@@ -8,16 +8,26 @@
 //      SQLite — a write transaction + version-checked UPDATE instead)
 //   2. the canonical RuntimeEvent
 //   3. the bumped entity version row
-//   4. an outbox row for projection notification
+//   4. a durable outbox notification row
 //
 // Atomicity is the point: a crash can never leave a snapshot ahead of
 // history (the JSONL `store.save() -> eventLog.append()` defect R0 found)
-// nor an event whose entity version never committed. Storage-level only:
-// no domain vocabulary, no validation of payload contents — see
-// src/storage/AGENTS.md.
+// nor an event whose entity version never committed.
+//
+// Shared domain-facing helpers live here too, so the append/replay
+// boilerplate every migrated store re-implemented lands once:
+//   - `appendFact` builds the R2 envelope, applies the optimistic
+//     precondition, accounts the result on a caller-owned counter object,
+//     and throws on failure (fail-closed: no JSON-only mutation).
+//   - `drainLedgerEvents` pages the whole ledger with a cursor that always
+//     advances, filtering to a domain's entity types.
+//
+// Storage-level only: no domain vocabulary, no validation of payload
+// contents — see src/storage/AGENTS.md.
 
 import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import type { RuntimeEvent } from "../contracts/runtime-event.js";
 
@@ -242,7 +252,12 @@ export class RuntimeLedger {
     return (rows as Record<string, unknown>[]).map((r) => this.rowToEvent(r));
   }
 
-  /** Undelivered outbox rows (projection notification queue). */
+  /**
+   * Undelivered outbox rows — the durable notification queue each append
+   * enqueues into. Exposed as a primitive for a future projection consumer;
+   * no production projector claims it today (projections are written inline
+   * by their stores), so it is exercised by tests only.
+   */
   claimOutbox(limit = 100): Array<{ outboxSeq: number; eventId: string }> {
     const rows = this.db
       .prepare("SELECT outbox_seq, event_id FROM runtime_outbox WHERE delivered_at IS NULL ORDER BY outbox_seq ASC LIMIT ?")
@@ -313,4 +328,150 @@ export function closeSharedLedger(cwd: string): void {
     sharedLedgers.delete(key);
     ledger.close();
   }
+}
+
+// ── Shared domain-facing helpers ─────────────────────────────────────
+// Every migrated domain re-implemented the same envelope construction and
+// status accounting; one copy here keeps the fail-closed contract uniform.
+
+/** A drained ledger event, decoupled from the SQL row shape. */
+export interface LedgerEventRow {
+  eventType: string;
+  entityType: string;
+  entityId: string;
+  sessionId?: string;
+  entityVersion: number;
+  payload: unknown;
+  ledgerSeq: number;
+}
+
+/**
+ * Page the whole ledger, returning only `entityTypes` rows, bounded by
+ * `maxPages * pageSize`. The cursor ALWAYS advances to the last row read —
+ * a page with no matches must not re-read itself (that defect made every
+ * reconcile on a shared multi-domain ledger report false `truncated`).
+ */
+export function drainLedgerEvents(
+  cwd: string,
+  entityTypes: ReadonlySet<string>,
+  maxPages = 50,
+  pageSize = 2000,
+): { events: LedgerEventRow[]; truncated: boolean } {
+  const ledger = getSharedLedger(cwd);
+  const events: LedgerEventRow[] = [];
+  let cursor = 0;
+  for (let page = 0; page < maxPages; page++) {
+    const rows = ledger.readEvents({ sinceSeq: cursor, limit: pageSize });
+    if (rows.length === 0) return { events, truncated: false };
+    for (const r of rows) {
+      cursor = r.ledgerSeq;
+      if (!entityTypes.has(r.entityType)) continue;
+      events.push({
+        eventType: r.eventType,
+        entityType: r.entityType,
+        entityId: r.entityId,
+        sessionId: r.sessionId,
+        entityVersion: r.entityVersion,
+        payload: r.payload,
+        ledgerSeq: r.ledgerSeq,
+      });
+    }
+    if (rows.length < pageSize) return { events, truncated: false };
+  }
+  return { events, truncated: true };
+}
+
+/** Mutable append accounting a domain owns (module- or instance-scoped). */
+export interface LedgerFactCounters {
+  appends: number;
+  failures: number;
+  lastError?: string;
+}
+
+export interface AppendFactInput {
+  eventType: string;
+  entityType: string;
+  entityId: string;
+  payload: unknown;
+  correlationId: string;
+  actor: RuntimeEvent["actor"];
+  occurredAt: string;
+  sessionId?: string;
+  runId?: string;
+  coordinationRunId?: string;
+  agentId?: string;
+  taskId?: string;
+  causationId?: string;
+  /** Optimistic precondition; default = current committed version. */
+  expectedVersion?: number;
+  /** Version to write; default `expectedVersion + 1` (immutable appends pass 1). */
+  entityVersion?: number;
+  /** Error-message prefix, e.g. "approval ledger". */
+  errorLabel: string;
+}
+
+/**
+ * Append one domain fact — THE COMMIT. Builds the R2 envelope, applies the
+ * optimistic precondition, records the outcome on `counters` (appends on
+ * success; failures + lastError on any failure), and throws on failure so an
+ * unavailable ledger can never leave a JSON-only mutation behind.
+ */
+/**
+ * Read the current committed entity version, accounting a db-open/read
+ * failure on `counters` and rethrowing. Use where the event type depends on
+ * whether the entity already exists (callers still call `appendFact`).
+ */
+export function currentEntityVersion(cwd: string, counters: LedgerFactCounters, entityId: string): number {
+  try {
+    return getSharedLedger(cwd).entityVersion(entityId);
+  } catch (err) {
+    counters.failures += 1;
+    counters.lastError = err instanceof Error ? err.message : String(err);
+    throw err;
+  }
+}
+
+export function appendFact(
+  cwd: string,
+  counters: LedgerFactCounters,
+  input: AppendFactInput,
+): { entityVersion: number; ledgerSeq: number } {
+  let res: LedgerAppendResult;
+  try {
+    const ledger = getSharedLedger(cwd);
+    const expected = input.expectedVersion ?? ledger.entityVersion(input.entityId);
+    res = ledger.append({
+      event: {
+        eventId: randomUUID(),
+        eventType: input.eventType,
+        schemaVersion: 1,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        entityVersion: input.entityVersion ?? expected + 1,
+        correlationId: input.correlationId,
+        ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
+        ...(input.runId !== undefined ? { runId: input.runId } : {}),
+        ...(input.coordinationRunId !== undefined ? { coordinationRunId: input.coordinationRunId } : {}),
+        ...(input.agentId !== undefined ? { agentId: input.agentId } : {}),
+        ...(input.taskId !== undefined ? { taskId: input.taskId } : {}),
+        ...(input.causationId !== undefined ? { causationId: input.causationId } : {}),
+        actor: input.actor,
+        occurredAt: input.occurredAt,
+        recordedAt: new Date().toISOString(),
+        payload: input.payload,
+      },
+      expectedVersion: expected,
+    });
+  } catch (err) {
+    counters.failures += 1;
+    counters.lastError = err instanceof Error ? err.message : String(err);
+    throw err;
+  }
+  if (res.ok) {
+    counters.appends += 1;
+    return { entityVersion: res.entityVersion, ledgerSeq: res.ledgerSeq };
+  }
+  counters.failures += 1;
+  counters.lastError = `${res.reason}: ${res.detail}`;
+  throw new Error(`${input.errorLabel} append failed (${res.reason}): ${res.detail}`);
 }

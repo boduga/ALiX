@@ -17,7 +17,7 @@ import type { WorkerOwnershipClaim } from "../kernel/coordination-types.js";
 import { normalizeApprovalRecord } from "./approval-binding.js";
 import { ApprovalStoreLock } from "./approval-store-lock.js";
 import { APPROVAL_EVENT_TYPES } from "../events/types.js";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { getSharedLedger, appendFact, currentEntityVersion, type LedgerFactCounters } from "../storage/runtime-ledger.js";
 
 /** Compact the append-only journal once it reaches this many entries (#703). */
 const JOURNAL_COMPACT_THRESHOLD = 500;
@@ -71,9 +71,7 @@ export class ApprovalStore {
    * counted here and surfaced by `ledgerStatus()` + reconciliation, never
    * silent.
    */
-  private ledgerAppends = 0;
-  private ledgerFailures = 0;
-  private lastLedgerError: string | undefined;
+  private readonly ledgerCounters: LedgerFactCounters = { appends: 0, failures: 0 };
   private projectionFailures = 0;
   private lastProjectionError: string | undefined;
 
@@ -129,8 +127,8 @@ export class ApprovalStore {
       latest = ledger.readLatestByEntityType("approval");
     } catch (err) {
       // Counted AND rethrown: a broken authoritative store must be visible.
-      this.ledgerFailures += 1;
-      this.lastLedgerError = err instanceof Error ? err.message : String(err);
+      this.ledgerCounters.failures += 1;
+      this.ledgerCounters.lastError = err instanceof Error ? err.message : String(err);
       throw err;
     }
     const fromLedger = new Map<string, ApprovalRecord>();
@@ -267,86 +265,44 @@ export class ApprovalStore {
    * never leave a JSON-only mutation behind.
    */
   private appendApprovalFact(record: ApprovalRecord, kind: "created" | "updated"): void {
-    try {
-      const ledger = getSharedLedger(this.cwd);
-      const expected = ledger.entityVersion(record.id);
-      const eventType = kind === "created" && expected === 0 ? "approval.created" : "approval.updated";
-      const res = ledger.append({
-        event: {
-          eventId: randomUUID(),
-          eventType,
-          schemaVersion: 1,
-          entityType: "approval",
-          entityId: record.id,
-          entityVersion: expected + 1,
-          correlationId: record.id,
-          sessionId: record.sessionId,
-          agentId: record.agentId,
-          actor: { type: "system", id: "approval-store" },
-          occurredAt: new Date().toISOString(),
-          recordedAt: new Date().toISOString(),
-          payload: { approval: record },
-        },
-        expectedVersion: expected,
-      });
-      if (res.ok) {
-        this.ledgerAppends += 1;
-        return;
-      }
-      this.ledgerFailures += 1;
-      this.lastLedgerError = `${res.reason}: ${res.detail}`;
-      throw new Error(`approval ledger append failed (${res.reason}): ${res.detail}`);
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("approval ledger append failed")) throw err;
-      this.ledgerFailures += 1;
-      this.lastLedgerError = err instanceof Error ? err.message : String(err);
-      throw err;
-    }
+    const expected = currentEntityVersion(this.cwd, this.ledgerCounters, record.id);
+    appendFact(this.cwd, this.ledgerCounters, {
+      eventType: kind === "created" && expected === 0 ? "approval.created" : "approval.updated",
+      entityType: "approval",
+      entityId: record.id,
+      payload: { approval: record },
+      correlationId: record.id,
+      sessionId: record.sessionId,
+      agentId: record.agentId,
+      actor: { type: "system", id: "approval-store" },
+      occurredAt: new Date().toISOString(),
+      expectedVersion: expected,
+      errorLabel: "approval ledger",
+    });
   }
 
   /** R2.5 append a removal tombstone (prune or delete) — the commit. Throws on failure. */
   private appendApprovalRemoved(id: string): void {
-    try {
-      const ledger = getSharedLedger(this.cwd);
-      const expected = ledger.entityVersion(id);
-      const res = ledger.append({
-        event: {
-          eventId: randomUUID(),
-          eventType: "approval.removed",
-          schemaVersion: 1,
-          entityType: "approval",
-          entityId: id,
-          entityVersion: expected + 1,
-          correlationId: id,
-          actor: { type: "system", id: "approval-store" },
-          occurredAt: new Date().toISOString(),
-          recordedAt: new Date().toISOString(),
-          payload: { removed: true },
-        },
-        expectedVersion: expected,
-      });
-      if (res.ok) {
-        this.ledgerAppends += 1;
-        return;
-      }
-      this.ledgerFailures += 1;
-      this.lastLedgerError = `${res.reason}: ${res.detail}`;
-      throw new Error(`approval ledger append failed (${res.reason}): ${res.detail}`);
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("approval ledger append failed")) throw err;
-      this.ledgerFailures += 1;
-      this.lastLedgerError = err instanceof Error ? err.message : String(err);
-      throw err;
-    }
+    appendFact(this.cwd, this.ledgerCounters, {
+      eventType: "approval.removed",
+      entityType: "approval",
+      entityId: id,
+      payload: { removed: true },
+      correlationId: id,
+      actor: { type: "system", id: "approval-store" },
+      occurredAt: new Date().toISOString(),
+      errorLabel: "approval ledger",
+    });
   }
 
   /** Observable authority health (R2: failures must never be silent). */
   ledgerStatus(): { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string } {
+    const c = this.ledgerCounters;
     return {
-      appends: this.ledgerAppends,
-      failures: this.ledgerFailures,
+      appends: c.appends,
+      failures: c.failures,
       projectionFailures: this.projectionFailures,
-      ...(this.lastLedgerError !== undefined ? { lastError: this.lastLedgerError } : {}),
+      ...(c.lastError !== undefined ? { lastError: c.lastError } : {}),
       ...(this.lastProjectionError !== undefined ? { lastProjectionError: this.lastProjectionError } : {}),
     };
   }

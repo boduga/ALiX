@@ -10,8 +10,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import { randomUUID } from "node:crypto";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
+import { appendFact, currentEntityVersion } from "../storage/runtime-ledger.js";
 
 /** Ledger event vocabulary for the continuations domain (R2.8). */
 export const CONTINUATION_LEDGER_EVENT_TYPES = [
@@ -53,44 +52,24 @@ export function resetContinuationLedgerStatus(cwd: string): void {
  */
 function appendContinuation(cwd: string, approvalId: string, kind: "created" | "removed", payload: Record<string, unknown>): void {
   const s = statusFor(cwd);
-  try {
-    const ledger = getSharedLedger(cwd);
-    const expected = ledger.entityVersion(approvalId);
-    const eventType =
-      kind === "removed"
-        ? "continuation.removed"
-        : expected === 0
-          ? "continuation.created"
-          : "continuation.updated";
-    const res = ledger.append({
-      event: {
-        eventId: randomUUID(),
-        eventType,
-        schemaVersion: 1,
-        entityType: "continuation",
-        entityId: approvalId,
-        entityVersion: expected + 1,
-        correlationId: approvalId,
-        actor: { type: "system", id: "continuation-store" },
-        occurredAt: new Date().toISOString(),
-        recordedAt: new Date().toISOString(),
-        payload,
-      },
-      expectedVersion: expected,
-    });
-    if (res.ok) {
-      s.appends += 1;
-      return;
-    }
-    s.failures += 1;
-    s.lastError = `${res.reason}: ${res.detail}`;
-    throw new Error(`continuation ledger append failed (${res.reason}): ${res.detail}`);
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith("continuation ledger append failed")) throw err;
-    s.failures += 1;
-    s.lastError = err instanceof Error ? err.message : String(err);
-    throw err;
-  }
+  const expected = currentEntityVersion(cwd, s, approvalId);
+  const eventType =
+    kind === "removed"
+      ? "continuation.removed"
+      : expected === 0
+        ? "continuation.created"
+        : "continuation.updated";
+  appendFact(cwd, s, {
+    eventType,
+    entityType: "continuation",
+    entityId: approvalId,
+    payload,
+    correlationId: approvalId,
+    actor: { type: "system", id: "continuation-store" },
+    occurredAt: new Date().toISOString(),
+    expectedVersion: expected,
+    errorLabel: "continuation ledger",
+  });
 }
 
 // ─── Types ───────────────────────────────────────────────────────────

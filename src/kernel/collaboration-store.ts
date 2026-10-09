@@ -16,10 +16,11 @@ import { randomUUID } from "node:crypto";
 import { CollaborationRunLock } from "./collaboration-run-lock.js";
 import { validatePublishFindingInput, canonicalizeFindingInput, normalizeStateV1_0 } from "./collaboration-validation.js";
 import type { FindingConflict, ConflictStatus } from "./collaboration-conflict-types.js";
-import { getSharedLedger } from "../storage/runtime-ledger.js";
-import type {
-  SharedFinding, SharedArtifact, WorkerContextManifest, CollaborationState,
-  CollaborationActor, FindingFilter, PublishFindingInput, PublishArtifactInput,
+import { getSharedLedger, appendFact, currentEntityVersion } from "../storage/runtime-ledger.js";
+import {
+  collabEntityId,
+  type SharedFinding, type SharedArtifact, type WorkerContextManifest, type CollaborationState,
+  type CollaborationActor, type FindingFilter, type PublishFindingInput, type PublishArtifactInput,
 } from "./collaboration-types.js";
 
 // ─── R2.10 dual-write status (per workspace) ─────────────────────────
@@ -114,7 +115,7 @@ export class CollaborationStore {
   private async loadState(): Promise<void> {
     let last: ReturnType<ReturnType<typeof getSharedLedger>["lastEvent"]>;
     try {
-      last = getSharedLedger(this.cwd).lastEvent(`collab:${this.runId}`, "collaborationState");
+      last = getSharedLedger(this.cwd).lastEvent(collabEntityId(this.runId), "collaborationState");
     } catch (err) {
       const s = statusFor(this.cwd);
       s.failures += 1;
@@ -153,56 +154,25 @@ export class CollaborationStore {
   }
 
   /**
-   * R2.10 mirror the committed state to the transactional ledger — called
-   * AFTER the durable file write, inside the per-run lock (same
-   * serialization as JSON). JSON stays authoritative in this phase;
-   * failures are counted, never thrown into worker coordination.
-   */
-  /**
    * R2.16 append the post-mutation state — THE COMMIT (ledger is
    * authoritative). Must run BEFORE the file write. Failure counts, then
    * THROWS: no JSON-only collaboration state can exist.
    */
   private appendStateFact(): void {
     const s = statusFor(this.cwd);
-    try {
-      const ledger = getSharedLedger(this.cwd);
-      // Namespaced entity id: runtime_entities is keyed by entity_id alone,
-      // and collaboration shares its runId with the coordination domain —
-      // an unqualified id would collide on version CAS.
-      const entityId = `collab:${this.runId}`;
-      const expected = ledger.entityVersion(entityId);
-      const eventType = expected === 0 ? "collaboration.state_created" : "collaboration.state_updated";
-      const res = ledger.append({
-        event: {
-          eventId: randomUUID(),
-          eventType,
-          schemaVersion: 1,
-          entityType: "collaborationState",
-          entityId,
-          entityVersion: expected + 1,
-          coordinationRunId: this.runId,
-          correlationId: this.runId,
-          actor: { type: "system", id: "collaboration-store" },
-          occurredAt: this.state.updatedAt,
-          recordedAt: new Date().toISOString(),
-          payload: { state: this.state },
-        },
-        expectedVersion: expected,
-      });
-      if (res.ok) {
-        s.appends += 1;
-        return;
-      }
-      s.failures += 1;
-      s.lastError = `${res.reason}: ${res.detail}`;
-      throw new Error(`collaboration ledger append failed (${res.reason}): ${res.detail}`);
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith("collaboration ledger append failed")) throw err;
-      s.failures += 1;
-      s.lastError = err instanceof Error ? err.message : String(err);
-      throw err;
-    }
+    const expected = currentEntityVersion(this.cwd, s, collabEntityId(this.runId));
+    appendFact(this.cwd, s, {
+      eventType: expected === 0 ? "collaboration.state_created" : "collaboration.state_updated",
+      entityType: "collaborationState",
+      entityId: collabEntityId(this.runId),
+      payload: { state: this.state },
+      coordinationRunId: this.runId,
+      correlationId: this.runId,
+      actor: { type: "system", id: "collaboration-store" },
+      occurredAt: this.state.updatedAt,
+      expectedVersion: expected,
+      errorLabel: "collaboration ledger",
+    });
   }
 
   async mutate<T>(fn: (state: CollaborationState) => T | Promise<T>): Promise<T> {

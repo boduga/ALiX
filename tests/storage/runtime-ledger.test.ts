@@ -7,7 +7,7 @@ import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RuntimeLedger, runtimeLedgerPath } from "../../src/storage/runtime-ledger.js";
+import { RuntimeLedger, runtimeLedgerPath, drainLedgerEvents, getSharedLedger, closeSharedLedger } from "../../src/storage/runtime-ledger.js";
 import type { RuntimeEvent } from "../../src/contracts/runtime-event.js";
 
 function makeEvent(overrides: Partial<RuntimeEvent> & { eventId: string; entityId: string; entityVersion: number }): RuntimeEvent {
@@ -160,6 +160,38 @@ test("outbox delivery marking removes rows from the claim queue", async () => {
     ledger.markDelivered(claim[0].outboxSeq, "2026-10-07T02:00:00.000Z");
     assert.equal(ledger.claimOutbox().length, 1);
   });
+});
+
+test("drainLedgerEvents advances past non-matching pages without false truncation", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-ledger-drain-"));
+  try {
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    const ledger = getSharedLedger(dir);
+    try {
+      // Three "coordinationRun" facts fill a page with ZERO domain matches;
+      // the matching "approval" fact is on the next page. The cursor must
+      // advance past the unmatched page or the drain re-reads it and reports
+      // a bogus `truncated` (the R2 review defect).
+      for (let i = 0; i < 3; i++) {
+        assert.ok(ledger.append({
+          event: makeEvent({ eventId: `n${i}`, entityId: `c${i}`, entityVersion: 1, entityType: "coordinationRun" }),
+          expectedVersion: 0,
+        }).ok);
+      }
+      assert.ok(ledger.append({
+        event: makeEvent({ eventId: "m1", entityId: "a1", entityVersion: 1, entityType: "approval" }),
+        expectedVersion: 0,
+      }).ok);
+
+      const drained = drainLedgerEvents(dir, new Set(["approval"]), 50, 2);
+      assert.equal(drained.truncated, false);
+      assert.deepEqual(drained.events.map(e => e.entityId), ["a1"]);
+    } finally {
+      closeSharedLedger(dir);
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("runtimeLedgerPath is workspace-rooted under .alix", () => {

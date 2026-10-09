@@ -31,7 +31,12 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
 
 ## Local Contracts
 
-- No new storage — all data read from existing backends at query time.
+- **The R2 transactional ledger is a storage authority, not a query-time
+  backend.** Domains that flipped (execution-state R2.12, continuations
+  R2.14, replay + evidence R2.17) read and write
+  `<root>/.alix/runtime-ledger.db` through `src/storage/runtime-ledger.ts`;
+  their JSON files are compatibility projections rebuilt from the ledger.
+  The read-only runtime index still aggregates the seven file backends below.
 - **Execution intents carry authorization provenance (R1.5).** `createExecutionIntent`
   tags source from the `AuthorizationSource` union
   (`src/contracts/authorized-execution-port.ts`): synthesized `auto:` approvals
