@@ -312,6 +312,8 @@ export type SubagentResultPayload = {
 export const SUBAGENT_EVENT_TYPES = {
   STARTED: "subagent.started",
   RESULT: "subagent.result",
+  COMPLETED: "subagent.completed",
+  FAILED: "subagent.failed",
 } as const;
 
 /** Version-1 multi-agent lifecycle vocabulary consumed by Workbench drawers. */
