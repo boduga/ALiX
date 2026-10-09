@@ -1,9 +1,11 @@
 // Canonical multi-agent lifecycle (R4/V10). The runtime emits the `agent.*`
 // lifecycle alongside the legacy `subagent.*` vocabulary; the browser timeline
-// must show the same roster the TUI does. When canonical lifecycle events are
-// present they are authoritative — legacy rows are ignored for those ids so a
-// dual-emitting runtime is not rendered twice. From an older log with only
-// `subagent.*`, the legacy rows are still projected.
+// must show the same roster the TUI does. A canonical row counts only when it
+// carries an agent identity (`agentId`/`subagentId`): the main agent loop also
+// emits `agent.state_changed` with no agent id, and that must never appear in
+// the subagent timeline. When a canonical subagent row is present, legacy rows
+// are ignored (dual-emitting runtime is not rendered twice); an older log with
+// only `subagent.*` still projects through the legacy path.
 const AGENT_LIFECYCLE_TYPES = new Set([
   "agent.spawned",
   "agent.state_changed",
@@ -16,10 +18,13 @@ const SUBAGENT_SUCCESS_TYPES = new Set(["subagent.completed", "agent.completed"]
 const SUBAGENT_FAILURE_TYPES = new Set(["subagent.failed", "agent.failed", "agent.cancelled"]);
 
 export function projectSubagentEvents(events) {
-  const useCanonical = events.some((e) => AGENT_LIFECYCLE_TYPES.has(e.type));
+  const isCanonicalSubagent = (e) =>
+    AGENT_LIFECYCLE_TYPES.has(e.type) &&
+    (e.payload?.subagentId !== undefined || e.payload?.agentId !== undefined);
+  const useCanonical = events.some(isCanonicalSubagent);
   const isLegacy = (e) => e.actor === "subagent" && e.type?.startsWith("subagent.");
   return events
-    .filter((e) => (useCanonical ? AGENT_LIFECYCLE_TYPES.has(e.type) : isLegacy(e)))
+    .filter((e) => (useCanonical ? isCanonicalSubagent(e) : isLegacy(e)))
     .map((e) => {
       const payload = e.payload ?? {};
       const subagentId = payload.subagentId ?? payload.agentId ?? "";

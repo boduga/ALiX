@@ -106,4 +106,23 @@ describe("projectSubagentEvents (R4/V10)", () => {
     expect(projected.map((e: { type: string }) => e.type)).toEqual(["subagent.started", "subagent.completed"]);
     expect(projected[1].status).toBe("success");
   });
+
+  it("ignores a main-agent agent.state_changed that carries no agent id", () => {
+    const projected = projectSubagentEvents([
+      evt(1, "agent.state_changed", { state: "thinking", reason: "loop" }, "system"),
+      evt(2, "subagent.started", { subagentId: "a1", role: "worker" }, "subagent"),
+      evt(3, "subagent.completed", { subagentId: "a1", role: "worker" }, "subagent"),
+    ]);
+    expect(projected.map((e: { type: string }) => e.type)).toEqual(["subagent.started", "subagent.completed"]);
+  });
+
+  it("shows only canonical subagent rows when a main-agent state change coexists", () => {
+    const projected = projectSubagentEvents([
+      evt(1, "agent.state_changed", { state: "thinking" }, "system"),
+      evt(2, "agent.spawned", { agentId: "a1", role: "worker" }, "subagent"),
+      evt(3, "agent.completed", { agentId: "a1", role: "worker" }, "subagent"),
+    ]);
+    expect(projected.map((e: { type: string }) => e.type)).toEqual(["agent.spawned", "agent.completed"]);
+    expect(projected[0].subagentId).toBe("a1");
+  });
 });

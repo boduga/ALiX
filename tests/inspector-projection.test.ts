@@ -163,3 +163,18 @@ test("projectSubagentEvents falls back to legacy subagent.* when no canonical li
   assert.equal(projected[1]!.status, "success");
   assert.equal(projected[1]!.duration, 1000);
 });
+
+test("projectSubagentEvents ignores a main-agent agent.state_changed without an agent id", () => {
+  const subagentEvent = (seq: number, type: string, payload: unknown): AlixEvent => ({
+    ...event(seq, type, payload),
+    actor: "subagent",
+  });
+  const projected = projectSubagentEvents([
+    { ...event(1, "agent.state_changed", { state: "thinking" }), actor: "system" },
+    subagentEvent(2, "agent.spawned", { agentId: "a1", role: "worker" }),
+    subagentEvent(3, "agent.completed", { agentId: "a1", role: "worker" }),
+  ]);
+
+  assert.deepEqual(projected.map((entry) => entry.type), ["agent.spawned", "agent.completed"]);
+  assert.equal(projected[0]!.subagentId, "a1");
+});

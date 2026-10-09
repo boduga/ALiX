@@ -243,9 +243,11 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
 }
 
 /** Canonical multi-agent lifecycle (R4/V10). The runtime emits the `agent.*`
- *  lifecycle alongside the legacy `subagent.*` vocabulary. When canonical
- *  lifecycle events are present they are authoritative — legacy rows are
- *  ignored so a dual-emitting runtime is not projected twice. */
+ *  lifecycle alongside the legacy `subagent.*` vocabulary. A canonical row
+ *  counts only with an agent identity (`agentId`/`subagentId`) — the main
+ *  agent loop's `agent.state_changed` carries none and must not leak into the
+ *  subagent timeline. When a canonical subagent row is present, legacy rows
+ *  are ignored so a dual-emitting runtime is not projected twice. */
 const AGENT_LIFECYCLE_TYPES = new Set([
   "agent.spawned",
   "agent.state_changed",
@@ -269,10 +271,15 @@ export type SubagentEvent = {
 };
 
 export function projectSubagentEvents(events: AlixEvent[]): SubagentEvent[] {
-  const useCanonical = events.some((e) => AGENT_LIFECYCLE_TYPES.has(e.type));
+  const isCanonicalSubagent = (e: AlixEvent): boolean => {
+    if (!AGENT_LIFECYCLE_TYPES.has(e.type)) return false;
+    const payload = e.payload as Record<string, unknown> | undefined;
+    return payload?.subagentId !== undefined || payload?.agentId !== undefined;
+  };
+  const useCanonical = events.some(isCanonicalSubagent);
   const isLegacy = (e: AlixEvent): boolean => e.actor === "subagent" && e.type.startsWith("subagent.");
   return events
-    .filter((e) => (useCanonical ? AGENT_LIFECYCLE_TYPES.has(e.type) : isLegacy(e)))
+    .filter((e) => (useCanonical ? isCanonicalSubagent(e) : isLegacy(e)))
     .map((e) => {
       const payload = e.payload as Record<string, unknown>;
       const subagentId = String(payload?.subagentId ?? payload?.agentId ?? "");

@@ -13,7 +13,7 @@ Browser-based session inspector for live event streaming, replay, graph executio
 
 ## Local Contracts
 
-- **Canonical vocabulary (R4/V10).** Event-derived panels read the same canonical events the TUI reads. Context comes from `context.bundle_compiled` (`context.bundle_created` is a legacy fallback only); the agent timeline reads the canonical `agent.*` lifecycle and falls back to legacy `subagent.*` only when no canonical lifecycle event exists. `VISIBLE_EVENTS` in `server.ts` must deliver the canonical events the UI projects.
+- **Canonical vocabulary (R4/V10).** Event-derived panels read the same canonical events the TUI reads. Context comes from `context.bundle_compiled` (`context.bundle_created` is a legacy fallback only); the agent timeline reads the canonical `agent.*` lifecycle (a row counts only when it carries an `agentId`/`subagentId` — the main agent loop's `agent.state_changed` carries none and must not appear in the subagent timeline) and falls back to legacy `subagent.*` only when no canonical subagent event exists. `VISIBLE_EVENTS` in `server.ts` must deliver the canonical events the UI projects.
 - No build pipeline. Files are served statically by the server from `dist/src/ui/`.
 - Tab switching: `button.tab[data-panel="X"]` activates `section#panel-X`.
 - Replay: cursor-based, events sorted by seq, play/pause/step/speed controls.
