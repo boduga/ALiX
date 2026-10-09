@@ -10,13 +10,13 @@ durable copy. Update it when phases change status.
 | Phase | Scope | Status |
 |---|---|---|
 | R0 | Dependency/responsibility audit (5 subagent reports): runtime truth fragmented across 13 stores; governance bypasses B1–B11; 5 tool taxonomies; 4 metrics vocabularies; TUI violations V1–V10; outbound redaction gap | ✅ done (findings below) |
-| R1 | 10 ports in `src/contracts/` + shrink-only arch freeze test (`tests/architecture/r1-boundary-freeze.test.ts` + `r1-allowlist.json`) | ✅ `b15f3747` |
+| R1 | 10 ports in `src/runtime-state/contracts/` + shrink-only arch freeze test (`tests/architecture/r1-boundary-freeze.test.ts` + `r1-allowlist.json`) | ✅ `b15f3747` |
 | R1.5 | Authorization containment: enforceCapabilities default ON, daemon ask+wired store, continuation revalidation, bound-tool policy gate, file.delete owned check, X-series `authorizationSource`, 4 executor sites wired | ✅ `ca27b8e1` |
-| R2 | Transactional ledger strangler → authority for 9 domains + 11 reconcile CLIs (audit excluded, documented) | ✅ tags `r2-ledger-authoritative` |
+| R2 | Transactional ledger strangler → authority for 9 domains + 11 reconcile CLIs (audit excluded, documented) | ✅ merged `refactor/r2-ledger-authoritative` (#868, #872; R2.1–R2.18 incl. session R2.18) |
 | R3 | **Coordination consolidation** — R3.0–R3.8 complete (R3.7 GraphExecutor adapted, not retired) | ✅ |
-| R4 | TUI/API projection convergence: fix in order V3 success-inference, V1 live-session painter reads, V5 approval dual truth, V6 live evolution reads, V7 inferred workflow steps, V4 quarantine `runtime-snapshot.ts`/`store.ts`, legacy Inspector vocabulary; Workbench shows "unknown/awaiting canonical event", never infers; one snapshot contract shared TUI+browser | ✅ `#870` (contract-vs-legacy precedence + agent-id guard fixed in `e97ea249`; the one-shared-snapshot-contract item is carried debt — `ui/projection.js` ↔ `inspector/projection.ts` remain twins) |
-| R5 | Support subsystems: finish `models.*` cutover (3 resolvers → 1, kill flat reads); ONE tool/capability catalogue + MCP/manifest adapters; **outbound redaction gate before any remote-provider call = security correction, not cleanup**; one metric vocabulary (Node-native collectors; psutil refs in metrics doc are catalogue-only, Python) | ✅ `#871` (redaction gate, single model resolver, streaming fix, gauge-aware metrics; carried debt: `ToolCapabilityRegistry`/`MetricsSink` have no production consumer, `subagents.enabled` flat reads deferred) |
-| R6 | Physical directory moves into the 12-subsystem layout — LAST, mechanical after boundaries real. (The 4 `status-store-writes` executive read-path entries reclassified from R5 remain — the move only relocated them: `src/interfaces/cli/commands/{adaptation/main,evaluate-handler,orchestrate-handler,executive}.ts` → `src/execution/executive/execution-state-store.ts`.) | ✅ layout `refactor/r6-layout` — all `src/` moved into the 12 subsystems; imports/paths/AGENTS retargeted; `test:node` 8460/0, `test:vitest` 7162/0. Executive read-path entries: still open debt |
+| R4 | TUI/API projection convergence: fix in order V3 success-inference, V1 live-session painter reads, V5 approval dual truth, V6 live evolution reads, V7 inferred workflow steps, V4 quarantine `runtime-snapshot.ts`/`store.ts`, legacy Inspector vocabulary; Workbench shows "unknown/awaiting canonical event", never infers; one snapshot contract shared TUI+browser | ✅ `#870`; carried-debt twin closed — the Inspector TS `projectSubagentEvents` duplicate was removed (#877) and TS↔JS lifecycle-vocabulary parity pinned (#879) |
+| R5 | Support subsystems: finish `models.*` cutover (3 resolvers → 1, kill flat reads); ONE tool/capability catalogue + MCP/manifest adapters; **outbound redaction gate before any remote-provider call = security correction, not cleanup**; one metric vocabulary (Node-native collectors; psutil refs in metrics doc are catalogue-only, Python) | ✅ `#871` (redaction gate, single model resolver, streaming fix, gauge-aware metrics); carried debt closed (#877): `ToolCapabilityRegistry`/`MetricsSink` wired, `subagents.enabled` reads via `subagent-config.ts` |
+| R6 | Physical directory moves into the 12-subsystem layout — LAST, mechanical after boundaries real. (The 4 `status-store-writes` executive read-path entries reclassified from R5 were closed after the move: an executive-owned seam `src/execution/executive/executive-context.ts` replaced the 4 CLI construction sites and the allowlist collapsed 4→1.) | ✅ layout `refactor/r6-layout` (#876, #877) — all `src/` moved into the 12 subsystems; imports/paths/AGENTS retargeted; executive read-path debt closed (#877) |
 
 ### 12-subsystem end-state (4 layers: Experience → Coordination → Control → Execution&Platform)
 
@@ -38,8 +38,7 @@ for remote providers (`provider-locality.ts`). Owner seam:
 
 ## Verification gates
 
-`pnpm test` | `npx tsc -p tsconfig.json --noEmit` | `pnconfig.unused` →
-`npx tsc -p tsconfig.unused.json --noEmit` | `node scripts/check-dead-modules.mjs` |
+`pnpm test` | `npx tsc -p tsconfig.json --noEmit` | `npx tsc -p tsconfig.unused.json --noEmit` | `node scripts/check-dead-modules.mjs` |
 `node scripts/check-dox-claims.mjs --base origin/main` (default base is local
 `main` == HEAD → vacuous; MUST pass `--base origin/main`; claims resolve
 against HEAD, so run it after committing AGENTS+code together).
