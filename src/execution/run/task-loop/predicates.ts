@@ -814,38 +814,46 @@ export function toolResultFailureBody(content: string): string | undefined {
     : undefined;
 }
 
-export function lastToolResultShowsClientError(
-  messages: ReadonlyArray<{ role?: string; content?: unknown }>,
-): boolean {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m?.role !== "user") continue;
-    const content = typeof m.content === "string" ? m.content : "";
-    if (!content.includes("<tool_result")) continue;
-    return toolResultFailureBody(content) !== undefined;
-  }
-  return false;
-}
-
-/** Return a concise, user-facing description of the latest failed tool result. */
-
-export function latestToolFailure(
+/** Content of the most recent `<tool_result>` message, or undefined when none. */
+export function latestToolResultContent(
   messages: ReadonlyArray<{ role?: string; content?: unknown }>,
 ): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
     if (message?.role !== "user" || typeof message.content !== "string") continue;
     if (!message.content.includes("<tool_result")) continue;
-    const resultBody = toolResultFailureBody(message.content);
-    if (!resultBody) continue;
-    const plain = resultBody
-      .replace(/<\/tool_result>\s*$/i, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .replace(/^(?:Error|Access denied):\s*/i, "");
-    if (plain) return plain.slice(0, 500);
+    return message.content;
   }
   return undefined;
+}
+
+export function lastToolResultShowsClientError(
+  messages: ReadonlyArray<{ role?: string; content?: unknown }>,
+): boolean {
+  const content = latestToolResultContent(messages);
+  return content !== undefined && toolResultFailureBody(content) !== undefined;
+}
+
+/** Return a concise, user-facing description of the latest FAILED tool result.
+ *
+ * Only the most recent tool result counts: a failure superseded by a later
+ * successful retry is not the current state. Scanning past a later success
+ * would report a recovered run as failed and, worse, block the empty-`done`
+ * synthesis re-prompt because `priorToolFailure` looked truthy. */
+
+export function latestToolFailure(
+  messages: ReadonlyArray<{ role?: string; content?: unknown }>,
+): string | undefined {
+  const content = latestToolResultContent(messages);
+  if (content === undefined) return undefined;
+  const resultBody = toolResultFailureBody(content);
+  if (!resultBody) return undefined;
+  const plain = resultBody
+    .replace(/<\/tool_result>\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^(?:Error|Access denied):\s*/i, "");
+  return plain ? plain.slice(0, 500) : undefined;
 }
 
 /** Preserve durable mutation evidence when a later retry fails. */

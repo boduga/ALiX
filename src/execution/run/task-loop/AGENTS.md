@@ -164,6 +164,11 @@ barrel preserving public import paths.
   verification-pass retries, shell completion, and research-limit returns.
   Failed or unverified coordination cannot emit completed task, graph,
   workflow, or session state.
+- **`latestToolFailure` reflects the most recent tool result only.** A failure
+  superseded by a later successful retry is not current state: reporting it
+  would mislabel a recovered run, and a truthy stale failure suppresses the
+  empty-`done` synthesis re-prompt. Durable mutation evidence still survives a
+  later failed retry through `durableCompletionSummary`.
 
 ## Work Guidance
 

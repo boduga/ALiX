@@ -10,7 +10,7 @@ import { buildRefinePrompt, selectStrategy } from './refine-strategies.js';
 import { DEFAULT_FACTORY_CONFIG } from '../../../capabilities/skills/dispatcher.js';
 import { evaluatePattern } from './context-helpers.js';
 import { gatePendingAgentAction } from './pending-action-phase.js';
-import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, SHORT_SYNTHESIS_THRESHOLD, type SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, findUnsubstantiatedClaims, hasExecutedActionTool, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements } from './predicates.js';
+import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, SHORT_SYNTHESIS_THRESHOLD, type SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, findUnsubstantiatedClaims, hasExecutedActionTool, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, latestToolResultContent, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements } from './predicates.js';
 import { RESEARCH_LIMITS, completeSession, getHistoricalSuggestions, maybeEmitRotRisk } from './session-lifecycle.js';
 
 export interface CompletionState {
@@ -48,16 +48,6 @@ export type CompletionContext = Pick<TaskLoopDeps, 'config' | 'hooks' | 'log' | 
 };
 
 /** Content of the most recent `<tool_result …>` message, if any. */
-function lastToolResultContent(
-  messages: ReadonlyArray<{ content?: unknown }>,
-): string | undefined {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const content = messages[i]?.content;
-    if (typeof content === "string" && content.includes("<tool_result")) return content;
-  }
-  return undefined;
-}
-
 /** Pull a run id out of a `coordination.run` tool result (structured first). */
 function parseCoordinationRunId(output: string | undefined): string | undefined {
   const match = /Coordination run:\s*(\S+)/.exec(output ?? "");
@@ -241,7 +231,7 @@ export async function runNoToolsCompletion(ctx: CompletionContext): Promise<RunR
       const toolEchoDone =
         ranToolCalls &&
         !explicitDoneCalled &&
-        isToolResultEcho(text, lastToolResultContent(messages));
+        isToolResultEcho(text, latestToolResultContent(messages));
       const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationUnverified });
       const trustworthy =
         (!ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone && !toolEchoDone)) &&
@@ -437,7 +427,7 @@ export async function runDeferredCompletion(ctx: CompletionContext & { trackComp
     const unsubstantiated = findUnsubstantiatedClaims(text, usedTools);
     const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationUnverified });
     // An explicit `alix_done` does not make an echoed tool result a summary.
-    const echoedToolResult = isToolResultEcho(text, lastToolResultContent(messages));
+    const echoedToolResult = isToolResultEcho(text, latestToolResultContent(messages));
     if (
       completedAfterAction &&
       echoedToolResult &&
