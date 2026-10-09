@@ -211,4 +211,85 @@ describe("webSearchTool", () => {
     await tool.execute({ query: "hello" });
     assert.ok(capturedUrl.includes("api.search.brave.com"));
   });
+
+  function setSearxngAndBrave(search: unknown) {
+    const path = join(tmpDir, "config.json");
+    writeFileSync(path, JSON.stringify({ search, apiKeys: { brave: "test-key" } }));
+    _setUserConfigPathOverride(path);
+  }
+
+  it("falls back to Brave when SearXNG returns no results with unresponsive engines", async () => {
+    setSearxngAndBrave({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888" });
+    const urls: string[] = [];
+    globalThis.fetch = (async (url) => {
+      const u = String(url);
+      urls.push(u);
+      if (u.includes("api.search.brave.com")) {
+        return new Response(JSON.stringify({ web: { results: [{ title: "Brave", url: "https://b/1", description: "brave snippet" }] } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ results: [], unresponsive_engines: [["duckduckgo", "CAPTCHA"]] }), { status: 200 });
+    }) as typeof fetch;
+
+    const result = await webSearchTool().execute({ query: "hello" });
+    assert.equal(result.ok, true);
+    assert.equal((result.data as any).results[0].title, "Brave");
+    assert.ok(urls.some((u) => u.includes("10.1.1.15:8888")));
+    assert.ok(urls.some((u) => u.includes("api.search.brave.com")));
+  });
+
+  it("falls back to Brave when SearXNG is unreachable", async () => {
+    setSearxngAndBrave({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888" });
+    globalThis.fetch = (async (url) => {
+      if (String(url).includes("api.search.brave.com")) {
+        return new Response(JSON.stringify({ web: { results: [{ title: "Brave", url: "https://b/1", description: "s" }] } }), { status: 200 });
+      }
+      throw new Error("ECONNREFUSED");
+    }) as typeof fetch;
+
+    const result = await webSearchTool().execute({ query: "hello" });
+    assert.equal(result.ok, true);
+    assert.equal((result.data as any).results[0].title, "Brave");
+  });
+
+  it("does not fall back to Brave when SearXNG is responsive but has no matches", async () => {
+    setSearxngAndBrave({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888" });
+    let braveCalled = false;
+    globalThis.fetch = (async (url) => {
+      if (String(url).includes("api.search.brave.com")) {
+        braveCalled = true;
+        return new Response(JSON.stringify({ web: { results: [] } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    const result = await webSearchTool().execute({ query: "hello" });
+    assert.equal(result.ok, true);
+    assert.equal((result.data as any).results.length, 0);
+    assert.equal(braveCalled, false);
+  });
+
+  it("reports both failures when SearXNG and the Brave fallback fail", async () => {
+    setSearxngAndBrave({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888" });
+    globalThis.fetch = (async (url) => {
+      if (String(url).includes("api.search.brave.com")) return new Response("rate limited", { status: 429 });
+      return new Response(JSON.stringify({ results: [], unresponsive_engines: [["duckduckgo", "CAPTCHA"]] }), { status: 200 });
+    }) as typeof fetch;
+
+    const result = await webSearchTool().execute({ query: "hello" });
+    assert.equal(result.ok, false);
+    assert.ok(result.error?.includes("SearXNG failed"));
+    assert.ok(result.error?.includes("unresponsive"));
+    assert.ok(result.error?.includes("Brave fallback"));
+  });
+
+  it("surfaces the SearXNG degraded error when no Brave key is configured", async () => {
+    setSearchConfig({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888" });
+    globalThis.fetch = (async () => {
+      return new Response(JSON.stringify({ results: [], unresponsive_engines: [["duckduckgo", "CAPTCHA"]] }), { status: 200 });
+    }) as typeof fetch;
+
+    const result = await webSearchTool().execute({ query: "hello" });
+    assert.equal(result.ok, false);
+    assert.ok(result.error?.includes("unresponsive"));
+  });
 });

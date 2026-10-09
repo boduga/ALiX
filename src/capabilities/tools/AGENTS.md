@@ -73,6 +73,13 @@ reason about.
   (operator context) are unchanged and governed by the gate.
 - Sensitive-path denials are hard, non-retryable, and are never escalated to an
   approval request — see the root `AGENTS.md`.
+- **Web search degrades, then falls back.** `web-search.ts` uses the configured
+  `search.provider`. A SearXNG run that is unconfigured, unreachable, errored,
+  or returned no results with `unresponsive_engines` (e.g. `duckduckgo (CAPTCHA)`)
+  is a DEGRADED backend, not a no-match: it returns `ok:false` and the tool
+  falls back to Brave when the Brave key is configured, then surfaces both
+  failures if neither works. A responsive SearXNG with a genuine empty result
+  is returned as-is (no fallback).
 
 ## Work Guidance
 
