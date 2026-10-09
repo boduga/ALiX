@@ -29,7 +29,16 @@ export function webSearchTool() {
       const count = Math.min(Math.max(args.count ?? 5, 1), 10);
       const searchConfig = await getSearchConfig();
       if (searchConfig.provider === "searxng") {
-        return searchSearxng(args.query, count, searchConfig.searxngBaseUrl, searchConfig.searxngEngines);
+        const searxng = await searchSearxng(args.query, count, searchConfig.searxngBaseUrl, searchConfig.searxngEngines);
+        if (searxng.ok) return searxng;
+        // SearXNG unconfigured, unreachable, or degraded (all engines
+        // unresponsive) → fall back to Brave when its key is configured.
+        const brave = await searchBrave(args.query, count);
+        if (brave.ok) return brave;
+        return {
+          ok: false,
+          error: `SearXNG failed: ${searxng.error} — Brave fallback also failed: ${brave.error}`,
+        };
       }
       return searchBrave(args.query, count);
     },
@@ -97,6 +106,18 @@ async function searchSearxng(query: string, count: number, baseUrl: string | und
       url: String(r.url ?? ""),
       snippet: String(r.content ?? ""),
     }));
+    // SearXNG reports engines it could not reach (e.g. CAPTCHA / rate-limit).
+    // An empty result set with unresponsive engines is a DEGRADED backend, not
+    // a genuine no-match — surface it so the caller can fall back to Brave
+    // instead of returning a silent empty that reads as "no results".
+    const unresponsive: string[] = Array.isArray(data.unresponsive_engines)
+      ? data.unresponsive_engines
+          .map((e: unknown) => Array.isArray(e) ? `${e[0]}${e[1] ? ` (${e[1]})` : ""}` : String(e))
+          .filter((e: string) => e.length > 0)
+      : [];
+    if (results.length === 0 && unresponsive.length > 0) {
+      return { ok: false, error: `SearXNG returned no results; engines unresponsive: ${unresponsive.join(", ")}` };
+    }
     return { ok: true, data: { results } };
   } catch (e: any) {
     return { ok: false, error: `Network error: ${e.message}` };
