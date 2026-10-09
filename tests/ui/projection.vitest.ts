@@ -11,6 +11,9 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain-JS browser module without TypeScript declarations
 import { buildUiProjection, projectSubagentEvents, createReplayState, visibleEventsForReplay } from "../../src/interfaces/ui/projection.js";
+// @ts-expect-error plain-JS browser module without TypeScript declarations
+import { AGENT_LIFECYCLE_TYPES, SUBAGENT_FAILURE_TYPES, SUBAGENT_START_TYPES, SUBAGENT_SUCCESS_TYPES } from "../../src/interfaces/ui/projection.js";
+import { AGENT_LIFECYCLE_EVENT_TYPES, SUBAGENT_EVENT_TYPES } from "../../src/runtime-state/events/types.js";
 
 type Event = { seq: number; type: string; actor?: string; payload?: Record<string, unknown>; timestamp: string };
 const evt = (seq: number, type: string, payload: Record<string, unknown> = {}, actor = "system"): Event => ({
@@ -124,5 +127,65 @@ describe("projectSubagentEvents (R4/V10)", () => {
     ]);
     expect(projected.map((e: { type: string }) => e.type)).toEqual(["agent.spawned", "agent.completed"]);
     expect(projected[0].subagentId).toBe("a1");
+  });
+});
+
+describe("lifecycle vocabulary parity (issue #878)", () => {
+  // projection.js has no build pipeline (copied verbatim to dist), so it
+  // cannot import the TS event constants. This block is the bridge: every
+  // lifecycle string the browser matches must exist in the canonical
+  // AGENT_LIFECYCLE_EVENT_TYPES / SUBAGENT_EVENT_TYPES vocabularies.
+  // A rename on either side breaks loudly here, never silently in the
+  // timeline.
+  //
+  // The timeline tracks only the subagent-relevant lifecycle
+  // (spawn/state/completed/failed/cancelled). progress/message/task_assigned/
+  // ownership_changed/usage are live-update events, never timeline rows, so
+  // they are intentionally outside the exact set below. Growing the timeline
+  // vocabulary means extending AGENT_LIFECYCLE_TYPES plus this set together.
+  const agentValues = new Set<string>(Object.values(AGENT_LIFECYCLE_EVENT_TYPES));
+  const known = new Set<string>([...agentValues, ...Object.values(SUBAGENT_EVENT_TYPES)]);
+
+  it("matches only catalogued agent.* lifecycle events", () => {
+    for (const type of AGENT_LIFECYCLE_TYPES as Set<string>) {
+      expect(agentValues.has(type), `uncatalogued lifecycle string: ${type}`).toBe(true);
+    }
+  });
+
+  it("matches only catalogued subagent.* legacy events", () => {
+    for (const [label, set] of [
+      ["SUBAGENT_START_TYPES", SUBAGENT_START_TYPES],
+      ["SUBAGENT_SUCCESS_TYPES", SUBAGENT_SUCCESS_TYPES],
+      ["SUBAGENT_FAILURE_TYPES", SUBAGENT_FAILURE_TYPES],
+    ] as const) {
+      for (const type of set as Set<string>) {
+        expect(known.has(type), `${label} carries an uncatalogued string: ${type}`).toBe(true);
+      }
+    }
+  });
+
+  it("covers the exact canonical subagent timeline vocabulary", () => {
+    expect(AGENT_LIFECYCLE_TYPES).toEqual(
+      new Set([
+        AGENT_LIFECYCLE_EVENT_TYPES.SPAWNED,
+        AGENT_LIFECYCLE_EVENT_TYPES.STATE_CHANGED,
+        AGENT_LIFECYCLE_EVENT_TYPES.COMPLETED,
+        AGENT_LIFECYCLE_EVENT_TYPES.FAILED,
+        AGENT_LIFECYCLE_EVENT_TYPES.CANCELLED,
+      ]),
+    );
+    expect(SUBAGENT_START_TYPES).toEqual(
+      new Set([SUBAGENT_EVENT_TYPES.STARTED, AGENT_LIFECYCLE_EVENT_TYPES.SPAWNED]),
+    );
+    expect(SUBAGENT_SUCCESS_TYPES).toEqual(
+      new Set([SUBAGENT_EVENT_TYPES.COMPLETED, AGENT_LIFECYCLE_EVENT_TYPES.COMPLETED]),
+    );
+    expect(SUBAGENT_FAILURE_TYPES).toEqual(
+      new Set([
+        SUBAGENT_EVENT_TYPES.FAILED,
+        AGENT_LIFECYCLE_EVENT_TYPES.FAILED,
+        AGENT_LIFECYCLE_EVENT_TYPES.CANCELLED,
+      ]),
+    );
   });
 });
