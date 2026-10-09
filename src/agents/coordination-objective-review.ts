@@ -57,10 +57,10 @@ Return ONLY JSON: {"satisfied":boolean,"summary":"substantive findings or mismat
       | { kind: "tools" }
       | { kind: "invalid" };
 
-    const requestVerdict = async (): Promise<Verdict> => {
+    const requestVerdict = async (retryHint?: string): Promise<Verdict> => {
       const response = await provider.complete({
         systemPrompt,
-        messages: [{ role: "user", content }],
+        messages: [{ role: "user", content: retryHint ? `${content}\n\n${retryHint}` : content }],
         tools: [],
       }, { signal: options.signal });
       if (options.signal?.aborted) return { kind: "cancelled" };
@@ -77,11 +77,15 @@ Return ONLY JSON: {"satisfied":boolean,"summary":"substantive findings or mismat
       return { kind: "valid", satisfied: review.satisfied, summary: review.summary, gaps: review.gaps as string[] };
     };
 
-    // A flash-tier reviewer occasionally emits prose/fenced near-JSON that a
-    // targeted re-ask fixes; a genuinely malformed reviewer still fails closed
-    // after one bounded retry.
+    // A flash-tier reviewer occasionally emits prose/fenced near-JSON. One
+    // targeted re-ask (the corrective instruction is appended) fixes it; a
+    // genuinely malformed reviewer still fails closed after the retry.
     let verdict = await requestVerdict();
-    if (verdict.kind === "invalid") verdict = await requestVerdict();
+    if (verdict.kind === "invalid") {
+      verdict = await requestVerdict(
+        'Your previous reply was not a valid verdict. Return ONLY the JSON object, no prose or code fences: {"satisfied":boolean,"summary":"substantive findings or mismatch","gaps":["specific missing requirement"]}',
+      );
+    }
     if (verdict.kind === "cancelled") return reject("Review cancelled");
     if (verdict.kind === "tools") return reject("Reviewer requested tools instead of returning a verdict");
     if (verdict.kind === "invalid") return reject("Missing or invalid structured verdict");

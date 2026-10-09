@@ -117,11 +117,13 @@ describe("coordination objective review", () => {
     expect(result.status).toBe("success");
   });
 
-  it("re-asks once when the reviewer returns a malformed verdict", async () => {
+  it("re-asks once with a corrective hint when the reviewer returns a malformed verdict", async () => {
     let calls = 0;
+    const contents: string[] = [];
     const provider: Pick<ModelAdapter, "complete"> = {
-      complete: async () => {
+      complete: async request => {
         calls++;
+        contents.push(String((request.messages[0] as { content?: unknown }).content ?? ""));
         return calls === 1
           ? { text: "Here is my verdict: all good", toolCalls: [] }
           : { text: '{"satisfied":true,"summary":"Supported.","gaps":[]}', toolCalls: [] };
@@ -130,6 +132,7 @@ describe("coordination objective review", () => {
     const result = await reviewCoordinationResult({ result: candidate, objective: "Verify facts", mutatedPaths: [], evidence: [], provider });
     expect(result.status).toBe("success");
     expect(calls).toBe(2);
+    expect(contents[1]).toContain("not a valid verdict");
   });
 
   it("fails closed after a retried malformed verdict", async () => {
