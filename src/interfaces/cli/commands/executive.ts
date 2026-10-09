@@ -19,8 +19,9 @@ import { handleEvaluate } from "./executive-evaluate-handler.js";
 import { handleOutcomesCommand } from "./executive-outcomes-handler.js";
 
 // P10.4a plan subcommand imports
-import { PlanStore } from "../../../execution/executive/plan-store.js";
-import { ExecutionStateStore } from "../../../execution/executive/execution-state-store.js";
+import type { PlanStore } from "../../../execution/executive/plan-store.js";
+import type { ExecutionStateStore } from "../../../execution/executive/execution-state-store.js";
+import { createExecutiveStores } from "../../../execution/executive/executive-context.js";
 import { ExecutionEngine } from "../../../execution/executive/execution-engine.js";
 import { StepRunner } from "../../../execution/executive/step-runner.js";
 import { PlanApprovalGate } from "../../../execution/executive/plan-approval-gate.js";
@@ -43,7 +44,6 @@ export { runDashboard };
 // Constants
 // ---------------------------------------------------------------------------
 
-const PLANS_DIR = join(".alix", "executive", "plans");
 const EXECUTIVE_DIR = join(".alix", "executive");
 const GOVERNANCE_DIR = join(".alix", "governance");
 const PROPOSALS_DIR = join(".alix", "adaptation", "proposals");
@@ -53,11 +53,11 @@ const PROPOSALS_DIR = join(".alix", "adaptation", "proposals");
 // ---------------------------------------------------------------------------
 
 function createPlanStore(): PlanStore {
-  return new PlanStore(PLANS_DIR);
+  return createExecutiveStores(process.cwd()).planStore;
 }
 
 function createStateStore(): ExecutionStateStore {
-  return new ExecutionStateStore(PLANS_DIR);
+  return createExecutiveStores(process.cwd()).stateStore;
 }
 
 function createProposalStore(): AdaptationProposalStore {

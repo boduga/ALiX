@@ -18,6 +18,9 @@
 
 **Local Contracts:**
 - Each module stays ≤ 1,000 lines.
+- Executive stores (`PlanStore` / `ExecutionStateStore`) are constructed through
+  the executive-owned seam (`src/execution/executive/executive-context.ts`),
+  never imported directly — a ledger projection swap lands in the seam.
 - `../adaptation.ts` re-exports `handleAdaptationCommand` and `selectApplier`;
   do not add logic there.
 - `apply` routes through `ApprovalGate.apply` — never calls an applier directly.

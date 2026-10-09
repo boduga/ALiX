@@ -63,6 +63,7 @@ export async function reclaimDeadOwnerWorkers(
   runId: string,
   ownershipRegistry: OwnershipRegistry,
   orphanThresholdMs: number = DEFAULT_ORPHAN_THRESHOLD_MS,
+  opts?: { isLocallyActive?: (workerId: string) => boolean },
 ): Promise<ReclaimResult> {
   const run = await store.load(runId);
   if (!run) return { runId, reclaimedWorkerIds: [] };
@@ -73,16 +74,17 @@ export async function reclaimDeadOwnerWorkers(
       status: worker.status,
       lastHeartbeatAt: worker.lastHeartbeatAt,
       executionOwnerId: worker.executionOwnerId,
-      locallyActive: false,
+      locallyActive: opts?.isLocallyActive?.(worker.id) ?? false,
       orphanThresholdMs,
     })) continue;
     // Owner provably gone (or ownerless + stale): release its leases BEFORE
-    // clearing them, then reset for a bounded retry.
-    await releaseWorkerLeases(ownershipRegistry, worker);
+    // clearing them, then reset for a bounded retry. Failed releases stay on
+    // the record so a later reclaim retries them (R3.4).
+    const release = await releaseWorkerLeases(ownershipRegistry, worker);
     await store.patchWorker(runId, worker.id, {
       status: "pending",
       executionOwnerId: undefined,
-      leaseIds: [],
+      leaseIds: release.failed,
       blockReason: undefined,
       failureKind: undefined,
       error: `Reclaimed after host ${worker.executionOwnerId} stopped`,
@@ -125,6 +127,7 @@ export async function cancelDeadOwnerRuns(
   hostKinds: readonly string[],
   ownershipRegistry?: OwnershipRegistry,
   orphanThresholdMs: number = DEFAULT_ORPHAN_THRESHOLD_MS,
+  opts?: { isLocallyActive?: (workerId: string) => boolean },
 ): Promise<string[]> {
   const runs = await store.list();
   const cancelled: string[] = [];
@@ -139,17 +142,18 @@ export async function cancelDeadOwnerRuns(
       status: w.status,
       lastHeartbeatAt: w.lastHeartbeatAt,
       executionOwnerId: w.executionOwnerId,
-      locallyActive: false,
+      locallyActive: opts?.isLocallyActive?.(w.id) ?? false,
       orphanThresholdMs,
     }))) continue;
     const deadOwner = runningWorkers[0]?.executionOwnerId ?? "unknown";
     // Release the leases the dead host held through the single release path
-    // (R3.4). Clearing `leaseIds` without releasing them leaves active
-    // registry records behind, and every later run in the workspace collides
-    // with them until the TTL expires.
+    // (R3.4). Failed releases stay on the record so a later sweep retries
+    // them instead of leaving live records that block later runs until TTL.
+    const failedByWorker = new Map<string, string[]>();
     if (ownershipRegistry) {
       for (const worker of run.workers) {
-        await releaseWorkerLeases(ownershipRegistry, worker);
+        const release = await releaseWorkerLeases(ownershipRegistry, worker);
+        failedByWorker.set(worker.id, release.failed);
       }
     }
     const updated = await store.updateRun(run.id, (current) => {
@@ -157,7 +161,7 @@ export async function cancelDeadOwnerRuns(
         if (worker.status === "running" || worker.status === "pending") {
           worker.status = "cancelled";
           worker.blockReason = "cancelled";
-          worker.leaseIds = [];
+          worker.leaseIds = failedByWorker.get(worker.id) ?? [];
           worker.error = `Run abandoned — host ${deadOwner} stopped`;
         }
       }

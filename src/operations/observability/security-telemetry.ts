@@ -13,6 +13,7 @@
 
 import type { MetricRegistry } from "./metric-registry.js";
 import type { MetricsStore, MetricRow } from "./metrics-store.js";
+import { createMetricsStoreSink, trackSinkAppend, type MetricsStoreSink } from "./metrics-sink.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,6 +34,7 @@ export class SecurityTelemetry {
   protected registry: MetricRegistry;
   protected store: MetricsStore;
   protected redact: (value: unknown) => unknown;
+  private metricsSink?: MetricsStoreSink;
 
   constructor(opts: SecurityTelemetryOptions) {
     this.registry = opts.registry;
@@ -116,23 +118,12 @@ export class SecurityTelemetry {
     this.safeAppend(row);
   }
 
-  /** Append a row, catching and logging any error (fire-and-forget). */
+  /** Append a row through the canonical metrics sink (fire-and-forget). */
   protected safeAppend(row: MetricRow): void {
-    const promise = (async () => {
-      try {
-        for await (const _ of this.store.append(row)) {
-          // drain the generator
-        }
-      } catch (err) {
-        // Non-fatal: log and swallow
-        console.error(`[SecurityTelemetry] failed to emit ${row.name}:`, err);
-      }
-    })();
-    this.pendingWrites.push(promise);
-    promise.finally(() => {
-      const idx = this.pendingWrites.indexOf(promise);
-      if (idx >= 0) this.pendingWrites.splice(idx, 1);
+    this.metricsSink ??= createMetricsStoreSink(this.store, {
+      onError: (error) => console.error(`[SecurityTelemetry] failed to emit ${row.name}:`, error),
     });
+    trackSinkAppend(this.pendingWrites, this.metricsSink, row);
   }
 
   /**

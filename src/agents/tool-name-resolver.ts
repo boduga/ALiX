@@ -1,6 +1,22 @@
 import { ALIX_BUILTIN_EXECUTORS } from "./tool-manifest.js";
+import { resolveCataloguedExecutor } from "../capabilities/tools/capability-map.js";
+import { createToolCapabilityRegistry } from "../capabilities/tools/tool-registry.js";
 
 export type OfferedExecutableTool = { name: string; execName?: string };
+
+const capabilityCatalog = createToolCapabilityRegistry();
+
+/**
+ * Model-facing names whose executors intentionally bypass the routable
+ * catalogue: interception happens before routing, while bound collaboration
+ * tools execute through per-worker bound handlers rather than dispatch.
+ */
+function isNonRoutedModelTool(requestedName: string): boolean {
+  return (
+    requestedName === "alix_execution_state_propose" ||
+    requestedName.startsWith("alix_collaboration_")
+  );
+}
 
 /**
  * Compose the resolution surface from the tools actually offered, pairing each
@@ -45,9 +61,23 @@ export function resolveExecutableToolName(
 ): string {
   const offered = offeredTools.find((tool) => tool.name === requestedName);
   if (offered && Object.hasOwn(ALIX_BUILTIN_EXECUTORS, requestedName)) {
-    return ALIX_BUILTIN_EXECUTORS[requestedName as keyof typeof ALIX_BUILTIN_EXECUTORS];
+    const executor = ALIX_BUILTIN_EXECUTORS[requestedName as keyof typeof ALIX_BUILTIN_EXECUTORS];
+    // Routable executors must still be present in the canonical catalogue. The
+    // two intentional exceptions are interception-before-routing and bound
+    // collaboration tools.
+    if (
+      !isNonRoutedModelTool(requestedName) &&
+      !resolveCataloguedExecutor(capabilityCatalog, executor)
+    ) {
+      throw new ToolNotFoundError(requestedName, offeredTools.map((tool) => tool.name));
+    }
+    return executor;
   }
   if (offered && requestedName.startsWith("mcp__") && offered.execName?.startsWith("mcp.")) {
+    // Dynamic MCP executors adapt through the catalogue's `mcp.*` wildcard.
+    if (!resolveCataloguedExecutor(capabilityCatalog, offered.execName)) {
+      throw new ToolNotFoundError(requestedName, offeredTools.map((tool) => tool.name));
+    }
     return offered.execName;
   }
   const names = offeredTools

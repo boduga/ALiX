@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { AlixConfig } from "../../operations/config/schema.js";
 import { loadConfig } from "../../operations/config/loader.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
+import { isSubagentsEnabled } from "../../operations/config/subagent-config.js";
 import { EventLog } from "../events/event-log.js";
 import type { ToolExecutor } from "../../capabilities/tools/executor.js";
 import { createToolExecutor } from "../../capabilities/tools/tool-executor-factory.js";
@@ -71,7 +72,7 @@ export class RuntimeBuilder {
 
     // Build subagent manager (optional - only if enabled in config)
     let subagentManager: SubagentManager | undefined;
-    if (config.subagents?.enabled) {
+    if (isSubagentsEnabled(config)) {
       subagentManager = new SubagentManager({ sessionId, cwd: this._root, config, eventLog: this._eventLog });
     }
     this._subagentManager = subagentManager;

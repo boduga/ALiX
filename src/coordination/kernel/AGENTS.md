@@ -89,9 +89,16 @@
   (`coordination-ownership.ts`) releases a worker's leases and sets its
   `leaseIds` to the ids that FAILED to release (empty on full success, so a
   later reclaim retries them); completion, cancellation, orphan recovery, and
-  dead-owner reclaim all call it. Dropping `leaseIds` without releasing — or
+  dead-owner reclaim all call it, and `reclaimDeadOwnerWorkers` /
+  `cancelDeadOwnerRuns` (`coordination-resume.ts`) persist those failures
+  instead of blanket-clearing. Dropping `leaseIds` without releasing — or
   blanket-clearing after a failed release — leaves active registry records
   that block every later run in the workspace until TTL.
+- **Reclaim takes caller-known liveness.** `reclaimDeadOwnerWorkers` /
+  `cancelDeadOwnerRuns` accept an optional `isLocallyActive` predicate wired
+  into the shared `shouldReclaimWorker` verdict; callers pass locally-active
+  executions when known (default: none). Never reclaim a locally-active
+  worker on PID evidence alone.
 - `alix_coordination_run` threads operator abort into cancellation and awaits
   finalization before throwing `ExecutionCancelledError`. `createCancelGuard`
   and `createCancelFailureRecorder` own this path. Bind recorder inputs before

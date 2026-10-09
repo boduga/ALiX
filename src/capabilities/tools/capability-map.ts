@@ -8,16 +8,20 @@
  *     canonicalized to capability ids, including keys no current tool produces
  *     (git.commit → repo.write, shell.readonly → shell.exec, ...). KEEP AS-IS.
  *
- *  2. Registry-derived tool → capability views (`inferCapability`,
+ *  2. Port-derived tool → capability views (`inferCapability`,
  *     `canonicalCapabilityOf`) and capability predicates
  *     (`isReadonlyCapability`, `requiresApproval`). These are DERIVED from the
- *     canonical default tool registry (`buildDefaultToolIndex`) — never
- *     independently maintained. The single `mcp.*` registry wildcard entry
+ *     canonical `ToolCapabilityRegistry` port — never independently maintained.
+ *     The single `mcp.*` registry wildcard entry
  *     covers the dynamic `mcp.<server>.<tool>` family: any tool name beginning
  *     with "mcp." maps to the `mcp.invoke` capability.
  */
 
-import { buildDefaultToolIndex } from "./tool-registry.js";
+import { createToolCapabilityRegistry } from "./tool-registry.js";
+import type {
+  ToolCapabilityEntry,
+  ToolCapabilityRegistry,
+} from "../../runtime-state/contracts/tool-capability-registry.js";
 
 const LEGACY_TO_CANONICAL: Record<string, string> = {
   "file.read": "filesystem.read",
@@ -46,7 +50,26 @@ export function legacyCapabilityToCanonical(legacy: string): string {
   return LEGACY_TO_CANONICAL[legacy] ?? legacy;
 }
 
-const registry = buildDefaultToolIndex().registry;
+const capabilityCatalog = createToolCapabilityRegistry();
+
+/**
+ * Resolve an executor name through the canonical catalogue, including the
+ * dynamic MCP family. A dynamic `mcp.<server>.<tool>` name intentionally has
+ * no static registry row: it resolves through the port's single `mcp.*`
+ * entry, so the dynamic surface cannot carry a second policy vocabulary.
+ */
+export function resolveCataloguedExecutor(
+  catalog: ToolCapabilityRegistry,
+  executorName: string,
+): ToolCapabilityEntry | undefined {
+  if (executorName.startsWith("mcp.")) return catalog.resolve("mcp.*");
+  return catalog.resolve(executorName);
+}
+
+/** Fallback vocabulary when the catalogue has no row (never a second taxonomy). */
+function uncataloguedFallback(toolName: string): string {
+  return toolName.startsWith("mcp.") ? "mcp.invoke" : "tool.invoke";
+}
 
 /**
  * Map a tool name to its config-facing policy key.
@@ -56,9 +79,8 @@ const registry = buildDefaultToolIndex().registry;
  * `policyKey`; otherwise `"tool.invoke"`.
  */
 export function inferCapability(toolName: string): string {
-  if (toolName.startsWith("mcp.")) return "mcp.invoke";
-  const entry = registry.lookup(toolName);
-  return entry ? entry.policyKey : "tool.invoke";
+  return resolveCataloguedExecutor(capabilityCatalog, toolName)?.policyKey
+    ?? uncataloguedFallback(toolName);
 }
 
 /**
@@ -70,14 +92,13 @@ export function inferCapability(toolName: string): string {
  * sites (the canonicalizer is for config keys, not tool names).
  */
 export function canonicalCapabilityOf(toolName: string): string {
-  if (toolName.startsWith("mcp.")) return "mcp.invoke";
-  const entry = registry.lookup(toolName);
-  return entry ? entry.capabilityId : "tool.invoke";
+  return resolveCataloguedExecutor(capabilityCatalog, toolName)?.capabilityId
+    ?? uncataloguedFallback(toolName);
 }
 
 /** True when no tool for the capability mutates state (registry-derived). */
 export function isReadonlyCapability(capabilityId: string): boolean {
-  return !registry.getAll().some(t => t.capabilityId === capabilityId && t.mutates);
+  return !capabilityCatalog.list().some(t => t.capabilityId === capabilityId && t.mutates);
 }
 
 /**
@@ -89,8 +110,8 @@ export function isReadonlyCapability(capabilityId: string): boolean {
  * pure registry predicate over the canonical taxonomy.
  */
 export function requiresApproval(capabilityId: string): boolean {
-  return registry
-    .getAll()
+  return capabilityCatalog
+    .list()
     .filter(t => t.capabilityId === capabilityId)
     .every(t => t.risk !== "low");
 }

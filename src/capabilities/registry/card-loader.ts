@@ -9,7 +9,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { CardRegistry } from "./card-registry.js";
-import { buildDefaultToolIndex } from "../tools/tool-registry.js";
+import { buildDefaultToolIndex, createToolCapabilityRegistry } from "../tools/tool-registry.js";
+import type { ToolCapabilityRegistry } from "../../runtime-state/contracts/tool-capability-registry.js";
 import { AGENT_REGISTRY } from "../../agents/agent-registry.js";
 import type { AgentCard } from "./agent-card.js";
 import type { ToolCard } from "./tool-card.js";
@@ -125,23 +126,32 @@ export function defaultAgentCards(): AgentCard[] {
 
 /** Built-in tool cards for the default registry.
  *
- * Tool cards are a DISPLAY PROJECTION of the canonical tool registry — never a
- * hand-maintained list. The canonical registry (src/capabilities/tools/tool-registry.ts) is
- * the single source of truth for which tools exist and their capability/risk/
- * side-effect metadata; this derivation keeps the card taxonomy in lockstep. */
-export function defaultToolCards(): ToolCard[] {
-  return buildDefaultToolIndex().registry.getAll().map((t) => ({
-    id: t.name,
-    name: displayName(t.name),
-    description: t.description,
-    version: "1.0.0",
-    capabilities: [t.capabilityId],
-    riskLevel: t.risk,
-    approvalMode: t.risk === "low" ? "auto" : "ask",
-    ...(t.executionProfiles ? { allowedExecutionProfiles: t.executionProfiles } : {}),
-    sideEffects: t.mutates ? "write" : "read",
-    enabled: true,
-  }));
+ * Tool cards are a DISPLAY PROJECTION of the canonical `ToolCapabilityRegistry`
+ * port — never a hand-maintained list. Membership, `capabilityId`, `risk`, and
+ * mutability all come from the port; only display-only detail remains in the
+ * implementation registry. This derivation keeps the card taxonomy in lockstep. */
+export function defaultToolCards(catalog: ToolCapabilityRegistry = createToolCapabilityRegistry()): ToolCard[] {
+  const byName = new Map(
+    buildDefaultToolIndex().registry.getAll().map((tool) => [tool.name, tool]),
+  );
+  return catalog.list().map((entry) => {
+    const tool = byName.get(entry.name);
+    if (!tool) {
+      throw new Error(`Canonical tool capability ${entry.name} has no tool-registry implementation`);
+    }
+    return {
+      id: tool.name,
+      name: displayName(tool.name),
+      description: tool.description,
+      version: "1.0.0",
+      capabilities: [entry.capabilityId],
+      riskLevel: entry.risk,
+      approvalMode: entry.risk === "low" ? "auto" : "ask",
+      ...(tool.executionProfiles ? { allowedExecutionProfiles: tool.executionProfiles } : {}),
+      sideEffects: entry.mutates ? "write" : "read",
+      enabled: true,
+    };
+  });
 }
 
 /** Load or create a CardRegistry from card files or defaults.

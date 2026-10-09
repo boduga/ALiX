@@ -11,6 +11,7 @@ import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, Subagen
 import { resolvePolicyPath } from "../governance/policy/policy-gate.js";
 import { ALIX_BUILTIN_EXECUTORS } from "./tool-manifest.js";
 import { createModelResolver } from "../operations/config/model-resolver.js";
+import { getSubagentRole } from "../operations/config/subagent-config.js";
 
 /**
  * §10.3: resolve the effective model for a subagent invocation with
@@ -496,7 +497,7 @@ export class SubagentCLI {
     //   explicit provider/model override > models.<tier> > models.default.
     // `config.model` and `config.subagents` are loader-derived compatibility
     // projections and are never mutated here.
-    const roleConfig = config.subagents?.roles.find(r => r.role === role);
+    const roleConfig = getSubagentRole(config, role);
     const roleStyle = roleConfig?.style ?? "fast";
     const { provider: effectiveProvider, name: effectiveName, selection: effectiveSelection } = resolveEffectiveModel(
       config,

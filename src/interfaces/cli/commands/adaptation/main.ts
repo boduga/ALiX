@@ -61,9 +61,8 @@ import "../../../../planning/adaptation/lineage-builder.js";
 import "../../../../planning/adaptation/proposal-readiness.js";
 import { ExecutiveOrchestrator } from "../../../../execution/executive/executive-orchestrator.js";
 import type { OrchestrationHook } from "../../../../execution/executive/executive-orchestrator.js";
-import { ExecutionStateStore } from "../../../../execution/executive/execution-state-store.js";
+import { createExecutiveStores, executivePlansDir } from "../../../../execution/executive/executive-context.js";
 import { ExecutionEngine } from "../../../../execution/executive/execution-engine.js";
-import { PlanStore } from "../../../../execution/executive/plan-store.js";
 import { StepRunner } from "../../../../execution/executive/step-runner.js";
 import { runList, runShow, runPropose, runApprove, runReject, runApply, runLineage, runEffectiveness, runGenerate, runRevert, runIntelligence, runPrioritize, runCapabilityEvolution } from "./handlers.js";
 import { printUsage } from "./renderers.js";
@@ -91,11 +90,10 @@ export async function handleAdaptationCommand(args: string[]): Promise<void> {
   const gate = new ApprovalGate(store, writer);
 
   // ★ NEW: Construct ExecutiveOrchestrator if executive data exists
-  const plansDir = join(cwd, ".alix", "executive", "plans");
+  const plansDir = executivePlansDir(cwd);
   let orchestrator: OrchestrationHook | undefined;
   if (existsSync(plansDir)) {
-    const planStore = new PlanStore(plansDir);
-    const stateStore = new ExecutionStateStore(plansDir);
+    const { planStore, stateStore } = createExecutiveStores(cwd);
     const runner = new StepRunner(writer);
     const engine = new ExecutionEngine(planStore, stateStore, runner, writer);
     orchestrator = new ExecutiveOrchestrator(stateStore, engine, writer);

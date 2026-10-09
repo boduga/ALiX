@@ -242,66 +242,6 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
   return snapshot;
 }
 
-/** Canonical multi-agent lifecycle (R4/V10). The runtime emits the `agent.*`
- *  lifecycle alongside the legacy `subagent.*` vocabulary. A canonical row
- *  counts only with an agent identity (`agentId`/`subagentId`) — the main
- *  agent loop's `agent.state_changed` carries none and must not leak into the
- *  subagent timeline. When a canonical subagent row is present, legacy rows
- *  are ignored so a dual-emitting runtime is not projected twice. */
-const AGENT_LIFECYCLE_TYPES = new Set([
-  "agent.spawned",
-  "agent.state_changed",
-  "agent.completed",
-  "agent.failed",
-  "agent.cancelled",
-]);
-const SUBAGENT_START_TYPES = new Set(["subagent.started", "agent.spawned"]);
-const SUBAGENT_SUCCESS_TYPES = new Set(["subagent.completed", "agent.completed"]);
-const SUBAGENT_FAILURE_TYPES = new Set(["subagent.failed", "agent.failed", "agent.cancelled"]);
-
-export type SubagentEvent = {
-  type:
-    | "subagent.started" | "subagent.result" | "subagent.completed" | "subagent.failed"
-    | "agent.spawned" | "agent.state_changed" | "agent.completed" | "agent.failed" | "agent.cancelled";
-  subagentId: string;
-  role: string;
-  timestamp: string;
-  duration?: number;
-  status?: "success" | "failed";
-};
-
-export function projectSubagentEvents(events: AlixEvent[]): SubagentEvent[] {
-  const isCanonicalSubagent = (e: AlixEvent): boolean => {
-    if (!AGENT_LIFECYCLE_TYPES.has(e.type)) return false;
-    const payload = e.payload as Record<string, unknown> | undefined;
-    return payload?.subagentId !== undefined || payload?.agentId !== undefined;
-  };
-  const useCanonical = events.some(isCanonicalSubagent);
-  const isLegacy = (e: AlixEvent): boolean => e.actor === "subagent" && e.type.startsWith("subagent.");
-  return events
-    .filter((e) => (useCanonical ? isCanonicalSubagent(e) : isLegacy(e)))
-    .map((e) => {
-      const payload = e.payload as Record<string, unknown>;
-      const subagentId = String(payload?.subagentId ?? payload?.agentId ?? "");
-      const started = events.find(
-        (x) =>
-          SUBAGENT_START_TYPES.has(x.type) &&
-          String((x.payload as Record<string, unknown>)?.subagentId ?? (x.payload as Record<string, unknown>)?.agentId ?? "") === subagentId,
-      );
-      const isTerminal = SUBAGENT_SUCCESS_TYPES.has(e.type) || SUBAGENT_FAILURE_TYPES.has(e.type);
-      return {
-        type: e.type as SubagentEvent["type"],
-        subagentId,
-        role: String(payload?.role ?? ""),
-        timestamp: e.timestamp,
-        duration: isTerminal && started
-          ? new Date(e.timestamp).getTime() - new Date(started.timestamp).getTime()
-          : undefined,
-        status: SUBAGENT_SUCCESS_TYPES.has(e.type) ? "success" : SUBAGENT_FAILURE_TYPES.has(e.type) ? "failed" : undefined,
-      };
-    });
-}
-
 export function compareInspectorSnapshots(left: InspectorSnapshot, right: InspectorSnapshot): InspectorComparison {
   const leftFiles = changedFileSet(left);
   const rightFiles = changedFileSet(right);

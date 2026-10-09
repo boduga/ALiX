@@ -53,6 +53,7 @@ import {
   renderContextBundleForPrompt,
 } from "../messages.js";
 import { ContextCompiler } from "../../../context/repomap/context-compiler.js";
+import { CONTEXT_EVENT_TYPES } from "../../../runtime-state/events/types.js";
 import {
   buildMemoryContext,
   buildMemoryStats,
@@ -462,7 +463,7 @@ export async function setupContextAndPlan(
   await ctx.log.append({
     sessionId,
     actor: "system",
-    type: "context.bundle_compiled",
+    type: CONTEXT_EVENT_TYPES.BUNDLE_COMPILED,
     payload: buildContextBundleEventPayload(contextBundle),
   });
 

@@ -17,6 +17,7 @@
 
 import type { AlixConfig } from "../../operations/config/schema.js";
 import { parseSessionMode } from "../../operations/config/schema.js";
+import { isSubagentsEnabled } from "../../operations/config/subagent-config.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
 import { COORDINATION_EVENT_TYPES } from "../../runtime-state/events/types.js";
 import type { ToolResult } from "../../capabilities/tools/types.js";
@@ -270,7 +271,7 @@ async function handleCoordinationRun(
   let executor: CoordinationWorkerExecutor;
   if (deps.executor) {
     executor = deps.executor;
-  } else if (config.subagents?.enabled) {
+  } else if (isSubagentsEnabled(config)) {
     const { SubagentWorkerExecutor } = await import("./subagent-worker-executor.js");
     executor = new SubagentWorkerExecutor({
       sessionId: `coord-sub-${runId}`,

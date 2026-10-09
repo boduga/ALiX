@@ -104,7 +104,7 @@ export const EVENT_IMMUTABILITY: EventImmutabilityAssertion = {
  * | Collaboration         | `COLLABORATION_EVENT_TYPES`| 10    |
  * | Conflict              | `CONFLICT_EVENT_TYPES`     | 9     |
  * | Subagent              | `SUBAGENT_EVENT_TYPES`     | 2     |
- * | Context               | `CONTEXT_EVENT_TYPES`      | 16    |
+  * | Context               | `CONTEXT_EVENT_TYPES`      | 17    |
  * | Policy                | `POLICY_EVENT_TYPES`       | 3     |
  * | Artifact              | `ARTIFACT_EVENT_TYPES`     | 1     |
  * | Approval              | `APPROVAL_EVENT_TYPES`     | 12    |

@@ -150,6 +150,35 @@ describe("coordination resume", () => {
     assert.ok(loaded!.workers.every(w => w.status === "running"));
   });
 
+  it("never reclaims a locally-active worker even with a dead owner", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
+    run.hostKind = "inspector";
+    await store.save(run);
+    const dead = addWorker(run.id, { executionOwnerId: `web-${DEAD_PID}` });
+    await store.addWorker(run.id, dead);
+
+    const result = await reclaimDeadOwnerWorkers(store, run.id, new OwnershipRegistry(cwd), DEFAULT_ORPHAN_THRESHOLD_MS, {
+      isLocallyActive: (id) => id === dead.id,
+    });
+    assert.deepEqual(result.reclaimedWorkerIds, []);
+    const loaded = await store.load(run.id);
+    assert.equal(loaded!.workers[0].status, "running");
+  });
+
+  it("retains a failed release on the record so a later reclaim retries it", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
+    run.hostKind = "inspector";
+    await store.save(run);
+    const dead = addWorker(run.id, { executionOwnerId: `web-${DEAD_PID}`, leaseIds: ["lease-keep"] });
+    await store.addWorker(run.id, dead);
+    const failingRegistry = { release: async () => false } as unknown as OwnershipRegistry;
+
+    const result = await reclaimDeadOwnerWorkers(store, run.id, failingRegistry);
+    assert.deepEqual(result.reclaimedWorkerIds, [dead.id]);
+    const loaded = await store.load(run.id);
+    assert.deepEqual(loaded!.workers[0].leaseIds, ["lease-keep"]);
+  });
+
   it("finds only active runs for the given host kinds", async () => {
     const inspector = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
     inspector.hostKind = "inspector";
@@ -297,5 +326,34 @@ describe("cancelDeadOwnerRuns", () => {
 
     assert.deepEqual(await cancelDeadOwnerRuns(store, ["cli"]), []);
     assert.equal((await store.load(run.id))!.workers[0].status, "running");
+  });
+
+  it("never cancels when a running worker is locally active", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
+    run.hostKind = "cli";
+    await store.save(run);
+    const dead = addWorker(run.id, { executionOwnerId: `cli-${DEAD_PID}` });
+    await store.addWorker(run.id, dead);
+
+    assert.deepEqual(
+      await cancelDeadOwnerRuns(store, ["cli"], new OwnershipRegistry(cwd), DEFAULT_ORPHAN_THRESHOLD_MS, {
+        isLocallyActive: (id) => id === dead.id,
+      }),
+      [],
+    );
+    assert.equal((await store.load(run.id))!.workers[0].status, "running");
+  });
+
+  it("retains a failed release on the cancelled record for a later sweep", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
+    run.hostKind = "cli";
+    await store.save(run);
+    const dead = addWorker(run.id, { executionOwnerId: `cli-${DEAD_PID}`, leaseIds: ["lease-keep"] });
+    await store.addWorker(run.id, dead);
+    const failingRegistry = { release: async () => false } as unknown as OwnershipRegistry;
+
+    assert.deepEqual(await cancelDeadOwnerRuns(store, ["cli"], failingRegistry), [run.id]);
+    const loaded = await store.load(run.id);
+    assert.deepEqual(loaded!.workers[0].leaseIds, ["lease-keep"]);
   });
 });

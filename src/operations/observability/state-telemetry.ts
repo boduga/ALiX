@@ -16,6 +16,7 @@
 import { createTelemetryEnvelope, type TelemetrySink } from "./telemetry-envelope.js";
 import type { MetricRegistry } from "./metric-registry.js";
 import type { MetricsStore, MetricRow } from "./metrics-store.js";
+import { createMetricsStoreSink, trackSinkAppend, type MetricsStoreSink } from "./metrics-sink.js";
 
 // ---------------------------------------------------------------------------
 // Options
@@ -47,6 +48,7 @@ export class StateTelemetry {
   protected store: MetricsStore;
   protected sink?: TelemetrySink;
   protected sessionId: string;
+  private metricsSink?: MetricsStoreSink;
 
   constructor(opts: StateTelemetryOptions) {
     this.registry = opts.registry;
@@ -321,18 +323,10 @@ export class StateTelemetry {
   }
 
   protected safeAppend(row: MetricRow): void {
-    const p = (async () => {
-      try {
-        for await (const _ of this.store.append(row)) { /* drain */ }
-      } catch (err) {
-        console.error(`[StateTelemetry] failed to emit ${row.name}:`, err);
-      }
-    })();
-    this.pendingWrites.push(p);
-    p.finally(() => {
-      const idx = this.pendingWrites.indexOf(p);
-      if (idx >= 0) this.pendingWrites.splice(idx, 1);
+    this.metricsSink ??= createMetricsStoreSink(this.store, {
+      onError: (error) => console.error(`[StateTelemetry] failed to emit ${row.name}:`, error),
     });
+    trackSinkAppend(this.pendingWrites, this.metricsSink, row);
   }
 
   protected emitEnvelope(row: MetricRow): void {

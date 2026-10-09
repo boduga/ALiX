@@ -26,8 +26,7 @@
  */
 
 import { join } from "node:path";
-import { PlanStore } from "../../../execution/executive/plan-store.js";
-import { ExecutionStateStore } from "../../../execution/executive/execution-state-store.js";
+import { createExecutiveStores, executiveDir } from "../../../execution/executive/executive-context.js";
 import { ExecutiveTrendStore } from "../../../execution/executive/trend-store.js";
 import { evaluatePlanOutcome } from "../../../execution/executive/outcome-evaluator.js";
 import { OutcomeReportStore } from "../../../execution/executive/outcome-store.js";
@@ -37,8 +36,6 @@ import type { ExecutiveTrendSnapshot } from "../../../execution/executive/trend-
 import type { ExecutiveOutcomeEvaluationReport } from "../../../execution/executive/outcome-evaluator.js";
 import type { PlanExecutionState, PlanStatus } from "../../../execution/executive/executive-plan-types.js";
 
-const PLANS_DIR = join(".alix", "executive", "plans");
-const EXECUTIVE_DIR = join(".alix", "executive");
 const OUTCOMES_DIR = join(".alix", "executive", "outcomes");
 
 // ---------------------------------------------------------------------------
@@ -176,13 +173,13 @@ export async function handleEvaluate(args: string[]): Promise<void> {
   }
 
   const cwd = process.cwd();
-  const plansDir = join(cwd, PLANS_DIR);
-  const execDir = join(cwd, EXECUTIVE_DIR);
+  const execDir = executiveDir(cwd);
+  const { planStore, stateStore } = createExecutiveStores(cwd);
 
   // ── Load plan ─────────────────────────────────────────────────────
   let plan;
   try {
-    plan = new PlanStore(plansDir).load(planId);
+    plan = planStore.load(planId);
   } catch (e: any) {
     const msg = e.message ?? `Failed to load plan: ${planId}`;
     const report = errorReport(planId, [msg]);
@@ -195,7 +192,7 @@ export async function handleEvaluate(args: string[]): Promise<void> {
   }
 
   // ── Load execution state ──────────────────────────────────────────
-  const state = new ExecutionStateStore(plansDir).load(planId);
+  const state = stateStore.load(planId);
   if (!state) {
     const msg = `Execution state not found for plan: ${planId}`;
     const report = errorReport(planId, [msg]);
