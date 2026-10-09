@@ -149,8 +149,8 @@
   {
     "imported": "src/executive/execution-state-store.ts",
     "importer": "src/cli/commands/adaptation/main.ts",
-    "reason": "R0 B6 \u2014 legacy executive store, name-collides with runtime store",
-    "removalPhase": "R5",
+    "reason": "R0 B6 \u2014 legacy executive store; R5.5 reclassified to R6 (executive read-path consolidation, outside R5's models/tools/redaction/metrics scope)",
+    "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {
@@ -184,22 +184,22 @@
   {
     "imported": "src/executive/execution-state-store.ts",
     "importer": "src/cli/commands/executive-evaluate-handler.ts",
-    "reason": "R0 B6 \u2014 legacy executive store, name-collides with runtime store",
-    "removalPhase": "R5",
+    "reason": "R0 B6 \u2014 legacy executive store; R5.5 reclassified to R6 (executive read-path consolidation, outside R5's models/tools/redaction/metrics scope)",
+    "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/executive/execution-state-store.ts",
     "importer": "src/cli/commands/executive-orchestrate-handler.ts",
-    "reason": "R0 B6 \u2014 legacy executive store, name-collides with runtime store",
-    "removalPhase": "R5",
+    "reason": "R0 B6 \u2014 legacy executive store; R5.5 reclassified to R6 (executive read-path consolidation, outside R5's models/tools/redaction/metrics scope)",
+    "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {
     "imported": "src/executive/execution-state-store.ts",
     "importer": "src/cli/commands/executive.ts",
-    "reason": "R0 B6 \u2014 legacy executive store, name-collides with runtime store",
-    "removalPhase": "R5",
+    "reason": "R0 B6 \u2014 legacy executive store; R5.5 reclassified to R6 (executive read-path consolidation, outside R5's models/tools/redaction/metrics scope)",
+    "removalPhase": "R6",
     "rule": "status-store-writes"
   },
   {

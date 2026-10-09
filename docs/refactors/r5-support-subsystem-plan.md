@@ -90,7 +90,7 @@ Python/psutil runtime path exists (`psutil` is doc-only). The daemon path hardco
 | R5.3a | **ONE tool/capability catalogue (taxonomy):** wire the `ToolCapabilityRegistry` port over the canonical catalogue; scope the freeze rule (exempt each definition's home module); rename the collaborative-planner's colliding `CapabilityRegistry` interface; remove the 6 `tool-taxonomy-defs` entries. | ✅ |
 | R5.3b | **Tool dispatch:** move `hashArgs` out of `executor.ts` and route `ToolExecutor` construction through a sanctioned seam; remove the 8 `direct-tool-dispatch` entries. Agent-execution path — separate sub-step. | ✅ |
 | R5.4 | **One metric vocabulary:** implement the `MetricsSink` port; reconcile `MinimalMetrics`/`MetricRegistry`/tracing/TUI; only then remove the 4 `metrics-vocabs` entries. | ✅ |
-| R5.5 | Resolve/reclassify the 4 `status-store-writes` `R5` entries (`src/cli/commands/adaptation/main.ts`, `executive-evaluate-handler.ts`, `executive-orchestrate-handler.ts`, `executive.ts` → `src/executive/execution-state-store.ts`) — decide whether they belong to R5 or move to R6. | ⬜ |
+| R5.5 | Resolve/reclassify the 4 `status-store-writes` `R5` entries (`src/cli/commands/adaptation/main.ts`, `executive-evaluate-handler.ts`, `executive-orchestrate-handler.ts`, `executive.ts` → `src/executive/execution-state-store.ts`) — decide whether they belong to R5 or move to R6. | ✅ |
 | R5.6 | DOX (`src/config`, `src/providers`, `src/tools`, `src/capability`, `src/security`, `src/observability` + ports) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r5-*`. | ⬜ |
 
 ### Order / rationale
@@ -149,6 +149,9 @@ Same freeze-rule shape as R5.2: `tool-taxonomy-defs` watched five symbol names a
 4. Freeze `metrics-vocabs`: added `exempt` for the four definition homes (kernel/observability/tracing/TUI are distinct concerns adapting to the port). Removed the 4 `metrics-vocabs` entries.
 5. DOX: `src/observability/AGENTS.md` records the port adapter + parity.
 6. Deferred (documented): routing the live emitters (kernel/tracing/TUI) through `MetricsSink` is a behavioral follow-up; the port is the declared boundary and the name parity is pinned.
+
+## R5.5 (executive read paths) — ✅ done
+The 4 remaining `R5` entries were CLI commands read-importing `src/executive/execution-state-store.ts` — executive read-path consolidation, outside R5's models/tools/redaction/metrics scope. Reclassified to `R6` with an explanatory reason. **0 R5 entries remain.**
 
 ## Resume here (fresh session)
 
