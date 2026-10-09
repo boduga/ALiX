@@ -212,7 +212,9 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     sessionId,
     sessionDir,
     log,
-    config,
+    // Return the effective config: the task loop re-resolves the model from
+    // this object, so the non-TTY streaming override must travel with it.
+    config: effectiveConfig,
     provider,
     editFormatPolicy,
     mcpManager,

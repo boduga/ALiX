@@ -29,9 +29,9 @@ export function createMetricsStoreSink(store: MetricsStore): MetricsStoreSink {
     observe(observation: MetricObservation): void {
       const row: MetricRow = {
         name: observation.name,
-        // The port carries no metric type by design; observations persist as
-        // counter deltas unless a caller supplies a richer sink.
-        type: "counter_delta",
+        // Default to a counter delta for port callers that carry no type, but
+        // preserve an explicit kind so gauges are not summed on rollup.
+        type: observation.type ?? "counter_delta",
         value: observation.value,
         timestamp: observation.at ?? new Date().toISOString(),
         ...(observation.labels ? { labels: observation.labels } : {}),
