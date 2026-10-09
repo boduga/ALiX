@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { computeHealthScore } from "../../src/baseline/health-score.js";
-import type { DriftItem } from "../../src/baseline/baseline-types.js";
+import { computeHealthScore } from "../../src/context/baseline/health-score.js";
+import type { DriftItem } from "../../src/context/baseline/baseline-types.js";
 
 function makeDrift(overrides: Partial<DriftItem> & { metric: string }): DriftItem {
   return {

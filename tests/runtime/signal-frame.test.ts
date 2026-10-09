@@ -5,8 +5,8 @@ import {
   decodeSignalCode,
   inferSignalPolarity,
   createSignalFrame,
-} from "../../src/runtime/signal-frame.js";
-import type { SignalBits, SignalPolarity, SignalDomain } from "../../src/runtime/signal-frame.js";
+} from "../../src/runtime-state/runtime/signal-frame.js";
+import type { SignalBits, SignalPolarity, SignalDomain } from "../../src/runtime-state/runtime/signal-frame.js";
 
 /* ------------------------------------------------------------------ */
 /*  encodeSignalBits                                                    */

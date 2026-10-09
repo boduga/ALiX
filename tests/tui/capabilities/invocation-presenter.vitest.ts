@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ChatInvocationPresenter } from '../../../src/tui/capabilities/invocation-presenter.js';
-import type { Invocation, CapabilityEvent, InvocationResult } from '../../../src/capability/types.js';
-import { EventLog } from '../../../src/events/event-log.js';
+import { ChatInvocationPresenter } from '../../../src/interfaces/tui/capabilities/invocation-presenter.js';
+import type { Invocation, CapabilityEvent, InvocationResult } from '../../../src/capabilities/capability/types.js';
+import { EventLog } from '../../../src/runtime-state/events/event-log.js';
 
 /**
  * Mock invocation. `events()` yields any seeded terminal event up front so

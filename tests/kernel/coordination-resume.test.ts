@@ -4,12 +4,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { parseOwnerPid, isPidAlive, isOwnerAlive, heartbeatStale, shouldReclaimWorker, DEFAULT_ORPHAN_THRESHOLD_MS } from "../../src/kernel/owner-liveness.js";
-import { reclaimDeadOwnerWorkers, findResumableRuns, cancelDeadOwnerRuns } from "../../src/kernel/coordination-resume.js";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
-import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
-import { persistGraph } from "../../src/kernel/graph-planner.js";
+import { parseOwnerPid, isPidAlive, isOwnerAlive, heartbeatStale, shouldReclaimWorker, DEFAULT_ORPHAN_THRESHOLD_MS } from "../../src/coordination/kernel/owner-liveness.js";
+import { reclaimDeadOwnerWorkers, findResumableRuns, cancelDeadOwnerRuns } from "../../src/coordination/kernel/coordination-resume.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
+import { persistGraph } from "../../src/coordination/kernel/graph-planner.js";
 
 const DEAD_PID = 99_999_999;
 

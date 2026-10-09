@@ -1,4 +1,4 @@
-import type { SubagentRole } from "../config/schema.js";
+import type { SubagentRole } from "../operations/config/schema.js";
 import {
   AGENT_REGISTRY,
   getPolicyBucket,

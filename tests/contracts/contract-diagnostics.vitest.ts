@@ -1,9 +1,9 @@
 // tests/contracts/contract-diagnostics.vitest.ts
 
 import { describe, it, expect } from "vitest";
-import { buildDiagnostic, formatDiagnostic } from "../../src/contracts/contract-diagnostics.js";
-import { withProviderContracts, ContractValidationError } from "../../src/providers/provider-contract-validation.js";
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk } from "../../src/providers/types.js";
+import { buildDiagnostic, formatDiagnostic } from "../../src/runtime-state/contracts/contract-diagnostics.js";
+import { withProviderContracts, ContractValidationError } from "../../src/models/providers/provider-contract-validation.js";
+import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk } from "../../src/models/providers/types.js";
 
 // ---------------------------------------------------------------------------
 // Diagnostics helpers

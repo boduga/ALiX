@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleGovernanceCalibrationCommand } from "../../src/cli/commands/governance-calibration.js";
+import { handleGovernanceCalibrationCommand } from "../../src/interfaces/cli/commands/governance-calibration.js";
 
 let bundlePath: string;
 

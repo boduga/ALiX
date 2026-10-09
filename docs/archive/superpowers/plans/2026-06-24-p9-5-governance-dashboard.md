@@ -4,7 +4,7 @@
 
 **Goal:** Add a read-only terminal `alix governance dashboard` command that surfaces 6 panels (mutation pipeline health + 5 secondary panels) so an operator can answer "Can ALiX safely apply governance changes right now?" in 5 seconds.
 
-**Architecture:** Three layers, mirroring P8.5b's proven pattern: (1) `buildGovernanceDashboardReport()` aggregator in `src/governance/governance-dashboard.ts` (read-only, hybrid data: P9.0 builders + stores); (2) `renderGovernanceDashboard()` terminal formatter in `src/cli/commands/governance-dashboard-renderer.ts`; (3) `runDashboard()` CLI handler in `src/cli/commands/governance-dashboard-handler.ts` (extracted to its own file for sentinel scoping). The `dashboard` case in `src/cli/commands/governance.ts` delegates to the handler.
+**Architecture:** Three layers, mirroring P8.5b's proven pattern: (1) `buildGovernanceDashboardReport()` aggregator in `src/governance/governance-dashboard.ts` (read-only, hybrid data: P9.0 builders + stores); (2) `renderGovernanceDashboard()` terminal formatter in `src/interfaces/cli/commands/governance-dashboard-renderer.ts`; (3) `runDashboard()` CLI handler in `src/interfaces/cli/commands/governance-dashboard-handler.ts` (extracted to its own file for sentinel scoping). The `dashboard` case in `src/interfaces/cli/commands/governance.ts` delegates to the handler.
 
 **Tech Stack:** TypeScript, Node.js fs/path, vitest. Pure read-only aggregator. No new evidence types, no new writer methods, no mutation paths.
 
@@ -12,7 +12,7 @@
 
 1. `report.schemaVersion = "p9.5.0"` (string literal, exact value).
 2. The dashboard aggregator is **the only place** that touches the data layer. Renderer and handler consume the typed report.
-3. The handler is extracted to `src/cli/commands/governance-dashboard-handler.ts` so the sentinel can scan a precise file.
+3. The handler is extracted to `src/interfaces/cli/commands/governance-dashboard-handler.ts` so the sentinel can scan a precise file.
 4. The sentinel forbids mutation write paths (appliers, approve/apply/reject verbs, `ProposalStore.save` / `ProposalStore.markOrphaned`, all `record*` evidence write methods) but **permits** read-only store queries (`.list`, `.load`, `.loadVerified`).
 5. Supported mutation kinds (3): `confidence_calibration`, `lens_adjustment`, `policy_coverage`. Investigation-only kinds (2): `chain_restoration`, `governance_integrity`. See P9.4c close-out.
 6. P9.0 builders used (all exist in `src/governance/`): `buildGovernanceHealth`, `buildGovernanceAssessment`, `detectGovernanceDrift`, `buildGovernanceIntegrity`, `reviewLenses`.
@@ -657,7 +657,7 @@ git commit -m "P9.5: add aggregator unit tests (9 tests)"
 ### Task 4: Implement the terminal renderer
 
 **Files:**
-- Create: `src/cli/commands/governance-dashboard-renderer.ts`
+- Create: `src/interfaces/cli/commands/governance-dashboard-renderer.ts`
 
 **Interfaces:**
 - Consumes: `GovernanceDashboardReport` from Task 1
@@ -811,7 +811,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/governance-dashboard-renderer.ts
+git add src/interfaces/cli/commands/governance-dashboard-renderer.ts
 git commit -m "P9.5: implement renderGovernanceDashboard"
 ```
 
@@ -819,7 +819,7 @@ git commit -m "P9.5: implement renderGovernanceDashboard"
 ### Task 5: Implement the CLI handler
 
 **Files:**
-- Create: `src/cli/commands/governance-dashboard-handler.ts`
+- Create: `src/interfaces/cli/commands/governance-dashboard-handler.ts`
 
 **Interfaces:**
 - Consumes: `buildGovernanceDashboardReport` (Task 2), `renderGovernanceDashboard` (Task 4)
@@ -874,7 +874,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/governance-dashboard-handler.ts
+git add src/interfaces/cli/commands/governance-dashboard-handler.ts
 git commit -m "P9.5: implement runDashboard CLI handler (extracted for sentinel)"
 ```
 
@@ -882,7 +882,7 @@ git commit -m "P9.5: implement runDashboard CLI handler (extracted for sentinel)
 ### Task 6: Wire the subcommand into governance.ts
 
 **Files:**
-- Modify: `src/cli/commands/governance.ts` (one new `case "dashboard"` + import)
+- Modify: `src/interfaces/cli/commands/governance.ts` (one new `case "dashboard"` + import)
 
 **Interfaces:**
 - Consumes: `runDashboard` from Task 5
@@ -890,7 +890,7 @@ git commit -m "P9.5: implement runDashboard CLI handler (extracted for sentinel)
 
 - [ ] **Step 1: Add the import at the top of governance.ts**
 
-In `src/cli/commands/governance.ts`, find the import block at the top and add this import alongside the existing ones:
+In `src/interfaces/cli/commands/governance.ts`, find the import block at the top and add this import alongside the existing ones:
 
 ```ts
 import { runDashboard } from "./governance-dashboard-handler.js";
@@ -916,7 +916,7 @@ Expected: clean.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/governance.ts
+git add src/interfaces/cli/commands/governance.ts
 git commit -m "P9.5: register dashboard subcommand in governance.ts"
 ```
 
@@ -978,7 +978,7 @@ function stdout(): string { return stdoutChunks.join(""); }
 
 describe("runDashboard", () => {
   it("renders 6 panel headers in text mode", async () => {
-    const { runDashboard } = await import("../../../src/cli/commands/governance-dashboard-handler.js");
+    const { runDashboard } = await import("../../../src/interfaces/cli/commands/governance-dashboard-handler.js");
     await runDashboard([]);
     const out = stdout();
     expect(out).toContain("GOVERNANCE DASHBOARD");
@@ -991,7 +991,7 @@ describe("runDashboard", () => {
   });
 
   it("emits valid JSON in --json mode", async () => {
-    const { runDashboard } = await import("../../../src/cli/commands/governance-dashboard-handler.js");
+    const { runDashboard } = await import("../../../src/interfaces/cli/commands/governance-dashboard-handler.js");
     await runDashboard(["--json"]);
     const out = stdout();
     const parsed = JSON.parse(out);
@@ -1005,7 +1005,7 @@ describe("runDashboard", () => {
   });
 
   it("respects --window flag", async () => {
-    const { runDashboard } = await import("../../../src/cli/commands/governance-dashboard-handler.js");
+    const { runDashboard } = await import("../../../src/interfaces/cli/commands/governance-dashboard-handler.js");
     await runDashboard(["--window", "7"]);
     const parsed = JSON.parse(stdout());
     expect(parsed.windowDays).toBe(7);
@@ -1056,8 +1056,8 @@ import { join } from "node:path";
 
 const DASHBOARD_FILES = [
   "src/governance/governance-dashboard.ts",
-  "src/cli/commands/governance-dashboard-renderer.ts",
-  "src/cli/commands/governance-dashboard-handler.ts",
+  "src/interfaces/cli/commands/governance-dashboard-renderer.ts",
+  "src/interfaces/cli/commands/governance-dashboard-handler.ts",
 ];
 
 const FORBIDDEN_IN_DASHBOARD = [
@@ -1150,7 +1150,7 @@ Expected: clean.
 
 ```bash
 mkdir -p .alix/governance .alix/adaptation/proposals .alix/adaptation/snapshots
-npx tsx src/cli/commands/governance.ts dashboard 2>&1 | head -30
+npx tsx src/interfaces/cli/commands/governance.ts dashboard 2>&1 | head -30
 ```
 
 Expected: 6 panels render. Empty state shows "(none)" for the data tables.
@@ -1158,7 +1158,7 @@ Expected: 6 panels render. Empty state shows "(none)" for the data tables.
 - [ ] **Step 4: Run the dashboard in JSON mode**
 
 ```bash
-npx tsx src/cli/commands/governance.ts dashboard --json 2>&1 | head -20
+npx tsx src/interfaces/cli/commands/governance.ts dashboard --json 2>&1 | head -20
 ```
 
 Expected: valid JSON with `schemaVersion: "p9.5.0"`.

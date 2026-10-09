@@ -19,20 +19,20 @@
 
 **Architecture:**
 
-- `src/capability/measurement/a5.ts` — A5 measurement seam interface (type-only). CAP-10 imports `import type { A5Measurement } from "..."` exclusively.
-- `src/capability/measurement/measurement-event-types.ts` — `CapabilityMeasurementEvent` discriminated union + 1-event payload (`measured` only, long-form `capability.governance.measurement.measured`).
-- `src/capability/measurement/outcome-discriminated-union.ts` — `CapabilityMeasurementOutcome` discriminated union (`effective` / `ineffective` / `inconclusive`).
-- `src/capability/measurement/capability-measurement-engine.ts` — orchestrator. Resolves id@version target via catalog, calls A5, records exactly one event, returns `CapabilityMeasureResult`. Lives in `capability/measurement/` NOT `evolution/`.
-- `src/evolution/observation/a5-capability-measurement.ts` — concrete A5 implementation. Uses `ObservationEngine` for baseline/post observations, computes outcome, emits evolution signal via injected `ProposalSignalSource`.
-- `src/capability/types/service-results.ts` — EXTEND (CAP-8 file) with `CapabilityMeasureInput`, `CapabilityMeasureResult`.
-- `src/capability/capability-service.ts` (CAP-8 file, EXTEND) — replace forward-wired `measure()` stub with body that delegates to `CapabilityMeasurementEngine`; extend `governance()` filter to include `capability.governance.measurement.*`. Constructor grows by ONE optional dep: `measurementEngine?: CapabilityMeasurementEngine`.
-- `src/capability/platform.ts` (CAP-8 file, EXTEND) — wire A5 implementation + `CapabilityMeasurementEngine`; pass `measurementEngine` to `CapabilityService` (optional).
-- `src/capability/errors/measure-failed.ts`, `src/capability/errors/measure-invalid-target.ts` — narrow error classes with `Object.freeze(this)`.
-- `src/cli/commands/capability-measure.ts` (CREATE) — `alix capability measure <id@version> [--baseline <observation-id>]`.
+- `src/capabilities/capability/measurement/a5.ts` — A5 measurement seam interface (type-only). CAP-10 imports `import type { A5Measurement } from "..."` exclusively.
+- `src/capabilities/capability/measurement/measurement-event-types.ts` — `CapabilityMeasurementEvent` discriminated union + 1-event payload (`measured` only, long-form `capability.governance.measurement.measured`).
+- `src/capabilities/capability/measurement/outcome-discriminated-union.ts` — `CapabilityMeasurementOutcome` discriminated union (`effective` / `ineffective` / `inconclusive`).
+- `src/capabilities/capability/measurement/capability-measurement-engine.ts` — orchestrator. Resolves id@version target via catalog, calls A5, records exactly one event, returns `CapabilityMeasureResult`. Lives in `capability/measurement/` NOT `evolution/`.
+- `src/planning/evolution/observation/a5-capability-measurement.ts` — concrete A5 implementation. Uses `ObservationEngine` for baseline/post observations, computes outcome, emits evolution signal via injected `ProposalSignalSource`.
+- `src/capabilities/capability/types/service-results.ts` — EXTEND (CAP-8 file) with `CapabilityMeasureInput`, `CapabilityMeasureResult`.
+- `src/capabilities/capability/capability-service.ts` (CAP-8 file, EXTEND) — replace forward-wired `measure()` stub with body that delegates to `CapabilityMeasurementEngine`; extend `governance()` filter to include `capability.governance.measurement.*`. Constructor grows by ONE optional dep: `measurementEngine?: CapabilityMeasurementEngine`.
+- `src/capabilities/capability/platform.ts` (CAP-8 file, EXTEND) — wire A5 implementation + `CapabilityMeasurementEngine`; pass `measurementEngine` to `CapabilityService` (optional).
+- `src/capabilities/capability/errors/measure-failed.ts`, `src/capabilities/capability/errors/measure-invalid-target.ts` — narrow error classes with `Object.freeze(this)`.
+- `src/interfaces/cli/commands/capability-measure.ts` (CREATE) — `alix capability measure <id@version> [--baseline <observation-id>]`.
 - `tests/capability/five-axis-sentinel.vitest.ts` (CREATE) — axes 1-4 preserved + axis 5 NEW structural assertions.
 - `tests/capability/cap-10-supersession.test.ts` (CREATE) — node:test forbidden-file guard + CAP-10-specific structural assertions.
 
-**Tech Stack:** TypeScript (ESM), Vitest (`.vitest.ts` — `pnpm exec vitest run`), node:test (`.test.ts` — `pnpm run build && node scripts/run-node-tests.mjs`), EventLog (CAP-2/8), CapabilityMutationExecutor (CAP-6), CapabilityService (CAP-8/9 widened), ObservationEngine (A5.1 — `src/evolution/observation/observation-engine.ts`), ProposalSignalSource (CAP-9).
+**Tech Stack:** TypeScript (ESM), Vitest (`.vitest.ts` — `pnpm exec vitest run`), node:test (`.test.ts` — `pnpm run build && node scripts/run-node-tests.mjs`), EventLog (CAP-2/8), CapabilityMutationExecutor (CAP-6), CapabilityService (CAP-8/9 widened), ObservationEngine (A5.1 — `src/planning/evolution/observation/observation-engine.ts`), ProposalSignalSource (CAP-9).
 
 ---
 
@@ -43,9 +43,9 @@ The 23 rulings below are LOCKED project-wide. Every task's requirements implicit
 ### Architectural invariants (locked across CAP-8/CAP-9)
 
 1. **"A5 owns measurement semantics, not the service."** — Baseline/post observation, outcome determination, evolution signal emission — all in A5. CAP-10 owns only service boundary, event recording, governance projection integration. The service MUST NOT import the A5 implementation; it consumes `import type { A5Measurement } from "../measurement/a5.js"`.
-2. **"Event namespace ≠ authority."** — EventLog records measurement facts under `capability.governance.measurement.*`; `CapabilityLifecycleMeasurer` (A7.1 legacy) is CAP-11 deletion debt; CAP-10 must NOT import, reference, modify, deprecate, or refactor `src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts`. The CAP-10 supersession test enforces this via grep.
+2. **"Event namespace ≠ authority."** — EventLog records measurement facts under `capability.governance.measurement.*`; `CapabilityLifecycleMeasurer` (A7.1 legacy) is CAP-11 deletion debt; CAP-10 must NOT import, reference, modify, deprecate, or refactor `src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts`. The CAP-10 supersession test enforces this via grep.
 3. **"The composition-root boundary is optional and graceful."** — `CapabilityService` constructor adds ONE optional dep `measurementEngine?: CapabilityMeasurementEngine`. When absent, `service.measure()` throws `CapabilityServiceNotImplementedError("measure() requires measurementEngine")` (CAP-8 ruling #4 contract preserved).
-4. **"A5 is a seam, not a component."** — The A5 interface lives in `src/capability/measurement/a5.ts`. The concrete implementation lives in `src/evolution/observation/a5-capability-measurement.ts`. Composition root constructs the implementation, passes it to the orchestrator.
+4. **"A5 is a seam, not a component."** — The A5 interface lives in `src/capabilities/capability/measurement/a5.ts`. The concrete implementation lives in `src/planning/evolution/observation/a5-capability-measurement.ts`. Composition root constructs the implementation, passes it to the orchestrator.
 5. **"Failure paths record no events."** — A5 throws → orchestrator catches → rethrows as `CapabilityMeasureFailedError` (or `CapabilityMeasureInvalidTargetError` for catalog miss). NO measurement event is recorded. NO evolution signal is emitted.
 
 ### 23 locked rulings (encoded verbatim from spec section 3)
@@ -66,11 +66,11 @@ The 23 rulings below are LOCKED project-wide. Every task's requirements implicit
 
 **Ruling #8 — A5 `measureCapability()` is the new surface.** Signature: `measureCapability(target: { capabilityId: string; version: string }, baselineObservationId?: string): Promise<CapabilityMeasurementOutcome>`. CAP-10 imports A5 TYPE ONLY.
 
-**Ruling #9 — Legacy measurer forbidden.** `src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` is CAP-11 deletion debt. CAP-10 must not import, modify, delete, deprecate, or refactor it.
+**Ruling #9 — Legacy measurer forbidden.** `src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` is CAP-11 deletion debt. CAP-10 must not import, modify, delete, deprecate, or refactor it.
 
 **Ruling #10 — Five-axis sentinel.** Axes 1-4 from CAP-8/9 MUST be preserved unchanged. Axis 5 is NEW and measures measurement purity: A5 implementation MUST NOT contain `catalog\.register|catalog\.remove|registry\.setLifecycleState|registry\.applyMutation`; `CapabilityMeasurementEngine` MUST NOT import the A5 implementation directly; `service.measure()` MUST NOT call catalog/registry mutators; `governance()` body MUST continue to be catalog/registry-pure.
 
-**Ruling #11 — One CLI command.** `alix capability measure <id@version> [--baseline <observation-id>]`. Lives in `src/cli/commands/capability-measure.ts`. Routes through `service.measure()` exclusively.
+**Ruling #11 — One CLI command.** `alix capability measure <id@version> [--baseline <observation-id>]`. Lives in `src/interfaces/cli/commands/capability-measure.ts`. Routes through `service.measure()` exclusively.
 
 **Ruling #12 — P5.5/P5.6 signal flow.** A5 → `ProposalSignalSource` → P5.5/P5.6. The A5 implementation injects `ProposalSignalSource` (CAP-9 type) and emits evolution signals. The orchestrator does not emit signals — it only records measurement events.
 
@@ -82,11 +82,11 @@ The 23 rulings below are LOCKED project-wide. Every task's requirements implicit
 
 **Ruling #16 — A5 failure handling.** A5 throws → orchestrator catches → rethrows as `CapabilityMeasureFailedError` (carries `capabilityId`, `version`, `baselineObservationId?`, `cause: Error`, `code: 'measure_failed'`). NO measurement event recorded. NO evolution signal emitted.
 
-**Ruling #17 — A5 interface location.** `src/capability/measurement/a5.ts`. Type-only file. Exports `interface A5Measurement { measureCapability(...) }`, `interface A5MeasurementTarget`, re-exports `CapabilityMeasurementOutcome`.
+**Ruling #17 — A5 interface location.** `src/capabilities/capability/measurement/a5.ts`. Type-only file. Exports `interface A5Measurement { measureCapability(...) }`, `interface A5MeasurementTarget`, re-exports `CapabilityMeasurementOutcome`.
 
 **Ruling #18 — Composition-root.** `CapabilityPlatform` constructs `A5CapabilityMeasurement` (concrete A5), then `CapabilityMeasurementEngine({ catalog, eventLog, a5, observationEngine })`, then passes `measurementEngine` (optional) to `CapabilityService`.
 
-**Ruling #19 — A7.1 lifecycle untouched.** `src/evolution/capability-lifecycle/*` (A7.1 legacy lifecycle, including `capability-lifecycle-measurer.ts`) remains untouched by CAP-10. CAP-11 owns deletion.
+**Ruling #19 — A7.1 lifecycle untouched.** `src/planning/evolution/capability-lifecycle/*` (A7.1 legacy lifecycle, including `capability-lifecycle-measurer.ts`) remains untouched by CAP-10. CAP-11 owns deletion.
 
 **Ruling #20 — Append-only ledger = shared EventLog.** Measurement events share the EventLog with lifecycle and governance events. `governance()` projection filter widens from `capability.governance.proposal.` (CAP-9) to `capability.governance.` (CAP-10 + CAP-9).
 
@@ -95,25 +95,25 @@ The 23 rulings below are LOCKED project-wide. Every task's requirements implicit
 **Ruling #22 — `service.measure()` optional ctor dep.** `CapabilityServiceOptions.measurementEngine?: CapabilityMeasurementEngine`. Absent → `service.measure()` throws `CapabilityServiceNotImplementedError` (CAP-8 ruling #4 preserved). NEVER make it required.
 
 **Ruling #23 — Measurement purity sentinel.** Source-text assertions on:
-- `src/capability/measurement/capability-measurement-engine.ts` MUST NOT import `src/evolution/observation/a5-capability-measurement` (only via `A5Measurement` interface).
-- `src/capability/capability-service.ts` `measure()` body MUST NOT call `catalog.mutate`, `registry.applyMutation`, `catalog.remove`, `catalog.register`.
-- `src/capability/capability-service.ts` `governance()` body MUST continue to be catalog/registry-pure (CAP-9 ruling #23 preserved).
+- `src/capabilities/capability/measurement/capability-measurement-engine.ts` MUST NOT import `src/planning/evolution/observation/a5-capability-measurement` (only via `A5Measurement` interface).
+- `src/capabilities/capability/capability-service.ts` `measure()` body MUST NOT call `catalog.mutate`, `registry.applyMutation`, `catalog.remove`, `catalog.register`.
+- `src/capabilities/capability/capability-service.ts` `governance()` body MUST continue to be catalog/registry-pure (CAP-9 ruling #23 preserved).
 
 ### File map (locked — rulings #1, #8, #11, #17, #18)
 
 | Path | Task | Status |
 |------|------|--------|
-| `src/capability/measurement/measurement-event-types.ts` | T1 | CREATE |
-| `src/capability/measurement/outcome-discriminated-union.ts` | T2 | CREATE |
-| `src/capability/measurement/a5.ts` | T3 | CREATE |
-| `src/evolution/observation/a5-capability-measurement.ts` | T4 | CREATE |
-| `src/capability/measurement/capability-measurement-engine.ts` | T5 | CREATE |
-| `src/capability/errors/measure-failed.ts` | T5 | CREATE |
-| `src/capability/errors/measure-invalid-target.ts` | T5 | CREATE |
-| `src/capability/types/service-results.ts` | T1, T5, T6 | EXTEND |
-| `src/capability/capability-service.ts` | T6 | EXTEND |
-| `src/capability/platform.ts` | T7 | EXTEND |
-| `src/cli/commands/capability-measure.ts` | T9 | CREATE |
+| `src/capabilities/capability/measurement/measurement-event-types.ts` | T1 | CREATE |
+| `src/capabilities/capability/measurement/outcome-discriminated-union.ts` | T2 | CREATE |
+| `src/capabilities/capability/measurement/a5.ts` | T3 | CREATE |
+| `src/planning/evolution/observation/a5-capability-measurement.ts` | T4 | CREATE |
+| `src/capabilities/capability/measurement/capability-measurement-engine.ts` | T5 | CREATE |
+| `src/capabilities/capability/errors/measure-failed.ts` | T5 | CREATE |
+| `src/capabilities/capability/errors/measure-invalid-target.ts` | T5 | CREATE |
+| `src/capabilities/capability/types/service-results.ts` | T1, T5, T6 | EXTEND |
+| `src/capabilities/capability/capability-service.ts` | T6 | EXTEND |
+| `src/capabilities/capability/platform.ts` | T7 | EXTEND |
+| `src/interfaces/cli/commands/capability-measure.ts` | T9 | CREATE |
 | `tests/capability/measurement-event-types.vitest.ts` | T1 | CREATE |
 | `tests/capability/outcome-discriminated-union.vitest.ts` | T2 | CREATE |
 | `tests/capability/a5-capability-measurement.vitest.ts` | T4 | CREATE |
@@ -127,10 +127,10 @@ The 23 rulings below are LOCKED project-wide. Every task's requirements implicit
 
 ### CAP-10 forbidden files (ruling #9, #19; extends CAP-8/9)
 
-- **CAP-8 preserved:** `src/capability/initial-capabilities.ts`, `src/tools/tool-registry.ts`, `src/policy/capability-registry.ts`, `src/capability/canonical/*` (production — read-only import surface only), `src/tui/capabilities/capability-service.ts` (CAP-7/9 TUI façade, CAP-11 cliff).
-- **CAP-9 preserved:** `src/capability/evolution/a7-proposals.ts` MUST NOT import capability mutators.
-- **CAP-10 NEW forbidden:** `src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` MUST NOT be imported by any CAP-10 file. Supersession test asserts via regex match against `src/capability/measurement/*.ts`, `src/capability/capability-service.ts`, `src/capability/platform.ts`, `src/cli/commands/capability-measure.ts` — zero matches for `capability-lifecycle-measurer`.
-- **CAP-10 NEW forbidden:** `src/capability/measurement/capability-measurement-engine.ts` MUST NOT import from `src/evolution/observation/a5-capability-measurement` (only via the `A5Measurement` interface from `capability/measurement/a5.ts`).
+- **CAP-8 preserved:** `src/capabilities/capability/initial-capabilities.ts`, `src/capabilities/tools/tool-registry.ts`, `src/governance/policy/capability-registry.ts`, `src/capabilities/capability/canonical/*` (production — read-only import surface only), `src/interfaces/tui/capabilities/capability-service.ts` (CAP-7/9 TUI façade, CAP-11 cliff).
+- **CAP-9 preserved:** `src/capabilities/capability/evolution/a7-proposals.ts` MUST NOT import capability mutators.
+- **CAP-10 NEW forbidden:** `src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` MUST NOT be imported by any CAP-10 file. Supersession test asserts via regex match against `src/capabilities/capability/measurement/*.ts`, `src/capabilities/capability/capability-service.ts`, `src/capabilities/capability/platform.ts`, `src/interfaces/cli/commands/capability-measure.ts` — zero matches for `capability-lifecycle-measurer`.
+- **CAP-10 NEW forbidden:** `src/capabilities/capability/measurement/capability-measurement-engine.ts` MUST NOT import from `src/planning/evolution/observation/a5-capability-measurement` (only via the `A5Measurement` interface from `capability/measurement/a5.ts`).
 
 ### Test convention (CAP-9 precedent preserved)
 
@@ -167,12 +167,12 @@ Bite-sizing rationale: each task has 5-7 steps of 2-5 minutes each, produces one
 ### Task 1: Measurement event types
 
 **Files:**
-- Create: `src/capability/measurement/measurement-event-types.ts`
-- Modify: `src/capability/types/service-results.ts` (CAP-8 file; add `CapabilityMeasureInput`)
+- Create: `src/capabilities/capability/measurement/measurement-event-types.ts`
+- Modify: `src/capabilities/capability/types/service-results.ts` (CAP-8 file; add `CapabilityMeasureInput`)
 - Test: `tests/capability/measurement-event-types.vitest.ts`
 
 **Interfaces:**
-- Consumes: `AlixEvent`, `NewEvent` from `src/events/types.ts`.
+- Consumes: `AlixEvent`, `NewEvent` from `src/runtime-state/events/types.ts`.
 - Produces: `CapabilityMeasurementEventType = 'capability.governance.measurement.measured'` (ruling #1, #5).
 - Produces: `CAPABILITY_MEASUREMENT_EVENT_TYPES: readonly CapabilityMeasurementEventType[]` constant.
 - Produces: `MEASUREMENT_EVENT_PREFIX = 'capability.governance.measurement.'` constant.
@@ -193,11 +193,11 @@ import {
   MEASUREMENT_EVENT_PREFIX,
   MEASUREMENT_GOVERNANCE_PREFIX,
   isMeasurementEventType,
-} from "../../src/capability/measurement/measurement-event-types.js";
+} from "../../src/capabilities/capability/measurement/measurement-event-types.js";
 import type {
   CapabilityMeasurementEvent,
   CapabilityMeasurementEventType,
-} from "../../src/capability/measurement/measurement-event-types.js";
+} from "../../src/capabilities/capability/measurement/measurement-event-types.js";
 
 describe("CapabilityMeasurementEventType (CAP-10 ruling #1, #5)", () => {
   it("has exactly one event type — measured only", () => {
@@ -278,7 +278,7 @@ Expected: FAIL — module not found.
 **Step 3: Implement `measurement-event-types.ts`**
 
 ```ts
-// src/capability/measurement/measurement-event-types.ts
+// src/capabilities/capability/measurement/measurement-event-types.ts
 /**
  * CAP-10 — Measurement event types + payload.
  *
@@ -370,10 +370,10 @@ export type CapabilityMeasurementEvent = {
 
 **Step 4: Extend `service-results.ts` with `CapabilityMeasureInput`**
 
-Append at the end of `src/capability/types/service-results.ts`:
+Append at the end of `src/capabilities/capability/types/service-results.ts`:
 
 ```ts
-// src/capability/types/service-results.ts (CAP-10 additions — APPEND ONLY)
+// src/capabilities/capability/types/service-results.ts (CAP-10 additions — APPEND ONLY)
 // ---------------------------------------------------------------------------
 // CAP-10 measurement input (ruling #2; Type Gate section)
 // ---------------------------------------------------------------------------
@@ -397,7 +397,7 @@ Expected: PASS, 0 tsc errors.
 **Step 6: Commit**
 
 ```bash
-git add src/capability/measurement/measurement-event-types.ts src/capability/types/service-results.ts tests/capability/measurement-event-types.vitest.ts
+git add src/capabilities/capability/measurement/measurement-event-types.ts src/capabilities/capability/types/service-results.ts tests/capability/measurement-event-types.vitest.ts
 git commit -m "feat(capability): CAP-10 measurement event types + measure input shape"
 ```
 
@@ -406,11 +406,11 @@ git commit -m "feat(capability): CAP-10 measurement event types + measure input 
 ### Task 2: Outcome discriminated union
 
 **Files:**
-- Create: `src/capability/measurement/outcome-discriminated-union.ts`
+- Create: `src/capabilities/capability/measurement/outcome-discriminated-union.ts`
 - Test: `tests/capability/outcome-discriminated-union.vitest.ts`
 
 **Interfaces:**
-- Consumes: `CapabilityEvolutionSignal` from `src/capability/evolution/a7-proposals.ts`.
+- Consumes: `CapabilityEvolutionSignal` from `src/capabilities/capability/evolution/a7-proposals.ts`.
 - Produces: `CapabilityMeasurementOutcome` discriminated union (ruling #15).
 - Produces: `CAPABILITY_MEASUREMENT_OUTCOMES: readonly CapabilityMeasurementOutcomeKind[]`.
 - Produces: `isCapabilityMeasurementOutcome(value)` runtime guard.
@@ -428,8 +428,8 @@ import {
   isEffectiveOutcome,
   isIneffectiveOutcome,
   isInconclusiveOutcome,
-} from "../../src/capability/measurement/outcome-discriminated-union.js";
-import type { CapabilityMeasurementOutcome } from "../../src/capability/measurement/outcome-discriminated-union.js";
+} from "../../src/capabilities/capability/measurement/outcome-discriminated-union.js";
+import type { CapabilityMeasurementOutcome } from "../../src/capabilities/capability/measurement/outcome-discriminated-union.js";
 
 function mkOutcome(kind: "effective" | "ineffective" | "inconclusive"): CapabilityMeasurementOutcome {
   return {
@@ -494,7 +494,7 @@ Expected: FAIL — module not found.
 **Step 3: Implement `outcome-discriminated-union.ts`**
 
 ```ts
-// src/capability/measurement/outcome-discriminated-union.ts
+// src/capabilities/capability/measurement/outcome-discriminated-union.ts
 /**
  * CAP-10 — `CapabilityMeasurementOutcome` discriminated union.
  * Three variants (ruling #15): effective / ineffective / inconclusive.
@@ -567,7 +567,7 @@ Expected: PASS, 0 tsc errors.
 **Step 5: Commit**
 
 ```bash
-git add src/capability/measurement/outcome-discriminated-union.ts tests/capability/outcome-discriminated-union.vitest.ts
+git add src/capabilities/capability/measurement/outcome-discriminated-union.ts tests/capability/outcome-discriminated-union.vitest.ts
 git commit -m "feat(capability): CAP-10 outcome discriminated union — effective/ineffective/inconclusive"
 ```
 
@@ -576,7 +576,7 @@ git commit -m "feat(capability): CAP-10 outcome discriminated union — effectiv
 ### Task 3: A5 measurement interface (type-only seam)
 
 **Files:**
-- Create: `src/capability/measurement/a5.ts`
+- Create: `src/capabilities/capability/measurement/a5.ts`
 
 **Interfaces:**
 - Produces: `A5MeasurementTarget` (ruling #8).
@@ -587,15 +587,15 @@ git commit -m "feat(capability): CAP-10 outcome discriminated union — effectiv
 **Step 1: Write the file**
 
 ```ts
-// src/capability/measurement/a5.ts
+// src/capabilities/capability/measurement/a5.ts
 /**
  * CAP-10 — A5 measurement seam (type-only).
  *
  * The A5 capability-level surface is exposed through this interface (ruling #8).
  * `CapabilityService` imports `import type { A5Measurement } from "./measurement/a5.js"`
  * exclusively (ruling #7). The concrete implementation lives in
- * `src/evolution/observation/a5-capability-measurement.ts` and is constructed
- * by the composition root (`src/capability/platform.ts` — ruling #18).
+ * `src/planning/evolution/observation/a5-capability-measurement.ts` and is constructed
+ * by the composition root (`src/capabilities/capability/platform.ts` — ruling #18).
  *
  * @module capability/measurement/a5
  */
@@ -628,7 +628,7 @@ Expected: 0 errors.
 **Step 3: Commit**
 
 ```bash
-git add src/capability/measurement/a5.ts
+git add src/capabilities/capability/measurement/a5.ts
 git commit -m "feat(capability): CAP-10 A5 measurement seam interface (type-only)"
 ```
 
@@ -637,7 +637,7 @@ git commit -m "feat(capability): CAP-10 A5 measurement seam interface (type-only
 ### Task 4: A5 concrete implementation
 
 **Files:**
-- Create: `src/evolution/observation/a5-capability-measurement.ts`
+- Create: `src/planning/evolution/observation/a5-capability-measurement.ts`
 - Test: `tests/capability/a5-capability-measurement.vitest.ts`
 
 **Interfaces:**
@@ -663,13 +663,13 @@ import { join } from "node:path";
 import {
   A5CapabilityMeasurement,
   type OutcomeDecider,
-} from "../../src/evolution/observation/a5-capability-measurement.js";
-import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import type { ObservationProvider, Observation, ObservationResult } from "../../src/evolution/observation/contracts/observation-contract.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
-import type { A5Measurement } from "../../src/capability/measurement/a5.js";
+} from "../../src/planning/evolution/observation/a5-capability-measurement.js";
+import { ObservationEngine } from "../../src/planning/evolution/observation/observation-engine.js";
+import type { ObservationProvider, Observation, ObservationResult } from "../../src/planning/evolution/observation/contracts/observation-contract.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/a7-proposals.js";
+import type { A5Measurement } from "../../src/capabilities/capability/measurement/a5.js";
 
 class FakePassProvider implements ObservationProvider {
   readonly name = "native";
@@ -802,18 +802,18 @@ Expected: FAIL — module not found.
 **Step 3: Implement `a5-capability-measurement.ts`**
 
 ```ts
-// src/evolution/observation/a5-capability-measurement.ts
+// src/planning/evolution/observation/a5-capability-measurement.ts
 /**
  * CAP-10 — A5 concrete capability-measurement implementation.
  *
- * Implements the `A5Measurement` seam (`src/capability/measurement/a5.ts`).
+ * Implements the `A5Measurement` seam (`src/capabilities/capability/measurement/a5.ts`).
  * Uses the existing `ObservationEngine` (A5.1) to perform baseline (if
  * requested) and post observations, then computes the outcome via an
  * injected (or default) `OutcomeDecider`.
  *
  * Architectural boundaries (ruling #5, #7, axis 5):
  *   - Read-only catalog access (provider-name lookup).
- *   - MUST NOT import `src/capability/canonical/catalog` mutators.
+ *   - MUST NOT import `src/capabilities/capability/canonical/catalog` mutators.
  *   - MUST emit evolution signals via the injected `ProposalSignalSource`
  *     (ruling #12).
  *
@@ -953,7 +953,7 @@ Expected: PASS, 0 tsc errors.
 **Step 5: Commit**
 
 ```bash
-git add src/evolution/observation/a5-capability-measurement.ts tests/capability/a5-capability-measurement.vitest.ts
+git add src/planning/evolution/observation/a5-capability-measurement.ts tests/capability/a5-capability-measurement.vitest.ts
 git commit -m "feat(capability): CAP-10 A5CapabilityMeasurement — concrete A5 implementation"
 ```
 
@@ -962,10 +962,10 @@ git commit -m "feat(capability): CAP-10 A5CapabilityMeasurement — concrete A5 
 ### Task 5: Measurement engine + error classes
 
 **Files:**
-- Create: `src/capability/measurement/capability-measurement-engine.ts`
-- Create: `src/capability/errors/measure-failed.ts`
-- Create: `src/capability/errors/measure-invalid-target.ts`
-- Modify: `src/capability/types/service-results.ts` (add `CapabilityMeasureResult`)
+- Create: `src/capabilities/capability/measurement/capability-measurement-engine.ts`
+- Create: `src/capabilities/capability/errors/measure-failed.ts`
+- Create: `src/capabilities/capability/errors/measure-invalid-target.ts`
+- Modify: `src/capabilities/capability/types/service-results.ts` (add `CapabilityMeasureResult`)
 - Test: `tests/capability/capability-measurement-engine.vitest.ts`
 
 **Interfaces:**
@@ -984,10 +984,10 @@ git commit -m "feat(capability): CAP-10 A5CapabilityMeasurement — concrete A5 
 
 **Step 1: Extend `service-results.ts` with `CapabilityMeasureResult`**
 
-Append to `src/capability/types/service-results.ts`:
+Append to `src/capabilities/capability/types/service-results.ts`:
 
 ```ts
-// src/capability/types/service-results.ts (CAP-10 — add CapabilityMeasureResult)
+// src/capabilities/capability/types/service-results.ts (CAP-10 — add CapabilityMeasureResult)
 
 import type { CapabilityMeasurementOutcome } from "../measurement/outcome-discriminated-union.js";
 import type { ObservationStatus } from "../../evolution/observation/contracts/observation-contract.js";
@@ -1025,18 +1025,18 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CapabilityMeasurementEngine } from "../../src/capability/measurement/capability-measurement-engine.js";
-import { CapabilityMeasureFailedError } from "../../src/capability/errors/measure-failed.js";
-import { CapabilityMeasureInvalidTargetError } from "../../src/capability/errors/measure-invalid-target.js";
-import { MEASUREMENT_EVENT_PREFIX } from "../../src/capability/measurement/measurement-event-types.js";
-import type { A5Measurement } from "../../src/capability/measurement/a5.js";
-import type { CapabilityMeasurementOutcome } from "../../src/capability/measurement/outcome-discriminated-union.js";
-import type { CapabilityMeasureInput } from "../../src/capability/types/service-results.js";
-import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import type { ObservationProvider, Observation, ObservationResult } from "../../src/evolution/observation/contracts/observation-contract.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityMeasurementEngine } from "../../src/capabilities/capability/measurement/capability-measurement-engine.js";
+import { CapabilityMeasureFailedError } from "../../src/capabilities/capability/errors/measure-failed.js";
+import { CapabilityMeasureInvalidTargetError } from "../../src/capabilities/capability/errors/measure-invalid-target.js";
+import { MEASUREMENT_EVENT_PREFIX } from "../../src/capabilities/capability/measurement/measurement-event-types.js";
+import type { A5Measurement } from "../../src/capabilities/capability/measurement/a5.js";
+import type { CapabilityMeasurementOutcome } from "../../src/capabilities/capability/measurement/outcome-discriminated-union.js";
+import type { CapabilityMeasureInput } from "../../src/capabilities/capability/types/service-results.js";
+import { ObservationEngine } from "../../src/planning/evolution/observation/observation-engine.js";
+import type { ObservationProvider, Observation, ObservationResult } from "../../src/planning/evolution/observation/contracts/observation-contract.js";
 
 class FakePassProvider implements ObservationProvider {
   readonly name = "native";
@@ -1197,10 +1197,10 @@ Expected: FAIL — modules not found.
 
 **Step 4: Implement error classes**
 
-`src/capability/errors/measure-failed.ts`:
+`src/capabilities/capability/errors/measure-failed.ts`:
 
 ```ts
-// src/capability/errors/measure-failed.ts
+// src/capabilities/capability/errors/measure-failed.ts
 /**
  * CAP-10 — Thrown when A5 `measureCapability` throws. Orchestrator catches
  * the original error and rethrows as `CapabilityMeasureFailedError` (ruling #16).
@@ -1226,10 +1226,10 @@ export class CapabilityMeasureFailedError extends Error {
 }
 ```
 
-`src/capability/errors/measure-invalid-target.ts`:
+`src/capabilities/capability/errors/measure-invalid-target.ts`:
 
 ```ts
-// src/capability/errors/measure-invalid-target.ts
+// src/capabilities/capability/errors/measure-invalid-target.ts
 /**
  * CAP-10 — Thrown when the supplied id@version target does not exist in the
  * catalog. Distinct from `CapabilityMeasureFailedError` (target resolution is
@@ -1250,7 +1250,7 @@ export class CapabilityMeasureInvalidTargetError extends Error {
 **Step 5: Implement `capability-measurement-engine.ts`**
 
 ```ts
-// src/capability/measurement/capability-measurement-engine.ts
+// src/capabilities/capability/measurement/capability-measurement-engine.ts
 /**
  * CAP-10 — CapabilityMeasurementEngine (orchestrator).
  *
@@ -1268,8 +1268,8 @@ export class CapabilityMeasureInvalidTargetError extends Error {
  * Lives in `capability/measurement/`, NOT `evolution/`.
  *
  * Forbidden (ruling #9, axis 5):
- *   - MUST NOT import `src/evolution/observation/a5-capability-measurement`.
- *   - MUST NOT import `src/evolution/capability-lifecycle/*`.
+ *   - MUST NOT import `src/planning/evolution/observation/a5-capability-measurement`.
+ *   - MUST NOT import `src/planning/evolution/capability-lifecycle/*`.
  *
  * @module capability/measurement/capability-measurement-engine
  */
@@ -1408,7 +1408,7 @@ Expected: PASS, 0 tsc errors.
 **Step 7: Commit**
 
 ```bash
-git add src/capability/measurement/capability-measurement-engine.ts src/capability/errors/measure-failed.ts src/capability/errors/measure-invalid-target.ts src/capability/types/service-results.ts tests/capability/capability-measurement-engine.vitest.ts
+git add src/capabilities/capability/measurement/capability-measurement-engine.ts src/capabilities/capability/errors/measure-failed.ts src/capabilities/capability/errors/measure-invalid-target.ts src/capabilities/capability/types/service-results.ts tests/capability/capability-measurement-engine.vitest.ts
 git commit -m "feat(capability): CAP-10 measurement engine + failure errors — orchestrator + persistence"
 ```
 
@@ -1417,8 +1417,8 @@ git commit -m "feat(capability): CAP-10 measurement engine + failure errors — 
 ### Task 6: Service `measure()` impl + `governance()` widening
 
 **Files:**
-- Modify: `src/capability/types/service-results.ts` (extend `CapabilityServiceOptions`)
-- Modify: `src/capability/capability-service.ts` (replace `measure()` stub + widen `governance()` filter)
+- Modify: `src/capabilities/capability/types/service-results.ts` (extend `CapabilityServiceOptions`)
+- Modify: `src/capabilities/capability/capability-service.ts` (replace `measure()` stub + widen `governance()` filter)
 - Test: `tests/capability/capability-service-measure.vitest.ts`
 - Test: `tests/capability/capability-service-governance-measurement.vitest.ts`
 
@@ -1430,7 +1430,7 @@ git commit -m "feat(capability): CAP-10 measurement engine + failure errors — 
 **Step 1: Confirm current `measure()` + `governance()` shape**
 
 ```bash
-grep -n "async measure\|async governance\|GOVERNANCE_EVENT_PREFIX" src/capability/capability-service.ts
+grep -n "async measure\|async governance\|GOVERNANCE_EVENT_PREFIX" src/capabilities/capability/capability-service.ts
 ```
 
 **Step 2: Write failing service-measure tests**
@@ -1442,18 +1442,18 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityService } from "../../src/capability/capability-service.js";
-import { CapabilityServiceNotImplementedError } from "../../src/capability/errors/service-not-implemented.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { CapabilityResolver } from "../../src/capability/provider-resolver.js";
-import { ProviderExecutorRegistry } from "../../src/capability/provider-registry.js";
-import { CapabilityMeasurementEngine } from "../../src/capability/measurement/capability-measurement-engine.js";
-import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import type { A5Measurement } from "../../src/capability/measurement/a5.js";
-import type { CapabilityMeasurementOutcome } from "../../src/capability/measurement/outcome-discriminated-union.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityService } from "../../src/capabilities/capability/capability-service.js";
+import { CapabilityServiceNotImplementedError } from "../../src/capabilities/capability/errors/service-not-implemented.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { CapabilityResolver } from "../../src/capabilities/capability/provider-resolver.js";
+import { ProviderExecutorRegistry } from "../../src/capabilities/capability/provider-registry.js";
+import { CapabilityMeasurementEngine } from "../../src/capabilities/capability/measurement/capability-measurement-engine.js";
+import { ObservationEngine } from "../../src/planning/evolution/observation/observation-engine.js";
+import type { A5Measurement } from "../../src/capabilities/capability/measurement/a5.js";
+import type { CapabilityMeasurementOutcome } from "../../src/capabilities/capability/measurement/outcome-discriminated-union.js";
 
 function mkA5(): A5Measurement {
   return {
@@ -1530,14 +1530,14 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityService } from "../../src/capability/capability-service.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { CapabilityResolver } from "../../src/capability/provider-resolver.js";
-import { ProviderExecutorRegistry } from "../../src/capability/provider-registry.js";
-import { MEASUREMENT_EVENT_PREFIX } from "../../src/capability/measurement/measurement-event-types.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityService } from "../../src/capabilities/capability/capability-service.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { CapabilityResolver } from "../../src/capabilities/capability/provider-resolver.js";
+import { ProviderExecutorRegistry } from "../../src/capabilities/capability/provider-registry.js";
+import { MEASUREMENT_EVENT_PREFIX } from "../../src/capabilities/capability/measurement/measurement-event-types.js";
 
 describe("CapabilityService.governance() widening (CAP-10 ruling #6, #20)", () => {
   let dir: string;
@@ -1607,12 +1607,12 @@ pnpm exec vitest run tests/capability/capability-service-measure.vitest.ts tests
 
 Expected: FAIL — `measurementEngine` not in `CapabilityServiceOptions`; widening filter not present.
 
-**Step 5: Modify `src/capability/types/service-results.ts` (CAP-8 file)**
+**Step 5: Modify `src/capabilities/capability/types/service-results.ts` (CAP-8 file)**
 
 Extend the existing `CapabilityServiceOptions`:
 
 ```ts
-// src/capability/types/service-results.ts (CAP-10 — EXTEND existing CapabilityServiceOptions)
+// src/capabilities/capability/types/service-results.ts (CAP-10 — EXTEND existing CapabilityServiceOptions)
   readonly proposalGenerator?: import("../evolution/a7-proposals.js").A7ProposalGenerator;
   /** CAP-10 ruling #22 — measurement engine. Optional. Absent → measure() throws
    *  CapabilityServiceNotImplementedError. NEVER required. */
@@ -1620,7 +1620,7 @@ Extend the existing `CapabilityServiceOptions`:
 }
 ```
 
-**Step 6: Modify `src/capability/capability-service.ts`**
+**Step 6: Modify `src/capabilities/capability/capability-service.ts`**
 
 Three edits:
 
@@ -1675,7 +1675,7 @@ Expected: All PASS (CAP-9 governance tests still green; widened filter is strict
 **Step 8: Commit**
 
 ```bash
-git add src/capability/types/service-results.ts src/capability/capability-service.ts tests/capability/capability-service-measure.vitest.ts tests/capability/capability-service-governance-measurement.vitest.ts
+git add src/capabilities/capability/types/service-results.ts src/capabilities/capability/capability-service.ts tests/capability/capability-service-measure.vitest.ts tests/capability/capability-service-governance-measurement.vitest.ts
 git commit -m "feat(capability): CAP-10 service.measure() + governance() widening"
 ```
 
@@ -1684,7 +1684,7 @@ git commit -m "feat(capability): CAP-10 service.measure() + governance() widenin
 ### Task 7: Platform wiring + composition-root
 
 **Files:**
-- Modify: `src/capability/platform.ts` (CAP-8 file — wire A5 implementation + engine + optional ctor dep)
+- Modify: `src/capabilities/capability/platform.ts` (CAP-8 file — wire A5 implementation + engine + optional ctor dep)
 - Test: `tests/capability/platform-cap-10.vitest.ts`
 
 **Interfaces:**
@@ -1695,7 +1695,7 @@ git commit -m "feat(capability): CAP-10 service.measure() + governance() widenin
 **Step 1: Confirm current `service` construction shape**
 
 ```bash
-grep -n "new CapabilityService\|this.service" src/capability/platform.ts
+grep -n "new CapabilityService\|this.service" src/capabilities/capability/platform.ts
 ```
 
 **Step 2: Write failing platform wiring test**
@@ -1707,12 +1707,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { EventLog } from "../../src/events/event-log.js";
-import { A5CapabilityMeasurement } from "../../src/evolution/observation/a5-capability-measurement.js";
-import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import { CapabilityServiceNotImplementedError } from "../../src/capability/errors/service-not-implemented.js";
-import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { A5CapabilityMeasurement } from "../../src/planning/evolution/observation/a5-capability-measurement.js";
+import { ObservationEngine } from "../../src/planning/evolution/observation/observation-engine.js";
+import { CapabilityServiceNotImplementedError } from "../../src/capabilities/capability/errors/service-not-implemented.js";
+import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/a7-proposals.js";
 
 class NoopSignalSource implements ProposalSignalSource {
   async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
@@ -1769,7 +1769,7 @@ pnpm exec vitest run tests/capability/platform-cap-10.vitest.ts
 
 Expected: FAIL — `opts.a5CapabilityMeasurement` not in `CapabilityPlatformOptions`.
 
-**Step 4: Modify `src/capability/platform.ts`**
+**Step 4: Modify `src/capabilities/capability/platform.ts`**
 
 4a. Add imports at top:
 ```ts
@@ -1830,7 +1830,7 @@ Expected: PASS, 0 tsc errors.
 **Step 6: Commit**
 
 ```bash
-git add src/capability/platform.ts tests/capability/platform-cap-10.vitest.ts
+git add src/capabilities/capability/platform.ts tests/capability/platform-cap-10.vitest.ts
 git commit -m "feat(capability): CAP-10 platform wires A5 + measurement engine into service"
 ```
 
@@ -1865,10 +1865,10 @@ function readSrc(rel: string): string {
 
 describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
   it("axis 1: new CapabilityRegistry/Resolver only in composition root", () => {
-    const platformSrc = readSrc("src/capability/platform.ts");
-    const serviceSrc = readSrc("src/capability/capability-service.ts");
-    const a5Src = readSrc("src/evolution/observation/a5-capability-measurement.ts");
-    const engineSrc = readSrc("src/capability/measurement/capability-measurement-engine.ts");
+    const platformSrc = readSrc("src/capabilities/capability/platform.ts");
+    const serviceSrc = readSrc("src/capabilities/capability/capability-service.ts");
+    const a5Src = readSrc("src/planning/evolution/observation/a5-capability-measurement.ts");
+    const engineSrc = readSrc("src/capabilities/capability/measurement/capability-measurement-engine.ts");
     expect(platformSrc, "platform constructs CapabilityRegistry").toMatch(/new\s+CapabilityRegistry\(/);
     expect(platformSrc, "platform constructs CapabilityResolver").toMatch(/new\s+CapabilityResolver\(/);
     for (const [name, src] of [
@@ -1882,7 +1882,7 @@ describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
   });
 
   it("axis 4: A7 module contains no capability mutator call sites (CAP-9 preserved)", () => {
-    const a7Src = readSrc("src/capability/evolution/a7-proposals.ts");
+    const a7Src = readSrc("src/capabilities/capability/evolution/a7-proposals.ts");
     expect(a7Src, "axis 4: catalog.register forbidden in A7").not.toMatch(/catalog\.register/);
     expect(a7Src, "axis 4: catalog.remove forbidden in A7").not.toMatch(/catalog\.remove/);
     expect(a7Src, "axis 4: registry.setLifecycleState forbidden in A7").not.toMatch(/registry\.setLifecycleState/);
@@ -1890,7 +1890,7 @@ describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
   });
 
   it("axis 4: governance() projection body remains catalog/registry-pure (CAP-9 ruling #23)", () => {
-    const serviceSrc = readSrc("src/capability/capability-service.ts");
+    const serviceSrc = readSrc("src/capabilities/capability/capability-service.ts");
     const match = serviceSrc.match(/^ {2}async governance[\s\S]+?^ {2}}/m);
     expect(match, "governance() method must exist").not.toBeNull();
     const body = match![0];
@@ -1900,7 +1900,7 @@ describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
   });
 
   it("axis 5 NEW: A5 implementation contains no capability mutators (ruling #5, #10)", () => {
-    const a5Src = readSrc("src/evolution/observation/a5-capability-measurement.ts");
+    const a5Src = readSrc("src/planning/evolution/observation/a5-capability-measurement.ts");
     expect(a5Src, "axis 5: A5 must not call catalog.register").not.toMatch(/catalog\.register/);
     expect(a5Src, "axis 5: A5 must not call catalog.remove").not.toMatch(/catalog\.remove/);
     expect(a5Src, "axis 5: A5 must not call registry.setLifecycleState").not.toMatch(/registry\.setLifecycleState/);
@@ -1909,7 +1909,7 @@ describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
   });
 
   it("axis 5 NEW: CapabilityMeasurementEngine consumes A5 via interface only (ruling #7, #9)", () => {
-    const engineSrc = readSrc("src/capability/measurement/capability-measurement-engine.ts");
+    const engineSrc = readSrc("src/capabilities/capability/measurement/capability-measurement-engine.ts");
     expect(
       engineSrc,
       "axis 5: engine must not import a5-capability-measurement implementation",
@@ -1925,7 +1925,7 @@ describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
   });
 
   it("axis 5 NEW: service.measure() body does not mutate capability state (ruling #23)", () => {
-    const serviceSrc = readSrc("src/capability/capability-service.ts");
+    const serviceSrc = readSrc("src/capabilities/capability/capability-service.ts");
     const match = serviceSrc.match(/^ {2}async measure[\s\S]+?^ {2}}/m);
     expect(match, "measure() method must exist").not.toBeNull();
     const body = match![0];
@@ -1936,7 +1936,7 @@ describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
   });
 
   it("axis 5 NEW: service consumes the A5Measurement interface (not the implementation)", () => {
-    const serviceSrc = readSrc("src/capability/capability-service.ts");
+    const serviceSrc = readSrc("src/capabilities/capability/capability-service.ts");
     expect(
       serviceSrc,
       "axis 5: service must import type A5Measurement from capability/measurement/a5",
@@ -1973,8 +1973,8 @@ git commit -m "test(capability): CAP-10 five-axis sentinel — axis 5 NEW (measu
 ### Task 9: CLI command `alix capability measure`
 
 **Files:**
-- Create: `src/cli/commands/capability-measure.ts`
-- Modify: `src/cli/commands/capabilities.ts` (wire `case "measure"`)
+- Create: `src/interfaces/cli/commands/capability-measure.ts`
+- Modify: `src/interfaces/cli/commands/capabilities.ts` (wire `case "measure"`)
 - Test: `tests/capability/capability-measure-cli.test.ts` (node:test)
 
 **Interfaces:**
@@ -1991,12 +1991,12 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { A5CapabilityMeasurement } from "../../src/evolution/observation/a5-capability-measurement.js";
-import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import { EventLog } from "../../src/events/event-log.js";
-import { capabilityMeasureCommand } from "../../src/cli/commands/capability-measure.js";
-import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { A5CapabilityMeasurement } from "../../src/planning/evolution/observation/a5-capability-measurement.js";
+import { ObservationEngine } from "../../src/planning/evolution/observation/observation-engine.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { capabilityMeasureCommand } from "../../src/interfaces/cli/commands/capability-measure.js";
+import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/a7-proposals.js";
 
 class NoopSignalSource implements ProposalSignalSource {
   async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
@@ -2056,7 +2056,7 @@ Expected: FAIL — module not found.
 **Step 3: Implement `capability-measure.ts`**
 
 ```ts
-// src/cli/commands/capability-measure.ts
+// src/interfaces/cli/commands/capability-measure.ts
 /**
  * CAP-10 Task 9 — `alix capability measure <id@version>` CLI command.
  *
@@ -2142,7 +2142,7 @@ export async function capabilityMeasureCommand(
 }
 ```
 
-**Step 4: Wire into `src/cli/commands/capabilities.ts`**
+**Step 4: Wire into `src/interfaces/cli/commands/capabilities.ts`**
 
 Read the file, locate the dispatch switch, and add the `case "measure"` (adapt surrounding structure to match the existing pattern):
 
@@ -2168,7 +2168,7 @@ Expected: PASS, 0 tsc errors.
 **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/capability-measure.ts src/cli/commands/capabilities.ts tests/capability/capability-measure-cli.test.ts
+git add src/interfaces/cli/commands/capability-measure.ts src/interfaces/cli/commands/capabilities.ts tests/capability/capability-measure-cli.test.ts
 git commit -m "feat(capability): CAP-10 CLI command — alix capability measure <id@version>"
 ```
 
@@ -2182,7 +2182,7 @@ git commit -m "feat(capability): CAP-10 CLI command — alix capability measure 
 **Interfaces:**
 - Asserts CAP-10 forbidden-file list + structural invariants:
   - CAP-8/9 forbidden preserved.
-  - CAP-10 NEW forbidden: `src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` MUST NOT be imported.
+  - CAP-10 NEW forbidden: `src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts` MUST NOT be imported.
   - A5 type-only import (CAP-10 imports from `capability/measurement/a5.ts`).
   - Long-form event types.
   - `governance()` widens to parent prefix `capability.governance.`.
@@ -2209,12 +2209,12 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
   describe("CAP-10 forbidden imports (ruling #9, #19)", () => {
     it("CAP-10 measurement files MUST NOT import capability-lifecycle-measurer", () => {
       const files = [
-        "src/capability/measurement/capability-measurement-engine.ts",
-        "src/capability/measurement/a5.ts",
-        "src/evolution/observation/a5-capability-measurement.ts",
-        "src/capability/capability-service.ts",
-        "src/capability/platform.ts",
-        "src/cli/commands/capability-measure.ts",
+        "src/capabilities/capability/measurement/capability-measurement-engine.ts",
+        "src/capabilities/capability/measurement/a5.ts",
+        "src/planning/evolution/observation/a5-capability-measurement.ts",
+        "src/capabilities/capability/capability-service.ts",
+        "src/capabilities/capability/platform.ts",
+        "src/interfaces/cli/commands/capability-measure.ts",
       ];
       for (const f of files) {
         const src = readSrc(f);
@@ -2227,7 +2227,7 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
     });
 
     it("legacy measurer file remains untouched (CAP-11 cliff)", () => {
-      const legacy = readSrc("src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts");
+      const legacy = readSrc("src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts");
       assert.ok(legacy.length > 0, "Legacy measurer file still exists.");
       assert.match(legacy, /class CapabilityLifecycleMeasurer/);
     });
@@ -2235,13 +2235,13 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
 
   describe("CAP-10 type-only A5 import (ruling #7)", () => {
     it("A5 interface lives at capability/measurement/a5.ts", () => {
-      const a5Ifc = readSrc("src/capability/measurement/a5.ts");
+      const a5Ifc = readSrc("src/capabilities/capability/measurement/a5.ts");
       assert.match(a5Ifc, /interface\s+A5Measurement/);
       assert.match(a5Ifc, /measureCapability/);
     });
 
     it("service imports A5Measurement as TYPE only", () => {
-      const service = readSrc("src/capability/capability-service.ts");
+      const service = readSrc("src/capabilities/capability/capability-service.ts");
       assert.match(
         service,
         /import\s+type\s+\{[^}]*A5Measurement[^}]*\}\s+from\s+["'].*capability\/measurement\/a5/,
@@ -2257,12 +2257,12 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
 
   describe("CAP-10 long-form event types (ruling #1)", () => {
     it("measurement event type uses full long-form prefix", () => {
-      const types = readSrc("src/capability/measurement/measurement-event-types.ts");
+      const types = readSrc("src/capabilities/capability/measurement/measurement-event-types.ts");
       assert.match(types, /capability\.governance\.measurement\.measured/);
     });
 
     it("orchestrator persists the long-form event type", () => {
-      const engine = readSrc("src/capability/measurement/capability-measurement-engine.ts");
+      const engine = readSrc("src/capabilities/capability/measurement/capability-measurement-engine.ts");
       assert.match(
         engine,
         /capability\.governance\.measurement\.measured/,
@@ -2273,7 +2273,7 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
 
   describe("CAP-10 governance() widening (ruling #6, #20)", () => {
     it("MEASUREMENT_GOVERNANCE_PREFIX equals parent prefix 'capability.governance.'", () => {
-      const types = readSrc("src/capability/measurement/measurement-event-types.ts");
+      const types = readSrc("src/capabilities/capability/measurement/measurement-event-types.ts");
       assert.match(
         types,
         /export\s+const\s+MEASUREMENT_GOVERNANCE_PREFIX\s*=\s*["']capability\.governance\.["']/,
@@ -2281,7 +2281,7 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
     });
 
     it("service.governance() uses the parent prefix (not the narrower proposal prefix)", () => {
-      const service = readSrc("src/capability/capability-service.ts");
+      const service = readSrc("src/capabilities/capability/capability-service.ts");
       const govMatch = service.match(/^ {2}async governance[\s\S]+?^ {2}}/m);
       assert.ok(govMatch, "governance() method must exist");
       assert.match(govMatch![0], /MEASUREMENT_GOVERNANCE_PREFIX/);
@@ -2291,14 +2291,14 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
   describe("CAP-10 file presence", () => {
     it("all CAP-10 files exist", () => {
       const paths = [
-        "src/capability/measurement/measurement-event-types.ts",
-        "src/capability/measurement/outcome-discriminated-union.ts",
-        "src/capability/measurement/a5.ts",
-        "src/capability/measurement/capability-measurement-engine.ts",
-        "src/evolution/observation/a5-capability-measurement.ts",
-        "src/capability/errors/measure-failed.ts",
-        "src/capability/errors/measure-invalid-target.ts",
-        "src/cli/commands/capability-measure.ts",
+        "src/capabilities/capability/measurement/measurement-event-types.ts",
+        "src/capabilities/capability/measurement/outcome-discriminated-union.ts",
+        "src/capabilities/capability/measurement/a5.ts",
+        "src/capabilities/capability/measurement/capability-measurement-engine.ts",
+        "src/planning/evolution/observation/a5-capability-measurement.ts",
+        "src/capabilities/capability/errors/measure-failed.ts",
+        "src/capabilities/capability/errors/measure-invalid-target.ts",
+        "src/interfaces/cli/commands/capability-measure.ts",
         "tests/capability/five-axis-sentinel.vitest.ts",
         "tests/capability/capability-measure-cli.test.ts",
       ];
@@ -2356,7 +2356,7 @@ Mapping ticket #494 acceptance criteria to tasks + sentinels.
 | CLI command `alix capability measure <id@version>` | T9 | `capability-measure.ts` + `capability-measure-cli.test.ts` |
 | A5 type-only import (CAP-10 imports interface only) | T3, T10 | `a5.ts` is `export interface` only; supersession test asserts no impl import |
 | Legacy measurer forbidden to CAP-10 | T8, T10 | Axis-5 rule + supersession test asserts no `CapabilityLifecycleMeasurer` import |
-| A7.1 legacy lifecycle untouched | T8 | Axis-5 rule asserts no `src/evolution/capability-lifecycle/*` import |
+| A7.1 legacy lifecycle untouched | T8 | Axis-5 rule asserts no `src/planning/evolution/capability-lifecycle/*` import |
 | CAP-9 axes 1-4 preserved | T8 | `five-axis-sentinel.vitest.ts` re-asserts axes 1-4 unchanged |
 | Tag `alix-cap-10-a5-measurement-integration-complete` | T10 final | Tag pushed after merge |
 
@@ -2387,7 +2387,7 @@ Mapping ticket #494 acceptance criteria to tasks + sentinels.
 
 **5. Sentinel completeness:**
 - Axis 5 (T8) explicitly forbids `CapabilityLifecycleMeasurer` import
-- Axis 5 explicitly forbids `src/evolution/capability-lifecycle/*` import
+- Axis 5 explicitly forbids `src/planning/evolution/capability-lifecycle/*` import
 - T10 supersession test extends CAP-9 pattern with CAP-10 specifics
 
 **6. Architectural invariants preserved:**

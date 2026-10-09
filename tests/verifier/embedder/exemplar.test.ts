@@ -1,7 +1,7 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert";
-import { ExemplarMatcher } from "../../../src/verifier/embedder/exemplar.js";
-import { FailureDatabase } from "../../../src/verifier/embedder/failure-db.js";
+import { ExemplarMatcher } from "../../../src/execution/verifier/embedder/exemplar.js";
+import { FailureDatabase } from "../../../src/execution/verifier/embedder/failure-db.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { unlink } from "node:fs/promises";

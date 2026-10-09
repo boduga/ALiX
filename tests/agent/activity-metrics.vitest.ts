@@ -23,21 +23,21 @@ const mocks = vi.hoisted(() => ({
   runTaskLoop: vi.fn(),
 }));
 
-vi.mock("../../src/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
-vi.mock("../../src/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
-vi.mock("../../src/utils/memory/recall.js", () => ({
+vi.mock("../../src/agents/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
+vi.mock("../../src/execution/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
+vi.mock("../../src/operations/utils/memory/recall.js", () => ({
   buildMemoryContext: vi.fn(() => Promise.resolve(undefined)),
   buildMemoryStats: vi.fn(() => Promise.resolve(undefined)),
 }));
-vi.mock("../../src/skills/loader.js", () => ({
+vi.mock("../../src/capabilities/skills/loader.js", () => ({
   loadSkillManifests: vi.fn(() => Promise.resolve([])),
 }));
-vi.mock("../../src/skills/catalog.js", () => ({
+vi.mock("../../src/capabilities/skills/catalog.js", () => ({
   buildSkillCatalog: vi.fn(() => ({
     getMatchedContent: vi.fn(() => Promise.resolve([])),
   })),
 }));
-vi.mock("../../src/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
+vi.mock("../../src/capabilities/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
 
 let testCwd: string;
 let testCwdCleanup: (() => void) | null = null;
@@ -124,7 +124,7 @@ const completedResult: RunResult = {
 
 describe("Phase 9 agent activity/liveness observability in processTurn", () => {
   it("completed turn records state gauges + terminal completed duration, no outcome counters", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockResolvedValue(completedResult);
 
@@ -174,7 +174,7 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
   });
 
   it("result-reason failure (max_iterations) records failed counter + failed duration without throwing", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockResolvedValue({
       ...completedResult,
@@ -198,7 +198,7 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
   });
 
   it("treats completed_unverified as a failed terminal outcome", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockResolvedValue({
       ...completedResult,
@@ -222,7 +222,7 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
   });
 
   it("thrown loop error records exactly one failed counter + failed duration and rejects", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockRejectedValue(new Error("provider boom"));
 
@@ -243,8 +243,8 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
   });
 
   it("ExecutionCancelledError records cancelled counter (never failed) + cancelled duration", async () => {
-    const { createAgentSession } = await import("../../src/agent/session.js");
-    const { ExecutionCancelledError } = await import("../../src/runtime/cancellation-token.js");
+    const { createAgentSession } = await import("../../src/agents/agent/session.js");
+    const { ExecutionCancelledError } = await import("../../src/runtime-state/runtime/cancellation-token.js");
     configureSessionMocks();
     mocks.runTaskLoop.mockRejectedValue(new ExecutionCancelledError("operator stop"));
 
@@ -265,8 +265,8 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(0);
-      const { createAgentSession } = await import("../../src/agent/session.js");
-      const { DEFAULT_LIVENESS_THRESHOLDS } = await import("../../src/agent/agent-liveness.js");
+      const { createAgentSession } = await import("../../src/agents/agent/session.js");
+      const { DEFAULT_LIVENESS_THRESHOLDS } = await import("../../src/agents/agent/agent-liveness.js");
       configureSessionMocks();
       let capturedDeps!: MockTaskLoopDeps;
       let resolveLoop!: (r: RunResult) => void;
@@ -336,8 +336,8 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(0);
-      const { createAgentSession } = await import("../../src/agent/session.js");
-      const { DEFAULT_LIVENESS_THRESHOLDS } = await import("../../src/agent/agent-liveness.js");
+      const { createAgentSession } = await import("../../src/agents/agent/session.js");
+      const { DEFAULT_LIVENESS_THRESHOLDS } = await import("../../src/agents/agent/agent-liveness.js");
       configureSessionMocks();
       let capturedDeps!: MockTaskLoopDeps;
       let rejectLoop!: (err: Error) => void;

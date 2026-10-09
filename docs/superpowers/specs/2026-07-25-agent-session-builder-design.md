@@ -5,7 +5,7 @@
 
 ## Problem
 
-`createAgentSession()` in `src/agent/session.ts` is a 1,031-line factory function with 25+ mutable closure variables and 24+ optional config fields. `initialize()` runs 10 phases (P0-P10) in one monolithic pass. `processTurn()` has 4 routing paths in one method.
+`createAgentSession()` in `src/agents/agent/session.ts` is a 1,031-line factory function with 25+ mutable closure variables and 24+ optional config fields. `initialize()` runs 10 phases (P0-P10) in one monolithic pass. `processTurn()` has 4 routing paths in one method.
 
 ## Design
 

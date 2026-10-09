@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildModelUsageEventPayload } from "../../src/agent/messages.js";
+import { buildModelUsageEventPayload } from "../../src/agents/agent/messages.js";
 
 describe("buildModelUsageEventPayload", () => {
   it("includes resolvedModel when present", () => {

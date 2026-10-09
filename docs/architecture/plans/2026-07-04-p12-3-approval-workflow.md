@@ -6,7 +6,7 @@
 
 **Architecture:** Pure functions only — `buildApprovalWorkflow`, `approveGate`, `denyGate`, `isWorkflowApproved`. No DB, no side effects, no P11 chain coupling. P12.4 owns durable storage.
 
-**Tech Stack:** TypeScript 5.9, Node 24, pnpm, existing governance CLI (`src/cli/commands/governance.ts`)
+**Tech Stack:** TypeScript 5.9, Node 24, pnpm, existing governance CLI (`src/interfaces/cli/commands/governance.ts`)
 
 ## Global Constraints
 
@@ -28,7 +28,7 @@ src/governance/
 tests/governance/
   approval-workflow.test.ts      — Unit tests
 
-src/cli/commands/
+src/interfaces/cli/commands/
   governance.ts                  — Add 'approval' subcommand (modify)
 ```
 
@@ -370,7 +370,7 @@ git commit -m "feat(governance): add P12.3 approval workflow types and pure func
 ### Task 2: Wire CLI subcommand
 
 **Files:**
-- Modify: `src/cli/commands/governance.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts`
 
 - [ ] **Step 1: Add `approval` subcommand to governance handler**
 
@@ -463,7 +463,7 @@ Expected: all pass
 ```bash
 git add src/governance/approval-workflow.ts \
   tests/governance/approval-workflow.test.ts \
-  src/cli/commands/governance.ts \
+  src/interfaces/cli/commands/governance.ts \
   docs/architecture/plans/2026-07-04-p12-3-approval-workflow.md \
   docs/architecture/specs/2026-07-04-p12-3-approval-workflow.md
 git commit -m "feat(governance): add P12.3 approval workflow"

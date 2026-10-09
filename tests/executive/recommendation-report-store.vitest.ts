@@ -6,9 +6,9 @@ import {
   RecommendationReportStore,
   RecommendationReportIntegrityError,
   buildRecommendationReportId,
-} from "../../src/executive/recommendation-report-store.js";
-import type { NewRecommendationReport } from "../../src/executive/recommendation-report-store.js";
-import type { ExecutiveRecommendation } from "../../src/executive/recommendation-report-store.js";
+} from "../../src/execution/executive/recommendation-report-store.js";
+import type { NewRecommendationReport } from "../../src/execution/executive/recommendation-report-store.js";
+import type { ExecutiveRecommendation } from "../../src/execution/executive/recommendation-report-store.js";
 
 function newPayload(over: Partial<NewRecommendationReport> = {}): NewRecommendationReport {
   return {

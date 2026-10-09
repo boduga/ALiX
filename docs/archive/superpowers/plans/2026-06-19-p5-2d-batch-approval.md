@@ -47,7 +47,7 @@ Each approved proposal in the batch produces one `adaptation_approved` evidence 
 
 ### CLI wiring
 
-Extend `runApprove` (currently in `src/cli/commands/adaptation.ts`). Currently:
+Extend `runApprove` (currently in `src/interfaces/cli/commands/adaptation.ts`). Currently:
 ```
 async function runApprove(gate, args):
   const id = args[0];
@@ -85,13 +85,13 @@ Approved: 5/8
 ## Tasks
 
 ### Task 1: `ApprovalGate.approveBatch`
-- Add `approveBatch(ids, by)` to `src/adaptation/approval-gate.ts`.
+- Add `approveBatch(ids, by)` to `src/planning/adaptation/approval-gate.ts`.
 - Loop over `this.approve(id, by)`, catch individual errors, build result object.
 - Does NOT throw — returns `{ approved, skipped, errors }`.
 - Test: all succeed; some succeed + some not-found + some not-pending; empty ids.
 
 ### Task 2: CLI — extend `runApprove`
-- Modify `src/cli/commands/adaptation.ts`: update `runApprove` to parse multiple positional ids (excluding `--by` flag), call `gate.approveBatch` for >1 id.
+- Modify `src/interfaces/cli/commands/adaptation.ts`: update `runApprove` to parse multiple positional ids (excluding `--by` flag), call `gate.approveBatch` for >1 id.
 - Update help text in `printUsage`.
 - Test: 1 id → fast path (single approve); 3 ids → batch; 0 ids → error; `--by` applies to all.
 

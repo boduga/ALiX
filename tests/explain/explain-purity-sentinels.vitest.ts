@@ -16,8 +16,8 @@ const FORBIDDEN_IMPORTS = [
 ];
 
 const EXPLAIN_FILES = [
-  "src/explain/proposal-explanation-assembler.ts",
-  "src/cli/commands/explain.ts",
+  "src/operations/explain/proposal-explanation-assembler.ts",
+  "src/interfaces/cli/commands/explain.ts",
 ];
 
 const FORBIDDEN_WRITE_CALLS = [

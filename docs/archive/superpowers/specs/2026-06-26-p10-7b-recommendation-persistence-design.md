@@ -169,9 +169,9 @@ The handler builds a `NewRecommendationReport` from the `RecommendationResult` +
 
 | File | Action |
 |---|---|
-| `src/executive/recommendation-engine.ts` | modify: rename `confidence` → `signalConfidence` (type + classifier body) |
-| `src/executive/recommendation-report-store.ts` | create: store + integrity error + meta type |
-| `src/cli/commands/executive-recommend-handler.ts` | modify: add `--save` branch |
+| `src/execution/executive/recommendation-engine.ts` | modify: rename `confidence` → `signalConfidence` (type + classifier body) |
+| `src/execution/executive/recommendation-report-store.ts` | create: store + integrity error + meta type |
+| `src/interfaces/cli/commands/executive-recommend-handler.ts` | modify: add `--save` branch |
 | `tests/executive/recommendation-engine.vitest.ts` | modify: rename assertions |
 | `tests/executive/recommendation-report-store.vitest.ts` | create: store unit tests |
 | `tests/cli/commands/executive-recommend-cli.vitest.ts` | modify: rename `confidence` references + add `--save` tests |

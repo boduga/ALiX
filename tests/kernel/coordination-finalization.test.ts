@@ -20,20 +20,20 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
 import {
   CoordinationScheduler,
   createCoordinationScheduler,
-} from "../../src/kernel/coordination-scheduler.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/coordination-scheduler.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 import {
   deriveCoordinationCompletion,
   matchesAttachedAggregateEvent,
-} from "../../src/kernel/coordination-types.js";
-import { CoordinationAggregateStore } from "../../src/kernel/coordination-aggregate-store.js";
-import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
-import { persistGraph } from "../../src/kernel/graph-planner.js";
-import type { ExecutionAuthorization } from "../../src/runtime/execution-authorization.js";
+} from "../../src/coordination/kernel/coordination-types.js";
+import { CoordinationAggregateStore } from "../../src/coordination/kernel/coordination-aggregate-store.js";
+import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
+import { persistGraph } from "../../src/coordination/kernel/graph-planner.js";
+import type { ExecutionAuthorization } from "../../src/runtime-state/runtime/execution-authorization.js";
 
 function allowAllAuth(): ExecutionAuthorization {
   return { evaluate: async () => ({ status: "allowed" as const }) } as any;
@@ -231,9 +231,9 @@ describe("coordination terminal finalization", () => {
       8_000,
     );
 
-    const { CoordinationCompletionService } = await import("../../src/kernel/coordination-completion-service.js");
-    const { ResultAggregator } = await import("../../src/kernel/coordination-result-aggregator.js");
-    const { CoordinationResultStore } = await import("../../src/kernel/coordination-result-store.js");
+    const { CoordinationCompletionService } = await import("../../src/coordination/kernel/coordination-completion-service.js");
+    const { ResultAggregator } = await import("../../src/coordination/kernel/coordination-result-aggregator.js");
+    const { CoordinationResultStore } = await import("../../src/coordination/kernel/coordination-result-store.js");
     const service = new CoordinationCompletionService({
       coordinationStore: store,
       resultAggregator: new ResultAggregator(new CoordinationResultStore(cwd)),
@@ -306,9 +306,9 @@ describe("coordination terminal finalization", () => {
       current.aggregateSourceFingerprint = undefined;
       current.outcome = undefined;
     });
-    const { CoordinationCompletionService } = await import("../../src/kernel/coordination-completion-service.js");
-    const { ResultAggregator } = await import("../../src/kernel/coordination-result-aggregator.js");
-    const { CoordinationResultStore } = await import("../../src/kernel/coordination-result-store.js");
+    const { CoordinationCompletionService } = await import("../../src/coordination/kernel/coordination-completion-service.js");
+    const { ResultAggregator } = await import("../../src/coordination/kernel/coordination-result-aggregator.js");
+    const { CoordinationResultStore } = await import("../../src/coordination/kernel/coordination-result-store.js");
 
     // A completion service whose aggregation throws.
     const failing = new CoordinationCompletionService({
@@ -447,8 +447,8 @@ describe("durable aggregation evidence", () => {
   }
 
   async function failingService(recorder: { log: any }) {
-    const { CoordinationCompletionService } = await import("../../src/kernel/coordination-completion-service.js");
-    const { ResultAggregator } = await import("../../src/kernel/coordination-result-aggregator.js");
+    const { CoordinationCompletionService } = await import("../../src/coordination/kernel/coordination-completion-service.js");
+    const { ResultAggregator } = await import("../../src/coordination/kernel/coordination-result-aggregator.js");
     return new CoordinationCompletionService({
       coordinationStore: store,
       resultAggregator: {
@@ -462,9 +462,9 @@ describe("durable aggregation evidence", () => {
   }
 
   async function workingService(recorder: { log: any }) {
-    const { CoordinationCompletionService } = await import("../../src/kernel/coordination-completion-service.js");
-    const { ResultAggregator } = await import("../../src/kernel/coordination-result-aggregator.js");
-    const { CoordinationResultStore } = await import("../../src/kernel/coordination-result-store.js");
+    const { CoordinationCompletionService } = await import("../../src/coordination/kernel/coordination-completion-service.js");
+    const { ResultAggregator } = await import("../../src/coordination/kernel/coordination-result-aggregator.js");
+    const { CoordinationResultStore } = await import("../../src/coordination/kernel/coordination-result-store.js");
     return new CoordinationCompletionService({
       coordinationStore: store,
       resultAggregator: new ResultAggregator(new CoordinationResultStore(cwd)),

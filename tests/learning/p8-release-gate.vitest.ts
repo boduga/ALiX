@@ -15,11 +15,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleLearningCommand } from "../../src/cli/commands/learning.js";
-import { LearningStore } from "../../src/learning/learning-store.js";
-import { ProposalFactory } from "../../src/cli/learning-proposal-factory.js";
-import type { CalibrationProfile } from "../../src/learning/learning-types.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { handleLearningCommand } from "../../src/interfaces/cli/commands/learning.js";
+import { LearningStore } from "../../src/planning/learning/learning-store.js";
+import { ProposalFactory } from "../../src/interfaces/cli/learning-proposal-factory.js";
+import type { CalibrationProfile } from "../../src/planning/learning/learning-types.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // process.cwd override + helpers
@@ -134,7 +134,7 @@ describe("P8.8 release gate — propose chain", () => {
 describe("P8.8 release gate — no-mutation boundary", () => {
   it("an approved learning proposal CANNOT be applied — apply errors, status→failed", async () => {
     // Seed an approved learning proposal directly (simulating post-approval state)
-    const { AdaptationProposalStore } = await import("../../src/adaptation/adaptation-proposal-store.js");
+    const { AdaptationProposalStore } = await import("../../src/planning/adaptation/adaptation-proposal-store.js");
     const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
 
     const learning = {
@@ -165,7 +165,7 @@ describe("P8.8 release gate — no-mutation boundary", () => {
     // (P10.9.2a) intercepts the learning proposal as "blocked" and exits
     // with a deferred-to-P8.9/P9 message.  No mutation occurs, the
     // proposal is never applied.
-    const { handleAdaptationCommand } = await import("../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     const exit = mockExit();
 
@@ -202,10 +202,10 @@ describe("P8.8 release gate — no-mutation boundary", () => {
 
 describe("P8.8 release gate — structural completeness", () => {
   it("all calibration builders exist", async () => {
-    const rec = await import("../../src/learning/recommendation-calibration-builder.js");
-    const risk = await import("../../src/learning/risk-calibration-builder.js");
-    const gov = await import("../../src/learning/governance-calibration-builder.js");
-    const route = await import("../../src/learning/routing-calibration-builder.js");
+    const rec = await import("../../src/planning/learning/recommendation-calibration-builder.js");
+    const risk = await import("../../src/planning/learning/risk-calibration-builder.js");
+    const gov = await import("../../src/planning/learning/governance-calibration-builder.js");
+    const route = await import("../../src/planning/learning/routing-calibration-builder.js");
 
     expect(rec.RecommendationCalibrationBuilder).toBeDefined();
     expect(risk.RiskCalibrationBuilder).toBeDefined();
@@ -214,7 +214,7 @@ describe("P8.8 release gate — structural completeness", () => {
   });
 
   it("LearningStore is append-only (no delete/update/clear/truncate)", async () => {
-    const { LearningStore } = await import("../../src/learning/learning-store.js");
+    const { LearningStore } = await import("../../src/planning/learning/learning-store.js");
     const proto = LearningStore.prototype as unknown as Record<string, unknown>;
     for (const forbidden of ["delete", "update", "clear", "truncate"]) {
       expect(typeof proto[forbidden]).not.toBe("function");
@@ -222,7 +222,7 @@ describe("P8.8 release gate — structural completeness", () => {
   });
 
   it("learning_adjustment action and learning target kind are in the type unions", async () => {
-    const types = await import("../../src/adaptation/adaptation-types.js");
+    const types = await import("../../src/planning/adaptation/adaptation-types.js");
     // The factory produces these values; the type system enforces they're valid.
     const factory = new ProposalFactory();
     const proposal = factory.toAdaptationProposal({
@@ -247,7 +247,7 @@ describe("P8.8 release gate — structural completeness", () => {
   it("ProposalFactory lives in src/cli, not src/learning (boundary)", async () => {
     // The factory must import from ../../learning/ (its dependency direction
     // is CLI → learning, never learning → CLI). Confirm it resolves from cli/.
-    const mod = await import("../../src/cli/learning-proposal-factory.js");
+    const mod = await import("../../src/interfaces/cli/learning-proposal-factory.js");
     expect(mod.ProposalFactory).toBeDefined();
   });
 });

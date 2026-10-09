@@ -5,11 +5,11 @@
  * runtime no-proposal-ID enforcement.
  */
 import { describe, it, expect } from "vitest";
-import { StrategicBriefBuilder } from "../../src/adaptation/strategic-brief.js";
-import type { StrategicBrief, StrategicFinding, Trend, Hotspot, StrategicBriefInput } from "../../src/adaptation/strategic-brief-types.js";
-import type { IntelligenceReport } from "../../src/adaptation/intelligence-types.js";
-import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
-import type { EvidenceRecord } from "../../src/security/evidence/evidence-types.js";
+import { StrategicBriefBuilder } from "../../src/planning/adaptation/strategic-brief.js";
+import type { StrategicBrief, StrategicFinding, Trend, Hotspot, StrategicBriefInput } from "../../src/planning/adaptation/strategic-brief-types.js";
+import type { IntelligenceReport } from "../../src/planning/adaptation/intelligence-types.js";
+import type { ProposalEffectivenessReport } from "../../src/planning/adaptation/effectiveness-types.js";
+import type { EvidenceRecord } from "../../src/governance/security/evidence/evidence-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

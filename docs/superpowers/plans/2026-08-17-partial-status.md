@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- `SubagentResult.status` becomes `"success" | "failed" | "rejected" | "partial"` (`src/config/schema.ts:271`).
+- `SubagentResult.status` becomes `"success" | "failed" | "rejected" | "partial"` (`src/operations/config/schema.ts:271`).
 - `ToolResult` MUST stay binary `success | error` — no third kind, no ripple into executor/route-execution/event-handlers/continuation-manager.
 - Worker exit codes stay binary: `success` → 0, everything else (`failed`/`rejected`/`partial`) → 1. The existing `process.exit(result.status === "success" ? 0 : 1)` already does this — do NOT change exit logic.
 - Path canonicalization MUST reuse the existing `resolvePolicyPath(cwd, path)` in `policy-gate.ts`. **Change only its declaration (`function` → `export function`); never rewrite its body.** Do NOT introduce a second canonicalization implementation.
@@ -32,8 +32,8 @@
 ### Task 1: Pure status helpers + schema union + `resolvePolicyPath` export — **COMPLETE** (`5cb5bf8e`, review-clean)
 
 Already committed. Records:
-- `src/config/schema.ts:271` — `status: "success" | "failed" | "rejected" | "partial";`
-- `src/policy/policy-gate.ts:71` — `resolvePolicyPath` exported (declaration-only change; body untouched).
+- `src/operations/config/schema.ts:271` — `status: "success" | "failed" | "rejected" | "partial";`
+- `src/governance/policy/policy-gate.ts:71` — `resolvePolicyPath` exported (declaration-only change; body untouched).
 - `src/agents/subagent-cli.ts` — `WriteProgress`, `extractSuccessfulPaths`, `recordWriteOutcome`, `isObjectiveComplete`, `computeSubagentStatus(progress, ownedPaths, cwd)`, module-private `pathIsCovered`. The `buildResult` shim from Task 1 is now being replaced by Task 2's real wiring.
 - Tests in `tests/agents/subagent-cli.test.ts` cover the status matrix (A–I incl. the v3 regression), normalization (both directions), directory coverage (child + prefix-without-separator + unrelated), and path extraction.
 
@@ -346,7 +346,7 @@ Create `tests/agents/result-contract-validator.test.ts`:
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { validateResult } from "../../src/agents/result-contract-validator.js";
-import type { SubagentResult } from "../../src/config/schema.js";
+import type { SubagentResult } from "../../src/operations/config/schema.js";
 
 function makeResult(status: SubagentResult["status"], content?: string): SubagentResult {
   return {
@@ -428,7 +428,7 @@ node --test dist/tests/agents/subagent-cli.test.js dist/tests/agents/subagent-ma
 ```
 Expected: all PASS.
 
-- [ ] **Step 4: Inspect the diff surface.** Run `git diff --stat origin/main...HEAD` and confirm exactly: `src/config/schema.ts`, `src/policy/policy-gate.ts` (export only), `src/agents/subagent-cli.ts`, `src/agents/subagent-manager.ts`, `src/agents/delegate-tool.ts`, `src/agents/result-contract-validator.ts`, `tests/agents/*.test.ts`, `tests/policy/policy-gate.test.ts` (if touched), plus the two docs commits.
+- [ ] **Step 4: Inspect the diff surface.** Run `git diff --stat origin/main...HEAD` and confirm exactly: `src/operations/config/schema.ts`, `src/governance/policy/policy-gate.ts` (export only), `src/agents/subagent-cli.ts`, `src/agents/subagent-manager.ts`, `src/agents/delegate-tool.ts`, `src/agents/result-contract-validator.ts`, `tests/agents/*.test.ts`, `tests/policy/policy-gate.test.ts` (if touched), plus the two docs commits.
 
 - [ ] **Step 5: GitNexus `detect_changes` gate.** Run `detect_changes({scope: "compare", base_ref: "main"})`. Enforce the STOP conditions above. If any surface, report to the maintainer before committing.
 

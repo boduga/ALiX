@@ -53,7 +53,7 @@ Run:
 
 ### Layer 2: Approval commands (TUI)
 
-A new `ApprovalManager` in `src/tui/approval-manager.ts`, following the same pattern as `WorkspaceManager`:
+A new `ApprovalManager` in `src/interfaces/tui/approval-manager.ts`, following the same pattern as `WorkspaceManager`:
 
 | Command | Action |
 |---------|--------|
@@ -92,7 +92,7 @@ type PendingContinuation = {
 
 ### ContinuationManager
 
-`src/runtime/continuation-manager.ts`
+`src/runtime-state/runtime/continuation-manager.ts`
 
 On `/approve <id>`:
 
@@ -143,12 +143,12 @@ Approval is bound to the original request hash. The continuation record stores `
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/tui/approval-manager.ts` | Create | `/approvals`, `/approve`, `/deny` commands |
-| `src/runtime/continuation-manager.ts` | Create | Resume blocked tool calls on approval |
-| `src/runtime/continuation-store.ts` | Create | Persist PendingContinuation records |
-| `src/cli/commands/tui.ts` | Modify | Wire ApprovalManager into TUI loop |
-| `src/tools/executor.ts` | Modify | Create continuation on `ask`, call manager on resume |
-| `src/policy/runtime-gate.ts` | Modify | Create continuation on `ask` |
+| `src/interfaces/tui/approval-manager.ts` | Create | `/approvals`, `/approve`, `/deny` commands |
+| `src/runtime-state/runtime/continuation-manager.ts` | Create | Resume blocked tool calls on approval |
+| `src/runtime-state/runtime/continuation-store.ts` | Create | Persist PendingContinuation records |
+| `src/interfaces/cli/commands/tui.ts` | Modify | Wire ApprovalManager into TUI loop |
+| `src/capabilities/tools/executor.ts` | Modify | Create continuation on `ask`, call manager on resume |
+| `src/governance/policy/runtime-gate.ts` | Modify | Create continuation on `ask` |
 | `tests/tui/approval-manager.test.ts` | Create | Approval command tests |
 | `tests/runtime/continuation-manager.test.ts` | Create | Resume and safety tests |
 

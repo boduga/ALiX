@@ -69,9 +69,9 @@ cancel(unknown) → error
 
 | # | Title | Files |
 |---|-------|-------|
-| A | TaskRegistry | `src/daemon/task-registry.ts`, `tests/daemon/task-registry.test.ts` |
-| B | Daemon queue lifecycle | `src/daemon/daemon-server.ts` — integrate registry |
+| A | TaskRegistry | `src/operations/daemon/task-registry.ts`, `tests/daemon/task-registry.test.ts` |
+| B | Daemon queue lifecycle | `src/operations/daemon/daemon-server.ts` — integrate registry |
 | C | CLI tasks | `src/cli.ts` — `alix daemon tasks` |
 | D | CLI cancel | `src/cli.ts` — `alix daemon cancel` + `daemon-types.ts` |
-| E | RuntimeIndex Source 6 | `src/runtime/runtime-index.ts` |
-| F | API + Inspector | `src/server/server.ts`, `src/ui/` — daemon task panel |
+| E | RuntimeIndex Source 6 | `src/runtime-state/runtime/runtime-index.ts` |
+| F | API + Inspector | `src/interfaces/server/server.ts`, `src/interfaces/ui/` — daemon task panel |

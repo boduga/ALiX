@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-06
 **Status:** Approved for implementation
-**Scope owner:** `src/tracing/`
+**Scope owner:** `src/models/tracing/`
 
 ---
 
@@ -73,16 +73,16 @@ ToolExecutor.execute ────────────▶ tool span         �
 Create:
 
 ```text
-src/tracing/
+src/models/tracing/
 ```
 
 with its own:
 
 ```text
-src/tracing/AGENTS.md
+src/models/tracing/AGENTS.md
 ```
 
-`src/tracing/` is a **leaf module**.
+`src/models/tracing/` is a **leaf module**.
 
 It owns:
 
@@ -129,7 +129,7 @@ Only the Langfuse adapter imports `langfuse`.
 Conceptually:
 
 ```text
-src/tracing/
+src/models/tracing/
 ├── client.ts
 ├── noop-client.ts
 ├── types.ts
@@ -429,7 +429,7 @@ Captured payloads pass through a pure `CapturePolicy`.
 Location:
 
 ```text
-src/tracing/capture.ts
+src/models/tracing/capture.ts
 ```
 
 The policy:
@@ -589,13 +589,13 @@ TracingConfig
 to:
 
 ```text
-src/config/schema.ts
+src/operations/config/schema.ts
 ```
 
 The tracing section must have an explicit deep-merge arm in:
 
 ```text
-src/config/loader.ts
+src/operations/config/loader.ts
 ```
 
 because nested configuration would otherwise be replaced by a shallow top-level merge.
@@ -829,7 +829,7 @@ allowing related runs to be grouped in Langfuse without incorrectly combining th
 Location:
 
 ```text
-src/agent/session.ts
+src/agents/agent/session.ts
 ```
 
 approximately where the run ID is assigned.
@@ -859,7 +859,7 @@ Terminal handling must occur in the existing completion/failure/finally paths.
 Location:
 
 ```text
-src/agent/agent-loop.ts
+src/agents/agent/agent-loop.ts
 ```
 
 approximately where the `runId` is assigned.
@@ -889,7 +889,7 @@ Tracing does not introduce a second task lifecycle.
 Location:
 
 ```text
-src/agent/session.ts
+src/agents/agent/session.ts
 ```
 
 approximately the existing `processChat` implementation.
@@ -940,7 +940,7 @@ A continuation must never accidentally create a second trace.
 Instrumentation point:
 
 ```text
-src/providers/provider-contract-validation.ts
+src/models/providers/provider-contract-validation.ts
 ```
 
 inside:
@@ -1070,7 +1070,7 @@ This accurately represents actual provider activity without falsely collapsing m
 Instrumentation point:
 
 ```text
-src/tools/executor.ts
+src/capabilities/tools/executor.ts
 ```
 
 inside:
@@ -1419,7 +1419,7 @@ The implementation is complete when all of the following are true.
 
 * [ ] Only the Langfuse adapter imports `langfuse`.
 * [ ] Instrumentation seams depend only on `TraceClient`.
-* [ ] `src/tracing/` does not introduce a second event/telemetry system.
+* [ ] `src/models/tracing/` does not introduce a second event/telemetry system.
 * [ ] Existing ALiX runtime identities remain authoritative.
 
 ### Identity

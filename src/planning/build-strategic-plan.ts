@@ -8,13 +8,13 @@
 // Pure function — no I/O, no side effects, no Date.now(), no Math.random().
 // Fully deterministic.
 
-import type { CorrelationSubsystemId } from "../correlation/correlation-types.js";
+import type { CorrelationSubsystemId } from "../operations/correlation/correlation-types.js";
 import type {
   RootCauseAnalysis,
   CausalFinding,
   LikelyCause,
   CausalMechanism,
-} from "../reasoning/reasoning-types.js";
+} from "./reasoning/reasoning-types.js";
 import type {
   StrategicPlan,
   PlanningObjective,
@@ -24,7 +24,7 @@ import type {
   PlanStatus,
 } from "./planning-types.js";
 import { DEFAULT_PLANNING_CONFIG } from "./planning-config.js";
-import { sanitizeTimestamp } from "../utils/ids.js";
+import { sanitizeTimestamp } from "../operations/utils/ids.js";
 
 // ---------------------------------------------------------------------------
 // Constants

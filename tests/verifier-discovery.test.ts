@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import { existsSync, mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "node:fs";
 import { join } from "node:path";
-import { discoverVerification, requiresRepositoryVerification } from "../src/verifier/verifier.js";
+import { discoverVerification, requiresRepositoryVerification } from "../src/execution/verifier/verifier.js";
 
 describe("discoverVerification", () => {
   function setupPkg(scripts: Record<string, string>, dir: string) {
@@ -117,7 +117,7 @@ describe("requiresRepositoryVerification", () => {
     assert.equal(requiresRepositoryVerification(["src/index.ts"]), true);
     assert.equal(requiresRepositoryVerification(["package.json"]), true);
     assert.equal(requiresRepositoryVerification(["tests/fixtures/events.jsonl"]), true);
-    assert.equal(requiresRepositoryVerification(["src/ui/logo.svg"]), true);
+    assert.equal(requiresRepositoryVerification(["src/interfaces/ui/logo.svg"]), true);
     assert.equal(requiresRepositoryVerification(["generated/custom.artifact"]), true);
     assert.equal(requiresRepositoryVerification(["README.md", "src/index.ts"]), true);
   });

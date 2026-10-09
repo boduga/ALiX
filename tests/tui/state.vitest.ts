@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SessionPhase, createInitialPerTabState, createInitialTuiAppState, type TuiAppState, type PerTabState, type TabId } from '../../src/tui/state.js';
+import { SessionPhase, createInitialPerTabState, createInitialTuiAppState, type TuiAppState, type PerTabState, type TabId } from '../../src/interfaces/tui/state.js';
 
 describe('SessionPhase enum', () => {
   it('defines all six lifecycle phases in canonical order', () => {

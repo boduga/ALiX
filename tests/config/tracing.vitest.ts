@@ -11,12 +11,12 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, mergeConfig, _setHomedirOverride } from "../../src/config/loader.js";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
-import type { AlixConfig, TracingConfig } from "../../src/config/schema.js";
-import { validateConfig } from "../../src/config/validator.js";
-import { CredentialStore } from "../../src/security/credentials/credential-store.js";
-import { makeCredentialReference } from "../../src/security/credentials/credential-reference.js";
+import { loadConfig, mergeConfig, _setHomedirOverride } from "../../src/operations/config/loader.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
+import type { AlixConfig, TracingConfig } from "../../src/operations/config/schema.js";
+import { validateConfig } from "../../src/operations/config/validator.js";
+import { CredentialStore } from "../../src/governance/security/credentials/credential-store.js";
+import { makeCredentialReference } from "../../src/governance/security/credentials/credential-reference.js";
 
 async function tmpHome(): Promise<string> {
   return mkdtemp(join(tmpdir(), "alix-tracing-"));

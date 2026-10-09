@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RuntimeCollectorImpl, partitionBySession } from '../../../src/tui/runtime-collector.js';
-import type { EventLog, EventLogCursor } from '../../../src/events/event-log.js';
-import type { AlixEvent } from '../../../src/events/types.js';
-import type { ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
-import { ProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
+import { RuntimeCollectorImpl, partitionBySession } from '../../../src/interfaces/tui/runtime-collector.js';
+import type { EventLog, EventLogCursor } from '../../../src/runtime-state/events/event-log.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import type { ProjectionCheckpointStore } from '../../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
+import { ProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
 import { makeEventLog, makeCheckpointStore, makeDummyBuilder, SESSION_ID } from './collector-harness.js';
 
 function ev(seq: number, sessionId: string): any {

@@ -1,12 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import type { SkillManifest } from "../../src/skills/types.js";
-import type { SkillSnapshot } from "../../src/skills/pollution.js";
+import type { SkillManifest } from "../../src/capabilities/skills/types.js";
+import type { SkillSnapshot } from "../../src/capabilities/skills/pollution.js";
 import {
   detectCatalogPollution,
   findCandidateCollisions,
   isDuplicateBody,
-} from "../../src/skills/pollution.js";
+} from "../../src/capabilities/skills/pollution.js";
 
 function manifest(overrides: Partial<SkillManifest> & { name: string }): SkillManifest {
   return {

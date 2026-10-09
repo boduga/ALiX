@@ -14,7 +14,7 @@ import {
   CLAIM_TOOL_NAMES,
   buildUnconfirmedDonePrompt,
   findUnsubstantiatedClaims,
-} from '../../src/run/task-loop/predicates.js';
+} from '../../src/execution/run/task-loop/predicates.js';
 import { ALIX_BUILTIN_EXECUTORS, ALIX_CANONICAL_BUILTIN_TOOLS } from '../../src/agents/tool-manifest.js';
 
 const LABEL = 'scheduling a job';

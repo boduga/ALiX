@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getTheme, defaultTheme, lightTheme } from '../../../src/tui/blocks/theme.js';
+import { getTheme, defaultTheme, lightTheme } from '../../../src/interfaces/tui/blocks/theme.js';
 
 describe('theme registry', () => {
   it('getTheme("dark") returns defaultTheme', () => {

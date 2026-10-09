@@ -28,13 +28,13 @@
 
 | Path | Responsibility |
 |------|---------------|
-| `src/evolution/governance/contracts/decision-contract.ts` | A3.0: GovernanceDecision, GovernanceDecisionKind, GovernancePolicyConfig types |
-| `src/evolution/governance/contracts/decision-store-contract.ts` | A3.1: GovernanceDecisionStore interface |
-| `src/evolution/governance/decision-engine.ts` | A3.2: Pure decision function |
-| `src/evolution/governance/decision-store.ts` | A3.5: InMemoryGovernanceDecisionStore |
-| `src/evolution/governance/governance-decision-bridge.ts` | A3.3: Lifecycle bridge (decision → state machine) |
-| `src/evolution/governance/governance-decision-cli.ts` | A3.4: CLI handler |
-| `src/evolution/governance/index.ts` | Barrel re-exports |
+| `src/planning/evolution/governance/contracts/decision-contract.ts` | A3.0: GovernanceDecision, GovernanceDecisionKind, GovernancePolicyConfig types |
+| `src/planning/evolution/governance/contracts/decision-store-contract.ts` | A3.1: GovernanceDecisionStore interface |
+| `src/planning/evolution/governance/decision-engine.ts` | A3.2: Pure decision function |
+| `src/planning/evolution/governance/decision-store.ts` | A3.5: InMemoryGovernanceDecisionStore |
+| `src/planning/evolution/governance/governance-decision-bridge.ts` | A3.3: Lifecycle bridge (decision → state machine) |
+| `src/planning/evolution/governance/governance-decision-cli.ts` | A3.4: CLI handler |
+| `src/planning/evolution/governance/index.ts` | Barrel re-exports |
 | `tests/evolution/governance/decision-contract.test.ts` | Validators for decision types |
 | `tests/evolution/governance/decision-engine.test.ts` | Unit tests for pure decision logic |
 | `tests/evolution/governance/decision-store.test.ts` | Append-only store tests |
@@ -46,17 +46,17 @@
 | File | Change |
 |------|--------|
 | `src/governance/evolution-cli.ts` | Add `"decide"` subcommand to `handleEvolutionCommand` switch |
-| `src/cli/commands/governance.ts` | Wire A3 dependencies into evolution CLI dispatch |
-| `src/evolution/verification/index.ts` | No change — already exports needed types |
+| `src/interfaces/cli/commands/governance.ts` | Wire A3 dependencies into evolution CLI dispatch |
+| `src/planning/evolution/verification/index.ts` | No change — already exports needed types |
 
 ---
 
 ## Task 1: A3 Contract Types
 
 **Files:**
-- Create: `src/evolution/governance/contracts/decision-contract.ts`
-- Create: `src/evolution/governance/contracts/decision-store-contract.ts`
-- Create: `src/evolution/governance/index.ts`
+- Create: `src/planning/evolution/governance/contracts/decision-contract.ts`
+- Create: `src/planning/evolution/governance/contracts/decision-store-contract.ts`
+- Create: `src/planning/evolution/governance/index.ts`
 - Create: `tests/evolution/governance/decision-contract.test.ts`
 
 **Interfaces:**
@@ -126,12 +126,12 @@ Add `validateGovernanceDecision(value: unknown): ValidationResult` pure function
 ## Task 2: InMemoryGovernanceDecisionStore
 
 **Files:**
-- Create: `src/evolution/governance/decision-store.ts`
+- Create: `src/planning/evolution/governance/decision-store.ts`
 - Create: `tests/evolution/governance/decision-store.test.ts`
 
 **Interfaces:**
 - Implements: `GovernanceDecisionStore`
-- Pattern: Follows `InMemoryVerificationEvidenceLedger` from `src/evolution/verification/evidence/evidence-ledger.ts`
+- Pattern: Follows `InMemoryVerificationEvidenceLedger` from `src/planning/evolution/verification/evidence/evidence-ledger.ts`
 - Consumes: `GovernanceDecision`
 
 ### Key Behavior
@@ -162,7 +162,7 @@ export class InMemoryGovernanceDecisionStore implements GovernanceDecisionStore 
 ## Task 3: Pure Decision Engine
 
 **Files:**
-- Create: `src/evolution/governance/decision-engine.ts`
+- Create: `src/planning/evolution/governance/decision-engine.ts`
 - Create: `tests/evolution/governance/decision-engine.test.ts`
 
 **Interfaces:**
@@ -238,7 +238,7 @@ STATE MAPPING:
 ## Task 4: Governance Decision Bridge
 
 **Files:**
-- Create: `src/evolution/governance/governance-decision-bridge.ts`
+- Create: `src/planning/evolution/governance/governance-decision-bridge.ts`
 - Create: `tests/evolution/governance/governance-decision-bridge.test.ts`
 
 **Interfaces:**
@@ -287,9 +287,9 @@ export class GovernanceDecisionBridge {
 ## Task 5: CLI Command + Wiring
 
 **Files:**
-- Create: `src/evolution/governance/governance-decision-cli.ts`
+- Create: `src/planning/evolution/governance/governance-decision-cli.ts`
 - Modify: `src/governance/evolution-cli.ts`
-- Modify: `src/cli/commands/governance.ts` (dependency wiring)
+- Modify: `src/interfaces/cli/commands/governance.ts` (dependency wiring)
 
 ### CLI Interface
 

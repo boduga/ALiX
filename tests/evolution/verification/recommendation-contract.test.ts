@@ -10,7 +10,7 @@ import {
   GOVERNANCE_RECOMMENDATION_KINDS,
   isValidGovernanceRecommendationKind,
   validateGovernanceRecommendation,
-} from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
 
 describe("GovernanceRecommendationKind", () => {
   it("has 6 recommendation kinds", () => {

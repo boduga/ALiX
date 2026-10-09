@@ -8,8 +8,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { complete, _setFetchForTesting, stream } from "../../src/providers/unified-complete.js";
-import { ApiError } from "../../src/providers/base.js";
+import { complete, _setFetchForTesting, stream } from "../../src/models/providers/unified-complete.js";
+import { ApiError } from "../../src/models/providers/base.js";
 
 // =========================================================================
 // Fault-injection fetch builders

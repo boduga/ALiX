@@ -7,15 +7,15 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { BucketAggregator } from "../../src/adaptation/bucket-aggregator.js";
-import { EffectivenessTrendAnalyzer } from "../../src/adaptation/effectiveness-trend-analyzer.js";
+import { BucketAggregator } from "../../src/planning/adaptation/bucket-aggregator.js";
+import { EffectivenessTrendAnalyzer } from "../../src/planning/adaptation/effectiveness-trend-analyzer.js";
 import type {
   AdaptationProposal,
   ProposalStatus,
   ProposalAction,
   ProposalTarget,
-} from "../../src/adaptation/adaptation-types.js";
-import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
+} from "../../src/planning/adaptation/adaptation-types.js";
+import type { EnrichedProposal } from "../../src/planning/adaptation/intelligence-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

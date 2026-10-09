@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { evaluatePlanOutcome } from "../../src/executive/outcome-evaluator.js";
-import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
-import type { PlanExecutionState } from "../../src/executive/executive-plan-types.js";
-import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
-import type { ExecutionStep } from "../../src/executive/execution-plan-builder.js";
+import { evaluatePlanOutcome } from "../../src/execution/executive/outcome-evaluator.js";
+import type { PersistedExecutionPlan } from "../../src/execution/executive/executive-plan-types.js";
+import type { PlanExecutionState } from "../../src/execution/executive/executive-plan-types.js";
+import type { ExecutiveTrendSnapshot } from "../../src/execution/executive/trend-store.js";
+import type { ExecutionStep } from "../../src/execution/executive/execution-plan-builder.js";
 
 // -----------------------------------------------------------------------
 // Factory helpers

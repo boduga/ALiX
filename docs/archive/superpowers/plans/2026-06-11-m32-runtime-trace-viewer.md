@@ -6,7 +6,7 @@
 
 **Goal:** Turn raw runtime events into a unified, readable execution timeline — a single Trace panel in the TUI that stitches together `policy.*`, `approval.*`, `continuation.*`, `tool.*`, and `task.*` events.
 
-**Architecture:** A normalizer (`src/runtime/trace-events.ts`) converts EventLog events and daemon events into a common `TraceEvent` shape. Events are stored in `TuiState.traceEvents[]` with a filter. The Trace panel renders them chronologically. Live daemon events bridge into the trace stream.
+**Architecture:** A normalizer (`src/runtime-state/runtime/trace-events.ts`) converts EventLog events and daemon events into a common `TraceEvent` shape. Events are stored in `TuiState.traceEvents[]` with a filter. The Trace panel renders them chronologically. Live daemon events bridge into the trace stream.
 
 **Tech Stack:** TypeScript/ESM, Node >= 24, EventLog (existing), TuiStore (existing), RuntimeSnapshot (existing)
 
@@ -16,12 +16,12 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/runtime/trace-events.ts` | Create | `TraceEvent` type, `toTraceEvent()`, `traceEventsFromLog()` |
-| `src/tui/store.ts` | Modify | Add `traceEvents`, `traceFilter`, selectors, mutators |
-| `src/tui/runtime-snapshot.ts` | Modify | Load + normalize trace events from session log |
-| `src/tui/panel-renderer.ts` | Modify | Add Trace panel rendering with filter toggle |
-| `src/tui/index.ts` | Modify (minor) | Add Trace panel to panel cycle if needed |
-| `src/cli/commands/tui.ts` | Modify | Bridge live events into trace stream |
+| `src/runtime-state/runtime/trace-events.ts` | Create | `TraceEvent` type, `toTraceEvent()`, `traceEventsFromLog()` |
+| `src/interfaces/tui/store.ts` | Modify | Add `traceEvents`, `traceFilter`, selectors, mutators |
+| `src/interfaces/tui/runtime-snapshot.ts` | Modify | Load + normalize trace events from session log |
+| `src/interfaces/tui/panel-renderer.ts` | Modify | Add Trace panel rendering with filter toggle |
+| `src/interfaces/tui/index.ts` | Modify (minor) | Add Trace panel to panel cycle if needed |
+| `src/interfaces/cli/commands/tui.ts` | Modify | Bridge live events into trace stream |
 | `tests/runtime/trace-events.test.ts` | Create | Event normalization tests |
 | `tests/tui/trace-panel.test.ts` | Create | Filtering + rendering tests |
 
@@ -30,7 +30,7 @@
 ### Task 1: Create trace-events.ts
 
 **Files:**
-- Create: `src/runtime/trace-events.ts`
+- Create: `src/runtime-state/runtime/trace-events.ts`
 
 **Types and functions:**
 
@@ -229,7 +229,7 @@ export function formatTraceEventVerbose(t: TraceEvent): string {
 }
 ```
 
-- [ ] **Step 1: Write `src/runtime/trace-events.ts`** with the complete content above.
+- [ ] **Step 1: Write `src/runtime-state/runtime/trace-events.ts`** with the complete content above.
 
 - [ ] **Step 2: Build and verify**
 
@@ -242,7 +242,7 @@ Expected: clean build, no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/runtime/trace-events.ts
+git add src/runtime-state/runtime/trace-events.ts
 git commit -m "feat(runtime): add trace event normalization and formatting"
 ```
 
@@ -251,7 +251,7 @@ git commit -m "feat(runtime): add trace event normalization and formatting"
 ### Task 2: Add trace events to TuiState
 
 **Files:**
-- Modify: `src/tui/store.ts`
+- Modify: `src/interfaces/tui/store.ts`
 
 - [ ] **Step 1: Import TraceEvent and TraceEventFilter**
 
@@ -329,7 +329,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/tui/store.ts
+git add src/interfaces/tui/store.ts
 git commit -m "feat(tui): add trace event state, selectors, and mutators to TuiState"
 ```
 
@@ -338,7 +338,7 @@ git commit -m "feat(tui): add trace event state, selectors, and mutators to TuiS
 ### Task 3: Extend RuntimeSnapshot with trace events
 
 **Files:**
-- Modify: `src/tui/runtime-snapshot.ts`
+- Modify: `src/interfaces/tui/runtime-snapshot.ts`
 
 - [ ] **Step 1: Add trace event loading to buildRuntimeSnapshot**
 
@@ -386,7 +386,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/runtime-snapshot.ts
+git add src/interfaces/tui/runtime-snapshot.ts
 git commit -m "feat(runtime): include trace events in runtime snapshot"
 ```
 
@@ -395,7 +395,7 @@ git commit -m "feat(runtime): include trace events in runtime snapshot"
 ### Task 4: Render Trace timeline panel
 
 **Files:**
-- Modify: `src/tui/panel-renderer.ts`
+- Modify: `src/interfaces/tui/panel-renderer.ts`
 
 - [ ] **Step 1: Add Trace panel renderer**
 
@@ -478,7 +478,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/panel-renderer.ts src/cli/commands/tui.ts
+git add src/interfaces/tui/panel-renderer.ts src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): render trace timeline panel with filter toggle"
 ```
 
@@ -487,7 +487,7 @@ git commit -m "feat(tui): render trace timeline panel with filter toggle"
 ### Task 5: Bridge live daemon events into trace stream
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add trace event bridging in daemon mode onEvent**
 
@@ -554,7 +554,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): bridge live daemon events into trace stream"
 ```
 
@@ -568,7 +568,7 @@ git commit -m "feat(tui): bridge live daemon events into trace stream"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { toTraceEvent, traceEventsFromLog, formatTraceEvent } from "../../src/runtime/trace-events.js";
+import { toTraceEvent, traceEventsFromLog, formatTraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 describe("toTraceEvent", () => {
   it("converts policy.decision allow event", () => {
@@ -780,8 +780,8 @@ git commit -m "test(runtime): cover trace event normalization and formatting"
 ```typescript
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { TuiStore } from "../../src/tui/store.js";
-import type { TraceEvent, TraceEventFilter } from "../../src/runtime/trace-events.js";
+import { TuiStore } from "../../src/interfaces/tui/store.js";
+import type { TraceEvent, TraceEventFilter } from "../../src/runtime-state/runtime/trace-events.js";
 
 function makeTraceEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {

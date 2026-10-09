@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isCapabilityKind, migrateKind, CAPABILITY_KINDS } from "../../../src/capability/canonical/kind.js";
+import { isCapabilityKind, migrateKind, CAPABILITY_KINDS } from "../../../src/capabilities/capability/canonical/kind.js";
 
 describe("CapabilityKind", () => {
   it("defines exactly the five semantic kinds", () => {

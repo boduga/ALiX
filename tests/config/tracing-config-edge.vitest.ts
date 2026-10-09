@@ -12,8 +12,8 @@
  *     `tracing.capture.messages` WITHOUT deleting `tracing.langfuse`,
  *     `tracing.capture.toolOutput`, `tracing.flushTimeoutMs`.
  *
- * All assertions assert the REAL current behavior (src/config/validator.ts,
- * src/config/loader.ts:427-466): invalid levels/limits/flushTimeoutMs are
+ * All assertions assert the REAL current behavior (src/operations/config/validator.ts,
+ * src/operations/config/loader.ts:427-466): invalid levels/limits/flushTimeoutMs are
  * REJECTED by the validator (never coerced/defaulted); limits accept 0; and the
  * merge arm at loader.ts:455-460 deep-merges each of langfuse/capture/flushTimeoutMs
  * so a single-field override preserves untouched siblings at their DEFAULTS.
@@ -26,10 +26,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, mergeConfig, _setHomedirOverride } from "../../src/config/loader.js";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import { validateConfig } from "../../src/config/validator.js";
+import { loadConfig, mergeConfig, _setHomedirOverride } from "../../src/operations/config/loader.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import { validateConfig } from "../../src/operations/config/validator.js";
 
 afterEach(() => {
   _setHomedirOverride(undefined);

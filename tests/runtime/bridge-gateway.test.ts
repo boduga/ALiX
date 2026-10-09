@@ -1,11 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { BridgeGateway } from "../../src/runtime/bridge-gateway.js";
-import type { BridgeEnvelope } from "../../src/runtime/bridge-envelope.js";
-import { createSignalFrame } from "../../src/runtime/signal-frame.js";
-import type { SignalBits, SignalDomain } from "../../src/runtime/signal-frame.js";
-import { prescribeOffering } from "../../src/runtime/offering-planner.js";
-import type { OfferingPlan } from "../../src/runtime/offering-planner.js";
+import { BridgeGateway } from "../../src/runtime-state/runtime/bridge-gateway.js";
+import type { BridgeEnvelope } from "../../src/runtime-state/runtime/bridge-envelope.js";
+import { createSignalFrame } from "../../src/runtime-state/runtime/signal-frame.js";
+import type { SignalBits, SignalDomain } from "../../src/runtime-state/runtime/signal-frame.js";
+import { prescribeOffering } from "../../src/runtime-state/runtime/offering-planner.js";
+import type { OfferingPlan } from "../../src/runtime-state/runtime/offering-planner.js";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */

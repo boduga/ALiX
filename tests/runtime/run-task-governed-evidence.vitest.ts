@@ -11,10 +11,10 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { emitRunEvidence } from "../../src/agent/agent-loop.js";
-import { PersistenceEvidenceEmitter } from "../../src/runtime/execution-persistence.js";
-import { ExecutionEvidenceStore } from "../../src/runtime/execution-evidence-store.js";
-import { closeAllSharedLedgers } from "../../src/storage/runtime-ledger.js";
+import { emitRunEvidence } from "../../src/agents/agent/agent-loop.js";
+import { PersistenceEvidenceEmitter } from "../../src/runtime-state/runtime/execution-persistence.js";
+import { ExecutionEvidenceStore } from "../../src/runtime-state/runtime/execution-evidence-store.js";
+import { closeAllSharedLedgers } from "../../src/runtime-state/storage/runtime-ledger.js";
 
 function withStore(fn: (store: ExecutionEvidenceStore) => Promise<void>): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), "run-evidence-"));

@@ -20,15 +20,15 @@ import { tmpdir } from "node:os";
 import {
   handleResumeCommand,
   handleSessionsCommand,
-} from "../../../src/cli/renderers/repl.js";
+} from "../../../src/interfaces/cli/renderers/repl.js";
 import {
   JsonlSessionStore,
-} from "../../../src/agent/session-store-jsonl.js";
+} from "../../../src/agents/agent/session-store-jsonl.js";
 import type {
   SessionSnapshot,
   SessionStore,
-} from "../../../src/agent/session-store.js";
-import type { AgentSession } from "../../../src/agent/session.js";
+} from "../../../src/agents/agent/session-store.js";
+import type { AgentSession } from "../../../src/agents/agent/session.js";
 
 function freshTmpDir(): string {
   return mkdtempSync(join(tmpdir(), "repl-resume-test-"));

@@ -2,16 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../../src/events/event-log.js';
-import { ApprovalStore } from '../../../src/approvals/approval-store.js';
-import { ApprovalProjectionCollector } from '../../../src/tui/runtime/approval-projection-collector.js';
-import { ApprovalProjection } from '../../../src/tui/runtime/approval-projection.js';
-import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
-import { extractTarget } from '../../../src/approvals/extract-target.js';
-import type { AlixEvent } from '../../../src/events/types.js';
-import type { ApprovalCollector } from '../../../src/tui/snapshot-builder.js';
-import type { ApprovalManager } from '../../../src/tui/approval-manager.js';
+import { EventLog } from '../../../src/runtime-state/events/event-log.js';
+import { ApprovalStore } from '../../../src/governance/approvals/approval-store.js';
+import { ApprovalProjectionCollector } from '../../../src/interfaces/tui/runtime/approval-projection-collector.js';
+import { ApprovalProjection } from '../../../src/interfaces/tui/runtime/approval-projection.js';
+import { createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import { ProjectionIds } from '../../../src/interfaces/tui/runtime/projection-ids.js';
+import { extractTarget } from '../../../src/governance/approvals/extract-target.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import type { ApprovalCollector } from '../../../src/interfaces/tui/snapshot-builder.js';
+import type { ApprovalManager } from '../../../src/interfaces/tui/approval-manager.js';
 
 function evt(type: string, payload: Record<string, unknown>, seq: number, ts = seq * 1000): AlixEvent {
   return { id: `e${seq}`, seq, version: 1, sessionId: 's', timestamp: new Date(ts).toISOString(), type, actor: 'system', payload };
@@ -171,7 +171,7 @@ describe('ApprovalProjectionCollector', () => {
     expect(projSnap!.pending).toHaveLength(0);
     expect(projSnap!.recentlyResolved.map(r => r.id)).toContain(rec.id);
     // the projection's own snapshot carries the precise terminal status
-    const raw = runtime.snapshotOf<import('../../../src/tui/runtime/approval-projection.js').ApprovalProjectionSnapshot>(ProjectionIds.approval)!;
+    const raw = runtime.snapshotOf<import('../../../src/interfaces/tui/runtime/approval-projection.js').ApprovalProjectionSnapshot>(ProjectionIds.approval)!;
     expect(raw.completed[0]!.status).toBe('consumed');
   });
 });

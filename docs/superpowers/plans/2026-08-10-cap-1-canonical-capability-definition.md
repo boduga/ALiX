@@ -4,7 +4,7 @@
 
 **Goal:** Introduce the canonical `CapabilityDefinition` contract — semantic `CapabilityKind`, provider bindings, immutable SemVer `id@version` — as an additive module that does not disturb the 47 existing `Capability` consumers.
 
-**Architecture:** A new `src/capability/canonical/` module defines the contract and validation as pure data types + functions. The existing `src/capability/types.ts` `Capability` interface is left untouched (its migration happens in CAP-3/CAP-4/CAP-8/CAP-11). This is the "expand" half of expand–contract. The old `kind: "core"|"tool"|...` and `execution.strategy` vocabulary is superseded but not deleted here.
+**Architecture:** A new `src/capabilities/capability/canonical/` module defines the contract and validation as pure data types + functions. The existing `src/capabilities/capability/types.ts` `Capability` interface is left untouched (its migration happens in CAP-3/CAP-4/CAP-8/CAP-11). This is the "expand" half of expand–contract. The old `kind: "core"|"tool"|...` and `execution.strategy` vocabulary is superseded but not deleted here.
 
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), Vitest (`.vitest.ts` test files, matching `tests/capability/` convention). No new runtime dependency — SemVer validation is an internal helper.
 
@@ -16,18 +16,18 @@
 - **Migration mapping**: `tool.file.read→query`, `tool.git.commit→operation`, `tool.shell.run→operation`; `core` = intrinsic platform semantics (maps to `core`).
 - **Pure data**: definitions are serializable, deterministic, implementation-independent, free of runtime/lifecycle/governance state, free of functions/live executor handles.
 - **North-star invariant**: this contract creates exactly one definition shape, not a per-surface model.
-- **Do NOT modify** `src/capability/types.ts`, `registry.ts`, `runtime.ts`, `execution-resolver.ts`, `executors.ts`, `initial-capabilities.ts`, or any consumer. CAP-1 is additive only.
+- **Do NOT modify** `src/capabilities/capability/types.ts`, `registry.ts`, `runtime.ts`, `execution-resolver.ts`, `executors.ts`, `initial-capabilities.ts`, or any consumer. CAP-1 is additive only.
 - **Test runner**: Vitest, files `tests/capability/canonical/*.vitest.ts`. Follow the `tests/capability/registry.vitest.ts` style (describe/it/expect/vi).
 
 ---
 
 ## File Structure
 
-- `src/capability/canonical/kind.ts` — `CapabilityKind` + kind validation + migration map.
-- `src/capability/canonical/provider.ts` — `ProviderType`, `CapabilityProviderBinding`, provider validation.
-- `src/capability/canonical/version.ts` — SemVer parsing/validation, `id@version` helpers.
-- `src/capability/canonical/definition.ts` — `CapabilityDefinition` interface + `validateCapabilityDefinition()`.
-- `src/capability/canonical/index.ts` — barrel re-export.
+- `src/capabilities/capability/canonical/kind.ts` — `CapabilityKind` + kind validation + migration map.
+- `src/capabilities/capability/canonical/provider.ts` — `ProviderType`, `CapabilityProviderBinding`, provider validation.
+- `src/capabilities/capability/canonical/version.ts` — SemVer parsing/validation, `id@version` helpers.
+- `src/capabilities/capability/canonical/definition.ts` — `CapabilityDefinition` interface + `validateCapabilityDefinition()`.
+- `src/capabilities/capability/canonical/index.ts` — barrel re-export.
 - `tests/capability/canonical/kind.vitest.ts`
 - `tests/capability/canonical/provider.vitest.ts`
 - `tests/capability/canonical/version.vitest.ts`
@@ -39,7 +39,7 @@
 ### Task 1: Semantic CapabilityKind + migration map
 
 **Files:**
-- Create: `src/capability/canonical/kind.ts`
+- Create: `src/capabilities/capability/canonical/kind.ts`
 - Test: `tests/capability/canonical/kind.vitest.ts`
 
 **Interfaces:**
@@ -50,7 +50,7 @@
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { isCapabilityKind, migrateKind, CAPABILITY_KINDS } from "../../../src/capability/canonical/kind.js";
+import { isCapabilityKind, migrateKind, CAPABILITY_KINDS } from "../../../src/capabilities/capability/canonical/kind.js";
 
 describe("CapabilityKind", () => {
   it("defines exactly the five semantic kinds", () => {
@@ -129,7 +129,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/canonical/kind.ts tests/capability/canonical/kind.vitest.ts
+git add src/capabilities/capability/canonical/kind.ts tests/capability/canonical/kind.vitest.ts
 git commit -m "feat(capability): CAP-1 semantic CapabilityKind + legacy migration map"
 ```
 
@@ -138,7 +138,7 @@ git commit -m "feat(capability): CAP-1 semantic CapabilityKind + legacy migratio
 ### Task 2: Provider bindings + validation
 
 **Files:**
-- Create: `src/capability/canonical/provider.ts`
+- Create: `src/capabilities/capability/canonical/provider.ts`
 - Test: `tests/capability/canonical/provider.vitest.ts`
 
 **Interfaces:**
@@ -149,8 +149,8 @@ git commit -m "feat(capability): CAP-1 semantic CapabilityKind + legacy migratio
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { PROVIDER_TYPES, validateProviderBinding } from "../../../src/capability/canonical/provider.js";
-import type { CapabilityProviderBinding } from "../../../src/capability/canonical/provider.js";
+import { PROVIDER_TYPES, validateProviderBinding } from "../../../src/capabilities/capability/canonical/provider.js";
+import type { CapabilityProviderBinding } from "../../../src/capabilities/capability/canonical/provider.js";
 
 describe("CapabilityProviderBinding", () => {
   it("defines the ADR-0013 provider classes", () => {
@@ -258,7 +258,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/canonical/provider.ts tests/capability/canonical/provider.vitest.ts
+git add src/capabilities/capability/canonical/provider.ts tests/capability/canonical/provider.vitest.ts
 git commit -m "feat(capability): CAP-1 provider bindings + validation"
 ```
 
@@ -267,7 +267,7 @@ git commit -m "feat(capability): CAP-1 provider bindings + validation"
 ### Task 3: SemVer version + id@version helpers
 
 **Files:**
-- Create: `src/capability/canonical/version.ts`
+- Create: `src/capabilities/capability/canonical/version.ts`
 - Test: `tests/capability/canonical/version.vitest.ts`
 
 **Interfaces:**
@@ -280,7 +280,7 @@ git commit -m "feat(capability): CAP-1 provider bindings + validation"
 import { describe, it, expect } from "vitest";
 import {
   isValidVersion, parseVersion, formatVersionId, parseVersionId, compareVersions, bumpVersion,
-} from "../../../src/capability/canonical/version.js";
+} from "../../../src/capabilities/capability/canonical/version.js";
 
 describe("Capability versioning (SemVer)", () => {
   it("accepts full SemVer only", () => {
@@ -370,7 +370,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/canonical/version.ts tests/capability/canonical/version.vitest.ts
+git add src/capabilities/capability/canonical/version.ts tests/capability/canonical/version.vitest.ts
 git commit -m "feat(capability): CAP-1 SemVer id@version helpers"
 ```
 
@@ -379,7 +379,7 @@ git commit -m "feat(capability): CAP-1 SemVer id@version helpers"
 ### Task 4: Canonical CapabilityDefinition + validation
 
 **Files:**
-- Create: `src/capability/canonical/definition.ts`
+- Create: `src/capabilities/capability/canonical/definition.ts`
 - Test: `tests/capability/canonical/definition.vitest.ts`
 
 **Interfaces:**
@@ -390,8 +390,8 @@ git commit -m "feat(capability): CAP-1 SemVer id@version helpers"
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { validateCapabilityDefinition } from "../../../src/capability/canonical/definition.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { validateCapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 function makeDef(over: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return {
@@ -520,7 +520,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/canonical/definition.ts tests/capability/canonical/definition.vitest.ts
+git add src/capabilities/capability/canonical/definition.ts tests/capability/canonical/definition.vitest.ts
 git commit -m "feat(capability): CAP-1 canonical CapabilityDefinition + validation"
 ```
 
@@ -529,27 +529,27 @@ git commit -m "feat(capability): CAP-1 canonical CapabilityDefinition + validati
 ### Task 5: Representability — all current capabilities map losslessly
 
 **Files:**
-- Create: `src/capability/canonical/representability.ts` (helper) — optional; the test may inline the mapping.
+- Create: `src/capabilities/capability/canonical/representability.ts` (helper) — optional; the test may inline the mapping.
 - Test: `tests/capability/canonical/representability.vitest.ts`
 
 **Interfaces:**
 - Consumes: `migrateKind` (Task 1), `validateCapabilityDefinition` (Task 4).
-- Produces: nothing (test-only). The test imports `registerInitialCapabilities` from `src/capability/initial-capabilities.js` to enumerate current capabilities and asserts each maps to a valid `CapabilityDefinition`.
+- Produces: nothing (test-only). The test imports `registerInitialCapabilities` from `src/capabilities/capability/initial-capabilities.js` to enumerate current capabilities and asserts each maps to a valid `CapabilityDefinition`.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { CapabilityRegistry } from "../../../src/capability/registry.js";
-import { NativeExecutor } from "../../../src/capability/executors.js";
-import { registerInitialCapabilities } from "../../../src/capability/initial-capabilities.js";
-import { migrateKind } from "../../../src/capability/canonical/kind.js";
-import { validateCapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { CapabilityRegistry } from "../../../src/capabilities/capability/registry.js";
+import { NativeExecutor } from "../../../src/capabilities/capability/executors.js";
+import { registerInitialCapabilities } from "../../../src/capabilities/capability/initial-capabilities.js";
+import { migrateKind } from "../../../src/capabilities/capability/canonical/kind.js";
+import { validateCapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 describe("CAP-1 representability", () => {
   it("maps every currently-registered capability to a valid CapabilityDefinition without loss", () => {
     const registry = new CapabilityRegistry();
-    const native = new NativeExecutor();   // see src/capability/executors.ts for its ctor signature
+    const native = new NativeExecutor();   // see src/capabilities/capability/executors.ts for its ctor signature
     registerInitialCapabilities(registry, native);
     const caps = registry.list();
     expect(caps.length).toBeGreaterThan(0);
@@ -587,7 +587,7 @@ function providerTypeOf(strategy: string): string {
 }
 ```
 
-> **Verified signature:** `registerInitialCapabilities(reg: CapabilityRegistry, _native: NativeExecutor): void` — **sync**, requires a `NativeExecutor` instance (check `src/capability/executors.ts` for its constructor), and mutates the registry in place. If `NativeExecutor`'s ctor needs deps, stub it with `vi.fn()`-style test double or pass `undefined as unknown as NativeExecutor` since `_native` is unused for pure registration. The version normalization (`1.0` → `1.0.0`) is the migration boundary: current `Capability.version` is often short SemVer, and CAP-1's contract requires full SemVer.
+> **Verified signature:** `registerInitialCapabilities(reg: CapabilityRegistry, _native: NativeExecutor): void` — **sync**, requires a `NativeExecutor` instance (check `src/capabilities/capability/executors.ts` for its constructor), and mutates the registry in place. If `NativeExecutor`'s ctor needs deps, stub it with `vi.fn()`-style test double or pass `undefined as unknown as NativeExecutor` since `_native` is unused for pure registration. The version normalization (`1.0` → `1.0.0`) is the migration boundary: current `Capability.version` is often short SemVer, and CAP-1's contract requires full SemVer.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -620,7 +620,7 @@ git commit -m "test(capability): CAP-1 representability — all current capabili
 ### Task 6: Barrel export + final verification
 
 **Files:**
-- Create: `src/capability/canonical/index.ts`
+- Create: `src/capabilities/capability/canonical/index.ts`
 
 **Interfaces:**
 - Consumes: all Tasks 1–4 exports.
@@ -641,7 +641,7 @@ export * from "./definition.js";
 - [ ] **Step 2: Typecheck the module**
 
 Run: `pnpm exec tsc --noEmit -p tsconfig.json 2>&1 | grep -i "canonical" || echo "no canonical type errors"`
-Expected: no type errors mentioning `src/capability/canonical/`.
+Expected: no type errors mentioning `src/capabilities/capability/canonical/`.
 
 - [ ] **Step 3: Full vitest run for the touched areas**
 
@@ -650,12 +650,12 @@ Expected: all green.
 
 - [ ] **Step 4: Run detect_changes to confirm additive scope**
 
-Run the GitNexus `detect_changes` check (project rule). Expected: changed files are only new `src/capability/canonical/*` + `tests/capability/canonical/*`; risk low; no existing execution flow affected.
+Run the GitNexus `detect_changes` check (project rule). Expected: changed files are only new `src/capabilities/capability/canonical/*` + `tests/capability/canonical/*`; risk low; no existing execution flow affected.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/canonical/index.ts
+git add src/capabilities/capability/canonical/index.ts
 git commit -m "feat(capability): CAP-1 canonical module barrel export"
 ```
 

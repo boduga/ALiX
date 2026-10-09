@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
-import { KeyDispatcher } from '../../src/tui/key-dispatcher.js';
-import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../src/tui/capabilities/capability-service.js';
-import type { InvocationPresenter } from '../../src/tui/capabilities/invocation-presenter.js';
-import type { PerTabState } from '../../src/tui/state.js';
-import { EventLog } from '../../src/events/event-log.js';
+import { TuiApp, type TuiAppOptions } from '../../src/interfaces/tui/app.js';
+import { KeyDispatcher } from '../../src/interfaces/tui/key-dispatcher.js';
+import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../src/interfaces/tui/capabilities/capability-service.js';
+import type { InvocationPresenter } from '../../src/interfaces/tui/capabilities/invocation-presenter.js';
+import type { PerTabState } from '../../src/interfaces/tui/state.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
 
 /** Deterministic flush of a fire-and-forget EventLog append: the log notifies
  *  watchers AFTER appendFile resolves, so awaiting `count` watch notifications
@@ -101,7 +101,7 @@ describe('TuiApp -- lifecycle', () => {
     // call is `SlashController.refreshCatalog()`, which wraps
     // `getSlashCatalog()` (generation-based cache). Call it on the TuiApp's
     // slash controller and assert the in-memory mirror updates.
-    const { setSlashCatalogLoaderForTest } = await import('../../src/skills/slash-catalog.js');
+    const { setSlashCatalogLoaderForTest } = await import('../../src/capabilities/skills/slash-catalog.js');
     let installed: any[] = [];
     setSlashCatalogLoaderForTest(async () => installed);
     try {
@@ -117,7 +117,7 @@ describe('TuiApp -- lifecycle', () => {
 
       // CLI-side install: invalidate the cache and bump the loader.
       installed = [{ name: 'newskill', description: 'NEW', trigger: '/newskill', version: '1.0.0', is_core: false }];
-      const { invalidateSlashCatalog } = await import('../../src/skills/slash-catalog.js');
+      const { invalidateSlashCatalog } = await import('../../src/capabilities/skills/slash-catalog.js');
       invalidateSlashCatalog();
 
       // The fix: refresh() (the snapshot tick) routes through the slash
@@ -1134,7 +1134,7 @@ describe('TuiApp — evolution tab keys (Task 7 stage cursor regression)', () =>
 
 describe('TuiApp — Escape cancels an in-flight agent turn (Task 6.1-6.3)', () => {
   it('Escape requests cancel, the turn rejects as ExecutionCancelledError, and the timeline shows "Cancelled after 4m 12s" — never "timed out" / "(agent error…)"', async () => {
-    const { ExecutionCancelledError } = await import('../../src/runtime/cancellation-token.js');
+    const { ExecutionCancelledError } = await import('../../src/runtime-state/runtime/cancellation-token.js');
     const errSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     try {
       let rejectTurn!: (e: Error) => void;

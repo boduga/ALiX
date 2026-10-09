@@ -5,15 +5,15 @@
 **Goal:** A7 becomes proposal intelligence, not a capability owner. `service.propose()` persists a governance-ledger event with a deterministic SHA-256 proposal id; `service.apply(approvedProposal)` is the sole A7→A4 bridge delegating to CAP-6. The governance ledger is append-only history; the catalog store is authoritative capability state; rehydration reads catalog store, never governance ledger.
 
 **Architecture:**
-- `src/capability/evolution/a7-proposals.ts` — pure proposal generator. Reads injected `ProposalSignalSource` only; produces `CapabilityEvolutionCandidate` shapes. NO catalog/registry reads or writes. NO persistence.
-- `src/capability/governance/proposal-identity.ts` — SHA-256 hex proposal id from canonical-JSON of proposal body. Pure function.
-- `src/capability/governance/proposal-store.ts` — append-only governance event emitter. Wraps EventLog, filters by `capability.governance.*` prefix. Provides `submit()`, `recordApproved()`, `recordRejected()`, `recordExecuted()`, `recordExecutionFailed()`. Persists to EventLog.
-- `src/capability/governance/governance-types.ts` — `CapabilityGovernanceEvent` discriminated union (5 types: `proposal.submitted`, `.approved`, `.rejected`, `.executed`, `.execution_failed`).
-- `src/capability/types/service-results.ts` (CAP-8 file, EXTEND) — add `CapabilityProposeResult`, `CapabilityApplyProposalResult`, `CapabilityGovernanceResult`, `CapabilityGovernanceEvent` projection types.
-- `src/capability/errors/proposal-stale.ts`, `src/capability/errors/proposal-duplicate.ts` — narrow error classes with `Object.freeze(this)`.
-- `src/capability/capability-service.ts` (CAP-8 file, EXTEND) — replace forward-wired `propose()` stub with the implementation that calls injected A7 generator + persists; `apply(input)` extended to accept either (a) A4 step input (existing) or (b) `{ proposalId }` (NEW: bridges to A4); new `governance(capabilityId?)` method (EventLog projection). Constructor grows by ONE dep: `proposalGenerator`.
-- `src/capability/platform.ts` (CAP-8 file, EXTEND) — wire `proposalGenerator` from composition root; pass it to `CapabilityService`.
-- `src/cli/commands/capability-proposals.ts`, `src/cli/commands/capability-approve.ts`, `src/cli/commands/capability-reject.ts` (CREATE) — three new CLI commands routing through `service.*`.
+- `src/capabilities/capability/evolution/a7-proposals.ts` — pure proposal generator. Reads injected `ProposalSignalSource` only; produces `CapabilityEvolutionCandidate` shapes. NO catalog/registry reads or writes. NO persistence.
+- `src/capabilities/capability/governance/proposal-identity.ts` — SHA-256 hex proposal id from canonical-JSON of proposal body. Pure function.
+- `src/capabilities/capability/governance/proposal-store.ts` — append-only governance event emitter. Wraps EventLog, filters by `capability.governance.*` prefix. Provides `submit()`, `recordApproved()`, `recordRejected()`, `recordExecuted()`, `recordExecutionFailed()`. Persists to EventLog.
+- `src/capabilities/capability/governance/governance-types.ts` — `CapabilityGovernanceEvent` discriminated union (5 types: `proposal.submitted`, `.approved`, `.rejected`, `.executed`, `.execution_failed`).
+- `src/capabilities/capability/types/service-results.ts` (CAP-8 file, EXTEND) — add `CapabilityProposeResult`, `CapabilityApplyProposalResult`, `CapabilityGovernanceResult`, `CapabilityGovernanceEvent` projection types.
+- `src/capabilities/capability/errors/proposal-stale.ts`, `src/capabilities/capability/errors/proposal-duplicate.ts` — narrow error classes with `Object.freeze(this)`.
+- `src/capabilities/capability/capability-service.ts` (CAP-8 file, EXTEND) — replace forward-wired `propose()` stub with the implementation that calls injected A7 generator + persists; `apply(input)` extended to accept either (a) A4 step input (existing) or (b) `{ proposalId }` (NEW: bridges to A4); new `governance(capabilityId?)` method (EventLog projection). Constructor grows by ONE dep: `proposalGenerator`.
+- `src/capabilities/capability/platform.ts` (CAP-8 file, EXTEND) — wire `proposalGenerator` from composition root; pass it to `CapabilityService`.
+- `src/interfaces/cli/commands/capability-proposals.ts`, `src/interfaces/cli/commands/capability-approve.ts`, `src/interfaces/cli/commands/capability-reject.ts` (CREATE) — three new CLI commands routing through `service.*`.
 - `tests/capability/a7-proposals.vitest.ts`, `tests/capability/proposal-identity.vitest.ts`, `tests/capability/proposal-store.vitest.ts`, `tests/capability/capability-service-propose.vitest.ts`, `tests/capability/capability-service-governance.vitest.ts`, `tests/capability/governance-cli.test.ts`, `tests/capability/four-axis-sentinel.vitest.ts`, `tests/capability/cap-9-supersession.test.ts` (CREATE/UPDATE).
 
 **Tech Stack:** TypeScript (ESM), Vitest (`.vitest.ts` — `pnpm test:unit` or `pnpm exec vitest run`), node:test (`.test.ts` — `pnpm run build && pnpm test`), EventLog (CAP-2/8), CapabilityMutationExecutor (CAP-6), CapabilityService (CAP-8 stub broadened), CapabilityEvolutionCandidate (CAP-5 lifecycle graph).
@@ -52,11 +52,11 @@
 
 **Ruling #10 — `history(capabilityId)` covers lifecycle mutations only.** Governance events filtered out for that method. New `service.governance(capabilityId?)` projects governance events. CAP-8 ruling #5 preserved.
 
-**Ruling #11 — A7 generator module: `src/capability/evolution/a7-proposals.ts`.** Service consumes via constructor injection: `new CapabilityService({ catalog, resolver, mutationExecutor, eventLog, proposalGenerator })`. One new ctor dep. Replaces the CAP-8 forward-wired `propose` stub body.
+**Ruling #11 — A7 generator module: `src/capabilities/capability/evolution/a7-proposals.ts`.** Service consumes via constructor injection: `new CapabilityService({ catalog, resolver, mutationExecutor, eventLog, proposalGenerator })`. One new ctor dep. Replaces the CAP-8 forward-wired `propose` stub body.
 
 **Ruling #12 — CLI `apply` remains on `CapabilityLifecycleApplier`.** CAP-11 cliff (unchanged from CAP-8). New governance CLI commands (`proposals`/`approve`/`reject`) route through `service.*`. Sentinel pinned in plan.
 
-**Ruling #13 — Forbidden files: inherit CAP-8 list verbatim** (`initial-capabilities.ts`, `tool-registry.ts`, `policy/capability-registry.ts`, `src/capability/canonical/*`, `tui/capabilities/capability-service.ts` CAP-11 tracked). Extend with: A7 generator must NOT import catalog/registry mutators.
+**Ruling #13 — Forbidden files: inherit CAP-8 list verbatim** (`initial-capabilities.ts`, `tool-registry.ts`, `policy/capability-registry.ts`, `src/capabilities/capability/canonical/*`, `tui/capabilities/capability-service.ts` CAP-11 tracked). Extend with: A7 generator must NOT import catalog/registry mutators.
 
 **Ruling #14 — Extend three-axis sentinel with axis 4 (A7 no-state).** Axis 4: A7 generator source code MUST NOT contain `catalog\.register|catalog\.remove|registry\.setLifecycleState|registry\.applyMutation` (capability mutators). New forbidden-import pattern: A7 module must NOT import from `capability/canonical`, `evolution/capability-lifecycle`, `policy/capability-registry`, `tools/tool-registry`. Hard structural enforcement.
 
@@ -81,7 +81,7 @@
 ### Architectural decisions (file map locked)
 
 - **Ruling #1, #2:** Governance events share the EventLog with `capability.*` lifecycle events. Prefix `capability.governance.proposal.{submitted,approved,rejected,executed,execution_failed}`. `history(capabilityId)` filters out governance; new `governance(capabilityId?)` filters in only governance events.
-- **Ruling #11, #19:** A7 generator module location is `src/capability/evolution/a7-proposals.ts`. Service consumes it via constructor injection (5th dep, NO new optional flag — required). GovernanceStore wrapper class lives in `src/capability/governance/proposal-store.ts`. Rehydration is catalog-driven; governance ledger is read-only history.
+- **Ruling #11, #19:** A7 generator module location is `src/capabilities/capability/evolution/a7-proposals.ts`. Service consumes it via constructor injection (5th dep, NO new optional flag — required). GovernanceStore wrapper class lives in `src/capabilities/capability/governance/proposal-store.ts`. Rehydration is catalog-driven; governance ledger is read-only history.
 
 ### Load-bearing contracts
 
@@ -93,14 +93,14 @@
 
 ### CAP-9 forbidden files (extended from CAP-8)
 
-- **CAP-8 forbidden (preserved):** `src/capability/initial-capabilities.ts`, `src/tools/tool-registry.ts`, `src/policy/capability-registry.ts`, `src/capability/canonical/*` (production — read-only import surface only).
-- **CAP-9 extended:** `src/capability/evolution/a7-proposals.ts` MUST NOT import from `capability/canonical/*` (except `capability/canonical/definition` for `CapabilityDefinition` type, never mutators), `evolution/capability-lifecycle/*`, `policy/capability-registry`, `tools/tool-registry`. A7 generator source code MUST NOT contain `catalog\.register|catalog\.remove|registry\.setLifecycleState|registry\.applyMutation`.
-- **CAP-9 not-touched:** `src/tui/capabilities/capability-service.ts` (TUI service distinct from composition-root service; CAP-11 cliff), `src/evolution/capability-lifecycle/*` (A7.1 legacy).
+- **CAP-8 forbidden (preserved):** `src/capabilities/capability/initial-capabilities.ts`, `src/capabilities/tools/tool-registry.ts`, `src/governance/policy/capability-registry.ts`, `src/capabilities/capability/canonical/*` (production — read-only import surface only).
+- **CAP-9 extended:** `src/capabilities/capability/evolution/a7-proposals.ts` MUST NOT import from `capability/canonical/*` (except `capability/canonical/definition` for `CapabilityDefinition` type, never mutators), `evolution/capability-lifecycle/*`, `policy/capability-registry`, `tools/tool-registry`. A7 generator source code MUST NOT contain `catalog\.register|catalog\.remove|registry\.setLifecycleState|registry\.applyMutation`.
+- **CAP-9 not-touched:** `src/interfaces/tui/capabilities/capability-service.ts` (TUI service distinct from composition-root service; CAP-11 cliff), `src/planning/evolution/capability-lifecycle/*` (A7.1 legacy).
 
 ### Test convention
 
 - New `a7-proposals`, `proposal-identity`, `proposal-store`, `capability-service-propose`, `capability-service-governance`, `four-axis-sentinel` tests use **Vitest** (`.vitest.ts`) — run via `pnpm exec vitest run tests/capability/` (the capability-service layer is vitest, NOT node:test).
-- New `governance-cli`, `cap-9-supersession` tests use **node:test** (`.test.ts`) under `tests/capability/`, importing `../../../src/capability/...js` — run via `pnpm run build && pnpm exec tsx --test ...`.
+- New `governance-cli`, `cap-9-supersession` tests use **node:test** (`.test.ts`) under `tests/capability/`, importing `../../../src/capabilities/capability/...js` — run via `pnpm run build && pnpm exec tsx --test ...`.
 - Type gate: ALWAYS run `pnpm exec tsc --noEmit` after each task.
 
 ### Type gate
@@ -116,18 +116,18 @@
 
 | Path | Task | Status |
 |------|------|--------|
-| `src/capability/governance/governance-types.ts` | T1 | CREATE |
-| `src/capability/governance/proposal-identity.ts` | T2 | CREATE |
-| `src/capability/errors/proposal-stale.ts` | T3 | CREATE |
-| `src/capability/errors/proposal-duplicate.ts` | T3 | CREATE |
-| `src/capability/governance/proposal-store.ts` | T4 | CREATE |
-| `src/capability/evolution/a7-proposals.ts` | T5 | CREATE |
-| `src/capability/types/service-results.ts` | T1, T6 | EXTEND (CAP-8 file) |
-| `src/capability/capability-service.ts` | T6 | EXTEND (CAP-8 file) |
-| `src/capability/platform.ts` | T7 | EXTEND (CAP-8 file) |
-| `src/cli/commands/capability-proposals.ts` | T9 | CREATE |
-| `src/cli/commands/capability-approve.ts` | T9 | CREATE |
-| `src/cli/commands/capability-reject.ts` | T9 | CREATE |
+| `src/capabilities/capability/governance/governance-types.ts` | T1 | CREATE |
+| `src/capabilities/capability/governance/proposal-identity.ts` | T2 | CREATE |
+| `src/capabilities/capability/errors/proposal-stale.ts` | T3 | CREATE |
+| `src/capabilities/capability/errors/proposal-duplicate.ts` | T3 | CREATE |
+| `src/capabilities/capability/governance/proposal-store.ts` | T4 | CREATE |
+| `src/capabilities/capability/evolution/a7-proposals.ts` | T5 | CREATE |
+| `src/capabilities/capability/types/service-results.ts` | T1, T6 | EXTEND (CAP-8 file) |
+| `src/capabilities/capability/capability-service.ts` | T6 | EXTEND (CAP-8 file) |
+| `src/capabilities/capability/platform.ts` | T7 | EXTEND (CAP-8 file) |
+| `src/interfaces/cli/commands/capability-proposals.ts` | T9 | CREATE |
+| `src/interfaces/cli/commands/capability-approve.ts` | T9 | CREATE |
+| `src/interfaces/cli/commands/capability-reject.ts` | T9 | CREATE |
 | `tests/capability/proposal-identity.vitest.ts` | T2 | CREATE |
 | `tests/capability/proposal-stale.vitest.ts` | T3 | CREATE |
 | `tests/capability/proposal-duplicate.vitest.ts` | T3 | CREATE |
@@ -141,24 +141,24 @@
 
 ### Consumed interfaces (CAP-2/3/4/5/6/8, already on main)
 
-- **CAP-2 `src/capability/canonical/catalog.ts`:** `CapabilityCatalog` — `get(id)`, `list()`, `has(id)`, `register(def, binding?)`, `remove(id)`, `getBinding(id)`. Catalog store is authoritative capability state (ruling #19).
-- **CAP-3 `src/capability/registry.ts`:** `CapabilityRegistry` — `getLifecycleState(id)`, `setLifecycleState(id, to)`, `listLifecycleStates()`, `getAvailability(id)`, `reload()`, `list()`. Used only by CAP-6 executor and A4 layer; CAP-9 never writes registry directly.
-- **CAP-4 `src/evolution/execution/`:** `StepExecutor`, `ExecutionStep`, `GovernedExecutionRuntime`, `createExecutionPlan`, `DefaultRollbackResolver`, `createCapabilityRollbackResolver` (CAP-6 re-homed).
-- **CAP-5 `src/capability/mutation-contract.ts`:** `validateCapabilityMutation`, `validateConsolidateMerge`, `classifyUpdateBump`, `CapabilityMutation` types. Used only inside CAP-6 executor.
-- **CAP-6 `src/evolution/execution/capability-mutation-executor.ts`:** `CapabilityMutationExecutor.executeStep(step, context): Promise<{ success, output: { operation, mutation, result: CapabilityMutationResult }, error? }>`. Sole capability-mutation execution path; CAP-9 delegates here (ruling #4).
-- **CAP-8 `src/capability/capability-service.ts`:** existing surface — `query(q)`, `find(id)`, `getStatus(id)`, `setPresenter(p)`, `invoke(id, args)`, plus forward-wired `apply()`, `propose()`, `recommend()`, `governance()` (stubs). CAP-9 replaces `propose()` stub body; extends `apply()` to accept `{ proposalId }`; implements `governance()`.
-- **CAP-8 `src/capability/types/service-results.ts`:** result type definitions; CAP-9 EXTENDS with `CapabilityProposeResult`, `CapabilityApplyProposalResult`, `CapabilityGovernanceResult`, `CapabilityGovernanceEventProjection`.
-- **CAP-2/8 `src/events/event-log.ts`:** `EventLog` — `append(event)`, `readAll()`, `getCursor()`. CAP-9 uses `append()` for governance events; `readAll()` for `governance()` projection.
-- **CAP-5 `src/adaptation/capability-evolution-types.ts`:** `LifecycleState`, `CapabilityHealth`, `CapabilityGap`, `CapabilityOverlap`, `CapabilityDrift`, `CapabilityEvolutionReport`. A7 generator consumes signals derived from this surface.
-- **CAP-1 `src/security/audit/canonical-json.ts`:** `canonicalStringify(value): string` — deterministic JSON with sorted keys. CAP-9 uses for SHA-256 proposal id (ruling #18).
+- **CAP-2 `src/capabilities/capability/canonical/catalog.ts`:** `CapabilityCatalog` — `get(id)`, `list()`, `has(id)`, `register(def, binding?)`, `remove(id)`, `getBinding(id)`. Catalog store is authoritative capability state (ruling #19).
+- **CAP-3 `src/capabilities/capability/registry.ts`:** `CapabilityRegistry` — `getLifecycleState(id)`, `setLifecycleState(id, to)`, `listLifecycleStates()`, `getAvailability(id)`, `reload()`, `list()`. Used only by CAP-6 executor and A4 layer; CAP-9 never writes registry directly.
+- **CAP-4 `src/planning/evolution/execution/`:** `StepExecutor`, `ExecutionStep`, `GovernedExecutionRuntime`, `createExecutionPlan`, `DefaultRollbackResolver`, `createCapabilityRollbackResolver` (CAP-6 re-homed).
+- **CAP-5 `src/capabilities/capability/mutation-contract.ts`:** `validateCapabilityMutation`, `validateConsolidateMerge`, `classifyUpdateBump`, `CapabilityMutation` types. Used only inside CAP-6 executor.
+- **CAP-6 `src/planning/evolution/execution/capability-mutation-executor.ts`:** `CapabilityMutationExecutor.executeStep(step, context): Promise<{ success, output: { operation, mutation, result: CapabilityMutationResult }, error? }>`. Sole capability-mutation execution path; CAP-9 delegates here (ruling #4).
+- **CAP-8 `src/capabilities/capability/capability-service.ts`:** existing surface — `query(q)`, `find(id)`, `getStatus(id)`, `setPresenter(p)`, `invoke(id, args)`, plus forward-wired `apply()`, `propose()`, `recommend()`, `governance()` (stubs). CAP-9 replaces `propose()` stub body; extends `apply()` to accept `{ proposalId }`; implements `governance()`.
+- **CAP-8 `src/capabilities/capability/types/service-results.ts`:** result type definitions; CAP-9 EXTENDS with `CapabilityProposeResult`, `CapabilityApplyProposalResult`, `CapabilityGovernanceResult`, `CapabilityGovernanceEventProjection`.
+- **CAP-2/8 `src/runtime-state/events/event-log.ts`:** `EventLog` — `append(event)`, `readAll()`, `getCursor()`. CAP-9 uses `append()` for governance events; `readAll()` for `governance()` projection.
+- **CAP-5 `src/planning/adaptation/capability-evolution-types.ts`:** `LifecycleState`, `CapabilityHealth`, `CapabilityGap`, `CapabilityOverlap`, `CapabilityDrift`, `CapabilityEvolutionReport`. A7 generator consumes signals derived from this surface.
+- **CAP-1 `src/governance/security/audit/canonical-json.ts`:** `canonicalStringify(value): string` — deterministic JSON with sorted keys. CAP-9 uses for SHA-256 proposal id (ruling #18).
 
 ---
 
 ### Task 1: Governance event types + result type projections
 
 **Files:**
-- Create: `src/capability/governance/governance-types.ts`
-- Modify: `src/capability/types/service-results.ts` (CAP-8 file; add result + projection types)
+- Create: `src/capabilities/capability/governance/governance-types.ts`
+- Modify: `src/capabilities/capability/types/service-results.ts` (CAP-8 file; add result + projection types)
 - Test: `tests/capability/governance-types.vitest.ts`
 
 **Interfaces:**
@@ -183,7 +183,7 @@ import {
   GOVERNANCE_EVENT_PREFIX,
   isGovernanceEventType,
   type CapabilityGovernanceEventType,
-} from "../../src/capability/governance/governance-types.js";
+} from "../../src/capabilities/capability/governance/governance-types.js";
 
 describe("CapabilityGovernanceEventType", () => {
   it("has exactly five event types", () => {
@@ -226,7 +226,7 @@ Expected: FAIL — module not found.
 **Step 3: Implement governance-types.ts**
 
 ```ts
-// src/capability/governance/governance-types.ts
+// src/capabilities/capability/governance/governance-types.ts
 import type { CapabilityEvolutionCandidate } from "../../adaptation/capability-evolution-types.js";
 import type { CapabilityMutationResult } from "../../evolution/execution/capability-mutation-executor.js";
 
@@ -346,10 +346,10 @@ export type CapabilityGovernanceEventProjection =
 
 **Step 4: Extend service-results.ts (CAP-8 file)**
 
-Read current `src/capability/types/service-results.ts` (CAP-8 stub). Append the four new types. Each must be a narrow, dedicated result type (CAP-8 ruling #8 — no generic envelope):
+Read current `src/capabilities/capability/types/service-results.ts` (CAP-8 stub). Append the four new types. Each must be a narrow, dedicated result type (CAP-8 ruling #8 — no generic envelope):
 
 ```ts
-// src/capability/types/service-results.ts (CAP-9 additions — append, do not modify existing)
+// src/capabilities/capability/types/service-results.ts (CAP-9 additions — append, do not modify existing)
 import type { CapabilityEvolutionCandidate } from "../../adaptation/capability-evolution-types.js";
 import type { CapabilityMutationResult } from "../../evolution/execution/capability-mutation-executor.js";
 import type { CapabilityGovernanceEventProjection } from "../governance/governance-types.js";
@@ -387,7 +387,7 @@ Expected: PASS, 0 tsc errors.
 **Step 6: Commit**
 
 ```bash
-git add src/capability/governance/governance-types.ts src/capability/types/service-results.ts tests/capability/governance-types.vitest.ts
+git add src/capabilities/capability/governance/governance-types.ts src/capabilities/capability/types/service-results.ts tests/capability/governance-types.vitest.ts
 git commit -m "feat(capability): CAP-9 governance event types + service result projections"
 ```
 
@@ -396,11 +396,11 @@ git commit -m "feat(capability): CAP-9 governance event types + service result p
 ### Task 2: Proposal identity (SHA-256 hex of canonical-JSON)
 
 **Files:**
-- Create: `src/capability/governance/proposal-identity.ts`
+- Create: `src/capabilities/capability/governance/proposal-identity.ts`
 - Test: `tests/capability/proposal-identity.vitest.ts`
 
 **Interfaces:**
-- Produces: `computeProposalId(candidate: CapabilityEvolutionCandidate): string` — SHA-256 hex (64 lowercase chars) of canonical-JSON of the candidate body. Uses `canonicalStringify` from `src/security/audit/canonical-json.ts` (ruling #18). Pure function — no I/O, no clock.
+- Produces: `computeProposalId(candidate: CapabilityEvolutionCandidate): string` — SHA-256 hex (64 lowercase chars) of canonical-JSON of the candidate body. Uses `canonicalStringify` from `src/governance/security/audit/canonical-json.ts` (ruling #18). Pure function — no I/O, no clock.
 - Produces: `isValidProposalId(value: unknown): value is string` — runtime guard; accepts exactly 64 lowercase hex chars.
 
 **Step 1: Write failing determinism + key-order tests**
@@ -409,8 +409,8 @@ Create `tests/capability/proposal-identity.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { computeProposalId, isValidProposalId } from "../../src/capability/governance/proposal-identity.js";
-import type { CapabilityEvolutionCandidate } from "../../src/adaptation/capability-evolution-types.js";
+import { computeProposalId, isValidProposalId } from "../../src/capabilities/capability/governance/proposal-identity.js";
+import type { CapabilityEvolutionCandidate } from "../../src/planning/adaptation/capability-evolution-types.js";
 
 function mkCandidate(): CapabilityEvolutionCandidate {
   return {
@@ -490,7 +490,7 @@ Expected: FAIL — module not found.
 **Step 3: Implement proposal-identity.ts**
 
 ```ts
-// src/capability/governance/proposal-identity.ts
+// src/capabilities/capability/governance/proposal-identity.ts
 import { createHash } from "node:crypto";
 import { canonicalStringify } from "../../security/audit/canonical-json.js";
 import type { CapabilityEvolutionCandidate } from "../../adaptation/capability-evolution-types.js";
@@ -529,7 +529,7 @@ Expected: PASS, 0 tsc errors.
 **Step 5: Commit**
 
 ```bash
-git add src/capability/governance/proposal-identity.ts tests/capability/proposal-identity.vitest.ts
+git add src/capabilities/capability/governance/proposal-identity.ts tests/capability/proposal-identity.vitest.ts
 git commit -m "feat(capability): CAP-9 proposal identity — SHA-256 hex of canonical-JSON"
 ```
 
@@ -538,8 +538,8 @@ git commit -m "feat(capability): CAP-9 proposal identity — SHA-256 hex of cano
 ### Task 3: Proposal-stale + proposal-duplicate error classes
 
 **Files:**
-- Create: `src/capability/errors/proposal-stale.ts`
-- Create: `src/capability/errors/proposal-duplicate.ts`
+- Create: `src/capabilities/capability/errors/proposal-stale.ts`
+- Create: `src/capabilities/capability/errors/proposal-duplicate.ts`
 - Test: `tests/capability/proposal-stale.vitest.ts`
 - Test: `tests/capability/proposal-duplicate.vitest.ts`
 
@@ -553,7 +553,7 @@ Create `tests/capability/proposal-stale.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { CapabilityProposalStaleError } from "../../src/capability/errors/proposal-stale.js";
+import { CapabilityProposalStaleError } from "../../src/capabilities/capability/errors/proposal-stale.js";
 
 describe("CapabilityProposalStaleError (CAP-9 ruling #17)", () => {
   it("carries the standard code", () => {
@@ -587,7 +587,7 @@ Create `tests/capability/proposal-duplicate.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { CapabilityProposalDuplicateError } from "../../src/capability/errors/proposal-duplicate.js";
+import { CapabilityProposalDuplicateError } from "../../src/capabilities/capability/errors/proposal-duplicate.js";
 
 describe("CapabilityProposalDuplicateError (CAP-9 ruling #21)", () => {
   it("carries the standard code", () => {
@@ -619,7 +619,7 @@ Expected: FAIL — modules not found.
 
 **Step 3: Implement both error classes**
 
-`src/capability/errors/proposal-stale.ts`:
+`src/capabilities/capability/errors/proposal-stale.ts`:
 
 ```ts
 /** Thrown by service.apply({ proposalId }) when the proposal's pinned source
@@ -643,7 +643,7 @@ export class CapabilityProposalStaleError extends Error {
 }
 ```
 
-`src/capability/errors/proposal-duplicate.ts`:
+`src/capabilities/capability/errors/proposal-duplicate.ts`:
 
 ```ts
 /** Thrown by service.propose() when the canonical proposal id already has a
@@ -671,7 +671,7 @@ Expected: PASS, 0 tsc errors.
 **Step 5: Commit**
 
 ```bash
-git add src/capability/errors/proposal-stale.ts src/capability/errors/proposal-duplicate.ts tests/capability/proposal-stale.vitest.ts tests/capability/proposal-duplicate.vitest.ts
+git add src/capabilities/capability/errors/proposal-stale.ts src/capabilities/capability/errors/proposal-duplicate.ts tests/capability/proposal-stale.vitest.ts tests/capability/proposal-duplicate.vitest.ts
 git commit -m "feat(capability): CAP-9 proposal-stale + proposal-duplicate error classes"
 ```
 
@@ -680,7 +680,7 @@ git commit -m "feat(capability): CAP-9 proposal-stale + proposal-duplicate error
 ### Task 4: ProposalStore (append-only governance ledger wrapper)
 
 **Files:**
-- Create: `src/capability/governance/proposal-store.ts`
+- Create: `src/capabilities/capability/governance/proposal-store.ts`
 - Test: `tests/capability/proposal-store.vitest.ts`
 
 **Interfaces:**
@@ -704,10 +704,10 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../../src/events/event-log.js";
-import { ProposalStore } from "../../src/capability/governance/proposal-store.js";
-import { CapabilityProposalDuplicateError } from "../../src/capability/errors/proposal-duplicate.js";
-import type { CapabilityEvolutionCandidate } from "../../src/adaptation/capability-evolution-types.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { ProposalStore } from "../../src/capabilities/capability/governance/proposal-store.js";
+import { CapabilityProposalDuplicateError } from "../../src/capabilities/capability/errors/proposal-duplicate.js";
+import type { CapabilityEvolutionCandidate } from "../../src/planning/adaptation/capability-evolution-types.js";
 
 function mkCandidate(): CapabilityEvolutionCandidate {
   return {
@@ -805,7 +805,7 @@ Expected: FAIL — module not found.
 **Step 3: Implement ProposalStore**
 
 ```ts
-// src/capability/governance/proposal-store.ts
+// src/capabilities/capability/governance/proposal-store.ts
 import type { EventLog } from "../../events/event-log.js";
 import type { AlixEvent, NewEvent } from "../../events/types.js";
 import { computeProposalId } from "./proposal-identity.js";
@@ -953,7 +953,7 @@ Expected: PASS, 0 tsc errors.
 **Step 5: Commit**
 
 ```bash
-git add src/capability/governance/proposal-store.ts tests/capability/proposal-store.vitest.ts
+git add src/capabilities/capability/governance/proposal-store.ts tests/capability/proposal-store.vitest.ts
 git commit -m "feat(capability): CAP-9 ProposalStore — append-only governance ledger wrapper"
 ```
 
@@ -962,7 +962,7 @@ git commit -m "feat(capability): CAP-9 ProposalStore — append-only governance 
 ### Task 5: A7 proposal generator (pure, signal-only)
 
 **Files:**
-- Create: `src/capability/evolution/a7-proposals.ts`
+- Create: `src/capabilities/capability/evolution/a7-proposals.ts`
 - Test: `tests/capability/a7-proposals.vitest.ts`
 
 **Interfaces:**
@@ -970,7 +970,7 @@ git commit -m "feat(capability): CAP-9 ProposalStore — append-only governance 
 - Produces: `ProposalSignalSource` interface with single method `signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>>` — P5.5/P5.6 adapters implement this; A7 only knows the shape.
 - Produces: `A7ProposalGeneratorOptions { signalSource: ProposalSignalSource }`.
 - Produces: `A7ProposalGenerator` class with method `generate(): Promise<CapabilityEvolutionCandidate[]>` — pure transformation: signals → candidates. NO catalog reads. NO registry reads. NO writes. Returns one candidate per signal kind when applicable (gap → create, underperformer → update, consolidation_opportunity → consolidate, deprecation_signal → remove).
-- Produces: `A7ProposalGenerator.fromDefault()` factory — uses the standard `CapabilityEvolutionProposalGenerator` from `src/adaptation/capability-evolution-proposal-generator.ts` as the signal source (CAP-5/P5.6). The default factory is the ONLY allowed coupling to P5.6 — A7 must NOT directly emit adaptation proposals; it emits evolution candidates.
+- Produces: `A7ProposalGenerator.fromDefault()` factory — uses the standard `CapabilityEvolutionProposalGenerator` from `src/planning/adaptation/capability-evolution-proposal-generator.ts` as the signal source (CAP-5/P5.6). The default factory is the ONLY allowed coupling to P5.6 — A7 must NOT directly emit adaptation proposals; it emits evolution candidates.
 
 **Step 1: Write failing A7 generator tests**
 
@@ -982,7 +982,7 @@ import {
   A7ProposalGenerator,
   type CapabilityEvolutionSignal,
   type ProposalSignalSource,
-} from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capabilities/capability/evolution/a7-proposals.js";
 
 class FakeSignalSource implements ProposalSignalSource {
   constructor(private readonly items: ReadonlyArray<CapabilityEvolutionSignal>) {}
@@ -1065,7 +1065,7 @@ Expected: FAIL — module not found.
 **Step 3: Implement A7ProposalGenerator**
 
 ```ts
-// src/capability/evolution/a7-proposals.ts
+// src/capabilities/capability/evolution/a7-proposals.ts
 import type { CapabilityEvolutionCandidate } from "../../adaptation/capability-evolution-types.js";
 
 /**
@@ -1199,7 +1199,7 @@ Expected: PASS, 0 tsc errors.
 **Step 5: Commit**
 
 ```bash
-git add src/capability/evolution/a7-proposals.ts tests/capability/a7-proposals.vitest.ts
+git add src/capabilities/capability/evolution/a7-proposals.ts tests/capability/a7-proposals.vitest.ts
 git commit -m "feat(capability): CAP-9 A7ProposalGenerator — pure signal-driven proposal intelligence"
 ```
 
@@ -1208,7 +1208,7 @@ git commit -m "feat(capability): CAP-9 A7ProposalGenerator — pure signal-drive
 ### Task 6: CapabilityService extend — propose() / apply(proposal) / governance()
 
 **Files:**
-- Modify: `src/capability/capability-service.ts` (CAP-8 file — replace propose() stub, extend apply() to accept `{ proposalId }`, add governance() projection)
+- Modify: `src/capabilities/capability/capability-service.ts` (CAP-8 file — replace propose() stub, extend apply() to accept `{ proposalId }`, add governance() projection)
 - Test: `tests/capability/capability-service-propose.vitest.ts`
 - Test: `tests/capability/capability-service-governance.vitest.ts`
 
@@ -1223,7 +1223,7 @@ git commit -m "feat(capability): CAP-9 A7ProposalGenerator — pure signal-drive
 **Step 1: Read CAP-8 service stub to understand current shape**
 
 ```bash
-cat src/capability/capability-service.ts | head -120
+cat src/capabilities/capability/capability-service.ts | head -120
 ```
 
 Confirm: `apply()` signature is `apply(input: ExecutionStep)`; `propose()` is a forward-wired stub; `recommend()` exists; `governance()` does NOT exist.
@@ -1237,17 +1237,17 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityService } from "../../src/capability/capability-service.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { ProviderResolver } from "../../src/capability/provider-resolver.js";
-import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals.js";
-import type { CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
-import type { ProposalSignalSource } from "../../src/capability/evolution/a7-proposals.js";
-import { CapabilityProposalDuplicateError } from "../../src/capability/errors/proposal-duplicate.js";
-import type { CapabilityEvolutionCandidate } from "../../src/adaptation/capability-evolution-types.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityService } from "../../src/capabilities/capability/capability-service.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { ProviderResolver } from "../../src/capabilities/capability/provider-resolver.js";
+import { A7ProposalGenerator } from "../../src/capabilities/capability/evolution/a7-proposals.js";
+import type { CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/a7-proposals.js";
+import type { ProposalSignalSource } from "../../src/capabilities/capability/evolution/a7-proposals.js";
+import { CapabilityProposalDuplicateError } from "../../src/capabilities/capability/errors/proposal-duplicate.js";
+import type { CapabilityEvolutionCandidate } from "../../src/planning/adaptation/capability-evolution-types.js";
 
 class FakeSignalSource implements ProposalSignalSource {
   constructor(private readonly items: ReadonlyArray<CapabilityEvolutionSignal>) {}
@@ -1384,15 +1384,15 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityService } from "../../src/capability/capability-service.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { ProviderResolver } from "../../src/capability/provider-resolver.js";
-import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals.js";
-import type { ProposalSignalSource } from "../../src/capability/evolution/a7-proposals.js";
-import type { CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityService } from "../../src/capabilities/capability/capability-service.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { ProviderResolver } from "../../src/capabilities/capability/provider-resolver.js";
+import { A7ProposalGenerator } from "../../src/capabilities/capability/evolution/a7-proposals.js";
+import type { ProposalSignalSource } from "../../src/capabilities/capability/evolution/a7-proposals.js";
+import type { CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/a7-proposals.js";
 
 class FakeSignalSource implements ProposalSignalSource {
   constructor(private readonly items: ReadonlyArray<CapabilityEvolutionSignal>) {}
@@ -1464,7 +1464,7 @@ Expected: FAIL — propose() and governance() not implemented.
 
 **Step 4: Extend CapabilityService**
 
-Read current `src/capability/capability-service.ts` (CAP-8 file). Modify:
+Read current `src/capabilities/capability/capability-service.ts` (CAP-8 file). Modify:
 
 1. Add imports:
 ```ts
@@ -1638,7 +1638,7 @@ Expected: PASS, 0 tsc errors.
 **Step 6: Commit**
 
 ```bash
-git add src/capability/capability-service.ts tests/capability/capability-service-propose.vitest.ts tests/capability/capability-service-governance.vitest.ts
+git add src/capabilities/capability/capability-service.ts tests/capability/capability-service-propose.vitest.ts tests/capability/capability-service-governance.vitest.ts
 git commit -m "feat(capability): CAP-9 service.propose / apply(proposalId) / governance() projection"
 ```
 
@@ -1647,7 +1647,7 @@ git commit -m "feat(capability): CAP-9 service.propose / apply(proposalId) / gov
 ### Task 7: Platform composition root — wire `proposalGenerator`
 
 **Files:**
-- Modify: `src/capability/platform.ts` (CAP-8 file)
+- Modify: `src/capabilities/capability/platform.ts` (CAP-8 file)
 - Test: `tests/capability/platform-cap-9.vitest.ts`
 
 **Interfaces:**
@@ -1663,7 +1663,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityPlatform } from "../../src/capability/platform.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
 
 describe("CapabilityPlatform — CAP-9 wiring", () => {
   let dir: string;
@@ -1696,7 +1696,7 @@ Expected: FAIL — `platform.service` does not exist.
 
 **Step 3: Modify CapabilityPlatform**
 
-Read current `src/capability/platform.ts`. Append:
+Read current `src/capabilities/capability/platform.ts`. Append:
 
 ```ts
 import { CapabilityService } from "./capability-service.js";
@@ -1730,7 +1730,7 @@ Expected: PASS, 0 tsc errors.
 **Step 5: Commit**
 
 ```bash
-git add src/capability/platform.ts tests/capability/platform-cap-9.vitest.ts
+git add src/capabilities/capability/platform.ts tests/capability/platform-cap-9.vitest.ts
 git commit -m "feat(capability): CAP-9 platform wires proposalGenerator into CapabilityService"
 ```
 
@@ -1766,15 +1766,15 @@ function readSrc(rel: string): string {
 
 describe("Four-axis sentinel (CAP-8 axis 1-3 + CAP-9 axis 4)", () => {
   it("axis 1: new CapabilityRegistry/Resolver only in composition root", () => {
-    const a7Src = readSrc("src/capability/evolution/a7-proposals.ts");
-    const serviceSrc = readSrc("src/capability/capability-service.ts");
+    const a7Src = readSrc("src/capabilities/capability/evolution/a7-proposals.ts");
+    const serviceSrc = readSrc("src/capabilities/capability/capability-service.ts");
     // axis 1: A7 module MUST NOT construct registry/resolver
     expect(a7Src, "axis 1: A7 must not construct registry/resolver").not.toMatch(/new\s+(CapabilityRegistry|CapabilityResolver)/);
     expect(serviceSrc, "axis 1: service must not construct registry/resolver directly").not.toMatch(/new\s+(CapabilityRegistry|CapabilityResolver)/);
   });
 
   it("axis 4: A7 module contains no capability mutator call sites", () => {
-    const a7Src = readSrc("src/capability/evolution/a7-proposals.ts");
+    const a7Src = readSrc("src/capabilities/capability/evolution/a7-proposals.ts");
     expect(a7Src, "axis 4: catalog.register forbidden in A7").not.toMatch(/catalog\.register/);
     expect(a7Src, "axis 4: catalog.remove forbidden in A7").not.toMatch(/catalog\.remove/);
     expect(a7Src, "axis 4: registry.setLifecycleState forbidden in A7").not.toMatch(/registry\.setLifecycleState/);
@@ -1782,7 +1782,7 @@ describe("Four-axis sentinel (CAP-8 axis 1-3 + CAP-9 axis 4)", () => {
   });
 
   it("axis 4: A7 module does not import from forbidden catalog/registry/policy modules", () => {
-    const a7Src = readSrc("src/capability/evolution/a7-proposals.ts");
+    const a7Src = readSrc("src/capabilities/capability/evolution/a7-proposals.ts");
     expect(a7Src, "axis 4: A7 must not import capability/canonical mutators").not.toMatch(/from\s+["'].*capability\/canonical\/catalog["']/);
     expect(a7Src, "axis 4: A7 must not import evolution/capability-lifecycle").not.toMatch(/from\s+["'].*evolution\/capability-lifecycle/);
     expect(a7Src, "axis 4: A7 must not import policy/capability-registry").not.toMatch(/from\s+["'].*policy\/capability-registry/);
@@ -1790,7 +1790,7 @@ describe("Four-axis sentinel (CAP-8 axis 1-3 + CAP-9 axis 4)", () => {
   });
 
   it("axis 4: governance() projection must not call catalog/registry mutators", () => {
-    const serviceSrc = readSrc("src/capability/capability-service.ts");
+    const serviceSrc = readSrc("src/capabilities/capability/capability-service.ts");
     // Slice out the governance() method body
     const match = serviceSrc.match(/async\s+governance[\s\S]+?^}/m);
     expect(match, "governance() method must exist").not.toBeNull();
@@ -1822,9 +1822,9 @@ git commit -m "test(capability): CAP-9 four-axis sentinel — A7 no-state + gove
 ### Task 9: Governance CLI commands — proposals / approve / reject
 
 **Files:**
-- Create: `src/cli/commands/capability-proposals.ts`
-- Create: `src/cli/commands/capability-approve.ts`
-- Create: `src/cli/commands/capability-reject.ts`
+- Create: `src/interfaces/cli/commands/capability-proposals.ts`
+- Create: `src/interfaces/cli/commands/capability-approve.ts`
+- Create: `src/interfaces/cli/commands/capability-reject.ts`
 - Test: `tests/capability/governance-cli.test.ts` (node:test)
 
 **Interfaces:**
@@ -1834,7 +1834,7 @@ git commit -m "test(capability): CAP-9 four-axis sentinel — A7 no-state + gove
 
 **Step 1: Add `service.reject()` method**
 
-In `src/capability/capability-service.ts`, after `governance()`:
+In `src/capabilities/capability/capability-service.ts`, after `governance()`:
 
 ```ts
 async reject(proposalId: string, reason: string): Promise<{ proposalId: string; status: "rejected" }> {
@@ -1854,9 +1854,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals.js";
-import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { A7ProposalGenerator } from "../../src/capabilities/capability/evolution/a7-proposals.js";
+import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/a7-proposals.js";
 
 class FakeSignalSource implements ProposalSignalSource {
   constructor(private readonly items: ReadonlyArray<CapabilityEvolutionSignal>) {}
@@ -1915,7 +1915,7 @@ describe("governance CLI — routes through service.*", () => {
 
 **Step 3: Implement CLI command files**
 
-`src/cli/commands/capability-proposals.ts`:
+`src/interfaces/cli/commands/capability-proposals.ts`:
 
 ```ts
 import { CapabilityPlatform } from "../../capability/platform.js";
@@ -1939,7 +1939,7 @@ async function getPlatform(): Promise<CapabilityPlatform> {
 }
 ```
 
-`src/cli/commands/capability-approve.ts`:
+`src/interfaces/cli/commands/capability-approve.ts`:
 
 ```ts
 import { CapabilityProposalStaleError } from "../../capability/errors/proposal-stale.js";
@@ -1971,7 +1971,7 @@ async function getPlatform() {
 }
 ```
 
-`src/cli/commands/capability-reject.ts`:
+`src/interfaces/cli/commands/capability-reject.ts`:
 
 ```ts
 export async function capabilityRejectCommand(args: readonly string[]): Promise<number> {
@@ -1996,7 +1996,7 @@ async function getPlatform() {
 
 **Step 4: Wire CLI commands into the main `alix capability` route**
 
-Read `src/cli/commands/capabilities.ts` (CAP-8 file). Add three new subcommands:
+Read `src/interfaces/cli/commands/capabilities.ts` (CAP-8 file). Add three new subcommands:
 
 ```ts
 // inside capabilities command dispatch
@@ -2017,7 +2017,7 @@ Expected: PASS, 0 tsc errors.
 **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/capability-proposals.ts src/cli/commands/capability-approve.ts src/cli/commands/capability-reject.ts src/cli/commands/capabilities.ts tests/capability/governance-cli.test.ts
+git add src/interfaces/cli/commands/capability-proposals.ts src/interfaces/cli/commands/capability-approve.ts src/interfaces/cli/commands/capability-reject.ts src/interfaces/cli/commands/capabilities.ts tests/capability/governance-cli.test.ts
 git commit -m "feat(capability): CAP-9 governance CLI — proposals/approve/reject routes through service.*"
 ```
 
@@ -2030,10 +2030,10 @@ git commit -m "feat(capability): CAP-9 governance CLI — proposals/approve/reje
 
 **Interfaces:**
 - Asserts CAP-9 forbidden-file list is enforced:
-  - CAP-8 forbidden preserved: `src/capability/initial-capabilities.ts`, `src/tools/tool-registry.ts`, `src/policy/capability-registry.ts`, `src/capability/canonical/*`.
-  - CAP-9 extended forbidden: `src/capability/evolution/a7-proposals.ts` MUST NOT import from `capability/canonical` (mutator paths), `evolution/capability-lifecycle/*`, `policy/capability-registry`, `tools/tool-registry`.
-  - CAP-11 tracked debt allowlist: `src/tui/capabilities/capability-service.ts` (TUI distinct from composition-root service).
-  - CAP-9 not-touched (CAP-11 cliff): `src/evolution/capability-lifecycle/*` (A7.1 legacy).
+  - CAP-8 forbidden preserved: `src/capabilities/capability/initial-capabilities.ts`, `src/capabilities/tools/tool-registry.ts`, `src/governance/policy/capability-registry.ts`, `src/capabilities/capability/canonical/*`.
+  - CAP-9 extended forbidden: `src/capabilities/capability/evolution/a7-proposals.ts` MUST NOT import from `capability/canonical` (mutator paths), `evolution/capability-lifecycle/*`, `policy/capability-registry`, `tools/tool-registry`.
+  - CAP-11 tracked debt allowlist: `src/interfaces/tui/capabilities/capability-service.ts` (TUI distinct from composition-root service).
+  - CAP-9 not-touched (CAP-11 cliff): `src/planning/evolution/capability-lifecycle/*` (A7.1 legacy).
 - 5-file debt allowlist pattern (CAP-8 ruling #7) — files CAP-9 was forced to touch (CAP-8 service, CAP-8 platform, CAP-8 service-results) are tracked.
 
 **Step 1: Write forbidden-file test**
@@ -2054,7 +2054,7 @@ function readSrc(rel: string): string {
 
 describe("CAP-9 supersession — forbidden files", () => {
   it("CAP-8 forbidden files preserved", () => {
-    const a7 = readSrc("src/capability/evolution/a7-proposals.ts");
+    const a7 = readSrc("src/capabilities/capability/evolution/a7-proposals.ts");
     // No capability canonical mutator imports
     assert.equal(a7.includes("from"), true); // module has imports
     assert.equal(/from\s+["'].*capability\/canonical\/catalog["']/.test(a7), false);
@@ -2063,13 +2063,13 @@ describe("CAP-9 supersession — forbidden files", () => {
   });
 
   it("CAP-11 tracked debt allowlist", () => {
-    const tui = readSrc("src/tui/capabilities/capability-service.ts");
+    const tui = readSrc("src/interfaces/tui/capabilities/capability-service.ts");
     // TUI service is a distinct surface; CAP-9 does not touch it.
     assert.equal(tui.length > 0, true);
   });
 
   it("A7.1 legacy capability-lifecycle stays untouched", () => {
-    const lifecycle = readSrc("src/evolution/capability-lifecycle/index.ts");
+    const lifecycle = readSrc("src/planning/evolution/capability-lifecycle/index.ts");
     assert.equal(lifecycle.length > 0, true);
     // No CAP-9 imports in legacy
     assert.equal(/proposal-store/.test(lifecycle), false);
@@ -2078,7 +2078,7 @@ describe("CAP-9 supersession — forbidden files", () => {
 
   it("CAP-8 service surface preserved (5-file debt allowlist)", () => {
     // CAP-9 only extended CAP-8 capability-service.ts; it did not rewrite it.
-    const service = readSrc("src/capability/capability-service.ts");
+    const service = readSrc("src/capabilities/capability/capability-service.ts");
     assert.equal(service.includes("class CapabilityService"), true);
     // Existing CAP-8 methods still present
     assert.equal(/query\s*\(/.test(service), true);
@@ -2088,7 +2088,7 @@ describe("CAP-9 supersession — forbidden files", () => {
 
 describe("CAP-9 governance event type prefix", () => {
   it("uses capability.governance.proposal.* (ruling #1, #2)", () => {
-    const types = readSrc("src/capability/governance/governance-types.ts");
+    const types = readSrc("src/capabilities/capability/governance/governance-types.ts");
     assert.match(types, /capability\.governance\.proposal\./);
   });
 });
@@ -2145,7 +2145,7 @@ git commit -m "test(capability): CAP-9 supersession — forbidden files + 5-file
 | Consolidate proposals: explicit target definition | T6 | Consolidate candidate maps to capability.consolidate mutation |
 | `service.recommend()` is read-only (CAP-8 ruling #3 preserved) | T6 | recommend() untouched; no A7 coupling |
 | `history(capabilityId)` covers lifecycle only (CAP-8 ruling #5) | T6 | history() unchanged; governance() filters governance events |
-| A7 generator module location `src/capability/evolution/a7-proposals.ts` | T5 | File created at exact path |
+| A7 generator module location `src/capabilities/capability/evolution/a7-proposals.ts` | T5 | File created at exact path |
 | Service consumes via constructor injection (5th dep) | T6 | CapabilityServiceOptions.proposalGenerator added |
 | CLI `apply` remains on CapabilityLifecycleApplier | T10 | supersession test asserts no CAP-9 imports in legacy applier |
 | Forbidden files inherited + extended | T10 | cap-9-supersession.test.ts asserts both lists |

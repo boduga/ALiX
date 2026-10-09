@@ -9,10 +9,10 @@
 
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
-import type { PatternObservation } from "../../../src/evolution/contracts/pattern-discovery-contract.js";
-import type { DetectionStrategy } from "../../../src/evolution/pattern-discovery/detection-strategy.js";
-import { PatternDiscoveryEngine } from "../../../src/evolution/pattern-discovery/pattern-discovery-engine.js";
-import type { DiscoveryContext } from "../../../src/evolution/contracts/discovery-context.js";
+import type { PatternObservation } from "../../../src/planning/evolution/contracts/pattern-discovery-contract.js";
+import type { DetectionStrategy } from "../../../src/planning/evolution/pattern-discovery/detection-strategy.js";
+import { PatternDiscoveryEngine } from "../../../src/planning/evolution/pattern-discovery/pattern-discovery-engine.js";
+import type { DiscoveryContext } from "../../../src/planning/evolution/contracts/discovery-context.js";
 
 // ---------------------------------------------------------------------------
 // Sample patterns

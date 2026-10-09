@@ -26,7 +26,7 @@ Sentinel Update   ← allow fs imports for governance, memory adapter for memory
 ### Task 1 — Governance Baseline Provider
 
 **Files:**
-- `src/baseline/providers/governance-provider.ts`
+- `src/context/baseline/providers/governance-provider.ts`
 - `tests/baseline/providers/governance-provider.vitest.ts`
 
 **Deliverables:**
@@ -56,7 +56,7 @@ Sentinel Update   ← allow fs imports for governance, memory adapter for memory
 ### Task 2 — Memory Health Provider
 
 **Files:**
-- `src/baseline/providers/memory-health-provider.ts`
+- `src/context/baseline/providers/memory-health-provider.ts`
 - `tests/baseline/providers/memory-health-provider.vitest.ts`
 
 **Deliverables:**
@@ -79,7 +79,7 @@ Sentinel Update   ← allow fs imports for governance, memory adapter for memory
 ### Task 3 — Update Factory + Registry Tests
 
 **Files:**
-- `src/baseline/baseline-registry.ts` (update factory)
+- `src/context/baseline/baseline-registry.ts` (update factory)
 - `tests/baseline/baseline-registry.vitest.ts` (update test)
 
 **Deliverables:**

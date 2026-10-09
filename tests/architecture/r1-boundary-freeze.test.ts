@@ -5,9 +5,9 @@
  * R1 boundary freeze — architecture/dependency test.
  *
  * Rejects NEW direct dependencies on protected implementations:
- * - direct-tool-dispatch: value imports of src/tools/executor.ts
+ * - direct-tool-dispatch: value imports of src/capabilities/tools/executor.ts
  * - status-store-writes: value imports of lifecycle status stores
- * - eventlog-append-producers: value imports of src/events/event-log.ts
+ * - eventlog-append-producers: value imports of src/runtime-state/events/event-log.ts
  * - ownership-registry-construction: value imports of ownership registries
  * - model-resolver-impls: new model-resolution definitions
  * - tool-taxonomy-defs: new tool taxonomy definitions
@@ -15,7 +15,7 @@
  * - ui-store-imports: UI (tui/ui/inspector) value imports of stores/executors/event-log
  *
  * Type-only imports (`import type`, type-position `import("...")`) are
- * exempt: the R1 ports in src/contracts/ reuse domain types that way.
+ * exempt: the R1 ports in src/runtime-state/contracts/ reuse domain types that way.
  * Bare side-effect imports (`import "..."`) are exempt: they bind nothing
  * and cannot dispatch/append/acquire by themselves.
  *
@@ -59,44 +59,44 @@ const RULES = [
 ] as const;
 
 const IMPORT_RULE_TARGETS: Record<string, string[]> = {
-  "direct-tool-dispatch": ["src/tools/executor.ts"],
+  "direct-tool-dispatch": ["src/capabilities/tools/executor.ts"],
   "status-store-writes": [
-    "src/kernel/coordination-store.ts",
-    "src/approvals/approval-store.ts",
-    "src/daemon/task-registry.ts",
-    "src/runtime/continuation-store.ts",
-    "src/kernel/collaboration-store.ts",
-    "src/executive/execution-state-store.ts",
-    "src/runtime/execution-state/execution-state-store.ts",
-    "src/workflow/state-file.ts",
+    "src/coordination/kernel/coordination-store.ts",
+    "src/governance/approvals/approval-store.ts",
+    "src/operations/daemon/task-registry.ts",
+    "src/runtime-state/runtime/continuation-store.ts",
+    "src/coordination/kernel/collaboration-store.ts",
+    "src/execution/executive/execution-state-store.ts",
+    "src/runtime-state/runtime/execution-state/execution-state-store.ts",
+    "src/coordination/workflow/state-file.ts",
     "src/governance/execution-approval-store.ts",
   ],
-  "eventlog-append-producers": ["src/events/event-log.ts"],
+  "eventlog-append-producers": ["src/runtime-state/events/event-log.ts"],
   "ownership-registry-construction": [
-    "src/ownership/ownership-registry.ts",
+    "src/coordination/ownership/ownership-registry.ts",
   ],
 };
 
 /** Import rules: importer files sanctioned to import a protected target. */
 const IMPORT_RULE_EXEMPT: Record<string, string[]> = {
   // R5.3b — the ONE sanctioned ToolExecutor construction seam.
-  "direct-tool-dispatch": ["src/tools/tool-executor-factory.ts"],
+  "direct-tool-dispatch": ["src/capabilities/tools/tool-executor-factory.ts"],
 };
 
-const UI_DIRS = ["src/tui/", "src/ui/", "src/inspector/"];
+const UI_DIRS = ["src/interfaces/tui/", "src/interfaces/ui/", "src/interfaces/inspector/"];
 const UI_RULE_TARGETS = [
-  "src/kernel/coordination-store.ts",
-  "src/approvals/approval-store.ts",
-  "src/daemon/task-registry.ts",
-  "src/runtime/continuation-store.ts",
-  "src/kernel/collaboration-store.ts",
-  "src/executive/execution-state-store.ts",
-  "src/runtime/execution-state/execution-state-store.ts",
-  "src/workflow/state-file.ts",
+  "src/coordination/kernel/coordination-store.ts",
+  "src/governance/approvals/approval-store.ts",
+  "src/operations/daemon/task-registry.ts",
+  "src/runtime-state/runtime/continuation-store.ts",
+  "src/coordination/kernel/collaboration-store.ts",
+  "src/execution/executive/execution-state-store.ts",
+  "src/runtime-state/runtime/execution-state/execution-state-store.ts",
+  "src/coordination/workflow/state-file.ts",
   "src/governance/execution-approval-store.ts",
-  "src/tools/executor.ts",
-  "src/events/event-log.ts",
-  "src/ownership/ownership-registry.ts",
+  "src/capabilities/tools/executor.ts",
+  "src/runtime-state/events/event-log.ts",
+  "src/coordination/ownership/ownership-registry.ts",
 ];
 
 const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: string; exempt?: string[] }> = {
@@ -104,22 +104,22 @@ const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: st
     // R5.2 — one canonical resolver module, exposed through the ModelResolver
     // port. Watch the canonical factory everywhere *except* its home module, so
     // a second resolver definition anywhere else fails the freeze.
-    files: ["src/config/model-resolver.ts"],
+    files: ["src/operations/config/model-resolver.ts"],
     symbols: ["createModelResolver"],
-    exempt: ["src/config/model-resolver.ts"],
+    exempt: ["src/operations/config/model-resolver.ts"],
     marker: "definition:model-resolution",
   },
   "tool-taxonomy-defs": {
-    // R5.3 — one canonical tool catalogue (`src/tools/tool-registry.ts`,
+    // R5.3 — one canonical tool catalogue (`src/capabilities/tools/tool-registry.ts`,
     // exposed through the ToolCapabilityRegistry port) plus the named
     // subsystems that adapt to it. The watched definitions are allowed only in
     // the home modules listed under `exempt` (rule-level, as `exempt` is a
     // file list); a definition outside them fails the freeze.
     files: [
-      "src/tools/tool-registry.ts",
-      "src/capability/registry.ts",
-      "src/registry/card-registry.ts",
-      "src/mcp/registry.ts",
+      "src/capabilities/tools/tool-registry.ts",
+      "src/capabilities/capability/registry.ts",
+      "src/capabilities/registry/card-registry.ts",
+      "src/capabilities/mcp/registry.ts",
       "src/agents/tool-manifest.ts",
     ],
     symbols: [
@@ -131,10 +131,10 @@ const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: st
       "McpToolRegistry",
     ],
     exempt: [
-      "src/tools/tool-registry.ts",
-      "src/capability/registry.ts",
-      "src/registry/card-registry.ts",
-      "src/mcp/registry.ts",
+      "src/capabilities/tools/tool-registry.ts",
+      "src/capabilities/capability/registry.ts",
+      "src/capabilities/registry/card-registry.ts",
+      "src/capabilities/mcp/registry.ts",
       "src/agents/tool-manifest.ts",
     ],
     marker: "definition:tool-taxonomy",
@@ -145,10 +145,10 @@ const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: st
     // registry definitions, tracing spans, daemon snapshots); each definition
     // is allowed only in its home module.
     files: [
-      "src/kernel/minimal-metrics.ts",
-      "src/observability/metric-registry.ts",
-      "src/tracing/client-factory.ts",
-      "src/tui/daemon-metrics-collector.ts",
+      "src/coordination/kernel/minimal-metrics.ts",
+      "src/operations/observability/metric-registry.ts",
+      "src/models/tracing/client-factory.ts",
+      "src/interfaces/tui/daemon-metrics-collector.ts",
     ],
     symbols: [
       "MinimalMetrics",
@@ -158,10 +158,10 @@ const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: st
       "DaemonMetricsCollectorImpl",
     ],
     exempt: [
-      "src/kernel/minimal-metrics.ts",
-      "src/observability/metric-registry.ts",
-      "src/tracing/client-factory.ts",
-      "src/tui/daemon-metrics-collector.ts",
+      "src/coordination/kernel/minimal-metrics.ts",
+      "src/operations/observability/metric-registry.ts",
+      "src/models/tracing/client-factory.ts",
+      "src/interfaces/tui/daemon-metrics-collector.ts",
     ],
     marker: "definition:metrics-vocabulary",
   },
@@ -365,8 +365,8 @@ describe("R1 boundary freeze", () => {
       "metrics-sink",
     ];
     for (const p of ports) {
-      const full = resolve(SRC_ROOT, "contracts", `${p}.ts`);
-      assert.ok(existsSync(full), `missing R1 port: src/contracts/${p}.ts`);
+      const full = resolve(SRC_ROOT, "runtime-state", "contracts", `${p}.ts`);
+      assert.ok(existsSync(full), `missing R1 port: src/runtime-state/contracts/${p}.ts`);
       const content = readFileSync(full, "utf-8");
       assert.ok(/export\s+interface\s+\w+/.test(content), `${p}.ts must export an interface`);
     }

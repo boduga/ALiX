@@ -6,10 +6,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
-import { IntelligenceStore } from "../../../src/adaptation/intelligence-store.js";
-import { SCORING_VERSION } from "../../../src/adaptation/priority-types.js";
-import type { IntelligenceReport } from "../../../src/adaptation/intelligence-types.js";
+import { AdaptationProposalStore } from "../../../src/planning/adaptation/adaptation-proposal-store.js";
+import { IntelligenceStore } from "../../../src/planning/adaptation/intelligence-store.js";
+import { SCORING_VERSION } from "../../../src/planning/adaptation/priority-types.js";
+import type { IntelligenceReport } from "../../../src/planning/adaptation/intelligence-types.js";
 
 // ---------------------------------------------------------------------------
 // process.cwd override helpers
@@ -141,7 +141,7 @@ describe("adaptation prioritize CLI", () => {
     report.generatedAt = "2026-06-19T23:00:00.000Z";
     await intelStore.save(report);
 
-    const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     await handleAdaptationCommand(["prioritize"]);
     c.restore();
@@ -162,7 +162,7 @@ describe("adaptation prioritize CLI", () => {
     report.generatedAt = "2026-06-19T23:30:00.000Z";
     await intelStore.save(report);
 
-    const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     await handleAdaptationCommand(["prioritize", "--json"]);
     c.restore();
@@ -179,7 +179,7 @@ describe("adaptation prioritize CLI", () => {
     const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     await seedProposal(store, "prop-001");
 
-    const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     await handleAdaptationCommand(["prioritize"]);
     c.restore();
@@ -199,7 +199,7 @@ describe("adaptation prioritize CLI", () => {
     report.generatedAt = "2026-06-19T23:45:00.000Z";
     await intelStore.save(report);
 
-    const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     await handleAdaptationCommand(["prioritize", "--top", "1"]);
     c.restore();
@@ -210,7 +210,7 @@ describe("adaptation prioritize CLI", () => {
   });
 
   it("handles no pending proposals", async () => {
-    const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     await handleAdaptationCommand(["prioritize"]);
     c.restore();
@@ -228,13 +228,13 @@ describe("adaptation prioritize CLI", () => {
     report.generatedAt = "2026-06-19T23:50:00.000Z";
     await intelStore.save(report);
 
-    const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     await handleAdaptationCommand(["prioritize", "--json"]);
     c.restore();
 
     // Check that a file was saved to the priorities directory
-    const { PriorityStore } = await import("../../../src/adaptation/priority-store.js");
+    const { PriorityStore } = await import("../../../src/planning/adaptation/priority-store.js");
     const pStore = new PriorityStore(join(tempRoot, ".alix", "adaptation", "priorities"));
     const files = await pStore.list();
     expect(files.length).toBeGreaterThanOrEqual(1);

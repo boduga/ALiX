@@ -138,7 +138,7 @@ describe("Corruption Recovery — ContinuationStore", () => {
       const path = join(dir, ".alix", "approvals", "continuations.json");
       mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
       writeFileSync(path, `[{"approvalId":"incomplete"`, "utf-8");
-      const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+      const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
       const store = new ContinuationStore(dir);
       await store.load();
       assert.equal(store.list().length, 0); // gracefully recovers
@@ -150,7 +150,7 @@ describe("Corruption Recovery — ContinuationStore", () => {
     try {
       mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
       writeFileSync(join(dir, ".alix", "approvals", "continuations.json"), "[]", "utf-8");
-      const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+      const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
       const store = new ContinuationStore(dir);
       await store.load();
       assert.equal(store.list().length, 0);
@@ -162,7 +162,7 @@ describe("Corruption Recovery — ContinuationStore", () => {
     try {
       mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
       writeFileSync(join(dir, ".alix", "approvals", "continuations.json"), "", "utf-8");
-      const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+      const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
       const store = new ContinuationStore(dir);
       await store.load();
       assert.equal(store.list().length, 0);
@@ -179,7 +179,7 @@ describe("Corruption Recovery — ApprovalStore", () => {
       writeFileSync(ap, "[]", "utf-8");
       const { corruptJsonWithTrailingGarbage } = await import("./fault-injector.js");
       corruptJsonWithTrailingGarbage(ap);
-      const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
       const store = new ApprovalStore(dir);
       await store.load(); // must not throw
     } finally { cleanup(dir); }
@@ -190,7 +190,7 @@ describe("Corruption Recovery — ApprovalStore", () => {
     try {
       mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
       writeFileSync(join(dir, ".alix", "approvals", "approvals.json"), "", "utf-8");
-      const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
       const store = new ApprovalStore(dir);
       await store.load();
       assert.equal(store.list().length, 0);
@@ -209,7 +209,7 @@ describe("Corruption Recovery — EventLog", () => {
       const { corruptJsonlWithMalformedLine } = await import("./fault-injector.js");
       corruptJsonlWithMalformedLine(eventsPath);
 
-      const { EventLog } = await import("../../src/events/event-log.js");
+      const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
       const log = new EventLog(sessionDir);
       await log.init();
       const events = await log.readAll();
@@ -229,7 +229,7 @@ describe("Corruption Recovery — TaskRegistry", () => {
       const oldHome = process.env.HOME;
       process.env.HOME = testHome;
       try {
-        const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
+        const { TaskRegistry } = await import("../../src/operations/daemon/task-registry.js");
         const reg = new TaskRegistry();
         await reg.load(); // must not throw
         const task = reg.create("test-task", "/tmp");
@@ -288,7 +288,7 @@ describe("TaskRegistry load", () => {
     const oldHome = process.env.HOME;
     process.env.HOME = testHome;
     try {
-      const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
+      const { TaskRegistry } = await import("../../src/operations/daemon/task-registry.js");
       const reg = new TaskRegistry();
       await reg.load();
       const t = reg.create("test-roundtrip", "/tmp");
@@ -305,7 +305,7 @@ describe("TaskRegistry load", () => {
     const oldHome = process.env.HOME;
     process.env.HOME = testHome;
     try {
-      const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
+      const { TaskRegistry } = await import("../../src/operations/daemon/task-registry.js");
       const reg = new TaskRegistry();
       await reg.load();
       for (let i = 0; i < 20; i++) reg.create(`task-${i}`, "/tmp");
@@ -322,7 +322,7 @@ describe("ApprovalStore load", () => {
 
   beforeEach(async () => {
     dir = tmpDir();
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     store = new ApprovalStore(dir);
     await store.load();
   });
@@ -361,7 +361,7 @@ describe("ApprovalStore load", () => {
     for (let i = 0; i < 200; i++) {
       await store.request({ reason: `reload ${i}`, capability: "cap.test", sessionId: "s1", toolId: `tool.${i}` });
     }
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     const fresh = new ApprovalStore(dir);
     await fresh.load();
     assert.equal(fresh.list().length, 200);
@@ -377,7 +377,7 @@ describe("ContinuationStore load", () => {
   afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
   it("persist, findByApprovalId, remove round-trip", async () => {
-    const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+    const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
     const store = new ContinuationStore(dir);
     await store.load();
     await store.persist({ approvalId: "apr_1", kind: "tool", sessionId: "s1", cwd: dir, toolCall: { toolCallId: "tc1", name: "file.read", capability: "file.read", args: { path: "test.txt" }, argsHash: "abc" }, createdAt: new Date().toISOString() });
@@ -388,7 +388,7 @@ describe("ContinuationStore load", () => {
   });
 
   it("1000 persist/remove cycles", async () => {
-    const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+    const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
     const store = new ContinuationStore(dir);
     await store.load();
     for (let i = 0; i < 1000; i++) {
@@ -402,7 +402,7 @@ describe("ContinuationStore load", () => {
   });
 
   it("concurrent persists resolve correctly", async () => {
-    const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
+    const { ContinuationStore } = await import("../../src/runtime-state/runtime/continuation-store.js");
     const store = new ContinuationStore(dir);
     await store.load();
     await Promise.all(Array.from({ length: 20 }, (_, i) =>
@@ -438,7 +438,7 @@ describe("RuntimeIndex load", () => {
     }
     require("fs").writeFileSync(join(sessionDir, "events.jsonl"), slines.join("\n") + "\n", "utf-8");
 
-    const { RuntimeIndex } = await import("../../src/runtime/runtime-index.js");
+    const { RuntimeIndex } = await import("../../src/runtime-state/runtime/runtime-index.js");
     const index = new RuntimeIndex(dir);
     await index.build();
     const all = await index.query({});
@@ -610,7 +610,7 @@ describeSoak("Daemon Protocol Soak", () => {
     assert.ok(daemonIsRunning());
 
     // Load task registry via HOME isolation
-    const { TaskRegistry } = require("../../src/daemon/task-registry.js");
+    const { TaskRegistry } = require("../../src/operations/daemon/task-registry.js");
     const reg = new TaskRegistry();
     // (TaskRegistry uses the isolated HOME from the environment set in startDaemon)
     stopDaemon();
@@ -683,7 +683,7 @@ describe("Memory Growth — RuntimeIndex", () => {
     require("fs").writeFileSync(join(dir, ".alix", "sessions", "s1", "events.jsonl"), sessionEvents, "utf-8");
 
     const before = rssMb();
-    const { RuntimeIndex } = require("../../src/runtime/runtime-index.js");
+    const { RuntimeIndex } = require("../../src/runtime-state/runtime/runtime-index.js");
     const index = new RuntimeIndex(dir);
     await index.build();
     await index.query({});
@@ -699,7 +699,7 @@ describe("Memory Growth — ContinuationStore", () => {
     const dir = mkdtempSync(join(tmpdir(), "mem-cont-"));
     mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
     const before = rssMb();
-    const { ContinuationStore } = require("../../src/runtime/continuation-store.js");
+    const { ContinuationStore } = require("../../src/runtime-state/runtime/continuation-store.js");
     const store = new ContinuationStore(dir);
     await store.load();
     for (let i = 0; i < 1000; i++) {
@@ -716,7 +716,7 @@ describe("Memory Growth — ApprovalStore", () => {
     const dir = mkdtempSync(join(tmpdir(), "mem-approve-"));
     mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });
     const before = rssMb();
-    const { ApprovalStore } = require("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = require("../../src/governance/approvals/approval-store.js");
     const store = new ApprovalStore(dir);
     await store.load();
     for (let i = 0; i < 500; i++) {

@@ -248,14 +248,14 @@ To keep `alix decision status` predictable:
 ## File Structure
 
 **Create:**
-- `src/adaptation/pipeline-health-types.ts` — `PipelineHealthReport` interface, `PipelineHealthInput`, `PipelineHealthStatus` type
-- `src/adaptation/pipeline-health-collector.ts` — `PipelineHealthCollector` class: does I/O, reads stores, returns `PipelineHealthInput`
-- `src/adaptation/pipeline-health-builder.ts` — `PipelineHealthBuilder` class: pure, takes `PipelineHealthInput`, returns `PipelineHealthReport`
+- `src/planning/adaptation/pipeline-health-types.ts` — `PipelineHealthReport` interface, `PipelineHealthInput`, `PipelineHealthStatus` type
+- `src/planning/adaptation/pipeline-health-collector.ts` — `PipelineHealthCollector` class: does I/O, reads stores, returns `PipelineHealthInput`
+- `src/planning/adaptation/pipeline-health-builder.ts` — `PipelineHealthBuilder` class: pure, takes `PipelineHealthInput`, returns `PipelineHealthReport`
 - `tests/adaptation/pipeline-health-builder.vitest.ts` — unit tests for health computation, confidence aggregation, healthSignals, storeAvailability scenarios
 - `tests/adaptation/pipeline-health-types.vitest.ts` — type shape tests
 
 **Modify:**
-- `src/cli/commands/decision.ts` — Add `case "status":` that calls `runStatus()`, update usage string
+- `src/interfaces/cli/commands/decision.ts` — Add `case "status":` that calls `runStatus()`, update usage string
 
 **No new stores. No new evidence types. No writes.**
 

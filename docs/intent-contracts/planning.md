@@ -1,7 +1,7 @@
 # Planning intent — recognition contract
 
 **Status**: Active (T11 on wayfinder map #376)
-**Owner**: `src/runtime/action-classifier.ts` (`PLANNING_ANCHORS`)
+**Owner**: `src/runtime-state/runtime/action-classifier.ts` (`PLANNING_ANCHORS`)
 **Test corpus**: `tests/runtime/action-classifier.test.ts → describe("classifyAction — planning recognition contract")`
 
 ## Intent definition
@@ -21,7 +21,7 @@ Distinct from adjacent intent families:
 
 ## Recognizer
 
-**Mechanism**: deterministic regex (`PLANNING_ANCHORS` family in `src/runtime/action-classifier.ts`).
+**Mechanism**: deterministic regex (`PLANNING_ANCHORS` family in `src/runtime-state/runtime/action-classifier.ts`).
 **Trigger precedence**: planning fires AFTER `standalone_generation` (so "write a plan for X" routes to generation, not planning — the noun "plan" is the object of a generative verb, not the imperative verb "plan" itself) and BEFORE the `ambiguous` fallback. Planning dominates `read_only_analysis`, which is currently absorbed by the `ambiguous` bucket.
 **Confidence**: planning matches return `confidence: 0.85` (≥ 0.7 Layer-1 floor), which short-circuits the model fallback.
 

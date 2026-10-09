@@ -8,7 +8,7 @@
  * the whole run. See spec §16, §17.
  */
 import { describe, it, expect } from "vitest";
-import { getAvailableModels } from "../../../src/cli/helpers/provider-selection.js";
+import { getAvailableModels } from "../../../src/interfaces/cli/helpers/provider-selection.js";
 
 // Store-only auth: env vars no longer authenticate providers, so the live
 // suites gate exclusively on the explicit *_LIVE=1 opt-in. A key in the

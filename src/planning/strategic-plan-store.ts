@@ -10,10 +10,10 @@ import { existsSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { StrategicPlan, PlanStatus, EffortEstimate, StrategicImpact, StrategicPlanSummary } from "./planning-types.js";
 import { PlanningEngineError } from "./planning-types.js";
-import { decode, formatErrors } from "../contracts/helpers.js";
-import { StrategicPlanSchema } from "../contracts/plan-schemas.js";
-import { buildDiagnostic, type ContractDiagnostic } from "../contracts/contract-diagnostics.js";
-import type { ExecutionContext } from "../observability/execution-context.js";
+import { decode, formatErrors } from "../runtime-state/contracts/helpers.js";
+import { StrategicPlanSchema } from "../runtime-state/contracts/plan-schemas.js";
+import { buildDiagnostic, type ContractDiagnostic } from "../runtime-state/contracts/contract-diagnostics.js";
+import type { ExecutionContext } from "../operations/observability/execution-context.js";
 
 // Re-export for consumer convenience.
 export type { StrategicPlanSummary };

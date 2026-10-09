@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bashTokenizer } from '../../../../src/tui/blocks/langs/bash.js';
+import { bashTokenizer } from '../../../../src/interfaces/tui/blocks/langs/bash.js';
 
 describe('bashTokenizer', () => {
   it('tokenizes comments', () => {

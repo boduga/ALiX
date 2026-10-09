@@ -12,7 +12,7 @@
 
 ### Task 1: State serialization support in existing types
 
-**Files:** `src/autonomy/scope-tracker.ts`, `src/autonomy/state-machine.ts`
+**Files:** `src/planning/autonomy/scope-tracker.ts`, `src/planning/autonomy/state-machine.ts`
 
 Add `toJSON()` / `fromJSON()` to `ScopeTracker` and `TaskStateMachine`.
 
@@ -91,7 +91,7 @@ type ReconstructedSession = {
 
 ### Task 4: Wire persistence into task loop
 
-**File:** `src/run/task-loop.ts`
+**File:** `src/execution/run/task-loop.ts`
 
 After each iteration completes (after tool calls + model response cycle), call `saveSessionState()`:
 - Save messages from `TaskLoopDeps.messages`
@@ -104,7 +104,7 @@ Best insertion point: after `handleToolCall` returns and before next iteration's
 
 ### Task 5: Wire resume into agent loop
 
-**File:** `src/agent/agent-loop.ts`
+**File:** `src/agents/agent/agent-loop.ts`
 
 Add resume block right after `initAgent()`:
 
@@ -174,7 +174,7 @@ if (resumeSessionId) {
 
 ### Task 7: Wire state persistence in task loop
 
-**File:** `src/run/task-loop.ts`
+**File:** `src/execution/run/task-loop.ts`
 
 Insert save calls in the main loop body. The key is saving after each complete model-turn (after tool results are received and processed, before the next model call).
 

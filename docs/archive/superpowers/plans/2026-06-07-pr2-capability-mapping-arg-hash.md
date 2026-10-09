@@ -16,9 +16,9 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/tools/capability-map.ts` | **Modify** | Add `legacyCapabilityToCanonical()` and `canonicalCapability` field on existing types |
-| `src/tools/executor.ts` | **Modify** | Compute and emit `argumentHash` and `canonicalCapability` on tool events |
-| `src/events/types.ts` | **Modify** | Add `argumentHash` and `canonicalCapability` to `ToolRequestPayload`, `ToolCompletedPayload`, `ToolFailedPayload` |
+| `src/capabilities/tools/capability-map.ts` | **Modify** | Add `legacyCapabilityToCanonical()` and `canonicalCapability` field on existing types |
+| `src/capabilities/tools/executor.ts` | **Modify** | Compute and emit `argumentHash` and `canonicalCapability` on tool events |
+| `src/runtime-state/events/types.ts` | **Modify** | Add `argumentHash` and `canonicalCapability` to `ToolRequestPayload`, `ToolCompletedPayload`, `ToolFailedPayload` |
 | `tests/tools/capability-map.test.ts` | **Create** | Tests for mapping and argument hash |
 
 ---
@@ -26,11 +26,11 @@
 ### Task 1: Add canonical capability mapping
 
 **Files:**
-- Modify: `src/tools/capability-map.ts`
+- Modify: `src/capabilities/tools/capability-map.ts`
 
 - [ ] **Step 1: Add the mapping function**
 
-Append to `src/tools/capability-map.ts`:
+Append to `src/capabilities/tools/capability-map.ts`:
 
 ```typescript
 /** Map legacy capability names to canonical PRD capability names. */
@@ -66,7 +66,7 @@ export function legacyCapabilityToCanonical(legacy: string): string {
 - [ ] **Step 2: Verify build**
 
 ```bash
-npx tsc --noEmit src/tools/capability-map.ts 2>&1
+npx tsc --noEmit src/capabilities/tools/capability-map.ts 2>&1
 ```
 
 Expected: no errors.
@@ -74,7 +74,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tools/capability-map.ts
+git add src/capabilities/tools/capability-map.ts
 git commit -m "feat(tools): add legacyCapabilityToCanonical mapping"
 ```
 
@@ -83,7 +83,7 @@ git commit -m "feat(tools): add legacyCapabilityToCanonical mapping"
 ### Task 2: Add argumentHash to event payload types
 
 **Files:**
-- Modify: `src/events/types.ts`
+- Modify: `src/runtime-state/events/types.ts`
 
 - [ ] **Step 1: Add argumentHash and canonicalCapability to tool payload types**
 
@@ -140,7 +140,7 @@ Expected: build succeeds. Fix any TS errors in executor.ts if the new required f
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/events/types.ts
+git add src/runtime-state/events/types.ts
 git commit -m "feat(events): add argumentHash and canonicalCapability to tool event payloads"
 ```
 
@@ -149,7 +149,7 @@ git commit -m "feat(events): add argumentHash and canonicalCapability to tool ev
 ### Task 3: Wire argumentHash and canonicalCapability in ToolExecutor
 
 **Files:**
-- Modify: `src/tools/executor.ts`
+- Modify: `src/capabilities/tools/executor.ts`
 
 - [ ] **Step 1: Import hash function and mapping**
 
@@ -223,7 +223,7 @@ Fix any `Type ... is not assignable` errors by ensuring all new fields are provi
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/tools/executor.ts
+git add src/capabilities/tools/executor.ts
 git commit -m "feat(tools): emit argumentHash and canonicalCapability on all tool events"
 ```
 
@@ -239,7 +239,7 @@ git commit -m "feat(tools): emit argumentHash and canonicalCapability on all too
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { legacyCapabilityToCanonical } from "../../src/tools/capability-map.js";
+import { legacyCapabilityToCanonical } from "../../src/capabilities/tools/capability-map.js";
 
 describe("legacyCapabilityToCanonical", () => {
 

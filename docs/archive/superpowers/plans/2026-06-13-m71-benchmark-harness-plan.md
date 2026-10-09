@@ -4,7 +4,7 @@
 
 **Goal:** Create a repeatable benchmark harness that measures ALiX performance across startup, diagnostic, RuntimeIndex, daemon, context, and task execution dimensions — storing results in `.alix/benchmarks/<run-id>.json` for comparison.
 
-**Architecture:** Each benchmark is an async function in `src/benchmark/cases/` that returns a timestamped result. A `BenchmarkRunner` orchestrates them, writes JSON results, and supports `--suite` filtering. Two CLI commands: `alix benchmark run` and `alix benchmark compare`.
+**Architecture:** Each benchmark is an async function in `src/operations/benchmark/cases/` that returns a timestamped result. A `BenchmarkRunner` orchestrates them, writes JSON results, and supports `--suite` filtering. Two CLI commands: `alix benchmark run` and `alix benchmark compare`.
 
 **Tech Stack:** TypeScript, `performance.now()` / `Date.now()` for timing, `node:child_process` for subprocess benchmarks, existing `RuntimeIndex`/`loadConfig`/`detectSystem`/`daemon-server`, `node:test`.
 
@@ -13,15 +13,15 @@
 ## File Structure
 
 ### Create
-- `src/benchmark/benchmark-types.ts` — `BenchmarkResult`, `BenchmarkSuite`, `BenchmarkRun`
-- `src/benchmark/benchmark-runner.ts` — `runBenchmarks()`, `loadPreviousRun()`, `compareRuns()`
-- `src/benchmark/cases/cli-startup.ts` — spawn `node dist/src/cli.js --help` measure wall clock
-- `src/benchmark/cases/models-doctor.ts` — call `detectSystem()` + `runDoctor()` capture duration
-- `src/benchmark/cases/runtime-index.ts` — build `RuntimeIndex` and execute queries
-- `src/benchmark/cases/daemon-submit.ts` — connect to daemon, submit task, measure ack
-- `src/benchmark/cases/context-compile.ts` — compile a repo map via context pipeline
-- `src/benchmark/cases/no-tool-task.ts` — run a lightweight `alix run` that produces no side effects
-- `src/cli/commands/benchmark.ts` — `alix benchmark run` and `alix benchmark compare` handlers
+- `src/operations/benchmark/benchmark-types.ts` — `BenchmarkResult`, `BenchmarkSuite`, `BenchmarkRun`
+- `src/operations/benchmark/benchmark-runner.ts` — `runBenchmarks()`, `loadPreviousRun()`, `compareRuns()`
+- `src/operations/benchmark/cases/cli-startup.ts` — spawn `node dist/src/cli.js --help` measure wall clock
+- `src/operations/benchmark/cases/models-doctor.ts` — call `detectSystem()` + `runDoctor()` capture duration
+- `src/operations/benchmark/cases/runtime-index.ts` — build `RuntimeIndex` and execute queries
+- `src/operations/benchmark/cases/daemon-submit.ts` — connect to daemon, submit task, measure ack
+- `src/operations/benchmark/cases/context-compile.ts` — compile a repo map via context pipeline
+- `src/operations/benchmark/cases/no-tool-task.ts` — run a lightweight `alix run` that produces no side effects
+- `src/interfaces/cli/commands/benchmark.ts` — `alix benchmark run` and `alix benchmark compare` handlers
 - `tests/benchmark/benchmark-runner.test.ts`
 - `tests/benchmark/cases.test.ts`
 
@@ -33,7 +33,7 @@
 ### Task 1: Benchmark Types
 
 **Files:**
-- Create: `src/benchmark/benchmark-types.ts`
+- Create: `src/operations/benchmark/benchmark-types.ts`
 
 - [ ] **Step 1: Create benchmark-types.ts**
 
@@ -83,7 +83,7 @@ Expected: clean compile
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/benchmark/benchmark-types.ts
+git add src/operations/benchmark/benchmark-types.ts
 git commit -m "feat(bench): add benchmark types (BenchmarkResult, BenchmarkRun, BenchmarkSuite)"
 ```
 
@@ -92,7 +92,7 @@ git commit -m "feat(bench): add benchmark types (BenchmarkResult, BenchmarkRun, 
 ### Task 2: Benchmark Runner
 
 **Files:**
-- Create: `src/benchmark/benchmark-runner.ts`
+- Create: `src/operations/benchmark/benchmark-runner.ts`
 
 - [ ] **Step 1: Create benchmark-runner.ts**
 
@@ -242,7 +242,7 @@ Expected: clean compile
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/benchmark/benchmark-runner.ts
+git add src/operations/benchmark/benchmark-runner.ts
 git commit -m "feat(bench): add benchmark runner with sampling, storage, and comparison"
 ```
 
@@ -251,12 +251,12 @@ git commit -m "feat(bench): add benchmark runner with sampling, storage, and com
 ### Task 3: Benchmark Cases
 
 **Files:**
-- Create: `src/benchmark/cases/cli-startup.ts`
-- Create: `src/benchmark/cases/models-doctor.ts`
-- Create: `src/benchmark/cases/runtime-index.ts`
-- Create: `src/benchmark/cases/daemon-submit.ts`
-- Create: `src/benchmark/cases/context-compile.ts`
-- Create: `src/benchmark/cases/no-tool-task.ts`
+- Create: `src/operations/benchmark/cases/cli-startup.ts`
+- Create: `src/operations/benchmark/cases/models-doctor.ts`
+- Create: `src/operations/benchmark/cases/runtime-index.ts`
+- Create: `src/operations/benchmark/cases/daemon-submit.ts`
+- Create: `src/operations/benchmark/cases/context-compile.ts`
+- Create: `src/operations/benchmark/cases/no-tool-task.ts`
 
 - [ ] **Step 1: Create cli-startup.ts**
 
@@ -387,7 +387,7 @@ export async function runNoToolTaskBenchmark(): Promise<void> {
 
 - [ ] **Step 7: Register all cases in a central registry**
 
-Create a helper export in `src/benchmark/cases/index.ts`:
+Create a helper export in `src/operations/benchmark/cases/index.ts`:
 
 ```typescript
 /**
@@ -417,7 +417,7 @@ export const BENCHMARK_CASES = new Map<string, CaseDef>([
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/benchmark/cases/
+git add src/operations/benchmark/cases/
 git commit -m "feat(bench): add 6 benchmark cases (startup, doctor, index, daemon, compile, task)"
 ```
 
@@ -426,7 +426,7 @@ git commit -m "feat(bench): add 6 benchmark cases (startup, doctor, index, daemo
 ### Task 4: CLI Commands
 
 **Files:**
-- Create: `src/cli/commands/benchmark.ts`
+- Create: `src/interfaces/cli/commands/benchmark.ts`
 - Modify: `src/cli.ts`
 
 - [ ] **Step 1: Create benchmark CLI**
@@ -557,7 +557,7 @@ Expected: runs CLI startup + models doctor + no-tool-task benchmarks, prints res
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/benchmark.ts src/cli.ts
+git add src/interfaces/cli/commands/benchmark.ts src/cli.ts
 git commit -m "feat(cli): add benchmark run and compare commands"
 ```
 
@@ -577,7 +577,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { sample, runBenchmarks, saveRun, loadPreviousRuns, compareRuns } from "../../src/benchmark/benchmark-runner.js";
+import { sample, runBenchmarks, saveRun, loadPreviousRuns, compareRuns } from "../../src/operations/benchmark/benchmark-runner.js";
 
 describe("benchmark-runner", () => {
   it("sample returns stats for a function", async () => {

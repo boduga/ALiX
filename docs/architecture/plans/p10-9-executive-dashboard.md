@@ -28,7 +28,7 @@
 ### Task 1a: Pure types + constants + snapshot
 
 **Files:**
-- Create: `src/executive/executive-dashboard.ts` (types only — no builders)
+- Create: `src/execution/executive/executive-dashboard.ts` (types only — no builders)
 
 **Interfaces:**
 - Consumes: Types from `recommendation-effectiveness.ts`, `subsystem-correlation.ts`, `trend-store.ts`, `outcome-evaluator.ts`.
@@ -86,7 +86,7 @@ export const DEFAULT_STALE_THRESHOLD = 7;
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/executive/executive-dashboard.ts tests/executive/executive-dashboard.vitest.ts
+git add src/execution/executive/executive-dashboard.ts tests/executive/executive-dashboard.vitest.ts
 git commit -m "feat(p10-9): add dashboard types, constants, immutability
 
 DashboardPanel<T>, DashboardPanelData, DashboardPanelId,
@@ -99,7 +99,7 @@ Pure types module — no builders, no renderers."
 ### Task 1b: Pure builder implementations + sub-builders
 
 **Files:**
-- Modify: `src/executive/executive-dashboard.ts` (add builder functions)
+- Modify: `src/execution/executive/executive-dashboard.ts` (add builder functions)
 - Test: `tests/executive/executive-dashboard.vitest.ts`
 
 **Interfaces:**
@@ -167,9 +167,9 @@ import {
   buildIntegrityPanel,
   buildAlerts,
   buildSummaryPanel,
-} from "../../src/executive/executive-dashboard.js";
-import type { ExecutiveDashboardSnapshot } from "../../src/executive/executive-dashboard.js";
-import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
+} from "../../src/execution/executive/executive-dashboard.js";
+import type { ExecutiveDashboardSnapshot } from "../../src/execution/executive/executive-dashboard.js";
+import type { ExecutiveTrendSnapshot } from "../../src/execution/executive/trend-store.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // Helpers
@@ -364,7 +364,7 @@ Expected: FAIL — module not found, all tests fail.
 
 - [ ] **Step 3: Implement types + builder**
 
-Create `src/executive/executive-dashboard.ts`:
+Create `src/execution/executive/executive-dashboard.ts`:
 
 ```ts
 /**
@@ -706,7 +706,7 @@ Expected: All ~10 tests PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/executive/executive-dashboard.ts tests/executive/executive-dashboard.vitest.ts
+git add src/execution/executive/executive-dashboard.ts tests/executive/executive-dashboard.vitest.ts
 git commit -m "feat(p10-9): add pure types + builder for executive dashboard
 
 ExecutiveDashboardReport canonical state model, DashboardPanel<T>
@@ -722,7 +722,7 @@ No I/O, no analytics computation."
 ### Task 2: Async loader — loadDashboardSnapshot
 
 **Files:**
-- Create: `src/executive/executive-dashboard-loader.ts`
+- Create: `src/execution/executive/executive-dashboard-loader.ts`
 
 **Interfaces:**
 - Consumes: `ExecutiveDashboardSnapshot`, `DashboardSources` from `executive-dashboard.ts`.
@@ -885,7 +885,7 @@ No separate test file for the loader — it is tested through the CLI integratio
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/executive/executive-dashboard-loader.ts
+git add src/execution/executive/executive-dashboard-loader.ts
 git commit -m "feat(p10-9): add async loader for executive dashboard
 
 loadDashboardSnapshot() loads TrendStore, RecommendationReportStore,
@@ -901,8 +901,8 @@ for graceful partial-data handling."
 
 **Files:**
 - Create: `tests/cli/commands/executive-dashboard-cli.vitest.ts`
-- Modify: `src/cli/commands/executive-dashboard-handler.ts` (replace with P10.9 pipeline)
-- Modify: `src/cli/commands/executive.ts` (routing — already has `case "dashboard"`)
+- Modify: `src/interfaces/cli/commands/executive-dashboard-handler.ts` (replace with P10.9 pipeline)
+- Modify: `src/interfaces/cli/commands/executive.ts` (routing — already has `case "dashboard"`)
 - Modify: `tests/executive/executive-sentinels.vitest.ts` (add new files)
 
 **Interfaces:**
@@ -928,11 +928,11 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { runDashboard } from "../../../src/cli/commands/executive-dashboard-handler.js";
-import { RecommendationReportStore, type RecommendationReport } from "../../../src/executive/recommendation-report-store.js";
-import { OutcomeReportStore } from "../../../src/executive/outcome-store.js";
-import type { ExecutiveOutcomeEvaluationReport, SubsystemDelta } from "../../../src/executive/outcome-evaluator.js";
-import type { ExecutiveSubsystemName } from "../../../src/executive/executive-health.js";
+import { runDashboard } from "../../../src/interfaces/cli/commands/executive-dashboard-handler.js";
+import { RecommendationReportStore, type RecommendationReport } from "../../../src/execution/executive/recommendation-report-store.js";
+import { OutcomeReportStore } from "../../../src/execution/executive/outcome-store.js";
+import type { ExecutiveOutcomeEvaluationReport, SubsystemDelta } from "../../../src/execution/executive/outcome-evaluator.js";
+import type { ExecutiveSubsystemName } from "../../../src/execution/executive/executive-health.js";
 
 function captureConsole() {
   const out: string[] = [];
@@ -1089,7 +1089,7 @@ Expected: FAIL — `runDashboard` hasn't been updated yet.
 
 - [ ] **Step 3: Implement the CLI handler + renderers**
 
-Replace `src/cli/commands/executive-dashboard-handler.ts`:
+Replace `src/interfaces/cli/commands/executive-dashboard-handler.ts`:
 
 ```ts
 /**
@@ -1141,7 +1141,7 @@ export async function runDashboard(args: string[]): Promise<void> {
 }
 ```
 
-And then `src/cli/commands/executive-dashboard-renderer.ts` (separate renderer module — pure UI, no business logic):
+And then `src/interfaces/cli/commands/executive-dashboard-renderer.ts` (separate renderer module — pure UI, no business logic):
 
 ```ts
 /**
@@ -1290,11 +1290,11 @@ Add to `tests/executive/executive-sentinels.vitest.ts`:
 
 ```ts
   // P10.9 files
-  "src/executive/executive-dashboard.ts",
-  "src/executive/executive-dashboard-loader.ts",
+  "src/execution/executive/executive-dashboard.ts",
+  "src/execution/executive/executive-dashboard-loader.ts",
 ```
 
-The existing `src/cli/commands/executive-dashboard-handler.ts` and `src/cli/commands/executive-dashboard-renderer.ts` are already in `EXECUTIVE_FILES`.
+The existing `src/interfaces/cli/commands/executive-dashboard-handler.ts` and `src/interfaces/cli/commands/executive-dashboard-renderer.ts` are already in `EXECUTIVE_FILES`.
 
 - [ ] **Step 5: Verify — full suite + tsc + sentinel**
 
@@ -1308,7 +1308,7 @@ Expected: All tests pass (baseline ~2126 + ~14 new = ~2140), tsc clean, sentinel
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/executive-dashboard-handler.ts src/cli/commands/executive-dashboard-renderer.ts tests/cli/commands/executive-dashboard-cli.vitest.ts tests/executive/executive-sentinels.vitest.ts
+git add src/interfaces/cli/commands/executive-dashboard-handler.ts src/interfaces/cli/commands/executive-dashboard-renderer.ts tests/cli/commands/executive-dashboard-cli.vitest.ts tests/executive/executive-sentinels.vitest.ts
 git commit -m "feat(p10-9): add CLI handler, renderers, tests, and sentinel
 
 - Replaced P10.0 dashboard handler with P10.9 pipeline
@@ -1338,11 +1338,11 @@ Full pipeline: loadDashboardSnapshot → buildDashboardReport → render"
 
 | File | Task | Responsibility |
 |------|------|---------------|
-| `src/executive/executive-dashboard.ts` | 1 | Types, builder, 7 sub-builders, renderer interface |
+| `src/execution/executive/executive-dashboard.ts` | 1 | Types, builder, 7 sub-builders, renderer interface |
 | `tests/executive/executive-dashboard.vitest.ts` | 1 | 10 pure builder tests |
-| `src/executive/executive-dashboard-loader.ts` | 2 | Async loadDashboardSnapshot, all store I/O |
-| `src/cli/commands/executive-dashboard-handler.ts` | 3 | CLI entry point, flag parsing, pipeline coordination |
-| `src/cli/commands/executive-dashboard-renderer.ts` | 3 | TerminalDashboardRenderer, panel dispatch |
+| `src/execution/executive/executive-dashboard-loader.ts` | 2 | Async loadDashboardSnapshot, all store I/O |
+| `src/interfaces/cli/commands/executive-dashboard-handler.ts` | 3 | CLI entry point, flag parsing, pipeline coordination |
+| `src/interfaces/cli/commands/executive-dashboard-renderer.ts` | 3 | TerminalDashboardRenderer, panel dispatch |
 | `tests/cli/commands/executive-dashboard-cli.vitest.ts` | 3 | 4 CLI integration tests |
 | `tests/executive/executive-sentinels.vitest.ts` | 3 | Add 2 new files |
-| `src/cli/commands/executive.ts` | 3 | Routing already exists (P10.0) |
+| `src/interfaces/cli/commands/executive.ts` | 3 | Routing already exists (P10.0) |

@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityPlatform } from '../../src/capability/platform.js';
-import { CapabilityService } from '../../src/capability/capability-service.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { EventLog } from '../../src/events/event-log.js';
+import { CapabilityPlatform } from '../../src/capabilities/capability/platform.js';
+import { CapabilityService } from '../../src/capabilities/capability/capability-service.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
 
 let dir: string;
 let sessionDir: string;

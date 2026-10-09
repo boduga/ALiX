@@ -7,10 +7,10 @@ import { basename, resolve } from "path";
 import { mkdir } from "fs/promises";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle, ModelSelectionPolicy } from "../config/schema.js";
-import { resolvePolicyPath } from "../policy/policy-gate.js";
+import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle, ModelSelectionPolicy } from "../operations/config/schema.js";
+import { resolvePolicyPath } from "../governance/policy/policy-gate.js";
 import { ALIX_BUILTIN_EXECUTORS } from "./tool-manifest.js";
-import { createModelResolver } from "../config/model-resolver.js";
+import { createModelResolver } from "../operations/config/model-resolver.js";
 
 /**
  * §10.3: resolve the effective model for a subagent invocation with
@@ -34,23 +34,23 @@ export function resolveEffectiveModel(
     ...(selection !== undefined ? { selection } : {}),
   };
 }
-import { EventLog } from "../events/event-log.js";
-import { createProvider } from "../providers/registry.js";
-import { createToolExecutor } from "../tools/tool-executor-factory.js";
-import type { ToolDef, ToolCall, NormalizedMessage } from "../providers/types.js";
+import { EventLog } from "../runtime-state/events/event-log.js";
+import { createProvider } from "../models/providers/registry.js";
+import { createToolExecutor } from "../capabilities/tools/tool-executor-factory.js";
+import type { ToolDef, ToolCall, NormalizedMessage } from "../models/providers/types.js";
 import { buildToolsForProvider } from "../run.js";
-import { McpManager } from "../mcp/manager.js";
-import { ToolSelector } from "../mcp/tool-selector.js";
-import { ToolDiscovery } from "../mcp/tool-discovery.js";
-import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
-import { ReliabilityMatrix } from "../config/reliability-matrix.js";
+import { McpManager } from "../capabilities/mcp/manager.js";
+import { ToolSelector } from "../capabilities/mcp/tool-selector.js";
+import { ToolDiscovery } from "../capabilities/mcp/tool-discovery.js";
+import type { DeferredToolEntry } from "../capabilities/mcp/tool-deferral.js";
+import { ReliabilityMatrix } from "../operations/config/reliability-matrix.js";
 import { getToolPolicy, filterTools, WRITE_TOOLS } from "./tool-policy.js";
 import { resolveExecutableToolName, ToolNotFoundError } from "./tool-name-resolver.js";
-import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
-import { ContextCompiler } from "../repomap/context-compiler.js";
+import { buildEditFormatPolicy } from "../execution/patch/edit-format-policy.js";
+import { ContextCompiler } from "../context/repomap/context-compiler.js";
 import { ROLE_INSTRUCTIONS } from "./agent-registry.js";
-import { toolResultText } from "../tools/result-text.js";
-import type { ToolResult } from "../tools/types.js";
+import { toolResultText } from "../capabilities/tools/result-text.js";
+import type { ToolResult } from "../capabilities/tools/types.js";
 import { reviewCoordinationResult } from "./coordination-objective-review.js";
 
 export function appendSubagentResponseText(existing: string, next: string | undefined): string {
@@ -475,7 +475,7 @@ export class SubagentCLI {
 
     // Load config from current working directory (user's project, not ALiX source tree)
     const projectRoot = process.cwd();
-    const loadConfig = (await import("../config/loader.js")).loadConfig;
+    const loadConfig = (await import("../operations/config/loader.js")).loadConfig;
     let resolvedApiKeys: Record<string, string> | undefined;
     if (Number.isInteger(credentialFd) && credentialFd >= 3) {
       const inherited = JSON.parse(readFileSync(credentialFd, "utf8")) as unknown;

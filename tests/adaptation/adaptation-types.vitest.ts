@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 describe("AdaptationProposal types", () => {
   it("constructs a valid proposal", () => {

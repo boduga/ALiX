@@ -18,10 +18,10 @@ Source: GitHub issue [#571](https://github.com/boduga/ALiX/issues/571) (`needs-h
 
 ## 2. Verified state (re-checked 2026-08-29 against live source)
 
-- `src/benchmark/` measures **latency only** — `cases/{cli-startup,context-compile,daemon-submit,models-doctor,no-tool-task,runtime-index}.ts` (ms / p95). No behavior/quality scoring.
+- `src/operations/benchmark/` measures **latency only** — `cases/{cli-startup,context-compile,daemon-submit,models-doctor,no-tool-task,runtime-index}.ts` (ms / p95). No behavior/quality scoring.
 - `docs/evals/model_routing_eval.md` (June) is the **only** eval doc — a one-time routing-accuracy spike, stalled on CPU-only hardware (~90 min needed for 45 inferences), never completed.
-- A2 `counterfactual-evaluator` at `src/evolution/verification/evaluation/counterfactual-evaluator.ts` is a **governance input** (baseline-vs-candidate projection), not an agent-quality eval.
-- A5 measurement lives at `src/evolution/observation/` (ADR-0014 domain rename) — measures capability outcomes, not agent behavior.
+- A2 `counterfactual-evaluator` at `src/planning/evolution/verification/evaluation/counterfactual-evaluator.ts` is a **governance input** (baseline-vs-candidate projection), not an agent-quality eval.
+- A5 measurement lives at `src/planning/evolution/observation/` (ADR-0014 domain rename) — measures capability outcomes, not agent behavior.
 - The self-evolution loop has **no independent signal** for whether agent behavior is correct.
 
 ## 3. Impact

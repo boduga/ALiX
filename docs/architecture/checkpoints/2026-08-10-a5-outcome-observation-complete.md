@@ -20,17 +20,17 @@ CLI: `alix governance evolution observe <evolution-id> [--json]`.
 
 | File | Responsibility |
 |------|----------------|
-| `src/evolution/observation/contracts/observation-contract.ts` | `Observation`, `ObservationResult`, `ObservationProvider` |
-| `src/evolution/observation/observation-engine.ts` | `ObservationEngine` dispatcher |
-| `src/evolution/observation/providers/cli-provider.ts` | CLI Provider |
-| `src/evolution/observation/providers/filesystem-provider.ts` | Filesystem Provider |
-| `src/evolution/observation/providers/git-provider.ts` | Git Provider |
-| `src/evolution/observation/providers/ledger-provider.ts` | Ledger Provider |
-| `src/evolution/observation/providers/repository-provider.ts` | Repository Provider (A5.2) |
-| `src/evolution/observation/providers/test-suite-provider.ts` | Test Suite Provider (A5.2) |
-| `src/evolution/observation/observation-evidence-bridge.ts` | `buildObservationEvidence()` |
-| `src/evolution/observation/observation-cli.ts` | CLI handler (`runObserve`) |
-| `src/evolution/observation/index.ts` | Barrel re-exports |
+| `src/planning/evolution/observation/contracts/observation-contract.ts` | `Observation`, `ObservationResult`, `ObservationProvider` |
+| `src/planning/evolution/observation/observation-engine.ts` | `ObservationEngine` dispatcher |
+| `src/planning/evolution/observation/providers/cli-provider.ts` | CLI Provider |
+| `src/planning/evolution/observation/providers/filesystem-provider.ts` | Filesystem Provider |
+| `src/planning/evolution/observation/providers/git-provider.ts` | Git Provider |
+| `src/planning/evolution/observation/providers/ledger-provider.ts` | Ledger Provider |
+| `src/planning/evolution/observation/providers/repository-provider.ts` | Repository Provider (A5.2) |
+| `src/planning/evolution/observation/providers/test-suite-provider.ts` | Test Suite Provider (A5.2) |
+| `src/planning/evolution/observation/observation-evidence-bridge.ts` | `buildObservationEvidence()` |
+| `src/planning/evolution/observation/observation-cli.ts` | CLI handler (`runObserve`) |
+| `src/planning/evolution/observation/index.ts` | Barrel re-exports |
 
 **Tests:** `tests/evolution/observation/` — observation-contract, observation-engine,
 observation-evidence-bridge, observation-cli, and `providers/` (cli, filesystem, git,

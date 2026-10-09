@@ -2,8 +2,8 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { join } from "node:path";
 import { mkdir, rm } from "node:fs/promises";
-import { EventLog } from "../../src/events/event-log.js";
-import { ContextCompiler } from "../../src/repomap/context-compiler.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { ContextCompiler } from "../../src/context/repomap/context-compiler.js";
 
 describe("Context Compiler Events", () => {
   const testDir = join(process.cwd(), ".test-context-events");

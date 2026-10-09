@@ -18,28 +18,28 @@
 ## 1. File structure
 
 ### Create
-- `src/kernel/collaboration-conflict-types.ts` — `FindingConflict`, `ConflictStatus`, `ConflictType`, `ClaimComparison`, `EvidenceComparison`, `ConflictResolution`, `ConflictResolverAuthority`
-- `src/kernel/collaboration-claim-normalizer.ts` — deterministic claim extraction + normalization + topic key
-- `src/kernel/collaboration-conflict-candidates.ts` — `ConflictCandidateGenerator` with bounded pair generation
-- `src/kernel/collaboration-claim-comparator.ts` — `ClaimComparator` with type-specific rules
-- `src/kernel/collaboration-evidence-comparator.ts` — conflict-specific `ConflictEvidenceComparator`
-- `src/kernel/collaboration-conflict-detector.ts` — `ConflictDetector` orchestrating the pipeline
-- `src/kernel/collaboration-conflict-repository.ts` — thin domain wrapper over `CollaborationStore` for conflict CRUD
-- `src/kernel/collaboration-model-conflict-comparator.ts` — optional bounded model-assisted comparator
+- `src/coordination/kernel/collaboration-conflict-types.ts` — `FindingConflict`, `ConflictStatus`, `ConflictType`, `ClaimComparison`, `EvidenceComparison`, `ConflictResolution`, `ConflictResolverAuthority`
+- `src/coordination/kernel/collaboration-claim-normalizer.ts` — deterministic claim extraction + normalization + topic key
+- `src/coordination/kernel/collaboration-conflict-candidates.ts` — `ConflictCandidateGenerator` with bounded pair generation
+- `src/coordination/kernel/collaboration-claim-comparator.ts` — `ClaimComparator` with type-specific rules
+- `src/coordination/kernel/collaboration-evidence-comparator.ts` — conflict-specific `ConflictEvidenceComparator`
+- `src/coordination/kernel/collaboration-conflict-detector.ts` — `ConflictDetector` orchestrating the pipeline
+- `src/coordination/kernel/collaboration-conflict-repository.ts` — thin domain wrapper over `CollaborationStore` for conflict CRUD
+- `src/coordination/kernel/collaboration-model-conflict-comparator.ts` — optional bounded model-assisted comparator
 
 ### Modify
-- `src/kernel/collaboration-types.ts` — add `claim?` to `SharedFinding`, add `conflicts` to `CollaborationState`, add manifest `conflicts` field (schema v1.2)
-- `src/kernel/collaboration-validation.ts` — add `normalizeStateV1_0()`, conflict validation
-- `src/kernel/collaboration-store.ts` — add `conflicts` to state, add dedup fingerprint upsert
-- `src/kernel/worker-collaboration-api.ts` — add `reportConflict()`, `listConflicts()`
-- `src/kernel/collaboration-context-builder.ts` — inject unresolved conflicts, add conflict budget
-- `src/kernel/collaboration-context-renderer.ts` — render conflicts as untrusted
-- `src/kernel/coordination-view.ts` — add conflict summary to shared view
-- `src/tools/collaboration-tools.ts` — add conflict tools
-- `src/cli/commands/coordination.ts` — add conflict commands
-- `src/tui/coordination-panel.ts` — add conflict views
-- `src/server/coordination-routes.ts` — add conflict routes
-- `src/events/types.ts` — add conflict event types
+- `src/coordination/kernel/collaboration-types.ts` — add `claim?` to `SharedFinding`, add `conflicts` to `CollaborationState`, add manifest `conflicts` field (schema v1.2)
+- `src/coordination/kernel/collaboration-validation.ts` — add `normalizeStateV1_0()`, conflict validation
+- `src/coordination/kernel/collaboration-store.ts` — add `conflicts` to state, add dedup fingerprint upsert
+- `src/coordination/kernel/worker-collaboration-api.ts` — add `reportConflict()`, `listConflicts()`
+- `src/coordination/kernel/collaboration-context-builder.ts` — inject unresolved conflicts, add conflict budget
+- `src/coordination/kernel/collaboration-context-renderer.ts` — render conflicts as untrusted
+- `src/coordination/kernel/coordination-view.ts` — add conflict summary to shared view
+- `src/capabilities/tools/collaboration-tools.ts` — add conflict tools
+- `src/interfaces/cli/commands/coordination.ts` — add conflict commands
+- `src/interfaces/tui/coordination-panel.ts` — add conflict views
+- `src/interfaces/server/coordination-routes.ts` — add conflict routes
+- `src/runtime-state/events/types.ts` — add conflict event types
 
 ### Tests
 - `tests/kernel/collaboration-claim-normalizer.test.ts`

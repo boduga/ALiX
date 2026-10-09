@@ -4,11 +4,11 @@
  * renders the live response shape correctly.
  */
 import { test, expect } from 'vitest';
-import { parseBlocks as parseResponseBlocks } from '../src/agent/response-blocks.js';
-import { TerminalCanvas } from '../src/tui/canvas.js';
-import { AgentView } from '../src/tui/views/agent-view.js';
-import type { ViewRenderContext } from '../src/tui/views/types.js';
-import type { DashboardSnapshot, PerTabState, SessionPhase } from '../src/tui/state.js';
+import { parseBlocks as parseResponseBlocks } from '../src/agents/agent/response-blocks.js';
+import { TerminalCanvas } from '../src/interfaces/tui/canvas.js';
+import { AgentView } from '../src/interfaces/tui/views/agent-view.js';
+import type { ViewRenderContext } from '../src/interfaces/tui/views/types.js';
+import type { DashboardSnapshot, PerTabState, SessionPhase } from '../src/interfaces/tui/state.js';
 
 const SAMPLE = `Here's a Python function to check if a string is a palindrome:
 

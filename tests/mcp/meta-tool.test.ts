@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { MetaToolExecutor } from "../../src/mcp/meta-tool.js";
+import { MetaToolExecutor } from "../../src/capabilities/mcp/meta-tool.js";
 
 describe("MetaToolExecutor", () => {
   it("executes catalog.list command", async () => {

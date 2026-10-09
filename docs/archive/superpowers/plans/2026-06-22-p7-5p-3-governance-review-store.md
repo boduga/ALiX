@@ -26,7 +26,7 @@
 ## Task 1: P7.5p.3a — GovernanceReviewStore
 
 **Files:**
-- Create: `src/adaptation/governance-review-store.ts`
+- Create: `src/planning/adaptation/governance-review-store.ts`
 - Create: `tests/adaptation/governance-review-store.vitest.ts`
 
 **Interfaces:**
@@ -35,7 +35,7 @@
 
 - [ ] **Step 1.1: Write the store**
 
-Create `src/adaptation/governance-review-store.ts`:
+Create `src/planning/adaptation/governance-review-store.ts`:
 
 ```ts
 /**
@@ -135,15 +135,15 @@ export class GovernanceReviewStore {
 
 - [ ] **Step 1.2: Write the store tests**
 
-Create `tests/adaptation/governance-review-store.vitest.ts`. **Read `src/adaptation/governance-review-types.ts` first** to confirm the `GovernanceReview` / `LensScore` / `CouncilVote` / `GovernanceVerdict` shapes before writing the fixture. The fixture below is authoritative against the current types; verify each field exists.
+Create `tests/adaptation/governance-review-store.vitest.ts`. **Read `src/planning/adaptation/governance-review-types.ts` first** to confirm the `GovernanceReview` / `LensScore` / `CouncilVote` / `GovernanceVerdict` shapes before writing the fixture. The fixture below is authoritative against the current types; verify each field exists.
 
 ```ts
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { GovernanceReviewStore } from "../../src/adaptation/governance-review-store.js";
-import type { GovernanceReview, LensScore, CouncilVote } from "../../src/adaptation/governance-review-types.js";
+import { GovernanceReviewStore } from "../../src/planning/adaptation/governance-review-store.js";
+import type { GovernanceReview, LensScore, CouncilVote } from "../../src/planning/adaptation/governance-review-types.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
@@ -305,7 +305,7 @@ Expected: 10 passing.
 - [ ] **Step 1.4: Commit**
 
 ```bash
-git add src/adaptation/governance-review-store.ts tests/adaptation/governance-review-store.vitest.ts
+git add src/planning/adaptation/governance-review-store.ts tests/adaptation/governance-review-store.vitest.ts
 git commit -m "feat(p7.5p.3a): GovernanceReviewStore — append-only JSONL"
 ```
 
@@ -314,7 +314,7 @@ git commit -m "feat(p7.5p.3a): GovernanceReviewStore — append-only JSONL"
 ## Task 2: P7.5p.3b — runReview write hook
 
 **Files:**
-- Modify: `src/cli/commands/decision.ts` (add import + hook in `runReview`)
+- Modify: `src/interfaces/cli/commands/decision.ts` (add import + hook in `runReview`)
 - Create: `tests/cli/commands/decision-review-persistence.vitest.ts`
 
 **Interfaces:**
@@ -323,7 +323,7 @@ git commit -m "feat(p7.5p.3a): GovernanceReviewStore — append-only JSONL"
 
 - [ ] **Step 2.1: Add the import**
 
-In `src/cli/commands/decision.ts`, add adjacent to the existing `RiskScoreStore` import (added in P7.5p.2b) and `ApprovalRecommendationStore` import:
+In `src/interfaces/cli/commands/decision.ts`, add adjacent to the existing `RiskScoreStore` import (added in P7.5p.2b) and `ApprovalRecommendationStore` import:
 
 ```ts
 import { GovernanceReviewStore } from "../../adaptation/governance-review-store.js";
@@ -374,7 +374,7 @@ Expected: all passing.
 - [ ] **Step 2.5: Commit**
 
 ```bash
-git add src/cli/commands/decision.ts tests/cli/commands/decision-review-persistence.vitest.ts
+git add src/interfaces/cli/commands/decision.ts tests/cli/commands/decision-review-persistence.vitest.ts
 git commit -m "feat(p7.5p.3b): persist GovernanceReview in runReview"
 ```
 
@@ -383,7 +383,7 @@ git commit -m "feat(p7.5p.3b): persist GovernanceReview in runReview"
 ## Task 3: P7.5p.3c — outcome auto-lookup + --governance-review-id override
 
 **Files:**
-- Modify: `src/cli/commands/decision.ts` (`runOutcomeRecord` governance-review resolution + add to OutcomeRecord literal)
+- Modify: `src/interfaces/cli/commands/decision.ts` (`runOutcomeRecord` governance-review resolution + add to OutcomeRecord literal)
 
 **Interfaces:**
 - Consumes: existing `runOutcomeRecord` flow, `subjectId` (proposal id), existing `--recommendation` lookup block
@@ -391,7 +391,7 @@ git commit -m "feat(p7.5p.3b): persist GovernanceReview in runReview"
 
 - [ ] **Step 3.1: Add the governance-review resolution in `runOutcomeRecord`**
 
-In `src/cli/commands/decision.ts`, find `runOutcomeRecord`. The function already resolves `recommendationId`, `confidence`, and (P7.5p.2c) `resolvedRiskScoreId`. Add the `governanceReviewId` resolution adjacent to the `resolvedRiskScoreId` block.
+In `src/interfaces/cli/commands/decision.ts`, find `runOutcomeRecord`. The function already resolves `recommendationId`, `confidence`, and (P7.5p.2c) `resolvedRiskScoreId`. Add the `governanceReviewId` resolution adjacent to the `resolvedRiskScoreId` block.
 
 The logic (override wins, else auto-lookup most-recent by subjectId, else undefined):
 
@@ -482,7 +482,7 @@ Expected: all passing.
 
 Run:
 ```bash
-git diff main --stat -- 'src/adaptation/outcome-types.ts' 'src/adaptation/risk-score-types.ts' 'src/adaptation/governance-review-types.ts' 'src/adaptation/adaptation-types.ts' 'src/adaptation/decision-types.ts' 'src/learning/learning-types.ts'
+git diff main --stat -- 'src/planning/adaptation/outcome-types.ts' 'src/planning/adaptation/risk-score-types.ts' 'src/planning/adaptation/governance-review-types.ts' 'src/planning/adaptation/adaptation-types.ts' 'src/planning/adaptation/decision-types.ts' 'src/planning/learning/learning-types.ts'
 ```
 
 Expected: **empty output** (zero diff against main for all 6 type files — P7.5p.3 modifies none of them).
@@ -495,7 +495,7 @@ Expected: clean exit.
 - [ ] **Step 3.7: Commit**
 
 ```bash
-git add src/cli/commands/decision.ts tests/cli/commands/decision-outcome-governance-review-id.vitest.ts
+git add src/interfaces/cli/commands/decision.ts tests/cli/commands/decision-outcome-governance-review-id.vitest.ts
 git commit -m "feat(p7.5p.3c): outcome CLI auto-links governanceReviewId + override"
 ```
 
@@ -514,8 +514,8 @@ Run `gitnexus_detect_changes()` to confirm the diff is scoped to P7.5p.3 (no spi
 
 - [ ] **Step 4.3: Confirm zero type-file changes one more time**
 
-Run: `git diff main --stat -- 'src/adaptation/*.ts' 'src/learning/*.ts'`
-Expected: only `src/cli/commands/decision.ts` + the new store file appear in the diff; NO type files.
+Run: `git diff main --stat -- 'src/planning/adaptation/*.ts' 'src/planning/learning/*.ts'`
+Expected: only `src/interfaces/cli/commands/decision.ts` + the new store file appear in the diff; NO type files.
 
 - [ ] **Step 4.4: Open PR**
 
@@ -544,7 +544,7 @@ After review approval, merge with `gh pr merge <N> --squash --delete-branch` and
 
 ## Notes
 
-- **`GovernanceReview` required fixture fields** (verified against `src/adaptation/governance-review-types.ts` + `decision-types.ts` `DecisionArtifact`): base = `id, subject, outcome, confidence, reasons, generatedAt` (`warnings?`, `evidenceRefs?` optional); review-specific = `recommendationId, proposalId, verdict, concerns[], blindSpots[], historicalAnalogies[], lensScores[], councilVote, sourceArtifacts[]`. `CouncilVote` = `{ agree, agreeWithConcerns, challenge, insufficientInformation }`. `LensScore` = `{ lens, recommendedVerdict, confidence, rationale, provider?, model? }`. The implementer MUST read these type files to confirm before writing the fixture.
+- **`GovernanceReview` required fixture fields** (verified against `src/planning/adaptation/governance-review-types.ts` + `decision-types.ts` `DecisionArtifact`): base = `id, subject, outcome, confidence, reasons, generatedAt` (`warnings?`, `evidenceRefs?` optional); review-specific = `recommendationId, proposalId, verdict, concerns[], blindSpots[], historicalAnalogies[], lensScores[], councilVote, sourceArtifacts[]`. `CouncilVote` = `{ agree, agreeWithConcerns, challenge, insufficientInformation }`. `LensScore` = `{ lens, recommendedVerdict, confidence, rationale, provider?, model? }`. The implementer MUST read these type files to confirm before writing the fixture.
 - **`runReview` is LLM-gated.** Unlike P7.5p.1/.2 hooks (deterministic `runRecommend`), this hook lives behind a provider/API-key check. The integration test should mock the LLM path OR test the hook contract directly. The behavioral guarantee (persist-on-success, warn-on-failure) is what's tested.
 - **Most-recent = last-appended.** Append order is preserved in JSONL; `queryByProposal` returns oldest-first; the caller takes the last element. This is locked by store test (Step 1.2) and outcome test (Step 3.3 #5).
 - **`concernsRaised` is NOT P7.5p.3's concern.** `LensScore` has no per-lens count; the P8.3 adapter owns the derivation heuristic. P7.5p.3 persists the raw review faithfully.

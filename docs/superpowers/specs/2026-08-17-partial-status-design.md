@@ -252,7 +252,7 @@ resolvePolicyPath(cwd, path)
 
 in:
 
-src/policy/policy-gate.ts:71
+src/governance/policy/policy-gate.ts:71
 
 already defines the relevant policy-path semantics.
 
@@ -584,7 +584,7 @@ The system is objective-aware, not first-write-aware.
 
 Update:
 
-src/config/schema.ts:271
+src/operations/config/schema.ts:271
 
 to include:
 
@@ -1429,8 +1429,8 @@ parent sees durable progress + remaining work
 40. Files to Change
 
 File| Change
-"src/config/schema.ts:271"| Add ""partial"" to "SubagentResult.status"
-"src/policy/policy-gate.ts:71"| Export "resolvePolicyPath"
+"src/operations/config/schema.ts:271"| Add ""partial"" to "SubagentResult.status"
+"src/governance/policy/policy-gate.ts:71"| Export "resolvePolicyPath"
 "src/agents/subagent-cli.ts"| Add "WriteProgress"; collect successful paths; compute objective-aware status; thread progress through result construction; partial exit code; partial formatting
 "src/agents/subagent-manager.ts:127"| Add ""partial"" to parsed-status whitelist
 "src/agents/delegate-tool.ts:46"| Map "partial" → "kind: "success"" with explicit partial details

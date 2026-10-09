@@ -18,7 +18,7 @@ import {
   validateSecFetchSite,
   validateRequestOrigin,
   type OriginPolicyContext,
-} from "../../../src/security/inspector/origin-policy.js";
+} from "../../../src/governance/security/inspector/origin-policy.js";
 
 // ---------------------------------------------------------------------------
 // Helpers — minimal IncomingMessage mock

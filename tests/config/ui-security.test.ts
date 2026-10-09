@@ -11,9 +11,9 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
-import { validateConfig, isLoopbackHost } from "../../src/config/validator.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
+import { validateConfig, isLoopbackHost } from "../../src/operations/config/validator.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 function makeConfig(overrides?: Partial<AlixConfig["ui"]> & { security?: AlixConfig["ui"]["security"] }): AlixConfig {
   return {

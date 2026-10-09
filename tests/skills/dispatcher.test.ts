@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { skillFactory } from "../../src/skills/dispatcher.js";
+import { skillFactory } from "../../src/capabilities/skills/dispatcher.js";
 
 describe("skillFactory.process (fire-and-forget)", () => {
   it("is fire-and-forget — returns immediately without waiting for Ollama", async () => {
@@ -10,7 +10,7 @@ describe("skillFactory.process (fire-and-forget)", () => {
       sessionId: "test-session",
       sessionDir: "/tmp/test-session-dir",
       summary: "Added TDD skill to the codebase",
-      filesCreated: ["src/skills/tdd-skill.ts"],
+      filesCreated: ["src/capabilities/skills/tdd-skill.ts"],
       filesChanged: ["src/run.ts"],
       config: { enabled: true, provider: "ollama", model: "llama3", maxStore: 50, maxCandidates: 200, autoPromote: true },
     });

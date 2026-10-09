@@ -1,6 +1,6 @@
 # Codebase Duplication Consolidation
 
-**Context:** The render-pipeline refactor (P1-P4) identified that the same pattern-extraction approach applies broadly across the codebase. A sweep of `src/agent/`, `src/run/`, `src/providers/`, and `src/cli/` found ~2000 lines of duplicated code, with the hottest concentration in the agent session layer (a single 1861-char system prompt string duplicated verbatim between two files).
+**Context:** The render-pipeline refactor (P1-P4) identified that the same pattern-extraction approach applies broadly across the codebase. A sweep of `src/agents/agent/`, `src/execution/run/`, `src/models/providers/`, and `src/interfaces/cli/` found ~2000 lines of duplicated code, with the hottest concentration in the agent session layer (a single 1861-char system prompt string duplicated verbatim between two files).
 
 **Goal:** Eliminate ~2000 lines of duplication, consolidate shared constants, and eliminate copy-paste hazards where two copies of the same string can diverge.
 
@@ -12,9 +12,9 @@
 
 `agent-loop.ts:278` and `session.ts:1861` each define the same `const BASE = ` ... long system prompt string verbatim, differing only in one appended section (read-only mode prompt, shell task prompt). Any edit to one must be made to the other.
 
-**Create** `src/agent/system-prompt.ts`:
+**Create** `src/agents/agent/system-prompt.ts`:
 ```ts
-// src/agent/system-prompt.ts
+// src/agents/agent/system-prompt.ts
 // Single source of truth for the base system prompt shared by
 // the direct agent loop (agent-loop.ts) and the session-based
 // loop (session.ts). The two callers append their own tool-policy
@@ -62,7 +62,7 @@ Also extract the "Read-Only Mode" and "Shell Task" appended prompt blocks into t
 
 Three dashboard renderers (`dashboard-renderer.ts`, `governance-dashboard-renderer.ts`, `executive-dashboard-renderer.ts`) each define their own `pad()`, `truncate()`, `bar()`, `pct()`, `icon()` helpers with slight naming differences.
 
-**Create** `src/tui/dashboard-helpers.ts` and move all shared helpers there. Each renderer imports from it instead of defining its own.
+**Create** `src/interfaces/tui/dashboard-helpers.ts` and move all shared helpers there. Each renderer imports from it instead of defining its own.
 
 **Impact:** -60 lines, eliminates the risk of different renderers truncating/padding differently.
 

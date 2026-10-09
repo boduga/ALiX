@@ -27,14 +27,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleDecisionCommand } from "../../../src/cli/commands/decision.js";
-import { GovernanceReviewStore } from "../../../src/adaptation/governance-review-store.js";
+import { handleDecisionCommand } from "../../../src/interfaces/cli/commands/decision.js";
+import { GovernanceReviewStore } from "../../../src/planning/adaptation/governance-review-store.js";
 import type {
   GovernanceReview,
   LensScore,
   CouncilVote,
-} from "../../../src/adaptation/governance-review-types.js";
-import type { OutcomeRecord } from "../../../src/adaptation/outcome-types.js";
+} from "../../../src/planning/adaptation/governance-review-types.js";
+import type { OutcomeRecord } from "../../../src/planning/adaptation/outcome-types.js";
 
 // ---------------------------------------------------------------------------
 // process.cwd override + output capture

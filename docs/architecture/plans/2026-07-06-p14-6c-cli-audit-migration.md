@@ -21,7 +21,7 @@ Remove the direct P14.6a CLI-level audit append calls and replace raw store inst
 
 ### Task 1 — Import decorators + audit store in governance.ts
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 Add dynamic import block for the 4 decorator factories and `FileAuditStore`. Place next to existing imports (near the top of functions that use them).
 
@@ -186,7 +186,7 @@ Test the invariant: each governance CLI mutation emits exactly one audit event t
 
 | File | Lines | Change type |
 |------|-------|-------------|
-| `src/cli/commands/governance.ts` | ~30 changed + ~30 removed | Modify (add imports, replace stores, remove audit blocks) |
+| `src/interfaces/cli/commands/governance.ts` | ~30 changed + ~30 removed | Modify (add imports, replace stores, remove audit blocks) |
 | `tests/governance/audit-migration.test.ts` | ~180 | New file |
 | **Total new** | ~180 | |
 
@@ -194,7 +194,7 @@ Test the invariant: each governance CLI mutation emits exactly one audit event t
 
 - `src/governance/audit-decorators.ts` — 4 factory functions
 - `src/governance/audit-store.ts` — `FileAuditStore`
-- `src/cli/commands/governance.ts` — CLI handler functions
+- `src/interfaces/cli/commands/governance.ts` — CLI handler functions
 
 ## Acceptance gate
 

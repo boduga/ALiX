@@ -19,7 +19,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleDecisionCommand } from "../../../src/cli/commands/decision.js";
+import { handleDecisionCommand } from "../../../src/interfaces/cli/commands/decision.js";
 
 // ---------------------------------------------------------------------------
 // process.cwd override + output capture

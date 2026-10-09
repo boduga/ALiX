@@ -8,8 +8,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ExecutiveTrendStore } from "../../src/executive/trend-store.js";
-import type { ExecutiveHealthReport } from "../../src/executive/executive-health.js";
+import { ExecutiveTrendStore } from "../../src/execution/executive/trend-store.js";
+import type { ExecutiveHealthReport } from "../../src/execution/executive/executive-health.js";
 
 function makeHealthReport(generatedAt: string): ExecutiveHealthReport {
   return {

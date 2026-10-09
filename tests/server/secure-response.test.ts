@@ -8,8 +8,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { ServerResponse } from "node:http";
-import { createSecureResponder, type SecureJsonResponder } from "../../src/server/secure-response.js";
-import { SecretDetector } from "../../src/security/redaction/secret-detector.js";
+import { createSecureResponder, type SecureJsonResponder } from "../../src/interfaces/server/secure-response.js";
+import { SecretDetector } from "../../src/governance/security/redaction/secret-detector.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

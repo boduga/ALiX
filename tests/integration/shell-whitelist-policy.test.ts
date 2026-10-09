@@ -3,9 +3,9 @@ import assert from "node:assert";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PolicyGate } from "../../src/policy/policy-gate.js";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { PolicyGate } from "../../src/governance/policy/policy-gate.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 // Minimal AlixConfig for testing
 const minimalConfig: AlixConfig = {

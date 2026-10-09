@@ -16,10 +16,10 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/server/server.ts` | **Modify** | Add `/api/registry/agents` and `/api/registry/tools` GET routes |
-| `src/ui/index.html` | **Modify** | Add Registry tab with agent/tool card display panels |
-| `src/ui/app.js` | **Modify** | Add `renderPolicyDecisions()`, `renderRegistry()`, capability badges in `addEventRow()` |
-| `src/ui/styles.css` | **Modify** | Add CSS for registry tables, capability badges, policy decision cards |
+| `src/interfaces/server/server.ts` | **Modify** | Add `/api/registry/agents` and `/api/registry/tools` GET routes |
+| `src/interfaces/ui/index.html` | **Modify** | Add Registry tab with agent/tool card display panels |
+| `src/interfaces/ui/app.js` | **Modify** | Add `renderPolicyDecisions()`, `renderRegistry()`, capability badges in `addEventRow()` |
+| `src/interfaces/ui/styles.css` | **Modify** | Add CSS for registry tables, capability badges, policy decision cards |
 | `tests/server/server.test.ts` | **Create** | Tests for registry API routes |
 
 ---
@@ -27,7 +27,7 @@
 ### Task 1: Add registry API routes to the server
 
 **Files:**
-- Modify: `src/server/server.ts`
+- Modify: `src/interfaces/server/server.ts`
 
 - [ ] **Step 1: Add `/api/registry/agents` and `/api/registry/tools` routes**
 
@@ -73,7 +73,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/server/server.ts
+git add src/interfaces/server/server.ts
 git commit -m "feat(server): add /api/registry/agents and /api/registry/tools routes"
 ```
 
@@ -82,7 +82,7 @@ git commit -m "feat(server): add /api/registry/agents and /api/registry/tools ro
 ### Task 2: Add Registry tab to the inspector HTML
 
 **Files:**
-- Modify: `src/ui/index.html`
+- Modify: `src/interfaces/ui/index.html`
 
 - [ ] **Step 1: Add the Registry tab button alongside the existing tabs**
 
@@ -115,7 +115,7 @@ Insert after the Compare panel section (line 75):
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/ui/index.html
+git add src/interfaces/ui/index.html
 git commit -m "feat(ui): add Registry tab panel for agent and tool cards"
 ```
 
@@ -124,7 +124,7 @@ git commit -m "feat(ui): add Registry tab panel for agent and tool cards"
 ### Task 3: Render registry data, policy decisions, and capability badges
 
 **Files:**
-- Modify: `src/ui/app.js`
+- Modify: `src/interfaces/ui/app.js`
 
 - [ ] **Step 1: Load registry data on connect**
 
@@ -254,7 +254,7 @@ Expected: no errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/ui/app.js
+git add src/interfaces/ui/app.js
 git commit -m "feat(ui): render registry cards, policy decisions, capability badges"
 ```
 
@@ -263,7 +263,7 @@ git commit -m "feat(ui): render registry cards, policy decisions, capability bad
 ### Task 4: Add CSS for registry tables, capability badges, risk labels
 
 **Files:**
-- Modify: `src/ui/styles.css`
+- Modify: `src/interfaces/ui/styles.css`
 
 - [ ] **Step 1: Add registry table styles**
 
@@ -360,7 +360,7 @@ Expected: no errors (CSS is served statically, no compilation needed).
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/ui/styles.css
+git add src/interfaces/ui/styles.css
 git commit -m "feat(ui): add registry table, cap badge, policy badge, risk level CSS"
 ```
 
@@ -400,7 +400,7 @@ describe("Registry HTTP API", () => {
   });
 
   it("loadCardRegistry loads custom card from disk", async () => {
-    const { loadCardRegistry } = await import("../../src/registry/card-loader.js");
+    const { loadCardRegistry } = await import("../../src/capabilities/registry/card-loader.js");
     const registry = await loadCardRegistry(tmpDir);
     const agents = registry.listAgents(true);
     assert.equal(agents.length, 1);
@@ -408,8 +408,8 @@ describe("Registry HTTP API", () => {
   });
 
   it("default registry when no cards dir exists", async () => {
-    const { loadCardRegistry } = await import("../../src/registry/card-loader.js");
-    const { defaultAgentCards, defaultToolCards } = await import("../../src/registry/card-loader.js");
+    const { loadCardRegistry } = await import("../../src/capabilities/registry/card-loader.js");
+    const { defaultAgentCards, defaultToolCards } = await import("../../src/capabilities/registry/card-loader.js");
     const blankDir = mkdtempSync(join(tmpdir(), "server-registry-blank-"));
     try {
       const registry = await loadCardRegistry(blankDir);

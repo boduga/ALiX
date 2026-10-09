@@ -24,7 +24,7 @@ P10.5  Review         (closed-loop evaluation)
 
 ## Types
 
-All types live in a new file `src/executive/planning-engine.ts`.
+All types live in a new file `src/execution/executive/planning-engine.ts`.
 Uses `ExecutiveSubsystemName` from `executive-health.ts` (P10.0).
 
 ### Type helpers
@@ -264,10 +264,10 @@ None. Plans are computed fresh each dashboard run. P10.4 introduces persistence.
 
 | File | Action | Lines |
 |---|---|---|
-| `src/executive/planning-engine.ts` | Create | ~180 |
+| `src/execution/executive/planning-engine.ts` | Create | ~180 |
 | `tests/executive/planning-engine.vitest.ts` | Create | ~150 |
-| `src/cli/commands/executive-dashboard-handler.ts` | Modify | +5 |
-| `src/cli/commands/executive-dashboard-renderer.ts` | Modify | +40 |
+| `src/interfaces/cli/commands/executive-dashboard-handler.ts` | Modify | +5 |
+| `src/interfaces/cli/commands/executive-dashboard-renderer.ts` | Modify | +40 |
 | `tests/cli/commands/executive-dashboard-cli.vitest.ts` | Modify | +2 |
 | `tests/executive/executive-sentinels.vitest.ts` | Modify | +1 |
 

@@ -1,10 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildReplayPlan } from "../../src/runtime/replay-plan.js";
-import { classifySideEffect } from "../../src/runtime/replay-executor.js";
+import { buildReplayPlan } from "../../src/runtime-state/runtime/replay-plan.js";
+import { classifySideEffect } from "../../src/runtime-state/runtime/replay-executor.js";
 import { ALIX_BUILTIN_EXECUTORS } from "../../src/agents/tool-manifest.js";
-import { buildReplayPreview } from "../../src/runtime/replay-preview.js";
-import type { TraceEvent } from "../../src/runtime/trace-events.js";
+import { buildReplayPreview } from "../../src/runtime-state/runtime/replay-preview.js";
+import type { TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {

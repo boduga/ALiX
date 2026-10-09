@@ -43,7 +43,7 @@
 | `sse` | 2 | `/api/sessions/:sessionId/events`, `/api/observability/stream` |
 | `expensive_read` | 0 | (no routes currently classified as expensive) |
 
-### Server Routes (`src/server/server.ts`)
+### Server Routes (`src/interfaces/server/server.ts`)
 
 | # | Path | Classification |
 |---|---|---|
@@ -69,7 +69,7 @@
 | 20 | `GET /api/doctor` | authenticated_read |
 | 21 | `GET /api/security/status` | authenticated_read |
 
-### Observability Routes (`src/observability/observability-routes.ts`)
+### Observability Routes (`src/operations/observability/observability-routes.ts`)
 
 | # | Path | Classification |
 |---|---|---|
@@ -78,7 +78,7 @@
 | 22 | `GET /api/observability/alerts` | authenticated_read |
 | 23 | `GET /api/observability/stream` | sse |
 
-### Coordination Routes (`src/server/coordination-routes.ts`)
+### Coordination Routes (`src/interfaces/server/coordination-routes.ts`)
 
 | # | Path | Classification |
 |---|---|---|
@@ -113,23 +113,23 @@ See `tests/fixtures/security/route-inventory.json` — 33 route entries with ful
 | # | Command/Function | File | Line | Config Path(s) |
 |---|---|---|---|---|
 | 1 | `config set-key` | `src/cli.ts` | 41 | `apiKeys.*` |
-| 2 | `models set-default` | `src/cli/commands/models.ts` | persistModelSelection | `models.default.*` |
-| 3 | `models set-tier` | `src/cli/commands/models.ts` | persistModelSelection | `models.<tier>.*` |
+| 2 | `models set-default` | `src/interfaces/cli/commands/models.ts` | persistModelSelection | `models.default.*` |
+| 3 | `models set-tier` | `src/interfaces/cli/commands/models.ts` | persistModelSelection | `models.<tier>.*` |
 | 4 | `mcp add` | `src/cli.ts` | 1211 | `mcpServers[]` |
 | 5 | `mcp discover` | `src/cli.ts` | 1253 | `mcpServers[]` |
-| 6 | `init` | `src/cli/commands/init.ts` | 117 | Full config |
-| 7 | `models apply-profile` | `src/cli/commands/models.ts` | 97 | `model.*`, `modelProfile` |
-| 8 | `models install-profile` | `src/cli/commands/models.ts` | 112 | `model.*`, `modelProfile` |
+| 6 | `init` | `src/interfaces/cli/commands/init.ts` | 117 | Full config |
+| 7 | `models apply-profile` | `src/interfaces/cli/commands/models.ts` | 97 | `model.*`, `modelProfile` |
+| 8 | `models install-profile` | `src/interfaces/cli/commands/models.ts` | 112 | `model.*`, `modelProfile` |
 
 ### Observability Writers
 
 | # | Function | File | Line | Description |
 |---|---|---|---|---|
-| 9 | `AuditStore.append` | `src/audit/audit-store.ts` | 42 | `.alix/audit/audit.jsonl` |
-| 10 | `MetricsStore.append` | `src/observability/metrics-store.ts` | 56 | `.alix/observability/metrics/*.jsonl` |
-| 11 | `RollupStore.rollUp` | `src/observability/metrics-store.ts` | 159 | `.alix/observability/rollups/hourly.jsonl` |
-| 12 | `EventLog.append` | `src/events/event-log.ts` | (multiple) | `.alix/sessions/*/events.jsonl` |
-| 13 | Plan/Review/Apply commands | `src/cli/commands/` | (multiple) | `.alix/plans/*` |
+| 9 | `AuditStore.append` | `src/governance/audit/audit-store.ts` | 42 | `.alix/audit/audit.jsonl` |
+| 10 | `MetricsStore.append` | `src/operations/observability/metrics-store.ts` | 56 | `.alix/observability/metrics/*.jsonl` |
+| 11 | `RollupStore.rollUp` | `src/operations/observability/metrics-store.ts` | 159 | `.alix/observability/rollups/hourly.jsonl` |
+| 12 | `EventLog.append` | `src/runtime-state/events/event-log.ts` | (multiple) | `.alix/sessions/*/events.jsonl` |
+| 13 | Plan/Review/Apply commands | `src/interfaces/cli/commands/` | (multiple) | `.alix/plans/*` |
 
 ### Target Config Files
 
@@ -186,9 +186,9 @@ See fixture: `tests/fixtures/security/legacy-config/mcp-config-with-secrets.json
 
 | Credential | Source | Mechanism |
 |---|---|---|
-| `BRAVE_API_KEY` | `src/tools/web-search.ts:27` | `process.env.BRAVE_API_KEY` |
+| `BRAVE_API_KEY` | `src/capabilities/tools/web-search.ts:27` | `process.env.BRAVE_API_KEY` |
 | API keys in config | `src/cli.ts:18-25` | `getSavedApiKey()` from `~/.config/alix/config.json` |
-| Provider constructors | `src/providers/*.ts` | Passed as constructor options |
+| Provider constructors | `src/models/providers/*.ts` | Passed as constructor options |
 
 ### 4.4 Config Display and Export
 
@@ -229,19 +229,19 @@ Total: **10 call sites** across the following files:
 |---|---|---|
 | `src/cli.ts:395` | Graph continue | `graph.continued` |
 | `src/cli.ts:1805` | Policy eval | `policy.evaluated` |
-| `src/policy/runtime-gate.ts:49` | Runtime blocked | `runtime.blocked` |
-| `src/policy/runtime-gate.ts:86` | Policy denied | `policy.denied` |
-| `src/policy/runtime-gate.ts:104` | Policy asked | `policy.asked` |
-| `src/policy/runtime-gate.ts:121` | Runtime blocked | `runtime.blocked` |
-| `src/policy/runtime-gate.ts:142` | Policy allowed | `policy.allowed` |
-| `src/policy/runtime-gate.ts:149` | Policy denied | `policy.denied` |
-| `src/policy/runtime-gate.ts:168` | Policy asked | `policy.asked` |
-| `src/policy/runtime-gate.ts:211` | Runtime allowed | `runtime.allowed` |
-| `src/approvals/approval-store.ts:373` | Approval decisions | (approval actions) |
-| `src/server/server.ts:295` | HTTP audit route | (reads only) |
-| `src/kernel/coordination-scheduler.ts:778-823` | Coordination events | (multiple) |
-| `src/kernel/collaboration-conflict-repository.ts:90` | Conflict events | (conflict actions) |
-| `src/kernel/collaboration-conflict-detector.ts:192` | Conflict detection | (conflict actions) |
+| `src/governance/policy/runtime-gate.ts:49` | Runtime blocked | `runtime.blocked` |
+| `src/governance/policy/runtime-gate.ts:86` | Policy denied | `policy.denied` |
+| `src/governance/policy/runtime-gate.ts:104` | Policy asked | `policy.asked` |
+| `src/governance/policy/runtime-gate.ts:121` | Runtime blocked | `runtime.blocked` |
+| `src/governance/policy/runtime-gate.ts:142` | Policy allowed | `policy.allowed` |
+| `src/governance/policy/runtime-gate.ts:149` | Policy denied | `policy.denied` |
+| `src/governance/policy/runtime-gate.ts:168` | Policy asked | `policy.asked` |
+| `src/governance/policy/runtime-gate.ts:211` | Runtime allowed | `runtime.allowed` |
+| `src/governance/approvals/approval-store.ts:373` | Approval decisions | (approval actions) |
+| `src/interfaces/server/server.ts:295` | HTTP audit route | (reads only) |
+| `src/coordination/kernel/coordination-scheduler.ts:778-823` | Coordination events | (multiple) |
+| `src/coordination/kernel/collaboration-conflict-repository.ts:90` | Conflict events | (conflict actions) |
+| `src/coordination/kernel/collaboration-conflict-detector.ts:192` | Conflict detection | (conflict actions) |
 
 ### 5.2 AuditAction Values
 
@@ -346,14 +346,14 @@ Emitters are distributed across agent loops, tool executors, coordination detect
 | Consumer | Type | Source |
 |---|---|---|
 | `alix metrics` CLI | CLI | `src/cli.ts:1415` |
-| Agent loop metrics flush | Agent | `src/agent/agent-loop.ts:409` |
-| Observability health snapshot | REST | `src/observability/health-snapshot.ts` |
-| Alert engine evaluation | REST (read-only) | `src/observability/alert-engine.ts` |
-| Trend analysis | CLI | `src/cli/commands/observability-trends.ts` |
-| Cost attribution | Internal | `src/observability/observability-routes.ts` |
-| TUI health panel | TUI | `src/tui/health-panel.ts` |
-| TUI cost panel | TUI | `src/tui/cost-panel.ts` |
-| SSE observability stream | SSE | `src/server/observability-stream.ts` |
+| Agent loop metrics flush | Agent | `src/agents/agent/agent-loop.ts:409` |
+| Observability health snapshot | REST | `src/operations/observability/health-snapshot.ts` |
+| Alert engine evaluation | REST (read-only) | `src/operations/observability/alert-engine.ts` |
+| Trend analysis | CLI | `src/interfaces/cli/commands/observability-trends.ts` |
+| Cost attribution | Internal | `src/operations/observability/observability-routes.ts` |
+| TUI health panel | TUI | `src/interfaces/tui/health-panel.ts` |
+| TUI cost panel | TUI | `src/interfaces/tui/cost-panel.ts` |
+| SSE observability stream | SSE | `src/interfaces/server/observability-stream.ts` |
 
 ---
 
@@ -403,9 +403,9 @@ Steps in order:
 `npm pack --dry-run` outputs ~200+ files. Key contents:
 - `bin/alix.js` — entry point
 - `dist/` — compiled JavaScript + declarations
-- `dist/src/config/profiles/*.json` — model profiles
-- `dist/src/ui/*` — inspector UI assets
-- `dist/src/db/migrations/*.sql` — schema migrations
+- `dist/src/operations/config/profiles/*.json` — model profiles
+- `dist/src/interfaces/ui/*` — inspector UI assets
+- `dist/src/operations/db/migrations/*.sql` — schema migrations
 - `dist/packages/tool-repair/` — workspace package
 - `README.md`, `LICENSE`, `package.json`
 
@@ -420,7 +420,7 @@ No `preinstall`, `postinstall`, `prepare`, or other lifecycle scripts in `packag
 | Script | Command |
 |---|---|
 | `typecheck` | `tsc -p tsconfig.json --noEmit` |
-| `build` | `tsc -p tsconfig.json && npm run copy:profiles && mkdir -p dist/src/ui dist/src/db/migrations && cp ...` |
+| `build` | `tsc -p tsconfig.json && npm run copy:profiles && mkdir -p dist/src/ui dist/src/operations/db/migrations && cp ...` |
 | `test:ci` | `pnpm test:node:ci && pnpm test:vitest` |
 | `test:node:ci` | `find dist/tests ... -print0 | xargs -0 node --test --test-timeout=30000` |
 | `test:integration` | `node --test --test-concurrency=1 dist/tests/integration/*.test.js` |
@@ -482,11 +482,11 @@ No `preinstall`, `postinstall`, `prepare`, or other lifecycle scripts in `packag
 
 | File | Purpose |
 |---|---|
-| `src/server/security-alerts.ts` | Passive health assessment, alert types, status response builder |
-| `src/cli/commands/security.ts` (updated) | Added `alix security doctor` and `alix security gate` |
+| `src/interfaces/server/security-alerts.ts` | Passive health assessment, alert types, status response builder |
+| `src/interfaces/cli/commands/security.ts` (updated) | Added `alix security doctor` and `alix security gate` |
 | `src/cli.ts` (updated) | Registered `security gate` subcommand routing |
-| `src/server/server.ts` (updated) | Added `GET /api/security/status` handler |
-| `src/security/inspector/route-policy.ts` (updated) | Registered `api.security.status` route |
+| `src/interfaces/server/server.ts` (updated) | Added `GET /api/security/status` handler |
+| `src/governance/security/inspector/route-policy.ts` (updated) | Registered `api.security.status` route |
 
 ### 10.2 New Routes
 

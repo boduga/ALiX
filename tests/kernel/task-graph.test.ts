@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../../src/kernel/task-graph.js";
+import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../../src/coordination/kernel/task-graph.js";
 
 describe("TaskGraph", () => {
 

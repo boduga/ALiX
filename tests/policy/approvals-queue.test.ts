@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ApprovalQueue } from "../../src/policy/approvals.js";
+import { ApprovalQueue } from "../../src/governance/policy/approvals.js";
 
 describe("ApprovalQueue", () => {
   it("tracks pending approvals", () => {

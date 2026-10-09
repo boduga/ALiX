@@ -6,8 +6,8 @@ import {
   type AgentSessionEvents,
   type ToolResult,
   type Message,
-} from "../../src/agent/session.js";
-import type { ToolCall } from "../../src/providers/types.js";
+} from "../../src/agents/agent/session.js";
+import type { ToolCall } from "../../src/models/providers/types.js";
 
 function makeEvents(): AgentSessionEvents & {
   tokens: string[];

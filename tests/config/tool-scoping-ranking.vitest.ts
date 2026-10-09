@@ -22,9 +22,9 @@
  *    admission rule and the tests assert the two agree exactly.
  */
 import { describe, it, expect } from 'vitest';
-import { scopeToolsByTask, CORE_TOOL_NAMES, SCOPING_REASONS } from '../../src/config/tool-scoping.js';
-import { BASE_TOOLS } from '../../src/run/helpers.js';
-import type { ToolDef } from '../../src/providers/types.js';
+import { scopeToolsByTask, CORE_TOOL_NAMES, SCOPING_REASONS } from '../../src/operations/config/tool-scoping.js';
+import { BASE_TOOLS } from '../../src/execution/run/helpers.js';
+import type { ToolDef } from '../../src/models/providers/types.js';
 
 const TASKS: Array<[string, string]> = [
   ['Read the config file and summarize what it does.', 'research'],

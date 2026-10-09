@@ -34,23 +34,23 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { CapabilityOverlapAnalyzer } from "../../../src/adaptation/capability-overlap-analyzer.js";
-import type { CapabilityOverlap } from "../../../src/adaptation/capability-evolution-types.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { CapabilityOverlapAnalyzer } from "../../../src/planning/adaptation/capability-overlap-analyzer.js";
+import type { CapabilityOverlap } from "../../../src/planning/adaptation/capability-evolution-types.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 import {
   CapabilityProposalGenerator,
   validateConsolidationOpportunitySignal,
   type CapabilityEvolutionSignal,
   type ProposalSignalSource,
-} from "../../../src/capability/evolution/proposals.js";
-import { ProposalSignalChannel } from "../../../src/capability/evolution/proposal-signal-channel.js";
+} from "../../../src/capabilities/capability/evolution/proposals.js";
+import { ProposalSignalChannel } from "../../../src/capabilities/capability/evolution/proposal-signal-channel.js";
 import {
   buildOverlapSignals,
   compositeProposalSignalSource,
   type OverlapIdentitySupplier,
   type OverlapProposalSignalSourceInputs,
-} from "../../../src/capability/evolution/overlap-signal-source.js";
-import type { ConsolidationIdentity } from "../../../src/capability/evolution/consolidation-identity.js";
+} from "../../../src/capabilities/capability/evolution/overlap-signal-source.js";
+import type { ConsolidationIdentity } from "../../../src/capabilities/capability/evolution/consolidation-identity.js";
 
 // ---------------------------------------------------------------------------
 // Helpers (mirror tests/adaptation/capability-overlap-analyzer.vitest.ts)

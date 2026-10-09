@@ -10,8 +10,8 @@
 
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { executeGroundedChatBehavior } from "../../src/runtime/route-execution.js";
-import type { ModelAdapter } from "../../src/providers/types.js";
+import { executeGroundedChatBehavior } from "../../src/runtime-state/runtime/route-execution.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
 
 type RecordedRequest = { tools?: Array<{ name: string; description?: string }> };
 

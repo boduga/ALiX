@@ -6,11 +6,11 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { ReviewAgent } from "../../../src/workflow/agents/review-agent.js";
-import { WorkflowCoordinator } from "../../../src/workflow/coordinator.js";
-import { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
-import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
-import type { ExecutionPlan, WorkPackage } from "../../../src/workflow/types.js";
+import { ReviewAgent } from "../../../src/coordination/workflow/agents/review-agent.js";
+import { WorkflowCoordinator } from "../../../src/coordination/workflow/coordinator.js";
+import { EvidenceEventWriter } from "../../../src/coordination/workflow/evidence-writer.js";
+import { EvidenceStore } from "../../../src/governance/security/evidence/evidence-store.js";
+import type { ExecutionPlan, WorkPackage } from "../../../src/coordination/workflow/types.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -24,7 +24,7 @@ function validPlan(overrides?: Partial<ExecutionPlan>): ExecutionPlan {
     priority: "medium",
     complexity: "medium",
     estimatedFiles: [
-      "src/workflow/agents/planning-agent.ts",
+      "src/coordination/workflow/agents/planning-agent.ts",
       "tests/workflow/agents/planning-agent.vitest.ts",
     ],
     dependencies: [61, 62],
@@ -42,7 +42,7 @@ function validPlan(overrides?: Partial<ExecutionPlan>): ExecutionPlan {
       {
         id: "step-0",
         description: "Set up project structure",
-        files: ["src/workflow/agents/planning-agent.ts"],
+        files: ["src/coordination/workflow/agents/planning-agent.ts"],
         testFiles: [],
         acceptanceCheck: "Project structure is ready",
         dependsOn: [],
@@ -50,7 +50,7 @@ function validPlan(overrides?: Partial<ExecutionPlan>): ExecutionPlan {
       {
         id: "step-1",
         description: "Produces an ExecutionPlan from a WorkPackage",
-        files: ["src/workflow/agents/planning-agent.ts"],
+        files: ["src/coordination/workflow/agents/planning-agent.ts"],
         testFiles: ["tests/workflow/agents/planning-agent.vitest.ts"],
         acceptanceCheck: "Verify: plan() returns ExecutionPlan with all fields",
         dependsOn: ["step-0"],
@@ -58,7 +58,7 @@ function validPlan(overrides?: Partial<ExecutionPlan>): ExecutionPlan {
       {
         id: "step-2",
         description: "Validates the work package",
-        files: ["src/workflow/agents/planning-agent.ts"],
+        files: ["src/coordination/workflow/agents/planning-agent.ts"],
         testFiles: ["tests/workflow/agents/planning-agent.vitest.ts"],
         acceptanceCheck: "Verify: validation rejects invalid work packages",
         dependsOn: ["step-1"],
@@ -66,7 +66,7 @@ function validPlan(overrides?: Partial<ExecutionPlan>): ExecutionPlan {
       {
         id: "step-3",
         description: "Creates subtasks with dependency graph",
-        files: ["src/workflow/agents/planning-agent.ts"],
+        files: ["src/coordination/workflow/agents/planning-agent.ts"],
         testFiles: ["tests/workflow/agents/planning-agent.vitest.ts"],
         acceptanceCheck: "Verify: subtasks have correct dependsOn",
         dependsOn: ["step-2"],

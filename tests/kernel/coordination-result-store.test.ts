@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationResultStore } from "../../src/kernel/coordination-result-store.js";
-import { createWorkerAssignment } from "../../src/kernel/coordination-types.js";
+import { CoordinationResultStore } from "../../src/coordination/kernel/coordination-result-store.js";
+import { createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 
 describe("CoordinationResultStore", () => {
   let cwd: string;

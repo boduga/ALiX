@@ -11,7 +11,7 @@ import {
   ExpiredEvidenceError,
   createVerificationEvidence,
   isEvidenceExpired,
-} from "../../../../src/evolution/verification/index.js";
+} from "../../../../src/planning/evolution/verification/index.js";
 
 const PROFILE = { replayFidelity: 0.9, coverage: 0.9, determinism: 1.0, historicalSimilarity: 0.9, overallConfidence: 0.81 };
 

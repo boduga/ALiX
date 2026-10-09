@@ -25,7 +25,7 @@ lifecycle (`observe → score → promote/evict`) generalized to runs, prompts, 
 | Need | Reuse | New |
 |------|-------|-----|
 | Run identity | `runId`/`sessionId`/`workflowId` (authoritative) | nothing |
-| Capture | `src/tracing/` spans + capture policy | nothing |
+| Capture | `src/models/tracing/` spans + capture policy | nothing |
 | Cost numbers | metrics JSONL contract (stable per `metrics-store.ts`: newest-first, corrupt lines skipped) — not TS imports, because hook/cron scripts run without a repo build | per-model rollup + digest section |
 | Quality signals | `successCount` (promotion.ts), task completion | score writer; `--session-id` stamps the join key into the record comment (agent-side signals carry no trace keys) |
 | Skill mining input | `runSkillFactory` (factory.ts), `dispatcher.ts` | trace-evidence adapter (tool sequences + per-trace scores; prompt text unavailable from gateway rows) — candidate bar ≥5 runs, all ≥0.8, enforced factory-side |

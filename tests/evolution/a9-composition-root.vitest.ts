@@ -13,16 +13,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { EventLog } from "../../src/events/event-log.js";
-import { ForecastsStore } from "../../src/evolution/forecast/forecasts-store.js";
-import { ProposalEventsAdapter } from "../../src/evolution/forecast/adapters/proposal-events-adapter.js";
-import { MeasurementEventsAdapter } from "../../src/evolution/forecast/adapters/measurement-events-adapter.js";
-import { EnrichedProposalsAdapter } from "../../src/evolution/forecast/adapters/enriched-proposals-adapter.js";
-import { ForecastsAdapter } from "../../src/evolution/forecast/forecasts-adapter.js";
-import { CorrelationsAdapter } from "../../src/evolution/forecast/correlations-adapter.js";
-import { ForecastEngine } from "../../src/evolution/forecast/forecast-engine.js";
-import { CorrelationEngine } from "../../src/evolution/forecast/correlation-engine.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { ForecastsStore } from "../../src/planning/evolution/forecast/forecasts-store.js";
+import { ProposalEventsAdapter } from "../../src/planning/evolution/forecast/adapters/proposal-events-adapter.js";
+import { MeasurementEventsAdapter } from "../../src/planning/evolution/forecast/adapters/measurement-events-adapter.js";
+import { EnrichedProposalsAdapter } from "../../src/planning/evolution/forecast/adapters/enriched-proposals-adapter.js";
+import { ForecastsAdapter } from "../../src/planning/evolution/forecast/forecasts-adapter.js";
+import { CorrelationsAdapter } from "../../src/planning/evolution/forecast/correlations-adapter.js";
+import { ForecastEngine } from "../../src/planning/evolution/forecast/forecast-engine.js";
+import { CorrelationEngine } from "../../src/planning/evolution/forecast/correlation-engine.js";
 
 const NOW = "2026-08-14T00:00:00.000Z";
 
@@ -158,9 +158,9 @@ describe("A9 composition-root wiring (CapabilityPlatform.a9)", () => {
     const realCwd = process.cwd();
     const alixRoot = mkdtempSync(join(tmpdir(), "a9-cr-enriched-"));
     const proposalsDir = join(alixRoot, ".alix", "adaptation", "proposals");
-    const { AdaptationProposalStore } = await import("../../src/adaptation/adaptation-proposal-store.js");
-    const { EffectivenessStore } = await import("../../src/adaptation/effectiveness-store.js");
-    const { EvidenceStore } = await import("../../src/security/evidence/evidence-store.js");
+    const { AdaptationProposalStore } = await import("../../src/planning/adaptation/adaptation-proposal-store.js");
+    const { EffectivenessStore } = await import("../../src/planning/adaptation/effectiveness-store.js");
+    const { EvidenceStore } = await import("../../src/governance/security/evidence/evidence-store.js");
     const store = new AdaptationProposalStore(proposalsDir);
     await store.save({
       id: "prop-1",

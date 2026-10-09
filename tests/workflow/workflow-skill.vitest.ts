@@ -6,13 +6,13 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { loadSkill, listSkills } from "../../src/workflow/skill.js";
-import type { SkillDefinition } from "../../src/workflow/skill.js";
-import { runWorkflowSkill } from "../../src/workflow/workflow-skill.js";
-import { WorkflowCoordinator } from "../../src/workflow/coordinator.js";
-import { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import { loadCardRegistry } from "../../src/registry/card-loader.js";
+import { loadSkill, listSkills } from "../../src/coordination/workflow/skill.js";
+import type { SkillDefinition } from "../../src/coordination/workflow/skill.js";
+import { runWorkflowSkill } from "../../src/coordination/workflow/workflow-skill.js";
+import { WorkflowCoordinator } from "../../src/coordination/workflow/coordinator.js";
+import { EvidenceEventWriter } from "../../src/coordination/workflow/evidence-writer.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
+import { loadCardRegistry } from "../../src/capabilities/registry/card-loader.js";
 
 function tmpDir(): string {
   const dir = join("/tmp", "skill-test-" + randomUUID().slice(0, 8));

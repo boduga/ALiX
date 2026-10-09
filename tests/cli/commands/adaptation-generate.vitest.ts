@@ -32,13 +32,13 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readFileSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { readFileSync as readFileSyncRaw } from "node:fs";
-import { handleAdaptationCommand } from "../../../src/cli/commands/adaptation.js";
-import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
-import { EffectivenessStore } from "../../../src/adaptation/effectiveness-store.js";
-import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
-import type { ReflectionReport } from "../../../src/reflection/reflection-types.js";
-import type { ProposalEffectivenessReport } from "../../../src/adaptation/effectiveness-types.js";
+import { handleAdaptationCommand } from "../../../src/interfaces/cli/commands/adaptation.js";
+import { AdaptationProposalStore } from "../../../src/planning/adaptation/adaptation-proposal-store.js";
+import { EffectivenessStore } from "../../../src/planning/adaptation/effectiveness-store.js";
+import { EvidenceStore } from "../../../src/governance/security/evidence/evidence-store.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
+import type { ReflectionReport } from "../../../src/planning/reflection/reflection-types.js";
+import type { ProposalEffectivenessReport } from "../../../src/planning/adaptation/effectiveness-types.js";
 
 // ---------------------------------------------------------------------------
 // process.cwd + process.exit mocks
@@ -185,6 +185,7 @@ describe("alix adaptation generate — architectural sentinel", () => {
       "..",
       "..",
       "src",
+      "interfaces",
       "cli",
       "commands",
       "adaptation",

@@ -4,9 +4,9 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { runMainLoopCase, normalizeRunResult } from "../../src/evals/drivers/main-loop-driver.js";
+import { runMainLoopCase, normalizeRunResult } from "../../src/operations/evals/drivers/main-loop-driver.js";
 import type { RunResult } from "../../src/run.js";
-import type { EvalCase } from "../../src/evals/evals-types.js";
+import type { EvalCase } from "../../src/operations/evals/evals-types.js";
 
 const baseCase: EvalCase = {
   id: "behavioral.read-only",

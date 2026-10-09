@@ -376,11 +376,11 @@ Both outputs are valid. P5.4 does not require sufficient data to run — it scor
 
 | File | Role | Action |
 |---|---|---|
-| `src/adaptation/priority-types.ts` | ProposalPriorityReport, ScoredProposal interfaces | **Create** |
-| `src/adaptation/priority-store.ts` | Save/load/list priority reports | **Create** |
-| `src/adaptation/proposal-scorer.ts` | Score pending proposals using intelligence data | **Create** |
-| `src/adaptation/priority-reporter.ts` | Orchestrate scoring, assemble report, persist | **Create** |
-| `src/cli/commands/adaptation.ts` | Add `prioritize` subcommand | **Modify** |
+| `src/planning/adaptation/priority-types.ts` | ProposalPriorityReport, ScoredProposal interfaces | **Create** |
+| `src/planning/adaptation/priority-store.ts` | Save/load/list priority reports | **Create** |
+| `src/planning/adaptation/proposal-scorer.ts` | Score pending proposals using intelligence data | **Create** |
+| `src/planning/adaptation/priority-reporter.ts` | Orchestrate scoring, assemble report, persist | **Create** |
+| `src/interfaces/cli/commands/adaptation.ts` | Add `prioritize` subcommand | **Modify** |
 | Tests | Per component + CLI integration | **Create** |
 
 ## Interaction with existing P5 phases

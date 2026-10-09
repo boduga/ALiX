@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { NetworkPolicyMatcher, type NetworkPolicy } from "../../src/policy/network-policy-matcher.js";
+import { NetworkPolicyMatcher, type NetworkPolicy } from "../../src/governance/policy/network-policy-matcher.js";
 
 describe("NetworkPolicyMatcher", () => {
   const policy: NetworkPolicy = {

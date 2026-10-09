@@ -40,7 +40,7 @@ describe("A9 CLI dispatch smoke — `alix governance evolution forecast`", () =>
   });
 
   it("dispatches forecast to runForecastCli and prints RISK_GATED_REVIEW", async () => {
-    const { handleGovernanceCommand } = await import("../../src/cli/commands/governance.js");
+    const { handleGovernanceCommand } = await import("../../src/interfaces/cli/commands/governance.js");
     await handleGovernanceCommand(["evolution", "forecast", "--json"]);
     const calls = (console.log as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]).join("\n");
     expect(calls).toContain("forecasts");

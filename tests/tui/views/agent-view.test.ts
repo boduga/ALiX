@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TerminalCanvas } from "../../../src/tui/canvas.js";
-import { AgentView } from "../../../src/tui/views/agent-view.js";
-import type { ViewRenderContext } from "../../../src/tui/views/types.js";
+import { TerminalCanvas } from "../../../src/interfaces/tui/canvas.js";
+import { AgentView } from "../../../src/interfaces/tui/views/agent-view.js";
+import type { ViewRenderContext } from "../../../src/interfaces/tui/views/types.js";
 
 function stripCtx(slash: any): ViewRenderContext {
   const canvas = new TerminalCanvas(60, 20);
@@ -53,7 +53,7 @@ describe("AgentView slash strip", () => {
       dimensions: { columns: 60, rows: 20 },
       perTab: { inputBuffer: "/tdd", scrollOffset: 0 } as any,
       canvas,
-      // Minimal TimelineEntry shape (see src/tui/runtime/timeline-builder.ts):
+      // Minimal TimelineEntry shape (see src/interfaces/tui/runtime/timeline-builder.ts):
       // kind ∈ TimelineKind, `agent.response` is the simplest kind that
       // survives the scrollback filter at agent-view.ts:100-108 and renders
       // as an agent turn (← marker + text).

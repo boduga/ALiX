@@ -220,10 +220,10 @@ If `messages.jsonl` is missing (e.g., old session created before this feature), 
 | `src/session/persist.ts` | **NEW** — message, scope, state persistence |
 | `src/session/resume.ts` | **NEW** — session reconstruction |
 | `src/cli.ts` | Add `alix session` subcommands + `--resume` flag |
-| `src/agent/agent-loop.ts` | Resume path in `runTask()` |
-| `src/run/task-loop.ts` | Incremental state persistence after each iteration |
+| `src/agents/agent/agent-loop.ts` | Resume path in `runTask()` |
+| `src/execution/run/task-loop.ts` | Incremental state persistence after each iteration |
 | `src/run.ts` | Add `resumeSessionId` to `RunOpts` |
-| `src/autonomy/scope-tracker.ts` | Add `toJSON()` / `fromJSON()` for serialization |
-| `src/autonomy/state-machine.ts` | Add `toJSON()` / `fromJSON()` for serialization |
-| `src/events/event-log.ts` | No changes needed (already append-only, restartable) |
+| `src/planning/autonomy/scope-tracker.ts` | Add `toJSON()` / `fromJSON()` for serialization |
+| `src/planning/autonomy/state-machine.ts` | Add `toJSON()` / `fromJSON()` for serialization |
+| `src/runtime-state/events/event-log.ts` | No changes needed (already append-only, restartable) |
 | `tests/` | New tests for persist, resume, CLI |

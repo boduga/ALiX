@@ -8,7 +8,7 @@ import {
   runVerificationSuite,
   type VerificationConfig,
   type VerificationCommand,
-} from "../../../src/cli/commands/issue-verification-runner.js";
+} from "../../../src/interfaces/cli/commands/issue-verification-runner.js";
 
 const baseConfig: VerificationConfig = {
   enabled: true,

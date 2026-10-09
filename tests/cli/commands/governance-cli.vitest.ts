@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleGovernanceCommand } from "../../../src/cli/commands/governance.js";
+import { handleGovernanceCommand } from "../../../src/interfaces/cli/commands/governance.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
@@ -57,7 +57,7 @@ function mockExit(): { spy: ReturnType<typeof vi.spyOn>; restore: () => void } {
 /** Persist a proposal directly via AdaptationProposalStore (bypasses CLI). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function seedProposal(overrides: Record<string, any> = {}): Promise<{ id: string; action: string; status: string }> {
-  const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+  const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
   const proposalsDir = join(tempRoot, ".alix", "adaptation", "proposals");
   const store = new AdaptationProposalStore(proposalsDir);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -149,7 +149,7 @@ describe("governance CLI", () => {
       expect(joined).toContain("prop-approve-1");
 
       // Verify the proposal was actually approved (status transitioned)
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("approved");
@@ -173,7 +173,7 @@ describe("governance CLI", () => {
       expect(joined).toContain("prop-reject-1");
       expect(joined).toContain("rejected");
 
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("rejected");
@@ -271,7 +271,7 @@ describe("governance CLI", () => {
       expect(joined).toContain("File retained for audit.");
 
       // Verify the proposal now has cleaned: true
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load("prop-clean-1");
       expect(reloaded!.systemState?.cleaned).toBe(true);

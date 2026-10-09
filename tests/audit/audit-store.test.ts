@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AuditStore } from "../../src/audit/audit-store.js";
+import { AuditStore } from "../../src/governance/audit/audit-store.js";
 
 describe("AuditStore", () => {
   it("appends and lists records", async () => {

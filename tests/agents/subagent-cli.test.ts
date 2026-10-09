@@ -1,6 +1,6 @@
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
-import type { SubagentResult } from "../../src/config/schema.js";
+import type { SubagentResult } from "../../src/operations/config/schema.js";
 import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, formatToolLedger, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedCreatePath, inferSingleOwnedPatchPath, shouldInferPatchPath, toolsForSubagentIteration, type WriteProgress } from "../../src/agents/subagent-cli.js";
 import * as subagentCliModule from "../../src/agents/subagent-cli.js";
 import { ALIX_BUILTIN_EXECUTORS } from "../../src/agents/tool-manifest.js";

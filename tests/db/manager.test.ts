@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { DatabaseManager } from "../../src/db/manager.js";
+import { DatabaseManager } from "../../src/operations/db/manager.js";
 
 describe("DatabaseManager", () => {
   let tmpDir: string;

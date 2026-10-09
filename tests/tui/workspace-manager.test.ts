@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { WorkspaceManager, promptLabel, type WorkspaceManagerDeps } from "../../src/tui/workspace-manager.js";
-import type { WorkspaceEntry } from "../../src/daemon/workspace-registry.js";
+import { WorkspaceManager, promptLabel, type WorkspaceManagerDeps } from "../../src/interfaces/tui/workspace-manager.js";
+import type { WorkspaceEntry } from "../../src/operations/daemon/workspace-registry.js";
 
 // ---------------------------------------------------------------------------
 // Test fixtures

@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("../../src/providers/local-llama-launcher.js", async () => {
-  const actual = await vi.importActual<typeof import("../../src/providers/local-llama-launcher.js")>("../../src/providers/local-llama-launcher.js");
+vi.mock("../../src/models/providers/local-llama-launcher.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/models/providers/local-llama-launcher.js")>("../../src/models/providers/local-llama-launcher.js");
   return {
     ...actual,
     ensureLlamaServer: vi.fn().mockResolvedValue({ process: null, didStart: false }),
   };
 });
 
-import { LocalLlamaProvider } from "../../src/providers/local-llama-provider.js";
-import { ensureLlamaServer } from "../../src/providers/local-llama-launcher.js";
+import { LocalLlamaProvider } from "../../src/models/providers/local-llama-provider.js";
+import { ensureLlamaServer } from "../../src/models/providers/local-llama-launcher.js";
 
 describe("LocalLlamaProvider launcher knobs", () => {
   beforeEach(() => {

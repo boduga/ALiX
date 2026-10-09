@@ -9,11 +9,11 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { ExecutionAgent } from "../../../src/workflow/agents/execution-agent.js";
-import { WorkflowCoordinator } from "../../../src/workflow/coordinator.js";
-import { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
-import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
-import type { ExecutionPlan, WorkPackage, ExecutionPermit, Subtask } from "../../../src/workflow/types.js";
+import { ExecutionAgent } from "../../../src/coordination/workflow/agents/execution-agent.js";
+import { WorkflowCoordinator } from "../../../src/coordination/workflow/coordinator.js";
+import { EvidenceEventWriter } from "../../../src/coordination/workflow/evidence-writer.js";
+import { EvidenceStore } from "../../../src/governance/security/evidence/evidence-store.js";
+import type { ExecutionPlan, WorkPackage, ExecutionPermit, Subtask } from "../../../src/coordination/workflow/types.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -228,7 +228,7 @@ describe("ExecutionAgent", () => {
         subtasks: [{
           id: "step-1",
           description: "Modify config",
-          files: ["src/config/app.ts"],
+          files: ["src/operations/config/app.ts"],
           testFiles: [],
           acceptanceCheck: "Check",
           dependsOn: [],

@@ -63,7 +63,7 @@ Three kinds, each a small literal object. No inheritance, no metadata envelope, 
 
 ### `parseResponseBlocks(md: string): readonly ResponseBlock[]`
 
-A pure function. Same input → same output. No I/O, no logging, no side effects. Lives in `src/agent/response-blocks.ts`.
+A pure function. Same input → same output. No I/O, no logging, no side effects. Lives in `src/agents/agent/response-blocks.ts`.
 
 ## Parser Invariants
 
@@ -164,10 +164,10 @@ The parser has no `throw` statements in its happy path. Exceptions would only in
 Agent response (markdown string from perTab.agentResponses[])
        │
        ▼
-parseResponseBlocks()  ← src/agent/response-blocks.ts (pure)
+parseResponseBlocks()  ← src/agents/agent/response-blocks.ts (pure)
        │
        ▼
-renderBlocks()          ← src/tui/views/agent-view.ts (per-tab renderer)
+renderBlocks()          ← src/interfaces/tui/views/agent-view.ts (per-tab renderer)
        │
        ├── renderTextBlock()  ──→ wrapText() (existing, unchanged)
        │
@@ -185,7 +185,7 @@ The parser knows nothing about terminal width. The renderer knows nothing about 
 
 ## Components
 
-### 1. `src/agent/response-blocks.ts` (new, ~80 LOC)
+### 1. `src/agents/agent/response-blocks.ts` (new, ~80 LOC)
 
 ```ts
 export type ResponseBlock =
@@ -198,7 +198,7 @@ export function parseResponseBlocks(md: string): readonly ResponseBlock[];
 
 Single exported function. State-machine line scanner. No regex heavy lifting beyond fence detection and bullet patterns.
 
-### 2. `src/tui/views/agent-view.ts` (modified)
+### 2. `src/interfaces/tui/views/agent-view.ts` (modified)
 
 Replace the current flat `wrapText(t.text, textWidth)` loop with:
 

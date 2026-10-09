@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyError } from "../src/tools/executor.js";
+import { classifyError } from "../src/capabilities/tools/executor.js";
 
 type ErrorResult = { kind: "error"; message: string; retryable?: boolean; hint?: string };
 

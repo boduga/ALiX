@@ -1,7 +1,7 @@
 // tests/mcp/retry.test.ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { withRetry } from "../../src/mcp/retry.js";
+import { withRetry } from "../../src/capabilities/mcp/retry.js";
 
 describe("withRetry", () => {
   it("returns immediately on success", async () => {

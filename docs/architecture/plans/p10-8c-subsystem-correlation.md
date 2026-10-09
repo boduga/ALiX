@@ -23,7 +23,7 @@
 - `CorrelationMatcher.match()` returns `Promise<>` for future async matchers (graph, vector, semantic).
 - `computeSubsystemCorrelation()` accepts an injectable `matcher: CorrelationMatcher` parameter (not `mode + lagDays`) — dependency inversion.
 - `SubsystemCorrelationReport` stores `reportGeneratedAt: string` (the `generatedAt` parameter is now stored in the report, not dead API surface).
-- Confidence bucket utilities live in `src/executive/confidence.ts` shared between P10.8c and future P10.9/P11.
+- Confidence bucket utilities live in `src/execution/executive/confidence.ts` shared between P10.8c and future P10.9/P11.
 - All store access goes through `RecommendationReportStore` and `OutcomeReportStore` APIs — no ad-hoc `readFileSync`/`readdirSync`.
 - RecommendationEntry construction reused from P10.8a via extracted `extractRecommendationEntries()` helper.
 - Confidence bucket aggregation (0–0.25, 0.25–0.5, 0.5–0.75, 0.75–1.0) added to per-signal and per-subsystem metrics.
@@ -34,7 +34,7 @@
 ### Task 1: Pure module — types + matcher + correlation engine
 
 **Files:**
-- Create: `src/executive/subsystem-correlation.ts`
+- Create: `src/execution/executive/subsystem-correlation.ts`
 - Create: `tests/executive/subsystem-correlation.vitest.ts`
 
 **Interfaces:**
@@ -47,9 +47,9 @@ Create `tests/executive/subsystem-correlation.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { SubsystemTimeMatcher, CorrelationMode } from "../../src/executive/subsystem-correlation.js";
-import type { RecommendationEntry } from "../../src/executive/recommendation-effectiveness.js";
-import type { ExecutiveOutcomeEvaluationReport, SubsystemDelta } from "../../src/executive/outcome-evaluator.js";
+import { SubsystemTimeMatcher, CorrelationMode } from "../../src/execution/executive/subsystem-correlation.js";
+import type { RecommendationEntry } from "../../src/execution/executive/recommendation-effectiveness.js";
+import type { ExecutiveOutcomeEvaluationReport, SubsystemDelta } from "../../src/execution/executive/outcome-evaluator.js";
 
 // Helper: build a minimal completed outcome report with one objective and one SubsystemDelta
 function makeReport(
@@ -171,7 +171,7 @@ Expected: FAIL — module not found.
 Add to the same test file:
 
 ```ts
-import { computeSubsystemCorrelation } from "../../src/executive/subsystem-correlation.js";
+import { computeSubsystemCorrelation } from "../../src/execution/executive/subsystem-correlation.js";
 
 const GENERATED_AT = "2026-06-27T00:00:00.000Z";
 
@@ -294,7 +294,7 @@ npx vitest run tests/executive/subsystem-correlation.vitest.ts --reporter=verbos
 ```
 Expected: FAIL — `computeSubsystemCorrelation` not defined.
 
-- [ ] **Step 5: Implement `src/executive/subsystem-correlation.ts`**
+- [ ] **Step 5: Implement `src/execution/executive/subsystem-correlation.ts`**
 
 Create the full module:
 
@@ -721,7 +721,7 @@ Expected: PASS — all tests green.
 - [ ] **Step 7: Commit Task 1**
 
 ```bash
-git add src/executive/subsystem-correlation.ts tests/executive/subsystem-correlation.vitest.ts
+git add src/execution/executive/subsystem-correlation.ts tests/executive/subsystem-correlation.vitest.ts
 git commit -m "feat(p10-8c): add predictive signal correlation engine
 
 - New module: subsystem-correlation.ts
@@ -741,9 +741,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 2: CLI handler — load stores, render terminal/JSON, wire routing, sentinel
 
 **Files:**
-- Create: `src/cli/commands/executive-subsystem-correlation-handler.ts`
+- Create: `src/interfaces/cli/commands/executive-subsystem-correlation-handler.ts`
 - Create: `tests/cli/commands/executive-subsystem-correlation-cli.vitest.ts`
-- Modify: `src/cli/commands/executive.ts`
+- Modify: `src/interfaces/cli/commands/executive.ts`
 - Modify: `tests/executive/executive-sentinels.vitest.ts`
 
 **Interfaces:**
@@ -765,10 +765,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleSubsystemCorrelationCommand } from "../../../src/cli/commands/executive-subsystem-correlation-handler.js";
-import { RecommendationReportStore } from "../../../src/executive/recommendation-report-store.js";
-import type { RecommendationReport, ExecutiveRecommendation } from "../../../src/executive/recommendation-report-store.js";
-import type { ExecutiveOutcomeEvaluationReport } from "../../../src/executive/outcome-evaluator.js";
+import { handleSubsystemCorrelationCommand } from "../../../src/interfaces/cli/commands/executive-subsystem-correlation-handler.js";
+import { RecommendationReportStore } from "../../../src/execution/executive/recommendation-report-store.js";
+import type { RecommendationReport, ExecutiveRecommendation } from "../../../src/execution/executive/recommendation-report-store.js";
+import type { ExecutiveOutcomeEvaluationReport } from "../../../src/execution/executive/outcome-evaluator.js";
 
 function captureConsole() {
   const out: string[] = [];
@@ -932,7 +932,7 @@ Expected: FAIL — handler module not found.
 
 - [ ] **Step 3: Implement the CLI handler**
 
-Create `src/cli/commands/executive-subsystem-correlation-handler.ts`:
+Create `src/interfaces/cli/commands/executive-subsystem-correlation-handler.ts`:
 
 ```ts
 /**
@@ -1183,7 +1183,7 @@ function emitNoData(useJson: boolean, generatedAt: string, mode: string, lagDays
 }
 ```
 
-- [ ] **Step 4: Wire routing into `src/cli/commands/executive.ts`**
+- [ ] **Step 4: Wire routing into `src/interfaces/cli/commands/executive.ts`**
 
 Add after the `recommendation-effectiveness` case (after line 131):
 
@@ -1208,8 +1208,8 @@ In `tests/executive/executive-sentinels.vitest.ts`, add to the `EXECUTIVE_FILES`
 
 ```ts
   // P10.8c files
-  "src/executive/subsystem-correlation.ts",
-  "src/cli/commands/executive-subsystem-correlation-handler.ts",
+  "src/execution/executive/subsystem-correlation.ts",
+  "src/interfaces/cli/commands/executive-subsystem-correlation-handler.ts",
 ```
 
 - [ ] **Step 6: Run CLI tests to verify they pass**
@@ -1234,8 +1234,8 @@ Expected: clean exit, no errors.
 - [ ] **Step 8: Commit Task 2**
 
 ```bash
-git add src/cli/commands/executive-subsystem-correlation-handler.ts \
-       src/cli/commands/executive.ts \
+git add src/interfaces/cli/commands/executive-subsystem-correlation-handler.ts \
+       src/interfaces/cli/commands/executive.ts \
        tests/cli/commands/executive-subsystem-correlation-cli.vitest.ts \
        tests/executive/executive-sentinels.vitest.ts
 git commit -m "feat(p10-8c): CLI handler + routing + sentinel for predictive signal correlation

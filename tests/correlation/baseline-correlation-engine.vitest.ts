@@ -3,10 +3,10 @@ import { rmSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { CorrelationEngine } from "../../src/correlation/baseline-correlation-engine.js";
-import { DEFAULT_CORRELATION_CONFIG } from "../../src/correlation/correlation-config.js";
-import type { BaselineRegistry } from "../../src/baseline/baseline-registry.js";
-import type { ExecutiveTrendStore } from "../../src/executive/trend-store.js";
+import { CorrelationEngine } from "../../src/operations/correlation/baseline-correlation-engine.js";
+import { DEFAULT_CORRELATION_CONFIG } from "../../src/operations/correlation/correlation-config.js";
+import type { BaselineRegistry } from "../../src/context/baseline/baseline-registry.js";
+import type { ExecutiveTrendStore } from "../../src/execution/executive/trend-store.js";
 
 function createMockRegistry(): BaselineRegistry {
   return {
@@ -29,7 +29,7 @@ describe("CorrelationEngine", () => {
     trendDir = join(dir, ".alix", "executive");
     mkdirSync(trendDir, { recursive: true });
     registry = createMockRegistry();
-    const { ExecutiveTrendStore: Store } = await import("../../src/executive/trend-store.js");
+    const { ExecutiveTrendStore: Store } = await import("../../src/execution/executive/trend-store.js");
     trendStore = new Store(trendDir);
   });
 

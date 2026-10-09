@@ -2,13 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   buildDefaultToolIndex,
   type ToolCapability,
-} from "../../src/tools/tool-registry.js";
-import { legacyCapabilityToCanonical } from "../../src/tools/capability-map.js";
+} from "../../src/capabilities/tools/tool-registry.js";
+import { legacyCapabilityToCanonical } from "../../src/capabilities/tools/capability-map.js";
 
 /**
  * Contract test for the canonical tool/capability taxonomy (INV-4).
  *
- * `src/tools/tool-registry.ts` is the single canonical source of
+ * `src/capabilities/tools/tool-registry.ts` is the single canonical source of
  * tool/capability metadata. This test locks the exact 22-entry executable
  * surface (names, capability ids, policy keys, risk, mutation flags,
  * domains, always-include behavior, tags, execution profiles) plus the

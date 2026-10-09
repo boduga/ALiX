@@ -381,7 +381,7 @@ docs/architecture/plans/2026-07-05-p14-0-governance-operator-workflow.md  # impl
 # P14.1 Governance Signal Inbox
 src/governance/signal-inbox.ts
 tests/governance/signal-inbox.test.ts
-# Amend: src/cli/commands/governance.ts (add inbox subcommand)
+# Amend: src/interfaces/cli/commands/governance.ts (add inbox subcommand)
 
 # P14.2 Operator Review Session
 src/governance/operator-review.ts
@@ -400,6 +400,6 @@ src/governance/governance-audit.ts
 tests/governance/governance-audit.test.ts
 
 # P14.6 CLI / Dashboard Surface
-src/cli/commands/governance.ts (amend — add all P14 subcommands)
+src/interfaces/cli/commands/governance.ts (amend — add all P14 subcommands)
 tests/governance/governance-operator-invariants.test.ts
 ```

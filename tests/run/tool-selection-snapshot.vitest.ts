@@ -14,12 +14,12 @@ import {
   createSnapshotReplayRunner,
   createReplaySnapshot,
   replayToolInIsolation,
-} from '../../src/decision/tool-selection-snapshot.js';
-import type { ToolSelectionScope } from '../../src/decision/tool-selection-replay.js';
+} from '../../src/planning/decision/tool-selection-snapshot.js';
+import type { ToolSelectionScope } from '../../src/planning/decision/tool-selection-replay.js';
 import {
   builtinCandidateId,
   freezeToolCandidates,
-} from '../../src/decision/tool-selection-candidates.js';
+} from '../../src/planning/decision/tool-selection-candidates.js';
 
 const run = promisify(execFile);
 

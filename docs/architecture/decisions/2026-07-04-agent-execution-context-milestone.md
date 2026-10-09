@@ -56,10 +56,10 @@ See `docs/observability/diagnostics-query-examples.md` for complete usage.
 ## Files changed
 
 ```
-src/agent/agent-loop.ts                       — context creation, runId in result
-src/providers/types.ts                        — context field on NormalizedRequest
-src/providers/provider-contract-validation.ts — resolveContext, per-request context merge
-src/run/task-loop.ts                          — context in TaskLoopDeps, request construction
+src/agents/agent/agent-loop.ts                       — context creation, runId in result
+src/models/providers/types.ts                        — context field on NormalizedRequest
+src/models/providers/provider-contract-validation.ts — resolveContext, per-request context merge
+src/execution/run/task-loop.ts                          — context in TaskLoopDeps, request construction
 src/run.ts                                    — runId in RunResult, parentRunId in RunOpts
 tests/observability/execution-context-lineage.test.ts — 6 lineage tests
 docs/observability/diagnostics-query-examples.md      — CLI usage examples

@@ -11,11 +11,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { SnapshotStore } from "../../../src/adaptation/snapshot-store.js";
-import { GovernanceChangeApplier } from "../../../src/adaptation/appliers/governance-change-applier.js";
-import type { AdaptationProposal, ProposalTarget } from "../../../src/adaptation/adaptation-types.js";
+import { SnapshotStore } from "../../../src/planning/adaptation/snapshot-store.js";
+import { GovernanceChangeApplier } from "../../../src/planning/adaptation/appliers/governance-change-applier.js";
+import type { AdaptationProposal, ProposalTarget } from "../../../src/planning/adaptation/adaptation-types.js";
 import type { GovernanceChangePayload } from "../../../src/governance/governance-types.js";
-import type { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
+import type { EvidenceEventWriter } from "../../../src/coordination/workflow/evidence-writer.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -286,7 +286,7 @@ describe("GovernanceChangeApplier", () => {
     expect(content.calibrations[0].value).toBe(0.75);
 
     // Revert through SnapshotStore → RevertApplier
-    const { RevertApplier } = await import("../../../src/adaptation/revert-applier.js");
+    const { RevertApplier } = await import("../../../src/planning/adaptation/revert-applier.js");
     const revertWriter = { recordRevertFailed: vi.fn(), recordRevertApplied: vi.fn() } as any;
     const revertApplier = new RevertApplier(localSnapDir, revertWriter);
 

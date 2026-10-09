@@ -65,8 +65,8 @@ export async function evaluateRuntimeGate(input: {
 
 | File | Action |
 |------|--------|
-| `src/policy/runtime-gate.ts` | **Create** — RuntimeGate composer |
-| `src/kernel/graph-executor.ts` | **Modify** — use RuntimeGate under --enforce-capabilities |
-| `src/policy/` | Minor — ensure exports are correct |
+| `src/governance/policy/runtime-gate.ts` | **Create** — RuntimeGate composer |
+| `src/coordination/kernel/graph-executor.ts` | **Modify** — use RuntimeGate under --enforce-capabilities |
+| `src/governance/policy/` | Minor — ensure exports are correct |
 | `tests/policy/runtime-gate.test.ts` | **Create** — gate tests |
 | `tests/kernel/graph-executor.test.ts` | **Modify** — add policy enforcement tests |

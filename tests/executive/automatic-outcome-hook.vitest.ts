@@ -34,20 +34,20 @@ import { tmpdir } from "node:os";
 import {
   AutomaticOutcomeEvaluator,
   createAutomaticOutcomeEvaluator,
-} from "../../src/executive/automatic-outcome-hook.js";
-import { OutcomeReportStore } from "../../src/executive/outcome-store.js";
-import { evaluatePlanOutcome } from "../../src/executive/outcome-evaluator.js";
-import type { ExecutiveOutcomeEvaluationReport } from "../../src/executive/outcome-evaluator.js";
-import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/executive/executive-plan-types.js";
+} from "../../src/execution/executive/automatic-outcome-hook.js";
+import { OutcomeReportStore } from "../../src/execution/executive/outcome-store.js";
+import { evaluatePlanOutcome } from "../../src/execution/executive/outcome-evaluator.js";
+import type { ExecutiveOutcomeEvaluationReport } from "../../src/execution/executive/outcome-evaluator.js";
+import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/execution/executive/executive-plan-types.js";
 
 // ---------------------------------------------------------------------------
 // Mock the pure evaluator so tests don't have to construct full plan/state pairs.
 // vi.mock applies before any import that uses evaluatePlanOutcome.
 // ---------------------------------------------------------------------------
-vi.mock("../../src/executive/outcome-evaluator.js", async () => {
+vi.mock("../../src/execution/executive/outcome-evaluator.js", async () => {
   const actual = await vi.importActual<
-    typeof import("../../src/executive/outcome-evaluator.js")
-  >("../../src/executive/outcome-evaluator.js");
+    typeof import("../../src/execution/executive/outcome-evaluator.js")
+  >("../../src/execution/executive/outcome-evaluator.js");
   return {
     ...actual,
     evaluatePlanOutcome: vi.fn(actual.evaluatePlanOutcome),
@@ -415,7 +415,7 @@ describe("AutomaticOutcomeEvaluator", () => {
     // But the factory creates its OWN store. Workaround: build a fresh store
     // pointing at the same outcomes directory, then patch save on the SAME
     // store. We re-implement the factory by constructing the store directly.
-    const trendStore = new (await import("../../src/executive/trend-store.js"))
+    const trendStore = new (await import("../../src/execution/executive/trend-store.js"))
       .ExecutiveTrendStore(execDir);
     const eval2 = new AutomaticOutcomeEvaluator(outcomeStore, trendStore, execDir);
     const originalSave = outcomeStore.save.bind(outcomeStore);
@@ -437,7 +437,7 @@ describe("AutomaticOutcomeEvaluator", () => {
     // to throw a non-integrity error. The factory wires OutcomeReportStore
     // internally; we patch the method on the OutcomeReportStore.prototype
     // and restore after the call so other tests are unaffected.
-    const OutcomeReportStoreMod = await import("../../src/executive/outcome-store.js");
+    const OutcomeReportStoreMod = await import("../../src/execution/executive/outcome-store.js");
     const proto = OutcomeReportStoreMod.OutcomeReportStore.prototype;
     const originalLoad = proto.load;
     const originalSave = proto.save;

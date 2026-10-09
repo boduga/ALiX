@@ -6,7 +6,7 @@
 
 ## Problem
 
-The plan approval logic is duplicated across two functions in `src/run/plan-phase.ts`:
+The plan approval logic is duplicated across two functions in `src/execution/run/plan-phase.ts`:
 
 - `resolvePlanDecisionViaGate()` (lines 222-283) — TUI path via `PlanApprovalGate`
 - `promptForPlanApproval()` (lines 418-492) — TTY path via `prompt()` readline
@@ -15,12 +15,12 @@ Both implement the same approve/reject/edit/detail state machine with the same r
 
 ## Design
 
-Extract the round-loop state machine into a new file `src/run/plan-approval.ts` with a shared `PlanApprovalIO` interface. The two existing functions become thin wrappers that provide TTY or TUI adapters.
+Extract the round-loop state machine into a new file `src/execution/run/plan-approval.ts` with a shared `PlanApprovalIO` interface. The two existing functions become thin wrappers that provide TTY or TUI adapters.
 
 ## PlanApprovalIO interface
 
 ```ts
-// src/run/plan-approval.ts
+// src/execution/run/plan-approval.ts
 
 export type PlanDecision = 'approve' | 'reject' | 'edit' | 'detail';
 
@@ -141,8 +141,8 @@ const tuiIO: PlanApprovalIO = {
 
 | File | Action |
 |------|--------|
-| `src/run/plan-approval.ts` | Create | `runApprovalLoop()`, `PlanApprovalIO`, `PlanDecision` |
-| `src/run/plan-phase.ts` | Modify | Remove `resolvePlanDecisionViaGate()` and `promptForPlanApproval()`; replace with calls to `runApprovalLoop()` with the appropriate adapter |
+| `src/execution/run/plan-approval.ts` | Create | `runApprovalLoop()`, `PlanApprovalIO`, `PlanDecision` |
+| `src/execution/run/plan-phase.ts` | Modify | Remove `resolvePlanDecisionViaGate()` and `promptForPlanApproval()`; replace with calls to `runApprovalLoop()` with the appropriate adapter |
 | `tests/run/plan-approval.vitest.ts` | Create | Tests for the shared state machine with a mock IO adapter |
 
 ## Testing strategy

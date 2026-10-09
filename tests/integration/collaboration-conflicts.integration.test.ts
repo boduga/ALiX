@@ -19,22 +19,22 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CollaborationStore } from "../../src/kernel/collaboration-store.js";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { CoordinationResultStore } from "../../src/kernel/coordination-result-store.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
-import { ConflictDetector } from "../../src/kernel/collaboration-conflict-detector.js";
-import { ConflictCandidateGenerator } from "../../src/kernel/collaboration-conflict-candidates.js";
-import { ClaimComparator } from "../../src/kernel/collaboration-claim-comparator.js";
-import { ConflictEvidenceComparator } from "../../src/kernel/collaboration-evidence-comparator.js";
-import { ConflictRepository } from "../../src/kernel/collaboration-conflict-repository.js";
-import { CollaborationContextBuilder } from "../../src/kernel/collaboration-context-builder.js";
-import { renderContextSnapshot } from "../../src/kernel/collaboration-context-renderer.js";
-import { systemClock } from "../../src/kernel/collaboration-freshness.js";
-import { AuditStore } from "../../src/audit/audit-store.js";
-import { normalizeClaim } from "../../src/kernel/collaboration-claim-normalizer.js";
-import type { FindingClaim } from "../../src/kernel/collaboration-conflict-types.js";
-import type { SharedFinding } from "../../src/kernel/collaboration-types.js";
+import { CollaborationStore } from "../../src/coordination/kernel/collaboration-store.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { CoordinationResultStore } from "../../src/coordination/kernel/coordination-result-store.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import { ConflictDetector } from "../../src/coordination/kernel/collaboration-conflict-detector.js";
+import { ConflictCandidateGenerator } from "../../src/coordination/kernel/collaboration-conflict-candidates.js";
+import { ClaimComparator } from "../../src/coordination/kernel/collaboration-claim-comparator.js";
+import { ConflictEvidenceComparator } from "../../src/coordination/kernel/collaboration-evidence-comparator.js";
+import { ConflictRepository } from "../../src/coordination/kernel/collaboration-conflict-repository.js";
+import { CollaborationContextBuilder } from "../../src/coordination/kernel/collaboration-context-builder.js";
+import { renderContextSnapshot } from "../../src/coordination/kernel/collaboration-context-renderer.js";
+import { systemClock } from "../../src/coordination/kernel/collaboration-freshness.js";
+import { AuditStore } from "../../src/governance/audit/audit-store.js";
+import { normalizeClaim } from "../../src/coordination/kernel/collaboration-claim-normalizer.js";
+import type { FindingClaim } from "../../src/coordination/kernel/collaboration-conflict-types.js";
+import type { SharedFinding } from "../../src/coordination/kernel/collaboration-types.js";
 
 function makeClaim(
   subject: string,

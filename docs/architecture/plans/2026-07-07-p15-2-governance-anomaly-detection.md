@@ -130,7 +130,7 @@ function buildAnomalyId(
 
 ### Task 2 — CLI handler (`runAuditAnomalies`)
 
-**File:** `src/cli/commands/governance.ts`
+**File:** `src/interfaces/cli/commands/governance.ts`
 
 Add `case "anomalies"` to audit dispatch → `runAuditAnomalies(cwd, args, jsonMode)`.
 
@@ -213,7 +213,7 @@ JSON output returns the anomaly array as-is.
 | File | Lines | Change type |
 |------|-------|-------------|
 | `src/governance/audit-anomalies.ts` | ~350 | New |
-| `src/cli/commands/governance.ts` | ~120 | Extend (dispatch + handler) |
+| `src/interfaces/cli/commands/governance.ts` | ~120 | Extend (dispatch + handler) |
 | `tests/governance/audit-anomalies.test.ts` | ~350 | New |
 | **Total new** | ~820 | |
 
@@ -221,7 +221,7 @@ JSON output returns the anomaly array as-is.
 
 - `src/governance/audit-types.ts` — `GovernanceAuditEvent`, event type constants
 - `src/governance/audit-metrics.ts` — function types may be reused for baseline computation
-- `src/cli/commands/governance.ts` — `parseInlineFlag`, `eventTypeColor`, BOLD/DIM/RESET constants
+- `src/interfaces/cli/commands/governance.ts` — `parseInlineFlag`, `eventTypeColor`, BOLD/DIM/RESET constants
 
 ## Acceptance gate
 

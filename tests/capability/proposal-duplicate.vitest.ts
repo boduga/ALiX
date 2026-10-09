@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CapabilityProposalDuplicateError } from "../../src/capability/errors/proposal-duplicate.js";
+import { CapabilityProposalDuplicateError } from "../../src/capabilities/capability/errors/proposal-duplicate.js";
 
 describe("CapabilityProposalDuplicateError (CAP-9 ruling #21)", () => {
   it("carries the standard code", () => {

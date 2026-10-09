@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { renderBlocks } from '../../../src/tui/blocks/render.js';
-import { parseBlocks } from '../../../src/tui/blocks/parser.js';
-import { defaultTheme, lightTheme } from '../../../src/tui/blocks/theme.js';
-import { GRAY } from '../../../src/tui/ansi-constants.js';
+import { renderBlocks } from '../../../src/interfaces/tui/blocks/render.js';
+import { parseBlocks } from '../../../src/interfaces/tui/blocks/parser.js';
+import { defaultTheme, lightTheme } from '../../../src/interfaces/tui/blocks/theme.js';
+import { GRAY } from '../../../src/interfaces/tui/ansi-constants.js';
 
 const W = 60;
 

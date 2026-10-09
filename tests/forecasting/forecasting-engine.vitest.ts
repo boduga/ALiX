@@ -8,14 +8,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { existsSync, unlinkSync, rmdirSync } from "node:fs";
 import { StrategicPlanStore } from "../../src/planning/strategic-plan-store.js";
-import { ConfidenceModelStore } from "../../src/learning/confidence-model-store.js";
-import { HealthForecastStore } from "../../src/forecasting/health-forecast-store.js";
-import { ForecastingEngine } from "../../src/forecasting/forecasting-engine.js";
+import { ConfidenceModelStore } from "../../src/planning/learning/confidence-model-store.js";
+import { HealthForecastStore } from "../../src/planning/forecasting/health-forecast-store.js";
+import { ForecastingEngine } from "../../src/planning/forecasting/forecasting-engine.js";
 import type { StrategicPlan } from "../../src/planning/planning-types.js";
-import type { CorrelationSubsystemId } from "../../src/correlation/correlation-types.js";
-import type { ScoreSnapshotProvider } from "../../src/learning/learning-types.js";
-import { ForecasterError } from "../../src/forecasting/forecasting-types.js";
-import { DEFAULT_FORECASTING_CONFIG } from "../../src/forecasting/forecasting-config.js";
+import type { CorrelationSubsystemId } from "../../src/operations/correlation/correlation-types.js";
+import type { ScoreSnapshotProvider } from "../../src/planning/learning/learning-types.js";
+import { ForecasterError } from "../../src/planning/forecasting/forecasting-types.js";
+import { DEFAULT_FORECASTING_CONFIG } from "../../src/planning/forecasting/forecasting-config.js";
 
 function makePlan(overrides?: Partial<StrategicPlan>): StrategicPlan {
   return {

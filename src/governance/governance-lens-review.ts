@@ -19,8 +19,8 @@
  */
 
 import { join } from "node:path";
-import { LearningStore } from "../learning/learning-store.js";
-import type { LensName } from "../adaptation/governance-review-types.js";
+import { LearningStore } from "../planning/learning/learning-store.js";
+import type { LensName } from "../planning/adaptation/governance-review-types.js";
 import type { LensLifecycleReview } from "./governance-types.js";
 
 // ---------------------------------------------------------------------------

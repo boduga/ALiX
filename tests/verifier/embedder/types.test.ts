@@ -5,7 +5,7 @@ import type {
   FailureRecord,
   EmbedderConfig,
   SimilarityResult,
-} from "../../../src/verifier/embedder/types.js";
+} from "../../../src/execution/verifier/embedder/types.js";
 
 describe("Embedder Types", () => {
   it("VerificationEmbedding has required fields", () => {

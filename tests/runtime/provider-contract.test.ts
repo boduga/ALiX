@@ -14,19 +14,19 @@ import type {
   ProviderRegistry,
   ProviderAvailability,
   ProviderSelectionMetadata,
-} from "../../src/runtime/contracts/provider-contract.js";
+} from "../../src/runtime-state/runtime/contracts/provider-contract.js";
 import {
   SELECTION_METADATA_INVARIANT,
-} from "../../src/runtime/contracts/provider-contract.js";
+} from "../../src/runtime-state/runtime/contracts/provider-contract.js";
 
 // ── Source types (for structural comparison) ─────────────────────
 
-import type { ModelCapabilities as SourceModelCapabilities } from "../../src/providers/types.js";
-import type { TokenUsage as SourceTokenUsage } from "../../src/providers/types.js";
-import type { CostProfile as SourceCostProfile } from "../../src/providers/types.js";
-import type { NormalizedMessage as SourceNormalizedMessage } from "../../src/providers/types.js";
-import type { ModelAdapter as SourceModelAdapter } from "../../src/providers/types.js";
-import { listProviders } from "../../src/providers/registry.js";
+import type { ModelCapabilities as SourceModelCapabilities } from "../../src/models/providers/types.js";
+import type { TokenUsage as SourceTokenUsage } from "../../src/models/providers/types.js";
+import type { CostProfile as SourceCostProfile } from "../../src/models/providers/types.js";
+import type { NormalizedMessage as SourceNormalizedMessage } from "../../src/models/providers/types.js";
+import type { ModelAdapter as SourceModelAdapter } from "../../src/models/providers/types.js";
+import { listProviders } from "../../src/models/providers/registry.js";
 
 // ── Tests ────────────────────────────────────────────────────────
 

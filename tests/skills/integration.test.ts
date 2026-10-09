@@ -2,8 +2,8 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { loadSkills } from "../../src/skills/loader.js";
-import { buildSkillCatalog } from "../../src/skills/catalog.js";
+import { loadSkills } from "../../src/capabilities/skills/loader.js";
+import { buildSkillCatalog } from "../../src/capabilities/skills/catalog.js";
 
 describe("skill catalog integration in run.ts", () => {
   // Use temp dirs to avoid ~/.alix/skills/ pollution and cross-test interference

@@ -15,13 +15,13 @@ import { importedBindings } from "../helpers/import-graph.js";
 
 /** Repo root resolved from test file location (before cwd mock). */
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-import { RiskScoreStore } from "../../src/adaptation/risk-score-store.js";
-import type { RiskScore } from "../../src/adaptation/risk-score-types.js";
-import { RISK_DIMENSIONS } from "../../src/adaptation/risk-score-types.js";
-import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
-import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
-import { RiskCalibrationAdapter } from "../../src/learning/risk-calibration-adapter.js";
-import { ApprovalRecommendationStore } from "../../src/adaptation/approval-recommendation-store.js";
+import { RiskScoreStore } from "../../src/planning/adaptation/risk-score-store.js";
+import type { RiskScore } from "../../src/planning/adaptation/risk-score-types.js";
+import { RISK_DIMENSIONS } from "../../src/planning/adaptation/risk-score-types.js";
+import { OutcomeStore } from "../../src/planning/adaptation/outcome-store.js";
+import type { OutcomeRecord } from "../../src/planning/adaptation/outcome-types.js";
+import { RiskCalibrationAdapter } from "../../src/planning/learning/risk-calibration-adapter.js";
+import { ApprovalRecommendationStore } from "../../src/planning/adaptation/approval-recommendation-store.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
@@ -205,7 +205,7 @@ describe("RiskCalibrationAdapter", () => {
     // conversion path itself by re-running the pure builder with the
     // expected DimensionScore[] and asserting the same processed count.
     const { RiskCalibrationBuilder } = await import(
-      "../../src/learning/risk-calibration-builder.js"
+      "../../src/planning/learning/risk-calibration-builder.js"
     );
     const expectedDimensions = RISK_DIMENSIONS.map((d) => ({
       dimension: d,
@@ -272,7 +272,7 @@ describe("RiskCalibrationAdapter", () => {
     // Static assertion: adapter file imports do NOT mention forbidden
     // mutation surfaces or recommendation substrate.
     const bindings = importedBindings(
-      `${REPO_ROOT}/src/learning/risk-calibration-adapter.ts`,
+      `${REPO_ROOT}/src/planning/learning/risk-calibration-adapter.ts`,
     );
     const forbidden = [
       "LearningStore",

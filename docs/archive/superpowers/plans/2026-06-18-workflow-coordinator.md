@@ -12,7 +12,7 @@
 
 - All new source files use `.ts` extension with ESM imports (`import`/`export`).
 - Test files use `.vitest.ts` extension per existing convention.
-- Cross-process locking reuses `src/security/audit/audit-lock.ts` (acquire/release).
+- Cross-process locking reuses `src/governance/security/audit/audit-lock.ts` (acquire/release).
 - Evidence recording is best-effort — never blocks workflow transitions.
 - All state transitions are validated against a formal transition map. Invalid transitions throw `Error`.
 - The first transition for any issue **must be to `NEW`**. This prevents issues being born in terminal states.
@@ -27,11 +27,11 @@
 
 | File | Role |
 |------|------|
-| `src/workflow/types.ts` | **Create** — WorkflowState union, WorkflowStateEntry, AgentName, AgentCapability, transition map, WorkflowHistoryEvent, WorkflowCoordinatorConfig |
-| `src/security/evidence/evidence-types.ts` | **Modify** — Add 13 workflow evidence event types to EvidenceType union and EVIDENCE_TYPES set |
-| `src/workflow/state-file.ts` | **Create** — StateFile class: read/write state.json with AuditLock, append-only history.jsonl |
-| `src/workflow/coordinator.ts` | **Create** — WorkflowCoordinator: transition(), currentState(), block/unblock, assignAgent, detectStale, recover, evidence hook |
-| `src/cli/commands/workflow.ts` | **Create** — `alix workflow status|list|transition` command handlers |
+| `src/coordination/workflow/types.ts` | **Create** — WorkflowState union, WorkflowStateEntry, AgentName, AgentCapability, transition map, WorkflowHistoryEvent, WorkflowCoordinatorConfig |
+| `src/governance/security/evidence/evidence-types.ts` | **Modify** — Add 13 workflow evidence event types to EvidenceType union and EVIDENCE_TYPES set |
+| `src/coordination/workflow/state-file.ts` | **Create** — StateFile class: read/write state.json with AuditLock, append-only history.jsonl |
+| `src/coordination/workflow/coordinator.ts` | **Create** — WorkflowCoordinator: transition(), currentState(), block/unblock, assignAgent, detectStale, recover, evidence hook |
+| `src/interfaces/cli/commands/workflow.ts` | **Create** — `alix workflow status|list|transition` command handlers |
 | `src/cli.ts` | **Modify** — Wire `alix workflow` dispatch, add help text |
 | `tests/workflow/coordinator.vitest.ts` | **Create** — StateFile + WorkflowCoordinator tests (~25 tests) |
 | `tests/cli/workflow.vitest.ts` | **Create** — CLI command tests (~8 tests) |
@@ -40,15 +40,15 @@
 ## Task 1: Workflow Types and Evidence Registration
 
 **Files:**
-- Create: `src/workflow/types.ts`
-- Modify: `src/security/evidence/evidence-types.ts` (add workflow event types)
+- Create: `src/coordination/workflow/types.ts`
+- Modify: `src/governance/security/evidence/evidence-types.ts` (add workflow event types)
 - Test: `tests/workflow/coordinator.vitest.ts` (type-level tests)
 
 **Interfaces:**
 - Produces: `WorkflowState`, `WorkflowStateEntry`, `AgentName`, `AgentCapability`, `WorkflowHistoryEvent`, `WorkflowCoordinatorConfig`, `ALLOWED_TRANSITIONS`, `WORKFLOW_STATES`
 - Produces: Extended `EvidenceType` union with `"issue_selected"` | `"plan_generated"` | `"plan_approved"` | `"plan_rejected"` | `"execution_started"` | `"execution_completed"` | `"review_started"` | `"review_completed"` | `"pr_created"` | `"merge_completed"` | `"workflow_blocked"` | `"workflow_unblocked"` | `"workflow_aborted"`
 
-- [x] **Step 1: Create `src/workflow/types.ts` with all shared types**
+- [x] **Step 1: Create `src/coordination/workflow/types.ts` with all shared types**
 
 ```typescript
 /**
@@ -221,11 +221,11 @@ export interface WorkflowCoordinatorConfig {
 
 - [x] **Step 2: Run the test to confirm the file compiles**
 
-Run: `npx tsc --noEmit src/workflow/types.ts 2>&1 || echo "Check for type errors"`
+Run: `npx tsc --noEmit src/coordination/workflow/types.ts 2>&1 || echo "Check for type errors"`
 
 Expected: no type errors (the file uses no runtime imports beyond types that exist).
 
-- [x] **Step 3: Modify `src/security/evidence/evidence-types.ts` to add workflow event types**
+- [x] **Step 3: Modify `src/governance/security/evidence/evidence-types.ts` to add workflow event types**
 
 Edit the `EvidenceType` union type to add the 13 workflow evidence events:
 
@@ -280,7 +280,7 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
 
 Run:
 ```bash
-npx tsc --noEmit src/security/evidence/evidence-types.ts 2>&1
+npx tsc --noEmit src/governance/security/evidence/evidence-types.ts 2>&1
 npx vitest run tests/security/evidence/evidence-store.vitest.ts --config vitest.config.mts 2>&1 | tail -5
 ```
 Expected: no type errors, evidence store tests all pass (25 tests).
@@ -288,7 +288,7 @@ Expected: no type errors, evidence store tests all pass (25 tests).
 - [x] **Step 5: Commit**
 
 ```bash
-git add src/workflow/types.ts src/security/evidence/evidence-types.ts
+git add src/coordination/workflow/types.ts src/governance/security/evidence/evidence-types.ts
 git commit -m "feat: add workflow types and register evidence event types"
 ```
 
@@ -296,11 +296,11 @@ git commit -m "feat: add workflow types and register evidence event types"
 ## Task 2: StateFile with Cross-Process Lock
 
 **Files:**
-- Create: `src/workflow/state-file.ts`
+- Create: `src/coordination/workflow/state-file.ts`
 - Test: `tests/workflow/coordinator.vitest.ts` (first test block)
 
 **Interfaces:**
-- Consumes: `WorkflowStateEntry`, `WorkflowHistoryEvent` from Task 1; `acquire`, `release`, `LockHandle` from `src/security/audit/audit-lock.ts`
+- Consumes: `WorkflowStateEntry`, `WorkflowHistoryEvent` from Task 1; `acquire`, `release`, `LockHandle` from `src/governance/security/audit/audit-lock.ts`
 - Produces: `StateFile` class with `readState()`, `writeState()`, `acquireLock()`, `appendHistory()`, `getPaths()`
 
 - [x] **Step 1: Write the failing test for StateFile**
@@ -316,8 +316,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { StateFile } from "../../src/workflow/state-file.js";
-import type { WorkflowStateEntry } from "../../src/workflow/types.js";
+import { StateFile } from "../../src/coordination/workflow/state-file.js";
+import type { WorkflowStateEntry } from "../../src/coordination/workflow/types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -508,7 +508,7 @@ describe("StateFile", () => {
 Run: `npx vitest run tests/workflow/coordinator.vitest.ts --config vitest.config.mts 2>&1 | head -20`
 Expected: import error — `StateFile` module not found.
 
-- [x] **Step 3: Create `src/workflow/state-file.ts` with StateFile class**
+- [x] **Step 3: Create `src/coordination/workflow/state-file.ts` with StateFile class**
 
 ```typescript
 /**
@@ -636,7 +636,7 @@ Expected: all StateFile tests pass (green checkmarks, ~10 tests).
 - [x] **Step 5: Commit**
 
 ```bash
-git add src/workflow/state-file.ts tests/workflow/coordinator.vitest.ts
+git add src/coordination/workflow/state-file.ts tests/workflow/coordinator.vitest.ts
 git commit -m "feat: add StateFile with cross-process lock for workflow state"
 ```
 
@@ -644,11 +644,11 @@ git commit -m "feat: add StateFile with cross-process lock for workflow state"
 ## Task 3: WorkflowCoordinator State Machine
 
 **Files:**
-- Create: `src/workflow/coordinator.ts`
+- Create: `src/coordination/workflow/coordinator.ts`
 - Test: Extend `tests/workflow/coordinator.vitest.ts` (append coordinator tests)
 
 **Interfaces:**
-- Consumes: `WorkflowState`, `WorkflowStateEntry`, `AgentName`, `ALLOWED_TRANSITIONS`, `WorkflowHistoryEvent`, `WorkflowCoordinatorConfig` from Task 1; `StateFile` from Task 2; `EvidenceStore` from `src/security/evidence/evidence-store.ts`; `EvidenceType` from `src/security/evidence/evidence-types.ts`
+- Consumes: `WorkflowState`, `WorkflowStateEntry`, `AgentName`, `ALLOWED_TRANSITIONS`, `WorkflowHistoryEvent`, `WorkflowCoordinatorConfig` from Task 1; `StateFile` from Task 2; `EvidenceStore` from `src/governance/security/evidence/evidence-store.ts`; `EvidenceType` from `src/governance/security/evidence/evidence-types.ts`
 - Produces: `WorkflowCoordinator` class with `transition()`, `currentState()`, `listActive()`, `block()`, `unblock()`, `assignAgent()`, `releaseAgent()`, `detectStale()`, `recover()`
 
 - [ ] **Step 1: Write the failing tests for WorkflowCoordinator**
@@ -660,9 +660,9 @@ Append to `tests/workflow/coordinator.vitest.ts` (after the StateFile section):
 // WorkflowCoordinator tests
 // ---------------------------------------------------------------------------
 
-import { WorkflowCoordinator } from "../../src/workflow/coordinator.js";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import type { WorkflowStateEntry } from "../../src/workflow/types.js";
+import { WorkflowCoordinator } from "../../src/coordination/workflow/coordinator.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
+import type { WorkflowStateEntry } from "../../src/coordination/workflow/types.js";
 
 describe("WorkflowCoordinator", () => {
   let dir: string;
@@ -937,7 +937,7 @@ describe("WorkflowCoordinator", () => {
 Run: `npx vitest run tests/workflow/coordinator.vitest.ts --config vitest.config.mts 2>&1 | head -20`
 Expected: import error — `WorkflowCoordinator` module not found.
 
-- [x] **Step 3: Create `src/workflow/coordinator.ts`**
+- [x] **Step 3: Create `src/coordination/workflow/coordinator.ts`**
 
 ```typescript
 /**
@@ -1382,7 +1382,7 @@ Expected: all WorkflowCoordinator tests pass (~20-25 tests total including State
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/workflow/coordinator.ts tests/workflow/coordinator.vitest.ts
+git add src/coordination/workflow/coordinator.ts tests/workflow/coordinator.vitest.ts
 git commit -m "feat: add WorkflowCoordinator state machine with block, dispatch, recovery"
 ```
 
@@ -1390,7 +1390,7 @@ git commit -m "feat: add WorkflowCoordinator state machine with block, dispatch,
 ## Task 4: CLI Commands
 
 **Files:**
-- Create: `src/cli/commands/workflow.ts`
+- Create: `src/interfaces/cli/commands/workflow.ts`
 - Modify: `src/cli.ts`
 - Test: `tests/cli/workflow.vitest.ts`
 
@@ -1411,7 +1411,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { WorkflowCoordinator } from "../../src/workflow/coordinator.js";
+import { WorkflowCoordinator } from "../../src/coordination/workflow/coordinator.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1493,7 +1493,7 @@ describe("workflow CLI", () => {
 Run: `npx vitest run tests/cli/workflow.vitest.ts --config vitest.config.mts 2>&1 | tail -15`
 Expected: tests pass (they use WorkflowCoordinator which is already implemented in Task 3).
 
-- [ ] **Step 3: Create `src/cli/commands/workflow.ts`**
+- [ ] **Step 3: Create `src/interfaces/cli/commands/workflow.ts`**
 
 ```typescript
 /**
@@ -1691,7 +1691,7 @@ Expected: all evidence tests pass (no regression from new evidence types).
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/workflow.ts src/cli.ts tests/cli/workflow.vitest.ts
+git add src/interfaces/cli/commands/workflow.ts src/cli.ts tests/cli/workflow.vitest.ts
 git commit -m "feat: add workflow CLI commands (status, list, transition)"
 ```
 

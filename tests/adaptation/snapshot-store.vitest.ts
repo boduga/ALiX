@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync, writeFileSync, chmodSync, existsSync, statSync } f
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { SnapshotStore } from "../../src/adaptation/snapshot-store.js";
-import type { AdaptationSnapshot } from "../../src/adaptation/snapshot-store.js";
+import { SnapshotStore } from "../../src/planning/adaptation/snapshot-store.js";
+import type { AdaptationSnapshot } from "../../src/planning/adaptation/snapshot-store.js";
 
 function makeSnapshot(overrides?: Partial<AdaptationSnapshot>): AdaptationSnapshot {
   const content = "original file content for snapshot test";

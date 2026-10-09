@@ -1,5 +1,5 @@
 import { createWorkbenchRenderHarness } from './workbench-render-harness.js';
-import type { WorkbenchUiState } from '../../../src/tui/workbench/model/ui-state.js';
+import type { WorkbenchUiState } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
 
 const { app, output, paint } = createWorkbenchRenderHarness();
 const internal = app as unknown as { handleRaw(bytes: Buffer): void; getWorkbenchStateForTest(): WorkbenchUiState };

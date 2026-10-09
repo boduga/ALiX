@@ -10,8 +10,8 @@ import {
   createRecordedResponseRunner,
   replayFromRecordedResponse,
   type ExternalReplayFixture,
-} from '../../src/decision/tool-selection-fixtures.js';
-import { builtinCandidateId } from '../../src/decision/tool-selection-candidates.js';
+} from '../../src/planning/decision/tool-selection-fixtures.js';
+import { builtinCandidateId } from '../../src/planning/decision/tool-selection-candidates.js';
 
 const fixture: ExternalReplayFixture = {
   fixtureId: 'fix_1',
@@ -134,7 +134,7 @@ describe('no live network, structurally', () => {
   });
 
   it('imports no network client', () => {
-    const source = readFileSync(new URL('../../src/decision/tool-selection-fixtures.ts', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../../src/planning/decision/tool-selection-fixtures.ts', import.meta.url), 'utf8');
     for (const banned of ['node:http', 'node:https', 'node:net', 'undici', 'node:dns', 'fetch(']) {
       expect(source.includes(banned), `recorded-response replay must not reference ${banned}`).toBe(false);
     }

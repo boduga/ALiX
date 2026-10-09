@@ -1,10 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { SkillManifest } from "../../src/skills/types.js";
+import type { SkillManifest } from "../../src/capabilities/skills/types.js";
 import {
   parseSlashInput, skillSlashNames, rankSkillMatches,
   resolveSkillName, canonicalSkillId,
-} from "../../src/skills/slash.js";
+} from "../../src/capabilities/skills/slash.js";
 
 function m(partial: Partial<SkillManifest> & { name: string; description: string }): SkillManifest {
   return { version: "1.0.0", is_core: false, ...partial };

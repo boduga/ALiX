@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rustTokenizer } from '../../../../src/tui/blocks/langs/rust.js';
+import { rustTokenizer } from '../../../../src/interfaces/tui/blocks/langs/rust.js';
 
 describe('rustTokenizer', () => {
   it('tokenizes keywords', () => {

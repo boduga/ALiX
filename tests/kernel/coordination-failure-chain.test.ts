@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildFailureChains } from "../../src/kernel/coordination-failure-chain.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
+import { buildFailureChains } from "../../src/coordination/kernel/coordination-failure-chain.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 
 function makeRun(workers: ReturnType<typeof createWorkerAssignment>[]) {
   const run = createCoordinationRun({ sessionId: "s1", rootGoal: "test", coordinatorAgentId: "alix" });

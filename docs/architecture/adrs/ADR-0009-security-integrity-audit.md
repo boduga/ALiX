@@ -68,7 +68,7 @@ All cryptographic hashing in ALiX uses canonical JSON — a deterministic serial
 canonicalHash(value) = sha256("alix-audit-v1:" + canonicalStringify(value))
 ```
 
-The canonical serializer lives in `src/security/audit/canonical-json.ts` and is imported by every evidence-producing subsystem (A2, A4, A5, chat recall, patch tracking).
+The canonical serializer lives in `src/governance/security/audit/canonical-json.ts` and is imported by every evidence-producing subsystem (A2, A4, A5, chat recall, patch tracking).
 
 **Rationale:** Standard `JSON.stringify` does not guarantee key ordering, making it unsuitable for cryptographic hashing. Without canonical JSON, the same logical object can produce different hashes across different JS engine versions or platform implementations.
 
@@ -130,7 +130,7 @@ interface AuditRecordV2 {
 
 ### 2.5 Credential Isolation
 
-Credentials are stored in `src/security/credentials/credential-store.ts` with:
+Credentials are stored in `src/governance/security/credentials/credential-store.ts` with:
 
 - Per-session credential binding
 - Encrypted storage at rest
@@ -141,7 +141,7 @@ Credentials are stored in `src/security/credentials/credential-store.ts` with:
 
 ### 2.6 Path Security
 
-`src/security/path-assert.ts` provides path traversal protection:
+`src/governance/security/path-assert.ts` provides path traversal protection:
 
 ```typescript
 assertSafePath(userPath: string, allowedPrefix: string): void
@@ -151,7 +151,7 @@ This is used by all file-access subsystems to prevent path traversal attacks whe
 
 ### 2.7 Protected Type Files (ADR-0004)
 
-Type definition files under `src/evolution/**/contracts/` and `src/security/**` are structurally protected. The snapshot-equal sentinel pattern detects unauthorized modifications:
+Type definition files under `src/planning/evolution/**/contracts/` and `src/governance/security/**` are structurally protected. The snapshot-equal sentinel pattern detects unauthorized modifications:
 
 - Allowed: adding new types, adding optional fields
 - Forbidden: removing required fields, changing field types, removing types
@@ -159,7 +159,7 @@ Type definition files under `src/evolution/**/contracts/` and `src/security/**` 
 
 ### 2.8 Redaction and Safe Errors
 
-`src/security/redaction/` provides:
+`src/governance/security/redaction/` provides:
 
 - PII/secret detection in output (`secret-detector.ts`, `classifications.ts`)
 - Safe error serialization that strips sensitive context (`safe-error.ts`)
@@ -242,13 +242,13 @@ The lineage is NOT integrity-protected by the containing evidence's hash — it 
 
 ## 7. Key References
 
-- `src/security/audit/canonical-json.ts` — Canonical JSON serializer
-- `src/audit/audit-types.ts` — Audit event type definitions (v1 + v2 hash-chained)
-- `src/audit/audit-store.ts` — Append-only JSONL audit store with streaming queries
-- `src/security/credentials/credential-store.ts` — Encrypted credential storage
-- `src/security/path-assert.ts` — Path traversal protection
-- `src/security/redaction/` — PII redaction, secret detection, safe errors
-- `src/security/evidence/` — Evidence types and trust verification
-- `src/security/supply-chain/` — Dependency verification
+- `src/governance/security/audit/canonical-json.ts` — Canonical JSON serializer
+- `src/governance/audit/audit-types.ts` — Audit event type definitions (v1 + v2 hash-chained)
+- `src/governance/audit/audit-store.ts` — Append-only JSONL audit store with streaming queries
+- `src/governance/security/credentials/credential-store.ts` — Encrypted credential storage
+- `src/governance/security/path-assert.ts` — Path traversal protection
+- `src/governance/security/redaction/` — PII redaction, secret detection, safe errors
+- `src/governance/security/evidence/` — Evidence types and trust verification
+- `src/governance/security/supply-chain/` — Dependency verification
 - `docs/architecture/adrs/ADR-0004-protected-type-files.md` — Structural type file protection
 - `docs/architecture/adrs/ADR-0006-a-series-governed-evolution-pipeline.md` — Evidence producers in the evolution pipeline

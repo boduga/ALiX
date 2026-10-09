@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { renderDashboard } from "../../../src/cli/commands/dashboard-renderer.js";
-import type { DashboardReport } from "../../../src/learning/learning-dashboard.js";
+import { renderDashboard } from "../../../src/interfaces/cli/commands/dashboard-renderer.js";
+import type { DashboardReport } from "../../../src/planning/learning/learning-dashboard.js";
 
 function healthyReport(): DashboardReport {
   return {

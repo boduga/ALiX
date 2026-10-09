@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { CommandRunner } from "../../src/verification/command-runner.js";
+import { CommandRunner } from "../../src/execution/verification/command-runner.js";
 
 describe("CommandRunner", () => {
   it("executes command and captures output", async () => {

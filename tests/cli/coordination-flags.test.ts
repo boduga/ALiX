@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFlag } from "../../src/cli/commands/coordination.js";
+import { readFlag } from "../../src/interfaces/cli/commands/coordination.js";
 
 describe("coordination readFlag", () => {
   it("parses space-separated form", () => {

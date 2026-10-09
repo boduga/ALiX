@@ -90,7 +90,7 @@ A record is `rollbackable` if:
 
 ### Storage
 
-**File:** `src/runtime/replay-diff-store.ts` (NEW)
+**File:** `src/runtime-state/runtime/replay-diff-store.ts` (NEW)
 
 ```typescript
 export class ReplayDiffStore {
@@ -337,12 +337,12 @@ export type ReplayDiffRecordedPayload = {
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/runtime/replay-diff-store.ts` | **NEW** | ReplayDiffStore — snapshot, diff, storage |
-| `src/runtime/replay-executor.ts` | MODIFY | Hook before/after capture in approved-live mutation handlers |
-| `src/runtime/replay-plan.ts` | — | No changes needed (replayId already exists) |
-| `src/events/types.ts` | MODIFY | Add `DIFF_RECORDED` and payload |
-| `src/tui/trace-detail.ts` | MODIFY | Add diff/rollback renderers |
-| `src/tui/store.ts` | MODIFY | Add replay diff state |
+| `src/runtime-state/runtime/replay-diff-store.ts` | **NEW** | ReplayDiffStore — snapshot, diff, storage |
+| `src/runtime-state/runtime/replay-executor.ts` | MODIFY | Hook before/after capture in approved-live mutation handlers |
+| `src/runtime-state/runtime/replay-plan.ts` | — | No changes needed (replayId already exists) |
+| `src/runtime-state/events/types.ts` | MODIFY | Add `DIFF_RECORDED` and payload |
+| `src/interfaces/tui/trace-detail.ts` | MODIFY | Add diff/rollback renderers |
+| `src/interfaces/tui/store.ts` | MODIFY | Add replay diff state |
 | `tests/runtime/replay-diff-store.test.ts` | **NEW** | Snapshot, diff, storage tests |
 | `tests/runtime/replay-executor.test.ts` | MODIFY | Test before/after capture hooks |
 | `tests/tui/replay-diff-display.test.ts` | **NEW** | Diff rendering tests |

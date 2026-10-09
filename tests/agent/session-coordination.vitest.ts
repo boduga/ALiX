@@ -2,24 +2,24 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createAgentSession } from '../../src/agent/session/setup.js';
-import { EventLog } from '../../src/events/event-log.js';
-import { MemoryStore } from '../../src/utils/memory/store.js';
-import { ScopeTracker } from '../../src/autonomy/scope-tracker.js';
-import { MinimalMetrics } from '../../src/kernel/minimal-metrics.js';
-import { createContextBudget } from '../../src/config/context-budget.js';
-import { ensureEncoder } from '../../src/utils/tokens.js';
-import { ToolExecutor } from '../../src/tools/executor.js';
-import { DEFAULT_CONFIG } from '../../src/config/defaults.js';
-import { ApprovalStore } from '../../src/approvals/approval-store.js';
-import { ExecutionCancelledError } from '../../src/runtime/cancellation-token.js';
-import { closeAllSharedLedgers } from '../../src/storage/runtime-ledger.js';
-import type { SessionState } from '../../src/agent/session/state.js';
-import type { ToolCallRequest, ToolResult } from '../../src/tools/types.js';
+import { createAgentSession } from '../../src/agents/agent/session/setup.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { MemoryStore } from '../../src/operations/utils/memory/store.js';
+import { ScopeTracker } from '../../src/planning/autonomy/scope-tracker.js';
+import { MinimalMetrics } from '../../src/coordination/kernel/minimal-metrics.js';
+import { createContextBudget } from '../../src/operations/config/context-budget.js';
+import { ensureEncoder } from '../../src/operations/utils/tokens.js';
+import { ToolExecutor } from '../../src/capabilities/tools/executor.js';
+import { DEFAULT_CONFIG } from '../../src/operations/config/defaults.js';
+import { ApprovalStore } from '../../src/governance/approvals/approval-store.js';
+import { ExecutionCancelledError } from '../../src/runtime-state/runtime/cancellation-token.js';
+import { closeAllSharedLedgers } from '../../src/runtime-state/storage/runtime-ledger.js';
+import type { SessionState } from '../../src/agents/agent/session/state.js';
+import type { ToolCallRequest, ToolResult } from '../../src/capabilities/tools/types.js';
 
 const hooks = vi.hoisted(() => ({ seed: undefined as ((state: unknown) => void) | undefined }));
-vi.mock('../../src/agent/session/state.js', async importOriginal => {
-  const original = await importOriginal<typeof import('../../src/agent/session/state.js')>();
+vi.mock('../../src/agents/agent/session/state.js', async importOriginal => {
+  const original = await importOriginal<typeof import('../../src/agents/agent/session/state.js')>();
   return { ...original, createSessionState: (config: Parameters<typeof original.createSessionState>[0]) => {
     const state = original.createSessionState(config); hooks.seed?.(state); return state;
   } };

@@ -13,8 +13,8 @@
 | File | Purpose |
 |---|---|
 | `src/governance/governance-explainability-report.ts` | Text and JSON renderers converting `GovernanceExplanation` to output |
-| `src/cli/commands/governance-explain.ts` | CLI handler for `alix governance explain trace <candidateId>` and `alix governance explain window` |
-| `src/cli/commands/governance.ts` | Modified `case "explain"` dispatch to delegate to `governance-explain.ts` for `trace`/`window` subcommands |
+| `src/interfaces/cli/commands/governance-explain.ts` | CLI handler for `alix governance explain trace <candidateId>` and `alix governance explain window` |
+| `src/interfaces/cli/commands/governance.ts` | Modified `case "explain"` dispatch to delegate to `governance-explain.ts` for `trace`/`window` subcommands |
 | `tests/governance/governance-explainability-report.test.ts` | 15 tests: section ordering, footer, JSON, purity invariants |
 | `tests/governance/governance-explain.test.ts` | 8 tests: trace/window output, JSON mode, unknown candidate, no-write invariant |
 

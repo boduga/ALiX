@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { runTask } from "../src/run.js";
-import { EventLog } from "../src/events/event-log.js";
+import { EventLog } from "../src/runtime-state/events/event-log.js";
 
 // Integration tests that call a real model API — skip when API credits are unavailable
 const skipReason = { skip: "integration test: requires model API credits" };

@@ -5,7 +5,7 @@
  * with real ALiX EventLog / StateProjector / ExecutionStateStore path.
  *
  * Tracer bullet for issue #639: keep EventLog authoritative, state disposable.
- * Reuses src/runtime/execution-state/* without new abstraction.
+ * Reuses src/runtime-state/runtime/execution-state/* without new abstraction.
  *
  * Chain verified: real EventLog (file .alix/sessions/<sessionId>/events.jsonl)
  *   -> StateProjector (project) -> ExecutionState -> ContextBuilder ->
@@ -17,18 +17,18 @@
 import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { EventLog } from "../src/events/event-log.js";
-import type { AlixEvent } from "../src/events/types.js";
-import { ExecutionStateStore } from "../src/runtime/execution-state/execution-state-store.js";
+import { EventLog } from "../src/runtime-state/events/event-log.js";
+import type { AlixEvent } from "../src/runtime-state/events/types.js";
+import { ExecutionStateStore } from "../src/runtime-state/runtime/execution-state/execution-state-store.js";
 import {
   project,
   toExecutionState,
   type ProjectorEvent,
   type CheckpointedExecutionState,
-} from "../src/runtime/execution-state/execution-state-projector.js";
-import type { ExecutionState } from "../src/runtime/execution-state/execution-state.js";
-import { buildExecutionContext } from "../src/runtime/context/context-builder.js";
-import { ContextRetrieval } from "../src/runtime/context/retrieval.js";
+} from "../src/runtime-state/runtime/execution-state/execution-state-projector.js";
+import type { ExecutionState } from "../src/runtime-state/runtime/execution-state/execution-state.js";
+import { buildExecutionContext } from "../src/runtime-state/runtime/context/context-builder.js";
+import { ContextRetrieval } from "../src/runtime-state/runtime/context/retrieval.js";
 import {
   StateTransitionHarness,
   allowAllGovernor,
@@ -36,7 +36,7 @@ import {
   allowAllPermission,
   noopExecutor,
   type TransitionEventLog,
-} from "../src/runtime/state/state-transition.js";
+} from "../src/runtime-state/runtime/state/state-transition.js";
 import type { BenchmarkScenario, BenchmarkEvent, GovernanceConfig, DecisionPoint } from "./types.js";
 import { DEFAULT_GOVERNANCE } from "./types.js";
 import { estimateTokens } from "./tokens.js";
@@ -390,7 +390,7 @@ export class RealEventLogEnvironment {
     const result = await harness.propose({
       executionId,
       baseStateVersion,
-      patch: args.patch as unknown as import("../src/runtime/execution-state/execution-state.js").StatePatch,
+      patch: args.patch as unknown as import("../src/runtime-state/runtime/execution-state/execution-state.js").StatePatch,
       ...(args.action ? { action: args.action } : {}),
     });
 

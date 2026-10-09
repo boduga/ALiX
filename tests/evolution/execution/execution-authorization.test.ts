@@ -11,10 +11,10 @@ import assert from "node:assert/strict";
 import {
   authorizeExecution,
   DEFAULT_AUTH_CONFIG,
-} from "../../../src/evolution/execution/execution-authorization.js";
-import type { AuthorizeInput } from "../../../src/evolution/execution/execution-authorization.js";
-import type { GovernanceDecision } from "../../../src/evolution/governance/contracts/decision-contract.js";
-import { computeDecisionIntegrityHash } from "../../../src/evolution/governance/decision-engine.js";
+} from "../../../src/planning/evolution/execution/execution-authorization.js";
+import type { AuthorizeInput } from "../../../src/planning/evolution/execution/execution-authorization.js";
+import type { GovernanceDecision } from "../../../src/planning/evolution/governance/contracts/decision-contract.js";
+import { computeDecisionIntegrityHash } from "../../../src/planning/evolution/governance/decision-engine.js";
 
 /**
  * Patch a decision with field overrides and recompute the integrity hash.
@@ -31,8 +31,8 @@ function patchDecision(
   const computed = computeDecisionIntegrityHash(withoutHash as unknown as Omit<GovernanceDecision, "integrityHash">);
   return { ...withoutHash, integrityHash: computed } as unknown as GovernanceDecision;
 }
-import type { EvolutionProposal } from "../../../src/evolution/contracts/evolution-contract.js";
-import type { ExecutionRequest } from "../../../src/evolution/execution/contracts/execution-contract.js";
+import type { EvolutionProposal } from "../../../src/planning/evolution/contracts/evolution-contract.js";
+import type { ExecutionRequest } from "../../../src/planning/evolution/execution/contracts/execution-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

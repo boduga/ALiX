@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ContinuationStore, type PendingContinuation } from "../../src/runtime/continuation-store.js";
+import { ContinuationStore, type PendingContinuation } from "../../src/runtime-state/runtime/continuation-store.js";
 
 const makeCont = (approvalId: string, overrides?: Partial<PendingContinuation>): PendingContinuation => ({
   approvalId,

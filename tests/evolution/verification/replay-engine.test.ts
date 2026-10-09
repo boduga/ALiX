@@ -10,8 +10,8 @@ import {
   ReplayEngine,
   type ReplayExecutor,
   type DeterministicEvent,
-} from "../../../src/evolution/verification/index.js";
-import type { ReplayDataset } from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
+import type { ReplayDataset } from "../../../src/planning/evolution/verification/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

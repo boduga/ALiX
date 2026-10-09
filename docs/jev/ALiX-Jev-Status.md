@@ -18,8 +18,8 @@ engines each (deterministic local baseline + Jev), a redaction boundary, a
 journal, calibration, replay, and an `alix jev` operator CLI.
 
 **One runtime path exists, deliberately default-off.** PR #824 added the
-`alix_verify_claim` tool: `src/tools/claim-verification-tool.ts` reaches
-`src/decision/` through the lazily-loaded router, but `src/agent`,
+`alix_verify_claim` tool: `src/capabilities/tools/claim-verification-tool.ts` reaches
+`src/planning/decision/` through the lazily-loaded router, but `src/agent`,
 `src/runtime`, `src/policy`, `src/providers`, and `src/kernel` still never
 import a decision (the import-specific grep in this folder's `AGENTS.md` stays
 empty). With the default `mode: "baseline"` the tool runs the local baseline as
@@ -54,7 +54,7 @@ land, the calibration loop still runs on fixture evidence alone.
 ## 3. Verified against the live API
 
 The wire shape is **verified, not assumed**. `JEV_WIRE_FORMAT_STATUS` in
-`src/decision/engines/jev-protocol.ts` is `"verified-against-docs"` and the
+`src/planning/decision/engines/jev-protocol.ts` is `"verified-against-docs"` and the
 previously-required `acknowledgeUnverifiedWireFormat` gate was removed.
 
 Corrections found by verification (all now encoded and tested):
@@ -206,19 +206,19 @@ Promotion requires `--approve` and records `--approved-by`.
 
 ## 8. File map
 
-- `src/decision/engines/` — `jev-protocol.ts` (verified wire types),
+- `src/planning/decision/engines/` — `jev-protocol.ts` (verified wire types),
   `jev.ts` (adapter, backoff, per-decision mapping, registration).
-- `src/decision/decisions/<name>/` — per decision: schema, projection, local
+- `src/planning/decision/decisions/<name>/` — per decision: schema, projection, local
   baseline, corpus, Jev mapping, shadow adapter, selection service, `AGENTS.md`.
   Decisions: `claim-verification`, `context-relevance`, `model-tier`,
   `risk-escalation`.
-- `src/decision/calibration/` — labels, label store, dataset, reliability,
+- `src/planning/decision/calibration/` — labels, label store, dataset, reliability,
   profiles (promotion/rollback + provenance).
-- `src/decision/replay/` — fixtures, harness, cost, compare, gates.
-- `src/decision/contracts.ts` — `DecisionType`, `DecisionProvenance` (incl.
+- `src/planning/decision/replay/` — fixtures, harness, cost, compare, gates.
+- `src/planning/decision/contracts.ts` — `DecisionType`, `DecisionProvenance` (incl.
   optional `usage`), `RiskContext`.
-- `src/cli/commands/jev/` — `main`, `ops`, `replay-ops`, `render`.
-- `src/config/loader.ts`, `src/config/schema.ts`, `src/config/defaults.ts` —
+- `src/interfaces/cli/commands/jev/` — `main`, `ops`, `replay-ops`, `render`.
+- `src/operations/config/loader.ts`, `src/operations/config/schema.ts`, `src/operations/config/defaults.ts` —
   config block; precedence defaults → user (`~/.config/alix/config.json`) →
   project (`<cwd>/.alix/config.json`), **project wins**.
 - `.alix/decisions/` — `decisions.jsonl`, `labels.jsonl`, `profiles.json`,
@@ -226,6 +226,6 @@ Promotion requires `--approve` and records `--approved-by`.
 
 ## 9. Name-collision warning
 
-`src/cli/commands/decision/` is the governance-lens CLI (review/queue/outcome)
-and is **unrelated** to `src/decision/`. Never merge them. The Jev operator
+`src/interfaces/cli/commands/decision/` is the governance-lens CLI (review/queue/outcome)
+and is **unrelated** to `src/planning/decision/`. Never merge them. The Jev operator
 surface is `alix jev`, not `alix decision`.

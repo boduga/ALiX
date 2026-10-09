@@ -18,26 +18,26 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { EventLog } from "../../src/events/event-log.js";
-import type { AlixEvent } from "../../src/events/types.js";
-import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
-import type { Forecast } from "../../src/evolution/forecast/contracts/contract.js";
-import { ForecastEngine } from "../../src/evolution/forecast/forecast-engine.js";
-import { ProposalEventsAdapter } from "../../src/evolution/forecast/adapters/proposal-events-adapter.js";
-import { EnrichedProposalsAdapter } from "../../src/evolution/forecast/adapters/enriched-proposals-adapter.js";
-import { ForecastsStore } from "../../src/evolution/forecast/forecasts-store.js";
-import { buildGovernanceRecommendation } from "../../src/evolution/forecast/bridge.js";
+import type { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
+import type { EnrichedProposal } from "../../src/planning/adaptation/intelligence-types.js";
+import type { Forecast } from "../../src/planning/evolution/forecast/contracts/contract.js";
+import { ForecastEngine } from "../../src/planning/evolution/forecast/forecast-engine.js";
+import { ProposalEventsAdapter } from "../../src/planning/evolution/forecast/adapters/proposal-events-adapter.js";
+import { EnrichedProposalsAdapter } from "../../src/planning/evolution/forecast/adapters/enriched-proposals-adapter.js";
+import { ForecastsStore } from "../../src/planning/evolution/forecast/forecasts-store.js";
+import { buildGovernanceRecommendation } from "../../src/planning/evolution/forecast/bridge.js";
 import {
   generateDecision,
   decisionKindToTargetState,
-} from "../../src/evolution/governance/index.js";
-import type { GovernanceDecisionKind } from "../../src/evolution/governance/contracts/decision-contract.js";
-import { createVerificationEvidence } from "../../src/evolution/verification/index.js";
+} from "../../src/planning/evolution/governance/index.js";
+import type { GovernanceDecisionKind } from "../../src/planning/evolution/governance/contracts/decision-contract.js";
+import { createVerificationEvidence } from "../../src/planning/evolution/verification/index.js";
 import type {
   VerificationEvidenceInput,
   ConfidenceProfile,
-} from "../../src/evolution/verification/index.js";
-import type { GovernanceRecommendation } from "../../src/evolution/verification/contracts/recommendation-contract.js";
+} from "../../src/planning/evolution/verification/index.js";
+import type { GovernanceRecommendation } from "../../src/planning/evolution/verification/contracts/recommendation-contract.js";
 
 const NOW = "2026-08-14T00:00:00.000Z";
 
@@ -311,7 +311,7 @@ describe("A9 pre-execution path — low/medium → MONITOR → existing A3 MONIT
     // so the low path is exercised from the Forecast artifact down — the
     // bridge + A3 mapping are the lock under test.
     const dir = await mkdtemp(join(tmpdir(), "a9-e2e-low-"));
-    const { buildForecast } = await import("../../src/evolution/forecast/forecast-builder.js");
+    const { buildForecast } = await import("../../src/planning/evolution/forecast/forecast-builder.js");
     const forecast = buildForecast(
       [
         {

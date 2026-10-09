@@ -16,8 +16,8 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/policy/runtime-gate.ts` | **Create** | Composed evaluateRuntimeGate() — both layers |
-| `src/kernel/graph-executor.ts` | **Modify** | Integrate RuntimeGate under --enforce-capabilities |
+| `src/governance/policy/runtime-gate.ts` | **Create** | Composed evaluateRuntimeGate() — both layers |
+| `src/coordination/kernel/graph-executor.ts` | **Modify** | Integrate RuntimeGate under --enforce-capabilities |
 | `src/cli.ts` | **Modify** | Wire policy evaluator + approval store into graph run |
 | `tests/policy/runtime-gate.test.ts` | **Create** | Gate unit tests |
 | `tests/kernel/graph-executor.test.ts` | **Modify** | Policy enforcement execution tests |
@@ -27,11 +27,11 @@
 ### Task 1: RuntimeGate composer
 
 **Files:**
-- Create: `src/policy/runtime-gate.ts`
+- Create: `src/governance/policy/runtime-gate.ts`
 
 - [ ] **Step 1: Write RuntimeGate**
 
-Create `src/policy/runtime-gate.ts`:
+Create `src/governance/policy/runtime-gate.ts`:
 
 ```typescript
 /**
@@ -135,7 +135,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/policy/runtime-gate.ts
+git add src/governance/policy/runtime-gate.ts
 git commit -m "feat(policy): add RuntimeGate composer with two-layer evaluation"
 ```
 
@@ -151,10 +151,10 @@ git commit -m "feat(policy): add RuntimeGate composer with two-layer evaluation"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateRuntimeGate } from "../../src/policy/runtime-gate.js";
-import { RuleEvaluator } from "../../src/policy/rule-evaluator.js";
-import { CardRegistry } from "../../src/registry/card-registry.js";
-import type { TaskNode } from "../../src/kernel/task-graph.js";
+import { evaluateRuntimeGate } from "../../src/governance/policy/runtime-gate.js";
+import { RuleEvaluator } from "../../src/governance/policy/rule-evaluator.js";
+import { CardRegistry } from "../../src/capabilities/registry/card-registry.js";
+import type { TaskNode } from "../../src/coordination/kernel/task-graph.js";
 
 function makeNode(overrides: Partial<TaskNode> = {}): TaskNode {
   return {
@@ -236,7 +236,7 @@ describe("RuntimeGate", () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-ask-"));
     try {
       const store = new ApprovalStore(tmpDir);
@@ -293,11 +293,11 @@ git commit -m "test(policy): add RuntimeGate unit tests"
 ### Task 3: GraphExecutor integration
 
 **Files:**
-- Modify: `src/kernel/graph-executor.ts`
+- Modify: `src/coordination/kernel/graph-executor.ts`
 
 - [ ] **Step 1: Add imports**
 
-Add at the top of `src/kernel/graph-executor.ts`:
+Add at the top of `src/coordination/kernel/graph-executor.ts`:
 
 ```typescript
 import { evaluateRuntimeGate } from "../policy/runtime-gate.js";
@@ -400,7 +400,7 @@ Expected: no errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/kernel/graph-executor.ts
+git add src/coordination/kernel/graph-executor.ts
 git commit -m "feat(graph): integrate RuntimeGate into GraphExecutor execution flow"
 ```
 
@@ -462,9 +462,9 @@ it("enforcement: policy deny blocks node", async () => {
   const { mkdtempSync, rmSync, writeFileSync, mkdirSync } = await import("node:fs");
   const { join } = await import("node:path");
   const { tmpdir } = await import("node:os");
-  const { RuleEvaluator } = await import("../../src/policy/rule-evaluator.js");
-  const { CardRegistry } = await import("../../src/registry/card-registry.js");
-  const { GraphExecutor } = await import("../../src/kernel/graph-executor.js");
+  const { RuleEvaluator } = await import("../../src/governance/policy/rule-evaluator.js");
+  const { CardRegistry } = await import("../../src/capabilities/registry/card-registry.js");
+  const { GraphExecutor } = await import("../../src/coordination/kernel/graph-executor.js");
   const tmpDir = mkdtempSync(join(tmpdir(), "exec-policy-deny-"));
 
   const graphId = "policy_deny_test";

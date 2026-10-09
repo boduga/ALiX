@@ -14,8 +14,8 @@ import {
   defaultAgentCards,
   defaultToolCards,
   defaultWorkflowAgentCards,
-} from "../../src/registry/card-loader.js";
-import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
+} from "../../src/capabilities/registry/card-loader.js";
+import { buildDefaultToolIndex } from "../../src/capabilities/tools/tool-registry.js";
 
 function makeTemp(): string {
   return mkdtempSync(join(tmpdir(), "card-loader-test-"));

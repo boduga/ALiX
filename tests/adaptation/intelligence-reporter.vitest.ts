@@ -9,19 +9,19 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
-import { EffectivenessStore } from "../../src/adaptation/effectiveness-store.js";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import { ProposalLifecycleAnalyzer } from "../../src/adaptation/proposal-lifecycle-analyzer.js";
-import { EffectivenessTrendAnalyzer } from "../../src/adaptation/effectiveness-trend-analyzer.js";
-import { BucketAggregator } from "../../src/adaptation/bucket-aggregator.js";
-import { RevertSignalAnalyzer } from "../../src/adaptation/revert-signal-analyzer.js";
-import { ConfidenceCalibrationAnalyzer } from "../../src/adaptation/confidence-calibration-analyzer.js";
-import { IntelligenceReporter } from "../../src/adaptation/intelligence-reporter.js";
-import { IntelligenceStore } from "../../src/adaptation/intelligence-store.js";
-import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
-import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
+import { AdaptationProposalStore } from "../../src/planning/adaptation/adaptation-proposal-store.js";
+import { EffectivenessStore } from "../../src/planning/adaptation/effectiveness-store.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
+import { ProposalLifecycleAnalyzer } from "../../src/planning/adaptation/proposal-lifecycle-analyzer.js";
+import { EffectivenessTrendAnalyzer } from "../../src/planning/adaptation/effectiveness-trend-analyzer.js";
+import { BucketAggregator } from "../../src/planning/adaptation/bucket-aggregator.js";
+import { RevertSignalAnalyzer } from "../../src/planning/adaptation/revert-signal-analyzer.js";
+import { ConfidenceCalibrationAnalyzer } from "../../src/planning/adaptation/confidence-calibration-analyzer.js";
+import { IntelligenceReporter } from "../../src/planning/adaptation/intelligence-reporter.js";
+import { IntelligenceStore } from "../../src/planning/adaptation/intelligence-store.js";
+import type { EnrichedProposal } from "../../src/planning/adaptation/intelligence-types.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
+import type { ProposalEffectivenessReport } from "../../src/planning/adaptation/effectiveness-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

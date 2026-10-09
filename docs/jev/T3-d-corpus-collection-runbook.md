@@ -28,7 +28,7 @@ Stored at `docs/jev/cohorts/<cohortId>.header.json`. How to obtain each field:
 git rev-parse HEAD                          # gitRevision
 alix jev status                             # jevModel + the active config
 sha256sum config.json                       # jevConfigHash (repo config used)
-grep -n "tool-selection/v1" src/decision/tool-selection-experiment.ts
+grep -n "tool-selection/v1" src/planning/decision/tool-selection-experiment.ts
 ```
 
 **Immutability.** If any header field changes, open a new cohort. Never extend
@@ -69,14 +69,14 @@ operator judges the two candidates without a planted answer.
 
 | taskId | prompt | mode | multi | MCP |
 |---|---|---|---|---|
-| `r1` | Summarize what `src/decision/tool-selection-corpus.ts` defines, section by section. | read-only | no | no |
+| `r1` | Summarize what `src/planning/decision/tool-selection-corpus.ts` defines, section by section. | read-only | no | no |
 | `r2` | Find every reference to `tool.selection.observed` repo-wide and group them by file. | read-only | no | no |
 | `r3` | Identify which test files under `tests/run/` exercise the tool-selection experiment surface. | read-only | no | no |
 | `r4` | Locate the definition of `ToolSelectionScope` and every function that consumes it. | read-only | no | no |
 | `r5` | Explain the difference between `scopeId` and `projectionHash` as used in this repo. | read-only | no | no |
-| `r6` | List the files under `src/decision/` longer than 200 lines with their line counts. | read-only | no | no |
+| `r6` | List the files under `src/planning/decision/` longer than 200 lines with their line counts. | read-only | no | no |
 | `r7` | Trace how a `tool.selection.observed` event is produced, from the runtime call site to the JSONL store. | read-only | **yes** | no |
-| `r8` | Compare the contracts in `src/decision/AGENTS.md` and `src/run/task-loop/AGENTS.md` and report every place they disagree. | read-only | **yes** | no |
+| `r8` | Compare the contracts in `src/planning/decision/AGENTS.md` and `src/execution/run/task-loop/AGENTS.md` and report every place they disagree. | read-only | **yes** | no |
 
 ### Verification (`v1`–`v8`)
 
@@ -84,8 +84,8 @@ operator judges the two candidates without a planted answer.
 |---|---|---|---|---|
 | `v1` | Run the tool-selection replay test file and report the exact pass/fail counts. | read-only | no | no |
 | `v2` | Run `pnpm typecheck:unused` and report whether it passes. | read-only | no | no |
-| `v3` | Verify that the exclusion vocabulary in `src/decision/tool-selection-corpus.ts` contains exactly the seven preregistered codes. | read-only | no | no |
-| `v4` | Check whether any file outside `src/decision/` imports the tool-selection scorer or the replay engine. | read-only | no | no |
+| `v3` | Verify that the exclusion vocabulary in `src/planning/decision/tool-selection-corpus.ts` contains exactly the seven preregistered codes. | read-only | no | no |
+| `v4` | Check whether any file outside `src/planning/decision/` imports the tool-selection scorer or the replay engine. | read-only | no | no |
 | `v5` | Confirm or refute: "`scripts/tool-selection-sample.mjs` never writes outside the path passed with `--out`." Cite the source lines. | read-only | **yes** | no |
 | `v6` | Verify that `.gitignore` ignores repo-root `.tmp/` and `.alix/`. | read-only | no | no |
 | `v7` | Determine whether the T3 checkpoint (30 eligible scopes, 10 labelled disagreements) is met by the current corpus, and report the numbers. | read-only | **yes** | yes |
@@ -287,7 +287,7 @@ for row in corpus["rows"]:
     actual_id = (row.get("actual") or {}).get("candidateId")
     jev_id = ((row.get("alternative") or {}).get("ranking") or [None])[0]
     # Slots are blind; map them back only through the recorded order, exactly as
-    # resolveDisagreementLabels does in src/decision/tool-selection-corpus.ts.
+    # resolveDisagreementLabels does in src/planning/decision/tool-selection-corpus.ts.
     actual_app = jev_app = None
     if label and label.get("kind") == "disagreement":
         order, labs = label["order"], label["labels"]

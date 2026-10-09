@@ -4,9 +4,9 @@
 
 **Goal:** Add the `CapabilityProjection` — a lifecycle-reconciliation projection over `capability.Invocation*` events (invocation lifecycle stream) + tool-event `canonicalCapability`/`durationMs` (complementary tool-telemetry stream), answering "how are capabilities actually behaving?" — registered on the outer runtime collector and surfaced as a Capabilities-tab activity panel.
 
-**Architecture:** A new `DurableProjectionBuilder<CapabilityProjectionSnapshot>` in `src/tui/runtime/`, following the trace builder's open/close reconciliation + the Phase-7 platform invariants (no collector orchestration changes to add a projection). Registered via `ProjectionIds.capability` on the outer runtime collector. `RuntimeSnapshot.capabilities` typed field feeds the Capabilities-tab detail pane's Activity block.
+**Architecture:** A new `DurableProjectionBuilder<CapabilityProjectionSnapshot>` in `src/interfaces/tui/runtime/`, following the trace builder's open/close reconciliation + the Phase-7 platform invariants (no collector orchestration changes to add a projection). Registered via `ProjectionIds.capability` on the outer runtime collector. `RuntimeSnapshot.capabilities` typed field feeds the Capabilities-tab detail pane's Activity block.
 
-**Tech Stack:** TypeScript (strict, NodeNext ESM `.js` specifiers), vitest. Files: `src/tui/runtime/capability-projection.ts` (new), `tests/tui/runtime/capability-projection.vitest.ts` (new), `src/tui/runtime/projection-ids.ts`, `src/tui/runtime-collector.ts`, `src/tui/snapshot.ts`, `src/tui/capabilities/capabilities-view.ts`.
+**Tech Stack:** TypeScript (strict, NodeNext ESM `.js` specifiers), vitest. Files: `src/interfaces/tui/runtime/capability-projection.ts` (new), `tests/tui/runtime/capability-projection.vitest.ts` (new), `src/interfaces/tui/runtime/projection-ids.ts`, `src/interfaces/tui/runtime-collector.ts`, `src/interfaces/tui/snapshot.ts`, `src/interfaces/tui/capabilities/capabilities-view.ts`.
 
 ## Global Constraints
 
@@ -26,7 +26,7 @@
 ### Task 1: `CapabilityProjection` builder
 
 **Files:**
-- Create: `src/tui/runtime/capability-projection.ts`
+- Create: `src/interfaces/tui/runtime/capability-projection.ts`
 - Create: `tests/tui/runtime/capability-projection.vitest.ts`
 
 **Interfaces:**
@@ -62,8 +62,8 @@
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { CapabilityProjection } from '../../../src/tui/runtime/capability-projection.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { CapabilityProjection } from '../../../src/interfaces/tui/runtime/capability-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 function evt(type: string, payload: Record<string, unknown>, seq: number, at = seq * 1000): AlixEvent {
   // capability.* events carry `at` in the payload; tool events carry `timestamp`.
@@ -187,7 +187,7 @@ describe('CapabilityProjection', () => {
 Run: `npx vitest run tests/tui/runtime/capability-projection.vitest.ts`
 Expected: FAIL — module `capability-projection.js` not found.
 
-- [ ] **Step 3: Write the implementation** `src/tui/runtime/capability-projection.ts`
+- [ ] **Step 3: Write the implementation** `src/interfaces/tui/runtime/capability-projection.ts`
 
 ```ts
 import type { AlixEvent } from '../../events/types.js';
@@ -389,7 +389,7 @@ Expected: PASS (9 tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/runtime/capability-projection.ts tests/tui/runtime/capability-projection.vitest.ts
+git add src/interfaces/tui/runtime/capability-projection.ts tests/tui/runtime/capability-projection.vitest.ts
 git commit -m "feat(capabilities): CapabilityProjection builder — invocation lifecycle + tool telemetry (Increment A)"
 ```
 
@@ -399,19 +399,19 @@ git commit -m "feat(capabilities): CapabilityProjection builder — invocation l
 ### Task 2: Register + snapshot field
 
 **Files:**
-- Modify: `src/tui/runtime/projection-ids.ts` (add `capability`)
-- Modify: `src/tui/runtime-collector.ts` (snapshot assembly — add `capabilities` field)
-- Modify: `src/tui/snapshot.ts` (add `capabilities` to `RuntimeSnapshot`)
-- Modify: `src/cli/commands/tui.ts` (register `capability` on the outer runtime collector)
+- Modify: `src/interfaces/tui/runtime/projection-ids.ts` (add `capability`)
+- Modify: `src/interfaces/tui/runtime-collector.ts` (snapshot assembly — add `capabilities` field)
+- Modify: `src/interfaces/tui/snapshot.ts` (add `capabilities` to `RuntimeSnapshot`)
+- Modify: `src/interfaces/cli/commands/tui.ts` (register `capability` on the outer runtime collector)
 - Modify: `tests/tui/runtime/runtime-collector.vitest.ts` (assert `snapshot.capabilities` present)
 
 **Interfaces:**
 - Consumes: `CapabilityProjection` + `CapabilityProjectionSnapshot` (Task 1).
 - Produces: `RuntimeSnapshot.capabilities: CapabilityProjectionSnapshot | null`; `ProjectionIds.capability = 'capability'`.
 
-- [ ] **Step 1: Add the id** — `src/tui/runtime/projection-ids.ts`: add `capability: 'capability'` to `ProjectionIds`.
+- [ ] **Step 1: Add the id** — `src/interfaces/tui/runtime/projection-ids.ts`: add `capability: 'capability'` to `ProjectionIds`.
 
-- [ ] **Step 2: Add the snapshot field** — `src/tui/snapshot.ts` `RuntimeSnapshot`: add
+- [ ] **Step 2: Add the snapshot field** — `src/interfaces/tui/snapshot.ts` `RuntimeSnapshot`: add
 ```ts
   /** Per-capability runtime activity stats (CapabilityProjection). Null when the
    *  projection isn't registered (e.g. older collectors). */
@@ -438,7 +438,7 @@ Run: `npx vitest run tests/tui/runtime` (all green) and `npx tsc -p tsconfig.jso
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/tui/runtime/projection-ids.ts src/tui/runtime-collector.ts src/tui/snapshot.ts src/cli/commands/tui.ts tests/tui/runtime/runtime-collector.vitest.ts
+git add src/interfaces/tui/runtime/projection-ids.ts src/interfaces/tui/runtime-collector.ts src/interfaces/tui/snapshot.ts src/interfaces/cli/commands/tui.ts tests/tui/runtime/runtime-collector.vitest.ts
 git commit -m "feat(capabilities): register CapabilityProjection + expose RuntimeSnapshot.capabilities (Increment A)"
 ```
 
@@ -448,7 +448,7 @@ git commit -m "feat(capabilities): register CapabilityProjection + expose Runtim
 ### Task 3: Capabilities-tab activity panel
 
 **Files:**
-- Modify: `src/tui/capabilities/capabilities-view.ts` (renderDetail — append Activity block)
+- Modify: `src/interfaces/tui/capabilities/capabilities-view.ts` (renderDetail — append Activity block)
 - Modify: `tests/tui/capabilities/capabilities-view.vitest.ts` (if exists; otherwise a render test)
 
 **Interfaces:**
@@ -457,7 +457,7 @@ git commit -m "feat(capabilities): register CapabilityProjection + expose Runtim
 
 - [ ] **Step 1: Append the Activity block to `renderDetail`**
 
-`renderDetail` (`src/tui/capabilities/capabilities-view.ts:74`) currently takes `(c, detail, x, y, w, h)` and is called from `render(ctx)` at line 69 with `(c, detail, listW + 1, 4, ...)`. It does NOT receive `ctx` — the minimal change is to thread the snapshot: change the signature to `renderDetail(c, detail, x, y, w, h, snap: DashboardSnapshot)` and pass `ctx.snap` at the call site. Then, after the existing metadata lines, add an Activity section when `detail.id` has a stat:
+`renderDetail` (`src/interfaces/tui/capabilities/capabilities-view.ts:74`) currently takes `(c, detail, x, y, w, h)` and is called from `render(ctx)` at line 69 with `(c, detail, listW + 1, 4, ...)`. It does NOT receive `ctx` — the minimal change is to thread the snapshot: change the signature to `renderDetail(c, detail, x, y, w, h, snap: DashboardSnapshot)` and pass `ctx.snap` at the call site. Then, after the existing metadata lines, add an Activity section when `detail.id` has a stat:
 ```ts
     const stat = snap.runtime?.capabilities?.capabilities?.[detail.id];
     if (stat) {
@@ -482,7 +482,7 @@ Run: `npx vitest run tests/tui` (capabilities view tests) and `npx tsc -p tsconf
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/capabilities/capabilities-view.ts tests/tui/capabilities/capabilities-view.vitest.ts
+git add src/interfaces/tui/capabilities/capabilities-view.ts tests/tui/capabilities/capabilities-view.vitest.ts
 git commit -m "feat(capabilities): Capabilities-tab activity panel for CapabilityProjection (Increment A)"
 ```
 

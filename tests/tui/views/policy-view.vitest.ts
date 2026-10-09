@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PolicyView } from '../../../src/tui/views/policy-view.js';
+import { PolicyView } from '../../../src/interfaces/tui/views/policy-view.js';
 
 describe('PolicyView', () => {
   const ctx = (snap: any = null) => ({

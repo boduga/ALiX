@@ -1,6 +1,6 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { FullFileRewriteGuard, RewriteContext } from '../../src/patch/full-file-guard.js';
+import { FullFileRewriteGuard, RewriteContext } from '../../src/execution/patch/full-file-guard.js';
 
 describe('FullFileRewriteGuard', () => {
   const guard = new FullFileRewriteGuard({ largeFileThreshold: 5000 });

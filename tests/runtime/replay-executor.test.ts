@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ReplayExecutor } from "../../src/runtime/replay-executor.js";
-import { buildReplayPreview } from "../../src/runtime/replay-preview.js";
-import { buildReplayPlan } from "../../src/runtime/replay-plan.js";
-import type { TraceEvent } from "../../src/runtime/trace-events.js";
-import { EventLog } from "../../src/events/event-log.js";
+import { ReplayExecutor } from "../../src/runtime-state/runtime/replay-executor.js";
+import { buildReplayPreview } from "../../src/runtime-state/runtime/replay-preview.js";
+import { buildReplayPlan } from "../../src/runtime-state/runtime/replay-plan.js";
+import type { TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {
@@ -181,7 +181,7 @@ describe("ReplayExecutor approved-live mode", () => {
     eventLog = new EventLog(logDir);
     await eventLog.init();
     executor = new ReplayExecutor(tmpDir, eventLog);
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     approvalStore = new ApprovalStore(tmpDir);
     await approvalStore.load();
   });
@@ -270,7 +270,7 @@ describe("ReplayExecutor approved-live mode", () => {
   });
 
   it("captures diff for file.create during approved-live replay", async () => {
-    const { ReplayDiffStore } = await import("../../src/runtime/replay-diff-store.js");
+    const { ReplayDiffStore } = await import("../../src/runtime-state/runtime/replay-diff-store.js");
     const diffStore = new ReplayDiffStore(tmpDir);
     const newFilePath = join(tmpDir, "diff-captured.txt");
     const events = [

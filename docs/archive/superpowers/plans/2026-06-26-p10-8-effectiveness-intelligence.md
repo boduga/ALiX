@@ -56,7 +56,7 @@ git commit -m "docs(p10-8): add implementation plan"
 ### Task 1: Pure `classifyRecommendation` + `computeRecommendationEffectiveness` + types + unit tests
 
 **Files:**
-- Create: `src/executive/recommendation-effectiveness.ts` (types + both pure functions)
+- Create: `src/execution/executive/recommendation-effectiveness.ts` (types + both pure functions)
 - Create: `tests/executive/recommendation-effectiveness.vitest.ts` (unit tests)
 
 **Interfaces:**
@@ -74,8 +74,8 @@ import {
   computeRecommendationEffectiveness,
   EFFECTIVENESS_OK,
   EFFECTIVENESS_NO_DATA,
-} from "../../src/executive/recommendation-effectiveness.js";
-import type { ClassifyInput, RecommendationEntry } from "../../src/executive/recommendation-effectiveness.js";
+} from "../../src/execution/executive/recommendation-effectiveness.js";
+import type { ClassifyInput, RecommendationEntry } from "../../src/execution/executive/recommendation-effectiveness.js";
 
 const GENERATED_AT = "2026-06-26T00:00:00.000Z";
 // Helper: make a basic classify input
@@ -227,7 +227,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Create the pure functions**
 
-`src/executive/recommendation-effectiveness.ts`:
+`src/execution/executive/recommendation-effectiveness.ts`:
 
 ```ts
 /**
@@ -469,7 +469,7 @@ Expected: no errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/executive/recommendation-effectiveness.ts tests/executive/recommendation-effectiveness.vitest.ts
+git add src/execution/executive/recommendation-effectiveness.ts tests/executive/recommendation-effectiveness.vitest.ts
 git commit -m "feat(p10-8): classifyRecommendation + computeRecommendationEffectiveness + 15 unit tests"
 ```
 
@@ -478,8 +478,8 @@ git commit -m "feat(p10-8): classifyRecommendation + computeRecommendationEffect
 ### Task 2: CLI handler + routing + integration tests
 
 **Files:**
-- Create: `src/cli/commands/executive-effectiveness-handler.ts` (handler)
-- Modify: `src/cli/commands/executive.ts` (add `case "recommendation-effectiveness"` + update subcommand list)
+- Create: `src/interfaces/cli/commands/executive-effectiveness-handler.ts` (handler)
+- Modify: `src/interfaces/cli/commands/executive.ts` (add `case "recommendation-effectiveness"` + update subcommand list)
 - Create: `tests/cli/commands/executive-effectiveness-cli.vitest.ts` (integration tests)
 
 **Interfaces:**
@@ -504,11 +504,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleEffectivenessCommand } from "../../../src/cli/commands/executive-effectiveness-handler.js";
-import { RecommendationReportStore } from "../../../src/executive/recommendation-report-store.js";
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
-import type { RecommendationReport } from "../../../src/executive/recommendation-report-store.js";
-import type { ExecutiveRecommendation } from "../../../src/executive/recommendation-report-store.js";
+import { handleEffectivenessCommand } from "../../../src/interfaces/cli/commands/executive-effectiveness-handler.js";
+import { RecommendationReportStore } from "../../../src/execution/executive/recommendation-report-store.js";
+import { ProposalStore } from "../../../src/planning/adaptation/proposal-store.js";
+import type { RecommendationReport } from "../../../src/execution/executive/recommendation-report-store.js";
+import type { ExecutiveRecommendation } from "../../../src/execution/executive/recommendation-report-store.js";
 
 function captureConsole() {
   const out: string[] = [];
@@ -679,7 +679,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Create the CLI handler**
 
-`src/cli/commands/executive-effectiveness-handler.ts`:
+`src/interfaces/cli/commands/executive-effectiveness-handler.ts`:
 
 ```ts
 /**
@@ -904,7 +904,7 @@ function renderTable(result: EffectivenessResult): void {
 
 - [ ] **Step 4: Wire routing into `executive.ts`**
 
-In `src/cli/commands/executive.ts`, add after `case "bridge"`:
+In `src/interfaces/cli/commands/executive.ts`, add after `case "bridge"`:
 
 ```ts
     case "recommendation-effectiveness": {
@@ -930,7 +930,7 @@ Expected: no errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/executive-effectiveness-handler.ts src/cli/commands/executive.ts tests/cli/commands/executive-effectiveness-cli.vitest.ts
+git add src/interfaces/cli/commands/executive-effectiveness-handler.ts src/interfaces/cli/commands/executive.ts tests/cli/commands/executive-effectiveness-cli.vitest.ts
 git commit -m "feat(p10-8): recommendation-effectiveness CLI + routing + integration tests"
 ```
 
@@ -949,11 +949,11 @@ In `tests/executive/executive-sentinels.vitest.ts`, find the P10.7c group and ap
 
 ```ts
   // P10.7c files
-  "src/executive/executive-bridge-recommendations.ts",
-  "src/cli/commands/executive-bridge-handler.ts",
+  "src/execution/executive/executive-bridge-recommendations.ts",
+  "src/interfaces/cli/commands/executive-bridge-handler.ts",
   // P10.8 files
-  "src/executive/recommendation-effectiveness.ts",
-  "src/cli/commands/executive-effectiveness-handler.ts",
+  "src/execution/executive/recommendation-effectiveness.ts",
+  "src/interfaces/cli/commands/executive-effectiveness-handler.ts",
 ];
 ```
 

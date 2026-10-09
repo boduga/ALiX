@@ -173,7 +173,7 @@
 
 ## Task 5 — CLI handler
 
-**File:** `src/cli/commands/executive-strategic-plan-handler.ts`
+**File:** `src/interfaces/cli/commands/executive-strategic-plan-handler.ts`
 
 ### Steps
 
@@ -187,15 +187,15 @@
    - JSON mode: full JSON dump
    - Summary mode: table format matching P11.2's reason handler style
 
-3. Register in `src/cli/commands/executive.ts`:
+3. Register in `src/interfaces/cli/commands/executive.ts`:
    - Add `case "strategic-plan":` with dynamic import
    - Add "strategic-plan" to the default-case available subcommands list
 
 ### Verification
 
 - `npm run typecheck` passes
-- CLI smoke test: `npx tsx src/cli/alix.ts executive strategic-plan --latest` prints helpful message
-- `npx tsx src/cli/alix.ts executive strategic-plan --json --latest` outputs JSON (or error about no data)
+- CLI smoke test: `npx tsx src/interfaces/cli/alix.ts executive strategic-plan --latest` prints helpful message
+- `npx tsx src/interfaces/cli/alix.ts executive strategic-plan --json --latest` outputs JSON (or error about no data)
 
 ---
 
@@ -285,8 +285,8 @@ npm run typecheck
 npx vitest run tests/planning/ 2>&1 | tail -10
 npx vitest run
 npm run build
-npx tsx src/cli/alix.ts executive strategic-plan --latest
-npx tsx src/cli/alix.ts executive strategic-plan --json --latest
+npx tsx src/interfaces/cli/alix.ts executive strategic-plan --latest
+npx tsx src/interfaces/cli/alix.ts executive strategic-plan --json --latest
 ```
 
 Expected: typecheck clean, 23 tests passing, CLI prints helpful "no plan" message.

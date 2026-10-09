@@ -36,7 +36,7 @@ describe("Daemon SIGTERM shutdown (Task 15)", { timeout: 15000 }, () => {
       model: { provider: "mock", name: "mock" }, mcpServers: [],
     }));
 
-    const serverJs = join(__dirname, "..", "..", "src", "daemon", "daemon-server.js");
+    const serverJs = join(__dirname, "..", "..", "src", "operations", "daemon", "daemon-server.js");
     serverProcess = spawn(process.execPath, [serverJs, "--socket", socketPath, "--cwd", cwd], {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, HOME: homeDir },

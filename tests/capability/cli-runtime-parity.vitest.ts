@@ -48,15 +48,15 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CatalogBackedCapabilityMutationPort } from "../../src/capability/mutation-port.js";
-import { EventLog } from "../../src/events/event-log.js";
-import { registerInitialCapabilities } from "../../src/capability/initial-capabilities.js";
-import { migrateKind } from "../../src/capability/canonical/kind.js";
-import type { CapabilityListItem } from "../../src/capability/types/service-results.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CatalogBackedCapabilityMutationPort } from "../../src/capabilities/capability/mutation-port.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { registerInitialCapabilities } from "../../src/capabilities/capability/initial-capabilities.js";
+import { migrateKind } from "../../src/capabilities/capability/canonical/kind.js";
+import type { CapabilityListItem } from "../../src/capabilities/capability/types/service-results.js";
 
 describe("CAP-12 — CLI/runtime catalog parity (D2 / §82 surface-read)", () => {
   let dir: string;

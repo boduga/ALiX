@@ -1,0 +1,344 @@
+import type { AlixConfig, ConfigValidationResult, ModelConfig, TracingCaptureConfig, ValidationIssue } from "./schema.js";
+import {
+  DISCOVERY_CAPABILITY_NAMES,
+  MODEL_CAPABILITY_NAMES,
+  isDiscoveryCapabilityName,
+  isModelCapabilityName,
+} from "./schema.js";
+import { DECISION_MODE_VALUES } from "../../planning/decision/config.js";
+
+/** Returns true when host resolves to a loopback address. */
+export function isLoopbackHost(host: string): boolean {
+  return host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
+}
+
+/** Returns true when the value parses as an absolute http(s) URL. */
+export function isValidHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export function validateConfig(config: AlixConfig): ConfigValidationResult {
+  const issues: ValidationIssue[] = [];
+
+  // models.default is the canonical persisted source; `model` is a loader-derived
+  // projection that may be absent (e.g. an invalid-but-present default). Validate
+  // the canonical entry so requireModel:false loads (models doctor/fit/list) can
+  // surface diagnostics without crashing on an absent projection. A config with
+  // NO `models` key at all (pre-migration) is left to the loader's requireModel
+  // check rather than flagged here — only an explicitly-present-but-invalid
+  // models.default is a validation error.
+  const defaultModel = config.models?.default;
+  if (config.models && (!defaultModel?.name || typeof defaultModel.name !== "string")) {
+    issues.push({ path: "models.default.name", level: "error", message: "models.default.name must be a non-empty string" });
+  }
+
+  // local-llama launcher knobs: validate the top-level `localModelPath` and the
+  // nested `localLlama` block on every model entry (default + tiers). Optional
+  // knobs are only flagged when DEFINED-and-invalid — undefined → default later
+  // → valid (the launcher owns the defaults).
+  for (const [tier, model] of Object.entries(config.models ?? {})) {
+    pushLocalLlamaIssues(`models.${tier}`, model, issues);
+    pushCapabilityIssues(
+      `models.${tier}.capabilities`,
+      model?.capabilities,
+      isModelCapabilityName,
+      MODEL_CAPABILITY_NAMES,
+      issues,
+    );
+    pushCapabilityIssues(
+      `models.${tier}.selection.capabilities`,
+      model?.selection?.capabilities,
+      isDiscoveryCapabilityName,
+      DISCOVERY_CAPABILITY_NAMES,
+      issues,
+    );
+    if (model?.ollamaBaseUrl !== undefined && !isValidHttpUrl(model.ollamaBaseUrl)) {
+      issues.push({ path: `models.${tier}.ollamaBaseUrl`, level: "error", message: "ollamaBaseUrl must be a valid http(s) URL" });
+    }
+    if (model?.localLlamaBaseUrl !== undefined && !isValidHttpUrl(model.localLlamaBaseUrl)) {
+      issues.push({ path: `models.${tier}.localLlamaBaseUrl`, level: "error", message: "localLlamaBaseUrl must be a valid http(s) URL" });
+    }
+  }
+
+  // Sections below may be ABSENT in a config fragment — the raw on-disk file
+  // that ConfigMutationService validates is a partial overlay, not the
+  // defaults-merged config loadConfig() validates. A missing section is
+  // incomplete, not invalid (defaults fill it at load), so each section is
+  // only checked when present.
+  if (config.ui) {
+    // ui.port must be 1024-65535
+    if (config.ui.port < 1024 || config.ui.port > 65535) {
+      issues.push({ path: "ui.port", level: "warning", message: `Port ${config.ui.port} is outside typical range (1024-65535)` });
+    }
+
+    // Warn when ui.host is explicitly set to 0.0.0.0 — should use loopback
+    if (config.ui.host === "0.0.0.0") {
+      issues.push({ path: "ui.host", level: "warning", message: "Binding to 0.0.0.0 exposes Inspector on all interfaces. Set ui.host to 127.0.0.1 for loopback-only." });
+    }
+
+    // ui.security validation
+    const sec = config.ui.security;
+    if (sec) {
+      if (!["required", "disabled-loopback-development"].includes(sec.authentication)) {
+        issues.push({
+          path: "ui.security.authentication",
+          level: "error",
+          message: "authentication must be required or disabled-loopback-development",
+        });
+      }
+
+      // Reject authentication-disabled mode on non-loopback hosts
+      if (sec.authentication === "disabled-loopback-development" && !isLoopbackHost(config.ui.host)) {
+        issues.push({ path: "ui.security.authentication", level: "error", message: "Authentication cannot be disabled on a non-loopback host. Set ui.host to 127.0.0.1, ::1, or localhost." });
+      }
+
+      // Warn when authentication is disabled
+      if (sec.authentication === "disabled-loopback-development") {
+        issues.push({ path: "ui.security.authentication", level: "warning", message: "Authentication is disabled. This is only acceptable for local development on loopback." });
+      }
+
+      // Reject remoteAccess: true with a non-loopback host — not yet approved without auth
+      if (sec.remoteAccess && !isLoopbackHost(config.ui.host)) {
+        issues.push({ path: "ui.security.remoteAccess", level: "error", message: "Remote access is not yet approved until authentication lands. Set remoteAccess to false or bind to a loopback address." });
+      }
+
+      // Validate allowedHosts entries
+      if (!Array.isArray(sec.allowedHosts)) {
+        issues.push({ path: "ui.security.allowedHosts", level: "error", message: "allowedHosts must be an array of strings" });
+      }
+
+      // Validate allowedOrigins entries
+      if (!Array.isArray(sec.allowedOrigins)) {
+        issues.push({ path: "ui.security.allowedOrigins", level: "error", message: "allowedOrigins must be an array of strings" });
+      }
+
+      // Validate trustedProxyCidrs entries
+      if (!Array.isArray(sec.trustedProxyCidrs)) {
+        issues.push({ path: "ui.security.trustedProxyCidrs", level: "error", message: "trustedProxyCidrs must be an array of strings" });
+      }
+    }
+  }
+
+  if (config.context) {
+    // context.maxRepoMapTokens must be positive integer (when present — a
+    // fragment omitting it is fine; the loader defaults it)
+    if (config.context.maxRepoMapTokens !== undefined &&
+        (!Number.isInteger(config.context.maxRepoMapTokens) || config.context.maxRepoMapTokens <= 0)) {
+      issues.push({ path: "context.maxRepoMapTokens", level: "error", message: "maxRepoMapTokens must be a positive integer" });
+    }
+  }
+
+  // context.budget output-reservation knobs (C0/C1) — budget may be a partial
+  // object even when context is present.
+  const budget = config.context?.budget;
+  if (budget) {
+    // Each knob is optional and defaults in createContextBudget; only a
+    // DEFINED-and-invalid knob is an error (undefined → default later →
+    // valid). This matters because mergeConfig shallow-merges `context`, so a
+    // partial `budget: { outputFloor: 8192 }` legitimately leaves outputRatio
+    // undefined and must not be flagged.
+    if (budget.outputRatio !== undefined && (typeof budget.outputRatio !== "number" || !(budget.outputRatio > 0 && budget.outputRatio < 1))) {
+      issues.push({ path: "context.budget.outputRatio", level: "error", message: "outputRatio must be a number strictly between 0 and 1" });
+    }
+    if (budget.outputFloor !== undefined && (!Number.isInteger(budget.outputFloor) || budget.outputFloor <= 0)) {
+      issues.push({ path: "context.budget.outputFloor", level: "error", message: "outputFloor must be a positive integer" });
+    }
+    if (budget.outputCap !== undefined && (!Number.isInteger(budget.outputCap) || budget.outputCap <= 0)) {
+      issues.push({ path: "context.budget.outputCap", level: "error", message: "outputCap must be a positive integer" });
+    }
+    if (budget.outputFloor !== undefined && budget.outputCap !== undefined && budget.outputFloor > budget.outputCap) {
+      issues.push({ path: "context.budget.outputFloor", level: "error", message: "outputFloor cannot exceed outputCap" });
+    }
+    // §5: maxOutputTokens must be a positive integer. Values above outputCap
+    // are allowed (clamped to budgetReservation ≤ policyReservation ≤ outputCap
+    // at construction), so no cross-check is needed — the invariant holds
+    // structurally in the factory.
+    if (budget.maxOutputTokens !== undefined && (!Number.isInteger(budget.maxOutputTokens) || budget.maxOutputTokens <= 0)) {
+      issues.push({ path: "context.budget.maxOutputTokens", level: "error", message: "maxOutputTokens must be positive integer" });
+    }
+  }
+
+  if (config.runtime) {
+    // runtime.commandTimeoutMs must be positive (when present — a fragment
+    // omitting it is fine; the loader defaults it)
+    if (config.runtime.commandTimeoutMs !== undefined && config.runtime.commandTimeoutMs <= 0) {
+      issues.push({ path: "runtime.commandTimeoutMs", level: "error", message: "commandTimeoutMs must be positive" });
+    }
+
+    // runtime.provider must be "process" | "docker" | "remote" (when present —
+    // a fragment omitting it is fine; the loader defaults it)
+    if (config.runtime.provider !== undefined && !["process","docker","remote"].includes(config.runtime.provider)) {
+      issues.push({ path: "runtime.provider", level: "error", message: "runtime.provider must be process, docker, or remote" });
+    }
+  }
+
+  if (config.permissions) {
+    // permissions.protectedPaths must be strings
+    for (const p of config.permissions.protectedPaths ?? []) {
+      if (typeof p !== "string") issues.push({ path: "permissions.protectedPaths", level: "error", message: "protectedPaths must contain only strings" });
+    }
+
+    // permissions.denyCommands must be strings
+    for (const cmd of config.permissions.denyCommands ?? []) {
+      if (typeof cmd !== "string") issues.push({ path: "permissions.denyCommands", level: "error", message: "denyCommands must contain only strings" });
+    }
+
+    // permissions.default must be "ask" | "allow" | "deny" (when present — a
+    // fragment omitting it is fine; the loader defaults it to "ask")
+    if (config.permissions.default !== undefined && !["ask","allow","deny"].includes(config.permissions.default)) {
+      issues.push({ path: "permissions.default", level: "error", message: "permissions.default must be ask, allow, or deny" });
+    }
+  }
+
+  // context.repoMapMode must be "lite" | "full" (when present — a fragment
+  // omitting it is fine; the loader defaults it to "lite")
+  if (config.context?.repoMapMode !== undefined && !["lite","full"].includes(config.context.repoMapMode)) {
+    issues.push({ path: "context.repoMapMode", level: "error", message: "context.repoMapMode must be lite or full" });
+  }
+
+  // tracing — a fragment may set only part of the section (e.g.
+  // `tracing: { enabled: true }`); each nested value is validated only when
+  // DEFINED, mirroring the other config sections. The fully merged config
+  // loadConfig() validates always carries defaults for every field.
+  const tracing = config.tracing;
+  if (tracing) {
+    if (tracing.enabled !== undefined && typeof tracing.enabled !== "boolean") {
+      issues.push({ path: "tracing.enabled", level: "error", message: "tracing.enabled must be a boolean" });
+    }
+
+    if (tracing.flushTimeoutMs !== undefined &&
+        (!Number.isInteger(tracing.flushTimeoutMs) || tracing.flushTimeoutMs <= 0)) {
+      issues.push({ path: "tracing.flushTimeoutMs", level: "error", message: "flushTimeoutMs must be a positive integer (ms)" });
+    }
+
+    const capture = tracing.capture;
+    if (capture) {
+      for (const field of TRACING_CAPTURE_MODE_FIELDS) {
+        const mode: unknown = capture[field];
+        if (mode !== undefined && (typeof mode !== "string" || !(TRACING_CAPTURE_MODES as readonly string[]).includes(mode))) {
+          issues.push({ path: `tracing.capture.${field}`, level: "error", message: `tracing.capture.${field} must be "full", "truncated", or "off"` });
+        }
+      }
+      for (const field of TRACING_CAPTURE_LIMIT_FIELDS) {
+        const limit: unknown = capture[field];
+        if (limit !== undefined && (typeof limit !== "number" || !Number.isInteger(limit) || limit < 0)) {
+          issues.push({ path: `tracing.capture.${field}`, level: "error", message: `tracing.capture.${field} must be a non-negative integer` });
+        }
+      }
+    }
+
+    // baseUrl must be a valid http(s) URL when tracing is enabled. The default
+    // (empty string) therefore fails closed on load until an operator sets it.
+    if (tracing.enabled === true &&
+        tracing.langfuse?.baseUrl !== undefined &&
+        !isValidHttpUrl(tracing.langfuse.baseUrl)) {
+      issues.push({ path: "tracing.langfuse.baseUrl", level: "error", message: "tracing.langfuse.baseUrl must be a valid http(s) URL when tracing is enabled" });
+    }
+  }
+
+  // decision — fragment-tolerant like tracing: each value checked only when
+  // DEFINED. A missing section is incomplete, not invalid (defaults fill it).
+  const decision = config.decision;
+  if (decision) {
+    if (decision.defaultEngine !== undefined && decision.defaultEngine !== "local") {
+      issues.push({ path: "decision.defaultEngine", level: "error", message: 'defaultEngine must be "local"' });
+    }
+    const jevEnabled = decision.remote?.jev?.enabled;
+    if (jevEnabled !== undefined && typeof jevEnabled !== "boolean") {
+      issues.push({ path: "decision.remote.jev.enabled", level: "error", message: "remote.jev.enabled must be a boolean" });
+    }
+    for (const key of ["claimVerification", "contextRelevance", "modelTier", "riskEscalation"] as const) {
+      const route = decision[key];
+      if (!route) continue;
+      for (const field of ["engine", "fallback", "thresholdProfile"] as const) {
+        const value: unknown = route[field];
+        if (value !== undefined && (typeof value !== "string" || value.length === 0)) {
+          issues.push({ path: `decision.${key}.${field}`, level: "error", message: `${key}.${field} must be a non-empty string` });
+        }
+      }
+      if (route.enabled !== undefined && typeof route.enabled !== "boolean") {
+        issues.push({ path: `decision.${key}.enabled`, level: "error", message: `${key}.enabled must be a boolean` });
+      }
+      if (route.mode !== undefined && !(DECISION_MODE_VALUES as readonly unknown[]).includes(route.mode)) {
+        issues.push({
+          path: `decision.${key}.mode`,
+          level: "error",
+          message: `mode must be one of ${DECISION_MODE_VALUES.join("|")}`,
+        });
+      }
+    }
+  }
+
+  return { valid: issues.filter(i => i.level === "error").length === 0, issues };
+}
+
+const TRACING_CAPTURE_MODE_FIELDS: Array<keyof TracingCaptureConfig> = ["messages", "reasoning", "toolInput", "toolOutput"];
+const TRACING_CAPTURE_LIMIT_FIELDS: Array<keyof TracingCaptureConfig> = ["maxMessageChars", "maxToolOutputChars"];
+const TRACING_CAPTURE_MODES = ["full", "truncated", "off"] as const;
+
+function pushCapabilityIssues(
+  path: string,
+  values: readonly unknown[] | undefined,
+  isKnown: (value: unknown) => boolean,
+  expected: readonly string[],
+  issues: ValidationIssue[],
+): void {
+  for (const capability of values ?? []) {
+    if (!isKnown(capability)) {
+      issues.push({
+        path,
+        level: "error",
+        message: `unknown capability "${String(capability)}" (expected one of ${expected.join(", ")})`,
+      });
+    }
+  }
+}
+
+function pushLocalLlamaIssues(
+  path: string,
+  model: ModelConfig | undefined,
+  issues: ValidationIssue[],
+): void {
+  if (!model) return;
+
+  if (model.localModelPath !== undefined && (typeof model.localModelPath !== "string" || model.localModelPath.length === 0)) {
+    issues.push({ path: `${path}.localModelPath`, level: "error", message: "localModelPath must be a non-empty string" });
+  }
+
+  const ll = model.localLlama;
+  if (model.freellmapiBaseUrl !== undefined && !isValidHttpUrl(model.freellmapiBaseUrl)) {
+    issues.push({ path: `${path}.freellmapiBaseUrl`, level: "error", message: "freellmapiBaseUrl must be a valid http(s) URL" });
+  }
+  if (model.xiaomiMimoBaseUrl !== undefined && !isValidHttpUrl(model.xiaomiMimoBaseUrl)) {
+    issues.push({ path: `${path}.xiaomiMimoBaseUrl`, level: "error", message: "xiaomiMimoBaseUrl must be a valid http(s) URL" });
+  }
+  if (!ll) return;
+
+  for (const [knob, type, check] of [
+    ["ctxSize", "number", (v: number) => Number.isInteger(v) && v > 0],
+    ["threads", "number", (v: number) => Number.isInteger(v) && v > 0],
+    ["batchSize", "number", (v: number) => Number.isInteger(v) && v > 0],
+    ["ubatchSize", "number", (v: number) => Number.isInteger(v) && v > 0],
+    ["port", "number", (v: number) => Number.isInteger(v) && v > 0 && v <= 65535],
+  ] as const) {
+    const value = ll[knob];
+    if (value !== undefined && (typeof value !== type || !check(value as number))) {
+      issues.push({ path: `${path}.localLlama.${knob}`, level: "error", message: `${knob} must be a ${type === "number" ? "positive integer" : type}` });
+    }
+  }
+
+  if (ll.gpuLayers !== undefined && !(ll.gpuLayers === "auto" || (typeof ll.gpuLayers === "number" && Number.isInteger(ll.gpuLayers) && ll.gpuLayers >= 0))) {
+    issues.push({ path: `${path}.localLlama.gpuLayers`, level: "error", message: "gpuLayers must be \"auto\" or a non-negative integer" });
+  }
+  if (ll.flashAttn !== undefined && !(ll.flashAttn === "auto" || typeof ll.flashAttn === "boolean")) {
+    issues.push({ path: `${path}.localLlama.flashAttn`, level: "error", message: "flashAttn must be \"auto\" or a boolean" });
+  }
+  if (ll.serverPath !== undefined && (typeof ll.serverPath !== "string" || ll.serverPath.length === 0)) {
+    issues.push({ path: `${path}.localLlama.serverPath`, level: "error", message: "serverPath must be a non-empty string" });
+  }
+}

@@ -2,8 +2,8 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { loadSkills, loadSkillManifests, loadSkillContent } from "../../src/skills/loader.js";
-import { SkillCatalog, buildSkillCatalog } from "../../src/skills/catalog.js";
+import { loadSkills, loadSkillManifests, loadSkillContent } from "../../src/capabilities/skills/loader.js";
+import { SkillCatalog, buildSkillCatalog } from "../../src/capabilities/skills/catalog.js";
 
 describe("loadSkills", () => {
   const tmpDir = join("/tmp", `skills-loader-test-${Date.now()}`);

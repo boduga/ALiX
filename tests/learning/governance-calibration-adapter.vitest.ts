@@ -19,18 +19,18 @@ import { tmpdir } from "node:os";
 
 /** Repo root resolved from test file location (before cwd mock). */
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-import { GovernanceReviewStore } from "../../src/adaptation/governance-review-store.js";
+import { GovernanceReviewStore } from "../../src/planning/adaptation/governance-review-store.js";
 import type {
   GovernanceReview,
   LensScore,
   CouncilVote,
-} from "../../src/adaptation/governance-review-types.js";
-import type { LensName, GovernanceVerdict } from "../../src/adaptation/governance-review-types.js";
-import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
-import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
-import { GovernanceCalibrationAdapter } from "../../src/learning/governance-calibration-adapter.js";
-import { LensCalibrationBuilder } from "../../src/adaptation/lens-calibration-builder.js";
-import type { LensObservation } from "../../src/adaptation/lens-calibration-builder.js";
+} from "../../src/planning/adaptation/governance-review-types.js";
+import type { LensName, GovernanceVerdict } from "../../src/planning/adaptation/governance-review-types.js";
+import { OutcomeStore } from "../../src/planning/adaptation/outcome-store.js";
+import type { OutcomeRecord } from "../../src/planning/adaptation/outcome-types.js";
+import { GovernanceCalibrationAdapter } from "../../src/planning/learning/governance-calibration-adapter.js";
+import { LensCalibrationBuilder } from "../../src/planning/adaptation/lens-calibration-builder.js";
+import type { LensObservation } from "../../src/planning/adaptation/lens-calibration-builder.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
@@ -253,7 +253,7 @@ describe("GovernanceCalibrationAdapter", () => {
 
   it("is pure: adapter file does NOT import any mutation surface", async () => {
     const src = readFileSync(
-      `${REPO_ROOT}/src/learning/governance-calibration-adapter.ts`,
+      `${REPO_ROOT}/src/planning/learning/governance-calibration-adapter.ts`,
       "utf-8",
     );
     const importLines = src

@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PolicyGate } from "../../src/policy/policy-gate.js";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
-import { ContinuationStore } from "../../src/runtime/continuation-store.js";
-import { ContinuationManager } from "../../src/runtime/continuation-manager.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { PolicyGate } from "../../src/governance/policy/policy-gate.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import { ContinuationStore } from "../../src/runtime-state/runtime/continuation-store.js";
+import { ContinuationManager } from "../../src/runtime-state/runtime/continuation-manager.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 function makeConfig(overrides?: Partial<AlixConfig>): AlixConfig {
   const base: AlixConfig = {
@@ -125,7 +125,7 @@ describe("Approval observability", () => {
     const approval = await store.request({ reason: "test", capability: "shell.run" });
     await store.resolve(approval.id, "approved", "ok");
 
-    const { hashArgs } = await import("../../src/tools/hash-args.js");
+    const { hashArgs } = await import("../../src/capabilities/tools/hash-args.js");
     const args = { command: "echo done" };
     await contStore.persist({
       approvalId: approval.id,

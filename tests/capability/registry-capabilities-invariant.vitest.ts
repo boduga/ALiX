@@ -3,12 +3,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityService } from '../../src/tui/capabilities/capability-service.js';
-import type { InvocationPresenter } from '../../src/tui/capabilities/invocation-presenter.js';
-import { buildDefaultToolIndex } from '../../src/tools/tool-registry.js';
-import type { ToolCapability } from '../../src/tools/tool-registry.js';
-import { toolCapabilityId } from '../../src/capability/registry-capabilities.js';
-import type { Capability } from '../../src/capability/types.js';
+import { CapabilityService } from '../../src/interfaces/tui/capabilities/capability-service.js';
+import type { InvocationPresenter } from '../../src/interfaces/tui/capabilities/invocation-presenter.js';
+import { buildDefaultToolIndex } from '../../src/capabilities/tools/tool-registry.js';
+import type { ToolCapability } from '../../src/capabilities/tools/tool-registry.js';
+import { toolCapabilityId } from '../../src/capabilities/capability/registry-capabilities.js';
+import type { Capability } from '../../src/capabilities/capability/types.js';
 
 /** Duck-typed EventLog — the TUI service only appends through it, and the
  *  platform requires an authoritative EventLog (locked ruling #12). Mirror of

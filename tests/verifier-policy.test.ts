@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { shouldRunVerification } from "../src/verifier/verifier.js";
+import { shouldRunVerification } from "../src/execution/verifier/verifier.js";
 
 describe("shouldRunVerification", () => {
   it("returns skip when ask mode and scope not approved", () => {

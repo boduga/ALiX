@@ -8,7 +8,7 @@ import {
   parseTime,
   MIN_INTERVAL_MIN,
   MAX_EXPIRY_DAYS,
-} from "../../src/schedule/schedule-spec.js";
+} from "../../src/operations/schedule/schedule-spec.js";
 
 describe("validateScheduleSpec", () => {
   it("accepts daily, weekly, every", () => {

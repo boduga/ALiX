@@ -79,7 +79,7 @@ This `replayId` is:
 ## 5. ReplayMode extension
 
 ```typescript
-// Current: src/runtime/replay-plan.ts
+// Current: src/runtime-state/runtime/replay-plan.ts
 export type ReplayMode = "dry-run" | "sandbox" | "approved-live";
 ```
 
@@ -332,7 +332,7 @@ The existing `renderReplayResult()` already shows mode, step outcomes, durations
 
 ## 12. Event model additions
 
-In `src/events/types.ts`, add `replayId` to existing payload types where needed, or add it as an optional field on the event meta.
+In `src/runtime-state/events/types.ts`, add `replayId` to existing payload types where needed, or add it as an optional field on the event meta.
 
 The simplest approach: add `replayId` to the `EventMeta` type so it's available on every event that has meta:
 
@@ -367,16 +367,16 @@ This means the EventLog's `AlixEvent` type already supports `meta?: EventMeta` �
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/runtime/replay-plan.ts` | MODIFY | Add `"approved-live"` to ReplayMode, add `replayId` to ReplayPlan |
-| `src/runtime/replay-executor.ts` | MODIFY | Add approved-live mode execution, PolicyGate + ApprovalStore integration, replayId linkage |
-| `src/runtime/replay-preview.ts` | — | No changes needed |
-| `src/events/types.ts` | MODIFY | Add `replayId` to EventMeta |
-| `src/tools/executor.ts` | MODIFY | Add optional `replayId` to ToolCallRequest, propagate to tool events |
-| `src/policy/policy-gate.ts` | — | No changes needed (already supports `"replay"` source) |
-| `src/tui/store.ts` | MODIFY | Add `replayId` to state |
-| `src/tui/trace-detail.ts` | MODIFY | Show replayId in renderReplayResult |
-| `src/cli/commands/tui.ts` | MODIFY | Add `--approved-live` flag handling, confirmation warning |
-| `src/runtime/trace-events.ts` | MODIFY | Add `replayId` field to TraceEvent |
+| `src/runtime-state/runtime/replay-plan.ts` | MODIFY | Add `"approved-live"` to ReplayMode, add `replayId` to ReplayPlan |
+| `src/runtime-state/runtime/replay-executor.ts` | MODIFY | Add approved-live mode execution, PolicyGate + ApprovalStore integration, replayId linkage |
+| `src/runtime-state/runtime/replay-preview.ts` | — | No changes needed |
+| `src/runtime-state/events/types.ts` | MODIFY | Add `replayId` to EventMeta |
+| `src/capabilities/tools/executor.ts` | MODIFY | Add optional `replayId` to ToolCallRequest, propagate to tool events |
+| `src/governance/policy/policy-gate.ts` | — | No changes needed (already supports `"replay"` source) |
+| `src/interfaces/tui/store.ts` | MODIFY | Add `replayId` to state |
+| `src/interfaces/tui/trace-detail.ts` | MODIFY | Show replayId in renderReplayResult |
+| `src/interfaces/cli/commands/tui.ts` | MODIFY | Add `--approved-live` flag handling, confirmation warning |
+| `src/runtime-state/runtime/trace-events.ts` | MODIFY | Add `replayId` field to TraceEvent |
 | `tests/runtime/replay-executor.test.ts` | MODIFY | Add approved-live tests |
 | `tests/runtime/replay-plan.test.ts` | MODIFY | Add approved-live mode plan building tests |
 | `tests/tui/replay-execution-detail.test.ts` | MODIFY | Add replayId rendering test |

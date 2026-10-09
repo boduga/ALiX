@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { ToolExecutor } from "../src/tools/executor.js";
-import { DEFAULT_CONFIG, PERMIT_ALL_CONFIG } from "../src/config/defaults.js";
-import { EventLog } from "../src/events/event-log.js";
-import type { AlixConfig } from "../src/config/schema.js";
+import { ToolExecutor } from "../src/capabilities/tools/executor.js";
+import { DEFAULT_CONFIG, PERMIT_ALL_CONFIG } from "../src/operations/config/defaults.js";
+import { EventLog } from "../src/runtime-state/events/event-log.js";
+import type { AlixConfig } from "../src/operations/config/schema.js";
 
 const TEST_CORRELATION = { executionId: "exec-test", invocationId: "inv-test" } as const;
 

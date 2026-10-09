@@ -5,7 +5,7 @@
  * with the injected service (thin delegation, no second mutation path).
  */
 import { describe, it, expect } from "vitest";
-import { handleCapabilityCommand } from "../../src/cli/commands/capability.js";
+import { handleCapabilityCommand } from "../../src/interfaces/cli/commands/capability.js";
 
 function stubService() {
   const calls: Array<{ method: string; args: unknown[] }> = [];

@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CollaborationStore } from "../../src/kernel/collaboration-store.js";
-import { ConflictRepository } from "../../src/kernel/collaboration-conflict-repository.js";
-import type { FindingConflict, EvidenceComparison, ClaimComparison } from "../../src/kernel/collaboration-conflict-types.js";
+import { CollaborationStore } from "../../src/coordination/kernel/collaboration-store.js";
+import { ConflictRepository } from "../../src/coordination/kernel/collaboration-conflict-repository.js";
+import type { FindingConflict, EvidenceComparison, ClaimComparison } from "../../src/coordination/kernel/collaboration-conflict-types.js";
 
 const RUN_ID = "run_test_1";
 const FINGERPRINT = "fp_001";

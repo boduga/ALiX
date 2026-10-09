@@ -1,7 +1,7 @@
 /**
  * Validates subagent results against expected output contract.
  */
-import type { SubagentResult } from "../config/schema.js";
+import type { SubagentResult } from "../operations/config/schema.js";
 
 export type ValidationResult = {
   valid: boolean;

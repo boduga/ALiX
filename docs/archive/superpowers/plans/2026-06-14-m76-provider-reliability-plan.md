@@ -13,17 +13,17 @@
 ## File Structure
 
 ### Create
-- `src/providers/circuit-breaker.ts` — per-provider circuit breaker (closed/open/half-open, failure threshold, cooldown)
-- `src/providers/provider-doctor.ts` — run a test completion and streaming round-trip for a provider
-- `src/cli/commands/provider-doctor.ts` — `alix provider doctor` CLI
+- `src/models/providers/circuit-breaker.ts` — per-provider circuit breaker (closed/open/half-open, failure threshold, cooldown)
+- `src/models/providers/provider-doctor.ts` — run a test completion and streaming round-trip for a provider
+- `src/interfaces/cli/commands/provider-doctor.ts` — `alix provider doctor` CLI
 - `tests/providers/streaming-regression.test.ts` — test every provider spec's `fromStreamChunk` with real SSE lines
 - `tests/providers/circuit-breaker.test.ts`
 - `tests/providers/provider-doctor.test.ts`
 
 ### Modify
-- `src/providers/spec-types.ts` — add optional `streamFailures` and `healthCheckUrl` fields
-- `src/providers/unified-complete.ts` — integrate CircuitBreaker, add jittered retry to stream, use profile fallbacks
-- `src/providers/registry.ts` — add provider health check method
+- `src/models/providers/spec-types.ts` — add optional `streamFailures` and `healthCheckUrl` fields
+- `src/models/providers/unified-complete.ts` — integrate CircuitBreaker, add jittered retry to stream, use profile fallbacks
+- `src/models/providers/registry.ts` — add provider health check method
 - `src/cli.ts` — add `alix provider doctor` dispatch and help text
 - `package.json` — add `test:provider` script
 
@@ -32,7 +32,7 @@
 ### Task 1: Circuit Breaker
 
 **Files:**
-- Create: `src/providers/circuit-breaker.ts`
+- Create: `src/models/providers/circuit-breaker.ts`
 - Create: `tests/providers/circuit-breaker.test.ts`
 
 - [ ] **Step 1: Create circuit-breaker.ts**
@@ -111,7 +111,7 @@ export class CircuitBreaker {
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { CircuitBreaker } from "../../src/providers/circuit-breaker.js";
+import { CircuitBreaker } from "../../src/models/providers/circuit-breaker.js";
 
 describe("CircuitBreaker", () => {
   it("starts closed", () => {
@@ -161,7 +161,7 @@ npm run build && node --test dist/tests/providers/circuit-breaker.test.js
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/providers/circuit-breaker.ts tests/providers/circuit-breaker.test.ts
+git add src/models/providers/circuit-breaker.ts tests/providers/circuit-breaker.test.ts
 git commit -m "feat(providers): add per-provider circuit breaker with state machine"
 ```
 
@@ -184,18 +184,18 @@ git commit -m "feat(providers): add per-provider circuit breaker with state mach
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { googleSpec } from "../../src/providers/specs/google-spec.js";
-import { openaiSpec } from "../../src/providers/specs/openai-spec.js";
-import { anthropicSpec } from "../../src/providers/specs/anthropic-spec.js";
-import { ollamaSpec } from "../../src/providers/specs/ollama-spec.js";
-import { deepseekSpec } from "../../src/providers/specs/deepseek-spec.js";
-import { groqSpec } from "../../src/providers/specs/groq-spec.js";
-import { perplexitySpec } from "../../src/providers/specs/perplexity-spec.js";
-import { minimaxSpec } from "../../src/providers/specs/minimax-spec.js";
-import { zhipuaiSpec } from "../../src/providers/specs/zhipuai-spec.js";
-import { grokaiSpec } from "../../src/providers/specs/grokai-spec.js";
-import { openrouterSpec } from "../../src/providers/specs/openrouter-spec.js";
-import type { ProviderSpec } from "../../src/providers/spec-types.js";
+import { googleSpec } from "../../src/models/providers/specs/google-spec.js";
+import { openaiSpec } from "../../src/models/providers/specs/openai-spec.js";
+import { anthropicSpec } from "../../src/models/providers/specs/anthropic-spec.js";
+import { ollamaSpec } from "../../src/models/providers/specs/ollama-spec.js";
+import { deepseekSpec } from "../../src/models/providers/specs/deepseek-spec.js";
+import { groqSpec } from "../../src/models/providers/specs/groq-spec.js";
+import { perplexitySpec } from "../../src/models/providers/specs/perplexity-spec.js";
+import { minimaxSpec } from "../../src/models/providers/specs/minimax-spec.js";
+import { zhipuaiSpec } from "../../src/models/providers/specs/zhipuai-spec.js";
+import { grokaiSpec } from "../../src/models/providers/specs/grokai-spec.js";
+import { openrouterSpec } from "../../src/models/providers/specs/openrouter-spec.js";
+import type { ProviderSpec } from "../../src/models/providers/spec-types.js";
 
 // All specs that support streaming
 const STREAMING_SPECS: [string, ProviderSpec][] = [
@@ -272,7 +272,7 @@ git commit -m "test(providers): add streaming regression tests for all provider 
 ### Task 3: Retry Budget with Jitter for Stream
 
 **Files:**
-- Modify: `src/providers/unified-complete.ts`
+- Modify: `src/models/providers/unified-complete.ts`
 
 - [ ] **Step 1: Add jittered retry to stream**
 
@@ -354,7 +354,7 @@ npm run build && npx tsc --noEmit
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/providers/unified-complete.ts
+git add src/models/providers/unified-complete.ts
 git commit -m "feat(providers): add jittered retry to stream function (was missing entirely)"
 ```
 
@@ -363,8 +363,8 @@ git commit -m "feat(providers): add jittered retry to stream function (was missi
 ### Task 4: Provider Doctor CLI
 
 **Files:**
-- Create: `src/providers/provider-doctor.ts`
-- Create: `src/cli/commands/provider-doctor.ts`
+- Create: `src/models/providers/provider-doctor.ts`
+- Create: `src/interfaces/cli/commands/provider-doctor.ts`
 - Modify: `src/cli.ts`
 
 - [ ] **Step 1: Create provider-doctor.ts**
@@ -526,7 +526,7 @@ npm run build && node dist/src/cli.js provider doctor --json
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/providers/provider-doctor.ts src/cli/commands/provider-doctor.ts src/cli.ts
+git add src/models/providers/provider-doctor.ts src/interfaces/cli/commands/provider-doctor.ts src/cli.ts
 git commit -m "feat(providers): add provider doctor CLI with complete+stream round-trip check"
 ```
 

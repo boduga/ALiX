@@ -205,13 +205,13 @@ Warnings:
 
 ```
 Create:
-  src/adaptation/recommendation-types.ts       — Recommendation, ApprovalRecommendation
-  src/adaptation/recommendation-engine.ts      — RecommendationEngine, recommendation rules
+  src/planning/adaptation/recommendation-types.ts       — Recommendation, ApprovalRecommendation
+  src/planning/adaptation/recommendation-engine.ts      — RecommendationEngine, recommendation rules
   tests/adaptation/recommendation-engine.vitest.ts
   tests/adaptation/recommendation-sentinels.vitest.ts
 
 Modify:
-  src/cli/commands/decision.ts                — add `alix decision recommend` subcommand
+  src/interfaces/cli/commands/decision.ts                — add `alix decision recommend` subcommand
 ```
 
 ## Governance Sentinel

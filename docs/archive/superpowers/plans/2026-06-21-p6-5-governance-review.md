@@ -35,8 +35,8 @@ P6.5a delivers: types, LensAgent interface + prompt templates, deterministic cou
 ### Task 1: Governance Review Types + SourceArtifactType
 
 **Files:**
-- Create: `src/adaptation/governance-review-types.ts`
-- Modify: `src/adaptation/decision-types.ts` (add `"review"` to `SourceArtifactType`)
+- Create: `src/planning/adaptation/governance-review-types.ts`
+- Modify: `src/planning/adaptation/decision-types.ts` (add `"review"` to `SourceArtifactType`)
 
 **Interfaces:**
 - Consumes: `DecisionArtifact`, `SourceArtifact` from `./decision-types.js`; `ApprovalRecommendation` from `./recommendation-types.js`; `DecisionContext` from `./decision-types.js`; `RiskScore` from `./risk-score-types.js`
@@ -47,7 +47,7 @@ P6.5a delivers: types, LensAgent interface + prompt templates, deterministic cou
 ```typescript
 // Place in tests/adaptation/governance-review-types.vitest.ts
 import { describe, it, expect } from "vitest";
-import type { GovernanceReview, GovernanceVerdict, LensScore, CouncilVote, GovernanceReviewInput } from "../../src/adaptation/governance-review-types.js";
+import type { GovernanceReview, GovernanceVerdict, LensScore, CouncilVote, GovernanceReviewInput } from "../../src/planning/adaptation/governance-review-types.js";
 
 describe("GovernanceReview type shape", () => {
   it("type exists and has required DecisionArtifact fields", () => {
@@ -175,7 +175,7 @@ export interface GovernanceReview extends DecisionArtifact {
 
 - [ ] **Step 4: Add "review" to SourceArtifactType**
 
-Modify `src/adaptation/decision-types.ts` line 69 (add `"review"` to the union):
+Modify `src/planning/adaptation/decision-types.ts` line 69 (add `"review"` to the union):
 
 ```typescript
 export type SourceArtifactType =
@@ -194,14 +194,14 @@ export type SourceArtifactType =
 
 ```bash
 npx vitest run tests/adaptation/governance-review-types.vitest.ts 2>&1
-npx tsc --noEmit src/adaptation/governance-review-types.ts 2>&1
+npx tsc --noEmit src/planning/adaptation/governance-review-types.ts 2>&1
 ```
 Expected: test passes, types compile
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/adaptation/governance-review-types.ts src/adaptation/decision-types.ts tests/adaptation/governance-review-types.vitest.ts
+git add src/planning/adaptation/governance-review-types.ts src/planning/adaptation/decision-types.ts tests/adaptation/governance-review-types.vitest.ts
 git commit -m "feat(p6.5): GovernanceReview types and SourceArtifactType update"
 ```
 
@@ -210,7 +210,7 @@ git commit -m "feat(p6.5): GovernanceReview types and SourceArtifactType update"
 ### Task 2: LensAgent Interface + Prompt Templates
 
 **Files:**
-- Create: `src/adaptation/lens-agent.ts`
+- Create: `src/planning/adaptation/lens-agent.ts`
 
 **Interfaces:**
 - Consumes: `GovernanceReviewInput`, `LensScore`, `LensName` from `./governance-review-types.js`
@@ -223,7 +223,7 @@ git commit -m "feat(p6.5): GovernanceReview types and SourceArtifactType update"
 // Actually, since LensAgent is an interface with no implementation in this task,
 // just verify the module compiles:
 import { describe, it, expect } from "vitest";
-import { LENS_PROMPTS } from "../../src/adaptation/lens-agent.js";
+import { LENS_PROMPTS } from "../../src/planning/adaptation/lens-agent.js";
 
 describe("LensAgent prompt templates", () => {
   it("has prompts for all 4 lenses", () => {
@@ -232,7 +232,7 @@ describe("LensAgent prompt templates", () => {
 });
 ```
 
-- [ ] **Step 2: Create src/adaptation/lens-agent.ts**
+- [ ] **Step 2: Create src/planning/adaptation/lens-agent.ts**
 
 ```typescript
 /**
@@ -305,7 +305,7 @@ Expected: PASS
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/adaptation/lens-agent.ts
+git add src/planning/adaptation/lens-agent.ts
 git commit -m "feat(p6.5): LensAgent interface and prompt templates"
 ```
 
@@ -314,7 +314,7 @@ git commit -m "feat(p6.5): LensAgent interface and prompt templates"
 ### Task 3: GovernanceReviewCouncil — Deterministic Aggregation
 
 **Files:**
-- Create: `src/adaptation/governance-review-council.ts`
+- Create: `src/planning/adaptation/governance-review-council.ts`
 
 **Interfaces:**
 - Consumes: `GovernanceReview`, `GovernanceReviewInput`, `GovernanceVerdict`, `LensScore`, `CouncilVote`, `GOVERNANCE_VERDICT_SEVERITY` from `./governance-review-types.js`; `SourceArtifact` from `./decision-types.js`
@@ -325,7 +325,7 @@ git commit -m "feat(p6.5): LensAgent interface and prompt templates"
 ```typescript
 // Place in tests/adaptation/governance-review-council.vitest.ts
 import { describe, it, expect } from "vitest";
-import { GovernanceReviewCouncil } from "../../src/adaptation/governance-review-council.js";
+import { GovernanceReviewCouncil } from "../../src/planning/adaptation/governance-review-council.js";
 
 describe("GovernanceReviewCouncil", () => {
   it("exists and has an aggregate method", () => {
@@ -342,7 +342,7 @@ npx vitest run tests/adaptation/governance-review-council.vitest.ts 2>&1 | tail 
 ```
 Expected: FAIL — "Cannot find module"
 
-- [ ] **Step 3: Create src/adaptation/governance-review-council.ts**
+- [ ] **Step 3: Create src/planning/adaptation/governance-review-council.ts**
 
 ```typescript
 /**
@@ -588,7 +588,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/adaptation/governance-review-council.ts tests/adaptation/governance-review-council.vitest.ts
+git add src/planning/adaptation/governance-review-council.ts tests/adaptation/governance-review-council.vitest.ts
 git commit -m "feat(p6.5): GovernanceReviewCouncil deterministic aggregation"
 ```
 
@@ -613,8 +613,8 @@ import type {
   LensScore,
   CouncilVote,
   GovernanceReviewInput,
-} from "../../src/adaptation/governance-review-types.js";
-import { GOVERNANCE_VERDICT_SEVERITY } from "../../src/adaptation/governance-review-types.js";
+} from "../../src/planning/adaptation/governance-review-types.js";
+import { GOVERNANCE_VERDICT_SEVERITY } from "../../src/planning/adaptation/governance-review-types.js";
 
 describe("GovernanceReview type shape", () => {
   it("extends DecisionArtifact — has id, subject, outcome, confidence, reasons, generatedAt", () => {
@@ -710,10 +710,10 @@ Replace `tests/adaptation/governance-review-council.vitest.ts`:
  * determinism, edge cases.
  */
 import { describe, it, expect } from "vitest";
-import { GovernanceReviewCouncil } from "../../src/adaptation/governance-review-council.js";
-import type { LensScore, GovernanceReviewInput } from "../../src/adaptation/governance-review-types.js";
-import type { ApprovalRecommendation } from "../../src/adaptation/recommendation-types.js";
-import type { DecisionContext } from "../../src/adaptation/decision-types.js";
+import { GovernanceReviewCouncil } from "../../src/planning/adaptation/governance-review-council.js";
+import type { LensScore, GovernanceReviewInput } from "../../src/planning/adaptation/governance-review-types.js";
+import type { ApprovalRecommendation } from "../../src/planning/adaptation/recommendation-types.js";
+import type { DecisionContext } from "../../src/planning/adaptation/decision-types.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -908,15 +908,15 @@ git commit -m "feat(p6.5): GovernanceReview council unit tests"
 ### Task 5: Queue Integration — Review Severity Sort
 
 **Files:**
-- Modify: `src/adaptation/operator-queue-types.ts` — add `governanceReview?` to QueueInput, `reviewSeverity` to QueueItemOrdering, `governanceReviewId?` and `governanceVerdict?` to QueueItem
-- Modify: `src/adaptation/operator-queue.ts` — add review severity to sort order (4th tier), update build method to handle governanceReview
+- Modify: `src/planning/adaptation/operator-queue-types.ts` — add `governanceReview?` to QueueInput, `reviewSeverity` to QueueItemOrdering, `governanceReviewId?` and `governanceVerdict?` to QueueItem
+- Modify: `src/planning/adaptation/operator-queue.ts` — add review severity to sort order (4th tier), update build method to handle governanceReview
 
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
 // Add to tests/adaptation/operator-queue.vitest.ts
 import { describe, it, expect } from "vitest";
-import { GOVERNANCE_VERDICT_SEVERITY } from "../../src/adaptation/governance-review-types.js";
+import { GOVERNANCE_VERDICT_SEVERITY } from "../../src/planning/adaptation/governance-review-types.js";
 
 describe("Queue sort — governance review severity", () => {
   it("review severity breaks tie when risk, recommendation, and age are equal", () => {
@@ -1068,7 +1068,7 @@ Expected: PASS (existing tests + new tests)
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/adaptation/operator-queue-types.ts src/adaptation/operator-queue.ts
+git add src/planning/adaptation/operator-queue-types.ts src/planning/adaptation/operator-queue.ts
 git commit -m "feat(p6.5): Queue integration — governance review severity sort"
 ```
 
@@ -1077,7 +1077,7 @@ git commit -m "feat(p6.5): Queue integration — governance review severity sort
 ### Task 6: CLI — review Subcommand Stub (P6.5a Foundation)
 
 **Files:**
-- Modify: `src/cli/commands/decision.ts`
+- Modify: `src/interfaces/cli/commands/decision.ts`
 
 - [ ] **Step 1: Verify the test baseline**
 
@@ -1183,7 +1183,7 @@ Expected: 890+ tests passing
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/decision.ts
+git add src/interfaces/cli/commands/decision.ts
 git commit -m "feat(p6.5a): CLI review subcommand stub"
 ```
 
@@ -1210,10 +1210,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const COUNCIL_SRC = resolve(__dirname, "../../src/adaptation/governance-review-council.ts");
+const COUNCIL_SRC = resolve(__dirname, "../../src/planning/adaptation/governance-review-council.ts");
 const councilSource = readFileSync(COUNCIL_SRC, "utf-8");
 
-const LENS_SRC = resolve(__dirname, "../../src/adaptation/lens-agent.ts");
+const LENS_SRC = resolve(__dirname, "../../src/planning/adaptation/lens-agent.ts");
 const lensSource = readFileSync(LENS_SRC, "utf-8");
 
 function stripComments(src: string): string {

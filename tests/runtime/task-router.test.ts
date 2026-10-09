@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { taskRouter, isGroundedChatTask } from "../../src/runtime/task-router.js";
-import type { ModelAdapter } from "../../src/providers/types.js";
+import { taskRouter, isGroundedChatTask } from "../../src/runtime-state/runtime/task-router.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
 
 describe("taskRouter", async () => {
   // ── Tool routes (shell commands) ──
@@ -582,7 +582,7 @@ describe("taskRouter — Layer-1→Layer-2 gate closed-world (T25 #403)", () => 
     // test pins the property so a future confidence change that drops an
     // intent below 0.7 (making the second arm live again) is caught.
     const { classifyActionWithConfidence, CONFIDENCE_THRESHOLD } = await import(
-      "../../src/runtime/action-classifier.js"
+      "../../src/runtime-state/runtime/action-classifier.js"
     );
     const prompts = [
       "write a poem", // generation

@@ -10,8 +10,8 @@
  * If this test fails, the card will not appear in the TUI either.
  */
 import { describe, it, expect } from "vitest";
-import { TuiPlanApprovalGate } from "../../src/tui/plan-approval-gate.js";
-import { TerminalCanvas } from "../../src/tui/canvas.js";
+import { TuiPlanApprovalGate } from "../../src/interfaces/tui/plan-approval-gate.js";
+import { TerminalCanvas } from "../../src/interfaces/tui/canvas.js";
 
 const HEADER_H = 3;
 const FOOTER_H = 5;

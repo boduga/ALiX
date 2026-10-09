@@ -14,28 +14,28 @@ import { describe, it, expect } from "vitest";
 import {
   buildGovernanceRecommendation,
   forecastBandToRecommendationKind,
-} from "../../src/evolution/forecast/bridge.js";
-import type { Forecast } from "../../src/evolution/forecast/contracts/contract.js";
+} from "../../src/planning/evolution/forecast/bridge.js";
+import type { Forecast } from "../../src/planning/evolution/forecast/contracts/contract.js";
 import {
   FORECAST_VERSION,
   GENERATOR_VERSION,
-} from "../../src/evolution/forecast/contracts/contract.js";
+} from "../../src/planning/evolution/forecast/contracts/contract.js";
 import {
   GOVERNANCE_RECOMMENDATION_KINDS,
   isValidGovernanceRecommendationKind,
   validateGovernanceRecommendation,
-} from "../../src/evolution/verification/contracts/recommendation-contract.js";
-import type { GovernanceRecommendationKind } from "../../src/evolution/verification/contracts/recommendation-contract.js";
+} from "../../src/planning/evolution/verification/contracts/recommendation-contract.js";
+import type { GovernanceRecommendationKind } from "../../src/planning/evolution/verification/contracts/recommendation-contract.js";
 import {
   generateDecision,
   decisionKindToTargetState,
-} from "../../src/evolution/governance/index.js";
-import type { GovernanceDecisionKind } from "../../src/evolution/governance/contracts/decision-contract.js";
-import { createVerificationEvidence } from "../../src/evolution/verification/index.js";
+} from "../../src/planning/evolution/governance/index.js";
+import type { GovernanceDecisionKind } from "../../src/planning/evolution/governance/contracts/decision-contract.js";
+import { createVerificationEvidence } from "../../src/planning/evolution/verification/index.js";
 import type {
   VerificationEvidenceInput,
   ConfidenceProfile,
-} from "../../src/evolution/verification/index.js";
+} from "../../src/planning/evolution/verification/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

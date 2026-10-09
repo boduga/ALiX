@@ -6,7 +6,7 @@
 
 **Goal:** Every tool call produces a `PolicyDecision` record with argument hash binding. M0.9 uses a permissive placeholder (allows everything) while establishing the audit trail for M0.12+ policy enforcement.
 
-**Architecture:** A `PolicyDecisionManager` that wraps each tool call. It computes the argument hash (using the same `hashArgs()` from PR 2), creates a permissive `PolicyDecision`, emits `policy.decision` + `tool.approved` events, and verifies argument hash match before execution. The scaffold at `implementation/m0.9-starter/src/kernel/policy-decision.ts` provides the types.
+**Architecture:** A `PolicyDecisionManager` that wraps each tool call. It computes the argument hash (using the same `hashArgs()` from PR 2), creates a permissive `PolicyDecision`, emits `policy.decision` + `tool.approved` events, and verifies argument hash match before execution. The scaffold at `implementation/m0.9-starter/src/coordination/kernel/policy-decision.ts` provides the types.
 
 **Tech Stack:** TypeScript, node:crypto, node:test.
 
@@ -16,8 +16,8 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/kernel/policy-decision.ts` | **Create** | `PolicyDecision` types, `createPermissivePolicyDecision()`, `assertPolicyArgumentsMatch()` |
-| `src/tools/executor.ts` | **Modify** | Wire `PolicyDecisionManager` around tool execution |
+| `src/coordination/kernel/policy-decision.ts` | **Create** | `PolicyDecision` types, `createPermissivePolicyDecision()`, `assertPolicyArgumentsMatch()` |
+| `src/capabilities/tools/executor.ts` | **Modify** | Wire `PolicyDecisionManager` around tool execution |
 | `tests/kernel/policy-decision.test.ts` | **Create** | Tests |
 
 ---
@@ -25,7 +25,7 @@
 ### Task 1: Create PolicyDecision module
 
 **Files:**
-- Create: `src/kernel/policy-decision.ts`
+- Create: `src/coordination/kernel/policy-decision.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -95,13 +95,13 @@ export function assertPolicyArgumentsMatch(decision: PolicyDecision, args: Recor
 - [ ] **Step 2: Verify build**
 
 ```bash
-npx tsc --noEmit src/kernel/policy-decision.ts 2>&1
+npx tsc --noEmit src/coordination/kernel/policy-decision.ts 2>&1
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/policy-decision.ts
+git add src/coordination/kernel/policy-decision.ts
 git commit -m "feat(kernel): PolicyDecision types, permissive placeholder, argument hash binding"
 ```
 
@@ -110,7 +110,7 @@ git commit -m "feat(kernel): PolicyDecision types, permissive placeholder, argum
 ### Task 2: Wire into ToolExecutor
 
 **Files:**
-- Modify: `src/tools/executor.ts`
+- Modify: `src/capabilities/tools/executor.ts`
 
 - [ ] **Step 1: Import and create PolicyDecision before each tool call**
 
@@ -158,7 +158,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tools/executor.ts
+git add src/capabilities/tools/executor.ts
 git commit -m "feat(kernel): wire PolicyDecision placeholder into ToolExecutor"
 ```
 
@@ -174,7 +174,7 @@ git commit -m "feat(kernel): wire PolicyDecision placeholder into ToolExecutor"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createPermissivePolicyDecision, hashArguments, assertPolicyArgumentsMatch } from "../../src/kernel/policy-decision.js";
+import { createPermissivePolicyDecision, hashArguments, assertPolicyArgumentsMatch } from "../../src/coordination/kernel/policy-decision.js";
 
 describe("PolicyDecision", () => {
 

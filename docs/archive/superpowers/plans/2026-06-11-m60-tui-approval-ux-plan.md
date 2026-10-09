@@ -13,8 +13,8 @@
 ## File Structure
 
 ### Modify
-- `src/cli/commands/tui.ts` — update help text to mention approval commands
-- `src/runtime/route-executor.ts` — improve "Blocked by policy" message with next-step instructions
+- `src/interfaces/cli/commands/tui.ts` — update help text to mention approval commands
+- `src/runtime-state/runtime/route-executor.ts` — improve "Blocked by policy" message with next-step instructions
 
 ### Create
 - `tests/tui/tui-approval-continuation.test.ts` — test the end-to-end approval flow
@@ -24,7 +24,7 @@
 ### Task 1: Update help text
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts` line 399
+- Modify: `src/interfaces/cli/commands/tui.ts` line 399
 
 - [ ] **Step 1: Add approval commands to help text**
 
@@ -42,7 +42,7 @@ To:
 ### Task 2: Improve blocked-policy message
 
 **Files:**
-- Modify: `src/runtime/route-executor.ts` lines 65-66
+- Modify: `src/runtime-state/runtime/route-executor.ts` lines 65-66
 
 - [ ] **Step 1: Replace the single-line blocked message with multi-line actionable message**
 
@@ -81,8 +81,8 @@ This parses the `result.reason` for approval IDs (matching `approval_xxx` patter
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ApprovalManager } from "../../src/tui/approval-manager.js";
-import type { ApprovalManagerDeps } from "../../src/tui/approval-manager.js";
+import { ApprovalManager } from "../../src/interfaces/tui/approval-manager.js";
+import type { ApprovalManagerDeps } from "../../src/interfaces/tui/approval-manager.js";
 
 describe("TUI approval continuation", () => {
   let pendingList: Array<{ id: string; capability?: string; reason: string; createdAt: string }> = [];

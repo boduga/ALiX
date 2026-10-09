@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { TimelineBuilder } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 function evt(type: string, payload: Record<string, unknown>, seq: number, at = seq * 1000): AlixEvent {
   return { id: `e${seq}`, seq, version: 1, sessionId: 's1', timestamp: new Date(at).toISOString(), type, actor: 'system', payload };

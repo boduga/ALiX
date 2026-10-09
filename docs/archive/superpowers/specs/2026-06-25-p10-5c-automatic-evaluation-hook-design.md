@@ -148,7 +148,7 @@ This is the single place where `running → completed` is set. The hook fires im
 ### 8c. CLI / sentinel impact
 
 - `execution-engine.ts` is in the executive purity sentinel allowlist — adding new function calls is fine.
-- The new helper module lives at `src/executive/automatic-outcome-hook.ts` and is added to the executive sentinel allowlist. Its only mutation is `OutcomeReportStore.save()`, mirroring the same scoped-exception pattern used for `OutcomeReportStore`.
+- The new helper module lives at `src/execution/executive/automatic-outcome-hook.ts` and is added to the executive sentinel allowlist. Its only mutation is `OutcomeReportStore.save()`, mirroring the same scoped-exception pattern used for `OutcomeReportStore`.
 
 ### 8d. Interface-based injection
 
@@ -185,10 +185,10 @@ That is **two distinct terminal transitions** with different timestamps. Each sh
 
 | Action | Path | Notes |
 |--------|------|-------|
-| **Create** | `src/executive/outcome-report-id.ts` | Standalone `buildOutcomeReportId(planId, generatedAt)` helper |
-| **Modify** | `src/executive/outcome-store.ts` | Import `buildOutcomeReportId`; the store uses it for filename generation; add `OutcomeReportIntegrityError` class; throw it on hash mismatch / invalid schema / malformed JSON |
-| **Create** | `src/executive/automatic-outcome-hook.ts` | `AutomaticOutcomeEvaluator` class implementing `OutcomeEvaluationHook` |
-| **Modify** | `src/executive/execution-engine.ts` | Wire hook into `maybeCompletePlan()` + accept `OutcomeEvaluationHook` constructor injection |
+| **Create** | `src/execution/executive/outcome-report-id.ts` | Standalone `buildOutcomeReportId(planId, generatedAt)` helper |
+| **Modify** | `src/execution/executive/outcome-store.ts` | Import `buildOutcomeReportId`; the store uses it for filename generation; add `OutcomeReportIntegrityError` class; throw it on hash mismatch / invalid schema / malformed JSON |
+| **Create** | `src/execution/executive/automatic-outcome-hook.ts` | `AutomaticOutcomeEvaluator` class implementing `OutcomeEvaluationHook` |
+| **Modify** | `src/execution/executive/execution-engine.ts` | Wire hook into `maybeCompletePlan()` + accept `OutcomeEvaluationHook` constructor injection |
 | **Modify** | `tests/executive/executive-sentinels.vitest.ts` | Add `automatic-outcome-hook.ts` to allowlist |
 | **Create** | `tests/executive/outcome-report-id.vitest.ts` | Unit tests for the helper |
 | **Create** | `tests/executive/automatic-outcome-hook.vitest.ts` | Unit tests for the hook |
@@ -196,8 +196,8 @@ That is **two distinct terminal transitions** with different timestamps. Each sh
 
 ## 11. Files NOT modified
 
-- `src/executive/outcome-evaluator.ts` — unchanged. Pure function stays pure.
-- `src/cli/commands/executive-evaluate-handler.ts` — manual CLI flow unchanged.
+- `src/execution/executive/outcome-evaluator.ts` — unchanged. Pure function stays pure.
+- `src/interfaces/cli/commands/executive-evaluate-handler.ts` — manual CLI flow unchanged.
 - No new evidence types.
 - No protected type files (ADR-0004).
 

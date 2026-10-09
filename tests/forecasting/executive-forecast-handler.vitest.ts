@@ -3,7 +3,7 @@
 // P11.5 — CLI handler tests for `alix executive forecast`.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { handleForecastCommand } from "../../src/cli/commands/executive-forecast-handler.js";
+import { handleForecastCommand } from "../../src/interfaces/cli/commands/executive-forecast-handler.js";
 
 describe("executive-forecast-handler", () => {
   beforeEach(() => vi.restoreAllMocks());

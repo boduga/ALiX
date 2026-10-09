@@ -420,11 +420,11 @@ The P11.1 CLI does **not** call P11.2 reasoning, mutate trend history, or execut
 
 | File | Purpose |
 |------|---------|
-| `src/correlation/correlation-types.ts` | Type definitions |
-| `src/correlation/correlation-config.ts` | Config + defaults |
-| `src/correlation/correlation-engine.ts` | Orchestrator (`CorrelationEngine.run()`) |
-| `src/correlation/build-correlation-graph.ts` | Pure function |
-| `src/correlation/correlation-graph-store.ts` | Atomic read/write |
-| `src/correlation/normalize-subsystem.ts` | Name mapping |
-| `src/cli/commands/executive-correlate-handler.ts` | CLI handler (`handleCorrelateCommand`) |
-| `src/correlation/__tests__/` | Test directory |
+| `src/operations/correlation/correlation-types.ts` | Type definitions |
+| `src/operations/correlation/correlation-config.ts` | Config + defaults |
+| `src/operations/correlation/correlation-engine.ts` | Orchestrator (`CorrelationEngine.run()`) |
+| `src/operations/correlation/build-correlation-graph.ts` | Pure function |
+| `src/operations/correlation/correlation-graph-store.ts` | Atomic read/write |
+| `src/operations/correlation/normalize-subsystem.ts` | Name mapping |
+| `src/interfaces/cli/commands/executive-correlate-handler.ts` | CLI handler (`handleCorrelateCommand`) |
+| `src/operations/correlation/__tests__/` | Test directory |

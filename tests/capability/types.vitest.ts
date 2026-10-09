@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { AsyncEventQueue } from '../../src/capability/types.js';
-import type { Capability } from '../../src/capability/types.js';
+import { AsyncEventQueue } from '../../src/capabilities/capability/types.js';
+import type { Capability } from '../../src/capabilities/capability/types.js';
 
 describe('Capability type contract', () => {
   it('is structurally typed for a minimal core capability', () => {

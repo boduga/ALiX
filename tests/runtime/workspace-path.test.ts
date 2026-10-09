@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { WorkspacePathResolver } from "../../src/runtime/workspace-path.js";
+import { WorkspacePathResolver } from "../../src/runtime-state/runtime/workspace-path.js";
 
 const ROOT = "/home/user/project";
 const resolver = new WorkspacePathResolver(ROOT, [".git/**", ".env", "secrets/**"]);

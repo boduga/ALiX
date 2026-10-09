@@ -214,6 +214,6 @@ node bin/alix.js governance policy-suggestions --json
 ```
 src/governance/policy-suggestions.ts           # Create
 tests/governance/policy-suggestions.test.ts    # Create
-src/cli/commands/governance.ts                  # Amend (add policy-suggestions subcommand)
+src/interfaces/cli/commands/governance.ts                  # Amend (add policy-suggestions subcommand)
 docs/architecture/plans/2026-07-05-p13-3-policy-suggestions.md  # Plan
 ```

@@ -9,9 +9,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { PerformanceDegradationStrategy } from "../../../../src/evolution/pattern-discovery/strategies/performance-degradation-strategy.js";
-import type { DiscoveryContext } from "../../../../src/evolution/contracts/discovery-context.js";
-import type { ExecutionEvidence } from "../../../../src/runtime/contracts/execution-intent-contract.js";
+import { PerformanceDegradationStrategy } from "../../../../src/planning/evolution/pattern-discovery/strategies/performance-degradation-strategy.js";
+import type { DiscoveryContext } from "../../../../src/planning/evolution/contracts/discovery-context.js";
+import type { ExecutionEvidence } from "../../../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

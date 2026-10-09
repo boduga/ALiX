@@ -2,8 +2,8 @@
 
 import { describe, it, assert } from "vitest";
 import { Either } from "effect";
-import { decode, parseOrThrow, formatErrors } from "../../src/contracts/helpers.js";
-import { ToolCallRequestSchema } from "../../src/contracts/tool-schemas.js";
+import { decode, parseOrThrow, formatErrors } from "../../src/runtime-state/contracts/helpers.js";
+import { ToolCallRequestSchema } from "../../src/runtime-state/contracts/tool-schemas.js";
 
 describe("decode", () => {
   it("returns Right for valid input", () => {

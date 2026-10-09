@@ -17,14 +17,14 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityService } from "../../src/capability/capability-service.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { CapabilityResolver } from "../../src/capability/provider-resolver.js";
-import { ProviderExecutorRegistry } from "../../src/capability/provider-registry.js";
-import { MEASUREMENT_EVENT_PREFIX } from "../../src/capability/measurement/measurement-event-types.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityService } from "../../src/capabilities/capability/capability-service.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { CapabilityResolver } from "../../src/capabilities/capability/provider-resolver.js";
+import { ProviderExecutorRegistry } from "../../src/capabilities/capability/provider-registry.js";
+import { MEASUREMENT_EVENT_PREFIX } from "../../src/capabilities/capability/measurement/measurement-event-types.js";
 
 describe("CapabilityService.governance() widening (CAP-10 ruling #6, #20)", () => {
   let dir: string;

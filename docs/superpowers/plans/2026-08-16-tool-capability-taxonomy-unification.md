@@ -11,7 +11,7 @@ I would use the following as the replacement plan.
 Collapse the four parallel tool/capability taxonomies into **one canonical metadata source**:
 
 ```text
-src/tools/tool-registry.ts
+src/capabilities/tools/tool-registry.ts
 ```
 
 The canonical registry already exists and must be extended/restructured using the repository's existing `ToolCapability` contract. Do **not** invent a new `ToolMetadata` contract.
@@ -19,7 +19,7 @@ The canonical registry already exists and must be extended/restructured using th
 The final architecture is:
 
 ```text
-                    src/tools/tool-registry.ts
+                    src/capabilities/tools/tool-registry.ts
                               │
                     canonical ToolCapability
                               │
@@ -53,7 +53,7 @@ That correction must be documented and tested rather than hidden under the gener
 
 ## INV-1 — Single taxonomy authority
 
-`src/tools/tool-registry.ts` is the sole authoritative source for tool/capability metadata.
+`src/capabilities/tools/tool-registry.ts` is the sole authoritative source for tool/capability metadata.
 
 ## INV-2 — Existing contract
 
@@ -101,7 +101,7 @@ They are not independently maintained.
 
 ## INV-6 — Policy semantics remain separate
 
-`src/policy/capability-registry.ts` must not become the new canonical taxonomy.
+`src/governance/policy/capability-registry.ts` must not become the new canonical taxonomy.
 
 Policy consumes canonical metadata and retains only genuinely policy-specific behavior.
 
@@ -188,8 +188,8 @@ tests/capability/cap-8-supersession.test.ts
 The lists currently include:
 
 ```text
-src/tools/tool-registry.ts
-src/policy/capability-registry.ts
+src/capabilities/tools/tool-registry.ts
+src/governance/policy/capability-registry.ts
 ```
 
 The taxonomy-unification work intentionally modifies those files, so the sentinel lists must be amended **before** the registry is touched.
@@ -198,7 +198,7 @@ The taxonomy-unification work intentionally modifies those files, so the sentine
 
 Update the supersession sentinel fixtures so that:
 
-* the taxonomy-unification work is permitted to modify `src/tools/tool-registry.ts`;
+* the taxonomy-unification work is permitted to modify `src/capabilities/tools/tool-registry.ts`;
 * the policy-side `CapabilityRegistry` is treated according to its actual post-migration role;
 * unrelated forbidden legacy surfaces remain forbidden.
 
@@ -229,7 +229,7 @@ No registry implementation changes occur in this task.
 Inspect:
 
 ```text
-src/tools/tool-registry.ts
+src/capabilities/tools/tool-registry.ts
 ```
 
 and the existing:
@@ -288,7 +288,7 @@ must be green before continuing.
 
 # Task 2 — Encode the 16 Canonical Entries
 
-Populate `src/tools/tool-registry.ts` from the already-established canonical table.
+Populate `src/capabilities/tools/tool-registry.ts` from the already-established canonical table.
 
 Do not reconstruct the table from memory.
 
@@ -378,12 +378,12 @@ The task is green when the mapping contract passes.
 Inspect:
 
 ```text
-src/policy/capability-registry.ts
+src/governance/policy/capability-registry.ts
 ```
 
 This is a **policy-side `CapabilityRegistry`** and is distinct from any other symbol named `CapabilityRegistry` elsewhere in the repository.
 
-Do not confuse it with the capability-platform/runtime registry (`src/capability/registry.ts` + `src/capability/platform.ts`), which is UNRELATED and stays.
+Do not confuse it with the capability-platform/runtime registry (`src/capabilities/capability/registry.ts` + `src/capabilities/capability/platform.ts`), which is UNRELATED and stays.
 
 ### Step 1 — Establish deadness first
 
@@ -394,14 +394,14 @@ grep -rn "new CapabilityRegistry(" src --include="*.ts"
 grep -rn "withCapabilityRegistry(" src --include="*.ts"
 ```
 
-Expected: the ONLY `new CapabilityRegistry(` is `src/capability/platform.ts:106` (the PLATFORM registry — unrelated). `withCapabilityRegistry(` has zero callers. The policy class reaches production only as `import type` + optional deps never passed.
+Expected: the ONLY `new CapabilityRegistry(` is `src/capabilities/capability/platform.ts:106` (the PLATFORM registry — unrelated). `withCapabilityRegistry(` has zero callers. The policy class reaches production only as `import type` + optional deps never passed.
 
 ### Step 2 — Disposition
 
 A never-constructed class is NOT a candidate for "convert to registry-derived adapter" — that would be speculative generality. The correct disposition is **DELETE** (executed in Task 12, after consumers are cleaned):
 
-- `src/runtime/execution-authorization.ts` — drop the `capabilityRegistry?` dep and the "Step 1: Capability metadata" block (`capDef`/`riskLevel`), which ALWAYS produced `undefined` in production. Remove `riskLevel` from the two `emitAudit(...)` calls.
-- `src/policy/policy-engine.ts` — drop `capabilityRegistry?` from `PolicyEngineSubsystems`, the `requiresApproval` block, `withCapabilityRegistry(...)` (no callers), and the `_capabilityRegistry` field.
+- `src/runtime-state/runtime/execution-authorization.ts` — drop the `capabilityRegistry?` dep and the "Step 1: Capability metadata" block (`capDef`/`riskLevel`), which ALWAYS produced `undefined` in production. Remove `riskLevel` from the two `emitAudit(...)` calls.
+- `src/governance/policy/policy-engine.ts` — drop `capabilityRegistry?` from `PolicyEngineSubsystems`, the `requiresApproval` block, `withCapabilityRegistry(...)` (no callers), and the `_capabilityRegistry` field.
 
 ### Do not
 
@@ -568,7 +568,7 @@ The `hasFiles` regression test must be green before continuing.
 Inspect:
 
 ```text
-src/baseline/providers/tools-health-provider.ts
+src/context/baseline/providers/tools-health-provider.ts
 ```
 
 The current implementation ALREADY derives its tool count from the registry:
@@ -663,7 +663,7 @@ Run the three-axis sentinel independently.
 ### 12.1 Delete the policy-side `CapabilityRegistry`
 
 ```bash
-git rm src/policy/capability-registry.ts tests/policy/capability-registry.test.ts
+git rm src/governance/policy/capability-registry.ts tests/policy/capability-registry.test.ts
 ```
 
 Verify no code imports remain:
@@ -673,7 +673,7 @@ grep -rn "policy/capability-registry" src tests
 ```
 
 Allowlist ONLY:
-- `src/capability/evolution/a7-proposals.ts` (comment — `cap-9-supersession` asserts a7 does NOT import it, which stays true);
+- `src/capabilities/capability/evolution/a7-proposals.ts` (comment — `cap-9-supersession` asserts a7 does NOT import it, which stays true);
 - `tests/capability/three-axis-sentinel.vitest.ts` (comment — its regex targets `capability/(registry|provider-resolver).js`, the PLATFORM registry, not the deleted file);
 - `tests/capability/cap-7-supersession.test.ts` / `cap-8-supersession.test.ts` (already amended in Task 0).
 
@@ -705,8 +705,8 @@ Do not automatically delete every file containing `CapabilityRegistry`.
 
 There are **two unrelated `CapabilityRegistry` symbols** in the repository:
 
-1. the policy-side taxonomy registry (`src/policy/capability-registry.ts`) — THIS consolidation deletes it;
-2. the capability-platform/runtime registry (`src/capability/registry.ts`, constructed only in `src/capability/platform.ts:106`) — UNRELATED, must remain. The sentinels (`cap-12`, `three-axis`, `five-axis`, `single-registry`) enforce that `new CapabilityRegistry(` appears ONLY there; deleting the policy class must not disturb them.
+1. the policy-side taxonomy registry (`src/governance/policy/capability-registry.ts`) — THIS consolidation deletes it;
+2. the capability-platform/runtime registry (`src/capabilities/capability/registry.ts`, constructed only in `src/capabilities/capability/platform.ts:106`) — UNRELATED, must remain. The sentinels (`cap-12`, `three-axis`, `five-axis`, `single-registry`) enforce that `new CapabilityRegistry(` appears ONLY there; deleting the policy class must not disturb them.
 
 ### Verify
 
@@ -773,7 +773,7 @@ At minimum:
 The canonical registry exists at:
 
 ```text
-src/tools/tool-registry.ts
+src/capabilities/tools/tool-registry.ts
 ```
 
 ### Sentinel B — Policy is not a taxonomy authority
@@ -960,7 +960,7 @@ Only the policy-side taxonomy registry belongs to this consolidation.
 
 ## Supersession sentinels
 
-CAP-7/CAP-8 `FORBIDDEN` lists are amended **before** `src/tools/tool-registry.ts` or `src/policy/capability-registry.ts` is changed.
+CAP-7/CAP-8 `FORBIDDEN` lists are amended **before** `src/capabilities/tools/tool-registry.ts` or `src/governance/policy/capability-registry.ts` is changed.
 
 ---
 
@@ -1059,7 +1059,7 @@ Commit names should follow the repository's established conventional-commit styl
 # Definition of Done
 
 * [ ] CAP-7/CAP-8 `FORBIDDEN` lists are amended first.
-* [ ] `src/tools/tool-registry.ts` remains the canonical authority.
+* [ ] `src/capabilities/tools/tool-registry.ts` remains the canonical authority.
 * [ ] The existing `ToolCapability` contract is used.
 * [ ] No parallel `ToolMetadata` contract exists.
 * [ ] All 16 canonical entries are represented.

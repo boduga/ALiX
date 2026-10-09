@@ -27,7 +27,7 @@ import {
   resetAlerts,
   type HealthAssessmentContext,
   type SecurityHealthSnapshot,
-} from "../../src/server/security-alerts.js";
+} from "../../src/interfaces/server/security-alerts.js";
 
 describe("assessSecurityHealth", () => {
   describe("empty context", () => {

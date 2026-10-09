@@ -3,8 +3,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { detectContradictions } from "../../../src/evolution/knowledge/detectors/index.js";
-import type { KnowledgeArtifact } from "../../../src/evolution/knowledge/contracts/curation-contract.js";
+import { detectContradictions } from "../../../src/planning/evolution/knowledge/detectors/index.js";
+import type { KnowledgeArtifact } from "../../../src/planning/evolution/knowledge/contracts/curation-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

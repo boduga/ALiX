@@ -1,7 +1,7 @@
 // tests/mcp/server-registry.test.ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { KNOWN_MCP_SERVERS, findServer } from "../../src/mcp/server-registry.js";
+import { KNOWN_MCP_SERVERS, findServer } from "../../src/capabilities/mcp/server-registry.js";
 
 describe("KNOWN_MCP_SERVERS", () => {
   it("contains at least 5 well-known servers", () => {

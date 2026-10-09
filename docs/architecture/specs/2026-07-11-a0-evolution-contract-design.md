@@ -595,7 +595,7 @@ Scope:
 Deliver:
 
 ```
-src/evolution/contracts/
+src/planning/evolution/contracts/
     evolution-contract.ts
 ```
 
@@ -618,7 +618,7 @@ Scope:
 Deliver:
 
 ```
-src/evolution/
+src/planning/evolution/
     evolution-state-machine.ts
 ```
 
@@ -635,7 +635,7 @@ Scope:
 Deliver:
 
 ```
-src/evolution/
+src/planning/evolution/
     evolution-evidence-bridge.ts
 ```
 

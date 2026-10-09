@@ -15,14 +15,14 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 // Mock buildDashboardReport so chain-coverage tests can control the metric.
-vi.mock("../../src/learning/learning-dashboard.js", () => ({
+vi.mock("../../src/planning/learning/learning-dashboard.js", () => ({
   buildDashboardReport: vi.fn(),
 }));
 
 import { detectGovernanceDrift } from "../../src/governance/governance-drift-detector.js";
-import { buildDashboardReport } from "../../src/learning/learning-dashboard.js";
-import { LearningStore } from "../../src/learning/learning-store.js";
-import type { DashboardReport } from "../../src/learning/learning-dashboard.js";
+import { buildDashboardReport } from "../../src/planning/learning/learning-dashboard.js";
+import { LearningStore } from "../../src/planning/learning/learning-store.js";
+import type { DashboardReport } from "../../src/planning/learning/learning-dashboard.js";
 
 // ---------------------------------------------------------------------------
 // Setup

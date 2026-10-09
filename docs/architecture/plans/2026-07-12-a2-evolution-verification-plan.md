@@ -72,7 +72,7 @@ Dependency rules:
 # 3. Directory Structure
 
 ```text
-src/evolution/verification/
+src/planning/evolution/verification/
 
   contracts/
     verification-contract.ts

@@ -21,19 +21,19 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { EvolutionStateMachine } from "../../../../src/evolution/evolution-state-machine.js";
-import { EvolutionState } from "../../../../src/evolution/contracts/evolution-contract.js";
+import { EvolutionStateMachine } from "../../../../src/planning/evolution/evolution-state-machine.js";
+import { EvolutionState } from "../../../../src/planning/evolution/contracts/evolution-contract.js";
 import {
   InMemoryVerificationEvidenceLedger,
   createVerificationEvidence,
-} from "../../../../src/evolution/verification/index.js";
+} from "../../../../src/planning/evolution/verification/index.js";
 import {
   RecommendationEngine,
   DEFAULT_RECOMMENDATION_CONFIG,
-} from "../../../../src/evolution/verification/recommendation/recommendation-engine.js";
-import { generateDecision } from "../../../../src/evolution/governance/decision-engine.js";
-import { GovernanceDecisionBridge } from "../../../../src/evolution/governance/governance-decision-bridge.js";
-import { InMemoryGovernanceDecisionStore } from "../../../../src/evolution/governance/decision-store.js";
+} from "../../../../src/planning/evolution/verification/recommendation/recommendation-engine.js";
+import { generateDecision } from "../../../../src/planning/evolution/governance/decision-engine.js";
+import { GovernanceDecisionBridge } from "../../../../src/planning/evolution/governance/governance-decision-bridge.js";
+import { InMemoryGovernanceDecisionStore } from "../../../../src/planning/evolution/governance/decision-store.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures

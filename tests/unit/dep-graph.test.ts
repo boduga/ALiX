@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
-import { DependencyGraph, buildDepGraphFromImports } from "../../src/verifier/dep-graph.js";
+import { DependencyGraph, buildDepGraphFromImports } from "../../src/execution/verifier/dep-graph.js";
 import { mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 

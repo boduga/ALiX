@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EvolutionProjection, NON_EVENTLOG_AUTHORITATIVE_STAGES } from '../../../src/tui/runtime/evolution/evolution-projection.js';
+import { EvolutionProjection, NON_EVENTLOG_AUTHORITATIVE_STAGES } from '../../../src/interfaces/tui/runtime/evolution/evolution-projection.js';
 
 const now = 1_700_000_000_000;
 function clock(): number { return now; }

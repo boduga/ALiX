@@ -26,11 +26,11 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/kernel/coordination-types.ts` | MODIFY | Add `"replanning"` status, `PlanningRound`/`PlanRevision`/`PlanDiffEntry`/lineage types, extend `CoordinationRun` and `WorkerAssignment` |
-| `src/kernel/collaborative-planner.ts` | CREATE | `CollaborativePlanner` class: `plan()` with capability matching, `replan()` with atomic replacement and dependency rewiring |
-| `src/kernel/coordination-store.ts` | MODIFY | Add `updateRunWithRevisionCheck()` for atomic replanning with expected planRevision |
-| `src/kernel/coordination-scheduler.ts` | MODIFY | Add mid-execution replan trigger, `"replanning"` tick guard, logged/audited error handling |
-| `src/kernel/collaboration-context-builder.ts` | MODIFY | Add `buildReplanContext()` for feeding replanner with worker results |
+| `src/coordination/kernel/coordination-types.ts` | MODIFY | Add `"replanning"` status, `PlanningRound`/`PlanRevision`/`PlanDiffEntry`/lineage types, extend `CoordinationRun` and `WorkerAssignment` |
+| `src/coordination/kernel/collaborative-planner.ts` | CREATE | `CollaborativePlanner` class: `plan()` with capability matching, `replan()` with atomic replacement and dependency rewiring |
+| `src/coordination/kernel/coordination-store.ts` | MODIFY | Add `updateRunWithRevisionCheck()` for atomic replanning with expected planRevision |
+| `src/coordination/kernel/coordination-scheduler.ts` | MODIFY | Add mid-execution replan trigger, `"replanning"` tick guard, logged/audited error handling |
+| `src/coordination/kernel/collaboration-context-builder.ts` | MODIFY | Add `buildReplanContext()` for feeding replanner with worker results |
 | `tests/kernel/collaborative-planner.test.ts` | CREATE | Plan/bid/replan tests |
 | `tests/kernel/coordination-store-replan.test.ts` | CREATE | Store method tests |
 | `tests/kernel/coordination-scheduler-replan.test.ts` | CREATE | Scheduler trigger tests |
@@ -41,7 +41,7 @@
 ## Task 1: Extend coordination types for planning, replanning, and worker lineage
 
 **Files:**
-- Modify: `src/kernel/coordination-types.ts`
+- Modify: `src/coordination/kernel/coordination-types.ts`
 
 **Changes:**
 
@@ -169,7 +169,7 @@ export function recomputeRunStatus(run: CoordinationRun): CoordinationRunStatus 
 ## Task 2: Add atomic store primitive with planRevision check
 
 **Files:**
-- Modify: `src/kernel/coordination-store.ts`
+- Modify: `src/coordination/kernel/coordination-store.ts`
 
 **Changes:**
 
@@ -228,7 +228,7 @@ Note: This method intentionally does NOT call `recomputeRunStatus()` — the cal
 ## Task 3: Capability matching with exact normalized IDs
 
 **Files:**
-- Create: `src/kernel/collaborative-planner.ts` (this task: static utility + type exports)
+- Create: `src/coordination/kernel/collaborative-planner.ts` (this task: static utility + type exports)
 
 **Changes:**
 
@@ -292,7 +292,7 @@ export interface CapabilityRegistry {
 ## Task 4: Collaborative planning (initial plan construction with capability matching)
 
 **Files:**
-- Modify: `src/kernel/collaborative-planner.ts` (this task: `CollaborativePlanner` class + `plan()` method)
+- Modify: `src/coordination/kernel/collaborative-planner.ts` (this task: `CollaborativePlanner` class + `plan()` method)
 
 **Exported types:**
 
@@ -403,7 +403,7 @@ private assignAgents(round: PlanningRound, fallbackAgent: string): Map<string, s
 ## Task 5: Replanning — atomic replacement with dependency rewiring
 
 **Files:**
-- Modify: `src/kernel/collaborative-planner.ts`
+- Modify: `src/coordination/kernel/collaborative-planner.ts`
 
 **ReplanContext and ReplanResult:**
 
@@ -595,7 +595,7 @@ private pickReplacementAgent(failedAgentId: string): string {
 ## Task 6: Scheduler integration — mid-execution replanning with logged error handling
 
 **Files:**
-- Modify: `src/kernel/coordination-scheduler.ts`
+- Modify: `src/coordination/kernel/coordination-scheduler.ts`
 
 - [ ] **Step 1: Write failing tests (new: `tests/kernel/coordination-scheduler-replan.test.ts`)**
 
@@ -712,7 +712,7 @@ The catch handler logs to console — never swallows silently.
 ## Task 7: Context builder replan support
 
 **Files:**
-- Modify: `src/kernel/collaboration-context-builder.ts`
+- Modify: `src/coordination/kernel/collaboration-context-builder.ts`
 
 - [ ] **Step 1: Write failing tests (new: `tests/kernel/collaboration-context-builder-replan.test.ts`)**
 
@@ -751,7 +751,7 @@ async buildReplanContext(runId: string): Promise<{
 ## Task 8: Explicit deferred classification stubs
 
 **Files:**
-- Modify: `src/kernel/collaborative-planner.ts`
+- Modify: `src/coordination/kernel/collaborative-planner.ts`
 
 The classification infrastructure detects `conflict_detected` and `worker_completed` with signal findings, but the actual replan actions for these triggers are deferred to M0.78g.1 (model-assisted replanning).
 

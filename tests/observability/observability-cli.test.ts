@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleObservability } from "../../src/cli/commands/observability.js";
+import { handleObservability } from "../../src/interfaces/cli/commands/observability.js";
 
 describe("observability CLI", () => {
   let tmpDir: string;

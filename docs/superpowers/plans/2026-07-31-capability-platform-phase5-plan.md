@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **`timelineEvents[]`, ChatView, AgentView, the capability presenter, and `src/capability/*` are UNTOUCHED** (D8). The Timeline Projection phase reuses this infrastructure later.
+- **`timelineEvents[]`, ChatView, AgentView, the capability presenter, and `src/capabilities/capability/*` are UNTOUCHED** (D8). The Timeline Projection phase reuses this infrastructure later.
 - **Cursor is opaque, seq-backed, log-local, ownership-token-guarded.** Consumers only obtain/store/compare/pass cursors back; they never read internals. `cursorsEqual` returns `false` for foreign cursors, never throws; `readSince` throws on a foreign cursor (owner mismatch).
 - **At-least-once semantics.** Returned cursor = highest seq successfully included; a consumer that fails before accepting the new cursor retries from the old one. The incremental builder MUST be idempotent for duplicate event sequences.
 - **Cursor advances only after successful projection update** (D3a): `readSince(cursor)` → `builder.update(events)` → `checkpoint = { cursor: batch.cursor }`. If `update` throws, the cursor does not advance.
@@ -28,7 +28,7 @@
 ### Task 1: `EventLog` cursor — opaque, seq-backed, ownership-token-guarded
 
 **Files:**
-- Modify: `src/events/event-log.ts`
+- Modify: `src/runtime-state/events/event-log.ts`
 - Test: `tests/events/event-log-cursor.vitest.ts` (new)
 
 **Interfaces:**
@@ -42,8 +42,8 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../src/events/event-log.js';
-import type { EventLogCursor } from '../../src/events/event-log.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import type { EventLogCursor } from '../../src/runtime-state/events/event-log.js';
 
 async function makeLog(): Promise<EventLog> {
   const dir = mkdtempSync(join(tmpdir(), 'alix-evt-'));
@@ -122,7 +122,7 @@ describe('EventLog cursor', () => {
 Run: `npx vitest run tests/events/event-log-cursor.vitest.ts --config vitest.config.mts`
 Expected: FAIL — `beginningCursor` / `readSince` / `cursorsEqual` do not exist.
 
-- [ ] **Step 3: Implement the cursor in `src/events/event-log.ts`**
+- [ ] **Step 3: Implement the cursor in `src/runtime-state/events/event-log.ts`**
 
 Add the branded type + internal representation + a per-instance owner token at module top:
 
@@ -224,7 +224,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/events --config vitest.config.mts`
 ```bash
-git add src/events/event-log.ts tests/events/event-log-cursor.vitest.ts
+git add src/runtime-state/events/event-log.ts tests/events/event-log-cursor.vitest.ts
 git commit -m "feat(capabilities): opaque seq-backed EventLog cursor with readSince"
 ```
 
@@ -233,7 +233,7 @@ git commit -m "feat(capabilities): opaque seq-backed EventLog cursor with readSi
 ### Task 2: Reconciliation engine refactor — `createTraceState` / `reconcileEvents` / `materializeTrace`
 
 **Files:**
-- Modify: `src/tui/runtime/execution-trace-builder.ts`
+- Modify: `src/interfaces/tui/runtime/execution-trace-builder.ts`
 - Test: `tests/tui/runtime/execution-trace-builder.vitest.ts` (existing tests must still pass; add state-engine tests)
 
 **Interfaces:**
@@ -249,7 +249,7 @@ import {
   buildExecutionTrace, createTraceState, reconcileEvents, materializeTrace,
   createExecutionTraceRetention, computeExecutionTrace,
   IncrementalExecutionTraceBuilder,
-} from '../../src/tui/runtime/execution-trace-builder.js';
+} from '../../src/interfaces/tui/runtime/execution-trace-builder.js';
 
 describe('reconciliation engine (createTraceState/reconcileEvents/materializeTrace)', () => {
   it('materializeTrace returns freshly-constructed DTOs, never internal map references', () => {
@@ -450,7 +450,7 @@ Expected: PASS (existing Phase 4 tests + the 3 new engine tests).
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/runtime/execution-trace-builder.ts tests/tui/runtime/execution-trace-builder.vitest.ts
+git add src/interfaces/tui/runtime/execution-trace-builder.ts tests/tui/runtime/execution-trace-builder.vitest.ts
 git commit -m "refactor(capabilities): extract reconciliation engine shared by pure builder + incremental facade"
 ```
 
@@ -459,7 +459,7 @@ git commit -m "refactor(capabilities): extract reconciliation engine shared by p
 ### Task 3: `IncrementalExecutionTraceBuilder` — update/snapshot, idempotent
 
 **Files:**
-- Modify: `src/tui/runtime/execution-trace-builder.ts`
+- Modify: `src/interfaces/tui/runtime/execution-trace-builder.ts`
 - Test: `tests/tui/runtime/execution-trace-builder.vitest.ts` (add incremental tests)
 
 **Interfaces:**
@@ -591,7 +591,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/runtime/execution-trace-builder.ts tests/tui/runtime/execution-trace-builder.vitest.ts
+git add src/interfaces/tui/runtime/execution-trace-builder.ts tests/tui/runtime/execution-trace-builder.vitest.ts
 git commit -m "feat(capabilities): incremental execution-trace builder — update/snapshot, idempotent by seq"
 ```
 
@@ -600,8 +600,8 @@ git commit -m "feat(capabilities): incremental execution-trace builder — updat
 ### Task 4: Collector integration — incremental consumption + `ProjectionCheckpoint`
 
 **Files:**
-- Modify: `src/tui/runtime-collector.ts`
-- Modify: `src/tui/snapshot.ts` (add `RuntimeSnapshot.cursor`-agnostic fields — actually no: keep snapshot shape; see Step 3)
+- Modify: `src/interfaces/tui/runtime-collector.ts`
+- Modify: `src/interfaces/tui/snapshot.ts` (add `RuntimeSnapshot.cursor`-agnostic fields — actually no: keep snapshot shape; see Step 3)
 - Test: `tests/tui/runtime/runtime-collector.vitest.ts`
 
 **Interfaces:**
@@ -614,9 +614,9 @@ Update `tests/tui/runtime/runtime-collector.vitest.ts`:
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-import { RuntimeCollectorImpl } from '../../src/tui/runtime-collector.js';
-import type { EventLog, EventLogCursor } from '../../src/events/event-log.js';
-import type { AlixEvent } from '../../src/events/types.js';
+import { RuntimeCollectorImpl } from '../../src/interfaces/tui/runtime-collector.js';
+import type { EventLog, EventLogCursor } from '../../src/runtime-state/events/event-log.js';
+import type { AlixEvent } from '../../src/runtime-state/events/types.js';
 
 function makeEventLog(): { log: EventLog; append: (type: string, payload?: Record<string, unknown>) => Promise<void> } {
   let seq = 0;
@@ -710,7 +710,7 @@ describe('RuntimeCollectorImpl incremental', () => {
 Run: `npx vitest run tests/tui/runtime/runtime-collector.vitest.ts --config vitest.config.mts`
 Expected: FAIL — the collector still calls `readAll()` and has no builder field.
 
-- [ ] **Step 3: Rewrite `src/tui/runtime-collector.ts`**
+- [ ] **Step 3: Rewrite `src/interfaces/tui/runtime-collector.ts`**
 
 Replace the sample path with incremental consumption. Keep the `RuntimeCollector` interface and the cache/snapshot contract. Add a `builder` field (so the D3a test can spy it) and a `recentEvents` buffer:
 
@@ -822,7 +822,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/runtime-collector.ts tests/tui/runtime/runtime-collector.vitest.ts
+git add src/interfaces/tui/runtime-collector.ts tests/tui/runtime/runtime-collector.vitest.ts
 git commit -m "feat(capabilities): RuntimeCollector consumes EventLog incrementally via cursor + checkpoint"
 ```
 
@@ -831,9 +831,9 @@ git commit -m "feat(capabilities): RuntimeCollector consumes EventLog incrementa
 ### Task 5: Resolve #321 — migrate dashboard-renderer to `trace`, remove the flat projection
 
 **Files:**
-- Modify: `src/tui/dashboard-renderer.ts` (RUNTIME panel "Last event:" row → last trace unit)
-- Modify: `src/tui/snapshot.ts` (delete `RuntimeEventSnapshot`, remove `events?` from `RuntimeSnapshot`)
-- Modify: `src/tui/runtime-collector.ts` (remove the now-dead `events`/`RuntimeEventSnapshot` references — already removed in Task 4's rewrite; verify)
+- Modify: `src/interfaces/tui/dashboard-renderer.ts` (RUNTIME panel "Last event:" row → last trace unit)
+- Modify: `src/interfaces/tui/snapshot.ts` (delete `RuntimeEventSnapshot`, remove `events?` from `RuntimeSnapshot`)
+- Modify: `src/interfaces/tui/runtime-collector.ts` (remove the now-dead `events`/`RuntimeEventSnapshot` references — already removed in Task 4's rewrite; verify)
 - Test: `tests/tui/dashboard-renderer.vitest.ts` (update the runtime-panel fixture to `trace`)
 - Test: `tests/tui/runtime/runtime-collector.vitest.ts` (verify no `events` assertion remains)
 
@@ -844,11 +844,11 @@ git commit -m "feat(capabilities): RuntimeCollector consumes EventLog incrementa
 - [ ] **Step 1: Verify zero non-deprecated consumers**
 
 Run: `rg "RuntimeEventSnapshot|RuntimeSnapshot\.events|runtime\.events|r\.events" src tests`
-Expected: only `src/tui/snapshot.ts` (definitions), `src/tui/runtime-collector.ts` (already rewritten in Task 4 — confirm no flat mapping remains), `src/tui/dashboard-renderer.ts:275` (the row to migrate).
+Expected: only `src/interfaces/tui/snapshot.ts` (definitions), `src/interfaces/tui/runtime-collector.ts` (already rewritten in Task 4 — confirm no flat mapping remains), `src/interfaces/tui/dashboard-renderer.ts:275` (the row to migrate).
 
 - [ ] **Step 2: Migrate the dashboard RUNTIME panel to `trace`**
 
-In `src/tui/dashboard-renderer.ts`, replace the flat-event read:
+In `src/interfaces/tui/dashboard-renderer.ts`, replace the flat-event read:
 
 ```typescript
   const now = Date.now();
@@ -875,7 +875,7 @@ The rest of the panel (metadata block, `paintMetaLine(canvas, ..., "Last event:"
 
 - [ ] **Step 3: Delete the deprecated types/field**
 
-In `src/tui/snapshot.ts`:
+In `src/interfaces/tui/snapshot.ts`:
 - Remove `RuntimeEventSnapshot` interface.
 - Remove `events?` from `RuntimeSnapshot` (keep `trace`, `workflow`, `totalEventCount`, `lastEventAt`).
 
@@ -887,7 +887,7 @@ In `src/tui/snapshot.ts`:
 
 Run: `rg "RuntimeEventSnapshot|RuntimeSnapshot\.events|runtime\.events|r\.events" src tests` → zero. Then `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`.
 ```bash
-git add src/tui/dashboard-renderer.ts src/tui/snapshot.ts tests/tui/dashboard-renderer.vitest.ts tests/tui/runtime/runtime-collector.vitest.ts
+git add src/interfaces/tui/dashboard-renderer.ts src/interfaces/tui/snapshot.ts tests/tui/dashboard-renderer.vitest.ts tests/tui/runtime/runtime-collector.vitest.ts
 git commit -m "refactor(capabilities): resolve #321 — dashboard reads trace, remove flat runtime projection"
 ```
 
@@ -904,8 +904,8 @@ git commit -m "refactor(capabilities): resolve #321 — dashboard reads trace, r
 Run: `npm run build` and `npx vitest run tests/capability tests/tui tests/events --config vitest.config.mts`
 Expected: clean, all pass.
 
-Then verify the D8 hard boundary — `src/capability/*` unchanged across the whole branch:
-Run: `git diff --name-only origin/main -- src/capability/` → empty.
+Then verify the D8 hard boundary — `src/capabilities/capability/*` unchanged across the whole branch:
+Run: `git diff --name-only origin/main -- src/capabilities/capability/` → empty.
 
 - [ ] **Step 2: Update spec status**
 
@@ -929,7 +929,7 @@ Issue #321 resolved: the deprecated flat `RuntimeEventSnapshot` /
 `RuntimeSnapshot.events` projection is deleted — the dashboard RUNTIME panel now
 reads the last trace unit.
 
-The operator timeline (chat) is unchanged. The platform (src/capability/) is
+The operator timeline (chat) is unchanged. The platform (src/capabilities/capability/) is
 untouched. Durable checkpoint persistence is deferred to a later phase.
 ```
 
@@ -949,4 +949,4 @@ git commit -m "docs(capabilities): Phase-5 usage note + spec status to implement
 - ✅ Idempotent by event `seq`; terminal `tr-${firstSequence}` first-wins; snapshot-immutability test green.
 - ✅ `RuntimeCollectorImpl` starts from `beginningCursor`, consumes incrementally, and advances the cursor only after a successful update (D3a); `recentEvents` buffer feeds `computeWorkflow`; `ProjectionCheckpoint` is in-memory only.
 - ✅ #321 resolved: `RuntimeEventSnapshot` + `RuntimeSnapshot.events?` deleted, dashboard-renderer reads `trace`, zero references remain.
-- ✅ `timelineEvents[]`, ChatView, AgentView, capability presenter, `src/capability/*` untouched; vitest green; `tsc --noEmit` clean.
+- ✅ `timelineEvents[]`, ChatView, AgentView, capability presenter, `src/capabilities/capability/*` untouched; vitest green; `tsc --noEmit` clean.

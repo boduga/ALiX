@@ -10,17 +10,17 @@ import type {
   MemoryQuery,
   MemoryStoreContract,
   MemoryInvariantsAssertion,
-} from "../../src/runtime/contracts/memory-contract.js";
+} from "../../src/runtime-state/runtime/contracts/memory-contract.js";
 import {
   DEFAULT_MEMORY_CONFIG,
   MEMORY_INVARIANTS,
-} from "../../src/runtime/contracts/memory-contract.js";
+} from "../../src/runtime-state/runtime/contracts/memory-contract.js";
 
 // ── Source types (for structural comparison) ───────────────────────
 
-import type { MemoryEntry as SourceMemoryEntry } from "../../src/utils/memory/types.js";
-import type { MemoryConfig as SourceMemoryConfig } from "../../src/utils/memory/types.js";
-import type { MemoryType as SourceMemoryType } from "../../src/utils/memory/types.js";
+import type { MemoryEntry as SourceMemoryEntry } from "../../src/operations/utils/memory/types.js";
+import type { MemoryConfig as SourceMemoryConfig } from "../../src/operations/utils/memory/types.js";
+import type { MemoryType as SourceMemoryType } from "../../src/operations/utils/memory/types.js";
 
 // ── Tests ──────────────────────────────────────────────────────────
 

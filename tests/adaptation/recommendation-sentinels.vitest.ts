@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 
-const ENGINE = path.resolve(__dirname, "../../src/adaptation/recommendation-engine.ts");
+const ENGINE = path.resolve(__dirname, "../../src/planning/adaptation/recommendation-engine.ts");
 
 const FORBIDDEN_MODULE_FRAGMENTS = [
   "approval-gate",

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { renderToolManifest } from "../../src/agent/system-prompt.js";
-import { handleMcpToolSearch, handleToolCall } from "../../src/run/event-handlers.js";
-import { BASE_TOOLS } from "../../src/run/helpers.js";
-import type { EventHandlerDeps } from "../../src/run/event-handlers.js";
-import type { ToolDef } from "../../src/providers/types.js";
+import { renderToolManifest } from "../../src/agents/agent/system-prompt.js";
+import { handleMcpToolSearch, handleToolCall } from "../../src/execution/run/event-handlers.js";
+import { BASE_TOOLS } from "../../src/execution/run/helpers.js";
+import type { EventHandlerDeps } from "../../src/execution/run/event-handlers.js";
+import type { ToolDef } from "../../src/models/providers/types.js";
 
 /**
  * Regression tests for the "model hallucinates foreign tool names" bug
@@ -278,7 +278,7 @@ describe("handleToolCall unknown-tool guard", () => {
   it("redirects a local-looking web_search to the workspace tools", async () => {
     const executor = { execute: vi.fn().mockResolvedValue({ kind: "success", output: "web" }) };
     const result = await handleToolCall(
-      { id: "w1", name: "alix_web_search", args: { query: "export async function handle Command in src/cli/commands" } },
+      { id: "w1", name: "alix_web_search", args: { query: "export async function handle Command in src/interfaces/cli/commands" } },
       makeDeps(executor),
       [],
       [],
@@ -343,7 +343,7 @@ describe("handleToolCall search results reach the model", () => {
     const executor = {
       execute: vi.fn().mockResolvedValue({
         kind: "success",
-        matches: [{ path: "src/decision/tool-selection-replay.ts", lineNumber: 34, line: "export type ToolSelectionScope = {" }],
+        matches: [{ path: "src/planning/decision/tool-selection-replay.ts", lineNumber: 34, line: "export type ToolSelectionScope = {" }],
       }),
     };
     const result = await handleToolCall(
@@ -352,7 +352,7 @@ describe("handleToolCall search results reach the model", () => {
       [],
       [],
     );
-    expect(result.message?.content).toContain("src/decision/tool-selection-replay.ts:34: export type ToolSelectionScope = {");
+    expect(result.message?.content).toContain("src/planning/decision/tool-selection-replay.ts:34: export type ToolSelectionScope = {");
   });
 
   it("says the output was empty when a search matched nothing", async () => {

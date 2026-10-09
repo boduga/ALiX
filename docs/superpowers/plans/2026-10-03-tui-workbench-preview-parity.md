@@ -33,17 +33,17 @@ Each image element has a coverage ID below. Implementation PRs must report the I
 
 | Existing paths | Reuse | Gap |
 | --- | --- | --- |
-| src/tui/workbench/model/operator-shell.ts; views/operator-shell.ts | Workspace, mode and counter projection; shell painter | Quiet three-row chrome differs from cyan preview header/footer. |
-| src/tui/workbench/layout/responsive-layout.ts | Shared geometry functions | Current drawer is on the right; no simultaneous left roster, center transcript and right inspector. |
-| src/tui/views/agent-view.ts | Streaming, inline approvals and Workbench integration | Current gutter/composer assume surface starts at column zero; adapt to region rectangles. |
-| src/tui/frame-painter.ts; src/tui/views/scroll-math.ts | Frame composition, cursor and anchoring | All must consume identical new geometry; preserve legacy paths. |
-| src/tui/workbench/model/ui-state.ts; model/ui-action.ts; app/workbench-store.ts | Reducer, focus, selection and FIFO queue | Add category filter, inspector scrolling, tool expansion and explicit transcript scope; reconcile follow-tail adapters. |
-| src/tui/workbench/projections/conversation-projection.ts; model/transcript-item.ts; views/workbench-scrollback.ts | Semantic ordering, source ranges and tool lifecycle | Current tools are summary rows; add actor/time columns, activity rows and typed card metadata. |
-| src/tui/workbench/projections/agent-roster-projection.ts; task-projection.ts | Identity, task assignments, active tools, usage and liveness | Join projections for sidebar/inspector; verify producer support for dependency/card details. |
-| src/tui/workbench/views/roster-drawer.ts | Run navigation, roster and artifact inspection | Replace wide presentation with left roster plus separate right inspector; preserve compact drawers. |
-| src/tui/workbench/model/selection.ts; projections/artifact-projection.ts; views/approval-dialog.ts | Strict artifact scope and authoritative approvals | Inspector summaries must preserve containment and projection-confirmed decisions. |
-| src/tui/workbench/input/input-router.ts; src/tui/app.ts | Typed intents, submit/queue/cancel | Contextual new controls, global Tab behavior and raw-key decoding. |
-| src/tui/workbench/views/composer-view.ts; render/frame-differ.ts; src/tui/terminal-text.ts | Multiline/grapheme layout and row diffs | Full-width boxed composer, theme and caret regression coverage. |
+| src/interfaces/tui/workbench/model/operator-shell.ts; views/operator-shell.ts | Workspace, mode and counter projection; shell painter | Quiet three-row chrome differs from cyan preview header/footer. |
+| src/interfaces/tui/workbench/layout/responsive-layout.ts | Shared geometry functions | Current drawer is on the right; no simultaneous left roster, center transcript and right inspector. |
+| src/interfaces/tui/views/agent-view.ts | Streaming, inline approvals and Workbench integration | Current gutter/composer assume surface starts at column zero; adapt to region rectangles. |
+| src/interfaces/tui/frame-painter.ts; src/interfaces/tui/views/scroll-math.ts | Frame composition, cursor and anchoring | All must consume identical new geometry; preserve legacy paths. |
+| src/interfaces/tui/workbench/model/ui-state.ts; model/ui-action.ts; app/workbench-store.ts | Reducer, focus, selection and FIFO queue | Add category filter, inspector scrolling, tool expansion and explicit transcript scope; reconcile follow-tail adapters. |
+| src/interfaces/tui/workbench/projections/conversation-projection.ts; model/transcript-item.ts; views/workbench-scrollback.ts | Semantic ordering, source ranges and tool lifecycle | Current tools are summary rows; add actor/time columns, activity rows and typed card metadata. |
+| src/interfaces/tui/workbench/projections/agent-roster-projection.ts; task-projection.ts | Identity, task assignments, active tools, usage and liveness | Join projections for sidebar/inspector; verify producer support for dependency/card details. |
+| src/interfaces/tui/workbench/views/roster-drawer.ts | Run navigation, roster and artifact inspection | Replace wide presentation with left roster plus separate right inspector; preserve compact drawers. |
+| src/interfaces/tui/workbench/model/selection.ts; projections/artifact-projection.ts; views/approval-dialog.ts | Strict artifact scope and authoritative approvals | Inspector summaries must preserve containment and projection-confirmed decisions. |
+| src/interfaces/tui/workbench/input/input-router.ts; src/interfaces/tui/app.ts | Typed intents, submit/queue/cancel | Contextual new controls, global Tab behavior and raw-key decoding. |
+| src/interfaces/tui/workbench/views/composer-view.ts; render/frame-differ.ts; src/interfaces/tui/terminal-text.ts | Multiline/grapheme layout and row diffs | Full-width boxed composer, theme and caret regression coverage. |
 
 Evidence: current source inspected at baseline. GitNexus concept query returned no results; named shell context and geometry/input impact queries succeeded. Index is three commits behind HEAD, so graph completeness is provisional and source is authoritative.
 
@@ -133,7 +133,7 @@ Each ID in a grouped range inherits the same responsible boundary, planned test 
 | R01–R16 | model/agent-inspector.ts; views/agent-inspector.ts | agent-inspector.vitest.ts; pane-integration.vitest.ts; selected-fixture inspector resize PTY | Phase 7 rendering/joins passed; final captures Phase 10 |
 | C01–C03 | views/composer-view.ts; input/input-router.ts; app/workbench-store.ts | composer-view.vitest.ts; input-router.vitest.ts; work-surface-integration.vitest.ts; pane-integration.vitest.ts; workbench-phase8-pty.ts | Phase 8 rendering/interaction passed; final captures Phase 10 |
 
-Paths in this table are relative to src/tui/workbench or tests/tui/workbench. Phase 10 attaches captures and per-ID pass/fail evidence to these assignments.
+Paths in this table are relative to src/interfaces/tui/workbench or tests/tui/workbench. Phase 10 attaches captures and per-ID pass/fail evidence to these assignments.
 
 ## 3. Coherent reference fixture and intentional differences
 
@@ -200,7 +200,7 @@ Data requirements:
 - Artifacts use event-provided previews and strict scope; model filenames grant no read authority. Context uses authoritative measurements, not historical usage divided by window. Unknown, zero and partial facts remain distinct.
 - FILES counts authoritative changed paths, not artifact/result count; EVENTS counts source events, not filtered rows. Counters state session/run/agent scope explicitly where ambiguous.
 
-Proposed new boundaries under src/tui/workbench, not existing files: model/preview-theme.ts; model/transcript-filter.ts; model/agent-inspector.ts; projections/agent-inspector-projection.ts; views/agent-inspector.ts; views/transcript-toolbar.ts; views/tool-card.ts. Prefer extending existing read models; never introduce a parallel event truth store.
+Proposed new boundaries under src/interfaces/tui/workbench, not existing files: model/preview-theme.ts; model/transcript-filter.ts; model/agent-inspector.ts; projections/agent-inspector-projection.ts; views/agent-inspector.ts; views/transcript-toolbar.ts; views/tool-card.ts. Prefer extending existing read models; never introduce a parallel event truth store.
 
 ## 5. Delivery phases
 
@@ -374,7 +374,7 @@ Evidence (as-built 2026-10-07, PR #856):
 - Item 3: 17 charset/mode tests (`parity-charset.vitest.ts`: displayWidth bounds at 4 widths, CJK input graphemes, unicode-vs-ascii per painter, painter-level no-truecolor in ansi16/mono, non-TTY byte-identical render, 1049/2004 restoration pairing + zero raw-mode on non-TTY).
 - Item 4: perf budgets (`parity-perf.vitest.ts`, 4,501-line history: paint p50 ~30ms asserted ≤3200ms/op, keystroke ≤3600ms, grapheme bytes ≤150000; tick repaints ≤6 rows; first paint ≤ terminal-rows bound; identical repaint = cursor-only) + tick-rebuild fix (content-keyed scrollback memo; paint p50 264ms → ~30ms; `[TODO plan-violation]` test flipped to ref-sharing assertion).
 - Item 5: typecheck/build/typecheck:unused/check:dox green; full TUI suite green; detect_changes + impact analysis on the scrollback change (HIGH, reviewed); legacy views untouched (non-workbench rendering byte-identical).
-- Item 6: feature gate (`workbenchEnabled`) retained — no rollout change. DOX: `src/tui/AGENTS.md` chrome-ownership bullet; this plan marked as-built.
+- Item 6: feature gate (`workbenchEnabled`) retained — no rollout change. DOX: `src/interfaces/tui/AGENTS.md` chrome-ownership bullet; this plan marked as-built.
 
 Retained limitations (until evidence retires them):
 - Transcript rows are not theme-injectable (`workbench-scrollback.ts` + agent-view call sites hardcode defaults) — mono/ansi16 evidence is region-painter-scoped; full-frame transcript mono unproven.

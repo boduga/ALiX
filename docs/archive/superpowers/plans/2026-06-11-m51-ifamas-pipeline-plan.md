@@ -15,15 +15,15 @@
 ## File Structure
 
 ### Create
-- `src/runtime/ifamas-pipeline.ts` — `IfamasDiagnostic` type + `runIfamasDiagnostic()` function
+- `src/runtime-state/runtime/ifamas-pipeline.ts` — `IfamasDiagnostic` type + `runIfamasDiagnostic()` function
 - `tests/runtime/ifamas-pipeline.test.ts` — 10 tests covering all pipeline paths
 
 ---
 
-### Task 1: Implement `src/runtime/ifamas-pipeline.ts`
+### Task 1: Implement `src/runtime-state/runtime/ifamas-pipeline.ts`
 
 **Files:**
-- Create: `src/runtime/ifamas-pipeline.ts`
+- Create: `src/runtime-state/runtime/ifamas-pipeline.ts`
 
 - [ ] **Step 1: Write the module with imports and types**
 
@@ -92,7 +92,7 @@ Verify: `npx tsc --noEmit`
 
 - [ ] **Step 2: Verify no forbidden imports**
 
-Run: `grep -n 'ToolExecutor\|PolicyGate\|ApprovalStore' src/runtime/ifamas-pipeline.ts`
+Run: `grep -n 'ToolExecutor\|PolicyGate\|ApprovalStore' src/runtime-state/runtime/ifamas-pipeline.ts`
 Expected: no output (none of those strings should appear in the file)
 
 ---
@@ -107,9 +107,9 @@ Expected: no output (none of those strings should appear in the file)
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { runIfamasDiagnostic } from "../../src/runtime/ifamas-pipeline.js";
-import { createSignalFrame } from "../../src/runtime/signal-frame.js";
-import type { SignalBits, SignalDomain } from "../../src/runtime/signal-frame.js";
+import { runIfamasDiagnostic } from "../../src/runtime-state/runtime/ifamas-pipeline.js";
+import { createSignalFrame } from "../../src/runtime-state/runtime/signal-frame.js";
+import type { SignalBits, SignalDomain } from "../../src/runtime-state/runtime/signal-frame.js";
 import type { EssenceProfile } from "../../src/agents/essence-profile.js";
 import type { EssenceAffinity } from "../../src/agents/essence-profile.js";
 
@@ -232,7 +232,7 @@ describe("runIfamasDiagnostic", () => {
   it("does NOT import ToolExecutor or PolicyGate", async () => {
     // Read the source file and verify no forbidden identifiers
     const fs = await import("node:fs");
-    const source = fs.readFileSync("src/runtime/ifamas-pipeline.ts", "utf-8");
+    const source = fs.readFileSync("src/runtime-state/runtime/ifamas-pipeline.ts", "utf-8");
     assert.ok(!source.includes("ToolExecutor"), "ToolExecutor must not appear in source");
     assert.ok(!source.includes("PolicyGate"), "PolicyGate must not appear in source");
     assert.ok(!source.includes("ApprovalStore"), "ApprovalStore must not appear in source");
@@ -267,7 +267,7 @@ Expected: clean compile, 10/10 tests pass
 - [ ] **Step 2: Verify no forbidden imports one more time**
 
 ```bash
-grep -E 'ToolExecutor|PolicyGate|ApprovalStore' src/runtime/ifamas-pipeline.ts || echo "CLEAN"
+grep -E 'ToolExecutor|PolicyGate|ApprovalStore' src/runtime-state/runtime/ifamas-pipeline.ts || echo "CLEAN"
 ```
 
 Expected: `CLEAN`
@@ -283,7 +283,7 @@ Expected: all tests pass (no regressions)
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/runtime/ifamas-pipeline.ts tests/runtime/ifamas-pipeline.test.ts
+git add src/runtime-state/runtime/ifamas-pipeline.ts tests/runtime/ifamas-pipeline.test.ts
 git commit -m "feat(runtime): add IFÁ-MAS passive diagnostic pipeline"
 ```
 
@@ -299,6 +299,6 @@ git push -u origin feat/m51-ifamas-pipeline
 
 1. `npm run build` — clean compile
 2. `node --test dist/tests/runtime/ifamas-pipeline.test.js` — 10/10 pass
-3. `grep -E 'ToolExecutor|PolicyGate|ApprovalStore' src/runtime/ifamas-pipeline.ts` — no output
+3. `grep -E 'ToolExecutor|PolicyGate|ApprovalStore' src/runtime-state/runtime/ifamas-pipeline.ts` — no output
 4. Full runtime suite — no regressions
 5. Git diff shows only the 2 intended files

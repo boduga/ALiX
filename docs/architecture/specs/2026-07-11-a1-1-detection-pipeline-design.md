@@ -118,7 +118,7 @@ Strategy               Strategy
 ## 5. Module Structure
 
 ```
-src/evolution/
+src/planning/evolution/
 
 ├── contracts/
 │   ├── evolution-contract.ts
@@ -151,7 +151,7 @@ tests/evolution/
 
 ### File
 
-`src/evolution/contracts/discovery-context.ts`
+`src/planning/evolution/contracts/discovery-context.ts`
 
 ### Interface
 
@@ -190,7 +190,7 @@ Strategies must not:
 
 ### File
 
-`src/evolution/pattern-discovery/detection-strategy.ts`
+`src/planning/evolution/pattern-discovery/detection-strategy.ts`
 
 ```typescript
 import type {
@@ -463,7 +463,7 @@ latestObservedTimestamp
 
 ### File
 
-`src/evolution/pattern-discovery/pattern-discovery-engine.ts`
+`src/planning/evolution/pattern-discovery/pattern-discovery-engine.ts`
 
 ### Configuration
 

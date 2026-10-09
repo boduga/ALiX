@@ -89,9 +89,9 @@ All counters are O(1) aggregates — no unbounded sample array (percentiles woul
 
 ## Registration + surface
 
-- `ProjectionIds.metrics` added to `src/tui/runtime/projection-ids.ts`.
-- Registered on the **outer (runtime) collector** in the composition root (`src/cli/commands/tui.ts`), alongside trace/approval/capability — the session that sees `tool.*` + `capability.*` events.
-- `RuntimeSnapshot.metrics: MetricsProjectionSnapshot | null` typed field (`src/tui/snapshot.ts`), assembled in `RuntimeCollectorImpl.sample()` via `snapshotOf<MetricsProjectionSnapshot>(ProjectionIds.metrics) ?? null`.
+- `ProjectionIds.metrics` added to `src/interfaces/tui/runtime/projection-ids.ts`.
+- Registered on the **outer (runtime) collector** in the composition root (`src/interfaces/cli/commands/tui.ts`), alongside trace/approval/capability — the session that sees `tool.*` + `capability.*` events.
+- `RuntimeSnapshot.metrics: MetricsProjectionSnapshot | null` typed field (`src/interfaces/tui/snapshot.ts`), assembled in `RuntimeCollectorImpl.sample()` via `snapshotOf<MetricsProjectionSnapshot>(ProjectionIds.metrics) ?? null`.
 - Zero `RuntimeCollectorImpl` orchestration changes beyond the field assembly — adding a projection never modifies the collector's dispatch (Phase 7 acceptance bar).
 - Like `CapabilityProjection`, this is a **Phase-7 registry-keyed** projection: `ProjectionRuntime.snapshotOf(ProjectionIds.metrics)`.
 

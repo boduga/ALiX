@@ -4,8 +4,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mergeExecutionContext, hasExecutionContext } from "../../src/observability/execution-context.js";
-import type { ExecutionContext } from "../../src/observability/execution-context.js";
+import { mergeExecutionContext, hasExecutionContext } from "../../src/operations/observability/execution-context.js";
+import type { ExecutionContext } from "../../src/operations/observability/execution-context.js";
 
 describe("parentRunId lineage", () => {
   it("root run has no parentRunId", () => {

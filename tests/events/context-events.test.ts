@@ -6,8 +6,8 @@ import type {
   RepoMapCreatedPayload,
   FilePinnedPayload,
   FileUnpinnedPayload,
-} from "../../src/events/types.js";
-import { CONTEXT_EVENT_TYPES } from "../../src/events/types.js";
+} from "../../src/runtime-state/events/types.js";
+import { CONTEXT_EVENT_TYPES } from "../../src/runtime-state/events/types.js";
 
 describe("Context Event Payload Types", () => {
   it("ContextItemRef includes all required fields", () => {

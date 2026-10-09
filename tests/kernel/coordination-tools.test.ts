@@ -11,11 +11,11 @@ import {
   COORDINATION_STATUS_TOOL,
   COORDINATION_LIST_TOOL,
   COORDINATION_RESULTS_TOOL,
-} from "../../src/kernel/coordination-tools.js";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/coordination-tools.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 import { buildErrorMessage } from "../../src/run.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 function testConfig(): AlixConfig {
   return {

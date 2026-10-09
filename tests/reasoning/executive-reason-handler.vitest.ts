@@ -5,7 +5,7 @@
 // so we can verify error paths without stdout pollution.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { handleReasonCommand } from "../../src/cli/commands/executive-reason-handler.js";
+import { handleReasonCommand } from "../../src/interfaces/cli/commands/executive-reason-handler.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

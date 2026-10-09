@@ -36,11 +36,11 @@ event stores.
 | D10 | **Builder-doesn't-become-a-God-object.** `RuntimeCollectorImpl` orchestrates read/dispatch/save/publish; it does NOT contain chat-message-specific or execution-specific logic. The builders own their state machines. |
 | D11 | **Projection independence.** Builders MUST NOT depend on the outputs of other builders. Every projection is derived directly from the EventLog batch. The dependency graph is always `EventLog → builder` (never `builder → builder`). This keeps replay deterministic — restoring from `beginningCursor()` rebuilds every projection independently — and allows adding or removing projections without changing existing ones. |
 | D12 | **`ProjectionBuilder<T>` contract includes `reset()`.** Beyond `update(events)` and `snapshot()`, the contract includes `reset(): void` so the collector can wipe in-memory projection state on a beyond-head fallback (Phase 5.5) and on corruption recovery. Each builder implements its own reset semantics (the trace builder clears its maps; the timeline builder clears its entries; etc.). Tiny addition that makes lifecycle management uniform across builders and enables tests / replay / hot reload / corruption recovery. |
-| D13 | **Boundary.** `src/capability/*`, `timelineEvents[]` (until cleanup), Phase-5 cursor/checkpoint machinery — preserved; `EventLog` API stays additive; `RuntimeCollectorImpl` grows the `timeline` projection (one new builder + new snapshot field). Three collectors wire it in production (chat/agent build timeline + trace); the OUTER collector stays trace-only via `buildTimeline:false` (no view consumes its timeline). Timeline Projection unification is THIS phase. |
+| D13 | **Boundary.** `src/capabilities/capability/*`, `timelineEvents[]` (until cleanup), Phase-5 cursor/checkpoint machinery — preserved; `EventLog` API stays additive; `RuntimeCollectorImpl` grows the `timeline` projection (one new builder + new snapshot field). Three collectors wire it in production (chat/agent build timeline + trace); the OUTER collector stays trace-only via `buildTimeline:false` (no view consumes its timeline). Timeline Projection unification is THIS phase. |
 
 ## Architecture
 
-### EventLog evolution (`src/events/event-log.ts`)
+### EventLog evolution (`src/runtime-state/events/event-log.ts`)
 
 Every emitted event carries `sessionId`. The existing `append({ sessionId, actor, type, payload })` already accepts a `sessionId` (verify — if it lives in `NewEvent`, just plumb it through; if missing, add to `NewEvent<TType, TPayload>`). Add `serializeCursor`/`deserializeCursor` already return `{ sessionId, version, seq }` (Phase 5) — no change there.
 
@@ -49,7 +49,7 @@ Every emitted event carries `sessionId`. The existing `append({ sessionId, actor
 event.sessionId = originSessionId;
 ```
 
-### `ProjectionBuilder<T>` contract (`src/tui/runtime/projection-builder.ts`)
+### `ProjectionBuilder<T>` contract (`src/interfaces/tui/runtime/projection-builder.ts`)
 
 ```ts
 /** Generic projection builder contract. Each builder owns its own reconciliation
@@ -68,7 +68,7 @@ export interface ProjectionBuilder<T> {
 }
 ```
 
-### `TimelineBuilder` (`src/tui/runtime/timeline-builder.ts`)
+### `TimelineBuilder` (`src/interfaces/tui/runtime/timeline-builder.ts`)
 
 Append-only. No lifecycle matching. No terminal promotion. Each event becomes one entry; entries are never mutated.
 
@@ -99,7 +99,7 @@ export class TimelineBuilder implements ProjectionBuilder<TimelineEntry> {
 
 Idempotent by event `seq` (mirror `seen` semantics). The `id` is `tl-${firstSequence}` for stable identity; a duplicate terminal seq is ignored (append-only — but the `seen` dedup means a replay of an already-appended event produces the same entry, not a duplicate).
 
-### `RuntimeCollectorImpl` evolution (`src/tui/runtime-collector.ts`)
+### `RuntimeCollectorImpl` evolution (`src/interfaces/tui/runtime-collector.ts`)
 
 ```ts
 constructor(
@@ -139,7 +139,7 @@ private async sample(): Promise<void> {
 }
 ```
 
-### `RuntimeSnapshot` growth (`src/tui/snapshot.ts`)
+### `RuntimeSnapshot` growth (`src/interfaces/tui/snapshot.ts`)
 
 ```ts
 export interface RuntimeSnapshot {
@@ -228,7 +228,7 @@ snapshot = { trace: traceBuilder.snapshot(),
 - ✅ Chat tab + Agent tab have distinct `sessionId`s — neither sees the other's events.
 - ✅ Projection independence (D11): neither builder consumes the other's DTOs.
 - ✅ Future projections (approval, capability) extend the snapshot without touching the collector.
-- ✅ `src/capability/*`, `timelineEvents[]` (until Phase 6 cleanup), Phase-5 cursor/checkpoint machinery — preserved.
+- ✅ `src/capabilities/capability/*`, `timelineEvents[]` (until Phase 6 cleanup), Phase-5 cursor/checkpoint machinery — preserved.
 - ✅ Vitest green, `tsc --noEmit` clean.
 
 ## Non-Goals (Phase 6)

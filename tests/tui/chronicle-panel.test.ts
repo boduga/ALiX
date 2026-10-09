@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { importedBindings } from "../helpers/import-graph.js";
-import { formatChroniclePanel, chronicleEntryToPanelEntry } from "../../src/tui/chronicle-panel.js";
-import type { ChroniclePanelData, ChroniclePanelEntry } from "../../src/tui/chronicle-panel.js";
+import { formatChroniclePanel, chronicleEntryToPanelEntry } from "../../src/interfaces/tui/chronicle-panel.js";
+import type { ChroniclePanelData, ChroniclePanelEntry } from "../../src/interfaces/tui/chronicle-panel.js";
 
 describe("chronicle-panel", () => {
   it("formats empty Chronicle panel", () => {
@@ -67,7 +67,7 @@ describe("chronicle-panel", () => {
   });
 
   it("does NOT import ToolExecutor, PolicyGate, or ApprovalStore", () => {
-    const bindings = importedBindings("src/tui/chronicle-panel.ts");
+    const bindings = importedBindings("src/interfaces/tui/chronicle-panel.ts");
     for (const forbidden of ["ToolExecutor", "PolicyGate", "ApprovalStore"]) {
       assert.ok(!bindings.has(forbidden), `${forbidden} must not be imported`);
     }

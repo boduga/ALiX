@@ -37,14 +37,14 @@ The architectural progression: `CAP-N → CAP-O → CAP-P` — each CAP adds one
 - **Analyzing heuristic introduction.** CAP-P is wiring, not analysis. No survivorship heuristic, no absorbed-set expansion, no merge-direction inference anywhere in CAP-P.
 - **A0 store / A2.5 producer role.** Both were dispositioned STOP_CONDITION in tickets #540/#541; CAP-P does not unblock them.
 - **Mutation contract changes.** `CapabilityConsolidateMutation` already requires `target`, `sources`, `definition`, `sourceDisposition`. CAP-P supplies those via the candidate; no contract changes.
-- **CAP-12 forbidden-file policy partly lifted (under the #539 carve-out).** `src/capability/capability-service.ts` and `src/capability/platform.ts` are on the CAP-12 forbidden list. CAP-P lifts the restriction for **both** files because (a) the discriminator is in `capability-service.ts` (CAP-O precedent), AND (b) the composition-root wiring is locked at `platform.ts:111` per ruling #539. All other CAP-12 forbidden files remain forbidden.
+- **CAP-12 forbidden-file policy partly lifted (under the #539 carve-out).** `src/capabilities/capability/capability-service.ts` and `src/capabilities/capability/platform.ts` are on the CAP-12 forbidden list. CAP-P lifts the restriction for **both** files because (a) the discriminator is in `capability-service.ts` (CAP-O precedent), AND (b) the composition-root wiring is locked at `platform.ts:111` per ruling #539. All other CAP-12 forbidden files remain forbidden.
 - **Generalized candidate refactor.** `CapabilityEvolutionCandidate` gains exactly three new optional fields. No `executionHints` abstraction, no discriminated-union overhaul.
 
 ## 4. Architecture
 
 ### 4.1 Discriminator mapping (locked)
 
-The discriminator lives in `candidateToExecutionStep` at `src/capability/capability-service.ts:922+`. CAP-P rewrites the `case "consolidation_opportunity":` arm (currently shares the `default` arm with `capability.transition`).
+The discriminator lives in `candidateToExecutionStep` at `src/capabilities/capability/capability-service.ts:922+`. CAP-P rewrites the `case "consolidation_opportunity":` arm (currently shares the `default` arm with `capability.transition`).
 
 ```typescript
 case "consolidation_opportunity": {
@@ -109,7 +109,7 @@ The CAP-P invariant guards mirror CAP-O's `proposedPatch` non-empty check. Both 
 
 ### 4.2 Candidate extension (locked)
 
-`src/adaptation/capability-evolution-types.ts:181-198` adds two optional fields:
+`src/planning/adaptation/capability-evolution-types.ts:181-198` adds two optional fields:
 
 ```typescript
 export interface CapabilityEvolutionCandidate {
@@ -144,7 +144,7 @@ All three invariants are enforced at the discriminator seam (Section 4.1) AND at
 
 ### 4.3 A7 signal extension (locked)
 
-`src/capability/evolution/a7-proposals.ts:86-103` extends the `consolidation_opportunity` signal type:
+`src/capabilities/capability/evolution/a7-proposals.ts:86-103` extends the `consolidation_opportunity` signal type:
 
 ```typescript
 | {
@@ -164,7 +164,7 @@ All three invariants are enforced at the discriminator seam (Section 4.1) AND at
 
 ### 4.4 A7 signal validator (locked)
 
-`validateConsolidationOpportunitySignal(signal)` (`src/capability/evolution/a7-proposals.ts:140+`) enforces all three shape invariants:
+`validateConsolidationOpportunitySignal(signal)` (`src/capabilities/capability/evolution/a7-proposals.ts:140+`) enforces all three shape invariants:
 
 ```typescript
 export function validateConsolidationOpportunitySignal(
@@ -196,7 +196,7 @@ The validator performs structural presence checks only; the executor's `validate
 
 ### 4.5 A7 derivation (locked)
 
-`src/capability/evolution/a7-proposals.ts` `signalToCandidate` `case "consolidation_opportunity":` copies the operator-supplied fields verbatim:
+`src/capabilities/capability/evolution/a7-proposals.ts` `signalToCandidate` `case "consolidation_opportunity":` copies the operator-supplied fields verbatim:
 
 ```typescript
 case "consolidation_opportunity":
@@ -220,7 +220,7 @@ case "consolidation_opportunity":
 
 ### 4.6 Operator CLI → A7 signal (locked)
 
-`src/capability/capability-service.ts` `proposeConsolidation(input)` constructs the `consolidation_opportunity` signal from `OperatorConsolidationInput`:
+`src/capabilities/capability/capability-service.ts` `proposeConsolidation(input)` constructs the `consolidation_opportunity` signal from `OperatorConsolidationInput`:
 
 ```typescript
 const signal: CapabilityEvolutionSignal = {
@@ -239,7 +239,7 @@ The candidate is then built carrying all four operator-supplied values verbatim 
 
 ### 4.7 Pair-layer identitySupplier (locked extension)
 
-`src/capability/evolution/overlap-signal-source.ts` `OverlapIdentitySupplier` extended to include `consolidateDefinition` and `sourceDisposition`. The supplier callback is the seam where the composition-root binds the operator-CLI-supplied identities:
+`src/capabilities/capability/evolution/overlap-signal-source.ts` `OverlapIdentitySupplier` extended to include `consolidateDefinition` and `sourceDisposition`. The supplier callback is the seam where the composition-root binds the operator-CLI-supplied identities:
 
 ```typescript
 export type OverlapIdentitySupplier = (overlap: CapabilityOverlap) => {
@@ -270,15 +270,15 @@ The pair layer never derives any identity — it transports what `identitySuppli
 
 A P5.5 pair overlap is detected by `CapabilityOverlapAnalyzer` → `OverlapProposalSignalSource` invokes `identitySupplier(overlap)` to obtain the operator-supplied identities → pair layer emits a `consolidation_opportunity` signal carrying all four operator-supplied fields → A7 reads via `A7ProposalGenerator.generate()` → A7's `signalToCandidate(signal)` constructs `CapabilityEvolutionCandidate` with `absorbedCapabilityIds`, `consolidateDefinition`, `sourceDisposition` set verbatim from the signal → user proposes via `service.propose(candidate)` → user approves via `service.apply({ proposalId })` → `apply()` calls `candidateToExecutionStep(candidate, sourceId, currentVersion)` → the `case "consolidation_opportunity":` arm emits an `ExecutionStep` with `operation: "capability.consolidate"` and `parameters: { target, sources, definition, sourceDisposition, sourceVersion }` → `GovernedExecutionRuntime` (CAP-6) commits the consolidate mutation → `validateConsolidate()` runs conservative merge rules against catalog-resolved sources → catalog reflects the new consolidated capability → `proposalStore.recordExecuted(...)` is called.
 
-The operator-CLI path is identical except it constructs the `consolidation_opportunity` signal directly via `service.proposeConsolidation(input)` (`src/capability/capability-service.ts:683+`), bypassing the pair layer — the operator is the construction seam.
+The operator-CLI path is identical except it constructs the `consolidation_opportunity` signal directly via `service.proposeConsolidation(input)` (`src/capabilities/capability/capability-service.ts:683+`), bypassing the pair layer — the operator is the construction seam.
 
 ## 6. Composition root
 
-**Composition root (per the #539 locked ruling).** The composition root at `src/capability/platform.ts` requires the `overlapSignalSource` constructor opt (added per #539's locked wiring path). The pair layer's `OverlapIdentitySupplier` (Section 5.3) is bound at this seam. Without #539's wiring, no overlap signals reach the A7 pipeline — the seam is essential.
+**Composition root (per the #539 locked ruling).** The composition root at `src/capabilities/capability/platform.ts` requires the `overlapSignalSource` constructor opt (added per #539's locked wiring path). The pair layer's `OverlapIdentitySupplier` (Section 5.3) is bound at this seam. Without #539's wiring, no overlap signals reach the A7 pipeline — the seam is essential.
 
 Everything else in CAP-P remains internal to `signalToCandidate` (A7), `candidateToExecutionStep` (discriminator), `proposeConsolidation` (CLI seam), and `OverlapIdentitySupplier` (pair-layer seam); the composition root continues to provide `CapabilityService` with `executor`, `proposalStore`, `catalog`, and `proposalGenerator`.
 
-**CAP-12 forbidden-file carve-out expansion (per #539).** Per SP2 below, `src/capability/platform.ts` is added to the CAP-P carve-out scope alongside `capability-service.ts`. Both files are required for the composition-root wiring path locked at #539.
+**CAP-12 forbidden-file carve-out expansion (per #539).** Per SP2 below, `src/capabilities/capability/platform.ts` is added to the CAP-P carve-out scope alongside `capability-service.ts`. Both files are required for the composition-root wiring path locked at #539.
 
 ## 7. Migration boundary
 
@@ -333,7 +333,7 @@ Full capability + evolution vitest suite passes with **zero regressions**: all e
 
 - **CAP-P extension:** future consolidation mutation parameters (e.g., consolidation strategy, governance-policy metadata) extend `CapabilityConsolidateMutation` first; the candidate and signal fields follow. The CAP-P invariant guards (`consolidateDefinition` present, `sourceDisposition` valid, `absorbedCapabilityIds` non-empty) are the architectural anchor — they MUST NOT be relaxed.
 - **A8/A9:** A8 reads from the same candidate shape (`CapabilityEvolutionCandidate`); A8's organizational learning produces its own `LearningFindingKind` values and does NOT produce consolidation opportunities. A9 governance proposals operate at a different seam; CAP-P is upstream of both.
-- **TUI/Web:** CAP-11 owns TUI/Web surfaces. CAP-P only changes the CLI command (already shipped at `src/cli/commands/capability-consolidate.ts` per #544).
+- **TUI/Web:** CAP-11 owns TUI/Web surfaces. CAP-P only changes the CLI command (already shipped at `src/interfaces/cli/commands/capability-consolidate.ts` per #544).
 
 ## 11. Out of scope
 
@@ -355,24 +355,24 @@ Full capability + evolution vitest suite passes with **zero regressions**: all e
 
 - CAP-N spec: `docs/superpowers/specs/2026-08-14-cap-n-end-to-end-create-path-design.md`
 - CAP-O spec: `docs/superpowers/specs/2026-08-14-cap-o-underperformer-update-path-design.md`
-- CAP-N implementation: `src/capability/capability-service.ts:922+` (discriminator); `tests/capability/cap-n-candidate-mapping.vitest.ts`
-- CAP-O implementation: `src/capability/capability-service.ts:942+` (underperformer case); `tests/capability/cap-o-candidate-mapping.vitest.ts`
+- CAP-N implementation: `src/capabilities/capability/capability-service.ts:922+` (discriminator); `tests/capability/cap-n-candidate-mapping.vitest.ts`
+- CAP-O implementation: `src/capabilities/capability/capability-service.ts:942+` (underperformer case); `tests/capability/cap-o-candidate-mapping.vitest.ts`
 - CAP-P preserved decisions: `memory/cap-p-deferred-pending-analyzer.md` (8 preserved rulings, 2026-08-14)
 - P5.5/P5.6 survivorship ruling: `memory/p5-survivorship-ruling-locked.md` (#534 investigation #1)
 - P5.5/P5.6 absorbed-set ruling: `memory/p5-absorbed-set-ruling-locked.md` (#534 investigation #2)
 - P5.5/P5.6 signal-contract ruling: `memory/p5-signal-contract-ruling-locked.md` (#534 investigation #3)
 - P5.5/P5.6 pair-layer ruling: `memory/p5-layer-shape-ruling-locked.md` (#543)
 - P5.5/P5.6 caller-shape ruling: `memory/p5-caller-shape-ruling-locked.md` (#544 — operator CLI is authorized caller)
-- Operator CLI implementation: `src/cli/commands/capability-consolidate.ts` (shipped at commit `d65dcf46` per #544)
-- Pair-layer implementation: `src/capability/evolution/overlap-signal-source.ts` (shipped at commit `dcb3f3fe` per #543)
-- A7 signal contract: `src/capability/evolution/a7-proposals.ts:77-103` (extended at commit `6a18e573` per #534)
-- Mutation contract: `src/capability/mutation-contract.ts:106-116` (`CapabilityConsolidateMutation`), 464-479 (`validateConsolidate`), 310-378 (`validateConsolidateMerge`)
-- Discriminator site: `src/capability/capability-service.ts:922+`
-- Candidate type: `src/adaptation/capability-evolution-types.ts:172-200`
-- A7 derivation: `src/capability/evolution/a7-proposals.ts:296-330` (`signalToCandidate`)
-- A7 signal validator: `src/capability/evolution/a7-proposals.ts:140-180` (`validateConsolidationOpportunitySignal`)
-- Operator CLI seam: `src/capability/capability-service.ts:678-735` (`proposeConsolidation`)
-- Pair-layer seam: `src/capability/evolution/overlap-signal-source.ts:105-128` (`OverlapIdentitySupplier`)
+- Operator CLI implementation: `src/interfaces/cli/commands/capability-consolidate.ts` (shipped at commit `d65dcf46` per #544)
+- Pair-layer implementation: `src/capabilities/capability/evolution/overlap-signal-source.ts` (shipped at commit `dcb3f3fe` per #543)
+- A7 signal contract: `src/capabilities/capability/evolution/a7-proposals.ts:77-103` (extended at commit `6a18e573` per #534)
+- Mutation contract: `src/capabilities/capability/mutation-contract.ts:106-116` (`CapabilityConsolidateMutation`), 464-479 (`validateConsolidate`), 310-378 (`validateConsolidateMerge`)
+- Discriminator site: `src/capabilities/capability/capability-service.ts:922+`
+- Candidate type: `src/planning/adaptation/capability-evolution-types.ts:172-200`
+- A7 derivation: `src/capabilities/capability/evolution/a7-proposals.ts:296-330` (`signalToCandidate`)
+- A7 signal validator: `src/capabilities/capability/evolution/a7-proposals.ts:140-180` (`validateConsolidationOpportunitySignal`)
+- Operator CLI seam: `src/capabilities/capability/capability-service.ts:678-735` (`proposeConsolidation`)
+- Pair-layer seam: `src/capabilities/capability/evolution/overlap-signal-source.ts:105-128` (`OverlapIdentitySupplier`)
 - CAP-P sentinels: `tests/capability/cap-p-consolidate-execution.vitest.ts`
 - ADR-0013 §4/§5/§7 (provider abstraction + execution binding + lifecycle)
 
@@ -382,7 +382,7 @@ The CAP-P implementation introduced six small DRY refactors that go beyond the l
 
 1. **`OperatorConsolidationInput.identity: ConsolidationIdentity`** — Bundles the operator-supplied survivor/absorbed/definition/disposition fields into a single named shape so `proposeConsolidation` and the A7 signal validator share one validated identity record instead of carrying four positional fields. Reduces drift between operator input and signal shape.
 
-2. **`consolidationIdentityFromCandidate(candidate)` helper** — Centralizes the conversion from `CapabilityEvolutionCandidate` (carrying `consolidateDefinition`/`sourceDisposition`/`absorbedCapabilityIds`) to the `ConsolidationIdentity` used by the discriminator. Re-exports from `src/adaptation/capability-evolution-types.ts` so the operator CLI, A7 signal validator, and `candidateToExecutionStep` all share one projection rule.
+2. **`consolidationIdentityFromCandidate(candidate)` helper** — Centralizes the conversion from `CapabilityEvolutionCandidate` (carrying `consolidateDefinition`/`sourceDisposition`/`absorbedCapabilityIds`) to the `ConsolidationIdentity` used by the discriminator. Re-exports from `src/planning/adaptation/capability-evolution-types.ts` so the operator CLI, A7 signal validator, and `candidateToExecutionStep` all share one projection rule.
 
 3. **`isWellFormedConsolidateDefinition`** — Moved from A7 (`a7-proposals.ts`) to `consolidation-identity.ts` and renamed from `isValidConsolidateDefinition`. The validator now lives next to the type it validates; the A7 site consumes the named helper. One source of truth for "what counts as a well-formed consolidate definition".
 

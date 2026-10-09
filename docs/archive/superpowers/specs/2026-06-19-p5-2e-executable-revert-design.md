@@ -63,12 +63,12 @@ Structural: generator does NOT produce revert proposals; RevertApplier only inst
 
 | File | Role |
 |---|---|
-| `src/adaptation/snapshot-store.ts` | Save/load/verify snapshots |
-| `src/adaptation/revert-applier.ts` | Restores from snapshot; verifies integrity before restore |
-| `src/adaptation/appliers/agent-card-applier.ts` | **Modify** — snapshot before update/add_capability |
-| `src/adaptation/appliers/skill-applier.ts` | **Modify** — snapshot before adjust_skill_definition |
-| `src/adaptation/adaptation-types.ts` | **Modify** — add `"revert_proposal"` to ProposalAction + `{ kind: "revert" }` target |
-| `src/cli/commands/adaptation.ts` | **Modify** — add `revert` subcommand + route revert_proposal to RevertApplier in selectApplier |
-| `src/security/evidence/evidence-types.ts` | **Modify** — add `adaptation_snapshot_taken`, `adaptation_revert_failed` |
-| `src/workflow/evidence-writer.ts` | **Modify** — add `recordSnapshotTaken`, `recordRevertFailed` |
+| `src/planning/adaptation/snapshot-store.ts` | Save/load/verify snapshots |
+| `src/planning/adaptation/revert-applier.ts` | Restores from snapshot; verifies integrity before restore |
+| `src/planning/adaptation/appliers/agent-card-applier.ts` | **Modify** — snapshot before update/add_capability |
+| `src/planning/adaptation/appliers/skill-applier.ts` | **Modify** — snapshot before adjust_skill_definition |
+| `src/planning/adaptation/adaptation-types.ts` | **Modify** — add `"revert_proposal"` to ProposalAction + `{ kind: "revert" }` target |
+| `src/interfaces/cli/commands/adaptation.ts` | **Modify** — add `revert` subcommand + route revert_proposal to RevertApplier in selectApplier |
+| `src/governance/security/evidence/evidence-types.ts` | **Modify** — add `adaptation_snapshot_taken`, `adaptation_revert_failed` |
+| `src/coordination/workflow/evidence-writer.ts` | **Modify** — add `recordSnapshotTaken`, `recordRevertFailed` |
 | Tests | Per-task TDD |

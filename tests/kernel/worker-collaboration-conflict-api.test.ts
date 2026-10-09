@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CollaborationStore } from "../../src/kernel/collaboration-store.js";
-import { BoundWorkerCollaborationAPI } from "../../src/kernel/worker-collaboration-api.js";
+import { CollaborationStore } from "../../src/coordination/kernel/collaboration-store.js";
+import { BoundWorkerCollaborationAPI } from "../../src/coordination/kernel/worker-collaboration-api.js";
 
 const RUN_ID = "run_api_1";
 const WORKER_ID = "worker_a";

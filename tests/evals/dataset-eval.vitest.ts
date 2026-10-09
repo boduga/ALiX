@@ -12,8 +12,8 @@ import {
   normalizeIncident,
   parseJudgeScore,
   gateDatasetEval,
-} from "../../src/evals/dataset-eval.js";
-import type { ModelAdapter } from "../../src/providers/types.js";
+} from "../../src/operations/evals/dataset-eval.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
 import { stubProvider } from "../helpers/stub-provider.js";
 
 describe("parseJudgeScore", () => {

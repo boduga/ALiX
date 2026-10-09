@@ -14,20 +14,20 @@ relationships.
 
 | Module | Path | Responsibility |
 |--------|------|----------------|
-| **ApprovalGate** | `src/adaptation/approval-gate.ts` | Enforces no-approval-no-mutation invariant; sole owner of status transitions |
-| **ProposalStore** | `src/adaptation/proposal-store.ts` | File-system JSON persistence for proposals |
-| **SnapshotStore** | `src/adaptation/snapshot-store.ts` | Pre-mutation file snapshots with SHA-256 content hash |
-| **EvidenceStore** | `src/security/evidence/evidence-store.ts` | Append-only JSONL evidence store with deterministic fingerprints |
-| **EvidenceEventWriter** | `src/workflow/evidence-writer.ts` | Typed wrapper for evidence recording (best-effort) |
-| **AgentCardApplier** | `src/adaptation/appliers/agent-card-applier.ts` | File mutation: agent card CRUD |
-| **SkillApplier** | `src/adaptation/appliers/skill-applier.ts` | File mutation: skill step adjustment |
-| **RevertApplier** | `src/adaptation/revert-applier.ts` | File mutation: snapshot-based revert |
-| **AutomaticProposalGenerator** | `src/adaptation/auto-proposal-generator.ts` | Auto-generates pending proposals from reflection/effectiveness |
-| **CapabilityEvolutionProposalGenerator** | `src/adaptation/capability-evolution-proposal-generator.ts` | Auto-generates pending proposals from capability analysis |
-| **LineageBuilder** | `src/adaptation/lineage-builder.ts` | Builds lineage graphs from stores |
-| **CLI (adaptation)** | `src/cli/commands/adaptation.ts` | Wires everything together; command dispatch |
-| **CLI (evidence)** | `src/cli/commands/evidence.ts` | Evidence query, show, verify |
-| **selectApplier** | `src/cli/commands/adaptation.ts` (internal) | Routes target kind to applier |
+| **ApprovalGate** | `src/planning/adaptation/approval-gate.ts` | Enforces no-approval-no-mutation invariant; sole owner of status transitions |
+| **ProposalStore** | `src/planning/adaptation/proposal-store.ts` | File-system JSON persistence for proposals |
+| **SnapshotStore** | `src/planning/adaptation/snapshot-store.ts` | Pre-mutation file snapshots with SHA-256 content hash |
+| **EvidenceStore** | `src/governance/security/evidence/evidence-store.ts` | Append-only JSONL evidence store with deterministic fingerprints |
+| **EvidenceEventWriter** | `src/coordination/workflow/evidence-writer.ts` | Typed wrapper for evidence recording (best-effort) |
+| **AgentCardApplier** | `src/planning/adaptation/appliers/agent-card-applier.ts` | File mutation: agent card CRUD |
+| **SkillApplier** | `src/planning/adaptation/appliers/skill-applier.ts` | File mutation: skill step adjustment |
+| **RevertApplier** | `src/planning/adaptation/revert-applier.ts` | File mutation: snapshot-based revert |
+| **AutomaticProposalGenerator** | `src/planning/adaptation/auto-proposal-generator.ts` | Auto-generates pending proposals from reflection/effectiveness |
+| **CapabilityEvolutionProposalGenerator** | `src/planning/adaptation/capability-evolution-proposal-generator.ts` | Auto-generates pending proposals from capability analysis |
+| **LineageBuilder** | `src/planning/adaptation/lineage-builder.ts` | Builds lineage graphs from stores |
+| **CLI (adaptation)** | `src/interfaces/cli/commands/adaptation.ts` | Wires everything together; command dispatch |
+| **CLI (evidence)** | `src/interfaces/cli/commands/evidence.ts` | Evidence query, show, verify |
+| **selectApplier** | `src/interfaces/cli/commands/adaptation.ts` (internal) | Routes target kind to applier |
 
 ## Data Flow
 

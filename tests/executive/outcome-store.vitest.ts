@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { OutcomeReportStore } from "../../src/executive/outcome-store.js";
-import type { ExecutiveOutcomeEvaluationReport } from "../../src/executive/outcome-evaluator.js";
+import { OutcomeReportStore } from "../../src/execution/executive/outcome-store.js";
+import type { ExecutiveOutcomeEvaluationReport } from "../../src/execution/executive/outcome-evaluator.js";
 
 function makeReport(overrides: Partial<ExecutiveOutcomeEvaluationReport> = {}): ExecutiveOutcomeEvaluationReport {
   return {

@@ -19,16 +19,16 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { CoordinationScheduler } from "../../src/kernel/coordination-scheduler.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { CoordinationScheduler } from "../../src/coordination/kernel/coordination-scheduler.js";
 import {
   createCoordinationRun,
   createWorkerAssignment,
   type CoordinationRun,
-} from "../../src/kernel/coordination-types.js";
-import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
-import type { ExecutionAuthorization } from "../../src/runtime/execution-authorization.js";
-import type { ReplanResult, ReplanContext } from "../../src/kernel/collaborative-planner.js";
+} from "../../src/coordination/kernel/coordination-types.js";
+import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
+import type { ExecutionAuthorization } from "../../src/runtime-state/runtime/execution-authorization.js";
+import type { ReplanResult, ReplanContext } from "../../src/coordination/kernel/collaborative-planner.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 

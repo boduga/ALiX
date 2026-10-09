@@ -4,7 +4,7 @@
 
 **Goal:** Build A8 Organizational Learning — a read-only diagnostic layer that surfaces organizational patterns from proposal/measurement/recommendation history as `LearningProposal` artifacts, routed through the existing A2.5 `GovernanceRecommendation` + A3 `generateDecision()` seam producing MONITOR outcomes. A8 never mutates governance config, A5 policy, A7 proposal-generation, or capability mutations.
 
-**Architecture:** New module `src/evolution/learning/` mirroring A6's `src/evolution/knowledge/` structure (contracts → adapters → detectors → engine → proposal-builder → CLI). Three read-only adapters (proposal-events / measurement-events / enriched-proposals) feed three pure detectors (underperformer / outcome-contradiction / repeated-pattern-failure). Engine joins adapter outputs, aggregates findings into a `LearningProposal` (or returns `null` if zero findings), and routes through an A2.5 bridge that constructs `GovernanceRecommendation(kind: "MONITOR")`. Single CLI: `alix governance evolution learn`.
+**Architecture:** New module `src/planning/evolution/learning/` mirroring A6's `src/planning/evolution/knowledge/` structure (contracts → adapters → detectors → engine → proposal-builder → CLI). Three read-only adapters (proposal-events / measurement-events / enriched-proposals) feed three pure detectors (underperformer / outcome-contradiction / repeated-pattern-failure). Engine joins adapter outputs, aggregates findings into a `LearningProposal` (or returns `null` if zero findings), and routes through an A2.5 bridge that constructs `GovernanceRecommendation(kind: "MONITOR")`. Single CLI: `alix governance evolution learn`.
 
 **Tech Stack:** TypeScript, vitest, pnpm. Existing capability platform + A-series architecture. A3 `generateDecision` and A2.5 `GovernanceRecommendation` consumed unchanged.
 
@@ -34,8 +34,8 @@ These are binding on every task — copy verbatim:
 ### Task 1: Contracts + reconnaissance (foundation + threshold defaults)
 
 **Files:**
-- Create: `src/evolution/learning/contracts/learning-contract.ts`
-- Create: `src/evolution/learning/index.ts` (minimal barrel re-export for tests)
+- Create: `src/planning/evolution/learning/contracts/learning-contract.ts`
+- Create: `src/planning/evolution/learning/index.ts` (minimal barrel re-export for tests)
 - Test: `tests/evolution/a8-contracts.vitest.ts` (smoke test for contract shape)
 
 **Interfaces:**
@@ -46,9 +46,9 @@ These are binding on every task — copy verbatim:
 
 Before writing contracts, run reconnaissance to confirm concrete threshold defaults. The spec defers this; this task pins them.
 
-1. Read `src/evolution/observation/a5-capability-measurement.ts` — find existing default observation window (e.g., 7 days, 30 days).
-2. Read `src/capability/governance/governance-types.ts` — find any existing "minimum occurrences" pattern.
-3. Read `src/adaptation/intelligence-types.ts` for `EnrichedProposal` shape.
+1. Read `src/planning/evolution/observation/a5-capability-measurement.ts` — find existing default observation window (e.g., 7 days, 30 days).
+2. Read `src/capabilities/capability/governance/governance-types.ts` — find any existing "minimum occurrences" pattern.
+3. Read `src/planning/adaptation/intelligence-types.ts` for `EnrichedProposal` shape.
 4. **Decide defaults** (record in T1 commit message):
    - `defaultMinCardinality`: pick from existing A5/A0 precedents; default = 3 (typical "noise floor").
    - `defaultEvidenceWindowDays`: pick from existing A5 observation window; default = 30 days.
@@ -56,7 +56,7 @@ Before writing contracts, run reconnaissance to confirm concrete threshold defau
 
 **Code blocks (verbatim):**
 
-`src/evolution/learning/contracts/learning-contract.ts`:
+`src/planning/evolution/learning/contracts/learning-contract.ts`:
 
 ```typescript
 /**
@@ -213,11 +213,11 @@ export const DEFAULT_LEARNING_ENGINE_OPTIONS: LearningEngineOptions = {
 
 - [ ] **Step 2: Write contracts file**
 
-  Create `src/evolution/learning/contracts/learning-contract.ts` with the code block above, with reconnaissance values filled in.
+  Create `src/planning/evolution/learning/contracts/learning-contract.ts` with the code block above, with reconnaissance values filled in.
 
 - [ ] **Step 3: Write minimal barrel + smoke test**
 
-  Create `src/evolution/learning/index.ts`:
+  Create `src/planning/evolution/learning/index.ts`:
   ```typescript
   export * from "./contracts/learning-contract.js";
   ```
@@ -232,7 +232,7 @@ export const DEFAULT_LEARNING_ENGINE_OPTIONS: LearningEngineOptions = {
     type LearningFinding,
     type LearningProposal,
     type LearningAdapter,
-  } from "../../src/evolution/learning/contracts/learning-contract.js";
+  } from "../../src/planning/evolution/learning/contracts/learning-contract.js";
 
   describe("A8 contract smoke", () => {
     it("default options are populated", () => {
@@ -267,7 +267,7 @@ export const DEFAULT_LEARNING_ENGINE_OPTIONS: LearningEngineOptions = {
 
   ```bash
   cd /home/babasola/Projects/Monolith/.claude/worktrees/a8-organizational-learning
-  git add src/evolution/learning/ tests/evolution/a8-contracts.vitest.ts
+  git add src/planning/evolution/learning/ tests/evolution/a8-contracts.vitest.ts
   git commit -m "feat(evolution): A8 T1 contracts + threshold defaults (reconnaissance)"
   ```
 
@@ -278,10 +278,10 @@ export const DEFAULT_LEARNING_ENGINE_OPTIONS: LearningEngineOptions = {
 ### Task 2: Three read-only adapters
 
 **Files:**
-- Create: `src/evolution/learning/adapters/proposal-events-adapter.ts`
-- Create: `src/evolution/learning/adapters/measurement-events-adapter.ts`
-- Create: `src/evolution/learning/adapters/enriched-proposals-adapter.ts`
-- Create: `src/evolution/learning/adapters/index.ts` (barrel)
+- Create: `src/planning/evolution/learning/adapters/proposal-events-adapter.ts`
+- Create: `src/planning/evolution/learning/adapters/measurement-events-adapter.ts`
+- Create: `src/planning/evolution/learning/adapters/enriched-proposals-adapter.ts`
+- Create: `src/planning/evolution/learning/adapters/index.ts` (barrel)
 - Test: `tests/evolution/a8-adapters.vitest.ts`
 
 **Interfaces:**
@@ -290,7 +290,7 @@ export const DEFAULT_LEARNING_ENGINE_OPTIONS: LearningEngineOptions = {
 
 **Code blocks (verbatim):**
 
-`src/evolution/learning/adapters/proposal-events-adapter.ts`:
+`src/planning/evolution/learning/adapters/proposal-events-adapter.ts`:
 
 ```typescript
 import type { LearningAdapter, ProposalGovernanceRecord } from "../contracts/learning-contract.js";
@@ -332,7 +332,7 @@ export class ProposalEventsAdapter implements LearningAdapter<ProposalGovernance
 }
 ```
 
-`src/evolution/learning/adapters/measurement-events-adapter.ts`:
+`src/planning/evolution/learning/adapters/measurement-events-adapter.ts`:
 
 ```typescript
 import type { LearningAdapter, MeasurementOutcomeRecord } from "../contracts/learning-contract.js";
@@ -367,7 +367,7 @@ export class MeasurementEventsAdapter implements LearningAdapter<MeasurementOutc
 }
 ```
 
-`src/evolution/learning/adapters/enriched-proposals-adapter.ts`:
+`src/planning/evolution/learning/adapters/enriched-proposals-adapter.ts`:
 
 ```typescript
 import type { LearningAdapter, EnrichedProposalRecord } from "../contracts/learning-contract.js";
@@ -396,7 +396,7 @@ export class EnrichedProposalsAdapter implements LearningAdapter<EnrichedProposa
 }
 ```
 
-`src/evolution/learning/adapters/index.ts`:
+`src/planning/evolution/learning/adapters/index.ts`:
 
 ```typescript
 export * from "./proposal-events-adapter.js";
@@ -439,7 +439,7 @@ export * from "./enriched-proposals-adapter.js";
 
   ```bash
   cd /home/babasola/Projects/Monolith/.claude/worktrees/a8-organizational-learning
-  git add src/evolution/learning/adapters/ tests/evolution/a8-adapters.vitest.ts
+  git add src/planning/evolution/learning/adapters/ tests/evolution/a8-adapters.vitest.ts
   git commit -m "feat(evolution): A8 T2 three read-only adapters"
   ```
 
@@ -448,7 +448,7 @@ export * from "./enriched-proposals-adapter.js";
 ### Task 3: underperformer detector
 
 **Files:**
-- Create: `src/evolution/learning/detectors/underperformer-detector.ts`
+- Create: `src/planning/evolution/learning/detectors/underperformer-detector.ts`
 - Test: `tests/evolution/a8-learning-detectors.vitest.ts` (initial file; later tasks append)
 
 **Interfaces:**
@@ -541,7 +541,7 @@ export const UNDERPERFORMER_DETECTOR_KIND: LearningFindingKind = "underperformer
 - [ ] **Step 5: Commit**
 
   ```bash
-  git add src/evolution/learning/detectors/underperformer-detector.ts tests/evolution/a8-learning-detectors.vitest.ts
+  git add src/planning/evolution/learning/detectors/underperformer-detector.ts tests/evolution/a8-learning-detectors.vitest.ts
   git commit -m "feat(evolution): A8 T3 underperformer detector (pure)"
   ```
 
@@ -550,7 +550,7 @@ export const UNDERPERFORMER_DETECTOR_KIND: LearningFindingKind = "underperformer
 ### Task 4: outcome-contradiction detector
 
 **Files:**
-- Create: `src/evolution/learning/detectors/outcome-contradiction-detector.ts`
+- Create: `src/planning/evolution/learning/detectors/outcome-contradiction-detector.ts`
 - Modify: `tests/evolution/a8-learning-detectors.vitest.ts` (append axes)
 
 **Interfaces:**
@@ -634,7 +634,7 @@ Commit message: `feat(evolution): A8 T4 outcome-contradiction detector (pure, no
 ### Task 5: repeated-pattern-failure detector
 
 **Files:**
-- Create: `src/evolution/learning/detectors/repeated-pattern-failure-detector.ts`
+- Create: `src/planning/evolution/learning/detectors/repeated-pattern-failure-detector.ts`
 - Modify: `tests/evolution/a8-learning-detectors.vitest.ts` (append axes)
 
 **Interfaces:**
@@ -708,10 +708,10 @@ Commit message: `feat(evolution): A8 T5 repeated-pattern-failure detector (pure)
 ### Task 6: Engine + proposal builder + A2.5 bridge
 
 **Files:**
-- Create: `src/evolution/learning/learning-engine.ts`
-- Create: `src/evolution/learning/learning-proposal-builder.ts`
-- Create: `src/evolution/learning/a2-bridge.ts` (the A2.5 bridge that constructs MONITOR)
-- Modify: `src/evolution/learning/index.ts` (extend barrel)
+- Create: `src/planning/evolution/learning/learning-engine.ts`
+- Create: `src/planning/evolution/learning/learning-proposal-builder.ts`
+- Create: `src/planning/evolution/learning/a2-bridge.ts` (the A2.5 bridge that constructs MONITOR)
+- Modify: `src/planning/evolution/learning/index.ts` (extend barrel)
 - Modify: `tests/evolution/a8-learning-detectors.vitest.ts` (add engine aggregation test)
 
 **Interfaces:**
@@ -720,7 +720,7 @@ Commit message: `feat(evolution): A8 T5 repeated-pattern-failure detector (pure)
 
 **Code blocks (verbatim):**
 
-`src/evolution/learning/learning-engine.ts`:
+`src/planning/evolution/learning/learning-engine.ts`:
 
 ```typescript
 import type {
@@ -780,7 +780,7 @@ export class LearningEngine {
 }
 ```
 
-`src/evolution/learning/learning-proposal-builder.ts`:
+`src/planning/evolution/learning/learning-proposal-builder.ts`:
 
 ```typescript
 import type { LearningFinding, LearningProposal } from "./contracts/learning-contract.js";
@@ -799,7 +799,7 @@ export function buildLearningProposal(
 }
 ```
 
-`src/evolution/learning/a2-bridge.ts`:
+`src/planning/evolution/learning/a2-bridge.ts`:
 
 ```typescript
 import type { LearningProposal } from "./contracts/learning-contract.js";
@@ -852,7 +852,7 @@ export function buildGovernanceRecommendation(
 
 - [ ] **Step 5: Update barrel**
 
-  Extend `src/evolution/learning/index.ts`:
+  Extend `src/planning/evolution/learning/index.ts`:
   ```typescript
   export * from "./contracts/learning-contract.js";
   export * from "./adapters/index.js";
@@ -867,7 +867,7 @@ export function buildGovernanceRecommendation(
 - [ ] **Step 6: Commit**
 
   ```bash
-  git add src/evolution/learning/ tests/evolution/a8-learning-detectors.vitest.ts
+  git add src/planning/evolution/learning/ tests/evolution/a8-learning-detectors.vitest.ts
   git commit -m "feat(evolution): A8 T6 engine + proposal builder + A2.5 MONITOR bridge"
   ```
 
@@ -876,8 +876,8 @@ export function buildGovernanceRecommendation(
 ### Task 7: CLI surface + composition-root wiring
 
 **Files:**
-- Create: `src/evolution/learning/learning-cli.ts`
-- Modify: the existing CLI registration seam (discover at T1 reconnaissance: where `alix governance evolution curate` is registered — likely `src/cli/governance/` or `src/commands/`)
+- Create: `src/planning/evolution/learning/learning-cli.ts`
+- Modify: the existing CLI registration seam (discover at T1 reconnaissance: where `alix governance evolution curate` is registered — likely `src/interfaces/cli/governance/` or `src/commands/`)
 
 **Interfaces:**
 - Consumes: `LearningEngine`, `EventLog`, `EnrichedProposal[]`.
@@ -885,7 +885,7 @@ export function buildGovernanceRecommendation(
 
 **Code block (verbatim):**
 
-`src/evolution/learning/learning-cli.ts`:
+`src/planning/evolution/learning/learning-cli.ts`:
 
 ```typescript
 import type { LearningEngine } from "./learning-engine.js";
@@ -943,7 +943,7 @@ export async function runLearnCli(opts: {
 
   ```bash
   cd /home/babasola/Projects/Monolith/.claude/worktrees/a8-organizational-learning
-  grep -rn "evolution curate\|evolution.learn\|governance evolution" src/cli/ 2>/dev/null | head -10
+  grep -rn "evolution curate\|evolution.learn\|governance evolution" src/interfaces/cli/ 2>/dev/null | head -10
   ```
 
   Find the file that registers the A6 CLI command and mirror its structure for A8. STOP and surface if no equivalent registration seam exists.
@@ -971,7 +971,7 @@ export async function runLearnCli(opts: {
 - [ ] **Step 5: Commit**
 
   ```bash
-  git add src/evolution/learning/learning-cli.ts src/cli/<seam-file>.ts tests/evolution/a8-cli.vitest.ts
+  git add src/planning/evolution/learning/learning-cli.ts src/interfaces/cli/<seam-file>.ts tests/evolution/a8-cli.vitest.ts
   git commit -m "feat(evolution): A8 T7 CLI surface + composition-root wiring"
   ```
 
@@ -993,13 +993,13 @@ export async function runLearnCli(opts: {
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { LearningEngine } from "../../src/evolution/learning/learning-engine.js";
-import { ProposalEventsAdapter } from "../../src/evolution/learning/adapters/proposal-events-adapter.js";
-import { MeasurementEventsAdapter } from "../../src/evolution/learning/adapters/measurement-events-adapter.js";
-import { EnrichedProposalsAdapter } from "../../src/evolution/learning/adapters/enriched-proposals-adapter.js";
-import { buildGovernanceRecommendation } from "../../src/evolution/learning/a2-bridge.js";
-import { generateDecision } from "../../src/evolution/governance/decision-engine.js";
-import type { ProposalGovernanceRecord, MeasurementOutcomeRecord, EnrichedProposalRecord } from "../../src/evolution/learning/contracts/learning-contract.js";
+import { LearningEngine } from "../../src/planning/evolution/learning/learning-engine.js";
+import { ProposalEventsAdapter } from "../../src/planning/evolution/learning/adapters/proposal-events-adapter.js";
+import { MeasurementEventsAdapter } from "../../src/planning/evolution/learning/adapters/measurement-events-adapter.js";
+import { EnrichedProposalsAdapter } from "../../src/planning/evolution/learning/adapters/enriched-proposals-adapter.js";
+import { buildGovernanceRecommendation } from "../../src/planning/evolution/learning/a2-bridge.js";
+import { generateDecision } from "../../src/planning/evolution/governance/decision-engine.js";
+import type { ProposalGovernanceRecord, MeasurementOutcomeRecord, EnrichedProposalRecord } from "../../src/planning/evolution/learning/contracts/learning-contract.js";
 
 describe("A8 engine end-to-end", () => {
   it("zero findings across all detectors → null (no proposal emitted)", async () => {
@@ -1098,7 +1098,7 @@ describe("A8 architectural invariants (sentinel)", () => {
   });
 
   it("A2.5 bridge produces only MONITOR for A8 proposals", async () => {
-    const { buildGovernanceRecommendation } = await import("../../src/evolution/learning/a2-bridge.js");
+    const { buildGovernanceRecommendation } = await import("../../src/planning/evolution/learning/a2-bridge.js");
     const proposal: LearningProposal = {
       proposalId: "p1",
       generatedAt: "2026-08-14T00:00:00Z",
@@ -1111,17 +1111,17 @@ describe("A8 architectural invariants (sentinel)", () => {
   it("no A8 source file imports from the executor or capability-catalog mutator", () => {
     // Read all A8 source files and assert no disallowed imports.
     const files = [
-      "src/evolution/learning/contracts/learning-contract.ts",
-      "src/evolution/learning/learning-engine.ts",
-      "src/evolution/learning/learning-proposal-builder.ts",
-      "src/evolution/learning/a2-bridge.ts",
-      "src/evolution/learning/learning-cli.ts",
-      "src/evolution/learning/adapters/proposal-events-adapter.ts",
-      "src/evolution/learning/adapters/measurement-events-adapter.ts",
-      "src/evolution/learning/adapters/enriched-proposals-adapter.ts",
-      "src/evolution/learning/detectors/underperformer-detector.ts",
-      "src/evolution/learning/detectors/outcome-contradiction-detector.ts",
-      "src/evolution/learning/detectors/repeated-pattern-failure-detector.ts",
+      "src/planning/evolution/learning/contracts/learning-contract.ts",
+      "src/planning/evolution/learning/learning-engine.ts",
+      "src/planning/evolution/learning/learning-proposal-builder.ts",
+      "src/planning/evolution/learning/a2-bridge.ts",
+      "src/planning/evolution/learning/learning-cli.ts",
+      "src/planning/evolution/learning/adapters/proposal-events-adapter.ts",
+      "src/planning/evolution/learning/adapters/measurement-events-adapter.ts",
+      "src/planning/evolution/learning/adapters/enriched-proposals-adapter.ts",
+      "src/planning/evolution/learning/detectors/underperformer-detector.ts",
+      "src/planning/evolution/learning/detectors/outcome-contradiction-detector.ts",
+      "src/planning/evolution/learning/detectors/repeated-pattern-failure-detector.ts",
     ];
     const forbidden = [/capability-mutation-executor/, /capability.*catalog.*mutator/, /mutation-executor/];
     for (const f of files) {
@@ -1189,7 +1189,7 @@ describe("A8 architectural invariants (sentinel)", () => {
   Create `docs/architecture/checkpoints/2026-08-14-a8-organizational-learning-complete.md` per the CAP-12 checkpoint doc template. Include:
   - Status: APPROVED with checks
   - Architectural progression: CAP-N → CAP-O → CAP-P (deferred) → **A8**
-  - Module summary: `src/evolution/learning/` (contracts, 3 detectors, 3 adapters, engine, builder, CLI)
+  - Module summary: `src/planning/evolution/learning/` (contracts, 3 detectors, 3 adapters, engine, builder, CLI)
   - Locked rulings: 8 from wayfinder + 4 from spec
   - Test totals
   - Future work: A9, CAP-P resumption, M2/M3, TUI/Web
@@ -1226,7 +1226,7 @@ describe("A8 architectural invariants (sentinel)", () => {
 
   Write `/home/babasola/.claude/projects/-home-babasola-Projects-Monolith/memory/a8-organizational-learning-complete.md` with:
   - type: project
-  - body: A8 closed the organizational learning frontier; module `src/evolution/learning/`; 3 detectors (underperformer / outcome-contradiction / repeated-pattern-failure); LearningProposal non-executable; A2.5 bridge constructs MONITOR; CLI `alix governance evolution learn`. Next frontier: A9.
+  - body: A8 closed the organizational learning frontier; module `src/planning/evolution/learning/`; 3 detectors (underperformer / outcome-contradiction / repeated-pattern-failure); LearningProposal non-executable; A2.5 bridge constructs MONITOR; CLI `alix governance evolution learn`. Next frontier: A9.
 
 - [ ] **Step 6: Update MEMORY.md**
 

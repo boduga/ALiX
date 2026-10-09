@@ -2,17 +2,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ExecutiveTrendStore } from "../../src/executive/trend-store.js";
-import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
-import { OutcomeReportStore } from "../../src/executive/outcome-store.js";
-import { RecommendationReportStore } from "../../src/executive/recommendation-report-store.js";
+import { ExecutiveTrendStore } from "../../src/execution/executive/trend-store.js";
+import type { ExecutiveTrendSnapshot } from "../../src/execution/executive/trend-store.js";
+import { OutcomeReportStore } from "../../src/execution/executive/outcome-store.js";
+import { RecommendationReportStore } from "../../src/execution/executive/recommendation-report-store.js";
 import {
   DefaultExecutiveObservationProvider,
-} from "../../src/executive/executive-observation-provider.js";
+} from "../../src/execution/executive/executive-observation-provider.js";
 import type {
   EffectivenessObservationSource,
   CorrelationObservationSource,
-} from "../../src/executive/executive-observation-provider.js";
+} from "../../src/execution/executive/executive-observation-provider.js";
 
 // ---------------------------------------------------------------------------
 // Test infrastructure — real store instances backed by tmp dir so spyOn works

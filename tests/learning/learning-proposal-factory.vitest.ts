@@ -3,11 +3,11 @@ import { describe, it, expect } from "vitest";
 import {
   ProposalFactory,
   buildLearningProposal,
-} from "../../src/cli/learning-proposal-factory.js";
+} from "../../src/interfaces/cli/learning-proposal-factory.js";
 import type {
   CalibrationProfile,
   LearningProposal,
-} from "../../src/learning/learning-types.js";
+} from "../../src/planning/learning/learning-types.js";
 
 const GENERATED_AT = "2026-06-22T00:00:00.000Z";
 
@@ -189,10 +189,10 @@ describe("buildLearningProposal helper", () => {
 // ---------------------------------------------------------------------------
 
 describe("governance boundary", () => {
-  it("ProposalFactory lives in the CLI layer, not src/learning/", async () => {
-    // Verify the import resolves from src/cli/, confirming the factory is
+  it("ProposalFactory lives in the CLI layer, not src/planning/learning/", async () => {
+    // Verify the import resolves from src/interfaces/cli/, confirming the factory is
     // outside the learning module that the sentinels guard.
-    const mod = await import("../../src/cli/learning-proposal-factory.js");
+    const mod = await import("../../src/interfaces/cli/learning-proposal-factory.js");
     expect(mod.ProposalFactory).toBeDefined();
     expect(typeof mod.ProposalFactory).toBe("function");
   });

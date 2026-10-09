@@ -13,19 +13,19 @@
 - Every commit must independently pass `npx vitest run tests/tui/blocks/` (baseline: 113 tests)
 - Every commit must produce `npx tsc --noEmit`: 0 errors
 - Production files bare `.ts`, imports use `.js`
-- Test files import from `../../../src/tui/blocks/` with `.js`
+- Test files import from `../../../src/interfaces/tui/blocks/` with `.js`
 - Use `describe` / `it` / `expect` vitest pattern
-- All ANSI codes use shared constants from `src/tui/ansi-constants.ts` or the existing theme pattern (`taskChecked`/`taskUnchecked` are raw strings, not wrapped text — same as `codeBorder`/`quoteBar`)
+- All ANSI codes use shared constants from `src/interfaces/tui/ansi-constants.ts` or the existing theme pattern (`taskChecked`/`taskUnchecked` are raw strings, not wrapped text — same as `codeBorder`/`quoteBar`)
 
 ---
 
 ### Task 1: Task list items
 
 **Files:**
-- Modify: `src/tui/blocks/types.ts` (add `checked` to list ResponseBlock, add `taskChecked`/`taskUnchecked` to Theme)
-- Modify: `src/tui/blocks/parser.ts` (task marker detection in list collection)
-- Modify: `src/tui/blocks/theme.ts` (default checkbox styling)
-- Modify: `src/tui/blocks/render.ts` (checkbox prefix in renderList)
+- Modify: `src/interfaces/tui/blocks/types.ts` (add `checked` to list ResponseBlock, add `taskChecked`/`taskUnchecked` to Theme)
+- Modify: `src/interfaces/tui/blocks/parser.ts` (task marker detection in list collection)
+- Modify: `src/interfaces/tui/blocks/theme.ts` (default checkbox styling)
+- Modify: `src/interfaces/tui/blocks/render.ts` (checkbox prefix in renderList)
 - Test: `tests/tui/blocks/parser.vitest.ts`
 - Test: `tests/tui/blocks/render.vitest.ts`
 
@@ -223,7 +223,7 @@ Expected: 0 errors.
 - [ ] **Step 11: Commit**
 
 ```bash
-git add src/tui/blocks/types.ts src/tui/blocks/parser.ts src/tui/blocks/theme.ts src/tui/blocks/render.ts tests/tui/blocks/parser.vitest.ts tests/tui/blocks/render.vitest.ts
+git add src/interfaces/tui/blocks/types.ts src/interfaces/tui/blocks/parser.ts src/interfaces/tui/blocks/theme.ts src/interfaces/tui/blocks/render.ts tests/tui/blocks/parser.vitest.ts tests/tui/blocks/render.vitest.ts
 git commit -m "feat(tui): add GFM task list rendering
 
 Extends the list ResponseBlock with an optional checked[] array.

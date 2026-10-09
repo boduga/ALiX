@@ -13,15 +13,15 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../src/events/event-log.js';
-import { closeAllSharedLedgers } from '../../src/storage/runtime-ledger.js';
-import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
-import { extractToolSelectionScopes } from '../../src/decision/tool-selection-replay.js';
-import { createContextBudget } from '../../src/config/context-budget.js';
-import { ensureEncoder } from '../../src/utils/tokens.js';
-import { TaskStateMachine, RunLimiter } from '../../src/autonomy/state-machine.js';
-import { ScopeTracker } from '../../src/autonomy/scope-tracker.js';
-import { MemoryStore } from '../../src/utils/memory/store.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { closeAllSharedLedgers } from '../../src/runtime-state/storage/runtime-ledger.js';
+import { runTaskLoop, type TaskLoopDeps } from '../../src/execution/run/task-loop.js';
+import { extractToolSelectionScopes } from '../../src/planning/decision/tool-selection-replay.js';
+import { createContextBudget } from '../../src/operations/config/context-budget.js';
+import { ensureEncoder } from '../../src/operations/utils/tokens.js';
+import { TaskStateMachine, RunLimiter } from '../../src/planning/autonomy/state-machine.js';
+import { ScopeTracker } from '../../src/planning/autonomy/scope-tracker.js';
+import { MemoryStore } from '../../src/operations/utils/memory/store.js';
 import type {
   ModelAdapter,
   NormalizedRequest,
@@ -29,7 +29,7 @@ import type {
   NormalizedMessage,
   ToolCall,
   ToolDef,
-} from '../../src/providers/types.js';
+} from '../../src/models/providers/types.js';
 import type { MutationSessionState } from '../../src/run.js';
 
 const MCP_SEARCH_TOOL: ToolDef = {
@@ -156,7 +156,7 @@ describe('F4 Bypass A — the MCP search sentinel is a recorded selection', () =
   /**
    * The gate exists on this path. It did not, and nothing caught it: the
    * telemetry gate added in 88a01489 gated only
-   * `src/observability/tool-selection-observation.ts`, while the emitter this
+   * `src/operations/observability/tool-selection-observation.ts`, while the emitter this
    * file exercises is a SEPARATE wrapper in `task-loop/main.ts` that appends
    * directly. Every other assertion in this suite passed with the flag
    * deleted — which is how a suite ends up proving nothing.

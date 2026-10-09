@@ -2,7 +2,7 @@
  * #713 step 1 — AuditEventStore conformance.
  *
  * Both domain stores implement the canonical persistence contract
- * (src/audit/audit-contract.ts). This pins the seam so the runtime store and
+ * (src/governance/audit/audit-contract.ts). This pins the seam so the runtime store and
  * the governance store cannot drift into separate persistence shapes.
  */
 
@@ -12,10 +12,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { AuditStore, type AuditAppendInput } from "../../src/audit/audit-store.js";
-import { isAuditRecordV2 } from "../../src/audit/audit-types.js";
-import type { AuditRecord, AuditRecordV2 } from "../../src/audit/audit-types.js";
-import type { AuditEventStore } from "../../src/audit/audit-contract.js";
+import { AuditStore, type AuditAppendInput } from "../../src/governance/audit/audit-store.js";
+import { isAuditRecordV2 } from "../../src/governance/audit/audit-types.js";
+import type { AuditRecord, AuditRecordV2 } from "../../src/governance/audit/audit-types.js";
+import type { AuditEventStore } from "../../src/governance/audit/audit-contract.js";
 import { FileAuditStore } from "../../src/governance/audit-store.js";
 import type {
   GovernanceAuditEvent,

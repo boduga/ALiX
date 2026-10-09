@@ -28,10 +28,10 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleDecisionCommand } from "../../../src/cli/commands/decision.js";
-import { RiskScoreBuilder } from "../../../src/adaptation/risk-score-builder.js";
-import { RiskScoreStore } from "../../../src/adaptation/risk-score-store.js";
-import type { RiskScore } from "../../../src/adaptation/risk-score-types.js";
+import { handleDecisionCommand } from "../../../src/interfaces/cli/commands/decision.js";
+import { RiskScoreBuilder } from "../../../src/planning/adaptation/risk-score-builder.js";
+import { RiskScoreStore } from "../../../src/planning/adaptation/risk-score-store.js";
+import type { RiskScore } from "../../../src/planning/adaptation/risk-score-types.js";
 
 // ---------------------------------------------------------------------------
 // process.cwd override + output capture
@@ -127,7 +127,7 @@ describe("decision recommend persists RiskScore (P7.5p.2b)", () => {
     // Recompute via RiskScoreBuilder.build on a freshly built context for the same
     // proposal. The builder is pure: same input → same overallRisk.
     const { handleDecisionCommand: _ } = await import(
-      "../../../src/cli/commands/decision.js"
+      "../../../src/interfaces/cli/commands/decision.js"
     );
     void _;
     // Use the prototype to verify risk-builder invariants without coupling to CLI:

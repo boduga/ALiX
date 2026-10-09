@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { resolveConcreteFreeSelection, deriveRequestRequirements, supportsRequest } from "../../src/providers/model-resolver.js";
-import type { DiscoveredModel } from "../../src/providers/model-discovery.js";
-import type { NormalizedRequest, ModelCapabilities } from "../../src/providers/types.js";
+import { resolveConcreteFreeSelection, deriveRequestRequirements, supportsRequest } from "../../src/models/providers/model-resolver.js";
+import type { DiscoveredModel } from "../../src/models/providers/model-discovery.js";
+import type { NormalizedRequest, ModelCapabilities } from "../../src/models/providers/types.js";
 
 const model = (overrides: Partial<DiscoveredModel>): DiscoveredModel => ({
   id: "m",

@@ -24,15 +24,15 @@
 
 ```
 Create:
-  src/adaptation/recommendation-types.ts      — Recommendation, WarningSeverity, EnrichedWarning, ApprovalRecommendation
-  src/adaptation/recommendation-engine.ts     — RecommendationEngine, rule functions, computeSignalCoherence
+  src/planning/adaptation/recommendation-types.ts      — Recommendation, WarningSeverity, EnrichedWarning, ApprovalRecommendation
+  src/planning/adaptation/recommendation-engine.ts     — RecommendationEngine, rule functions, computeSignalCoherence
   tests/adaptation/recommendation-engine.vitest.ts
   tests/adaptation/recommendation-sentinels.vitest.ts
 
 Modify:
-  src/adaptation/decision-types.ts            — add EnrichedWarning type, update DecisionArtifact.warnings to EnrichedWarning[]
-  src/adaptation/decision-context-builder.ts  — update build() to produce EnrichedWarning[] instead of string[] for warnings
-  src/cli/commands/decision.ts                — add `alix decision recommend` subcommand
+  src/planning/adaptation/decision-types.ts            — add EnrichedWarning type, update DecisionArtifact.warnings to EnrichedWarning[]
+  src/planning/adaptation/decision-context-builder.ts  — update build() to produce EnrichedWarning[] instead of string[] for warnings
+  src/interfaces/cli/commands/decision.ts                — add `alix decision recommend` subcommand
 ```
 
 ### Interfaces Between Tasks
@@ -48,8 +48,8 @@ Modify:
 ### Task 1: Types — Recommendation, WarningSeverity, EnrichedWarning, ApprovalRecommendation
 
 **Files:**
-- Create: `src/adaptation/recommendation-types.ts`
-- Modify: `src/adaptation/decision-types.ts` — add `EnrichedWarning` type, update `DecisionArtifact.warnings` from `string[]` to `EnrichedWarning[]`
+- Create: `src/planning/adaptation/recommendation-types.ts`
+- Modify: `src/planning/adaptation/decision-types.ts` — add `EnrichedWarning` type, update `DecisionArtifact.warnings` from `string[]` to `EnrichedWarning[]`
 
 - [ ] **Step 1: Create recommendation-types.ts**
 
@@ -100,7 +100,7 @@ export interface ApprovalRecommendation extends DecisionArtifact {
 
 - [ ] **Step 2: Update decision-types.ts with EnrichedWarning**
 
-Add the `EnrichedWarning` and `WarningSeverity` types to `src/adaptation/decision-types.ts`, then update `DecisionArtifact.warnings` from `warnings?: string[]` to `warnings?: EnrichedWarning[]`.
+Add the `EnrichedWarning` and `WarningSeverity` types to `src/planning/adaptation/decision-types.ts`, then update `DecisionArtifact.warnings` from `warnings?: string[]` to `warnings?: EnrichedWarning[]`.
 
 ```typescript
 // Add to decision-types.ts alongside the existing types:
@@ -129,7 +129,7 @@ export interface DecisionArtifact {
 
 - [ ] **Step 3: Update decision-context-builder.ts to produce EnrichedWarning[]**
 
-In `src/adaptation/decision-context-builder.ts`, find where warnings are constructed as `string[]` and update to produce `EnrichedWarning[]`. The pattern is:
+In `src/planning/adaptation/decision-context-builder.ts`, find where warnings are constructed as `string[]` and update to produce `EnrichedWarning[]`. The pattern is:
 ```typescript
 // Old: warnings.push("Lineage is incomplete");
 // New:
@@ -148,7 +148,7 @@ After updating, run `npx tsc --noEmit` to verify type compatibility.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/adaptation/recommendation-types.ts src/adaptation/decision-types.ts src/adaptation/decision-context-builder.ts
+git add src/planning/adaptation/recommendation-types.ts src/planning/adaptation/decision-types.ts src/planning/adaptation/decision-context-builder.ts
 git commit -m "P6.1: ApprovalRecommendation type definitions + EnrichedWarning"
 ```
 
@@ -157,7 +157,7 @@ git commit -m "P6.1: ApprovalRecommendation type definitions + EnrichedWarning"
 ### Task 2: RecommendationEngine — pure rule evaluation + signal coherence
 
 **Files:**
-- Create: `src/adaptation/recommendation-engine.ts`
+- Create: `src/planning/adaptation/recommendation-engine.ts`
 
 **Interfaces:**
 - Consumes: `ApprovalRecommendation`, `Recommendation`, `EnrichedWarning` from `./recommendation-types`, `DecisionContext` from `./decision-types`, `RiskScore` / `RiskItem` from `./risk-score-types`
@@ -362,7 +362,7 @@ Expected: Zero errors
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/adaptation/recommendation-engine.ts
+git add src/planning/adaptation/recommendation-engine.ts
 git commit -m "P6.1: RecommendationEngine — pure rule evaluation + signal coherence"
 ```
 
@@ -377,10 +377,10 @@ git commit -m "P6.1: RecommendationEngine — pure rule evaluation + signal cohe
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { RecommendationEngine, computeSignalCoherence } from "../../src/adaptation/recommendation-engine.js";
-import type { DecisionContext } from "../../src/adaptation/decision-types.js";
-import type { RiskScore } from "../../src/adaptation/risk-score-types.js";
-import type { EnrichedWarning } from "../../src/adaptation/recommendation-types.js";
+import { RecommendationEngine, computeSignalCoherence } from "../../src/planning/adaptation/recommendation-engine.js";
+import type { DecisionContext } from "../../src/planning/adaptation/decision-types.js";
+import type { RiskScore } from "../../src/planning/adaptation/risk-score-types.js";
+import type { EnrichedWarning } from "../../src/planning/adaptation/recommendation-types.js";
 
 function createContext(overrides: Partial<DecisionContext> = {}): DecisionContext {
   return {
@@ -580,7 +580,7 @@ git commit -m "P6.1: RecommendationEngine tests"
 ### Task 4: CLI factory + `alix decision recommend`
 
 **Files:**
-- Modify: `src/cli/commands/decision.ts`
+- Modify: `src/interfaces/cli/commands/decision.ts`
 
 **Prerequisite:** Before adding the recommend subcommand, extract the shared infrastructure factory that `runContext`, `runRisk`, and `runRecommend` all need. This is the last clean opportunity before P6.2 Queue creates a fourth copy.
 
@@ -732,7 +732,7 @@ Expected: All tests pass (including new recommendation tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/decision.ts
+git add src/interfaces/cli/commands/decision.ts
 git commit -m "P6.1: extract buildDecisionInfrastructure, add recommend subcommand"
 ```
 
@@ -792,28 +792,28 @@ const FORBIDDEN_STORES = [
 ];
 
 it("must not import governance/mutation modules", () => {
-  const source = sourceOf("../../src/adaptation/recommendation-engine");
+  const source = sourceOf("../../src/planning/adaptation/recommendation-engine");
   for (const mod of FORBIDDEN_IMPORTS) {
     expect(source).not.toContain(mod);
   }
 });
 
 it("must not reference governance types", () => {
-  const source = sourceOf("../../src/adaptation/recommendation-engine");
+  const source = sourceOf("../../src/planning/adaptation/recommendation-engine");
   for (const type of FORBIDDEN_TYPES) {
     expect(source).not.toContain(type);
   }
 });
 
 it("must not reference store types in source", () => {
-  const source = sourceOf("../../src/adaptation/recommendation-engine");
+  const source = sourceOf("../../src/planning/adaptation/recommendation-engine");
   for (const store of FORBIDDEN_STORES) {
     expect(source).not.toContain(store);
   }
 });
 
 it("must not contain write/approve/apply/reject calls", () => {
-  const source = sourceOf("../../src/adaptation/recommendation-engine");
+  const source = sourceOf("../../src/planning/adaptation/recommendation-engine");
   const forbidden = [".save(", ".update(", ".approve(", ".apply(", ".reject(", ".queue("];
   for (const method of forbidden) {
     expect(source).not.toContain(method);
@@ -825,7 +825,7 @@ it("must not contain write/approve/apply/reject calls", () => {
 // calls (.apply(), .save(), etc.) and governance imports are forbidden.
 
 it("constructor must not accept stores", () => {
-  const source = sourceOf("../../src/adaptation/recommendation-engine");
+  const source = sourceOf("../../src/planning/adaptation/recommendation-engine");
   // The constructor should only accept no arguments
   const constructorMatch = source.match(/constructor\([^)]*\)/);
   if (constructorMatch) {

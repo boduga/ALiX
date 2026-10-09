@@ -11,8 +11,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AuditStore } from "../../src/audit/audit-store.js";
-import { isAuditRecordV2 } from "../../src/audit/audit-types.js";
+import { AuditStore } from "../../src/governance/audit/audit-store.js";
+import { isAuditRecordV2 } from "../../src/governance/audit/audit-types.js";
 
 describe("AuditStore integrity mode (#713 step 2)", () => {
   let cwd: string;

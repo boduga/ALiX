@@ -12,7 +12,7 @@ import {
   readJsonFile,
   writeJsonFileAtomicSync,
   readJsonFileSync,
-} from "../../src/storage/jsonl-store.js";
+} from "../../src/runtime-state/storage/jsonl-store.js";
 
 describe("jsonl-store (#712)", () => {
   let dir: string;

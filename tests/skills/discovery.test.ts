@@ -9,7 +9,7 @@ import {
   getSkillDiscoveryRoots,
   loadSkillManifestsFromRoots,
   resolveDiscoveredSkillDir,
-} from "../../src/skills/discovery.js";
+} from "../../src/capabilities/skills/discovery.js";
 
 function writeSkill(root: string, dir: string, name: string, extra = ""): void {
   mkdirSync(join(root, dir), { recursive: true });

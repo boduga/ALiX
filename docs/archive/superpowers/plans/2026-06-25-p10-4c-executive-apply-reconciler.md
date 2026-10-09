@@ -35,9 +35,9 @@ git checkout -b feature/p10-4c-executive-apply-reconciler
 ```
 
 **Fixture alignment note for implementers:** Before coding any test fixture, read the actual current type definitions from:
-- `src/executive/executive-plan-types.ts` — `PersistedExecutionPlan`, `PlanExecutionState`, `StepRuntimeStatus`, `GeneratedArtifactRef`, `StepRuntimeState`
-- `src/executive/planning-engine.ts` — `ExecutionStep`
-- `src/adaptation/adaptation-types.ts` — `AdaptationProposal`, `ProposalTarget`
+- `src/execution/executive/executive-plan-types.ts` — `PersistedExecutionPlan`, `PlanExecutionState`, `StepRuntimeStatus`, `GeneratedArtifactRef`, `StepRuntimeState`
+- `src/execution/executive/planning-engine.ts` — `ExecutionStep`
+- `src/planning/adaptation/adaptation-types.ts` — `AdaptationProposal`, `ProposalTarget`
 
 Align all test fixture shapes exactly to these source-of-truth types (not the guessed shapes in the plan below). The plan's fixture code is illustrative — the real types govern.
 
@@ -46,8 +46,8 @@ Align all test fixture shapes exactly to these source-of-truth types (not the gu
 ### Task 1: Evidence infrastructure — add evidence type + writer method
 
 **Files:**
-- Modify: `src/security/evidence/evidence-types.ts` — add `"executive_step_applied_remediation"` to `EvidenceType` union and `EVIDENCE_TYPES` set
-- Modify: `src/workflow/evidence-writer.ts` — add payload type interface + `recordExecutiveStepAppliedRemediation` method
+- Modify: `src/governance/security/evidence/evidence-types.ts` — add `"executive_step_applied_remediation"` to `EvidenceType` union and `EVIDENCE_TYPES` set
+- Modify: `src/coordination/workflow/evidence-writer.ts` — add payload type interface + `recordExecutiveStepAppliedRemediation` method
 
 **Interfaces:**
 - Consumes: existing `EvidenceType` union, existing `EvidenceEventWriter` class pattern
@@ -103,13 +103,13 @@ Insert after the `recordExecutiveStepBridgeFailed` method (line ~684):
 
 - [ ] **Step 4: Run focused test to verify it compiles and doesn't break existing tests**
 
-Run: `npx vitest run src/security/evidence/ tests/workflow/evidence-writer.vitest.ts --reporter=verbose 2>&1 | head -40`
+Run: `npx vitest run src/governance/security/evidence/ tests/workflow/evidence-writer.vitest.ts --reporter=verbose 2>&1 | head -40`
 Expected: All tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/security/evidence/evidence-types.ts src/workflow/evidence-writer.ts
+git add src/governance/security/evidence/evidence-types.ts src/coordination/workflow/evidence-writer.ts
 git commit -m "feat(p10-4c): add executive_step_applied_remediation evidence type + writer method"
 ```
 
@@ -118,7 +118,7 @@ git commit -m "feat(p10-4c): add executive_step_applied_remediation evidence typ
 ### Task 2: Pure reconciler function + 7 unit tests
 
 **Files:**
-- Create: `src/executive/executive-apply-reconciler.ts`
+- Create: `src/execution/executive/executive-apply-reconciler.ts`
 - Create: `tests/executive/executive-apply-reconciler.vitest.ts`
 
 **Interfaces:**
@@ -132,10 +132,10 @@ Create `tests/executive/executive-apply-reconciler.vitest.ts`:
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { reconcileApplyStep } from "../../src/executive/executive-apply-reconciler.js";
-import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { reconcileApplyStep } from "../../src/execution/executive/executive-apply-reconciler.js";
+import type { PersistedExecutionPlan } from "../../src/execution/executive/executive-plan-types.js";
+import type { ExecutionStep } from "../../src/execution/executive/planning-engine.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 function makeStep(overrides: Partial<ExecutionStep> = {}): ExecutionStep {
   return {
@@ -291,7 +291,7 @@ Expected: FAIL with "Cannot find module" or similar — file doesn't exist yet.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Create `src/executive/executive-apply-reconciler.ts`:
+Create `src/execution/executive/executive-apply-reconciler.ts`:
 
 ```typescript
 /**
@@ -368,7 +368,7 @@ Expected: All 7 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/executive/executive-apply-reconciler.ts tests/executive/executive-apply-reconciler.vitest.ts
+git add src/execution/executive/executive-apply-reconciler.ts tests/executive/executive-apply-reconciler.vitest.ts
 git commit -m "feat(p10-4c): add pure reconcileApplyStep function + 7 unit tests"
 ```
 
@@ -377,7 +377,7 @@ git commit -m "feat(p10-4c): add pure reconcileApplyStep function + 7 unit tests
 ### Task 3: Engine dispatch + 3 integration tests
 
 **Files:**
-- Modify: `src/executive/execution-engine.ts` — add P10.4c dispatch block after P10.4b bridge block
+- Modify: `src/execution/executive/execution-engine.ts` — add P10.4c dispatch block after P10.4b bridge block
 - Create: `tests/executive/execution-engine-apply-dispatch.vitest.ts` — 3 integration tests
 
 **Interfaces:**
@@ -390,15 +390,15 @@ Create `tests/executive/execution-engine-apply-dispatch.vitest.ts`:
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ExecutionEngine } from "../../src/executive/execution-engine.js";
-import type { PlanStore } from "../../src/executive/plan-store.js";
-import type { ExecutionStateStore } from "../../src/executive/execution-state-store.js";
-import type { StepRunner } from "../../src/executive/step-runner.js";
-import { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import type { ProposalStore } from "../../src/adaptation/proposal-store.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
-import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
+import { ExecutionEngine } from "../../src/execution/executive/execution-engine.js";
+import type { PlanStore } from "../../src/execution/executive/plan-store.js";
+import type { ExecutionStateStore } from "../../src/execution/executive/execution-state-store.js";
+import type { StepRunner } from "../../src/execution/executive/step-runner.js";
+import { EvidenceEventWriter } from "../../src/coordination/workflow/evidence-writer.js";
+import type { ProposalStore } from "../../src/planning/adaptation/proposal-store.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
+import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/execution/executive/executive-plan-types.js";
+import type { ExecutionStep } from "../../src/execution/executive/planning-engine.js";
 
 // -----------------------------------------------------------------------
 // Factory helpers
@@ -570,7 +570,7 @@ Expected: Tests fail or import errors since the engine doesn't dispatch for `app
 
 - [ ] **Step 3: Implement engine dispatch**
 
-In `src/executive/execution-engine.ts`, add the import at the top (after the `executive-bridge.js` import on line 17):
+In `src/execution/executive/execution-engine.ts`, add the import at the top (after the `executive-bridge.js` import on line 17):
 
 ```typescript
 import { reconcileApplyStep } from "./executive-apply-reconciler.js";
@@ -613,7 +613,7 @@ Expected: All tests pass (check count matches expected — should be ~1900+).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/executive/execution-engine.ts tests/executive/execution-engine-apply-dispatch.vitest.ts
+git add src/execution/executive/execution-engine.ts tests/executive/execution-engine-apply-dispatch.vitest.ts
 git commit -m "feat(p10-4c): wire apply_remediation reconciler into ExecutionEngine + 3 integration tests"
 ```
 
@@ -635,15 +635,15 @@ Expected: The sentinel iterates `EXECUTIVE_FILES` and tests each. If `executive-
 
 - [ ] **Step 2: Check if the new file needs sentinel coverage**
 
-Read the sentinel file and check: is `"src/executive/executive-apply-reconciler.ts"` in the `EXECUTIVE_FILES` array?
+Read the sentinel file and check: is `"src/execution/executive/executive-apply-reconciler.ts"` in the `EXECUTIVE_FILES` array?
 
-If NOT present, add it after the `"src/executive/executive-bridge.ts"` entry (line 56):
+If NOT present, add it after the `"src/execution/executive/executive-bridge.ts"` entry (line 56):
 
 ```typescript
   // P10.4b files
-  "src/executive/executive-bridge.ts",
+  "src/execution/executive/executive-bridge.ts",
   // P10.4c files
-  "src/executive/executive-apply-reconciler.ts",
+  "src/execution/executive/executive-apply-reconciler.ts",
 ```
 
 Then re-run the sentinel tests to confirm the reconciler file passes the purity check (it imports only types, no forbidden symbols).
@@ -696,14 +696,14 @@ gh pr create --base main --title "P10.4c — Executive Apply Reconciler" --body 
 Bridges \`apply_remediation\` steps by observing the proposal lifecycle.
 
 ### Files created
-- \`src/executive/executive-apply-reconciler.ts\` — pure \`reconcileApplyStep()\` function
+- \`src/execution/executive/executive-apply-reconciler.ts\` — pure \`reconcileApplyStep()\` function
 - \`tests/executive/executive-apply-reconciler.vitest.ts\` — 7 unit tests
 - \`tests/executive/execution-engine-apply-dispatch.vitest.ts\` — 3 integration tests
 
 ### Files modified
-- \`src/security/evidence/evidence-types.ts\` — +executive_step_applied_remediation
-- \`src/workflow/evidence-writer.ts\` — +recordExecutiveStepAppliedRemediation
-- \`src/executive/execution-engine.ts\` — +apply_remediation dispatch block
+- \`src/governance/security/evidence/evidence-types.ts\` — +executive_step_applied_remediation
+- \`src/coordination/workflow/evidence-writer.ts\` — +recordExecutiveStepAppliedRemediation
+- \`src/execution/executive/execution-engine.ts\` — +apply_remediation dispatch block
 - \`tests/executive/executive-sentinels.vitest.ts\` — allowlist update
 
 ### Safety invariants

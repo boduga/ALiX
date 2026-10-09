@@ -12,9 +12,9 @@ import {
   inferCategory,
   CATEGORY_MAP,
   type MetricInputType,
-} from "../../src/observability/telemetry-envelope.js";
-import type { AlixEvent } from "../../src/events/types.js";
-import type { TraceEvent } from "../../src/runtime/trace-events.js";
+} from "../../src/operations/observability/telemetry-envelope.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
+import type { TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 describe("TelemetryEnvelope", () => {
   describe("createTelemetryEnvelope()", () => {
@@ -158,7 +158,7 @@ describe("TelemetryEnvelope", () => {
   describe("TelemetrySink", () => {
     it("append() accepts a TelemetryEnvelope", async () => {
       const written: TelemetryEnvelope[] = [];
-      const sink: import("../../src/observability/telemetry-envelope.js").TelemetrySink = {
+      const sink: import("../../src/operations/observability/telemetry-envelope.js").TelemetrySink = {
         async append(e) { written.push(e); },
       };
       await sink.append(makeEnv("test"));

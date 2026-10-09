@@ -13,11 +13,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { ConfidenceCalibrationAnalyzer } from "../../src/adaptation/confidence-calibration-analyzer.js";
-import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
-import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
-import type { ReflectionMetrics } from "../../src/reflection/reflection-types.js";
+import { ConfidenceCalibrationAnalyzer } from "../../src/planning/adaptation/confidence-calibration-analyzer.js";
+import type { EnrichedProposal } from "../../src/planning/adaptation/intelligence-types.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
+import type { ProposalEffectivenessReport } from "../../src/planning/adaptation/effectiveness-types.js";
+import type { ReflectionMetrics } from "../../src/planning/reflection/reflection-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

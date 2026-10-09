@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { estimateTokens, estimateMessageTokens, ensureEncoder } from "../src/utils/tokens.js";
+import { estimateTokens, estimateMessageTokens, ensureEncoder } from "../src/operations/utils/tokens.js";
 
 const ENCODING = "cl100k_base";
 

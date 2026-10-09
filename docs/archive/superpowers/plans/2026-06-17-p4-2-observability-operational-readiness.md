@@ -6,7 +6,7 @@
 
 **Architecture:** A single normalization pipeline (events + metrics + traces + health snapshots → `TelemetryEnvelope`) feeds four output channels: CLI (`alix observability *`), TUI panels, Inspector REST + SSE endpoints, and markdown operational runbooks. All durable storage uses append-only JSONL + periodic rollups — no new native dependencies. Health reads are side-effect-free projections. Alerts are stateful with deduplication, cooldown, and resolution.
 
-**Tech Stack:** TypeScript, Node `node:test` + `node:assert/strict`, existing `EventLog` (JSONL append), `MinimalMetrics`, `CanonicalEvent`, `TraceEvent`, `TuiStore`/`TuiRuntimeSnapshot`, `buildRuntimeSnapshot()`, existing CLI command pattern in `src/cli.ts`, Inspector SSE in `src/server/server.ts`.
+**Tech Stack:** TypeScript, Node `node:test` + `node:assert/strict`, existing `EventLog` (JSONL append), `MinimalMetrics`, `CanonicalEvent`, `TraceEvent`, `TuiStore`/`TuiRuntimeSnapshot`, `buildRuntimeSnapshot()`, existing CLI command pattern in `src/cli.ts`, Inspector SSE in `src/interfaces/server/server.ts`.
 
 ## Global Constraints
 
@@ -33,24 +33,24 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/observability/telemetry-envelope.ts` | CREATE | Types, `createTelemetryEnvelope()`, `normalizeCanonicalEvent()`, `normalizeTraceEvent()`, `normalizeMetricEvent()`, bounded `TelemetryBuffer`, `TelemetrySink` |
-| `src/observability/health-snapshot.ts` | CREATE | `RuntimeHealthSnapshot` types (with `"unknown"`), `ObservabilitySnapshotService` (cached, TTL), `HealthProjectionCollector` (side-effect-free) |
-| `src/observability/metrics-store.ts` | CREATE | Append-only JSONL `MetricsStore` under `.alix/observability/metrics/YYYY-MM-DD.jsonl`, + `RollupStore` for `.alix/observability/rollups/hourly.jsonl`, metric validation (names, labels, finite values), retention |
-| `src/observability/trend-analyzer.ts` | CREATE | `TrendAnalyzer` with correct window bucketing, percentile computation (p50/p95/p99), monitor/cha access rules |
-| `src/observability/alert-engine.ts` | CREATE | `AlertRule`, `AlertEvent` with `firing`/`resolved` status, `AlertEngine` with dedup, cooldown, hysteresis, acknowledgement, fingerprinting |
-| `src/observability/cost-attribution.ts` | CREATE | `PricingCatalog` (versioned, model-specific), `CostAttribution` with streaming reads, separate token type tracking, `"cost unknown"` when no price |
-| `src/observability/observability-config.ts` | CREATE | Config types for thresholds, retention, TTLs — merged from `alix config` |
-| `src/cli/commands/observability.ts` | CREATE | `alix observability {health|metrics|trends|alerts|export}` handler |
-| `src/cli/commands/observability-export.ts` | CREATE | Export to JSON/markdown report |
-| `src/tui/health-panel.ts` | CREATE | TUI panel for system health display |
-| `src/tui/cost-panel.ts` | CREATE | TUI panel for token/cost/latency display |
-| `src/server/observability-routes.ts` | CREATE | All observability HTTP handlers (REST + SSE), extracted from monolithic server.ts |
+| `src/operations/observability/telemetry-envelope.ts` | CREATE | Types, `createTelemetryEnvelope()`, `normalizeCanonicalEvent()`, `normalizeTraceEvent()`, `normalizeMetricEvent()`, bounded `TelemetryBuffer`, `TelemetrySink` |
+| `src/operations/observability/health-snapshot.ts` | CREATE | `RuntimeHealthSnapshot` types (with `"unknown"`), `ObservabilitySnapshotService` (cached, TTL), `HealthProjectionCollector` (side-effect-free) |
+| `src/operations/observability/metrics-store.ts` | CREATE | Append-only JSONL `MetricsStore` under `.alix/observability/metrics/YYYY-MM-DD.jsonl`, + `RollupStore` for `.alix/observability/rollups/hourly.jsonl`, metric validation (names, labels, finite values), retention |
+| `src/operations/observability/trend-analyzer.ts` | CREATE | `TrendAnalyzer` with correct window bucketing, percentile computation (p50/p95/p99), monitor/cha access rules |
+| `src/operations/observability/alert-engine.ts` | CREATE | `AlertRule`, `AlertEvent` with `firing`/`resolved` status, `AlertEngine` with dedup, cooldown, hysteresis, acknowledgement, fingerprinting |
+| `src/operations/observability/cost-attribution.ts` | CREATE | `PricingCatalog` (versioned, model-specific), `CostAttribution` with streaming reads, separate token type tracking, `"cost unknown"` when no price |
+| `src/operations/observability/observability-config.ts` | CREATE | Config types for thresholds, retention, TTLs — merged from `alix config` |
+| `src/interfaces/cli/commands/observability.ts` | CREATE | `alix observability {health|metrics|trends|alerts|export}` handler |
+| `src/interfaces/cli/commands/observability-export.ts` | CREATE | Export to JSON/markdown report |
+| `src/interfaces/tui/health-panel.ts` | CREATE | TUI panel for system health display |
+| `src/interfaces/tui/cost-panel.ts` | CREATE | TUI panel for token/cost/latency display |
+| `src/interfaces/server/observability-routes.ts` | CREATE | All observability HTTP handlers (REST + SSE), extracted from monolithic server.ts |
 | `src/cli.ts` | MODIFY | Add `observability` command dispatch |
-| `src/tui/store.ts` | MODIFY | Add `"health"` and `"cost"` panel entries; add cached observability state fields |
-| `src/tui/runtime-snapshot.ts` | MODIFY | Add cached `healthSnapshot` and `costData` |
-| `src/tui/dashboard-renderer.ts` | MODIFY | Add responsive health/cost cards (compact/medium/large layouts) |
-| `src/tui/panel-renderer.ts` | MODIFY | Add health/cost panel rendering |
-| `src/server/server.ts` | MODIFY | Delegate `/api/observability/*` to `observability-routes.ts` |
+| `src/interfaces/tui/store.ts` | MODIFY | Add `"health"` and `"cost"` panel entries; add cached observability state fields |
+| `src/interfaces/tui/runtime-snapshot.ts` | MODIFY | Add cached `healthSnapshot` and `costData` |
+| `src/interfaces/tui/dashboard-renderer.ts` | MODIFY | Add responsive health/cost cards (compact/medium/large layouts) |
+| `src/interfaces/tui/panel-renderer.ts` | MODIFY | Add health/cost panel rendering |
+| `src/interfaces/server/server.ts` | MODIFY | Delegate `/api/observability/*` to `observability-routes.ts` |
 | `tests/observability/telemetry-envelope.test.ts` | CREATE | Envelope + normalization + bounded buffer tests |
 | `tests/observability/health-snapshot.test.ts` | CREATE | Health projection + snapshot service + TTL tests |
 | `tests/observability/metrics-store.test.ts` | CREATE | JSONL append, streaming, rollup, validation, retention tests |
@@ -65,7 +65,7 @@
 ### Task 1: P4.2a — Telemetry Schema, Normalization, and Bounded Sinks
 
 **Files:**
-- Create: `src/observability/telemetry-envelope.ts`
+- Create: `src/operations/observability/telemetry-envelope.ts`
 - Test: `tests/observability/telemetry-envelope.test.ts`
 
 **Interfaces:**
@@ -86,9 +86,9 @@ import {
   normalizeMetricEvent,
   TelemetryBuffer,
   type MetricInputType,
-} from "../../src/observability/telemetry-envelope.js";
-import type { AlixEvent } from "../../src/events/types.js";
-import type { TraceEvent } from "../../src/runtime/trace-events.js";
+} from "../../src/operations/observability/telemetry-envelope.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
+import type { TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 describe("TelemetryEnvelope", () => {
   describe("createTelemetryEnvelope()", () => {
@@ -188,7 +188,7 @@ describe("TelemetryEnvelope", () => {
   describe("TelemetrySink", () => {
     it("append() accepts a TelemetryEnvelope", async () => {
       const written: TelemetryEnvelope[] = [];
-      const sink: import("../../src/observability/telemetry-envelope.js").TelemetrySink = {
+      const sink: import("../../src/operations/observability/telemetry-envelope.js").TelemetrySink = {
         async append(e) { written.push(e); },
       };
       await sink.append(makeEnv("test"));
@@ -486,7 +486,7 @@ Expected: PASS (8 tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/observability/telemetry-envelope.ts tests/observability/telemetry-envelope.test.ts
+git add src/operations/observability/telemetry-envelope.ts tests/observability/telemetry-envelope.test.ts
 git commit -m "feat(P4.2a): telemetry envelope, normalization adapters, bounded buffer"
 ```
 
@@ -495,8 +495,8 @@ git commit -m "feat(P4.2a): telemetry envelope, normalization adapters, bounded 
 ### Task 2: P4.2b — Side-Effect-Free Health Projection and Cached Snapshots
 
 **Files:**
-- Create: `src/observability/health-snapshot.ts`
-- Create: `src/observability/observability-config.ts`
+- Create: `src/operations/observability/health-snapshot.ts`
+- Create: `src/operations/observability/observability-config.ts`
 - Test: `tests/observability/health-snapshot.test.ts`
 
 **Interfaces:**
@@ -520,7 +520,7 @@ import {
   overallHealth,
   HealthProjectionCollector,
   ObservabilitySnapshotService,
-} from "../../src/observability/health-snapshot.js";
+} from "../../src/operations/observability/health-snapshot.js";
 
 describe("HealthSnapshot", () => {
   describe("HealthStatus", () => {
@@ -995,7 +995,7 @@ Expected: PASS (7 tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/observability/observability-config.ts src/observability/health-snapshot.ts tests/observability/health-snapshot.test.ts
+git add src/operations/observability/observability-config.ts src/operations/observability/health-snapshot.ts tests/observability/health-snapshot.test.ts
 git commit -m "feat(P4.2b): side-effect-free health projection, unknown status, TTL-cached snapshot service"
 ```
 
@@ -1004,7 +1004,7 @@ git commit -m "feat(P4.2b): side-effect-free health projection, unknown status, 
 ### Task 3: P4.2c — Portable Metrics Persistence, Rollups, and Retention
 
 **Files:**
-- Create: `src/observability/metrics-store.ts`
+- Create: `src/operations/observability/metrics-store.ts`
 - Test: `tests/observability/metrics-store.test.ts`
 
 **Interfaces:**
@@ -1019,7 +1019,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MetricsStore, RollupStore, type MetricRow, type MetricType } from "../../src/observability/metrics-store.js";
+import { MetricsStore, RollupStore, type MetricRow, type MetricType } from "../../src/operations/observability/metrics-store.js";
 
 describe("MetricsStore", () => {
   let tmpDir: string;
@@ -1339,7 +1339,7 @@ Expected: PASS (7 tests)
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/observability/metrics-store.ts tests/observability/metrics-store.test.ts
+git add src/operations/observability/metrics-store.ts tests/observability/metrics-store.test.ts
 git commit -m "feat(P4.2c): append-only JSONL metrics store, streaming reads, rollups, retention"
 ```
 
@@ -1348,10 +1348,10 @@ git commit -m "feat(P4.2c): append-only JSONL metrics store, streaming reads, ro
 ### Task 4: P4.2d — CLI Health/Metrics + Inspector REST API (Read-Only)
 
 **Files:**
-- Create: `src/cli/commands/observability.ts`
-- Create: `src/server/observability-routes.ts`
+- Create: `src/interfaces/cli/commands/observability.ts`
+- Create: `src/interfaces/server/observability-routes.ts`
 - Modify: `src/cli.ts`
-- Modify: `src/server/server.ts`
+- Modify: `src/interfaces/server/server.ts`
 - Test: `tests/observability/observability-cli.test.ts`
 - Test: `tests/observability/observability-routes.test.ts`
 
@@ -1544,7 +1544,7 @@ if (command === "observability") {
 
 - [ ] **Step 4: Delegate in server.ts**
 
-In `src/server/server.ts`, replace inline observability route stubs with:
+In `src/interfaces/server/server.ts`, replace inline observability route stubs with:
 
 ```typescript
 import { handleObservabilityRoute } from "../observability/observability-routes.js";
@@ -1564,7 +1564,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleObservability } from "../../src/cli/commands/observability.js";
+import { handleObservability } from "../../src/interfaces/cli/commands/observability.js";
 
 describe("observability CLI", () => {
   let tmpDir: string;
@@ -1600,7 +1600,7 @@ Expected: PASS
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/observability.ts src/server/observability-routes.ts src/cli.ts src/server/server.ts tests/observability/observability-cli.test.ts tests/observability/observability-routes.test.ts
+git add src/interfaces/cli/commands/observability.ts src/interfaces/server/observability-routes.ts src/cli.ts src/interfaces/server/server.ts tests/observability/observability-cli.test.ts tests/observability/observability-routes.test.ts
 git commit -m "feat(P4.2d): read-only observability CLI and Inspector REST API"
 ```
 
@@ -1609,7 +1609,7 @@ git commit -m "feat(P4.2d): read-only observability CLI and Inspector REST API"
 ### Task 5: P4.2e — Correct Windowing, Percentiles, Trends, Anomalies
 
 **Files:**
-- Create: `src/observability/trend-analyzer.ts`
+- Create: `src/operations/observability/trend-analyzer.ts`
 - Test: `tests/observability/trend-analyzer.test.ts`
 
 **Interfaces:**
@@ -1624,8 +1624,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MetricsStore } from "../../src/observability/metrics-store.js";
-import { TrendAnalyzer } from "../../src/observability/trend-analyzer.js";
+import { MetricsStore } from "../../src/operations/observability/metrics-store.js";
+import { TrendAnalyzer } from "../../src/operations/observability/trend-analyzer.js";
 
 describe("TrendAnalyzer", () => {
   let tmpDir: string;
@@ -1892,7 +1892,7 @@ Expected: PASS (4 tests)
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/observability/trend-analyzer.ts tests/observability/trend-analyzer.test.ts
+git add src/operations/observability/trend-analyzer.ts tests/observability/trend-analyzer.test.ts
 git commit -m "feat(P4.2e): correct window bucketing, percentiles, z-score anomaly detection"
 ```
 
@@ -1901,7 +1901,7 @@ git commit -m "feat(P4.2e): correct window bucketing, percentiles, z-score anoma
 ### Task 6: P4.2f — Stateful Alert Lifecycle and Configurable Thresholds
 
 **Files:**
-- Create: `src/observability/alert-engine.ts`
+- Create: `src/operations/observability/alert-engine.ts`
 - Test: `tests/observability/alert-engine.test.ts`
 
 **Interfaces:**
@@ -1919,8 +1919,8 @@ import {
   AlertEngine,
   HEALTH_RULES,
   fingerprintAlert,
-} from "../../src/observability/alert-engine.js";
-import type { RuntimeHealthSnapshot } from "../../src/observability/health-snapshot.js";
+} from "../../src/operations/observability/alert-engine.js";
+import type { RuntimeHealthSnapshot } from "../../src/operations/observability/health-snapshot.js";
 
 const unhealthySnap: RuntimeHealthSnapshot = {
   generatedAt: new Date().toISOString(),
@@ -2263,7 +2263,7 @@ Expected: PASS (7 tests)
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/observability/alert-engine.ts tests/observability/alert-engine.test.ts
+git add src/operations/observability/alert-engine.ts tests/observability/alert-engine.test.ts
 git commit -m "feat(P4.2f): stateful alert lifecycle with dedup, cooldown, fingerprinting, acknowledgement"
 ```
 
@@ -2272,7 +2272,7 @@ git commit -m "feat(P4.2f): stateful alert lifecycle with dedup, cooldown, finge
 ### Task 7: P4.2g — Versioned Model Pricing and Cost Attribution
 
 **Files:**
-- Create: `src/observability/cost-attribution.ts`
+- Create: `src/operations/observability/cost-attribution.ts`
 - Test: `tests/observability/cost-attribution.test.ts`
 
 **Interfaces:**
@@ -2291,7 +2291,7 @@ import {
   CostAttribution,
   PricingCatalog,
   type PricingEntry,
-} from "../../src/observability/cost-attribution.js";
+} from "../../src/operations/observability/cost-attribution.js";
 
 describe("PricingCatalog", () => {
   it("looks up known model pricing", () => {
@@ -2624,7 +2624,7 @@ Expected: PASS (5 tests)
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/observability/cost-attribution.ts tests/observability/cost-attribution.test.ts
+git add src/operations/observability/cost-attribution.ts tests/observability/cost-attribution.test.ts
 git commit -m "feat(P4.2g): versioned model pricing catalog, streaming cost attribution, unknown cost sentinel"
 ```
 
@@ -2633,15 +2633,15 @@ git commit -m "feat(P4.2g): versioned model pricing catalog, streaming cost attr
 ### Task 8: P4.2h — TUI/Inspector Dashboards, SSE Stream, Runbook, Release Gate
 
 **Files:**
-- Create: `src/server/observability-stream.ts`
-- Create: `src/tui/health-panel.ts`
-- Create: `src/tui/cost-panel.ts`
+- Create: `src/interfaces/server/observability-stream.ts`
+- Create: `src/interfaces/tui/health-panel.ts`
+- Create: `src/interfaces/tui/cost-panel.ts`
 - Create: `docs/observability-runbook.md`
-- Modify: `src/tui/store.ts`
-- Modify: `src/tui/runtime-snapshot.ts`
-- Modify: `src/tui/dashboard-renderer.ts`
-- Modify: `src/tui/panel-renderer.ts`
-- Modify: `src/server/observability-routes.ts`
+- Modify: `src/interfaces/tui/store.ts`
+- Modify: `src/interfaces/tui/runtime-snapshot.ts`
+- Modify: `src/interfaces/tui/dashboard-renderer.ts`
+- Modify: `src/interfaces/tui/panel-renderer.ts`
+- Modify: `src/interfaces/server/observability-routes.ts`
 
 **Interfaces:**
 - Consumes: `ObservabilitySnapshotService`, `MetricsStore`, `AlertEngine`, `CostAttribution`, `TrendAnalyzer`
@@ -2825,11 +2825,11 @@ export function formatCostPanel(data: CostPanelData, width?: number): string[] {
 
 - [ ] **Step 5: Update TuiState and TuiRuntimeSnapshot**
 
-In `src/tui/store.ts`:
+In `src/interfaces/tui/store.ts`:
 - Add `"health"` and `"cost"` to `TuiPanel` union and `PANELS` array
 - Add `healthSnapshot` and `costData` to `TuiState`
 
-In `src/tui/runtime-snapshot.ts`:
+In `src/interfaces/tui/runtime-snapshot.ts`:
 - Add `healthSnapshot` and `costData` fields to `TuiRuntimeSnapshot`
 - In `applySnapshotToStore()`, populate these from the snapshot
 
@@ -2920,7 +2920,7 @@ Expected: All existing tests still pass, no new failures
 - [ ] **Step 11: Commit**
 
 ```bash
-git add src/server/observability-stream.ts src/tui/health-panel.ts src/tui/cost-panel.ts src/tui/store.ts src/tui/runtime-snapshot.ts src/tui/dashboard-renderer.ts src/tui/panel-renderer.ts src/server/observability-routes.ts docs/observability-runbook.md src/cli/commands/observability-export.ts
+git add src/interfaces/server/observability-stream.ts src/interfaces/tui/health-panel.ts src/interfaces/tui/cost-panel.ts src/interfaces/tui/store.ts src/interfaces/tui/runtime-snapshot.ts src/interfaces/tui/dashboard-renderer.ts src/interfaces/tui/panel-renderer.ts src/interfaces/server/observability-routes.ts docs/observability-runbook.md src/interfaces/cli/commands/observability-export.ts
 git commit -m "feat(P4.2h): TUI dashboards, SSE stream, operational runbook, export command"
 ```
 
@@ -2989,7 +2989,7 @@ All 14 corrections applied:
 9. ✅ Versioned `PricingCatalog` with `effectiveFrom`, separate token types, `-1` sentinel
 10. ✅ `ObservabilitySnapshotService` with TTL caching (health: 2s, cost: 30s)
 11. ✅ Responsive dashboard: compact/medium/large layouts
-12. ✅ HTTP routes extracted to `src/server/observability-routes.ts`
+12. ✅ HTTP routes extracted to `src/interfaces/server/observability-routes.ts`
 13. ✅ SSE stream at `GET /api/observability/stream` with heartbeat + cleanup
 14. ✅ Configurable thresholds via `ObservabilityConfig`
 

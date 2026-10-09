@@ -9,9 +9,9 @@ import {
   computePriorityScore,
   computeTrendScore,
   buildPriorityReport,
-} from "../../src/executive/priority-engine.js";
-import type { ExecutiveHealthReport } from "../../src/executive/executive-health.js";
-import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
+} from "../../src/execution/executive/priority-engine.js";
+import type { ExecutiveHealthReport } from "../../src/execution/executive/executive-health.js";
+import type { ExecutiveTrendSnapshot } from "../../src/execution/executive/trend-store.js";
 
 function makeHealthReport(
   overrides?: Partial<ExecutiveHealthReport>,

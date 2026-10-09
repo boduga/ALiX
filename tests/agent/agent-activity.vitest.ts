@@ -7,7 +7,7 @@ import {
   assertExhaustiveState,
   type AgentActivity,
   type AgentActivityState,
-} from "../../src/agent/agent-activity.js";
+} from "../../src/agents/agent/agent-activity.js";
 
 describe("AgentActivity contract", () => {
   // ─── State union ────────────────────────────────────────────────

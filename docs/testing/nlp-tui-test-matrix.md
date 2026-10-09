@@ -57,7 +57,7 @@ Capabilities tab (capabilities-view.ts), Evolution tab (evolution-view.ts), Appr
 | A3 | "What changed between HEAD and HEAD~1?" | shell.run git + file reads; commits listed |   
 | **A4 | "Search for where the canonical tool surface is defined" | dir.search → tool-manifest.ts / tool-registry.ts |
 | A5 | "Explain the architecture of this project in three paragraphs" | read-only; **no** mutation tools |   
-| A6 | "How does the A9 risk forecast correlate evidence?" | read-only; cites src/evolution/forecast/* |   
+| A6 | "How does the A9 risk forecast correlate evidence?" | read-only; cites src/planning/evolution/forecast/* |   
    
 **3B. Workspace mutation / shell (**workspace_mutation **, **shell_execution **)**  
 | | | |  
@@ -74,7 +74,7 @@ Capabilities tab (capabilities-view.ts), Evolution tab (evolution-view.ts), Appr
 | | | |  
 |-|-|-|  
 | **#** | **Prompt** | **Expect** |   
-| C1 | "Delegate to an explorer: map the structure of src/evolution/" | delegate → role explorer; findings back |   
+| C1 | "Delegate to an explorer: map the structure of src/planning/evolution/" | delegate → role explorer; findings back |   
 | C2 | "Delegate a code review of src/agents/subagent-cli.ts to a reviewer" | delegate → reviewer; review findings |   
 | C3 | "Spawn a test investigator to find tests covering computeSubagentStatus" | delegate → test_investigator |   
 | C4 | "Send a docs researcher to summarize docs/roadmap/a-series*" | delegate → docs_researcher |   
@@ -114,7 +114,7 @@ Capabilities tab (capabilities-view.ts), Evolution tab (evolution-view.ts), Appr
 | F2 | "Inspect the extension that provides web search" | inspect_extension |   
 | F3 | "Create a skill named nl-test that echoes its input" | create_skill; registered, listed in slash catalog |   
 | F4 | "Set up a hook that runs alix doctor before every run" | create_hook; hook config written |   
-| F5 | "Show me what slash commands are available" | slash catalog (src/skills/slash-catalog.ts) |   
+| F5 | "Show me what slash commands are available" | slash catalog (src/capabilities/skills/slash-catalog.ts) |   
    
 **3G. Approvals / policy / plan gate**  
 | | | |  
@@ -180,11 +180,11 @@ ALIX_TUI_STUB_AGENT=1 alix tui swaps the runtime for the legacy echo stub — va
 |-|-|  
 | **Surface** | **Source of truth** |   
 | Built-in and worker tool names | src/agents/tool-manifest.ts, src/agents/tool-name-resolver.ts |
-| Dynamic MCP handles | src/mcp/tool-deferral.ts, src/mcp/tool-discovery.ts |
+| Dynamic MCP handles | src/capabilities/mcp/tool-deferral.ts, src/capabilities/mcp/tool-discovery.ts |
 | 8 intents | docs/intent-contracts/canonical-taxonomy.md |   
-| Delegate roles | src/agents/agent-registry.ts, src/config/schema.ts:215 |   
+| Delegate roles | src/agents/agent-registry.ts, src/operations/config/schema.ts:215 |   
 | Worker policy / Matrix-G | src/agents/tool-policy.ts, src/agents/subagent-cli.ts |   
-| TUI tabs | src/tui/state.ts (TAB_ORDER), src/tui/app.ts |   
-| Capability/evolution tabs | src/tui/capabilities/, src/tui/evolution/ |   
-| Daemon | src/daemon/, docs/demo-script.md |   
+| TUI tabs | src/interfaces/tui/state.ts (TAB_ORDER), src/interfaces/tui/app.ts |   
+| Capability/evolution tabs | src/interfaces/tui/capabilities/, src/interfaces/tui/evolution/ |   
+| Daemon | src/operations/daemon/, docs/demo-script.md |   
    

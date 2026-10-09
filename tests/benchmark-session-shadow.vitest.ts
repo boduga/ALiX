@@ -5,12 +5,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../src/events/event-log.js";
+import { EventLog } from "../src/runtime-state/events/event-log.js";
 import {
   mapSessionEventsToProjectorHistory,
   measureSessionShadow,
 } from "../benchmark/session-shadow.js";
-import { project, toExecutionState } from "../src/runtime/execution-state/execution-state-projector.js";
+import { project, toExecutionState } from "../src/runtime-state/runtime/execution-state/execution-state-projector.js";
 
 describe("benchmark session-shadow — real-session bounded prompt measurement", () => {
   let dir: string;

@@ -1,6 +1,6 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { githubRawCandidates, fetchText, fetchJson } from "../../../../src/cli/commands/skills/net.js";
+import { githubRawCandidates, fetchText, fetchJson } from "../../../../src/interfaces/cli/commands/skills/net.js";
 
 const PUBLIC_RESOLVE = async () => ["93.184.216.34"];
 const PRIVATE_RESOLVE = async () => ["10.9.9.9"];

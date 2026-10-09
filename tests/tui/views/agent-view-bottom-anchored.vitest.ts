@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
-import { AgentView } from '../../../src/tui/views/agent-view.js';
-import { GUTTER_WIDTH } from '../../../src/tui/views/scroll-math.js';
+import { AgentView } from '../../../src/interfaces/tui/views/agent-view.js';
+import { GUTTER_WIDTH } from '../../../src/interfaces/tui/views/scroll-math.js';
 import { MockCanvas } from './helpers/mock-canvas.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
-import { createInitialPerTabState, SessionPhase } from '../../../src/tui/state.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import type { DashboardSnapshot } from '../../../src/tui/snapshot.js';
-import { projectOperatorShell } from '../../../src/tui/workbench/model/operator-shell.js';
-import { paintOperatorShell } from '../../../src/tui/workbench/views/operator-shell.js';
+import type { ViewRenderContext } from '../../../src/interfaces/tui/views/types.js';
+import { createInitialPerTabState, SessionPhase } from '../../../src/interfaces/tui/state.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import type { DashboardSnapshot } from '../../../src/interfaces/tui/snapshot.js';
+import { projectOperatorShell } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
+import { paintOperatorShell } from '../../../src/interfaces/tui/workbench/views/operator-shell.js';
 
 function visible(frame: string): string {
   return frame.replace(/\x1b\[[0-9;]*m/gu, '');

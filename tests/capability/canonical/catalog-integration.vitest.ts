@@ -5,11 +5,11 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityRegistry } from "../../../src/capability/registry.js";
-import { NativeExecutor } from "../../../src/capability/executors.js";
-import { registerInitialCapabilities } from "../../../src/capability/initial-capabilities.js";
-import type { Capability } from "../../../src/capability/types.js";
-import { CatalogBackedCapabilityMutationPort } from "../../../src/capability/mutation-port.js";
+import { CapabilityRegistry } from "../../../src/capabilities/capability/registry.js";
+import { NativeExecutor } from "../../../src/capabilities/capability/executors.js";
+import { registerInitialCapabilities } from "../../../src/capabilities/capability/initial-capabilities.js";
+import type { Capability } from "../../../src/capabilities/capability/types.js";
+import { CatalogBackedCapabilityMutationPort } from "../../../src/capabilities/capability/mutation-port.js";
 // Task 5 wires the CAP-2 barrel — the whole slice is consumed through it so a
 // missing/invalid export fails this test, not the individual unit tests.
 import {
@@ -23,14 +23,14 @@ import {
   isValidVersion,
   bumpVersion,
   PROVIDER_TYPES,
-} from "../../../src/capability/canonical/index.js";
+} from "../../../src/capabilities/capability/canonical/index.js";
 import type {
   CapabilityBootstrapEntry,
   CapabilityBootstrapProvider,
   CapabilityDefinition,
   CapabilityProviderBinding,
   ProviderType,
-} from "../../../src/capability/canonical/index.js";
+} from "../../../src/capabilities/capability/canonical/index.js";
 
 /** Map an execution strategy to a ProviderType. Fails loudly on an unknown
  *  strategy so a genuinely unmappable current capability surfaces as a real

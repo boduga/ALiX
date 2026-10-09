@@ -41,7 +41,7 @@ describe("CAP-11 Structural Cleanup Sentinel (ruling #3, #4, #8)", () => {
     }
   });
 
-  it("axis 3: no file imports from src/evolution/capability-lifecycle/*", () => {
+  it("axis 3: no file imports from src/planning/evolution/capability-lifecycle/*", () => {
     const files = collectFiles(path.join(REPO_ROOT, "src"));
     for (const f of files) {
       const offending = [...importedSpecifiers(f)].filter((s) => s.includes("capability-lifecycle"));
@@ -52,7 +52,7 @@ describe("CAP-11 Structural Cleanup Sentinel (ruling #3, #4, #8)", () => {
   it("axis 4: only CapabilityPlatform constructs CapabilityRegistry (no second CLI registry construction)", () => {
     const srcFiles = collectFiles(path.join(REPO_ROOT, "src"));
     for (const f of srcFiles) {
-      if (toPosix(f).endsWith("src/capability/platform.ts")) continue;
+      if (toPosix(f).endsWith("src/capabilities/capability/platform.ts")) continue;
       expect(codeOnly(fs.readFileSync(f, "utf-8")), path.relative(REPO_ROOT, f)).not.toMatch(
         /new\s+CapabilityRegistry\s*\(/,
       );
@@ -62,11 +62,11 @@ describe("CAP-11 Structural Cleanup Sentinel (ruling #3, #4, #8)", () => {
   it("axis 5: CapabilityPlatform.service is the sole public capability surface (no platform.registry / platform.catalog in non-test code)", () => {
     const srcFiles = collectFiles(path.join(REPO_ROOT, "src"));
     for (const f of srcFiles) {
-      if (toPosix(f).endsWith("src/capability/platform.ts")) continue;
+      if (toPosix(f).endsWith("src/capabilities/capability/platform.ts")) continue;
       // TUI consumer still uses platform.registry / platform.native until
       // the TUI migration lands (out of scope for CAP-11; tsc reports the
       // 3 expected privacy errors for this file).
-      if (toPosix(f).endsWith("src/tui/capabilities/capability-service.ts")) continue;
+      if (toPosix(f).endsWith("src/interfaces/tui/capabilities/capability-service.ts")) continue;
       const code = codeOnly(fs.readFileSync(f, "utf-8"));
       expect(code, path.relative(REPO_ROOT, f)).not.toMatch(/platform\.registry/);
       expect(code, path.relative(REPO_ROOT, f)).not.toMatch(/platform\.catalog/);
@@ -75,7 +75,7 @@ describe("CAP-11 Structural Cleanup Sentinel (ruling #3, #4, #8)", () => {
 
   it("axis 6: CapabilityRegistry.applyLifecycleTransition removed (ruling #4)", () => {
     const registrySrc = codeOnly(
-      fs.readFileSync(path.join(REPO_ROOT, "src/capability/registry.ts"), "utf-8"),
+      fs.readFileSync(path.join(REPO_ROOT, "src/capabilities/capability/registry.ts"), "utf-8"),
     );
     expect(registrySrc).not.toMatch(/applyLifecycleTransition/);
   });

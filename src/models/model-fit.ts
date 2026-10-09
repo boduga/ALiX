@@ -4,8 +4,8 @@
  * When --mode is provided, it acts as a filter (only profiles of that mode).
  */
 
-import type { ProfileData } from "../config/profile-types.js";
-import { matchHardware, type SystemInfo } from "../config/profile-registry.js";
+import type { ProfileData } from "../operations/config/profile-types.js";
+import { matchHardware, type SystemInfo } from "../operations/config/profile-registry.js";
 
 export type FitRanking = { profile: ProfileData; rank: number; status: "best fit" | "alternative" | "not recommended"; reasons: string[]; compatibility: "compatible" | "partial" | "incompatible" };
 export type FitOptions = { role?: string; mode?: string };

@@ -9,8 +9,8 @@ import {
   DEFAULT_TOOL_EXECUTION_POLICY,
   createToolExecutionPolicy,
   type ToolExecutionPolicy,
-} from "../../src/runtime/tool-scheduler.js";
-import type { ToolCall } from "../../src/providers/types.js";
+} from "../../src/runtime-state/runtime/tool-scheduler.js";
+import type { ToolCall } from "../../src/models/providers/types.js";
 
 function tc(name: string, id: string): ToolCall {
   return { id, name, args: {}, summary: name };

@@ -11,7 +11,7 @@ import { describe, it, expect } from "vitest";
 
 describe("SkillLoader", () => {
   it("handles missing skill gracefully", async () => {
-    const { SkillLoader } = await import("../../src/extensions/skill-loader.js");
+    const { SkillLoader } = await import("../../src/capabilities/extensions/skill-loader.js");
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
@@ -26,7 +26,7 @@ describe("SkillLoader", () => {
   });
 
   it("lists empty directory gracefully", async () => {
-    const { SkillLoader } = await import("../../src/extensions/skill-loader.js");
+    const { SkillLoader } = await import("../../src/capabilities/extensions/skill-loader.js");
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
@@ -44,7 +44,7 @@ describe("SkillLoader", () => {
 
 describe("ExtensionRegistry skill filtering", () => {
   it("returns empty array for skills in empty registry", async () => {
-    const { ExtensionRegistry } = await import("../../src/extensions/registry.js");
+    const { ExtensionRegistry } = await import("../../src/capabilities/extensions/registry.js");
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
@@ -64,7 +64,7 @@ describe("Skill handler wiring", () => {
   it("skill handler module contains list/show/install/run subcommands", () => {
     const fs = require("node:fs");
     // #717 step 6 — the skill handler moved out of cli.ts into this module.
-    const source = fs.readFileSync("src/cli/commands/skill.ts", "utf-8");
+    const source = fs.readFileSync("src/interfaces/cli/commands/skill.ts", "utf-8");
     expect(source).toContain('"list"');
     expect(source).toContain('"show"');
     expect(source).toContain('"install"');
@@ -76,7 +76,7 @@ describe("Skill handler wiring", () => {
   it("skill handler uses dirname(ext.path) not manual path construction", () => {
     const fs = require("node:fs");
     // #717 step 6 — the skill handler moved out of cli.ts into this module.
-    const source = fs.readFileSync("src/cli/commands/skill.ts", "utf-8");
+    const source = fs.readFileSync("src/interfaces/cli/commands/skill.ts", "utf-8");
     // Should use dirname(ext.path) for skill directory computation
     expect(source).toContain("dirname(ext.path)");
     // Should not construct skill directory from storePath + type prefix

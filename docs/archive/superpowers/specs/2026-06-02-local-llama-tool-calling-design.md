@@ -32,7 +32,7 @@ User wants local inference via `llama-server` with full tool-calling support, si
 ### Provider Spec
 
 ```typescript
-// src/providers/specs/local-llama-spec.ts
+// src/models/providers/specs/local-llama-spec.ts
 export const localLlamaSpec: ProviderSpec = {
   baseUrl: "http://localhost:8080/v1/chat/completions",
   // ... rest inherits from openaiBaseSpec
@@ -120,7 +120,7 @@ fromResponse: (res) => {
 ### Helper: `buildToolCallSchema`
 
 ```typescript
-// src/providers/specs/_tool-schema.ts
+// src/models/providers/specs/_tool-schema.ts
 export function buildToolCallSchema(tools: ToolDef[]): object {
   return {
     type: "object",
@@ -171,9 +171,9 @@ ALiX continues with the tool call
 
 | Action | File |
 |--------|------|
-| ➕ New | `src/providers/specs/local-llama-spec.ts` (~80 lines) |
-| ➕ New | `src/providers/specs/_tool-schema.ts` (~30 lines) |
-| ✏️ Modify | `src/providers/unified-complete.ts` (register spec) |
+| ➕ New | `src/models/providers/specs/local-llama-spec.ts` (~80 lines) |
+| ➕ New | `src/models/providers/specs/_tool-schema.ts` (~30 lines) |
+| ✏️ Modify | `src/models/providers/unified-complete.ts` (register spec) |
 | ➕ New | `tests/providers/local-llama-spec.test.ts` (~150 lines) |
 
 ## Migration Strategy

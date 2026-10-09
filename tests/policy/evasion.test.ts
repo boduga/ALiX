@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { PolicyGate } from "../../src/policy/policy-gate.js";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
-import type { AlixConfig, Decision } from "../../src/config/schema.js";
+import { PolicyGate } from "../../src/governance/policy/policy-gate.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
+import type { AlixConfig, Decision } from "../../src/operations/config/schema.js";
 
 // Override default to "ask" so commands that match no evasion pattern
 // resolve to ask (not allow) — the decision under test is the evasion one.

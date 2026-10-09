@@ -2,10 +2,10 @@
 // delegate to it with provider id "xiaomi-mimo-token-plan". Preserves SPECS,
 // PROVIDER_KEY_ENV, etc. via vi.importActual so the SPECS registration test
 // below continues to work.
-vi.mock("../../src/providers/unified-complete.js", async () => {
+vi.mock("../../src/models/providers/unified-complete.js", async () => {
   const actual = await vi.importActual<
-    typeof import("../../src/providers/unified-complete.js")
-  >("../../src/providers/unified-complete.js");
+    typeof import("../../src/models/providers/unified-complete.js")
+  >("../../src/models/providers/unified-complete.js");
   return {
     ...actual,
     complete: vi.fn(),
@@ -16,13 +16,13 @@ vi.mock("../../src/providers/unified-complete.js", async () => {
 import { describe, it, expect, vi } from "vitest";
 import {
   XiaomiMimoTokenPlanProvider,
-} from "../../src/providers/xiaomi-mimo-token-plan-provider.js";
+} from "../../src/models/providers/xiaomi-mimo-token-plan-provider.js";
 import {
   DEFAULT_XIAOMI_MIMO_BASE_URL,
   xiaomiMimoTokenPlanSpec,
-} from "../../src/providers/specs/xiaomi-mimo-token-plan-spec.js";
-import { openaiBaseSpec } from "../../src/providers/specs/_openai-base.js";
-import * as unifiedComplete from "../../src/providers/unified-complete.js";
+} from "../../src/models/providers/specs/xiaomi-mimo-token-plan-spec.js";
+import { openaiBaseSpec } from "../../src/models/providers/specs/_openai-base.js";
+import * as unifiedComplete from "../../src/models/providers/unified-complete.js";
 
 const DEFAULT_MODEL = "mimo-v2.6-pro";
 const DEFAULT_ENDPOINT = `${DEFAULT_XIAOMI_MIMO_BASE_URL}/chat/completions`;
@@ -187,20 +187,20 @@ describe("XiaomiMimoTokenPlanProvider", () => {
   });
 
   it("is registered in unified-complete SPECS Map", async () => {
-    const { SPECS } = await import("../../src/providers/unified-complete.js");
+    const { SPECS } = await import("../../src/models/providers/unified-complete.js");
     const spec = SPECS.get("xiaomi-mimo-token-plan");
     expect(spec).toBeDefined();
     expect(spec?.baseUrl).toBe(DEFAULT_ENDPOINT);
   });
 
   it("createProvider returns XiaomiMimoTokenPlanProvider for id 'xiaomi-mimo-token-plan'", async () => {
-    const { createProvider } = await import("../../src/providers/registry.js");
+    const { createProvider } = await import("../../src/models/providers/registry.js");
     const p = await createProvider({ provider: "xiaomi-mimo-token-plan" }, "tp-test");
     expect(p.id).toBe("xiaomi-mimo-token-plan");
   });
 
   it("listProviders includes 'xiaomi-mimo-token-plan'", async () => {
-    const { listProviders } = await import("../../src/providers/registry.js");
+    const { listProviders } = await import("../../src/models/providers/registry.js");
     const list = listProviders();
     expect(list.find((p) => p.id === "xiaomi-mimo-token-plan")).toEqual({
       id: "xiaomi-mimo-token-plan",
@@ -210,7 +210,7 @@ describe("XiaomiMimoTokenPlanProvider", () => {
   });
 
   it("listModels calls the Token Plan /models endpoint with Bearer auth", async () => {
-    const { listModels } = await import("../../src/providers/catalog.js");
+    const { listModels } = await import("../../src/models/providers/catalog.js");
     let captured: { url: string; headers: Record<string, string> } | undefined;
     const origFetch = globalThis.fetch;
     globalThis.fetch = (async (url: any, init: any) => {
@@ -233,12 +233,12 @@ describe("XiaomiMimoTokenPlanProvider", () => {
   });
 
   it("getDefaultModel returns 'mimo-v2.6-pro'", async () => {
-    const { getDefaultModel } = await import("../../src/providers/catalog.js");
+    const { getDefaultModel } = await import("../../src/models/providers/catalog.js");
     expect(getDefaultModel("xiaomi-mimo-token-plan")).toBe(DEFAULT_MODEL);
   });
 
   it("PROVIDERS array includes xiaomi-mimo-token-plan", async () => {
-    const { PROVIDERS } = await import("../../src/providers/catalog.js");
+    const { PROVIDERS } = await import("../../src/models/providers/catalog.js");
     const p = PROVIDERS.find((x) => x.id === "xiaomi-mimo-token-plan");
     expect(p).toEqual({
       id: "xiaomi-mimo-token-plan",

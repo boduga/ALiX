@@ -39,7 +39,7 @@ M0.9 includes only:
 
 Deliverables:
 
-- `src/kernel/event-envelope.ts`
+- `src/coordination/kernel/event-envelope.ts`
 - canonical event types
 - event writer interface
 - adapter that wraps existing events into canonical envelope
@@ -53,7 +53,7 @@ Acceptance:
 
 Deliverables:
 
-- `src/kernel/workflow-run.ts`
+- `src/coordination/kernel/workflow-run.ts`
 - WorkflowRun ID creation
 - start/end timestamps
 - goal/mode/budget/policy context fields
@@ -67,7 +67,7 @@ Acceptance:
 
 Deliverables:
 
-- `src/kernel/task-graph.ts`
+- `src/coordination/kernel/task-graph.ts`
 - single-node graph generated for legacy run
 - `alix graph inspect <graph-id>` displays persisted graph
 
@@ -80,7 +80,7 @@ Acceptance:
 
 Deliverables:
 
-- `src/kernel/policy-decision.ts`
+- `src/coordination/kernel/policy-decision.ts`
 - argument hash helper
 - permissive default policy mode
 - deny path blocks tool execution
@@ -94,7 +94,7 @@ Acceptance:
 
 Deliverables:
 
-- `src/kernel/minimal-metrics.ts`
+- `src/coordination/kernel/minimal-metrics.ts`
 - metric events/counters for M0.9 minimum set
 
 Acceptance:

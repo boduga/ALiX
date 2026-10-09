@@ -18,14 +18,14 @@
 
 ### Modify
 ```
-src/approvals/approval-store.ts
-src/policy/policy-gate.ts
-src/runtime/execution-decision.ts
-src/runtime/execution-authorization.ts
-src/kernel/coordination-authorization.ts
-src/kernel/coordination-reconciliation.ts
-src/kernel/coordination-scheduler.ts
-src/events/types.ts
+src/governance/approvals/approval-store.ts
+src/governance/policy/policy-gate.ts
+src/runtime-state/runtime/execution-decision.ts
+src/runtime-state/runtime/execution-authorization.ts
+src/coordination/kernel/coordination-authorization.ts
+src/coordination/kernel/coordination-reconciliation.ts
+src/coordination/kernel/coordination-scheduler.ts
+src/runtime-state/events/types.ts
 src/cli.ts
 daemon composition/startup
 docs/user-manual.md
@@ -34,12 +34,12 @@ README.md
 
 ### Create
 ```
-src/approvals/approval-types.ts
-src/approvals/approval-binding.ts
-src/approvals/approval-store-lock.ts
-src/policy/policy-revision.ts
-src/daemon/approval-watcher.ts
-src/cli/commands/approval.ts
+src/governance/approvals/approval-types.ts
+src/governance/approvals/approval-binding.ts
+src/governance/approvals/approval-store-lock.ts
+src/governance/policy/policy-revision.ts
+src/operations/daemon/approval-watcher.ts
+src/interfaces/cli/commands/approval.ts
 ```
 
 ### Tests
@@ -59,10 +59,10 @@ tests/integration/approval-lifecycle.integration.test.ts
 
 ## M0.77d.1 — Types and binding
 
-**Files:** Create `src/approvals/approval-types.ts`, `src/approvals/approval-binding.ts`
+**Files:** Create `src/governance/approvals/approval-types.ts`, `src/governance/approvals/approval-binding.ts`
 **Tests:** `tests/approvals/approval-binding.test.ts`
 
-### Step 1: Create `src/approvals/approval-types.ts`
+### Step 1: Create `src/governance/approvals/approval-types.ts`
 
 ```typescript
 import type { WorkerOwnershipClaim } from "../kernel/coordination-types.js";
@@ -134,7 +134,7 @@ export type ApprovalGroup = {
 };
 ```
 
-### Step 2: Create `src/approvals/approval-binding.ts`
+### Step 2: Create `src/governance/approvals/approval-binding.ts`
 
 ```typescript
 import { createHash } from "node:crypto";
@@ -192,7 +192,7 @@ export function normalizeApprovalRecord(raw: unknown, context: { defaultPolicyRe
 // tests/approvals/approval-binding.test.ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeBindingKey, computeOwnershipClaimsHash } from "../../src/approvals/approval-binding.js";
+import { computeBindingKey, computeOwnershipClaimsHash } from "../../src/governance/approvals/approval-binding.js";
 
 describe("computeBindingKey", () => {
   it("produces stable key for same inputs", () => {
@@ -231,7 +231,7 @@ describe("computeBindingKey", () => {
 
 ```bash
 npm run build && node --test dist/tests/approvals/approval-binding.test.js
-git add src/approvals/approval-types.ts src/approvals/approval-binding.ts tests/approvals/approval-binding.test.ts
+git add src/governance/approvals/approval-types.ts src/governance/approvals/approval-binding.ts tests/approvals/approval-binding.test.ts
 git commit -m "feat(approvals): add lifecycle types and exact binding fingerprints"
 ```
 
@@ -239,10 +239,10 @@ git commit -m "feat(approvals): add lifecycle types and exact binding fingerprin
 
 ## M0.77d.2 — Lock-safe store
 
-**Files:** Create `src/approvals/approval-store-lock.ts`, Modify `src/approvals/approval-store.ts`
+**Files:** Create `src/governance/approvals/approval-store-lock.ts`, Modify `src/governance/approvals/approval-store.ts`
 **Tests:** `tests/approvals/approval-store-lock.test.ts`, `tests/approvals/approval-store.test.ts`
 
-### Step 1: Create `src/approvals/approval-store-lock.ts`
+### Step 1: Create `src/governance/approvals/approval-store-lock.ts`
 
 Mirror the `CoordinationRunLock` pattern. Lock path: `.alix/approvals/approvals.lock`. Token-safe release, stale PID recovery.
 
@@ -344,7 +344,7 @@ In `load()`, call `normalizeApprovalRecord()` on every record.
 
 ```bash
 npm run build && node --test dist/tests/approvals/approval-store-lock.test.js dist/tests/approvals/approval-store.test.js
-git add src/approvals/approval-store-lock.ts src/approvals/approval-store.ts tests/approvals/approval-store-lock.test.ts tests/approvals/approval-store.test.ts
+git add src/governance/approvals/approval-store-lock.ts src/governance/approvals/approval-store.ts tests/approvals/approval-store-lock.test.ts tests/approvals/approval-store.test.ts
 git commit -m "feat(approvals): add lock-safe atomic approval storage"
 ```
 
@@ -352,7 +352,7 @@ git commit -m "feat(approvals): add lock-safe atomic approval storage"
 
 ## M0.77d.3 — Lifecycle operations
 
-**Files:** Modify `src/approvals/approval-store.ts`
+**Files:** Modify `src/governance/approvals/approval-store.ts`
 
 Add methods to the store. All use `mutate()`:
 
@@ -437,7 +437,7 @@ async invalidateByPolicyRevision(currentRevision, now?: Date): Promise<ApprovalR
 
 ```bash
 npm run build && node --test dist/tests/approvals/approval-store.test.js
-git add src/approvals/approval-store.ts
+git add src/governance/approvals/approval-store.ts
 git commit -m "feat(approvals): add expiry revocation invalidation and consumption"
 ```
 
@@ -445,7 +445,7 @@ git commit -m "feat(approvals): add expiry revocation invalidation and consumpti
 
 ## M0.77d.4 — Policy revision
 
-**Files:** Create `src/policy/policy-revision.ts`
+**Files:** Create `src/governance/policy/policy-revision.ts`
 **Tests:** `tests/policy/policy-revision.test.ts`
 
 ```typescript
@@ -475,7 +475,7 @@ Tests: revision changes when tools change, revision stable for same config, revi
 
 ```bash
 npm run build && node --test dist/tests/policy/policy-revision.test.js
-git add src/policy/policy-revision.ts tests/policy/policy-revision.test.ts
+git add src/governance/policy/policy-revision.ts tests/policy/policy-revision.test.ts
 git commit -m "feat(policy): add deterministic policy revision fingerprint"
 ```
 
@@ -483,7 +483,7 @@ git commit -m "feat(policy): add deterministic policy revision fingerprint"
 
 ## M0.77d.5 — PolicyGate exact binding
 
-**Files:** Modify `src/policy/policy-gate.ts`, `src/runtime/execution-decision.ts`
+**Files:** Modify `src/governance/policy/policy-gate.ts`, `src/runtime-state/runtime/execution-decision.ts`
 **Tests:** `tests/policy/policy-gate-approval-binding.test.ts`
 
 ### Step 1: Extend ExecutionDecision
@@ -509,7 +509,7 @@ Include `policyRevision` in `PolicyGateDecision`.
 
 ```bash
 npm run build && node --test dist/tests/policy/policy-gate-approval-binding.test.js
-git add src/runtime/execution-decision.ts src/policy/policy-gate.ts
+git add src/runtime-state/runtime/execution-decision.ts src/governance/policy/policy-gate.ts
 git commit -m "feat(policy): bind approvals to exact policy requests"
 ```
 
@@ -517,7 +517,7 @@ git commit -m "feat(policy): bind approvals to exact policy requests"
 
 ## M0.77d.6 — Approval groups
 
-**Files:** Modify `src/approvals/approval-store.ts`
+**Files:** Modify `src/governance/approvals/approval-store.ts`
 
 Add `ApprovalGroup` support:
 
@@ -532,7 +532,7 @@ Grouping requires all members share: run, worker, attempt, scope hash, policy re
 
 ```bash
 npm run build
-git add src/approvals/approval-store.ts
+git add src/governance/approvals/approval-store.ts
 git commit -m "feat(approvals): add atomic multi-capability groups"
 ```
 
@@ -540,7 +540,7 @@ git commit -m "feat(approvals): add atomic multi-capability groups"
 
 ## M0.77d.7 — Scheduler consumption integration
 
-**Files:** Modify `src/kernel/coordination-reconciliation.ts`, `src/kernel/coordination-scheduler.ts`, `src/kernel/coordination-authorization.ts`
+**Files:** Modify `src/coordination/kernel/coordination-reconciliation.ts`, `src/coordination/kernel/coordination-scheduler.ts`, `src/coordination/kernel/coordination-authorization.ts`
 **Tests:** `tests/kernel/coordination-approval-lifecycle.test.ts`
 
 ### Step 1: Update reconciliation
@@ -573,7 +573,7 @@ The `isApproved` callback now receives worker and run context. It:
 
 ```bash
 npm run build && node --test dist/tests/kernel/coordination-approval-lifecycle.test.js
-git add src/kernel/coordination-reconciliation.ts src/kernel/coordination-scheduler.ts src/kernel/coordination-authorization.ts
+git add src/coordination/kernel/coordination-reconciliation.ts src/coordination/kernel/coordination-scheduler.ts src/coordination/kernel/coordination-authorization.ts
 git commit -m "feat(coordination): consume and revalidate approvals before resume"
 ```
 
@@ -581,7 +581,7 @@ git commit -m "feat(coordination): consume and revalidate approvals before resum
 
 ## M0.77d.8 — ApprovalWatcher
 
-**Files:** Create `src/daemon/approval-watcher.ts`
+**Files:** Create `src/operations/daemon/approval-watcher.ts`
 **Tests:** `tests/daemon/approval-watcher.test.ts`
 
 ```typescript
@@ -616,7 +616,7 @@ export class ApprovalWatcher {
 
 ```bash
 npm run build && node --test dist/tests/daemon/approval-watcher.test.js
-git add src/daemon/approval-watcher.ts tests/daemon/approval-watcher.test.ts
+git add src/operations/daemon/approval-watcher.ts tests/daemon/approval-watcher.test.ts
 git commit -m "feat(daemon): add approval watcher and scheduler wake-up"
 ```
 
@@ -624,7 +624,7 @@ git commit -m "feat(daemon): add approval watcher and scheduler wake-up"
 
 ## M0.77d.9 — CLI
 
-**Files:** Create `src/cli/commands/approval.ts`, Modify `src/cli.ts`
+**Files:** Create `src/interfaces/cli/commands/approval.ts`, Modify `src/cli.ts`
 **Tests:** `tests/cli/approval.test.ts`
 
 Commands: `list`, `show`, `approve`, `deny`, `revoke`, `expire`. Support `--json`, `--run`, `--worker`, `--pending`, `--all` filters.
@@ -633,7 +633,7 @@ Commands: `list`, `show`, `approve`, `deny`, `revoke`, `expire`. Support `--json
 
 ```bash
 npm run build && node --test dist/tests/cli/approval.test.js
-git add src/cli/commands/approval.ts src/cli.ts tests/cli/approval.test.ts
+git add src/interfaces/cli/commands/approval.ts src/cli.ts tests/cli/approval.test.ts
 git commit -m "feat(cli): add approval lifecycle commands"
 ```
 
@@ -641,7 +641,7 @@ git commit -m "feat(cli): add approval lifecycle commands"
 
 ## M0.77d.10 — Observability and integration
 
-**Files:** Modify `src/events/types.ts`
+**Files:** Modify `src/runtime-state/events/types.ts`
 
 Add `APPROVAL_EVENT_TYPES` constant. Emit events from `ApprovalStore` on request/resolve/consume/expire/revoke/invalidate/group.
 
@@ -656,7 +656,7 @@ Create `tests/integration/approval-lifecycle.integration.test.ts` covering: full
 ```bash
 npm run build
 node --test dist/tests/approvals/approval-binding.test.js dist/tests/approvals/approval-store-lock.test.js dist/tests/approvals/approval-store.test.js dist/tests/policy/policy-revision.test.js dist/tests/policy/policy-gate-approval-binding.test.js dist/tests/kernel/coordination-approval-lifecycle.test.js dist/tests/daemon/approval-watcher.test.js dist/tests/cli/approval.test.js dist/tests/integration/approval-lifecycle.integration.test.js
-git add src/events/types.ts tests/integration/approval-lifecycle.integration.test.ts
+git add src/runtime-state/events/types.ts tests/integration/approval-lifecycle.integration.test.ts
 git commit -m "feat(observability): add approval audit events and metrics"
 ```
 

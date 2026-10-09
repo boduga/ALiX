@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { PROMPT_REGISTRY } from "../../src/prompts/registry.js";
-import { estimateTokens } from "../../src/utils/tokens.js";
+import { PROMPT_REGISTRY } from "../../src/operations/prompts/registry.js";
+import { estimateTokens } from "../../src/operations/utils/tokens.js";
 
 function sha(text: string): string {
   return createHash("sha256").update(text, "utf-8").digest("hex").slice(0, 16);

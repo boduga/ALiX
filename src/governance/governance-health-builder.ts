@@ -12,10 +12,10 @@
  */
 
 import { join } from "node:path";
-import { buildDashboardReport } from "../learning/learning-dashboard.js";
-import { GovernanceReviewStore } from "../adaptation/governance-review-store.js";
-import { OutcomeStore } from "../adaptation/outcome-store.js";
-import { LearningStore } from "../learning/learning-store.js";
+import { buildDashboardReport } from "../planning/learning/learning-dashboard.js";
+import { GovernanceReviewStore } from "../planning/adaptation/governance-review-store.js";
+import { OutcomeStore } from "../planning/adaptation/outcome-store.js";
+import { LearningStore } from "../planning/learning/learning-store.js";
 import type { GovernanceHealthReport } from "./governance-types.js";
 
 // ---------------------------------------------------------------------------

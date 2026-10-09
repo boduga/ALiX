@@ -8,8 +8,8 @@ import {
   parseAuditResult,
   checkExceptionsPolicy,
   EXCEPTION_ERROR_CODES,
-} from "../../../src/security/supply-chain/security-exceptions.js";
-import type { ExceptionsFile, AdvisoryFinding } from "../../../src/security/supply-chain/security-exceptions.js";
+} from "../../../src/governance/security/supply-chain/security-exceptions.js";
+import type { ExceptionsFile, AdvisoryFinding } from "../../../src/governance/security/supply-chain/security-exceptions.js";
 
 // ---------------------------------------------------------------------------
 // parseAuditResult

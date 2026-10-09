@@ -26,7 +26,7 @@
 ### Task 1: Strategic Brief Types
 
 **Files:**
-- Create: `src/adaptation/strategic-brief-types.ts`
+- Create: `src/planning/adaptation/strategic-brief-types.ts`
 
 **Interfaces:**
 - Consumes: `DecisionArtifact`, `SourceArtifact` from `./decision-types.js`; `IntelligenceReport` from `./intelligence-types.js`; `ProposalEffectivenessReport` from `./effectiveness-types.js`; `EvidenceRecord` from `../security/evidence/evidence-types.js`
@@ -37,7 +37,7 @@
 ```typescript
 // Place in tests/adaptation/strategic-brief.vitest.ts (will be expanded in Task 3)
 import { describe, it, expect } from "vitest";
-import type { StrategicBrief, StrategicFinding, Trend, Hotspot, TimeWindow } from "../../src/adaptation/strategic-brief-types.js";
+import type { StrategicBrief, StrategicFinding, Trend, Hotspot, TimeWindow } from "../../src/planning/adaptation/strategic-brief-types.js";
 
 describe("StrategicBrief type shape", () => {
   it("type exists", () => {
@@ -191,14 +191,14 @@ export interface StrategicBrief extends DecisionArtifact {
 
 Delete the shell test and run the rest of vitest briefly to confirm the types compile:
 ```bash
-npx tsc --noEmit src/adaptation/strategic-brief-types.ts 2>&1
+npx tsc --noEmit src/planning/adaptation/strategic-brief-types.ts 2>&1
 ```
 Expected: no errors (exit 0)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/adaptation/strategic-brief-types.ts
+git add src/planning/adaptation/strategic-brief-types.ts
 git commit -m "feat(p6.3): StrategicBrief type definitions"
 ```
 
@@ -207,7 +207,7 @@ git commit -m "feat(p6.3): StrategicBrief type definitions"
 ### Task 2: StrategicBriefBuilder — Pure Synthesis Class
 
 **Files:**
-- Create: `src/adaptation/strategic-brief.ts`
+- Create: `src/planning/adaptation/strategic-brief.ts`
 
 **Interfaces:**
 - Consumes: All types from `./strategic-brief-types.js`, `./decision-types.js` (DecisionArtifact, SourceArtifact)
@@ -218,7 +218,7 @@ git commit -m "feat(p6.3): StrategicBrief type definitions"
 ```typescript
 // Add to tests/adaptation/strategic-brief.vitest.ts
 import { describe, it, expect } from "vitest";
-import { StrategicBriefBuilder } from "../../src/adaptation/strategic-brief.js";
+import { StrategicBriefBuilder } from "../../src/planning/adaptation/strategic-brief.js";
 
 describe("StrategicBriefBuilder", () => {
   it("exists and has a build method", () => {
@@ -637,7 +637,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/adaptation/strategic-brief.ts tests/adaptation/strategic-brief.vitest.ts
+git add src/planning/adaptation/strategic-brief.ts tests/adaptation/strategic-brief.vitest.ts
 git commit -m "feat(p6.3): StrategicBriefBuilder pure synthesis class"
 ```
 
@@ -661,11 +661,11 @@ git commit -m "feat(p6.3): StrategicBriefBuilder pure synthesis class"
  * runtime no-proposal-ID enforcement.
  */
 import { describe, it, expect } from "vitest";
-import { StrategicBriefBuilder } from "../../src/adaptation/strategic-brief.js";
-import type { StrategicBrief, StrategicFinding, Trend, Hotspot, StrategicBriefInput } from "../../src/adaptation/strategic-brief-types.js";
-import type { IntelligenceReport } from "../../src/adaptation/intelligence-types.js";
-import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
-import type { EvidenceRecord } from "../../src/security/evidence/evidence-types.js";
+import { StrategicBriefBuilder } from "../../src/planning/adaptation/strategic-brief.js";
+import type { StrategicBrief, StrategicFinding, Trend, Hotspot, StrategicBriefInput } from "../../src/planning/adaptation/strategic-brief-types.js";
+import type { IntelligenceReport } from "../../src/planning/adaptation/intelligence-types.js";
+import type { ProposalEffectivenessReport } from "../../src/planning/adaptation/effectiveness-types.js";
+import type { EvidenceRecord } from "../../src/governance/security/evidence/evidence-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1013,7 +1013,7 @@ git commit -m "feat(p6.3): StrategicBrief comprehensive unit tests"
 - Create: `tests/adaptation/strategic-brief-governance-sentinels.vitest.ts`
 
 **Interfaces:**
-- Consumes: source file `src/adaptation/strategic-brief.ts` (read via `readFileSync`)
+- Consumes: source file `src/planning/adaptation/strategic-brief.ts` (read via `readFileSync`)
 
 - [ ] **Step 1: Write the sentinel tests**
 
@@ -1033,7 +1033,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const BRIEF_SRC = resolve(__dirname, "../../src/adaptation/strategic-brief.ts");
+const BRIEF_SRC = resolve(__dirname, "../../src/planning/adaptation/strategic-brief.ts");
 const source = readFileSync(BRIEF_SRC, "utf-8");
 
 /** Strip comments from source so sentinel patterns don't false-positive on
@@ -1151,7 +1151,7 @@ git commit -m "feat(p6.3): StrategicBrief governance sentinels"
 ### Task 5: CLI — `brief` Subcommand
 
 **Files:**
-- Modify: `src/cli/commands/decision.ts`
+- Modify: `src/interfaces/cli/commands/decision.ts`
 
 **Interfaces:**
 - Consumes: `StrategicBriefBuilder` from `../../adaptation/strategic-brief.js`, all types from `../../adaptation/strategic-brief-types.js`
@@ -1159,7 +1159,7 @@ git commit -m "feat(p6.3): StrategicBrief governance sentinels"
 
 - [ ] **Step 1: Add the import and the runBrief function, wire into switch**
 
-Modify `src/cli/commands/decision.ts`:
+Modify `src/interfaces/cli/commands/decision.ts`:
 
 **Add imports** (after the `OperatorQueue` import block):
 ```typescript
@@ -1304,6 +1304,6 @@ Expected: 470+ tests pass, no failures
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/decision.ts
+git add src/interfaces/cli/commands/decision.ts
 git commit -m "feat(p6.3): CLI brief subcommand for Strategic Brief"
 ```

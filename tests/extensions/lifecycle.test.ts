@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { ExtensionRegistry } from "../../src/extensions/registry.js";
-import { loadExtensions } from "../../src/extensions/lifecycle.js";
+import { ExtensionRegistry } from "../../src/capabilities/extensions/registry.js";
+import { loadExtensions } from "../../src/capabilities/extensions/lifecycle.js";
 
 describe("loadExtensions", () => {
   let root: string;

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { RuntimeBuilder } from "../../src/runtime/runtime-builder.js";
+import { RuntimeBuilder } from "../../src/runtime-state/runtime/runtime-builder.js";
 import { join } from "node:path";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

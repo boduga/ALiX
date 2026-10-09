@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   internalScoreToBand,
   RISK_BAND_THRESHOLDS,
-} from "../../src/evolution/forecast/risk-band.js";
+} from "../../src/planning/evolution/forecast/risk-band.js";
 
 // ---------------------------------------------------------------------------
 // Phase 3 — locked A6 thresholds

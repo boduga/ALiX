@@ -34,7 +34,7 @@
 ### Task 1: Create planning engine types, constants, and step templates
 
 **Files:**
-- Create: `src/executive/planning-engine.ts` (types, constants, `buildStepsForObjective`, `riskLevelFromScore`)
+- Create: `src/execution/executive/planning-engine.ts` (types, constants, `buildStepsForObjective`, `riskLevelFromScore`)
 - Create: `tests/executive/planning-engine.vitest.ts` (tests for types and step template coverage)
 
 **Interfaces:**
@@ -46,8 +46,8 @@
 
 ```typescript
 import { describe, expect, it } from "vitest";
-import type { ExecutionStepAction, ExecutionStep, ExecutionPlan, ExecutionStepStatus } from "../../src/executive/planning-engine.js";
-import { PLANNER_VERSION, PLANNING_ALGORITHM, buildStepsForObjective, riskLevelFromScore } from "../../src/executive/planning-engine.js";
+import type { ExecutionStepAction, ExecutionStep, ExecutionPlan, ExecutionStepStatus } from "../../src/execution/executive/planning-engine.js";
+import { PLANNER_VERSION, PLANNING_ALGORITHM, buildStepsForObjective, riskLevelFromScore } from "../../src/execution/executive/planning-engine.js";
 
 describe("planning engine types and constants", () => {
   it("exports PLANNER_VERSION as 1.0", () => {
@@ -189,7 +189,7 @@ Expected: FAIL — all tests fail with `Cannot find module` or similar
 
 - [ ] **Step 3: Write minimal implementation**
 
-Create `src/executive/planning-engine.ts`:
+Create `src/execution/executive/planning-engine.ts`:
 
 ```typescript
 /**
@@ -445,7 +445,7 @@ Expected: PASS (all 13+ tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/executive/planning-engine.ts tests/executive/planning-engine.vitest.ts
+git add src/execution/executive/planning-engine.ts tests/executive/planning-engine.vitest.ts
 git commit -m "feat(p10.3): add planning engine types, constants, and step templates
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
@@ -456,7 +456,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 2: Add dependency resolution and top-level plan generator
 
 **Files:**
-- Modify: `src/executive/planning-engine.ts` (append `SUBSYSTEM_DEPENDENCY_RULES`, `resolveLocalDependencies`, `buildExecutionPlan`)
+- Modify: `src/execution/executive/planning-engine.ts` (append `SUBSYSTEM_DEPENDENCY_RULES`, `resolveLocalDependencies`, `buildExecutionPlan`)
 - Modify: `tests/executive/planning-engine.vitest.ts` (append tests for the new functions)
 
 **Interfaces:**
@@ -469,9 +469,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 Add these tests to the existing file. Merge imports with the existing import block at the top:
 
 ```typescript
-import { buildExecutionPlan, resolveLocalDependencies, SUBSYSTEM_DEPENDENCY_RULES } from "../../src/executive/planning-engine.js";
-import type { ExecutiveSubsystemName } from "../../src/executive/executive-health.js";
-import type { ExecutiveObjectiveReport } from "../../src/executive/objective-engine.js";
+import { buildExecutionPlan, resolveLocalDependencies, SUBSYSTEM_DEPENDENCY_RULES } from "../../src/execution/executive/planning-engine.js";
+import type { ExecutiveSubsystemName } from "../../src/execution/executive/executive-health.js";
+import type { ExecutiveObjectiveReport } from "../../src/execution/executive/objective-engine.js";
 
 describe("SUBSYSTEM_DEPENDENCY_RULES", () => {
   it("defines apply_remediation as blocking implement_improvements and review_baseline_metrics", () => {
@@ -661,7 +661,7 @@ Expected: FAIL — new tests fail with "function not defined" or similar
 
 - [ ] **Step 3: Write minimal implementation**
 
-Append to `src/executive/planning-engine.ts` (before the closing of the file):
+Append to `src/execution/executive/planning-engine.ts` (before the closing of the file):
 
 ```typescript
 // ---------------------------------------------------------------------------
@@ -807,7 +807,7 @@ Expected: PASS (all ~25+ tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/executive/planning-engine.ts tests/executive/planning-engine.vitest.ts
+git add src/execution/executive/planning-engine.ts tests/executive/planning-engine.vitest.ts
 git commit -m "feat(p10.3): add dependency resolution and buildExecutionPlan
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
@@ -818,7 +818,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 3: Dashboard handler integration — call buildExecutionPlan
 
 **Files:**
-- Modify: `src/cli/commands/executive-dashboard-handler.ts` (+5 lines)
+- Modify: `src/interfaces/cli/commands/executive-dashboard-handler.ts` (+5 lines)
 - Modify: `tests/executive/executive-sentinels.vitest.ts` (+1 line in EXECUTIVE_FILES)
 
 **Interfaces:**
@@ -829,7 +829,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - [ ] **Step 1: Read the current handler**
 
 ```bash
-cat src/cli/commands/executive-dashboard-handler.ts
+cat src/interfaces/cli/commands/executive-dashboard-handler.ts
 ```
 
 Expected: See the current handler with P10.0-P10.2 integration, ending with `renderExecutiveDashboard(healthReport, priorityReport, objectiveReport, { jsonMode });`
@@ -858,9 +858,9 @@ to:
 
 - [ ] **Step 3: Add planning-engine.ts to the sentinel file list**
 
-In `tests/executive/executive-sentinels.vitest.ts`, append to the `EXECUTIVE_FILES` array (after line 44 `"src/cli/commands/executive.ts"`):
+In `tests/executive/executive-sentinels.vitest.ts`, append to the `EXECUTIVE_FILES` array (after line 44 `"src/interfaces/cli/commands/executive.ts"`):
 ```typescript
-  "src/executive/planning-engine.ts",
+  "src/execution/executive/planning-engine.ts",
 ```
 
 - [ ] **Step 4: Run tests to verify nothing breaks**
@@ -871,7 +871,7 @@ Expected: PASS — sentinel finds no violations, CLI test may fail (renderer nee
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/executive-dashboard-handler.ts tests/executive/executive-sentinels.vitest.ts
+git add src/interfaces/cli/commands/executive-dashboard-handler.ts tests/executive/executive-sentinels.vitest.ts
 git commit -m "feat(p10.3): integrate planning engine into dashboard handler + sentinel
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
@@ -882,7 +882,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 4: Dashboard renderer — 5th panel (Executive Plan)
 
 **Files:**
-- Modify: `src/cli/commands/executive-dashboard-renderer.ts` (+40 lines)
+- Modify: `src/interfaces/cli/commands/executive-dashboard-renderer.ts` (+40 lines)
 - Modify: `tests/cli/commands/executive-dashboard-cli.vitest.ts` (+2 assertions)
 
 **Interfaces:**
@@ -921,7 +921,7 @@ Expected: FAIL — test expects 5 panel headers but renderer only produces 4
 
 - [ ] **Step 3: Update the renderer**
 
-In `src/cli/commands/executive-dashboard-renderer.ts`:
+In `src/interfaces/cli/commands/executive-dashboard-renderer.ts`:
 
 Add import:
 ```typescript
@@ -1012,7 +1012,7 @@ Expected: No output (clean compile)
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/executive-dashboard-renderer.ts tests/cli/commands/executive-dashboard-cli.vitest.ts
+git add src/interfaces/cli/commands/executive-dashboard-renderer.ts tests/cli/commands/executive-dashboard-cli.vitest.ts
 git commit -m "feat(p10.3): add 5th Executive Plan panel to dashboard renderer
 
 Co-Authored-By: Claude <noreply@anthropic.com>"

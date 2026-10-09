@@ -8,7 +8,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   VerificationReportBuilder,
-} from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
 
 describe("VerificationReportBuilder", () => {
   it("builds a report with all collected fields", () => {

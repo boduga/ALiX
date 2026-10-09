@@ -13,19 +13,19 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityService } from '../../src/capability/capability-service.js';
-import { CapabilityResolver } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import { CapabilityMutationExecutor } from '../../src/evolution/execution/capability-mutation-executor.js';
-import { EventLog } from '../../src/events/event-log.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
-import type { CapabilityServiceOptions } from '../../src/capability/types/service-results.js';
+import { CapabilityService } from '../../src/capabilities/capability/capability-service.js';
+import { CapabilityResolver } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import { CapabilityMutationExecutor } from '../../src/planning/evolution/execution/capability-mutation-executor.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
+import type { CapabilityServiceOptions } from '../../src/capabilities/capability/types/service-results.js';
 
 let dir: string;
 let sessionDir: string;
@@ -124,7 +124,7 @@ describe('AC#1/AC#3 + locked ruling #1 — service.apply() delegates verbatim to
     // Structural sentinel: read service module source and assert it does NOT
     // import or call catalog.register / mutationPort / capturePreState, etc.
     const src = readFileSync(
-      new URL('../../src/capability/capability-service.ts', import.meta.url),
+      new URL('../../src/capabilities/capability/capability-service.ts', import.meta.url),
       'utf8',
     );
     expect(src).not.toMatch(/catalog\.register\(/);

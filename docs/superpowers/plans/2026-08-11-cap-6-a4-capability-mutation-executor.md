@@ -4,7 +4,7 @@
 
 **Goal:** A governed capability mutation (create/update/transition/consolidate/remove) executes **atomically through A4** — `authorizeExecution` → `createExecutionPlan` → `GovernedExecutionRuntime` driving a new `CapabilityMutationExecutor` that applies CAP-5's exact semantics and never invents new ones.
 
-**Architecture:** New `CapabilityMutationExecutor implements StepExecutor` (A4 layer, `src/evolution/execution/`) whose `executeStep` runs the greenfield atomicity sequence **prepare → validate → apply durable mutation → project registry → record governance result → commit** per mutation. The executor consumes the CAP-5 contract (`validateCapabilityMutation`, `validateConsolidateMerge`, `classifyUpdateBump`, `isLegalTransition`), the CAP-2 catalog (`CapabilityCatalog`), and the CAP-3 registry (`CapabilityRegistry`). Each mutation publishes/removes immutable `id@version` catalog entries and mutates registry lifecycle/availability; on any failure it restores a captured pre-state (byte-identical) and returns a failed step so the runtime rolls back. The five `capability.*` rollback mappings re-home from `execution-planner.ts:173-183` into the executor's `createCapabilityRollbackResolver()`. A7.1 legacy surfaces (applier, step executor) stay untouched; the applier is repointed at the executor's resolver so rollback behavior is preserved.
+**Architecture:** New `CapabilityMutationExecutor implements StepExecutor` (A4 layer, `src/planning/evolution/execution/`) whose `executeStep` runs the greenfield atomicity sequence **prepare → validate → apply durable mutation → project registry → record governance result → commit** per mutation. The executor consumes the CAP-5 contract (`validateCapabilityMutation`, `validateConsolidateMerge`, `classifyUpdateBump`, `isLegalTransition`), the CAP-2 catalog (`CapabilityCatalog`), and the CAP-3 registry (`CapabilityRegistry`). Each mutation publishes/removes immutable `id@version` catalog entries and mutates registry lifecycle/availability; on any failure it restores a captured pre-state (byte-identical) and returns a failed step so the runtime rolls back. The five `capability.*` rollback mappings re-home from `execution-planner.ts:173-183` into the executor's `createCapabilityRollbackResolver()`. A7.1 legacy surfaces (applier, step executor) stay untouched; the applier is repointed at the executor's resolver so rollback behavior is preserved.
 
 **Tech Stack:** TypeScript (ESM), node:test (`.test.ts` — run against `dist/` after `pnpm run build`; imports `../../../src/...`), `pnpm exec tsc --noEmit` as the type gate, the existing CAP-2/CAP-3/CAP-5 modules.
 
@@ -18,10 +18,10 @@
   - **No-op update (user-ruling EXPLICIT):** no-op detection occurs **before** any durable mutation and **before** any publication/version allocation. A patch producing no effective change is rejected with no publication, no registry change, no governance result, no durable mutation — no artifact of any kind left behind.
 - **Governed register/create is actually applied** — a create with a complete approved definition registers it (no placeholder, no `APPROVED_PENDING_APPLICATION` dead-end). Create rejects an already-present id.
 - **Consolidation is a real definition mutation** — publishes the approved target definition and then disposes sources per `sourceDisposition` (`deprecate` → lifecycle `deprecated`; `remove` → catalog remove). This is NOT the old A7.1 "deprecate related capabilities" behavior.
-- **Forbidden files (never touch):** `src/capability/initial-capabilities.ts`, `src/tools/tool-registry.ts`, `src/policy/capability-registry.ts`, and **production `src/capability/canonical/*`** (CAP-2 import-only — the executor uses only the public `CapabilityCatalog`/`CapabilityRegistry` surface; it never modifies the canonical store or definition).
+- **Forbidden files (never touch):** `src/capabilities/capability/initial-capabilities.ts`, `src/capabilities/tools/tool-registry.ts`, `src/governance/policy/capability-registry.ts`, and **production `src/capabilities/capability/canonical/*`** (CAP-2 import-only — the executor uses only the public `CapabilityCatalog`/`CapabilityRegistry` surface; it never modifies the canonical store or definition).
 - **A7.1 legacy surfaces stay** — `capability-lifecycle-applier.ts` and `capability-lifecycle-step-executor.ts` are NOT removed (CAP-11). Their behavior must not regress: the applier's resolver injection is repointed to the executor's `createCapabilityRollbackResolver()` (identical `capability.transition` → `capability.restore_transition` mapping) so plans built for legacy transitions keep automatic safe rollback.
 - **Single authoritative capability rollback resolver (user ruling KEEP #1)** — after CAP-6 there is exactly ONE place that maps `capability.*` operations to rollback steps: `createCapabilityRollbackResolver()` in the executor module. Both the executor AND the legacy `capability-lifecycle-applier` consume that resolver. No duplicated mapping: the planner's `createDefaultRollbackResolver` is generic (upgrade_agent_runtime / update_configuration / manual fallback) and holds NO capability-specific rollback knowledge.
-- **Test convention:** new executor tests are **node:test** (`.test.ts`) under `tests/evolution/execution/`, importing `../../../src/evolution/execution/...js` — run via `pnpm run build && pnpm test` (the A4 layer tests are node:test, NOT vitest). Vitest tests under `tests/capability/` are unaffected.
+- **Test convention:** new executor tests are **node:test** (`.test.ts`) under `tests/evolution/execution/`, importing `../../../src/planning/evolution/execution/...js` — run via `pnpm run build && pnpm test` (the A4 layer tests are node:test, NOT vitest). Vitest tests under `tests/capability/` are unaffected.
 - **Type gate:** ALWAYS run `pnpm exec tsc --noEmit` after each task (node:test does not typecheck — CAP-1 lesson).
 - **Deterministic artifacts:** every output artifact (mutation result, post-state, evidence) is built from deep copies/frozen snapshots — the executor must never return live references into `CapabilityCatalog`/`CapabilityRegistry` state. Mutating a returned result must not affect the catalog.
 - **Deterministic artifactId (user-ruling LOCKED)** — `artifactId` is a deterministic function of the mutation/result **identity only**: the canonicalized mutation payload + resulting post-state. It MUST NOT depend on wall-clock time, random UUIDs, object identity, map iteration order, or incidental serialization order. These artifacts become evidence for later A-series governance, so identical governed inputs must produce identical artifactIds.
@@ -29,13 +29,13 @@
 
 ### Consumed interfaces (exact — from CAP-2/3/4/5, already on main)
 
-- **CAP-5 `src/capability/mutation-contract.ts`:** `validateCapabilityMutation(value: unknown): ValidationResult`; `validateConsolidateMerge(proposal: CapabilityConsolidateMutation, sources: readonly CapabilityDefinition[]): ValidationResult`; `classifyUpdateBump(previous, next): "major" | "minor" | "patch"`; `isLegalTransition(from, to): boolean`; mutation types `CapabilityCreateMutation | CapabilityUpdateMutation | CapabilityTransitionMutation | CapabilityConsolidateMutation | CapabilityRemoveMutation`; `CapabilityDefinitionPatch`; `CAPABILITY_MUTATION_OPERATIONS`.
-- **CAP-2 `src/capability/canonical/catalog.ts`:** `CapabilityCatalog` — `get(id): CapabilityDefinition | undefined` (returns highest SemVer for the id), `list(): CapabilityDefinition[]`, `has(id): boolean`, `register(def, binding?)`, `update(id, patch)` (NOT used by the executor), `remove(id)`, `getBinding(id)`.
-- **CAP-3 `src/capability/registry.ts`:** `CapabilityRegistry` — `get(id)`, `listRegistered()`, `getLifecycleState(id)`, `setLifecycleState(id, to)`, `clearLifecycleState(id)`, `listLifecycleStates()`, `getAvailability(id)`, `setAvailability(id, avail)`, `reload()`, `list()`. `CapabilityAvailability { available: boolean; reason?: "missing_binding" | "provider_unavailable" }`.
-- **CAP-4 `src/evolution/execution/`:** `StepExecutor` (from `execution-runtime.ts`), `ExecutionStep`/`RollbackStep`/`RollbackResolver` (from `contracts/execution-contract.ts`), `DefaultRollbackResolver` + `createDefaultRollbackResolver` (from `execution-planner.ts` — Task 7 removes the `capability.transition` registration), `createExecutionPlan(proposal, decision, environment, resolver)`, `GovernedExecutionRuntime`.
-- **`src/capability/canonical/definition.ts`:** `CapabilityDefinition` (has `bindings: CapabilityProviderBinding[]`, `version` full SemVer), `validateCapabilityDefinition(d): asserts d is CapabilityDefinition`.
-- **`src/evolution/contracts/evolution-contract.ts`:** `EvolutionProposal` (closed interface, no `changes` — embed via `EvolutionProposal & { changes: [...] }` like CAP-5/A7.1's `CapabilityExecutionProposal`), `ValidationResult`.
-- **`src/adaptation/capability-evolution-types.ts`:** `LifecycleState = "emerging" | "active" | "mature" | "stagnant" | "declining" | "deprecated"`.
+- **CAP-5 `src/capabilities/capability/mutation-contract.ts`:** `validateCapabilityMutation(value: unknown): ValidationResult`; `validateConsolidateMerge(proposal: CapabilityConsolidateMutation, sources: readonly CapabilityDefinition[]): ValidationResult`; `classifyUpdateBump(previous, next): "major" | "minor" | "patch"`; `isLegalTransition(from, to): boolean`; mutation types `CapabilityCreateMutation | CapabilityUpdateMutation | CapabilityTransitionMutation | CapabilityConsolidateMutation | CapabilityRemoveMutation`; `CapabilityDefinitionPatch`; `CAPABILITY_MUTATION_OPERATIONS`.
+- **CAP-2 `src/capabilities/capability/canonical/catalog.ts`:** `CapabilityCatalog` — `get(id): CapabilityDefinition | undefined` (returns highest SemVer for the id), `list(): CapabilityDefinition[]`, `has(id): boolean`, `register(def, binding?)`, `update(id, patch)` (NOT used by the executor), `remove(id)`, `getBinding(id)`.
+- **CAP-3 `src/capabilities/capability/registry.ts`:** `CapabilityRegistry` — `get(id)`, `listRegistered()`, `getLifecycleState(id)`, `setLifecycleState(id, to)`, `clearLifecycleState(id)`, `listLifecycleStates()`, `getAvailability(id)`, `setAvailability(id, avail)`, `reload()`, `list()`. `CapabilityAvailability { available: boolean; reason?: "missing_binding" | "provider_unavailable" }`.
+- **CAP-4 `src/planning/evolution/execution/`:** `StepExecutor` (from `execution-runtime.ts`), `ExecutionStep`/`RollbackStep`/`RollbackResolver` (from `contracts/execution-contract.ts`), `DefaultRollbackResolver` + `createDefaultRollbackResolver` (from `execution-planner.ts` — Task 7 removes the `capability.transition` registration), `createExecutionPlan(proposal, decision, environment, resolver)`, `GovernedExecutionRuntime`.
+- **`src/capabilities/capability/canonical/definition.ts`:** `CapabilityDefinition` (has `bindings: CapabilityProviderBinding[]`, `version` full SemVer), `validateCapabilityDefinition(d): asserts d is CapabilityDefinition`.
+- **`src/planning/evolution/contracts/evolution-contract.ts`:** `EvolutionProposal` (closed interface, no `changes` — embed via `EvolutionProposal & { changes: [...] }` like CAP-5/A7.1's `CapabilityExecutionProposal`), `ValidationResult`.
+- **`src/planning/adaptation/capability-evolution-types.ts`:** `LifecycleState = "emerging" | "active" | "mature" | "stagnant" | "declining" | "deprecated"`.
 
 ---
 ---
@@ -43,7 +43,7 @@
 ### Task 1: Executor Infrastructure + `capability.create` path
 
 **Files:**
-- Create: `src/evolution/execution/capability-mutation-executor.ts`
+- Create: `src/planning/evolution/execution/capability-mutation-executor.ts`
 - Test: `tests/evolution/execution/capability-mutation-executor.test.ts`
 - Test: `tests/evolution/execution/capability-mutation-executor-helpers.test.ts`
 
@@ -77,8 +77,8 @@
 ```ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { bumpSemVer, applyCapabilityDefinitionPatch, toCapabilityMutationChange } from "../../../src/evolution/execution/capability-mutation-executor.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { bumpSemVer, applyCapabilityDefinitionPatch, toCapabilityMutationChange } from "../../../src/planning/evolution/execution/capability-mutation-executor.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 function def(overrides: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return {
@@ -136,12 +136,12 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CapabilityCatalog } from "../../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../../src/capability/registry.js";
-import { CapabilityMutationExecutor, createCapabilityRollbackResolver } from "../../../src/evolution/execution/capability-mutation-executor.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
-import type { CapabilityCreateMutation } from "../../../src/capability/mutation-contract.js";
+import { CapabilityCatalog } from "../../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../../src/capabilities/capability/registry.js";
+import { CapabilityMutationExecutor, createCapabilityRollbackResolver } from "../../../src/planning/evolution/execution/capability-mutation-executor.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
+import type { CapabilityCreateMutation } from "../../../src/capabilities/capability/mutation-contract.js";
 
 function def(overrides: Partial<CapabilityDefinition> = {}): CapabilityDefinition { /* same as helpers file */ }
 
@@ -231,7 +231,7 @@ Expected: FAIL with "Cannot find module .../capability-mutation-executor.js" (mo
 
 - [ ] **Step 3: Implement the executor infrastructure + create path**
 
-Create `src/evolution/execution/capability-mutation-executor.ts`. Key structure (exact code to write):
+Create `src/planning/evolution/execution/capability-mutation-executor.ts`. Key structure (exact code to write):
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -544,7 +544,7 @@ Expected: PASS. Then `pnpm exec tsc --noEmit` → 0 errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-executor.test.ts tests/evolution/execution/capability-mutation-executor-helpers.test.ts
+git add src/planning/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-executor.test.ts tests/evolution/execution/capability-mutation-executor-helpers.test.ts
 git commit -m "feat(capability): CAP-6 executor infra + capability.create path"
 ```
 
@@ -554,7 +554,7 @@ git commit -m "feat(capability): CAP-6 executor infra + capability.create path"
 ### Task 2: `capability.update` path
 
 **Files:**
-- Modify: `src/evolution/execution/capability-mutation-executor.ts` (replace `executeUpdate` stub; add `capability.restore_update` to `createCapabilityRollbackResolver`; export `nextDefinitionForUpdate` helper)
+- Modify: `src/planning/evolution/execution/capability-mutation-executor.ts` (replace `executeUpdate` stub; add `capability.restore_update` to `createCapabilityRollbackResolver`; export `nextDefinitionForUpdate` helper)
 - Modify: `tests/evolution/execution/capability-mutation-executor.test.ts` (add `describe("update")`)
 
 **Interfaces:**
@@ -571,8 +571,8 @@ git commit -m "feat(capability): CAP-6 executor infra + capability.create path"
 Append to `tests/evolution/execution/capability-mutation-executor.test.ts`:
 
 ```ts
-import { classifyUpdateBump } from "../../../src/capability/mutation-contract.js";
-import { nextDefinitionForUpdate } from "../../../src/evolution/execution/capability-mutation-executor.js";
+import { classifyUpdateBump } from "../../../src/capabilities/capability/mutation-contract.js";
+import { nextDefinitionForUpdate } from "../../../src/planning/evolution/execution/capability-mutation-executor.js";
 
 describe("CapabilityMutationExecutor — update", () => {
   let dir: string; let catalog: CapabilityCatalog; let registry: CapabilityRegistry;
@@ -773,7 +773,7 @@ Expected: PASS. Then `pnpm exec tsc --noEmit` → 0 errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-executor.test.ts
+git add src/planning/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-executor.test.ts
 git commit -m "feat(capability): CAP-6 capability.update path — immutable publication + executor-classified bump"
 ```
 
@@ -783,7 +783,7 @@ git commit -m "feat(capability): CAP-6 capability.update path — immutable publ
 ### Task 3: `capability.transition` path
 
 **Files:**
-- Modify: `src/evolution/execution/capability-mutation-executor.ts` (replace `executeTransition` stub; `capability.restore_transition` already registered in Task 1; add `handleRestoreStep`)
+- Modify: `src/planning/evolution/execution/capability-mutation-executor.ts` (replace `executeTransition` stub; `capability.restore_transition` already registered in Task 1; add `handleRestoreStep`)
 - Modify: `tests/evolution/execution/capability-mutation-executor.test.ts` (add `describe("transition")`)
 
 **Interfaces:**
@@ -890,7 +890,7 @@ Expected: PASS. Then `pnpm exec tsc --noEmit` → 0 errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-executor.test.ts
+git add src/planning/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-executor.test.ts
 git commit -m "feat(capability): CAP-6 capability.transition path — stale-decision precondition"
 ```
 
@@ -900,7 +900,7 @@ git commit -m "feat(capability): CAP-6 capability.transition path — stale-deci
 ### Task 4: `capability.consolidate` path
 
 **Files:**
-- Modify: `src/evolution/execution/capability-mutation-executor.ts` (replace `executeConsolidate` stub; add `capability.restore_consolidate` to the rollback resolver)
+- Modify: `src/planning/evolution/execution/capability-mutation-executor.ts` (replace `executeConsolidate` stub; add `capability.restore_consolidate` to the rollback resolver)
 - Modify: `tests/evolution/execution/capability-mutation-executor.test.ts` (add `describe("consolidate")`)
 
 **Interfaces:**
@@ -917,7 +917,7 @@ git commit -m "feat(capability): CAP-6 capability.transition path — stale-deci
 Append to `tests/evolution/execution/capability-mutation-executor.test.ts`:
 
 ```ts
-import { validateConsolidateMerge } from "../../../src/capability/mutation-contract.js";
+import { validateConsolidateMerge } from "../../../src/capabilities/capability/mutation-contract.js";
 
 describe("CapabilityMutationExecutor — consolidate", () => {
   let dir: string; let catalog: CapabilityCatalog; let registry: CapabilityRegistry;
@@ -1157,7 +1157,7 @@ Expected: PASS. Then `pnpm exec tsc --noEmit` → 0 errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-executor.test.ts
+git add src/planning/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-executor.test.ts
 git commit -m "feat(capability): CAP-6 capability.consolidate path — source-aware merge + disposition"
 ```
 
@@ -1167,7 +1167,7 @@ git commit -m "feat(capability): CAP-6 capability.consolidate path — source-aw
 ### Task 5: `capability.remove` path
 
 **Files:**
-- Modify: `src/evolution/execution/capability-mutation-executor.ts` (replace `executeRemove` stub; add `capability.restore_remove` to the rollback resolver)
+- Modify: `src/planning/evolution/execution/capability-mutation-executor.ts` (replace `executeRemove` stub; add `capability.restore_remove` to the rollback resolver)
 - Modify: `tests/evolution/execution/capability-mutation-executor.test.ts` (add `describe("remove")`)
 
 **Interfaces:**
@@ -1292,7 +1292,7 @@ Expected: PASS. Then `pnpm exec tsc --noEmit` → 0 errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-executor.test.ts
+git add src/planning/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-executor.test.ts
 git commit -m "feat(capability): CAP-6 capability.remove path — terminal removal + full pre-state capture"
 ```
 
@@ -1302,7 +1302,7 @@ git commit -m "feat(capability): CAP-6 capability.remove path — terminal remov
 ### Task 6: Atomicity matrix + immutable artifact hardening
 
 **Files:**
-- Modify: `src/evolution/execution/capability-mutation-executor.ts` (add `handleRestoreStep` — in-plan `capability.restore_*` handling; ensure restore is idempotent across a mid-plan failure)
+- Modify: `src/planning/evolution/execution/capability-mutation-executor.ts` (add `handleRestoreStep` — in-plan `capability.restore_*` handling; ensure restore is idempotent across a mid-plan failure)
 - Modify: `tests/evolution/execution/capability-mutation-executor.test.ts` (add `describe("atomicity")` and `describe("immutability")`)
 - Test: `tests/evolution/execution/capability-mutation-atomicity.test.ts` (dedicated byte-identical matrix)
 
@@ -1327,12 +1327,12 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CapabilityCatalog } from "../../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../../src/capability/registry.js";
-import { CapabilityMutationExecutor } from "../../../src/evolution/execution/capability-mutation-executor.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
-import type { CapabilityMutation, ExecutionStep } from "../../../src/evolution/execution/contracts/execution-contract.js";
+import { CapabilityCatalog } from "../../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../../src/capabilities/capability/registry.js";
+import { CapabilityMutationExecutor } from "../../../src/planning/evolution/execution/capability-mutation-executor.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
+import type { CapabilityMutation, ExecutionStep } from "../../../src/planning/evolution/execution/contracts/execution-contract.js";
 
 function def(id = "tool.file.read", overrides: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return { id, version: "1.0.0", kind: "operation", title: "Read file", description: "read", tags: ["file"], category: "files", risk: "low", requiredPermissions: ["operator"], dependencies: [], bindings: [{ type: "tool", id: "tool-1" }], ...overrides };
@@ -1523,7 +1523,7 @@ Expected: PASS. Then `pnpm exec tsc --noEmit` → 0 errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-atomicity.test.ts tests/evolution/execution/capability-mutation-executor.test.ts
+git add src/planning/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/capability-mutation-atomicity.test.ts tests/evolution/execution/capability-mutation-executor.test.ts
 git commit -m "feat(capability): CAP-6 atomicity matrix + immutable frozen artifacts + in-plan restore"
 ```
 
@@ -1533,15 +1533,15 @@ git commit -m "feat(capability): CAP-6 atomicity matrix + immutable frozen artif
 ### Task 7: Rollback re-homing + barrel export + full-suite verification
 
 **Files:**
-- Modify: `src/evolution/execution/execution-planner.ts` (remove the `capability.transition` registration at 173-183 from `createDefaultRollbackResolver`; update the comment to note legacy consumers use `createCapabilityRollbackResolver`)
-- Modify: `src/evolution/capability-lifecycle/capability-lifecycle-applier.ts` (repoint resolver: `createDefaultRollbackResolver()` → `createCapabilityRollbackResolver()`)
-- Modify: `src/evolution/execution/index.ts` (add `export * from "./capability-mutation-executor.js";`)
+- Modify: `src/planning/evolution/execution/execution-planner.ts` (remove the `capability.transition` registration at 173-183 from `createDefaultRollbackResolver`; update the comment to note legacy consumers use `createCapabilityRollbackResolver`)
+- Modify: `src/planning/evolution/capability-lifecycle/capability-lifecycle-applier.ts` (repoint resolver: `createDefaultRollbackResolver()` → `createCapabilityRollbackResolver()`)
+- Modify: `src/planning/evolution/execution/index.ts` (add `export * from "./capability-mutation-executor.js";`)
 - Modify: `tests/evolution/execution/execution-planner.test.ts` (if any test referenced the removed registration — verify none do for `capability.transition`, else update)
 - Test: `tests/evolution/execution/capability-mutation-rollback.test.ts` (new — assert the re-homed resolver emits all five mappings and the applier still produces automatic transition rollback)
 
 **Interfaces:**
 - Consumes: `createCapabilityRollbackResolver` (Task 1-5), `createDefaultRollbackResolver` (planner), `CapabilityLifecycleApplier` (legacy).
-- Produces: the executor barrel-exported from `src/evolution/execution/index.ts`; the planner no longer owns `capability.*` rollback semantics; the legacy applier's plans keep automatic safe transition rollback.
+- Produces: the executor barrel-exported from `src/planning/evolution/execution/index.ts`; the planner no longer owns `capability.*` rollback semantics; the legacy applier's plans keep automatic safe transition rollback.
 
 **Design contract (the "re-home" — program spec CAP-6):**
 - `createDefaultRollbackResolver` loses its `capability.transition` → `capability.restore_transition` registration (execution-planner.ts:173-183). The mapping lives ONLY in the executor's `createCapabilityRollbackResolver()`. The planner stays generic (upgrade_agent_runtime + update_configuration + manual fallback).
@@ -1555,9 +1555,9 @@ git commit -m "feat(capability): CAP-6 atomicity matrix + immutable frozen artif
 ```ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createCapabilityRollbackResolver } from "../../../src/evolution/execution/capability-mutation-executor.js";
-import { createDefaultRollbackResolver } from "../../../src/evolution/execution/execution-planner.js";
-import type { ExecutionStep } from "../../../src/evolution/execution/contracts/execution-contract.js";
+import { createCapabilityRollbackResolver } from "../../../src/planning/evolution/execution/capability-mutation-executor.js";
+import { createDefaultRollbackResolver } from "../../../src/planning/evolution/execution/execution-planner.js";
+import type { ExecutionStep } from "../../../src/planning/evolution/execution/contracts/execution-contract.js";
 
 function s(op: string, params: Record<string, unknown>, idempotent = false): ExecutionStep {
   return { stepId: "s1", operation: op, parameters: params, idempotent, preconditions: {}, postconditions: {} };
@@ -1591,8 +1591,8 @@ describe("capability rollback re-homing", () => {
 
   it("the legacy applier still produces automatic transition rollback (repointed)", async () => {
     // Regression: applier plans for a deprecate must carry capability.restore_transition.
-    const applierModule = await import("../../../src/evolution/capability-lifecycle/capability-lifecycle-applier.js");
-    const { CapabilityLifecycleStepExecutor } = await import("../../../src/evolution/capability-lifecycle/capability-lifecycle-step-executor.js");
+    const applierModule = await import("../../../src/planning/evolution/capability-lifecycle/capability-lifecycle-applier.js");
+    const { CapabilityLifecycleStepExecutor } = await import("../../../src/planning/evolution/capability-lifecycle/capability-lifecycle-step-executor.js");
     assert.ok(applierModule.CapabilityLifecycleApplier);
     assert.ok(CapabilityLifecycleStepExecutor);
     // The applier's deps.resolver is now createCapabilityRollbackResolver — assert the
@@ -1636,7 +1636,7 @@ to:
 const resolver = this.deps.resolver ?? createCapabilityRollbackResolver();
 ```
 
-In `src/evolution/execution/index.ts`, add `export * from "./capability-mutation-executor.js";`.
+In `src/planning/evolution/execution/index.ts`, add `export * from "./capability-mutation-executor.js";`.
 
 Check `tests/evolution/execution/execution-planner.test.ts` — the `createDefaultRollbackResolver` describe block tests only upgrade_agent_runtime / update_configuration / unknown fallback (verified in the pre-plan survey: no `capability.transition` assertion). If any test asserts the removed mapping, update it to assert the manual fallback instead.
 
@@ -1656,7 +1656,7 @@ Expected: only the known pre-existing CI failures (`supply-chain`/`unit`/`tui-sm
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/execution/execution-planner.ts src/evolution/capability-lifecycle/capability-lifecycle-applier.ts src/evolution/execution/index.ts tests/evolution/execution/capability-mutation-rollback.test.ts tests/evolution/execution/execution-planner.test.ts
+git add src/planning/evolution/execution/execution-planner.ts src/planning/evolution/capability-lifecycle/capability-lifecycle-applier.ts src/planning/evolution/execution/index.ts tests/evolution/execution/capability-mutation-rollback.test.ts tests/evolution/execution/execution-planner.test.ts
 git commit -m "refactor(capability): CAP-6 re-home capability.* rollback mappings into executor + barrel export"
 ```
 
@@ -1669,7 +1669,7 @@ git commit -m "refactor(capability): CAP-6 re-home capability.* rollback mapping
 - Test: `tests/evolution/execution/integration/capability-mutation-executor-integration.test.ts` (new, node:test)
 
 **Interfaces:**
-- Consumes: `authorizeExecution`, `createExecutionPlan`, `GovernedExecutionRuntime`, `CapabilityMutationExecutor`, `createCapabilityRollbackResolver`, `toCapabilityMutationChange`, `buildExecutionEvidence`; `CapabilityCatalog`/`CapabilityRegistry`; `generateDecision`/`computeDecisionIntegrityHash` (from `src/evolution/governance/decision-engine.js` — see the closed-loop test's pattern).
+- Consumes: `authorizeExecution`, `createExecutionPlan`, `GovernedExecutionRuntime`, `CapabilityMutationExecutor`, `createCapabilityRollbackResolver`, `toCapabilityMutationChange`, `buildExecutionEvidence`; `CapabilityCatalog`/`CapabilityRegistry`; `generateDecision`/`computeDecisionIntegrityHash` (from `src/planning/evolution/governance/decision-engine.js` — see the closed-loop test's pattern).
 - Produces: an end-to-end proof of every AC in ticket #490: five mutations through A4; A4 gate verbatim; reject-no-mutation; rollback; immutable artifacts; no `APPROVED_PENDING_APPLICATION` dead-end; consolidation as a real definition mutation.
 
 **Design contract:**
@@ -1701,20 +1701,20 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CapabilityCatalog } from "../../../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../../../src/capability/registry.js";
-import { authorizeExecution } from "../../../../src/evolution/execution/execution-authorization.js";
-import { createExecutionPlan } from "../../../../src/evolution/execution/execution-planner.js";
-import { GovernedExecutionRuntime } from "../../../../src/evolution/execution/execution-runtime.js";
-import { buildExecutionEvidence } from "../../../../src/evolution/execution/execution-evidence-bridge.js";
-import { CapabilityMutationExecutor, createCapabilityRollbackResolver, toCapabilityMutationChange } from "../../../../src/evolution/execution/capability-mutation-executor.js";
-import { computeDecisionIntegrityHash } from "../../../../src/evolution/governance/decision-engine.js";
-import type { GovernanceDecision } from "../../../../src/evolution/governance/contracts/decision-contract.js";
-import type { EvolutionProposal } from "../../../../src/evolution/contracts/evolution-contract.js";
-import type { ExecutionEnvironment, ExecutionRequest, EvolutionExecutionEvidence } from "../../../../src/evolution/execution/contracts/execution-contract.js";
-import type { CapabilityMutation } from "../../../../src/capability/mutation-contract.js";
-import type { CapabilityDefinition } from "../../../../src/capability/canonical/definition.js";
+import { CapabilityCatalog } from "../../../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../../../src/capabilities/capability/registry.js";
+import { authorizeExecution } from "../../../../src/planning/evolution/execution/execution-authorization.js";
+import { createExecutionPlan } from "../../../../src/planning/evolution/execution/execution-planner.js";
+import { GovernedExecutionRuntime } from "../../../../src/planning/evolution/execution/execution-runtime.js";
+import { buildExecutionEvidence } from "../../../../src/planning/evolution/execution/execution-evidence-bridge.js";
+import { CapabilityMutationExecutor, createCapabilityRollbackResolver, toCapabilityMutationChange } from "../../../../src/planning/evolution/execution/capability-mutation-executor.js";
+import { computeDecisionIntegrityHash } from "../../../../src/planning/evolution/governance/decision-engine.js";
+import type { GovernanceDecision } from "../../../../src/planning/evolution/governance/contracts/decision-contract.js";
+import type { EvolutionProposal } from "../../../../src/planning/evolution/contracts/evolution-contract.js";
+import type { ExecutionEnvironment, ExecutionRequest, EvolutionExecutionEvidence } from "../../../../src/planning/evolution/execution/contracts/execution-contract.js";
+import type { CapabilityMutation } from "../../../../src/capabilities/capability/mutation-contract.js";
+import type { CapabilityDefinition } from "../../../../src/capabilities/capability/canonical/definition.js";
 
 function def(id: string, overrides: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return { id, version: "1.0.0", kind: "operation", title: `Cap ${id}`, description: "d", tags: [], category: "c", risk: "low", requiredPermissions: ["operator"], dependencies: [], bindings: [{ type: "tool", id: "tool-1" }], ...overrides };
@@ -1880,7 +1880,7 @@ Expected: PASS, 0 tsc errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/integration/capability-mutation-executor-integration.test.ts
+git add src/planning/evolution/execution/capability-mutation-executor.ts tests/evolution/execution/integration/capability-mutation-executor-integration.test.ts
 git commit -m "test(capability): CAP-6 full A4 flow integration — all five mutations + rollback + immutable artifacts"
 ```
 

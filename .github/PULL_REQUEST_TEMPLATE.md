@@ -36,7 +36,7 @@
 
 ## Route Registration (if adding/changing endpoints)
 
-<!-- Required if modifying anything in src/server/server.ts or route-policy.ts -->
+<!-- Required if modifying anything in src/interfaces/server/server.ts or route-policy.ts -->
 
 - [ ] New route has a unique, stable `RouteId`
 - [ ] Route descriptor in `route-policy.ts` matches handler in `server.ts`
@@ -47,7 +47,7 @@
 
 ## CLI Command Checklist (if adding/changing commands)
 
-<!-- Required if modifying src/cli.ts or src/cli/commands/ -->
+<!-- Required if modifying src/cli.ts or src/interfaces/cli/commands/ -->
 
 - [ ] `--json` flag supported for machine-readable output
 - [ ] Exit codes documented (0=success, non-zero=error)

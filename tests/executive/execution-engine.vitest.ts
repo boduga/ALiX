@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ExecutionEngine } from "../../src/executive/execution-engine.js";
-import type { PlanStore } from "../../src/executive/plan-store.js";
-import type { ExecutionStateStore } from "../../src/executive/execution-state-store.js";
-import type { StepRunner } from "../../src/executive/step-runner.js";
-import type { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import type { PersistedExecutionPlan, PlanExecutionState, ExecutiveStepExecutionResult } from "../../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../../src/executive/execution-plan-builder.js";
+import { ExecutionEngine } from "../../src/execution/executive/execution-engine.js";
+import type { PlanStore } from "../../src/execution/executive/plan-store.js";
+import type { ExecutionStateStore } from "../../src/execution/executive/execution-state-store.js";
+import type { StepRunner } from "../../src/execution/executive/step-runner.js";
+import type { EvidenceEventWriter } from "../../src/coordination/workflow/evidence-writer.js";
+import type { PersistedExecutionPlan, PlanExecutionState, ExecutiveStepExecutionResult } from "../../src/execution/executive/executive-plan-types.js";
+import type { ExecutionStep } from "../../src/execution/executive/execution-plan-builder.js";
 
 function makePlan(steps: Partial<ExecutionStep>[] = [{ id: "step-1", action: "diagnose_root_cause" }]): PersistedExecutionPlan {
   return {

@@ -3,13 +3,13 @@ import type {
   Forecast,
   Correlation,
   CapabilityMeasurementRecord,
-} from "../../src/evolution/forecast/contracts/contract.js";
+} from "../../src/planning/evolution/forecast/contracts/contract.js";
 import {
   FORECAST_VERSION,
   CORRELATION_VERSION,
   GENERATOR_VERSION,
   FORECAST_HORIZON_DAYS,
-} from "../../src/evolution/forecast/contracts/contract.js";
+} from "../../src/planning/evolution/forecast/contracts/contract.js";
 
 // ---------------------------------------------------------------------------
 // Type-level guard helpers

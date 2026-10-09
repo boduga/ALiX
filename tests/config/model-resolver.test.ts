@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createModelResolver } from "../../src/config/model-resolver.js";
-import type { AlixConfig, ModelsConfig } from "../../src/config/schema.js";
+import { createModelResolver } from "../../src/operations/config/model-resolver.js";
+import type { AlixConfig, ModelsConfig } from "../../src/operations/config/schema.js";
 
 function config(models: ModelsConfig | undefined): AlixConfig {
   return { models } as AlixConfig;

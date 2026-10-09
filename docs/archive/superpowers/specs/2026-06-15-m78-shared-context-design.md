@@ -169,16 +169,16 @@ The manifest is persisted to `.alix/coordination/shared/<runId>/manifests/<worke
 ## 8. File structure
 
 ### Create (M0.78a–d)
-- `src/kernel/collaboration-types.ts` — `SharedFinding`, `SharedArtifact`, `WorkerContextManifest`, `FindingConflict`, filtering types
-- `src/kernel/collaboration-store.ts` — `CollaborationStore` with lock-safe CRUD
-- `src/kernel/worker-collaboration-api.ts` — `WorkerCollaborationAPI` interface
-- `src/kernel/collaboration-context-builder.ts` — builds context for a worker from dependency results + shared findings
+- `src/coordination/kernel/collaboration-types.ts` — `SharedFinding`, `SharedArtifact`, `WorkerContextManifest`, `FindingConflict`, filtering types
+- `src/coordination/kernel/collaboration-store.ts` — `CollaborationStore` with lock-safe CRUD
+- `src/coordination/kernel/worker-collaboration-api.ts` — `WorkerCollaborationAPI` interface
+- `src/coordination/kernel/collaboration-context-builder.ts` — builds context for a worker from dependency results + shared findings
 - `tests/kernel/collaboration-store.test.ts`
 - `tests/kernel/collaboration-context-builder.test.ts`
 
 ### Modify
-- `src/kernel/worker-executor.ts` — add `WorkerCollaborationAPI` to context
-- `src/kernel/coordination-scheduler.ts` — build and inject context before dispatch
+- `src/coordination/kernel/worker-executor.ts` — add `WorkerCollaborationAPI` to context
+- `src/coordination/kernel/coordination-scheduler.ts` — build and inject context before dispatch
 
 ## 9. Implementation order (M0.78a–d only)
 

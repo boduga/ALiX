@@ -8,8 +8,8 @@
  */
 
 import { VALIDATION_CASES, VALIDATION_THRESHOLDS } from "./validation-cases.js";
-import type { ModelRoutingResult } from "../src/kernel/model-routing-validation.js";
-import { summarizeRoutingResults } from "../src/kernel/model-routing-validation.js";
+import type { ModelRoutingResult } from "../src/coordination/kernel/model-routing-validation.js";
+import { summarizeRoutingResults } from "../src/coordination/kernel/model-routing-validation.js";
 
 interface TierTest {
   name: string;

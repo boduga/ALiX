@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ReplayDiffStore, isRollbackable } from "../../src/runtime/replay-diff-store.js";
+import { ReplayDiffStore, isRollbackable } from "../../src/runtime-state/runtime/replay-diff-store.js";
 
 describe("ReplayDiffStore", () => {
   let tmpDir: string;

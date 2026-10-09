@@ -37,28 +37,28 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { registerInitialCapabilities } from "../../src/capability/initial-capabilities.js";
-import { registerSessionCapabilities } from "../../src/integrations/session-capabilities.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityService } from "../../src/capability/capability-service.js";
-import { CapabilityProposalGenerator } from "../../src/capability/evolution/proposals.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { registerInitialCapabilities } from "../../src/capabilities/capability/initial-capabilities.js";
+import { registerSessionCapabilities } from "../../src/capabilities/integrations/session-capabilities.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityService } from "../../src/capabilities/capability/capability-service.js";
+import { CapabilityProposalGenerator } from "../../src/capabilities/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
-} from "../../src/capability/evolution/proposals.js";
+} from "../../src/capabilities/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionCandidate,
-} from "../../src/adaptation/capability-evolution-types.js";
+} from "../../src/planning/adaptation/capability-evolution-types.js";
 import type {
   CapabilityDefinitionPatch,
-} from "../../src/capability/mutation-contract.js";
-import type { ExecutionStep } from "../../src/evolution/execution/contracts/execution-contract.js";
-import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
-import type { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import type { CapabilityResolver } from "../../src/capability/provider-resolver.js";
-import type { CapabilityServiceOptions } from "../../src/capability/types/service-results.js";
+} from "../../src/capabilities/capability/mutation-contract.js";
+import type { ExecutionStep } from "../../src/planning/evolution/execution/contracts/execution-contract.js";
+import type { CapabilityMutationExecutor } from "../../src/planning/evolution/execution/capability-mutation-executor.js";
+import type { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import type { CapabilityResolver } from "../../src/capabilities/capability/provider-resolver.js";
+import type { CapabilityServiceOptions } from "../../src/capabilities/capability/types/service-results.js";
 
 // ---------------------------------------------------------------------------
 // Helpers — mirror cap-o-candidate-mapping.vitest.ts

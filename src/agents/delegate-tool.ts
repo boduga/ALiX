@@ -3,9 +3,9 @@
  * Returns findings as structured output.
  */
 import "crypto";
-import type { SubagentRole, SubagentTask, SubagentResult } from "../config/schema.js";
+import type { SubagentRole, SubagentTask, SubagentResult } from "../operations/config/schema.js";
 import type { SubagentManager } from "./subagent-manager.js";
-import type { ToolResult } from "../tools/types.js";
+import type { ToolResult } from "../capabilities/tools/types.js";
 import { classifyTask } from "../task-classifier.js";
 import { recommendRole } from "./role-mapper.js";
 

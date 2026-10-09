@@ -35,10 +35,10 @@ A8 detects organizational patterns across the proposal/measurement/recommendatio
 
 ### 4.1 Module structure (locked)
 
-A8 mirrors A6's `src/evolution/knowledge/` structure in `src/evolution/learning/`. The pattern is reused; the domain is independent.
+A8 mirrors A6's `src/planning/evolution/knowledge/` structure in `src/planning/evolution/learning/`. The pattern is reused; the domain is independent.
 
 ```
-src/evolution/learning/
+src/planning/evolution/learning/
 ├── contracts/
 │   └── learning-contract.ts — LearningFinding, LearningFindingKind, LearningProposal, LearningAdapter
 ├── detectors/
@@ -180,7 +180,7 @@ All 3 detectors are **pure functions** over normalized input. Each gets a determ
 
 Single namespace. The detector taxonomy is internal; the operator surface is `learn`. Output: the `LearningProposal` (or a "no findings" notice if no proposal was emitted). `--json` emits structured output for downstream tooling.
 
-CLI registration via the minimum existing CLI registration seam — A8 does NOT introduce a new CLI binary. The CLI registration touch is the only permitted modification outside `src/evolution/learning/` and A8-specific tests.
+CLI registration via the minimum existing CLI registration seam — A8 does NOT introduce a new CLI binary. The CLI registration touch is the only permitted modification outside `src/planning/evolution/learning/` and A8-specific tests.
 
 ## 5. Data flow
 
@@ -197,7 +197,7 @@ A8 never writes to EventLog, ProposalStore, or any other store. A8 is observatio
 
 ## 6. Composition root
 
-No new composition-root ownership. The 3 adapters are constructed by the composition root at `src/capability/platform.ts` (or equivalent) and passed to `LearningEngine` at construction. A8 does NOT introduce new persistent state.
+No new composition-root ownership. The 3 adapters are constructed by the composition root at `src/capabilities/capability/platform.ts` (or equivalent) and passed to `LearningEngine` at construction. A8 does NOT introduce new persistent state.
 
 ## 7. Migration boundary
 
@@ -269,11 +269,11 @@ Full test suite (A6 module + all CAP tests + A8 tests) must remain green. New te
 
 - Post-A8 wayfinder map #517 close-out (2026-08-14): `gh issue view 517 --comments`
 - A6 Knowledge Evolution spec: `docs/superpowers/specs/2026-08-10-a6-knowledge-evolution-design.md` (pattern template)
-- A6 implementation: `src/evolution/knowledge/` (architectural pattern, not domain types)
+- A6 implementation: `src/planning/evolution/knowledge/` (architectural pattern, not domain types)
 - A2.5 `GovernanceRecommendation`: `src/governance/governance-types.ts:172`
-- A3 `generateDecision`: `src/evolution/governance/decision-engine.ts:123`
-- EventLog event types: `src/capability/governance/governance-types.ts:99-103`
-- `EnrichedProposal`: `src/adaptation/intelligence-types.ts`; aggregated by `src/adaptation/bucket-aggregator.ts`
+- A3 `generateDecision`: `src/planning/evolution/governance/decision-engine.ts:123`
+- EventLog event types: `src/capabilities/capability/governance/governance-types.ts:99-103`
+- `EnrichedProposal`: `src/planning/adaptation/intelligence-types.ts`; aggregated by `src/planning/adaptation/bucket-aggregator.ts`
 - A-series lineage: `docs/architecture/ma0-alix-architecture-2-0.md` §A0-A9; `docs/roadmap/a-series-autonomous-evolution.md`
 - A6 knowledge evolution memory: `~/.claude/projects/-home-babasola-Projects-Monolith/memory/a7-0-marketing-complete.md`
 - A6 application memory: `~/.claude/projects/-home-babasola-Projects-Monolith/memory/a7-1-application-merged.md`

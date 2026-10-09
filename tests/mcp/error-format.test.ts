@@ -1,8 +1,8 @@
 // tests/mcp/error-format.test.ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatMcpError, classifyMcpError, jsonRpcError, type McpError } from "../../src/mcp/error-format.js";
-import type { JsonRpcResponse, JsonRpcNotification } from "../../src/mcp/types.js";
+import { formatMcpError, classifyMcpError, jsonRpcError, type McpError } from "../../src/capabilities/mcp/error-format.js";
+import type { JsonRpcResponse, JsonRpcNotification } from "../../src/capabilities/mcp/types.js";
 
 describe("formatMcpError", () => {
   it("formats connection refused", () => {

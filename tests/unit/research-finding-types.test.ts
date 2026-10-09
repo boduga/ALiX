@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { SubagentFinding, WebSourceFinding, SynthesisFinding } from "../../src/config/schema.js";
+import { SubagentFinding, WebSourceFinding, SynthesisFinding } from "../../src/operations/config/schema.js";
 
 describe("ResearchFinding types", () => {
   it("WebSourceFinding has required fields", () => {

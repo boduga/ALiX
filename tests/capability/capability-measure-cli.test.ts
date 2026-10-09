@@ -24,12 +24,12 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { CapabilityMeasurement } from "../../src/evolution/observation/capability-measurement.js";
-import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import { EventLog } from "../../src/events/event-log.js";
-import { capabilityMeasureCommand } from "../../src/cli/commands/capability-measure.js";
-import type { ProposalSignalSink, ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/proposals.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { CapabilityMeasurement } from "../../src/planning/evolution/observation/capability-measurement.js";
+import { ObservationEngine } from "../../src/planning/evolution/observation/observation-engine.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { capabilityMeasureCommand } from "../../src/interfaces/cli/commands/capability-measure.js";
+import type { ProposalSignalSink, ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/proposals.js";
 
 /** CAP-10.5 — sink+source fake for tests; implements both contracts so a
  *  single instance can stand in for either side of the channel. */

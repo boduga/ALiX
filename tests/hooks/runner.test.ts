@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { runHook } from "../../src/hooks/runner.js";
-import type { Hook } from "../../src/hooks/discover.js";
+import { runHook } from "../../src/operations/hooks/runner.js";
+import type { Hook } from "../../src/operations/hooks/discover.js";
 
 describe("runHook", () => {
   it("returns passed=true when command exits with code 0", async () => {

@@ -4,9 +4,9 @@ import {
   computeStepTransition,
   planChildReconciliation,
   orchestrationSequence,
-} from "../../src/executive/executive-orchestrator.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
-import type { PlanExecutionState } from "../../src/executive/executive-plan-types.js";
+} from "../../src/execution/executive/executive-orchestrator.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
+import type { PlanExecutionState } from "../../src/execution/executive/executive-plan-types.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -206,7 +206,7 @@ describe("ExecutiveOrchestrator", () => {
     const writer = { recordExecutiveStepOrchestrated: vi.fn() } as any;
 
     const { ExecutiveOrchestrator } = await import(
-      "../../src/executive/executive-orchestrator.js"
+      "../../src/execution/executive/executive-orchestrator.js"
     );
     const orchestrator = new ExecutiveOrchestrator(stateStore, engine, writer);
     await expect(orchestrator.onProposalTerminal(proposal)).resolves.toBeUndefined();

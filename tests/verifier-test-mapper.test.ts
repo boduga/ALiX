@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { mapFilesToTests } from "../src/verifier/test-mapper.js";
+import { mapFilesToTests } from "../src/execution/verifier/test-mapper.js";
 
 describe("mapFilesToTests", () => {
   it("maps src file to matching test file", async () => {

@@ -10,7 +10,7 @@ import { execSync } from "node:child_process";
  *  CAP-6/CAP-7 supersession test pattern.
  *
  *  Brief-verbatim bug fixed inline: the TUI façade
- *  `src/tui/capabilities/capability-service.ts` was modified by Task 7 to
+ *  `src/interfaces/tui/capabilities/capability-service.ts` was modified by Task 7 to
  *  satisfy locked ruling #12 (mandatory `eventLog` wiring through every
  *  `new CapabilityPlatform(...)` site). The file is otherwise forbidden as
  *  CAP-11 migration debt; the ruling-12 forced wiring is tracked as an
@@ -18,10 +18,10 @@ import { execSync } from "node:child_process";
  *  forbidden path was touched) is preserved verbatim. */
 
 const FORBIDDEN = [
-  "src/capability/initial-capabilities.ts",
-  "src/tools/tool-registry.ts",
-  "src/policy/capability-registry.ts",
-  "src/tui/capabilities/capability-service.ts",
+  "src/capabilities/capability/initial-capabilities.ts",
+  "src/capabilities/tools/tool-registry.ts",
+  "src/governance/policy/capability-registry.ts",
+  "src/interfaces/tui/capabilities/capability-service.ts",
 ];
 
 /** Files that are otherwise forbidden BUT had a small, justified wiring
@@ -35,7 +35,7 @@ const ALLOWED_BUT_TRACKED = new Set<string>([
   // is small (constructor: import + 3-line `eventLog ?? new EventLog(cwd)`
   // plumbing); no behavioural divergence. CAP-11 owns the broader
   // TUI-façade migration.
-  "src/tui/capabilities/capability-service.ts",
+  "src/interfaces/tui/capabilities/capability-service.ts",
   // TUI evolution tab — narrowed `registerInitialCapabilities`'s `reg`
   // parameter from `CapabilityRegistry` to `Pick<CapabilityRegistry, 'register'>`
   // so the TUI façade can route capability registration through the platform's
@@ -43,14 +43,14 @@ const ALLOWED_BUT_TRACKED = new Set<string>([
   // The function only ever calls `reg.register(cap)`, so this is a pure
   // interface narrowing: no behavioural divergence, no legacy-surface
   // resurrection (CAP-11 already superseded this file).
-  "src/capability/initial-capabilities.ts",
+  "src/capabilities/capability/initial-capabilities.ts",
   // Tool/Capability Taxonomy Unification — this plan intentionally rewrites
-  // `src/tools/tool-registry.ts` (canonical tool-metadata source) and deletes
-  // `src/policy/capability-registry.ts` (dead policy registry). Explicit
+  // `src/capabilities/tools/tool-registry.ts` (canonical tool-metadata source) and deletes
+  // `src/governance/policy/capability-registry.ts` (dead policy registry). Explicit
   // supersession precedent (CAP-8 pattern): intentional supersession, not
   // test weakening.
-  "src/tools/tool-registry.ts",
-  "src/policy/capability-registry.ts",
+  "src/capabilities/tools/tool-registry.ts",
+  "src/governance/policy/capability-registry.ts",
 ]);
 
 function changedFiles(): string[] {
@@ -82,12 +82,12 @@ describe("CAP-8 supersession — forbidden-file guard", () => {
     const changed = changedFiles();
     const canonicalHits = changed.filter(
       (p) =>
-        p.startsWith("src/capability/canonical/") && !ALLOWED_BUT_TRACKED.has(p),
+        p.startsWith("src/capabilities/capability/canonical/") && !ALLOWED_BUT_TRACKED.has(p),
     );
     assert.equal(
       canonicalHits.length,
       0,
-      `CAP-8 must not touch src/capability/canonical/* — found: ${canonicalHits.join(", ")}`,
+      `CAP-8 must not touch src/capabilities/capability/canonical/* — found: ${canonicalHits.join(", ")}`,
     );
   });
 

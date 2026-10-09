@@ -12,12 +12,12 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ExecutionEvidenceStore, computeEvidenceChecksum } from "../../../src/runtime/execution-evidence-store.js";
+import { ExecutionEvidenceStore, computeEvidenceChecksum } from "../../../src/runtime-state/runtime/execution-evidence-store.js";
 import { FileAuditStore } from "../../../src/governance/audit-store.js";
-import { EvolutionStateMachine } from "../../../src/evolution/evolution-state-machine.js";
-import { EvolutionState } from "../../../src/evolution/contracts/evolution-contract.js";
-import { runDiscoverCli } from "../../../src/evolution/pattern-discovery/discovery-cli.js";
-import type { ExecutionEvidence } from "../../../src/runtime/contracts/execution-intent-contract.js";
+import { EvolutionStateMachine } from "../../../src/planning/evolution/evolution-state-machine.js";
+import { EvolutionState } from "../../../src/planning/evolution/contracts/evolution-contract.js";
+import { runDiscoverCli } from "../../../src/planning/evolution/pattern-discovery/discovery-cli.js";
+import type { ExecutionEvidence } from "../../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 
 function evidence(id: string, outcome: "FAILED" | "SUCCESS", dayOffset: number): ExecutionEvidence {
   const day = (offset: number): string => {

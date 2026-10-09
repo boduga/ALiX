@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog, EventLogCursorError } from '../../src/events/event-log.js';
-import type { EventLogCursor } from '../../src/events/event-log.js';
+import { EventLog, EventLogCursorError } from '../../src/runtime-state/events/event-log.js';
+import type { EventLogCursor } from '../../src/runtime-state/events/event-log.js';
 
 async function makeLog(): Promise<EventLog> {
   const dir = mkdtempSync(join(tmpdir(), 'alix-evt-'));

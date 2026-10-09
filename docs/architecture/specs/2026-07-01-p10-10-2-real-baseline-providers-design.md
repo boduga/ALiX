@@ -120,7 +120,7 @@ Named `MemoryHealthProvider` rather than `MemoryBaselineProvider` to reflect its
 
 ### Data sources
 
-Reads from Executive memory health adapters (`src/executive/adapters/memory-health.ts`). This is the only Executive dependency — the adapter is a pure data collector, not orchestration.
+Reads from Executive memory health adapters (`src/execution/executive/adapters/memory-health.ts`). This is the only Executive dependency — the adapter is a pure data collector, not orchestration.
 
 ### Metrics
 
@@ -149,12 +149,12 @@ Because Memory is ephemeral, baseline resets on process restart. The first compa
 ## 6. File Map
 
 ```
-src/baseline/providers/
+src/context/baseline/providers/
   governance-provider.ts    — GovernanceBaselineProvider (reads .alix/governance/)
   memory-health-provider.ts — MemoryHealthProvider (reads memory health)
   demo-provider.ts          — unchanged (kept as fixture)
 
-src/baseline/
+src/context/baseline/
   baseline-registry.ts      — factory updated: register Demo + Governance + MemoryHealth
 ```
 
@@ -177,7 +177,7 @@ src/baseline/
 ## 8. Hard Boundaries
 
 - Governance provider must not import Executive types
-- Memory provider may import `src/executive/adapters/memory-health` only
+- Memory provider may import `src/execution/executive/adapters/memory-health` only
 - No changes to `baseline-comparator.ts`, `health-score.ts`, `baseline-registry.ts` API surface
 - Sentinels updated to allow the memory adapter import (narrow exception)
 

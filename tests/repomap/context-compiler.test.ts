@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { mkdirSync, readFileSync, writeFileSync, rmSync, utimesSync } from "node:fs";
 import { join } from "node:path";
-import { ContextCompiler, _clearCacheForTesting } from "../../src/repomap/context-compiler.js";
+import { ContextCompiler, _clearCacheForTesting } from "../../src/context/repomap/context-compiler.js";
 
 describe("ContextCompiler", () => {
   const tmpDir = join("/tmp", `context-compiler-test-${Date.now()}`);

@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleGovernancePolicyReviewOutcomeCommand } from "../../src/cli/commands/governance-policy-review-outcome.js";
+import { handleGovernancePolicyReviewOutcomeCommand } from "../../src/interfaces/cli/commands/governance-policy-review-outcome.js";
 
 let tmpDir: string;
 

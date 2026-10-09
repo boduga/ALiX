@@ -8,9 +8,9 @@
  */
 import { describe, it, expect } from "vitest";
 import { createHash } from "node:crypto";
-import { CORE_TOOL_NAMES, scopeToolsByTask } from "../../src/config/tool-scoping.js";
-import type { ToolDef } from "../../src/providers/types.js";
-import type { DeferredToolEntry } from "../../src/mcp/tool-deferral.js";
+import { CORE_TOOL_NAMES, scopeToolsByTask } from "../../src/operations/config/tool-scoping.js";
+import type { ToolDef } from "../../src/models/providers/types.js";
+import type { DeferredToolEntry } from "../../src/capabilities/mcp/tool-deferral.js";
 
 function tool(name: string, description: string): ToolDef {
   return { name, description, input_schema: { type: "object", properties: {} } };

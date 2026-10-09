@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { CapabilityProjection } from '../../../src/tui/runtime/capability-projection.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { CapabilityProjection } from '../../../src/interfaces/tui/runtime/capability-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 function evt(type: string, payload: Record<string, unknown>, seq: number, at = seq * 1000): AlixEvent {
   // capability.* events carry `at` in the payload; tool events carry `timestamp`.

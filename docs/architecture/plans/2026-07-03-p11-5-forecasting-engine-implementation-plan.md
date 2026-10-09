@@ -10,11 +10,11 @@
 
 ## Task 1 — Types and config
 
-**Files:** `src/forecasting/forecasting-types.ts`, `src/forecasting/forecasting-config.ts`, `src/forecasting/score-snapshot-adapter.ts`
+**Files:** `src/planning/forecasting/forecasting-types.ts`, `src/planning/forecasting/forecasting-config.ts`, `src/planning/forecasting/score-snapshot-adapter.ts`
 
 ### Steps
 
-1. Create `src/forecasting/forecasting-types.ts` with:
+1. Create `src/planning/forecasting/forecasting-types.ts` with:
    - `ScoreProjection` interface:
      - `targetSubsystem: CorrelationSubsystemId`
      - `currentScore: number`
@@ -52,12 +52,12 @@
      - `subsystemsForecast, highConfidenceForecasts, mediumConfidenceForecasts, lowConfidenceForecasts, forecastWindows`
    - `ForecasterError` class (extends Error, code `"FORECASTER_ERROR"`)
 
-2. Create `src/forecasting/score-snapshot-adapter.ts` with a simple v1 adapter implementing `ScoreSnapshotProvider`:
+2. Create `src/planning/forecasting/score-snapshot-adapter.ts` with a simple v1 adapter implementing `ScoreSnapshotProvider`:
    - `loadScoresAt(timestamp)` — loads a snapshot from the existing baseline/trend data; returns empty Map when no data is available
    - `loadCurrentScores()` — wraps existing P10.10 baseline providers or returns empty Map (stub for v1, same pattern as P11.4)
    - The adapter is a thin wrapper to keep the engine testable; real score history integration is deferred
 
-3. Create `src/forecasting/forecasting-config.ts` with `DEFAULT_FORECASTING_CONFIG` export
+3. Create `src/planning/forecasting/forecasting-config.ts` with `DEFAULT_FORECASTING_CONFIG` export
 
 ### Key design decisions
 
@@ -74,7 +74,7 @@
 
 ## Task 2 — Pure function: `buildHealthForecast()`
 
-**File:** `src/forecasting/build-health-forecast.ts`
+**File:** `src/planning/forecasting/build-health-forecast.ts`
 
 ### Steps
 
@@ -131,7 +131,7 @@ const effectiveConfidenceModel =
 
 ## Task 3 — Store: `HealthForecastStore`
 
-**File:** `src/forecasting/health-forecast-store.ts`
+**File:** `src/planning/forecasting/health-forecast-store.ts`
 
 ### Steps
 
@@ -171,7 +171,7 @@ const effectiveConfidenceModel =
 
 ## Task 4 — Engine orchestrator: `ForecastingEngine`
 
-**File:** `src/forecasting/forecasting-engine.ts`
+**File:** `src/planning/forecasting/forecasting-engine.ts`
 
 ### Steps
 
@@ -197,7 +197,7 @@ const effectiveConfidenceModel =
 
 ## Task 5 — CLI handler
 
-**File:** `src/cli/commands/executive-forecast-handler.ts`
+**File:** `src/interfaces/cli/commands/executive-forecast-handler.ts`
 
 ### Steps
 
@@ -218,8 +218,8 @@ const effectiveConfidenceModel =
 ### Verification
 
 - `npm run typecheck` passes
-- CLI smoke test: `npx tsx src/cli/alix.ts executive forecast --latest` prints helpful message
-- `npx tsx src/cli/alix.ts executive forecast --json --latest` outputs JSON
+- CLI smoke test: `npx tsx src/interfaces/cli/alix.ts executive forecast --latest` prints helpful message
+- `npx tsx src/interfaces/cli/alix.ts executive forecast --json --latest` outputs JSON
 
 ---
 

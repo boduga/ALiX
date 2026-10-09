@@ -27,7 +27,7 @@ These constraints apply to every task. Spec sections are referenced.
 - **ANSI escape ownership hierarchy:** views never write raw escapes; `ansi.ts` → `cursor.ts` → `render.ts` → `views`.
 - **Test framework:** vitest (`.vitest.ts`) for all new tests. Existing node:test files (`tests/tui/*.test.ts`) untouched unless explicitly named in a task.
 - **Uncommitted-WIP files MUST NOT be touched** (verified per-task via `git status --short` before each commit):
-  `AGENTS.md`, `docs/cli-reference.md`, `package.json`, `pnpm-lock.yaml`, `src/run/helpers.ts`, `src/server/server.ts`, `tests/server/auth-routes.test.ts`, `docs/plans/`, `docs/specs/`, `src/server/healthz-route.ts`.
+  `AGENTS.md`, `docs/cli-reference.md`, `package.json`, `pnpm-lock.yaml`, `src/execution/run/helpers.ts`, `src/interfaces/server/server.ts`, `tests/server/auth-routes.test.ts`, `docs/plans/`, `docs/specs/`, `src/interfaces/server/healthz-route.ts`.
 - **Build/test commands:** `pnpm build`, `pnpm typecheck`, `pnpm test:vitest -- <path>`, `pnpm test:vitest` (full).
 
 ---
@@ -36,24 +36,24 @@ These constraints apply to every task. Spec sections are referenced.
 
 | Path | Action | Purpose |
 |---|---|---|
-| `src/tui/state.ts` | create | `SessionPhase` enum, `TuiAppState`, `PerTabState`, `TabId` union |
-| `src/tui/snapshot.ts` | create | `DashboardSnapshot`, `SessionMetadata`, `ApprovalSnapshot`, `RuntimeSnapshot`, `SopSnapshot`, `PolicySnapshot` interfaces |
-| `src/tui/snapshot-builder.ts` | create | `SnapshotBuilder` class (async `build`, sync `buildSync`) |
-| `src/tui/daemon-metrics-collector.ts` | create | `DaemonMetricsCollector` + `DaemonMetricsSnapshot` + platform metrics reader |
-| `src/tui/views/types.ts` | create | `TuiView`, `ViewRenderContext`, `ViewInputContext`, `ViewRenderResult`, `ViewAction`, `TerminalDimensions` |
-| `src/tui/views/index.ts` | create | View registry (single source of truth for view IDs) |
-| `src/tui/views/chat-view.ts` | create | `ChatView` — input + 4-panel compact dashboard |
-| `src/tui/views/daemon-view.ts` | create | `DaemonView` — full daemon subsystem |
-| `src/tui/views/approvals-view.ts` | create | `ApprovalsView` — approval queue + detail + approve/deny keys |
-| `src/tui/views/runtime-view.ts` | create | `RuntimeView` — scrollable event stream + workflow state |
-| `src/tui/views/sops-view.ts` | create | `SopsView` — SOP list + search + detail |
-| `src/tui/views/policy-view.ts` | create | `PolicyView` — rules table + violations + search |
-| `src/tui/navigation.ts` | create | `Navigation` class: tab cycling, named-tab jumps, ESC → chat |
-| `src/tui/terminal-control.ts` | create | Raw mode attach/detach, alt-buffer enter/exit, SIGWINCH handler, emergency cleanup registry |
-| `src/tui/app.ts` | create | `TuiApp` class: lifecycle + refresh pump + input dispatch + tab routing |
-| `src/tui/render.ts` | modify (extend) | Add `Region` union, `FrameBuffer`, region repaint pump |
-| `src/cli/commands/tui.ts` | modify (refactor) | Becomes ~30-50 line bootstrap constructing `TuiApp` |
-| `src/agent/session.ts` | modify | Add `SessionPhase` enum field + transition emit points (5 transitions) |
+| `src/interfaces/tui/state.ts` | create | `SessionPhase` enum, `TuiAppState`, `PerTabState`, `TabId` union |
+| `src/interfaces/tui/snapshot.ts` | create | `DashboardSnapshot`, `SessionMetadata`, `ApprovalSnapshot`, `RuntimeSnapshot`, `SopSnapshot`, `PolicySnapshot` interfaces |
+| `src/interfaces/tui/snapshot-builder.ts` | create | `SnapshotBuilder` class (async `build`, sync `buildSync`) |
+| `src/interfaces/tui/daemon-metrics-collector.ts` | create | `DaemonMetricsCollector` + `DaemonMetricsSnapshot` + platform metrics reader |
+| `src/interfaces/tui/views/types.ts` | create | `TuiView`, `ViewRenderContext`, `ViewInputContext`, `ViewRenderResult`, `ViewAction`, `TerminalDimensions` |
+| `src/interfaces/tui/views/index.ts` | create | View registry (single source of truth for view IDs) |
+| `src/interfaces/tui/views/chat-view.ts` | create | `ChatView` — input + 4-panel compact dashboard |
+| `src/interfaces/tui/views/daemon-view.ts` | create | `DaemonView` — full daemon subsystem |
+| `src/interfaces/tui/views/approvals-view.ts` | create | `ApprovalsView` — approval queue + detail + approve/deny keys |
+| `src/interfaces/tui/views/runtime-view.ts` | create | `RuntimeView` — scrollable event stream + workflow state |
+| `src/interfaces/tui/views/sops-view.ts` | create | `SopsView` — SOP list + search + detail |
+| `src/interfaces/tui/views/policy-view.ts` | create | `PolicyView` — rules table + violations + search |
+| `src/interfaces/tui/navigation.ts` | create | `Navigation` class: tab cycling, named-tab jumps, ESC → chat |
+| `src/interfaces/tui/terminal-control.ts` | create | Raw mode attach/detach, alt-buffer enter/exit, SIGWINCH handler, emergency cleanup registry |
+| `src/interfaces/tui/app.ts` | create | `TuiApp` class: lifecycle + refresh pump + input dispatch + tab routing |
+| `src/interfaces/tui/render.ts` | modify (extend) | Add `Region` union, `FrameBuffer`, region repaint pump |
+| `src/interfaces/cli/commands/tui.ts` | modify (refactor) | Becomes ~30-50 line bootstrap constructing `TuiApp` |
+| `src/agents/agent/session.ts` | modify | Add `SessionPhase` enum field + transition emit points (5 transitions) |
 | `tests/tui/state.vitest.ts` | create | `SessionPhase` transitions + `PerTabState` JSON-serializability |
 | `tests/tui/snapshot-builder.vitest.ts` | create | Generation cancellation + failure isolation + immutability + `buildSync` no-I/O |
 | `tests/tui/daemon-metrics-collector.vitest.ts` | create | Dead-daemon behavior + cache freshness + platform reader seam |
@@ -67,8 +67,8 @@ These constraints apply to every task. Spec sections are referenced.
 | `tests/tui/render.vitest.ts` | create | Region painting + framebuffer diff (identical ctx → zero writes) |
 
 Files explicitly **untouched:**
-- `src/cli/commands/repl.ts` (legacy chat renderer — becomes unused once CLI bootstraps `TuiApp`)
-- All `src/tui/widgets/*.ts` files EXCEPT those called out as dead-code candidates in Task 12
+- `src/interfaces/cli/commands/repl.ts` (legacy chat renderer — becomes unused once CLI bootstraps `TuiApp`)
+- All `src/interfaces/tui/widgets/*.ts` files EXCEPT those called out as dead-code candidates in Task 12
 - `tests/cli/init.test.ts` (the `tests/cli/init.test.ts` is unrelated to TUI)
 
 ---
@@ -76,8 +76,8 @@ Files explicitly **untouched:**
 ## Task 1: Foundations — types, enums, file skeleton
 
 **Files:**
-- Create: `src/tui/state.ts`
-- Create: `src/tui/snapshot.ts`
+- Create: `src/interfaces/tui/state.ts`
+- Create: `src/interfaces/tui/snapshot.ts`
 - Create: `tests/tui/state.vitest.ts`
 - (No other files touched.)
 
@@ -92,7 +92,7 @@ Files explicitly **untouched:**
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { SessionPhase, type TuiAppState, type PerTabState, type TabId } from '../../src/tui/state.js';
+import { SessionPhase, type TuiAppState, type PerTabState, type TabId } from '../../src/interfaces/tui/state.js';
 
 describe('SessionPhase enum', () => {
   it('defines all six lifecycle phases in canonical order', () => {
@@ -172,9 +172,9 @@ describe('TabId union exhaustiveness', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pnpm test:vitest -- tests/tui/state.vitest.ts`
-Expected: FAIL with `Cannot find module '../../../src/tui/state.js'`
+Expected: FAIL with `Cannot find module '../../../src/interfaces/tui/state.js'`
 
-- [ ] **Step 3: Implement `src/tui/state.ts`**
+- [ ] **Step 3: Implement `src/interfaces/tui/state.ts`**
 
 ```ts
 /**
@@ -279,7 +279,7 @@ Expected: 4 describe blocks, all tests PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/state.ts tests/tui/state.vitest.ts
+git add src/interfaces/tui/state.ts tests/tui/state.vitest.ts
 git commit -m "feat(tui): foundational state types (SessionPhase, PerTabState, TuiAppState)"
 ```
 
@@ -288,12 +288,12 @@ git commit -m "feat(tui): foundational state types (SessionPhase, PerTabState, T
 ## Task 2: `DashboardSnapshot` types + immutable composition
 
 **Files:**
-- Modify: `src/tui/snapshot.ts` (narrow `DashboardSnapshot` and add subsystem DTOs)
+- Modify: `src/interfaces/tui/snapshot.ts` (narrow `DashboardSnapshot` and add subsystem DTOs)
 - No test file this task — frozen-shape invariants tested in Task 3 (SnapshotBuilder) and Task 6 (view purity).
 
 **Why no Task 2 test:** pure type narrowing has nothing runtime-testable. The freeze + nullable invariants are tested where the values are constructed (Task 3) and consumed (Task 6's view purity tests).
 
-- [ ] **Step 1: Narrow `src/tui/snapshot.ts`**
+- [ ] **Step 1: Narrow `src/interfaces/tui/snapshot.ts`**
 
 ```ts
 /**
@@ -431,22 +431,22 @@ export interface PolicyViolationSnapshot {
 }
 ```
 
-The `unknown` subsystem fields from Task 1 become the proper `readonly T | null` interfaces above. Re-export these from `src/tui/snapshot.ts` so downstream code consumes them via this single module.
+The `unknown` subsystem fields from Task 1 become the proper `readonly T | null` interfaces above. Re-export these from `src/interfaces/tui/snapshot.ts` so downstream code consumes them via this single module.
 
-Remove the placeholder definitions in `src/tui/state.ts` (or move `DashboardSnapshot`/`SessionMetadata` fully into `snapshot.ts` and have `state.ts` import them).
+Remove the placeholder definitions in `src/interfaces/tui/state.ts` (or move `DashboardSnapshot`/`SessionMetadata` fully into `snapshot.ts` and have `state.ts` import them).
 
 - [ ] **Step 2: Remove the typecheck-level placeholder**
 
-Move `DashboardSnapshot` and `SessionMetadata` fully into `src/tui/snapshot.ts` (delete them from `src/tui/state.ts`). Re-export from `src/tui/state.ts` if that keeps import paths ergonomic. Run `pnpm typecheck` and ensure imports resolve.
+Move `DashboardSnapshot` and `SessionMetadata` fully into `src/interfaces/tui/snapshot.ts` (delete them from `src/interfaces/tui/state.ts`). Re-export from `src/interfaces/tui/state.ts` if that keeps import paths ergonomic. Run `pnpm typecheck` and ensure imports resolve.
 
 Concrete:
-- In `src/tui/snapshot.ts`: `export type { SessionMetadata, DashboardSnapshot } from './snapshot.js';`? No — `SessionMetadata` is defined in `snapshot.ts`. Just `export interface DashboardSnapshot { ... }` and `export interface SessionMetadata { ... }`.
-- In `src/tui/state.ts`: replace the inline interface bodies with `import type { DashboardSnapshot, SessionMetadata } from './snapshot.js';`. Keep `SessionPhase` here (state-level concern, lives in `state.ts`).
+- In `src/interfaces/tui/snapshot.ts`: `export type { SessionMetadata, DashboardSnapshot } from './snapshot.js';`? No — `SessionMetadata` is defined in `snapshot.ts`. Just `export interface DashboardSnapshot { ... }` and `export interface SessionMetadata { ... }`.
+- In `src/interfaces/tui/state.ts`: replace the inline interface bodies with `import type { DashboardSnapshot, SessionMetadata } from './snapshot.js';`. Keep `SessionPhase` here (state-level concern, lives in `state.ts`).
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/snapshot.ts src/tui/state.ts
+git add src/interfaces/tui/snapshot.ts src/interfaces/tui/state.ts
 git commit -m "feat(tui): DashboardSnapshot subsystem DTOs with nullable subsystem fields"
 ```
 
@@ -455,7 +455,7 @@ git commit -m "feat(tui): DashboardSnapshot subsystem DTOs with nullable subsyst
 ## Task 3: `SnapshotBuilder` with fakes
 
 **Files:**
-- Create: `src/tui/snapshot-builder.ts`
+- Create: `src/interfaces/tui/snapshot-builder.ts`
 - Create: `tests/tui/snapshot-builder.vitest.ts`
 
 **Interfaces:**
@@ -466,13 +466,13 @@ git commit -m "feat(tui): DashboardSnapshot subsystem DTOs with nullable subsyst
 
 ```ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SnapshotBuilder } from '../../src/tui/snapshot-builder.js';
-import type { ApprovalManager } from '../../src/tui/approval-manager.js';
-import type { AgentSession } from '../../../src/agent/session.js';
-import type { PolicyEngine } from '../../../src/policy/policy-engine.js';
-import type { SopRegistry } from '../../../src/sop/sop-registry.js';
-import type { EventLog } from '../../../src/events/event-log.js';
-import type { DaemonMetricsCollector, DaemonMetricsSnapshot } from '../../src/tui/daemon-metrics-collector.js';
+import { SnapshotBuilder } from '../../src/interfaces/tui/snapshot-builder.js';
+import type { ApprovalManager } from '../../src/interfaces/tui/approval-manager.js';
+import type { AgentSession } from '../../../src/agents/agent/session.js';
+import type { PolicyEngine } from '../../../src/governance/policy/policy-engine.js';
+import type { SopRegistry } from '../../../src/coordination/sop/sop-registry.js';
+import type { EventLog } from '../../../src/runtime-state/events/event-log.js';
+import type { DaemonMetricsCollector, DaemonMetricsSnapshot } from '../../src/interfaces/tui/daemon-metrics-collector.js';
 
 function mkFakes() {
   const session = {
@@ -603,9 +603,9 @@ describe('SnapshotBuilder.buildSync — zero I/O', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pnpm test:vitest -- tests/tui/snapshot-builder.vitest.ts`
-Expected: FAIL — `Cannot find module '../../../src/tui/snapshot-builder.js'`
+Expected: FAIL — `Cannot find module '../../../src/interfaces/tui/snapshot-builder.js'`
 
-- [ ] **Step 3: Implement `src/tui/snapshot-builder.ts`**
+- [ ] **Step 3: Implement `src/interfaces/tui/snapshot-builder.ts`**
 
 ```ts
 import { Object.freeze } from 'node:util';
@@ -727,7 +727,7 @@ Expected: prior 2952 tests PASS + 4 new test groups PASS = ~2982 tests.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/snapshot-builder.ts tests/tui/snapshot-builder.vitest.ts
+git add src/interfaces/tui/snapshot-builder.ts tests/tui/snapshot-builder.vitest.ts
 git commit -m "feat(tui): SnapshotBuilder — async build + sync cache + failure isolation"
 ```
 
@@ -736,18 +736,18 @@ git commit -m "feat(tui): SnapshotBuilder — async build + sync cache + failure
 ## Task 4: `DaemonMetricsCollector` skeleton + dead-daemon behavior
 
 **Files:**
-- Create: `src/tui/daemon-metrics-collector.ts`
+- Create: `src/interfaces/tui/daemon-metrics-collector.ts`
 - Create: `tests/tui/daemon-metrics-collector.vitest.ts`
 
 **Interfaces:**
-- Produces: `DaemonMetricsSnapshot` interface (already declared in `src/tui/snapshot.ts` Task 2 — moved here for proper ownership); `ClientSnapshot` interface; `DaemonMetricsCollector` interface.
+- Produces: `DaemonMetricsSnapshot` interface (already declared in `src/interfaces/tui/snapshot.ts` Task 2 — moved here for proper ownership); `ClientSnapshot` interface; `DaemonMetricsCollector` interface.
 
-- [ ] **Step 1: Move `DaemonMetricsSnapshot` into `src/tui/daemon-metrics-collector.ts`** (was declared in `src/tui/snapshot.ts` for Task 2 placeholder reasons)
+- [ ] **Step 1: Move `DaemonMetricsSnapshot` into `src/interfaces/tui/daemon-metrics-collector.ts`** (was declared in `src/interfaces/tui/snapshot.ts` for Task 2 placeholder reasons)
 
-Edit `src/tui/snapshot.ts` to import `DaemonMetricsSnapshot` and `ClientSnapshot` from `daemon-metrics-collector.ts` and re-export them:
+Edit `src/interfaces/tui/snapshot.ts` to import `DaemonMetricsSnapshot` and `ClientSnapshot` from `daemon-metrics-collector.ts` and re-export them:
 
 ```ts
-// At top of src/tui/snapshot.ts, after existing imports:
+// At top of src/interfaces/tui/snapshot.ts, after existing imports:
 export type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
 ```
 
@@ -757,7 +757,7 @@ export type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-col
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { DaemonMetricsCollectorImpl } from '../../src/tui/daemon-metrics-collector.js';
+import { DaemonMetricsCollectorImpl } from '../../src/interfaces/tui/daemon-metrics-collector.js';
 
 describe('DaemonMetricsCollector — initial state', () => {
   it('returns a valid offline snapshot when no PID is given', async () => {
@@ -838,7 +838,7 @@ describe('DaemonMetricsCollector — test seam safety', () => {
 Run: `pnpm test:vitest -- tests/tui/daemon-metrics-collector.vitest.ts`
 Expected: FAIL with module-not-found.
 
-- [ ] **Step 4: Implement `src/tui/daemon-metrics-collector.ts`**
+- [ ] **Step 4: Implement `src/interfaces/tui/daemon-metrics-collector.ts`**
 
 ```ts
 import type { DaemonMetricsSnapshot as _Unused } from './snapshot.js';  // type-only; ignored
@@ -981,7 +981,7 @@ Expected: PASS (4 describe groups).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/daemon-metrics-collector.ts tests/tui/daemon-metrics-collector.vitest.ts src/tui/snapshot.ts
+git add src/interfaces/tui/daemon-metrics-collector.ts tests/tui/daemon-metrics-collector.vitest.ts src/interfaces/tui/snapshot.ts
 git commit -m "feat(tui): DaemonMetricsCollector with platform reader seam"
 ```
 
@@ -990,8 +990,8 @@ git commit -m "feat(tui): DaemonMetricsCollector with platform reader seam"
 ## Task 5: `AgentSession.phase` — lifecycle transitions
 
 **Files:**
-- Modify: `src/agent/session.ts` (extend AgentSession to track `phase: SessionPhase`, emit `agent:phase` events to `EventLog`)
-- Modify: `src/tui/state.ts` (export `SessionPhase` from there — already done in Task 1)
+- Modify: `src/agents/agent/session.ts` (extend AgentSession to track `phase: SessionPhase`, emit `agent:phase` events to `EventLog`)
+- Modify: `src/interfaces/tui/state.ts` (export `SessionPhase` from there — already done in Task 1)
 - New test file: `tests/agent/session-phase.vitest.ts`
 
 **Interfaces:**
@@ -1002,7 +1002,7 @@ git commit -m "feat(tui): DaemonMetricsCollector with platform reader seam"
 
 ```ts
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { SessionPhase } from '../../src/tui/state.js';
+import { SessionPhase } from '../../src/interfaces/tui/state.js';
 
 // These tests exercise the AgentSession phase machinery via a minimal stub
 // session. The full AgentSession setup is heavy; we use vi.mock for it.
@@ -1044,7 +1044,7 @@ Expected: PASS (these tests only verify the enum shape; that work landed in Task
 
 - [ ] **Step 3: Add `phase` state to `AgentSession`**
 
-Find `src/agent/session.ts` and the session state interface. Add:
+Find `src/agents/agent/session.ts` and the session state interface. Add:
 
 ```ts
 import { SessionPhase } from '../tui/state.js';
@@ -1079,7 +1079,7 @@ Then wire the 5 transitions into the session workflow:
 - Summary emitted → `advancePhase(Summarizing)`
 - `processTurn` returns and `idleTimer` (60s with no further turns) → `advancePhase(Idle)`
 
-The exact hook points depend on `AgentSession`'s current event flow; implementer must read `src/agent/session.ts` and insert at the right points. The contract is: `phase` advances monotonically forward through the lifecycle on each turn, ending in `Idle`.
+The exact hook points depend on `AgentSession`'s current event flow; implementer must read `src/agents/agent/session.ts` and insert at the right points. The contract is: `phase` advances monotonically forward through the lifecycle on each turn, ending in `Idle`.
 
 - [ ] **Step 4: Run full vitest to confirm no regression**
 
@@ -1089,7 +1089,7 @@ Expected: previous tests still pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/agent/session.ts tests/agent/session-phase.vitest.ts
+git add src/agents/agent/session.ts tests/agent/session-phase.vitest.ts
 git commit -m "feat(tui): AgentSession.phase tracks lifecycle (Understanding→Idle)"
 ```
 
@@ -1098,8 +1098,8 @@ git commit -m "feat(tui): AgentSession.phase tracks lifecycle (Understanding→I
 ## Task 6: `TuiView` types + view registry
 
 **Files:**
-- Create: `src/tui/views/types.ts`
-- Create: `src/tui/views/index.ts`
+- Create: `src/interfaces/tui/views/types.ts`
+- Create: `src/interfaces/tui/views/index.ts`
 - Create: `tests/tui/views/types.vitest.ts`
 
 **Interfaces:**
@@ -1109,7 +1109,7 @@ git commit -m "feat(tui): AgentSession.phase tracks lifecycle (Understanding→I
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import type { TuiView, ViewRenderContext, ViewInputContext, ViewRenderResult } from '../../../src/tui/views/types.js';
+import type { TuiView, ViewRenderContext, ViewInputContext, ViewRenderResult } from '../../../src/interfaces/tui/views/types.js';
 
 describe('TuiView contract — render purity', () => {
   it('render returns the same rows for the same context', () => {
@@ -1164,7 +1164,7 @@ describe('TerminalDimensions', () => {
   });
 });
 
-import type { TerminalDimensions } from '../../../src/tui/views/types.js';
+import type { TerminalDimensions } from '../../../src/interfaces/tui/views/types.js';
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1172,7 +1172,7 @@ import type { TerminalDimensions } from '../../../src/tui/views/types.js';
 Run: `pnpm test:vitest -- tests/tui/views/types.vitest.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement `src/tui/views/types.ts`**
+- [ ] **Step 3: Implement `src/interfaces/tui/views/types.ts`**
 
 ```ts
 import type { TabId } from '../state.js';
@@ -1216,7 +1216,7 @@ export interface TuiView {
 }
 ```
 
-- [ ] **Step 4: Implement `src/tui/views/index.ts`** — view registry
+- [ ] **Step 4: Implement `src/interfaces/tui/views/index.ts`** — view registry
 
 ```ts
 import type { TuiView } from './types.js';
@@ -1251,7 +1251,7 @@ The view files (`chat-view.ts`, etc.) referenced above are created in Tasks 7–
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/views/types.ts tests/tui/views/types.vitest.ts
+git add src/interfaces/tui/views/types.ts tests/tui/views/types.vitest.ts
 git commit -m "feat(tui): TuiView contract types (purity + ViewAction union)"
 ```
 
@@ -1260,7 +1260,7 @@ git commit -m "feat(tui): TuiView contract types (purity + ViewAction union)"
 ## Task 7: `ChatView` — input + 4-panel compact dashboard
 
 **Files:**
-- Create: `src/tui/views/chat-view.ts`
+- Create: `src/interfaces/tui/views/chat-view.ts`
 - Create: `tests/tui/views/chat-view.vitest.ts`
 
 **Interfaces:**
@@ -1271,8 +1271,8 @@ git commit -m "feat(tui): TuiView contract types (purity + ViewAction union)"
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { ChatView } from '../../../src/tui/views/chat-view.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
+import { ChatView } from '../../../src/interfaces/tui/views/chat-view.js';
+import type { ViewRenderContext } from '../../../src/interfaces/tui/views/types.js';
 
 function ctx(overrides: Partial<{ snap: any; perTab: any; dims: any }> = {}): ViewRenderContext {
   const snap = overrides.snap ?? {
@@ -1334,7 +1334,7 @@ describe('ChatView', () => {
 Run: `pnpm test:vitest -- tests/tui/views/chat-view.vitest.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement `src/tui/views/chat-view.ts`**
+- [ ] **Step 3: Implement `src/interfaces/tui/views/chat-view.ts`**
 
 ```ts
 import type { DashboardSnapshot } from '../snapshot.js';
@@ -1389,7 +1389,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/views/chat-view.ts tests/tui/views/chat-view.vitest.ts
+git add src/interfaces/tui/views/chat-view.ts tests/tui/views/chat-view.vitest.ts
 git commit -m "feat(tui): ChatView — input prompt + 4-panel compact dashboard"
 ```
 
@@ -1398,15 +1398,15 @@ git commit -m "feat(tui): ChatView — input prompt + 4-panel compact dashboard"
 ## Task 8: `DaemonView`
 
 **Files:**
-- Create: `src/tui/views/daemon-view.ts`
+- Create: `src/interfaces/tui/views/daemon-view.ts`
 - Create: `tests/tui/views/daemon-view.vitest.ts`
 
 - [ ] **Step 1: Write failing tests** — `tests/tui/views/daemon-view.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { DaemonView } from '../../../src/tui/views/daemon-view.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
+import { DaemonView } from '../../../src/interfaces/tui/views/daemon-view.js';
+import type { ViewRenderContext } from '../../../src/interfaces/tui/views/types.js';
 
 function ctx(snap: any = null): ViewRenderContext {
   return {
@@ -1456,7 +1456,7 @@ describe('DaemonView', () => {
 });
 ```
 
-- [ ] **Step 2: Implement `src/tui/views/daemon-view.ts`**
+- [ ] **Step 2: Implement `src/interfaces/tui/views/daemon-view.ts`**
 
 ```ts
 import type { DaemonMetricsSnapshot } from '../daemon-metrics-collector.js';
@@ -1527,7 +1527,7 @@ Expected: PASS.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/views/daemon-view.ts tests/tui/views/daemon-view.vitest.ts
+git add src/interfaces/tui/views/daemon-view.ts tests/tui/views/daemon-view.vitest.ts
 git commit -m "feat(tui): DaemonView — full daemon subsystem view with CPU/MEM/DISK bars"
 ```
 
@@ -1536,14 +1536,14 @@ git commit -m "feat(tui): DaemonView — full daemon subsystem view with CPU/MEM
 ## Task 9: `ApprovalsView`
 
 **Files:**
-- Create: `src/tui/views/approvals-view.ts`
+- Create: `src/interfaces/tui/views/approvals-view.ts`
 - Create: `tests/tui/views/approvals-view.vitest.ts`
 
 - [ ] **Step 1: Tests**
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { ApprovalsView } from '../../../src/tui/views/approvals-view.js';
+import { ApprovalsView } from '../../../src/interfaces/tui/views/approvals-view.js';
 
 describe('ApprovalsView', () => {
   const ctx = (snap: any = null, perTab: any = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 }) => ({
@@ -1591,7 +1591,7 @@ describe('ApprovalsView', () => {
 });
 ```
 
-- [ ] **Step 2: Implement `src/tui/views/approvals-view.ts`**
+- [ ] **Step 2: Implement `src/interfaces/tui/views/approvals-view.ts`**
 
 ```ts
 import type { ApprovalSnapshot } from '../snapshot.js';
@@ -1671,7 +1671,7 @@ Run: `pnpm test:vitest -- tests/tui/views/approvals-view.vitest.ts`
 Expected: PASS.
 
 ```bash
-git add src/tui/views/approvals-view.ts tests/tui/views/approvals-view.vitest.ts
+git add src/interfaces/tui/views/approvals-view.ts tests/tui/views/approvals-view.vitest.ts
 git commit -m "feat(tui): ApprovalsView — pending list, detail pane, approve/deny keys"
 ```
 
@@ -1680,14 +1680,14 @@ git commit -m "feat(tui): ApprovalsView — pending list, detail pane, approve/d
 ## Task 10: `RuntimeView`
 
 **Files:**
-- Create: `src/tui/views/runtime-view.ts`
+- Create: `src/interfaces/tui/views/runtime-view.ts`
 - Create: `tests/tui/views/runtime-view.vitest.ts`
 
 - [ ] **Step 1: Tests**
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { RuntimeView } from '../../src/tui/views/runtime-view.js';
+import { RuntimeView } from '../../src/interfaces/tui/views/runtime-view.js';
 
 describe('RuntimeView', () => {
   const ctx = (snap: any = null) => ({
@@ -1799,7 +1799,7 @@ Run: `pnpm test:vitest -- tests/tui/views/runtime-view.vitest.ts`
 Expected: PASS.
 
 ```bash
-git add src/tui/views/runtime-view.ts tests/tui/views/runtime-view.vitest.ts
+git add src/interfaces/tui/views/runtime-view.ts tests/tui/views/runtime-view.vitest.ts
 git commit -m "feat(tui): RuntimeView — workflow state + scrollable event stream"
 ```
 
@@ -1808,8 +1808,8 @@ git commit -m "feat(tui): RuntimeView — workflow state + scrollable event stre
 ## Task 11: `SopsView` + `PolicyView`
 
 **Files:**
-- Create: `src/tui/views/sops-view.ts`
-- Create: `src/tui/views/policy-view.ts`
+- Create: `src/interfaces/tui/views/sops-view.ts`
+- Create: `src/interfaces/tui/views/policy-view.ts`
 - Create: `tests/tui/views/sops-view.vitest.ts`
 - Create: `tests/tui/views/policy-view.vitest.ts`
 
@@ -1817,7 +1817,7 @@ git commit -m "feat(tui): RuntimeView — workflow state + scrollable event stre
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { SopsView } from '../../src/tui/views/sops-view.js';
+import { SopsView } from '../../src/interfaces/tui/views/sops-view.js';
 
 describe('SopsView', () => {
   const ctx = (snap: any = null, perTab: any = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 }) => ({
@@ -1852,7 +1852,7 @@ describe('SopsView', () => {
 });
 ```
 
-- [ ] **Step 2: Implement `src/tui/views/sops-view.ts`**
+- [ ] **Step 2: Implement `src/interfaces/tui/views/sops-view.ts`**
 
 ```ts
 import type { SopSnapshot } from '../snapshot.js';
@@ -1897,7 +1897,7 @@ export class SopsView implements TuiView {
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { PolicyView } from '../../src/tui/views/policy-view.js';
+import { PolicyView } from '../../src/interfaces/tui/views/policy-view.js';
 
 describe('PolicyView', () => {
   const ctx = (snap: any = null) => ({
@@ -1927,7 +1927,7 @@ describe('PolicyView', () => {
 });
 ```
 
-- [ ] **Step 4: Implement `src/tui/views/policy-view.ts`**
+- [ ] **Step 4: Implement `src/interfaces/tui/views/policy-view.ts`**
 
 ```ts
 import type { PolicySnapshot } from '../snapshot.js';
@@ -1965,7 +1965,7 @@ export class PolicyView implements TuiView {
 }
 ```
 
-- [ ] **Step 5: Now create `src/tui/views/index.ts` registry** (was deferred from Task 6)
+- [ ] **Step 5: Now create `src/interfaces/tui/views/index.ts` registry** (was deferred from Task 6)
 
 ```ts
 import type { TuiView } from './types.js';
@@ -1995,7 +1995,7 @@ Run: `pnpm test:vitest -- tests/tui/views/`
 Expected: all view tests pass.
 
 ```bash
-git add src/tui/views/sops-view.ts src/tui/views/policy-view.ts src/tui/views/index.ts tests/tui/views/sops-view.vitest.ts tests/tui/views/policy-view.vitest.ts
+git add src/interfaces/tui/views/sops-view.ts src/interfaces/tui/views/policy-view.ts src/interfaces/tui/views/index.ts tests/tui/views/sops-view.vitest.ts tests/tui/views/policy-view.vitest.ts
 git commit -m "feat(tui): SopsView + PolicyView + view registry (VIEWS singleton map)"
 ```
 
@@ -2004,14 +2004,14 @@ git commit -m "feat(tui): SopsView + PolicyView + view registry (VIEWS singleton
 ## Task 12: Renderer region + framebuffer
 
 **Files:**
-- Modify: `src/tui/render.ts` (extend existing renderer with `Region` enum, `FrameBuffer`, region repaint pump)
+- Modify: `src/interfaces/tui/render.ts` (extend existing renderer with `Region` enum, `FrameBuffer`, region repaint pump)
 - Create: `tests/tui/render.vitest.ts`
 
 - [ ] **Step 1: Tests**
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { TuiRenderer, type Region } from '../../src/tui/render.js';
+import { TuiRenderer, type Region } from '../../src/interfaces/tui/render.js';
 
 describe('Region union exhaustiveness', () => {
   it('lists exactly four regions plus the wildcard', () => {
@@ -2071,12 +2071,12 @@ describe('TuiRenderer repaint queue', () => {
 });
 ```
 
-- [ ] **Step 2: Implement region repaint in `src/tui/render.ts`**
+- [ ] **Step 2: Implement region repaint in `src/interfaces/tui/render.ts`**
 
 Read the existing file first, then ADD (do not rewrite) the new abstractions alongside the existing ones. The existing `TuiRenderer` class continues to work; the new additions are:
 
 ```ts
-// ADD to src/tui/render.ts:
+// ADD to src/interfaces/tui/render.ts:
 
 export type Region = 'header' | 'body' | 'tabs' | 'status' | 'all';
 
@@ -2150,7 +2150,7 @@ Run: `pnpm test:vitest -- tests/tui/render.vitest.ts`
 Expected: PASS.
 
 ```bash
-git add src/tui/render.ts tests/tui/render.vitest.ts
+git add src/interfaces/tui/render.ts tests/tui/render.vitest.ts
 git commit -m "refactor(tui): renderer region repaint + FrameBuffer diff helper"
 ```
 
@@ -2159,12 +2159,12 @@ git commit -m "refactor(tui): renderer region repaint + FrameBuffer diff helper"
 ## Task 13: `TuiApp` orchestration
 
 **Files:**
-- Create: `src/tui/navigation.ts`
-- Create: `src/tui/terminal-control.ts`
-- Create: `src/tui/app.ts`
+- Create: `src/interfaces/tui/navigation.ts`
+- Create: `src/interfaces/tui/terminal-control.ts`
+- Create: `src/interfaces/tui/app.ts`
 - Create: `tests/tui/app.vitest.ts`
 
-- [ ] **Step 1: `src/tui/navigation.ts`**
+- [ ] **Step 1: `src/interfaces/tui/navigation.ts`**
 
 ```ts
 import type { TabId } from './state.js';
@@ -2206,7 +2206,7 @@ export class Navigation {
 }
 ```
 
-- [ ] **Step 2: `src/tui/terminal-control.ts`**
+- [ ] **Step 2: `src/interfaces/tui/terminal-control.ts`**
 
 ```ts
 import { RawStdin } from '../cli/renderers/raw-stdin.js';     // existing helper if available
@@ -2254,7 +2254,7 @@ export function createTerminalControl(): TerminalControl {
 }
 ```
 
-- [ ] **Step 3: `src/tui/app.ts`**
+- [ ] **Step 3: `src/interfaces/tui/app.ts`**
 
 ```ts
 import type { TabId, TuiAppState } from './state.js';
@@ -2453,7 +2453,7 @@ function parseKey(buf: Buffer): string | null {
 
 ```ts
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TuiApp } from '../../src/tui/app.js';
+import { TuiApp } from '../../src/interfaces/tui/app.js';
 
 describe('TuiApp lifecycle', () => {
   let builder: any;
@@ -2501,16 +2501,16 @@ Run: `pnpm test:vitest -- tests/tui/app.vitest.ts`
 Expected: PASS (lifecycle + state preservation).
 
 ```bash
-git add src/tui/navigation.ts src/tui/terminal-control.ts src/tui/app.ts tests/tui/app.vitest.ts
+git add src/interfaces/tui/navigation.ts src/interfaces/tui/terminal-control.ts src/interfaces/tui/app.ts tests/tui/app.vitest.ts
 git commit -m "feat(tui): TuiApp orchestration (lifecycle, refresh, tabs, input dispatch)"
 ```
 
 ---
 
-## Task 14: CLI bootstrap refactor (`src/cli/commands/tui.ts`)
+## Task 14: CLI bootstrap refactor (`src/interfaces/cli/commands/tui.ts`)
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts` (replace the body with thin bootstrap)
+- Modify: `src/interfaces/cli/commands/tui.ts` (replace the body with thin bootstrap)
 - Create: `tests/cli/commands/tui-thin-bootstrap.vitest.ts`
 
 **Goal:** turn the existing `runTui()` (now 1137 lines) into a ~30-50 line bootstrap constructing `TuiApp`. The legacy code in the function body is preserved INSIDE the existing file as `runLegacyChatTui()` (or similar) for fallback / parity testing; Task 16 removes it.
@@ -2526,7 +2526,7 @@ describe('runTui bootstrap (thin)', () => {
   it('constructs a TuiApp with the right subsystems and calls start()', async () => {
     // Mocks for ApprovalManager / PolicyEngine / SopRegistry / EventLog / DaemonManager
     // to verify the bootstrap wires them in.
-    const mod = await import('../../../src/cli/commands/tui.js');
+    const mod = await import('../../../src/interfaces/cli/commands/tui.js');
     // We do not invoke mod.runTui here (it would actually start the TUI). Instead,
     // assert by reading the exported function as a thin wrapper.
     expect(typeof mod.runTui).toBe('function');
@@ -2535,7 +2535,7 @@ describe('runTui bootstrap (thin)', () => {
 });
 ```
 
-- [ ] **Step 2: Refactor `src/cli/commands/tui.ts`**
+- [ ] **Step 2: Refactor `src/interfaces/cli/commands/tui.ts`**
 
 Open the existing file. The function `runTui(opts, cwd)` is at the bottom. Wrap the entire existing body into a new function `runLegacyChatTuiForCompat()` (kept temporarily). Replace `runTui` body with:
 
@@ -2589,7 +2589,7 @@ Expected: PASS (function exists; legacy still works via wrapper).
 Run: `pnpm test:vitest` (full suite) — confirm no regression in legacy code.
 
 ```bash
-git add src/cli/commands/tui.ts tests/cli/commands/tui-thin-bootstrap.vitest.ts
+git add src/interfaces/cli/commands/tui.ts tests/cli/commands/tui-thin-bootstrap.vitest.ts
 git commit -m "refactor(tui): thin CLI bootstrap; legacy code preserved in runLegacyChatTuiForCompat"
 ```
 
@@ -2646,12 +2646,12 @@ git commit -m "test(tui): integration parity — new TuiApp matches legacy chat 
 ## Task 16: Cleanup of legacy rendering paths
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts` (delete `runLegacyChatTuiForCompat` and related dead code)
-- Modify: `src/tui/state.ts`, `src/tui/render.ts` (prune unused legacy exports)
+- Modify: `src/interfaces/cli/commands/tui.ts` (delete `runLegacyChatTuiForCompat` and related dead code)
+- Modify: `src/interfaces/tui/state.ts`, `src/interfaces/tui/render.ts` (prune unused legacy exports)
 
 **Goal:** remove the legacy chat-loop code that the new `TuiApp` replaces. This is the final cleanup task — only AFTER parity test (Task 15) passes.
 
-**Pre-flight checks:** verify no other code imports from the legacy exports of `src/tui/render.ts` (e.g. `LegacyTuiRenderer`).
+**Pre-flight checks:** verify no other code imports from the legacy exports of `src/interfaces/tui/render.ts` (e.g. `LegacyTuiRenderer`).
 
 - [ ] **Step 1: Identify dead-code candidates**
 
@@ -2662,15 +2662,15 @@ grep -rn "renderDashboardCards\b" src/ tests/ --include='*.ts' --include='*.tsx'
 
 Then read each hit and decide: keep, inline-remove, or full-delete.
 
-- [ ] **Step 2: Remove `runLegacyChatTuiForCompat` from `src/cli/commands/tui.ts`**
+- [ ] **Step 2: Remove `runLegacyChatTuiForCompat` from `src/interfaces/cli/commands/tui.ts`**
 
 Delete the function and any helpers it referenced. Ensure the file compiles.
 
 - [ ] **Step 3: Remove dead widgets / dead exports**
 
 If any of the following are now unused (`grep -rn <symbol>` returns no callers outside the deleted legacy code), remove them:
-- `src/tui/widgets/chat-dashboard.ts` if it existed (likely a duplicate of dashboard-renderer.ts — confirm no callers in new code)
-- Stub-only exports from `src/tui/index.ts` that the new `TuiApp` doesn't reference
+- `src/interfaces/tui/widgets/chat-dashboard.ts` if it existed (likely a duplicate of dashboard-renderer.ts — confirm no callers in new code)
+- Stub-only exports from `src/interfaces/tui/index.ts` that the new `TuiApp` doesn't reference
 - The `state-theater.ts` widget if its only purpose was the legacy chat view
 
 - [ ] **Step 4: Full gate**
@@ -2686,7 +2686,7 @@ Expected: all green. No regression. No "unused export" warnings.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts src/tui/index.ts src/tui/state.ts src/tui/render.ts src/tui/widgets/
+git add src/interfaces/cli/commands/tui.ts src/interfaces/tui/index.ts src/interfaces/tui/state.ts src/interfaces/tui/render.ts src/interfaces/tui/widgets/
 git commit -m "refactor(tui): cleanup legacy chat rendering paths (post-parity)"
 ```
 
@@ -2722,7 +2722,7 @@ Success: `alix tui` renders the multi-pane dashboard as specified, all vitest pa
 ## Open items (deferred)
 
 - **Task E1 (future spec):** per-session persistence of `PerTabState` across `alix tui` invocations. Out of scope for this iteration; architecture already serializable.
-- **Task E2 (future spec):** macOS / Windows `DaemonMetricsCollector` platform readers. Linux-only initial implementation; documented as TODO in `src/tui/daemon-metrics-collector.ts`.
+- **Task E2 (future spec):** macOS / Windows `DaemonMetricsCollector` platform readers. Linux-only initial implementation; documented as TODO in `src/interfaces/tui/daemon-metrics-collector.ts`.
 - **Task E3 (future spec):** mouse / hover / click support.
 - **Task E4 (future spec):** search-overlay UI for `RuntimeView` / `SopsView` / `PolicyView` — `view.handleKey('/')` currently returns `'handled'` (a no-op signal); the search input UI is a separate concern.
 - **Task E5 (memory leak hygiene):** `TuiApp.start()` registers stdin listeners; ensure `stop()` unregisters them all (currently relies on emergency-cleanup handlers).

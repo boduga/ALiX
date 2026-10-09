@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ApprovalStoreLock } from "../../src/approvals/approval-store-lock.js";
+import { ApprovalStoreLock } from "../../src/governance/approvals/approval-store-lock.js";
 
 describe("ApprovalStoreLock", () => {
   let cwd: string;

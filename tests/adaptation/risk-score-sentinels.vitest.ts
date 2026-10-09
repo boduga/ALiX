@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { readFileSync } from "node:fs";
 import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 
-const TARGET = resolve(__dirname, "../../src/adaptation/risk-score-builder.ts");
+const TARGET = resolve(__dirname, "../../src/planning/adaptation/risk-score-builder.ts");
 
 describe("P6 Governance Invariants — RiskScore must not recommend", () => {
   const FORBIDDEN_IMPORTS = [

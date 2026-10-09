@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { buildGraphProjection } from "../../src/kernel/graph-projection.js";
+import { buildGraphProjection } from "../../src/coordination/kernel/graph-projection.js";
 
 describe("GraphProjection", () => {
   let tmpDir: string;

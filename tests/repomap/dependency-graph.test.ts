@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildDependencyGraph } from "../../src/repomap/dependency-graph.js";
+import { buildDependencyGraph } from "../../src/context/repomap/dependency-graph.js";
 
 describe("buildDependencyGraph", () => {
   it("maps direct relative imports to repo paths", () => {

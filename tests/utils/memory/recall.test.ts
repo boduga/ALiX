@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { MemoryStore } from "../../../src/utils/memory/store.js";
-import { recall, buildMemoryContext, buildMemoryStats } from "../../../src/utils/memory/recall.js";
+import { MemoryStore } from "../../../src/operations/utils/memory/store.js";
+import { recall, buildMemoryContext, buildMemoryStats } from "../../../src/operations/utils/memory/recall.js";
 
 test("recall() finds matching entries", async () => {
   const testDir = "/tmp/recall-test-" + Date.now();

@@ -60,16 +60,16 @@ import {
   observationsOf,
   type FakeLangfuseSpanProcessorInstance,
 } from "./fakes/langfuse-sdk.js";
-import { EventLog } from "../../src/events/event-log.js";
-import { ToolExecutor } from "../../src/tools/executor.js";
-import { createTraceClient } from "../../src/tracing/client-factory.js";
-import type { TraceClient } from "../../src/tracing/client.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { ToolExecutor } from "../../src/capabilities/tools/executor.js";
+import { createTraceClient } from "../../src/models/tracing/client-factory.js";
+import type { TraceClient } from "../../src/models/tracing/client.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 import {
   CancellationToken,
   ExecutionCancelledError,
   isCancellationError,
-} from "../../src/runtime/cancellation-token.js";
+} from "../../src/runtime-state/runtime/cancellation-token.js";
 
 vi.mock("@langfuse/otel", () => ({ LangfuseSpanProcessor: FakeLangfuseSpanProcessor }));
 

@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { AlixEvent } from '../../../src/events/types.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import type { AgentRosterSnapshot, AgentSummary, WorkbenchAgentState } from '../../../src/tui/workbench/model/agent-roster.js';
-import type { TaskSummary } from '../../../src/tui/workbench/model/task-roster.js';
-import { getWorkbenchPreviewTheme } from '../../../src/tui/workbench/model/preview-theme.js';
-import { AgentRosterProjection } from '../../../src/tui/workbench/projections/agent-roster-projection.js';
-import { TaskProjection } from '../../../src/tui/workbench/projections/task-projection.js';
-import { paintRosterDrawer } from '../../../src/tui/workbench/views/roster-drawer.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import type { AgentRosterSnapshot, AgentSummary, WorkbenchAgentState } from '../../../src/interfaces/tui/workbench/model/agent-roster.js';
+import type { TaskSummary } from '../../../src/interfaces/tui/workbench/model/task-roster.js';
+import { getWorkbenchPreviewTheme } from '../../../src/interfaces/tui/workbench/model/preview-theme.js';
+import { AgentRosterProjection } from '../../../src/interfaces/tui/workbench/projections/agent-roster-projection.js';
+import { TaskProjection } from '../../../src/interfaces/tui/workbench/projections/task-projection.js';
+import { paintRosterDrawer } from '../../../src/interfaces/tui/workbench/views/roster-drawer.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../fixtures/tui/workbench-preview-events.json', import.meta.url), 'utf8')) as {
   events: AlixEvent[]; now: string; selectedAgentId: string;

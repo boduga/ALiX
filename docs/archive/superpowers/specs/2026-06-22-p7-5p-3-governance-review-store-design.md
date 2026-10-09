@@ -26,7 +26,7 @@ interface LensObservation {
 
 ## Where GovernanceReview is produced (the key recon finding)
 
-**`runReview`** (`src/cli/commands/decision.ts:635-718`) — NOT the deterministic `runRecommend`. This changes the hook shape:
+**`runReview`** (`src/interfaces/cli/commands/decision.ts:635-718`) — NOT the deterministic `runRecommend`. This changes the hook shape:
 
 ```text
 alix decision review <proposal-id> [--json] [--lens <name>]
@@ -122,7 +122,7 @@ class GovernanceReviewStore {
 
 ### 4. Where does the write hook live?
 
-In the CLI's `runReview` function (`src/cli/commands/decision.ts`), immediately after `council.aggregate()` returns the review (line 712), before the render block (line 714+):
+In the CLI's `runReview` function (`src/interfaces/cli/commands/decision.ts`), immediately after `council.aggregate()` returns the review (line 712), before the render block (line 714+):
 
 ```ts
 const review = council.aggregate(reviewId, id, recommendation.id, scores, input);
@@ -157,7 +157,7 @@ A one-line docstring note in the invariance test may clarify "P7.5p.3 populates 
 
 ### 7. What about the `lens_scores_not_persisted` sentinel?
 
-`src/cli/commands/decision.ts` has a `runLensCalibration` (or similar) that returns `status: "lens_scores_not_persisted"`. After P7.5p.3, reviews ARE persisted, so the sentinel can be retired OR updated to actually run the `LensCalibrationBuilder` against the new store.
+`src/interfaces/cli/commands/decision.ts` has a `runLensCalibration` (or similar) that returns `status: "lens_scores_not_persisted"`. After P7.5p.3, reviews ARE persisted, so the sentinel can be retired OR updated to actually run the `LensCalibrationBuilder` against the new store.
 
 **Scope decision: P7.5p.3 does NOT retire the sentinel.** Retiring it means wiring the builder + adapter, which is P8.5a.2's job. P7.5p.3 ships the store + write hook + outcome lookup; P8.5a.2 replaces the sentinel with a live adapter reading from `GovernanceReviewStore`. The sentinel's message may be updated to say "reviews are now persisted (P7.5p.3); adapter wiring is P8.5a.2" — a one-line message change, not a behavioral one. (This keeps the slice focused; the user can defer the sentinel message change if they prefer.)
 
@@ -165,19 +165,19 @@ A one-line docstring note in the invariance test may clarify "P7.5p.3 populates 
 
 ## Files created
 
-- `src/adaptation/governance-review-store.ts` — the new store
+- `src/planning/adaptation/governance-review-store.ts` — the new store
 - `tests/adaptation/governance-review-store.vitest.ts` — store tests
 
 ## Files modified
 
-- `src/cli/commands/decision.ts` — `runReview` write hook, `runOutcomeRecord` auto-lookup + override
+- `src/interfaces/cli/commands/decision.ts` — `runReview` write hook, `runOutcomeRecord` auto-lookup + override
 
 ## Files NOT modified
 
-- `src/adaptation/outcome-types.ts` (`governanceReviewId?` already exists — **zero type changes**)
-- `src/adaptation/governance-review-types.ts` (strict-protected, byte-locked)
-- `src/adaptation/governance-review-council.ts` (pure aggregator, untouched)
-- `src/adaptation/lens-calibration-builder.ts` (pure builder, untouched)
+- `src/planning/adaptation/outcome-types.ts` (`governanceReviewId?` already exists — **zero type changes**)
+- `src/planning/adaptation/governance-review-types.ts` (strict-protected, byte-locked)
+- `src/planning/adaptation/governance-review-council.ts` (pure aggregator, untouched)
+- `src/planning/adaptation/lens-calibration-builder.ts` (pure builder, untouched)
 - The other 4 strict-protected files
 - `tests/learning/unchanged-types-invariance.vitest.ts` (no change needed — optional docstring note only)
 - The 10 existing stores

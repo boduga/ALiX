@@ -13,7 +13,7 @@ Borrowed recommendation for ALiX:
 - **Interpolation**: `$ARGUMENTS` (full arg string), `$N` / `$ARGUMENTS[N]` (positional), `$name` (named), with `\$` escaping.
 - **Precedence**: user scope overrides project scope; custom overrides built-in of the same name.
 
-ALiX already ships a Hermes-format loader (`src/skills/loader.ts` + `src/skills/types.ts`) that reads `<root>/<name>/SKILL.md` with YAML frontmatter — it is a subset of this pattern. Extending its `SkillManifest` rather than inventing a parallel format is the lowest-friction path (see [Recommendations for ALiX](#recommendations-for-alix)).
+ALiX already ships a Hermes-format loader (`src/capabilities/skills/loader.ts` + `src/capabilities/skills/types.ts`) that reads `<root>/<name>/SKILL.md` with YAML frontmatter — it is a subset of this pattern. Extending its `SkillManifest` rather than inventing a parallel format is the lowest-friction path (see [Recommendations for ALiX](#recommendations-for-alix)).
 
 ---
 
@@ -211,9 +211,9 @@ The shared direction: **Markdown body + YAML frontmatter + one-directory-per-com
 
 ALiX already has a Hermes-format skills subsystem that is a subset of the converged standard:
 
-- `src/skills/types.ts` — `SkillManifest` (name, description, trigger, pattern, version, is_core, tags) + `parseFrontMatter` / `parseSkillContent` (supports `---` delimited YAML).
-- `src/skills/loader.ts` — `loadSkills` / `loadSkillManifests` read `<root>/<name>/SKILL.md`.
-- CLI: `alix skills` subcommands already exist (`src/cli/commands/skills/`) and now act as a marketplace installer — `skills available` / `install <name> [--from <path|url>]` / `install --list` resolve skill content from registered marketplaces (`src/cli/commands/skills/marketplace.ts`; defaults `anthropics/skills`, `langfuse/skills`) instead of shipping bundled `SKILL.md` files. `install <name> --from <dir>` installs the whole skill package (SKILL.md + supporting files like `scripts/`, `assets/`, `LICENSE`), matching the standard's one-directory-per-command layout with bundled files (see §1.1); a single `.md` file or https URL still installs just `SKILL.md`. The runtime `alix skill` (singular) extension-based loader (`src/skills/`) is untouched.
+- `src/capabilities/skills/types.ts` — `SkillManifest` (name, description, trigger, pattern, version, is_core, tags) + `parseFrontMatter` / `parseSkillContent` (supports `---` delimited YAML).
+- `src/capabilities/skills/loader.ts` — `loadSkills` / `loadSkillManifests` read `<root>/<name>/SKILL.md`.
+- CLI: `alix skills` subcommands already exist (`src/interfaces/cli/commands/skills/`) and now act as a marketplace installer — `skills available` / `install <name> [--from <path|url>]` / `install --list` resolve skill content from registered marketplaces (`src/interfaces/cli/commands/skills/marketplace.ts`; defaults `anthropics/skills`, `langfuse/skills`) instead of shipping bundled `SKILL.md` files. `install <name> --from <dir>` installs the whole skill package (SKILL.md + supporting files like `scripts/`, `assets/`, `LICENSE`), matching the standard's one-directory-per-command layout with bundled files (see §1.1); a single `.md` file or https URL still installs just `SKILL.md`. The runtime `alix skill` (singular) extension-based loader (`src/capabilities/skills/`) is untouched.
 
 Lowest-friction path (extend, don't invent):
 

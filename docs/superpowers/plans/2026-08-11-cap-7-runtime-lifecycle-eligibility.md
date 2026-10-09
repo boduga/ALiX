@@ -18,7 +18,7 @@
 
 - **Locked ruling #4 — service parity (CAP-8 boundary)**: documented delegation contract. **Explicit invariant**: *"CapabilityService must delegate lifecycle/provider eligibility decisions to CapabilityResolver and must not independently reproduce the eligibility table."* CAP-7 ships a `CapabilityService` stub whose `resolve()` calls `resolver.resolve()` and returns the resolver's verdict — and a test that asserts the delegation (no parallel eligibility computation in the service).
 
-- **Locked ruling #5 — lifecycle states consumed verbatim**: CAP-7 consumes the CAP-5 six-state lifecycle contract verbatim (`emerging | active | mature | stagnant | declining | deprecated`). No new states, no state renames, no modification of transition legality. **Explicit invariant**: *"CAP-7 consumes the CAP-5 six-state lifecycle contract verbatim. It introduces no lifecycle states and does not modify transition legality."* The transition graph is owned by CAP-5 (`LEGAL_LIFECYCLE_TRANSITIONS` in `src/capability/mutation-contract.ts`); CAP-7 reads `LifecycleState` only.
+- **Locked ruling #5 — lifecycle states consumed verbatim**: CAP-7 consumes the CAP-5 six-state lifecycle contract verbatim (`emerging | active | mature | stagnant | declining | deprecated`). No new states, no state renames, no modification of transition legality. **Explicit invariant**: *"CAP-7 consumes the CAP-5 six-state lifecycle contract verbatim. It introduces no lifecycle states and does not modify transition legality."* The transition graph is owned by CAP-5 (`LEGAL_LIFECYCLE_TRANSITIONS` in `src/capabilities/capability/mutation-contract.ts`); CAP-7 reads `LifecycleState` only.
 
 - **Locked ruling #6 — override auditability is deliberately narrow**: `ProviderPlanStep.lifecycleEligibility: { state: LifecycleState; eligible: boolean; overrideUsed: boolean }`. Deliberately minimal: **no** caller identity, **no** authorization role, **no** governance decision ID, **no** timestamps, **no** audit IDs, **no** provider fallback history. **`overrideUsed: true` does NOT mean provider-available, execution-authorized, or governance-approved** — it means the lifecycle-axis override was exercised. Downstream observability is a separate concern (CAP-9/A5 surface it; CAP-7 only attaches the lifecycle eligibility annotation).
 
@@ -26,21 +26,21 @@
 
 ### Consumed interfaces (exact — already on main from CAP-2/3/4/5/6)
 
-- **CAP-5 `src/capability/mutation-contract.ts`:** `LifecycleState` import path: `src/adaptation/capability-evolution-types.js` (re-exported by mutation-contract); `LEGAL_LIFECYCLE_TRANSITIONS` (read-only; CAP-7 never modifies it).
-- **CAP-5 `src/adaptation/capability-evolution-types.ts`:** `LifecycleState = "emerging" | "active" | "mature" | "stagnant" | "declining" | "deprecated"`.
-- **CAP-3 `src/capability/registry.ts`:** `CapabilityRegistry` — `get(id)`, `getLifecycleState(id): LifecycleState | undefined`, `setLifecycleState(id, to)`, `listLifecycleStates()`, `reload()`. `RegisteredCapability.lifecycle` is the authoritative lifecycle value. CAP-6 calls `registry.reload()` after every A4 mutation; CAP-7 inherits this.
-- **CAP-4 `src/capability/provider-resolver.ts`:** `ProviderResolver.resolve(capabilityId, _ctx): ProviderPlan[]` (current shape, second arg currently ignored); `ProviderPlan { capabilityId, steps: ProviderPlanStep[] }`; `ProviderPlanStep { capabilityId, candidates, bindingsCount, timeout, hooks, permissions }`. CAP-7 changes the second arg to `ResolverContext` and adds `lifecycleEligibility` to each `ProviderPlanStep`.
-- **CAP-4 `src/capability/provider-registry.ts`:** `ProviderCandidate` (has `binding`, `providerId`, `providerType`, `bindingIndex`, `executor`); `ProviderExecutorRegistry` (has `get`, `has`, `listTypes`).
-- **CAP-2 `src/capability/canonical/definition.ts`:** `CapabilityDefinition` (has `bindings: CapabilityProviderBinding[]`, `version`, `id`); `validateCapabilityDefinition`.
-- **CAP-3 `src/capability/types.ts`:** `CapabilityContext` (current second-arg type; CAP-7 introduces a separate, narrower `ResolverContext` for the resolver — see Task 2 design contract).
-- **CAP-6 `src/evolution/execution/capability-mutation-executor.ts`:** `CapabilityMutationExecutor` is what calls `registry.reload()` after every A4 mutation. CAP-7 exercises this via a test that goes `executor.executeStep(transition) → resolver.resolve()` (no rebuild, no reload call — the registry is already up to date because of CAP-6).
+- **CAP-5 `src/capabilities/capability/mutation-contract.ts`:** `LifecycleState` import path: `src/planning/adaptation/capability-evolution-types.js` (re-exported by mutation-contract); `LEGAL_LIFECYCLE_TRANSITIONS` (read-only; CAP-7 never modifies it).
+- **CAP-5 `src/planning/adaptation/capability-evolution-types.ts`:** `LifecycleState = "emerging" | "active" | "mature" | "stagnant" | "declining" | "deprecated"`.
+- **CAP-3 `src/capabilities/capability/registry.ts`:** `CapabilityRegistry` — `get(id)`, `getLifecycleState(id): LifecycleState | undefined`, `setLifecycleState(id, to)`, `listLifecycleStates()`, `reload()`. `RegisteredCapability.lifecycle` is the authoritative lifecycle value. CAP-6 calls `registry.reload()` after every A4 mutation; CAP-7 inherits this.
+- **CAP-4 `src/capabilities/capability/provider-resolver.ts`:** `ProviderResolver.resolve(capabilityId, _ctx): ProviderPlan[]` (current shape, second arg currently ignored); `ProviderPlan { capabilityId, steps: ProviderPlanStep[] }`; `ProviderPlanStep { capabilityId, candidates, bindingsCount, timeout, hooks, permissions }`. CAP-7 changes the second arg to `ResolverContext` and adds `lifecycleEligibility` to each `ProviderPlanStep`.
+- **CAP-4 `src/capabilities/capability/provider-registry.ts`:** `ProviderCandidate` (has `binding`, `providerId`, `providerType`, `bindingIndex`, `executor`); `ProviderExecutorRegistry` (has `get`, `has`, `listTypes`).
+- **CAP-2 `src/capabilities/capability/canonical/definition.ts`:** `CapabilityDefinition` (has `bindings: CapabilityProviderBinding[]`, `version`, `id`); `validateCapabilityDefinition`.
+- **CAP-3 `src/capabilities/capability/types.ts`:** `CapabilityContext` (current second-arg type; CAP-7 introduces a separate, narrower `ResolverContext` for the resolver — see Task 2 design contract).
+- **CAP-6 `src/planning/evolution/execution/capability-mutation-executor.ts`:** `CapabilityMutationExecutor` is what calls `registry.reload()` after every A4 mutation. CAP-7 exercises this via a test that goes `executor.executeStep(transition) → resolver.resolve()` (no rebuild, no reload call — the registry is already up to date because of CAP-6).
 
 ### Forbidden files (never touch)
 
-- `src/capability/initial-capabilities.ts` (CAP-3 bootstrap seed).
-- `src/tools/tool-registry.ts` (M-series tool surface — separate domain).
-- `src/policy/capability-registry.ts` (legacy P-series capability registry — CAP-11 deletes it).
-- Production `src/capability/canonical/*` (CAP-2 import-only — the resolver reads definitions through the public `CapabilityRegistry` surface, never touches the canonical store directly).
+- `src/capabilities/capability/initial-capabilities.ts` (CAP-3 bootstrap seed).
+- `src/capabilities/tools/tool-registry.ts` (M-series tool surface — separate domain).
+- `src/governance/policy/capability-registry.ts` (legacy P-series capability registry — CAP-11 deletes it).
+- Production `src/capabilities/capability/canonical/*` (CAP-2 import-only — the resolver reads definitions through the public `CapabilityRegistry` surface, never touches the canonical store directly).
 
 ### Test conventions
 
@@ -61,7 +61,7 @@
 ### Task 1: Pure lifecycle-eligibility module — table + `isLifecycleEligible` + types
 
 **Files:**
-- Create: `src/capability/lifecycle-eligibility.ts`
+- Create: `src/capabilities/capability/lifecycle-eligibility.ts`
 - Test: `tests/capability/lifecycle-eligibility.vitest.ts`
 
 **Interfaces:**
@@ -90,8 +90,8 @@
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { LIFECYCLE_ELIGIBILITY, isLifecycleEligible, type LifecycleEligibility } from '../../src/capability/lifecycle-eligibility.js';
-import type { LifecycleState } from '../../src/adaptation/capability-evolution-types.js';
+import { LIFECYCLE_ELIGIBILITY, isLifecycleEligible, type LifecycleEligibility } from '../../src/capabilities/capability/lifecycle-eligibility.js';
+import type { LifecycleState } from '../../src/planning/adaptation/capability-evolution-types.js';
 
 describe('LIFECYCLE_ELIGIBILITY (CAP-7 table)', () => {
   it('contains exactly the six CAP-5 states', () => {
@@ -190,7 +190,7 @@ Expected: FAIL — module not found (`Cannot find module .../lifecycle-eligibili
 
 - [ ] **Step 3: Implement the pure eligibility module**
 
-Create `src/capability/lifecycle-eligibility.ts`:
+Create `src/capabilities/capability/lifecycle-eligibility.ts`:
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -270,7 +270,7 @@ Expected: PASS (all six describe blocks), 0 tsc errors. The `Record<LifecycleSta
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/lifecycle-eligibility.ts tests/capability/lifecycle-eligibility.vitest.ts
+git add src/capabilities/capability/lifecycle-eligibility.ts tests/capability/lifecycle-eligibility.vitest.ts
 git commit -m "feat(capability): CAP-7 lifecycle-eligibility table + isLifecycleEligible + annotation type"
 ```
 
@@ -280,7 +280,7 @@ git commit -m "feat(capability): CAP-7 lifecycle-eligibility table + isLifecycle
 ### Task 2: Resolver extension — `ResolverContext` with `allowDeprecated` + per-step `lifecycleEligibility` + two-stage gate
 
 **Files:**
-- Modify: `src/capability/provider-resolver.ts` (extend `ProviderPlanStep`; add `ResolverContext`; replace `_ctx` with `ResolverContext`; add lifecycle gate; per-step `lifecycleEligibility` annotation)
+- Modify: `src/capabilities/capability/provider-resolver.ts` (extend `ProviderPlanStep`; add `ResolverContext`; replace `_ctx` with `ResolverContext`; add lifecycle gate; per-step `lifecycleEligibility` annotation)
 - Test: `tests/capability/provider-resolver.vitest.ts` (extend — add `ResolverContext` to existing calls; add the new "lifecycle-eligibility extension" describe)
 
 **Interfaces:**
@@ -309,7 +309,7 @@ git commit -m "feat(capability): CAP-7 lifecycle-eligibility table + isLifecycle
 Append to `tests/capability/provider-resolver.vitest.ts` (the existing `ctx()` helper and all `new ProviderResolver(...).resolve('id', ctx())` calls must be updated to pass a `ResolverContext`; add the new describe block at the end):
 
 ```ts
-import { CapabilityResolver, type ResolverContext } from '../../src/capability/provider-resolver.js';
+import { CapabilityResolver, type ResolverContext } from '../../src/capabilities/capability/provider-resolver.js';
 // ... existing imports unchanged ...
 
 // Replace the existing `ctx(): CapabilityContext` with a ResolverContext helper
@@ -413,7 +413,7 @@ describe('CapabilityResolver (CAP-7 lifecycle eligibility extension)', () => {
 });
 
 // Local helper used by the new describe block (matches `beforeEach` isolation pattern).
-import type { CapabilityRegistry } from '../../src/capability/registry.js';
+import type { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
 function registrySetLifecycle(reg: CapabilityRegistry, id: string, state: 'emerging' | 'active' | 'mature' | 'stagnant' | 'declining' | 'deprecated'): void {
   reg.setLifecycleState(id, state);
 }
@@ -429,7 +429,7 @@ Expected: FAIL — `ResolverContext` is not yet exported; `CapabilityResolver` i
 
 - [ ] **Step 3: Extend the resolver with the lifecycle gate**
 
-Replace `src/capability/provider-resolver.ts` with the extended version (key additions marked with `// CAP-7:`):
+Replace `src/capabilities/capability/provider-resolver.ts` with the extended version (key additions marked with `// CAP-7:`):
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -651,8 +651,8 @@ export class CapabilityResolver extends ProviderResolver {
 
 In `tests/capability/provider-resolver.vitest.ts`:
 
-1. Remove `import type { CapabilityContext } from '../../src/capability/types.js';` (no longer used).
-2. Add `import { CapabilityResolver, type ResolverContext } from '../../src/capability/provider-resolver.js';` (alongside the existing `ProviderResolver` import).
+1. Remove `import type { CapabilityContext } from '../../src/capabilities/capability/types.js';` (no longer used).
+2. Add `import { CapabilityResolver, type ResolverContext } from '../../src/capabilities/capability/provider-resolver.js';` (alongside the existing `ProviderResolver` import).
 3. Replace the `ctx(): CapabilityContext` function with the new `ctx(over): ResolverContext` helper.
 4. All existing `.resolve('id', ctx())` calls keep working (no allowDeprecated) — the default `ResolverContext` is `{}` (no override) which preserves the CAP-4 behavior.
 
@@ -666,7 +666,7 @@ Expected: PASS (existing + new describe blocks), 0 tsc errors. If `Object.freeze
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/provider-resolver.ts tests/capability/provider-resolver.vitest.ts
+git add src/capabilities/capability/provider-resolver.ts tests/capability/provider-resolver.vitest.ts
 git commit -m "feat(capability): CAP-7 resolver two-stage gate + ResolverContext + LifecycleEligibility annotation"
 ```
 
@@ -708,16 +708,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityResolver, type ResolverContext } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
-import type { LifecycleState } from '../../src/adaptation/capability-evolution-types.js';
+import { CapabilityResolver, type ResolverContext } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
+import type { LifecycleState } from '../../src/planning/adaptation/capability-evolution-types.js';
 
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cap7-matrix-')); });
@@ -876,16 +876,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityResolver, type ResolverContext } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
-import type { LifecycleState } from '../../src/adaptation/capability-evolution-types.js';
+import { CapabilityResolver, type ResolverContext } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
+import type { LifecycleState } from '../../src/planning/adaptation/capability-evolution-types.js';
 
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cap7-iso-')); });
@@ -1021,16 +1021,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityResolver } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import { CapabilityMutationExecutor } from '../../src/evolution/execution/capability-mutation-executor.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
+import { CapabilityResolver } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import { CapabilityMutationExecutor } from '../../src/planning/evolution/execution/capability-mutation-executor.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
 
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cap7-obs-')); });
@@ -1153,7 +1153,7 @@ git commit -m "test(capability): CAP-7 in-process lifecycle observability — A4
 ### Task 6: AC#5/AC#6 — service parity delegation invariant + axis-separation structural test
 
 **Files:**
-- Create: `src/capability/capability-service.ts` (CAP-8 boundary stub — `CapabilityService.resolve()` delegates to `CapabilityResolver.resolve()`; no parallel eligibility computation)
+- Create: `src/capabilities/capability/capability-service.ts` (CAP-8 boundary stub — `CapabilityService.resolve()` delegates to `CapabilityResolver.resolve()`; no parallel eligibility computation)
 - Test: `tests/capability/capability-service-delegation.vitest.ts` (new — proves the delegation invariant; pins AC#5 + AC#6)
 
 **Interfaces:**
@@ -1178,16 +1178,16 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { CapabilityService } from '../../src/capability/capability-service.js';
-import { CapabilityResolver, type ResolverContext } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
+import { CapabilityService } from '../../src/capabilities/capability/capability-service.js';
+import { CapabilityResolver, type ResolverContext } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
 
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cap7-svc-')); });
@@ -1246,17 +1246,17 @@ describe('AC#5/AC#6 — structural: CapabilityService does not independently rep
     // Read the source file as text and assert the named import is absent.
     // This is a structural sentinel: a future PR that adds `import { LIFECYCLE_ELIGIBILITY }`
     // to the service module is a locked-ruling-#4 violation and must fail review.
-    const src = readFileSync(new URL('../../src/capability/capability-service.ts', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../src/capabilities/capability/capability-service.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/import\s*\{[^}]*\bLIFECYCLE_ELIGIBILITY\b[^}]*\}\s*from\s*["']\.\/lifecycle-eligibility\.js["']/);
   });
 
   it('service module does not import setLifecycleState (lifecycle is read-only for the service — AC#3)', () => {
-    const src = readFileSync(new URL('../../src/capability/capability-service.ts', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../src/capabilities/capability/capability-service.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/setLifecycleState/);
   });
 
   it('service module does not import setAvailability (availability is the resolver\'s axis — AC#6)', () => {
-    const src = readFileSync(new URL('../../src/capability/capability-service.ts', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../src/capabilities/capability/capability-service.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/setAvailability/);
   });
 
@@ -1284,7 +1284,7 @@ Expected: FAIL — `capability-service.js` not found.
 
 - [ ] **Step 3: Implement the CapabilityService stub**
 
-Create `src/capability/capability-service.ts`:
+Create `src/capabilities/capability/capability-service.ts`:
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -1342,7 +1342,7 @@ Expected: PASS (7 tests), 0 tsc errors. The structural source-text assertions pi
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/capability-service.ts tests/capability/capability-service-delegation.vitest.ts
+git add src/capabilities/capability/capability-service.ts tests/capability/capability-service-delegation.vitest.ts
 git commit -m "feat(capability): CAP-7 CapabilityService stub — delegation invariant pinned (AC#5, AC#6)"
 ```
 
@@ -1352,7 +1352,7 @@ git commit -m "feat(capability): CAP-7 CapabilityService stub — delegation inv
 ### Task 7: Barrel export + full-suite verification + type gate
 
 **Files:**
-- Modify: `src/capability/index.ts` (add `export * from "./lifecycle-eligibility.js";` and `export * from "./capability-service.js";`)
+- Modify: `src/capabilities/capability/index.ts` (add `export * from "./lifecycle-eligibility.js";` and `export * from "./capability-service.js";`)
 - Test: `tests/capability/cap-7-supersession.test.ts` (new — confirms CAP-7 does not touch forbidden files)
 
 **Interfaces:**
@@ -1360,16 +1360,16 @@ git commit -m "feat(capability): CAP-7 CapabilityService stub — delegation inv
 - Produces: the canonical capability barrel re-exports `LIFECYCLE_ELIGIBILITY`, `isLifecycleEligible`, `LifecycleEligibility`, `CapabilityResolver`, `ResolverContext`, `CapabilityService`, `CapabilityServiceOptions`.
 
 **Design contract:**
-- The barrel is the only public surface for `src/capability/`. CAP-7 adds two new exports: the eligibility module and the service stub.
+- The barrel is the only public surface for `src/capabilities/capability/`. CAP-7 adds two new exports: the eligibility module and the service stub.
 - `CapabilityResolver` is exported from `provider-resolver.js` (Task 2); the barrel already re-exports `provider-resolver.js`, so it propagates.
 - `ResolverContext` is exported from `provider-resolver.js`; same propagation.
 - `CapabilityService` + `CapabilityServiceOptions` are exported from `capability-service.js` (Task 6).
 - `LIFECYCLE_ELIGIBILITY` + `isLifecycleEligible` + `LifecycleEligibility` are exported from `lifecycle-eligibility.js` (Task 1).
-- A dedicated supersession test (CAP-7's analog of the CAP-6 forbidden-file check) confirms the worktree's CAP-7 diff does NOT touch `src/capability/initial-capabilities.ts`, `src/tools/tool-registry.ts`, `src/policy/capability-registry.ts`, or production `src/capability/canonical/*`. The test runs `git diff --name-only` from the repo root and fails if any forbidden file appears in the diff.
+- A dedicated supersession test (CAP-7's analog of the CAP-6 forbidden-file check) confirms the worktree's CAP-7 diff does NOT touch `src/capabilities/capability/initial-capabilities.ts`, `src/capabilities/tools/tool-registry.ts`, `src/governance/policy/capability-registry.ts`, or production `src/capabilities/capability/canonical/*`. The test runs `git diff --name-only` from the repo root and fails if any forbidden file appears in the diff.
 
 - [ ] **Step 1: Update the barrel**
 
-Add the two new exports to `src/capability/index.ts`:
+Add the two new exports to `src/capabilities/capability/index.ts`:
 
 ```ts
 export * from "./lifecycle-eligibility.js";
@@ -1392,9 +1392,9 @@ import { execSync } from "node:child_process";
  *  CAP-6 supersession test pattern. */
 
 const FORBIDDEN = [
-  "src/capability/initial-capabilities.ts",
-  "src/tools/tool-registry.ts",
-  "src/policy/capability-registry.ts",
+  "src/capabilities/capability/initial-capabilities.ts",
+  "src/capabilities/tools/tool-registry.ts",
+  "src/governance/policy/capability-registry.ts",
 ];
 
 function changedFiles(): string[] {
@@ -1420,8 +1420,8 @@ function addedOrModified(): string[] {
 describe("CAP-7 supersession — forbidden-file guard", () => {
   it("does not modify the canonical CAP-2 surface", () => {
     const changed = changedFiles();
-    const canonicalHits = changed.filter((p) => p.startsWith("src/capability/canonical/"));
-    assert.equal(canonicalHits.length, 0, `CAP-7 must not touch src/capability/canonical/* — found: ${canonicalHits.join(", ")}`);
+    const canonicalHits = changed.filter((p) => p.startsWith("src/capabilities/capability/canonical/"));
+    assert.equal(canonicalHits.length, 0, `CAP-7 must not touch src/capabilities/capability/canonical/* — found: ${canonicalHits.join(", ")}`);
   });
 
   it("does not modify the bootstrap, tool, or legacy-policy forbidden files", () => {
@@ -1453,7 +1453,7 @@ Expected: the capability + execution + lifecycle suites pass. Pre-existing CI fa
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/capability/index.ts tests/capability/cap-7-supersession.test.ts
+git add src/capabilities/capability/index.ts tests/capability/cap-7-supersession.test.ts
 git commit -m "chore(capability): CAP-7 barrel export + supersession forbidden-file guard"
 ```
 
@@ -1498,7 +1498,7 @@ git commit -m "chore(capability): CAP-7 barrel export + supersession forbidden-f
 - Ruling #6: encoded in Task 1 (LifecycleEligibility shape test — no extra fields) + Task 2 (resolver annotates every step with exactly that shape).
 - Ruling #7: encoded in Task 1 (table is strict boolean, no availability keys) + Task 2 (two-stage gate — lifecycle FIRST, provider SECOND; provider filter unchanged).
 
-**5. Forbidden-file guard:** Task 7 supersession test asserts the CAP-7 worktree does not touch `src/capability/initial-capabilities.ts`, `src/tools/tool-registry.ts`, `src/policy/capability-registry.ts`, or production `src/capability/canonical/*`.
+**5. Forbidden-file guard:** Task 7 supersession test asserts the CAP-7 worktree does not touch `src/capabilities/capability/initial-capabilities.ts`, `src/capabilities/tools/tool-registry.ts`, `src/governance/policy/capability-registry.ts`, or production `src/capabilities/capability/canonical/*`.
 
 **6. Type gate:** `pnpm exec tsc --noEmit` runs after every task. Vitest does not typecheck (CAP-6 lesson); `pnpm run build` runs the full typecheck + emit pipeline before the final test sweep.
 

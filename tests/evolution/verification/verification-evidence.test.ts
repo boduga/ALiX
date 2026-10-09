@@ -11,8 +11,8 @@ import {
   computeEvidenceIntegrityHash,
   isEvidenceExpired,
   markReverificationRequired,
-} from "../../../src/evolution/verification/index.js";
-import type { VerificationEvidence, ConfidenceProfile } from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
+import type { VerificationEvidence, ConfidenceProfile } from "../../../src/planning/evolution/verification/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

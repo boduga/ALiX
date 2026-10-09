@@ -41,7 +41,7 @@ The revised design makes the following architectural decisions:
    A hash of only the record body is insufficient. `sequence` and `previousHash` must be part of the digest. Multi-process appends require an explicit lock/coordinator; sub-4KB append assumptions are not a correctness guarantee.
 
 9. **Centralize all configuration writes before adding signatures and provenance.**  
-   The current CLI writes config from multiple code paths. Modifying only `src/config/loader.ts` cannot guarantee provenance or signature invalidation.
+   The current CLI writes config from multiple code paths. Modifying only `src/operations/config/loader.ts` cannot guarantee provenance or signature invalidation.
 
 10. **Remove plaintext API keys from project configuration through a migration path.**  
     The current schema and CLI permit `apiKeys` in config, including project config. The draft's assertion that API keys are never in config does not match the repository and must become an implemented migration, not an assumption.
@@ -86,13 +86,13 @@ The security boundary should land before expanding the Inspector UX or adding an
 | Area | Current repository state | Security implication |
 |---|---|---|
 | Runtime | Node 24+, TypeScript, ESM | The Python metrics document is not the implementation baseline |
-| Inspector server | `src/server/server.ts`, raw Node HTTP server | No central middleware or route metadata |
+| Inspector server | `src/interfaces/server/server.ts`, raw Node HTTP server | No central middleware or route metadata |
 | Default binding | `ui.host: "0.0.0.0"` | Remotely reachable by default |
 | Inspector auth | None | All API and SSE routes are unauthenticated |
 | Inspector invariant | Read-only, CLI-first mutations | Draft write permissions conflict with architecture |
 | Main routing | Long `if` chain in `server.ts` | Permission coverage is easy to miss |
 | Coordination routes | `registerCoordinationRoutes()` receives no request/security context | Must be refactored for auth, origin, rate, audit |
-| Observability routes | `src/observability/observability-routes.ts` | Draft references the wrong directory |
+| Observability routes | `src/operations/observability/observability-routes.ts` | Draft references the wrong directory |
 | Session SSE | Repeated whole-file reads and string splitting | Memory/I/O amplification and no backpressure |
 | Observability SSE | Per-client health/alert/metric/anomaly computation every 2s | Client-count multiplies expensive work |
 | Telemetry | `TelemetryEnvelope` + interface-only `TelemetrySink` | No concrete sink exists to "wire" redaction into |
@@ -1547,10 +1547,10 @@ Files:
 
 | File | Action |
 |---|---|
-| `src/config/defaults.ts` | MODIFY |
-| `src/config/schema.ts` | MODIFY |
-| `src/config/validator.ts` | MODIFY |
-| `src/server/server.ts` | MODIFY |
+| `src/operations/config/defaults.ts` | MODIFY |
+| `src/operations/config/schema.ts` | MODIFY |
+| `src/operations/config/validator.ts` | MODIFY |
+| `src/interfaces/server/server.ts` | MODIFY |
 | `README.md` | MODIFY |
 | `docs/configuration.md` | MODIFY |
 | `tests/server/server.test.ts` | MODIFY |
@@ -1583,15 +1583,15 @@ Files:
 
 | File | Action |
 |---|---|
-| `src/security/redaction/classifications.ts` | CREATE |
-| `src/security/redaction/secret-detector.ts` | CREATE |
-| `src/security/redaction/redaction-policy.ts` | CREATE |
-| `src/security/redaction/redactor.ts` | CREATE |
-| `src/security/secret-scanner.ts` | MODIFY |
-| `src/observability/metric-registry.ts` | CREATE |
-| `src/observability/security-telemetry.ts` | CREATE |
-| `src/observability/telemetry-envelope.ts` | MODIFY |
-| `src/observability/metrics-store.ts` | MODIFY |
+| `src/governance/security/redaction/classifications.ts` | CREATE |
+| `src/governance/security/redaction/secret-detector.ts` | CREATE |
+| `src/governance/security/redaction/redaction-policy.ts` | CREATE |
+| `src/governance/security/redaction/redactor.ts` | CREATE |
+| `src/governance/security/secret-scanner.ts` | MODIFY |
+| `src/operations/observability/metric-registry.ts` | CREATE |
+| `src/operations/observability/security-telemetry.ts` | CREATE |
+| `src/operations/observability/telemetry-envelope.ts` | MODIFY |
+| `src/operations/observability/metrics-store.ts` | MODIFY |
 | `src/cli.ts` or config display helper | MODIFY |
 | `tests/security/redaction/` | CREATE |
 | `tests/observability/metric-registry.test.ts` | CREATE |
@@ -1625,20 +1625,20 @@ Files:
 
 | File | Action |
 |---|---|
-| `src/security/inspector/route-policy.ts` | CREATE |
-| `src/security/inspector/auth-store.ts` | CREATE |
-| `src/security/inspector/auth-service.ts` | CREATE |
-| `src/security/inspector/browser-session-store.ts` | CREATE |
-| `src/security/inspector/authorization.ts` | CREATE |
-| `src/security/inspector/security-context.ts` | CREATE |
-| `src/server/security-middleware.ts` | CREATE |
-| `src/server/secure-response.ts` | CREATE |
-| `src/server/server.ts` | MODIFY |
-| `src/server/coordination-routes.ts` | MODIFY |
-| `src/observability/observability-routes.ts` | MODIFY |
-| `src/ui/app.js` | MODIFY |
-| `src/ui/index.html` | MODIFY |
-| `src/cli/commands/security.ts` | CREATE |
+| `src/governance/security/inspector/route-policy.ts` | CREATE |
+| `src/governance/security/inspector/auth-store.ts` | CREATE |
+| `src/governance/security/inspector/auth-service.ts` | CREATE |
+| `src/governance/security/inspector/browser-session-store.ts` | CREATE |
+| `src/governance/security/inspector/authorization.ts` | CREATE |
+| `src/governance/security/inspector/security-context.ts` | CREATE |
+| `src/interfaces/server/security-middleware.ts` | CREATE |
+| `src/interfaces/server/secure-response.ts` | CREATE |
+| `src/interfaces/server/server.ts` | MODIFY |
+| `src/interfaces/server/coordination-routes.ts` | MODIFY |
+| `src/operations/observability/observability-routes.ts` | MODIFY |
+| `src/interfaces/ui/app.js` | MODIFY |
+| `src/interfaces/ui/index.html` | MODIFY |
+| `src/interfaces/cli/commands/security.ts` | CREATE |
 | `src/cli.ts` | MODIFY |
 | `tests/security/inspector/` | CREATE |
 | `tests/server/server.test.ts` | MODIFY |
@@ -1676,20 +1676,20 @@ Files:
 
 | File | Action |
 |---|---|
-| `src/security/inspector/host-policy.ts` | CREATE |
-| `src/security/inspector/origin-policy.ts` | CREATE |
-| `src/security/inspector/client-address.ts` | CREATE |
-| `src/security/inspector/rate-limiter.ts` | CREATE |
-| `src/security/inspector/connection-limiter.ts` | CREATE |
-| `src/security/inspector/remote-access-policy.ts` | CREATE |
-| `src/server/secure-sse.ts` | CREATE |
-| `src/server/observability-stream-hub.ts` | CREATE |
-| `src/server/session-stream-hub.ts` | CREATE |
-| `src/server/observability-stream.ts` | REFACTOR |
-| `src/server/server.ts` | MODIFY |
-| `src/config/schema.ts` | MODIFY |
-| `src/config/defaults.ts` | MODIFY |
-| `src/config/validator.ts` | MODIFY |
+| `src/governance/security/inspector/host-policy.ts` | CREATE |
+| `src/governance/security/inspector/origin-policy.ts` | CREATE |
+| `src/governance/security/inspector/client-address.ts` | CREATE |
+| `src/governance/security/inspector/rate-limiter.ts` | CREATE |
+| `src/governance/security/inspector/connection-limiter.ts` | CREATE |
+| `src/governance/security/inspector/remote-access-policy.ts` | CREATE |
+| `src/interfaces/server/secure-sse.ts` | CREATE |
+| `src/interfaces/server/observability-stream-hub.ts` | CREATE |
+| `src/interfaces/server/session-stream-hub.ts` | CREATE |
+| `src/interfaces/server/observability-stream.ts` | REFACTOR |
+| `src/interfaces/server/server.ts` | MODIFY |
+| `src/operations/config/schema.ts` | MODIFY |
+| `src/operations/config/defaults.ts` | MODIFY |
+| `src/operations/config/validator.ts` | MODIFY |
 | `tests/security/inspector/` | EXPAND |
 | `tests/server/observability-stream.test.ts` | MODIFY |
 | `tests/inspector-stream.test.ts` | MODIFY |
@@ -1726,14 +1726,14 @@ Files:
 
 | File | Action |
 |---|---|
-| `src/security/audit/canonical-json.ts` | CREATE |
-| `src/security/audit/audit-lock.ts` | CREATE |
-| `src/security/audit/audit-chain-writer.ts` | CREATE |
-| `src/security/audit/audit-verifier.ts` | CREATE |
-| `src/security/audit/audit-checkpoint.ts` | CREATE |
-| `src/audit/audit-store.ts` | REFACTOR |
-| `src/audit/audit-types.ts` | MODIFY |
-| `src/cli/commands/security.ts` | MODIFY |
+| `src/governance/security/audit/canonical-json.ts` | CREATE |
+| `src/governance/security/audit/audit-lock.ts` | CREATE |
+| `src/governance/security/audit/audit-chain-writer.ts` | CREATE |
+| `src/governance/security/audit/audit-verifier.ts` | CREATE |
+| `src/governance/security/audit/audit-checkpoint.ts` | CREATE |
+| `src/governance/audit/audit-store.ts` | REFACTOR |
+| `src/governance/audit/audit-types.ts` | MODIFY |
+| `src/interfaces/cli/commands/security.ts` | MODIFY |
 | `src/cli.ts` | MODIFY |
 | `tests/security/audit/` | CREATE |
 | `tests/stress/audit-concurrency.test.ts` | CREATE |
@@ -1770,19 +1770,19 @@ Files:
 
 | File | Action |
 |---|---|
-| `src/security/credentials/credential-store.ts` | CREATE |
-| `src/security/credentials/credential-migration.ts` | CREATE |
-| `src/security/config/config-projection.ts` | CREATE |
-| `src/security/config/config-signing.ts` | CREATE |
-| `src/security/config/config-provenance.ts` | CREATE |
-| `src/security/config/config-version-store.ts` | CREATE |
-| `src/security/config/trust-policy.ts` | CREATE |
-| `src/config/config-mutation-service.ts` | CREATE |
-| `src/config/loader.ts` | MODIFY |
-| `src/config/schema.ts` | MODIFY |
-| `src/config/validator.ts` | MODIFY |
+| `src/governance/security/credentials/credential-store.ts` | CREATE |
+| `src/governance/security/credentials/credential-migration.ts` | CREATE |
+| `src/governance/security/config/config-projection.ts` | CREATE |
+| `src/governance/security/config/config-signing.ts` | CREATE |
+| `src/governance/security/config/config-provenance.ts` | CREATE |
+| `src/governance/security/config/config-version-store.ts` | CREATE |
+| `src/governance/security/config/trust-policy.ts` | CREATE |
+| `src/operations/config/config-mutation-service.ts` | CREATE |
+| `src/operations/config/loader.ts` | MODIFY |
+| `src/operations/config/schema.ts` | MODIFY |
+| `src/operations/config/validator.ts` | MODIFY |
 | `src/cli.ts` | REFACTOR config writes |
-| `src/cli/commands/init.ts` | MODIFY |
+| `src/interfaces/cli/commands/init.ts` | MODIFY |
 | model/profile and MCP config writers | MODIFY |
 | `tests/security/config/` | CREATE |
 | `tests/security/credentials/` | CREATE |
@@ -1819,9 +1819,9 @@ Files:
 
 | File | Action |
 |---|---|
-| `src/security/supply-chain/dependency-policy.ts` | CREATE |
-| `src/security/supply-chain/security-exceptions.ts` | CREATE |
-| `src/security/supply-chain/package-verifier.ts` | CREATE |
+| `src/governance/security/supply-chain/dependency-policy.ts` | CREATE |
+| `src/governance/security/supply-chain/security-exceptions.ts` | CREATE |
+| `src/governance/security/supply-chain/package-verifier.ts` | CREATE |
 | `security/lifecycle-script-allowlist.json` | CREATE |
 | `security/audit-exceptions.json` | CREATE |
 | `scripts/verify-lifecycle-scripts.mjs` | CREATE |
@@ -1876,10 +1876,10 @@ Files:
 | `docs/security/audit-integrity.md` | CREATE |
 | `docs/security/config-trust.md` | CREATE |
 | `docs/observability/metrics-catalog.md` | CREATE |
-| `src/security/acceptance/security-check-registry.ts` | CREATE |
-| `src/security/acceptance/security-doctor.ts` | CREATE |
-| `src/security/acceptance/security-report.ts` | CREATE |
-| `src/cli/commands/security.ts` | MODIFY |
+| `src/governance/security/acceptance/security-check-registry.ts` | CREATE |
+| `src/governance/security/acceptance/security-doctor.ts` | CREATE |
+| `src/governance/security/acceptance/security-report.ts` | CREATE |
+| `src/interfaces/cli/commands/security.ts` | MODIFY |
 | `package.json` | MODIFY |
 | `scripts/release-gate.sh` | MODIFY |
 | `tests/security/acceptance/` | CREATE |
@@ -2023,7 +2023,7 @@ Do not expose a public "middleware active" endpoint. Inspect registered route po
 ## 19. File Layout
 
 ```text
-src/security/
+src/governance/security/
   redaction/
     classifications.ts
     secret-detector.ts
@@ -2072,18 +2072,18 @@ src/security/
     security-doctor.ts
     security-report.ts
 
-src/server/
+src/interfaces/server/
   security-middleware.ts
   secure-response.ts
   secure-sse.ts
   observability-stream-hub.ts
   session-stream-hub.ts
 
-src/observability/
+src/operations/observability/
   metric-registry.ts
   security-telemetry.ts
 
-src/config/
+src/operations/config/
   config-mutation-service.ts
 ```
 

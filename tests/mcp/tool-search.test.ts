@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { searchTools } from "../../src/mcp/tool-search.js";
+import { searchTools } from "../../src/capabilities/mcp/tool-search.js";
 
 interface Tool { name: string; description: string; [key: string]: string | number | boolean | object | undefined; }
 

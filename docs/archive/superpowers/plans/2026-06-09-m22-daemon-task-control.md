@@ -8,18 +8,18 @@
 
 | Task | Files |
 |------|-------|
-| A: TaskRegistry | `src/daemon/task-registry.ts`, `tests/daemon/task-registry.test.ts` |
-| B: Daemon lifecycle | `src/daemon/daemon-server.ts` |
+| A: TaskRegistry | `src/operations/daemon/task-registry.ts`, `tests/daemon/task-registry.test.ts` |
+| B: Daemon lifecycle | `src/operations/daemon/daemon-server.ts` |
 | C: CLI tasks | `src/cli.ts` |
-| D: CLI cancel | `src/cli.ts`, `src/daemon/daemon-types.ts` |
-| E: RuntimeIndex | `src/runtime/runtime-index.ts` |
-| F: API + Inspector | `src/server/server.ts`, `src/ui/app.js`, `tests/server/server.test.ts` |
+| D: CLI cancel | `src/cli.ts`, `src/operations/daemon/daemon-types.ts` |
+| E: RuntimeIndex | `src/runtime-state/runtime/runtime-index.ts` |
+| F: API + Inspector | `src/interfaces/server/server.ts`, `src/interfaces/ui/app.js`, `tests/server/server.test.ts` |
 
 ---
 
 ### A: TaskRegistry
 
-**Create `src/daemon/task-registry.ts`**:
+**Create `src/operations/daemon/task-registry.ts`**:
 
 ```typescript
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";

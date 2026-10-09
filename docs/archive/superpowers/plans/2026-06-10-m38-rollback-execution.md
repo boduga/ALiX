@@ -16,12 +16,12 @@
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/runtime/rollback-plan.ts` | **NEW** | RollbackPlan, RollbackStep, buildRollbackPlan() |
-| `src/runtime/rollback-executor.ts` | **NEW** | RollbackExecutor with dry-run + approved-live modes |
-| `src/events/types.ts` | MODIFY | Add ROLLBACK_EVENT_TYPES and payload types |
-| `src/runtime/trace-events.ts` | MODIFY | Add "rollback" TraceSourceType and toTraceEvent() mapping |
-| `src/tui/trace-detail.ts` | MODIFY | Add renderRollbackResult() |
-| `src/cli/commands/tui.ts` | MODIFY | Add /rollback command |
+| `src/runtime-state/runtime/rollback-plan.ts` | **NEW** | RollbackPlan, RollbackStep, buildRollbackPlan() |
+| `src/runtime-state/runtime/rollback-executor.ts` | **NEW** | RollbackExecutor with dry-run + approved-live modes |
+| `src/runtime-state/events/types.ts` | MODIFY | Add ROLLBACK_EVENT_TYPES and payload types |
+| `src/runtime-state/runtime/trace-events.ts` | MODIFY | Add "rollback" TraceSourceType and toTraceEvent() mapping |
+| `src/interfaces/tui/trace-detail.ts` | MODIFY | Add renderRollbackResult() |
+| `src/interfaces/cli/commands/tui.ts` | MODIFY | Add /rollback command |
 | `tests/runtime/rollback-plan.test.ts` | **NEW** | Plan building tests |
 | `tests/runtime/rollback-executor.test.ts` | **NEW** | Execution tests |
 | `tests/tui/rollback-rendering.test.ts` | **NEW** | Rendering tests |
@@ -31,12 +31,12 @@
 ### Task 1: Add rollback event types and trace integration
 
 **Files:**
-- Modify: `src/events/types.ts`
-- Modify: `src/runtime/trace-events.ts`
+- Modify: `src/runtime-state/events/types.ts`
+- Modify: `src/runtime-state/runtime/trace-events.ts`
 
 - [ ] **Step 1: Add ROLLBACK_EVENT_TYPES and payload types**
 
-In `src/events/types.ts`, after `REPLAY_EVENT_TYPES` and its payload types, add:
+In `src/runtime-state/events/types.ts`, after `REPLAY_EVENT_TYPES` and its payload types, add:
 
 ```typescript
 // ─── Rollback lifecycle event types ──────────────────────────
@@ -91,7 +91,7 @@ export type RollbackFailedPayload = {
 
 - [ ] **Step 2: Add "rollback" to TraceSourceType and rollback mapping**
 
-In `src/runtime/trace-events.ts`:
+In `src/runtime-state/runtime/trace-events.ts`:
 
 Add `"rollback"` to the `TraceSourceType` union:
 ```typescript
@@ -129,7 +129,7 @@ npm run build
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/events/types.ts src/runtime/trace-events.ts
+git add src/runtime-state/events/types.ts src/runtime-state/runtime/trace-events.ts
 git commit -m "feat(events): add rollback event types and trace integration"
 ```
 
@@ -138,7 +138,7 @@ git commit -m "feat(events): add rollback event types and trace integration"
 ### Task 2: Build RollbackPlan model and builder
 
 **Files:**
-- Create: `src/runtime/rollback-plan.ts`
+- Create: `src/runtime-state/runtime/rollback-plan.ts`
 - Create: `tests/runtime/rollback-plan.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -148,8 +148,8 @@ Create `tests/runtime/rollback-plan.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildRollbackPlan } from "../../src/runtime/rollback-plan.js";
-import type { ReplayDiffSet } from "../../src/runtime/replay-diff-store.js";
+import { buildRollbackPlan } from "../../src/runtime-state/runtime/rollback-plan.js";
+import type { ReplayDiffSet } from "../../src/runtime-state/runtime/replay-diff-store.js";
 
 function makeDiffSet(overrides: Partial<ReplayDiffSet> = {}): ReplayDiffSet {
   return {
@@ -248,7 +248,7 @@ Expected: FAIL with "Cannot find module" for `rollback-plan.js`.
 
 - [ ] **Step 3: Create RollbackPlan model and builder**
 
-Create `src/runtime/rollback-plan.ts`:
+Create `src/runtime-state/runtime/rollback-plan.ts`:
 
 ```typescript
 /**
@@ -345,7 +345,7 @@ Expected: 4 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/runtime/rollback-plan.ts tests/runtime/rollback-plan.test.ts
+git add src/runtime-state/runtime/rollback-plan.ts tests/runtime/rollback-plan.test.ts
 git commit -m "feat(runtime): add rollback plan model and builder"
 ```
 
@@ -354,7 +354,7 @@ git commit -m "feat(runtime): add rollback plan model and builder"
 ### Task 3: Build RollbackExecutor
 
 **Files:**
-- Create: `src/runtime/rollback-executor.ts`
+- Create: `src/runtime-state/runtime/rollback-executor.ts`
 - Create: `tests/runtime/rollback-executor.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -367,10 +367,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync, mkdirSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { RollbackExecutor } from "../../src/runtime/rollback-executor.js";
-import { ReplayDiffStore } from "../../src/runtime/replay-diff-store.js";
-import { buildRollbackPlan } from "../../src/runtime/rollback-plan.js";
-import { EventLog } from "../../src/events/event-log.js";
+import { RollbackExecutor } from "../../src/runtime-state/runtime/rollback-executor.js";
+import { ReplayDiffStore } from "../../src/runtime-state/runtime/replay-diff-store.js";
+import { buildRollbackPlan } from "../../src/runtime-state/runtime/rollback-plan.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 describe("RollbackExecutor dry-run mode", () => {
   let tmpDir: string;
@@ -448,7 +448,7 @@ describe("RollbackExecutor approved-live mode", () => {
     executor = new RollbackExecutor(tmpDir, eventLog);
     diffStore = new ReplayDiffStore(tmpDir);
 
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     approvalStore = new ApprovalStore(tmpDir);
     await approvalStore.load();
 
@@ -556,7 +556,7 @@ Expected: FAIL with "Cannot find module" for `rollback-executor.js`.
 
 - [ ] **Step 3: Create RollbackExecutor**
 
-Create `src/runtime/rollback-executor.ts`:
+Create `src/runtime-state/runtime/rollback-executor.ts`:
 
 ```typescript
 /**
@@ -838,7 +838,7 @@ Expected: All tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/runtime/rollback-executor.ts tests/runtime/rollback-executor.test.ts
+git add src/runtime-state/runtime/rollback-executor.ts tests/runtime/rollback-executor.test.ts
 git commit -m "feat(runtime): add rollback executor with dry-run and approved-live modes"
 ```
 
@@ -847,8 +847,8 @@ git commit -m "feat(runtime): add rollback executor with dry-run and approved-li
 ### Task 4: Add rollback rendering and TUI commands
 
 **Files:**
-- Modify: `src/tui/trace-detail.ts`
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/tui/trace-detail.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 - Create: `tests/tui/rollback-rendering.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -858,8 +858,8 @@ Create `tests/tui/rollback-rendering.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { renderRollbackResult } from "../../src/tui/trace-detail.js";
-import type { RollbackResult, RollbackStepResult } from "../../src/runtime/rollback-executor.js";
+import { renderRollbackResult } from "../../src/interfaces/tui/trace-detail.js";
+import type { RollbackResult, RollbackStepResult } from "../../src/runtime-state/runtime/rollback-executor.js";
 
 function makeStep(overrides: Partial<RollbackStepResult> = {}): RollbackStepResult {
   return {
@@ -934,7 +934,7 @@ describe("renderRollbackResult", () => {
 
 - [ ] **Step 2: Add renderRollbackResult to trace-detail.ts**
 
-In `src/tui/trace-detail.ts`, add import:
+In `src/interfaces/tui/trace-detail.ts`, add import:
 
 ```typescript
 import type { RollbackResult } from "../runtime/rollback-executor.js";
@@ -983,7 +983,7 @@ export function renderRollbackResult(result: RollbackResult): string[] {
 
 - [ ] **Step 3: Add /rollback command to TUI**
 
-In `src/cli/commands/tui.ts`, find the command loop section where other command handlers are (after the `/replay` command block, around line 445). Add:
+In `src/interfaces/cli/commands/tui.ts`, find the command loop section where other command handlers are (after the `/replay` command block, around line 445). Add:
 
 ```typescript
 // Check for /rollback command
@@ -1110,7 +1110,7 @@ Expected: All pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/trace-detail.ts src/cli/commands/tui.ts tests/tui/rollback-rendering.test.ts
+git add src/interfaces/tui/trace-detail.ts src/interfaces/cli/commands/tui.ts tests/tui/rollback-rendering.test.ts
 git commit -m "feat(tui): add rollback result rendering and /rollback command"
 ```
 

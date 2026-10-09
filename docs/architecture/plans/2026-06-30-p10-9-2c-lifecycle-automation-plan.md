@@ -23,8 +23,8 @@
 ### Task 0: Evidence type + writer method
 
 **Files:**
-- Modify: `src/security/evidence/evidence-types.ts`
-- Modify: `src/workflow/evidence-writer.ts`
+- Modify: `src/governance/security/evidence/evidence-types.ts`
+- Modify: `src/coordination/workflow/evidence-writer.ts`
 - Test: (verify type exists + writer returns correct shape)
 
 **Interfaces:**
@@ -68,7 +68,7 @@ Expected: No errors (or only errors unrelated to evidence types).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/security/evidence/evidence-types.ts src/workflow/evidence-writer.ts
+git add src/governance/security/evidence/evidence-types.ts src/coordination/workflow/evidence-writer.ts
 git commit -m "P10.9.2c-T0: Add executive_step_orchestrated evidence type + writer method"
 ```
 
@@ -77,7 +77,7 @@ git commit -m "P10.9.2c-T0: Add executive_step_orchestrated evidence type + writ
 ### Task 1: ExecutiveOrchestrator module — types, pure functions, class, and unit tests
 
 **Files:**
-- Create: `src/executive/executive-orchestrator.ts`
+- Create: `src/execution/executive/executive-orchestrator.ts`
 - Create: `tests/executive/executive-orchestrator.vitest.ts`
 
 **Interfaces:**
@@ -100,9 +100,9 @@ import {
   computeStepTransition,
   planChildReconciliation,
   orchestrationSequence,
-} from "../../src/executive/executive-orchestrator.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
-import type { PlanExecutionState } from "../../src/executive/executive-plan-types.js";
+} from "../../src/execution/executive/executive-orchestrator.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
+import type { PlanExecutionState } from "../../src/execution/executive/executive-plan-types.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -309,7 +309,7 @@ describe("ExecutiveOrchestrator", () => {
     const writer = { recordExecutiveStepOrchestrated: vi.fn() } as any;
 
     const { ExecutiveOrchestrator } = await import(
-      "../../src/executive/executive-orchestrator.js"
+      "../../src/execution/executive/executive-orchestrator.js"
     );
     const orchestrator = new ExecutiveOrchestrator(stateStore, engine, writer);
     await expect(orchestrator.onProposalTerminal(proposal)).resolves.toBeUndefined();
@@ -327,7 +327,7 @@ npx vitest run tests/executive/executive-orchestrator.vitest.ts --config vitest.
 ```
 Expected: FAIL — `executive-orchestrator.ts` doesn't exist yet.
 
-- [ ] **Step 3: Implement `src/executive/executive-orchestrator.ts`**
+- [ ] **Step 3: Implement `src/execution/executive/executive-orchestrator.ts`**
 
 Create the module with these exports in order:
 
@@ -545,7 +545,7 @@ Expected: Clean (no errors).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/executive/executive-orchestrator.ts tests/executive/executive-orchestrator.vitest.ts
+git add src/execution/executive/executive-orchestrator.ts tests/executive/executive-orchestrator.vitest.ts
 git commit -m "P10.9.2c-T1: ExecutiveOrchestrator module — types, pure functions, class, unit tests
 
 - Types: ChildLineageInfo, ReconcileResult, OrchestrateResult
@@ -564,7 +564,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 2: Wire orchestration hook into adaptation.ts
 
 **Files:**
-- Modify: `src/cli/commands/adaptation.ts`
+- Modify: `src/interfaces/cli/commands/adaptation.ts`
 - Modify: `tests/cli/commands/adaptation.vitest.ts` (or relevant existing test file)
 
 **Interfaces:**
@@ -655,7 +655,7 @@ Expected: Clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/adaptation.ts
+git add src/interfaces/cli/commands/adaptation.ts
 git commit -m "P10.9.2c-T2: Wire orchestration hook into adaptation.ts apply path
 
 - Optional OrchestrationHook parameter in runApply
@@ -671,9 +671,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 3: Recovery CLI — `alix executive orchestrate`
 
 **Files:**
-- Create: `src/cli/commands/executive-orchestrate-handler.ts`
+- Create: `src/interfaces/cli/commands/executive-orchestrate-handler.ts`
 - Create: `tests/cli/commands/executive-orchestrate-cli.vitest.ts`
-- Modify: `src/cli/commands/executive.ts`
+- Modify: `src/interfaces/cli/commands/executive.ts`
 
 **Interfaces:**
 - Consumes: `ExecutiveOrchestrator`, `planChildReconciliation`, `reconcileChildProposal`, `ChildLineageInfo`, `ReconcileResult`, `OrchestrateResult` from Task 1
@@ -691,9 +691,9 @@ import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
-import { handleOrchestrateCommand } from "../../../src/cli/commands/executive-orchestrate-handler.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+import { ProposalStore } from "../../../src/planning/adaptation/proposal-store.js";
+import { handleOrchestrateCommand } from "../../../src/interfaces/cli/commands/executive-orchestrate-handler.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
 
 function makeChildProposal(overrides: Partial<AdaptationProposal> & { id: string }): AdaptationProposal {
   const base: AdaptationProposal = {
@@ -732,10 +732,10 @@ Because the handler loads real stores, tests should set up temporary directories
 
 ```typescript
 // Use vi.mock for the stores and engine
-vi.mock("../../../src/executive/execution-state-store.js");
-vi.mock("../../../src/executive/execution-engine.js");
-vi.mock("../../../src/executive/step-runner.js");
-vi.mock("../../../src/adaptation/proposal-store.js");
+vi.mock("../../../src/execution/executive/execution-state-store.js");
+vi.mock("../../../src/execution/executive/execution-engine.js");
+vi.mock("../../../src/execution/executive/step-runner.js");
+vi.mock("../../../src/planning/adaptation/proposal-store.js");
 
 // Tests use mock implementations
 const mockStateStore = {
@@ -754,7 +754,7 @@ npx vitest run tests/cli/commands/executive-orchestrate-cli.vitest.ts --config v
 ```
 Expected: FAIL — `executive-orchestrate-handler.ts` doesn't exist.
 
-- [ ] **Step 3: Implement `src/cli/commands/executive-orchestrate-handler.ts`**
+- [ ] **Step 3: Implement `src/interfaces/cli/commands/executive-orchestrate-handler.ts`**
 
 ```typescript
 import { ProposalStore } from "../../adaptation/proposal-store.js";
@@ -887,7 +887,7 @@ export async function handleOrchestrateCommand(args: string[]): Promise<void> {
 
 - [ ] **Step 4: Wire into `executive.ts`**
 
-Add dynamic import to `src/cli/commands/executive.ts`:
+Add dynamic import to `src/interfaces/cli/commands/executive.ts`:
 
 ```typescript
 case "orchestrate": {
@@ -924,7 +924,7 @@ Expected: Clean.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/executive-orchestrate-handler.ts tests/cli/commands/executive-orchestrate-cli.vitest.ts src/cli/commands/executive.ts
+git add src/interfaces/cli/commands/executive-orchestrate-handler.ts tests/cli/commands/executive-orchestrate-cli.vitest.ts src/interfaces/cli/commands/executive.ts
 git commit -m "P10.9.2c-T3: Recovery CLI — alix executive orchestrate
 
 - handleOrchestrateCommand with --plan, --dry-run, --json flags
@@ -949,8 +949,8 @@ In `tests/executive/executive-sentinels.vitest.ts`, add after the existing P10.9
 
 ```typescript
   // P10.9.2c files
-  "src/executive/executive-orchestrator.ts",
-  "src/cli/commands/executive-orchestrate-handler.ts",
+  "src/execution/executive/executive-orchestrator.ts",
+  "src/interfaces/cli/commands/executive-orchestrate-handler.ts",
 ```
 
 - [ ] **Step 2: Run full suite**

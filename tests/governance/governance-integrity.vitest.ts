@@ -11,12 +11,12 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildGovernanceIntegrity } from "../../src/governance/governance-integrity.js";
-import { GovernanceReviewStore } from "../../src/adaptation/governance-review-store.js";
-import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
-import { EvidenceChainStore } from "../../src/learning/evidence-chain-store.js";
-import type { GovernanceReview } from "../../src/adaptation/governance-review-types.js";
-import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
-import type { LearningEvidenceChain } from "../../src/learning/evidence-chain-types.js";
+import { GovernanceReviewStore } from "../../src/planning/adaptation/governance-review-store.js";
+import { OutcomeStore } from "../../src/planning/adaptation/outcome-store.js";
+import { EvidenceChainStore } from "../../src/planning/learning/evidence-chain-store.js";
+import type { GovernanceReview } from "../../src/planning/adaptation/governance-review-types.js";
+import type { OutcomeRecord } from "../../src/planning/adaptation/outcome-types.js";
+import type { LearningEvidenceChain } from "../../src/planning/learning/evidence-chain-types.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;

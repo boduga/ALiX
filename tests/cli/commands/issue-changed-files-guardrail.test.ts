@@ -2,7 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateChangedFilesGuardrail } from "../../../src/cli/commands/issue-changed-files-guardrail.js";
+import { evaluateChangedFilesGuardrail } from "../../../src/interfaces/cli/commands/issue-changed-files-guardrail.js";
 
 describe("evaluateChangedFilesGuardrail", () => {
   // -- Pass ----------------------------------------------------------------

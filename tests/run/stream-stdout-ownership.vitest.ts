@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ModelAdapter, NormalizedRequest } from "../../src/providers/types.js";
-import { streamToResponse } from "../../src/run/helpers.js";
+import type { ModelAdapter, NormalizedRequest } from "../../src/models/providers/types.js";
+import { streamToResponse } from "../../src/execution/run/helpers.js";
 
 afterEach(() => {
   vi.restoreAllMocks();

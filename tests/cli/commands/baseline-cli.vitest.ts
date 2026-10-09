@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { handleBaselineCommand } from "../../../src/cli/commands/baseline.js";
+import { handleBaselineCommand } from "../../../src/interfaces/cli/commands/baseline.js";
 
 describe("baseline CLI", () => {
   let logs: string[];

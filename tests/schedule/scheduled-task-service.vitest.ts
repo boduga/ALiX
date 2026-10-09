@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ScheduledTaskStore } from "../../src/schedule/scheduled-task-store.js";
-import { ScheduledTaskService } from "../../src/schedule/scheduled-task-service.js";
-import { proposeSchedule, SCHEDULE_CAPABILITY, proposalFingerprint } from "../../src/schedule/propose.js";
-import { MAX_ACTIVE_JOBS } from "../../src/schedule/schedule-spec.js";
-import type { ApprovalStore } from "../../src/approvals/approval-store.js";
-import type { ApprovalRecord } from "../../src/approvals/approval-types.js";
+import { ScheduledTaskStore } from "../../src/operations/schedule/scheduled-task-store.js";
+import { ScheduledTaskService } from "../../src/operations/schedule/scheduled-task-service.js";
+import { proposeSchedule, SCHEDULE_CAPABILITY, proposalFingerprint } from "../../src/operations/schedule/propose.js";
+import { MAX_ACTIVE_JOBS } from "../../src/operations/schedule/schedule-spec.js";
+import type { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import type { ApprovalRecord } from "../../src/governance/approvals/approval-types.js";
 
 let dir: string;
 let store: ScheduledTaskStore;

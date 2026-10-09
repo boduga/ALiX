@@ -1,7 +1,7 @@
 // tests/tui/runtime/runtime-collector-evolution.vitest.ts
 import { describe, expect, it } from 'vitest';
-import { ProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
+import { ProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import { ProjectionIds } from '../../../src/interfaces/tui/runtime/projection-ids.js';
 
 class AsyncSnapBuilder {
   async snapshot(): Promise<{ generatedAt: number }> {

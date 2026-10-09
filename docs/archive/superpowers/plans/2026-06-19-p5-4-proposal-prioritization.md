@@ -39,18 +39,18 @@ FinalScore = min(BaseScore × AgeMultiplier, 1.0)
 
 | File | Role | Action |
 |---|---|---|
-| `src/adaptation/priority-types.ts` | ProposalPriorityReport, ScoredProposal, PriorityScoringConfig interfaces | **Create** |
-| `src/adaptation/priority-store.ts` | save/load/list/loadLatest under `.alix/adaptation/priorities/` | **Create** |
-| `src/adaptation/proposal-scorer.ts` | Score pending proposals using IntelligenceReport + deterministic formula | **Create** |
-| `src/adaptation/priority-reporter.ts` | Orchestrate scoring, assemble report, persist | **Create** |
-| `src/cli/commands/adaptation.ts` | Add `prioritize` subcommand | **Modify** |
+| `src/planning/adaptation/priority-types.ts` | ProposalPriorityReport, ScoredProposal, PriorityScoringConfig interfaces | **Create** |
+| `src/planning/adaptation/priority-store.ts` | save/load/list/loadLatest under `.alix/adaptation/priorities/` | **Create** |
+| `src/planning/adaptation/proposal-scorer.ts` | Score pending proposals using IntelligenceReport + deterministic formula | **Create** |
+| `src/planning/adaptation/priority-reporter.ts` | Orchestrate scoring, assemble report, persist | **Create** |
+| `src/interfaces/cli/commands/adaptation.ts` | Add `prioritize` subcommand | **Modify** |
 | Tests | Per component + CLI integration | **Create** |
 
 ## Task 1: Priority types + store
 
 **Files:**
-- Create: `src/adaptation/priority-types.ts`
-- Create: `src/adaptation/priority-store.ts`
+- Create: `src/planning/adaptation/priority-types.ts`
+- Create: `src/planning/adaptation/priority-store.ts`
 - Test: `tests/adaptation/priority-store.vitest.ts`
 
 **Types (priority-types.ts):**
@@ -95,7 +95,7 @@ export interface ProposalPriorityReport {
 ## Task 2: ProposalScorer
 
 **Files:**
-- Create: `src/adaptation/proposal-scorer.ts`
+- Create: `src/planning/adaptation/proposal-scorer.ts`
 - Test: `tests/adaptation/proposal-scorer.vitest.ts`
 
 **Class:**
@@ -138,7 +138,7 @@ class ProposalScorer {
 ## Task 3: priority-reporter.ts
 
 **Files:**
-- Create: `src/adaptation/priority-reporter.ts`
+- Create: `src/planning/adaptation/priority-reporter.ts`
 - Test: `tests/adaptation/priority-reporter.vitest.ts`
 
 **Class:**
@@ -176,7 +176,7 @@ stdout
 ## Task 4: CLI prioritize subcommand
 
 **Files:**
-- Modify: `src/cli/commands/adaptation.ts`
+- Modify: `src/interfaces/cli/commands/adaptation.ts`
 - Test: `tests/cli/commands/adaptation-prioritize.vitest.ts`
 
 **Subcommand:** `alix adaptation prioritize [--top <n>] [--min-score <n>] [--json]`

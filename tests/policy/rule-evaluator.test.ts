@@ -4,9 +4,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { RuleEvaluator } from "../../src/policy/rule-evaluator.js";
-import { defaultPolicyRules } from "../../src/policy/default-policies.js";
-import { validatePolicyRule } from "../../src/policy/policy-rule.js";
+import { RuleEvaluator } from "../../src/governance/policy/rule-evaluator.js";
+import { defaultPolicyRules } from "../../src/governance/policy/default-policies.js";
+import { validatePolicyRule } from "../../src/governance/policy/policy-rule.js";
 
 describe("RuleEvaluator", () => {
   it("evaluates first matching rule", () => {

@@ -15,9 +15,9 @@ import { importedBindings, importedSpecifiers } from "../helpers/import-graph.js
 const REPO_ROOT = process.cwd();
 
 const ADAPTER_FILES = [
-  "src/learning/recommendation-calibration-adapter.ts",
-  "src/learning/risk-calibration-adapter.ts",
-  "src/learning/governance-calibration-adapter.ts",
+  "src/planning/learning/recommendation-calibration-adapter.ts",
+  "src/planning/learning/risk-calibration-adapter.ts",
+  "src/planning/learning/governance-calibration-adapter.ts",
 ];
 
 const FORBIDDEN_IMPORTS = [

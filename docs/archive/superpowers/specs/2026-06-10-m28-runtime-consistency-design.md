@@ -190,13 +190,13 @@ Same pattern for `WorkspaceRegistry.recordWorkspaceActivity()`.
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/cli/commands/tui.ts` | **Modify** | Replace immutable `cwd`/`sessionId`/`sessionDir`/`config` with mutable `active*` vars; update `softReinitWorkspace` to update all four; pass `getActiveCwd` to WorkspaceManager |
-| `src/tui/workspace-manager.ts` | **Modify** | Add `getActiveCwd()` to `WorkspaceManagerDeps`; use it for relative path resolution in `handleOpen` |
-| `src/daemon/daemon-server.ts` | **Modify** | Deduplicate `session.ended` via `finally` + guard; enforce `allowedTools` in `executeGroundedChatRoute`; fix non-agent route event ordering |
-| `src/daemon/daemon-server.ts` (grounded_chat) | **Modify** | Same `allowedTools` enforcement in daemon variant |
-| `src/runtime/route-executor.ts` | **Modify** | Enforce `allowedTools` in `LocalRuntimeExecutor.executeGroundedChat` |
-| `src/daemon/task-registry.ts` | **Modify** | Add `enqueueSave()` with serialized promise chain; log failures |
-| `src/daemon/workspace-registry.ts` | **Modify** | Add `enqueueSave()` with serialized promise chain |
+| `src/interfaces/cli/commands/tui.ts` | **Modify** | Replace immutable `cwd`/`sessionId`/`sessionDir`/`config` with mutable `active*` vars; update `softReinitWorkspace` to update all four; pass `getActiveCwd` to WorkspaceManager |
+| `src/interfaces/tui/workspace-manager.ts` | **Modify** | Add `getActiveCwd()` to `WorkspaceManagerDeps`; use it for relative path resolution in `handleOpen` |
+| `src/operations/daemon/daemon-server.ts` | **Modify** | Deduplicate `session.ended` via `finally` + guard; enforce `allowedTools` in `executeGroundedChatRoute`; fix non-agent route event ordering |
+| `src/operations/daemon/daemon-server.ts` (grounded_chat) | **Modify** | Same `allowedTools` enforcement in daemon variant |
+| `src/runtime-state/runtime/route-executor.ts` | **Modify** | Enforce `allowedTools` in `LocalRuntimeExecutor.executeGroundedChat` |
+| `src/operations/daemon/task-registry.ts` | **Modify** | Add `enqueueSave()` with serialized promise chain; log failures |
+| `src/operations/daemon/workspace-registry.ts` | **Modify** | Add `enqueueSave()` with serialized promise chain |
 | `tests/tui/workspace-manager.test.ts` | **Modify** | Update `WorkspaceManagerDeps` mock to include `getActiveCwd` |
 | `tests/runtime/route-executor.test.ts` | **Modify** | No changes needed (mock executor) |
 

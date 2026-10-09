@@ -3,10 +3,10 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/tui/capabilities/capability-service.js';
-import { ChatInvocationPresenter } from '../../../src/tui/capabilities/invocation-presenter.js';
-import { CapabilityProvider, PaletteModal } from '../../../src/tui/capabilities/palette.js';
-import { EventLog } from '../../../src/events/event-log.js';
+import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/interfaces/tui/capabilities/capability-service.js';
+import { ChatInvocationPresenter } from '../../../src/interfaces/tui/capabilities/invocation-presenter.js';
+import { CapabilityProvider, PaletteModal } from '../../../src/interfaces/tui/capabilities/palette.js';
+import { EventLog } from '../../../src/runtime-state/events/event-log.js';
 
 describe('capabilities integration', () => {
   it('query → palette → invoke → chat log entry end-to-end', async () => {

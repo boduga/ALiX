@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
-import { WorkspacePathResolver } from "../../src/runtime/workspace-path.js";
-import { checkOwnershipGate } from "../../src/ownership/ownership-gate.js";
+import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
+import { WorkspacePathResolver } from "../../src/runtime-state/runtime/workspace-path.js";
+import { checkOwnershipGate } from "../../src/coordination/ownership/ownership-gate.js";
 
 describe("OwnershipGate", () => {
   let dir: string;

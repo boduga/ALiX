@@ -11,7 +11,7 @@ import {
   VALID_EVIDENCE_CLASSES,
   validateVerificationEvidence,
   type EvidenceClass,
-} from "../../../../src/evolution/verification/index.js";
+} from "../../../../src/planning/evolution/verification/index.js";
 
 describe("Invariant: Evidence hierarchy", () => {
   it("observed > derived > projected precedence is documented in type", () => {

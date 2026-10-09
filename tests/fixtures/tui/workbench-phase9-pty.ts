@@ -1,6 +1,6 @@
 import { createWorkbenchRenderHarness } from './workbench-render-harness.js';
-import type { TerminalControl } from '../../../src/tui/terminal-control.js';
-import type { AgentTurnResult, CoordinationRunRequest } from '../../../src/agent/session/types.js';
+import type { TerminalControl } from '../../../src/interfaces/tui/terminal-control.js';
+import type { AgentTurnResult, CoordinationRunRequest } from '../../../src/agents/agent/session/types.js';
 
 const { app, output, paint } = createWorkbenchRenderHarness();
 const internal = app as unknown as {

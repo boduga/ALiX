@@ -312,7 +312,7 @@ alix governance intelligence report [--json] [--since <iso>] [--until <iso>]
 | `src/governance/handoff-quality-signals.ts` | P22.2 |
 | `src/governance/handoff-readiness-calibration.ts` | P22.3 |
 | `src/governance/handoff-intelligence-report.ts` | P22.4 pure report builder |
-| `src/cli/commands/governance.ts` | Extend CLI (P22-INTELLIGENCE-START/END) |
+| `src/interfaces/cli/commands/governance.ts` | Extend CLI (P22-INTELLIGENCE-START/END) |
 
 ---
 

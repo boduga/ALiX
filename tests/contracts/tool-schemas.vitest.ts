@@ -7,7 +7,7 @@ import {
   ToolNameSchema,
   ToolCallRequestSchema,
   ToolResultSchema,
-} from "../../src/contracts/tool-schemas.js";
+} from "../../src/runtime-state/contracts/tool-schemas.js";
 
 describe("ToolNameSchema", () => {
   it("decodes every executor id the manifest declares", () => {

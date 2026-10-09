@@ -467,7 +467,7 @@ Tests verify that `governance-review.ts` does NOT contain:
 
 Tests verify the review module does NOT import:
 - `ProposalStore`, `EvidenceStore.save` (read-only access via CLI context is allowed)
-- Any module from `src/security/` or `src/workflow/` (execution paths)
+- Any module from `src/governance/security/` or `src/coordination/workflow/` (execution paths)
 - `approval-gate` or `applier` modules
 
 ### Prompt authority-language sentinel
@@ -533,18 +533,18 @@ Tests verify the GovernanceReviewCouncil aggregation logic is deterministic:
 
 ```
 Create:
-  src/adaptation/governance-review-types.ts    — GovernanceReview, LensScore, CouncilVote, GovernanceVerdict
-  src/adaptation/governance-review-council.ts   — GovernanceReviewCouncil class (aggregation logic)
-  src/adaptation/lens-agent.ts                  — LensAgent interface + prompt templates (no LLM call in P6.5a)
+  src/planning/adaptation/governance-review-types.ts    — GovernanceReview, LensScore, CouncilVote, GovernanceVerdict
+  src/planning/adaptation/governance-review-council.ts   — GovernanceReviewCouncil class (aggregation logic)
+  src/planning/adaptation/lens-agent.ts                  — LensAgent interface + prompt templates (no LLM call in P6.5a)
   tests/adaptation/governance-review-types.vitest.ts
   tests/adaptation/governance-review-council.vitest.ts
   tests/adaptation/governance-review-sentinels.vitest.ts
 
 Modify:
-  src/adaptation/operator-queue-types.ts        — Add governanceReviewId, governanceVerdict to QueueItem; governanceReview to QueueInput; reviewSeverity to QueueItemOrdering
-  src/adaptation/operator-queue.ts              — Add review severity to sort order (quaternary)
-  src/adaptation/decision-types.ts              — Add "review" to SourceArtifactType
-  src/cli/commands/decision.ts                  — Add case "review" stub (prints "unavailable" — P6.5b: runReview handler, --with-reviews flag)
+  src/planning/adaptation/operator-queue-types.ts        — Add governanceReviewId, governanceVerdict to QueueItem; governanceReview to QueueInput; reviewSeverity to QueueItemOrdering
+  src/planning/adaptation/operator-queue.ts              — Add review severity to sort order (quaternary)
+  src/planning/adaptation/decision-types.ts              — Add "review" to SourceArtifactType
+  src/interfaces/cli/commands/decision.ts                  — Add case "review" stub (prints "unavailable" — P6.5b: runReview handler, --with-reviews flag)
 ```
 
 ## Acceptance Criteria

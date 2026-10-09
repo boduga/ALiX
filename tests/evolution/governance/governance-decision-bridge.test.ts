@@ -15,16 +15,16 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { GovernanceDecisionBridge } from "../../../src/evolution/governance/governance-decision-bridge.js";
-import { EvolutionState } from "../../../src/evolution/contracts/evolution-contract.js";
-import type { GovernanceDecision } from "../../../src/evolution/governance/contracts/decision-contract.js";
-import type { GovernanceDecisionStore } from "../../../src/evolution/governance/contracts/decision-store-contract.js";
+import { GovernanceDecisionBridge } from "../../../src/planning/evolution/governance/governance-decision-bridge.js";
+import { EvolutionState } from "../../../src/planning/evolution/contracts/evolution-contract.js";
+import type { GovernanceDecision } from "../../../src/planning/evolution/governance/contracts/decision-contract.js";
+import type { GovernanceDecisionStore } from "../../../src/planning/evolution/governance/contracts/decision-store-contract.js";
 import type {
   EvolutionStateMachine,
   EvolutionTransitionResult,
   EvolutionTransitionEvent,
-} from "../../../src/evolution/evolution-state-machine.js";
-import type { EvolutionEvidenceBridge } from "../../../src/evolution/evolution-evidence-bridge.js";
+} from "../../../src/planning/evolution/evolution-state-machine.js";
+import type { EvolutionEvidenceBridge } from "../../../src/planning/evolution/evolution-evidence-bridge.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures

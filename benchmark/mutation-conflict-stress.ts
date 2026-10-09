@@ -30,11 +30,11 @@ import {
   type StateTransitionResult,
   type TransitionEventLog,
   type TransitionStateStore,
-} from "../src/runtime/state/state-transition.js";
-import { project, toExecutionState, type ProjectorEvent, type CheckpointedExecutionState } from "../src/runtime/execution-state/execution-state-projector.js";
-import { canParallelize, DEFAULT_TOOL_EXECUTION_POLICY, scheduleToolCallsTimed, type TimedResult } from "../src/runtime/tool-scheduler.js";
-import type { ToolCall } from "../src/providers/types.js";
-import type { ExecutionState } from "../src/runtime/execution-state/execution-state.js";
+} from "../src/runtime-state/runtime/state/state-transition.js";
+import { project, toExecutionState, type ProjectorEvent, type CheckpointedExecutionState } from "../src/runtime-state/runtime/execution-state/execution-state-projector.js";
+import { canParallelize, DEFAULT_TOOL_EXECUTION_POLICY, scheduleToolCallsTimed, type TimedResult } from "../src/runtime-state/runtime/tool-scheduler.js";
+import type { ToolCall } from "../src/models/providers/types.js";
+import type { ExecutionState } from "../src/runtime-state/runtime/execution-state/execution-state.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────
 

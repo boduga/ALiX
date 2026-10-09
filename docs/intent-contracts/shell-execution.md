@@ -1,7 +1,7 @@
 # Shell-execution intent — recognition contract
 
 **Status**: Active (T9 on wayfinder map #376)
-**Owner**: `src/runtime/action-classifier.ts` (`SHELL_EXECUTION_ANCHORS`)
+**Owner**: `src/runtime-state/runtime/action-classifier.ts` (`SHELL_EXECUTION_ANCHORS`)
 **Test corpus**: `tests/runtime/action-classifier.test.ts → describe("classifyAction — shell-execution recognition contract")`
 
 ## Intent definition
@@ -21,7 +21,7 @@ Distinct from adjacent intent families:
 
 ## Recognizer
 
-**Mechanism**: deterministic regex (`SHELL_EXECUTION_ANCHORS` family in `src/runtime/action-classifier.ts`).
+**Mechanism**: deterministic regex (`SHELL_EXECUTION_ANCHORS` family in `src/runtime-state/runtime/action-classifier.ts`).
 **Trigger precedence**: shell-execution fires AFTER workspace-mutation (so `rm foo.txt` is mutation, not shell) and AFTER workspace-state (so `ls` is shell, but `what's running` is state). When a bare command implies mutation (`rm`, `mv`, `mkdir`, etc.), workspace-mutation wins.
 **Confidence**: shell-execution matches return `confidence: 0.85` (≥ 0.7 Layer-1 floor).
 

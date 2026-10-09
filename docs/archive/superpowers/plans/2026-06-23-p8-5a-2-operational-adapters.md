@@ -24,8 +24,8 @@
 ## Task 1: P8.5a.2a — Recommendation adapter + shared diagnostics types
 
 **Files:**
-- Create: `src/learning/adapter-diagnostics.ts`
-- Create: `src/learning/recommendation-calibration-adapter.ts`
+- Create: `src/planning/learning/adapter-diagnostics.ts`
+- Create: `src/planning/learning/recommendation-calibration-adapter.ts`
 - Create: `tests/learning/recommendation-calibration-adapter.vitest.ts`
 
 **Interfaces:**
@@ -34,7 +34,7 @@
 
 - [ ] **Step 1.1: Write the shared diagnostics types**
 
-Create `src/learning/adapter-diagnostics.ts`:
+Create `src/planning/learning/adapter-diagnostics.ts`:
 
 ```ts
 /**
@@ -77,7 +77,7 @@ export interface AdapterResult {
 
 - [ ] **Step 1.2: Write the recommendation adapter**
 
-Create `src/learning/recommendation-calibration-adapter.ts`. **Read `src/learning/recommendation-calibration-builder.ts` first** to confirm the exact `calibrate(buckets, sourceReportId, generatedAt)` signature and `CalibrationResult` shape (it returns `{ signals, profiles }`).
+Create `src/planning/learning/recommendation-calibration-adapter.ts`. **Read `src/planning/learning/recommendation-calibration-builder.ts` first** to confirm the exact `calibrate(buckets, sourceReportId, generatedAt)` signature and `CalibrationResult` shape (it returns `{ signals, profiles }`).
 
 ```ts
 /**
@@ -194,7 +194,7 @@ Commit: `feat(p8.5a.2a): recommendation calibration adapter + shared diagnostics
 ## Task 2: P8.5a.2b — Risk adapter
 
 **Files:**
-- Create: `src/learning/risk-calibration-adapter.ts`
+- Create: `src/planning/learning/risk-calibration-adapter.ts`
 - Create: `tests/learning/risk-calibration-adapter.vitest.ts`
 
 **Interfaces:**
@@ -203,7 +203,7 @@ Commit: `feat(p8.5a.2a): recommendation calibration adapter + shared diagnostics
 
 - [ ] **Step 2.1: Write the risk adapter**
 
-Create `src/learning/risk-calibration-adapter.ts`. **Read `src/learning/risk-calibration-builder.ts` first** to confirm: `RiskOutcomeObservation { proposalId, dimensions: DimensionScore[], outcome }`, `DimensionScore { dimension, score }`, and the exact `calibrate(observations, sourceReportId, generatedAt)` return shape (`RiskCalibrationResult`). Map the builder's result fields into `AdapterResult`.
+Create `src/planning/learning/risk-calibration-adapter.ts`. **Read `src/planning/learning/risk-calibration-builder.ts` first** to confirm: `RiskOutcomeObservation { proposalId, dimensions: DimensionScore[], outcome }`, `DimensionScore { dimension, score }`, and the exact `calibrate(observations, sourceReportId, generatedAt)` return shape (`RiskCalibrationResult`). Map the builder's result fields into `AdapterResult`.
 
 ```ts
 /**
@@ -302,9 +302,9 @@ Commit: `feat(p8.5a.2b): risk calibration adapter`
 ## Task 3: P8.5a.2c — Governance adapter + retire sentinel
 
 **Files:**
-- Create: `src/learning/governance-calibration-adapter.ts`
+- Create: `src/planning/learning/governance-calibration-adapter.ts`
 - Create: `tests/learning/governance-calibration-adapter.vitest.ts`
-- Modify: `src/cli/commands/decision.ts` — retire the `lens_scores_not_persisted` sentinel
+- Modify: `src/interfaces/cli/commands/decision.ts` — retire the `lens_scores_not_persisted` sentinel
 
 **Interfaces:**
 - Consumes: `GovernanceReviewStore`, `OutcomeStore`, `LensCalibrationBuilder`, `GovernanceCalibrationBuilder`
@@ -312,7 +312,7 @@ Commit: `feat(p8.5a.2b): risk calibration adapter`
 
 - [ ] **Step 3.1: Write the governance adapter**
 
-Create `src/learning/governance-calibration-adapter.ts`. **Read `src/learning/governance-calibration-builder.ts` + `src/learning/lens-calibration-builder.ts` first** to confirm: `LensObservation { lens, verdict, outcome, concernsRaised }`, `LensCalibrationBuilder.build(observations, { windowDays?, generatedAt? })` → `LensCalibrationReport`, `GovernanceCalibrationBuilder.build(report, sourceReportId, generatedAt)` → `{ signals, profiles }`.
+Create `src/planning/learning/governance-calibration-adapter.ts`. **Read `src/planning/learning/governance-calibration-builder.ts` + `src/planning/learning/lens-calibration-builder.ts` first** to confirm: `LensObservation { lens, verdict, outcome, concernsRaised }`, `LensCalibrationBuilder.build(observations, { windowDays?, generatedAt? })` → `LensCalibrationReport`, `GovernanceCalibrationBuilder.build(report, sourceReportId, generatedAt)` → `{ signals, profiles }`.
 
 ```ts
 /**
@@ -414,7 +414,7 @@ Create `tests/learning/governance-calibration-adapter.vitest.ts`. Tests:
 
 - [ ] **Step 3.3: Retire the `lens_scores_not_persisted` sentinel**
 
-In `src/cli/commands/decision.ts`, find the `lens_scores_not_persisted` sentinel (around line 1158 — grep for it). It currently returns a static object. Replace it with a live run of the `GovernanceCalibrationAdapter`:
+In `src/interfaces/cli/commands/decision.ts`, find the `lens_scores_not_persisted` sentinel (around line 1158 — grep for it). It currently returns a static object. Replace it with a live run of the `GovernanceCalibrationAdapter`:
 
 - Instantiate `GovernanceReviewStore` + `OutcomeStore` + `GovernanceCalibrationAdapter`.
 - Run `adapter.calibrate({ windowDays })`.
@@ -441,7 +441,7 @@ Commit: `feat(p8.5a.2c): governance calibration adapter + retire lens sentinel`
 ## Task 4: P8.5a.2d — `alix learning refresh` orchestrator + purity sentinel
 
 **Files:**
-- Modify: `src/cli/commands/learning.ts` — add `refresh` subcommand (the sole LearningStore writer)
+- Modify: `src/interfaces/cli/commands/learning.ts` — add `refresh` subcommand (the sole LearningStore writer)
 - Create: `tests/cli/commands/learning-refresh.vitest.ts`
 - Create: `tests/learning/adapter-purity-sentinels.vitest.ts`
 
@@ -451,7 +451,7 @@ Commit: `feat(p8.5a.2c): governance calibration adapter + retire lens sentinel`
 
 - [ ] **Step 4.1: Add the `refresh` subcommand**
 
-In `src/cli/commands/learning.ts`, add a `case "refresh":` to the `subcommand` switch (alongside `report`/`propose`). Implement `runLearningRefresh(args)`:
+In `src/interfaces/cli/commands/learning.ts`, add a `case "refresh":` to the `subcommand` switch (alongside `report`/`propose`). Implement `runLearningRefresh(args)`:
 
 ```ts
 async function runLearningRefresh(args: string[]): Promise<void> {
@@ -510,9 +510,9 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
 const ADAPTER_FILES = [
-  "src/learning/recommendation-calibration-adapter.ts",
-  "src/learning/risk-calibration-adapter.ts",
-  "src/learning/governance-calibration-adapter.ts",
+  "src/planning/learning/recommendation-calibration-adapter.ts",
+  "src/planning/learning/risk-calibration-adapter.ts",
+  "src/planning/learning/governance-calibration-adapter.ts",
 ];
 
 const FORBIDDEN_IMPORTS = [
@@ -564,7 +564,7 @@ Create `tests/cli/commands/learning-refresh.vitest.ts`. Use temp-dir `process.cw
 - [ ] **Step 4.4: Run the full focused suite + verify scope**
 
 Run the full focused suite: all 3 adapter tests + purity sentinel + learning-refresh + the P7.5p regression suite + the invariance test.
-Run `git diff main --stat -- 'src/learning/*-types.ts' 'src/adaptation/*-types.ts'` — MUST be empty (zero type-file changes).
+Run `git diff main --stat -- 'src/planning/learning/*-types.ts' 'src/planning/adaptation/*-types.ts'` — MUST be empty (zero type-file changes).
 Run `npx tsc --noEmit` — clean.
 
 - [ ] **Step 4.5: Commit**
@@ -586,7 +586,7 @@ Commit: `feat(p8.5a.2d): alix learning refresh orchestrator + purity sentinel`
 
 - **No type-file changes.** `AdapterResult`/`AdapterDiagnostics` are NEW types in a NEW file (`adapter-diagnostics.ts`), which is not a protected file. The 6 protected type files + `learning-store.ts` are untouched.
 - **`generatedAt` is the run-identity key.** All signals/profiles from one refresh share one `generatedAt`; P9 reconstructs `refresh:<ts>` from it. No schema change.
-- **`OUTCOMES_DIR` / `LEARNING_DIR`** — grep `src/cli/commands/` for the existing constants; reuse them. `LearningStore`'s dir is `.alix/learning` (its constructor takes a `storeDir`).
+- **`OUTCOMES_DIR` / `LEARNING_DIR`** — grep `src/interfaces/cli/commands/` for the existing constants; reuse them. `LearningStore`'s dir is `.alix/learning` (its constructor takes a `storeDir`).
 - **Builder return shapes vary** — rec/gov return `{signals, profiles}`; risk returns `RiskCalibrationResult` (confirm whether it includes profiles). Map each into `AdapterResult` honestly; never fabricate profiles.
 - **Sentinel retirement shape change** — the lens-calibration CLI previously returned a `lens_scores_not_persisted` sentinel object; it now returns a live `LensCalibrationReport`. Document this in the PR body. No consumer should depend on the sentinel string (it self-described as "not persisted").
 - **CI failures on main are pre-existing** (`capabilities.test.js`, `chat-modes.test.js`, extensions, `context-events.test.js`). P8.5a.2 touches none of those paths.

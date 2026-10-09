@@ -33,7 +33,7 @@
 ## File Structure
 
 ```
-src/executive/
+src/execution/executive/
   ├─ step-behavior.ts                NEW
   ├─ executive-plan-types.ts         NEW
   ├─ plan-store.ts                   NEW
@@ -42,10 +42,10 @@ src/executive/
   ├─ step-runner.ts                  NEW
   └─ execution-engine.ts             NEW
 
-src/security/evidence/evidence-types.ts     MODIFY (+9 strings to EvidenceType)
-src/workflow/evidence-writer.ts             MODIFY (+9 payload interfaces + 9 record* methods)
+src/governance/security/evidence/evidence-types.ts     MODIFY (+9 strings to EvidenceType)
+src/coordination/workflow/evidence-writer.ts             MODIFY (+9 payload interfaces + 9 record* methods)
 
-src/cli/commands/
+src/interfaces/cli/commands/
   └─ executive.ts                            MODIFY (+plan subcommand)
 
 tests/executive/
@@ -72,8 +72,8 @@ tests/cli/commands/
 ### Task 1: StepBehavior types + executive-plan-types
 
 **Files:**
-- Create: `src/executive/step-behavior.ts`
-- Create: `src/executive/executive-plan-types.ts`
+- Create: `src/execution/executive/step-behavior.ts`
+- Create: `src/execution/executive/executive-plan-types.ts`
 
 **Interfaces:**
 - Produces: `StepBehavior`, `STEP_BEHAVIOR`, `behaviorFor()`, `PersistedExecutionPlan`, `PlanExecutionState`, `PlanStatus`, `ApprovalStatus`, `StepRuntimeStatus`, `StepRuntimeState`, `GeneratedArtifactRef`, `PlanTransition`, `ExecutiveCorrelation`, `ExecutiveStepExecutionResult`, `StepRunnerResult`, `PlanApproval`, `PlanApprovalStatus`
@@ -347,8 +347,8 @@ export function validateStateStepIds(
 Tests for step-behavior.ts:
 ```typescript
 import { describe, it, expect } from "vitest";
-import { behaviorFor, READ_ONLY_ACTIONS, INVESTIGATION_ACTIONS, MUTATION_ACTIONS, STEP_BEHAVIOR } from "../src/executive/step-behavior.js";
-import type { ExecutionStepAction } from "../src/executive/planning-engine.js";
+import { behaviorFor, READ_ONLY_ACTIONS, INVESTIGATION_ACTIONS, MUTATION_ACTIONS, STEP_BEHAVIOR } from "../src/execution/executive/step-behavior.js";
+import type { ExecutionStepAction } from "../src/execution/executive/planning-engine.js";
 
 describe("step-behavior", () => {
   it("classifies all 12 actions", () => {
@@ -385,8 +385,8 @@ describe("step-behavior", () => {
 Tests for executive-plan-types.ts (just validates construction):
 ```typescript
 import { describe, it, expect } from "vitest";
-import { validateStateStepIds } from "../src/executive/executive-plan-types.js";
-import type { PersistedExecutionPlan, PlanExecutionState } from "../src/executive/executive-plan-types.js";
+import { validateStateStepIds } from "../src/execution/executive/executive-plan-types.js";
+import type { PersistedExecutionPlan, PlanExecutionState } from "../src/execution/executive/executive-plan-types.js";
 
 describe("executive-plan-types", () => {
   it("validateStateStepIds passes matching step IDs", () => {
@@ -408,8 +408,8 @@ describe("executive-plan-types", () => {
 ### Task 2: Evidence types + EventWriter methods
 
 **Files:**
-- Modify: `src/security/evidence/evidence-types.ts` — add 9 evidence type strings
-- Modify: `src/workflow/evidence-writer.ts` — add 9 payload interfaces + 9 record* methods
+- Modify: `src/governance/security/evidence/evidence-types.ts` — add 9 evidence type strings
+- Modify: `src/coordination/workflow/evidence-writer.ts` — add 9 payload interfaces + 9 record* methods
 
 **Interfaces:**
 - Consumes: existing `EvidenceType` union pattern, existing `EvidenceEventWriter.appendEvent()`
@@ -565,7 +565,7 @@ Add 9 `record*` methods to `EvidenceEventWriter` class (add AFTER `recordGoverna
 ### Task 3: PlanStore
 
 **Files:**
-- Create: `src/executive/plan-store.ts`
+- Create: `src/execution/executive/plan-store.ts`
 - Create: `tests/executive/plan-store.vitest.ts`
 
 **Interfaces:**
@@ -678,9 +678,9 @@ import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "node
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { PlanStore } from "../src/executive/plan-store.js";
-import type { ExecutionPlan } from "../src/executive/planning-engine.js";
-import type { PersistedExecutionPlan } from "../src/executive/executive-plan-types.js";
+import { PlanStore } from "../src/execution/executive/plan-store.js";
+import type { ExecutionPlan } from "../src/execution/executive/planning-engine.js";
+import type { PersistedExecutionPlan } from "../src/execution/executive/executive-plan-types.js";
 
 function makeTestPlan(overrides?: Partial<ExecutionPlan>): ExecutionPlan {
   return {
@@ -768,7 +768,7 @@ describe("PlanStore", () => {
 ### Task 4: ExecutionStateStore
 
 **Files:**
-- Create: `src/executive/execution-state-store.ts`
+- Create: `src/execution/executive/execution-state-store.ts`
 - Create: `tests/executive/execution-state-store.vitest.ts`
 
 **Interfaces:**
@@ -975,8 +975,8 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { ExecutionStateStore } from "../src/executive/execution-state-store.js";
-import type { PersistedExecutionPlan } from "../src/executive/executive-plan-types.js";
+import { ExecutionStateStore } from "../src/execution/executive/execution-state-store.js";
+import type { PersistedExecutionPlan } from "../src/execution/executive/executive-plan-types.js";
 
 function makePlan(overrides?: Partial<PersistedExecutionPlan>): PersistedExecutionPlan {
   return {
@@ -1121,7 +1121,7 @@ describe("ExecutionStateStore", () => {
 ### Task 5: PlanApprovalGate
 
 **Files:**
-- Create: `src/executive/plan-approval-gate.ts`
+- Create: `src/execution/executive/plan-approval-gate.ts`
 - Create: `tests/executive/plan-approval-gate.vitest.ts`
 
 **Interfaces:**
@@ -1262,11 +1262,11 @@ export class PlanApprovalGate {
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { PlanApprovalGate } from "../src/executive/plan-approval-gate.js";
-import type { PlanStore } from "../src/executive/plan-store.js";
-import type { ExecutionStateStore } from "../src/executive/execution-state-store.js";
-import type { EvidenceEventWriter } from "../src/workflow/evidence-writer.js";
-import type { PersistedExecutionPlan, PlanExecutionState } from "../src/executive/executive-plan-types.js";
+import { PlanApprovalGate } from "../src/execution/executive/plan-approval-gate.js";
+import type { PlanStore } from "../src/execution/executive/plan-store.js";
+import type { ExecutionStateStore } from "../src/execution/executive/execution-state-store.js";
+import type { EvidenceEventWriter } from "../src/coordination/workflow/evidence-writer.js";
+import type { PersistedExecutionPlan, PlanExecutionState } from "../src/execution/executive/executive-plan-types.js";
 
 function mockPlan(overrides?: Partial<PersistedExecutionPlan>): PersistedExecutionPlan {
   return {
@@ -1381,7 +1381,7 @@ describe("PlanApprovalGate", () => {
 ### Task 6: StepRunner
 
 **Files:**
-- Create: `src/executive/step-runner.ts`
+- Create: `src/execution/executive/step-runner.ts`
 - Create: `tests/executive/step-runner.vitest.ts`
 
 **Interfaces:**
@@ -1513,10 +1513,10 @@ export class StepRunner {
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { StepRunner } from "../src/executive/step-runner.js";
-import type { EvidenceEventWriter } from "../src/workflow/evidence-writer.js";
-import type { ExecutionStep } from "../src/executive/planning-engine.js";
-import type { StepRunnerResult } from "../src/executive/executive-plan-types.js";
+import { StepRunner } from "../src/execution/executive/step-runner.js";
+import type { EvidenceEventWriter } from "../src/coordination/workflow/evidence-writer.js";
+import type { ExecutionStep } from "../src/execution/executive/planning-engine.js";
+import type { StepRunnerResult } from "../src/execution/executive/executive-plan-types.js";
 
 function makeStep(overrides: Partial<ExecutionStep> & { id: string; action: ExecutionStep["action"] }): ExecutionStep {
   return {
@@ -1639,7 +1639,7 @@ describe("StepRunner", () => {
 ### Task 7: ExecutionEngine
 
 **Files:**
-- Create: `src/executive/execution-engine.ts`
+- Create: `src/execution/executive/execution-engine.ts`
 - Create: `tests/executive/execution-engine.vitest.ts`
 
 **Interfaces:**
@@ -1946,13 +1946,13 @@ export class ExecutionEngine {
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ExecutionEngine } from "../src/executive/execution-engine.js";
-import type { PlanStore } from "../src/executive/plan-store.js";
-import type { ExecutionStateStore } from "../src/executive/execution-state-store.js";
-import type { StepRunner } from "../src/executive/step-runner.js";
-import type { EvidenceEventWriter } from "../src/workflow/evidence-writer.js";
-import type { PersistedExecutionPlan, PlanExecutionState, ExecutiveStepExecutionResult } from "../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../src/executive/planning-engine.js";
+import { ExecutionEngine } from "../src/execution/executive/execution-engine.js";
+import type { PlanStore } from "../src/execution/executive/plan-store.js";
+import type { ExecutionStateStore } from "../src/execution/executive/execution-state-store.js";
+import type { StepRunner } from "../src/execution/executive/step-runner.js";
+import type { EvidenceEventWriter } from "../src/coordination/workflow/evidence-writer.js";
+import type { PersistedExecutionPlan, PlanExecutionState, ExecutiveStepExecutionResult } from "../src/execution/executive/executive-plan-types.js";
+import type { ExecutionStep } from "../src/execution/executive/planning-engine.js";
 
 function makePlan(steps: Partial<ExecutionStep>[] = [{ id: "step-1", action: "diagnose_root_cause" }]): PersistedExecutionPlan {
   return {
@@ -2196,11 +2196,11 @@ describe("ExecutionEngine", () => {
 ### Task 8: CLI dispatcher + sentinel
 
 **Files:**
-- Modify: `src/cli/commands/executive.ts` — add "plan" subcommand
+- Modify: `src/interfaces/cli/commands/executive.ts` — add "plan" subcommand
 - Create: `tests/cli/commands/executive-plan-cli.vitest.ts` (12 tests)
 - Modify: `tests/executive/executive-sentinels.vitest.ts` — add P10.4a files + forbidden symbols
 
-#### CLI dispatcher (`src/cli/commands/executive.ts`)
+#### CLI dispatcher (`src/interfaces/cli/commands/executive.ts`)
 
 Replace the existing `handleExecutiveCommand` switch with an extended one:
 
@@ -2414,7 +2414,7 @@ async function handlePlanCommand(args: string[]): Promise<void> {
 ```typescript
 // tests/cli/commands/executive-plan-cli.vitest.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { handleExecutiveCommand } from "../src/cli/commands/executive.js";
+import { handleExecutiveCommand } from "../src/interfaces/cli/commands/executive.js";
 
 // Note: These test the CLI dispatcher routing. Full integration tests
 // would mock PlanStore/ExecutionStateStore. Here we verify the switch
@@ -2452,13 +2452,13 @@ Add these file paths to `EXECUTIVE_FILES` in `tests/executive/executive-sentinel
 
 ```typescript
   // P10.4a files
-  "src/executive/step-behavior.ts",
-  "src/executive/executive-plan-types.ts",
-  "src/executive/plan-store.ts",
-  "src/executive/execution-state-store.ts",
-  "src/executive/plan-approval-gate.ts",
-  "src/executive/step-runner.ts",
-  "src/executive/execution-engine.ts",
+  "src/execution/executive/step-behavior.ts",
+  "src/execution/executive/executive-plan-types.ts",
+  "src/execution/executive/plan-store.ts",
+  "src/execution/executive/execution-state-store.ts",
+  "src/execution/executive/plan-approval-gate.ts",
+  "src/execution/executive/step-runner.ts",
+  "src/execution/executive/execution-engine.ts",
 ```
 
 Add to `FORBIDDEN_IN_EXECUTIVE`:

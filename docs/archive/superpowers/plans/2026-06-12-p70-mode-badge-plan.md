@@ -2,14 +2,14 @@
 
 **Goal:** Show the current policy mode (ask/bypass/auto) as a visible badge/icon in the TUI welcome line so the operator sees it at a glance.
 
-**Architecture:** One-line change to the welcome text in `src/cli/commands/tui.ts`. Add an icon prefix to the existing `Session: ${mode}` display.
+**Architecture:** One-line change to the welcome text in `src/interfaces/cli/commands/tui.ts`. Add an icon prefix to the existing `Session: ${mode}` display.
 
 ---
 
 ### Task 1: Add mode icon
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 Find the welcome text at line 148:
 ```typescript

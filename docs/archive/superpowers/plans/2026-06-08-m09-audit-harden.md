@@ -8,7 +8,7 @@
 
 ### Issue 1: Repair modifies args after argument hash (P0)
 
-**Location:** `src/tools/executor.ts:110,165-172`
+**Location:** `src/capabilities/tools/executor.ts:110,165-172`
 
 The `argumentHash` is computed at line 110 with the original args, but the tool repair layer at line 170 can modify args via `result.args`. The `assertPolicyArgumentsMatch` at line 183 uses the ORIGINAL hash against the MODIFIED args, causing a hash mismatch.
 
@@ -31,7 +31,7 @@ if (this.repair && name !== "done" && !name.startsWith("mcp.")) {
 
 ### Issue 2: Missing terminal events on early returns (P0)
 
-**Location:** `src/agent/agent-loop.ts`
+**Location:** `src/agents/agent/agent-loop.ts`
 
 `runTaskLoop()` returns via multiple paths (max_iterations, max_repairs, scope_rejected, etc.) that don't emit `task.done`/`task.failed`, `graph.completed`/`graph.failed`, `workflow.completed`/`workflow.failed`.
 
@@ -52,7 +52,7 @@ function emitTerminalEvents(
 
 ### Issue 3: DB migration has two sources (P1)
 
-**Location:** `src/db/manager.ts:40-131`, `src/db/migrations/0001_m09_kernel.sql`
+**Location:** `src/operations/db/manager.ts:40-131`, `src/operations/db/migrations/0001_m09_kernel.sql`
 
 `migrateKernel()` duplicates the SQL inline. The SQL file is the single source of truth.
 
@@ -67,7 +67,7 @@ migrateKernel(): void {
 
 ### Issue 4: Demo doesn't verify no mutations (P1)
 
-**Location:** `src/cli/commands/demo.ts`
+**Location:** `src/interfaces/cli/commands/demo.ts`
 
 The demo prints "Demo complete. No files were modified." but doesn't actually check.
 
@@ -109,33 +109,33 @@ Check that all M0.9 metric names from `MinimalMetrics` are emitted somewhere.
 
 ### Task 1: Fix repair → hash ordering
 
-**Files:** `src/tools/executor.ts`
+**Files:** `src/capabilities/tools/executor.ts`
 
 - [ ] Add `args = result.args; argumentHash = hashArgs(args);` after repair modifies args
 
 ### Task 2: Add terminal event helper and wire into all paths
 
-**Files:** `src/agent/agent-loop.ts`
+**Files:** `src/agents/agent/agent-loop.ts`
 
 - [ ] Create `emitTerminalEvents()` function before `runTaskLoop` call
 - [ ] Call it on ALL return paths from `runTaskLoop`
 
 ### Task 3: Make DB migration single-source
 
-**Files:** `src/db/manager.ts`, `src/db/migrations/0001_m09_kernel.sql`
+**Files:** `src/operations/db/manager.ts`, `src/operations/db/migrations/0001_m09_kernel.sql`
 
 - [ ] Change `migrateKernel()` to read from the SQL file
 - [ ] Remove duplicate inline SQL
 
 ### Task 4: Add mutation verification to demo
 
-**Files:** `src/cli/commands/demo.ts`
+**Files:** `src/interfaces/cli/commands/demo.ts`
 
 - [ ] Filter events for `file.*` / `patch.*` types and print warning if found
 
 ### Task 5: Add missing metric counters
 
-**Files:** `src/agent/agent-loop.ts`, `src/tools/executor.ts`
+**Files:** `src/agents/agent/agent-loop.ts`, `src/capabilities/tools/executor.ts`
 
 - [ ] Add `model_calls_total` metric where model calls happen
 - [ ] Add `policy_decisions_total` metric in executor

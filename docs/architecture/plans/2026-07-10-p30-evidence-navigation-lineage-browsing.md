@@ -34,14 +34,14 @@
 |-------|------|---------|
 | P30.1 | `src/governance/governance-lineage-types.ts` | LineageRecord, phase refs, LineageIndex |
 | P30.2 | `src/governance/governance-lineage-builder.ts` | buildLineageIndex, buildLineageRecord |
-| P30.3 | `src/cli/commands/governance-lineage.ts` | CLI handler |
+| P30.3 | `src/interfaces/cli/commands/governance-lineage.ts` | CLI handler |
 | P30.4 | `docs/architecture/checkpoints/2026-07-10-p30-4-evidence-navigation-lineage-browsing.md` | Checkpoint |
 
 ### Touched Files
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "lineage"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "lineage"` dispatch |
 
 ### Untouched Files
 
@@ -117,8 +117,8 @@ Commit: `feat(P30.2): lineage builder — buildLineageIndex, buildLineageRecord,
 ### Task 3: P30.3 — CLI + Dispatch
 
 **Files:**
-- Create: `src/cli/commands/governance-lineage.ts`
-- Modify: `src/cli/commands/governance.ts` — add `case "lineage"` dispatch
+- Create: `src/interfaces/cli/commands/governance-lineage.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts` — add `case "lineage"` dispatch
 - Test: `tests/governance/governance-lineage.test.ts`
 
 **CLI commands:**

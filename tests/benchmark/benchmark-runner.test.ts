@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { sample, runBenchmarks, saveRun, loadPreviousRuns, compareRuns } from "../../src/benchmark/benchmark-runner.js";
+import { sample, runBenchmarks, saveRun, loadPreviousRuns, compareRuns } from "../../src/operations/benchmark/benchmark-runner.js";
 
 describe("benchmark-runner", () => {
   it("sample returns stats for a function", async () => {

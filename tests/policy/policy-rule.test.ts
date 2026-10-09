@@ -9,7 +9,7 @@ import {
   matchPolicy,
   type PolicyRule,
   type PolicyEvaluationInput,
-} from "../../src/policy/policy-rule.js";
+} from "../../src/governance/policy/policy-rule.js";
 
 describe("PolicyRule validation", () => {
   it("accepts a valid rule", () => {

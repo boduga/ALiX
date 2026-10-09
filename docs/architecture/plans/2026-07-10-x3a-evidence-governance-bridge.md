@@ -207,13 +207,13 @@ src/governance/
 └── governance-lineage-builder.ts
 
 
-src/explain/
+src/operations/explain/
 |
 ├── proposal-explanation-types.ts
 └── proposal-explanation-assembler.ts
 
 
-src/cli/commands/
+src/interfaces/cli/commands/
 |
 ├── governance-lineage.ts
 └── governance-report.ts
@@ -793,7 +793,7 @@ no output
 ---
 
 ```bash
-grep -R "governance" src/runtime/
+grep -R "governance" src/runtime-state/runtime/
 ```
 
 Expected:

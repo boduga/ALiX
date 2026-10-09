@@ -24,10 +24,10 @@
 Create:
   tests/adaptation/governance-sentinels.vitest.ts    # P5.7a
   docs/governance/mutation-path-audit.md              # P5.7a
-  src/adaptation/lineage-types.ts                     # P5.7b
-  src/adaptation/lineage-builder.ts                   # P5.7b
+  src/planning/adaptation/lineage-types.ts                     # P5.7b
+  src/planning/adaptation/lineage-builder.ts                   # P5.7b
   tests/adaptation/lineage-builder.vitest.ts           # P5.7b
-  src/security/path-assert.ts                          # P5.7c
+  src/governance/security/path-assert.ts                          # P5.7c
   tests/security/path-assert.vitest.ts                 # P5.7c
   tests/soak/adaptation-proposal-store.soak.test.ts   # P5.7d
   tests/soak/adaptation-evidence-store.soak.test.ts   # P5.7d
@@ -42,14 +42,14 @@ Create:
   docs/architecture/decision-records.md               # P5.7e
 
 Modify:
-  src/cli/commands/adaptation.ts                       # P5.7a, P5.7b
-  src/adaptation/proposal-store.ts                     # P5.7a, P5.7c
-  src/workflow/evidence-writer.ts                      # P5.7a, P5.7c
-  src/adaptation/snapshot-store.ts                     # P5.7c
-  src/adaptation/revert-applier.ts                     # P5.7c
-  src/adaptation/appliers/agent-card-applier.ts        # P5.7c
-  src/adaptation/appliers/skill-applier.ts             # P5.7c
-  src/cli/commands/evidence.ts                         # P5.7c
+  src/interfaces/cli/commands/adaptation.ts                       # P5.7a, P5.7b
+  src/planning/adaptation/proposal-store.ts                     # P5.7a, P5.7c
+  src/coordination/workflow/evidence-writer.ts                      # P5.7a, P5.7c
+  src/planning/adaptation/snapshot-store.ts                     # P5.7c
+  src/planning/adaptation/revert-applier.ts                     # P5.7c
+  src/planning/adaptation/appliers/agent-card-applier.ts        # P5.7c
+  src/planning/adaptation/appliers/skill-applier.ts             # P5.7c
+  src/interfaces/cli/commands/evidence.ts                         # P5.7c
   package.json                                         # P5.7d
 ```
 
@@ -153,9 +153,9 @@ describe("Governance Invariants — no auto-apply", () => {
 describe("Governance Invariants — no auto-revert", () => {
   it("AutomaticProposalGenerator must not produce revert_proposal actions", async () => {
     const { AutomaticProposalGenerator } = await import(
-      "../../src/adaptation/auto-proposal-generator.js"
+      "../../src/planning/adaptation/auto-proposal-generator.js"
     );
-    const source = sourceOf("../../src/adaptation/auto-proposal-generator");
+    const source = sourceOf("../../src/planning/adaptation/auto-proposal-generator");
     // The string "revert_proposal" should not appear in the generator source
     // (it's allowed in types/imports but not in any action-producing code path)
     const occurrences = source.match(/"revert_proposal"/g);
@@ -167,7 +167,7 @@ describe("Governance Invariants — no auto-revert", () => {
   });
 
   it("CapabilityEvolutionProposalGenerator must not produce revert_proposal actions", async () => {
-    const source = sourceOf("../../src/adaptation/capability-evolution-proposal-generator");
+    const source = sourceOf("../../src/planning/adaptation/capability-evolution-proposal-generator");
     const actionAssignments = source.match(/action:\s*"revert_proposal"/g);
     expect(actionAssignments).toBeNull();
   });
@@ -179,7 +179,7 @@ describe("Governance Invariants — no auto-revert", () => {
 ```typescript
 describe("Governance Invariants — generator boundaries", () => {
   it("AutomaticProposalGenerator must not import ApprovalGate or appliers", () => {
-    const source = sourceOf("../../src/adaptation/auto-proposal-generator");
+    const source = sourceOf("../../src/planning/adaptation/auto-proposal-generator");
     const forbidden = [
       "approval-gate",
       "agent-card-applier",
@@ -193,7 +193,7 @@ describe("Governance Invariants — generator boundaries", () => {
 
   it("CapabilityEvolutionProposalGenerator must not import ApprovalGate or appliers", () => {
     const source = sourceOf(
-      "../../src/adaptation/capability-evolution-proposal-generator",
+      "../../src/planning/adaptation/capability-evolution-proposal-generator",
     );
     const forbidden = [
       "approval-gate",
@@ -214,9 +214,9 @@ describe("Governance Invariants — generator boundaries", () => {
 describe("Governance Invariants — applier boundaries", () => {
   it("each applier must guard on proposal.status === 'approved'", () => {
     const sources: [string, string][] = [
-      ["AgentCardApplier", sourceOf("../../src/adaptation/appliers/agent-card-applier")],
-      ["SkillApplier", sourceOf("../../src/adaptation/appliers/skill-applier")],
-      ["RevertApplier", sourceOf("../../src/adaptation/revert-applier")],
+      ["AgentCardApplier", sourceOf("../../src/planning/adaptation/appliers/agent-card-applier")],
+      ["SkillApplier", sourceOf("../../src/planning/adaptation/appliers/skill-applier")],
+      ["RevertApplier", sourceOf("../../src/planning/adaptation/revert-applier")],
     ];
     for (const [name, source] of sources) {
       expect(
@@ -227,7 +227,7 @@ describe("Governance Invariants — applier boundaries", () => {
   });
 
   it("selectApplier routes each target.kind to the correct applier", () => {
-    const source = sourceOf("../../src/cli/commands/adaptation");
+    const source = sourceOf("../../src/interfaces/cli/commands/adaptation");
     // Verify the switch has cases for agent_card, skill, and revert
     expect(source).toContain('case "agent_card"');
     expect(source).toContain('case "skill"');
@@ -257,7 +257,7 @@ git commit -m "P5.7a: governance sentinel test suite"
 ### Task A2: ProposalStore — corrupt file resilience + shape validation
 
 **Files:**
-- Modify: `src/adaptation/proposal-store.ts`
+- Modify: `src/planning/adaptation/proposal-store.ts`
 
 **Interfaces:**
 - Consumes: `AdaptationProposal`, `ProposalStatus` from `./adaptation-types.js`, `Logger` from injectable pattern
@@ -281,7 +281,7 @@ export class ProposalStore {
 
 - [ ] **Step 2: Add try/catch to ProposalStore.list(), using logger**
 
-Replace the `list()` method in `src/adaptation/proposal-store.ts`:
+Replace the `list()` method in `src/planning/adaptation/proposal-store.ts`:
 
 ```typescript
 async list(status?: ProposalStatus): Promise<AdaptationProposal[]> {
@@ -342,7 +342,7 @@ Expected: All existing tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/adaptation/proposal-store.ts
+git add src/planning/adaptation/proposal-store.ts
 git commit -m "P5.7a: ProposalStore corrupt-file resilience and shape validation"
 ```
 
@@ -351,7 +351,7 @@ git commit -m "P5.7a: ProposalStore corrupt-file resilience and shape validation
 ### Task A3: SnapshotStore + EvidenceEventWriter wiring in selectApplier
 
 **Files:**
-- Modify: `src/cli/commands/adaptation.ts`
+- Modify: `src/interfaces/cli/commands/adaptation.ts`
 
 **Interfaces:**
 - Consumes: `SnapshotStore` from `../../adaptation/snapshot-store.js`
@@ -359,7 +359,7 @@ git commit -m "P5.7a: ProposalStore corrupt-file resilience and shape validation
 
 - [ ] **Step 1: Add SnapshotStore import and directory constant**
 
-Add the import at the top of `src/cli/commands/adaptation.ts`:
+Add the import at the top of `src/interfaces/cli/commands/adaptation.ts`:
 ```typescript
 import { SnapshotStore } from "../../adaptation/snapshot-store.js";
 ```
@@ -414,7 +414,7 @@ Expected: All tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/adaptation.ts
+git add src/interfaces/cli/commands/adaptation.ts
 git commit -m "P5.7a: wire SnapshotStore and EvidenceEventWriter through selectApplier"
 ```
 
@@ -423,7 +423,7 @@ git commit -m "P5.7a: wire SnapshotStore and EvidenceEventWriter through selectA
 ### Task A4: Evidence recording failure warnings
 
 **Files:**
-- Modify: `src/workflow/evidence-writer.ts`
+- Modify: `src/coordination/workflow/evidence-writer.ts`
 
 **Interfaces:**
 - Consumes: `Logger` interface (injected)
@@ -494,7 +494,7 @@ Create/modify `tests/workflow/evidence-writer.vitest.ts`:
 
 ```typescript
 import { describe, it, expect, vi } from "vitest";
-import { EvidenceEventWriter, type Logger } from "../../src/workflow/evidence-writer";
+import { EvidenceEventWriter, type Logger } from "../../src/coordination/workflow/evidence-writer";
 
 describe("EvidenceEventWriter logging", () => {
   it("should log a warning when evidence append fails", async () => {
@@ -529,7 +529,7 @@ describe("EvidenceEventWriter logging", () => {
 
 - [ ] **Step 5: Update all EvidenceEventWriter construction sites to use new constructor**
 
-In `src/cli/commands/adaptation.ts`, the construction is:
+In `src/interfaces/cli/commands/adaptation.ts`, the construction is:
 ```typescript
 const writer = new EvidenceEventWriter((type, payload) => evidenceStore.append(type, payload));
 ```
@@ -543,7 +543,7 @@ Expected: All tests pass
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/workflow/evidence-writer.ts tests/workflow/evidence-writer.vitest.ts
+git add src/coordination/workflow/evidence-writer.ts tests/workflow/evidence-writer.vitest.ts
 git commit -m "P5.7a: EvidenceEventWriter logs warnings on failure via injectable Logger"
 ```
 
@@ -694,7 +694,7 @@ git commit -m "P5.7a: mutation-path audit document"
 ### Task B1: LineageGraph types
 
 **Files:**
-- Create: `src/adaptation/lineage-types.ts`
+- Create: `src/planning/adaptation/lineage-types.ts`
 
 **Interfaces:**
 - Consumes: nothing
@@ -777,7 +777,7 @@ export interface LineageGraph {
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/adaptation/lineage-types.ts
+git add src/planning/adaptation/lineage-types.ts
 git commit -m "P5.7b: LineageGraph type definitions"
 ```
 
@@ -786,7 +786,7 @@ git commit -m "P5.7b: LineageGraph type definitions"
 ### Task B2: LineageBuilder implementation
 
 **Files:**
-- Create: `src/adaptation/lineage-builder.ts`
+- Create: `src/planning/adaptation/lineage-builder.ts`
 
 **Interfaces:**
 - Consumes: `ProposalStore`, `EvidenceStore`, `EffectivenessStore`, `IntelligenceStore`, `LineageGraph` types
@@ -1047,7 +1047,7 @@ export class LineageBuilder {
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/adaptation/lineage-builder.ts
+git add src/planning/adaptation/lineage-builder.ts
 git commit -m "P5.7b: LineageBuilder implementation"
 ```
 
@@ -1062,8 +1062,8 @@ git commit -m "P5.7b: LineageBuilder implementation"
 
 ```typescript
 import { describe, it, expect, vi } from "vitest";
-import { LineageBuilder } from "../../src/adaptation/lineage-builder";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types";
+import { LineageBuilder } from "../../src/planning/adaptation/lineage-builder";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types";
 
 function mockProposalStore(proposals: Record<string, AdaptationProposal>) {
   return {
@@ -1325,7 +1325,7 @@ git commit -m "P5.7b: LineageBuilder tests"
 ### Task B4: CLI lineage command
 
 **Files:**
-- Modify: `src/cli/commands/adaptation.ts`
+- Modify: `src/interfaces/cli/commands/adaptation.ts`
 
 - [ ] **Step 1: Add imports at top of adaptation.ts**
 
@@ -1496,7 +1496,7 @@ Expected: All tests pass
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/adaptation.ts
+git add src/interfaces/cli/commands/adaptation.ts
 git commit -m "P5.7b: CLI lineage subcommand (tree + JSON + export)"
 ```
 
@@ -1507,7 +1507,7 @@ git commit -m "P5.7b: CLI lineage subcommand (tree + JSON + export)"
 ### Task C1: assertSafePathComponent utility
 
 **Files:**
-- Create: `src/security/path-assert.ts`
+- Create: `src/governance/security/path-assert.ts`
 - Create: `tests/security/path-assert.vitest.ts`
 
 - [ ] **Step 1: Create the path assertion utility**
@@ -1598,7 +1598,7 @@ export function assertSafePathComponent(input: string): string {
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { assertSafePathComponent } from "../../src/security/path-assert";
+import { assertSafePathComponent } from "../../src/governance/security/path-assert";
 
 describe("assertSafePathComponent", () => {
   it("accepts simple alphanumeric names", () => {
@@ -1668,7 +1668,7 @@ Expected: 11 tests passing
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/security/path-assert.ts tests/security/path-assert.vitest.ts
+git add src/governance/security/path-assert.ts tests/security/path-assert.vitest.ts
 git commit -m "P5.7c: assertSafePathComponent with cross-platform path validation"
 ```
 
@@ -1677,8 +1677,8 @@ git commit -m "P5.7c: assertSafePathComponent with cross-platform path validatio
 ### Task C2: SnapshotStore.loadVerified()
 
 **Files:**
-- Modify: `src/adaptation/snapshot-store.ts`
-- Modify: `src/adaptation/revert-applier.ts`
+- Modify: `src/planning/adaptation/snapshot-store.ts`
+- Modify: `src/planning/adaptation/revert-applier.ts`
 
 - [ ] **Step 1: Add loadVerified() to SnapshotStore**
 
@@ -1710,7 +1710,7 @@ async loadVerified(proposalId: string): Promise<AdaptationSnapshot | null> {
 
 - [ ] **Step 2: Update RevertApplier to use loadVerified()**
 
-Find the RevertApplier source at `src/adaptation/revert-applier.ts` and replace all calls to `this.snapshots.load(id)` with `this.snapshots.loadVerified(id)`. The applier should throw when a snapshot fails integrity check, which is the correct behavior — a revert with a corrupted snapshot must not proceed.
+Find the RevertApplier source at `src/planning/adaptation/revert-applier.ts` and replace all calls to `this.snapshots.load(id)` with `this.snapshots.loadVerified(id)`. The applier should throw when a snapshot fails integrity check, which is the correct behavior — a revert with a corrupted snapshot must not proceed.
 
 - [ ] **Step 3: Add path assertion in SnapshotStore constructor**
 
@@ -1738,7 +1738,7 @@ Expected: All tests pass
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/adaptation/snapshot-store.ts src/adaptation/revert-applier.ts
+git add src/planning/adaptation/snapshot-store.ts src/planning/adaptation/revert-applier.ts
 git commit -m "P5.7c: SnapshotStore.loadVerified() — integrity-guaranteed loading"
 ```
 
@@ -1747,9 +1747,9 @@ git commit -m "P5.7c: SnapshotStore.loadVerified() — integrity-guaranteed load
 ### Task C3: Path assertion in appliers and stores
 
 **Files:**
-- Modify: `src/adaptation/proposal-store.ts`
-- Modify: `src/adaptation/appliers/agent-card-applier.ts`
-- Modify: `src/adaptation/appliers/skill-applier.ts`
+- Modify: `src/planning/adaptation/proposal-store.ts`
+- Modify: `src/planning/adaptation/appliers/agent-card-applier.ts`
+- Modify: `src/planning/adaptation/appliers/skill-applier.ts`
 
 - [ ] **Step 1: Add path assertion to ProposalStore**
 
@@ -1785,7 +1785,7 @@ Expected: All tests pass
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/adaptation/proposal-store.ts src/adaptation/appliers/agent-card-applier.ts src/adaptation/appliers/skill-applier.ts
+git add src/planning/adaptation/proposal-store.ts src/planning/adaptation/appliers/agent-card-applier.ts src/planning/adaptation/appliers/skill-applier.ts
 git commit -m "P5.7c: add path assertion to ProposalStore, AgentCardApplier, SkillApplier"
 ```
 
@@ -1794,7 +1794,7 @@ git commit -m "P5.7c: add path assertion to ProposalStore, AgentCardApplier, Ski
 ### Task C4: Strengthen alix evidence verify command
 
 **Files:**
-- Modify: `src/cli/commands/evidence.ts`
+- Modify: `src/interfaces/cli/commands/evidence.ts`
 
 - [ ] **Step 1: Add malformed-line reporting to verify handler**
 
@@ -1840,7 +1840,7 @@ Expected: Tests pass
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/evidence.ts
+git add src/interfaces/cli/commands/evidence.ts
 git commit -m "P5.7c: strengthen alix evidence verify with malformed-line reporting"
 ```
 
@@ -1864,7 +1864,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ProposalStore } from "../../dist/src/adaptation/proposal-store.js";
+import { ProposalStore } from "../../dist/src/planning/adaptation/proposal-store.js";
 
 const SOAK_LEVEL = process.env.ALIX_SOAK_LEVEL || "ci";
 const PROPOSAL_COUNT = SOAK_LEVEL === "bench" ? 1000 : 100;
@@ -1952,7 +1952,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceStore } from "../../dist/src/security/evidence/evidence-store.js";
+import { EvidenceStore } from "../../dist/src/governance/security/evidence/evidence-store.js";
 
 const SOAK_LEVEL = process.env.ALIX_SOAK_LEVEL || "ci";
 const EVENT_COUNT = SOAK_LEVEL === "bench" ? 10000 : 1000;
@@ -2773,20 +2773,20 @@ relationships.
 
 | Module | Path | Responsibility |
 |--------|------|----------------|
-| **ApprovalGate** | `src/adaptation/approval-gate.ts` | Enforces no-approval-no-mutation invariant; sole owner of status transitions |
-| **ProposalStore** | `src/adaptation/proposal-store.ts` | File-system JSON persistence for proposals |
-| **SnapshotStore** | `src/adaptation/snapshot-store.ts` | Pre-mutation file snapshots with SHA-256 content hash |
-| **EvidenceStore** | `src/security/evidence/evidence-store.ts` | Append-only JSONL evidence store with deterministic fingerprints |
-| **EvidenceEventWriter** | `src/workflow/evidence-writer.ts` | Typed wrapper for evidence recording (best-effort) |
-| **AgentCardApplier** | `src/adaptation/appliers/agent-card-applier.ts` | File mutation: agent card CRUD |
-| **SkillApplier** | `src/adaptation/appliers/skill-applier.ts` | File mutation: skill step adjustment |
-| **RevertApplier** | `src/adaptation/revert-applier.ts` | File mutation: snapshot-based revert |
-| **automaticProposalGenerator** | `src/adaptation/auto-proposal-generator.ts` | Auto-generates pending proposals from reflection/effectiveness |
-| **CapabilityEvolutionProposalGenerator** | `src/adaptation/capability-evolution-proposal-generator.ts` | Auto-generates pending proposals from capability analysis |
-| **LineageBuilder** | `src/adaptation/lineage-builder.ts` | Builds lineage graphs from stores |
-| **CLI (adaptation)** | `src/cli/commands/adaptation.ts` | Wires everything together; command dispatch |
-| **CLI (evidence)** | `src/cli/commands/evidence.ts` | Evidence query, show, verify |
-| **selectApplier** | `src/cli/commands/adaptation.ts` (internal) | Routes target kind to applier |
+| **ApprovalGate** | `src/planning/adaptation/approval-gate.ts` | Enforces no-approval-no-mutation invariant; sole owner of status transitions |
+| **ProposalStore** | `src/planning/adaptation/proposal-store.ts` | File-system JSON persistence for proposals |
+| **SnapshotStore** | `src/planning/adaptation/snapshot-store.ts` | Pre-mutation file snapshots with SHA-256 content hash |
+| **EvidenceStore** | `src/governance/security/evidence/evidence-store.ts` | Append-only JSONL evidence store with deterministic fingerprints |
+| **EvidenceEventWriter** | `src/coordination/workflow/evidence-writer.ts` | Typed wrapper for evidence recording (best-effort) |
+| **AgentCardApplier** | `src/planning/adaptation/appliers/agent-card-applier.ts` | File mutation: agent card CRUD |
+| **SkillApplier** | `src/planning/adaptation/appliers/skill-applier.ts` | File mutation: skill step adjustment |
+| **RevertApplier** | `src/planning/adaptation/revert-applier.ts` | File mutation: snapshot-based revert |
+| **automaticProposalGenerator** | `src/planning/adaptation/auto-proposal-generator.ts` | Auto-generates pending proposals from reflection/effectiveness |
+| **CapabilityEvolutionProposalGenerator** | `src/planning/adaptation/capability-evolution-proposal-generator.ts` | Auto-generates pending proposals from capability analysis |
+| **LineageBuilder** | `src/planning/adaptation/lineage-builder.ts` | Builds lineage graphs from stores |
+| **CLI (adaptation)** | `src/interfaces/cli/commands/adaptation.ts` | Wires everything together; command dispatch |
+| **CLI (evidence)** | `src/interfaces/cli/commands/evidence.ts` | Evidence query, show, verify |
+| **selectApplier** | `src/interfaces/cli/commands/adaptation.ts` (internal) | Routes target kind to applier |
 
 ## Data Flow
 

@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import type { AlixEvent } from '../../../src/events/types.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { stripAnsi } from '../../../src/tui/box.js';
-import { AgentView } from '../../../src/tui/views/agent-view.js';
-import { buildExecutionTrace } from '../../../src/tui/runtime/execution-trace-builder.js';
-import { createInitialPerTabState } from '../../../src/tui/state.js';
-import { createInitialWorkbenchUiState } from '../../../src/tui/workbench/model/ui-state.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import { stripAnsi } from '../../../src/interfaces/tui/box.js';
+import { AgentView } from '../../../src/interfaces/tui/views/agent-view.js';
+import { buildExecutionTrace } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import { createInitialPerTabState } from '../../../src/interfaces/tui/state.js';
+import { createInitialWorkbenchUiState } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
 import { createWorkbenchRenderHarness } from '../../fixtures/tui/workbench-render-harness.js';
 
 it.each(['compact', 'detailed'] as const)('paints event-backed %s cards inside the wide transcript pane', mode => {

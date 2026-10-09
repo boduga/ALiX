@@ -16,7 +16,7 @@ import type { BuildCompliancePackageInput } from "../../src/governance/governanc
 import type { PolicyDriftSignal } from "../../src/governance/policy-drift-types.js";
 import type { PolicyReviewCandidate } from "../../src/governance/policy-review-candidate-types.js";
 import type { PolicyReviewOutcome } from "../../src/governance/policy-review-outcome-types.js";
-import type { ExecutionEvidence } from "../../src/runtime/contracts/execution-intent-contract.js";
+import type { ExecutionEvidence } from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 import type { ComplianceExecutionSummary } from "../../src/governance/governance-execution-types.js";
 
 // ---------------------------------------------------------------------------

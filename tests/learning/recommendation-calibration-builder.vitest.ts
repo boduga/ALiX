@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   RecommendationCalibrationBuilder,
   type ConfidenceBucketObservation,
-} from "../../src/learning/recommendation-calibration-builder.js";
+} from "../../src/planning/learning/recommendation-calibration-builder.js";
 
 const SOURCE_REPORT_ID = "acc-1";
 const GENERATED_AT = "2026-06-22T00:00:00.000Z";

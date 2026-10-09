@@ -31,70 +31,70 @@ import { codeOnly } from "../helpers/import-graph.js";
 // ---------------------------------------------------------------------------
 
 const EXECUTIVE_FILES = [
-  "src/executive/executive-health.ts",
-  "src/executive/priority-engine.ts",
-  "src/executive/trend-store.ts",
-  "src/executive/adapters/agent-health.ts",
-  "src/executive/adapters/tool-health.ts",
-  "src/executive/adapters/workflow-health.ts",
-  "src/executive/adapters/memory-health.ts",
-  "src/executive/adapters/security-health.ts",
-  "src/executive/adapters/adaptation-health.ts",
-  "src/cli/commands/executive-dashboard-renderer.ts",
-  "src/cli/commands/executive-dashboard-handler.ts",
-  "src/cli/commands/executive.ts",
-  "src/executive/execution-plan-builder.ts",
-  "src/executive/objective-engine.ts",
+  "src/execution/executive/executive-health.ts",
+  "src/execution/executive/priority-engine.ts",
+  "src/execution/executive/trend-store.ts",
+  "src/execution/executive/adapters/agent-health.ts",
+  "src/execution/executive/adapters/tool-health.ts",
+  "src/execution/executive/adapters/workflow-health.ts",
+  "src/execution/executive/adapters/memory-health.ts",
+  "src/execution/executive/adapters/security-health.ts",
+  "src/execution/executive/adapters/adaptation-health.ts",
+  "src/interfaces/cli/commands/executive-dashboard-renderer.ts",
+  "src/interfaces/cli/commands/executive-dashboard-handler.ts",
+  "src/interfaces/cli/commands/executive.ts",
+  "src/execution/executive/execution-plan-builder.ts",
+  "src/execution/executive/objective-engine.ts",
   // P10.4a files
-  "src/executive/step-behavior.ts",
-  "src/executive/executive-plan-types.ts",
-  "src/executive/plan-store.ts",
-  "src/executive/execution-state-store.ts",
-  "src/executive/plan-approval-gate.ts",
-  "src/executive/step-runner.ts",
-  "src/executive/execution-engine.ts",
+  "src/execution/executive/step-behavior.ts",
+  "src/execution/executive/executive-plan-types.ts",
+  "src/execution/executive/plan-store.ts",
+  "src/execution/executive/execution-state-store.ts",
+  "src/execution/executive/plan-approval-gate.ts",
+  "src/execution/executive/step-runner.ts",
+  "src/execution/executive/execution-engine.ts",
   // P10.4b files
-  "src/executive/executive-bridge.ts",
+  "src/execution/executive/executive-bridge.ts",
   // P10.4c files
-  "src/executive/executive-apply-reconciler.ts",
+  "src/execution/executive/executive-apply-reconciler.ts",
   // P10.6 files
-  "src/executive/learning-trends.ts",
+  "src/execution/executive/learning-trends.ts",
   // P10.5b files
-  "src/executive/outcome-store.ts",
-  "src/executive/outcome-report-id.ts",
+  "src/execution/executive/outcome-store.ts",
+  "src/execution/executive/outcome-report-id.ts",
   // P10.5c files
-  "src/executive/automatic-outcome-hook.ts",
+  "src/execution/executive/automatic-outcome-hook.ts",
   // P10.5a files
-  "src/executive/outcome-evaluator.ts",
-  "src/cli/commands/executive-evaluate-handler.ts",
-  "src/cli/commands/executive-learn-handler.ts",
+  "src/execution/executive/outcome-evaluator.ts",
+  "src/interfaces/cli/commands/executive-evaluate-handler.ts",
+  "src/interfaces/cli/commands/executive-learn-handler.ts",
   // P10.7a files
-  "src/executive/recommendation-engine.ts",
-  "src/cli/commands/executive-recommend-handler.ts",
+  "src/execution/executive/recommendation-engine.ts",
+  "src/interfaces/cli/commands/executive-recommend-handler.ts",
   // P10.7b files
-  "src/executive/recommendation-report-store.ts",
+  "src/execution/executive/recommendation-report-store.ts",
   // P10.7c files
-  "src/executive/executive-bridge-recommendations.ts",
-  "src/cli/commands/executive-bridge-handler.ts",
+  "src/execution/executive/executive-bridge-recommendations.ts",
+  "src/interfaces/cli/commands/executive-bridge-handler.ts",
   // P10.8 files
-  "src/executive/recommendation-effectiveness.ts",
-  "src/cli/commands/executive-effectiveness-handler.ts",
+  "src/execution/executive/recommendation-effectiveness.ts",
+  "src/interfaces/cli/commands/executive-effectiveness-handler.ts",
   // P10.8c files
-  "src/executive/subsystem-correlation.ts",
-  "src/cli/commands/executive-subsystem-correlation-handler.ts",
+  "src/execution/executive/subsystem-correlation.ts",
+  "src/interfaces/cli/commands/executive-subsystem-correlation-handler.ts",
   // P10.9 files
-  "src/executive/executive-dashboard.ts",
-  "src/executive/executive-dashboard-loader.ts",
+  "src/execution/executive/executive-dashboard.ts",
+  "src/execution/executive/executive-dashboard-loader.ts",
   // P10.9.1 files — plan-scoped snapshot stack (ADR-0005)
-  "src/executive/executive-snapshot-store.ts",
-  "src/executive/executive-snapshot-provider.ts",
-  "src/executive/executive-observation-provider.ts",
+  "src/execution/executive/executive-snapshot-store.ts",
+  "src/execution/executive/executive-snapshot-provider.ts",
+  "src/execution/executive/executive-observation-provider.ts",
   // P10.9.2b files
-  "src/executive/executive-remediate.ts",
-  "src/cli/commands/executive-remediate-handler.ts",
+  "src/execution/executive/executive-remediate.ts",
+  "src/interfaces/cli/commands/executive-remediate-handler.ts",
   // P10.9.2c files
-  "src/executive/executive-orchestrator.ts",
-  "src/cli/commands/executive-orchestrate-handler.ts",
+  "src/execution/executive/executive-orchestrator.ts",
+  "src/interfaces/cli/commands/executive-orchestrate-handler.ts",
   // Future: providers may be discovered dynamically
 ];
 
@@ -182,7 +182,7 @@ describe("P10 executive purity sentinel", () => {
             }
             // Scoped exception: CLI dispatcher is the composition root and is
             // allowed to wire approval/rejection gates.
-            if (file === "src/cli/commands/executive.ts" &&
+            if (file === "src/interfaces/cli/commands/executive.ts" &&
                 (forbidden === ".approve(" || forbidden === ".reject(")) {
               continue;
             }
@@ -190,7 +190,7 @@ describe("P10 executive purity sentinel", () => {
             // Scoped exception: execution-engine.ts is the only file allowed to
             // call randomUUID (constitutional invariant: only ExecutionEngine
             // generates executionId).
-            if (file === "src/executive/execution-engine.ts" &&
+            if (file === "src/execution/executive/execution-engine.ts" &&
                 forbidden === "randomUUID") {
               continue;
             }
@@ -199,28 +199,28 @@ describe("P10 executive purity sentinel", () => {
             // for orchestration-sequence IDs ("orchestration-" prefix), which
             // are audit-trail correlation keys, not engine-internal executionIds.
             // Constitutional invariant applies to engine-internal execution flows.
-            if (file === "src/executive/executive-orchestrator.ts" &&
+            if (file === "src/execution/executive/executive-orchestrator.ts" &&
                 forbidden === "randomUUID") {
               continue;
             }
 
             // Scoped exception: objective-engine.ts uses Math.random for
             // deterministic ID generation in objective naming.
-            if (file === "src/executive/objective-engine.ts" &&
+            if (file === "src/execution/executive/objective-engine.ts" &&
                 forbidden === "Math.random") {
               continue;
             }
 
             // Scoped exception: dashboard handler needs InvestigationStore
             // for the investigation→objective bridge (P10.2).
-            if (file === "src/cli/commands/executive-dashboard-handler.ts" &&
+            if (file === "src/interfaces/cli/commands/executive-dashboard-handler.ts" &&
                 forbidden === "InvestigationStore") {
               continue;
             }
 
             // Scoped exception: executive.ts dispatcher needs InvestigationStore
             // for the plan save pipeline (replicates dashboard handler logic).
-            if (file === "src/cli/commands/executive.ts" &&
+            if (file === "src/interfaces/cli/commands/executive.ts" &&
                 forbidden === "InvestigationStore") {
               continue;
             }
@@ -228,13 +228,13 @@ describe("P10 executive purity sentinel", () => {
             // Scoped exception: executive.ts dispatcher uses PlanApprovalGate
             // (which contains "ApprovalGate" as substring). The P9 ApprovalGate
             // is different from P10.4a PlanApprovalGate.
-            if (file === "src/cli/commands/executive.ts" &&
+            if (file === "src/interfaces/cli/commands/executive.ts" &&
                 forbidden === "ApprovalGate") {
               continue;
             }
 
             // Scoped exception: trend-store.ts is an approved write path
-            if (file === "src/executive/trend-store.ts" &&
+            if (file === "src/execution/executive/trend-store.ts" &&
                 (forbidden === "writeFileSync" || forbidden === "mkdirSync" || forbidden === "appendFileSync")) {
               continue;
             }
@@ -242,13 +242,13 @@ describe("P10 executive purity sentinel", () => {
             // Scoped exception: plan-store.ts, execution-state-store.ts,
             // outcome-store.ts, and recommendation-report-store.ts are
             // approved write paths.
-            if ((file === "src/executive/plan-store.ts" ||
-                 file === "src/executive/execution-state-store.ts" ||
-                 file === "src/executive/outcome-store.ts" ||
-                 file === "src/executive/recommendation-report-store.ts" ||
+            if ((file === "src/execution/executive/plan-store.ts" ||
+                 file === "src/execution/executive/execution-state-store.ts" ||
+                 file === "src/execution/executive/outcome-store.ts" ||
+                 file === "src/execution/executive/recommendation-report-store.ts" ||
                  // P10.9.1 — snapshot store is an approved write path
                  // (atomic-write baseline/current, per ADR-0005).
-                 file === "src/executive/executive-snapshot-store.ts") &&
+                 file === "src/execution/executive/executive-snapshot-store.ts") &&
                 (forbidden === "writeFileSync" || forbidden === "mkdirSync" ||
                  forbidden === "renameSync" || forbidden === "openSync" ||
                  forbidden === "fsyncSync" || forbidden === "closeSync")) {

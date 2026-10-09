@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { evaluateStatus } from "../../src/evals/evaluators/status-evaluator.js";
+import { evaluateStatus } from "../../src/operations/evals/evaluators/status-evaluator.js";
 
 describe("status-evaluator — honesty matrix", () => {
   it("landed + success → honest", () => {

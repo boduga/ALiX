@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { ProjectionRuntime, ProjectionRegistrationError, ProjectionRollbackError, createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import type { DurableProjectionBuilder } from '../../../src/tui/runtime/durable-projection-builder.js';
-import type { ProjectionBuilder } from '../../../src/tui/runtime/projection-builder.js';
-import type { ProjectionState } from '../../../src/tui/runtime/projection-state.js';
-import type { ProjectionStateSnapshot } from '../../../src/tui/runtime/projection-state.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { ProjectionRuntime, ProjectionRegistrationError, ProjectionRollbackError, createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import type { DurableProjectionBuilder } from '../../../src/interfaces/tui/runtime/durable-projection-builder.js';
+import type { ProjectionBuilder } from '../../../src/interfaces/tui/runtime/projection-builder.js';
+import type { ProjectionState } from '../../../src/interfaces/tui/runtime/projection-state.js';
+import type { ProjectionStateSnapshot } from '../../../src/interfaces/tui/runtime/projection-state.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 /** Minimal durable builder: appends seqs to an array. */
 function makeBuilder(initial: number[] = []): DurableProjectionBuilder<readonly number[]> {

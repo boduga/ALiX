@@ -277,19 +277,19 @@ Each includes: `approvalId, coordinationRunId?, workerId?, capability, bindingKe
 ## 13. File structure
 
 ### Modify
-- `src/approvals/approval-store.ts` — lock-safe mutation, binding key, expiry, revocation, consumption
-- `src/approvals/approval-types.ts` — extract types (or keep inline)
-- `src/policy/policy-gate.ts` — policy revision propagation
-- `src/runtime/execution-decision.ts` — `policyRevision` field
-- `src/kernel/coordination-scheduler.ts` — enriched approval check
-- `src/kernel/coordination-reconciliation.ts` — pass policy revision
-- `src/events/types.ts` — new event types, `EventActor` additions
+- `src/governance/approvals/approval-store.ts` — lock-safe mutation, binding key, expiry, revocation, consumption
+- `src/governance/approvals/approval-types.ts` — extract types (or keep inline)
+- `src/governance/policy/policy-gate.ts` — policy revision propagation
+- `src/runtime-state/runtime/execution-decision.ts` — `policyRevision` field
+- `src/coordination/kernel/coordination-scheduler.ts` — enriched approval check
+- `src/coordination/kernel/coordination-reconciliation.ts` — pass policy revision
+- `src/runtime-state/events/types.ts` — new event types, `EventActor` additions
 - `src/cli.ts` — dispatch `alix approval`
 
 ### Create
-- `src/cli/commands/approval.ts` — CLI handler
-- `src/approvals/approval-lock.ts` — per-file approval lock
-- `src/daemon/approval-watcher.ts` — daemon polling service
+- `src/interfaces/cli/commands/approval.ts` — CLI handler
+- `src/governance/approvals/approval-lock.ts` — per-file approval lock
+- `src/operations/daemon/approval-watcher.ts` — daemon polling service
 - `tests/approvals/approval-store.test.ts` — expanded tests
 - `tests/cli/approval.test.ts` — CLI tests
 - `tests/daemon/approval-watcher.test.ts` — watcher tests

@@ -2,14 +2,14 @@
 
 **Goal:** Support more natural-language file creation patterns like `create a file called test.txt with hello` and `make a file named foo with content bar`.
 
-**Architecture:** Add new pattern regexes to `src/runtime/task-router.ts` in the `matchNaturalFileOperation()` function.
+**Architecture:** Add new pattern regexes to `src/runtime-state/runtime/task-router.ts` in the `matchNaturalFileOperation()` function.
 
 ---
 
 ### Task 1: Add new patterns
 
 **Files:**
-- Modify: `src/runtime/task-router.ts`
+- Modify: `src/runtime-state/runtime/task-router.ts`
 
 Add after existing pattern constants:
 

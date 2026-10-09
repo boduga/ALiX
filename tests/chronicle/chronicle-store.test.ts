@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ChronicleStore } from "../../src/chronicle/chronicle-store.js";
-import type { ChronicleEntry, ChronicleOutcome } from "../../src/chronicle/chronicle-store.js";
-import type { SignalDomain, SignalPolarity } from "../../src/runtime/signal-frame.js";
+import { ChronicleStore } from "../../src/context/chronicle/chronicle-store.js";
+import type { ChronicleEntry, ChronicleOutcome } from "../../src/context/chronicle/chronicle-store.js";
+import type { SignalDomain, SignalPolarity } from "../../src/runtime-state/runtime/signal-frame.js";
 
 describe("ChronicleStore", () => {
   let tmpDir: string;

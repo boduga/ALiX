@@ -7,7 +7,7 @@ import {
   buildDefaultToolIndex,
   type ToolCapability,
   type ToolDomain,
-} from "../../src/tools/tool-registry.js";
+} from "../../src/capabilities/tools/tool-registry.js";
 
 // ---------------------------------------------------------------------------
 // ToolRegistry

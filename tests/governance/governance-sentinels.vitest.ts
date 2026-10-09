@@ -102,7 +102,7 @@ const ALL_FILES = [
   "src/governance/governance-recommendation-generator.ts",
   "src/governance/governance-proposal-generator.ts",
   "src/governance/governance-approval-criteria.ts", // NEW: P9.3
-  "src/cli/commands/governance.ts",
+  "src/interfaces/cli/commands/governance.ts",
 ];
 
 // ---------------------------------------------------------------------------
@@ -111,8 +111,8 @@ const ALL_FILES = [
 
 function readSource(file: string): string {
   // #717 — governance.ts is now a barrel; scan the barrel plus every module.
-  if (file === "src/cli/commands/governance.ts") {
-    const dir = join(process.cwd(), "src/cli/commands/governance");
+  if (file === "src/interfaces/cli/commands/governance.ts") {
+    const dir = join(process.cwd(), "src/interfaces/cli/commands/governance");
     const mods = readdirSync(dir)
       .filter((f) => f.endsWith(".ts"))
       .sort()
@@ -202,7 +202,7 @@ describe("P9.0 purity sentinel", () => {
 
   it("adaptation-types.ts ProposalAction is exactly the baseline + P9.2 + P10.4b additions", async () => {
     const { BASELINE_PROPOSAL_ACTIONS } = await import("../../src/governance/protected-baselines.js");
-    const source = readSource("src/adaptation/adaptation-types.ts");
+    const source = readSource("src/planning/adaptation/adaptation-types.ts");
     const match = source.match(/export type ProposalAction\s*=\s*([\s\S]+?);/);
     expect(match).not.toBeNull();
     if (!match) return;
@@ -215,7 +215,7 @@ describe("P9.0 purity sentinel", () => {
   });
 
   it("adaptation-types.ts ProposalStatus preserves the 5 lifecycle states (P9.2 does NOT extend it)", () => {
-    const source = readSource("src/adaptation/adaptation-types.ts");
+    const source = readSource("src/planning/adaptation/adaptation-types.ts");
     const match = source.match(/export type ProposalStatus\s*=\s*([\s\S]+?);/);
     expect(match).not.toBeNull();
     if (!match) return;
@@ -226,7 +226,7 @@ describe("P9.0 purity sentinel", () => {
   });
 
   it("adaptation-types.ts ProposalTarget kinds is exactly the baseline + P9.2 additions", () => {
-    const source = readSource("src/adaptation/adaptation-types.ts");
+    const source = readSource("src/planning/adaptation/adaptation-types.ts");
     const kinds = [...source.matchAll(/kind:\s*"([^"]+)"/g)].map((m) => m[1]);
     expect(kinds).toContain("governance");
     // Check all baseline kinds still present
@@ -237,7 +237,7 @@ describe("P9.0 purity sentinel", () => {
   });
 
   it("adaptation-types.ts ProposalAction preserves all P9.2 actions (P9.3 does NOT extend it)", () => {
-    const source = readSource("src/adaptation/adaptation-types.ts");
+    const source = readSource("src/planning/adaptation/adaptation-types.ts");
     const match = source.match(/export type ProposalAction\s*=\s*([\s\S]+?);/);
     expect(match).not.toBeNull();
     if (!match) return;

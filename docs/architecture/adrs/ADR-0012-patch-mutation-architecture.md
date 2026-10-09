@@ -170,19 +170,19 @@ The policy is enforced at edit time, not at review time. A mutation that violate
 
 ## 5. Key References
 
-- `src/patch/patch-engine.ts` — Central patch application orchestrator
-- `src/patch/patch-guard.ts` — Patch feasibility validation
-- `src/patch/patch-parser.ts` — Patch format parsing
-- `src/patch/search-replace.ts` — Search/replace patch applier
-- `src/patch/structured-patch.ts` — Structured data patch applier
-- `src/patch/structured-patch-applier.ts` — Structured patch application logic
-- `src/patch/preimage-validator.ts` — Preimage validation
-- `src/patch/full-file-guard.ts` — Full-file rewrite boundaries
-- `src/patch/diff-renderer.ts` — Diff output generation
-- `src/patch/rollback-manager.ts` — Mutation rollback coordination
-- `src/patch/checkpoint-manager.ts` — File-level checkpointing
-- `src/patch/checkpoint.ts` — Checkpoint types
-- `src/patch/edit-format-policy.ts` — Format selection + protected type enforcement
-- `src/patch/edit-format-selector.ts` — Format router
-- `src/patch/patch-paths.ts` — Path resolution and safety
+- `src/execution/patch/patch-engine.ts` — Central patch application orchestrator
+- `src/execution/patch/patch-guard.ts` — Patch feasibility validation
+- `src/execution/patch/patch-parser.ts` — Patch format parsing
+- `src/execution/patch/search-replace.ts` — Search/replace patch applier
+- `src/execution/patch/structured-patch.ts` — Structured data patch applier
+- `src/execution/patch/structured-patch-applier.ts` — Structured patch application logic
+- `src/execution/patch/preimage-validator.ts` — Preimage validation
+- `src/execution/patch/full-file-guard.ts` — Full-file rewrite boundaries
+- `src/execution/patch/diff-renderer.ts` — Diff output generation
+- `src/execution/patch/rollback-manager.ts` — Mutation rollback coordination
+- `src/execution/patch/checkpoint-manager.ts` — File-level checkpointing
+- `src/execution/patch/checkpoint.ts` — Checkpoint types
+- `src/execution/patch/edit-format-policy.ts` — Format selection + protected type enforcement
+- `src/execution/patch/edit-format-selector.ts` — Format router
+- `src/execution/patch/patch-paths.ts` — Path resolution and safety
 - `docs/architecture/adrs/ADR-0004-protected-type-files.md` — Protected type file policy

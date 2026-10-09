@@ -15,10 +15,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
-import { ReplanApprovalGate } from "../../src/kernel/replan-approval-gate.js";
-import { computeFingerprint } from "../../src/kernel/replan-types.js";
-import type { ImpactAnalysis } from "../../src/kernel/replan-types.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import { ReplanApprovalGate } from "../../src/coordination/kernel/replan-approval-gate.js";
+import { computeFingerprint } from "../../src/coordination/kernel/replan-types.js";
+import type { ImpactAnalysis } from "../../src/coordination/kernel/replan-types.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

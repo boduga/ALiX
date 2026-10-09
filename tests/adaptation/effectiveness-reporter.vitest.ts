@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import { EffectivenessReporter } from "../../src/adaptation/effectiveness-reporter.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
+import { EffectivenessReporter } from "../../src/planning/adaptation/effectiveness-reporter.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 let n = 0;
 function line(type: string, ts: string, payload: Record<string, unknown> = {}) {

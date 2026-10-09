@@ -19,7 +19,7 @@ import {
   type DecisionExecutor,
   type ExecuteInput,
   type ExecutorOutcome,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 function sealed(hashPayload: Record<string, unknown> = { claim: "sky blue" }) {
   return sealForRemote("claim-verification", "v1", hashPayload, { now: 1 });

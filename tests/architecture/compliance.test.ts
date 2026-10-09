@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { GovernanceDecision } from "../../src/evolution/governance/contracts/decision-contract.js";
+import type { GovernanceDecision } from "../../src/planning/evolution/governance/contracts/decision-contract.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // TS compiles tests/ → dist/tests/ so __dirname is dist/tests/<group>.
@@ -30,7 +30,7 @@ const PROJECT_ROOT = resolve(__dirname, "../../..");
 
 describe("ADR-0006: Governance Gate", () => {
   it("authorizeExecution rejects when decision is undefined", async () => {
-    const { authorizeExecution } = await import("../../src/evolution/execution/execution-authorization.js");
+    const { authorizeExecution } = await import("../../src/planning/evolution/execution/execution-authorization.js");
     const result = authorizeExecution({
       request: { requestId: "test", evolutionId: "test", requestedBy: "test", requestedAt: new Date().toISOString() },
       proposal: { proposalId: "test", evolutionId: "test", title: "t", description: "d", change: "c", beforeHash: null, afterHash: null, createdAt: new Date().toISOString() },
@@ -41,8 +41,8 @@ describe("ADR-0006: Governance Gate", () => {
   });
 
   it("authorizeExecution rejects when decision is not APPROVE", async () => {
-    const { authorizeExecution } = await import("../../src/evolution/execution/execution-authorization.js");
-    const { computeDecisionIntegrityHash } = await import("../../src/evolution/governance/decision-engine.js");
+    const { authorizeExecution } = await import("../../src/planning/evolution/execution/execution-authorization.js");
+    const { computeDecisionIntegrityHash } = await import("../../src/planning/evolution/governance/decision-engine.js");
     const decision = {
       decisionId: "test",
       proposalId: "test",
@@ -81,7 +81,7 @@ describe("ADR-0006: Governance Gate", () => {
 
 describe("ADR-0006 + ADR-0011: Evidence Integrity", () => {
   it("verification evidence has projected class", async () => {
-    const { validateVerificationEvidence } = await import("../../src/evolution/verification/contracts/verification-contract.js");
+    const { validateVerificationEvidence } = await import("../../src/planning/evolution/verification/contracts/verification-contract.js");
     const result = validateVerificationEvidence({
       evidenceId: "test",
       verificationId: "test",
@@ -109,7 +109,7 @@ describe("ADR-0006 + ADR-0011: Evidence Integrity", () => {
   });
 
   it("projected evidence fails validation when class is wrong", async () => {
-    const { validateVerificationEvidence } = await import("../../src/evolution/verification/contracts/verification-contract.js");
+    const { validateVerificationEvidence } = await import("../../src/planning/evolution/verification/contracts/verification-contract.js");
     const result = validateVerificationEvidence({
       evidenceId: "test",
       verificationId: "test",
@@ -143,11 +143,11 @@ describe("ADR-0006 + ADR-0011: Evidence Integrity", () => {
 
 describe("ADR-0004: Protected Type Files", () => {
   const protectedPaths = [
-    "src/evolution/contracts/evolution-contract.ts",
-    "src/evolution/verification/contracts/verification-contract.ts",
-    "src/evolution/verification/contracts/confidence-contract.ts",
-    "src/evolution/governance/contracts/decision-contract.ts",
-    "src/evolution/observation/contracts/observation-contract.ts",
+    "src/planning/evolution/contracts/evolution-contract.ts",
+    "src/planning/evolution/verification/contracts/verification-contract.ts",
+    "src/planning/evolution/verification/contracts/confidence-contract.ts",
+    "src/planning/evolution/governance/contracts/decision-contract.ts",
+    "src/planning/evolution/observation/contracts/observation-contract.ts",
   ];
 
   for (const protectedPath of protectedPaths) {
@@ -173,7 +173,7 @@ describe("ADR-0004: Protected Type Files", () => {
 describe("ADR-0009: Integrity Hashing", () => {
   it("all three evidence producers compute deterministic hashes", async () => {
     // A2 projected evidence uses canonical JSON hashing
-    const { canonicalStringify } = await import("../../src/security/audit/canonical-json.js");
+    const { canonicalStringify } = await import("../../src/governance/security/audit/canonical-json.js");
     const { createHash } = await import("node:crypto");
 
     const obj1 = { b: 2, a: 1 };
@@ -193,7 +193,7 @@ describe("ADR-0009: Integrity Hashing", () => {
 
 describe("ADR-0009: Path Security", () => {
   it("assertSafePath rejects path traversal attempts", async () => {
-    const { assertSafePathComponent } = await import("../../src/security/path-assert.js");
+    const { assertSafePathComponent } = await import("../../src/governance/security/path-assert.js");
 
     // validatePathComponent supports path safety validation
     assert.equal(typeof assertSafePathComponent, "function");
@@ -212,9 +212,9 @@ describe("ADR-0006: Dependency Direction", () => {
 
     // Check key evolution files for governance imports
     const evolutionFiles = [
-      "src/evolution/contracts/evolution-contract.ts",
-      "src/evolution/evolution-state-machine.ts",
-      "src/evolution/evolution-evidence-bridge.ts",
+      "src/planning/evolution/contracts/evolution-contract.ts",
+      "src/planning/evolution/evolution-state-machine.ts",
+      "src/planning/evolution/evolution-evidence-bridge.ts",
     ];
 
     for (const file of evolutionFiles) {

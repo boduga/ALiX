@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { ExecutionStepAction, ExecutionStep, ExecutionPlan, ExecutionStepStatus } from "../../src/executive/execution-plan-builder.js";
-import { PLANNER_VERSION, PLANNING_ALGORITHM, buildStepsForObjective, riskLevelFromScore } from "../../src/executive/execution-plan-builder.js";
+import type { ExecutionStepAction, ExecutionStep, ExecutionPlan, ExecutionStepStatus } from "../../src/execution/executive/execution-plan-builder.js";
+import { PLANNER_VERSION, PLANNING_ALGORITHM, buildStepsForObjective, riskLevelFromScore } from "../../src/execution/executive/execution-plan-builder.js";
 
 describe("planning engine types and constants", () => {
   it("exports PLANNER_VERSION as 1.0", () => {
@@ -144,9 +144,9 @@ describe("buildStepsForObjective", () => {
 // Task 2: Dependency resolution and buildExecutionPlan
 // ---------------------------------------------------------------------------
 
-import { buildExecutionPlan, resolveLocalDependencies, SUBSYSTEM_DEPENDENCY_RULES } from "../../src/executive/execution-plan-builder.js";
-import type { ExecutiveSubsystemName } from "../../src/executive/executive-health.js";
-import type { ExecutiveObjectiveReport } from "../../src/executive/objective-engine.js";
+import { buildExecutionPlan, resolveLocalDependencies, SUBSYSTEM_DEPENDENCY_RULES } from "../../src/execution/executive/execution-plan-builder.js";
+import type { ExecutiveSubsystemName } from "../../src/execution/executive/executive-health.js";
+import type { ExecutiveObjectiveReport } from "../../src/execution/executive/objective-engine.js";
 
 describe("SUBSYSTEM_DEPENDENCY_RULES", () => {
   it("defines apply_remediation as blocking implement_improvements and review_baseline_metrics", () => {

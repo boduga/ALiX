@@ -31,19 +31,19 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { EventLog } from "../../src/events/event-log.js";
-import { runPlanPhase } from "../../src/run/plan-phase.js";
-import { modelClassifyAction } from "../../src/runtime/action-classifier.js";
-import { executeGroundedChatBehavior } from "../../src/runtime/route-execution.js";
-import { withProviderContracts } from "../../src/providers/provider-contract-validation.js";
-import { createTraceClient } from "../../src/tracing/client-factory.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import type { ExecutionContext } from "../../src/observability/execution-context.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { runPlanPhase } from "../../src/execution/run/plan-phase.js";
+import { modelClassifyAction } from "../../src/runtime-state/runtime/action-classifier.js";
+import { executeGroundedChatBehavior } from "../../src/runtime-state/runtime/route-execution.js";
+import { withProviderContracts } from "../../src/models/providers/provider-contract-validation.js";
+import { createTraceClient } from "../../src/models/tracing/client-factory.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import type { ExecutionContext } from "../../src/operations/observability/execution-context.js";
 import type {
   ModelAdapter,
   NormalizedResponse,
   ToolCall,
-} from "../../src/providers/types.js";
+} from "../../src/models/providers/types.js";
 
 import {
   FakeLangfuseSpanProcessor,

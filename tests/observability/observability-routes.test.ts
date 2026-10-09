@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { ServerResponse, IncomingMessage } from "node:http";
-import { handleObservabilityRoute, type RouteContext } from "../../src/observability/observability-routes.js";
+import { handleObservabilityRoute, type RouteContext } from "../../src/operations/observability/observability-routes.js";
 
 /**
  * Create a minimal mock ServerResponse that captures statusCode, headers, and body.

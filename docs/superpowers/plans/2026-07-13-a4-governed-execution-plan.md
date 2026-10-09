@@ -179,7 +179,7 @@ Execution Report
 ## New Files
 
 ```
-src/evolution/execution/
+src/planning/evolution/execution/
 
 ├── contracts/
 │   ├── execution-contract.ts
@@ -218,7 +218,7 @@ tests/evolution/execution/
 File:
 
 ```
-src/evolution/contracts/evolution-contract.ts
+src/planning/evolution/contracts/evolution-contract.ts
 ```
 
 Change:

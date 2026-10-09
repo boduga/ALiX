@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { describeRoutingChain } from "../../src/models/routing-cli.js";
-import { NO_MODEL_CONFIGURED_MESSAGE } from "../../src/config/model-resolver.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { NO_MODEL_CONFIGURED_MESSAGE } from "../../src/operations/config/model-resolver.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 describe("describeRoutingChain — unconfigured-model error path", () => {
   it("throws NO_MODEL_CONFIGURED_MESSAGE when no models.default exists", () => {

@@ -19,9 +19,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../src/events/event-log.js';
-import { closeAllSharedLedgers } from '../../src/storage/runtime-ledger.js';
-import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { closeAllSharedLedgers } from '../../src/runtime-state/storage/runtime-ledger.js';
+import { runTaskLoop, type TaskLoopDeps } from '../../src/execution/run/task-loop.js';
 import {
   COORDINATION_EVIDENCE_GAP,
   VERIFICATION_EVIDENCE_GAP,
@@ -29,11 +29,11 @@ import {
   hasPendingAgentAction,
   objectiveEvidenceGaps,
   objectiveEvidenceRequirements,
-} from '../../src/run/task-loop/predicates.js';
-import { extractToolSelectionScopes, replayToolSelection } from '../../src/decision/tool-selection-replay.js';
-import { builtinCandidateId } from '../../src/decision/tool-selection-candidates.js';
-import { createContextBudget } from '../../src/config/context-budget.js';
-import { ensureEncoder } from '../../src/utils/tokens.js';
+} from '../../src/execution/run/task-loop/predicates.js';
+import { extractToolSelectionScopes, replayToolSelection } from '../../src/planning/decision/tool-selection-replay.js';
+import { builtinCandidateId } from '../../src/planning/decision/tool-selection-candidates.js';
+import { createContextBudget } from '../../src/operations/config/context-budget.js';
+import { ensureEncoder } from '../../src/operations/utils/tokens.js';
 import type {
   ModelAdapter,
   NormalizedRequest,
@@ -41,12 +41,12 @@ import type {
   NormalizedMessage,
   ToolCall,
   ToolDef,
-} from '../../src/providers/types.js';
-import { TaskStateMachine, RunLimiter } from '../../src/autonomy/state-machine.js';
-import { ScopeTracker } from '../../src/autonomy/scope-tracker.js';
-import { MemoryStore } from '../../src/utils/memory/store.js';
+} from '../../src/models/providers/types.js';
+import { TaskStateMachine, RunLimiter } from '../../src/planning/autonomy/state-machine.js';
+import { ScopeTracker } from '../../src/planning/autonomy/scope-tracker.js';
+import { MemoryStore } from '../../src/operations/utils/memory/store.js';
 import type { MutationSessionState } from '../../src/run.js';
-import { CancellationToken } from '../../src/runtime/cancellation-token.js';
+import { CancellationToken } from '../../src/runtime-state/runtime/cancellation-token.js';
 
 type RecordedRequest = {
   systemPrompt: string;
@@ -146,9 +146,9 @@ async function seedVerifiedCoordinationRunSession(): Promise<{
   result: { kind: 'success'; output: string; coordinationRunId: string };
   cleanup: () => void;
 }> {
-  const { CoordinationStore } = await import('../../src/kernel/coordination-store.js');
-  const { createCoordinationRun, createWorkerAssignment } = await import('../../src/kernel/coordination-types.js');
-  const { computeAggregationSourceFingerprint } = await import('../../src/kernel/coordination-aggregation-fingerprint.js');
+  const { CoordinationStore } = await import('../../src/coordination/kernel/coordination-store.js');
+  const { createCoordinationRun, createWorkerAssignment } = await import('../../src/coordination/kernel/coordination-types.js');
+  const { computeAggregationSourceFingerprint } = await import('../../src/coordination/kernel/coordination-aggregation-fingerprint.js');
   const cwd = mkdtempSync(join(tmpdir(), 'alix-coord-verified-'));
   const sessionId = 'coord-gate-test';
   const store = new CoordinationStore(cwd);
@@ -505,7 +505,7 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     const checkpoint = '**Progress:** Inspection complete.\n\n**Next:** I’ll do one final confirmation read of the relevant implementation, then write the summary.';
     const provider = createScriptedProvider([
       { text: checkpoint, ...(route === 'done' ? { toolCalls: [{ name: 'alix_done', id: 'done-checkpoint', args: {} }] } : {}) },
-      { toolCalls: [{ name: 'alix_file_read', id: 'confirm', args: { path: 'src/tui/app.ts' } }] },
+      { toolCalls: [{ name: 'alix_file_read', id: 'confirm', args: { path: 'src/interfaces/tui/app.ts' } }] },
       { text: 'Inspection complete. The implementation confirms bounded rendering and responsive input.' },
     ]);
     const { deps, log } = await makeTestDeps({ provider, task: 'Inspect TUI performance and report findings.',

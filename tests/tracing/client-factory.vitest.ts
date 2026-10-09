@@ -50,8 +50,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import type { TracingConfig } from "../../src/config/schema.js";
-import type { TraceRun } from "../../src/tracing/types.js";
+import type { TracingConfig } from "../../src/operations/config/schema.js";
+import type { TraceRun } from "../../src/models/tracing/types.js";
 
 import {
   FakeLangfuseSpanProcessor,
@@ -89,9 +89,9 @@ vi.mock("@langfuse/otel", () => {
   };
 });
 
-vi.mock("../../src/tracing/langfuse-client.js", async (importOriginal) => {
+vi.mock("../../src/models/tracing/langfuse-client.js", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../../src/tracing/langfuse-client.js")>();
+    await importOriginal<typeof import("../../src/models/tracing/langfuse-client.js")>();
   const RealLangfuseTraceClient = actual.LangfuseTraceClient;
   return {
     ...actual,
@@ -136,9 +136,9 @@ function tracingConfig(over?: {
 /** Fresh factory + adapter modules (isolates the module-level selection memo). */
 async function loadFactory() {
   vi.resetModules();
-  const factory = await import("../../src/tracing/client-factory.js");
-  const adapter = await import("../../src/tracing/langfuse-client.js");
-  const noop = await import("../../src/tracing/noop-client.js");
+  const factory = await import("../../src/models/tracing/client-factory.js");
+  const adapter = await import("../../src/models/tracing/langfuse-client.js");
+  const noop = await import("../../src/models/tracing/noop-client.js");
   return {
     createTraceClient: factory.createTraceClient,
     LangfuseTraceClient: adapter.LangfuseTraceClient,
@@ -175,8 +175,8 @@ describe("createTraceClient", () => {
     // factory + noop modules (never the adapter) and asserts the @langfuse/otel
     // module graph was never evaluated on the disabled path.
     vi.resetModules();
-    const factory = await import("../../src/tracing/client-factory.js");
-    const noop = await import("../../src/tracing/noop-client.js");
+    const factory = await import("../../src/models/tracing/client-factory.js");
+    const noop = await import("../../src/models/tracing/noop-client.js");
     expect(state.otelModuleEvaluations).toBe(0);
 
     const client = await factory.createTraceClient(tracingConfig({ enabled: false }));
@@ -355,7 +355,7 @@ describe("NoopTraceClient · disabled-path flush parity (Task 13)", () => {
 describe("warnOnce", () => {
   it("warns the first time and stays silent for the same key", async () => {
     vi.resetModules();
-    const { warnOnce } = await import("../../src/tracing/warn-once.js");
+    const { warnOnce } = await import("../../src/models/tracing/warn-once.js");
     const warn = stubWarn();
 
     warnOnce("boom");
@@ -368,7 +368,7 @@ describe("warnOnce", () => {
 
   it("warns for distinct messages when no explicit key is given", async () => {
     vi.resetModules();
-    const { warnOnce } = await import("../../src/tracing/warn-once.js");
+    const { warnOnce } = await import("../../src/models/tracing/warn-once.js");
     const warn = stubWarn();
 
     warnOnce("first");
@@ -380,7 +380,7 @@ describe("warnOnce", () => {
 
   it("dedupes across varying messages under one explicit key", async () => {
     vi.resetModules();
-    const { warnOnce } = await import("../../src/tracing/warn-once.js");
+    const { warnOnce } = await import("../../src/models/tracing/warn-once.js");
     const warn = stubWarn();
 
     warnOnce("message one", "k");

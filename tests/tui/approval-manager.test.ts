@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { ApprovalManager, type ApprovalManagerDeps } from "../../src/tui/approval-manager.js";
+import { ApprovalManager, type ApprovalManagerDeps } from "../../src/interfaces/tui/approval-manager.js";
 
 describe("ApprovalManager", () => {
   let deps: ApprovalManagerDeps;

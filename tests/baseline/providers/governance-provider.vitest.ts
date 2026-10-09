@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { GovernanceBaselineProvider } from "../../../src/baseline/providers/governance-provider.js";
+import { GovernanceBaselineProvider } from "../../../src/context/baseline/providers/governance-provider.js";
 
 describe("GovernanceBaselineProvider", () => {
   let provider: GovernanceBaselineProvider;

@@ -7,13 +7,13 @@ import {
   bridgeCreateRemediationProposal,
   EXECUTIVE_BRIDGE_VERSION,
   type ExecutiveBridgeResult,
-} from "../../src/executive/executive-bridge.js";
-import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../../src/executive/execution-plan-builder.js";
+} from "../../src/execution/executive/executive-bridge.js";
+import type { PersistedExecutionPlan } from "../../src/execution/executive/executive-plan-types.js";
+import type { ExecutionStep } from "../../src/execution/executive/execution-plan-builder.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../..");
-const BRIDGE_SRC = resolve(REPO_ROOT, "src/executive/executive-bridge.ts");
+const BRIDGE_SRC = resolve(REPO_ROOT, "src/execution/executive/executive-bridge.ts");
 
 function readBridgeSource(): string {
   return readFileSync(BRIDGE_SRC, "utf8");

@@ -119,9 +119,9 @@ import { detectGovernanceDrift } from "./governance-drift-detector.js";
 import { buildGovernanceIntegrity } from "./governance-integrity.js";
 import { reviewLenses } from "./governance-lens-review.js";
 import { GovernanceStore } from "./governance-store.js";
-import { AdaptationProposalStore } from "../adaptation/adaptation-proposal-store.js";
-import { SnapshotStore } from "../adaptation/snapshot-store.js";
-import type { AdaptationProposal } from "../adaptation/adaptation-types.js";
+import { AdaptationProposalStore } from "../planning/adaptation/adaptation-proposal-store.js";
+import { SnapshotStore } from "../planning/adaptation/snapshot-store.js";
+import type { AdaptationProposal } from "../planning/adaptation/adaptation-types.js";
 import type { Recommendation } from "./governance-types.js";
 
 // ---------------------------------------------------------------------------

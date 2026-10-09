@@ -4,13 +4,13 @@
 
 **Goal:** Freeze every capability mutation rule and the lifecycle policy as a pure, executable-agnostic contract: five governed mutations (`create`/`update`/`transition`/`consolidate`/`remove`) with exact payloads and pre/post conditions, a fixed six-state lifecycle graph, immutable-publication semantics, and the three-axis separation — so CAP-6's executor implements exactly this contract and cannot redefine it.
 
-**Architecture:** A single pure module `src/capability/mutation-contract.ts` is the authoritative CAP-5 contract — five payload interfaces + the `CapabilityMutation` discriminated union + the data-driven lifecycle transition table + `isLegalTransition` + the SemVer bump classifier + the conservative consolidation merge validator + the master `validateCapabilityMutation` (pre/post conditions). Two in-place reconciles make the existing evolution contracts consistent: `lifecycle-contract.ts` declares `CapabilityRuntimeState` (three axes) + `CapabilityGovernanceStatus` (fourth, independent axis) and marks `APPROVED_PENDING_APPLICATION` out-of-contract (deletion = CAP-11); `evolution-contract.ts` gives `EvolutionTarget` an optional `version` so capability targets pin the exact immutable publication (#479). Contracts-first: NO executor (CAP-6), NO runtime/registry wiring, NO mutation-port change (CAP-6), A7 lifecycle overlay NOT extended.
+**Architecture:** A single pure module `src/capabilities/capability/mutation-contract.ts` is the authoritative CAP-5 contract — five payload interfaces + the `CapabilityMutation` discriminated union + the data-driven lifecycle transition table + `isLegalTransition` + the SemVer bump classifier + the conservative consolidation merge validator + the master `validateCapabilityMutation` (pre/post conditions). Two in-place reconciles make the existing evolution contracts consistent: `lifecycle-contract.ts` declares `CapabilityRuntimeState` (three axes) + `CapabilityGovernanceStatus` (fourth, independent axis) and marks `APPROVED_PENDING_APPLICATION` out-of-contract (deletion = CAP-11); `evolution-contract.ts` gives `EvolutionTarget` an optional `version` so capability targets pin the exact immutable publication (#479). Contracts-first: NO executor (CAP-6), NO runtime/registry wiring, NO mutation-port change (CAP-6), A7 lifecycle overlay NOT extended.
 
 **Tech Stack:** TypeScript (ESM). CAP-5's own module + its vitest tests (`tests/capability/*.vitest.ts`); reconcile tests are node:test (`tests/evolution/*`). Vitest does NOT typecheck — run `pnpm exec tsc --noEmit` after every task. Full verification: `pnpm test:vitest`, `pnpm run build`, then node:test on `dist/tests/evolution`.
 
 ## Global Constraints
 
-- **Single authoritative module** (user ruling): all CAP-5 mutation contract content lives in `src/capability/mutation-contract.ts`. It is PURE: types + constants + pure validators only. No registry imports, no persistence imports, no executor imports, no runtime imports, no governance-decision imports, no side effects. It imports ONLY type/value from `./canonical/*` (definition, provider, version), `LifecycleState` from `../adaptation/capability-evolution-types.js`, and `ValidationResult` (type-only) from `../evolution/contracts/evolution-contract.js`.
+- **Single authoritative module** (user ruling): all CAP-5 mutation contract content lives in `src/capabilities/capability/mutation-contract.ts`. It is PURE: types + constants + pure validators only. No registry imports, no persistence imports, no executor imports, no runtime imports, no governance-decision imports, no side effects. It imports ONLY type/value from `./canonical/*` (definition, provider, version), `LifecycleState` from `../adaptation/capability-evolution-types.js`, and `ValidationResult` (type-only) from `../evolution/contracts/evolution-contract.js`.
 - **Mutation payload interface names follow design §20 vocabulary**: `CapabilityCreateMutation`, `CapabilityUpdateMutation`, `CapabilityTransitionMutation`, `CapabilityConsolidateMutation`, `CapabilityRemoveMutation`, union `CapabilityMutation`. (The four user rulings referenced these informally as `CreateCapability`/etc.; the plan uses the design doc's published names.)
 - **Operation vocabulary is fixed**: `"capability.create" | "capability.update" | "capability.transition" | "capability.consolidate" | "capability.remove"`.
 - **Lifecycle graph is data-driven** (user ruling): `const LEGAL_LIFECYCLE_TRANSITIONS: Readonly<Record<LifecycleState, readonly LifecycleState[]>>` (the locked #481 table) + tiny pure `isLegalTransition(from, to)`. The graph is visibly auditable and tests read it as the single source of truth. `deprecated` is terminal (empty array). There is NO `dormant` state — lifecycle legality NEVER references availability, and availability never references lifecycle (#476, #481).
@@ -23,8 +23,8 @@
 - **Three-axis separation (user ruling)**: `lifecycle-contract.ts` gains `CapabilityRuntimeState { definition; lifecycle; availability }` + `CapabilityGovernanceStatus = "none"|"proposed"|"approved"|"rejected"|"applied"|"measured"`. Governance status is a FOURTH independent axis (not part of lifecycle). `lifecycle: "deprecated"` + `availability: available` and `lifecycle: "active"` + `availability: unavailable` and `governance: "approved"` on an `active` capability are all legal — none needs a synthetic lifecycle state. **`APPROVED_PENDING_APPLICATION` is NOT a CAP-5 state; its removal/cleanup is CAP-11** — documented in a comment. Types + tests only, no wiring.
 - **`EvolutionTarget` reconcile (user ruling)**: add `version?: string` to `EvolutionTarget`. For `kind === "capability"`: version absent → unpinned; version present → must be full SemVer only (no `^`/`~`/`>=`/`*`, no silent normalization), and `(id, version)` is the complete immutable-publication identity. Other target kinds ignore `version`. `validateEvolutionTarget` is a new exported pure function; `validateEvolutionIntent` calls it (replacing the loose "target must be an object" check).
 - **A7 overlay NOT extended**: `registry.ts` lifecycle helpers, `CapabilityLifecycleIntent`, `deriveCapabilityProjectionState` and `APPROVED_PENDING_APPLICATION` are all untouched by CAP-5 (their replacement is CAP-9/CAP-11). The old `INTENT_TO_STATE.consolidate` (deprecate-sources) stays AS-IS until CAP-6 — the new contract merely documents what consolidation MUST be.
-- **`CapabilityMutationPort` untouched**: `src/capability/mutation-port.ts` stays exactly as CAP-3 shipped it. CAP-6 replaces the implementation. CAP-5 adds NO new port methods.
-- **Forbidden files (never touch):** `src/capability/initial-capabilities.ts`, `src/tools/tool-registry.ts`, `src/policy/capability-registry.ts`, and production `src/capability/canonical/*` (import-only — `mutation-contract.ts` reads `canonical/definition.ts`, `canonical/provider.ts`, `canonical/version.ts` but never edits them).
+- **`CapabilityMutationPort` untouched**: `src/capabilities/capability/mutation-port.ts` stays exactly as CAP-3 shipped it. CAP-6 replaces the implementation. CAP-5 adds NO new port methods.
+- **Forbidden files (never touch):** `src/capabilities/capability/initial-capabilities.ts`, `src/capabilities/tools/tool-registry.ts`, `src/governance/policy/capability-registry.ts`, and production `src/capabilities/capability/canonical/*` (import-only — `mutation-contract.ts` reads `canonical/definition.ts`, `canonical/provider.ts`, `canonical/version.ts` but never edits them).
 - **Type-purity of `mutation-contract.ts`** is structurally proven: Task 8 adds a sentinel test asserting the module imports only the allowed set (canonical modules, `adaptation/capability-evolution-types`, type-only `evolution/contracts/evolution-contract`) — a `deprecated` import of registry/runtime/executor fails CI.
 - **Vitest does not typecheck**: run `pnpm exec tsc --noEmit` after every task (CAP-1 lesson). Capability tests are `.vitest.ts`; evolution reconcile tests are node:test `.test.ts`.
 
@@ -32,10 +32,10 @@
 
 ### Task 1: Lifecycle Transition Table + `isLegalTransition`
 
-Creates `src/capability/mutation-contract.ts` and its test file, containing the data-driven locked lifecycle graph and the transition-legality predicate. This is the foundational contract policy Tasks 3/5 consume.
+Creates `src/capabilities/capability/mutation-contract.ts` and its test file, containing the data-driven locked lifecycle graph and the transition-legality predicate. This is the foundational contract policy Tasks 3/5 consume.
 
 **Files:**
-- Create: `src/capability/mutation-contract.ts`
+- Create: `src/capabilities/capability/mutation-contract.ts`
 - Test: `tests/capability/mutation-contract.vitest.ts` (first `describe` block; later tasks append)
 
 **Interfaces:**
@@ -54,8 +54,8 @@ import { describe, it, expect } from "vitest";
 import {
   LEGAL_LIFECYCLE_TRANSITIONS,
   isLegalTransition,
-} from "../../src/capability/mutation-contract.js";
-import type { LifecycleState } from "../../src/adaptation/capability-evolution-types.js";
+} from "../../src/capabilities/capability/mutation-contract.js";
+import type { LifecycleState } from "../../src/planning/adaptation/capability-evolution-types.js";
 
 const ALL_STATES: readonly LifecycleState[] = [
   "emerging", "active", "mature", "stagnant", "declining", "deprecated",
@@ -134,11 +134,11 @@ describe("isLegalTransition", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pnpm exec vitest run tests/capability/mutation-contract.vitest.ts --config vitest.config.mts`
-Expected: FAIL — module `../../src/capability/mutation-contract.js` not found.
+Expected: FAIL — module `../../src/capabilities/capability/mutation-contract.js` not found.
 
 - [ ] **Step 3: Write the implementation**
 
-Create `src/capability/mutation-contract.ts`:
+Create `src/capabilities/capability/mutation-contract.ts`:
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -199,7 +199,7 @@ Run: `pnpm exec tsc --noEmit`
 Expected: exit 0.
 
 ```bash
-git add src/capability/mutation-contract.ts tests/capability/mutation-contract.vitest.ts
+git add src/capabilities/capability/mutation-contract.ts tests/capability/mutation-contract.vitest.ts
 git commit -m "feat(capability): CAP-5 lifecycle transition table + isLegalTransition"
 ```
 
@@ -210,7 +210,7 @@ git commit -m "feat(capability): CAP-5 lifecycle transition table + isLegalTrans
 Appends the five payload interfaces, the `CapabilityMutation` union, and the `CAPABILITY_MUTATION_OPERATIONS` constant to `mutation-contract.ts`. Pure types — no behavior. Task 3/4/5 build on these.
 
 **Files:**
-- Modify: `src/capability/mutation-contract.ts` (append below the transition-policy section)
+- Modify: `src/capabilities/capability/mutation-contract.ts` (append below the transition-policy section)
 - Test: `tests/capability/mutation-contract.vitest.ts` (append a new `describe` block)
 
 **Interfaces:**
@@ -224,7 +224,7 @@ Append to `tests/capability/mutation-contract.vitest.ts`:
 ```ts
 import {
   CAPABILITY_MUTATION_OPERATIONS,
-} from "../../src/capability/mutation-contract.js";
+} from "../../src/capabilities/capability/mutation-contract.js";
 import type {
   CapabilityCreateMutation,
   CapabilityUpdateMutation,
@@ -232,7 +232,7 @@ import type {
   CapabilityConsolidateMutation,
   CapabilityRemoveMutation,
   CapabilityMutation,
-} from "../../src/capability/mutation-contract.js";
+} from "../../src/capabilities/capability/mutation-contract.js";
 
 describe("CapabilityMutation payload types", () => {
   it("defines exactly the five governed mutation operations", () => {
@@ -344,7 +344,7 @@ function makeDefinition(id: string, version: string) {
 }
 ```
 
-Add the needed import at the top of the test file: `import type { CapabilityDefinition } from "../../src/capability/canonical/definition.js";` (the helper cast requires it).
+Add the needed import at the top of the test file: `import type { CapabilityDefinition } from "../../src/capabilities/capability/canonical/definition.js";` (the helper cast requires it).
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -353,7 +353,7 @@ Expected: FAIL — `CAPABILITY_MUTATION_OPERATIONS` not exported from mutation-c
 
 - [ ] **Step 3: Append the implementation**
 
-Append to `src/capability/mutation-contract.ts` (after the `isLegalTransition` function; extend the import block):
+Append to `src/capabilities/capability/mutation-contract.ts` (after the `isLegalTransition` function; extend the import block):
 
 ```ts
 import type { CapabilityDefinition, CapabilityRisk, CapabilityPermission } from "./canonical/definition.js";
@@ -459,7 +459,7 @@ Run: `pnpm exec tsc --noEmit`
 Expected: exit 0.
 
 ```bash
-git add src/capability/mutation-contract.ts tests/capability/mutation-contract.vitest.ts
+git add src/capabilities/capability/mutation-contract.ts tests/capability/mutation-contract.vitest.ts
 git commit -m "feat(capability): CAP-5 mutation payload types + CapabilityMutation union"
 ```
 
@@ -470,7 +470,7 @@ git commit -m "feat(capability): CAP-5 mutation payload types + CapabilityMutati
 Appends the SemVer bump classifier to `mutation-contract.ts`. This encodes the user-locked bump matrix and monotonic rule — the contract CAP-6's executor applies when publishing an update's new `id@version`.
 
 **Files:**
-- Modify: `src/capability/mutation-contract.ts` (append after the payload-types section)
+- Modify: `src/capabilities/capability/mutation-contract.ts` (append after the payload-types section)
 - Test: `tests/capability/mutation-contract.vitest.ts` (append a new `describe` block)
 
 **Interfaces:**
@@ -482,8 +482,8 @@ Appends the SemVer bump classifier to `mutation-contract.ts`. This encodes the u
 Append to `tests/capability/mutation-contract.vitest.ts`:
 
 ```ts
-import { classifyUpdateBump } from "../../src/capability/mutation-contract.js";
-import type { CapabilityDefinition } from "../../src/capability/canonical/definition.js";
+import { classifyUpdateBump } from "../../src/capabilities/capability/mutation-contract.js";
+import type { CapabilityDefinition } from "../../src/capabilities/capability/canonical/definition.js";
 
 function baseDefinition(over: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return {
@@ -596,7 +596,7 @@ describe("classifyUpdateBump (#479/#480 locked matrix)", () => {
 });
 ```
 
-Note the `bindings` fixtures match `CapabilityProviderBinding` (`{ id, type, config? }` from `src/capability/canonical/provider.ts`) — the provider technology is `binding.type`, NOT `binding.provider.type`.
+Note the `bindings` fixtures match `CapabilityProviderBinding` (`{ id, type, config? }` from `src/capabilities/capability/canonical/provider.ts`) — the provider technology is `binding.type`, NOT `binding.provider.type`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -605,13 +605,13 @@ Expected: FAIL — `classifyUpdateBump` not exported.
 
 - [ ] **Step 3: Append the implementation**
 
-Append to `src/capability/mutation-contract.ts`:
+Append to `src/capabilities/capability/mutation-contract.ts`:
 
 ```ts
 import { isEqual } from "./util.js"; // see Step 3 note — OR inline a small deepEqual (see below)
 ```
 
-> **Implementer note — deep equality:** `mutation-contract.ts` must stay dependency-free (pure, no new runtime deps). If `src/capability/util.ts` does not already export an `isEqual`, inline a small local `deepEqual(a: unknown, b: unknown): boolean` (JSON-stable compare for plain data — the contract's payloads are serializable plain data) at the top of the classifier section instead. Do NOT add a package dependency.
+> **Implementer note — deep equality:** `mutation-contract.ts` must stay dependency-free (pure, no new runtime deps). If `src/capabilities/capability/util.ts` does not already export an `isEqual`, inline a small local `deepEqual(a: unknown, b: unknown): boolean` (JSON-stable compare for plain data — the contract's payloads are serializable plain data) at the top of the classifier section instead. Do NOT add a package dependency.
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -772,7 +772,7 @@ Run: `pnpm exec tsc --noEmit`
 Expected: exit 0.
 
 ```bash
-git add src/capability/mutation-contract.ts tests/capability/mutation-contract.vitest.ts
+git add src/capabilities/capability/mutation-contract.ts tests/capability/mutation-contract.vitest.ts
 git commit -m "feat(capability): CAP-5 update bump classifier (locked matrix, monotonic)"
 ```
 
@@ -783,7 +783,7 @@ git commit -m "feat(capability): CAP-5 update bump classifier (locked matrix, mo
 Appends the consolidation merge-rule validator to `mutation-contract.ts`. Encodes the #477 conservative merge-rules table — validating that a PROPOSED target definition is conservatively sound RELATIVE TO the source definitions. It never synthesizes a definition (the proposal must carry it).
 
 **Files:**
-- Modify: `src/capability/mutation-contract.ts` (append after the classifier section)
+- Modify: `src/capabilities/capability/mutation-contract.ts` (append after the classifier section)
 - Test: `tests/capability/mutation-contract.vitest.ts` (append a new `describe` block)
 
 **Interfaces:**
@@ -795,8 +795,8 @@ Appends the consolidation merge-rule validator to `mutation-contract.ts`. Encode
 Append to `tests/capability/mutation-contract.vitest.ts`:
 
 ```ts
-import { validateConsolidateMerge } from "../../src/capability/mutation-contract.js";
-import type { CapabilityConsolidateMutation } from "../../src/capability/mutation-contract.js";
+import { validateConsolidateMerge } from "../../src/capabilities/capability/mutation-contract.js";
+import type { CapabilityConsolidateMutation } from "../../src/capabilities/capability/mutation-contract.js";
 
 function sourceDef(id: string, over: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return {
@@ -886,7 +886,7 @@ Expected: FAIL — `validateConsolidateMerge` not exported.
 
 - [ ] **Step 3: Append the implementation**
 
-Append to `src/capability/mutation-contract.ts` (extend the import block first):
+Append to `src/capabilities/capability/mutation-contract.ts` (extend the import block first):
 
 ```ts
 import type { ValidationResult } from "../evolution/contracts/evolution-contract.js";
@@ -992,7 +992,7 @@ Run: `pnpm exec tsc --noEmit`
 Expected: exit 0.
 
 ```bash
-git add src/capability/mutation-contract.ts tests/capability/mutation-contract.vitest.ts
+git add src/capabilities/capability/mutation-contract.ts tests/capability/mutation-contract.vitest.ts
 git commit -m "feat(capability): CAP-5 consolidation conservative merge validator (#477)"
 ```
 
@@ -1015,7 +1015,7 @@ Appends the master validator to `mutation-contract.ts`. This is the contract's a
 **Invariant (user tightening):** `validateCapabilityMutation()` validates ALL mutation-local preconditions. A consolidate mutation is NOT fully validated until `validateConsolidateMerge()` has also passed against resolved source publications. `validateCapabilityMutation()` must never claim a Consolidate mutation is fully valid by itself — its Consolidate path returns local-shape validity only, and its JSDoc documents the deferral. It must never reach into a catalog.
 
 **Files:**
-- Modify: `src/capability/mutation-contract.ts` (append after the merge-validator section)
+- Modify: `src/capabilities/capability/mutation-contract.ts` (append after the merge-validator section)
 - Test: `tests/capability/mutation-contract.vitest.ts` (append a new `describe` block)
 
 **Interfaces:**
@@ -1027,7 +1027,7 @@ Appends the master validator to `mutation-contract.ts`. This is the contract's a
 Append to `tests/capability/mutation-contract.vitest.ts`:
 
 ```ts
-import { validateCapabilityMutation, validateConsolidateMerge } from "../../src/capability/mutation-contract.js";
+import { validateCapabilityMutation, validateConsolidateMerge } from "../../src/capabilities/capability/mutation-contract.js";
 
 // validateCapabilityDefinition requires >=1 binding, so the create/consolidate
 // tests need a definition with a real binding (not the Task 3 factory default).
@@ -1128,7 +1128,7 @@ Expected: FAIL — `validateCapabilityMutation` not exported.
 
 - [ ] **Step 3: Append the implementation**
 
-Append to `src/capability/mutation-contract.ts` (extend the import block first):
+Append to `src/capabilities/capability/mutation-contract.ts` (extend the import block first):
 
 ```ts
 import { isValidVersion } from "./canonical/version.js";
@@ -1251,7 +1251,7 @@ Run: `pnpm exec tsc --noEmit`
 Expected: exit 0.
 
 ```bash
-git add src/capability/mutation-contract.ts tests/capability/mutation-contract.vitest.ts
+git add src/capabilities/capability/mutation-contract.ts tests/capability/mutation-contract.vitest.ts
 git commit -m "feat(capability): CAP-5 validateCapabilityMutation master validator (pre/post conditions)"
 ```
 
@@ -1262,7 +1262,7 @@ git commit -m "feat(capability): CAP-5 validateCapabilityMutation master validat
 Reconciles the existing A7 lifecycle contract with the CAP-5 three-axis model. Declares `CapabilityRuntimeState` (three independent axes) + `CapabilityGovernanceStatus` (fourth, independent axis), and documents that `APPROVED_PENDING_APPLICATION` is out-of-contract (deletion = CAP-11). Types + tests only — NO wiring, NO change to `CapabilityLifecycleIntent`/`deriveCapabilityProjectionState`.
 
 **Files:**
-- Modify: `src/evolution/capability-lifecycle/contracts/lifecycle-contract.ts` (add imports + a new section; do NOT touch existing exports)
+- Modify: `src/planning/evolution/capability-lifecycle/contracts/lifecycle-contract.ts` (add imports + a new section; do NOT touch existing exports)
 - Test: Create `tests/evolution/capability-lifecycle/capability-lifecycle-three-axis.test.ts` (node:test style)
 
 **Interfaces:**
@@ -1341,7 +1341,7 @@ Expected: FAIL — `CAPABILITY_GOVERNANCE_STATUSES` undefined.
 
 - [ ] **Step 3: Implement the reconcile**
 
-In `src/evolution/capability-lifecycle/contracts/lifecycle-contract.ts`:
+In `src/planning/evolution/capability-lifecycle/contracts/lifecycle-contract.ts`:
 
 1. Extend the import block (add below the existing `import type { ... }` lines):
 
@@ -1410,7 +1410,7 @@ Run: `pnpm exec tsc --noEmit`
 Expected: exit 0.
 
 ```bash
-git add src/evolution/capability-lifecycle/contracts/lifecycle-contract.ts tests/evolution/capability-lifecycle/capability-lifecycle-three-axis.test.ts
+git add src/planning/evolution/capability-lifecycle/contracts/lifecycle-contract.ts tests/evolution/capability-lifecycle/capability-lifecycle-three-axis.test.ts
 git commit -m "feat(capability): CAP-5 three-axis separation + governance status in lifecycle contract"
 ```
 
@@ -1421,7 +1421,7 @@ git commit -m "feat(capability): CAP-5 three-axis separation + governance status
 Gives capability evolution targets a way to pin the exact immutable publication (#479): `EvolutionTarget` gains optional `version`, a new exported `validateEvolutionTarget` enforces it (full SemVer only, no ranges, no normalization), and `validateEvolutionIntent` wires it in.
 
 **Files:**
-- Modify: `src/evolution/contracts/evolution-contract.ts` (`EvolutionTarget` interface + add `validateEvolutionTarget` + call it from `validateEvolutionIntent`); add a SemVer check helper.
+- Modify: `src/planning/evolution/contracts/evolution-contract.ts` (`EvolutionTarget` interface + add `validateEvolutionTarget` + call it from `validateEvolutionIntent`); add a SemVer check helper.
 - Test: `tests/evolution/evolution-contract.test.ts` (append a `describe` block — node:test style, runs against `dist/`).
 
 **Interfaces:**
@@ -1484,7 +1484,7 @@ Expected: FAIL — `validateEvolutionTarget` not exported.
 
 - [ ] **Step 3: Implement the reconcile**
 
-In `src/evolution/contracts/evolution-contract.ts`:
+In `src/planning/evolution/contracts/evolution-contract.ts`:
 
 1. Add the SemVer import at the top (with the other imports):
 
@@ -1558,7 +1558,7 @@ Run: `pnpm exec tsc --noEmit`
 Expected: exit 0.
 
 ```bash
-git add src/evolution/contracts/evolution-contract.ts tests/evolution/evolution-contract.test.ts
+git add src/planning/evolution/contracts/evolution-contract.ts tests/evolution/evolution-contract.test.ts
 git commit -m "feat(capability): CAP-5 EvolutionTarget pins exact id@version (#479)"
 ```
 
@@ -1569,12 +1569,12 @@ git commit -m "feat(capability): CAP-5 EvolutionTarget pins exact id@version (#4
 Closes the CAP-5 loop: export the mutation contract from the capability barrel, add a structural sentinel proving `mutation-contract.ts` stays pure, and verify the full test surface is green. No runtime wiring — CAP-5 is contracts-first.
 
 **Files:**
-- Modify: `src/capability/index.ts` (add `export * from "./mutation-contract.js";`)
+- Modify: `src/capabilities/capability/index.ts` (add `export * from "./mutation-contract.js";`)
 - Test: Create `tests/capability/mutation-contract-purity.vitest.ts` (structural sentinel)
-- Verify: no changes to `src/capability/mutation-port.ts`, `src/capability/registry.ts`, `src/capability/runtime.ts`, `src/capability/platform.ts`.
+- Verify: no changes to `src/capabilities/capability/mutation-port.ts`, `src/capabilities/capability/registry.ts`, `src/capabilities/capability/runtime.ts`, `src/capabilities/capability/platform.ts`.
 
 **Interfaces:**
-- Produces: `CapabilityMutation` family exported from `src/capability/index.js`.
+- Produces: `CapabilityMutation` family exported from `src/capabilities/capability/index.js`.
 
 - [ ] **Step 1: Write the failing purity test**
 
@@ -1588,7 +1588,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it, expect } from "vitest";
 
-const SRC = resolve(import.meta.dirname, "../../src/capability/mutation-contract.ts");
+const SRC = resolve(import.meta.dirname, "../../src/capabilities/capability/mutation-contract.ts");
 const source = readFileSync(SRC, "utf8");
 
 /** CAP-5 purity invariant: mutation-contract.ts must stay a pure contract —
@@ -1622,7 +1622,7 @@ describe("mutation-contract.ts purity (user ruling)", () => {
 /** Barrel integration: the mutation contract is exported from the capability index. */
 describe("capability barrel exports", () => {
   it("re-exports the mutation contract", async () => {
-    const mod = await import("../../src/capability/index.js");
+    const mod = await import("../../src/capabilities/capability/index.js");
     expect(typeof mod.isLegalTransition).toBe("function");
     expect(typeof mod.validateCapabilityMutation).toBe("function");
     expect(typeof mod.classifyUpdateBump).toBe("function");
@@ -1638,7 +1638,7 @@ Expected: FAIL — `isLegalTransition` not exported from `index.js` (barrel expo
 
 - [ ] **Step 3: Implement the barrel export**
 
-In `src/capability/index.ts`, add (alphabetical placement with the other `export *` lines):
+In `src/capabilities/capability/index.ts`, add (alphabetical placement with the other `export *` lines):
 
 ```ts
 export * from "./mutation-contract.js";
@@ -1664,7 +1664,7 @@ Confirm by `git diff --stat` that `mutation-port.ts`, `registry.ts`, `runtime.ts
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/capability/index.ts tests/capability/mutation-contract-purity.vitest.ts
+git add src/capabilities/capability/index.ts tests/capability/mutation-contract-purity.vitest.ts
 git commit -m "feat(capability): CAP-5 barrel export + mutation-contract purity sentinel"
 ```
 

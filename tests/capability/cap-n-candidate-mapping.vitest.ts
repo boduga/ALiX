@@ -4,7 +4,7 @@
 /**
  * CAP-N Task 1 — Candidate → ExecutionStep operation mapping (4-axis unit test).
  *
- * CAP-12 §20 #12 carve-out site: `src/capability/capability-service.ts:702,704`
+ * CAP-12 §20 #12 carve-out site: `src/capabilities/capability/capability-service.ts:702,704`
  * hardcodes `operation: "capability.transition"` for every candidate. This file
  * demonstrates the mapping is broken before CAP-N's T2 rewrites
  * `candidateToExecutionStep`.
@@ -35,23 +35,23 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { registerInitialCapabilities } from "../../src/capability/initial-capabilities.js";
-import { registerSessionCapabilities } from "../../src/integrations/session-capabilities.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityService } from "../../src/capability/capability-service.js";
-import { CapabilityProposalGenerator } from "../../src/capability/evolution/proposals.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { registerInitialCapabilities } from "../../src/capabilities/capability/initial-capabilities.js";
+import { registerSessionCapabilities } from "../../src/capabilities/integrations/session-capabilities.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityService } from "../../src/capabilities/capability/capability-service.js";
+import { CapabilityProposalGenerator } from "../../src/capabilities/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
-} from "../../src/capability/evolution/proposals.js";
-import type { ExecutionStep } from "../../src/evolution/execution/contracts/execution-contract.js";
-import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
-import type { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import type { CapabilityResolver } from "../../src/capability/provider-resolver.js";
-import type { CapabilityServiceOptions } from "../../src/capability/types/service-results.js";
-import type { CapabilityKind } from "../../src/capability/canonical/kind.js";
+} from "../../src/capabilities/capability/evolution/proposals.js";
+import type { ExecutionStep } from "../../src/planning/evolution/execution/contracts/execution-contract.js";
+import type { CapabilityMutationExecutor } from "../../src/planning/evolution/execution/capability-mutation-executor.js";
+import type { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import type { CapabilityResolver } from "../../src/capabilities/capability/provider-resolver.js";
+import type { CapabilityServiceOptions } from "../../src/capabilities/capability/types/service-results.js";
+import type { CapabilityKind } from "../../src/capabilities/capability/canonical/kind.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

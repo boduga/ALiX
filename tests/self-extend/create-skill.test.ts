@@ -1,8 +1,8 @@
 // tests/self-extend/create-skill.test.ts
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { createSkillTool } from "../../src/self-extend/create-skill.js";
-import { _clearInProcessForTesting, getInProcess } from "../../src/self-extend/registry.js";
+import { createSkillTool } from "../../src/capabilities/self-extend/create-skill.js";
+import { _clearInProcessForTesting, getInProcess } from "../../src/capabilities/self-extend/registry.js";
 
 describe("create_skill tool", () => {
   beforeEach(() => _clearInProcessForTesting());

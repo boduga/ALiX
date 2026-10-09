@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
-import { reconcileCoordinationRun } from "../../src/kernel/coordination-reconciliation.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import { reconcileCoordinationRun } from "../../src/coordination/kernel/coordination-reconciliation.js";
 
 const ORPHAN_THRESHOLD_MS = 100;
 const DEAD_PID = 99_999_999;

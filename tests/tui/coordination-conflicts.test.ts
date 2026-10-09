@@ -1,9 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { importedBindings } from "../helpers/import-graph.js";
-import { formatCoordinationPanel } from "../../src/tui/coordination-panel.js";
-import type { CoordinationPanelData, CoordinationPanelViewMode } from "../../src/tui/coordination-panel.js";
-import type { CoordinationRunView, CoordinationConflictView } from "../../src/kernel/coordination-view.js";
+import { formatCoordinationPanel } from "../../src/interfaces/tui/coordination-panel.js";
+import type { CoordinationPanelData, CoordinationPanelViewMode } from "../../src/interfaces/tui/coordination-panel.js";
+import type { CoordinationRunView, CoordinationConflictView } from "../../src/coordination/kernel/coordination-view.js";
 
 function makeView(): CoordinationRunView {
   return {
@@ -87,7 +87,7 @@ describe("coordination conflict panel", () => {
   });
 
   it("does NOT import ConflictRepository or CollaborationStore", () => {
-    const bindings = importedBindings("src/tui/coordination-panel.ts");
+    const bindings = importedBindings("src/interfaces/tui/coordination-panel.ts");
     for (const forbidden of ["ConflictRepository", "CollaborationStore"]) {
       assert.ok(!bindings.has(forbidden), `${forbidden} must not be imported`);
     }

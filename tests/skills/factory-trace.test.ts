@@ -22,10 +22,10 @@ is_core: false
 Read the file first, then act on its contents. This body is long enough to pass validation comfortably and then some padding to exceed one hundred bytes.
 `;
 
-let factory: typeof import("../../src/skills/factory.js");
+let factory: typeof import("../../src/capabilities/skills/factory.js");
 
 before(async () => {
-  factory = await import("../../src/skills/factory.js");
+  factory = await import("../../src/capabilities/skills/factory.js");
 });
 
 const stubSkill = (text: string) => stubProvider([text]);

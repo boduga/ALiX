@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { AlixEvent } from '../../../src/events/types.js';
-import { AgentRosterProjection } from '../../../src/tui/workbench/projections/agent-roster-projection.js';
-import { TaskProjection } from '../../../src/tui/workbench/projections/task-projection.js';
-import { ArtifactProjection } from '../../../src/tui/workbench/projections/artifact-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { AgentRosterProjection } from '../../../src/interfaces/tui/workbench/projections/agent-roster-projection.js';
+import { TaskProjection } from '../../../src/interfaces/tui/workbench/projections/task-projection.js';
+import { ArtifactProjection } from '../../../src/interfaces/tui/workbench/projections/artifact-projection.js';
 
 type PreviewGroup = {
   id: string; eventIds: string[]; category: string; agentId: string;

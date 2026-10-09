@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { VerificationPipeline } from "../../src/verification/verification-pipeline.js";
+import { VerificationPipeline } from "../../src/execution/verification/verification-pipeline.js";
 
 // Hermetic fixture: a temp project dir with controlled npm test scripts.
 // Running the pipeline against the real repo's cwd would discover and

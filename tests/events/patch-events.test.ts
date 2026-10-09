@@ -7,7 +7,7 @@ import type {
   PatchRejectedPayload,
   PatchCheckpointCreatedPayload,
   PatchRolledBackPayload,
-} from "../../src/events/types.js";
+} from "../../src/runtime-state/events/types.js";
 
 describe("Patch Event Payload Types", () => {
   it("PatchProposalPayload has required fields", () => {

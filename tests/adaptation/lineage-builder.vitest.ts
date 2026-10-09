@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { LineageBuilder } from "../../src/adaptation/lineage-builder.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { LineageBuilder } from "../../src/planning/adaptation/lineage-builder.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 function mockProposalStore(proposals: Record<string, AdaptationProposal>) {
   return {

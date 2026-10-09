@@ -3,13 +3,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityPlatform } from '../../src/capability/platform.js';
-import { registerInitialCapabilities } from '../../src/capability/initial-capabilities.js';
-import { registerSessionCapabilities } from '../../src/integrations/session-capabilities.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
+import { CapabilityPlatform } from '../../src/capabilities/capability/platform.js';
+import { registerInitialCapabilities } from '../../src/capabilities/capability/initial-capabilities.js';
+import { registerSessionCapabilities } from '../../src/capabilities/integrations/session-capabilities.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
 
 describe('CapabilityPlatform bootstrap', () => {
   let dir: string;

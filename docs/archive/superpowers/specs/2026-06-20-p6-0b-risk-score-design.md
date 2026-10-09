@@ -248,13 +248,13 @@ Risk confidence: 0.85 (evidence completeness)
 
 ```
 Create:
-  src/adaptation/risk-score-types.ts         — RiskItem, RiskDimension, RiskScore
-  src/adaptation/risk-score-builder.ts       — deterministic scoring functions
+  src/planning/adaptation/risk-score-types.ts         — RiskItem, RiskDimension, RiskScore
+  src/planning/adaptation/risk-score-builder.ts       — deterministic scoring functions
   tests/adaptation/risk-score-builder.vitest.ts
   tests/adaptation/risk-score-sentinels.vitest.ts
 
 Modify:
-  src/cli/commands/decision.ts                — add `alix decision risk` subcommand
+  src/interfaces/cli/commands/decision.ts                — add `alix decision risk` subcommand
 ```
 
 ## Governance Sentinel

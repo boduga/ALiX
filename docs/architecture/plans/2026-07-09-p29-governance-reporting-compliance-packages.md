@@ -36,14 +36,14 @@
 | P29.1 | `src/governance/governance-reporting-types.ts` | CompliancePackage types |
 | P29.2 | `src/governance/governance-reporting-builder.ts` | Pure builder |
 | P29.3 | `src/governance/governance-reporting-export.ts` | JSON/text output |
-| P29.3 | `src/cli/commands/governance-report.ts` | CLI handler |
+| P29.3 | `src/interfaces/cli/commands/governance-report.ts` | CLI handler |
 | P29.4 | `docs/architecture/checkpoints/2026-07-09-p29-4-governance-reporting-compliance-packages.md` | Checkpoint |
 
 ### Touched Files
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "report"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "report"` dispatch |
 
 ### Untouched Files
 
@@ -232,8 +232,8 @@ git commit -m "feat(P29.2): compliance package builder — deterministic evidenc
 
 **Files:**
 - Create: `src/governance/governance-reporting-export.ts`
-- Create: `src/cli/commands/governance-report.ts`
-- Modify: `src/cli/commands/governance.ts` — add `case "report"` dispatch
+- Create: `src/interfaces/cli/commands/governance-report.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts` — add `case "report"` dispatch
 - Test: `tests/governance/governance-reporting-export.test.ts`
 - Test: `tests/governance/governance-report.test.ts`
 
@@ -290,7 +290,7 @@ Expected: PASS
 - [ ] Step 5: Commit
 
 ```bash
-git add src/governance/governance-reporting-export.ts src/cli/commands/governance-report.ts src/cli/commands/governance.ts tests/governance/governance-reporting-export.test.ts tests/governance/governance-report.test.ts
+git add src/governance/governance-reporting-export.ts src/interfaces/cli/commands/governance-report.ts src/interfaces/cli/commands/governance.ts tests/governance/governance-reporting-export.test.ts tests/governance/governance-report.test.ts
 git commit -m "feat(P29.3): compliance export + CLI — renderComplianceJson/Text, --output export"
 ```
 

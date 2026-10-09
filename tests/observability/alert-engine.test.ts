@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import {
   AlertEngine,
   fingerprintAlert,
-} from "../../src/observability/alert-engine.js";
-import type { AlertEvent } from "../../src/observability/alert-engine.js";
-import type { RuntimeHealthSnapshot } from "../../src/observability/health-snapshot.js";
+} from "../../src/operations/observability/alert-engine.js";
+import type { AlertEvent } from "../../src/operations/observability/alert-engine.js";
+import type { RuntimeHealthSnapshot } from "../../src/operations/observability/health-snapshot.js";
 
 const unhealthySnap: RuntimeHealthSnapshot = {
   generatedAt: new Date().toISOString(),

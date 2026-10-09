@@ -28,15 +28,15 @@ CLI: `alix capabilities {list,inspect,history,health,recommend,propose}`.
 
 | File | Responsibility |
 |------|----------------|
-| `src/evolution/contracts/evolution-contract.ts` | Contract extension — `"capability"` added to `EvolutionTargetKind` + `VALID_EVOLUTION_TARGET_KINDS` (additive, arity 7 → 8) |
-| `src/evolution/capability-lifecycle/contracts/lifecycle-contract.ts` | `CapabilityLifecycleRecord` (observed/proposed semantics), `CapabilityLifecycleIntent`/`EventType`/`Target`, `validateCapabilityLifecycleRecord`, `computeDeterministicRecordId` (clr- prefix), `CapabilityProjectionState` + `deriveCapabilityProjectionState`, `CapabilitySignalInputs`/`CapabilityLifecycleCandidate` |
-| `src/evolution/capability-lifecycle/capability-lifecycle-ledger.ts` | `JsonlCapabilityLifecycleLedger` — append-only JSONL at `.alix/capability-lifecycle/lifecycle.jsonl` (`DEFAULT_CAPABILITY_LIFECYCLE_FILE`), never-throws-on-read |
-| `src/evolution/capability-lifecycle/capability-lifecycle-analyzer.ts` | `analyzeCapabilityLifecycle` — pure signal → candidates; zero-candidate invariant; A6 pattern data deliberately NOT attached (user amendment) |
-| `src/evolution/capability-lifecycle/capability-proposal-builder.ts` | `buildCapabilityProposals` — candidates → A0 `EvolutionIntent`/`EvolutionProposal` (targetKind `capability`, deterministic `evol-a7-`/`prop-a7-` ids) |
-| `src/evolution/capability-lifecycle/capability-governance-bridge.ts` | `buildCapabilityEvidence`/`buildCapabilityRecommendation`/`runCapabilityGovernance`/`toLedgerRecord` — the A6 A2.5→A3 mirror |
-| `src/evolution/capability-lifecycle/capability-lifecycle-cli.ts` | CLI handler (`handleCapabilitiesCommand`) — list/inspect/history/health/recommend/propose; fatal errors exit 1 |
-| `src/evolution/capability-lifecycle/index.ts` | Barrel re-exports |
-| `src/cli/commands/capabilities.ts` | CLI command wiring (`handleCapabilitiesCommand` re-export) |
+| `src/planning/evolution/contracts/evolution-contract.ts` | Contract extension — `"capability"` added to `EvolutionTargetKind` + `VALID_EVOLUTION_TARGET_KINDS` (additive, arity 7 → 8) |
+| `src/planning/evolution/capability-lifecycle/contracts/lifecycle-contract.ts` | `CapabilityLifecycleRecord` (observed/proposed semantics), `CapabilityLifecycleIntent`/`EventType`/`Target`, `validateCapabilityLifecycleRecord`, `computeDeterministicRecordId` (clr- prefix), `CapabilityProjectionState` + `deriveCapabilityProjectionState`, `CapabilitySignalInputs`/`CapabilityLifecycleCandidate` |
+| `src/planning/evolution/capability-lifecycle/capability-lifecycle-ledger.ts` | `JsonlCapabilityLifecycleLedger` — append-only JSONL at `.alix/capability-lifecycle/lifecycle.jsonl` (`DEFAULT_CAPABILITY_LIFECYCLE_FILE`), never-throws-on-read |
+| `src/planning/evolution/capability-lifecycle/capability-lifecycle-analyzer.ts` | `analyzeCapabilityLifecycle` — pure signal → candidates; zero-candidate invariant; A6 pattern data deliberately NOT attached (user amendment) |
+| `src/planning/evolution/capability-lifecycle/capability-proposal-builder.ts` | `buildCapabilityProposals` — candidates → A0 `EvolutionIntent`/`EvolutionProposal` (targetKind `capability`, deterministic `evol-a7-`/`prop-a7-` ids) |
+| `src/planning/evolution/capability-lifecycle/capability-governance-bridge.ts` | `buildCapabilityEvidence`/`buildCapabilityRecommendation`/`runCapabilityGovernance`/`toLedgerRecord` — the A6 A2.5→A3 mirror |
+| `src/planning/evolution/capability-lifecycle/capability-lifecycle-cli.ts` | CLI handler (`handleCapabilitiesCommand`) — list/inspect/history/health/recommend/propose; fatal errors exit 1 |
+| `src/planning/evolution/capability-lifecycle/index.ts` | Barrel re-exports |
+| `src/interfaces/cli/commands/capabilities.ts` | CLI command wiring (`handleCapabilitiesCommand` re-export) |
 | `src/cli.ts` | `capabilities` subcommand dispatch |
 
 **Tests:** `tests/evolution/capability-lifecycle/` — evolution-target-contract,

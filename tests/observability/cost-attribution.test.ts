@@ -8,7 +8,7 @@ import {
   PricingCatalog,
   type PricingEntry,
   type CostSummary,
-} from "../../src/observability/cost-attribution.js";
+} from "../../src/operations/observability/cost-attribution.js";
 
 describe("PricingCatalog", () => {
   it("looks up known model pricing", () => {

@@ -163,7 +163,7 @@ Each hop links to the originating entity's ID and status. Missing hops are expli
 |------|--------|
 | `src/governance/governance-workbench.ts` | New — pure read model, queue classification, lifecycle trace |
 | `tests/governance/governance-workbench.test.ts` | New — tests |
-| `src/cli/commands/governance.ts` | Modified — CLI handler |
+| `src/interfaces/cli/commands/governance.ts` | Modified — CLI handler |
 
 ## 7. Required tests (P18.1–P18.2)
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { wrapText } from '../../../src/tui/views/wrap-text.js';
+import { wrapText } from '../../../src/interfaces/tui/views/wrap-text.js';
 
 describe('wrapText', () => {
   it('returns a single line for text that fits in width', () => {

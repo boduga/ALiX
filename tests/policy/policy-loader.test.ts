@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadPolicyRules, loadRuleEvaluator } from "../../src/policy/policy-loader.js";
-import { defaultPolicyRules } from "../../src/policy/default-policies.js";
+import { loadPolicyRules, loadRuleEvaluator } from "../../src/governance/policy/policy-loader.js";
+import { defaultPolicyRules } from "../../src/governance/policy/default-policies.js";
 
 describe("PolicyLoader", () => {
   it("loads default rules when no policy dir exists", async () => {

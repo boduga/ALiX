@@ -15,12 +15,12 @@
 ### Task 1: Add replay event types and trace integration
 
 **Files:**
-- Modify: `src/events/types.ts`
-- Modify: `src/runtime/trace-events.ts`
+- Modify: `src/runtime-state/events/types.ts`
+- Modify: `src/runtime-state/runtime/trace-events.ts`
 
 - [ ] **Step 1: Add REPLAY_EVENT_TYPES and payload types**
 
-In `src/events/types.ts`, after the `APPROVAL_EVENT_TYPES` block (around line 363), add:
+In `src/runtime-state/events/types.ts`, after the `APPROVAL_EVENT_TYPES` block (around line 363), add:
 
 ```typescript
 // ─── Replay lifecycle event types ───────────────────────────
@@ -79,7 +79,7 @@ export type ReplayFailedPayload = {
 
 - [ ] **Step 2: Add "replay" to TraceSourceType and add replay event mapping**
 
-In `src/runtime/trace-events.ts`:
+In `src/runtime-state/runtime/trace-events.ts`:
 
 Add `"replay"` to the `TraceSourceType` union:
 
@@ -112,7 +112,7 @@ if (type.startsWith("replay.")) {
 
 - [ ] **Step 3: Verify tests pass**
 
-Run: `npx tsx src/runtime/trace-events.ts` (syntax check only — no main). Better: `npm run build`
+Run: `npx tsx src/runtime-state/runtime/trace-events.ts` (syntax check only — no main). Better: `npm run build`
 
 Run: `npx node --test dist/tests/runtime/trace-events.test.js`
 Expected: 17 tests pass.
@@ -120,7 +120,7 @@ Expected: 17 tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/events/types.ts src/runtime/trace-events.ts
+git add src/runtime-state/events/types.ts src/runtime-state/runtime/trace-events.ts
 git commit -m "feat(events): add replay event types and trace integration"
 ```
 
@@ -129,11 +129,11 @@ git commit -m "feat(events): add replay event types and trace integration"
 ### Task 2: Add replay source to PolicyGate
 
 **Files:**
-- Modify: `src/policy/policy-gate.ts`
+- Modify: `src/governance/policy/policy-gate.ts`
 
 - [ ] **Step 1: Add "replay" to ToolPolicyRequest.source type**
 
-In `src/policy/policy-gate.ts`, find the `ToolPolicyRequest` type (around line 28):
+In `src/governance/policy/policy-gate.ts`, find the `ToolPolicyRequest` type (around line 28):
 
 ```typescript
 source: "tool" | "graph" | "daemon" | "tui";
@@ -160,7 +160,7 @@ source: "tool" | "graph" | "daemon" | "tui" | "replay";
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/policy/policy-gate.ts
+git add src/governance/policy/policy-gate.ts
 git commit -m "feat(policy): add replay source type to policy requests"
 ```
 
@@ -169,8 +169,8 @@ git commit -m "feat(policy): add replay source type to policy requests"
 ### Task 3: Build ReplayPlan model and builder
 
 **Files:**
-- Create: `src/runtime/replay-plan.ts`
-- Modify: `src/runtime/replay-preview.ts` (export traceChainContext)
+- Create: `src/runtime-state/runtime/replay-plan.ts`
+- Modify: `src/runtime-state/runtime/replay-preview.ts` (export traceChainContext)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -179,9 +179,9 @@ Create `tests/runtime/replay-plan.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildReplayPlan } from "../../src/runtime/replay-plan.js";
-import { buildReplayPreview } from "../../src/runtime/replay-preview.js";
-import type { TraceEvent } from "../../src/runtime/trace-events.js";
+import { buildReplayPlan } from "../../src/runtime-state/runtime/replay-plan.js";
+import { buildReplayPreview } from "../../src/runtime-state/runtime/replay-preview.js";
+import type { TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {
@@ -262,7 +262,7 @@ Expected: FAIL with `Cannot find module` for `replay-plan.js` or `buildReplayPla
 
 - [ ] **Step 3: Create ReplayPlan model and builder**
 
-Create `src/runtime/replay-plan.ts`:
+Create `src/runtime-state/runtime/replay-plan.ts`:
 
 ```typescript
 /**
@@ -445,7 +445,7 @@ export function buildReplayPlan(
 
 - [ ] **Step 4: Export traceChainContext from replay-preview.ts**
 
-In `src/runtime/replay-preview.ts`, add at the top:
+In `src/runtime-state/runtime/replay-preview.ts`, add at the top:
 
 ```typescript
 export { traceChainContext } from "./trace-events.js";
@@ -468,7 +468,7 @@ Expected: 5 tests pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/runtime/replay-plan.ts tests/runtime/replay-plan.test.ts
+git add src/runtime-state/runtime/replay-plan.ts tests/runtime/replay-plan.test.ts
 git commit -m "feat(runtime): add replay plan model and builder"
 ```
 
@@ -477,7 +477,7 @@ git commit -m "feat(runtime): add replay plan model and builder"
 ### Task 4: Build ReplayExecutor with dry-run and sandbox wrappers
 
 **Files:**
-- Create: `src/runtime/replay-executor.ts`
+- Create: `src/runtime-state/runtime/replay-executor.ts`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -489,11 +489,11 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ReplayExecutor } from "../../src/runtime/replay-executor.js";
-import { buildReplayPreview } from "../../src/runtime/replay-preview.js";
-import { buildReplayPlan } from "../../src/runtime/replay-plan.js";
-import type { TraceEvent } from "../../src/runtime/trace-events.js";
-import { EventLog } from "../../src/events/event-log.js";
+import { ReplayExecutor } from "../../src/runtime-state/runtime/replay-executor.js";
+import { buildReplayPreview } from "../../src/runtime-state/runtime/replay-preview.js";
+import { buildReplayPlan } from "../../src/runtime-state/runtime/replay-plan.js";
+import type { TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {
@@ -661,7 +661,7 @@ Expected: FAIL with `Cannot find module` or `ReplayExecutor is not a constructor
 
 - [ ] **Step 3: Create ReplayExecutor**
 
-Create `src/runtime/replay-executor.ts`:
+Create `src/runtime-state/runtime/replay-executor.ts`:
 
 ```typescript
 /**
@@ -965,7 +965,7 @@ Expected: 7 tests pass (5 dry-run + 2 sandbox, though the sandbox dir cleanup te
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/runtime/replay-executor.ts tests/runtime/replay-executor.test.ts
+git add src/runtime-state/runtime/replay-executor.ts tests/runtime/replay-executor.test.ts
 git commit -m "feat(runtime): add replay executor with dry-run and sandbox wrappers"
 ```
 
@@ -974,13 +974,13 @@ git commit -m "feat(runtime): add replay executor with dry-run and sandbox wrapp
 ### Task 5: Add TUI replay execution display and state
 
 **Files:**
-- Modify: `src/tui/store.ts`
-- Modify: `src/tui/trace-detail.ts`
-- Modify: `src/tui/panel-renderer.ts`
+- Modify: `src/interfaces/tui/store.ts`
+- Modify: `src/interfaces/tui/trace-detail.ts`
+- Modify: `src/interfaces/tui/panel-renderer.ts`
 
 - [ ] **Step 1: Add replay result and executing state to store**
 
-In `src/tui/store.ts`, add replay state fields:
+In `src/interfaces/tui/store.ts`, add replay state fields:
 
 ```typescript
 // In class members area:
@@ -1021,7 +1021,7 @@ replayMode: this._replayMode,
 
 - [ ] **Step 2: Add renderReplayResult to trace-detail.ts**
 
-In `src/tui/trace-detail.ts`, add:
+In `src/interfaces/tui/trace-detail.ts`, add:
 
 ```typescript
 import type { ReplayResult } from "../runtime/replay-executor.js";
@@ -1073,7 +1073,7 @@ export function renderReplayResult(result: ReplayResult): string[] {
 
 - [ ] **Step 3: Wire replay execution in panel-renderer.ts**
 
-In `src/tui/panel-renderer.ts`, add a new detail mode for replay result display. In the trace panel section (around line 120-137), after the replay preview mode:
+In `src/interfaces/tui/panel-renderer.ts`, add a new detail mode for replay result display. In the trace panel section (around line 120-137), after the replay preview mode:
 
 ```typescript
 // Replay result display uses store.replayResult
@@ -1096,7 +1096,7 @@ if (mode === "replay" || mode === "replay-result") {
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/store.ts src/tui/trace-detail.ts src/tui/panel-renderer.ts
+git add src/interfaces/tui/store.ts src/interfaces/tui/trace-detail.ts src/interfaces/tui/panel-renderer.ts
 git commit -m "feat(tui): add replay execution display and state"
 ```
 
@@ -1105,11 +1105,11 @@ git commit -m "feat(tui): add replay execution display and state"
 ### Task 6: Wire TUI commands and keyboard shortcuts
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add replay command handler and x shortcut with confirmation**
 
-In `src/cli/commands/tui.ts`:
+In `src/interfaces/cli/commands/tui.ts`:
 
 Add imports at the top:
 
@@ -1257,7 +1257,7 @@ Expected: Clean compile, no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): wire replay execution command with confirmation"
 ```
 
@@ -1275,8 +1275,8 @@ Create `tests/tui/replay-execution-detail.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { renderReplayResult } from "../../src/tui/trace-detail.js";
-import type { ReplayResult } from "../../src/runtime/replay-executor.js";
+import { renderReplayResult } from "../../src/interfaces/tui/trace-detail.js";
+import type { ReplayResult } from "../../src/runtime-state/runtime/replay-executor.js";
 
 function makeResult(overrides: Partial<ReplayResult> = {}): ReplayResult {
   return {
@@ -1366,11 +1366,11 @@ git commit -m "test(tui): cover replay execution result rendering"
 ### Task 8: Wire trace filter to include replay events
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts` (trace filter array)
+- Modify: `src/interfaces/cli/commands/tui.ts` (trace filter array)
 
 - [ ] **Step 1: Add "replay" to trace filter cycle**
 
-In `src/cli/commands/tui.ts`, find the filter array around line 288:
+In `src/interfaces/cli/commands/tui.ts`, find the filter array around line 288:
 
 ```typescript
 const filters = ["all", "policy", "approval", "continuation", "tool", "task", "session", "daemon", "runtime"] as const;
@@ -1385,7 +1385,7 @@ const filters = ["all", "policy", "approval", "continuation", "tool", "task", "s
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): add replay to trace filter types"
 ```
 

@@ -62,7 +62,7 @@ N: docs/architecture/specs/2026-07-06-p14-2-operator-review-session.md  # Spec
 N: docs/architecture/plans/2026-07-06-p14-2-operator-review-session.md  # This plan
 N: src/governance/operator-review.ts                                      # Implementation
 N: tests/governance/operator-review.test.ts                               # Tests
-A: src/cli/commands/governance.ts                                         # Add review subcommand
+A: src/interfaces/cli/commands/governance.ts                                         # Add review subcommand
 ```
 
 Key: N = new file, A = amend existing file

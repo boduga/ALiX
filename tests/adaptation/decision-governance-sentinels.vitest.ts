@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { readFileSync } from "node:fs";
 import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 
-const TARGET = resolve(__dirname, "../../src/adaptation/decision-context-builder.ts");
+const TARGET = resolve(__dirname, "../../src/planning/adaptation/decision-context-builder.ts");
 
 describe("P6 Governance Invariants — Recommend ≠ Decide", () => {
   const FORBIDDEN_IMPORTS = [

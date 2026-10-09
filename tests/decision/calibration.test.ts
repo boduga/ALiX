@@ -22,7 +22,7 @@ import {
   type CalibrationSample,
   type DecisionJournalRecord,
   type DecisionOutcomeLabel,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 let dir2: string;
 before(() => {

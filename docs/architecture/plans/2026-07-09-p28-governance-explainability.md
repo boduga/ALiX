@@ -36,14 +36,14 @@
 | P28.1 | `src/governance/governance-explainability-types.ts` | Explanation types, section kinds |
 | P28.2 | `src/governance/governance-explainability-builder.ts` | Pure explanation builders |
 | P28.3 | `src/governance/governance-explainability-report.ts` | Text/JSON renderers |
-| P28.3 | `src/cli/commands/governance-explain.ts` | CLI handler |
+| P28.3 | `src/interfaces/cli/commands/governance-explain.ts` | CLI handler |
 | P28.4 | `docs/architecture/checkpoints/2026-07-09-p28-4-governance-explainability.md` | Checkpoint |
 
 ### Touched Files
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "explain"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "explain"` dispatch |
 
 ### Untouched Files
 
@@ -195,8 +195,8 @@ git commit -m "feat(P28.2): governance explainability builder — pure explanati
 
 **Files:**
 - Create: `src/governance/governance-explainability-report.ts`
-- Create: `src/cli/commands/governance-explain.ts`
-- Modify: `src/cli/commands/governance.ts` — add `case "explain"` dispatch
+- Create: `src/interfaces/cli/commands/governance-explain.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts` — add `case "explain"` dispatch
 - Test: `tests/governance/governance-explainability-report.test.ts`
 - Test: `tests/governance/governance-explain.test.ts`
 
@@ -275,7 +275,7 @@ Expected: Clean compile
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/governance/governance-explainability-report.ts src/cli/commands/governance-explain.ts src/cli/commands/governance.ts tests/governance/governance-explainability-report.test.ts tests/governance/governance-explain.test.ts
+git add src/governance/governance-explainability-report.ts src/interfaces/cli/commands/governance-explain.ts src/interfaces/cli/commands/governance.ts tests/governance/governance-explainability-report.test.ts tests/governance/governance-explain.test.ts
 git commit -m "feat(P28.3): governance explainability report + CLI — render explanations without writes"
 ```
 

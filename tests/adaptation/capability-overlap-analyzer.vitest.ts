@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { CapabilityOverlapAnalyzer } from "../../src/adaptation/capability-overlap-analyzer.js";
+import { CapabilityOverlapAnalyzer } from "../../src/planning/adaptation/capability-overlap-analyzer.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

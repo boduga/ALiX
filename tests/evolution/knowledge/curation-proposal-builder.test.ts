@@ -7,11 +7,11 @@ import {
   buildCurationProposal,
   buildEvidenceFromFindings,
   buildGovernanceRecommendation,
-} from "../../../src/evolution/knowledge/curation-proposal-builder.js";
-import type { CurationFinding } from "../../../src/evolution/knowledge/contracts/curation-contract.js";
-import { generateDecision } from "../../../src/evolution/governance/decision-engine.js";
-import { validateGovernanceRecommendation } from "../../../src/evolution/verification/contracts/recommendation-contract.js";
-import { validateVerificationEvidence } from "../../../src/evolution/verification/contracts/verification-contract.js";
+} from "../../../src/planning/evolution/knowledge/curation-proposal-builder.js";
+import type { CurationFinding } from "../../../src/planning/evolution/knowledge/contracts/curation-contract.js";
+import { generateDecision } from "../../../src/planning/evolution/governance/decision-engine.js";
+import { validateGovernanceRecommendation } from "../../../src/planning/evolution/verification/contracts/recommendation-contract.js";
+import { validateVerificationEvidence } from "../../../src/planning/evolution/verification/contracts/verification-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ToolSelector } from "../../src/mcp/tool-selector.js";
-import type { DeferredToolEntry } from "../../src/mcp/tool-deferral.js";
+import { ToolSelector } from "../../src/capabilities/mcp/tool-selector.js";
+import type { DeferredToolEntry } from "../../src/capabilities/mcp/tool-deferral.js";
 
 const entry = (name: string, searchName: string, description: string): DeferredToolEntry => ({
   name, searchName, description, serverName: "test", toolName: searchName,

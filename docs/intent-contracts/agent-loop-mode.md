@@ -1,9 +1,9 @@
 # Agent-loop-mode recognition contract
 
 **Status**: Active (PR delivering T13 on wayfinder map #376)
-**Owner**: `src/run/intent-classifier.ts` (`IntentClassifier`)
+**Owner**: `src/execution/run/intent-classifier.ts` (`IntentClassifier`)
 **Test corpus**: `tests/run/intent-classifier.test.ts`
-**Call site**: `src/run/task-loop.ts:315` (the agent loop reads the
+**Call site**: `src/execution/run/task-loop.ts:315` (the agent loop reads the
 sticky `AgentIntent` to choose the per-iteration progress supplement
 and the section name in the progress ledger).
 
@@ -191,7 +191,7 @@ Pinned in `describe("IntentClassifier — orthogonality (no prompt dependency)")
 
 ## Relationship to `classifyAction` (Layer 1 routing)
 
-`classifyAction` (Layer 1, `src/runtime/action-classifier.ts`) decides
+`classifyAction` (Layer 1, `src/runtime-state/runtime/action-classifier.ts`) decides
 **before** the agent loop starts which kind of prompt this is. It
 emits `workspace_action`, `arithmetic`, `external_retrieval`, etc.
 `IntentClassifier` (Layer 4, this file) decides **during** each
@@ -228,7 +228,7 @@ For T13 (#384) agent-loop-mode recognition contract:
   determinism, and orthogonality.
 - ✅ No-regression — `tests/runtime/action-classifier.test.ts` still
   passes (62/62).
-- ✅ Layer-4-only — no change to `src/runtime/action-classifier.ts`;
+- ✅ Layer-4-only — no change to `src/runtime-state/runtime/action-classifier.ts`;
   routing chain untouched.
 
 ## Provenance

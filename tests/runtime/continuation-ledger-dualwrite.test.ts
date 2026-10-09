@@ -6,10 +6,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ContinuationStore, continuationLedgerStatus, resetContinuationLedgerStatus } from "../../src/runtime/continuation-store.js";
-import type { PendingContinuation } from "../../src/runtime/continuation-store.js";
-import { reconcileContinuationLedger } from "../../src/runtime/continuation-ledger-reconcile.js";
-import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/storage/runtime-ledger.js";
+import { ContinuationStore, continuationLedgerStatus, resetContinuationLedgerStatus } from "../../src/runtime-state/runtime/continuation-store.js";
+import type { PendingContinuation } from "../../src/runtime-state/runtime/continuation-store.js";
+import { reconcileContinuationLedger } from "../../src/runtime-state/runtime/continuation-ledger-reconcile.js";
+import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/runtime-state/storage/runtime-ledger.js";
 
 const dirs: string[] = [];
 

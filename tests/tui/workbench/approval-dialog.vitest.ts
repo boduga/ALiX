@@ -1,22 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
 import {
   buildWorkbenchApprovalCardLines,
   paintWorkbenchApprovalDialog,
-} from '../../../src/tui/workbench/views/approval-dialog.js';
+} from '../../../src/interfaces/tui/workbench/views/approval-dialog.js';
 
 describe('Workbench approval dialog', () => {
   it('renders an exact pending operation and authoritative-resolution hint', () => {
     const canvas = new TerminalCanvas(80, 24);
     paintWorkbenchApprovalDialog(
       { canvas, width: 80, height: 24, headerH: 3, footerH: 5 },
-      { id: 'approval-1', toolName: 'write_file', target: 'src/tui/app.ts', args: {}, requestedAt: 1, requestedBy: 'system' },
+      { id: 'approval-1', toolName: 'write_file', target: 'src/interfaces/tui/app.ts', args: {}, requestedAt: 1, requestedBy: 'system' },
       2,
       60_001,
     );
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).toContain('APPROVAL REQUIRED · write_file · 1 OF 2');
-    expect(frame).toContain('src/tui/app.ts');
+    expect(frame).toContain('src/interfaces/tui/app.ts');
     expect(frame).toContain('pending · id approval-1');
     expect(frame).toContain('a approve · d deny');
     expect(frame).toContain('Ctrl+O details');

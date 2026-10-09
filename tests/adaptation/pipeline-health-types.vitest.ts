@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { PipelineHealthReport, PipelineHealthInput, PipelineHealthStatus } from "../../src/adaptation/pipeline-health-types.js";
+import type { PipelineHealthReport, PipelineHealthInput, PipelineHealthStatus } from "../../src/planning/adaptation/pipeline-health-types.js";
 
 describe("PipelineHealthReport", () => {
   it("extends DecisionArtifact and has all required fields", () => {

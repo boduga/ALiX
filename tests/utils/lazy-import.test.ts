@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { lazy } from "../../src/utils/lazy-import.js";
+import { lazy } from "../../src/operations/utils/lazy-import.js";
 
 describe("lazy", () => {
   it("does not call loader until accessed", () => {

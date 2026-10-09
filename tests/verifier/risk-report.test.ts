@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildRiskReport } from "../../src/verifier/risk-report.js";
-import type { VerificationCheck, VerificationResult } from "../../src/verifier/verifier.js";
+import { buildRiskReport } from "../../src/execution/verifier/risk-report.js";
+import type { VerificationCheck, VerificationResult } from "../../src/execution/verifier/verifier.js";
 
 describe("buildRiskReport", () => {
   it("reports all checks that were not run", () => {

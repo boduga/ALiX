@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { RuntimeView } from '../../../src/tui/views/runtime-view.js';
-import { createInitialPerTabState, type PerTabState } from '../../../src/tui/state.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import type { ExecutionTraceEntry } from '../../../src/tui/runtime/execution-trace.js';
+import { RuntimeView } from '../../../src/interfaces/tui/views/runtime-view.js';
+import { createInitialPerTabState, type PerTabState } from '../../../src/interfaces/tui/state.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import type { ExecutionTraceEntry } from '../../../src/interfaces/tui/runtime/execution-trace.js';
 
 function makeTrace(): ExecutionTraceEntry[] {
   return [

@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseBlocks as parseResponseBlocks } from "../src/agent/response-blocks.js";
+import { parseBlocks as parseResponseBlocks } from "../src/agents/agent/response-blocks.js";
 
 describe("parseResponseBlocks — text", () => {
   it("returns [] on empty input", () => {

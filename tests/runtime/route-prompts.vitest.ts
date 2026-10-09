@@ -22,7 +22,7 @@ import {
   buildExternalRetrievalPrompt,
   buildIntentMetadataBlock,
   threadCanonicalIntent,
-} from "../../src/runtime/route-prompts.js";
+} from "../../src/runtime-state/runtime/route-prompts.js";
 
 describe("buildDirectPrompt — Layer 3 prompt construction (T16 #393)", () => {
   describe("deterministic per canonical intent", () => {

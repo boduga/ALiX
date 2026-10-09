@@ -12,9 +12,9 @@
 // ---------------------------------------------------------------------------
 
 import { join } from "node:path";
-import { canonicalHash } from "../security/audit/canonical-json.js";
-import type { AuditEventStore } from "../audit/audit-contract.js";
-import { JsonlStore, parseJsonl } from "../storage/jsonl-store.js";
+import { canonicalHash } from "./security/audit/canonical-json.js";
+import type { AuditEventStore } from "./audit/audit-contract.js";
+import { JsonlStore, parseJsonl } from "../runtime-state/storage/jsonl-store.js";
 import {
   validateAuditEventInput,
   normalizeGovernanceEventType,

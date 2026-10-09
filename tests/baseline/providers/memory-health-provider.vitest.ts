@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { MemoryHealthProvider } from "../../../src/baseline/providers/memory-health-provider.js";
+import { MemoryHealthProvider } from "../../../src/context/baseline/providers/memory-health-provider.js";
 
 describe("MemoryHealthProvider", () => {
   const provider = new MemoryHealthProvider();

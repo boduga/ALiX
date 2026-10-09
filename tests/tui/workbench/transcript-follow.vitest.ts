@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { createWorkbenchRenderHarness } from '../../fixtures/tui/workbench-render-harness.js';
-import type { WorkbenchUiAction } from '../../../src/tui/workbench/model/ui-action.js';
-import type { TimelineEntry } from '../../../src/tui/runtime/timeline-builder.js';
+import type { WorkbenchUiAction } from '../../../src/interfaces/tui/workbench/model/ui-action.js';
+import type { TimelineEntry } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
 
 const columns = Object.getOwnPropertyDescriptor(process.stdout, 'columns');
 const rows = Object.getOwnPropertyDescriptor(process.stdout, 'rows');

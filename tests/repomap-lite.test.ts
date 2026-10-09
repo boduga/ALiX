@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildRepoMapLite, RepoMapLiteIndexer } from "../src/repomap/repomap-lite.js";
+import { buildRepoMapLite, RepoMapLiteIndexer } from "../src/context/repomap/repomap-lite.js";
 
 test("builds a lightweight repo map", async () => {
   const map = await buildRepoMapLite("fixtures/sample-repo");

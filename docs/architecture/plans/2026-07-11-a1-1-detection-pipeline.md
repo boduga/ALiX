@@ -143,7 +143,7 @@ Store loading fails	Propagate error
 
 Repository Changes
 
-src/evolution/
+src/planning/evolution/
 │
 ├── contracts/
 │   ├── pattern-discovery-contract.ts   MODIFY
@@ -181,7 +181,7 @@ Files
 
 Modify:
 
-src/evolution/contracts/pattern-discovery-contract.ts
+src/planning/evolution/contracts/pattern-discovery-contract.ts
 
 
 ---
@@ -227,7 +227,7 @@ File
 
 Create:
 
-src/evolution/contracts/discovery-context.ts
+src/planning/evolution/contracts/discovery-context.ts
 
 
 ---
@@ -281,7 +281,7 @@ File
 
 Create:
 
-src/evolution/pattern-discovery/detection-strategy.ts
+src/planning/evolution/pattern-discovery/detection-strategy.ts
 
 
 ---
@@ -321,7 +321,7 @@ Files
 
 Create:
 
-src/evolution/pattern-discovery/strategies/execution-failure-strategy.ts
+src/planning/evolution/pattern-discovery/strategies/execution-failure-strategy.ts
 
 Test:
 
@@ -468,7 +468,7 @@ Files
 
 Create:
 
-src/evolution/pattern-discovery/strategies/approval-friction-strategy.ts
+src/planning/evolution/pattern-discovery/strategies/approval-friction-strategy.ts
 
 Test:
 
@@ -621,7 +621,7 @@ Files
 
 Create:
 
-src/evolution/pattern-discovery/pattern-discovery-engine.ts
+src/planning/evolution/pattern-discovery/pattern-discovery-engine.ts
 
 Test:
 
@@ -794,7 +794,7 @@ File
 
 Create:
 
-src/evolution/pattern-discovery/index.ts
+src/planning/evolution/pattern-discovery/index.ts
 
 Exports:
 

@@ -4,7 +4,7 @@
 
 **Goal:** Implement the DecisionContext layer — the read-only context snapshot for any proposal, establishing the DecisionArtifact pattern and Recommend≠Decide invariant.
 
-**Architecture:** Types in `decision-types.ts`, builder in `decision-context-builder.ts` (reads ProposalStore, EvidenceStore, LineageBuilder, EffectivenessStore, IntelligenceStore), CLI in `src/cli/commands/decision.ts` + registration in `src/cli.ts`. All read-only — no writes, no mutation paths.
+**Architecture:** Types in `decision-types.ts`, builder in `decision-context-builder.ts` (reads ProposalStore, EvidenceStore, LineageBuilder, EffectivenessStore, IntelligenceStore), CLI in `src/interfaces/cli/commands/decision.ts` + registration in `src/cli.ts`. All read-only — no writes, no mutation paths.
 
 **Tech Stack:** TypeScript, vitest, existing stores (ProposalStore, EvidenceStore, LineageBuilder, EffectivenessStore, IntelligenceStore)
 
@@ -22,27 +22,27 @@
 
 ```
 Create:
-  src/adaptation/decision-types.ts                — DecisionArtifact, ContextStatus, DecisionContext, SourceArtifact
-  src/adaptation/decision-confidence.ts           — computeDecisionConfidence() shared module
-  src/adaptation/decision-context-builder.ts       — DecisionContextBuilder class
-  src/cli/commands/decision.ts                    — `alix decision context` CLI
+  src/planning/adaptation/decision-types.ts                — DecisionArtifact, ContextStatus, DecisionContext, SourceArtifact
+  src/planning/adaptation/decision-confidence.ts           — computeDecisionConfidence() shared module
+  src/planning/adaptation/decision-context-builder.ts       — DecisionContextBuilder class
+  src/interfaces/cli/commands/decision.ts                    — `alix decision context` CLI
   tests/adaptation/decision-confidence.vitest.ts
   tests/adaptation/decision-context-builder.vitest.ts
   tests/adaptation/decision-governance-sentinels.vitest.ts
 
 Modify:
-  src/adaptation/intelligence-store.ts             — add findSimilarProposals()
+  src/planning/adaptation/intelligence-store.ts             — add findSimilarProposals()
   src/cli.ts                                       — register `alix decision` command
 ```
 
-**Path convention note:** The CLI uses the same `join(".alix", ...)` constant pattern as `src/cli/commands/adaptation.ts` (see PROPOSALS_DIR, EVIDENCE_DIR, EFFECTIVENESS_DIR, INTELLIGENCE_DIR). No separate path resolver is needed — this is the established convention.
+**Path convention note:** The CLI uses the same `join(".alix", ...)` constant pattern as `src/interfaces/cli/commands/adaptation.ts` (see PROPOSALS_DIR, EVIDENCE_DIR, EFFECTIVENESS_DIR, INTELLIGENCE_DIR). No separate path resolver is needed — this is the established convention.
 
 ---
 
 ### Task 1: DecisionContext types
 
 **Files:**
-- Create: `src/adaptation/decision-types.ts`
+- Create: `src/planning/adaptation/decision-types.ts`
 
 **Interfaces:**
 - Produces: `DecisionArtifact`, `ContextStatus`, `SourceArtifact`, `DecisionContext`, `DataFreshness`
@@ -173,7 +173,7 @@ export interface DecisionContext extends DecisionArtifact {
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/adaptation/decision-types.ts
+git add src/planning/adaptation/decision-types.ts
 git commit -m "P6.0a: DecisionContext type definitions"
 ```
 
@@ -182,7 +182,7 @@ git commit -m "P6.0a: DecisionContext type definitions"
 ### Task 2a: IntelligenceStore.findSimilarProposals()
 
 **Files:**
-- Modify: `src/adaptation/intelligence-store.ts`
+- Modify: `src/planning/adaptation/intelligence-store.ts`
 
 **Interfaces:**
 - Consumes: `ProposalStore` (for looking up source proposals by ID)
@@ -190,7 +190,7 @@ git commit -m "P6.0a: DecisionContext type definitions"
 
 - [ ] **Step 1: Add findSimilarProposals to IntelligenceStore**
 
-Read the current `src/adaptation/intelligence-store.ts` — note its `ProposalEffectivenessReport` import (it already handles `EffectivenessStore` state).
+Read the current `src/planning/adaptation/intelligence-store.ts` — note its `ProposalEffectivenessReport` import (it already handles `EffectivenessStore` state).
 
 Add the following method to the `IntelligenceStore` class:
 
@@ -237,7 +237,7 @@ async findSimilarProposals(
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/adaptation/intelligence-store.ts
+git add src/planning/adaptation/intelligence-store.ts
 git commit -m "P6.0a: IntelligenceStore.findSimilarProposals() for decision support"
 ```
 
@@ -246,7 +246,7 @@ git commit -m "P6.0a: IntelligenceStore.findSimilarProposals() for decision supp
 ### Task 2b: Decision confidence module
 
 **Files:**
-- Create: `src/adaptation/decision-confidence.ts`
+- Create: `src/planning/adaptation/decision-confidence.ts`
 
 **Interfaces:**
 - Consumes: nothing (pure constants + computation)
@@ -357,7 +357,7 @@ export function computeDecisionConfidence(inputs: ConfidenceInputs): ConfidenceR
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/adaptation/decision-confidence.ts
+git add src/planning/adaptation/decision-confidence.ts
 git commit -m "P6.0a: extract decision confidence computation into shared module"
 ```
 
@@ -366,7 +366,7 @@ git commit -m "P6.0a: extract decision confidence computation into shared module
 ### Task 2c: DecisionContextBuilder
 
 **Files:**
-- Create: `src/adaptation/decision-context-builder.ts`
+- Create: `src/planning/adaptation/decision-context-builder.ts`
 
 **Interfaces:**
 - Consumes: `ProposalStore`, `EvidenceStore`, `LineageBuilder`, `EffectivenessStore`, `IntelligenceStore`, `computeDecisionConfidence()`
@@ -607,7 +607,7 @@ export class DecisionContextBuilder {
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/adaptation/decision-context-builder.ts
+git add src/planning/adaptation/decision-context-builder.ts
 git commit -m "P6.0a: DecisionContextBuilder implementation"
 ```
 
@@ -622,7 +622,7 @@ git commit -m "P6.0a: DecisionContextBuilder implementation"
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { computeDecisionConfidence } from "../../src/adaptation/decision-confidence";
+import { computeDecisionConfidence } from "../../src/planning/adaptation/decision-confidence";
 
 describe("computeDecisionConfidence", () => {
   it("returns high confidence for complete data", () => {
@@ -712,8 +712,8 @@ git commit -m "P6.0a: decision confidence computation tests"
 
 ```typescript
 import { describe, it, expect, vi } from "vitest";
-import { DecisionContextBuilder } from "../../src/adaptation/decision-context-builder";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types";
+import { DecisionContextBuilder } from "../../src/planning/adaptation/decision-context-builder";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types";
 
 // ---------------------------------------------------------------------------
 // Mock helpers (same pattern as lineage-builder tests)
@@ -1149,7 +1149,7 @@ describe("P6 Governance Invariants — Recommend ≠ Decide", () => {
 
   it("DecisionContextBuilder must not import governance/mutation modules", () => {
     const source = sourceOf(
-      "../../src/adaptation/decision-context-builder",
+      "../../src/planning/adaptation/decision-context-builder",
     );
     for (const mod of FORBIDDEN_IMPORTS) {
       expect(source).not.toContain(mod);
@@ -1158,7 +1158,7 @@ describe("P6 Governance Invariants — Recommend ≠ Decide", () => {
 
   it("DecisionContextBuilder must not reference governance types", () => {
     const source = sourceOf(
-      "../../src/adaptation/decision-context-builder",
+      "../../src/planning/adaptation/decision-context-builder",
     );
     for (const type of FORBIDDEN_TYPES) {
       expect(source).not.toContain(type);
@@ -1167,7 +1167,7 @@ describe("P6 Governance Invariants — Recommend ≠ Decide", () => {
 
   it("DecisionContextBuilder must not contain save/update/approve/apply or proposal-generation calls", () => {
     const source = sourceOf(
-      "../../src/adaptation/decision-context-builder",
+      "../../src/planning/adaptation/decision-context-builder",
     );
     const forbiddenMethods = [
       ".save(",
@@ -1205,7 +1205,7 @@ git commit -m "P6.0a: governance sentinels — Recommend≠Decide invariant"
 ### Task 5: CLI decision command
 
 **Files:**
-- Create: `src/cli/commands/decision.ts`
+- Create: `src/interfaces/cli/commands/decision.ts`
 - Modify: `src/cli.ts`
 
 **Interfaces:**
@@ -1386,7 +1386,7 @@ Expected: All tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/decision.ts src/cli.ts
+git add src/interfaces/cli/commands/decision.ts src/cli.ts
 git commit -m "P6.0a: CLI decision context command"
 ```
 

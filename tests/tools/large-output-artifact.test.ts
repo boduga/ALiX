@@ -3,9 +3,9 @@ import assert from "node:assert";
 import { join } from "node:path";
 import { mkdir, rm, readFile, writeFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { EventLog } from "../../src/events/event-log.js";
-import { ToolExecutor } from "../../src/tools/executor.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { ToolExecutor } from "../../src/capabilities/tools/executor.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 describe("Large Output Artifact", () => {
   const testDir = join(process.cwd(), `.test-large-output-artifact-${Date.now()}`);

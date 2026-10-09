@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readFile, grepSearch } from "../src/tools/file-tools.js";
+import { readFile, grepSearch } from "../src/capabilities/tools/file-tools.js";
 
 test("readFile returns content", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-file-"));

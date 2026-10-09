@@ -8,7 +8,7 @@ import {
   checkEssenceCompatibility,
   type EssenceProfile,
 } from "../../src/agents/essence-profile.js";
-import type { BridgeEnvelope } from "../../src/runtime/bridge-envelope.js";
+import type { BridgeEnvelope } from "../../src/runtime-state/runtime/bridge-envelope.js";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */

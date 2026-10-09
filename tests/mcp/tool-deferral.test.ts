@@ -1,7 +1,7 @@
 import { describe, it, mock, beforeEach } from "node:test";
 import assert from "node:assert";
-import { McpToolDeferral } from "../../src/mcp/tool-deferral.js";
-import { InMemoryCacheManager, type CacheManager } from "../../src/utils/cache-manager.js";
+import { McpToolDeferral } from "../../src/capabilities/mcp/tool-deferral.js";
+import { InMemoryCacheManager, type CacheManager } from "../../src/operations/utils/cache-manager.js";
 
 function makeFakeRegistry(tools: Array<{ fullName: string; serverName: string; toolName: string; description?: string; inputSchema: Record<string, unknown> }>) {
   return {

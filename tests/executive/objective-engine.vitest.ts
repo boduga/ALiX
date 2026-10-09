@@ -5,9 +5,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { buildObjectiveReport } from "../../src/executive/objective-engine.js";
-import type { ExecutiveHealthReport } from "../../src/executive/executive-health.js";
-import type { ExecutivePriorityReport, ExecutivePriorityEntry } from "../../src/executive/priority-engine.js";
+import { buildObjectiveReport } from "../../src/execution/executive/objective-engine.js";
+import type { ExecutiveHealthReport } from "../../src/execution/executive/executive-health.js";
+import type { ExecutivePriorityReport, ExecutivePriorityEntry } from "../../src/execution/executive/priority-engine.js";
 import type { InvestigationRecommendation } from "../../src/governance/investigation-types.js";
 
 // ---------------------------------------------------------------------------

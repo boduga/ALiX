@@ -20,9 +20,9 @@
 
 | File | Action | Role |
 |------|--------|------|
-| `src/workflow/goal-types.ts` | **Create** | GoalPlan schema: OutcomeNode, CapabilityRequirement, GoalPlan |
-| `src/workflow/goal-decomposer.ts` | **Create** | GoalDecomposer: natural language → GoalPlan |
-| `src/workflow/goal-skill-router.ts` | **Create** | Maps GoalPlan capabilities to existing skills |
+| `src/coordination/workflow/goal-types.ts` | **Create** | GoalPlan schema: OutcomeNode, CapabilityRequirement, GoalPlan |
+| `src/coordination/workflow/goal-decomposer.ts` | **Create** | GoalDecomposer: natural language → GoalPlan |
+| `src/coordination/workflow/goal-skill-router.ts` | **Create** | Maps GoalPlan capabilities to existing skills |
 | `tests/workflow/goal-decomposer.vitest.ts` | **Create** | Tests for decomposer |
 | `tests/workflow/goal-skill-router.vitest.ts` | **Create** | Tests for skill routing |
 
@@ -30,7 +30,7 @@
 ## Task 1: P4.8a — GoalPlan Schema
 
 **Files:**
-- Create: `src/workflow/goal-types.ts`
+- Create: `src/coordination/workflow/goal-types.ts`
 
 **Interfaces:**
 - Produces: `GoalPlan`, `OutcomeNode`, `CapabilityRequirement`, `GoalVerdict` types
@@ -39,7 +39,7 @@
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import type { GoalPlan, OutcomeNode, CapabilityRequirement } from "../../src/workflow/goal-types.js";
+import type { GoalPlan, OutcomeNode, CapabilityRequirement } from "../../src/coordination/workflow/goal-types.js";
 
 describe("GoalPlan types", () => {
   it("constructs a valid GoalPlan", () => {
@@ -71,7 +71,7 @@ describe("GoalPlan types", () => {
 Run: `npx vitest run tests/workflow/goal-decomposer.vitest.ts --config vitest.config.mts 2>&1 | head -5`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Create `src/workflow/goal-types.ts`**
+- [ ] **Step 3: Create `src/coordination/workflow/goal-types.ts`**
 
 ```typescript
 export interface CapabilityRequirement {
@@ -115,7 +115,7 @@ Expected: 1 test passes.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/workflow/goal-types.ts
+git add src/coordination/workflow/goal-types.ts
 git commit -m "feat(p4.8a): add GoalPlan, OutcomeNode, CapabilityRequirement types"
 ```
 
@@ -123,7 +123,7 @@ git commit -m "feat(p4.8a): add GoalPlan, OutcomeNode, CapabilityRequirement typ
 ## Task 2: P4.8b — GoalDecomposer
 
 **Files:**
-- Create: `src/workflow/goal-decomposer.ts`
+- Create: `src/coordination/workflow/goal-decomposer.ts`
 - Test: Extend `tests/workflow/goal-decomposer.vitest.ts`
 
 **Interfaces:**
@@ -134,7 +134,7 @@ git commit -m "feat(p4.8a): add GoalPlan, OutcomeNode, CapabilityRequirement typ
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { GoalDecomposer } from "../../src/workflow/goal-decomposer.js";
+import { GoalDecomposer } from "../../src/coordination/workflow/goal-decomposer.js";
 
 describe("GoalDecomposer", () => {
   it("decomposes a simple feature goal", async () => {
@@ -166,7 +166,7 @@ describe("GoalDecomposer", () => {
 Run: `npx vitest run tests/workflow/goal-decomposer.vitest.ts --config vitest.config.mts 2>&1 | head -10`
 Expected: FAIL — `GoalDecomposer` not found.
 
-- [ ] **Step 3: Create `src/workflow/goal-decomposer.ts`**
+- [ ] **Step 3: Create `src/coordination/workflow/goal-decomposer.ts`**
 
 The decomposer is a rule-based planner that analyzes goal text to extract:
 - Outcome nodes (sub-goals)
@@ -297,7 +297,7 @@ Expected: 3 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/workflow/goal-decomposer.ts tests/workflow/goal-decomposer.vitest.ts
+git add src/coordination/workflow/goal-decomposer.ts tests/workflow/goal-decomposer.vitest.ts
 git commit -m "feat(p4.8b): add GoalDecomposer — natural language to structured GoalPlan"
 ```
 
@@ -305,7 +305,7 @@ git commit -m "feat(p4.8b): add GoalDecomposer — natural language to structure
 ## Task 3: P4.8c — Goal-to-Skill Router
 
 **Files:**
-- Create: `src/workflow/goal-skill-router.ts`
+- Create: `src/coordination/workflow/goal-skill-router.ts`
 - Test: `tests/workflow/goal-skill-router.vitest.ts`
 
 **Interfaces:**
@@ -316,8 +316,8 @@ git commit -m "feat(p4.8b): add GoalDecomposer — natural language to structure
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { GoalSkillRouter } from "../../src/workflow/goal-skill-router.js";
-import type { GoalPlan } from "../../src/workflow/goal-types.js";
+import { GoalSkillRouter } from "../../src/coordination/workflow/goal-skill-router.js";
+import type { GoalPlan } from "../../src/coordination/workflow/goal-types.js";
 
 describe("GoalSkillRouter", () => {
   it("matches existing skills to goal capabilities", async () => {
@@ -355,7 +355,7 @@ describe("GoalSkillRouter", () => {
 Run: `npx vitest run tests/workflow/goal-skill-router.vitest.ts --config vitest.config.mts 2>&1 | head -10`
 Expected: FAIL — `GoalSkillRouter` not found.
 
-- [ ] **Step 3: Create `src/workflow/goal-skill-router.ts`**
+- [ ] **Step 3: Create `src/coordination/workflow/goal-skill-router.ts`**
 
 ```typescript
 import type { GoalPlan } from "./goal-types.js";
@@ -421,7 +421,7 @@ Expected: 2 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/workflow/goal-skill-router.ts tests/workflow/goal-skill-router.vitest.ts
+git add src/coordination/workflow/goal-skill-router.ts tests/workflow/goal-skill-router.vitest.ts
 git commit -m "feat(p4.8c): add GoalSkillRouter — matches GoalPlan capabilities to existing skills"
 ```
 

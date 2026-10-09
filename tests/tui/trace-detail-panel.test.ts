@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain } from "../../src/tui/trace-detail.js";
-import type { TraceEvent } from "../../src/runtime/trace-events.js";
+import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain } from "../../src/interfaces/tui/trace-detail.js";
+import type { TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {

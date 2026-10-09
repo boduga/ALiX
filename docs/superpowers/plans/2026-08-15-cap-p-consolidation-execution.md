@@ -4,7 +4,7 @@
 
 **Goal:** Close the post-CAP-O discriminator gap by making `apply()` route `consolidation_opportunity` candidates to `capability.consolidate` (currently falls through to `capability.transition` via the silent default case). After CAP-P: the `consolidation_opportunity` row of the discriminator table is green; the `default` case is explicit fail-closed (THROWS, not silent transition).
 
-**Architecture:** Single-function rewrite of the `case "consolidation_opportunity":` arm in `candidateToExecutionStep` at `src/capability/capability-service.ts`. The default case becomes fail-closed (throws on unrecognized sourcePatternId). Adds two optional fields to `CapabilityEvolutionCandidate` (`consolidateDefinition?`, `sourceDisposition?`) and extends the `consolidation_opportunity` signal in A7 with both fields. Invariant guards reject missing/invalid fields deterministically. Composition root, executor, catalog, governance, and proposal store are unchanged.
+**Architecture:** Single-function rewrite of the `case "consolidation_opportunity":` arm in `candidateToExecutionStep` at `src/capabilities/capability/capability-service.ts`. The default case becomes fail-closed (throws on unrecognized sourcePatternId). Adds two optional fields to `CapabilityEvolutionCandidate` (`consolidateDefinition?`, `sourceDisposition?`) and extends the `consolidation_opportunity` signal in A7 with both fields. Invariant guards reject missing/invalid fields deterministically. Composition root, executor, catalog, governance, and proposal store are unchanged.
 
 **Tech Stack:** TypeScript, vitest, pnpm. Existing capability platform architecture.
 
@@ -12,7 +12,7 @@
 
 These are binding on every task — copy verbatim:
 
-- **Carve-out sites (two files, per rulings #539 + CAP-O precedent):** (a) `src/capability/capability-service.ts:922+` (`candidateToExecutionStep` discriminator), and (b) `src/capability/platform.ts:111` (composition-root `overlapSignalSource` wiring, locked at ruling #539). These are the **only** files on the CAP-12 forbidden list that CAP-P modifies. All other CAP-12 forbidden files (`legacy-adapter.ts`, `registry.ts`, `provider-resolver.ts`, all CAP-1…CAP-11 sentinels) remain FORBIDDEN.
+- **Carve-out sites (two files, per rulings #539 + CAP-O precedent):** (a) `src/capabilities/capability/capability-service.ts:922+` (`candidateToExecutionStep` discriminator), and (b) `src/capabilities/capability/platform.ts:111` (composition-root `overlapSignalSource` wiring, locked at ruling #539). These are the **only** files on the CAP-12 forbidden list that CAP-P modifies. All other CAP-12 forbidden files (`legacy-adapter.ts`, `registry.ts`, `provider-resolver.ts`, all CAP-1…CAP-11 sentinels) remain FORBIDDEN.
 - **Operation mapping contract (locked post-CAP-P):** `sourcePatternId === "gap"` → `capability.create` (CAP-N); `sourcePatternId === "deprecation_signal"` → `capability.remove` (CAP-N); `sourcePatternId === "underperformer"` → `capability.update` (CAP-O); `sourcePatternId === "consolidation_opportunity"` → `capability.consolidate` (**CAP-P**); unrecognized sourcePatternId → THROWS (CAP-P fail-closed default).
 - **Verbatim copy discipline (locked, governance-critical):** All four operator-supplied fields flow through the A7 pipeline VERBATIM. No derivation, no inference, no expansion, no completion:
   - `survivorCapabilityId` (signal) → `target.id` (candidate) → `parameters.target` (execution step)
@@ -24,10 +24,10 @@ These are binding on every task — copy verbatim:
   - `candidate.sourceDisposition ∉ {"deprecate", "remove"}` (ruling #544 — caller-supplied disposition)
   - `candidate.absorbedCapabilityIds` is missing or empty (ruling #534 — defense in depth on the signal validator)
 - **Default case fail-closed (locked):** The `default` case MUST throw a deterministic error if the sourcePatternId is unrecognized. Pre-CAP-P, the discriminator silently fell through to `capability.transition` — that was the bug. CAP-P makes the default case explicit fail-closed.
-- **Candidate extension (locked):** `CapabilityEvolutionCandidate` gains exactly two new optional readonly fields at `src/adaptation/capability-evolution-types.ts`:
+- **Candidate extension (locked):** `CapabilityEvolutionCandidate` gains exactly two new optional readonly fields at `src/planning/adaptation/capability-evolution-types.ts`:
   - `consolidateDefinition?: CapabilityDefinition` (CAP-P, ruling #544)
   - `sourceDisposition?: "deprecate" | "remove"` (CAP-P, ruling #544)
-- **Signal extension (locked):** `CapabilityEvolutionSignal`'s `consolidation_opportunity` variant gains two required readonly fields at `src/capability/evolution/a7-proposals.ts:86-103`:
+- **Signal extension (locked):** `CapabilityEvolutionSignal`'s `consolidation_opportunity` variant gains two required readonly fields at `src/capabilities/capability/evolution/a7-proposals.ts:86-103`:
   - `consolidateDefinition: CapabilityDefinition` (CAP-P, ruling #544)
   - `sourceDisposition: "deprecate" | "remove"` (CAP-P, ruling #544)
 - **A7 validator (locked):** `validateConsolidationOpportunitySignal(signal)` enforces all three shape invariants: non-empty `absorbedCapabilityIds`, well-formed `consolidateDefinition`, valid `sourceDisposition`. Defense in depth — runs at the A7 signal-receipt seam.
@@ -44,7 +44,7 @@ These are binding on every task — copy verbatim:
 ### Task 1: Add `consolidateDefinition` + `sourceDisposition` to `CapabilityEvolutionCandidate`
 
 **Files:**
-- Modify: `src/adaptation/capability-evolution-types.ts:172-200` — add two optional readonly fields after `absorbedCapabilityIds`
+- Modify: `src/planning/adaptation/capability-evolution-types.ts:172-200` — add two optional readonly fields after `absorbedCapabilityIds`
 
 **Interfaces:**
 - Consumes: existing `CapabilityEvolutionCandidate` interface
@@ -83,7 +83,7 @@ These are binding on every task — copy verbatim:
 
 - [ ] **Step 1: Verify `CapabilityDefinition` import**
 
-  Confirm `src/adaptation/capability-evolution-types.ts` already imports `CapabilityDefinition` (or that it's accessible without import — TypeScript may auto-import). If not present, add `import type { CapabilityDefinition } from "../capability/canonical/definition.js";` at the top.
+  Confirm `src/planning/adaptation/capability-evolution-types.ts` already imports `CapabilityDefinition` (or that it's accessible without import — TypeScript may auto-import). If not present, add `import type { CapabilityDefinition } from "../capability/canonical/definition.js";` at the top.
 
 - [ ] **Step 2: Add the two fields to `CapabilityEvolutionCandidate`**
 
@@ -101,7 +101,7 @@ These are binding on every task — copy verbatim:
 - [ ] **Step 4: Commit**
 
   ```bash
-  git add src/adaptation/capability-evolution-types.ts
+  git add src/planning/adaptation/capability-evolution-types.ts
   git commit -m "feat(capability): CAP-P T1 candidate extension (consolidateDefinition + sourceDisposition)"
   ```
 
@@ -110,8 +110,8 @@ These are binding on every task — copy verbatim:
 ### Task 2: Extend `consolidation_opportunity` signal with `consolidateDefinition` + `sourceDisposition`
 
 **Files:**
-- Modify: `src/capability/evolution/a7-proposals.ts:86-103` — extend the `consolidation_opportunity` signal variant with two required readonly fields
-- Modify: `src/capability/evolution/a7-proposals.ts:140-180` — extend `validateConsolidationOpportunitySignal` to enforce the new fields
+- Modify: `src/capabilities/capability/evolution/a7-proposals.ts:86-103` — extend the `consolidation_opportunity` signal variant with two required readonly fields
+- Modify: `src/capabilities/capability/evolution/a7-proposals.ts:140-180` — extend `validateConsolidationOpportunitySignal` to enforce the new fields
 
 **Interfaces:**
 - Consumes: existing `CapabilityEvolutionSignal` union variant for `consolidation_opportunity`
@@ -119,7 +119,7 @@ These are binding on every task — copy verbatim:
 
 **Code block (verbatim):**
 
-In `src/capability/evolution/a7-proposals.ts` after the existing variant, extend with two new fields. After the `absorbedCapabilityIds: readonly string[]` line:
+In `src/capabilities/capability/evolution/a7-proposals.ts` after the existing variant, extend with two new fields. After the `absorbedCapabilityIds: readonly string[]` line:
 
 ```typescript
   | {
@@ -196,7 +196,7 @@ function isValidConsolidateDefinition(value: unknown): value is CapabilityDefini
 
 - [ ] **Step 1: Extend the signal variant**
 
-  In `src/capability/evolution/a7-proposals.ts:86-103`, add the `CapabilityDefinition` import and extend the `consolidation_opportunity` variant per the code block.
+  In `src/capabilities/capability/evolution/a7-proposals.ts:86-103`, add the `CapabilityDefinition` import and extend the `consolidation_opportunity` variant per the code block.
 
 - [ ] **Step 2: Extend the validator**
 
@@ -221,7 +221,7 @@ function isValidConsolidateDefinition(value: unknown): value is CapabilityDefini
 - [ ] **Step 6: Commit**
 
   ```bash
-  git add src/capability/evolution/a7-proposals.ts tests/capability/a7-proposals.vitest.ts tests/capability/evolution/p5-pair-layer.vitest.ts
+  git add src/capabilities/capability/evolution/a7-proposals.ts tests/capability/a7-proposals.vitest.ts tests/capability/evolution/p5-pair-layer.vitest.ts
   git commit -m "feat(evolution): CAP-P T2 A7 signal contract extension + validator (consolidateDefinition + sourceDisposition)"
   ```
 
@@ -230,7 +230,7 @@ function isValidConsolidateDefinition(value: unknown): value is CapabilityDefini
 ### Task 3: Update `signalToCandidate` to copy `consolidateDefinition` + `sourceDisposition` verbatim
 
 **Files:**
-- Modify: `src/capability/evolution/a7-proposals.ts` `signalToCandidate` `case "consolidation_opportunity":` — copy the two new fields verbatim
+- Modify: `src/capabilities/capability/evolution/a7-proposals.ts` `signalToCandidate` `case "consolidation_opportunity":` — copy the two new fields verbatim
 
 **Code block (verbatim):**
 
@@ -278,7 +278,7 @@ case "consolidation_opportunity":
 - [ ] **Step 3: Commit**
 
   ```bash
-  git add src/capability/evolution/a7-proposals.ts
+  git add src/capabilities/capability/evolution/a7-proposals.ts
   git commit -m "feat(evolution): CAP-P T3 signalToCandidate verbatim copy of consolidateDefinition + sourceDisposition"
   ```
 
@@ -287,7 +287,7 @@ case "consolidation_opportunity":
 ### Task 4: Wire operator CLI → A7 signal with operator-supplied values
 
 **Files:**
-- Modify: `src/capability/capability-service.ts:683-735` — `proposeConsolidation(input)` constructs the `consolidation_opportunity` signal carrying all four operator-supplied values
+- Modify: `src/capabilities/capability/capability-service.ts:683-735` — `proposeConsolidation(input)` constructs the `consolidation_opportunity` signal carrying all four operator-supplied values
 
 **Code block (verbatim):**
 
@@ -361,7 +361,7 @@ const candidate: CapabilityEvolutionCandidate = {
 - [ ] **Step 4: Commit**
 
   ```bash
-  git add src/capability/capability-service.ts tests/cli/capability-consolidate.vitest.ts
+  git add src/capabilities/capability/capability-service.ts tests/cli/capability-consolidate.vitest.ts
   git commit -m "feat(capability): CAP-P T4 CLI → A7 signal wiring (operator-supplied values flow verbatim)"
   ```
 
@@ -370,8 +370,8 @@ const candidate: CapabilityEvolutionCandidate = {
 ### Task 5: Replace fall-through case in `candidateToExecutionStep` with real `capability.consolidate` dispatch
 
 **Files:**
-- Modify: `src/capability/capability-service.ts:984-998` — replace the `case "consolidation_opportunity":` fall-through with explicit real dispatch + invariant guards
-- Modify: `src/capability/capability-service.ts:1010+` — replace the `default` case's silent fall-through with explicit fail-closed throw
+- Modify: `src/capabilities/capability/capability-service.ts:984-998` — replace the `case "consolidation_opportunity":` fall-through with explicit real dispatch + invariant guards
+- Modify: `src/capabilities/capability/capability-service.ts:1010+` — replace the `default` case's silent fall-through with explicit fail-closed throw
 
 **Code block (verbatim):**
 
@@ -472,7 +472,7 @@ Also update the discriminator-table docstring comment to reflect the closed 5-ce
 - [ ] **Step 5: Commit**
 
   ```bash
-  git add src/capability/capability-service.ts tests/capability/cap-n-sentinel.vitest.ts tests/capability/cap-n-candidate-mapping.vitest.ts
+  git add src/capabilities/capability/capability-service.ts tests/capability/cap-n-sentinel.vitest.ts tests/capability/cap-n-candidate-mapping.vitest.ts
   git commit -m "feat(capability): CAP-P T5 discriminator rewrite (consolidation_opportunity → consolidate + default fail-closed)"
   ```
 
@@ -577,7 +577,7 @@ Also update the discriminator-table docstring comment to reflect the closed 5-ce
     --title "CAP-P Consolidation Execution Path Closure" \
     --body "Closes the post-CAP-O discriminator gap. Fills the consolidation_opportunity row of the CAP-N/O/P discriminator table.
 
-  **CAP-P routes \`consolidation_opportunity\` candidates to \`capability.consolidate\`** at \`src/capability/capability-service.ts:922+\` (the CAP-N/O carve-out site). After this PR:
+  **CAP-P routes \`consolidation_opportunity\` candidates to \`capability.consolidate\`** at \`src/capabilities/capability/capability-service.ts:922+\` (the CAP-N/O carve-out site). After this PR:
   - \`apply()\` discriminates per candidate \`sourcePatternId\`:
     - \`gap\` → \`capability.create\` (CAP-N, preserved)
     - \`deprecation_signal\` → \`capability.remove\` (CAP-N, preserved)

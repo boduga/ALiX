@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { Capability } from "../../src/capability/types.js";
-import { legacyToCanonicalDefinition, canonicalToLegacyCapability, buildLegacyBindings } from "../../src/capability/legacy-adapter.js";
-import { migrateKind } from "../../src/capability/canonical/kind.js";
+import type { Capability } from "../../src/capabilities/capability/types.js";
+import { legacyToCanonicalDefinition, canonicalToLegacyCapability, buildLegacyBindings } from "../../src/capabilities/capability/legacy-adapter.js";
+import { migrateKind } from "../../src/capabilities/capability/canonical/kind.js";
 
 function makeLegacyCap(overrides: Partial<Capability> = {}): Capability {
   return {

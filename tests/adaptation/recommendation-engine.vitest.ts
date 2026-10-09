@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { RecommendationEngine, computeSignalCoherence } from "../../src/adaptation/recommendation-engine.js";
-import type { DecisionContext } from "../../src/adaptation/decision-types.js";
-import type { RiskScore } from "../../src/adaptation/risk-score-types.js";
-import type { EnrichedWarning } from "../../src/adaptation/decision-types.js";
+import { RecommendationEngine, computeSignalCoherence } from "../../src/planning/adaptation/recommendation-engine.js";
+import type { DecisionContext } from "../../src/planning/adaptation/decision-types.js";
+import type { RiskScore } from "../../src/planning/adaptation/risk-score-types.js";
+import type { EnrichedWarning } from "../../src/planning/adaptation/decision-types.js";
 
 function createContext(overrides: Partial<DecisionContext> = {}): DecisionContext {
   return {

@@ -6,9 +6,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
-import { reconcileApprovalLedger } from "../../src/approvals/approval-ledger-reconcile.js";
-import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/storage/runtime-ledger.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import { reconcileApprovalLedger } from "../../src/governance/approvals/approval-ledger-reconcile.js";
+import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/runtime-state/storage/runtime-ledger.js";
 
 const dirs: string[] = [];
 

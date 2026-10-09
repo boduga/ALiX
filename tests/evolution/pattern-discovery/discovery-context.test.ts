@@ -8,7 +8,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { DiscoveryContext } from "../../../src/evolution/contracts/discovery-context.js";
+import type { DiscoveryContext } from "../../../src/planning/evolution/contracts/discovery-context.js";
 
 // ---------------------------------------------------------------------------
 // DiscoveryContext

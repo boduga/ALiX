@@ -11,10 +11,10 @@ import {
   CollaborationStore,
   collaborationLedgerStatus,
   resetCollaborationLedgerStatus,
-} from "../../src/kernel/collaboration-store.js";
-import { reconcileCollaborationLedger } from "../../src/kernel/collaboration-ledger-reconcile.js";
-import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/storage/runtime-ledger.js";
-import type { CollaborationState } from "../../src/kernel/collaboration-types.js";
+} from "../../src/coordination/kernel/collaboration-store.js";
+import { reconcileCollaborationLedger } from "../../src/coordination/kernel/collaboration-ledger-reconcile.js";
+import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/runtime-state/storage/runtime-ledger.js";
+import type { CollaborationState } from "../../src/coordination/kernel/collaboration-types.js";
 
 const dirs: string[] = [];
 

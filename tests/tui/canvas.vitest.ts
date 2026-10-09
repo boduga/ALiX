@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { TerminalCanvas } from '../../src/tui/canvas.js';
-import { displayWidth } from '../../src/tui/terminal-text.js';
+import { TerminalCanvas } from '../../src/interfaces/tui/canvas.js';
+import { displayWidth } from '../../src/interfaces/tui/terminal-text.js';
 
 describe('TerminalCanvas display-width alignment', () => {
   it('reserves terminal columns for wide graphemes', () => {

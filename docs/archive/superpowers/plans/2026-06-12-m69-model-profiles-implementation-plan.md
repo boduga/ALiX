@@ -4,7 +4,7 @@
 
 **Goal:** Add a model profile system (built-in presets), hardware/provider detection, `models doctor` diagnostic, `models fit` ranking, and `models install/apply-profile` UX to ALiX.
 
-**Architecture:** Five built-in profiles stored as JSON in `src/config/profiles/` loaded and validated at runtime by a `ProfileRegistry`. Hardware detection via Node.js subprocess (nvidia-smi, sysctl, ollama). CLI commands in `src/cli/commands/models.ts` are thin wrappers; all logic lives in `src/models/*.ts`. Profile application uses a dedicated `applyProfilePatch()` that touches only `modelProfile`, `model`, `models`, and `runtime` fields — never unrelated sections.
+**Architecture:** Five built-in profiles stored as JSON in `src/operations/config/profiles/` loaded and validated at runtime by a `ProfileRegistry`. Hardware detection via Node.js subprocess (nvidia-smi, sysctl, ollama). CLI commands in `src/interfaces/cli/commands/models.ts` are thin wrappers; all logic lives in `src/models/*.ts`. Profile application uses a dedicated `applyProfilePatch()` that touches only `modelProfile`, `model`, `models`, and `runtime` fields — never unrelated sections.
 
 **Tech Stack:** TypeScript, existing `AlixConfig` schema, `node:child_process` for hardware probes, `node:test`. JSON profiles are copied into `dist/` at build time via a dedicated npm script so runtime loading works in both source and packaged modes.
 
@@ -29,19 +29,19 @@
 ## File Structure
 
 ### Create
-- `src/config/profiles/minimal-local.json`
-- `src/config/profiles/balanced-local.json`
-- `src/config/profiles/power-local.json`
-- `src/config/profiles/cloud-balanced.json`
-- `src/config/profiles/all-cloud.json`
-- `src/config/profile-types.ts` — TypeScript types + strict runtime validation
-- `src/config/profile-registry.ts` — `loadProfiles()`, `listProfiles()`, `getProfile(id)`, `matchHardware()`
-- `src/config/profile-patch.ts` — `applyProfilePatch()`: bounded config patching engine (modelProfile, model, models, runtime limits only)
-- `src/config/hardware-detect.ts` — `detectSystem()`: OS, RAM, GPU, Ollama, API providers
+- `src/operations/config/profiles/minimal-local.json`
+- `src/operations/config/profiles/balanced-local.json`
+- `src/operations/config/profiles/power-local.json`
+- `src/operations/config/profiles/cloud-balanced.json`
+- `src/operations/config/profiles/all-cloud.json`
+- `src/operations/config/profile-types.ts` — TypeScript types + strict runtime validation
+- `src/operations/config/profile-registry.ts` — `loadProfiles()`, `listProfiles()`, `getProfile(id)`, `matchHardware()`
+- `src/operations/config/profile-patch.ts` — `applyProfilePatch()`: bounded config patching engine (modelProfile, model, models, runtime limits only)
+- `src/operations/config/hardware-detect.ts` — `detectSystem()`: OS, RAM, GPU, Ollama, API providers
 - `src/models/model-doctor.ts` — `runDoctor()` returning `DoctorReport`
 - `src/models/model-fit.ts` — `rankProfiles()` returning `FitRanking[]`
 - `src/models/model-install.ts` — `applyProfile()`, `installProfile()`, `listAllProfiles()`, `showProfileDetail()`
-- `src/cli/commands/models.ts` — all `alix models *` command handlers
+- `src/interfaces/cli/commands/models.ts` — all `alix models *` command handlers
 - `tests/config/profile-registry.test.ts`
 - `tests/config/hardware-detect.test.ts`
 - `tests/config/profile-patch.test.ts`
@@ -50,7 +50,7 @@
 - `tests/models/model-install.test.ts`
 
 ### Modify
-- `src/config/schema.ts` — add `modelProfile?: string` and `models?: Record<string, { provider: string; name: string; temperature?: number; contextWindow?: number }>` to `AlixConfig`
+- `src/operations/config/schema.ts` — add `modelProfile?: string` and `models?: Record<string, { provider: string; name: string; temperature?: number; contextWindow?: number }>` to `AlixConfig`
 - `src/cli.ts` — add `alix models` command dispatch
 - `package.json` — add `copy:profiles` script and wire into `build`
 
@@ -59,12 +59,12 @@
 ### Task 1: Schema + Profile Types + Strict Validation
 
 **Files:**
-- Create: `src/config/profile-types.ts`
-- Modify: `src/config/schema.ts`
+- Create: `src/operations/config/profile-types.ts`
+- Modify: `src/operations/config/schema.ts`
 
 - [ ] **Step 1: Add modelProfile and models to AlixConfig schema**
 
-In `src/config/schema.ts`, add to the `AlixConfig` type:
+In `src/operations/config/schema.ts`, add to the `AlixConfig` type:
 ```typescript
 export type AlixConfig = {
   version: 1;
@@ -219,7 +219,7 @@ Expected: clean compile
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/config/profile-types.ts src/config/schema.ts
+git add src/operations/config/profile-types.ts src/operations/config/schema.ts
 git commit -m "feat(config): add profile types, strict validation, and schema fields (modelProfile, models)"
 ```
 
@@ -228,11 +228,11 @@ git commit -m "feat(config): add profile types, strict validation, and schema fi
 ### Task 2: Built-in Profile JSON files + asset copy
 
 **Files:**
-- Create: `src/config/profiles/minimal-local.json`
-- Create: `src/config/profiles/balanced-local.json`
-- Create: `src/config/profiles/power-local.json`
-- Create: `src/config/profiles/cloud-balanced.json`
-- Create: `src/config/profiles/all-cloud.json`
+- Create: `src/operations/config/profiles/minimal-local.json`
+- Create: `src/operations/config/profiles/balanced-local.json`
+- Create: `src/operations/config/profiles/power-local.json`
+- Create: `src/operations/config/profiles/cloud-balanced.json`
+- Create: `src/operations/config/profiles/all-cloud.json`
 - Modify: `package.json`
 
 - [ ] **Step 1: Create minimal-local.json**
@@ -350,12 +350,12 @@ git commit -m "feat(config): add profile types, strict validation, and schema fi
 
 Add to the `scripts` section of `package.json`:
 ```json
-"copy:profiles": "mkdir -p dist/src/config/profiles && cp src/config/profiles/*.json dist/src/config/profiles/",
+"copy:profiles": "mkdir -p dist/src/operations/config/profiles && cp src/operations/config/profiles/*.json dist/src/operations/config/profiles/",
 ```
 
 Then update the `build` script to run it after `tsc`:
 ```json
-"build": "tsc -p tsconfig.json && npm run copy:profiles && mkdir -p dist/src/ui dist/src/db/migrations && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/ && cp src/db/migrations/0001_m09_kernel.sql dist/src/db/migrations/",
+"build": "tsc -p tsconfig.json && npm run copy:profiles && mkdir -p dist/src/ui dist/src/operations/db/migrations && cp src/interfaces/ui/index.html src/interfaces/ui/app.js src/interfaces/ui/projection.js src/interfaces/ui/styles.css dist/src/interfaces/ui/ && cp src/operations/db/migrations/0001_m09_kernel.sql dist/src/operations/db/migrations/",
 ```
 
 - [ ] **Step 7: Compile check + verify profiles copy**
@@ -365,7 +365,7 @@ npm run build
 node --eval "
 const fs = require('fs');
 const path = require('path');
-const dir = path.join(__dirname, 'dist/src/config/profiles');
+const dir = path.join(__dirname, 'dist/src/operations/config/profiles');
 console.log('dist profiles:', fs.readdirSync(dir));
 for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.json'))) {
   const data = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'));
@@ -373,12 +373,12 @@ for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.json'))) {
 }
 "
 ```
-Expected: 5 profiles print from `dist/src/config/profiles/`
+Expected: 5 profiles print from `dist/src/operations/config/profiles/`
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/config/profiles/ package.json
+git add src/operations/config/profiles/ package.json
 git commit -m "feat(config): add 5 built-in model profiles with copy:profiles build step"
 ```
 
@@ -387,7 +387,7 @@ git commit -m "feat(config): add 5 built-in model profiles with copy:profiles bu
 ### Task 3: Profile Registry
 
 **Files:**
-- Create: `src/config/profile-registry.ts`
+- Create: `src/operations/config/profile-registry.ts`
 - Create: `tests/config/profile-registry.test.ts`
 
 - [ ] **Step 1: Create profile-registry.ts**
@@ -513,8 +513,8 @@ Create `tests/config/profile-registry.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { matchHardware, type SystemInfo } from "../../src/config/profile-registry.js";
-import { type ProfileData } from "../../src/config/profile-types.js";
+import { matchHardware, type SystemInfo } from "../../src/operations/config/profile-registry.js";
+import { type ProfileData } from "../../src/operations/config/profile-types.js";
 
 function makeProfile(overrides: Partial<ProfileData> = {}): ProfileData {
   return {
@@ -592,7 +592,7 @@ Expected: tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/config/profile-registry.ts tests/config/profile-registry.test.ts
+git add src/operations/config/profile-registry.ts tests/config/profile-registry.test.ts
 git commit -m "feat(config): add profile registry with hardware matching (cloud-only special-cased)"
 ```
 
@@ -601,7 +601,7 @@ git commit -m "feat(config): add profile registry with hardware matching (cloud-
 ### Task 4: Config Patch Engine
 
 **Files:**
-- Create: `src/config/profile-patch.ts`
+- Create: `src/operations/config/profile-patch.ts`
 - Create: `tests/config/profile-patch.test.ts`
 
 - [ ] **Step 1: Create profile-patch.ts**
@@ -708,9 +708,9 @@ Create `tests/config/profile-patch.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildProfilePatch, applyProfilePatch, PRESERVED_SECTIONS } from "../../src/config/profile-patch.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import type { ProfileData } from "../../src/config/profile-types.js";
+import { buildProfilePatch, applyProfilePatch, PRESERVED_SECTIONS } from "../../src/operations/config/profile-patch.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import type { ProfileData } from "../../src/operations/config/profile-types.js";
 
 function makeMinimalConfig(): AlixConfig {
   return {
@@ -812,7 +812,7 @@ Expected: all tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/config/profile-patch.ts tests/config/profile-patch.test.ts
+git add src/operations/config/profile-patch.ts tests/config/profile-patch.test.ts
 git commit -m "feat(config): add bounded profile patch engine (modelProfile, model, models, runtime only)"
 ```
 
@@ -821,7 +821,7 @@ git commit -m "feat(config): add bounded profile patch engine (modelProfile, mod
 ### Task 5: Hardware + Provider Detector
 
 **Files:**
-- Create: `src/config/hardware-detect.ts`
+- Create: `src/operations/config/hardware-detect.ts`
 - Create: `tests/config/hardware-detect.test.ts`
 
 - [ ] **Step 1: Create hardware-detect.ts**
@@ -979,7 +979,7 @@ Create `tests/config/hardware-detect.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { detectSystem } from "../../src/config/hardware-detect.js";
+import { detectSystem } from "../../src/operations/config/hardware-detect.js";
 
 describe("hardware-detect", () => {
   it("detects OS and CPU without throwing", () => {
@@ -1035,7 +1035,7 @@ Expected: all tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/config/hardware-detect.ts tests/config/hardware-detect.test.ts
+git add src/operations/config/hardware-detect.ts tests/config/hardware-detect.test.ts
 git commit -m "feat(config): add hardware and provider detection (configured vs hasKey distinction)"
 ```
 
@@ -1155,8 +1155,8 @@ Create `tests/models/model-doctor.test.ts`:
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { runDoctor } from "../../src/models/model-doctor.js";
-import type { ProfileData } from "../../src/config/profile-types.js";
-import type { SystemInfo } from "../../src/config/profile-registry.js";
+import type { ProfileData } from "../../src/operations/config/profile-types.js";
+import type { SystemInfo } from "../../src/operations/config/profile-registry.js";
 
 function makeProfile(overrides: Partial<ProfileData> = {}): ProfileData {
   return { id: "balanced-local", name: "Balanced Local", description: "", mode: "local-first", hardware: { minRamGb: 8, recommendedRamGb: 16, requiresGpu: false, minVramGb: 0 }, models: { default: { provider: "ollama", name: "test" } }, ...overrides };
@@ -1309,8 +1309,8 @@ Create `tests/models/model-fit.test.ts`:
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { rankProfiles } from "../../src/models/model-fit.js";
-import type { ProfileData } from "../../src/config/profile-types.js";
-import type { SystemInfo } from "../../src/config/profile-registry.js";
+import type { ProfileData } from "../../src/operations/config/profile-types.js";
+import type { SystemInfo } from "../../src/operations/config/profile-registry.js";
 
 describe("rankProfiles", () => {
   const system: SystemInfo = {
@@ -1372,7 +1372,7 @@ git commit -m "feat(models): add model fit ranking with role/mode weighting"
 **Files:**
 - Create: `src/models/model-install.ts`
 - Create: `tests/models/model-install.test.ts`
-- Create: `src/cli/commands/models.ts`
+- Create: `src/interfaces/cli/commands/models.ts`
 - Modify: `src/cli.ts`
 
 - [ ] **Step 1: Create model-install.ts**
@@ -1545,12 +1545,12 @@ describe("model-install", () => {
 });
 ```
 
-- [ ] **Step 3: Create src/cli/commands/models.ts**
+- [ ] **Step 3: Create src/interfaces/cli/commands/models.ts**
 
 ```typescript
 /**
  * models.ts — CLI commands for model profile management.
- * Thin wrappers; all logic lives in src/models/*.ts and src/config/*.ts.
+ * Thin wrappers; all logic lives in src/models/*.ts and src/operations/config/*.ts.
  */
 
 export async function handleModelsDoctor(args: string[]): Promise<void> {
@@ -1731,7 +1731,7 @@ node dist/src/cli.js models show-profile balanced-local
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/models/model-install.ts tests/models/model-install.test.ts src/cli/commands/models.ts src/cli.ts
+git add src/models/model-install.ts tests/models/model-install.test.ts src/interfaces/cli/commands/models.ts src/cli.ts
 git commit -m "feat(cli): add models doctor/fit/list/show/apply/install commands"
 ```
 

@@ -9,7 +9,7 @@ import {
   overallHealth,
   HealthProjectionCollector,
   ObservabilitySnapshotService,
-} from "../../src/observability/health-snapshot.js";
+} from "../../src/operations/observability/health-snapshot.js";
 
 describe("HealthSnapshot", () => {
   describe("HealthStatus", () => {

@@ -116,7 +116,7 @@ Responsibilities:
 ## Modify
 
 ```
-src/cli/commands/governance.*
+src/interfaces/cli/commands/governance.*
 ```
 
 Add evolution command routing:

@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { HookRunner, HOOK_TYPES, type HookEvent, type HookResult, type HookFn } from "../../src/extensions/hook-runner.js";
+import { HookRunner, HOOK_TYPES, type HookEvent, type HookResult, type HookFn } from "../../src/capabilities/extensions/hook-runner.js";
 
 describe("HookRunner", () => {
   let runner: HookRunner;

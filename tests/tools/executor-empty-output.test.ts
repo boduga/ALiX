@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EventLog } from "../../src/events/event-log.js";
-import { ToolExecutor } from "../../src/tools/executor.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { ToolExecutor } from "../../src/capabilities/tools/executor.js";
 
 // Minimal in-memory EventLog stub by extending EventLog but overriding file ops
 class MemLog extends EventLog {
@@ -40,7 +40,7 @@ await test("executor emits tool.output for empty results and escalates after rep
   const config = { permissions: { sessionMode: "ask", default: "allow", tools: {} }, model: { provider: "test", name: "m" } } as any;
   const executor = new TestToolExecutor(config, log as unknown as EventLog, process.cwd());
 
-  const reqBase = { toolCallId: `call_${Date.now()}`, name: "file.glob", args: { pattern: "src/tools/**/*.ts" } };
+  const reqBase = { toolCallId: `call_${Date.now()}`, name: "file.glob", args: { pattern: "src/capabilities/tools/**/*.ts" } };
 
   // Call it 3 times with the same logical signature
   await executor.execute(reqBase);

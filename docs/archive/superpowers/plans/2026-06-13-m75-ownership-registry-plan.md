@@ -13,13 +13,13 @@
 ## File Structure
 
 ### Create
-- `src/ownership/ownership-types.ts` — `OwnershipScope`, `OwnershipMode`, `OwnershipRecord`, ConflictRule matrix, `ConflictResult`
-- `src/ownership/path-scope.ts` — Constrained path scope overlap (root + recursive, no heuristic glob intersection)
-- `src/ownership/ownership-registry.ts` — Lock-protected, conflict-enforcing `acquire()`, plus `release()`, `renew()`, `list()`, `listActive()`, `listHistory()`, `prune()`
-- `src/ownership/ownership-lock.ts` — Lock file with stale-lock recovery and short timeout
-- `src/ownership/mutation-targets.ts` — Central `extractMutationTargets()` for tool args → resolved paths
-- `src/ownership/ownership-gate.ts` — Gate between PolicyGate and execution; checks ownership, auto-acquires leases
-- `src/cli/commands/ownership.ts` — `alix ownership {list|show|acquire|release|renew|conflicts|prune|history}`
+- `src/coordination/ownership/ownership-types.ts` — `OwnershipScope`, `OwnershipMode`, `OwnershipRecord`, ConflictRule matrix, `ConflictResult`
+- `src/coordination/ownership/path-scope.ts` — Constrained path scope overlap (root + recursive, no heuristic glob intersection)
+- `src/coordination/ownership/ownership-registry.ts` — Lock-protected, conflict-enforcing `acquire()`, plus `release()`, `renew()`, `list()`, `listActive()`, `listHistory()`, `prune()`
+- `src/coordination/ownership/ownership-lock.ts` — Lock file with stale-lock recovery and short timeout
+- `src/coordination/ownership/mutation-targets.ts` — Central `extractMutationTargets()` for tool args → resolved paths
+- `src/coordination/ownership/ownership-gate.ts` — Gate between PolicyGate and execution; checks ownership, auto-acquires leases
+- `src/interfaces/cli/commands/ownership.ts` — `alix ownership {list|show|acquire|release|renew|conflicts|prune|history}`
 - `tests/ownership/path-scope.test.ts`
 - `tests/ownership/ownership-registry.test.ts`
 - `tests/ownership/ownership-gate.test.ts`
@@ -27,16 +27,16 @@
 - `tests/cli/ownership.test.ts`
 
 ### Modify
-- `src/tools/types.ts` — add `agentId`, `sessionId` to `ToolCallRequest`
-- `src/tools/executor.ts` — inject `ToolCapabilityIndex`, integrate OwnershipGate, fix continuation-resume ordering
-- `src/events/types.ts` — add ownership event type constants
-- `src/runtime/runtime-index.ts` — add ownership events to SESSION_EVENT_ALLOWLIST
-- `src/server/server.ts` — add ownership events to VISIBLE_EVENTS
+- `src/capabilities/tools/types.ts` — add `agentId`, `sessionId` to `ToolCallRequest`
+- `src/capabilities/tools/executor.ts` — inject `ToolCapabilityIndex`, integrate OwnershipGate, fix continuation-resume ordering
+- `src/runtime-state/events/types.ts` — add ownership event type constants
+- `src/runtime-state/runtime/runtime-index.ts` — add ownership events to SESSION_EVENT_ALLOWLIST
+- `src/interfaces/server/server.ts` — add ownership events to VISIBLE_EVENTS
 - `src/cli.ts` — add `alix ownership` command dispatch and help text
-- `src/runtime/continuation-store.ts` — add `migrationIssue` field, load legacy records gracefully
-- `src/runtime/continuation-manager.ts` — surface migration error on resume, quarantine
-- `src/config/alix-config-types.ts` — add `ownership` config namespace
-- `src/tools/tool-registry.ts` — expose `ToolCapabilityIndex` type for injection
+- `src/runtime-state/runtime/continuation-store.ts` — add `migrationIssue` field, load legacy records gracefully
+- `src/runtime-state/runtime/continuation-manager.ts` — surface migration error on resume, quarantine
+- `src/operations/config/alix-config-types.ts` — add `ownership` config namespace
+- `src/capabilities/tools/tool-registry.ts` — expose `ToolCapabilityIndex` type for injection
 - All test files that construct `ToolCallRequest` — add `agentId` and `sessionId`
 
 ---
@@ -210,7 +210,7 @@ type OwnershipConfig = {
 Connected to `AlixConfig` under a new `ownership` namespace:
 
 ```typescript
-// In src/config/alix-config-types.ts or equivalent
+// In src/operations/config/alix-config-types.ts or equivalent
 export type AlixConfig = {
   ownership?: {
     enabled: boolean;
@@ -262,9 +262,9 @@ No partial lease sets — acquiring target A and failing target B must not leave
 ### Task 1: Ownership Types, Path Scopes, and Event Constants
 
 **Files:**
-- Create: `src/ownership/ownership-types.ts`
-- Create: `src/ownership/path-scope.ts`
-- Modify: `src/events/types.ts`
+- Create: `src/coordination/ownership/ownership-types.ts`
+- Create: `src/coordination/ownership/path-scope.ts`
+- Modify: `src/runtime-state/events/types.ts`
 - Create: `tests/ownership/path-scope.test.ts`
 
 - [ ] **Step 1: Create ownership-types.ts**
@@ -413,10 +413,10 @@ export function pathInScope(scope: PathScope, targetPath: string): boolean {
  *
  * Accepted patterns (constrained for M0.75):
  *   src/runtime          → { root: "/abs/src/runtime", recursive: false }
- *   src/runtime/         → { root: "/abs/src/runtime", recursive: true }
- *   src/runtime/**       → { root: "/abs/src/runtime", recursive: true }
+ *   src/runtime-state/runtime/         → { root: "/abs/src/runtime", recursive: true }
+ *   src/runtime-state/runtime/**       → { root: "/abs/src/runtime", recursive: true }
  *   /absolute/path       → { root: "/absolute/path", recursive: false }
- *   src/runtime/executor.ts → { root: "/abs/src/runtime/executor.ts", recursive: false }
+ *   src/runtime-state/runtime/executor.ts → { root: "/abs/src/runtime-state/runtime/executor.ts", recursive: false }
  *
  * Rejected:
  *   **/*.ts              — wildcard forms other than /** or trailing /
@@ -497,7 +497,7 @@ export function formatScope(scope: PathScope): string {
 }
 ```
 
-- [ ] **Step 3: Add ownership event types to src/events/types.ts**
+- [ ] **Step 3: Add ownership event types to src/runtime-state/events/types.ts**
 
 Find the event type constants section and add:
 ```typescript
@@ -518,12 +518,12 @@ Create `tests/ownership/path-scope.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { pathScopesOverlap, scopeContains, pathInScope, normalizePathScope } from "../../src/ownership/path-scope.js";
+import { pathScopesOverlap, scopeContains, pathInScope, normalizePathScope } from "../../src/coordination/ownership/path-scope.js";
 
 describe("pathScopesOverlap (symmetric)", () => {
   const src = { kind: "path" as const, root: "/proj/src", recursive: true };
   const srcRuntime = { kind: "path" as const, root: "/proj/src/runtime", recursive: true };
-  const srcExact = { kind: "path" as const, root: "/proj/src/runtime/executor.ts", recursive: false };
+  const srcExact = { kind: "path" as const, root: "/proj/src/runtime-state/runtime/executor.ts", recursive: false };
   const tests = { kind: "path" as const, root: "/proj/tests", recursive: true };
 
   it("identical scopes overlap", () => {
@@ -568,7 +568,7 @@ describe("scopeContains (directional) and pathInScope", () => {
   const nonRec = { kind: "path" as const, root: "/proj/src/foo", recursive: false };
 
   it("recursive scope contains descendant", () => {
-    assert.ok(scopeContains(recursive, "/proj/src/runtime/executor.ts"));
+    assert.ok(scopeContains(recursive, "/proj/src/runtime-state/runtime/executor.ts"));
   });
 
   it("recursive scope contains direct child", () => {
@@ -598,7 +598,7 @@ describe("scopeContains (directional) and pathInScope", () => {
 
 describe("normalizePathScope", () => {
   it("handles ** glob as recursive", () => {
-    const s = normalizePathScope("src/runtime/**", "/proj");
+    const s = normalizePathScope("src/runtime-state/runtime/**", "/proj");
     assert.equal(s.root, "/proj/src/runtime");
     assert.equal(s.recursive, true);
   });
@@ -610,14 +610,14 @@ describe("normalizePathScope", () => {
   });
 
   it("handles trailing slash as recursive", () => {
-    const s = normalizePathScope("src/runtime/", "/proj");
+    const s = normalizePathScope("src/runtime-state/runtime/", "/proj");
     assert.equal(s.root, "/proj/src/runtime");
     assert.equal(s.recursive, true);
   });
 
   it("handles exact file path", () => {
-    const s = normalizePathScope("src/runtime/executor.ts", "/proj");
-    assert.equal(s.root, "/proj/src/runtime/executor.ts");
+    const s = normalizePathScope("src/runtime-state/runtime/executor.ts", "/proj");
+    assert.equal(s.root, "/proj/src/runtime-state/runtime/executor.ts");
     assert.equal(s.recursive, false);
   });
 
@@ -653,7 +653,7 @@ npx tsc --noEmit
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/ownership/ownership-types.ts src/ownership/path-scope.ts src/events/types.ts tests/ownership/path-scope.test.ts
+git add src/coordination/ownership/ownership-types.ts src/coordination/ownership/path-scope.ts src/runtime-state/events/types.ts tests/ownership/path-scope.test.ts
 git commit -m "feat(ownership): add ownership types, deterministic path scopes, and event constants"
 ```
 
@@ -662,7 +662,7 @@ git commit -m "feat(ownership): add ownership types, deterministic path scopes, 
 ### Task 2: Lock File
 
 **Files:**
-- Create: `src/ownership/ownership-lock.ts`
+- Create: `src/coordination/ownership/ownership-lock.ts`
 
 - [ ] **Step 1: Create ownership-lock.ts**
 
@@ -930,7 +930,7 @@ npx tsc --noEmit
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/ownership/ownership-lock.ts
+git add src/coordination/ownership/ownership-lock.ts
 git commit -m "feat(ownership): add file lock with stale recovery for OwnershipRegistry atomicity"
 ```
 
@@ -939,7 +939,7 @@ git commit -m "feat(ownership): add file lock with stale recovery for OwnershipR
 ### Task 3: Lock-Protected OwnershipRegistry
 
 **Files:**
-- Create: `src/ownership/ownership-registry.ts`
+- Create: `src/coordination/ownership/ownership-registry.ts`
 - Create: `tests/ownership/ownership-registry.test.ts`
 
 - [ ] **Step 1: Create ownership-registry.ts**
@@ -1462,7 +1462,7 @@ describe("OwnershipRegistry", () => {
   let events: string[];
 
   async function createRegistry() {
-    const { OwnershipRegistry } = await import("../../src/ownership/ownership-registry.js");
+    const { OwnershipRegistry } = await import("../../src/coordination/ownership/ownership-registry.js");
     const emitter = { emit: async (event: string, data: any) => { events.push(event); } };
     reg = new OwnershipRegistry(dir, { eventSink: emitter, sessionId: "test-session" });
     await reg.refresh();
@@ -1599,7 +1599,7 @@ npm run build && node --test dist/tests/ownership/ownership-registry.test.js
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/ownership/ownership-registry.ts tests/ownership/ownership-registry.test.ts
+git add src/coordination/ownership/ownership-registry.ts tests/ownership/ownership-registry.test.ts
 git commit -m "feat(ownership): add lock-protected OwnershipRegistry with conflict-enforcing acquire and event emission"
 ```
 
@@ -1608,7 +1608,7 @@ git commit -m "feat(ownership): add lock-protected OwnershipRegistry with confli
 ### Task 4: MutationTarget Extractor
 
 **Files:**
-- Create: `src/ownership/mutation-targets.ts`
+- Create: `src/coordination/ownership/mutation-targets.ts`
 - Create: `tests/ownership/mutation-targets.test.ts`
 
 - [ ] **Step 1: Create mutation-targets.ts**
@@ -1791,12 +1791,12 @@ describe("extractMutationTargets", () => {
   let resolver: any;
 
   before(async () => {
-    const mod = await import("../../src/runtime/workspace-path.js");
+    const mod = await import("../../src/runtime-state/runtime/workspace-path.js");
     resolver = new mod.WorkspacePathResolver("/workspace", []);
   });
 
   it("extracts single path from file.create", async () => {
-    const { extractMutationTargets } = await import("../../src/ownership/mutation-targets.js");
+    const { extractMutationTargets } = await import("../../src/coordination/ownership/mutation-targets.js");
     const result = extractMutationTargets("file.create", { path: "src/main.ts" }, resolver);
     assert.equal(result.classification, "known-write");
     assert.equal(result.targets.length, 1);
@@ -1806,7 +1806,7 @@ describe("extractMutationTargets", () => {
   });
 
   it("extracts source and destination from file.rename", async () => {
-    const { extractMutationTargets } = await import("../../src/ownership/mutation-targets.js");
+    const { extractMutationTargets } = await import("../../src/coordination/ownership/mutation-targets.js");
     const result = extractMutationTargets("file.rename", { source: "old.ts", destination: "new.ts" }, resolver);
     assert.equal(result.classification, "known-write");
     assert.equal(result.targets.length, 2);
@@ -1815,14 +1815,14 @@ describe("extractMutationTargets", () => {
   });
 
   it("returns unknown-write for unrecognized tool with no path args", async () => {
-    const { extractMutationTargets } = await import("../../src/ownership/mutation-targets.js");
+    const { extractMutationTargets } = await import("../../src/coordination/ownership/mutation-targets.js");
     const result = extractMutationTargets("web_search", { query: "hello" }, resolver);
     assert.equal(result.classification, "unknown-write");
     assert.equal(result.targets.length, 0);
   });
 
   it("returns unknown-write for shell.run", async () => {
-    const { extractMutationTargets } = await import("../../src/ownership/mutation-targets.js");
+    const { extractMutationTargets } = await import("../../src/coordination/ownership/mutation-targets.js");
     const result = extractMutationTargets("shell.run", { command: "npm test" }, resolver);
     assert.equal(result.classification, "unknown-write");
     assert.equal(result.targets.length, 0);
@@ -1839,7 +1839,7 @@ npm run build && node --test dist/tests/ownership/mutation-targets.test.js
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/ownership/mutation-targets.ts tests/ownership/mutation-targets.test.ts
+git add src/coordination/ownership/mutation-targets.ts tests/ownership/mutation-targets.test.ts
 git commit -m "feat(ownership): add central mutation target extractor for tool args"
 ```
 
@@ -1848,12 +1848,12 @@ git commit -m "feat(ownership): add central mutation target extractor for tool a
 ### Task 5: Agent Identity in ToolCallRequest (Mandatory)
 
 **Files:**
-- Modify: `src/tools/types.ts`
-- Modify: `src/tools/executor.ts`
+- Modify: `src/capabilities/tools/types.ts`
+- Modify: `src/capabilities/tools/executor.ts`
 
 - [ ] **Step 1: Add mandatory agentId and sessionId to ToolCallRequest**
 
-In `src/tools/types.ts` (the simple version):
+In `src/capabilities/tools/types.ts` (the simple version):
 
 ```typescript
 export type ToolCallRequest = {
@@ -1865,7 +1865,7 @@ export type ToolCallRequest = {
 };
 ```
 
-In `src/tools/executor.ts` (the extended version):
+In `src/capabilities/tools/executor.ts` (the extended version):
 
 ```typescript
 export type ToolCallRequest = {
@@ -1887,9 +1887,9 @@ At external boundaries, validate and reject absent identity for mutating operati
 - `"agent:<agentId>"` — subagent executions
 
 Key construction sites to update:
-- `src/tools/executor.ts` — where ToolCallRequest is created from raw tool calls
-- `src/tools/tool-router.ts` — where sub-routers construct requests
-- `src/runtime/continuation-manager.ts` — where resume constructs the request
+- `src/capabilities/tools/executor.ts` — where ToolCallRequest is created from raw tool calls
+- `src/capabilities/tools/tool-router.ts` — where sub-routers construct requests
+- `src/runtime-state/runtime/continuation-manager.ts` — where resume constructs the request
 
 - [ ] **Step 2: Migrate persisted continuations and replay records**
 
@@ -1914,7 +1914,7 @@ for `agentId` when replaying approved tool calls. Same surgical pattern.
 
 - [ ] **Step 2: Update continuation-manager to pass agentId through**
 
-In `src/runtime/continuation-manager.ts`, when re-executing a continued tool call, ensure the stored `toolCall.agentId` is passed through to `executeTool()`.
+In `src/runtime-state/runtime/continuation-manager.ts`, when re-executing a continued tool call, ensure the stored `toolCall.agentId` is passed through to `executeTool()`.
 
 - [ ] **Step 3: Build check**
 
@@ -1925,7 +1925,7 @@ npx tsc --noEmit
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tools/types.ts src/tools/executor.ts src/runtime/continuation-manager.ts
+git add src/capabilities/tools/types.ts src/capabilities/tools/executor.ts src/runtime-state/runtime/continuation-manager.ts
 git commit -m "feat(runtime): propagate agentId and sessionId through ToolCallRequest"
 ```
 
@@ -1934,8 +1934,8 @@ git commit -m "feat(runtime): propagate agentId and sessionId through ToolCallRe
 ### Task 6: OwnershipGate Integration
 
 **Files:**
-- Create: `src/ownership/ownership-gate.ts`
-- Modify: `src/tools/executor.ts`
+- Create: `src/coordination/ownership/ownership-gate.ts`
+- Modify: `src/capabilities/tools/executor.ts`
 - Create: `tests/ownership/ownership-gate.test.ts`
 
 - [ ] **Step 1: Create ownership-gate.ts**
@@ -2030,7 +2030,7 @@ export async function checkOwnershipGate(
 
 - [ ] **Step 2: Integrate into ToolExecutor.execute()**
 
-In `src/tools/executor.ts`:
+In `src/capabilities/tools/executor.ts`:
 
 1. Add `OwnershipRegistry` as an optional constructor parameter:
 
@@ -2132,18 +2132,18 @@ describe("OwnershipGate", () => {
     dir = mkdtempSync(join(tmpdir(), "own-gate-"));
     mkdirSync(join(dir, ".alix", "ownership"), { recursive: true });
 
-    const { OwnershipRegistry } = await import("../../src/ownership/ownership-registry.js");
+    const { OwnershipRegistry } = await import("../../src/coordination/ownership/ownership-registry.js");
     reg = new OwnershipRegistry(dir);
     await reg.refresh();
 
-    const { WorkspacePathResolver } = await import("../../src/runtime/workspace-path.js");
+    const { WorkspacePathResolver } = await import("../../src/runtime-state/runtime/workspace-path.js");
     resolver = new WorkspacePathResolver(dir, []);
   });
 
   afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
   it("non-mutating tool passes without check", async () => {
-    const { checkOwnershipGate } = await import("../../src/ownership/ownership-gate.js");
+    const { checkOwnershipGate } = await import("../../src/coordination/ownership/ownership-gate.js");
     const result = await checkOwnershipGate(
       { registry: reg, resolver },
       "agent-1", "web_search", { query: "hello" }, false,  // mutates=false
@@ -2152,7 +2152,7 @@ describe("OwnershipGate", () => {
   });
 
   it("mutating tool on unowned path passes", async () => {
-    const { checkOwnershipGate } = await import("../../src/ownership/ownership-gate.js");
+    const { checkOwnershipGate } = await import("../../src/coordination/ownership/ownership-gate.js");
     const result = await checkOwnershipGate(
       { registry: reg, resolver },
       "agent-1", "file.create", { path: "new-file.ts" }, true,
@@ -2163,7 +2163,7 @@ describe("OwnershipGate", () => {
   it("mutating tool on other agent's owned path is blocked", async () => {
     await reg.acquire({ agentId: "agent-2", scope: { kind: "path", root: join(dir, "src"), recursive: true }, mode: "exclusive-write" });
 
-    const { checkOwnershipGate } = await import("../../src/ownership/ownership-gate.js");
+    const { checkOwnershipGate } = await import("../../src/coordination/ownership/ownership-gate.js");
     const result = await checkOwnershipGate(
       { registry: reg, resolver },
       "agent-1", "file.create", { path: "src/main.ts" }, true,
@@ -2177,7 +2177,7 @@ describe("OwnershipGate", () => {
   it("mutating tool on same agent's owned path passes", async () => {
     await reg.acquire({ agentId: "agent-1", scope: { kind: "path", root: join(dir, "src"), recursive: true }, mode: "exclusive-write" });
 
-    const { checkOwnershipGate } = await import("../../src/ownership/ownership-gate.js");
+    const { checkOwnershipGate } = await import("../../src/coordination/ownership/ownership-gate.js");
     const result = await checkOwnershipGate(
       { registry: reg, resolver },
       "agent-1", "file.create", { path: "src/main.ts" }, true,
@@ -2187,7 +2187,7 @@ describe("OwnershipGate", () => {
   });
 
   it("auto-acquires lease for confident mutation target", async () => {
-    const { checkOwnershipGate } = await import("../../src/ownership/ownership-gate.js");
+    const { checkOwnershipGate } = await import("../../src/coordination/ownership/ownership-gate.js");
     await checkOwnershipGate(
       { registry: reg, resolver },
       "agent-1", "file.create", { path: "new-file.ts" }, true,
@@ -2200,7 +2200,7 @@ describe("OwnershipGate", () => {
   });
 
   it("auto-acquired lease is persisted through save", async () => {
-    const { checkOwnershipGate } = await import("../../src/ownership/ownership-gate.js");
+    const { checkOwnershipGate } = await import("../../src/coordination/ownership/ownership-gate.js");
     await checkOwnershipGate(
       { registry: reg, resolver },
       "agent-1", "file.create", { path: "new-file.ts" }, true,
@@ -2208,7 +2208,7 @@ describe("OwnershipGate", () => {
 
     // Save and reload
     await reg.save();
-    const { OwnershipRegistry } = await import("../../src/ownership/ownership-registry.js");
+    const { OwnershipRegistry } = await import("../../src/coordination/ownership/ownership-registry.js");
     const reg2 = new OwnershipRegistry(dir);
     await reg2.load();
 
@@ -2220,7 +2220,7 @@ describe("OwnershipGate", () => {
   // ─── Fail-closed and multi-target tests ───────────────────────
 
   it("mutating tool with no extractable targets fails closed", async () => {
-    const { checkOwnershipGate } = await import("../../src/ownership/ownership-gate.js");
+    const { checkOwnershipGate } = await import("../../src/coordination/ownership/ownership-gate.js");
     // shell.run with no command → extractMutationTargets returns empty
     const result = await checkOwnershipGate(
       { registry: reg, resolver },
@@ -2234,7 +2234,7 @@ describe("OwnershipGate", () => {
   it("multi-target write fails if any target is blocked", async () => {
     await reg.acquire({ agentId: "agent-2", scope: { kind: "path", root: join(dir, "src"), recursive: true }, mode: "exclusive-write" });
 
-    const { checkOwnershipGate } = await import("../../src/ownership/ownership-gate.js");
+    const { checkOwnershipGate } = await import("../../src/coordination/ownership/ownership-gate.js");
     // file.rename with source in unowned dir and dest in owned dir
     const result = await checkOwnershipGate(
       { registry: reg, resolver },
@@ -2249,7 +2249,7 @@ describe("OwnershipGate", () => {
   });
 
   it("multi-target write passes if all targets are unowned", async () => {
-    const { checkOwnershipGate } = await import("../../src/ownership/ownership-gate.js");
+    const { checkOwnershipGate } = await import("../../src/coordination/ownership/ownership-gate.js");
     const result = await checkOwnershipGate(
       { registry: reg, resolver },
       "agent-1", "file.rename", {
@@ -2264,7 +2264,7 @@ describe("OwnershipGate", () => {
     // Simulate: agent-2 owns src/, agent-1 tries write via continuation-resume
     await reg.acquire({ agentId: "agent-2", scope: { kind: "path", root: join(dir, "src"), recursive: true }, mode: "exclusive-write" });
 
-    const { checkOwnershipGate } = await import("../../src/ownership/ownership-gate.js");
+    const { checkOwnershipGate } = await import("../../src/coordination/ownership/ownership-gate.js");
     const result = await checkOwnershipGate(
       { registry: reg, resolver },
       "agent-1", "file.create", { path: "src/main.ts" }, true,
@@ -2286,7 +2286,7 @@ npm run build && node --test dist/tests/ownership/ownership-gate.test.js
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/ownership/ownership-gate.ts src/tools/executor.ts tests/ownership/ownership-gate.test.ts
+git add src/coordination/ownership/ownership-gate.ts src/capabilities/tools/executor.ts tests/ownership/ownership-gate.test.ts
 git commit -m "feat(ownership): add OwnershipGate with continuation-aware execution order"
 ```
 
@@ -2295,11 +2295,11 @@ git commit -m "feat(ownership): add OwnershipGate with continuation-aware execut
 ### Task 7: CLI Commands
 
 **Files:**
-- Create: `src/cli/commands/ownership.ts`
+- Create: `src/interfaces/cli/commands/ownership.ts`
 - Modify: `src/cli.ts`
 - Create: `tests/cli/ownership.test.ts`
 
-- [ ] **Step 1: Create src/cli/commands/ownership.ts**
+- [ ] **Step 1: Create src/interfaces/cli/commands/ownership.ts**
 
 ```typescript
 /**
@@ -2545,7 +2545,7 @@ npm run build && node dist/src/cli.js ownership list
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/ownership.ts src/cli.ts tests/cli/ownership.test.ts
+git add src/interfaces/cli/commands/ownership.ts src/cli.ts tests/cli/ownership.test.ts
 git commit -m "feat(cli): add alix ownership commands with withLock atomicity"
 ```
 
@@ -2554,12 +2554,12 @@ git commit -m "feat(cli): add alix ownership commands with withLock atomicity"
 ### Task 8: Visibility in RuntimeIndex and Inspector
 
 **Files:**
-- Modify: `src/runtime/runtime-index.ts`
-- Modify: `src/server/server.ts`
+- Modify: `src/runtime-state/runtime/runtime-index.ts`
+- Modify: `src/interfaces/server/server.ts`
 
 - [ ] **Step 1: Add to RuntimeIndex SESSION_EVENT_ALLOWLIST**
 
-Find `SESSION_EVENT_ALLOWLIST` in `src/runtime/runtime-index.ts` and add:
+Find `SESSION_EVENT_ALLOWLIST` in `src/runtime-state/runtime/runtime-index.ts` and add:
 
 ```typescript
 "ownership.acquired",
@@ -2573,7 +2573,7 @@ Find `SESSION_EVENT_ALLOWLIST` in `src/runtime/runtime-index.ts` and add:
 
 - [ ] **Step 2: Add to Inspector VISIBLE_EVENTS**
 
-Find `VISIBLE_EVENTS` in `src/server/server.ts` and add:
+Find `VISIBLE_EVENTS` in `src/interfaces/server/server.ts` and add:
 
 ```typescript
 "ownership.acquired",
@@ -2588,7 +2588,7 @@ Find `VISIBLE_EVENTS` in `src/server/server.ts` and add:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/runtime/runtime-index.ts src/server/server.ts
+git add src/runtime-state/runtime/runtime-index.ts src/interfaces/server/server.ts
 git commit -m "feat(ownership): add ownership events to RuntimeIndex allowlist and Inspector SSE"
 ```
 
@@ -2632,7 +2632,7 @@ it("expired lease stops blocking", () => {
 
 it("lock prevents double-acquisition of same scope", async () => {
   // Use two separate registry instances to simulate concurrent processes
-  const { OwnershipRegistry: OR } = await import("../../src/ownership/ownership-registry.js");
+  const { OwnershipRegistry: OR } = await import("../../src/coordination/ownership/ownership-registry.js");
 
   const regA = new OR(dir);
   const regB = new OR(dir);
@@ -2673,7 +2673,7 @@ it("revision increments on every mutation", async () => {
 it("event emission follows successful persistence", async () => {
   // Events are queued during mutation and flushed after persistence + lock release
   const emitted: string[] = [];
-  const { OwnershipRegistry } = await import("../../src/ownership/ownership-registry.js");
+  const { OwnershipRegistry } = await import("../../src/coordination/ownership/ownership-registry.js");
   const eventReg = new OwnershipRegistry(dir, {
     eventSink: { emit: async (event: string) => { emitted.push(event); } },
   });

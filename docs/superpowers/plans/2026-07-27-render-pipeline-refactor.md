@@ -10,9 +10,9 @@
 
 ### P1: Delete the old parser
 
-Old `src/agent/response-blocks.ts` already re-exports `parseBlocks` from the new parser (line 341). The entire file is dead code — two `parseResponseBlocks` implementations, duplicated `matchFence*`/`matchListItem`/`flushText` — never imported by anything except tests.
+Old `src/agents/agent/response-blocks.ts` already re-exports `parseBlocks` from the new parser (line 341). The entire file is dead code — two `parseResponseBlocks` implementations, duplicated `matchFence*`/`matchListItem`/`flushText` — never imported by anything except tests.
 
-**Remove:** `src/agent/response-blocks.ts` (delete the file).  
+**Remove:** `src/agents/agent/response-blocks.ts` (delete the file).  
 **Replace with:** a one-liner `export { parseBlocks } from '../tui/blocks/parser.js';` at the same path.  
 **Verify:** all test imports still resolve; remove the duplicate `ListMarker`/`ResponseBlock` types from tests that imported from the old path.
 
@@ -22,7 +22,7 @@ Old `src/agent/response-blocks.ts` already re-exports `parseBlocks` from the new
 
 ### P2: Extract shared tokenizer utilities
 
-Create `src/tui/blocks/langs/shared.ts` with:
+Create `src/interfaces/tui/blocks/langs/shared.ts` with:
 
 - `consumeWhitespace(code, i, tokens): number` — skip `[ \t\r\n]`, push plain, return new `i`
 - `consumeHashComment(code, i, tokens): number` — `#` to EOL, push comment, return new `i`
@@ -41,7 +41,7 @@ Refactor all 4 language tokenizers to call these. Each tokenizer's `tokenize()` 
 
 ### P3: Create `renderResponse` shared convenience
 
-Add to `src/tui/blocks/render.ts`:
+Add to `src/interfaces/tui/blocks/render.ts`:
 
 ```ts
 export function renderResponse(text: string, width: number): StyledRow[] {
@@ -49,7 +49,7 @@ export function renderResponse(text: string, width: number): StyledRow[] {
 }
 ```
 
-Then in `src/tui/views/agent-view.ts`: delete `renderAgentResponse` and `RenderedLine` interface. The one caller replaces:
+Then in `src/interfaces/tui/views/agent-view.ts`: delete `renderAgentResponse` and `RenderedLine` interface. The one caller replaces:
 ```ts
 const rendered = renderAgentResponse(t.text, t.kind, textWidth);
 ```
@@ -59,7 +59,7 @@ const rendered = renderResponse(t.text, textWidth)
   .map(r => ({ kind: t.kind, text: r.text, isFirst: r.isFirst }));
 ```
 
-In `src/tui/views/chat-view.ts`: delete `ScrollbackLine` interface. Replace the inline parse+render loop with the same pattern. The two views converge on identical response-rendering code.
+In `src/interfaces/tui/views/chat-view.ts`: delete `ScrollbackLine` interface. Replace the inline parse+render loop with the same pattern. The two views converge on identical response-rendering code.
 
 **Also remove** the dead `truncateVisible` function from `agent-view.ts` (unreferenced, `hardTruncate` in `wrap-text.ts` is the active path).
 
@@ -69,7 +69,7 @@ In `src/tui/views/chat-view.ts`: delete `ScrollbackLine` interface. Replace the 
 
 ### P4: Centralize ANSI constants
 
-Create `src/tui/ansi-constants.ts`. Move in:
+Create `src/interfaces/tui/ansi-constants.ts`. Move in:
 
 - `RESET = '\x1b[0m'` (currently in `theme.ts`, hardcoded 12+ other places)
 - `BOLD_OPEN`/`BOLD_CLOSE`, `ITALIC_OPEN`/`ITALIC_CLOSE`, `INVERSE_OPEN`/`INVERSE_CLOSE`, `DIM_OPEN`/`DIM_CLOSE`

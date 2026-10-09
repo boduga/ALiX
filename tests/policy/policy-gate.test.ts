@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PolicyGate, type PolicyGateDecision, type ToolPolicyRequest, type CapabilityPolicyRequest } from "../../src/policy/policy-gate.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
+import { PolicyGate, type PolicyGateDecision, type ToolPolicyRequest, type CapabilityPolicyRequest } from "../../src/governance/policy/policy-gate.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
 
 function makeConfig(overrides?: Partial<AlixConfig>): AlixConfig {
   const base: AlixConfig = {
@@ -260,7 +260,7 @@ describe("PolicyGate", () => {
   it("creates approval when approval store provided and decision is ask", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "pol-ask-"));
     try {
-      const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
       mkdirSync(join(tmpDir, ".alix", "approvals"), { recursive: true });
       const store = new ApprovalStore(tmpDir);
       await store.load();
@@ -281,7 +281,7 @@ describe("PolicyGate", () => {
   it("creates separate approval for each ask-mode request", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "pol-reuse-"));
     try {
-      const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
       mkdirSync(join(tmpDir, ".alix", "approvals"), { recursive: true });
       const store = new ApprovalStore(tmpDir);
       await store.load();
@@ -311,7 +311,7 @@ describe("PolicyGate", () => {
   it("creates new approval even when prior approval exists (ask mode)", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "pol-approved-"));
     try {
-      const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
       mkdirSync(join(tmpDir, ".alix", "approvals"), { recursive: true });
       const store = new ApprovalStore(tmpDir);
       await store.load();
@@ -345,7 +345,7 @@ describe("PolicyGate", () => {
   it("reuses one pending approval across consecutive capability asks (#687)", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "pol-cap-reuse-"));
     try {
-      const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
       mkdirSync(join(tmpDir, ".alix", "approvals"), { recursive: true });
       const store = new ApprovalStore(tmpDir);
       await store.load();
@@ -551,7 +551,7 @@ describe("PolicyGate", () => {
   // ── Single authority (#689): every entry path goes through PolicyGate ──
 
   it("TUI-wired and analyzer-wired gates decide identically for the same command", async () => {
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     const mkStoreGate = async (tag: string) => {
       const tmpDir = mkdtempSync(join(tmpdir(), `pol-parity-${tag}-`));
       mkdirSync(join(tmpDir, ".alix", "approvals"), { recursive: true });

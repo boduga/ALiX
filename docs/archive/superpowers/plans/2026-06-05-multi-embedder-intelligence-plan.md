@@ -49,11 +49,11 @@ Task Query
 
 | File | Change |
 |------|--------|
-| `src/repomap/embedding-cache.ts` | Add model config (modelName parameter), support multiple instances |
-| `src/repomap/context-pipeline.ts` | Add `MultiEmbedderStage` between RepoMapStage and RankingStage |
-| `src/repomap/context-ranker.ts` | Add fusion scoring with task-type weights |
+| `src/context/repomap/embedding-cache.ts` | Add model config (modelName parameter), support multiple instances |
+| `src/context/repomap/context-pipeline.ts` | Add `MultiEmbedderStage` between RepoMapStage and RankingStage |
+| `src/context/repomap/context-ranker.ts` | Add fusion scoring with task-type weights |
 | `src/context/semantic-search.ts` | Normalize keyword scores to 0-1 for compatibility with fusion |
-| `src/repomap/context-compiler.ts` | Wire MultiEmbedderStage into the pipeline |
+| `src/context/repomap/context-compiler.ts` | Wire MultiEmbedderStage into the pipeline |
 | `tests/repomap/multi-embedder.test.ts` | New tests |
 
 ### Key Implementation Details
@@ -137,7 +137,7 @@ function computeWeights(taskType: TaskType, task: string): EmbedderWeights {
 
 ### How to Identify Kernel Files
 
-The dependency graph (`src/repomap/dependency-graph.ts`) already tracks which files import which. Use it to compute:
+The dependency graph (`src/context/repomap/dependency-graph.ts`) already tracks which files import which. Use it to compute:
 
 ```
 kernelScore(file) = 
@@ -171,9 +171,9 @@ function computeKernelScore(
 
 | File | Change |
 |------|--------|
-| `src/repomap/context-pipeline.ts` | Add `kernelScore` to `RepoMapOutput`, add `KernelStage` |
-| `src/repomap/dependency-graph.ts` | Export `countTransitiveDependents` (exists but may be private) |
-| `src/repomap/context-ranker.ts` | Add kernelScore as a ranking factor (+0 to +30) |
+| `src/context/repomap/context-pipeline.ts` | Add `kernelScore` to `RepoMapOutput`, add `KernelStage` |
+| `src/context/repomap/dependency-graph.ts` | Export `countTransitiveDependents` (exists but may be private) |
+| `src/context/repomap/context-ranker.ts` | Add kernelScore as a ranking factor (+0 to +30) |
 
 **KernelStage:**
 ```typescript
@@ -197,7 +197,7 @@ const kernelBoost = input.kernelScores?.get(sf) ?? 0;
 finalScore += kernelBoost;  // Files with high connectivity get +0 to +30
 ```
 
-**Effect:** A utility file like `src/utils/helpers.ts` that 40 files import from gets a +15-25 boost. A leaf file like `src/pages/settings/theme.tsx` that nothing imports gets +0. The grounding set rises to the top naturally.
+**Effect:** A utility file like `src/operations/utils/helpers.ts` that 40 files import from gets a +15-25 boost. A leaf file like `src/pages/settings/theme.tsx` that nothing imports gets +0. The grounding set rises to the top naturally.
 
 ---
 
@@ -241,9 +241,9 @@ function checkGuardrail(
 
 | File | Change |
 |------|--------|
-| `src/repomap/embedding-cache.ts` | Add `cosineSimilarity()` as public method |
-| `src/tools/tool-router.ts` | Add guardrail check in `file.create` and `patch.apply` handlers |
-| `src/agent/agent.ts` | Pass guardrail config to executor |
+| `src/context/repomap/embedding-cache.ts` | Add `cosineSimilarity()` as public method |
+| `src/capabilities/tools/tool-router.ts` | Add guardrail check in `file.create` and `patch.apply` handlers |
+| `src/agents/agent/agent.ts` | Pass guardrail config to executor |
 | `tests/repomap/guardrails.test.ts` | New tests |
 
 ### Thresholds by Operation

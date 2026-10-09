@@ -23,10 +23,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import http from "node:http";
 import { randomUUID } from "node:crypto";
-import { startServer } from "../../src/server/server.js";
-import { AuthStore, createRevocation, createTokenRecord } from "../../src/security/inspector/auth-store.js";
-import { generateToken } from "../../src/security/inspector/token-format.js";
-import { getUserStatePaths, setStateDirOverride, clearStateDirOverride } from "../../src/security/platform/user-state-paths.js";
+import { startServer } from "../../src/interfaces/server/server.js";
+import { AuthStore, createRevocation, createTokenRecord } from "../../src/governance/security/inspector/auth-store.js";
+import { generateToken } from "../../src/governance/security/inspector/token-format.js";
+import { getUserStatePaths, setStateDirOverride, clearStateDirOverride } from "../../src/governance/security/platform/user-state-paths.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -152,7 +152,7 @@ describe("Auth routes (Sb3)", () => {
     await authStore.add(record);
 
     // Minimal built UI fixture for the public browser-auth asset.
-    const uiDir = join(dir, "dist", "src", "ui");
+    const uiDir = join(dir, "dist", "src", "interfaces", "ui");
     await mkdir(uiDir, { recursive: true });
     await writeFile(join(uiDir, "auth.js"), "export {};\n", "utf8");
 

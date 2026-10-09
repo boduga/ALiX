@@ -4,7 +4,7 @@
 
 **Goal:** Add a dedicated TUI panel that lists all replay and rollback operations with their status, provides per-item drilldown into diffs and approval state, and surfaces reliability warnings.
 
-**Architecture:** A new `ReplaysPanel` component in `src/tui/` reads from `ReplayStatusIndex` and the existing replay/rollback stores on disk. It shows a scrollable list of replays (most recent first), each with status icon/color. Selecting one shows a detail view (diff set, approval status, step results). The panel is registered in `PanelRenderer` and navigable via `replays` panel name.
+**Architecture:** A new `ReplaysPanel` component in `src/interfaces/tui/` reads from `ReplayStatusIndex` and the existing replay/rollback stores on disk. It shows a scrollable list of replays (most recent first), each with status icon/color. Selecting one shows a detail view (diff set, approval status, step results). The panel is registered in `PanelRenderer` and navigable via `replays` panel name.
 
 **Tech Stack:** TypeScript, existing TUI panel system (`panel-renderer.ts`, `store.ts`), existing runtime stores (`ReplayStatusIndex`, `ReplayDiffStore`, `RollbackProgressStore`), `node:test`.
 
@@ -13,19 +13,19 @@
 ## File Structure
 
 ### Create
-- `src/tui/replays-panel.ts` — ReplaysPanel component (~350 lines)
+- `src/interfaces/tui/replays-panel.ts` — ReplaysPanel component (~350 lines)
 - `tests/tui/replays-panel.test.ts` — (~150 lines)
 
 ### Modify
-- `src/tui/panel-renderer.ts` — register `"replays"` panel in defaultPanels
-- `src/cli/commands/tui.ts` — add `replays` to tab nav (optional, not critical)
+- `src/interfaces/tui/panel-renderer.ts` — register `"replays"` panel in defaultPanels
+- `src/interfaces/cli/commands/tui.ts` — add `replays` to tab nav (optional, not critical)
 
 ---
 
 ### Task 1: Implement ReplaysPanel component
 
 **Files:**
-- Create: `src/tui/replays-panel.ts`
+- Create: `src/interfaces/tui/replays-panel.ts`
 
 - [ ] **Step 1: Create the ReplaysPanel file**
 
@@ -283,7 +283,7 @@ Expected: clean compile
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/replays-panel.ts
+git add src/interfaces/tui/replays-panel.ts
 git commit -m "feat(tui): add ReplaysPanel component for browsing replay history"
 ```
 
@@ -292,11 +292,11 @@ git commit -m "feat(tui): add ReplaysPanel component for browsing replay history
 ### Task 2: Register replays panel in PanelRenderer
 
 **Files:**
-- Modify: `src/tui/panel-renderer.ts`
+- Modify: `src/interfaces/tui/panel-renderer.ts`
 
 - [ ] **Step 1: Import ReplaysPanel**
 
-Add at the top of `src/tui/panel-renderer.ts`:
+Add at the top of `src/interfaces/tui/panel-renderer.ts`:
 ```typescript
 import { ReplaysPanel } from "./replays-panel.js";
 ```
@@ -329,7 +329,7 @@ Expected: clean compile
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/panel-renderer.ts
+git add src/interfaces/tui/panel-renderer.ts
 git commit -m "feat(tui): register replays panel in PanelRenderer"
 ```
 
@@ -345,7 +345,7 @@ git commit -m "feat(tui): register replays panel in PanelRenderer"
 ```typescript
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { ReplaysPanel } from "../../src/tui/replays-panel.js";
+import { ReplaysPanel } from "../../src/interfaces/tui/replays-panel.js";
 import { join } from "node:path";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 

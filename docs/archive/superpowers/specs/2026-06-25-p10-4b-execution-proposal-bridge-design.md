@@ -221,7 +221,7 @@ The third event, `executive_step_bridge_purged`, is **deferred to P10.4c**. It i
 ## Files added
 
 ```
-src/executive/executive-bridge.ts                              (~120 LOC, pure + effectful wrapper)
+src/execution/executive/executive-bridge.ts                              (~120 LOC, pure + effectful wrapper)
 tests/executive/executive-bridge.vitest.ts                     (~25 tests, 6 describes)
 tests/adaptation/adaptation-types-p10-4b-snapshot.vitest.ts    (3 tests, additive sentinel)
 ```
@@ -229,15 +229,15 @@ tests/adaptation/adaptation-types-p10-4b-snapshot.vitest.ts    (3 tests, additiv
 ## Files modified
 
 ```
-src/adaptation/adaptation-types.ts                             (+2: ProposalAction variant + ProposalTarget variant; ADR-0004 Allowed)
-src/executive/execution-engine.ts                              (+~30 LOC: idempotency check, bridge call, artifact append, evidence)
+src/planning/adaptation/adaptation-types.ts                             (+2: ProposalAction variant + ProposalTarget variant; ADR-0004 Allowed)
+src/execution/executive/execution-engine.ts                              (+~30 LOC: idempotency check, bridge call, artifact append, evidence)
 tests/executive/executive-sentinels.vitest.ts                  (+1: add executive-bridge.ts to allowlist)
 ```
 
 **Files NOT modified:**
 
-- `src/executive/step-runner.ts` — unchanged. Engine owns the bridge write.
-- `src/executive/executive-plan-types.ts` — unchanged. No new `StepRuntimeStatus`. Derived readiness is a CLI view.
+- `src/execution/executive/step-runner.ts` — unchanged. Engine owns the bridge write.
+- `src/execution/executive/executive-plan-types.ts` — unchanged. No new `StepRuntimeStatus`. Derived readiness is a CLI view.
 
 ---
 
@@ -415,7 +415,7 @@ Five verified deviations from this SDS were identified during implementation and
 ### Additional files (not in SDS)
 
 Four files were modified/created beyond the SDS's file table:
-- `src/cli/commands/adaptation.ts` — `describeTarget` switch arm for `executive_remediation` (forced by TypeScript non-exhaustive check on the new union member)
+- `src/interfaces/cli/commands/adaptation.ts` — `describeTarget` switch arm for `executive_remediation` (forced by TypeScript non-exhaustive check on the new union member)
 - `tests/governance/governance-sentinels.vitest.ts` — baseline amendment for the new `ProposalAction` value
 - `tests/executive/executive-bridge.vitest.ts` — 28 tests (was 25 planned)
 - `tests/executive/execution-engine-bridge-dispatch.vitest.ts` — 4 integration tests (post-SDS addition)

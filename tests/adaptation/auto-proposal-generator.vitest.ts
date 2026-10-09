@@ -7,13 +7,13 @@ import {
   DEFAULT_MIN_REFLECTION_CONFIDENCE,
   type GenerateOptions,
   type GenerateResult,
-} from "../../src/adaptation/auto-proposal-generator.js";
-import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
-import type { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import type { ReflectionReport } from "../../src/reflection/reflection-types.js";
-import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
-import { RecommendationToProposal } from "../../src/adaptation/recommendation-to-proposal.js";
+} from "../../src/planning/adaptation/auto-proposal-generator.js";
+import { AdaptationProposalStore } from "../../src/planning/adaptation/adaptation-proposal-store.js";
+import type { EvidenceEventWriter } from "../../src/coordination/workflow/evidence-writer.js";
+import type { ReflectionReport } from "../../src/planning/reflection/reflection-types.js";
+import type { ProposalEffectivenessReport } from "../../src/planning/adaptation/effectiveness-types.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
+import { RecommendationToProposal } from "../../src/planning/adaptation/recommendation-to-proposal.js";
 
 /**
  * Architectural-boundary sentinel test.
@@ -31,7 +31,7 @@ import { RecommendationToProposal } from "../../src/adaptation/recommendation-to
 describe("AutomaticProposalGenerator — architectural boundary", () => {
   const generatorPath = join(
     process.cwd(),
-    "src/adaptation/auto-proposal-generator.ts",
+    "src/planning/adaptation/auto-proposal-generator.ts",
   );
 
   function readImports(): string {
@@ -424,7 +424,7 @@ describe("AutomaticProposalGenerator — generateFromEffectiveness success path"
   // provenance="auto" round-trips into the emitted evidence payload.
   let tempDir: string;
   let store: AdaptationProposalStore;
-  let evidenceStore: import("../../src/security/evidence/evidence-store.js").EvidenceStore;
+  let evidenceStore: import("../../src/governance/security/evidence/evidence-store.js").EvidenceStore;
   let writer: EvidenceEventWriter;
   let gen: AutomaticProposalGenerator;
 
@@ -432,11 +432,11 @@ describe("AutomaticProposalGenerator — generateFromEffectiveness success path"
     tempDir = mkdtempSync(join(tmpdir(), "apg-eff-"));
     store = new AdaptationProposalStore(join(tempDir, "proposals"));
     const { EvidenceStore } = await import(
-      "../../src/security/evidence/evidence-store.js"
+      "../../src/governance/security/evidence/evidence-store.js"
     );
     evidenceStore = new EvidenceStore({ storeDir: join(tempDir, "evidence") });
     const { EvidenceEventWriter: RealWriter } = await import(
-      "../../src/workflow/evidence-writer.js"
+      "../../src/coordination/workflow/evidence-writer.js"
     );
     writer = new RealWriter((type, payload) => evidenceStore.append(type, payload));
     gen = new AutomaticProposalGenerator(store, writer);
@@ -587,11 +587,11 @@ describe("AutomaticProposalGenerator — manual-action regression (apply surface
     const tempDir = mkdtempSync(join(tmpdir(), "apg-manual-"));
     const store = new AdaptationProposalStore(join(tempDir, "proposals"));
     const { EvidenceStore } = await import(
-      "../../src/security/evidence/evidence-store.js"
+      "../../src/governance/security/evidence/evidence-store.js"
     );
     const evidenceStore = new EvidenceStore({ storeDir: join(tempDir, "evidence") });
     const { EvidenceEventWriter: RealWriter } = await import(
-      "../../src/workflow/evidence-writer.js"
+      "../../src/coordination/workflow/evidence-writer.js"
     );
     const writer = new RealWriter((type, payload) => evidenceStore.append(type, payload));
     const gen = new AutomaticProposalGenerator(store, writer);

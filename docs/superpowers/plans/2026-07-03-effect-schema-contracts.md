@@ -4,14 +4,14 @@
 
 **Goal:** Introduce typed runtime contracts using Effect Schema for ALiX's highest-value boundaries — tool calls, plan steps, proposals, and LLM output — without changing orchestration behavior.
 
-**Architecture:** Each contract boundary gets its own schema file in `src/contracts/`, mirroring the existing TypeScript types with Effect Schema's `Schema` combinators. A shared `helpers.ts` provides typed `decode`/`parse` wrappers. No `Effect.gen`, no runtime layers, no LLM/tool executor rewrites.
+**Architecture:** Each contract boundary gets its own schema file in `src/runtime-state/contracts/`, mirroring the existing TypeScript types with Effect Schema's `Schema` combinators. A shared `helpers.ts` provides typed `decode`/`parse` wrappers. No `Effect.gen`, no runtime layers, no LLM/tool executor rewrites.
 
 **Tech Stack:** Effect Schema (`effect/Schema`), TypeScript 5.9, Node 24, pnpm
 
 ## Global Constraints
 
 - `pnpm add effect` — pin exact version
-- All schemas go in `src/contracts/` — do not touch `src/tools/`, `src/planning/`, `src/adaptation/`, `src/providers/`
+- All schemas go in `src/runtime-state/contracts/` — do not touch `src/capabilities/tools/`, `src/planning/`, `src/planning/adaptation/`, `src/models/providers/`
 - Do NOT import Effect's runtime (`Effect`, `Effect.gen`, `Layer`, `Scope`) — only `Schema` and `ParseResult`
 - Do NOT modify any existing type definitions or runtime code
 - Each schema file must have a corresponding test file in `tests/contracts/`
@@ -23,7 +23,7 @@
 ## File Structure
 
 ```
-src/contracts/
+src/runtime-state/contracts/
   index.ts          — re-exports all schemas and helpers
   tool-schemas.ts   — ToolCallRequest, ToolResult, ToolName schemas
   plan-schemas.ts   — PlanningObjective, StrategicPlan schemas
@@ -46,10 +46,10 @@ tests/contracts/
 **Files:**
 - Modify: `package.json`
 - Modify: `pnpm-lock.yaml` (auto-updated via `pnpm add`)
-- Create: `src/contracts/index.ts`
+- Create: `src/runtime-state/contracts/index.ts`
 
 **Interfaces:**
-- Produces: re-export barrel file at `src/contracts/index.ts` (empty initially, filled by subsequent tasks)
+- Produces: re-export barrel file at `src/runtime-state/contracts/index.ts` (empty initially, filled by subsequent tasks)
 
 - [ ] **Step 1: Add effect dependency**
 
@@ -59,10 +59,10 @@ pnpm add effect
 
 Expected: `effect` added to `package.json` dependencies, `pnpm-lock.yaml` updated.
 
-- [ ] **Step 2: Create `src/contracts/index.ts`**
+- [ ] **Step 2: Create `src/runtime-state/contracts/index.ts`**
 
 ```typescript
-// src/contracts/index.ts
+// src/runtime-state/contracts/index.ts
 //
 // Effect Schema runtime contracts for ALiX boundaries.
 // Schema-only — no Effect runtime, no orchestration changes.
@@ -85,8 +85,8 @@ Expected: clean build and typecheck.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add package.json pnpm-lock.yaml src/contracts/
-git commit -m "feat(contracts): add effect dependency and scaffold src/contracts/"
+git add package.json pnpm-lock.yaml src/runtime-state/contracts/
+git commit -m "feat(contracts): add effect dependency and scaffold src/runtime-state/contracts/"
 ```
 
 ---
@@ -94,20 +94,20 @@ git commit -m "feat(contracts): add effect dependency and scaffold src/contracts
 ### Task 2: Tool schemas
 
 **Files:**
-- Create: `src/contracts/tool-schemas.ts`
+- Create: `src/runtime-state/contracts/tool-schemas.ts`
 - Create: `tests/contracts/tool-schemas.test.ts`
 
 **Interfaces:**
 - Produces: `ToolCallRequestSchema`, `ToolResultSchema`, `ToolNameSchema` — Effect Schema equivalents of existing types
-- Consumes: existing `ToolName`, `ToolCallRequest`, `ToolResult` from `src/tools/types.ts` (for type reference only, not schema derivation)
+- Consumes: existing `ToolName`, `ToolCallRequest`, `ToolResult` from `src/capabilities/tools/types.ts` (for type reference only, not schema derivation)
 
-- [ ] **Step 1: Create `src/contracts/tool-schemas.ts`**
+- [ ] **Step 1: Create `src/runtime-state/contracts/tool-schemas.ts`**
 
 ```typescript
-// src/contracts/tool-schemas.ts
+// src/runtime-state/contracts/tool-schemas.ts
 //
 // Effect Schema contracts for tool execution boundaries.
-// Mirrors src/tools/types.ts ToolName, ToolCallRequest, ToolResult.
+// Mirrors src/capabilities/tools/types.ts ToolName, ToolCallRequest, ToolResult.
 
 import { Schema } from "effect";
 
@@ -197,7 +197,7 @@ import {
   ToolNameSchema,
   ToolCallRequestSchema,
   ToolResultSchema,
-} from "../../src/contracts/tool-schemas.js";
+} from "../../src/runtime-state/contracts/tool-schemas.js";
 
 describe("ToolNameSchema", () => {
   it("decodes valid tool names", () => {
@@ -293,7 +293,7 @@ Expected: all tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/contracts/tool-schemas.ts tests/contracts/tool-schemas.test.ts src/contracts/index.ts
+git add src/runtime-state/contracts/tool-schemas.ts tests/contracts/tool-schemas.test.ts src/runtime-state/contracts/index.ts
 git commit -m "feat(contracts): add tool call schemas with tests"
 ```
 
@@ -302,17 +302,17 @@ git commit -m "feat(contracts): add tool call schemas with tests"
 ### Task 3: Plan schemas
 
 **Files:**
-- Create: `src/contracts/plan-schemas.ts`
+- Create: `src/runtime-state/contracts/plan-schemas.ts`
 - Create: `tests/contracts/plan-schemas.test.ts`
 
 **Interfaces:**
 - Produces: `PlanningObjectiveSchema`, `StrategicPlanSchema` — Effect Schema equivalents
 - Consumes: existing `PlanningObjective`, `StrategicPlan` type shapes
 
-- [ ] **Step 1: Create `src/contracts/plan-schemas.ts`**
+- [ ] **Step 1: Create `src/runtime-state/contracts/plan-schemas.ts`**
 
 ```typescript
-// src/contracts/plan-schemas.ts
+// src/runtime-state/contracts/plan-schemas.ts
 //
 // Effect Schema contracts for strategic planning boundaries.
 // Mirrors src/planning/planning-types.ts.
@@ -408,7 +408,7 @@ import {
   StrategicPlanSchema,
   EffortEstimateSchema,
   PlanStatusSchema,
-} from "../../src/contracts/plan-schemas.js";
+} from "../../src/runtime-state/contracts/plan-schemas.js";
 
 describe("EffortEstimateSchema", () => {
   it("accepts valid efforts", () => {
@@ -484,7 +484,7 @@ Expected: all tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/contracts/plan-schemas.ts tests/contracts/plan-schemas.test.ts src/contracts/index.ts
+git add src/runtime-state/contracts/plan-schemas.ts tests/contracts/plan-schemas.test.ts src/runtime-state/contracts/index.ts
 git commit -m "feat(contracts): add plan schemas with tests"
 ```
 
@@ -493,20 +493,20 @@ git commit -m "feat(contracts): add plan schemas with tests"
 ### Task 4: Proposal schemas
 
 **Files:**
-- Create: `src/contracts/proposal-schemas.ts`
+- Create: `src/runtime-state/contracts/proposal-schemas.ts`
 - Create: `tests/contracts/proposal-schemas.test.ts`
 
 **Interfaces:**
 - Produces: `ProposalTargetSchema`, `AdaptationProposalSchema`, `ProposalStatusSchema`, `ProposalActionSchema` — Effect Schema equivalents of the real types
-- Consumes: existing `ProposalTarget`, `AdaptationProposal`, `ProposalStatus`, `ProposalAction` shapes from `src/adaptation/adaptation-types.ts`
+- Consumes: existing `ProposalTarget`, `AdaptationProposal`, `ProposalStatus`, `ProposalAction` shapes from `src/planning/adaptation/adaptation-types.ts`
 
-- [ ] **Step 1: Create `src/contracts/proposal-schemas.ts`**
+- [ ] **Step 1: Create `src/runtime-state/contracts/proposal-schemas.ts`**
 
 ```typescript
-// src/contracts/proposal-schemas.ts
+// src/runtime-state/contracts/proposal-schemas.ts
 //
 // Effect Schema contracts for adaptation proposal boundaries.
-// Mirrors src/adaptation/adaptation-types.ts exactly.
+// Mirrors src/planning/adaptation/adaptation-types.ts exactly.
 
 import { Schema } from "effect";
 
@@ -664,7 +664,7 @@ import {
   ProposalActionSchema,
   ProposalTargetSchema,
   AdaptationProposalSchema,
-} from "../../src/contracts/proposal-schemas.js";
+} from "../../src/runtime-state/contracts/proposal-schemas.js";
 
 describe("ProposalStatusSchema", () => {
   it("accepts valid statuses", () => {
@@ -773,7 +773,7 @@ Expected: all tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/contracts/proposal-schemas.ts tests/contracts/proposal-schemas.test.ts src/contracts/index.ts
+git add src/runtime-state/contracts/proposal-schemas.ts tests/contracts/proposal-schemas.test.ts src/runtime-state/contracts/index.ts
 git commit -m "feat(contracts): add proposal schemas with tests"
 ```
 
@@ -782,20 +782,20 @@ git commit -m "feat(contracts): add proposal schemas with tests"
 ### Task 5: LLM schemas
 
 **Files:**
-- Create: `src/contracts/llm-schemas.ts`
+- Create: `src/runtime-state/contracts/llm-schemas.ts`
 - Create: `tests/contracts/llm-schemas.test.ts`
 
 **Interfaces:**
 - Produces: `ToolCallSchema`, `NormalizedResponseSchema`, `NormalizedRequestSchema` — Effect Schema equivalents
-- Consumes: existing `ToolCall`, `NormalizedResponse`, `NormalizedRequest` shapes from `src/providers/types.ts`
+- Consumes: existing `ToolCall`, `NormalizedResponse`, `NormalizedRequest` shapes from `src/models/providers/types.ts`
 
-- [ ] **Step 1: Create `src/contracts/llm-schemas.ts`**
+- [ ] **Step 1: Create `src/runtime-state/contracts/llm-schemas.ts`**
 
 ```typescript
-// src/contracts/llm-schemas.ts
+// src/runtime-state/contracts/llm-schemas.ts
 //
 // Effect Schema contracts for LLM provider boundaries.
-// Mirrors src/providers/types.ts ToolCall, NormalizedResponse, NormalizedRequest.
+// Mirrors src/models/providers/types.ts ToolCall, NormalizedResponse, NormalizedRequest.
 
 import { Schema } from "effect";
 
@@ -893,7 +893,7 @@ import {
   TokenUsageSchema,
   NormalizedResponseSchema,
   NormalizedMessageSchema,
-} from "../../src/contracts/llm-schemas.js";
+} from "../../src/runtime-state/contracts/llm-schemas.js";
 
 describe("ToolCallSchema", () => {
   it("decodes a valid tool call", () => {
@@ -985,7 +985,7 @@ Expected: all tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/contracts/llm-schemas.ts tests/contracts/llm-schemas.test.ts src/contracts/index.ts
+git add src/runtime-state/contracts/llm-schemas.ts tests/contracts/llm-schemas.test.ts src/runtime-state/contracts/index.ts
 git commit -m "feat(contracts): add LLM schemas with tests"
 ```
 
@@ -994,17 +994,17 @@ git commit -m "feat(contracts): add LLM schemas with tests"
 ### Task 6: Decode/parse helpers
 
 **Files:**
-- Create: `src/contracts/helpers.ts`
+- Create: `src/runtime-state/contracts/helpers.ts`
 - Create: `tests/contracts/helpers.test.ts`
 
 **Interfaces:**
 - Produces: `decode<A>(schema, input)` → `Either<ParseError, A>`, `parseOrThrow<A>(schema, input)` → `A`, `formatErrors(e)` → `string`
 - Consumes: schemas from Tasks 2-5
 
-- [ ] **Step 1: Create `src/contracts/helpers.ts`**
+- [ ] **Step 1: Create `src/runtime-state/contracts/helpers.ts`**
 
 ```typescript
-// src/contracts/helpers.ts
+// src/runtime-state/contracts/helpers.ts
 //
 // Typed decode/parse wrappers around Effect Schema.
 // Returns Either for safe decoding — never throws unless explicitly called.
@@ -1048,8 +1048,8 @@ export function formatErrors(error: ParseResult.ParseError): string {
 
 import { describe, it, assert } from "vitest";
 import { Schema, Either } from "effect";
-import { decode, parseOrThrow, formatErrors } from "../../src/contracts/helpers.js";
-import { ToolCallRequestSchema } from "../../src/contracts/tool-schemas.js";
+import { decode, parseOrThrow, formatErrors } from "../../src/runtime-state/contracts/helpers.js";
+import { ToolCallRequestSchema } from "../../src/runtime-state/contracts/tool-schemas.js";
 
 const TestSchema = Schema.Struct({
   name: Schema.String,
@@ -1114,7 +1114,7 @@ Expected: all contract tests pass.
 
 - [ ] **Step 4: Commit + update barrel export**
 
-Update `src/contracts/index.ts`:
+Update `src/runtime-state/contracts/index.ts`:
 
 ```typescript
 export * from "./tool-schemas.js";
@@ -1125,7 +1125,7 @@ export * from "./helpers.js";
 ```
 
 ```bash
-git add src/contracts/ tests/contracts/
+git add src/runtime-state/contracts/ tests/contracts/
 git commit -m "feat(contracts): add decode/parse helpers and barrel exports"
 ```
 

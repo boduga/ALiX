@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { PatchParser, normalizeAiderFormat } from "../../src/patch/patch-parser.js";
+import { PatchParser, normalizeAiderFormat } from "../../src/execution/patch/patch-parser.js";
 
 describe("PatchParser", () => {
   it("parses unified diff format", () => {
@@ -40,7 +40,7 @@ describe("PatchParser", () => {
 
   it("serializes parsed patch back to unified format", () => {
     const parser = new PatchParser();
-    const parsed: import("../../src/patch/patch-parser.js").ParsedPatch = {
+    const parsed: import("../../src/execution/patch/patch-parser.js").ParsedPatch = {
       files: [{
         oldPath: "file.ts",
         newPath: "file.ts",

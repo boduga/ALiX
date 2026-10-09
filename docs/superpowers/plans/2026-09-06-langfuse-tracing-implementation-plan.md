@@ -55,10 +55,10 @@ Before starting:
 * configuration schema/types
 * configuration loader/deep-merge implementation
 * credential-store resolution
-* `src/agent/session.ts`
-* `src/agent/agent-loop.ts`
-* `src/providers/provider-contract-validation.ts`
-* `src/tools/executor.ts`
+* `src/agents/agent/session.ts`
+* `src/agents/agent/agent-loop.ts`
+* `src/models/providers/provider-contract-validation.ts`
+* `src/capabilities/tools/executor.ts`
 * existing `ExecutionContext` definitions
 * existing `runId`, `parentRunId`, `invocationId`, `toolCallId`, and `executionId` types
 * existing logging/warn-once utilities
@@ -139,19 +139,19 @@ The dependency is installed, but no runtime behavior has changed yet.
 ### Create
 
 ```text
-src/tracing/
+src/models/tracing/
 ```
 
 and:
 
 ```text
-src/tracing/AGENTS.md
+src/models/tracing/AGENTS.md
 ```
 
 Create the core modules according to repository conventions, approximately:
 
 ```text
-src/tracing/
+src/models/tracing/
 ├── AGENTS.md
 ├── types.ts
 ├── client.ts
@@ -675,7 +675,7 @@ No root execution path creates more than one trace for a single logical run.
 ### Location
 
 ```text
-src/providers/provider-contract-validation.ts
+src/models/providers/provider-contract-validation.ts
 ```
 
 at:
@@ -751,7 +751,7 @@ Use existing `invocationId` for correlation.
 ### Location
 
 ```text
-src/tools/executor.ts
+src/capabilities/tools/executor.ts
 ```
 
 at:
@@ -1178,7 +1178,7 @@ Search the source tree and assert that runtime code does not directly import Lan
 Expected only:
 
 ```text
-src/tracing/langfuse-client.ts
+src/models/tracing/langfuse-client.ts
 ```
 
 or the chosen adapter file.
@@ -1192,9 +1192,9 @@ langfuse
 should exist in:
 
 ```text
-src/agent/
-src/providers/
-src/tools/
+src/agents/agent/
+src/models/providers/
+src/capabilities/tools/
 ```
 
 except through the tracing facade.
@@ -1208,7 +1208,7 @@ This is primarily an architectural regression check.
 Update:
 
 ```text
-src/tracing/AGENTS.md
+src/models/tracing/AGENTS.md
 ```
 
 with:

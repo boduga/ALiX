@@ -22,7 +22,7 @@ import {
   createPreAuthLimiter,
   createPostAuthLimiter,
   type Clock,
-} from "../../../src/security/inspector/rate-limiter.js";
+} from "../../../src/governance/security/inspector/rate-limiter.js";
 
 // ---------------------------------------------------------------------------
 // Fake clock for deterministic testing

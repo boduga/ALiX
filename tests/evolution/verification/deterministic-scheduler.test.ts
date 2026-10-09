@@ -10,7 +10,7 @@ import {
   LogicalClock,
   DeterministicScheduler,
   type ScheduledTask,
-} from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
 
 function makeTask(
   taskId: string,

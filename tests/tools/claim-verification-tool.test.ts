@@ -6,7 +6,7 @@ import { join } from "node:path";
 import {
   handleClaimVerify,
   CLAIM_VERIFY_TOOL,
-} from "../../src/tools/claim-verification-tool.js";
+} from "../../src/capabilities/tools/claim-verification-tool.js";
 import {
   DEFAULT_DECISION_CONFIG,
   ProjectionRejectedError,
@@ -22,7 +22,7 @@ import {
   type DecisionConfig,
   type DecisionJournalRecord,
   type JevTransport,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 const SUPPORTED = "Water boils at 100 degrees Celsius at sea level.";
 const EVIDENCE = [{ excerpt: "At sea level, water boils at 100 degrees Celsius." }];

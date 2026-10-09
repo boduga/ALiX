@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SopsView } from '../../../src/tui/views/sops-view.js';
+import { SopsView } from '../../../src/interfaces/tui/views/sops-view.js';
 
 describe('SopsView', () => {
   const ctx = (

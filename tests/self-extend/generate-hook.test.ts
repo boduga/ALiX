@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseTrigger, buildHook } from "../../src/self-extend/generate-hook.js";
+import { parseTrigger, buildHook } from "../../src/capabilities/self-extend/generate-hook.js";
 
 describe("parseTrigger", () => {
   it("detects pre_tool from 'before every tool call'", () => {

@@ -10,13 +10,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { canonicalStringify } from "../../../src/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../src/governance/security/audit/canonical-json.js";
 import {
   buildExecutionEvidence,
   buildLineage,
   computeExecutionEvidenceHash,
   type BuildEvidenceInput,
-} from "../../../src/evolution/execution/execution-evidence-bridge.js";
+} from "../../../src/planning/evolution/execution/execution-evidence-bridge.js";
 import type {
   ExecutionPlan,
   ExecutionReport,
@@ -24,10 +24,10 @@ import type {
   ExecutionStep,
   RollbackStep,
   EvolutionExecutionEvidence,
-} from "../../../src/evolution/execution/contracts/execution-contract.js";
-import type { GovernanceDecision } from "../../../src/evolution/governance/contracts/decision-contract.js";
-import type { EvolutionProposal } from "../../../src/evolution/contracts/evolution-contract.js";
-import type { LineageRecord } from "../../../src/evolution/verification/contracts/verification-contract.js";
+} from "../../../src/planning/evolution/execution/contracts/execution-contract.js";
+import type { GovernanceDecision } from "../../../src/planning/evolution/governance/contracts/decision-contract.js";
+import type { EvolutionProposal } from "../../../src/planning/evolution/contracts/evolution-contract.js";
+import type { LineageRecord } from "../../../src/planning/evolution/verification/contracts/verification-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

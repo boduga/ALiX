@@ -4,7 +4,7 @@
 
 **Goal:** Add a read-only terminal `alix executive dashboard` command that surfaces 8 subsystem health scores (governance, learning, adaptation, agents, tools, workflow, memory, security), ranked worst-first, with the top 3 surfaced as executive priorities.
 
-**Architecture:** Three layers, mirroring P8.5b + P9.5: (1) `buildExecutiveHealthReport()` aggregator in `src/executive/executive-health.ts` (read-only, hybrid data: 2 Tier-1 sources from existing P8/P9 dashboards + 6 thin Tier-2 P10 adapters); (2) `renderExecutiveDashboard()` terminal formatter in `src/cli/commands/executive-dashboard-renderer.ts`; (3) `runDashboard()` CLI handler in `src/cli/commands/executive-dashboard-handler.ts` (extracted for sentinel scoping). The `executive` top-level command is registered in `src/cli.ts` and dispatched through `src/cli/commands/executive.ts`.
+**Architecture:** Three layers, mirroring P8.5b + P9.5: (1) `buildExecutiveHealthReport()` aggregator in `src/execution/executive/executive-health.ts` (read-only, hybrid data: 2 Tier-1 sources from existing P8/P9 dashboards + 6 thin Tier-2 P10 adapters); (2) `renderExecutiveDashboard()` terminal formatter in `src/interfaces/cli/commands/executive-dashboard-renderer.ts`; (3) `runDashboard()` CLI handler in `src/interfaces/cli/commands/executive-dashboard-handler.ts` (extracted for sentinel scoping). The `executive` top-level command is registered in `src/cli.ts` and dispatched through `src/interfaces/cli/commands/executive.ts`.
 
 **Tech Stack:** TypeScript, Node.js fs/path, vitest. Pure read-only. No new evidence types, no new writer methods, no mutation paths.
 
@@ -12,12 +12,12 @@
 
 1. `report.schemaVersion = "p10.0.0"` (string literal, exact value).
 2. The aggregator is **the only place** that touches the data layer. Renderers, handlers, and adapters may read stores/files but never write.
-3. The handler is extracted to `src/cli/commands/executive-dashboard-handler.ts` so the sentinel can scan a precise file.
+3. The handler is extracted to `src/interfaces/cli/commands/executive-dashboard-handler.ts` so the sentinel can scan a precise file.
 4. The sentinel scans the 10 P10.0 executive files (aggregator, 6 adapters, renderer, handler, dispatcher). It forbids mutation write paths (appliers, approve/apply/reject verbs, `ProposalStore.save` / `ProposalStore.markOrphaned`, all `record*` evidence write methods) but **permits** read-only store queries (`.list`, `.load`, `.loadVerified`).
 5. The 8 subsystems are exactly: `governance`, `learning`, `adaptation`, `agents`, `tools`, `workflow`, `memory`, `security`. Sort is **ascending** (worst first).
 6. Status mapping: `score < 60` → `critical` 🔴, `60 <= score < 80` → `warning` 🟡, `score >= 80` → `healthy` 🟢.
-7. Tier-1 sources are reused: `buildGovernanceHealth` (P9.0a) for governance score, `buildDashboardReport` from `src/learning/learning-dashboard.ts` (P8.5b) for learning score. No new code for Tier 1.
-8. Tier-2 adapters are thin: pure read functions in `src/executive/adapters/<name>-health.ts`. Each returns a small typed report with a 0–100 score and a one-line summary.
+7. Tier-1 sources are reused: `buildGovernanceHealth` (P9.0a) for governance score, `buildDashboardReport` from `src/planning/learning/learning-dashboard.ts` (P8.5b) for learning score. No new code for Tier 1.
+8. Tier-2 adapters are thin: pure read functions in `src/execution/executive/adapters/<name>-health.ts`. Each returns a small typed report with a 0–100 score and a one-line summary.
 9. The aggregator NEVER writes to any store, file, or evidence chain. The purity sentinel enforces this.
 10. P10.0 stays terminal-text (no TUI/web). Single-shot. Single window.
 11. Top-level CLI registration: `src/cli.ts` adds `if (command === "executive")` block that imports `./cli/commands/executive.js`, mirroring the existing `governance` registration.
@@ -26,7 +26,7 @@
 ### Task 1: Create the aggregator types
 
 **Files:**
-- Create: `src/executive/executive-health.ts` (the file will be filled in by Task 2; this task only adds the types)
+- Create: `src/execution/executive/executive-health.ts` (the file will be filled in by Task 2; this task only adds the types)
 
 **Interfaces:**
 - Consumes: nothing (foundational)
@@ -116,7 +116,7 @@ Expected: clean (no errors).
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/executive/executive-health.ts
+git add src/execution/executive/executive-health.ts
 git commit -m "P10.0: add executive-health type definitions"
 ```
 
@@ -124,12 +124,12 @@ git commit -m "P10.0: add executive-health type definitions"
 ### Task 2: Create the 6 Tier-2 adapter stubs
 
 **Files:**
-- Create: `src/executive/adapters/agent-health.ts`
-- Create: `src/executive/adapters/tool-health.ts`
-- Create: `src/executive/adapters/workflow-health.ts`
-- Create: `src/executive/adapters/memory-health.ts`
-- Create: `src/executive/adapters/security-health.ts`
-- Create: `src/executive/adapters/adaptation-health.ts`
+- Create: `src/execution/executive/adapters/agent-health.ts`
+- Create: `src/execution/executive/adapters/tool-health.ts`
+- Create: `src/execution/executive/adapters/workflow-health.ts`
+- Create: `src/execution/executive/adapters/memory-health.ts`
+- Create: `src/execution/executive/adapters/security-health.ts`
+- Create: `src/execution/executive/adapters/adaptation-health.ts`
 
 **Interfaces:**
 - Consumes: nothing (foundational)
@@ -141,7 +141,7 @@ Each adapter is stubbed in this task (returns a hardcoded 100 score + "stub" sum
 
 For each adapter, use this pattern (substitute the name and any subsystem-specific source field):
 
-`src/executive/adapters/agent-health.ts`:
+`src/execution/executive/adapters/agent-health.ts`:
 ```ts
 /**
  * P10.0 — Agent Health (Tier-2 adapter).
@@ -188,7 +188,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/executive/adapters/
+git add src/execution/executive/adapters/
 git commit -m "P10.0: add 6 Tier-2 health adapter stubs"
 ```
 
@@ -196,10 +196,10 @@ git commit -m "P10.0: add 6 Tier-2 health adapter stubs"
 ### Task 3: Implement the aggregator
 
 **Files:**
-- Modify: `src/executive/executive-health.ts` (append the aggregator function and helpers)
+- Modify: `src/execution/executive/executive-health.ts` (append the aggregator function and helpers)
 
 **Interfaces:**
-- Consumes: types from Task 1; Tier-1 sources (`buildGovernanceHealth`, `buildGovernanceAssessment`, `buildDashboardReport` from `src/learning/learning-dashboard.js`); 6 Tier-2 adapters from Task 2
+- Consumes: types from Task 1; Tier-1 sources (`buildGovernanceHealth`, `buildGovernanceAssessment`, `buildDashboardReport` from `src/planning/learning/learning-dashboard.js`); 6 Tier-2 adapters from Task 2
 - Produces: `buildExecutiveHealthReport(opts)` — the only public runtime export
 
 - [ ] **Step 1: Append the constants and the aggregator function**
@@ -391,7 +391,7 @@ Expected: clean. If `buildGovernanceAssessment` signature differs from the brief
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/executive/executive-health.ts
+git add src/execution/executive/executive-health.ts
 git commit -m "P10.0: implement buildExecutiveHealthReport aggregator"
 ```
 
@@ -418,7 +418,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildExecutiveHealthReport } from "../../src/executive/executive-health.js";
+import { buildExecutiveHealthReport } from "../../src/execution/executive/executive-health.js";
 
 let cwd: string;
 
@@ -534,12 +534,12 @@ git commit -m "P10.0: add aggregator unit tests (9 tests)"
 ### Task 5: Implement the 6 Tier-2 adapters (real signal)
 
 **Files:**
-- Modify: `src/executive/adapters/agent-health.ts`
-- Modify: `src/executive/adapters/tool-health.ts`
-- Modify: `src/executive/adapters/workflow-health.ts`
-- Modify: `src/executive/adapters/memory-health.ts`
-- Modify: `src/executive/adapters/security-health.ts`
-- Modify: `src/executive/adapters/adaptation-health.ts`
+- Modify: `src/execution/executive/adapters/agent-health.ts`
+- Modify: `src/execution/executive/adapters/tool-health.ts`
+- Modify: `src/execution/executive/adapters/workflow-health.ts`
+- Modify: `src/execution/executive/adapters/memory-health.ts`
+- Modify: `src/execution/executive/adapters/security-health.ts`
+- Modify: `src/execution/executive/adapters/adaptation-health.ts`
 
 **Interfaces:**
 - Consumes: subsystem-specific stores (capability-evolution-store, security/secret-scanner, etc.)
@@ -549,7 +549,7 @@ Replace the stub from Task 2 with real reads. Each adapter is a thin computation
 
 - [ ] **Step 1: Implement `buildAgentHealth`**
 
-Replace the stub in `src/executive/adapters/agent-health.ts`:
+Replace the stub in `src/execution/executive/adapters/agent-health.ts`:
 
 ```ts
 import { join } from "node:path";
@@ -583,7 +583,7 @@ function clampScore(n: number): number {
 
 - [ ] **Step 2: Implement `buildToolHealth`**
 
-Replace the stub in `src/executive/adapters/tool-health.ts`:
+Replace the stub in `src/execution/executive/adapters/tool-health.ts`:
 
 ```ts
 import { join } from "node:path";
@@ -617,7 +617,7 @@ function clampScore(n: number): number {
 
 - [ ] **Step 3: Implement `buildWorkflowHealth`**
 
-Replace the stub in `src/executive/adapters/workflow-health.ts`:
+Replace the stub in `src/execution/executive/adapters/workflow-health.ts`:
 
 ```ts
 import { join } from "node:path";
@@ -646,7 +646,7 @@ function clampScore(n: number): number {
 
 - [ ] **Step 4: Implement `buildAdaptationHealth`**
 
-Replace the stub in `src/executive/adapters/adaptation-health.ts`:
+Replace the stub in `src/execution/executive/adapters/adaptation-health.ts`:
 
 ```ts
 import { join } from "node:path";
@@ -741,7 +741,7 @@ Expected: tsc clean, 9 tests still pass. If store APIs differ from what's shown,
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/executive/adapters/
+git add src/execution/executive/adapters/
 git commit -m "P10.0: implement 6 Tier-2 health adapters with real signal"
 ```
 
@@ -749,7 +749,7 @@ git commit -m "P10.0: implement 6 Tier-2 health adapters with real signal"
 ### Task 6: Implement the terminal renderer
 
 **Files:**
-- Create: `src/cli/commands/executive-dashboard-renderer.ts`
+- Create: `src/interfaces/cli/commands/executive-dashboard-renderer.ts`
 
 **Interfaces:**
 - Consumes: `ExecutiveHealthReport` from Task 3
@@ -858,7 +858,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/executive-dashboard-renderer.ts
+git add src/interfaces/cli/commands/executive-dashboard-renderer.ts
 git commit -m "P10.0: implement renderExecutiveDashboard"
 ```
 
@@ -866,7 +866,7 @@ git commit -m "P10.0: implement renderExecutiveDashboard"
 ### Task 7: Implement the CLI handler
 
 **Files:**
-- Create: `src/cli/commands/executive-dashboard-handler.ts`
+- Create: `src/interfaces/cli/commands/executive-dashboard-handler.ts`
 
 **Interfaces:**
 - Consumes: `buildExecutiveHealthReport` (Task 3), `renderExecutiveDashboard` (Task 6)
@@ -925,7 +925,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/executive-dashboard-handler.ts
+git add src/interfaces/cli/commands/executive-dashboard-handler.ts
 git commit -m "P10.0: implement runDashboard CLI handler (extracted for sentinel)"
 ```
 
@@ -933,7 +933,7 @@ git commit -m "P10.0: implement runDashboard CLI handler (extracted for sentinel
 ### Task 8: Create the executive subcommand dispatcher
 
 **Files:**
-- Create: `src/cli/commands/executive.ts`
+- Create: `src/interfaces/cli/commands/executive.ts`
 
 **Interfaces:**
 - Consumes: `runDashboard` from Task 7
@@ -978,7 +978,7 @@ Expected: clean.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/executive.ts
+git add src/interfaces/cli/commands/executive.ts
 git commit -m "P10.0: create executive subcommand dispatcher"
 ```
 
@@ -1077,7 +1077,7 @@ function capturedLog(): string {
 
 describe("runDashboard", () => {
   it("renders 2 panel headers in text mode", async () => {
-    const { runDashboard } = await import("../../../src/cli/commands/executive-dashboard-handler.js");
+    const { runDashboard } = await import("../../../src/interfaces/cli/commands/executive-dashboard-handler.js");
     await runDashboard([]);
     const out = capturedLog();
     expect(out).toContain("EXECUTIVE DASHBOARD");
@@ -1086,7 +1086,7 @@ describe("runDashboard", () => {
   });
 
   it("emits valid JSON in --json mode", async () => {
-    const { runDashboard } = await import("../../../src/cli/commands/executive-dashboard-handler.js");
+    const { runDashboard } = await import("../../../src/interfaces/cli/commands/executive-dashboard-handler.js");
     await runDashboard(["--json"]);
     const out = capturedLog();
     const parsed = JSON.parse(out);
@@ -1097,7 +1097,7 @@ describe("runDashboard", () => {
   });
 
   it("respects --window flag", async () => {
-    const { runDashboard } = await import("../../../src/cli/commands/executive-dashboard-handler.js");
+    const { runDashboard } = await import("../../../src/interfaces/cli/commands/executive-dashboard-handler.js");
     await runDashboard(["--window", "7", "--json"]);
     const parsed = JSON.parse(capturedLog());
     expect(parsed.windowDays).toBe(7);
@@ -1148,16 +1148,16 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const EXECUTIVE_FILES = [
-  "src/executive/executive-health.ts",
-  "src/executive/adapters/agent-health.ts",
-  "src/executive/adapters/tool-health.ts",
-  "src/executive/adapters/workflow-health.ts",
-  "src/executive/adapters/memory-health.ts",
-  "src/executive/adapters/security-health.ts",
-  "src/executive/adapters/adaptation-health.ts",
-  "src/cli/commands/executive-dashboard-renderer.ts",
-  "src/cli/commands/executive-dashboard-handler.ts",
-  "src/cli/commands/executive.ts",
+  "src/execution/executive/executive-health.ts",
+  "src/execution/executive/adapters/agent-health.ts",
+  "src/execution/executive/adapters/tool-health.ts",
+  "src/execution/executive/adapters/workflow-health.ts",
+  "src/execution/executive/adapters/memory-health.ts",
+  "src/execution/executive/adapters/security-health.ts",
+  "src/execution/executive/adapters/adaptation-health.ts",
+  "src/interfaces/cli/commands/executive-dashboard-renderer.ts",
+  "src/interfaces/cli/commands/executive-dashboard-handler.ts",
+  "src/interfaces/cli/commands/executive.ts",
 ];
 
 const FORBIDDEN_IN_EXECUTIVE = [

@@ -9,7 +9,7 @@
 ### Task 1: Extract setup phases + add builder
 
 **Files:**
-- Modify: `src/agent/session.ts` — split initialize() into standalone functions, add AgentSessionBuilder class
+- Modify: `src/agents/agent/session.ts` — split initialize() into standalone functions, add AgentSessionBuilder class
 
 Extract the 10 initialize phases (P0-P10, lines ~418-664) into individual functions:
 

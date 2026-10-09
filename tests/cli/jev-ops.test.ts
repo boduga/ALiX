@@ -10,7 +10,7 @@ import {
   createOutcomeLabelStore,
   createOutcomeLabel,
   recordDecision,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 import {
   JEV_KEY_PROVIDER_ID,
   JevOperatorError,
@@ -29,21 +29,21 @@ import {
   resolveJevPaths,
   rollbackProfiles,
   shippedProfiles,
-} from "../../src/cli/commands/jev/ops.js";
+} from "../../src/interfaces/cli/commands/jev/ops.js";
 import {
   buildFixtures,
   loadFixtures,
   makeExecutor,
   runReplay,
-} from "../../src/cli/commands/jev/replay-ops.js";
+} from "../../src/interfaces/cli/commands/jev/replay-ops.js";
 import {
   renderDisagreements,
   renderLabelPairEvidence,
   renderLabelPairReveal,
-} from "../../src/cli/commands/jev/render.js";
-import { dispatchJevCommand } from "../../src/cli/commands/jev/main.js";
-import { _setUserConfigPathOverride } from "../../src/cli/helpers/api-keys.js";
-import { _setHomedirOverride } from "../../src/config/loader.js";
+} from "../../src/interfaces/cli/commands/jev/render.js";
+import { dispatchJevCommand } from "../../src/interfaces/cli/commands/jev/main.js";
+import { _setUserConfigPathOverride } from "../../src/interfaces/cli/helpers/api-keys.js";
+import { _setHomedirOverride } from "../../src/operations/config/loader.js";
 
 let cwd: string;
 let paths: ReturnType<typeof resolveJevPaths>;

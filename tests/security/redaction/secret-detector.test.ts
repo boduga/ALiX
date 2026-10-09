@@ -11,7 +11,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { SecretDetector, type SecretSpan } from "../../../src/security/redaction/secret-detector.js";
+import { SecretDetector, type SecretSpan } from "../../../src/governance/security/redaction/secret-detector.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

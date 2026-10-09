@@ -1,0 +1,614 @@
+import type { ContextBudgetConfig } from "./context-budget.js";
+import type { DecisionConfig } from "../../planning/decision/config.js";
+
+export type SessionMode = "auto" | "ask" | "bypass";
+
+/**
+ * Parse a session-mode value from untrusted input (CLI flags, tool args,
+ * POST bodies). Returns the value when it is a valid mode, otherwise the
+ * fallback. Single authority for the allowlist previously repeated at
+ * every boundary (subagent-manager, coordination-tools/routes).
+ */
+export function parseSessionMode(value: unknown, fallback: SessionMode = "ask"): SessionMode {
+  if (value === "auto" || value === "ask" || value === "bypass") return value;
+  return fallback;
+}
+
+export type Decision = "ask" | "allow" | "deny";
+
+/**
+ * Capabilities a tier's model can be DECLARED to have (`models.<tier>.capabilities`).
+ *
+ * `vision` is image INPUT (the model can read an image). `image_output` is
+ * image GENERATION (the model can produce one). A model that both reads and
+ * writes images declares both.
+ */
+export const MODEL_CAPABILITY_NAMES = [
+  "tools",
+  "structured_output",
+  "vision",
+  "image_output",
+] as const;
+
+export type ModelCapabilityName = (typeof MODEL_CAPABILITY_NAMES)[number];
+
+export function isModelCapabilityName(value: unknown): value is ModelCapabilityName {
+  return (MODEL_CAPABILITY_NAMES as readonly unknown[]).includes(value);
+}
+
+/**
+ * The subset of capabilities DISCOVERY can verify, used by
+ * `selection.capabilities` (a requirement resolved against a catalog).
+ *
+ * `image_output` is deliberately absent: no discovery source reports it, so
+ * accepting it as a selection requirement would create an always-unsatisfiable
+ * policy. Declare it on `models.<tier>.capabilities` instead and let the caller
+ * filter.
+ */
+export const DISCOVERY_CAPABILITY_NAMES = [
+  "tools",
+  "structured_output",
+  "vision",
+] as const;
+
+export type DiscoveryCapabilityName = (typeof DISCOVERY_CAPABILITY_NAMES)[number];
+
+export function isDiscoveryCapabilityName(value: unknown): value is DiscoveryCapabilityName {
+  return (DISCOVERY_CAPABILITY_NAMES as readonly unknown[]).includes(value);
+}
+
+/**
+ * Selection policy for a model tier: a declarative requirement instead of a
+ * concrete model id. `models.<tier>.selection` expresses WHAT the model must
+ * provide; discovery (the OpenRouter catalog) supplies the concrete model id.
+ *
+ * `cost`: "free" selects only zero-priced models (derived from catalog pricing,
+ * not the `:free` suffix); "paid" only nonzero-priced; "any" both.
+ * `capabilities`: required capability intersection, restricted to what
+ * discovery can verify (`DiscoveryCapabilityName`).
+ * `minContext`: minimum verified input-token context.
+ *
+ * Design principle: configuration expresses requirements; discovery supplies
+ * model identities — the current free-model list is never hard-coded.
+ */
+export type ModelSelectionPolicy = {
+  provider?: string;
+  cost?: "free" | "paid" | "any";
+  capabilities?: DiscoveryCapabilityName[];
+  minContext?: number;
+};
+
+/**
+ * Launcher knobs for the local-llama provider. Nested under `localLlama` so
+ * provider-specific tuning stays off the flat, provider-agnostic `ModelConfig`.
+ *
+ * Resolution precedence: config `localLlama` block > env `ALIX_LLAMA_*` >
+ * default. `gpuLayers` and `flashAttn` default to `"auto"` — the corresponding
+ * `-ngl`/`--flash-attn` argv are omitted in that state.
+ */
+export type LocalLlamaKnobConfig = {
+  ctxSize?: number;
+  gpuLayers?: number | "auto";
+  flashAttn?: boolean | "auto";
+  threads?: number;
+  batchSize?: number;
+  ubatchSize?: number;
+  port?: number;
+  serverPath?: string;
+};
+
+export type ModelConfig = {
+  provider: string;
+  name: string;
+  selection?: ModelSelectionPolicy;
+  /**
+   * What the configured model is DECLARED to do, by the operator. Distinct
+   * from `selection.capabilities`, which is a discovery REQUIREMENT: this is
+   * the statement of fact callers filter against when a hard constraint
+   * applies (e.g. a task that must read an image, or one that must produce
+   * one). A capability that is not declared is unverifiable and therefore
+   * treated as unsatisfied (fail closed) — never assumed available.
+   */
+  capabilities?: ModelCapabilityName[];
+  temperature?: number;
+  maxOutputTokens?: number;
+  maxContextTokens?: number;
+  maxIterations?: number;
+  streaming?: boolean;
+  /** Total wall-clock timeout for a provider call (ms). Default varies by provider. */
+  timeoutMs?: number;
+  /** Per-chunk idle timeout for streaming provider calls (ms). Default 60000. */
+  streamIdleTimeoutMs?: number;
+  /**
+   * Single-model GGUF file path for the local-llama provider. Honored by the
+   * launcher (`-m`) and the discovery scan-directory override (spec decision 6).
+   */
+  localModelPath?: string;
+  /** Launcher knobs for the local-llama provider (config > env > default). */
+  localLlama?: LocalLlamaKnobConfig;
+  /**
+   * Base URL for the FreeLLMAPI provider (default http://10.1.1.12:3001).
+   * The provider targets `${freellmapiBaseUrl}/v1/chat/completions`.
+   */
+  freellmapiBaseUrl?: string;
+  /**
+   * Server root for the ollama provider (default http://localhost:11434).
+   * Resolution: config `ollamaBaseUrl` > env `OLLAMA_BASE_URL`/`OLLAMA_HOST` > default.
+   * The provider targets `${ollamaBaseUrl}/api/generate` (no tools) and
+   * `${ollamaBaseUrl}/api/chat` (with tools).
+   */
+  ollamaBaseUrl?: string;
+  /**
+   * Server endpoint for the local-llama provider
+   * (default http://localhost:8080/v1/chat/completions).
+   * Resolution: config `localLlamaBaseUrl` > env `ALIX_LLAMA_BASE_URL` > default.
+   * A bare server root (http://host:port) is accepted and normalized to the
+   * full `/v1/chat/completions` endpoint.
+   */
+  localLlamaBaseUrl?: string;
+  /**
+   * API root for the xiaomi-mimo-token-plan provider (default
+   * https://token-plan-sgp.xiaomimimo.com/v1). Token Plan subscriptions expose
+   * a region/account-exclusive root ending in `/v1`; the chat endpoint is
+   * `${xiaomiMimoBaseUrl}/chat/completions`.
+   */
+  xiaomiMimoBaseUrl?: string;
+  routing?: {
+    freeFallback?: boolean;
+    fallbacks?: Array<{
+      provider: string;
+      name: string;
+    }>;
+  };
+};
+
+/**
+ * Canonical configuration tier vocabulary.
+ *
+ * This is the single runtime/type source of truth for configuration tiers.
+ * The profile vocabulary (ProfileModelTier in profile-types.ts) is a
+ * distinct, mapped vocabulary — see PROFILE_TIER_MAP for the only bridge.
+ */
+export const MODEL_TIER_VALUES = [
+  "default",
+  "thinking",
+  "coding",
+  "fast",
+  "critic",
+  "tiny",
+  "image",
+] as const;
+
+export type ModelTier = typeof MODEL_TIER_VALUES[number];
+
+/**
+ * The six non-default subagent tiers. `default` is represented by the
+ * `model` projection, therefore only these six appear under `subagents`.
+ */
+export const MODEL_SUBAGENT_TIERS = [
+  "thinking",
+  "coding",
+  "fast",
+  "critic",
+  "tiny",
+  "image",
+] as const;
+
+export type ModelsConfig =
+  Partial<Record<ModelTier, ModelConfig>>;
+
+/**
+ * Loader-owned compatibility projection.
+ *
+ * `default` is represented by `model`, therefore only the six
+ * non-default tiers appear here.
+ */
+export type DerivedSubagentConfig =
+  Partial<
+    Record<Exclude<ModelTier, "default">, ModelConfig>
+  >;
+
+/**
+ * Boundary validator — is this arbitrary string a canonical configuration
+ * tier?
+ *
+ * Used only at external boundaries: CLI arguments, config-file values, and
+ * other arbitrary strings. `createModelResolver()` does not need this check
+ * because its API accepts `ModelTier`.
+ */
+export function isModelTier(
+  value: string,
+): value is ModelTier {
+  return (
+    MODEL_TIER_VALUES as readonly string[]
+  ).includes(value);
+}
+
+/**
+ * Validity predicate for a resolved model — a model is usable when it names a
+ * provider plus either a concrete model or a selection policy.
+ *
+ * Shared by the loader projection (`normalizeModelConfig`) and
+ * `createModelResolver()` so both agree on what counts as "configured".
+ * Lives in schema.ts next to `isModelTier` so the resolver stays a pure,
+ * dependency-light module (runtime readers that import it do not transitively
+ * pull the loader, signing, or credential-store modules).
+ */
+export function isValidModelConfig(
+  model: ModelConfig | undefined,
+): model is ModelConfig {
+  return (
+    model !== undefined &&
+    typeof model.provider === "string" &&
+    model.provider.length > 0 &&
+    ((typeof model.name === "string" && model.name.length > 0) ||
+      model.selection !== undefined)
+  );
+}
+
+/**
+ * §5.2 legacy migration — seed `models.default` from a legacy `model` when no
+ * canonical default exists (key presence wins, even if the value is invalid).
+ *
+ * Shared by the loader (`normalizeModelConfig`, in-memory on load) and the
+ * persistence boundary (`withoutDerivedModelProjections`, before a write) so
+ * the two sites cannot drift and stripping a projection never destroys the
+ * user's only model assignment. Mutates `config` in place.
+ */
+export function seedLegacyModelDefault(config: Partial<AlixConfig>): void {
+  if (config.models?.default === undefined && isValidModelConfig(config.model)) {
+    config.models = { ...(config.models ?? {}), default: { ...config.model } };
+  }
+}
+
+export type PermissionConfig = {
+  default: Decision;
+  tools: Record<string, Decision>;
+  protectedPaths: string[];
+  allowNetworkDomains: string[];
+  denyCommands: string[];
+  sessionMode?: SessionMode; // "auto" | "ask" | "bypass", defaults to "ask"
+  shellWhitelist?: {
+    enabled: boolean;
+    commands: string[];
+    allowUnmatched?: boolean;  // true = approval, false = deny
+  };
+};
+
+export type ContextConfig = {
+  repoMap: boolean;
+  repoMapMode: "lite" | "full";
+  maxRepoMapTokens: number;
+  semanticSearch: boolean;
+  includeGitStatus: boolean;
+  pinnedFiles: string[];
+  /** C0/C1 reserved-output reservation knobs (B; defaults 0.20 / 4,096 / 32,768). */
+  budget?: ContextBudgetConfig;
+};
+
+export type RuntimeConfig = {
+  provider: "process" | "docker" | "remote";
+  shell: string;
+  commandTimeoutMs: number;
+  envAllowlist: string[];
+};
+
+export type UiConfig = {
+  enabled: boolean;
+  host: string;
+  port: number;
+  transport: "sse" | "websocket";
+  security?: UiSecurityConfig;
+};
+
+export type UiSecurityConfig = {
+  authentication: "required" | "disabled-loopback-development";
+  remoteAccess: boolean;
+  allowedHosts: string[];
+  allowedOrigins: string[];
+  trustedProxyCidrs: string[];
+  requireTlsForRemote: boolean;
+};
+
+export type McpTransportType = "stdio" | "http" | "websocket";
+
+export type McpServerConfig =
+  | { type: "stdio"; name: string; command: string; args?: string[]; env?: Record<string, string> }
+  | { type: "http"; name: string; url: string; headers?: Record<string, string> }
+  | { type: "websocket"; name: string; url: string; headers?: Record<string, string> };
+
+export type SkillFactoryConfig = {
+  enabled: boolean;
+  provider: string;
+  model: string;
+  maxStore: number;
+  maxCandidates: number;
+  autoPromote: boolean;
+};
+
+export type SkillStoreConfig = {
+  enabled: boolean;
+  path: string;
+};
+
+export type SkillSafetyConfig = {
+  /** Require explicit confirmation for non-core skill installs (default true). */
+  requireConfirmation?: boolean;
+  /** Scan package scripts for denied files/secrets before install (default true). */
+  scanScripts?: boolean;
+  /** `alix skills run` blocks network access (best-effort; default true). */
+  denyNetwork?: boolean;
+  /** Timeout in ms for `alix skills run` (default 30000). */
+  sandboxTimeoutMs?: number;
+  /**
+   * DANGEROUS_SHELL_PATTERNS codes to skip during the pre-install script scan
+   * (operator-acknowledged as reviewed). Default [] — every warning fires until
+   * explicitly acknowledged. Never suppresses deny-level verifier findings.
+   */
+  ignoreWarningPatterns?: string[];
+  /**
+   * When true, `alix skills run` refuses to execute if network isolation was
+   * requested (`denyNetwork`) but could not be established (unshare missing /
+   * user namespaces blocked). Default false — falls back to env-only isolation
+   * with a prominent warning.
+   */
+  requireNetworkIsolation?: boolean;
+};
+
+export type ExtensionStoreConfig = {
+  enabled: boolean;
+  path: string;
+};
+
+export type SubagentRole = "auto" | "explorer" | "reviewer" | "test_investigator" | "docs_researcher" | "worker" | "researcher";
+
+export type SubagentRoleConfig = {
+  role: SubagentRole;
+  mode: "read_only" | "write";
+  style?: SubagentStyle;  // references MODEL_TIERS bucket
+  retryCount?: number;
+  enabled?: boolean;
+};
+
+export type SubagentStyle = "thinking" | "coding" | "fast" | "critic" | "tiny" | "image";
+
+export type ToolReliabilityTier = "stable" | "unstable" | "experimental";
+
+export type ModelToolReliability = {
+  modelPattern: string;  // regex pattern to match model name
+  tier: ToolReliabilityTier;
+  defaultMaxTools: number;
+  preferKeywordScoring: boolean;
+};
+
+export type ToolConfig = {
+  maxTools: number;
+  tokenBudget: number;
+  reliabilityDefaults: ModelToolReliability[];
+};
+
+export type ModelTierConfig = {
+  provider: string;
+  name: string;
+};
+
+export type SubagentConfig = {
+  enabled: boolean;
+  thinking?: ModelTierConfig;  // Strategic reasoning, planning, complex logic
+  coding?: ModelTierConfig;     // Code generation, tool execution, patches
+  fast?: ModelTierConfig;       // Quick classification, routing, simple tasks
+  critic?: ModelTierConfig;     // Verification, validation, hallucination checks
+  tiny?: ModelTierConfig;       // Embeddings, reranking, memory compression, intent
+  image?: ModelTierConfig;     // Image generation, multimodal analysis
+  roles: SubagentRoleConfig[];
+};
+
+export type SubagentTask = {
+  id: string;
+  role: SubagentRole;
+  prompt: string;
+  mode: "read_only" | "write";
+  ownedPaths?: string[];
+  inputPaths?: string[]; // explicit producer files this worker may read by basename
+  expectedOutput?: string;
+  contextBundle?: string; // serialized context from ContextCompiler
+  eventSessionId?: string; // parent runtime session for lifecycle projection
+  cwd?: string; // working directory for the spawned subagent process
+  scriptedScenarioJson?: string; // scripted provider scenario for the eval harness
+  coordinationRunId?: string; // optional operator-facing correlation metadata
+  assignedAgentId?: string; // planner-assigned agent label; not the execution identity
+  taskLabel?: string; // concise operator-facing task title
+  /** Coordination retries are terminal only when the scheduler exhausts them. */
+  deferTerminalLifecycle?: boolean;
+};
+
+export type SubagentResult = {
+  id: string;
+  role: SubagentRole;
+  status: "success" | "failed" | "rejected" | "partial";
+  findings: SubagentFinding[];
+  events: string[]; // serialized session events
+  error?: string;
+};
+
+export type SubagentFinding = {
+  type: "file_ref" | "code_location" | "summary" | "risk_flag" | "web_source" | "synthesis";
+  content: string;
+  confidence: "high" | "medium" | "low";
+  refs?: string[];
+};
+
+export type WebSourceFinding = {
+  type: "web_source";
+  content: string;
+  url: string;
+  title: string;
+  confidence: "high" | "medium" | "low";
+  refs?: string[];
+};
+
+export type SynthesisFinding = {
+  type: "synthesis";
+  content: string;
+  sources: string[];
+  confidence: "high" | "medium" | "low";
+};
+
+/**
+ * Tracing capture level for a payload kind (design §9).
+ *
+ * Mirrors the `CaptureLevel` union exported by `src/models/tracing/capture.ts`
+ * ("full" | "truncated" | "off"). The values are structurally identical so the
+ * capture policy accepts these directly; kept as a separate literal in the
+ * config schema so the low-level schema module does not import the tracing
+ * leaf. Never controls whether mandatory secret redaction occurs.
+ */
+export type TracingCaptureMode = "full" | "truncated" | "off";
+
+/**
+ * Per-kind capture levels plus truncation limits for Langfuse payloads.
+ * Limits are applied only at level `"truncated"` (after mandatory redaction).
+ */
+export type TracingCaptureConfig = {
+  /** Capture level for normalized model messages. @default "truncated" */
+  messages: TracingCaptureMode;
+  /** Capture level for reasoning text. @default "off" */
+  reasoning: TracingCaptureMode;
+  /** Capture level for tool call arguments. @default "truncated" */
+  toolInput: TracingCaptureMode;
+  /** Capture level for tool call output. @default "truncated" */
+  toolOutput: TracingCaptureMode;
+  /** Max chars kept per message string leaf at "truncated". @default 4000 */
+  maxMessageChars: number;
+  /** Max chars kept per tool-output string at "truncated". @default 2000 */
+  maxToolOutputChars: number;
+};
+
+/**
+ * Langfuse endpoint credentials. Keys resolve STORE-ONLY through the existing
+ * `cred://` mechanism at config-load time (never from environment variables)
+ * and only while `tracing.enabled === true` — a disabled tracing section
+ * resolves nothing.
+ */
+export type TracingLangfuseConfig = {
+  /** Langfuse instance base URL. Must be a valid http(s) URL when tracing is enabled. @default "" */
+  baseUrl: string;
+  /** Store-only reference; resolved via `cred://langfuse/publicKey`. @default "cred://langfuse/publicKey" */
+  publicKey: string;
+  /** Store-only reference; resolved via `cred://langfuse/secretKey`. @default "cred://langfuse/secretKey" */
+  secretKey: string;
+};
+
+/**
+ * Top-level `tracing` configuration (design §9). When `enabled` is false (the
+ * default) no Langfuse client is constructed, no credentials are resolved, no
+ * network requests occur, and the runtime uses the inert `NoopTraceClient`.
+ */
+export type TracingConfig = {
+  /** Master switch. @default false */
+  enabled: boolean;
+  /** Langfuse endpoint + store-only credential references. */
+  langfuse: TracingLangfuseConfig;
+  /** Capture levels and truncation limits. */
+  capture: TracingCaptureConfig;
+  /** Max wait for a tracing flush before ALiX continues (bounded-flush contract). @default 2000 */
+  flushTimeoutMs: number;
+};
+
+/**
+ * AlixConfig — the runtime configuration shape.
+ *
+ * Persisted (single source of truth on disk):
+ *   models, modelProfile, apiKeys, all other persisted configuration.
+ *
+ * Runtime-only compatibility projections (produced exclusively by
+ * loadConfig(), never independently persisted):
+ *   model, subagents
+ *
+ * apiKeys remains independent and is never coupled to model selection.
+ */
+export type AlixConfig = {
+  version: 1;
+  model: ModelConfig;
+  permissions: PermissionConfig;
+  context: ContextConfig;
+  runtime: RuntimeConfig;
+  ui: UiConfig;
+  apiKeys?: Record<string, string>;
+  mcpServers?: McpServerConfig[];
+  mcpServerPaths?: string[];
+  skills?: {
+    factory?: SkillFactoryConfig;
+    store?: SkillStoreConfig;
+    safety?: SkillSafetyConfig;
+  };
+  extensions?: {
+    store?: ExtensionStoreConfig;
+  };
+  subagents?: SubagentConfig;
+  toolConfig?: ToolConfig;
+  ownership?: {
+    enabled?: boolean;
+    autoAcquire?: boolean;
+    defaultTtlMs?: number;
+    historyRetentionDays?: number;
+  };
+  tracing?: TracingConfig;
+  modelProfile?: string;
+  models?: ModelsConfig;
+  /**
+   * Bounded probabilistic decisions (Jev System One). Optional: absent means
+   * local defaults (DEFAULT_DECISION_CONFIG). Type-only import — the schema
+   * stays decoupled from the decision runtime leaf.
+   */
+  decision?: DecisionConfig;
+};
+
+/**
+ * Nominal persistence brand for the persisted configuration representation.
+ *
+ * The brand is type-only: `declare const` emits nothing at runtime and the
+ * unique-symbol computed property is erased, so it never appears in a
+ * serialized config.json. A raw AlixConfig cannot structurally satisfy
+ * PersistedAlixConfig — only after crossing `withoutDerivedModelProjections()`
+ * is an object branded as persisted.
+ */
+declare const persistedConfigBrand: unique symbol;
+
+/**
+ * The only `subagents` content that may reach disk.
+ *
+ * §2.8.1/§2.8.4: `subagents` is a valid container of non-model subagent
+ * *behavior* configuration — `enabled`/`roles` are preserved, never replaced —
+ * but the six `<tier>` keys are loader-derived model-selection projections and
+ * must never be independently written.
+ */
+export type PersistedSubagentConfig = {
+  enabled?: boolean;
+  roles?: SubagentRoleConfig[];
+};
+
+/**
+ * Persisted configuration representation.
+ *
+ * `model` and the six `subagents.<tier>` keys (loader-derived compatibility
+ * projections) are stripped; `models` is the single persistent source of model
+ * assignments. `subagents.enabled`/`roles` are behavior config and may persist.
+ */
+export interface PersistedAlixConfig
+  extends Omit<AlixConfig, "model" | "subagents"> {
+  /** Behavior config only (enabled/roles); model-tier projections never persist. */
+  subagents?: PersistedSubagentConfig;
+  readonly [persistedConfigBrand]: true;
+}
+
+export type ValidationIssue = {
+  path: string;
+  level: "error" | "warning";
+  message: string;
+};
+
+export type ConfigValidationResult = {
+  valid: boolean;
+  issues: ValidationIssue[];
+};

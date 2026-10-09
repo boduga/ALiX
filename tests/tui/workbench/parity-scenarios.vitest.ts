@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TuiApp, type TuiAppOptions } from '../../../src/tui/app.js';
-import { MockInput, MockOutput } from '../../../src/tui/io.js';
-import type { WorkbenchInspectableItem } from '../../../src/tui/workbench/model/artifact-inspection.js';
-import { buildAgentInspectorModel } from '../../../src/tui/workbench/model/agent-inspector.js';
-import { buildAgentInspectorSections } from '../../../src/tui/workbench/views/agent-inspector.js';
+import { TuiApp, type TuiAppOptions } from '../../../src/interfaces/tui/app.js';
+import { MockInput, MockOutput } from '../../../src/interfaces/tui/io.js';
+import type { WorkbenchInspectableItem } from '../../../src/interfaces/tui/workbench/model/artifact-inspection.js';
+import { buildAgentInspectorModel } from '../../../src/interfaces/tui/workbench/model/agent-inspector.js';
+import { buildAgentInspectorSections } from '../../../src/interfaces/tui/workbench/views/agent-inspector.js';
 import { agent, paintInspectorFrame as paintInspector, scenarioSnapshot } from './parity-helpers.js';
 
 // Shared `agent()` factory, roster-totals literal, `scenarioSnapshot()` and

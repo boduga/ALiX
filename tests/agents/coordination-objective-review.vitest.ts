@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { ModelAdapter, NormalizedRequest } from "../../src/providers/types.js";
-import type { SubagentResult } from "../../src/config/schema.js";
+import type { ModelAdapter, NormalizedRequest } from "../../src/models/providers/types.js";
+import type { SubagentResult } from "../../src/operations/config/schema.js";
 import { reviewCoordinationResult } from "../../src/agents/coordination-objective-review.js";
 
 const candidate: SubagentResult = {

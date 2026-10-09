@@ -14,12 +14,12 @@ import {
   releaseWorkerLeases,
   releaseWorkerOwnership,
   renewWorkerOwnership,
-} from "../../src/kernel/coordination-ownership.js";
-import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
+} from "../../src/coordination/kernel/coordination-ownership.js";
+import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
 import {
   createCoordinationRun,
   createWorkerAssignment,
-} from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/coordination-types.js";
 
 describe("acquireWorkerOwnership", () => {
   let cwd: string;

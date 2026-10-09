@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EffectivenessStore } from "../../src/adaptation/effectiveness-store.js";
-import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
+import { EffectivenessStore } from "../../src/planning/adaptation/effectiveness-store.js";
+import type { ProposalEffectivenessReport } from "../../src/planning/adaptation/effectiveness-types.js";
 
 function sampleReport(id: string): ProposalEffectivenessReport {
   return {

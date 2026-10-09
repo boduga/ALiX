@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createContextBudget } from "../../src/config/context-budget.js";
+import { createContextBudget } from "../../src/operations/config/context-budget.js";
 
 const descriptor = { provider: "test", model: "m", contextWindowTokens: 64_000, tokenizer: "cl100k_base" as const, safetyFactor: 1.2 };
 

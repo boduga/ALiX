@@ -12,7 +12,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateHost, normalizeHost, type HostPolicyResult } from "../../../src/security/inspector/host-policy.js";
+import { validateHost, normalizeHost, type HostPolicyResult } from "../../../src/governance/security/inspector/host-policy.js";
 
 const DEFAULT_ALLOWED = ["127.0.0.1", "::1", "localhost"];
 

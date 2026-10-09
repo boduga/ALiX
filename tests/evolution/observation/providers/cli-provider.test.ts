@@ -3,7 +3,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { CliObservationProvider } from "../../../../src/evolution/observation/providers/cli-provider.js";
+import { CliObservationProvider } from "../../../../src/planning/evolution/observation/providers/cli-provider.js";
 
 describe("CliObservationProvider", () => {
   const provider = new CliObservationProvider();

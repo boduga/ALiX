@@ -355,7 +355,7 @@ Keep existing `ownershipScopes: string[]` for display and compatibility.
 
 ### 7.1 New file
 
-Create `src/kernel/ownership-claim-compiler.ts`.
+Create `src/coordination/kernel/ownership-claim-compiler.ts`.
 
 ### 7.2 Contract
 
@@ -405,7 +405,7 @@ Validate that the resolved root remains inside `cwd`. Reject traversal such as `
 
 ### 8.1 New lock
 
-Create `src/kernel/coordination-run-lock.ts`. Follow the existing ownership lock pattern.
+Create `src/coordination/kernel/coordination-run-lock.ts`. Follow the existing ownership lock pattern.
 
 Lock location: `.alix/coordination/locks/<runId>.lock`
 
@@ -460,7 +460,7 @@ Required test: two workers complete concurrently; both final statuses survive; n
 
 ### 9.1 New file
 
-Create `src/kernel/coordination-ownership.ts`.
+Create `src/coordination/kernel/coordination-ownership.ts`.
 
 ### 9.2 Acquire result
 
@@ -803,7 +803,7 @@ Always in `finally`. Clear persisted `leaseIds` after release.
 
 ### 16.1 New file
 
-Create `src/kernel/coordination-result-store.ts`.
+Create `src/coordination/kernel/coordination-result-store.ts`.
 
 ### 16.2 Location
 
@@ -879,7 +879,7 @@ Always include `stopReason`. Never loop forever.
 
 ### 19.1 New service
 
-Create `src/daemon/coordination-scheduler-service.ts`.
+Create `src/operations/daemon/coordination-scheduler-service.ts`.
 
 ### 19.2 Responsibilities
 
@@ -993,23 +993,23 @@ Avoid duplicate audit emission when `ExecutionAuthorization` already records the
 ### Modify
 
 ```
-src/kernel/coordination-types.ts
-src/kernel/coordination-planner.ts
-src/kernel/coordination-store.ts
+src/coordination/kernel/coordination-types.ts
+src/coordination/kernel/coordination-planner.ts
+src/coordination/kernel/coordination-store.ts
 src/cli.ts
 ```
 
 ### Create
 
 ```
-src/kernel/coordination-run-lock.ts
-src/kernel/ownership-claim-compiler.ts
-src/kernel/coordination-ownership.ts
-src/kernel/coordination-result-store.ts
-src/kernel/worker-executor.ts
-src/kernel/coordination-scheduler.ts
-src/daemon/coordination-scheduler-service.ts
-src/cli/commands/coordination.ts
+src/coordination/kernel/coordination-run-lock.ts
+src/coordination/kernel/ownership-claim-compiler.ts
+src/coordination/kernel/coordination-ownership.ts
+src/coordination/kernel/coordination-result-store.ts
+src/coordination/kernel/worker-executor.ts
+src/coordination/kernel/coordination-scheduler.ts
+src/operations/daemon/coordination-scheduler-service.ts
+src/interfaces/cli/commands/coordination.ts
 ```
 
 ### Tests

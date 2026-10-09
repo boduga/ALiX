@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **`src/capability/*` is NOT modified.** (Phase-1 invariant 9.)
+- **`src/capabilities/capability/*` is NOT modified.** (Phase-1 invariant 9.)
 - **`timelineEvents[]` and its views are untouched** — the operator narrative stays on its own stream (Phase-3 boundary, D3).
 - **`RuntimeView` never calls `EventLog` and never interprets raw events** — dependency chain is `EventLog → RuntimeCollector → RuntimeSnapshot → RuntimeView`.
 - **`ExecutionTraceBuilder` consumes EventLog facts only** — never reads `timelineEvents[]` or capability presenters (D10).
@@ -37,7 +37,7 @@ Payload fields of interest (all defensive reads): tool events carry `toolCallId`
 ### Task 1: Trace contracts
 
 **Files:**
-- Create: `src/tui/runtime/execution-trace.ts`
+- Create: `src/interfaces/tui/runtime/execution-trace.ts`
 - Test: `tests/tui/runtime/execution-trace.vitest.ts`
 
 **Interfaces:**
@@ -48,7 +48,7 @@ Payload fields of interest (all defensive reads): tool events carry `toolCallId`
 ```typescript
 // tests/tui/runtime/execution-trace.vitest.ts
 import { describe, it, expect } from 'vitest';
-import type { ExecutionTraceEntry, ExecutionTraceRetention } from '../../src/tui/runtime/execution-trace.js';
+import type { ExecutionTraceEntry, ExecutionTraceRetention } from '../../src/interfaces/tui/runtime/execution-trace.js';
 
 describe('ExecutionTraceEntry contract', () => {
   it('is a readonly DTO (type-level: assigning a readonly field must fail to compile)', () => {
@@ -100,7 +100,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the contracts file**
 
 ```typescript
-// src/tui/runtime/execution-trace.ts
+// src/interfaces/tui/runtime/execution-trace.ts
 
 /** What kind of execution a trace entry represents. */
 export type ExecutionTraceKind = 'tool' | 'policy' | 'capability' | 'runtime';
@@ -155,7 +155,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/runtime/execution-trace.ts tests/tui/runtime/execution-trace.vitest.ts
+git add src/interfaces/tui/runtime/execution-trace.ts tests/tui/runtime/execution-trace.vitest.ts
 git commit -m "feat(capabilities): execution trace contracts — kind/status/entry/window"
 ```
 
@@ -164,11 +164,11 @@ git commit -m "feat(capabilities): execution trace contracts — kind/status/ent
 ### Task 2: Pure builder + window implementation
 
 **Files:**
-- Create: `src/tui/runtime/execution-trace-builder.ts`
+- Create: `src/interfaces/tui/runtime/execution-trace-builder.ts`
 - Test: `tests/tui/runtime/execution-trace-builder.vitest.ts`
 
 **Interfaces:**
-- Consumes: `ExecutionTraceEntry`, `ExecutionTraceKind`, `ExecutionTraceStatus`, `ExecutionTraceRetention` (Task 1); `AlixEvent` from `src/events/types.js` (note: from `src/tui/runtime/`, that's `../../events/types.js`).
+- Consumes: `ExecutionTraceEntry`, `ExecutionTraceKind`, `ExecutionTraceStatus`, `ExecutionTraceRetention` (Task 1); `AlixEvent` from `src/runtime-state/events/types.js` (note: from `src/interfaces/tui/runtime/`, that's `../../events/types.js`).
 - Produces: `buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTraceEntry[]`, `createExecutionTraceRetention(maxTerminal?: number): ExecutionTraceRetention`, `computeExecutionTrace(events, retention): ExecutionTraceEntry[]` (the builder+retention composition the collector calls).
 
 - [ ] **Step 1: Write the failing test**
@@ -178,8 +178,8 @@ git commit -m "feat(capabilities): execution trace contracts — kind/status/ent
 import { describe, it, expect } from 'vitest';
 import {
   buildExecutionTrace, createExecutionTraceRetention, computeExecutionTrace,
-} from '../../src/tui/runtime/execution-trace-builder.js';
-import type { AlixEvent } from '../../src/events/types.js';
+} from '../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import type { AlixEvent } from '../../src/runtime-state/events/types.js';
 
 let seq = 0;
 function evt(type: string, payload: Record<string, unknown> = {}): AlixEvent {
@@ -318,7 +318,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Create the builder**
 
 ```typescript
-// src/tui/runtime/execution-trace-builder.ts
+// src/interfaces/tui/runtime/execution-trace-builder.ts
 import type { AlixEvent } from '../../events/types.js';
 import type { ExecutionTraceEntry, ExecutionTraceKind, ExecutionTraceRetention } from './execution-trace.js';
 
@@ -503,7 +503,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit`
 ```bash
-git add src/tui/runtime/execution-trace-builder.ts tests/tui/runtime/execution-trace-builder.vitest.ts
+git add src/interfaces/tui/runtime/execution-trace-builder.ts tests/tui/runtime/execution-trace-builder.vitest.ts
 git commit -m "feat(capabilities): pure execution-trace builder + window"
 ```
 
@@ -512,8 +512,8 @@ git commit -m "feat(capabilities): pure execution-trace builder + window"
 ### Task 3: RuntimeCollector integration + snapshot trace
 
 **Files:**
-- Modify: `src/tui/snapshot.ts` (add `trace` to `RuntimeSnapshot`)
-- Modify: `src/tui/runtime-collector.ts` (compute `trace` via `computeExecutionTrace`)
+- Modify: `src/interfaces/tui/snapshot.ts` (add `trace` to `RuntimeSnapshot`)
+- Modify: `src/interfaces/tui/runtime-collector.ts` (compute `trace` via `computeExecutionTrace`)
 - Test: `tests/tui/runtime-collector.vitest.ts` (new — snapshot contains trace; poll failure preserves old snapshot)
 
 **Interfaces:**
@@ -525,8 +525,8 @@ git commit -m "feat(capabilities): pure execution-trace builder + window"
 ```typescript
 // tests/tui/runtime-collector.vitest.ts
 import { describe, it, expect, vi } from 'vitest';
-import { RuntimeCollectorImpl } from '../../src/tui/runtime-collector.js';
-import type { EventLog } from '../../src/events/event-log.js';
+import { RuntimeCollectorImpl } from '../../src/interfaces/tui/runtime-collector.js';
+import type { EventLog } from '../../src/runtime-state/events/event-log.js';
 
 function makeEventLog(readAll: () => Promise<unknown[]>): EventLog {
   return { readAll } as unknown as EventLog;
@@ -573,7 +573,7 @@ describe('RuntimeCollectorImpl trace integration', () => {
 Run: `npx vitest run tests/tui/runtime-collector.vitest.ts --config vitest.config.mts`
 Expected: FAIL — `trace` does not exist on `RuntimeSnapshot` / module issues.
 
-- [ ] **Step 3: Add `trace` to `RuntimeSnapshot` in `src/tui/snapshot.ts`**
+- [ ] **Step 3: Add `trace` to `RuntimeSnapshot` in `src/interfaces/tui/snapshot.ts`**
 
 ```typescript
 export interface RuntimeSnapshot {
@@ -588,7 +588,7 @@ export interface RuntimeSnapshot {
 ```
 Add the type import: `import type { ExecutionTraceEntry } from './runtime/execution-trace.js';`
 
-- [ ] **Step 4: Compute `trace` in `src/tui/runtime-collector.ts`**
+- [ ] **Step 4: Compute `trace` in `src/interfaces/tui/runtime-collector.ts`**
 
 Update the import line to add `computeExecutionTrace`:
 ```typescript
@@ -623,7 +623,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts` (any test asserting `RuntimeSnapshot` equality may need `trace` added — fix those literals).
 ```bash
-git add src/tui/snapshot.ts src/tui/runtime-collector.ts tests/tui/runtime-collector.vitest.ts
+git add src/interfaces/tui/snapshot.ts src/interfaces/tui/runtime-collector.ts tests/tui/runtime-collector.vitest.ts
 git commit -m "feat(capabilities): RuntimeCollector computes snapshot.trace"
 ```
 
@@ -632,8 +632,8 @@ git commit -m "feat(capabilities): RuntimeCollector computes snapshot.trace"
 ### Task 4: RuntimeView migration + filter
 
 **Files:**
-- Modify: `src/tui/views/runtime-view.ts`
-- Modify: `src/tui/state.ts` (add `runtimeTraceFilter` to `PerTabState` + `createInitialPerTabState`)
+- Modify: `src/interfaces/tui/views/runtime-view.ts`
+- Modify: `src/interfaces/tui/state.ts` (add `runtimeTraceFilter` to `PerTabState` + `createInitialPerTabState`)
 - Test: `tests/tui/views/runtime-view.vitest.ts` (new — filter renders subsets; summary intact)
 - Test: `tests/tui/state.vitest.ts` (default filter + serializability)
 
@@ -646,10 +646,10 @@ git commit -m "feat(capabilities): RuntimeCollector computes snapshot.trace"
 ```typescript
 // tests/tui/views/runtime-view.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { RuntimeView } from '../../../src/tui/views/runtime-view.js';
-import { createInitialPerTabState } from '../../../src/tui/state.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import type { ExecutionTraceEntry } from '../../../src/tui/runtime/execution-trace.js';
+import { RuntimeView } from '../../../src/interfaces/tui/views/runtime-view.js';
+import { createInitialPerTabState } from '../../../src/interfaces/tui/state.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import type { ExecutionTraceEntry } from '../../../src/interfaces/tui/runtime/execution-trace.js';
 
 function makeTrace(): ExecutionTraceEntry[] {
   return [
@@ -703,7 +703,7 @@ describe('RuntimeView execution trace', () => {
 Run: `npx vitest run tests/tui/views/runtime-view.vitest.ts --config vitest.config.mts`
 Expected: FAIL — `runtimeTraceFilter` missing / view still renders old flat list.
 
-- [ ] **Step 3: Add the filter to `src/tui/state.ts`**
+- [ ] **Step 3: Add the filter to `src/interfaces/tui/state.ts`**
 
 ```typescript
 /** Client-side filter for the Runtime tab's execution trace (view-local presentation state). */
@@ -716,7 +716,7 @@ Add to `PerTabState`:
 ```
 Add to `createInitialPerTabState`: `runtimeTraceFilter: 'all',`.
 
-- [ ] **Step 4: Migrate `src/tui/views/runtime-view.ts`**
+- [ ] **Step 4: Migrate `src/interfaces/tui/views/runtime-view.ts`**
 
 Replace the `r.events` render block with a `r.trace` render block filtered by `ctx.perTab.runtimeTraceFilter`. The summary header (events count, workflow) stays. The scroll/pin logic carries over but over the filtered trace:
 
@@ -759,7 +759,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/views/runtime-view.ts src/tui/state.ts tests/tui/views/runtime-view.vitest.ts tests/tui/state.vitest.ts
+git add src/interfaces/tui/views/runtime-view.ts src/interfaces/tui/state.ts tests/tui/views/runtime-view.vitest.ts tests/tui/state.vitest.ts
 git commit -m "feat(capabilities): RuntimeView renders execution trace with client-side filter"
 ```
 
@@ -768,8 +768,8 @@ git commit -m "feat(capabilities): RuntimeView renders execution trace with clie
 ### Task 5: Remove the deprecated flat runtime projection (conditional)
 
 **Files:**
-- Modify: `src/tui/snapshot.ts` (delete `RuntimeEventSnapshot`, remove `events?` from `RuntimeSnapshot`)
-- Modify: `src/tui/runtime-collector.ts` (drop the `mapped`/`RuntimeEventSnapshot` code and the `events` cache field)
+- Modify: `src/interfaces/tui/snapshot.ts` (delete `RuntimeEventSnapshot`, remove `events?` from `RuntimeSnapshot`)
+- Modify: `src/interfaces/tui/runtime-collector.ts` (drop the `mapped`/`RuntimeEventSnapshot` code and the `events` cache field)
 - Test: `tests/tui/runtime-collector.vitest.ts` (update — snapshot no longer has `events`)
 - Test: any test that asserted on `snap.runtime.events` (fix to `trace` or drop)
 
@@ -780,13 +780,13 @@ git commit -m "feat(capabilities): RuntimeView renders execution trace with clie
 - [ ] **Step 1: Verify zero non-deprecated consumers**
 
 Run: `rg "RuntimeEventSnapshot|runtime\.events|r\.events|\.events" src/tui tests/tui`
-Expected: only `src/tui/snapshot.ts` (definitions), `src/tui/runtime-collector.ts` (producer), and test fixtures that reference the flat `events` field.
+Expected: only `src/interfaces/tui/snapshot.ts` (definitions), `src/interfaces/tui/runtime-collector.ts` (producer), and test fixtures that reference the flat `events` field.
 
-- [ ] **Step 2: Remove from `src/tui/snapshot.ts`**
+- [ ] **Step 2: Remove from `src/interfaces/tui/snapshot.ts`**
 
 Delete `RuntimeEventSnapshot` and the deprecated `events?` field from `RuntimeSnapshot` (keep `trace`). **Only delete the field if Step 1 confirmed zero non-deprecated consumers.** If any consumer outside the trace migration still reads `events`, keep `RuntimeEventSnapshot` + `events?` as a migration shim and file the removal as a follow-up.
 
-- [ ] **Step 3: Remove from `src/tui/runtime-collector.ts`**
+- [ ] **Step 3: Remove from `src/interfaces/tui/runtime-collector.ts`**
 
 Drop the `mapped`/`RuntimeEventSnapshot` mapping code, the `recent` slice, the `RuntimeEventSnapshot` import, and the `events` field from the cache + `sample()` assignment. The snapshot becomes:
 ```typescript
@@ -807,7 +807,7 @@ Drop the `mapped`/`RuntimeEventSnapshot` mapping code, the `recent` slice, the `
 
 Run: `rg "RuntimeEventSnapshot|\.runtime\.events|r\.events" src/ tests/` → zero. Then `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`.
 ```bash
-git add src/tui/snapshot.ts src/tui/runtime-collector.ts tests/tui/runtime-collector.vitest.ts tests/tui/views/runtime-view.vitest.ts
+git add src/interfaces/tui/snapshot.ts src/interfaces/tui/runtime-collector.ts tests/tui/runtime-collector.vitest.ts tests/tui/views/runtime-view.vitest.ts
 git commit -m "refactor(capabilities): remove deprecated flat runtime event rendering"
 ```
 
@@ -845,7 +845,7 @@ RuntimeView`; the view never touches the EventLog directly. Running entries are
 never evicted; terminal entries are bounded to the last 50.
 
 The operator timeline (chat) is unchanged — it stays the curated narrative on
-its own `timelineEvents[]` stream. The platform (src/capability/) is untouched.
+its own `timelineEvents[]` stream. The platform (src/capabilities/capability/) is untouched.
 ```
 
 - [ ] **Step 4: Commit**
@@ -863,6 +863,6 @@ git commit -m "docs(capabilities): Phase-4 usage note + spec status to implement
 - ✅ Running entries never disappear mid-run; terminal entries bounded (keep-last-50, terminal-oldest→newest then running appended).
 - ✅ All / Tool / Capability / Policy / Runtime filtering works entirely client-side over `RuntimeSnapshot.trace`.
 - ✅ `RuntimeView` never calls `EventLog` and never interprets raw events — dependency chain `EventLog → RuntimeCollector → RuntimeSnapshot → RuntimeView` holds.
-- ✅ `timelineEvents[]` and its views untouched; `src/capability/*` unmodified.
+- ✅ `timelineEvents[]` and its views untouched; `src/capabilities/capability/*` unmodified.
 - ✅ `ExecutionTraceBuilder` is pure, consumes EventLog facts only, and returns immutable detached DTOs with `sourceEvents` provenance; `RuntimeEventSnapshot`/`RuntimeSnapshot.events` removed.
 - ✅ Vitest green (new + existing), `tsc --noEmit` clean.

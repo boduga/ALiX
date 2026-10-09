@@ -2,13 +2,13 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { parseSkillContent } from "../../src/skills/types.js";
+import { parseSkillContent } from "../../src/capabilities/skills/types.js";
 import {
   checkManifest,
   MANIFEST_DENY_CODES,
   scanSkillDirectory,
   scanSkillFiles,
-} from "../../src/skills/security.js";
+} from "../../src/capabilities/skills/security.js";
 
 describe("parseSkillContent manifest extensions", () => {
   it("parses allowed-tools (list), requires, license", () => {

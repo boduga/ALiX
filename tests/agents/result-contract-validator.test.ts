@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { validateResult } from "../../src/agents/result-contract-validator.js";
-import type { SubagentResult } from "../../src/config/schema.js";
+import type { SubagentResult } from "../../src/operations/config/schema.js";
 
 function makeResult(status: SubagentResult["status"], content?: string): SubagentResult {
   return {

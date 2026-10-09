@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ApprovalRecommendationStore } from "../../src/adaptation/approval-recommendation-store.js";
-import type { ApprovalRecommendation } from "../../src/adaptation/recommendation-types.js";
+import { ApprovalRecommendationStore } from "../../src/planning/adaptation/approval-recommendation-store.js";
+import type { ApprovalRecommendation } from "../../src/planning/adaptation/recommendation-types.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;

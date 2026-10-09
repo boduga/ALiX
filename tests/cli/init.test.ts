@@ -18,7 +18,7 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 }
 
 test("runInit is exported and callable", { timeout: 10_000 }, async () => {
-  const mod = await import("../../src/cli/commands/init.js");
+  const mod = await import("../../src/interfaces/cli/commands/init.js");
   assert.ok("runInit" in mod, "runInit should be exported from init.js");
   assert.equal(typeof mod.runInit, "function", "runInit should be a function");
 });
@@ -28,7 +28,7 @@ test("runInit creates .alix/config.json", { timeout: 10_000 }, async () => {
     const configPath = join(dir, ".alix", "config.json");
     assert.ok(!existsSync(configPath));
 
-    const { runInit } = await import("../../src/cli/commands/init.js");
+    const { runInit } = await import("../../src/interfaces/cli/commands/init.js");
     await runInit(dir);
 
     assert.ok(existsSync(configPath), ".alix/config.json should be created");
@@ -56,7 +56,7 @@ test("runInit detects project type when package.json exists", { timeout: 10_000 
   await withTempDir(async (dir) => {
     await writeFileAsync(join(dir, "package.json"), '{"name":"test"}');
 
-    const { runInit } = await import("../../src/cli/commands/init.js");
+    const { runInit } = await import("../../src/interfaces/cli/commands/init.js");
     await runInit(dir);
 
     assert.ok(existsSync(join(dir, ".alix", "config.json")));
@@ -69,7 +69,7 @@ test("runInit completes when existing .alix/config.json is present", { timeout: 
     await mkdirAsync(join(dir, ".alix"), { recursive: true });
     await writeFileAsync(configPath, JSON.stringify({ model: { provider: "anthropic" } }), "utf8");
 
-    const { runInit } = await import("../../src/cli/commands/init.js");
+    const { runInit } = await import("../../src/interfaces/cli/commands/init.js");
     await runInit(dir);
     assert.ok(existsSync(configPath));
   });
@@ -82,7 +82,7 @@ test("runInit auto-inits git and creates .gitignore with .alix/", { timeout: 10_
     assert.ok(!existsSync(gitignorePath), "should start with no .gitignore");
     assert.ok(!existsSync(gitDir), "should start with no .git");
 
-    const { runInit } = await import("../../src/cli/commands/init.js");
+    const { runInit } = await import("../../src/interfaces/cli/commands/init.js");
     await runInit(dir);
 
     assert.ok(existsSync(gitDir), ".git should be created");
@@ -97,7 +97,7 @@ test("runInit creates AGENTS.md", { timeout: 10_000 }, async () => {
     const agentsPath = join(dir, "AGENTS.md");
     assert.ok(!existsSync(agentsPath), "should start with no AGENTS.md");
 
-    const { runInit } = await import("../../src/cli/commands/init.js");
+    const { runInit } = await import("../../src/interfaces/cli/commands/init.js");
     await runInit(dir);
 
     assert.ok(existsSync(agentsPath), "AGENTS.md should be created");
@@ -111,7 +111,7 @@ test("runInit detects provider from environment", { timeout: 10_000 }, async () 
     // Set a fake API key to test provider detection
     process.env.ANTHROPIC_API_KEY = "test-key";
 
-    const { runInit } = await import("../../src/cli/commands/init.js");
+    const { runInit } = await import("../../src/interfaces/cli/commands/init.js");
     await runInit(dir);
 
     const configPath = join(dir, ".alix", "config.json");
@@ -129,7 +129,7 @@ test("runInit writes canonical models that loadConfig re-projects (§7.4 round-t
   await withTempDir(async (dir) => {
     process.env.ANTHROPIC_API_KEY = "test-key";
 
-    const { runInit } = await import("../../src/cli/commands/init.js");
+    const { runInit } = await import("../../src/interfaces/cli/commands/init.js");
     await runInit(dir);
 
     // Half 1: init wrote a canonical disk representation (models only).
@@ -140,7 +140,7 @@ test("runInit writes canonical models that loadConfig re-projects (§7.4 round-t
     assert.equal(saved.subagents, undefined);
 
     // Half 2: loading it re-derives the runtime compatibility projections.
-    const { loadConfig, _setHomedirOverride } = await import("../../src/config/loader.js");
+    const { loadConfig, _setHomedirOverride } = await import("../../src/operations/config/loader.js");
     _setHomedirOverride(join(dir, ".tmp-homedir")); // isolate from the real user config
     try {
       const loaded = await loadConfig(dir);

@@ -1,7 +1,7 @@
 # Read-only-analysis intent — recognition contract
 
 **Status**: Active (T10 on wayfinder map #376)
-**Owner**: `src/runtime/action-classifier.ts` (`READ_ONLY_ANALYSIS_ANCHORS`)
+**Owner**: `src/runtime-state/runtime/action-classifier.ts` (`READ_ONLY_ANALYSIS_ANCHORS`)
 **Test corpus**: `tests/runtime/action-classifier.test.ts → describe("classifyAction — read-only-analysis recognition contract")`
 
 ## Intent definition
@@ -21,7 +21,7 @@ Distinct from adjacent intent families:
 
 ## Recognizer
 
-**Mechanism**: deterministic regex (`READ_ONLY_ANALYSIS_ANCHORS` family in `src/runtime/action-classifier.ts`).
+**Mechanism**: deterministic regex (`READ_ONLY_ANALYSIS_ANCHORS` family in `src/runtime-state/runtime/action-classifier.ts`).
 **Trigger precedence**: read-only-analysis fires AFTER workspace (state and mutation win) and BEFORE generation/external_retrieval. When T11 (planning) is integrated, planning dominates read_only_analysis.
 **Confidence**: read-only-analysis matches return `confidence: 0.85` (≥ 0.7 Layer-1 floor).
 

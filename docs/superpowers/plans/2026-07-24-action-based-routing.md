@@ -139,18 +139,18 @@ It does **not** create a new AgentSession lifecycle unless workspace/action exec
 
 | File                               | Purpose                                     |
 | ---------------------------------- | ------------------------------------------- |
-| `src/runtime/action-classifier.ts` | Action classification and arithmetic parser |
-| `src/runtime/task-router.ts`       | Shared route selection                      |
-| `src/runtime/route-executor.ts`    | Direct execution, `RuntimeContext`, and diagnostic callback wiring |
-| `src/daemon/daemon-types.ts`       | Direct response protocol types              |
-| `src/daemon/daemon-server.ts`      | Direct daemon fast path                     |
-| `src/agent/session.ts`             | Session preflight                           |
+| `src/runtime-state/runtime/action-classifier.ts` | Action classification and arithmetic parser |
+| `src/runtime-state/runtime/task-router.ts`       | Shared route selection                      |
+| `src/runtime-state/runtime/route-executor.ts`    | Direct execution, `RuntimeContext`, and diagnostic callback wiring |
+| `src/operations/daemon/daemon-types.ts`       | Direct response protocol types              |
+| `src/operations/daemon/daemon-server.ts`      | Direct daemon fast path                     |
+| `src/agents/agent/session.ts`             | Session preflight                           |
 | `src/planning/plan-task.ts`        | Task parser and sidecar schema              |
-| `src/run/plan-phase.ts`            | Plan persistence                            |
+| `src/execution/run/plan-phase.ts`            | Plan persistence                            |
 | `src/session/resume.ts`            | Sidecar restore                             |
-| `src/tui/state.ts`                 | TUI state                                   |
-| `src/tui/app.ts`                   | Result propagation                          |
-| `src/tui/views/agent-view.ts`      | Task rendering                              |
+| `src/interfaces/tui/state.ts`                 | TUI state                                   |
+| `src/interfaces/tui/app.ts`                   | Result propagation                          |
+| `src/interfaces/tui/views/agent-view.ts`      | Task rendering                              |
 
 Tests:
 
@@ -171,7 +171,7 @@ Tests:
 Create:
 
 ```
-src/runtime/action-classifier.ts
+src/runtime-state/runtime/action-classifier.ts
 tests/runtime/action-classifier.test.ts
 ```
 
@@ -302,7 +302,7 @@ node --test dist/tests/runtime/action-classifier.test.js
 * [ ] Commit.
 
 ```bash
-git add src/runtime/action-classifier.ts tests/runtime/action-classifier.test.ts
+git add src/runtime-state/runtime/action-classifier.ts tests/runtime/action-classifier.test.ts
 git commit -m "feat: add deterministic action classifier"
 ```
 
@@ -315,8 +315,8 @@ git commit -m "feat: add deterministic action classifier"
 Modify:
 
 ```
-src/runtime/task-router.ts
-src/runtime/route-executor.ts
+src/runtime-state/runtime/task-router.ts
+src/runtime-state/runtime/route-executor.ts
 tests/runtime/task-router.test.ts
 tests/runtime/route-executor.test.ts
 ```
@@ -373,7 +373,7 @@ export type TaskRoute =
     };
 ```
 
-`RuntimeContext` in `src/runtime/route-executor.ts` gains:
+`RuntimeContext` in `src/runtime-state/runtime/route-executor.ts` gains:
 
 ```ts
 onRouteDiagnostic?: (diagnostic: RouteDiagnostic) => void;
@@ -466,7 +466,7 @@ node --test dist/tests/runtime/task-router.test.js
 
 * [ ] Add direct executor.
 
-Add `executeDirect` to `RuntimeExecutor` and add the `"direct"` branch to `executeRoute` in `src/runtime/route-executor.ts`.
+Add `executeDirect` to `RuntimeExecutor` and add the `"direct"` branch to `executeRoute` in `src/runtime-state/runtime/route-executor.ts`.
 
 Rules:
 
@@ -512,8 +512,8 @@ git commit -am "feat: add action based routing"
 Modify:
 
 ```
-src/daemon/daemon-types.ts
-src/daemon/daemon-server.ts
+src/operations/daemon/daemon-types.ts
+src/operations/daemon/daemon-server.ts
 tests/daemon/daemon-server.test.ts
 ```
 
@@ -596,7 +596,7 @@ git commit -am "feat: add daemon direct execution path"
 Modify:
 
 ```
-src/agent/session.ts
+src/agents/agent/session.ts
 ```
 
 Create:
@@ -628,7 +628,7 @@ export interface AgentTurnResult {
 
 ## AgentSessionConfig diagnostic hook
 
-Extend the existing `AgentSessionConfig` in `src/agent/session.ts`:
+Extend the existing `AgentSessionConfig` in `src/agents/agent/session.ts`:
 
 ```ts
 onRouteDiagnostic?: (diagnostic: RouteDiagnostic) => void;
@@ -739,7 +739,7 @@ tests/planning/plan-task.test.ts
 Modify:
 
 ```
-src/run/plan-phase.ts
+src/execution/run/plan-phase.ts
 tests/plan-phase.test.ts
 ```
 
@@ -847,7 +847,7 @@ dist/tests/plan-phase.test.js
 * [ ] Commit.
 
 ```bash
-git add src/planning/plan-task.ts src/run/plan-phase.ts \
+git add src/planning/plan-task.ts src/execution/run/plan-phase.ts \
   tests/planning/plan-task.test.ts tests/plan-phase.test.ts
 git commit -m "feat: persist structured plan tasks"
 ```
@@ -862,7 +862,7 @@ Modify:
 
 ```
 src/session/resume.ts
-src/agent/session.ts
+src/agents/agent/session.ts
 ```
 
 Create:
@@ -914,7 +914,7 @@ pnpm vitest run tests/session-resume.vitest.ts
 * [ ] Commit.
 
 ```bash
-git add src/session/resume.ts src/agent/session.ts tests/session-resume.vitest.ts
+git add src/session/resume.ts src/agents/agent/session.ts tests/session-resume.vitest.ts
 git commit -m "feat: restore persisted plan tasks on resume"
 ```
 
@@ -927,9 +927,9 @@ git commit -m "feat: restore persisted plan tasks on resume"
 Modify:
 
 ```
-src/tui/state.ts
-src/tui/app.ts
-src/tui/views/agent-view.ts
+src/interfaces/tui/state.ts
+src/interfaces/tui/app.ts
+src/interfaces/tui/views/agent-view.ts
 ```
 
 Create:
@@ -998,7 +998,7 @@ tests/tui/views/agent-view.vitest.ts \
 * [ ] Commit.
 
 ```bash
-git add src/tui/state.ts src/tui/app.ts src/tui/views/agent-view.ts \
+git add src/interfaces/tui/state.ts src/interfaces/tui/app.ts src/interfaces/tui/views/agent-view.ts \
   tests/tui/app.vitest.ts tests/tui/views/agent-view.vitest.ts
 git commit -m "feat: render plan tasks in the TUI"
 ```

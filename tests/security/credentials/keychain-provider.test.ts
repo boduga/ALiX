@@ -20,7 +20,7 @@ import {
   KeychainProvider,
   KEYCHAIN_SERVICE,
   type KeychainEntryLike,
-} from "../../../src/security/credentials/keychain-provider.js";
+} from "../../../src/governance/security/credentials/keychain-provider.js";
 
 /** In-memory fake of the @napi-rs/keyring Entry. */
 class FakeEntry implements KeychainEntryLike {

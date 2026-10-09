@@ -16,17 +16,17 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createSignalFrame } from "../../src/runtime/signal-frame.js";
-import type { SignalBits } from "../../src/runtime/signal-frame.js";
-import { prescribeOffering } from "../../src/runtime/offering-planner.js";
-import { buildBridgeEnvelope } from "../../src/runtime/bridge-envelope.js";
-import { BridgeGateway } from "../../src/runtime/bridge-gateway.js";
-import { routeViaNexus } from "../../src/runtime/nexus-router.js";
+import { createSignalFrame } from "../../src/runtime-state/runtime/signal-frame.js";
+import type { SignalBits } from "../../src/runtime-state/runtime/signal-frame.js";
+import { prescribeOffering } from "../../src/runtime-state/runtime/offering-planner.js";
+import { buildBridgeEnvelope } from "../../src/runtime-state/runtime/bridge-envelope.js";
+import { BridgeGateway } from "../../src/runtime-state/runtime/bridge-gateway.js";
+import { routeViaNexus } from "../../src/runtime-state/runtime/nexus-router.js";
 import { GuildSelector } from "../../src/agents/guild-selector.js";
 import type { EssenceProfile } from "../../src/agents/essence-profile.js";
 import type { EssenceAffinity } from "../../src/agents/essence-profile.js";
-import { runIfamasDiagnostic } from "../../src/runtime/ifamas-pipeline.js";
-import { ChronicleStore } from "../../src/chronicle/chronicle-store.js";
+import { runIfamasDiagnostic } from "../../src/runtime-state/runtime/ifamas-pipeline.js";
+import { ChronicleStore } from "../../src/context/chronicle/chronicle-store.js";
 
 describe("IFÁ-MAS end-to-end smoke test", () => {
   let tmpDir: string;

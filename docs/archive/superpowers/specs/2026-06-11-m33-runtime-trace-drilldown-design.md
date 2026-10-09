@@ -137,11 +137,11 @@ This means selecting a `tool.completed` event shows the full tool lifecycle, and
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/runtime/trace-events.ts` | Modify | Add `rawEvent` and `sessionFilePath` to `TraceEvent`; add `traceChainContext()` helper |
-| `src/tui/store.ts` | Modify | Add `traceSelection` state, selectors, navigation mutators |
-| `src/tui/panel-renderer.ts` | Modify | Add detail panel rendering below trace list |
-| `src/tui/trace-detail.ts` | Create | Detail renderers for summary/json/links/chain modes |
-| `src/cli/commands/tui.ts` | Modify | Add keyboard handlers for ↑↓ enter j l c esc |
+| `src/runtime-state/runtime/trace-events.ts` | Modify | Add `rawEvent` and `sessionFilePath` to `TraceEvent`; add `traceChainContext()` helper |
+| `src/interfaces/tui/store.ts` | Modify | Add `traceSelection` state, selectors, navigation mutators |
+| `src/interfaces/tui/panel-renderer.ts` | Modify | Add detail panel rendering below trace list |
+| `src/interfaces/tui/trace-detail.ts` | Create | Detail renderers for summary/json/links/chain modes |
+| `src/interfaces/cli/commands/tui.ts` | Modify | Add keyboard handlers for ↑↓ enter j l c esc |
 | `tests/runtime/trace-drilldown.test.ts` | Create | Chain context helper tests |
 | `tests/tui/trace-detail-panel.test.ts` | Create | Selection state and detail rendering tests |
 

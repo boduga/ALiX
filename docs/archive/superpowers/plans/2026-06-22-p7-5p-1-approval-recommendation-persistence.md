@@ -22,7 +22,7 @@ These apply to every task in this plan. The implementer MUST honor them verbatim
 
 4. **The override wins when both are present.** If the store has a `confidence` for the recommendation and the user passes `--recommendation-confidence`, the override value is used.
 
-5. **One existing-type modification.** `src/adaptation/outcome-types.ts` gets `confidence?: number` on `OutcomeRecord` (one-line type change). No other existing type is modified. P7.5p.1c updates the invariance test to allow this specific delta — see Task 3 Step 5 for the exact mechanism.
+5. **One existing-type modification.** `src/planning/adaptation/outcome-types.ts` gets `confidence?: number` on `OutcomeRecord` (one-line type change). No other existing type is modified. P7.5p.1c updates the invariance test to allow this specific delta — see Task 3 Step 5 for the exact mechanism.
 
 6. **Store constructor usage in the CLI is uniform.** All CLI call sites use `new ApprovalRecommendationStore()` (no path argument). The store resolves its directory internally from `process.cwd()`, which matches the test setup (`vi.spyOn(process, "cwd").mockReturnValue(tempRoot)`). This eliminates the path-arithmetic footgun where the CLI could pass the wrong directory.
 
@@ -38,9 +38,9 @@ These apply to every task in this plan. The implementer MUST honor them verbatim
 
 | File | Role | Status |
 |---|---|---|
-| `src/adaptation/approval-recommendation-store.ts` | New store class | Create |
-| `src/adaptation/outcome-types.ts` | Make `confidence` optional on `OutcomeRecord` | Modify (1 line) |
-| `src/cli/commands/decision.ts` | Write hook in `runRecommend`; lookup + override in `runOutcomeRecord`; print path handles undefined | Modify |
+| `src/planning/adaptation/approval-recommendation-store.ts` | New store class | Create |
+| `src/planning/adaptation/outcome-types.ts` | Make `confidence` optional on `OutcomeRecord` | Modify (1 line) |
+| `src/interfaces/cli/commands/decision.ts` | Write hook in `runRecommend`; lookup + override in `runOutcomeRecord`; print path handles undefined | Modify |
 | `tests/adaptation/approval-recommendation-store.vitest.ts` | Store tests | Create |
 | `tests/cli/commands/decision-outcome-confidence.vitest.ts` | CLI integration tests (lookup, override, missing) | Create |
 | `tests/learning/unchanged-types-invariance.vitest.ts` | Update baseline on P7.5p.1c commit | Modify (1 line) |
@@ -52,11 +52,11 @@ These apply to every task in this plan. The implementer MUST honor them verbatim
 ## Task 1: P7.5p.1a — ApprovalRecommendationStore
 
 **Files:**
-- Create: `src/adaptation/approval-recommendation-store.ts`
+- Create: `src/planning/adaptation/approval-recommendation-store.ts`
 - Create: `tests/adaptation/approval-recommendation-store.vitest.ts`
 
 **Interfaces:**
-- Consumes: `ApprovalRecommendation` from `src/adaptation/recommendation-types.ts`.
+- Consumes: `ApprovalRecommendation` from `src/planning/adaptation/recommendation-types.ts`.
 - Produces: `ApprovalRecommendationStore` class with `append`, `get`, `list`, `queryByWindow`.
 
 ### Step 1: Write the failing store test
@@ -68,8 +68,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ApprovalRecommendationStore } from "../../src/adaptation/approval-recommendation-store.js";
-import type { ApprovalRecommendation } from "../../src/adaptation/recommendation-types.js";
+import { ApprovalRecommendationStore } from "../../src/planning/adaptation/approval-recommendation-store.js";
+import type { ApprovalRecommendation } from "../../src/planning/adaptation/recommendation-types.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
@@ -194,9 +194,9 @@ npx vitest run tests/adaptation/approval-recommendation-store.vitest.ts
 
 Expected: FAIL — module not found.
 
-### Step 3: Write `src/adaptation/approval-recommendation-store.ts`
+### Step 3: Write `src/planning/adaptation/approval-recommendation-store.ts`
 
-Create `src/adaptation/approval-recommendation-store.ts`:
+Create `src/planning/adaptation/approval-recommendation-store.ts`:
 
 ```ts
 /**
@@ -298,7 +298,7 @@ Expected: PASS (~10 tests).
 ### Step 5: Commit
 
 ```bash
-git add src/adaptation/approval-recommendation-store.ts \
+git add src/planning/adaptation/approval-recommendation-store.ts \
         tests/adaptation/approval-recommendation-store.vitest.ts
 git commit -m "feat(p7.5p.1a): ApprovalRecommendationStore — append-only JSONL"
 ```
@@ -308,7 +308,7 @@ git commit -m "feat(p7.5p.1a): ApprovalRecommendationStore — append-only JSONL
 ## Task 2: P7.5p.1b — Persist Recommendation in runRecommend
 
 **Files:**
-- Modify: `src/cli/commands/decision.ts` — add the write hook in `runRecommend`
+- Modify: `src/interfaces/cli/commands/decision.ts` — add the write hook in `runRecommend`
 - Create: `tests/cli/commands/decision-recommend-persistence.vitest.ts` — integration test
 
 **Interfaces:**
@@ -317,7 +317,7 @@ git commit -m "feat(p7.5p.1a): ApprovalRecommendationStore — append-only JSONL
 
 ### Step 1: Read the existing `runRecommend` flow
 
-Open `src/cli/commands/decision.ts` and find `runRecommend` (search for the function name). The exact location is at the time of writing around line 600. Read enough of the function to find the line where `recommendation-engine.recommend(...)` returns and the result is used. You'll add the store-append right after that.
+Open `src/interfaces/cli/commands/decision.ts` and find `runRecommend` (search for the function name). The exact location is at the time of writing around line 600. Read enough of the function to find the line where `recommendation-engine.recommend(...)` returns and the result is used. You'll add the store-append right after that.
 
 ### Step 2: Write the failing integration test
 
@@ -351,7 +351,7 @@ afterEach(() => {
 describe("decision recommend persists ApprovalRecommendation", () => {
   it("writes the recommendation to .alix/recommendations/recommendations.jsonl", async () => {
     // Import after cwd is set so the CLI resolves .alix correctly.
-    const cli = await import("../../../src/cli/commands/decision.js");
+    const cli = await import("../../../src/interfaces/cli/commands/decision.js");
     // The CLI's runRecommend takes a DecisionContext. The test passes a
     // minimal context that the engine can produce a recommendation from.
     // If the CLI's runRecommend is not directly exported, invoke the CLI
@@ -391,7 +391,7 @@ Expected: FAIL — no file written yet.
 
 ### Step 4: Add the write hook in `runRecommend`
 
-In `src/cli/commands/decision.ts`, find `runRecommend`. After the line where `recommendation-engine.recommend(ctx, riskScore)` returns (the result is typically called `recommendation`), add:
+In `src/interfaces/cli/commands/decision.ts`, find `runRecommend`. After the line where `recommendation-engine.recommend(ctx, riskScore)` returns (the result is typically called `recommendation`), add:
 
 ```ts
 // P7.5p.1b — persist the recommendation so the outcome CLI can read its confidence back
@@ -437,7 +437,7 @@ Expected: PASS — all prior tests plus the new store test (158 total after Task
 ### Step 7: Commit
 
 ```bash
-git add src/cli/commands/decision.ts \
+git add src/interfaces/cli/commands/decision.ts \
         tests/cli/commands/decision-recommend-persistence.vitest.ts
 git commit -m "feat(p7.5p.1b): persist ApprovalRecommendation in runRecommend"
 ```
@@ -447,8 +447,8 @@ git commit -m "feat(p7.5p.1b): persist ApprovalRecommendation in runRecommend"
 ## Task 3: P7.5p.1c — Outcome Confidence Capture + Override
 
 **Files:**
-- Modify: `src/adaptation/outcome-types.ts` — `confidence?: number` on `OutcomeRecord`
-- Modify: `src/cli/commands/decision.ts` — `runOutcomeRecord` lookup + override
+- Modify: `src/planning/adaptation/outcome-types.ts` — `confidence?: number` on `OutcomeRecord`
+- Modify: `src/interfaces/cli/commands/decision.ts` — `runOutcomeRecord` lookup + override
 - Modify: `tests/learning/unchanged-types-invariance.vitest.ts` — update baseline
 - Create: `tests/cli/commands/decision-outcome-confidence.vitest.ts` — full integration test
 
@@ -465,9 +465,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ApprovalRecommendationStore } from "../../../src/adaptation/approval-recommendation-store.js";
-import type { ApprovalRecommendation } from "../../../src/adaptation/recommendation-types.js";
-import type { OutcomeRecord } from "../../../src/adaptation/outcome-types.js";
+import { ApprovalRecommendationStore } from "../../../src/planning/adaptation/approval-recommendation-store.js";
+import type { ApprovalRecommendation } from "../../../src/planning/adaptation/recommendation-types.js";
+import type { OutcomeRecord } from "../../../src/planning/adaptation/outcome-types.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let logSpy: ReturnType<typeof vi.spyOn>;
@@ -524,7 +524,7 @@ describe("decision outcome: confidence from recommendation store", () => {
 
     // Invoke the CLI's outcome command. Adjust the import + invocation
     // pattern to match the file's actual export shape (see Task 2 note).
-    const decision = await import("../../../src/cli/commands/decision.js");
+    const decision = await import("../../../src/interfaces/cli/commands/decision.js");
     // The implementer fills in the exact invocation. The contract:
     //   - Run outcome for subject "prop-1" with --recommendation rec-1 --outcome success
     //   - The recorded outcome's confidence === 0.85
@@ -572,7 +572,7 @@ describe("decision outcome: confidence from recommendation store", () => {
 
 ### Step 2: Make `OutcomeRecord.confidence` honestly optional
 
-Open `src/adaptation/outcome-types.ts` and find the `OutcomeRecord` interface. The current shape is:
+Open `src/planning/adaptation/outcome-types.ts` and find the `OutcomeRecord` interface. The current shape is:
 
 ```ts
 export interface OutcomeRecord extends DecisionArtifact {
@@ -612,7 +612,7 @@ Expected: at least one of the five tests fails (the CLI still hard-codes `1`, so
 
 ### Step 4: Add lookup + override in `runOutcomeRecord`
 
-In `src/cli/commands/decision.ts`, find `runOutcomeRecord` (around line 855 per the recon). Replace the hard-coded `confidence: 1` with a lookup-or-override block:
+In `src/interfaces/cli/commands/decision.ts`, find `runOutcomeRecord` (around line 855 per the recon). Replace the hard-coded `confidence: 1` with a lookup-or-override block:
 
 ```ts
 // P7.5p.1c — capture the actual recommendation confidence, or undefined.
@@ -701,16 +701,16 @@ const BASELINE_FILE = "p8-5a-0-unchanged-types.json";
 
 // 5 files that MUST remain byte-identical to the P8.5a.0 baseline.
 const STRICT_PROTECTED = [
-  "src/adaptation/risk-score-types.ts",
-  "src/adaptation/governance-review-types.ts",
-  "src/adaptation/adaptation-types.ts",
-  "src/adaptation/decision-types.ts",
-  "src/learning/learning-types.ts",
+  "src/planning/adaptation/risk-score-types.ts",
+  "src/planning/adaptation/governance-review-types.ts",
+  "src/planning/adaptation/adaptation-types.ts",
+  "src/planning/adaptation/decision-types.ts",
+  "src/planning/learning/learning-types.ts",
 ];
 
 // 1 file that may differ from the P8.5a.0 baseline by EXACTLY the
 // approved P7.5p.1 addition: `confidence?: number` on OutcomeRecord.
-const ALLOWED_DELTA_PROTECTED = "src/adaptation/outcome-types.ts";
+const ALLOWED_DELTA_PROTECTED = "src/planning/adaptation/outcome-types.ts";
 
 // The exact post-change text we're allowing for the delta file.
 // The hash of this exact content is checked at test time.
@@ -761,7 +761,7 @@ describe("unchanged-types-invariance", () => {
 
 **Implementing the allowed-delta mechanism in this commit:** the `ALLOWED_DELTA_CONTENT` variable above is read from the file at module-load time. After the `confidence?: number` change is committed (i.e., the file's current content reflects the approved delta), the test will accept both the baseline hash and the post-delta hash. The `ALLOWED_DELTA_CONTENT` snapshot in the test is just for that purpose — it documents the approved delta.
 
-**Critical:** the implementer must capture the `ALLOWED_DELTA_CONTENT` AFTER the `confidence?: number` line has been added to `src/adaptation/outcome-types.ts`. The test's read happens at module load; if it's wrong, the test fails loudly. The implementer verifies by running the test and seeing it pass.
+**Critical:** the implementer must capture the `ALLOWED_DELTA_CONTENT` AFTER the `confidence?: number` line has been added to `src/planning/adaptation/outcome-types.ts`. The test's read happens at module load; if it's wrong, the test fails loudly. The implementer verifies by running the test and seeing it pass.
 
 ### Step 6: Run the full test suite to confirm everything passes
 
@@ -793,8 +793,8 @@ Expected: clean.
 ### Step 9: Commit
 
 ```bash
-git add src/adaptation/outcome-types.ts \
-        src/cli/commands/decision.ts \
+git add src/planning/adaptation/outcome-types.ts \
+        src/interfaces/cli/commands/decision.ts \
         tests/learning/unchanged-types-invariance.vitest.ts \
         tests/cli/commands/decision-outcome-confidence.vitest.ts
 git commit -m "feat(p7.5p.1c): outcome CLI reads recommendation confidence from store
@@ -817,7 +817,7 @@ The baseline file `.alix/test-baselines/p8-5a-0-unchanged-types.json` is git-ign
 - [ ] `npx vitest run tests/learning/learning-sentinels.vitest.ts tests/learning/evidence-chain-sentinels.vitest.ts` → all pass
 - [ ] The OutcomeStore is not modified
 - [ ] The 7 other existing-type files (`risk-score-types.ts`, `governance-review-types.ts`, `adaptation-types.ts`, `decision-types.ts`, `learning-types.ts`, `evidence-chain-types.ts`, `forward-ref-extractors.ts`) are byte-identical to main
-- [ ] `src/adaptation/outcome-types.ts` has the `confidence?: number` change
+- [ ] `src/planning/adaptation/outcome-types.ts` has the `confidence?: number` change
 - [ ] P8.5a.0 invariance test's baseline has been re-captured at the P7.5p.1 state
 - [ ] No CLI change fakes `confidence: 1`
 - [ ] `alix decision outcome` with a real `--recommendation` id records the real confidence

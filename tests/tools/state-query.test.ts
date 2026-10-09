@@ -7,10 +7,10 @@ import {
   handleStateQuery,
   STATE_QUERY_KINDS,
   type StateQueryDeps,
-} from "../../src/tools/state-query.js";
-import type { DaemonTaskRecord } from "../../src/daemon/task-registry.js";
-import type { ScheduledTaskRecord } from "../../src/schedule/scheduled-task-store.js";
-import type { UnifiedAuditRow } from "../../src/audit/audit-read-model.js";
+} from "../../src/capabilities/tools/state-query.js";
+import type { DaemonTaskRecord } from "../../src/operations/daemon/task-registry.js";
+import type { ScheduledTaskRecord } from "../../src/operations/schedule/scheduled-task-store.js";
+import type { UnifiedAuditRow } from "../../src/governance/audit/audit-read-model.js";
 
 describe("state.query", () => {
   let cwd: string;

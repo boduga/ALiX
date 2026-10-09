@@ -2,8 +2,8 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { join } from "node:path";
 import { mkdir, rm } from "node:fs/promises";
-import { EventLog } from "../../src/events/event-log.js";
-import { ApprovalManager } from "../../src/policy/approvals.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { ApprovalManager } from "../../src/governance/policy/approvals.js";
 
 describe("Approval Events", () => {
   const testDir = join(process.cwd(), ".test-approval-events");

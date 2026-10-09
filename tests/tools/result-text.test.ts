@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { toolResultText } from "../../src/tools/result-text.js";
+import { toolResultText } from "../../src/capabilities/tools/result-text.js";
 
 /**
  * The renderer exists because two consumers disagreed: telemetry previewed a

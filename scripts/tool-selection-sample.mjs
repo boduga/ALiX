@@ -9,7 +9,7 @@
  * It is a DEV script, not product surface: nothing in src/ imports it, it
  * writes only under the path you pass, and it never touches the live loop.
  *
- * T3 comparison policy (recorded in src/decision/AGENTS.md):
+ * T3 comparison policy (recorded in src/planning/decision/AGENTS.md):
  *   baseline   = what the model actually selected (the component that really
  *                influences next-tool choice today)
  *   context    = the scoper's relevance ordering and, per MCP domain, the MCP
@@ -72,20 +72,20 @@ const {
   extractToolSelectionScopes,
   replayToolSelection,
   candidateFor,
-} = await import(`${ROOT}/dist/src/decision/tool-selection-replay.js`);
+} = await import(`${ROOT}/dist/src/planning/decision/tool-selection-replay.js`);
 const { evaluateToolSelection, selectionOutcomeFromObservation } = await import(
-  `${ROOT}/dist/src/decision/tool-selection-evaluation.js`
+  `${ROOT}/dist/src/planning/decision/tool-selection-evaluation.js`
 );
 const { deriveEvaluationEligibility, summarizeCorpus } = await import(
-  `${ROOT}/dist/src/decision/tool-selection-corpus.js`
+  `${ROOT}/dist/src/planning/decision/tool-selection-corpus.js`
 );
 
 async function selectorFor(options, scope, objective, onRanking) {
   if (options.engine === "none") return undefined;
   if (options.engine !== "jev") throw new Error(`unknown engine: ${options.engine}`);
-  const { getSavedApiKey } = await import(`${ROOT}/dist/src/cli/helpers/api-keys.js`);
+  const { getSavedApiKey } = await import(`${ROOT}/dist/src/interfaces/cli/helpers/api-keys.js`);
   const { createJevToolSelectionScorer } = await import(
-    `${ROOT}/dist/src/decision/tool-selection-jev-mapping.js`
+    `${ROOT}/dist/src/planning/decision/tool-selection-jev-mapping.js`
   );
   const apiKey = await getSavedApiKey("typesafe");
   if (!apiKey) throw new Error("no typesafe key in the credential store");

@@ -8,7 +8,7 @@
 
 ## Files
 
-- `src/cli/commands/tui.ts` — modify direct execution path (lines 942-957), add confirmation state + prompt handler
+- `src/interfaces/cli/commands/tui.ts` — modify direct execution path (lines 942-957), add confirmation state + prompt handler
 - `tests/tui/tui-approval-prompt.test.ts` — test the inline prompt flow
 
 ## Design

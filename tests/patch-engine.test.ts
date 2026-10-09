@@ -4,8 +4,8 @@ import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildEditFormatPolicy, defaultEditFormatForProvider } from "../src/patch/edit-format-policy.js";
-import { applyPatch, sha256 } from "../src/patch/patch-engine.js";
+import { buildEditFormatPolicy, defaultEditFormatForProvider } from "../src/execution/patch/edit-format-policy.js";
+import { applyPatch, sha256 } from "../src/execution/patch/patch-engine.js";
 
 test("applies exact search replace", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
@@ -303,8 +303,8 @@ test("preimage rejection guides the model toward search_replace (#678)", async (
 });
 
 test("tool descriptions steer small edits to search_replace (#678)", async () => {
-  const { patchFormatDescription, patchTextDescription } = await import("../src/run/helpers.js");
-  const { buildEditFormatPolicy } = await import("../src/patch/edit-format-policy.js");
+  const { patchFormatDescription, patchTextDescription } = await import("../src/execution/run/helpers.js");
+  const { buildEditFormatPolicy } = await import("../src/execution/patch/edit-format-policy.js");
   const policy = buildEditFormatPolicy({ provider: "freellmapi" });
   assert.match(patchFormatDescription(policy), /search_replace/);
   const text = patchTextDescription(policy.preferred);

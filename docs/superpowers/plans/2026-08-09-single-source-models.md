@@ -225,7 +225,7 @@ Every model-related occurrence must be classified as one of:
 
 The initial audit has already identified:
 
-1. "src/cli/commands/init.ts"
+1. "src/interfaces/cli/commands/init.ts"
 
    - currently writes "model" and "subagents";
    - must be migrated.
@@ -237,7 +237,7 @@ The initial audit has already identified:
    - must use the shared persistence boundary;
    - otherwise the brand would either leak conceptually or bypass the architectural write boundary.
 
-3. "src/cli/commands/run.ts"
+3. "src/interfaces/cli/commands/run.ts"
 
    - contains live user guidance referencing removed commands;
    - must be updated.
@@ -276,8 +276,8 @@ Files
 
 ```
 Modify:
-src/config/schema.ts
-src/config/profile-types.ts
+src/operations/config/schema.ts
+src/operations/config/profile-types.ts
 ```
 
 No behavior changes yet.
@@ -485,7 +485,7 @@ Files
 
 ```
 Modify:
-src/config/loader.ts
+src/operations/config/loader.ts
 tests/config-loader.test.ts
 ```
 
@@ -697,7 +697,7 @@ Files
 
 ```
 Create:
-src/config/model-resolver.ts
+src/operations/config/model-resolver.ts
 tests/config/model-resolver.test.ts
 ```
 
@@ -775,7 +775,7 @@ Files
 
 ```
 Create:
-src/config/persistence.ts
+src/operations/config/persistence.ts
 tests/config/persistence.test.ts
 ```
 
@@ -879,7 +879,7 @@ Files
 
 ```
 Modify:
-src/config/profile-patch.ts
+src/operations/config/profile-patch.ts
 tests/config/profile-patch.test.ts
 ```
 
@@ -1073,7 +1073,7 @@ Files
 
 ```
 Modify:
-src/cli/commands/init.ts
+src/interfaces/cli/commands/init.ts
 
 Modify/add:
 tests/cli/init-command.vitest.ts
@@ -1176,7 +1176,7 @@ Files
 
 ```
 Modify:
-src/cli/commands/models.ts
+src/interfaces/cli/commands/models.ts
 
 Test:
 tests/cli/models-command.vitest.ts
@@ -1312,7 +1312,7 @@ Files
 ```
 Modify:
 src/cli.ts
-src/cli/commands/run.ts
+src/interfaces/cli/commands/run.ts
 
 Tests:
 tests/cli/cli-commands.test.ts
@@ -1367,7 +1367,7 @@ Interactive completion itself is tested separately by the handler tests.
 
 ### 9.3 Live guidance
 
-Update "src/cli/commands/run.ts".
+Update "src/interfaces/cli/commands/run.ts".
 
 Any message such as:
 
@@ -1421,11 +1421,11 @@ Goal: Ensure every remaining configuration writer either persists the canonical 
 
 Address the additional writers and references discovered by the Task 0 pre-flight audit:
 
-- "src/config/mutation.ts"
-- "src/benchmark/cases/no-tool-task.ts"
-- "src/cli/commands/init.ts"
+- "src/operations/config/mutation.ts"
+- "src/operations/benchmark/cases/no-tool-task.ts"
+- "src/interfaces/cli/commands/init.ts"
 - "src/models/model-install.ts"
-- "src/cli/commands/run.ts"
+- "src/interfaces/cli/commands/run.ts"
 - affected configuration mutation/CLI tests and fixtures
 
 ### Step 1 — Guard the generic configuration mutation service
@@ -1474,7 +1474,7 @@ Add tests proving:
 Update:
 
 ```
-src/benchmark/cases/no-tool-task.ts
+src/operations/benchmark/cases/no-tool-task.ts
 ```
 
 so its temporary configuration uses the canonical structure:
@@ -1566,7 +1566,7 @@ config set-tier
 including:
 
 ```
-src/cli/commands/run.ts
+src/interfaces/cli/commands/run.ts
 tests/manual/suite-c-config.test.ts
 tests/fixtures/security/config-writers.json
 ```
@@ -1659,9 +1659,9 @@ Files
 
 ```
 Modify:
-src/agent/agent.ts
-src/agent/session.ts
-src/run/task-loop.ts
+src/agents/agent/agent.ts
+src/agents/agent/session.ts
+src/execution/run/task-loop.ts
 src/agents/subagent-cli.ts
 ```
 
@@ -1772,7 +1772,7 @@ Then:
 
 ```
 rg 'model:|subagents' \
-  src/cli/commands \
+  src/interfaces/cli/commands \
   src/models \
   src/config \
   --glob '!**/*.test.*'
@@ -1799,7 +1799,7 @@ For every writer, answer:
 There must be exactly one generic configuration serialization boundary:
 
 ```
-src/config/persistence.ts → writeConfig()
+src/operations/config/persistence.ts → writeConfig()
 ```
 
 Specialized writers may prepare data, but they must cross that boundary.

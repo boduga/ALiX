@@ -1,14 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { groqSpec } from "../../src/providers/specs/groq-spec.js";
-import { deepseekSpec } from "../../src/providers/specs/deepseek-spec.js";
-import { perplexitySpec } from "../../src/providers/specs/perplexity-spec.js";
-import { minimaxSpec } from "../../src/providers/specs/minimax-spec.js";
-import { zhipuaiSpec } from "../../src/providers/specs/zhipuai-spec.js";
-import { grokaiSpec } from "../../src/providers/specs/grokai-spec.js";
-import { openrouterSpec } from "../../src/providers/specs/openrouter-spec.js";
-import { freellmapiSpec } from "../../src/providers/specs/freellmapi-spec.js";
-import { openaiBaseSpec } from "../../src/providers/specs/_openai-base.js";
+import { groqSpec } from "../../src/models/providers/specs/groq-spec.js";
+import { deepseekSpec } from "../../src/models/providers/specs/deepseek-spec.js";
+import { perplexitySpec } from "../../src/models/providers/specs/perplexity-spec.js";
+import { minimaxSpec } from "../../src/models/providers/specs/minimax-spec.js";
+import { zhipuaiSpec } from "../../src/models/providers/specs/zhipuai-spec.js";
+import { grokaiSpec } from "../../src/models/providers/specs/grokai-spec.js";
+import { openrouterSpec } from "../../src/models/providers/specs/openrouter-spec.js";
+import { freellmapiSpec } from "../../src/models/providers/specs/freellmapi-spec.js";
+import { openaiBaseSpec } from "../../src/models/providers/specs/_openai-base.js";
 
 describe("OpenAI-compatible inheritors", () => {
   const cases = [

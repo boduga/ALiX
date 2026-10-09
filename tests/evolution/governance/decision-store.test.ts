@@ -19,8 +19,8 @@ import {
   DecisionNotFoundError,
   DuplicateDecisionError,
   DEFAULT_GOVERNANCE_POLICY,
-} from "../../../src/evolution/governance/index.js";
-import type { GovernanceDecision } from "../../../src/evolution/governance/index.js";
+} from "../../../src/planning/evolution/governance/index.js";
+import type { GovernanceDecision } from "../../../src/planning/evolution/governance/index.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures

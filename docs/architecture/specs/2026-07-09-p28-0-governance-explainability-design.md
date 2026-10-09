@@ -260,7 +260,7 @@ No reviewers were ranked. No outcomes were predicted.
 | P28.1 | `src/governance/governance-explainability-types.ts` | Explanation types, section kinds |
 | P28.2 | `src/governance/governance-explainability-builder.ts` | Pure explanation builders |
 | P28.3 | `src/governance/governance-explainability-report.ts` | Text/JSON renderers |
-| P28.3 | `src/cli/commands/governance-explain.ts` | CLI handler |
+| P28.3 | `src/interfaces/cli/commands/governance-explain.ts` | CLI handler |
 | P28.0 | `docs/architecture/specs/<date>-p28-0-*.md` | Design spec |
 | P28.4 | `docs/architecture/checkpoints/<date>-p28-4-*.md` | Checkpoint |
 
@@ -268,7 +268,7 @@ No reviewers were ranked. No outcomes were predicted.
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "explain"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "explain"` dispatch |
 
 ### 9.3 Untouched Files
 

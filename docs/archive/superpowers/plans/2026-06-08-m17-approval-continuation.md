@@ -16,13 +16,13 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/policy/runtime-gate.ts` | **Modify** | Approval lookup before creating new |
-| `src/approvals/approval-store.ts` | **Modify** | Add `findPending(graphId, nodeId)` method |
+| `src/governance/policy/runtime-gate.ts` | **Modify** | Approval lookup before creating new |
+| `src/governance/approvals/approval-store.ts` | **Modify** | Add `findPending(graphId, nodeId)` method |
 | `src/cli.ts` | **Modify** | Add `alix graph continue` handler |
-| `src/server/server.ts` | **Modify** | Add `GET /api/approvals` route |
-| `src/ui/index.html` | **Modify** | Add Approvals tab |
-| `src/ui/app.js` | **Modify** | Load + render approvals |
-| `src/ui/styles.css` | **Modify** | Approvals table styles |
+| `src/interfaces/server/server.ts` | **Modify** | Add `GET /api/approvals` route |
+| `src/interfaces/ui/index.html` | **Modify** | Add Approvals tab |
+| `src/interfaces/ui/app.js` | **Modify** | Load + render approvals |
+| `src/interfaces/ui/styles.css` | **Modify** | Approvals table styles |
 | `tests/policy/runtime-gate.test.ts` | **Modify** | Add approval lookup tests |
 | `tests/approvals/approval-store.test.ts` | **Modify** | Add `findPending` tests |
 | `tests/server/server.test.ts` | **Modify** | Add `/api/approvals` HTTP test |
@@ -32,7 +32,7 @@
 ### Task 1: Add findPending to ApprovalStore
 
 **Files:**
-- Modify: `src/approvals/approval-store.ts`
+- Modify: `src/governance/approvals/approval-store.ts`
 
 - [ ] **Step 1: Add findPending method**
 
@@ -106,7 +106,7 @@ Expected: 12 tests pass (10 existing + 2 new).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/approvals/approval-store.ts tests/approvals/approval-store.test.ts
+git add src/governance/approvals/approval-store.ts tests/approvals/approval-store.test.ts
 git commit -m "feat(approvals): add findPending and findResolved lookup methods"
 ```
 
@@ -115,7 +115,7 @@ git commit -m "feat(approvals): add findPending and findResolved lookup methods"
 ### Task 2: Approval-aware RuntimeGate
 
 **Files:**
-- Modify: `src/policy/runtime-gate.ts`
+- Modify: `src/governance/policy/runtime-gate.ts`
 
 **What changes:** In the `ask` branch, before creating a new approval request, check if an existing pending approval exists for the same graph/node/capability. If so, reuse it. Also check for resolved approvals — if one exists and is `approved`, return "ready" instead; if `denied`, return "blocked".
 
@@ -198,7 +198,7 @@ it("reuses existing pending approval instead of duplicating", async () => {
   const { mkdtempSync, rmSync } = await import("node:fs");
   const { join } = await import("node:path");
   const { tmpdir } = await import("node:os");
-  const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+  const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
   const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-reuse-"));
   try {
     const store = new ApprovalStore(tmpDir);
@@ -229,7 +229,7 @@ it("returns ready when prior approval was approved", async () => {
   const { mkdtempSync, rmSync } = await import("node:fs");
   const { join } = await import("node:path");
   const { tmpdir } = await import("node:os");
-  const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+  const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
   const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-approved-"));
   try {
     const store = new ApprovalStore(tmpDir);
@@ -266,7 +266,7 @@ Expected: 9 tests pass (7 existing + 2 new).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/policy/runtime-gate.ts tests/policy/runtime-gate.test.ts
+git add src/governance/policy/runtime-gate.ts tests/policy/runtime-gate.test.ts
 git commit -m "feat(policy): approval-aware RuntimeGate — reuse and resolve checking"
 ```
 
@@ -387,15 +387,15 @@ git commit -m "feat(cli): add graph continue command for approval-aware resume"
 ### Task 4: Inspector approvals API + UI
 
 **Files:**
-- Modify: `src/server/server.ts` — add `GET /api/approvals`
-- Modify: `src/ui/index.html` — add Approvals tab
-- Modify: `src/ui/app.js` — load + render approvals
-- Modify: `src/ui/styles.css` — approvals table CSS
+- Modify: `src/interfaces/server/server.ts` — add `GET /api/approvals`
+- Modify: `src/interfaces/ui/index.html` — add Approvals tab
+- Modify: `src/interfaces/ui/app.js` — load + render approvals
+- Modify: `src/interfaces/ui/styles.css` — approvals table CSS
 - Modify: `tests/server/server.test.ts` — HTTP smoke test
 
 - [ ] **Step 1: Add GET /api/approvals server route**
 
-In `src/server/server.ts`, add before the sessions routes:
+In `src/interfaces/server/server.ts`, add before the sessions routes:
 
 ```typescript
       if (url.pathname === "/api/approvals") {
@@ -481,7 +481,7 @@ loadApprovals();
 
 - [ ] **Step 4: Add CSS**
 
-Append to `src/ui/styles.css`:
+Append to `src/interfaces/ui/styles.css`:
 
 ```css
 /* === Approvals view === */
@@ -546,7 +546,7 @@ Add to `tests/server/server.test.ts`:
 
 ```typescript
 it("GET /api/approvals returns array", async () => {
-  const { startServer } = await import("../../src/server/server.js");
+  const { startServer } = await import("../../src/interfaces/server/server.js");
   const tmpDir = mkdtempSync(join(tmpdir(), "approvals-api-test-"));
   try {
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
@@ -572,7 +572,7 @@ Expected: all tests pass.
 - [ ] **Step 7: Commit and push**
 
 ```bash
-git add src/server/server.ts src/ui/index.html src/ui/app.js src/ui/styles.css tests/server/server.test.ts
+git add src/interfaces/server/server.ts src/interfaces/ui/index.html src/interfaces/ui/app.js src/interfaces/ui/styles.css tests/server/server.test.ts
 git commit -m "feat(ui): add Inspector Approvals tab with status badges and copyable commands"
 git push
 ```

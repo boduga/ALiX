@@ -8,7 +8,7 @@
  * is expected to yield after `legacy-adapter.legacyToCanonicalDefinition` runs.
  *
  * Authoritative mappings (from production code, NOT spec paraphrase):
- *   - legacy kind → canonical kind: `src/capability/canonical/kind.ts:migrateKind`
+ *   - legacy kind → canonical kind: `src/capabilities/capability/canonical/kind.ts:migrateKind`
  *       core    → core
  *       tool    → operation
  *       skill   → operation
@@ -16,7 +16,7 @@
  *       plugin  → agent
  *       custom  → throws (no canonical equivalent)
  *   - legacy execution.strategy → canonical bindings[].type:
- *       `src/capability/legacy-adapter.ts:LEGACY_STRATEGY_TO_PROVIDER`
+ *       `src/capabilities/capability/legacy-adapter.ts:LEGACY_STRATEGY_TO_PROVIDER`
  *       native → native, tool → tool, mcp → mcp, cli → external-cli,
  *       daemon → daemon, agent → agent, plugin → plugin, remote-api → remote-api
  *   - version normalization: `legacy-adapter.legacyToCanonicalDefinition`
@@ -36,9 +36,9 @@
  * @module capability/fixtures/legacy-migration-bundle
  */
 
-import type { Capability } from "../../../src/capability/types.js";
-import type { CapabilityKind } from "../../../src/capability/canonical/kind.js";
-import type { ProviderType } from "../../../src/capability/canonical/provider.js";
+import type { Capability } from "../../../src/capabilities/capability/types.js";
+import type { CapabilityKind } from "../../../src/capabilities/capability/canonical/kind.js";
+import type { ProviderType } from "../../../src/capabilities/capability/canonical/provider.js";
 
 export interface LegacyMigrationRow {
   /** short label test ("tool-file-read → operation"). */

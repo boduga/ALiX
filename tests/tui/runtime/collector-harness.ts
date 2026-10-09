@@ -6,11 +6,11 @@
 // cursor whose seq lies past the current head throws EventLogCursorError (so
 // the collector discriminates the beyond-head fallback); serialized cursors
 // round-trip through the same versioned JSON envelope.
-import { EventLogCursorError } from '../../../src/events/event-log.js';
-import type { EventLog, EventLogCursor } from '../../../src/events/event-log.js';
-import type { AlixEvent } from '../../../src/events/types.js';
-import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
-import type { ProjectionBuilder } from '../../../src/tui/runtime/projection-builder.js';
+import { EventLogCursorError } from '../../../src/runtime-state/events/event-log.js';
+import type { EventLog, EventLogCursor } from '../../../src/runtime-state/events/event-log.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
+import type { ProjectionBuilder } from '../../../src/interfaces/tui/runtime/projection-builder.js';
 
 /** Default session stamped by makeEventLog's append when no sessionId is
  *  passed (mirrors the single-session world of the existing collector tests). */

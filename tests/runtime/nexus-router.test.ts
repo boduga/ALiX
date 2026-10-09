@@ -4,15 +4,15 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { routeViaNexus, type NexusRouteDecision } from "../../src/runtime/nexus-router.js";
-import { buildBridgeEnvelope } from "../../src/runtime/bridge-envelope.js";
-import type { BridgeEnvelope } from "../../src/runtime/bridge-envelope.js";
-import { createSignalFrame } from "../../src/runtime/signal-frame.js";
-import type { SignalBits, SignalFrame, SignalDomain, SignalPolarity } from "../../src/runtime/signal-frame.js";
-import { prescribeOffering } from "../../src/runtime/offering-planner.js";
-import type { OfferingPlan } from "../../src/runtime/offering-planner.js";
-import { ChronicleStore } from "../../src/chronicle/chronicle-store.js";
-import type { ChronicleEntry } from "../../src/chronicle/chronicle-store.js";
+import { routeViaNexus, type NexusRouteDecision } from "../../src/runtime-state/runtime/nexus-router.js";
+import { buildBridgeEnvelope } from "../../src/runtime-state/runtime/bridge-envelope.js";
+import type { BridgeEnvelope } from "../../src/runtime-state/runtime/bridge-envelope.js";
+import { createSignalFrame } from "../../src/runtime-state/runtime/signal-frame.js";
+import type { SignalBits, SignalFrame, SignalDomain, SignalPolarity } from "../../src/runtime-state/runtime/signal-frame.js";
+import { prescribeOffering } from "../../src/runtime-state/runtime/offering-planner.js";
+import type { OfferingPlan } from "../../src/runtime-state/runtime/offering-planner.js";
+import { ChronicleStore } from "../../src/context/chronicle/chronicle-store.js";
+import type { ChronicleEntry } from "../../src/context/chronicle/chronicle-store.js";
 import type { EssenceCompatibility } from "../../src/agents/essence-profile.js";
 
 /* ------------------------------------------------------------------ */

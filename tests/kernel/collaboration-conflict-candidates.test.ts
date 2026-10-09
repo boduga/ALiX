@@ -15,14 +15,14 @@ import assert from "node:assert/strict";
 import {
   ConflictCandidateGenerator,
   DEFAULT_CANDIDATE_LIMITS,
-} from "../../src/kernel/collaboration-conflict-candidates.js";
-import { normalizeClaim, extractClaim } from "../../src/kernel/collaboration-claim-normalizer.js";
+} from "../../src/coordination/kernel/collaboration-conflict-candidates.js";
+import { normalizeClaim, extractClaim } from "../../src/coordination/kernel/collaboration-claim-normalizer.js";
 import {
   createCoordinationRun,
   createWorkerAssignment,
-} from "../../src/kernel/coordination-types.js";
-import type { SharedFinding, EvidenceRef } from "../../src/kernel/collaboration-types.js";
-import type { FindingClaim } from "../../src/kernel/collaboration-conflict-types.js";
+} from "../../src/coordination/kernel/coordination-types.js";
+import type { SharedFinding, EvidenceRef } from "../../src/coordination/kernel/collaboration-types.js";
+import type { FindingClaim } from "../../src/coordination/kernel/collaboration-conflict-types.js";
 
 const baseRun = () => {
   const run = createCoordinationRun({

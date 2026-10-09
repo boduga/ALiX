@@ -79,7 +79,7 @@ export type ReplayStatusIndex = {
 };
 ```
 
-### File: `src/runtime/replay-status-index.ts` (NEW)
+### File: `src/runtime-state/runtime/replay-status-index.ts` (NEW)
 
 ```typescript
 export class ReplayStatusIndex {
@@ -139,7 +139,7 @@ export type ReplayLockInfo = {
 };
 ```
 
-### File: `src/runtime/replay-lock.ts` (NEW)
+### File: `src/runtime-state/runtime/replay-lock.ts` (NEW)
 
 ```typescript
 export const DEFAULT_LOCK_TTL_MS = 30_000; // 30 seconds
@@ -203,7 +203,7 @@ export type RollbackProgress = {
 };
 ```
 
-### File: `src/runtime/rollback-progress.ts` (NEW)
+### File: `src/runtime-state/runtime/rollback-progress.ts` (NEW)
 
 ```typescript
 export class RollbackProgressStore {
@@ -315,7 +315,7 @@ This is optional for M0.39. The `--resume` flag handles the common case. We can 
 
 ## 10. TUI status badges
 
-In `src/tui/trace-detail.ts`, modify `renderReplayResult()` and `renderRollbackResult()` to show status badges.
+In `src/interfaces/tui/trace-detail.ts`, modify `renderReplayResult()` and `renderRollbackResult()` to show status badges.
 
 ### Replay result badge
 
@@ -357,13 +357,13 @@ For the rollback result renderer, the `RollbackResult` already has `rollbackId`.
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/runtime/replay-status-index.ts` | **NEW** | Global index of replay lifecycle statuses |
-| `src/runtime/replay-lock.ts` | **NEW** | Per-replay file lock with stale detection |
-| `src/runtime/rollback-progress.ts` | **NEW** | Per-rollback step-level progress tracking |
-| `src/runtime/rollback-executor.ts` | MODIFY | Add idempotency checks, lock, progress, resume |
-| `src/runtime/replay-diff-store.ts` | MODIFY | Update status index on capture |
-| `src/runtime/replay-executor.ts` | MODIFY | Set status to "completed" after approved-live replay |
-| `src/tui/trace-detail.ts` | MODIFY | Add status badges to replay/rollback result renderers |
+| `src/runtime-state/runtime/replay-status-index.ts` | **NEW** | Global index of replay lifecycle statuses |
+| `src/runtime-state/runtime/replay-lock.ts` | **NEW** | Per-replay file lock with stale detection |
+| `src/runtime-state/runtime/rollback-progress.ts` | **NEW** | Per-rollback step-level progress tracking |
+| `src/runtime-state/runtime/rollback-executor.ts` | MODIFY | Add idempotency checks, lock, progress, resume |
+| `src/runtime-state/runtime/replay-diff-store.ts` | MODIFY | Update status index on capture |
+| `src/runtime-state/runtime/replay-executor.ts` | MODIFY | Set status to "completed" after approved-live replay |
+| `src/interfaces/tui/trace-detail.ts` | MODIFY | Add status badges to replay/rollback result renderers |
 | `tests/runtime/replay-status-index.test.ts` | **NEW** | Status index CRUD tests |
 | `tests/runtime/replay-lock.test.ts` | **NEW** | Lock acquire/release/stale tests |
 | `tests/runtime/rollback-idempotency.test.ts` | **NEW** | Idempotent rollback tests |

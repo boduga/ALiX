@@ -15,9 +15,9 @@
 
 import { describe, it, mock, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { runDecide } from "../../../src/evolution/governance/governance-decision-cli.js";
-import { EvolutionState } from "../../../src/evolution/contracts/evolution-contract.js";
-import type { VerificationEvidence } from "../../../src/evolution/verification/contracts/verification-contract.js";
+import { runDecide } from "../../../src/planning/evolution/governance/governance-decision-cli.js";
+import { EvolutionState } from "../../../src/planning/evolution/contracts/evolution-contract.js";
+import type { VerificationEvidence } from "../../../src/planning/evolution/verification/contracts/verification-contract.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { handleModelsCommand } from "../../../src/cli/commands/models.js";
-import { _setOpenRouterDiscoveryFetch, _resetOpenRouterDiscoveryCache } from "../../../src/providers/model-discovery.js";
+import { handleModelsCommand } from "../../../src/interfaces/cli/commands/models.js";
+import { _setOpenRouterDiscoveryFetch, _resetOpenRouterDiscoveryCache } from "../../../src/models/providers/model-discovery.js";
 
 const sample = (models: unknown[]) => new Response(JSON.stringify({ data: models }), {
   status: 200,

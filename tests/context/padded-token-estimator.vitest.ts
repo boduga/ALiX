@@ -5,11 +5,11 @@ import {
   estimateBudgetTokens,
   estimateMessageBudgetTokens,
   ensureEncoder,
-} from "../../src/utils/tokens.js";
+} from "../../src/operations/utils/tokens.js";
 import {
   resolveModelDescriptor,
   clearModelDescriptorCache,
-} from "../../src/config/context-limits.js";
+} from "../../src/operations/config/context-limits.js";
 
 const TEXT = "const x = () => foo({ bar: 'baz' });";
 

@@ -10,10 +10,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   validateVerificationEnvironment,
-} from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
 import type {
   VerificationEnvironment,
-} from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
 
 // ---------------------------------------------------------------------------
 // Validate — VerificationEnvironment

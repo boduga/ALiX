@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { GovernanceReviewCouncil } from "../../src/adaptation/governance-review-council.js";
-import type { LensScore, GovernanceReviewInput } from "../../src/adaptation/governance-review-types.js";
-import type { ApprovalRecommendation } from "../../src/adaptation/recommendation-types.js";
-import type { DecisionContext } from "../../src/adaptation/decision-types.js";
-import type { RiskScore, RiskDimension } from "../../src/adaptation/risk-score-types.js";
+import { GovernanceReviewCouncil } from "../../src/planning/adaptation/governance-review-council.js";
+import type { LensScore, GovernanceReviewInput } from "../../src/planning/adaptation/governance-review-types.js";
+import type { ApprovalRecommendation } from "../../src/planning/adaptation/recommendation-types.js";
+import type { DecisionContext } from "../../src/planning/adaptation/decision-types.js";
+import type { RiskScore, RiskDimension } from "../../src/planning/adaptation/risk-score-types.js";
 
 const FROZEN_TIME = "2026-06-21T12:00:00.000Z";
 

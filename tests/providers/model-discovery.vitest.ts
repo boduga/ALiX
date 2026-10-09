@@ -11,7 +11,7 @@ import {
   _setOpenRouterDiscoveryFetch,
   _resetOpenRouterDiscoveryCache,
   _expireOpenRouterDiscoveryCacheForTesting,
-} from "../../src/providers/model-discovery.js";
+} from "../../src/models/providers/model-discovery.js";
 
 const catalog = (models: unknown[]) =>
   new Response(

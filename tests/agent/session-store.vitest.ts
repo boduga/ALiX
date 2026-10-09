@@ -18,9 +18,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   JsonlSessionStore,
-} from "../../src/agent/session-store-jsonl.js";
-import type { SessionSnapshot } from "../../src/agent/session-store.js";
-import type { ToolExecution } from "../../src/agent/session.js";
+} from "../../src/agents/agent/session-store-jsonl.js";
+import type { SessionSnapshot } from "../../src/agents/agent/session-store.js";
+import type { ToolExecution } from "../../src/agents/agent/session.js";
 
 function freshTmpDir(): string {
   return mkdtempSync(join(tmpdir(), "session-store-test-"));

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { paintOperatorShell } from '../../../src/tui/workbench/views/operator-shell.js';
-import { diffFrameRows } from '../../../src/tui/workbench/render/frame-differ.js';
-import type { OperatorShellSnapshot } from '../../../src/tui/workbench/model/operator-shell.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import { paintOperatorShell } from '../../../src/interfaces/tui/workbench/views/operator-shell.js';
+import { diffFrameRows } from '../../../src/interfaces/tui/workbench/render/frame-differ.js';
+import type { OperatorShellSnapshot } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
 
 const model: OperatorShellSnapshot = {
   workspace: '/workspace/ALiX', mode: 'ask', transcriptMode: 'compact', running: true,

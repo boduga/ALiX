@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { ToolCatalog, type ToolCategory, type TrustLevel } from "../../src/mcp/tool-catalog.js";
+import { ToolCatalog, type ToolCategory, type TrustLevel } from "../../src/capabilities/mcp/tool-catalog.js";
 
 describe("ToolCatalog", () => {
   it("groups tools by category", () => {

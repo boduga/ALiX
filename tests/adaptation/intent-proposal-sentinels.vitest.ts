@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 
-const MAPPER = resolve(__dirname, "../../src/adaptation/intent-proposal-mapper.ts");
+const MAPPER = resolve(__dirname, "../../src/planning/adaptation/intent-proposal-mapper.ts");
 const mapperSource = readFileSync(MAPPER, "utf-8");
 const mapperCode = codeOnly(mapperSource);
 

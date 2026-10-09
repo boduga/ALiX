@@ -13,7 +13,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { deriveCoordinationChangedFiles, deriveCoordinationEvidence } from "../../src/kernel/coordination-evidence.js";
+import { deriveCoordinationChangedFiles, deriveCoordinationEvidence } from "../../src/coordination/kernel/coordination-evidence.js";
 
 const CWD = "/workspace";
 const resolver = {
@@ -157,7 +157,7 @@ describe("changed-file evidence wiring", () => {
   });
 
   it("routes the coordination tool through the explicit-evidence derivation", () => {
-    const source = readFileSync("src/kernel/coordination-tools.ts", "utf8");
+    const source = readFileSync("src/coordination/kernel/coordination-tools.ts", "utf8");
     assert.ok(
       source.includes("deriveCoordinationEvidence"),
       "the run handler must derive changed files from explicit evidence",

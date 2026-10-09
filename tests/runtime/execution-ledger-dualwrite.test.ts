@@ -7,11 +7,11 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { ExecutionStateStore, stateFilePath } from "../../src/runtime/execution-state/execution-state-store.js";
-import { reconcileExecutionLedger } from "../../src/runtime/execution-state/execution-ledger-reconcile.js";
-import { project, applyEvent, ProjectionUnsupportedError } from "../../src/runtime/execution-state/execution-state-projector.js";
-import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/storage/runtime-ledger.js";
-import type { ExecutionState } from "../../src/runtime/execution-state/execution-state.js";
+import { ExecutionStateStore, stateFilePath } from "../../src/runtime-state/runtime/execution-state/execution-state-store.js";
+import { reconcileExecutionLedger } from "../../src/runtime-state/runtime/execution-state/execution-ledger-reconcile.js";
+import { project, applyEvent, ProjectionUnsupportedError } from "../../src/runtime-state/runtime/execution-state/execution-state-projector.js";
+import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/runtime-state/storage/runtime-ledger.js";
+import type { ExecutionState } from "../../src/runtime-state/runtime/execution-state/execution-state.js";
 
 const dirs: string[] = [];
 

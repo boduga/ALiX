@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import {
   CredentialStore,
   MAX_CREDENTIAL_ENTRIES,
-} from "../../../src/security/credentials/credential-store.js";
+} from "../../../src/governance/security/credentials/credential-store.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -105,7 +105,7 @@ Step 3 finds step 2 by matching `objectiveId`, then looks for a proposal whose `
 ## Pure reconciler function
 
 ```ts
-// src/executive/executive-apply-reconciler.ts
+// src/execution/executive/executive-apply-reconciler.ts
 
 import type { PersistedExecutionPlan } from "./executive-plan-types.js";
 import type { ExecutionStep } from "./planning-engine.js";
@@ -161,14 +161,14 @@ export function reconcileApplyStep(
 One new evidence type, additive evidence infrastructure (not an ADR-0004 protected-type change):
 
 ```ts
-// src/security/evidence/evidence-types.ts — additive member
+// src/governance/security/evidence/evidence-types.ts — additive member
 "executive_step_applied_remediation"
 ```
 
 One new public method on `EvidenceEventWriter` (matching P10.4b pattern):
 
 ```ts
-// src/workflow/evidence-writer.ts
+// src/coordination/workflow/evidence-writer.ts
 recordExecutiveStepAppliedRemediation(payload: {
   planId: string;
   stepId: string;
@@ -214,21 +214,21 @@ The `proposalStore` guard ensures no-op when the store isn't wired (same as P10.
 ## File changes
 
 ### New files
-- `src/executive/executive-apply-reconciler.ts` — pure `reconcileApplyStep` function
+- `src/execution/executive/executive-apply-reconciler.ts` — pure `reconcileApplyStep` function
 - `tests/executive/executive-apply-reconciler.vitest.ts` — unit tests (minimum 5)
 - `tests/executive/execution-engine-apply-dispatch.vitest.ts` — integration tests (minimum 2)
 
 ### Modified files
-- `src/executive/execution-engine.ts` — add `apply_remediation` dispatch block
-- `src/workflow/evidence-writer.ts` — new `recordExecutiveStepAppliedRemediation` method
-- `src/security/evidence/evidence-types.ts` — additive `"executive_step_applied_remediation"`
+- `src/execution/executive/execution-engine.ts` — add `apply_remediation` dispatch block
+- `src/coordination/workflow/evidence-writer.ts` — new `recordExecutiveStepAppliedRemediation` method
+- `src/governance/security/evidence/evidence-types.ts` — additive `"executive_step_applied_remediation"`
 
 ### Not modified
-- `src/adaptation/adaptation-types.ts` — no new types
-- `src/executive/executive-bridge.ts` — no changes
-- `src/executive/step-behavior.ts` — no changes
-- `src/executive/step-runner.ts` — no changes
-- `src/cli/commands/executive.ts` — no changes
+- `src/planning/adaptation/adaptation-types.ts` — no new types
+- `src/execution/executive/executive-bridge.ts` — no changes
+- `src/execution/executive/step-behavior.ts` — no changes
+- `src/execution/executive/step-runner.ts` — no changes
+- `src/interfaces/cli/commands/executive.ts` — no changes
 - `tests/executive/executive-sentinels.vitest.ts` — likely needs allowlist update (new `executive-apply-reconciler.ts` file must be listed if the sentinel enumerates executive file paths; verify at implementation time)
 
 ## Test cases

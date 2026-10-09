@@ -30,12 +30,12 @@ import { describe, it, expect } from "vitest";
 import {
   legacyToCanonicalDefinition,
   canonicalToLegacyCapability,
-} from "../../src/capability/legacy-adapter.js";
+} from "../../src/capabilities/capability/legacy-adapter.js";
 import {
   LEGACY_MIGRATION_BUNDLE,
   type LegacyMigrationRow,
 } from "./fixtures/legacy-migration-bundle.js";
-import { PROVIDER_TYPES } from "../../src/capability/canonical/provider.js";
+import { PROVIDER_TYPES } from "../../src/capabilities/capability/canonical/provider.js";
 
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
 

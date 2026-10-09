@@ -1,7 +1,7 @@
 // tests/capability/event-bus.vitest.ts
 import { describe, it, expect, vi } from 'vitest';
-import { EventBus, toAlixEvent } from '../../src/capability/event-bus.js';
-import type { CapabilityEvent } from '../../src/capability/types.js';
+import { EventBus, toAlixEvent } from '../../src/capabilities/capability/event-bus.js';
+import type { CapabilityEvent } from '../../src/capabilities/capability/types.js';
 
 describe('EventBus', () => {
   it('delivers emitted events to subscribers in order', () => {

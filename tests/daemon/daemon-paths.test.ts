@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { resolveDaemonSocketAddress, isNamedPipe } from "../../src/daemon/daemon-paths.js";
+import { resolveDaemonSocketAddress, isNamedPipe } from "../../src/operations/daemon/daemon-paths.js";
 
 test("resolveDaemonSocketAddress: POSIX is a Unix socket file under the dir", () => {
   const addr = resolveDaemonSocketAddress("/home/u/.alix", "linux");

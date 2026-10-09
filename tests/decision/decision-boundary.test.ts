@@ -8,7 +8,7 @@ import {
   stableStringify,
   verifySealedProjection,
   type Projector,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 describe("boundary happy path", () => {
   it("seals minimal projections with stable key-order-insensitive hash", () => {

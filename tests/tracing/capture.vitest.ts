@@ -21,7 +21,7 @@ import {
   captureValue,
   redactString,
   type CaptureLevel,
-} from "../../src/tracing/capture.js";
+} from "../../src/models/tracing/capture.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures

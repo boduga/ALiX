@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { AdaptationProposalStore } from "../../src/planning/adaptation/adaptation-proposal-store.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 
 describe("AdaptationProposalStore", () => {
   let dir: string;

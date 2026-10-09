@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { matchHardware, type SystemInfo } from "../../src/config/profile-registry.js";
-import { type ProfileData } from "../../src/config/profile-types.js";
+import { matchHardware, type SystemInfo } from "../../src/operations/config/profile-registry.js";
+import { type ProfileData } from "../../src/operations/config/profile-types.js";
 
 function makeProfile(overrides: Partial<ProfileData> = {}): ProfileData {
   return {

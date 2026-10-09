@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
 
 describe("TUI approval store wiring", () => {
   let tmpDir: string;
@@ -57,7 +57,7 @@ describe("TUI approval store wiring", () => {
 
   it("ToolExecutor passes approvalStore to PolicyGate constructor", () => {
     // Verify by checking the source — approvalStore appears in both places
-    const executorSrc = readFileSync("src/tools/executor.ts", "utf-8");
+    const executorSrc = readFileSync("src/capabilities/tools/executor.ts", "utf-8");
     const hasApprovalStoreParam = executorSrc.includes("private approvalStore");
     const hasApprovalStoreInPolicyGate = executorSrc.includes("approvalStore: this.approvalStore");
     assert.ok(hasApprovalStoreParam, "ToolExecutor must accept approvalStore param");

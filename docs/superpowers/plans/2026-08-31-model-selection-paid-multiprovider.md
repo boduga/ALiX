@@ -68,30 +68,30 @@ Introduce one generalized model-discovery/resolution path:
 ### Module responsibilities
 
 ```text
-src/providers/model-discovery.ts
+src/models/providers/model-discovery.ts
     Provider-independent discovered-model data shape.
     OpenRouter rich catalog discovery.
 
-src/providers/model-resolver.ts
+src/models/providers/model-resolver.ts
     Selection requirements.
     Provider discovery adapter.
     Eligibility filtering.
     Deterministic ranking.
     Single resolution seam.
 
-src/providers/catalog.ts
+src/models/providers/catalog.ts
     Existing provider listModels() discovery.
     No model IDs hard-coded here by this feature.
 
-src/providers/registry.ts
+src/models/providers/registry.ts
     createProvider() caller.
     Supplies the provider API key to the resolution seam.
 
-src/providers/routing-adapter.ts
+src/models/providers/routing-adapter.ts
     buildRoutingAdapter() caller.
     Supplies the provider API key to the resolution seam.
 
-src/providers/openrouter-provider.ts
+src/models/providers/openrouter-provider.ts
     Existing openrouter/free self-healing route.
     Must retain fresh discovery + restriction semantics.
 ```
@@ -216,7 +216,7 @@ no cost metadata:
 **Files:**
 
 * Modify: `tests/providers/model-resolver.vitest.ts`
-* Possibly modify: `src/config/schema.ts` only if current `ModelSelectionPolicy` vocabulary does not already expose `paid` / `any`.
+* Possibly modify: `src/operations/config/schema.ts` only if current `ModelSelectionPolicy` vocabulary does not already expose `paid` / `any`.
 
 ### Required decisions
 
@@ -243,8 +243,8 @@ The implementation agent must be able to derive every selector result from these
 
 **Files:**
 
-* Create: `src/providers/model-discovery.ts`
-* Delete later: `src/providers/free-model-catalog.ts`
+* Create: `src/models/providers/model-discovery.ts`
+* Delete later: `src/models/providers/free-model-catalog.ts`
 * Create: `tests/providers/model-discovery.vitest.ts`
 
 ## Interface
@@ -287,7 +287,7 @@ import {
   discoverOpenRouterModels,
   _setOpenRouterDiscoveryFetch,
   _resetOpenRouterDiscoveryCache,
-} from "../../src/providers/model-discovery.js";
+} from "../../src/models/providers/model-discovery.js";
 
 const catalog = (models: unknown[]) =>
   new Response(
@@ -418,7 +418,7 @@ FAIL — module not found / exports unavailable
 Create:
 
 ```ts
-// src/providers/model-discovery.ts
+// src/models/providers/model-discovery.ts
 
 export type DiscoveredModel = {
   id: string;
@@ -608,7 +608,7 @@ PASS
 
 ```bash
 git add \
-  src/providers/model-discovery.ts \
+  src/models/providers/model-discovery.ts \
   tests/providers/model-discovery.vitest.ts
 
 git commit -m \
@@ -621,9 +621,9 @@ git commit -m \
 
 **Files:**
 
-* Create: `src/providers/model-resolver.ts`
+* Create: `src/models/providers/model-resolver.ts`
 * Source: existing `free-model-resolver.ts`
-* Modify if required: `src/providers/catalog.ts`
+* Modify if required: `src/models/providers/catalog.ts`
 * Create/modify: `tests/providers/model-resolver.vitest.ts`
 
 ## Interfaces
@@ -691,11 +691,11 @@ import {
 import {
   selectModelFromDiscovery,
   resolveConcreteFreeModel,
-} from "../../src/providers/model-resolver.js";
+} from "../../src/models/providers/model-resolver.js";
 
 import type {
   DiscoveredModel,
-} from "../../src/providers/model-discovery.js";
+} from "../../src/models/providers/model-discovery.js";
 
 const M = (
   id: string,
@@ -1348,7 +1348,7 @@ PASS
 
 ```bash
 git add \
-  src/providers/model-resolver.ts \
+  src/models/providers/model-resolver.ts \
   tests/providers/model-resolver.vitest.ts
 
 git commit -m \
@@ -1361,7 +1361,7 @@ git commit -m \
 
 **Files:**
 
-* Modify: `src/providers/model-resolver.ts`
+* Modify: `src/models/providers/model-resolver.ts`
 * Modify: `tests/providers/model-resolver.vitest.ts`
 
 ## Interface
@@ -1381,15 +1381,15 @@ export async function resolveModelSelectionId(
 import {
   _setOpenRouterDiscoveryFetch,
   _resetOpenRouterDiscoveryCache,
-} from "../../src/providers/model-discovery.js";
+} from "../../src/models/providers/model-discovery.js";
 
 import {
   _resetAccessRestrictionRegistryForTesting,
-} from "../../src/providers/access-restriction-registry.js";
+} from "../../src/models/providers/access-restriction-registry.js";
 
 import {
   resolveModelSelectionId,
-} from "../../src/providers/model-resolver.js";
+} from "../../src/models/providers/model-resolver.js";
 
 afterEach(() => {
   _resetOpenRouterDiscoveryCache();
@@ -1596,7 +1596,7 @@ PASS
 
 ```bash
 git add \
-  src/providers/model-resolver.ts \
+  src/models/providers/model-resolver.ts \
   tests/providers/model-resolver.vitest.ts
 
 git commit -m \
@@ -1609,11 +1609,11 @@ git commit -m \
 
 **Files:**
 
-* Modify: `src/providers/registry.ts`
-* Modify: `src/providers/routing-adapter.ts`
-* Modify: `src/providers/openrouter-provider.ts`
-* Delete: `src/providers/free-model-catalog.ts`
-* Delete: `src/providers/free-model-resolver.ts`
+* Modify: `src/models/providers/registry.ts`
+* Modify: `src/models/providers/routing-adapter.ts`
+* Modify: `src/models/providers/openrouter-provider.ts`
+* Delete: `src/models/providers/free-model-catalog.ts`
+* Delete: `src/models/providers/free-model-resolver.ts`
 
 ## Step 1: Migrate `registry.ts`
 
@@ -1720,8 +1720,8 @@ deterministic largest-context selection
 
 ```bash
 git rm \
-  src/providers/free-model-catalog.ts \
-  src/providers/free-model-resolver.ts
+  src/models/providers/free-model-catalog.ts \
+  src/models/providers/free-model-resolver.ts
 ```
 
 ## Step 5: Search for stale references
@@ -1745,10 +1745,10 @@ Any test imports still using the old filenames must be migrated in Task 6.
 
 ## Step 6: Migrate the `alix models free` CLI consumer
 
-`src/cli/commands/models.ts` (~lines 302–305) dynamically imports `fetchFreeModelCatalog` for `alix models free`. Migrate it, and preserve its **free-only** semantics now that discovery returns the full catalog:
+`src/interfaces/cli/commands/models.ts` (~lines 302–305) dynamically imports `fetchFreeModelCatalog` for `alix models free`. Migrate it, and preserve its **free-only** semantics now that discovery returns the full catalog:
 
 ```ts
-// src/cli/commands/models.ts
+// src/interfaces/cli/commands/models.ts
 const { discoverOpenRouterModels } = await import("../../providers/model-discovery.js");
 let models = await discoverOpenRouterModels();
 // alix models free must list only free models
@@ -1834,7 +1834,7 @@ Use the project's existing catalog testing seam if one exists.
 Otherwise:
 
 ```ts
-import * as catalog from "../../src/providers/catalog.js";
+import * as catalog from "../../src/models/providers/catalog.js";
 ```
 
 and:
@@ -2025,7 +2025,7 @@ git commit -m \
 
 **Files:**
 
-* Verify/modify: `src/providers/openrouter-provider.ts`
+* Verify/modify: `src/models/providers/openrouter-provider.ts`
 * Modify old provider tests to renamed modules.
 
 ## Required invariant
@@ -2165,7 +2165,7 @@ git commit -m \
 
 **Files:**
 
-* Modify: `src/providers/AGENTS.md`
+* Modify: `src/models/providers/AGENTS.md`
 
 ## Step 1: Update ownership table
 

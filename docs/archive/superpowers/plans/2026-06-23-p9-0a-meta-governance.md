@@ -29,7 +29,7 @@
 | `src/governance/governance-integrity.ts` (new) | Pure: reads EvidenceChain + ProposalExplanation + GovernanceReviewStore → IntegrityReport |
 | `src/governance/governance-drift-detector.ts` (new) | Pure: reads LearningSignals + Dashboard metrics → DriftReport |
 | `src/governance/governance-lens-review.ts` (new) | Pure: reads LearningStore calibration profiles → LensLifecycleReview |
-| `src/cli/commands/governance.ts` (new) | CLI dispatcher + terminal renderer |
+| `src/interfaces/cli/commands/governance.ts` (new) | CLI dispatcher + terminal renderer |
 | `tests/governance/governance-store.vitest.ts` (new) | Store tests |
 | `tests/governance/governance-health-builder.vitest.ts` (new) | Health builder tests |
 | `tests/governance/governance-integrity.vitest.ts` (new) | Integrity builder tests |
@@ -515,13 +515,13 @@ git commit -m "feat(p9.0e): lens lifecycle review (promote/demote/retire/keep)"
 ### Task 6: P9.0f — CLI + sentinel + final review
 
 **Files:**
-- Create: `src/cli/commands/governance.ts` (dispatcher + renderer)
+- Create: `src/interfaces/cli/commands/governance.ts` (dispatcher + renderer)
 - Create: `tests/governance/governance-sentinels.vitest.ts`
 - Create: `tests/cli/commands/governance-cli.vitest.ts`
 
 **Step-by-step:**
 
-- [ ] **Step 1: Create `src/cli/commands/governance.ts`**
+- [ ] **Step 1: Create `src/interfaces/cli/commands/governance.ts`**
 
 Four subcommands:
 - `alix governance health [--window <days>] [--json]` — runs health builder + assessment, renders
@@ -593,7 +593,7 @@ const GOVERNANCE_BUILDERS = [
 const ALL_FILES = [
   ...GOVERNANCE_BUILDERS,
   "src/governance/governance-store.ts",
-  "src/cli/commands/governance.ts",
+  "src/interfaces/cli/commands/governance.ts",
 ];
 
 describe("P9.0 purity sentinel", () => {
@@ -641,7 +641,7 @@ describe("P9.0 purity sentinel", () => {
 ```ts
 // tests/cli/commands/governance-cli.vitest.ts
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { handleGovernanceCommand } from "../../../src/cli/commands/governance.js";
+import { handleGovernanceCommand } from "../../../src/interfaces/cli/commands/governance.js";
 
 describe("alix governance CLI", () => {
   it("health subcommand renders output with no data", async () => {
@@ -675,12 +675,12 @@ describe("alix governance CLI", () => {
 - [ ] **Step 4: Run full suite + tsc + commit**
 
 ```bash
-npx vitest run tests/governance/ tests/cli/commands/governance-cli.vitest.ts && npx tsc --noEmit && git diff main --stat -- 'src/learning/*-types.ts' 'src/adaptation/*-types.ts'
+npx vitest run tests/governance/ tests/cli/commands/governance-cli.vitest.ts && npx tsc --noEmit && git diff main --stat -- 'src/planning/learning/*-types.ts' 'src/planning/adaptation/*-types.ts'
 ```
 Expected: all pass, tsc clean, 6 protected type files unchanged.
 
 ```bash
-git add src/governance/ src/cli/commands/governance.ts tests/governance/ tests/cli/commands/governance-cli.vitest.ts
+git add src/governance/ src/interfaces/cli/commands/governance.ts tests/governance/ tests/cli/commands/governance-cli.vitest.ts
 git commit -m "feat(p9.0f): governance CLI + purity sentinel + final review"
 ```
 

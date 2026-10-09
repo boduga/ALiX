@@ -19,17 +19,17 @@ import { randomUUID } from "node:crypto";
 import {
   AuthStore,
   MAX_TOKEN_COUNT,
-} from "../../../src/security/inspector/auth-store.js";
+} from "../../../src/governance/security/inspector/auth-store.js";
 import {
   AuthService,
   type AuditFn,
   type MetricsFn,
-} from "../../../src/security/inspector/auth-service.js";
+} from "../../../src/governance/security/inspector/auth-service.js";
 import {
   generateToken,
   TOKEN_PREFIX,
   TOKEN_ID_LENGTH,
-} from "../../../src/security/inspector/token-format.js";
+} from "../../../src/governance/security/inspector/token-format.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldSkipDuplicateResponse } from '../../src/tui/timeline-emitter.js';
+import { shouldSkipDuplicateResponse } from '../../src/interfaces/tui/timeline-emitter.js';
 
 describe('shouldSkipDuplicateResponse (write-time response dedup)', () => {
   it('skips when the summary is byte-identical to the persisted prose', () => {

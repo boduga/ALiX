@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractDecisions, DECISION_PATTERNS, promptDecisionConfirmation } from "../../../src/utils/memory/decision-extractor.js";
-import { saveDecisionsToMemory } from "../../../src/run/helpers.js";
-import type { AlixEvent } from "../../../src/events/types.js";
-import type { MemoryEntry } from "../../../src/utils/memory/types.js";
-import type { MemoryStore } from "../../../src/utils/memory/store.js";
+import { extractDecisions, DECISION_PATTERNS, promptDecisionConfirmation } from "../../../src/operations/utils/memory/decision-extractor.js";
+import { saveDecisionsToMemory } from "../../../src/execution/run/helpers.js";
+import type { AlixEvent } from "../../../src/runtime-state/events/types.js";
+import type { MemoryEntry } from "../../../src/operations/utils/memory/types.js";
+import type { MemoryStore } from "../../../src/operations/utils/memory/store.js";
 
 function makeEvent(type: string, payload: Record<string, unknown>, sessionId = "test-session"): AlixEvent {
   return {

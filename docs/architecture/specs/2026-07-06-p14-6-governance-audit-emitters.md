@@ -58,7 +58,7 @@ function overrideEvent(override, ctx?)              → GovernanceAuditEventInpu
 
 ### CLI handler integration
 
-The `append()` calls go in the CLI handler functions in `src/cli/commands/governance.ts`, after the successful store operation. This keeps the domain modules pure (no audit dependency) while still capturing every governance action at the operator boundary.
+The `append()` calls go in the CLI handler functions in `src/interfaces/cli/commands/governance.ts`, after the successful store operation. This keeps the domain modules pure (no audit dependency) while still capturing every governance action at the operator boundary.
 
 ### Store method integration (alternative)
 
@@ -81,7 +81,7 @@ For operations that happen outside the CLI (e.g., programmatic API calls, future
 | File | Purpose |
 |------|---------|
 | `src/governance/audit-emitters.ts` | Pure event factory functions |
-| `src/cli/commands/governance.ts` | Integration calls in handler functions |
+| `src/interfaces/cli/commands/governance.ts` | Integration calls in handler functions |
 | `tests/governance/audit-emitters.test.ts` | Event factory tests |
 
 ## Dependencies

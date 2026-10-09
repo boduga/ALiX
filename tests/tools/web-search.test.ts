@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { webSearchTool } from "../../src/tools/web-search.js";
-import { _setUserConfigPathOverride } from "../../src/cli/helpers/api-keys.js";
+import { webSearchTool } from "../../src/capabilities/tools/web-search.js";
+import { _setUserConfigPathOverride } from "../../src/interfaces/cli/helpers/api-keys.js";
 
 describe("webSearchTool", () => {
   let tmpDir: string;

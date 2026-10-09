@@ -7,9 +7,9 @@ import { existsSync, unlinkSync, rmdirSync } from "node:fs";
 import { join } from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { HealthForecastStore, validateForecast } from "../../src/forecasting/health-forecast-store.js";
-import type { HealthForecast } from "../../src/forecasting/forecasting-types.js";
-import { ForecasterError } from "../../src/forecasting/forecasting-types.js";
+import { HealthForecastStore, validateForecast } from "../../src/planning/forecasting/health-forecast-store.js";
+import type { HealthForecast } from "../../src/planning/forecasting/forecasting-types.js";
+import { ForecasterError } from "../../src/planning/forecasting/forecasting-types.js";
 
 function makeForecast(overrides?: Partial<HealthForecast>): HealthForecast {
   return {

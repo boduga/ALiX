@@ -41,7 +41,7 @@ git push -u origin feature/p10-5b-outcome-report-persistence
 ### Task 1: OutcomeReportStore + sentinel updates + unit tests
 
 **Files:**
-- Create: `src/executive/outcome-store.ts`
+- Create: `src/execution/executive/outcome-store.ts`
 - Modify: `tests/executive/executive-sentinels.vitest.ts` (add to EXECUTIVE_FILES + write-exception group)
 - Create: `tests/executive/outcome-store.vitest.ts`
 
@@ -50,7 +50,7 @@ git push -u origin feature/p10-5b-outcome-report-persistence
 
 - [ ] **Step 1: Check existing PlanStore atomic-write pattern**
 
-Run: `cat src/executive/plan-store.ts | head -95`
+Run: `cat src/execution/executive/plan-store.ts | head -95`
 
 Verify the atomic write pattern (openSync → writeFileSync → fsyncSync → closeSync → renameSync). The same pattern is used for OutcomeReportStore.
 
@@ -63,8 +63,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { OutcomeReportStore } from "../../src/executive/outcome-store.js";
-import type { ExecutiveOutcomeEvaluationReport } from "../../src/executive/outcome-evaluator.js";
+import { OutcomeReportStore } from "../../src/execution/executive/outcome-store.js";
+import type { ExecutiveOutcomeEvaluationReport } from "../../src/execution/executive/outcome-evaluator.js";
 
 function makeReport(overrides: Partial<ExecutiveOutcomeEvaluationReport> = {}): ExecutiveOutcomeEvaluationReport {
   return {
@@ -181,7 +181,7 @@ Expected: All tests fail with "Cannot find module" for OutcomeReportStore.
 
 - [ ] **Step 4: Implement OutcomeReportStore**
 
-Create `src/executive/outcome-store.ts`:
+Create `src/execution/executive/outcome-store.ts`:
 
 ```ts
 /**
@@ -341,15 +341,15 @@ export class OutcomeReportStore {
 
 Modify `tests/executive/executive-sentinels.vitest.ts`:
 
-Add `"src/executive/outcome-store.ts"` to the `EXECUTIVE_FILES` array (after the P10.4c entry, before the P10.5a comment):
+Add `"src/execution/executive/outcome-store.ts"` to the `EXECUTIVE_FILES` array (after the P10.4c entry, before the P10.5a comment):
 
 ```ts
   // P10.4c files
-  "src/executive/executive-apply-reconciler.ts",
+  "src/execution/executive/executive-apply-reconciler.ts",
   // P10.5b files
-  "src/executive/outcome-store.ts",
+  "src/execution/executive/outcome-store.ts",
   // P10.5a files
-  "src/executive/outcome-evaluator.ts",
+  "src/execution/executive/outcome-evaluator.ts",
 ```
 
 Modify the scoped write-exception to include `outcome-store.ts`:
@@ -357,9 +357,9 @@ Modify the scoped write-exception to include `outcome-store.ts`:
 ```ts
             // Scoped exception: plan-store.ts, execution-state-store.ts, and
             // outcome-store.ts are approved write paths
-            if ((file === "src/executive/plan-store.ts" ||
-                 file === "src/executive/execution-state-store.ts" ||
-                 file === "src/executive/outcome-store.ts") &&
+            if ((file === "src/execution/executive/plan-store.ts" ||
+                 file === "src/execution/executive/execution-state-store.ts" ||
+                 file === "src/execution/executive/outcome-store.ts") &&
                 (forbidden === "writeFileSync" || forbidden === "mkdirSync" ||
                  forbidden === "renameSync" || forbidden === "openSync" ||
                  forbidden === "fsyncSync" || forbidden === "closeSync")) {
@@ -379,7 +379,7 @@ Expected: All tests passing.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/executive/outcome-store.ts tests/executive/outcome-store.vitest.ts tests/executive/executive-sentinels.vitest.ts
+git add src/execution/executive/outcome-store.ts tests/executive/outcome-store.vitest.ts tests/executive/executive-sentinels.vitest.ts
 git commit -m "feat(p10-5b): add OutcomeReportStore with save/load/list + sentinel allowlist"
 ```
 
@@ -388,7 +388,7 @@ git commit -m "feat(p10-5b): add OutcomeReportStore with save/load/list + sentin
 ### Task 2: --save flag on evaluate CLI
 
 **Files:**
-- Modify: `src/cli/commands/executive-evaluate-handler.ts`
+- Modify: `src/interfaces/cli/commands/executive-evaluate-handler.ts`
 - Modify: `tests/cli/commands/executive-evaluate-cli.vitest.ts`
 
 **Interfaces:**
@@ -519,7 +519,7 @@ Expected: All tests pass (including new --save tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/executive-evaluate-handler.ts tests/cli/commands/executive-evaluate-cli.vitest.ts
+git add src/interfaces/cli/commands/executive-evaluate-handler.ts tests/cli/commands/executive-evaluate-cli.vitest.ts
 git commit -m "feat(p10-5b): add --save flag to evaluate CLI"
 ```
 
@@ -528,8 +528,8 @@ git commit -m "feat(p10-5b): add --save flag to evaluate CLI"
 ### Task 3: outcomes list/show CLI subcommands
 
 **Files:**
-- Create: `src/cli/commands/executive-outcomes-handler.ts`
-- Modify: `src/cli/commands/executive.ts`
+- Create: `src/interfaces/cli/commands/executive-outcomes-handler.ts`
+- Modify: `src/interfaces/cli/commands/executive.ts`
 - Create: `tests/cli/commands/executive-outcomes-cli.vitest.ts`
 
 **Interfaces:**
@@ -551,8 +551,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleExecutiveCommand } from "../../../src/cli/commands/executive.js";
-import { OutcomeReportStore } from "../../../src/executive/outcome-store.js";
+import { handleExecutiveCommand } from "../../../src/interfaces/cli/commands/executive.js";
+import { OutcomeReportStore } from "../../../src/execution/executive/outcome-store.js";
 
 function captureConsole() {
   const out: string[] = [];
@@ -678,7 +678,7 @@ Expected: Tests fail — no handler yet.
 
 - [ ] **Step 3: Create outcomes handler**
 
-Create `src/cli/commands/executive-outcomes-handler.ts`:
+Create `src/interfaces/cli/commands/executive-outcomes-handler.ts`:
 
 ```ts
 /**
@@ -816,7 +816,7 @@ Expected: All tests passing.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/executive-outcomes-handler.ts src/cli/commands/executive.ts tests/cli/commands/executive-outcomes-cli.vitest.ts
+git add src/interfaces/cli/commands/executive-outcomes-handler.ts src/interfaces/cli/commands/executive.ts tests/cli/commands/executive-outcomes-cli.vitest.ts
 git commit -m "feat(p10-5b): add outcomes list + show CLI subcommands"
 ```
 

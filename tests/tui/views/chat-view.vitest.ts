@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { ChatView } from '../../../src/tui/views/chat-view.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
+import { ChatView } from '../../../src/interfaces/tui/views/chat-view.js';
+import type { ViewRenderContext } from '../../../src/interfaces/tui/views/types.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
 
 function ctx(overrides: Partial<{ snap: any; perTab: any; dims: any; runtime: any }> = {}): ViewRenderContext {
   const dims = overrides.dims ?? { columns: 120, rows: 30 };

@@ -13,13 +13,13 @@ import type {
   ExecutionIntent,
   ExecutionIntentEvent,
   ExecutionEvidence,
-} from "../../src/runtime/contracts/execution-intent-contract.js";
+} from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 import {
   createIntentId,
   createIntentHash,
   deriveIntentStatus,
   EXECUTION_INTENT_INVARIANTS,
-} from "../../src/runtime/contracts/execution-intent-contract.js";
+} from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

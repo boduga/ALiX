@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyContextEventSignal } from '../../../src/tui/views/scroll-math.js';
+import { classifyContextEventSignal } from '../../../src/interfaces/tui/views/scroll-math.js';
 
 describe('classifyContextEventSignal', () => {
   it('classifies assembled / preflight.failed / irreducible as HIGH', () => {

@@ -2,9 +2,9 @@
 
 ## Context
 
-`alix tui` hangs silently in a real interactive terminal. The recent TTY guard (commit `861317e`) prevents the silent-exit regression but exposes a deeper bug: `src/cli/commands/tui.ts:16-27` uses `process.stdin.once("data", ...)` without resuming the stream. In TTY mode, `process.stdin` starts paused, so the `'data'` listener never fires and the `while (true)` loop blocks on the first `readLine()`. Commit `861317e`'s "robust readLine with buffered input" claim is overstated — the diff only added the TTY guard.
+`alix tui` hangs silently in a real interactive terminal. The recent TTY guard (commit `861317e`) prevents the silent-exit regression but exposes a deeper bug: `src/interfaces/cli/commands/tui.ts:16-27` uses `process.stdin.once("data", ...)` without resuming the stream. In TTY mode, `process.stdin` starts paused, so the `'data'` listener never fires and the `while (true)` loop blocks on the first `readLine()`. Commit `861317e`'s "robust readLine with buffered input" claim is overstated — the diff only added the TTY guard.
 
-The same bug pattern exists in `src/tui/cursor.ts: getCursorPosition()` (relies on stdin flowing mode to receive the CSI DSR response).
+The same bug pattern exists in `src/interfaces/tui/cursor.ts: getCursorPosition()` (relies on stdin flowing mode to receive the CSI DSR response).
 
 Goal: make the TUI actually receive interactive input in a real terminal, with a PTY regression test that proves it, without breaking CI on hosts that can't build `node-pty`.
 
@@ -16,17 +16,17 @@ User-approved approach: `readline.createInterface` for `readLine`, `resume()` + 
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/tui.ts` | Replace manual `readLine()` with `readline.createInterface({ terminal: true })`; keep `> ` prompt; keep `\t`/`tab` fallback for tab navigation; close on exit and SIGINT |
-| `src/tui/cursor.ts` | In `getCursorPosition()`: call `process.stdin.resume()`, raise timeout to 250 ms, add `settled` guard, always clean up listener + timer; fallback `{x:0,y:0}` on timeout preserved |
+| `src/interfaces/cli/commands/tui.ts` | Replace manual `readLine()` with `readline.createInterface({ terminal: true })`; keep `> ` prompt; keep `\t`/`tab` fallback for tab navigation; close on exit and SIGINT |
+| `src/interfaces/tui/cursor.ts` | In `getCursorPosition()`: call `process.stdin.resume()`, raise timeout to 250 ms, add `settled` guard, always clean up listener + timer; fallback `{x:0,y:0}` on timeout preserved |
 | `package.json` | Add `node-pty@1.1.0-beta34` to devDependencies; add `test:pty:tui` script; exclude `dist/tests/pty/*` from `test:node:ci` |
 | `tests/pty/tui-pty.test.ts` *(new)* | `node:test` suite, gated by `ALIX_PTY_TESTS=1`, spawns `node dist/src/cli.js tui --mode bypass` in a real PTY (`node-pty`), sends `?`, `tab`, `exit` and asserts output |
-| `src/cli/commands/tui (Copy).ts` | `git rm` (stale duplicate — confirmed unused by grep) |
+| `src/interfaces/cli/commands/tui (Copy).ts` | `git rm` (stale duplicate — confirmed unused by grep) |
 
-Reuse: `readline.createInterface` is already the established pattern in `src/cli/commands/{review,apply,chat,prompt}.ts` — mirror it.
+Reuse: `readline.createInterface` is already the established pattern in `src/interfaces/cli/commands/{review,apply,chat,prompt}.ts` — mirror it.
 
 ## Implementation
 
-### 1. `src/cli/commands/tui.ts`
+### 1. `src/interfaces/cli/commands/tui.ts`
 
 Add import at top:
 ```ts
@@ -82,7 +82,7 @@ rl = null;
 
 The downstream `if (task === null) break;` and tab/exit handling in the loop continue to work — `null` now covers empty Enter, `exit`/`quit`, AND EOF; `\t` is still resolved so the `task === "\t"` check at line 114 keeps working for non-TTY test pipelines.
 
-### 2. `src/tui/cursor.ts`
+### 2. `src/interfaces/tui/cursor.ts`
 
 Replace `getCursorPosition` (lines 16-38) with:
 ```ts
@@ -151,7 +151,7 @@ CLI path resolution: `join(__dirname, "..", "..", "..", "src", "cli.js")` (file 
 ### 5. Delete the duplicate
 
 ```
-git rm "src/cli/commands/tui (Copy).ts"
+git rm "src/interfaces/cli/commands/tui (Copy).ts"
 ```
 
 Pre-check: `grep -rn 'tui (Copy)' src/ tests/` — if anything imports it, do not delete in this hotfix; defer.
@@ -172,7 +172,7 @@ Run from `/home/babasola/Projects/Monolith`, in order:
 2. `npm run test:manual:tui` — existing smoke tests still pass; the `?\n` test will now actually match `Commands:` rather than the TTY guard.
 3. `npm run test:node:ci` — full node suite stays green; PTY test is excluded by the glob.
 4. `ALIX_PTY_TESTS=1 npm run test:pty:tui` — new PTY test passes in < 10 s.
-5. Per CLAUDE.md: `mcp__gitnexus__detect_changes` — confirm only `src/cli/commands/tui.ts`, `src/tui/cursor.ts`, `package.json`, `package-lock.json`, `tests/pty/tui-pty.test.ts` appear in the diff (plus the deletion of `tui (Copy).ts`). No unintended files.
+5. Per CLAUDE.md: `mcp__gitnexus__detect_changes` — confirm only `src/interfaces/cli/commands/tui.ts`, `src/interfaces/tui/cursor.ts`, `package.json`, `package-lock.json`, `tests/pty/tui-pty.test.ts` appear in the diff (plus the deletion of `tui (Copy).ts`). No unintended files.
 6. **Real-terminal proof** (the actual regression; cannot be replaced by any of the above):
    ```
    node dist/src/cli.js tui
@@ -190,11 +190,11 @@ The TUI hung silently in a real terminal because process.stdin stays
 paused in TTY mode; the previous readLine() registered a `data`
 listener without resuming the stream, so the listener never fired.
 
-- Replace readLine() in src/cli/commands/tui.ts with a single
+- Replace readLine() in src/interfaces/cli/commands/tui.ts with a single
   readline.createInterface({ terminal: true }) per runTui() and
   rl.prompt-style prompt, matching the pattern used by
   review/apply/chat/prompt.
-- Make src/tui/cursor.ts: getCursorPosition() explicitly
+- Make src/interfaces/tui/cursor.ts: getCursorPosition() explicitly
   process.stdin.resume(), clean up the listener and timer on every
   resolution path, and bump the timeout to 250ms.
 - Add a gated PTY regression test in tests/pty/tui-pty.test.ts that
@@ -203,7 +203,7 @@ listener without resuming the stream, so the listener never fired.
   CI hosts that cannot build node-pty are not broken.
 - Add node-pty devDependency, test:pty:tui script, and exclude
   dist/tests/pty/* from test:node:ci.
-- Remove stale duplicate src/cli/commands/tui (Copy).ts.
+- Remove stale duplicate src/interfaces/cli/commands/tui (Copy).ts.
 
 Hotfix; not part of M37.
 ```

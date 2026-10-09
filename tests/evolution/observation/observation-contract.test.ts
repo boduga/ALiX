@@ -8,7 +8,7 @@ import {
   validateObservationResult,
   type Observation,
   type ObservationResult,
-} from "../../../src/evolution/observation/contracts/observation-contract.js";
+} from "../../../src/planning/evolution/observation/contracts/observation-contract.js";
 
 describe("validateObservation", () => {
   it("accepts a valid observation", () => {

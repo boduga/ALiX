@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createCoordinationRun, createWorkerAssignment } from '../../src/kernel/coordination-types.js';
-import { CoordinationResultStore } from '../../src/kernel/coordination-result-store.js';
-import { CoordinationStore } from '../../src/kernel/coordination-store.js';
-import { CoordinationScheduler } from '../../src/kernel/coordination-scheduler.js';
-import { OwnershipRegistry } from '../../src/ownership/ownership-registry.js';
-import { taskForWorker } from '../../src/kernel/subagent-worker-executor.js';
-import { loadWorkerDependencyResults, renderWorkerExecutionPrompt } from '../../src/kernel/coordination-worker-context.js';
-import { closeAllSharedLedgers } from '../../src/storage/runtime-ledger.js';
+import { createCoordinationRun, createWorkerAssignment } from '../../src/coordination/kernel/coordination-types.js';
+import { CoordinationResultStore } from '../../src/coordination/kernel/coordination-result-store.js';
+import { CoordinationStore } from '../../src/coordination/kernel/coordination-store.js';
+import { CoordinationScheduler } from '../../src/coordination/kernel/coordination-scheduler.js';
+import { OwnershipRegistry } from '../../src/coordination/ownership/ownership-registry.js';
+import { taskForWorker } from '../../src/coordination/kernel/subagent-worker-executor.js';
+import { loadWorkerDependencyResults, renderWorkerExecutionPrompt } from '../../src/coordination/kernel/coordination-worker-context.js';
+import { closeAllSharedLedgers } from '../../src/runtime-state/storage/runtime-ledger.js';
 
 // Fire-and-forget scheduler finalization can reopen the shared ledger after
 // a single close; retry close+rm until the late writer settles (Windows EBUSY,

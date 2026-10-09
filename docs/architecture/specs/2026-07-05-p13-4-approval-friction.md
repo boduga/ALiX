@@ -137,5 +137,5 @@ node bin/alix.js governance friction-analysis
 ```
 src/governance/approval-friction.ts           # Create
 tests/governance/approval-friction.test.ts    # Create
-src/cli/commands/governance.ts                 # Amend (add friction-analysis subcommand)
+src/interfaces/cli/commands/governance.ts                 # Amend (add friction-analysis subcommand)
 ```

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readGitActivity } from "../../src/repomap/git-activity.js";
+import { readGitActivity } from "../../src/context/repomap/git-activity.js";
 
 describe("readGitActivity", () => {
   it("returns an empty map outside a git repository", async () => {

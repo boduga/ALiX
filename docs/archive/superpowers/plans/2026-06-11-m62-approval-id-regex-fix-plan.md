@@ -10,14 +10,14 @@
 
 ## Files
 
-- `src/runtime/route-executor.ts` — line 68: one-character regex fix
+- `src/runtime-state/runtime/route-executor.ts` — line 68: one-character regex fix
 - `tests/tui/tui-approval-regex.test.ts` — guard test
 
 ## Implementation
 
 ### Step 1: Fix the regex
 
-In `src/runtime/route-executor.ts`, change:
+In `src/runtime-state/runtime/route-executor.ts`, change:
 ```typescript
 const idMatch = reason.match(/(approval_[a-zA-Z0-9-]+)/);
 ```

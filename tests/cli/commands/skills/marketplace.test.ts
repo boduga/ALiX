@@ -14,11 +14,11 @@ import {
   runMarketplaceCommand,
   marketplacesPath,
   fetchSkillPackage,
-} from "../../../../src/cli/commands/skills/marketplace.js";
+} from "../../../../src/interfaces/cli/commands/skills/marketplace.js";
 import {
   resolveSkillPackageInMarketplaces,
   type Marketplace,
-} from "../../../../src/cli/commands/skills/marketplace.js";
+} from "../../../../src/interfaces/cli/commands/skills/marketplace.js";
 
 const testDir = join(process.cwd(), ".test-alix-marketplace");
 

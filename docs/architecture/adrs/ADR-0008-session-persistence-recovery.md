@@ -231,6 +231,6 @@ Resumed sessions re-enter `in_progress`. Archived sessions are read-only artifac
 - `src/session/persist.ts` — `saveMessages()`, `saveScope()`, `saveState()`
 - `src/session/resume.ts` — `resumeSession()`, `listSessions()`, `sessionInfo()`
 - `src/checkpoints/checkpoint-manager.ts` — `createFileCheckpoint()`, `restoreFileCheckpoint()`
-- `src/events/event-log.ts` — EventLog (JSONL append)
+- `src/runtime-state/events/event-log.ts` — EventLog (JSONL append)
 - `.alix/sessions/` — Runtime session storage directory
 - `.alix/checkpoints/` — Runtime checkpoint storage directory

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { MockCanvas } from './helpers/mock-canvas.js';
-import { renderSlashOverlay } from '../../../src/tui/views/slash-overlay.js';
-import type { SlashStrip } from '../../../src/tui/views/types.js';
-import type { TerminalCanvas } from '../../../src/tui/canvas.js';
+import { renderSlashOverlay } from '../../../src/interfaces/tui/views/slash-overlay.js';
+import type { SlashStrip } from '../../../src/interfaces/tui/views/types.js';
+import type { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
 
 const strip = (entries: Array<{ label: string; description: string }>, selected = 0, hint: string | null = null): SlashStrip => ({
   entries: entries.map((e) => ({ name: e.label, label: e.label, description: e.description })),

@@ -24,7 +24,7 @@ Task1 (types)
 ### Task 1 — Types
 
 **Files:**
-- `src/baseline/baseline-types.ts`
+- `src/context/baseline/baseline-types.ts`
 
 **Deliverables:**
 - `BaselineArtifact<T>` generic interface with `subsystem`, `capturedAt`, `data: T`, `metadata?`
@@ -44,7 +44,7 @@ Task1 (types)
 ### Task 2 — Provider Interface
 
 **Files:**
-- `src/baseline/baseline-provider.ts`
+- `src/context/baseline/baseline-provider.ts`
 
 **Deliverables:**
 - `BaselineProvider` interface with:
@@ -64,7 +64,7 @@ Task1 (types)
 ### Task 3 — Health Score
 
 **Files:**
-- `src/baseline/health-score.ts`
+- `src/context/baseline/health-score.ts`
 
 **Deliverables:**
 - `computeHealthScore(drift: DriftItem[], weights?): { score: number; status: HealthStatus }` pure function
@@ -86,7 +86,7 @@ Task1 (types)
 ### Task 4 — Comparator
 
 **Files:**
-- `src/baseline/baseline-comparator.ts`
+- `src/context/baseline/baseline-comparator.ts`
 
 **Deliverables:**
 - `BaselineComparator` interface with `compare(baseline, current): BaselineComparison`
@@ -107,7 +107,7 @@ Task1 (types)
 ### Task 5 — Registry + Factory
 
 **Files:**
-- `src/baseline/baseline-registry.ts`
+- `src/context/baseline/baseline-registry.ts`
 
 **Deliverables:**
 - `BaselineRegistry` class:
@@ -134,7 +134,7 @@ Task1 (types)
 ### Task 6 — Demo Provider
 
 **Files:**
-- `src/baseline/providers/demo-provider.ts`
+- `src/context/baseline/providers/demo-provider.ts`
 
 **Deliverables:**
 - Implements `BaselineProvider`
@@ -156,7 +156,7 @@ Task1 (types)
 ### Task 7 — CLI
 
 **Files:**
-- `src/cli/commands/baseline.ts`
+- `src/interfaces/cli/commands/baseline.ts`
 
 **Deliverables:**
 - Routes: `list`, `providers`, `health`, `show <subsystem>`
@@ -186,7 +186,7 @@ Task1 (types)
 
 ## Hard Boundaries
 
-- No imports from `src/executive/` or `src/adaptation/`
+- No imports from `src/execution/executive/` or `src/planning/adaptation/`
 - No real subsystem providers
 - No file I/O
 - No dashboard/plan/recommendation changes

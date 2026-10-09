@@ -1,7 +1,7 @@
 // tests/security/secret-scanner.test.ts
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { SecretScanner } from "../../src/security/secret-scanner.js";
+import { SecretScanner } from "../../src/governance/security/secret-scanner.js";
 
 describe("SecretScanner", () => {
   it("detects API keys", () => {

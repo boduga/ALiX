@@ -15,7 +15,7 @@ import {
   buildReadOnlyToolFilter,
   READ_ONLY_EXCLUDED_TOOL_NAMES,
   READ_ONLY_TOOL_NAMES,
-} from '../../src/run/helpers.js';
+} from '../../src/execution/run/helpers.js';
 
 describe('read-only tool surface', () => {
   it('withholds alix_shell_run — the containment boundary', () => {

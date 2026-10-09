@@ -7,7 +7,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
-import { GitObservationProvider } from "../../../../src/evolution/observation/providers/git-provider.js";
+import { GitObservationProvider } from "../../../../src/planning/evolution/observation/providers/git-provider.js";
 
 function gitInit(dir: string, branch = "main") {
   execSync("git init", { cwd: dir, stdio: "pipe" });

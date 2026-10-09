@@ -134,10 +134,10 @@ Rendered as part of the agent-view status row. The operator sees the current int
 
 | File | Change |
 |---|---|
-| `src/agent/system-prompt.ts` | Add three supplement constants, `RESEARCH_SUPPLEMENT`, `MUTATION_SUPPLEMENT`, `VALIDATION_SUPPLEMENT`. Export them. |
-| `src/agent/agent-loop.ts` | Import classifier, pass intent to `setupSystemPrompt`, assemble supplement into SYSTEM_PROMPT |
-| `src/run/task-loop.ts` | Import `IntentClassifier`. After tool-execution loop, call classifier and pass result to next iteration |
-| `src/tui/views/agent-view.ts` | Render intent badge in the status row |
+| `src/agents/agent/system-prompt.ts` | Add three supplement constants, `RESEARCH_SUPPLEMENT`, `MUTATION_SUPPLEMENT`, `VALIDATION_SUPPLEMENT`. Export them. |
+| `src/agents/agent/agent-loop.ts` | Import classifier, pass intent to `setupSystemPrompt`, assemble supplement into SYSTEM_PROMPT |
+| `src/execution/run/task-loop.ts` | Import `IntentClassifier`. After tool-execution loop, call classifier and pass result to next iteration |
+| `src/interfaces/tui/views/agent-view.ts` | Render intent badge in the status row |
 
 ## 8. Non-goals
 

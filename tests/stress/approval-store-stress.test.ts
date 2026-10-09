@@ -10,12 +10,12 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
 import {
   runConcurrent,
   assertStressPasses,
   stressSuiteSummary,
-} from "../../src/testing/concurrency-harness.js";
+} from "../../src/operations/testing/concurrency-harness.js";
 
 const CONCURRENCY_LEVELS = [10, 50];
 

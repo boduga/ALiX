@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { writeReportArtifacts } from "../../src/sop/artifact-writer.js";
-import type { WriteReportOpts } from "../../src/sop/artifact-writer.js";
+import { writeReportArtifacts } from "../../src/coordination/sop/artifact-writer.js";
+import type { WriteReportOpts } from "../../src/coordination/sop/artifact-writer.js";
 
 describe("Report manifest", () => {
   let tmpDir = "";

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { classifyCapabilities } from "../../src/kernel/mutation-classifier.js";
-import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
+import { classifyCapabilities } from "../../src/coordination/kernel/mutation-classifier.js";
+import { buildDefaultToolIndex } from "../../src/capabilities/tools/tool-registry.js";
 
 describe("classifyCapabilities", () => {
   const { registry } = buildDefaultToolIndex();

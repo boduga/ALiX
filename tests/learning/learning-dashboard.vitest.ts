@@ -2,12 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { computeDashboardIntegrityScore } from "../../src/learning/dashboard-integrity-score.js";
-import type { AggregatedIntegrity, ChainAlertPanel } from "../../src/learning/learning-dashboard.js";
-import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
-import { ApprovalRecommendationStore } from "../../src/adaptation/approval-recommendation-store.js";
-import { LearningStore } from "../../src/learning/learning-store.js";
-import { buildDashboardReport } from "../../src/learning/learning-dashboard.js";
+import { computeDashboardIntegrityScore } from "../../src/planning/learning/dashboard-integrity-score.js";
+import type { AggregatedIntegrity, ChainAlertPanel } from "../../src/planning/learning/learning-dashboard.js";
+import { OutcomeStore } from "../../src/planning/adaptation/outcome-store.js";
+import { ApprovalRecommendationStore } from "../../src/planning/adaptation/approval-recommendation-store.js";
+import { LearningStore } from "../../src/planning/learning/learning-store.js";
+import { buildDashboardReport } from "../../src/planning/learning/learning-dashboard.js";
 
 // ---------------------------------------------------------------------------
 // computeDashboardIntegrityScore tests

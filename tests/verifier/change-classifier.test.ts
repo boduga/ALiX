@@ -1,10 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { classifyChanges, type ChangeType, getSuggestedChecks } from "../../src/verifier/change-classifier.js";
+import { classifyChanges, type ChangeType, getSuggestedChecks } from "../../src/execution/verifier/change-classifier.js";
 
 describe("ChangeClassifier", () => {
   it("classifies TypeScript file as code change", () => {
-    const result = classifyChanges(["src/utils/helper.ts"]);
+    const result = classifyChanges(["src/operations/utils/helper.ts"]);
     assert.equal(result.primary, "code");
   });
 
@@ -34,7 +34,7 @@ describe("ChangeClassifier", () => {
   });
 
   it("classifies schema changes (files with schema in path)", () => {
-    const result = classifyChanges(["src/db/schema.prisma"]);
+    const result = classifyChanges(["src/operations/db/schema.prisma"]);
     assert.equal(result.primary, "schema");
   });
 

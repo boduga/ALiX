@@ -33,8 +33,8 @@ Merge-time closeout (`slice-5-closeout.md`) verified invariants **1–10**. The 
 
 | # | Invariant | Status | Evidence |
 |---|-----------|--------|----------|
-| 1 | A9 owns identity | ✅ (re-confirmed) | `src/evolution/a9/identity.ts`; `tests/evolution/a9-identity.vitest.ts`; sentinel (64-hex, deterministic) |
-| 2 | A9 owns persistence | ✅ (re-confirmed) | `src/evolution/a9/forecasts-store.ts`, `correlations-store.ts`, `jsonl-store.ts`; sentinel: `forecasts.jsonl`/`correlations.jsonl` defined only under `src/evolution/a9/` |
+| 1 | A9 owns identity | ✅ (re-confirmed) | `src/planning/evolution/a9/identity.ts`; `tests/evolution/a9-identity.vitest.ts`; sentinel (64-hex, deterministic) |
+| 2 | A9 owns persistence | ✅ (re-confirmed) | `src/planning/evolution/a9/forecasts-store.ts`, `correlations-store.ts`, `jsonl-store.ts`; sentinel: `forecasts.jsonl`/`correlations.jsonl` defined only under `src/planning/evolution/a9/` |
 | 3 | A9 owns correlation | ✅ (re-confirmed) | `correlation-engine.ts` writes only via `CorrelationsStore`; CLI exposes no correlation command (spec §33) |
 | 4 | Foreign IDs remain references | ✅ (re-confirmed) | `a9-contract.ts:130` `foreignProvenance.proposalId` documented as reference; measurement record carries none |
 | 5 | Measurements remain capability-targeted | ✅ (re-confirmed) | `measurement-event-types.ts` unmodified (Q8 sentinel); §3 below |
@@ -45,7 +45,7 @@ Merge-time closeout (`slice-5-closeout.md`) verified invariants **1–10**. The 
 | 10 | No speculative artifacts | ✅ (re-confirmed) | no `A9CorrelationAttempt` anywhere in `src/` |
 | 11 | **Correlation is deterministic** | ✅ **NEW** | Identity = SHA-256 of canonical content (`identity.ts:51-64`); correlationId over FULL content not forecastId-only (`correlation-builder.ts`; test :248); same content→same id (:667), key-order-invariant (:686); deterministic emission order (`correlation-engine.ts:200-208`); `timestamp` explicitly not identity-bearing (:308) |
 | 12 | **Correlation availability is an architectural fact** | ✅ **NEW** | Engine asserts a relationship ONLY when canonical evidence establishes it, else silent absence: no submitted → none (:339); target mismatch → none (:347); no executed → none (:361); rejected → none (:370/:379); wrong capability → none (:389); outside horizon → none (:402/:415); unparseable horizon fail-closed (:442). Also demonstrated live in the drive (§5). |
-| 13 | **A9 never modifies foreign namespaces** | ✅ **NEW** | A9 merge touched exactly **3 non-A9 src files**, all authorized: `platform.ts` (composition-root wiring, §22 authorization; 65 additive lines + 1 constructor-signature extension), `governance.ts` (CLI seam), `decision-engine.ts` (6th-kind map entry + pure exporter). `measurement-event-types.ts`, `governance-types.ts` (CAP-9 taxonomy), A8 normalization all **byte-identical to base**. Adapters expose `list()` only — no write surface (`a9-contract.ts:249-252`). Sentinels forbid A9→`src/evolution/learning` imports and JSONL definitions outside `src/evolution/a9/`. |
+| 13 | **A9 never modifies foreign namespaces** | ✅ **NEW** | A9 merge touched exactly **3 non-A9 src files**, all authorized: `platform.ts` (composition-root wiring, §22 authorization; 65 additive lines + 1 constructor-signature extension), `governance.ts` (CLI seam), `decision-engine.ts` (6th-kind map entry + pure exporter). `measurement-event-types.ts`, `governance-types.ts` (CAP-9 taxonomy), A8 normalization all **byte-identical to base**. Adapters expose `list()` only — no write surface (`a9-contract.ts:249-252`). Sentinels forbid A9→`src/planning/evolution/learning` imports and JSONL definitions outside `src/planning/evolution/a9/`. |
 | 14 | **Capability equality is not proposal provenance** | ✅ **NEW** | Bridge requires the full two-hop: `proposal.submitted` with `payload.candidate.target.id === subjectCapability` AND `proposal.executed` (`correlation-engine.ts:147-153`). Capability equality alone never correlates — tests :339/:347/:389 prove that target.id mismatch or missing submitted yields nothing even when `measurement.capabilityId === forecast.subjectCapability`. |
 | 15 | **Execution is an eligibility gate, not causality proof** | ✅ **NEW** | `proposal.executed` gates correlation; its absence → no correlation (:153, :361). Rejected never correlates even when executed present (:154, :379). Sentinel pins the engine's `case "proposal.executed"`/`case "proposal.rejected"` and the doc comment states the gate explicitly (`correlation-engine.ts` header). |
 | 16 | **A3 remains sovereign** | ✅ **NEW** | `RISK_GATED_REVIEW` is a non-binding A2.5 kind; `decision-engine.ts:65` maps it 1:1 → `REQUEST_MORE_EVIDENCE` (advisory); A3 retains exactly 4 binding kinds + 3 target states (sentinel `a9-sentinel.vitest.ts:221-237`). Bridge maps band→kind only (`a9-bridge.ts:79-90`); A9 never constructs a binding decision. Verified end-to-end in tests (:306) and live in the drive (§5). |
@@ -56,7 +56,7 @@ Merge-time closeout (`slice-5-closeout.md`) verified invariants **1–10**. The 
 
 ## 3. Contract verification against source (A6-style)
 
-### 3.1 `A9Forecast` — `src/evolution/a9/contracts/a9-contract.ts:58-95`
+### 3.1 `A9Forecast` — `src/planning/evolution/a9/contracts/a9-contract.ts:58-95`
 
 Verified shape: `forecastId` (content-addressed), `forecastVersion`, `subject` (proposalId), `subjectCapability`, `prediction { kind, band, internalScore }`, `horizon { from, to }`, `confidence`, `provenance { generatedAt, generatorVersion, evidenceRefs }`.
 
@@ -74,19 +74,19 @@ Verified: `correlationId`, `correlationVersion`, `forecastId`, `measurementId`, 
 - `CapabilityMeasurementRecord`: `measurementId, capabilityId, outcome, recordedAt, eventId` — **no** `proposalId`/`sourceProposalIds`/`forecastId`/`correlationId` (Q8, contract + runtime sentinel).
 - `EnrichedProposalRecord`: reads `enrichedFields` directly, never A8's normalized layer (sentinel-forbidden).
 
-### 3.4 A2.5 six-kind extension — `src/evolution/verification/contracts/recommendation-contract.ts:33-48`
+### 3.4 A2.5 six-kind extension — `src/planning/evolution/verification/contracts/recommendation-contract.ts:33-48`
 
 `GovernanceRecommendationKind` = 6 kinds: `APPROVE | MONITOR | REQUEST_ADDITIONAL_EVIDENCE | REJECT | ESCALATE | RISK_GATED_REVIEW`. The 5 pre-existing kinds unchanged; `RISK_GATED_REVIEW` added with doc: "A3 routes REQUEST_MORE_EVIDENCE (UNDER_REVIEW) until risk gated." Array `GOVERNANCE_RECOMMENDATION_KINDS` has exactly 6 entries (sentinel-pinned).
 
-### 3.5 A3 four-kind / three-state contract — `src/evolution/governance/contracts/decision-contract.ts:32,145`
+### 3.5 A3 four-kind / three-state contract — `src/planning/evolution/governance/contracts/decision-contract.ts:32,145`
 
 `GovernanceDecisionKind` = 4 binding kinds (incl. `REQUEST_MORE_EVIDENCE`); `targetState` = `"APPROVED" | "REJECTED" | "UNDER_REVIEW"` (3 states). Sentinel `a9-sentinel.vitest.ts:221-237` re-pins both.
 
-### 3.6 A2.5 → A3 mapping — `src/evolution/governance/decision-engine.ts:58-80`
+### 3.6 A2.5 → A3 mapping — `src/planning/evolution/governance/decision-engine.ts:58-80`
 
 `RECOMMENDATION_KIND_MAP`: 5 entries behaviorally unchanged (incl. `RISK_GATED_REVIEW: "REQUEST_MORE_EVIDENCE"`), `ESCALATE` intentionally omitted. Pure `recommendationKindToDecisionKind` exporter added. **A3 remains sovereign** — the map is advisory routing, not a binding decision.
 
-### 3.7 A9 bridge — `src/evolution/a9/a9-bridge.ts`
+### 3.7 A9 bridge — `src/planning/evolution/a9/a9-bridge.ts`
 
 `buildGovernanceRecommendation` produces the A2.5 contract shape, `kind` from locked band mapping (low/medium→MONITOR, high/critical→RISK_GATED_REVIEW), `recommendationId = a9-rec:<forecastId>` (no second A9 identity), deterministic `evidenceId`. Satisfies `validateGovernanceRecommendation` (test :195).
 
@@ -98,8 +98,8 @@ Verified: `correlationId`, `correlationVersion`, `forecastId`, `measurementId`, 
 
 ## 4. Q8 boundary re-verification
 
-- **Contract level:** `src/capability/measurement/measurement-event-types.ts` contains **no** `proposalId`, `sourceProposalIds`, `forecastId`, or `correlationId` (grep-verified; payload keys are `measurement/capabilityId/version`, `baseline`, `post`, `outcome`). Q8 holds.
-- **Runtime level:** `MeasurementEventsAdapter` (`src/evolution/a9/adapters/measurement-events-adapter.ts`) emits only `measurementId, capabilityId, outcome, recordedAt, eventId` — never invents proposal linkage. Sentinel re-pins at both contract and record level (`a9-sentinel.vitest.ts:145-173`).
+- **Contract level:** `src/capabilities/capability/measurement/measurement-event-types.ts` contains **no** `proposalId`, `sourceProposalIds`, `forecastId`, or `correlationId` (grep-verified; payload keys are `measurement/capabilityId/version`, `baseline`, `post`, `outcome`). Q8 holds.
+- **Runtime level:** `MeasurementEventsAdapter` (`src/planning/evolution/a9/adapters/measurement-events-adapter.ts`) emits only `measurementId, capabilityId, outcome, recordedAt, eventId` — never invents proposal linkage. Sentinel re-pins at both contract and record level (`a9-sentinel.vitest.ts:145-173`).
 - **Engine level:** `correlation-engine.ts` reads capability equality but authorizes only through the proposal-side bridge; it never reads `measurement.proposalId` (sentinel line :268).
 
 **Q8 boundary intact — no proposal linkage leaked into the measurement namespace.**
@@ -129,9 +129,9 @@ A one-off verification drive (`/tmp/a9-real-surface-drive.mjs`) seeded a **real*
 
 ## 6. A8 proposalId defect — adjudication
 
-**Confirmed latent defect (pre-existing, NOT A9):** `src/evolution/learning/adapters/proposal-events-adapter.ts:51` reads `event.proposalId ?? ""` — but the canonical producer `ProposalStore.append()` writes `proposalId` **inside the payload** (`proposal-store.ts:175-180`, `payload: { proposalId, ...payload }`), and its read-back helper reads `payload.proposalId` (`proposal-store.ts:198`). A top-level `event.proposalId` is never populated by the canonical producer, so A8's `ProposalGovernanceRecord.proposalId` is **always `""`** on real data.
+**Confirmed latent defect (pre-existing, NOT A9):** `src/planning/evolution/learning/adapters/proposal-events-adapter.ts:51` reads `event.proposalId ?? ""` — but the canonical producer `ProposalStore.append()` writes `proposalId` **inside the payload** (`proposal-store.ts:175-180`, `payload: { proposalId, ...payload }`), and its read-back helper reads `payload.proposalId` (`proposal-store.ts:198`). A top-level `event.proposalId` is never populated by the canonical producer, so A8's `ProposalGovernanceRecord.proposalId` is **always `""`** on real data.
 
-**A9's adapter does NOT share the defect:** `src/evolution/a9/adapters/proposal-events-adapter.ts:68-71` reads `payload.proposalId` first, `event.proposalId` as fallback. Correct.
+**A9's adapter does NOT share the defect:** `src/planning/evolution/a9/adapters/proposal-events-adapter.ts:68-71` reads `payload.proposalId` first, `event.proposalId` as fallback. Correct.
 
 **Divergence (A8 vs A9 read the same EventLog from different locations):** documented at both sites. This is a genuine architectural divergence that a future A8 fix must reconcile — A8's adapter should adopt A9's payload-first read.
 
@@ -141,7 +141,7 @@ A one-off verification drive (`/tmp/a9-real-surface-drive.mjs`) seeded a **real*
 
 ## 7. Concerns / decisions for later tasks
 
-1. **[LOW] A8 proposalId defect (confirmed, re-parked).** `src/evolution/learning/adapters/proposal-events-adapter.ts:51`. Fix when A8 is next modified: payload-first read (mirror `a9/adapters/proposal-events-adapter.ts:68-71`). A8's repeated-pattern-failure detector keys on `${error}:${capabilityId}` (not proposalId), so the defect does not currently corrupt detector output — but `ProposalGovernanceRecord.proposalId` is unreliable on real data.
+1. **[LOW] A8 proposalId defect (confirmed, re-parked).** `src/planning/evolution/learning/adapters/proposal-events-adapter.ts:51`. Fix when A8 is next modified: payload-first read (mirror `a9/adapters/proposal-events-adapter.ts:68-71`). A8's repeated-pattern-failure detector keys on `${error}:${capabilityId}` (not proposalId), so the defect does not currently corrupt detector output — but `ProposalGovernanceRecord.proposalId` is unreliable on real data.
 2. **[LOW] Committed real-store integration test.** The real-surface drive is strong evidence but lives in `/tmp` (scratch). A committed `a9-real-store.vitest.ts` (seeded EventLog → `runForecastCli` → inspect `forecasts.jsonl` + programmatic correlation → restart reconstruction) would make the drive a permanent regression net. Optional hardening, not a merge-blocker.
 3. **[INFO] Invariant registry is scattered.** Spec §48 (16), plan §37 closeout (10), #546 grilling (10), security `.git/sdd/task-s0-invariants.md` (12) vs `docs/security/architecture.md` (10). This checkpoint verifies the spec §48 set (the authoritative post-implementation contract). The repository-wide invariant audit (the roadmap's next phase) will adjudicate the count discrepancies centrally.
 4. **[INFO] Enriched-proposals seam.** `createEnrichedProposalsSource` (lazy P10.8a analyzer) is wired in `platform.ts:207-209` and the CLI seam (`governance.ts:350-370`). The seam comment notes a future increment "MUST revisit" real `EnrichedProposal[]` derivation — currently the P10.8a analyzer output; documented, not a defect.

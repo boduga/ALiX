@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
+import { EvidenceStore } from "../../src/governance/security/evidence/evidence-store.js";
 import {
   EvidenceEventWriter,
   type ExecutivePlanSavedPayload,
@@ -22,7 +22,7 @@ import {
   type ExecutiveStepBlockedPayload,
   type ExecutivePlanCompletedPayload,
   type ExecutivePlanFailedPayload,
-} from "../../src/workflow/evidence-writer.js";
+} from "../../src/coordination/workflow/evidence-writer.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

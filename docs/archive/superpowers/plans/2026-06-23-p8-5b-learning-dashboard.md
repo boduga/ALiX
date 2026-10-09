@@ -15,9 +15,9 @@
 - **No second explanation engine:** DashboardAggregator reuses `assembleProposalExplanation` from the Explain module. Does NOT build its own joins. Provenance logic stays in one place.
 - **`dashboardIntegrityScore` is a derived operational metric, NOT a governance artifact.** It must never be written back into `ExplanationIntegrity`, `LearningStore`, `EvidenceChain`, or any governance surface. It is a computed summary for operator visibility and P9 input — never authoritative governance state.
 - **Ephemeral output:** `DashboardReport` is computed on render, never persisted. On termination, it's gone.
-- **6 protected type files remain byte-identical to main:** `risk-score-types.ts`, `governance-review-types.ts`, `adaptation-types.ts`, `decision-types.ts`, `learning-types.ts`, `outcome-types.ts`. The new `DashboardReport` types live in `src/learning/learning-dashboard.ts` (NEW file — no edits to existing type files).
+- **6 protected type files remain byte-identical to main:** `risk-score-types.ts`, `governance-review-types.ts`, `adaptation-types.ts`, `decision-types.ts`, `learning-types.ts`, `outcome-types.ts`. The new `DashboardReport` types live in `src/planning/learning/learning-dashboard.ts` (NEW file — no edits to existing type files).
 - **No new stores.** No new adapters. No new authority surface. No changes to the Explain module or any existing adapter.
-- **`dashboardIntegrityScore` is a pure function** computed by `src/learning/dashboard-integrity-score.ts` — independently testable, reusable by P9, separate from the renderer.
+- **`dashboardIntegrityScore` is a pure function** computed by `src/planning/learning/dashboard-integrity-score.ts` — independently testable, reusable by P9, separate from the renderer.
 - **`CoverageThresholds`** define health bands: healthy >= 90, degraded >= 75, critical < 75. Renderer maps score to color.
 - **Existing test patterns:** mirror `learning-refresh.vitest.ts` for temp-dir + store seeding + vi.spyOn(process, "cwd").
 
@@ -27,14 +27,14 @@
 
 | Path | Purpose |
 |---|---|
-| `src/learning/dashboard-integrity-score.ts` (new) | Pure helper: `computeDashboardIntegrityScore(...)` — independently testable, reusable by P9 |
-| `src/learning/learning-dashboard.ts` (new) | `DashboardReport` types + `DashboardAggregator` (pure read-only aggregation) |
-| `src/cli/commands/dashboard-renderer.ts` (new) | Terminal renderer (ANSI-colored panels, horizontal rules, coverage thresholds) |
+| `src/planning/learning/dashboard-integrity-score.ts` (new) | Pure helper: `computeDashboardIntegrityScore(...)` — independently testable, reusable by P9 |
+| `src/planning/learning/learning-dashboard.ts` (new) | `DashboardReport` types + `DashboardAggregator` (pure read-only aggregation) |
+| `src/interfaces/cli/commands/dashboard-renderer.ts` (new) | Terminal renderer (ANSI-colored panels, horizontal rules, coverage thresholds) |
 | `tests/learning/learning-dashboard.vitest.ts` (new) | Aggregator + integrity score tests (7 tests) |
 | `tests/cli/commands/dashboard-renderer.vitest.ts` (new) | Renderer tests (4 tests — healthy, degraded, alerts, join-path) |
 | `tests/cli/commands/learning-dashboard-cli.vitest.ts` (new) | CLI integration tests (3 tests) |
 | `tests/learning/learning-dashboard-sentinels.vitest.ts` (new) | Purity sentinel (9 cases: 3 files × 3 assertions) |
-| `src/cli/commands/learning.ts` (modify) | Add `case "dashboard"` + `runDashboard(args)` |
+| `src/interfaces/cli/commands/learning.ts` (modify) | Add `case "dashboard"` + `runDashboard(args)` |
 
 No modifications to: `proposal-explanation-assembler.ts`, `explain.ts`, any store file, any adapter, the refresh orchestrator, or the Evidence Chain.
 
@@ -56,8 +56,8 @@ Each task produces a self-contained change that can be verified independently.
 ### Task 1: P8.5b.1 — DashboardIntegrityScore helper + types + aggregator
 
 **Files:**
-- Create: `src/learning/dashboard-integrity-score.ts`
-- Create: `src/learning/learning-dashboard.ts`
+- Create: `src/planning/learning/dashboard-integrity-score.ts`
+- Create: `src/planning/learning/learning-dashboard.ts`
 - Create: `tests/learning/learning-dashboard.vitest.ts`
 
 **Step-by-step:**
@@ -66,14 +66,14 @@ Each task produces a self-contained change that can be verified independently.
 
 Before writing code, confirm the actual types from `main` (commit `11c2488a`):
 
-1. Read `src/explain/proposal-explanation-types.ts` — verify `ProposalExplanation.outcome.status` is `"available" | "not_available"`, `learning.totalSignals`, `calibration.adjustments`, `JoinPath` type exist with correct shapes.
-2. Read `src/learning/learning-store.ts` — verify `querySignals({ windowDays })` and `queryProfiles({ windowDays })` signatures accept the same options used by the dashboard.
-3. Read `src/adaptation/outcome-store.ts` — verify `list()` returns all records (no ordering guarantee — must sort by `generatedAt` desc).
+1. Read `src/operations/explain/proposal-explanation-types.ts` — verify `ProposalExplanation.outcome.status` is `"available" | "not_available"`, `learning.totalSignals`, `calibration.adjustments`, `JoinPath` type exist with correct shapes.
+2. Read `src/planning/learning/learning-store.ts` — verify `querySignals({ windowDays })` and `queryProfiles({ windowDays })` signatures accept the same options used by the dashboard.
+3. Read `src/planning/adaptation/outcome-store.ts` — verify `list()` returns all records (no ordering guarantee — must sort by `generatedAt` desc).
 4. Run `npx tsc --noEmit` — ensure imports resolve correctly.
 
 This step is structural: the plan references exact field names from actual P8.5c types rather than assumed shapes.
 
-- [ ] **Step 1: Create `src/learning/dashboard-integrity-score.ts`**
+- [ ] **Step 1: Create `src/planning/learning/dashboard-integrity-score.ts`**
 
 The pure helper. Exported function `computeDashboardIntegrityScore(...)`. Separated from the renderer so P9 can consume it independently.
 
@@ -146,8 +146,8 @@ export function computeDashboardIntegrityScore(input: IntegrityScoreInput): numb
 ```ts
 // tests/learning/learning-dashboard.vitest.ts
 import { describe, it, expect } from "vitest";
-import { computeDashboardIntegrityScore } from "../../src/learning/dashboard-integrity-score.js";
-import type { AggregatedIntegrity, ChainAlertPanel } from "../../src/learning/learning-dashboard.js";
+import { computeDashboardIntegrityScore } from "../../src/planning/learning/dashboard-integrity-score.js";
+import type { AggregatedIntegrity, ChainAlertPanel } from "../../src/planning/learning/learning-dashboard.js";
 
 function mockAggregatedIntegrity(overrides: Partial<AggregatedIntegrity> = {}): AggregatedIntegrity {
   return {
@@ -210,7 +210,7 @@ describe("computeDashboardIntegrityScore", () => {
 });
 ```
 
-- [ ] **Step 3: Create `src/learning/learning-dashboard.ts`** with all DashboardReport types + the DashboardAggregator class. The aggregator:
+- [ ] **Step 3: Create `src/planning/learning/learning-dashboard.ts`** with all DashboardReport types + the DashboardAggregator class. The aggregator:
 
 ```ts
 /**
@@ -535,10 +535,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { vi, beforeEach, afterEach } from "vitest";
-import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
-import { ApprovalRecommendationStore } from "../../src/adaptation/approval-recommendation-store.js";
-import { LearningStore } from "../../src/learning/learning-store.js";
-import { buildDashboardReport } from "../../src/learning/learning-dashboard.js";
+import { OutcomeStore } from "../../src/planning/adaptation/outcome-store.js";
+import { ApprovalRecommendationStore } from "../../src/planning/adaptation/approval-recommendation-store.js";
+import { LearningStore } from "../../src/planning/learning/learning-store.js";
+import { buildDashboardReport } from "../../src/planning/learning/learning-dashboard.js";
 
 const OUTCOMES_DIR = join(".alix", "adaptation", "outcomes");
 const RECOMMENDATIONS_DIR = join(".alix", "recommendations");
@@ -610,7 +610,7 @@ Expected: 7/7 tests pass (3 integrity score tests + 4 aggregator tests), tsc cle
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/learning/dashboard-integrity-score.ts src/learning/learning-dashboard.ts tests/learning/learning-dashboard.vitest.ts
+git add src/planning/learning/dashboard-integrity-score.ts src/planning/learning/learning-dashboard.ts tests/learning/learning-dashboard.vitest.ts
 git commit -m "feat(p8.5b.1): DashboardIntegrityScore + DashboardReport types + aggregator"
 ```
 
@@ -619,12 +619,12 @@ git commit -m "feat(p8.5b.1): DashboardIntegrityScore + DashboardReport types + 
 ### Task 2: P8.5b.2 — Terminal renderer
 
 **Files:**
-- Create: `src/cli/commands/dashboard-renderer.ts`
+- Create: `src/interfaces/cli/commands/dashboard-renderer.ts`
 - (No separate test file — tested via CLI integration in Task 3)
 
 **Step-by-step:**
 
-- [ ] **Step 1: Create `src/cli/commands/dashboard-renderer.ts`**
+- [ ] **Step 1: Create `src/interfaces/cli/commands/dashboard-renderer.ts`**
 
 The renderer converts a `DashboardReport` into ANSI-colored terminal output. Each panel is drawn with Unicode box-drawing characters, horizontal rules, and color codes.
 
@@ -785,8 +785,8 @@ export function renderDashboard(report: DashboardReport): void {
 
 ```ts
 import { describe, it, expect, vi } from "vitest";
-import { renderDashboard } from "../../../src/cli/commands/dashboard-renderer.js";
-import type { DashboardReport } from "../../../src/learning/learning-dashboard.js";
+import { renderDashboard } from "../../../src/interfaces/cli/commands/dashboard-renderer.js";
+import type { DashboardReport } from "../../../src/planning/learning/learning-dashboard.js";
 
 function healthyReport(): DashboardReport {
   return {
@@ -893,7 +893,7 @@ Expected: 4/4 renderer tests pass, tsc clean.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/dashboard-renderer.ts
+git add src/interfaces/cli/commands/dashboard-renderer.ts
 git commit -m "feat(p8.5b.2): terminal dashboard renderer (5 ANSI panels)"
 ```
 
@@ -902,7 +902,7 @@ git commit -m "feat(p8.5b.2): terminal dashboard renderer (5 ANSI panels)"
 ### Task 3: P8.5b.3 — CLI integration (`alix learning dashboard`)
 
 **Files:**
-- Modify: `src/cli/commands/learning.ts` (add `case "dashboard"` + `runDashboard`)
+- Modify: `src/interfaces/cli/commands/learning.ts` (add `case "dashboard"` + `runDashboard`)
 - Test via `tests/cli/commands/learning-refresh-cli.vitest.ts` (extend or create new test)
 
 **Step-by-step:**
@@ -962,9 +962,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleLearningCommand } from "../../../src/cli/commands/learning.js";
-import { OutcomeStore } from "../../../src/adaptation/outcome-store.js";
-import { LearningStore } from "../../../src/learning/learning-store.js";
+import { handleLearningCommand } from "../../../src/interfaces/cli/commands/learning.js";
+import { OutcomeStore } from "../../../src/planning/adaptation/outcome-store.js";
+import { LearningStore } from "../../../src/planning/learning/learning-store.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
@@ -1018,7 +1018,7 @@ Run: `npx vitest run tests/` — full suite green (no regressions).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/learning.ts tests/cli/commands/learning-dashboard-cli.vitest.ts
+git add src/interfaces/cli/commands/learning.ts tests/cli/commands/learning-dashboard-cli.vitest.ts
 git commit -m "feat(p8.5b.3): alix learning dashboard CLI"
 ```
 
@@ -1035,9 +1035,9 @@ git commit -m "feat(p8.5b.3): alix learning dashboard CLI"
 
 Mirror the P8.5c sentinel pattern. Forbidden imports + forbidden write calls + forbidden fs writes. The dashboard files are:
 
-- `src/learning/dashboard-integrity-score.ts`
-- `src/learning/learning-dashboard.ts`
-- `src/cli/commands/dashboard-renderer.ts`
+- `src/planning/learning/dashboard-integrity-score.ts`
+- `src/planning/learning/learning-dashboard.ts`
+- `src/interfaces/cli/commands/dashboard-renderer.ts`
 
 The aggregator (`learning-dashboard.ts`) DOES import `LearningStore` and `assembleProposalExplanation` (read-only consumption). The sentinel should check that it only READS (no `appendSignal`/`appendProfile`/`appendChain` calls).
 
@@ -1059,9 +1059,9 @@ const FORBIDDEN_IMPORTS = [
 ];
 
 const DASHBOARD_FILES = [
-  "src/learning/dashboard-integrity-score.ts",
-  "src/learning/learning-dashboard.ts",
-  "src/cli/commands/dashboard-renderer.ts",
+  "src/planning/learning/dashboard-integrity-score.ts",
+  "src/planning/learning/learning-dashboard.ts",
+  "src/interfaces/cli/commands/dashboard-renderer.ts",
 ];
 
 const FORBIDDEN_WRITE_CALLS = [
@@ -1124,7 +1124,7 @@ Expected: 9 cases (3 files × 3 assertions) all pass.
 
 Run:
 ```bash
-npx vitest run tests/ && npx tsc --noEmit && git diff main --stat -- 'src/learning/*-types.ts' 'src/adaptation/*-types.ts'
+npx vitest run tests/ && npx tsc --noEmit && git diff main --stat -- 'src/planning/learning/*-types.ts' 'src/planning/adaptation/*-types.ts'
 ```
 Expected: all tests pass, tsc clean, 0 changes to protected type files.
 

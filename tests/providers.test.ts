@@ -2,19 +2,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 // BaseProvider is abstract — test through a concrete subclass
-import { BaseProvider } from "../src/providers/base.js";
-import { OpenAIProvider } from "../src/providers/openai-provider.js";
-import { OpenRouterProvider } from "../src/providers/openrouter-provider.js";
-import { OllamaProvider } from "../src/providers/ollama-provider.js";
-import { DeepSeekProvider } from "../src/providers/deepseek-provider.js";
-import { PerplexityProvider } from "../src/providers/perplexity-provider.js";
-import { GroqProvider } from "../src/providers/groq-provider.js";
-import { GrokAIProvider } from "../src/providers/grokai-provider.js";
-import { GeminiProvider } from "../src/providers/gemini-provider.js";
-import { ZhipuAIProvider } from "../src/providers/zhipuai-provider.js";
-import { MiniMaxProvider } from "../src/providers/minimax-provider.js";
-import { _setFetchForTesting } from "../src/providers/unified-complete.js";
-import { AnthropicProvider } from "../src/providers/anthropic-provider.js";
+import { BaseProvider } from "../src/models/providers/base.js";
+import { OpenAIProvider } from "../src/models/providers/openai-provider.js";
+import { OpenRouterProvider } from "../src/models/providers/openrouter-provider.js";
+import { OllamaProvider } from "../src/models/providers/ollama-provider.js";
+import { DeepSeekProvider } from "../src/models/providers/deepseek-provider.js";
+import { PerplexityProvider } from "../src/models/providers/perplexity-provider.js";
+import { GroqProvider } from "../src/models/providers/groq-provider.js";
+import { GrokAIProvider } from "../src/models/providers/grokai-provider.js";
+import { GeminiProvider } from "../src/models/providers/gemini-provider.js";
+import { ZhipuAIProvider } from "../src/models/providers/zhipuai-provider.js";
+import { MiniMaxProvider } from "../src/models/providers/minimax-provider.js";
+import { _setFetchForTesting } from "../src/models/providers/unified-complete.js";
+import { AnthropicProvider } from "../src/models/providers/anthropic-provider.js";
 
 test("base provider accepts apiKey and model options", () => {
   const p = new OpenAIProvider({ apiKey: "test-key", model: "gpt-4o" });
@@ -295,7 +295,7 @@ test("minimax provider returns correct capabilities", () => {
   assert.equal(p.editFormatPreference, "structured_patch");
 });
 
-import { createProvider, listProviders } from "../src/providers/registry.js";
+import { createProvider, listProviders } from "../src/models/providers/registry.js";
 
 test("createProvider produces correct provider for all ids", async () => {
   const ids = ["anthropic", "openai", "google", "openrouter", "groq", "ollama", "perplexity", "minimax", "minimax-token-plan", "zhipuai", "grokai", "deepseek", "xiaomi-mimo-token-plan", "mock"] as const;

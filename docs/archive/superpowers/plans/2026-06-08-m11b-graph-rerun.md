@@ -16,8 +16,8 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/kernel/graph-projection.ts` | **Modify** | Add `attempts` array to `NodeRunInfo` |
-| `src/kernel/graph-executor.ts` | **Modify** | Add `rerunNode(graphId, nodeId)` method |
+| `src/coordination/kernel/graph-projection.ts` | **Modify** | Add `attempts` array to `NodeRunInfo` |
+| `src/coordination/kernel/graph-executor.ts` | **Modify** | Add `rerunNode(graphId, nodeId)` method |
 | `src/cli.ts` | **Modify** | Add `alix graph rerun` command handler |
 | `tests/kernel/graph-executor.test.ts` | **Modify** | Add rerun tests |
 
@@ -25,7 +25,7 @@
 
 ### Task 1: Extend NodeRunInfo with attempts
 
-**Files:** `src/kernel/graph-projection.ts`
+**Files:** `src/coordination/kernel/graph-projection.ts`
 
 - [ ] **Step 1: Add attempts to NodeRunInfo**
 
@@ -61,7 +61,7 @@ export interface NodeRunInfo {
 
 ```bash
 npm run build 2>&1 | tail -3
-git add src/kernel/graph-projection.ts
+git add src/coordination/kernel/graph-projection.ts
 git commit -m "feat(graph): add attempts tracking to NodeRunInfo"
 ```
 
@@ -69,7 +69,7 @@ git commit -m "feat(graph): add attempts tracking to NodeRunInfo"
 
 ### Task 2: Add rerunNode method to GraphExecutor
 
-**Files:** `src/kernel/graph-executor.ts`
+**Files:** `src/coordination/kernel/graph-executor.ts`
 
 - [ ] **Step 1: Add rerunNode method**
 
@@ -146,7 +146,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/graph-executor.ts
+git add src/coordination/kernel/graph-executor.ts
 git commit -m "feat(graph): add rerunNode for single-node rerun"
 ```
 
@@ -220,7 +220,7 @@ git commit -m "feat(cli): add alix graph rerun command"
 
 ```typescript
 it("rerunNode throws for unknown graph", async () => {
-  const { GraphExecutor } = await import("../../src/kernel/graph-executor.js");
+  const { GraphExecutor } = await import("../../src/coordination/kernel/graph-executor.js");
   const exec = new GraphExecutor("/tmp");
   await assert.rejects(
     () => exec.rerunNode("nonexistent", "node_a"),
@@ -249,7 +249,7 @@ it("rerunNode throws for non-failed node without force", async () => {
     }],
     edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
   }));
-  const exec = new (await import("../../src/kernel/graph-executor.js")).GraphExecutor(tmpDir);
+  const exec = new (await import("../../src/coordination/kernel/graph-executor.js")).GraphExecutor(tmpDir);
   await assert.rejects(
     () => exec.rerunNode(graphId, "node_a"),
     /status is "done"/,

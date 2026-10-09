@@ -10,7 +10,7 @@ Source of truth for the A6 design: `docs/superpowers/specs/2026-08-10-a6-knowled
 
 ## 1. `DecisionArtifact` — verified
 
-File: `src/adaptation/decision-types.ts:36-45`
+File: `src/planning/adaptation/decision-types.ts:36-45`
 
 ```ts
 export interface DecisionArtifact {
@@ -70,7 +70,7 @@ export interface Recommendation {
 | Location | Type | Fields | Consumed by |
 |----------|------|--------|-------------|
 | `src/governance/governance-types.ts:172` | extends `DecisionArtifact`, `reportType`, `recommendations[]` | P9.x governance reports | `governance-recommendation-generator.ts`, `governance-store.ts` |
-| `src/evolution/verification/contracts/recommendation-contract.ts:58` | A2.5 recommendation | `recommendationId, evidenceId, proposalId, kind, confidence, reasoning, supportingEvidence, risks, createdAt` | **A3 `generateDecision`** (`decision-engine.ts:21`) |
+| `src/planning/evolution/verification/contracts/recommendation-contract.ts:58` | A2.5 recommendation | `recommendationId, evidenceId, proposalId, kind, confidence, reasoning, supportingEvidence, risks, createdAt` | **A3 `generateDecision`** (`decision-engine.ts:21`) |
 
 A3's `generateDecision` imports the **A2.5** `GovernanceRecommendation` (`../verification/contracts/recommendation-contract.js`), NOT the P9.x one. The two are structurally incompatible. **The plan's Task 6 `buildGovernanceRecommendation` produces the P9.x shape (`DecisionArtifact` + `reportType` + `recommendations`), which does NOT type-check against `generateDecision`'s parameter.** Task 6/7 must reconcile this (see Concerns §8).
 
@@ -78,7 +78,7 @@ Also note the plan's Step 2 listed only `id, source, sourceArtifactId, priority,
 
 ## 3. A3 `generateDecision` input contract — verified
 
-File: `src/evolution/governance/decision-engine.ts:123-127`
+File: `src/planning/evolution/governance/decision-engine.ts:123-127`
 
 ```ts
 export function generateDecision(
@@ -90,7 +90,7 @@ export function generateDecision(
 
 Evidence reads (grep `evidence\.`):
 - `evidence.confidenceProfile.overallConfidence` (line 137) — the decision confidence
-- `inferRegressions(evidence)` (line 138) — counts `behavioralChanges` strings containing `" regression: "` (see `src/evolution/verification/shared.ts:42`)
+- `inferRegressions(evidence)` (line 138) — counts `behavioralChanges` strings containing `" regression: "` (see `src/planning/evolution/verification/shared.ts:42`)
 - `evidence.reproducibilityLevel` (line 188) — compared against `policyConfig.minReproducibilityLevel`
 - `evidence.expiresAt` via `isEvidenceExpired(evidence)` (line 141) — fail-closed: expired → REJECT (default policy)
 - `evidence.evidenceId`, `evidence.proposalId` (used to build `decisionId`, `proposalId`, `evolutionId`, `evidenceId`)
@@ -100,7 +100,7 @@ Recommendation reads (optional param; only when present):
 - `recommendation.recommendationId` (line 298) — tracked on the decision
 - `recommendation.risks` (lines 235, 245) — carried into decision risks on ESCALATE
 
-Policy config (`options?.policyConfig ?? DEFAULT_GOVERNANCE_POLICY`), file `src/evolution/governance/contracts/decision-contract.ts:91`:
+Policy config (`options?.policyConfig ?? DEFAULT_GOVERNANCE_POLICY`), file `src/planning/evolution/governance/contracts/decision-contract.ts:91`:
 
 ```ts
 export const DEFAULT_GOVERNANCE_POLICY = {
@@ -119,7 +119,7 @@ Decision flow (pure, deterministic): expired→REJECT; `confidence < 0.3`→REJE
 
 ## 4. `VerificationEvidenceLedger` read API — verified
 
-File: `src/evolution/verification/evidence/evidence-ledger.ts:70-98`
+File: `src/planning/evolution/verification/evidence/evidence-ledger.ts:70-98`
 
 ```ts
 export interface VerificationEvidenceLedger {
@@ -135,7 +135,7 @@ export interface VerificationEvidenceLedger {
 
 ## 5. `createVerificationEvidence`, `EvidenceClass`, `ReproducibilityLevel` — verified
 
-File: `src/evolution/verification/evidence/verification-evidence.ts:37-66` (input) and `:78` (factory); contracts in `src/evolution/verification/contracts/verification-contract.ts`.
+File: `src/planning/evolution/verification/evidence/verification-evidence.ts:37-66` (input) and `:78` (factory); contracts in `src/planning/evolution/verification/contracts/verification-contract.ts`.
 
 `createVerificationEvidence(input: VerificationEvidenceInput): VerificationEvidence` — required input fields:
 
@@ -181,7 +181,7 @@ export type ReproducibilityLevel = 0 | 1 | 2 | 3;   // verification-contract.ts:
 
 ## 7. Store read APIs (Step 6) — verified
 
-### LearningStore — `src/learning/learning-store.ts`
+### LearningStore — `src/planning/learning/learning-store.ts`
 ```ts
 async querySignals(opts?: { signalTypes?: string[]; windowDays?: number; limit?: number; now?: string }): Promise<LearningSignal[]>
 async queryProfiles(opts?: { targets?: string[]; windowDays?: number; now?: string }): Promise<CalibrationProfile[]>
@@ -190,7 +190,7 @@ async queryProfiles(opts?: { targets?: string[]; windowDays?: number; now?: stri
 - **No public report read method** — `appendReport` writes only; `readFile` is private. `LearningStoreAdapter` must read `reports.jsonl` directly (constructor takes the dir) to project `LearningReport`.
 - `querySignals`/`queryProfiles` return `[]` when the file is missing.
 
-### ChronicleStore — `src/chronicle/chronicle-store.ts`
+### ChronicleStore — `src/context/chronicle/chronicle-store.ts`
 ```ts
 async get(entryId: string): Promise<ChronicleEntry | undefined>
 async search(query: { signalCode?: string; domain?: SignalDomain; polarity?: SignalPolarity; outcome?: ChronicleOutcome }): Promise<ChronicleEntry[]>
@@ -230,19 +230,19 @@ save(): Promise<void>;
 
 ## Files read (verified, not modified)
 
-- `src/adaptation/decision-types.ts`
+- `src/planning/adaptation/decision-types.ts`
 - `src/governance/governance-types.ts`
-- `src/evolution/governance/decision-engine.ts`
-- `src/evolution/governance/contracts/decision-contract.ts`
-- `src/evolution/verification/contracts/recommendation-contract.ts`
-- `src/evolution/verification/contracts/verification-contract.ts`
-- `src/evolution/verification/contracts/confidence-contract.ts`
-- `src/evolution/verification/evidence/evidence-ledger.ts`
-- `src/evolution/verification/evidence/verification-evidence.ts`
-- `src/evolution/verification/shared.ts`
-- `src/evolution/verification/recommendation/recommendation-engine.ts`
-- `src/learning/learning-store.ts`
-- `src/learning/learning-types.ts`
-- `src/chronicle/chronicle-store.ts`
+- `src/planning/evolution/governance/decision-engine.ts`
+- `src/planning/evolution/governance/contracts/decision-contract.ts`
+- `src/planning/evolution/verification/contracts/recommendation-contract.ts`
+- `src/planning/evolution/verification/contracts/verification-contract.ts`
+- `src/planning/evolution/verification/contracts/confidence-contract.ts`
+- `src/planning/evolution/verification/evidence/evidence-ledger.ts`
+- `src/planning/evolution/verification/evidence/verification-evidence.ts`
+- `src/planning/evolution/verification/shared.ts`
+- `src/planning/evolution/verification/recommendation/recommendation-engine.ts`
+- `src/planning/learning/learning-store.ts`
+- `src/planning/learning/learning-types.ts`
+- `src/context/chronicle/chronicle-store.ts`
 - `src/governance/failure-memory.ts`
 - `src/context/pattern-registry.ts`

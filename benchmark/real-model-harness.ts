@@ -16,9 +16,9 @@ import { assembleContext } from "./substrates.js";
 import { MetricsCollector } from "./metrics.js";
 import type { BenchmarkResultRow, Substrate, DecisionCategory } from "./types.js";
 import { DEFAULT_GOVERNANCE } from "./types.js";
-import { LocalLlamaProvider } from "../src/providers/local-llama-provider.js";
-import { createProvider } from "../src/providers/registry.js";
-import type { ModelAdapter, NormalizedRequest } from "../src/providers/types.js";
+import { LocalLlamaProvider } from "../src/models/providers/local-llama-provider.js";
+import { createProvider } from "../src/models/providers/registry.js";
+import type { ModelAdapter, NormalizedRequest } from "../src/models/providers/types.js";
 
 // ─── Helpers ───────────────────────────────────────────────────────
 

@@ -20,8 +20,8 @@ import { mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
-import { RecommendationStore } from "../../../src/evolution/verification/recommendation/recommendation-store.js";
-import type { GovernanceRecommendation } from "../../../src/evolution/verification/contracts/recommendation-contract.js";
+import { RecommendationStore } from "../../../src/planning/evolution/verification/recommendation/recommendation-store.js";
+import type { GovernanceRecommendation } from "../../../src/planning/evolution/verification/contracts/recommendation-contract.js";
 
 // ---------------------------------------------------------------------------
 // Fixture

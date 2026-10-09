@@ -13,7 +13,7 @@
 ## File Structure
 
 ### Modify
-- `src/runtime/task-router.ts` — add guardrail helpers + integrate into `matchNaturalFileOperation()`
+- `src/runtime-state/runtime/task-router.ts` — add guardrail helpers + integrate into `matchNaturalFileOperation()`
 
 ### Create
 - `tests/runtime/task-router-natural-file-hardening.test.ts` — false-positive regression tests
@@ -23,7 +23,7 @@
 ### Task 1: Harden natural-language file operation matching
 
 **Files:**
-- Modify: `src/runtime/task-router.ts`
+- Modify: `src/runtime-state/runtime/task-router.ts`
 
 - [ ] **Step 1: Add conceptual/help question detector**
 
@@ -206,7 +206,7 @@ function matchNaturalFileOperation(task: string): string | null {
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { taskRouter } from "../../src/runtime/task-router.js";
+import { taskRouter } from "../../src/runtime-state/runtime/task-router.js";
 
 describe("router hardening — false positives", () => {
   // --- Conceptual/help prompts must NOT route to tool ---

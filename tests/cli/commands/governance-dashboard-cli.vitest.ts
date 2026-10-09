@@ -32,7 +32,7 @@ afterEach(() => {
 describe("runDashboard", () => {
   it("renders 6 panel headers in text mode", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { runDashboard } = await import("../../../src/cli/commands/governance-dashboard-handler.js");
+    const { runDashboard } = await import("../../../src/interfaces/cli/commands/governance-dashboard-handler.js");
     await runDashboard([]);
     const out = log.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
     log.mockRestore();
@@ -47,7 +47,7 @@ describe("runDashboard", () => {
 
   it("emits valid JSON in --json mode", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { runDashboard } = await import("../../../src/cli/commands/governance-dashboard-handler.js");
+    const { runDashboard } = await import("../../../src/interfaces/cli/commands/governance-dashboard-handler.js");
     await runDashboard(["--json"]);
     const out = log.mock.calls.map((c: unknown[]) => String(c[0])).join("");
     log.mockRestore();
@@ -63,7 +63,7 @@ describe("runDashboard", () => {
 
   it("respects --window flag", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { runDashboard } = await import("../../../src/cli/commands/governance-dashboard-handler.js");
+    const { runDashboard } = await import("../../../src/interfaces/cli/commands/governance-dashboard-handler.js");
     await runDashboard(["--json", "--window", "7"]);
     const out = log.mock.calls.map((c: unknown[]) => String(c[0])).join("");
     log.mockRestore();

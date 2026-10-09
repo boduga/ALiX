@@ -448,7 +448,7 @@ Objectives: 3 prioritized
 
 ### 6.5 Registration
 
-Add `case "strategic-plan"` to `src/cli/commands/executive.ts` with dynamic import pattern:
+Add `case "strategic-plan"` to `src/interfaces/cli/commands/executive.ts` with dynamic import pattern:
 
 ```typescript
 case "strategic-plan": {
@@ -529,7 +529,7 @@ Update the `default` case's available subcommands list.
 | `src/planning/build-strategic-plan.ts` | Pure function `buildStrategicPlan(analysis, config) → StrategicPlan` |
 | `src/planning/strategic-plan-store.ts` | Append-only JSONL store with `save`, `loadLatest`, `loadById`, `list` |
 | `src/planning/planning-engine.ts` | Orchestrator: loads analysis → calls pure function → saves |
-| `src/cli/commands/executive-strategic-plan-handler.ts` | CLI handler for `alix executive strategic-plan` |
+| `src/interfaces/cli/commands/executive-strategic-plan-handler.ts` | CLI handler for `alix executive strategic-plan` |
 | `tests/planning/build-strategic-plan.vitest.ts` | 10 pure function tests |
 | `tests/planning/planning-engine.vitest.ts` | 3 engine tests |
 | `tests/planning/strategic-plan-store.vitest.ts` | 4 store tests |

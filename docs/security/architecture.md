@@ -127,7 +127,7 @@ Request Flow:
 
 ## Key Files and Responsibilities
 
-### Server Layer (`src/server/`)
+### Server Layer (`src/interfaces/server/`)
 
 | File | Responsibility |
 |---|---|
@@ -143,7 +143,7 @@ Request Flow:
 | `auth-routes.ts` | Session exchange and logout route handlers |
 | `security-alerts.ts` | Passive health assessment and security status |
 
-### Security Layer (`src/security/`)
+### Security Layer (`src/governance/security/`)
 
 | File | Responsibility |
 |---|---|
@@ -167,14 +167,14 @@ Request Flow:
 | `supply-chain/security-exceptions.ts` | Time-bounded exception tracking |
 | `supply-chain/package-verifier.ts` | Artifact integrity verification |
 
-### Config Layer (`src/config/`)
+### Config Layer (`src/operations/config/`)
 
 | File | Responsibility |
 |---|---|
 | `mutation.ts` | Atomic config mutation with provenance |
 | `signing.ts` | Config signing, trust evaluation, anti-rollback |
 
-### Platform Layer (`src/security/platform/`)
+### Platform Layer (`src/governance/security/platform/`)
 
 | File | Responsibility |
 |---|---|

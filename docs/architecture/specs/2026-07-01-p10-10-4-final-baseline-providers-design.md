@@ -120,12 +120,12 @@ Each proposal file is read and its `status` field extracted. Counts are accumula
 ## 6. File Map
 
 ```
-src/baseline/providers/
+src/context/baseline/providers/
   security-provider.ts       — SecurityBaselineProvider (reads .alix/policies/, evidence, credentials)
   tools-health-provider.ts   — ToolsRuntimeHealthProvider (adapter-based)
   adaptation-provider.ts     — AdaptationBaselineProvider (reads .alix/adaptation/proposals/)
 
-src/baseline/
+src/context/baseline/
   baseline-registry.ts       — factory updated: register Security, Tools, Adaptation
 
 tests/baseline/providers/

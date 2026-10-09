@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { CoordinationScheduler } from "../../src/kernel/coordination-scheduler.js";
-import { CoordinationSchedulerService } from "../../src/daemon/coordination-scheduler-service.js";
-import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { CoordinationScheduler } from "../../src/coordination/kernel/coordination-scheduler.js";
+import { CoordinationSchedulerService } from "../../src/operations/daemon/coordination-scheduler-service.js";
+import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 
 describe("CoordinationSchedulerService", () => {
   let cwd: string;

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateShellNetworkCommand } from "../../src/tools/shell-network-policy.js";
+import { validateShellNetworkCommand } from "../../src/capabilities/tools/shell-network-policy.js";
 
 // Stub resolvers: the corpus must be rejected by static analysis, never by DNS.
 const PUBLIC_RESOLVE = async () => ["93.184.216.34"];

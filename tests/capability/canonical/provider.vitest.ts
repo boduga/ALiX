@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { PROVIDER_TYPES, validateProviderBinding } from "../../../src/capability/canonical/provider.js";
-import type { CapabilityProviderBinding } from "../../../src/capability/canonical/provider.js";
+import { PROVIDER_TYPES, validateProviderBinding } from "../../../src/capabilities/capability/canonical/provider.js";
+import type { CapabilityProviderBinding } from "../../../src/capabilities/capability/canonical/provider.js";
 
 describe("CapabilityProviderBinding", () => {
   it("defines the ADR-0013 provider classes", () => {

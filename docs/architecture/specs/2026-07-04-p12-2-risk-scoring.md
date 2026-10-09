@@ -63,7 +63,7 @@ Each factor produces a `RiskFactor` with score 0–100 and a `RiskLevel` label.
 |-------|-------|-------|
 | Only docs/** or tests/** | low | 10 |
 | Source files (src/**) | medium | 40 |
-| Security/auth paths (src/security/**, src/auth/**) | high | 70 |
+| Security/auth paths (src/governance/security/**, src/auth/**) | high | 70 |
 | Secrets/infra/deploy paths | critical | 90 |
 
 ### 2. File Count
@@ -152,7 +152,7 @@ alix governance risk-score --json (machine-readable output)
 
 - `src/governance/risk-scoring.ts` — Types, factor scoring, `computeRiskScore()`
 - `tests/governance/risk-scoring.test.ts` — Unit tests (node:test + assert/strict)
-- `src/cli/commands/governance.ts` — Add `risk-score` subcommand
+- `src/interfaces/cli/commands/governance.ts` — Add `risk-score` subcommand
 
 ## Merge Criteria
 

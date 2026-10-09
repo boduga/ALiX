@@ -3,7 +3,7 @@ import {
   resolveLlamaKnobs,
   buildLlamaServerArgs,
   type ResolvedLlamaKnobs,
-} from "../../src/providers/local-llama-launcher.js";
+} from "../../src/models/providers/local-llama-launcher.js";
 
 describe("resolveLlamaKnobs", () => {
   it("applies defaults when no config or env is present", () => {

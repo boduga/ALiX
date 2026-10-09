@@ -30,7 +30,7 @@
 - [ ] **Step 1: Write validation cases**
 
 ```typescript
-import type { ModelRoutingCase } from "../src/kernel/model-routing-validation.js";
+import type { ModelRoutingCase } from "../src/coordination/kernel/model-routing-validation.js";
 
 /**
  * Curated prompts for model routing validation.
@@ -99,8 +99,8 @@ git commit -m "feat(scripts): curated model routing validation cases"
  */
 
 import { VALIDATION_CASES, VALIDATION_THRESHOLDS } from "./validation-cases.js";
-import type { ModelRoutingResult } from "../src/kernel/model-routing-validation.js";
-import { summarizeRoutingResults } from "../src/kernel/model-routing-validation.js";
+import type { ModelRoutingResult } from "../src/coordination/kernel/model-routing-validation.js";
+import { summarizeRoutingResults } from "../src/coordination/kernel/model-routing-validation.js";
 
 interface TierTest {
   name: string;
@@ -227,8 +227,8 @@ git commit -m "feat(scripts): model routing validation runner"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { summarizeRoutingResults } from "../../src/kernel/model-routing-validation.js";
-import type { ModelRoutingResult } from "../../src/kernel/model-routing-validation.js";
+import { summarizeRoutingResults } from "../../src/coordination/kernel/model-routing-validation.js";
+import type { ModelRoutingResult } from "../../src/coordination/kernel/model-routing-validation.js";
 
 describe("summarizeRoutingResults", () => {
 

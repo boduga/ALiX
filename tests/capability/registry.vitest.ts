@@ -2,16 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { toolCapabilityId } from '../../src/capability/registry-capabilities.js';
-import { buildDefaultToolIndex } from '../../src/tools/tool-registry.js';
-import { HookRegistry } from '../../src/capability/hook-registry.js';
-import { CapabilityValidationError } from '../../src/capability/errors.js';
-import { EventBus } from '../../src/capability/event-bus.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import type { Capability } from '../../src/capability/types.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { toolCapabilityId } from '../../src/capabilities/capability/registry-capabilities.js';
+import { buildDefaultToolIndex } from '../../src/capabilities/tools/tool-registry.js';
+import { HookRegistry } from '../../src/capabilities/capability/hook-registry.js';
+import { CapabilityValidationError } from '../../src/capabilities/capability/errors.js';
+import { EventBus } from '../../src/capabilities/capability/event-bus.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import type { Capability } from '../../src/capabilities/capability/types.js';
 
 function makeCap(over: Partial<Capability> = {}): Capability {
   return {

@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { StdioTransport } from "../src/mcp/transports/stdio-transport.js";
-import type { JsonRpcRequest, JsonRpcNotification } from "../src/mcp/types.js";
+import { StdioTransport } from "../src/capabilities/mcp/transports/stdio-transport.js";
+import type { JsonRpcRequest, JsonRpcNotification } from "../src/capabilities/mcp/types.js";
 
 let idCounter = 1;
 function nextId(): number { return idCounter++; }

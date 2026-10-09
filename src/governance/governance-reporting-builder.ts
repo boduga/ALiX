@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
 import type { PolicyDriftSignal } from "./policy-drift-types.js";
 import type { PolicyReviewCandidate } from "./policy-review-candidate-types.js";
 import type { PolicyReviewOutcome } from "./policy-review-outcome-types.js";
-import type { ExecutionEvidence } from "../runtime/contracts/execution-intent-contract.js";
+import type { ExecutionEvidence } from "../runtime-state/runtime/contracts/execution-intent-contract.js";
 import { toComplianceExecutionSummary } from "./governance-execution-adapter.js";
 import type {
   CompliancePackage,

@@ -12,9 +12,9 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceChainStore } from "../../src/learning/evidence-chain-store.js";
+import { EvidenceChainStore } from "../../src/planning/learning/evidence-chain-store.js";
 import { GovernanceStore } from "../../src/governance/governance-store.js";
-import type { AdaptationProposal, ProposalTarget } from "../../src/adaptation/adaptation-types.js";
+import type { AdaptationProposal, ProposalTarget } from "../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Mock: assembleProposalExplanation — one top-level mock for the whole file.
@@ -31,7 +31,7 @@ let assemblerReturnValue: { completenessPercent: number; _shouldReject: boolean 
   _shouldReject: false,
 };
 
-vi.mock("../../src/explain/proposal-explanation-assembler.js", () => ({
+vi.mock("../../src/operations/explain/proposal-explanation-assembler.js", () => ({
   assembleProposalExplanation: vi.fn(() => {
     if (assemblerReturnValue._shouldReject) return Promise.reject(new Error("mock failure"));
     return Promise.resolve({

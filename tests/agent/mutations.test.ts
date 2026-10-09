@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { extractMutationPaths } from "../../src/agent/mutations.js";
+import { extractMutationPaths } from "../../src/agents/agent/mutations.js";
 
 describe("extractMutationPaths", () => {
   it("extracts path from file.write args", () => {

@@ -21,7 +21,7 @@ import {
   type DecisionProvenance,
   type NoulResult,
   type ScoreResult,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 function provenance(overrides?: Partial<DecisionProvenance>): DecisionProvenance {
   return {

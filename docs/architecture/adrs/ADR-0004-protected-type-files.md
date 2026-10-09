@@ -10,12 +10,12 @@
 Since P5, the ALiX codebase has maintained a set of **6 protected type files** that subsequent P-phases are forbidden from modifying:
 
 ```text
-src/adaptation/risk-score-types.ts
-src/adaptation/governance-review-types.ts
-src/adaptation/adaptation-types.ts
-src/adaptation/decision-types.ts
-src/adaptation/learning-types.ts
-src/adaptation/outcome-types.ts
+src/planning/adaptation/risk-score-types.ts
+src/planning/adaptation/governance-review-types.ts
+src/planning/adaptation/adaptation-types.ts
+src/planning/adaptation/decision-types.ts
+src/planning/adaptation/learning-types.ts
+src/planning/adaptation/outcome-types.ts
 ```
 
 The invariant was framed as "byte-identical to main" in per-phase plans (P8.5a, P8.5b, P8.5c, P9.0a, P9.1). The intent: prevent later phases from quietly reshaping the P5 proposal/governance contracts that earlier phases and external consumers depend on.

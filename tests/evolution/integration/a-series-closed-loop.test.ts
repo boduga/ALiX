@@ -26,45 +26,45 @@ import { tmpdir } from "node:os";
 // ---------------------------------------------------------------------------
 // A0: Contract types
 // ---------------------------------------------------------------------------
-import { EvolutionStateMachine } from "../../../src/evolution/evolution-state-machine.js";
-import { EvolutionState } from "../../../src/evolution/contracts/evolution-contract.js";
-import type { EvolutionProposal, EvolutionIntent } from "../../../src/evolution/contracts/evolution-contract.js";
+import { EvolutionStateMachine } from "../../../src/planning/evolution/evolution-state-machine.js";
+import { EvolutionState } from "../../../src/planning/evolution/contracts/evolution-contract.js";
+import type { EvolutionProposal, EvolutionIntent } from "../../../src/planning/evolution/contracts/evolution-contract.js";
 
 // ---------------------------------------------------------------------------
 // A2: Verification
 // ---------------------------------------------------------------------------
-import type { VerificationEvidence, ConfidenceProfile } from "../../../src/evolution/verification/contracts/verification-contract.js";
+import type { VerificationEvidence, ConfidenceProfile } from "../../../src/planning/evolution/verification/contracts/verification-contract.js";
 
 // ---------------------------------------------------------------------------
 // A3: Governance Decision
 // ---------------------------------------------------------------------------
-import { generateDecision } from "../../../src/evolution/governance/decision-engine.js";
-import type { GovernanceDecision } from "../../../src/evolution/governance/contracts/decision-contract.js";
-import { computeDecisionIntegrityHash } from "../../../src/evolution/governance/decision-engine.js";
+import { generateDecision } from "../../../src/planning/evolution/governance/decision-engine.js";
+import type { GovernanceDecision } from "../../../src/planning/evolution/governance/contracts/decision-contract.js";
+import { computeDecisionIntegrityHash } from "../../../src/planning/evolution/governance/decision-engine.js";
 
 // ---------------------------------------------------------------------------
 // A4: Governed Execution
 // ---------------------------------------------------------------------------
-import { computeExecutionEvidenceHash } from "../../../src/evolution/execution/execution-evidence-bridge.js";
-import { authorizeExecution } from "../../../src/evolution/execution/execution-authorization.js";
-import { createExecutionPlan, DefaultRollbackResolver } from "../../../src/evolution/execution/execution-planner.js";
-import { GovernedExecutionRuntime, TestStepExecutor } from "../../../src/evolution/execution/execution-runtime.js";
-import { buildExecutionEvidence } from "../../../src/evolution/execution/execution-evidence-bridge.js";
-import type { ExecutionRequest, ExecutionEnvironment, ExecutionPlan, EvolutionExecutionEvidence } from "../../../src/evolution/execution/contracts/execution-contract.js";
+import { computeExecutionEvidenceHash } from "../../../src/planning/evolution/execution/execution-evidence-bridge.js";
+import { authorizeExecution } from "../../../src/planning/evolution/execution/execution-authorization.js";
+import { createExecutionPlan, DefaultRollbackResolver } from "../../../src/planning/evolution/execution/execution-planner.js";
+import { GovernedExecutionRuntime, TestStepExecutor } from "../../../src/planning/evolution/execution/execution-runtime.js";
+import { buildExecutionEvidence } from "../../../src/planning/evolution/execution/execution-evidence-bridge.js";
+import type { ExecutionRequest, ExecutionEnvironment, ExecutionPlan, EvolutionExecutionEvidence } from "../../../src/planning/evolution/execution/contracts/execution-contract.js";
 
 // ---------------------------------------------------------------------------
 // A5: Observation
 // ---------------------------------------------------------------------------
-import { ObservationEngine } from "../../../src/evolution/observation/observation-engine.js";
-import { CliObservationProvider } from "../../../src/evolution/observation/providers/cli-provider.js";
-import { FilesystemObservationProvider } from "../../../src/evolution/observation/providers/filesystem-provider.js";
-import { buildObservationEvidence } from "../../../src/evolution/observation/observation-evidence-bridge.js";
-import type { ObservationResult } from "../../../src/evolution/observation/contracts/observation-contract.js";
+import { ObservationEngine } from "../../../src/planning/evolution/observation/observation-engine.js";
+import { CliObservationProvider } from "../../../src/planning/evolution/observation/providers/cli-provider.js";
+import { FilesystemObservationProvider } from "../../../src/planning/evolution/observation/providers/filesystem-provider.js";
+import { buildObservationEvidence } from "../../../src/planning/evolution/observation/observation-evidence-bridge.js";
+import type { ObservationResult } from "../../../src/planning/evolution/observation/contracts/observation-contract.js";
 
 // ---------------------------------------------------------------------------
 // Shared utilities
 // ---------------------------------------------------------------------------
-import { ExecutionEvidenceStore } from "../../../src/evolution/verification/evidence/evidence-store.js";
+import { ExecutionEvidenceStore } from "../../../src/planning/evolution/verification/evidence/evidence-store.js";
 
 // ---------------------------------------------------------------------------
 // Constants

@@ -9,16 +9,16 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
-import { IntelligenceStore } from "../../src/adaptation/intelligence-store.js";
-import { PriorityStore } from "../../src/adaptation/priority-store.js";
-import { ProposalScorer, computeAgeMultiplier } from "../../src/adaptation/proposal-scorer.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { AdaptationProposalStore } from "../../src/planning/adaptation/adaptation-proposal-store.js";
+import { IntelligenceStore } from "../../src/planning/adaptation/intelligence-store.js";
+import { PriorityStore } from "../../src/planning/adaptation/priority-store.js";
+import { ProposalScorer, computeAgeMultiplier } from "../../src/planning/adaptation/proposal-scorer.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 import type {
   BucketSet,
   BucketStat,
   IntelligenceReport,
-} from "../../src/adaptation/intelligence-types.js";
+} from "../../src/planning/adaptation/intelligence-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

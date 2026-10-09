@@ -53,32 +53,32 @@ Each layer is pure and transport-independent. The renderer is the only consumer 
 
 | File | Responsibility |
 |---|---|
-| `src/tui/blocks/types.ts` | `ResponseBlock` v2 type union + `InlineSpan` type + `Token` type + `Theme` interface. Pure types — no logic. |
-| `src/tui/blocks/parser.ts` | Block parser v2: detects headings, quotes, rules in addition to existing text/code/list. Pure function `parseBlocks(md)`. |
-| `src/tui/blocks/inline.ts` | Inline parser: walks text, produces `InlineSpan[]` (text/bold/italic/code/link). Pure function `parseInline(text)`. |
-| `src/tui/blocks/tokenize.ts` | Code tokenizer dispatcher: maps `language` → tokenizer; produces `Token[]` (keyword/string/comment/number/identifier/operator/punctuation). Pure function `tokenize(code, lang)`. |
-| `src/tui/blocks/langs/python.ts` | Python tokenizer. |
-| `src/tui/blocks/langs/typescript.ts` | TypeScript / JavaScript tokenizer (single file, both share syntax). |
-| `src/tui/blocks/langs/json.ts` | JSON tokenizer. |
-| `src/tui/blocks/langs/bash.ts` | Bash tokenizer. |
-| `src/tui/blocks/langs/plain.ts` | Fallback tokenizer (every char is `plain` token). |
-| `src/tui/blocks/theme.ts` | Default dark theme — semantic colors for: `heading`, `bold`, `italic`, `inlineCode`, `codeBorder`, `codeLangLabel`, `keyword`, `string`, `comment`, `number`, `function`, `operator`, `punctuation`, `quote`, `quoteBorder`, `rule`, `link`. Single concrete instance exported. |
-| `src/tui/blocks/render.ts` | Rich renderer. `renderBlocks(blocks, theme, width) → StyledRow[]`. Each `StyledRow` is `{ text: string; isFirst: boolean }` where `text` is the ANSI-styled line ready to write to canvas. |
+| `src/interfaces/tui/blocks/types.ts` | `ResponseBlock` v2 type union + `InlineSpan` type + `Token` type + `Theme` interface. Pure types — no logic. |
+| `src/interfaces/tui/blocks/parser.ts` | Block parser v2: detects headings, quotes, rules in addition to existing text/code/list. Pure function `parseBlocks(md)`. |
+| `src/interfaces/tui/blocks/inline.ts` | Inline parser: walks text, produces `InlineSpan[]` (text/bold/italic/code/link). Pure function `parseInline(text)`. |
+| `src/interfaces/tui/blocks/tokenize.ts` | Code tokenizer dispatcher: maps `language` → tokenizer; produces `Token[]` (keyword/string/comment/number/identifier/operator/punctuation). Pure function `tokenize(code, lang)`. |
+| `src/interfaces/tui/blocks/langs/python.ts` | Python tokenizer. |
+| `src/interfaces/tui/blocks/langs/typescript.ts` | TypeScript / JavaScript tokenizer (single file, both share syntax). |
+| `src/interfaces/tui/blocks/langs/json.ts` | JSON tokenizer. |
+| `src/interfaces/tui/blocks/langs/bash.ts` | Bash tokenizer. |
+| `src/interfaces/tui/blocks/langs/plain.ts` | Fallback tokenizer (every char is `plain` token). |
+| `src/interfaces/tui/blocks/theme.ts` | Default dark theme — semantic colors for: `heading`, `bold`, `italic`, `inlineCode`, `codeBorder`, `codeLangLabel`, `keyword`, `string`, `comment`, `number`, `function`, `operator`, `punctuation`, `quote`, `quoteBorder`, `rule`, `link`. Single concrete instance exported. |
+| `src/interfaces/tui/blocks/render.ts` | Rich renderer. `renderBlocks(blocks, theme, width) → StyledRow[]`. Each `StyledRow` is `{ text: string; isFirst: boolean }` where `text` is the ANSI-styled line ready to write to canvas. |
 | `tests/tui/blocks/*.vitest.ts` | One test file per module. |
 
 ### Modified modules
 
 | File | Change |
 |---|---|
-| `src/agent/response-blocks.ts` | **Re-export** the new parser from `src/tui/blocks/parser.ts` so existing call sites keep working. No behavior change for current consumers — the new parser is a strict superset of the old one. |
-| `src/tui/views/agent-view.ts` | Replace `renderAgentResponse` body with a call to `renderBlocks`. Keep `RenderedLine` shape unchanged so the surrounding render loop doesn't change. |
-| `src/tui/views/chat-view.ts` | **Wire up** `parseBlocks` + `renderBlocks` for the first time (currently bypasses the parser). This brings chat-view to parity with agent-view — fenced code, lists, bold, etc. now render properly in chat too. |
+| `src/agents/agent/response-blocks.ts` | **Re-export** the new parser from `src/interfaces/tui/blocks/parser.ts` so existing call sites keep working. No behavior change for current consumers — the new parser is a strict superset of the old one. |
+| `src/interfaces/tui/views/agent-view.ts` | Replace `renderAgentResponse` body with a call to `renderBlocks`. Keep `RenderedLine` shape unchanged so the surrounding render loop doesn't change. |
+| `src/interfaces/tui/views/chat-view.ts` | **Wire up** `parseBlocks` + `renderBlocks` for the first time (currently bypasses the parser). This brings chat-view to parity with agent-view — fenced code, lists, bold, etc. now render properly in chat too. |
 
 ### Untouched
 
-- `src/tui/canvas.ts` — already ANSI-aware.
-- `src/tui/ansi.ts` — kept as-is. Theme uses raw ANSI escapes (matching the pattern in `box.ts`) rather than `styleText` so canvas cell-style accumulation works correctly.
-- `src/tui/wrap-text.ts` — already ANSI-aware, used by the new renderer.
+- `src/interfaces/tui/canvas.ts` — already ANSI-aware.
+- `src/interfaces/tui/ansi.ts` — kept as-is. Theme uses raw ANSI escapes (matching the pattern in `box.ts`) rather than `styleText` so canvas cell-style accumulation works correctly.
+- `src/interfaces/tui/wrap-text.ts` — already ANSI-aware, used by the new renderer.
 
 ---
 
@@ -204,7 +204,7 @@ For terminals that don't render italic (most), italic still distinguishes from b
 
 ## Theme design
 
-`src/tui/blocks/theme.ts` exports a single concrete `defaultTheme` of type `Theme`:
+`src/interfaces/tui/blocks/theme.ts` exports a single concrete `defaultTheme` of type `Theme`:
 
 ```ts
 export interface Theme {
@@ -371,20 +371,20 @@ Each step compiles independently of the next; if a step is partial, the build st
 
 | File | Lines changed (estimate) |
 |---|---|
-| `src/tui/blocks/types.ts` | new, ~40 |
-| `src/tui/blocks/parser.ts` | new, ~150 |
-| `src/tui/blocks/inline.ts` | new, ~120 |
-| `src/tui/blocks/tokenize.ts` | new, ~30 |
-| `src/tui/blocks/langs/python.ts` | new, ~250 |
-| `src/tui/blocks/langs/typescript.ts` | new, ~280 |
-| `src/tui/blocks/langs/json.ts` | new, ~80 |
-| `src/tui/blocks/langs/bash.ts` | new, ~120 |
-| `src/tui/blocks/langs/plain.ts` | new, ~10 |
-| `src/tui/blocks/theme.ts` | new, ~80 |
-| `src/tui/blocks/render.ts` | new, ~250 |
-| `src/agent/response-blocks.ts` | ~5 (re-export) |
-| `src/tui/views/agent-view.ts` | ~-30, +5 (replace renderAgentResponse body) |
-| `src/tui/views/chat-view.ts` | ~+10 (parse + render) |
+| `src/interfaces/tui/blocks/types.ts` | new, ~40 |
+| `src/interfaces/tui/blocks/parser.ts` | new, ~150 |
+| `src/interfaces/tui/blocks/inline.ts` | new, ~120 |
+| `src/interfaces/tui/blocks/tokenize.ts` | new, ~30 |
+| `src/interfaces/tui/blocks/langs/python.ts` | new, ~250 |
+| `src/interfaces/tui/blocks/langs/typescript.ts` | new, ~280 |
+| `src/interfaces/tui/blocks/langs/json.ts` | new, ~80 |
+| `src/interfaces/tui/blocks/langs/bash.ts` | new, ~120 |
+| `src/interfaces/tui/blocks/langs/plain.ts` | new, ~10 |
+| `src/interfaces/tui/blocks/theme.ts` | new, ~80 |
+| `src/interfaces/tui/blocks/render.ts` | new, ~250 |
+| `src/agents/agent/response-blocks.ts` | ~5 (re-export) |
+| `src/interfaces/tui/views/agent-view.ts` | ~-30, +5 (replace renderAgentResponse body) |
+| `src/interfaces/tui/views/chat-view.ts` | ~+10 (parse + render) |
 | `tests/tui/blocks/*.vitest.ts` (10 files) | new, ~750 total |
 
 Net: ~+1500 LOC, ~-30 LOC. No deletions from existing files.

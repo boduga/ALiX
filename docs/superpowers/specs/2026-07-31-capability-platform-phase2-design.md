@@ -13,7 +13,7 @@ Deliver two TUI interfaces over the Phase-1 Capability Platform:
 1. **Command Palette** — a fast launcher ("I know what I want to do"): fuzzy-search capabilities, Enter to invoke.
 2. **Capabilities tab** — a searchable catalog ("What can ALiX do?"): browse, inspect, learn, discover.
 
-Both share one in-process `CapabilityPlatform` instance and one **Invocation Presenter** that routes invocation output into the chat/agent timeline. The platform itself never imports from `src/tui/`.
+Both share one in-process `CapabilityPlatform` instance and one **Invocation Presenter** that routes invocation output into the chat/agent timeline. The platform itself never imports from `src/interfaces/tui/`.
 
 ## Design Decisions
 
@@ -25,7 +25,7 @@ Both share one in-process `CapabilityPlatform` instance and one **Invocation Pre
 | D4 | **Invocation Presenter** is the presentation boundary: the palette/capabilities tab are *launchers*, the chat view is the operator's execution history, the EventLog is the audit trail. The platform never knows about any UI. |
 | D5 | **Palette behavior is capability-only this phase**, but its **architecture supports multiple providers day one** (`CapabilityProvider` enabled, `ActionProvider` stubbed empty). UI actions are **not** capabilities — they use a separate `PaletteAction { id, title, run() }` interface. |
 | D6 | **Capabilities is a dedicated 9th TUI tab** (tabs represent content, not interaction). Palette = modal overlay. |
-| D7 | **Module boundary**: `src/tui/capabilities/` owns the service + presenter + palette + tab. |
+| D7 | **Module boundary**: `src/interfaces/tui/capabilities/` owns the service + presenter + palette + tab. |
 | D8 | **`CapabilityService.invoke()` presents automatically** — the service owns the `InvocationPresenter` and wires it internally, so every invocation is presented (EventLog + chat + streaming) without each caller remembering to call the presenter. Presentation policy is centralized. |
 | D9 | **Invocation ownership invariant**: only `CapabilityService.invoke()` may create user-facing capability execution — views and palette entries never call `CapabilityRuntime` directly. |
 | D10 | **Infrastructure is bootstrap-owned**: the CLI bootstrap constructs the `ToolExecutor`/session dependencies and passes them to the service (via `CapabilityServiceOptions.toolExecutor`); the service wires them into the platform but does not construct infrastructure. |
@@ -33,7 +33,7 @@ Both share one in-process `CapabilityPlatform` instance and one **Invocation Pre
 ## Architecture
 
 ```
-src/tui/capabilities/
+src/interfaces/tui/capabilities/
 ├── capability-service.ts    CapabilityService — the TUI façade over the platform. Owns the
 │                            process-local CapabilityPlatform instance + the
 │                            InvocationPresenter, wires the full working set (bootstrap-owned
@@ -69,7 +69,7 @@ async invoke(id: string, args: Record<string, unknown>): Promise<Invocation> {
 
 - Capabilities flow only `Registry → Runtime → Invocation`; never bypassed.
 - UI actions use `PaletteAction`, never `Capability`.
-- The platform (`src/capability/*`) never imports from `src/tui/` (Phase-1 invariant 9).
+- The platform (`src/capabilities/capability/*`) never imports from `src/interfaces/tui/` (Phase-1 invariant 9).
 
 ## Data Flow
 
@@ -138,7 +138,7 @@ CapabilityService.invoke
 - `Ctrl+P` opens the palette from any tab; fuzzy search finds `core.session.list`, `tool.shell.run`, etc.; Enter invokes and the result appears in the chat timeline; `platform.events` events land in the EventLog.
 - The Capabilities tab lists all registered capabilities with live availability; detail pane shows full metadata; Enter invokes.
 - `pnpm test:vitest` green (new tests + no regressions); `tsc --noEmit` clean.
-- Phase 2 adds consumers only — `src/capability/*` is not modified.
+- Phase 2 adds consumers only — `src/capabilities/capability/*` is not modified.
 
 ## Non-Goals (Phase 2)
 

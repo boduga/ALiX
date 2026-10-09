@@ -16,18 +16,18 @@
 
 **Gaps this plan fills:**
 
-1. **Missing orchestrator** — `src/kernel/collaboration-conflict-detector.ts` does not exist. The pipeline pieces (`extractClaim`, `ConflictCandidateGenerator`, `ClaimComparator`, `ConflictEvidenceComparator`, `ConflictRepository.upsertConflict`) are present but nothing wires them together. Without the detector, no deterministic conflicts are ever created — only worker-reported ones.
+1. **Missing orchestrator** — `src/coordination/kernel/collaboration-conflict-detector.ts` does not exist. The pipeline pieces (`extractClaim`, `ConflictCandidateGenerator`, `ClaimComparator`, `ConflictEvidenceComparator`, `ConflictRepository.upsertConflict`) are present but nothing wires them together. Without the detector, no deterministic conflicts are ever created — only worker-reported ones.
 2. **`ConflictRepository.authorize()`** allows any `kind: "worker"` if `allowedConflictIds` is undefined (line 106-113). Plan §11.1 says workers must be assigned the role explicitly. **Fix:** treat undefined as deny.
 3. **CLI subcommand gaps** — no `--actor` / `--reason` flags on resolution commands; `conflict-accept-divergence` is missing; `handleInspect` does not surface `view.conflictCount` / `view.conflicts`.
-4. **State migration** — `normalizeStateV1_0()` not added to `src/kernel/collaboration-validation.ts`. Plan §5 requires it.
+4. **State migration** — `normalizeStateV1_0()` not added to `src/coordination/kernel/collaboration-validation.ts`. Plan §5 requires it.
 5. **Conflict budget** — `CollaborationContextBudget` has no `maxConflicts` / `maxConflictTokens` / `maxFindingsPerConflict`. Plan §15.2 requires it.
-6. **Observability** — `CONFLICT_EVENT_TYPES` declared in `src/events/types.ts:194-205` but emitted nowhere. `AuditAction` union (15 entries) is closed and has no conflict actions. `M09MetricName` (7 entries) is closed and has no conflict metrics.
+6. **Observability** — `CONFLICT_EVENT_TYPES` declared in `src/runtime-state/events/types.ts:194-205` but emitted nowhere. `AuditAction` union (15 entries) is closed and has no conflict actions. `M09MetricName` (7 entries) is closed and has no conflict metrics.
 7. **Tests** — zero test files added on this branch. Plan §19 lists 13 test files; plan §21 is the matrix.
 8. **Docs** — `README.md` and `docs/user-manual.md` untouched.
 
 **Bugs ruled out by direct re-reading of source:**
 
-- The evidence comparator (`src/kernel/collaboration-evidence-comparator.ts:22-24`) reads `f.evidenceRefs[i].kind` against the `EvidenceRef` discriminated union. The narrowing is correct: `EvidenceRef = { kind: "worker_result", ... } | { kind: "artifact", ... } | { kind: "file", path, digest? } | ...`. TypeScript narrows per variant and `r.digest` is `string | undefined` after `r.kind === "file"`. The earlier audit incorrectly flagged this as a bug. No fix needed.
+- The evidence comparator (`src/coordination/kernel/collaboration-evidence-comparator.ts:22-24`) reads `f.evidenceRefs[i].kind` against the `EvidenceRef` discriminated union. The narrowing is correct: `EvidenceRef = { kind: "worker_result", ... } | { kind: "artifact", ... } | { kind: "file", path, digest? } | ...`. TypeScript narrows per variant and `r.digest` is `string | undefined` after `r.kind === "file"`. The earlier audit incorrectly flagged this as a bug. No fix needed.
 
 ---
 
@@ -36,15 +36,15 @@
 These are existing codebase rules that the plan must respect. Violating any one will fail code review.
 
 - **TUI panels must not import runtime stores.** Mirror the test guard at `tests/tui/chronicle-panel.test.ts` and `tests/tui/ifamas-panel.test.ts`: a test asserts the panel source does not contain `ConflictRepository`, `CollaborationStore`, `EventLog`, `AuditStore`, `MinimalMetrics`. If a panel needs conflict data, the consumer wires a literal data object.
-- **HTTP routes never mutate state.** Inspector route handlers in `src/server/coordination-routes.ts` are GET-only. The new `POST` write endpoints (resolve/dismiss/accept-divergence) require a `req` parameter to read the body and a separate signature change. Per plan §16 they are deferred; this plan adds the server-side support class (`CoordinationWriteAudit` or similar) without altering the existing route signature.
+- **HTTP routes never mutate state.** Inspector route handlers in `src/interfaces/server/coordination-routes.ts` are GET-only. The new `POST` write endpoints (resolve/dismiss/accept-divergence) require a `req` parameter to read the body and a separate signature change. Per plan §16 they are deferred; this plan adds the server-side support class (`CoordinationWriteAudit` or similar) without altering the existing route signature.
 - **Tests use `node:assert/strict`.** No `expect` from vitest, no chai. Pattern: `import assert from "node:assert/strict"`.
 - **Stateful kernel tests use `mkdtempSync` + `rmSync`** — copy `tests/kernel/coordination-store.test.ts` and `tests/kernel/coordination-result-store.test.ts` as templates.
 - **Server tests use real `startServer` + `fetch`.** Copy `tests/server.test.ts` as template; no supertest, no http mock.
 - **CLI tests use `execFileSync(dist/src/cli.js)`.** Copy `tests/cli/ownership.test.ts` as template; pre-seed `.alix/coordination/shared/<runId>/state.json` via `CollaborationStore.mutate()`.
 - **TUI tests use direct import + string-output assertion.** Copy `tests/tui/chronicle-panel.test.ts` as template. Strip ANSI before asserting.
-- **EventLog is not a Node EventEmitter.** It is a JSONL appender with monotonic `seq`. Pattern: `await eventLog.append({ sessionId, actor, type, payload })`. The actor is `{ kind, id }`. The type is a string literal; we use the `CONFLICT_EVENT_TYPES.*` constants from `src/events/types.ts`.
+- **EventLog is not a Node EventEmitter.** It is a JSONL appender with monotonic `seq`. Pattern: `await eventLog.append({ sessionId, actor, type, payload })`. The actor is `{ kind, id }`. The type is a string literal; we use the `CONFLICT_EVENT_TYPES.*` constants from `src/runtime-state/events/types.ts`.
 - **AuditStore.append is async with `appendFile` semantics.** Failures are swallowed by callers (`.catch(() => {})`); audit never gates a decision.
-- **MinimalMetrics has a closed `M09MetricName` union** at `src/kernel/minimal-metrics.ts:9-16`. Adding a metric requires extending that union and the dispatch in `increment` / `duration`.
+- **MinimalMetrics has a closed `M09MetricName` union** at `src/coordination/kernel/minimal-metrics.ts:9-16`. Adding a metric requires extending that union and the dispatch in `increment` / `duration`.
 
 ---
 
@@ -70,11 +70,11 @@ Total: 27 tasks, 27 commits. Reasonable to run in 2-3 days of focused work. The 
 ## Task A1: Tighten `ConflictRepository.authorize()`
 
 **Files:**
-- Modify: `src/kernel/collaboration-conflict-repository.ts:100-115`
+- Modify: `src/coordination/kernel/collaboration-conflict-repository.ts:100-115`
 - Test: existing `tests/kernel/collaboration-conflict-store.test.ts` (added in Task E6) covers the path; until then the change is covered by the build.
 
 - [ ] **Step 1: Write the failing test (deferred to E6).** For now, change the code and let `npm run build` validate type-correctness.
-- [ ] **Step 2: Replace the worker branch.** Edit `src/kernel/collaboration-conflict-repository.ts` so the `worker` branch requires a non-empty `allowedConflictIds` that includes the conflict id. The new logic:
+- [ ] **Step 2: Replace the worker branch.** Edit `src/coordination/kernel/collaboration-conflict-repository.ts` so the `worker` branch requires a non-empty `allowedConflictIds` that includes the conflict id. The new logic:
 
 ```ts
 private authorize(
@@ -106,7 +106,7 @@ Expected: clean.
 - [ ] **Step 4: Commit.**
 
 ```bash
-git add src/kernel/collaboration-conflict-repository.ts
+git add src/coordination/kernel/collaboration-conflict-repository.ts
 git commit -m "fix(conflict): require explicit worker authority for conflict resolution
 
 Tighten ConflictRepository.authorize() so a worker resolver is
@@ -128,7 +128,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task A2: Add `normalizeStateV1_0()` to collaboration-validation
 
 **Files:**
-- Modify: `src/kernel/collaboration-validation.ts`
+- Modify: `src/coordination/kernel/collaboration-validation.ts`
 - Test: covered indirectly by Task E6 once `collaboration-conflict-store.test.ts` exists.
 
 - [ ] **Step 1: Read the existing file.** Confirm the file currently only patches `normalizeManifestV1_0` (per the audit). Find the export.
@@ -153,7 +153,7 @@ export function normalizeStateV1_0(state: Partial<CollaborationState> | undefine
 }
 ```
 
-- [ ] **Step 3: Wire into `CollaborationStore.load()`.** In `src/kernel/collaboration-store.ts`, the loader must call this function on raw parsed state before returning. Add the call where `load()` currently passes through parsed JSON. (Open the file, find the function — exact line numbers will shift, but the pattern is: `return JSON.parse(text)`.)
+- [ ] **Step 3: Wire into `CollaborationStore.load()`.** In `src/coordination/kernel/collaboration-store.ts`, the loader must call this function on raw parsed state before returning. Add the call where `load()` currently passes through parsed JSON. (Open the file, find the function — exact line numbers will shift, but the pattern is: `return JSON.parse(text)`.)
 - [ ] **Step 4: Build.**
 
 ```bash
@@ -163,7 +163,7 @@ npm run build
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add src/kernel/collaboration-validation.ts src/kernel/collaboration-store.ts
+git add src/coordination/kernel/collaboration-validation.ts src/coordination/kernel/collaboration-store.ts
 git commit -m "feat(collaboration): add normalizeStateV1_0 and apply on load
 
 Plan §5 requires that older state.json files (schemaVersion 1.0
@@ -180,7 +180,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task A3: Add conflict budget to `CollaborationContextBudget`
 
 **Files:**
-- Modify: `src/kernel/collaboration-context-builder.ts` (find the budget type/constant)
+- Modify: `src/coordination/kernel/collaboration-context-builder.ts` (find the budget type/constant)
 - Test: covered by Task E10 `tests/kernel/collaboration-context-conflicts.test.ts`.
 
 - [ ] **Step 1: Find the budget type.** Run `grep -n "CollaborationContextBudget" src/ -r`. Read the type/interface declaration.
@@ -213,7 +213,7 @@ npm run build
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add src/kernel/collaboration-context-builder.ts
+git add src/coordination/kernel/collaboration-context-builder.ts
 git commit -m "feat(context): add conflict budget to CollaborationContextBudget
 
 Plan §15.2 requires separate caps for conflicts: maxTokens (1000
@@ -232,7 +232,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task B1: Create the `ConflictDetector` orchestrator
 
 **Files:**
-- Create: `src/kernel/collaboration-conflict-detector.ts`
+- Create: `src/coordination/kernel/collaboration-conflict-detector.ts`
 - Test: `tests/kernel/collaboration-conflict-detector.test.ts` (Task E5)
 
 - [ ] **Step 1: Write the failing test stub.** Create `tests/kernel/collaboration-conflict-detector.test.ts` with one trivial test:
@@ -248,7 +248,7 @@ describe("ConflictDetector", () => {
 ```
 
 - [ ] **Step 2: Run test to confirm it fails on import.** Actually the test passes if the module is absent, so the first real assertion must import the class. Defer the import to step 3.
-- [ ] **Step 3: Create the module.** Add `src/kernel/collaboration-conflict-detector.ts`:
+- [ ] **Step 3: Create the module.** Add `src/coordination/kernel/collaboration-conflict-detector.ts`:
 
 ```ts
 /**
@@ -479,7 +479,7 @@ Expect errors if any imported symbol doesn't exist on the existing modules. Reso
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add src/kernel/collaboration-conflict-detector.ts
+git add src/coordination/kernel/collaboration-conflict-detector.ts
 git commit -m "feat(conflict): add deterministic conflict detection pipeline
 
 Wires the existing pipeline components into a single class per
@@ -509,10 +509,10 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task B2: Wire `ConflictDetector` into the run lifecycle
 
 **Files:**
-- Modify: `src/kernel/coordination-scheduler.ts` (most likely call site — read first)
+- Modify: `src/coordination/kernel/coordination-scheduler.ts` (most likely call site — read first)
 - Test: integration coverage comes from E13.
 
-- [ ] **Step 1: Find the run-completion / worker-completion hook.** Run `grep -n "emit\|append\|complete" src/kernel/coordination-scheduler.ts | head`. Look for where the run transitions to a terminal state, or where a worker completes and the run is "stable" enough to detect conflicts.
+- [ ] **Step 1: Find the run-completion / worker-completion hook.** Run `grep -n "emit\|append\|complete" src/coordination/kernel/coordination-scheduler.ts | head`. Look for where the run transitions to a terminal state, or where a worker completes and the run is "stable" enough to detect conflicts.
 - [ ] **Step 2: Add a one-shot detect call.** At the chosen hook, instantiate a `ConflictDetector` with the relevant dependencies and call `detectConflicts(runId)`. The simplest instantiation:
 
 ```ts
@@ -548,7 +548,7 @@ npm run build
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add src/kernel/coordination-scheduler.ts
+git add src/coordination/kernel/coordination-scheduler.ts
 git commit -m "feat(conflict): invoke detector on run lifecycle hook
 
 Wire ConflictDetector.detectConflicts() into the run lifecycle so
@@ -569,7 +569,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task B3: Add `updated` history entry on conflict dedup-update
 
 **Files:**
-- Modify: `src/kernel/collaboration-conflict-repository.ts:35-82`
+- Modify: `src/coordination/kernel/collaboration-conflict-repository.ts:35-82`
 - Test: covered by E6.
 
 - [ ] **Step 1: Patch `upsertConflict`.** In the dedup branch (line 49-57), append a history entry to `existing`:
@@ -597,7 +597,7 @@ npm run build
 - [ ] **Step 3: Commit.**
 
 ```bash
-git add src/kernel/collaboration-conflict-repository.ts
+git add src/coordination/kernel/collaboration-conflict-repository.ts
 git commit -m "fix(conflict): append 'updated' history entry on dedup path
 
 ConflictRepository.upsertConflict's dedup branch updated fields
@@ -613,7 +613,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task B4: Add `acceptConflictDivergence` to the repository
 
 **Files:**
-- Modify: `src/kernel/collaboration-conflict-repository.ts`
+- Modify: `src/coordination/kernel/collaboration-conflict-repository.ts`
 - Test: covered by E6.
 
 - [ ] **Step 1: Add a named method.** Per plan §11.1, `acceptConflictDivergence` is one of the lifecycle operations. Add it as a dedicated method (not just a status update) so it can capture the `reason` and set status atomically:
@@ -658,7 +658,7 @@ npm run build
 - [ ] **Step 3: Commit.**
 
 ```bash
-git add src/kernel/collaboration-conflict-repository.ts
+git add src/coordination/kernel/collaboration-conflict-repository.ts
 git commit -m "feat(conflict): add acceptConflictDivergence lifecycle method
 
 Plan §11.1 lists acceptConflictDivergence as a dedicated operation
@@ -678,7 +678,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task C1: Add `--actor` / `--reason` flags and `conflict-accept-divergence` to CLI
 
 **Files:**
-- Modify: `src/cli/commands/coordination.ts`
+- Modify: `src/interfaces/cli/commands/coordination.ts`
 
 - [ ] **Step 1: Add the new subcommand case.** Add `case "conflict-accept-divergence":` to the switch (around line 62). Wire to `handleConflictAcceptDivergence(cwd, args.slice(1))`.
 - [ ] **Step 2: Add `--actor` / `--reason` parsing.** Add a small parser at the top of the file:
@@ -741,7 +741,7 @@ npm run build
 - [ ] **Step 6: Commit.**
 
 ```bash
-git add src/cli/commands/coordination.ts
+git add src/interfaces/cli/commands/coordination.ts
 git commit -m "feat(visibility): add --actor and --reason flags to conflict CLI commands
 
 Per plan §16, resolution commands require explicit actor and reason
@@ -765,7 +765,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task C2: Surface conflicts in `handleInspect`
 
 **Files:**
-- Modify: `src/cli/commands/coordination.ts` (the `handleInspect` function)
+- Modify: `src/interfaces/cli/commands/coordination.ts` (the `handleInspect` function)
 
 - [ ] **Step 1: Read `handleInspect`.** Find the function (around line 349-371) and identify the printout shape.
 - [ ] **Step 2: Add a conflicts summary line.** After the existing summary fields, print a conflicts block when `view.conflictCount` is non-zero:
@@ -788,7 +788,7 @@ npm run build
 - [ ] **Step 4: Commit.**
 
 ```bash
-git add src/cli/commands/coordination.ts
+git add src/interfaces/cli/commands/coordination.ts
 git commit -m "feat(visibility): surface conflicts in alix coordination inspect
 
 The shared CoordinationRunView already carries conflictCount and
@@ -805,7 +805,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task C3: Add `criticalConflictCount` to the shared view
 
 **Files:**
-- Modify: `src/kernel/coordination-view.ts`
+- Modify: `src/coordination/kernel/coordination-view.ts`
 - Test: covered by existing TUI/Inspector tests once E11/E12 land.
 
 - [ ] **Step 1: Add the field.** The current `CoordinationRunView` exposes `conflictCount` and `conflicts: CoordinationConflictView[]`. Add `criticalConflictCount: number` (count of `c.criticality === "critical"`) to the view, populated in `buildCoordinationRunView` next to the existing `conflictCount` assignment:
@@ -825,7 +825,7 @@ npm run build
 - [ ] **Step 3: Commit.**
 
 ```bash
-git add src/kernel/coordination-view.ts
+git add src/coordination/kernel/coordination-view.ts
 git commit -m "feat(visibility): expose criticalConflictCount on the shared view
 
 Plan §16 calls out unresolvedConflictCount and criticalConflictCount
@@ -844,7 +844,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task D1: Inject `EventLog` into `ConflictRepository` and emit lifecycle events
 
 **Files:**
-- Modify: `src/kernel/collaboration-conflict-repository.ts`
+- Modify: `src/coordination/kernel/collaboration-conflict-repository.ts`
 - Test: covered by E6 (one assertion per emit path).
 
 - [ ] **Step 1: Add an `EventLog?` constructor param.** Extend the constructor:
@@ -897,7 +897,7 @@ npm run build
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add src/kernel/collaboration-conflict-repository.ts
+git add src/coordination/kernel/collaboration-conflict-repository.ts
 git commit -m "feat(observability): emit conflict lifecycle events from ConflictRepository
 
 Wire the 9 CONFLICT_EVENT_TYPES into the repository's lifecycle
@@ -918,9 +918,9 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task D2: Add conflict actions to `AuditAction` and record on lifecycle
 
 **Files:**
-- Modify: `src/audit/audit-types.ts`, `src/kernel/collaboration-conflict-repository.ts`
+- Modify: `src/governance/audit/audit-types.ts`, `src/coordination/kernel/collaboration-conflict-repository.ts`
 
-- [ ] **Step 1: Extend the union.** Read `src/audit/audit-types.ts`, find `AuditAction`. Add 6 new literals:
+- [ ] **Step 1: Extend the union.** Read `src/governance/audit/audit-types.ts`, find `AuditAction`. Add 6 new literals:
 
 ```ts
 export type AuditAction =
@@ -946,7 +946,7 @@ npm run build
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add src/audit/audit-types.ts src/kernel/collaboration-conflict-repository.ts
+git add src/governance/audit/audit-types.ts src/coordination/kernel/collaboration-conflict-repository.ts
 git commit -m "feat(observability): record conflict lifecycle in audit store
 
 Add 6 conflict.* actions to the AuditAction union and route the
@@ -963,7 +963,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task D3: Record detection-time audit + metrics in `ConflictDetector`
 
 **Files:**
-- Modify: `src/kernel/collaboration-conflict-detector.ts`
+- Modify: `src/coordination/kernel/collaboration-conflict-detector.ts`
 
 - [ ] **Step 1: Add `auditStore?` and `metrics?` to `ConflictDetectorDeps`.** Structural types as in D1/D2.
 - [ ] **Step 2: Record detection audit.** At the start of `detectConflicts`, call `auditStore?.append({ action: "conflict.candidate_generation", details: { runId, candidateCount: candidates.pairs.length } })`. After the loop, append `conflict.evidence_comparison` once with the report summary.
@@ -984,7 +984,7 @@ npm run build
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add src/kernel/collaboration-conflict-detector.ts
+git add src/coordination/kernel/collaboration-conflict-detector.ts
 git commit -m "feat(observability): record detection audit and metrics in ConflictDetector
 
 Plan §18 specifies audit points for candidate generation, claim
@@ -1002,7 +1002,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ## Task D4: Extend `M09MetricName` with 12 conflict metrics
 
 **Files:**
-- Modify: `src/kernel/minimal-metrics.ts`
+- Modify: `src/coordination/kernel/minimal-metrics.ts`
 
 - [ ] **Step 1: Read the file.** Confirm the current 7-name union and the dispatch in `increment` / `duration`.
 - [ ] **Step 2: Extend the union.** Add the 12 names from plan §18:
@@ -1044,7 +1044,7 @@ npm run build
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add src/kernel/minimal-metrics.ts src/kernel/collaboration-conflict-repository.ts src/kernel/collaboration-conflict-detector.ts src/kernel/collaboration-context-builder.ts
+git add src/coordination/kernel/minimal-metrics.ts src/coordination/kernel/collaboration-conflict-repository.ts src/coordination/kernel/collaboration-conflict-detector.ts src/coordination/kernel/collaboration-context-builder.ts
 git commit -m "feat(observability): add 12 conflict metrics to MinimalMetrics
 
 Extend the closed M09MetricName union with the 12 conflict metric
@@ -1097,7 +1097,7 @@ The test matrix items are pulled from plan §21. Each task lists the items it co
 - stable topic key
 - normalization version changes fingerprint
 
-- [ ] **Step 1: Create the file.** Use the `coordination-store.test.ts` lines 133-169 template (no tmp dir needed — the normalizer is a pure function). Import `extractClaim`, `normalizeClaim`, `computeTopicKey` from `../../src/kernel/collaboration-claim-normalizer.js`. (Open the source first to confirm the exports.)
+- [ ] **Step 1: Create the file.** Use the `coordination-store.test.ts` lines 133-169 template (no tmp dir needed — the normalizer is a pure function). Import `extractClaim`, `normalizeClaim`, `computeTopicKey` from `../../src/coordination/kernel/collaboration-claim-normalizer.js`. (Open the source first to confirm the exports.)
 - [ ] **Step 2: Add tests.** One test per matrix item above. For each, assert the structured output:
 
 ```ts
@@ -1141,7 +1141,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - deterministic pair order
 
 - [ ] **Step 1: Create the file.** Template: `coordination-store.test.ts` `recomputeRunStatus` block (pure function).
-- [ ] **Step 2: Add tests.** Use `ConflictCandidateGenerator.generate` (import path `../../src/kernel/collaboration-conflict-candidates.js` — confirm the class name first). Construct minimal `SharedFinding[]` inputs and assert on the returned `pairs`, `omittedPairs`, and `warnings`.
+- [ ] **Step 2: Add tests.** Use `ConflictCandidateGenerator.generate` (import path `../../src/coordination/kernel/collaboration-conflict-candidates.js` — confirm the class name first). Construct minimal `SharedFinding[]` inputs and assert on the returned `pairs`, `omittedPairs`, and `warnings`.
 - [ ] **Step 3: Run.**
 
 ```bash
@@ -1175,7 +1175,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - artifact digest mismatch
 
 - [ ] **Step 1: Create the file.** Pure-function template.
-- [ ] **Step 2: Add tests.** Import `ClaimComparator` from `../../src/kernel/collaboration-claim-comparator.js`. For each test, construct two `FindingClaim` literals, call `compareClaims`, assert `compatibility` and `type`.
+- [ ] **Step 2: Add tests.** Import `ClaimComparator` from `../../src/coordination/kernel/collaboration-claim-comparator.js`. For each test, construct two `FindingClaim` literals, call `compareClaims`, assert `compatibility` and `type`.
 - [ ] **Step 3: Run.**
 
 ```bash
@@ -1207,7 +1207,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - recommendation deterministic
 - no finding mutation
 
-- [ ] **Step 1: Create the file.** Pure-function template. Use a `SystemClock` stub (or any `Clock` from `../../src/kernel/collaboration-freshness.js`).
+- [ ] **Step 1: Create the file.** Pure-function template. Use a `SystemClock` stub (or any `Clock` from `../../src/coordination/kernel/collaboration-freshness.js`).
 - [ ] **Step 2: Add tests.** Import `ConflictEvidenceComparator`. For "no finding mutation," take a snapshot of the input array, run `compare`, assert deep-equal afterward.
 - [ ] **Step 3: Run.**
 
@@ -1344,7 +1344,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - bounded list output (default 20, unresolved only)
 
 - [ ] **Step 1: Create the file.** Pure-function test (the tool wrappers don't touch the store directly; they validate inputs and call the API).
-- [ ] **Step 2: Add tests.** Import the two tools from `../../src/tools/collaboration-tools.js`. Call with sample inputs, assert the result shape.
+- [ ] **Step 2: Add tests.** Import the two tools from `../../src/capabilities/tools/collaboration-tools.js`. Call with sample inputs, assert the result shape.
 - [ ] **Step 3: Run.**
 
 ```bash
@@ -1477,14 +1477,14 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - panel does NOT import runtime stores (architecture invariant)
 
 - [ ] **Step 1: Create the file.** Template: `tests/tui/chronicle-panel.test.ts` (direct import + string output).
-- [ ] **Step 2: Add tests.** Import `formatCoordinationPanel` from `../../src/tui/coordination-panel.js`. Build a `CoordinationPanelData` literal with `viewMode: "conflicts"` and a few `view.conflicts`, call the formatter, assert substring presence.
+- [ ] **Step 2: Add tests.** Import `formatCoordinationPanel` from `../../src/interfaces/tui/coordination-panel.js`. Build a `CoordinationPanelData` literal with `viewMode: "conflicts"` and a few `view.conflicts`, call the formatter, assert substring presence.
 
   Add the architecture-invariant test (mirror `ifamas-panel.test.ts`):
 
 ```ts
 import { readFileSync } from "node:fs";
 it("does NOT import ConflictRepository or CollaborationStore", () => {
-  const source = readFileSync("src/tui/coordination-panel.ts", "utf-8");
+  const source = readFileSync("src/interfaces/tui/coordination-panel.ts", "utf-8");
   assert.ok(!source.includes("ConflictRepository"));
   assert.ok(!source.includes("CollaborationStore"));
 });

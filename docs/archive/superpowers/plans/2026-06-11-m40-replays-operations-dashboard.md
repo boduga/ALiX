@@ -16,9 +16,9 @@
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/tui/store.ts` | MODIFY | Add `"replays"` to `TuiPanel` + `PANELS`; add `replayIndexData` state field |
-| `src/tui/panel-renderer.ts` | MODIFY | Add `else if (s.activePanel === "replays")` rendering block showing replay entries, lock state, progress |
-| `src/cli/commands/tui.ts` | MODIFY | Add `/replays` command handler (opens panel), `/replay-status <replayId>` (shows per-replay detail), refresh on `r` |
+| `src/interfaces/tui/store.ts` | MODIFY | Add `"replays"` to `TuiPanel` + `PANELS`; add `replayIndexData` state field |
+| `src/interfaces/tui/panel-renderer.ts` | MODIFY | Add `else if (s.activePanel === "replays")` rendering block showing replay entries, lock state, progress |
+| `src/interfaces/cli/commands/tui.ts` | MODIFY | Add `/replays` command handler (opens panel), `/replay-status <replayId>` (shows per-replay detail), refresh on `r` |
 | `tests/tui/replays-panel.test.ts` | **NEW** | Panel rendering + command parsing tests |
 
 No new runtime classes — M0.39 already built `ReplayStatusIndex`, `ReplayLock`, `RollbackProgressStore`.
@@ -166,10 +166,10 @@ setReplayLockStates(states: Record<string, boolean>): void;
 ### Task 1: Add `"replays"` panel type and state fields
 
 **Files:**
-- Modify: `src/tui/store.ts:64` (add to TuiPanel union)
-- Modify: `src/tui/store.ts:106` (add to PANELS array)
-- Modify: `src/tui/store.ts` (add state fields + setters)
-- Modify: `src/tui/store.ts:126-136` (initial state)
+- Modify: `src/interfaces/tui/store.ts:64` (add to TuiPanel union)
+- Modify: `src/interfaces/tui/store.ts:106` (add to PANELS array)
+- Modify: `src/interfaces/tui/store.ts` (add state fields + setters)
+- Modify: `src/interfaces/tui/store.ts:126-136` (initial state)
 
 **Steps:**
 
@@ -219,7 +219,7 @@ Expected: Clean compilation, no errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/store.ts
+git add src/interfaces/tui/store.ts
 git commit -m "feat(tui): add replays panel type and state fields"
 ```
 
@@ -229,7 +229,7 @@ git commit -m "feat(tui): add replays panel type and state fields"
 
 **Files:**
 - Create: (none)
-- Modify: `src/tui/panel-renderer.ts`
+- Modify: `src/interfaces/tui/panel-renderer.ts`
 - Test: `tests/tui/replays-panel.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -239,7 +239,7 @@ Create `tests/tui/replays-panel.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createTuiStore } from "../../src/tui/store.js";
+import { createTuiStore } from "../../src/interfaces/tui/store.js";
 
 describe("Replays panel rendering data", () => {
   it("store holds replayIndexData", () => {
@@ -277,7 +277,7 @@ Expected: Tests pass (the store already supports setReplayIndexData/setReplayLoc
 
 - [ ] **Step 3: Add replays panel rendering block**
 
-In `src/tui/panel-renderer.ts`, add a new import at the top (line 10):
+In `src/interfaces/tui/panel-renderer.ts`, add a new import at the top (line 10):
 
 ```typescript
 import type { ReplayStatusIndexData } from "../runtime/replay-status-index.js";
@@ -352,7 +352,7 @@ Expected: Clean build, 3 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/panel-renderer.ts tests/tui/replays-panel.test.ts
+git add src/interfaces/tui/panel-renderer.ts tests/tui/replays-panel.test.ts
 git commit -m "feat(tui): add replays panel with status icons and lock state"
 ```
 
@@ -361,11 +361,11 @@ git commit -m "feat(tui): add replays panel with status icons and lock state"
 ### Task 3: Add `/replays` and `/replay-status <replayId>` commands
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add `/replays` command handler**
 
-In `src/cli/commands/tui.ts`, in the command processing block (after the `/rollback` block at line ~553, before the `if (daemonMode)` block at line ~575), add a new check:
+In `src/interfaces/cli/commands/tui.ts`, in the command processing block (after the `/rollback` block at line ~553, before the `if (daemonMode)` block at line ~575), add a new check:
 
 ```typescript
       // Check for /replays command
@@ -500,7 +500,7 @@ Expected: All tests pass, including new replays panel tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): add /replays and /replay-status commands"
 ```
 
@@ -509,11 +509,11 @@ git commit -m "feat(tui): add /replays and /replay-status commands"
 ### Task 4: Load replays data in runtime snapshot
 
 **Files:**
-- Modify: `src/tui/runtime-snapshot.ts`
+- Modify: `src/interfaces/tui/runtime-snapshot.ts`
 
 - [ ] **Step 1: Add replays index data to snapshot**
 
-In `src/tui/runtime-snapshot.ts`:
+In `src/interfaces/tui/runtime-snapshot.ts`:
 
 Add new import at top:
 
@@ -562,7 +562,7 @@ Expected: Clean build, all tests pass.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/runtime-snapshot.ts
+git add src/interfaces/tui/runtime-snapshot.ts
 git commit -m "feat(tui): load replays index data in runtime snapshot"
 ```
 

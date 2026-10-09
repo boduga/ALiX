@@ -8,24 +8,24 @@ import {
 import {
   selectDiscoveredModel,
   resolveConcreteFreeSelection,
-} from "../../src/providers/model-resolver.js";
+} from "../../src/models/providers/model-resolver.js";
 
 import type {
   DiscoveredModel,
-} from "../../src/providers/model-discovery.js";
+} from "../../src/models/providers/model-discovery.js";
 
 import {
   _setOpenRouterDiscoveryFetch,
   _resetOpenRouterDiscoveryCache,
-} from "../../src/providers/model-discovery.js";
+} from "../../src/models/providers/model-discovery.js";
 
 import {
   _resetAccessRestrictionRegistryForTesting,
-} from "../../src/providers/access-restriction-registry.js";
+} from "../../src/models/providers/access-restriction-registry.js";
 
 import {
   resolveSelectionModelId,
-} from "../../src/providers/model-resolver.js";
+} from "../../src/models/providers/model-resolver.js";
 
 const M = (
   id: string,

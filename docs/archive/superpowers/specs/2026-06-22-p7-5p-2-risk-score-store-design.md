@@ -84,7 +84,7 @@ class RiskScoreStore {
 
 ### 4. Where does the write hook live?
 
-In the CLI's `runRecommend` function (`src/cli/commands/decision.ts`), **between** the existing `riskScoreBuilder.build(ctx)` call and the existing `recommendationEngine.recommend(ctx, riskScore)` call. Sequence:
+In the CLI's `runRecommend` function (`src/interfaces/cli/commands/decision.ts`), **between** the existing `riskScoreBuilder.build(ctx)` call and the existing `recommendationEngine.recommend(ctx, riskScore)` call. Sequence:
 
 1. (existing) `const riskScore = riskScoreBuilder.build(ctx);`
 2. **NEW:** `await riskScoreStore.append(riskScore).catch(log)` — best-effort
@@ -92,13 +92,13 @@ In the CLI's `runRecommend` function (`src/cli/commands/decision.ts`), **between
 4. (existing from P7.5p.1b) `await approvalRecommendationStore.append(rec).catch(log)` — best-effort
 5. (existing) Print response
 
-**Why in the CLI, not in `RiskScoreBuilder`?** The builder is documented as *"Pure, deterministic, read-only"* (`src/adaptation/risk-score-builder.ts:4-9`). Same posture as the P7.5p.1b hook: the builder remains pure; the CLI orchestrates side effects.
+**Why in the CLI, not in `RiskScoreBuilder`?** The builder is documented as *"Pure, deterministic, read-only"* (`src/planning/adaptation/risk-score-builder.ts:4-9`). Same posture as the P7.5p.1b hook: the builder remains pure; the CLI orchestrates side effects.
 
 **What if the store write fails?** Log the error and continue. The recommendation is still shown to the operator. Best-effort persistence, never gating.
 
 ### 5. What does `OutcomeRecord.riskScoreId` become?
 
-`OutcomeRecord` (`src/adaptation/outcome-types.ts`) already has `recommendationId?: string`, `decisionId?: string`, `governanceReviewId?: string`. **No** `riskScoreId` field currently exists. There are two options:
+`OutcomeRecord` (`src/planning/adaptation/outcome-types.ts`) already has `recommendationId?: string`, `decisionId?: string`, `governanceReviewId?: string`. **No** `riskScoreId` field currently exists. There are two options:
 
 **(a) Add a new optional `riskScoreId?: string` field to `OutcomeRecord`.** This is the same Omit-pattern question as P7.5p.1c — except here, no required-field re-declaration is needed. `riskScoreId` would simply be **new** and **optional**. No type footgun.
 
@@ -172,25 +172,25 @@ The invariance test captures this content at module-load time and allows it as o
 
 ## Files created
 
-- `src/adaptation/risk-score-store.ts` — the new store
+- `src/planning/adaptation/risk-score-store.ts` — the new store
 - `tests/adaptation/risk-score-store.vitest.ts` — store tests
 
 ## Files modified
 
-- `src/adaptation/outcome-types.ts` — add `riskScoreId?: string` field
-- `src/cli/commands/decision.ts` — `runRecommend` write hook, `runOutcomeRecord` lookup + override
+- `src/planning/adaptation/outcome-types.ts` — add `riskScoreId?: string` field
+- `src/interfaces/cli/commands/decision.ts` — `runRecommend` write hook, `runOutcomeRecord` lookup + override
 - `tests/learning/unchanged-types-invariance.vitest.ts` — encode P7.5p.2c allowed delta
 
 ## Files NOT modified
 
-- `src/adaptation/risk-score-types.ts` (strict-protected, byte-locked)
-- `src/adaptation/governance-review-types.ts` (strict-protected)
-- `src/adaptation/adaptation-types.ts` (strict-protected)
-- `src/adaptation/decision-types.ts` (strict-protected)
-- `src/learning/learning-types.ts` (strict-protected)
-- `src/learning/evidence-chain-types.ts`
-- `src/learning/forward-ref-extractors.ts`
-- `src/learning/evidence-chain-store.ts`
+- `src/planning/adaptation/risk-score-types.ts` (strict-protected, byte-locked)
+- `src/planning/adaptation/governance-review-types.ts` (strict-protected)
+- `src/planning/adaptation/adaptation-types.ts` (strict-protected)
+- `src/planning/adaptation/decision-types.ts` (strict-protected)
+- `src/planning/learning/learning-types.ts` (strict-protected)
+- `src/planning/learning/evidence-chain-types.ts`
+- `src/planning/learning/forward-ref-extractors.ts`
+- `src/planning/learning/evidence-chain-store.ts`
 - The 9 existing stores (incl. `ApprovalRecommendationStore` from P7.5p.1)
 - The P8.5a.0 / P7.5p.1 sentinels
 - The 4 P8 calibration builders

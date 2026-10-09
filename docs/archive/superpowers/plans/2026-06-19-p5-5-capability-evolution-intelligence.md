@@ -21,19 +21,19 @@
 
 | File | Action |
 |---|---|
-| `src/adaptation/capability-evolution-types.ts` | **Create** — CapabilityEvolutionReport, CapabilityHealth, CapabilityGap, CapabilityOverlap, CapabilityDrift, LifecycleState |
-| `src/adaptation/capability-evolution-store.ts` | **Create** — save/load/list under `.alix/adaptation/capability-evolution/` |
-| `src/adaptation/capability-health-analyzer.ts` | **Create** — compute lifecycle state with trend awareness |
-| `src/adaptation/capability-gap-analyzer.ts` | **Create** — detect recurring unresolved capability requests |
-| `src/adaptation/capability-overlap-analyzer.ts` | **Create** — directional pairwise overlap + asymmetry |
-| `src/adaptation/capability-drift-analyzer.ts` | **Create** — keyword Jaccard distance for scope drift |
-| `src/adaptation/capability-evolution-reporter.ts` | **Create** — orchestrate, assemble, persist |
-| `src/cli/commands/adaptation.ts` | **Modify** — add `capability-evolution` subcommand |
+| `src/planning/adaptation/capability-evolution-types.ts` | **Create** — CapabilityEvolutionReport, CapabilityHealth, CapabilityGap, CapabilityOverlap, CapabilityDrift, LifecycleState |
+| `src/planning/adaptation/capability-evolution-store.ts` | **Create** — save/load/list under `.alix/adaptation/capability-evolution/` |
+| `src/planning/adaptation/capability-health-analyzer.ts` | **Create** — compute lifecycle state with trend awareness |
+| `src/planning/adaptation/capability-gap-analyzer.ts` | **Create** — detect recurring unresolved capability requests |
+| `src/planning/adaptation/capability-overlap-analyzer.ts` | **Create** — directional pairwise overlap + asymmetry |
+| `src/planning/adaptation/capability-drift-analyzer.ts` | **Create** — keyword Jaccard distance for scope drift |
+| `src/planning/adaptation/capability-evolution-reporter.ts` | **Create** — orchestrate, assemble, persist |
+| `src/interfaces/cli/commands/adaptation.ts` | **Modify** — add `capability-evolution` subcommand |
 | Tests | Per component + CLI |
 
 ## Task 1: Types + Store
 
-**Create:** `src/adaptation/capability-evolution-types.ts`
+**Create:** `src/planning/adaptation/capability-evolution-types.ts`
 - `LifecycleState = "emerging" | "active" | "mature" | "stagnant" | "declining" | "deprecated"`
 - `CapabilityHealth` — capability, agentCount, resolutionCount, resolutionCountRecent, resolutionCountPrior, proposalCountRecent, proposalCountPrior, demandScore, keepRate, revertRate, proposalCount, lifecycleState, rationale
 - `CapabilityGap` — suggestedCapability, evidence[], signalStrength (1-3), confidence
@@ -41,13 +41,13 @@
 - `CapabilityDrift` — capability, originalScope, currentScope, driftMagnitude, splitCandidate
 - `CapabilityEvolutionReport` — full report with all sections + lifecycleDistribution + executiveSummary
 
-**Create:** `src/adaptation/capability-evolution-store.ts` — same pattern as PriorityStore / IntelligenceStore.
+**Create:** `src/planning/adaptation/capability-evolution-store.ts` — same pattern as PriorityStore / IntelligenceStore.
 
 **Test:** `tests/adaptation/capability-evolution-store.vitest.ts`
 
 ## Task 2: CapabilityHealthAnalyzer
 
-**Create:** `src/adaptation/capability-health-analyzer.ts`
+**Create:** `src/planning/adaptation/capability-health-analyzer.ts`
 
 **Inputs (constructor):**
 - `agentCards: AgentCard[]` — all registered agent cards (loaded by caller)
@@ -86,7 +86,7 @@ Use the table from Q3. Check criteria in order:
 
 ## Task 3: CapabilityGapAnalyzer
 
-**Create:** `src/adaptation/capability-gap-analyzer.ts`
+**Create:** `src/planning/adaptation/capability-gap-analyzer.ts`
 
 **Inputs:** evidence events, proposals, reflection reports, registered capabilities.
 
@@ -106,7 +106,7 @@ For each gap candidate:
 
 ## Task 4: CapabilityOverlapAnalyzer
 
-**Create:** `src/adaptation/capability-overlap-analyzer.ts`
+**Create:** `src/planning/adaptation/capability-overlap-analyzer.ts`
 
 **Behavior:**
 For every pair of registered capabilities:
@@ -125,7 +125,7 @@ Only include pairs where `overlapScore > 0.3`.
 
 ## Task 5: CapabilityDriftAnalyzer
 
-**Create:** `src/adaptation/capability-drift-analyzer.ts`
+**Create:** `src/planning/adaptation/capability-drift-analyzer.ts`
 
 **Behavior:**
 For each registered capability:
@@ -144,7 +144,7 @@ Keyword extraction: split on whitespace and punctuation, lowercase, filter stopw
 
 ## Task 6: CapabilityEvolutionReporter
 
-**Create:** `src/adaptation/capability-evolution-reporter.ts`
+**Create:** `src/planning/adaptation/capability-evolution-reporter.ts`
 
 **Behavior:**
 1. Load all agent cards from CardStore (cards directory).
@@ -164,7 +164,7 @@ Keyword extraction: split on whitespace and punctuation, lowercase, filter stopw
 
 ## Task 7: CLI subcommand
 
-**Modify:** `src/cli/commands/adaptation.ts`
+**Modify:** `src/interfaces/cli/commands/adaptation.ts`
 
 Add:
 ```ts

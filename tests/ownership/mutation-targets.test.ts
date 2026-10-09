@@ -1,7 +1,7 @@
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
-import { WorkspacePathResolver } from "../../src/runtime/workspace-path.js";
-import { extractMutationTargets } from "../../src/ownership/mutation-targets.js";
+import { WorkspacePathResolver } from "../../src/runtime-state/runtime/workspace-path.js";
+import { extractMutationTargets } from "../../src/coordination/ownership/mutation-targets.js";
 
 describe("extractMutationTargets", () => {
   let resolver: WorkspacePathResolver;

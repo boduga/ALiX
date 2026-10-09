@@ -14,7 +14,7 @@
 
 ## Task 1: `ProjectionRuntime` non-durable-builder support (Phase 7 :94)
 
-**File:** `src/tui/runtime/projection-runtime.ts`
+**File:** `src/interfaces/tui/runtime/projection-runtime.ts`
 
 Widen the runtime so a builder MAY be non-durable (`ProjectionBuilder`), discriminated structurally, and **omitted from the durable envelope** — exactly the Phase 7 `:94` contract ("exportState() omits it and checkpoint persistence never depends on non-durable builders").
 
@@ -37,7 +37,7 @@ Widen the runtime so a builder MAY be non-durable (`ProjectionBuilder`), discrim
 
 ## Task 2: `MetricsProjection` builder
 
-**File:** `src/tui/runtime/metrics-projection.ts` (new)
+**File:** `src/interfaces/tui/runtime/metrics-projection.ts` (new)
 
 Implement `MetricsProjection implements ProjectionBuilder<MetricsProjectionSnapshot>` (import `ProjectionBuilder` from `./projection-builder.js` — NOT `DurableProjectionBuilder`).
 
@@ -110,10 +110,10 @@ update(events: readonly AlixEvent[]): void {
 
 ## Task 3: Register + `RuntimeSnapshot.metrics`
 
-- `src/tui/runtime/projection-ids.ts`: add `metrics: 'metrics'` to `ProjectionIds`.
-- `src/tui/snapshot.ts`: add `readonly metrics: MetricsProjectionSnapshot | null` to `RuntimeSnapshot` (import the type).
-- `src/cli/commands/tui.ts` composition root: register `[ProjectionIds.metrics, new MetricsProjection()]` on the **outer (runtime)** collector (alongside trace/approval/capability). Chat/agent collectors do NOT register metrics (no tool/capability events there).
-- `src/tui/runtime-collector.ts` `sample()`: assemble `metrics: this.projectionRuntime.snapshotOf<MetricsProjectionSnapshot>(ProjectionIds.metrics) ?? null` in `nextCache`. Zero dispatch changes.
+- `src/interfaces/tui/runtime/projection-ids.ts`: add `metrics: 'metrics'` to `ProjectionIds`.
+- `src/interfaces/tui/snapshot.ts`: add `readonly metrics: MetricsProjectionSnapshot | null` to `RuntimeSnapshot` (import the type).
+- `src/interfaces/cli/commands/tui.ts` composition root: register `[ProjectionIds.metrics, new MetricsProjection()]` on the **outer (runtime)** collector (alongside trace/approval/capability). Chat/agent collectors do NOT register metrics (no tool/capability events there).
+- `src/interfaces/tui/runtime-collector.ts` `sample()`: assemble `metrics: this.projectionRuntime.snapshotOf<MetricsProjectionSnapshot>(ProjectionIds.metrics) ?? null` in `nextCache`. Zero dispatch changes.
 
 ## Task 4: Tests
 

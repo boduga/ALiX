@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildOfferedExecutableTools, resolveExecutableToolName, ToolNotFoundError } from "../../src/agents/tool-name-resolver.js";
-import { resolveToolExecutionName } from '../../src/run/task-loop/predicates.js';
+import { resolveToolExecutionName } from '../../src/execution/run/task-loop/predicates.js';
 import { ALIX_BUILTIN_EXECUTORS, ALIX_EXECUTOR_TO_MODEL_FACING, COMPLETION_MODEL_FACING, isCompletionExecName, isCompletionToolName } from "../../src/agents/tool-manifest.js";
 
 describe("exact model tool name resolution", () => {

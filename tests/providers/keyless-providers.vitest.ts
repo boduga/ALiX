@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 import {
   KEYLESS_PROVIDERS,
   isKeylessProvider,
-} from "../../src/providers/keyless-providers.js";
+} from "../../src/models/providers/keyless-providers.js";
 
 describe("keyless-providers", () => {
   it("includes the known keyless providers", () => {

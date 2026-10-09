@@ -13,9 +13,9 @@ import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
-import { handleBridgeStatus } from "../../../src/cli/commands/executive-bridge-handler.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+import { AdaptationProposalStore } from "../../../src/planning/adaptation/adaptation-proposal-store.js";
+import { handleBridgeStatus } from "../../../src/interfaces/cli/commands/executive-bridge-handler.js";
+import type { AdaptationProposal } from "../../../src/planning/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

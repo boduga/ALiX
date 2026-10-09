@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   composeApproval,
   exceedsRiskThreshold,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 describe("approval floor (JEV-8)", () => {
   it("policy-required approval survives any risk score", () => {

@@ -17,7 +17,7 @@
 - **D11 — Projection independence.** Builders MUST NOT depend on the outputs of other builders. Dependency graph: `EventLog → builder` (never `builder → builder`).
 - **One cursor, one checkpoint, one save-before-publish transaction (D5/D5a)** — extends Phase 5.5's flow. Beyond-head fallback resets BOTH builders (`traceBuilder.reset()` + `timelineBuilder.reset()`) + calls `resetCheckpoint()`.
 - **`timelineEvents[]` is a transitional cache** during Phase 6 migration; the Phase 6 cleanup task removes it.
-- **`src/capability/*`, Phase-5 cursor/checkpoint machinery — preserved.**
+- **`src/capabilities/capability/*`, Phase-5 cursor/checkpoint machinery — preserved.**
 - NodeNext ESM (`.js` imports), strict TS, vitest.
 - Every task ends green: `npx tsc -p tsconfig.json --noEmit` passes and the task's tests pass.
 
@@ -25,8 +25,8 @@
 
 ### Task 1: `ProjectionBuilder<T>` contract + `TimelineBuilder` (append-only)
 **Files:**
-- Create: `src/tui/runtime/projection-builder.ts`
-- Create: `src/tui/runtime/timeline-builder.ts`
+- Create: `src/interfaces/tui/runtime/projection-builder.ts`
+- Create: `src/interfaces/tui/runtime/timeline-builder.ts`
 - Test: `tests/tui/runtime/timeline-builder.vitest.ts` (new)
 
 **Interfaces:**
@@ -37,8 +37,8 @@
 ```typescript
 // tests/tui/runtime/timeline-builder.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { TimelineBuilder, type TimelineEntry } from '../../../src/tui/runtime/timeline-builder.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { TimelineBuilder, type TimelineEntry } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 function evt(seq: number, type: string, sessionId = 's1', payload: object = {}): AlixEvent {
   return {
@@ -107,7 +107,7 @@ Expected: FAIL — modules do not exist.
 - [ ] **Step 3: Implement the contract + builder**
 
 ```typescript
-// src/tui/runtime/projection-builder.ts
+// src/interfaces/tui/runtime/projection-builder.ts
 import type { AlixEvent } from '../../events/types.js';
 
 /** Generic projection builder contract. Each builder owns its own
@@ -128,7 +128,7 @@ export interface ProjectionBuilder<T> {
 ```
 
 ```typescript
-// src/tui/runtime/timeline-builder.ts
+// src/interfaces/tui/runtime/timeline-builder.ts
 import type { AlixEvent } from '../../events/types.js';
 import type { ProjectionBuilder } from './projection-builder.js';
 
@@ -243,9 +243,9 @@ Create `tests/tui/runtime/projection-independence.vitest.ts`:
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
-import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { TimelineBuilder } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 function evt(seq: number, type: string, sessionId = 's1', payload: object = {}): AlixEvent {
   return { id: `e${seq}`, seq, version: 1, sessionId, timestamp: new Date(seq * 1000).toISOString(), type, actor: 'user', payload };
@@ -272,7 +272,7 @@ describe('projection independence (D11)', () => {
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/runtime/projection-builder.ts src/tui/runtime/timeline-builder.ts tests/tui/runtime/timeline-builder.vitest.ts tests/tui/runtime/projection-independence.vitest.ts
+git add src/interfaces/tui/runtime/projection-builder.ts src/interfaces/tui/runtime/timeline-builder.ts tests/tui/runtime/timeline-builder.vitest.ts tests/tui/runtime/projection-independence.vitest.ts
 git commit -m "feat(capabilities): ProjectionBuilder contract + append-only TimelineBuilder"
 ```
 
@@ -280,11 +280,11 @@ git commit -m "feat(capabilities): ProjectionBuilder contract + append-only Time
 
 ### Task 2: `RuntimeSnapshot` grows + `RuntimeCollector` wires both builders
 **Files:**
-- Modify: `src/tui/snapshot.ts` (add `timeline: readonly TimelineEntry[]` + `sessionId: string`)
-- Modify: `src/tui/runtime-collector.ts` (constructor takes sessionId + timeline builder; sample() filters by sessionId + dispatches to both builders)
-- Modify: `src/tui/runtime-collector.ts` (extend `IncrementalExecutionTraceBuilder` to expose `reset()` per D12)
-- Modify: `src/tui/runtime/runtime-collector.ts` (any other code touching `trace` snapshot field)
-- Modify: `src/cli/commands/tui.ts` (pass sessionId + the constructed TimelineBuilder into the collector)
+- Modify: `src/interfaces/tui/snapshot.ts` (add `timeline: readonly TimelineEntry[]` + `sessionId: string`)
+- Modify: `src/interfaces/tui/runtime-collector.ts` (constructor takes sessionId + timeline builder; sample() filters by sessionId + dispatches to both builders)
+- Modify: `src/interfaces/tui/runtime-collector.ts` (extend `IncrementalExecutionTraceBuilder` to expose `reset()` per D12)
+- Modify: `src/interfaces/tui/runtime/runtime-collector.ts` (any other code touching `trace` snapshot field)
+- Modify: `src/interfaces/cli/commands/tui.ts` (pass sessionId + the constructed TimelineBuilder into the collector)
 - Test: extend `tests/tui/runtime/runtime-collector.vitest.ts`
 
 **Interfaces:**
@@ -359,7 +359,7 @@ Expected: FAIL — the constructor still has 2 args; the snapshot has no `timeli
 - [ ] **Step 3: Update `RuntimeSnapshot` + collector**
 
 ```typescript
-// src/tui/snapshot.ts
+// src/interfaces/tui/snapshot.ts
 import type { TimelineEntry } from './runtime/timeline-builder.js';
 
 export interface RuntimeSnapshot {
@@ -373,7 +373,7 @@ export interface RuntimeSnapshot {
 ```
 
 ```typescript
-// src/tui/runtime-collector.ts
+// src/interfaces/tui/runtime-collector.ts
 // Options-object constructor (avoids a growing positional-arg list as Phase 7
 // adds projections; future projections plug in as optional builder fields).
 export interface RuntimeCollectorOptions {
@@ -444,13 +444,13 @@ Also ensure `IncrementalExecutionTraceBuilder` has a public `reset(): void` (Tas
 
 - [ ] **Step 4: Update `tui.ts`**
 
-In `src/cli/commands/tui.ts`, derive the chat/agent session ids from the outer `sessionId` (e.g. `const chatSessionId = sessionId + '-chat'; const agentSessionId = sessionId + '-agent';`) and pass them to TuiApp construction, then to the RuntimeCollector for each tab (chat gets `chatSessionId`, agent gets `agentSessionId`). The collector wiring stays in `tui.ts` (it's not the TuiApp's concern — the collector lives at the bootstrap).
+In `src/interfaces/cli/commands/tui.ts`, derive the chat/agent session ids from the outer `sessionId` (e.g. `const chatSessionId = sessionId + '-chat'; const agentSessionId = sessionId + '-agent';`) and pass them to TuiApp construction, then to the RuntimeCollector for each tab (chat gets `chatSessionId`, agent gets `agentSessionId`). The collector wiring stays in `tui.ts` (it's not the TuiApp's concern — the collector lives at the bootstrap).
 
 - [ ] **Step 5: Run tests + commit**
 
 Run: `npx vitest run tests/tui/runtime/runtime-collector.vitest.ts --config vitest.config.mts` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/snapshot.ts src/tui/runtime-collector.ts src/cli/commands/tui.ts tests/tui/runtime/runtime-collector.vitest.ts
+git add src/interfaces/tui/snapshot.ts src/interfaces/tui/runtime-collector.ts src/interfaces/cli/commands/tui.ts tests/tui/runtime/runtime-collector.vitest.ts
 git commit -m "feat(capabilities): RuntimeCollector wires timeline+trace projections on one checkpoint"
 ```
 
@@ -458,10 +458,10 @@ git commit -m "feat(capabilities): RuntimeCollector wires timeline+trace project
 
 ### Task 3: Wire chat/agent appends into the EventLog
 **Files:**
-- Modify: `src/tui/state.ts` (`appendTimelineEvent` also emits to the EventLog)
-- Modify: `src/tui/app.ts` (sites that call `appendTimelineEvent` pass the EventLog + sessionId)
-- Modify: `src/tui/capabilities/invocation-presenter.ts` (capability completion on the chat tab)
-- Modify: `src/cli/commands/tui.ts` (inject the EventLog into TuiApp's construction so chat/agent emitters can route through it)
+- Modify: `src/interfaces/tui/state.ts` (`appendTimelineEvent` also emits to the EventLog)
+- Modify: `src/interfaces/tui/app.ts` (sites that call `appendTimelineEvent` pass the EventLog + sessionId)
+- Modify: `src/interfaces/tui/capabilities/invocation-presenter.ts` (capability completion on the chat tab)
+- Modify: `src/interfaces/cli/commands/tui.ts` (inject the EventLog into TuiApp's construction so chat/agent emitters can route through it)
 - Test: `tests/tui/state.vitest.ts` (existing) + extend `tests/tui/app.vitest.ts` (existing) + add `tests/tui/capabilities/invocation-presenter.vitest.ts` for the dual-emit
 
 **Interfaces:**
@@ -493,7 +493,7 @@ Expected: FAIL — `appendTimelineEvent` does not accept an eventLog context, so
 
 - [ ] **Step 3: Implement `appendTimelineEvent` dual-emit**
 
-In `src/tui/state.ts`:
+In `src/interfaces/tui/state.ts`:
 ```typescript
 export interface TimelineEmitContext {
   readonly eventLog: EventLog;
@@ -533,8 +533,8 @@ export function appendTimelineEvent(
 
 - [ ] **Step 4: Update call sites**
 
-In `src/tui/app.ts`, every `appendTimelineEvent(perTab, { kind: 'user' | 'agent', text })` becomes `appendTimelineEvent(perTab, …, { eventLog: this.opts.eventLog, sessionId: this.opts.chatSessionId })` (the chat tab gets `chat-…`, the agent tab gets `agent-…` — pull the ids from `tui.ts` or compute them there).
-In `src/tui/capabilities/invocation-presenter.ts`, the `appendTimelineEvent` call gets the same emit context.
+In `src/interfaces/tui/app.ts`, every `appendTimelineEvent(perTab, { kind: 'user' | 'agent', text })` becomes `appendTimelineEvent(perTab, …, { eventLog: this.opts.eventLog, sessionId: this.opts.chatSessionId })` (the chat tab gets `chat-…`, the agent tab gets `agent-…` — pull the ids from `tui.ts` or compute them there).
+In `src/interfaces/tui/capabilities/invocation-presenter.ts`, the `appendTimelineEvent` call gets the same emit context.
 
 - [ ] **Step 5: Update `tui.ts`**
 
@@ -544,7 +544,7 @@ Pass `eventLog` (and a per-tab `chatSessionId` / `agentSessionId`) into the `Tui
 
 Run: `npx vitest run tests/tui/state.vitest.ts tests/tui/app.vitest.ts tests/tui/capabilities/invocation-presenter.vitest.ts --config vitest.config.mts`
 ```bash
-git add src/tui/state.ts src/tui/app.ts src/tui/capabilities/invocation-presenter.ts src/cli/commands/tui.ts tests/tui/state.vitest.ts tests/tui/app.vitest.ts tests/tui/capabilities/invocation-presenter.vitest.ts
+git add src/interfaces/tui/state.ts src/interfaces/tui/app.ts src/interfaces/tui/capabilities/invocation-presenter.ts src/interfaces/cli/commands/tui.ts tests/tui/state.vitest.ts tests/tui/app.vitest.ts tests/tui/capabilities/invocation-presenter.vitest.ts
 git commit -m "feat(capabilities): emit chat/agent entries to the EventLog with sessionId"
 ```
 
@@ -552,8 +552,8 @@ git commit -m "feat(capabilities): emit chat/agent entries to the EventLog with 
 
 ### Task 4: Views consume `RuntimeSnapshot.timeline`
 **Files:**
-- Modify: `src/tui/views/chat-view.ts` (read `r.timeline.filter(e => e.kind.startsWith('chat.'))` instead of `r.timelineEvents`)
-- Modify: `src/tui/views/agent-view.ts` (read `r.timeline.filter(e => e.kind.startsWith('agent.'))` instead of `r.timelineEvents`)
+- Modify: `src/interfaces/tui/views/chat-view.ts` (read `r.timeline.filter(e => e.kind.startsWith('chat.'))` instead of `r.timelineEvents`)
+- Modify: `src/interfaces/tui/views/agent-view.ts` (read `r.timeline.filter(e => e.kind.startsWith('agent.'))` instead of `r.timelineEvents`)
 - Test: extend the existing view tests
 
 **Interfaces:**
@@ -584,11 +584,11 @@ Expected: FAIL — ChatView still reads `r.timelineEvents` and the empty array p
 
 - [ ] **Step 3: Switch ChatView/AgentView to read `r.timeline`**
 
-In `src/tui/views/chat-view.ts`:
+In `src/interfaces/tui/views/chat-view.ts`:
 - Replace `getOrderedTimeline(ctx.perTab.timelineEvents)` with `getOrderedTimeline(ctx.runtime.chat.timeline.filter(e => e.kind === 'chat.message' || e.kind === 'chat.response'))`.
 - Make sure `ctx.runtime` is passed (existing — verify).
 
-In `src/tui/views/agent-view.ts`:
+In `src/interfaces/tui/views/agent-view.ts`:
 - Replace `ctx.perTab.timelineEvents.filter(e => e.kind === 'user' || e.kind === 'agent')` with `ctx.runtime.agent.timeline.filter(e => e.kind === 'agent.message' || e.kind === 'agent.reasoning' || e.kind === 'agent.decision')`.
 
 (Note: `TimelineEvent['kind']` from Phase 3 was `user | agent | plan | approval | toolCall`; `TimelineEntry['kind']` from Task 1 is the new typed union. The mapping from old to new is: `user → chat.message`, `agent → chat.response` (for chat tab) / `agent.message` (for agent tab). This depends on the legacy compatibility — keep `r.timelineEvents` populated in tandem during the transition so the view never blanks mid-migration.)
@@ -597,7 +597,7 @@ In `src/tui/views/agent-view.ts`:
 
 Run: `npx vitest run tests/tui/views/chat-view.vitest.ts tests/tui/views/agent-view.vitest.ts --config vitest.config.mts`
 ```bash
-git add src/tui/views/chat-view.ts src/tui/views/agent-view.ts tests/tui/views/chat-view.vitest.ts tests/tui/views/agent-view.vitest.ts
+git add src/interfaces/tui/views/chat-view.ts src/interfaces/tui/views/agent-view.ts tests/tui/views/chat-view.vitest.ts tests/tui/views/agent-view.vitest.ts
 git commit -m "feat(capabilities): ChatView/AgentView consume RuntimeSnapshot.timeline"
 ```
 
@@ -605,11 +605,11 @@ git commit -m "feat(capabilities): ChatView/AgentView consume RuntimeSnapshot.ti
 
 ### Task 5: Cleanup — remove the transitional `timelineEvents[]` cache
 **Files:**
-- Modify: `src/tui/state.ts` (remove `TimelineEventInput`/`appendTimelineEvent`/the per-tab `timelineEvents: TimelineEvent[]` field)
-- Modify: `src/tui/app.ts` (drop the parallel write)
-- Modify: `src/tui/capabilities/invocation-presenter.ts` (drop the parallel write)
-- Modify: `src/tui/views/chat-view.ts` + `src/tui/views/agent-view.ts` (already switched in Task 4)
-- Modify: `src/tui/views/dashboard-view.ts` + any other consumer of `perTab.timelineEvents`
+- Modify: `src/interfaces/tui/state.ts` (remove `TimelineEventInput`/`appendTimelineEvent`/the per-tab `timelineEvents: TimelineEvent[]` field)
+- Modify: `src/interfaces/tui/app.ts` (drop the parallel write)
+- Modify: `src/interfaces/tui/capabilities/invocation-presenter.ts` (drop the parallel write)
+- Modify: `src/interfaces/tui/views/chat-view.ts` + `src/interfaces/tui/views/agent-view.ts` (already switched in Task 4)
+- Modify: `src/interfaces/tui/views/dashboard-view.ts` + any other consumer of `perTab.timelineEvents`
 - Test: update all view tests; add a regression that the `timelineEvents[]` field no longer exists on `PerTabState`
 
 **Interfaces:**
@@ -622,7 +622,7 @@ Run: `rg "timelineEvents" src/ tests/ --include="*.ts" -l`
 - [ ] **Step 2: Delete the field + every parallel write; KEEP a deprecated `appendTimelineEvent` compatibility wrapper**
 
 ```typescript
-// src/tui/state.ts
+// src/interfaces/tui/state.ts
 export interface PerTabState {
   // ... remove: timelineEvents: TimelineEvent[]
   // Keep: inputBuffer, cursor, scrollOffset, pinnedBottom, searchQuery, etc.
@@ -659,7 +659,7 @@ For each file in the grep output, switch the read from `perTab.timelineEvents` t
 
 Run: `npx vitest run tests/tui --config vitest.config.mts` — all tests should still pass because Task 4 already wired the views to `r.timeline`.
 ```bash
-git add src/tui/state.ts src/tui/app.ts src/tui/capabilities/invocation-presenter.ts tests/tui/state.vitest.ts tests/tui/views tests/tui/app.vitest.ts tests/tui/capabilities/invocation-presenter.vitest.ts
+git add src/interfaces/tui/state.ts src/interfaces/tui/app.ts src/interfaces/tui/capabilities/invocation-presenter.ts tests/tui/state.vitest.ts tests/tui/views tests/tui/app.vitest.ts tests/tui/capabilities/invocation-presenter.vitest.ts
 git commit -m "refactor(capabilities): remove transitional timelineEvents[] cache"
 ```
 
@@ -672,7 +672,7 @@ git commit -m "refactor(capabilities): remove transitional timelineEvents[] cach
 
 - [ ] **Step 1: Full build + full suites + D8 gate**
 
-Run: `npm run build` and `npx vitest run tests/capability tests/tui tests/events --config vitest.config.mts`. Then `git diff --name-only origin/main -- src/capability/` → empty.
+Run: `npm run build` and `npx vitest run tests/capability tests/tui tests/events --config vitest.config.mts`. Then `git diff --name-only origin/main -- src/capabilities/capability/` → empty.
 
 - [ ] **Step 2: Update spec status**
 
@@ -703,7 +703,7 @@ projections over the same log.
 cache while the views migrated to `RuntimeSnapshot.timeline`. The log is now
 the only source of truth for the timeline.
 
-The operator timeline and platform (src/capability/*) are unchanged.
+The operator timeline and platform (src/capabilities/capability/*) are unchanged.
 ```
 
 - [ ] **Step 4: Commit**
@@ -725,5 +725,5 @@ git commit -m "docs(capabilities): Phase-6 usage note + spec status to implement
 - ✅ `sessionId` plumbed through the log; chat/agent appends emit to the EventLog with the originating session (D7); `readSince` filters by it (D1/D3).
 - ✅ Projection independence: `TimelineBuilder` and `ExecutionTraceBuilder` are independent — neither consumes the other's DTOs (D11).
 - ✅ ChatView/AgentView consume `RuntimeSnapshot.timeline`; `timelineEvents[]` removed (D9 — cleanup).
-- ✅ `src/capability/*`, Phase-5 cursor/checkpoint machinery — preserved (D13).
+- ✅ `src/capabilities/capability/*`, Phase-5 cursor/checkpoint machinery — preserved (D13).
 - ✅ Vitest green, `tsc --noEmit` clean.

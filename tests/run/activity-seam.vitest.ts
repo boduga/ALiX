@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { ModelAdapter } from "../../src/providers/types.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
 
 // ── Real-loop seam tests (tool_started / tool_completed are real seams) ────
 // Standalone (no vi.mock of task-loop) so runTaskLoop is the real loop.
@@ -10,7 +10,7 @@ import type { ModelAdapter } from "../../src/providers/types.js";
 // and the parallel branch (parallelToolCalls:true + 2+ safe tool calls); each
 // must fire tool_started before tool_completed for every executed tool.
 
-type Deps = import("../../src/run/task-loop.js").TaskLoopDeps;
+type Deps = import("../../src/execution/run/task-loop.js").TaskLoopDeps;
 
 interface Harness {
   tmpRoot: string;
@@ -24,13 +24,13 @@ async function buildHarness(opts: {
   parallelToolCalls: boolean;
   firstToolCalls: Array<{ id: string; name: string; args: Record<string, string> }>;
 }): Promise<Harness> {
-  const { EventLog } = await import("../../src/events/event-log.js");
-  const { MemoryStore } = await import("../../src/utils/memory/store.js");
-  const { ScopeTracker } = await import("../../src/autonomy/scope-tracker.js");
-  const { TaskStateMachine, RunLimiter } = await import("../../src/autonomy/state-machine.js");
-  const { createContextBudget } = await import("../../src/config/context-budget.js");
-  const { ToolExecutor } = await import("../../src/tools/executor.js");
-  const { runTaskLoop } = await import("../../src/run/task-loop.js");
+  const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+  const { MemoryStore } = await import("../../src/operations/utils/memory/store.js");
+  const { ScopeTracker } = await import("../../src/planning/autonomy/scope-tracker.js");
+  const { TaskStateMachine, RunLimiter } = await import("../../src/planning/autonomy/state-machine.js");
+  const { createContextBudget } = await import("../../src/operations/config/context-budget.js");
+  const { ToolExecutor } = await import("../../src/capabilities/tools/executor.js");
+  const { runTaskLoop } = await import("../../src/execution/run/task-loop.js");
 
   const tmpRoot = mkdtempSync(join(tmpdir(), "activity-seam-"));
   writeFileSync(join(tmpRoot, "a.txt"), "hello a", "utf8");
@@ -149,7 +149,7 @@ async function buildHarness(opts: {
 
 describe("real runTaskLoop tool-progress seam", () => {
   it("serial branch — tool_started then tool_completed with the tool name", async () => {
-    const { runTaskLoop } = await import("../../src/run/task-loop.js");
+    const { runTaskLoop } = await import("../../src/execution/run/task-loop.js");
     const h = await buildHarness({
       parallelToolCalls: false,
       firstToolCalls: [{ id: "call_1", name: "alix_file_read", args: { path: "a.txt" } }],
@@ -168,7 +168,7 @@ describe("real runTaskLoop tool-progress seam", () => {
   });
 
   it("parallel branch — each of 2+ safe tools fires tool_started then tool_completed", async () => {
-    const { runTaskLoop } = await import("../../src/run/task-loop.js");
+    const { runTaskLoop } = await import("../../src/execution/run/task-loop.js");
     const h = await buildHarness({
       parallelToolCalls: true,
       firstToolCalls: [

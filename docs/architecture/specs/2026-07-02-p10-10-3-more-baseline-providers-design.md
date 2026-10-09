@@ -98,12 +98,12 @@ Same pattern as MemoryHealthProvider.
 ## 6. File Map
 
 ```
-src/baseline/providers/
+src/context/baseline/providers/
   skills-provider.ts       — SkillsBaselineProvider (reads .alix/skills/)
   agents-health-provider.ts — AgentsHealthProvider (adapter-based)
   workflow-health-provider.ts — WorkflowHealthProvider (adapter-based)
 
-src/baseline/
+src/context/baseline/
   baseline-registry.ts     — factory updated: register Skills, Agents, Workflow
 
 tests/baseline/providers/

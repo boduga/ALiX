@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CapabilityEvolutionStore } from "../../src/adaptation/capability-evolution-store.js";
-import type { IntelligenceReport } from "../../src/adaptation/intelligence-types.js";
+import { CapabilityEvolutionStore } from "../../src/planning/adaptation/capability-evolution-store.js";
+import type { IntelligenceReport } from "../../src/planning/adaptation/intelligence-types.js";
 
 describe("CapabilityEvolutionReporter", () => {
   let dir: string;
@@ -19,7 +19,7 @@ describe("CapabilityEvolutionReporter", () => {
   });
 
   it("produces report with no agent cards", async () => {
-    const { CapabilityEvolutionReporter } = await import("../../src/adaptation/capability-evolution-reporter.js");
+    const { CapabilityEvolutionReporter } = await import("../../src/planning/adaptation/capability-evolution-reporter.js");
     const reporter = new CapabilityEvolutionReporter(
       join(dir, "cards"),
       { loadLatest: async () => null },
@@ -44,7 +44,7 @@ describe("CapabilityEvolutionReporter", () => {
       id: "agent2", capabilities: ["code-review", "workflow.planning"], description: "Planning agent",
     }));
 
-    const { CapabilityEvolutionReporter } = await import("../../src/adaptation/capability-evolution-reporter.js");
+    const { CapabilityEvolutionReporter } = await import("../../src/planning/adaptation/capability-evolution-reporter.js");
     const reporter = new CapabilityEvolutionReporter(
       cardsDir,
       { loadLatest: async () => null },
@@ -60,7 +60,7 @@ describe("CapabilityEvolutionReporter", () => {
   });
 
   it("includes gap, overlap, drift sections even when empty", async () => {
-    const { CapabilityEvolutionReporter } = await import("../../src/adaptation/capability-evolution-reporter.js");
+    const { CapabilityEvolutionReporter } = await import("../../src/planning/adaptation/capability-evolution-reporter.js");
     const reporter = new CapabilityEvolutionReporter(
       join(dir, "cards"),
       { loadLatest: async () => null },
@@ -104,7 +104,7 @@ describe("CapabilityEvolutionReporter", () => {
       ],
     }));
 
-    const { CapabilityEvolutionReporter } = await import("../../src/adaptation/capability-evolution-reporter.js");
+    const { CapabilityEvolutionReporter } = await import("../../src/planning/adaptation/capability-evolution-reporter.js");
     const reporter = new CapabilityEvolutionReporter(
       cardsDir,
       { loadLatest: async () => null },
@@ -128,7 +128,7 @@ describe("CapabilityEvolutionReporter", () => {
       id: "a", capabilities: ["test.cap"], description: "Test",
     }));
 
-    const { CapabilityEvolutionReporter } = await import("../../src/adaptation/capability-evolution-reporter.js");
+    const { CapabilityEvolutionReporter } = await import("../../src/planning/adaptation/capability-evolution-reporter.js");
     const reporter = new CapabilityEvolutionReporter(
       cardsDir,
       { loadLatest: async () => null },

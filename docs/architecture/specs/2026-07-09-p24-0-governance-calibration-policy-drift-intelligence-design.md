@@ -361,7 +361,7 @@ alix governance calibration bands [--since <iso>] [--until <iso>] [--json]
 
 The `--window N` flag is convenience shorthand for "last N days." Explicit `--since`/`--until` override windowed defaults.
 
-CLI dispatch is wired in `src/cli/commands/governance.ts` — the dispatch file is touched but not conceptually owned by P24.
+CLI dispatch is wired in `src/interfaces/cli/commands/governance.ts` — the dispatch file is touched but not conceptually owned by P24.
 
 ---
 
@@ -410,7 +410,7 @@ Every calibration report must clearly state:
 | P24.3 | `src/governance/calibration-confidence-bands.ts` | Pure `buildConfidenceBands()` |
 | P24.4 | `src/governance/calibration-report.ts` | Pure report builder |
 | P24.4 | `src/governance/drift-finding-adapter.ts` | DriftFinding-compatible projection |
-| P24.4 | `src/cli/commands/governance-calibration.ts` | CLI entry point |
+| P24.4 | `src/interfaces/cli/commands/governance-calibration.ts` | CLI entry point |
 | P24.0 | `docs/architecture/specs/2026-07-09-p24-0-governance-calibration-policy-drift-intelligence-design.md` | Design spec |
 | P24.5 | `docs/architecture/checkpoints/2026-07-09-p24-5-checkpoint.md` | Checkpoint doc |
 
@@ -418,7 +418,7 @@ Every calibration report must clearly state:
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Wire `alix governance calibration ...` dispatch — contains no detector logic |
+| `src/interfaces/cli/commands/governance.ts` | Wire `alix governance calibration ...` dispatch — contains no detector logic |
 
 ### 13.3 Untouched Files
 

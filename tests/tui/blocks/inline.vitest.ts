@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseInline } from '../../../src/tui/blocks/inline.js';
+import { parseInline } from '../../../src/interfaces/tui/blocks/inline.js';
 
 describe('parseInline', () => {
   it('returns a single text span for plain text', () => {

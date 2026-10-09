@@ -16,9 +16,9 @@
 
 ```
 Modify:
-  src/agent/agent.ts              # Register tool-repair hooks on HookRunner
-  src/run/task-loop.ts            # Wire on_tool_error event (missing)
-  src/extensions/hook-runner.ts   # Add result.abort support for on_tool_error
+  src/agents/agent/agent.ts              # Register tool-repair hooks on HookRunner
+  src/execution/run/task-loop.ts            # Wire on_tool_error event (missing)
+  src/capabilities/extensions/hook-runner.ts   # Add result.abort support for on_tool_error
   packages/tool-repair/src/adapters/alix-hook.ts   # [CREATE] Hook adapter
 
 New:
@@ -30,7 +30,7 @@ New:
 ### Task 1: Wire `on_tool_error` in task-loop.ts
 
 **Files:**
-- Modify: `src/run/task-loop.ts:505-510`
+- Modify: `src/execution/run/task-loop.ts:505-510`
 
 The `on_tool_error` event is defined in HookRunner but never fired in task-loop.ts. Currently, when a tool errors, the error result is handled inline without firing any hook.
 
@@ -71,7 +71,7 @@ Note: `execName` is already defined earlier in the function (used in the on_pre_
 
 - [ ] **Step 1: Read task-loop.ts error handling path**
 
-Read `/home/babasola/Projects/Monolith/src/run/task-loop.ts` lines 475-540 to find where tool errors are handled.
+Read `/home/babasola/Projects/Monolith/src/execution/run/task-loop.ts` lines 475-540 to find where tool errors are handled.
 
 - [ ] **Step 2: Add on_tool_error hook firing**
 
@@ -85,7 +85,7 @@ Expected: No errors
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/run/task-loop.ts && git commit -m "feat(hooks): wire on_tool_error event in task-loop.ts
+cd /home/babasola/Projects/Monolith && git add src/execution/run/task-loop.ts && git commit -m "feat(hooks): wire on_tool_error event in task-loop.ts
 
 Previously on_tool_error was defined in HookRunner but never fired.
 Now fires when a tool call returns an error result, enabling
@@ -113,7 +113,7 @@ This adapter wraps `ToolRepair` as a HookRunner-compatible function. It register
  *                    can provide the model with a repair explanation
  */
 import { ToolRepair } from "../index.js";
-import type { HookFn, HookEvent, HookResult } from "../../../../src/extensions/hook-runner.js";
+import type { HookFn, HookEvent, HookResult } from "../../../../src/capabilities/extensions/hook-runner.js";
 
 export function createToolRepairHooks(modelKey: string): Array<{ name: string; fn: HookFn }> {
   const repair = new ToolRepair(modelKey);
@@ -181,7 +181,7 @@ The hook can't pass arbitrary data back through HookResult. Instead, the hook sh
  *   - on_tool_error: reports corrected args via reason field
  */
 import { ToolRepair } from "../index.js";
-import type { HookFn, HookEvent, HookResult } from "../../../../src/extensions/hook-runner.js";
+import type { HookFn, HookEvent, HookResult } from "../../../../src/capabilities/extensions/hook-runner.js";
 
 export function createToolRepairHooks(modelKey: string): Array<{ name: string; fn: HookFn }> {
   const repair = new ToolRepair(modelKey);
@@ -259,7 +259,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 3: Register hooks in agent.ts
 
 **Files:**
-- Modify: `src/agent/agent.ts:173-200`
+- Modify: `src/agents/agent/agent.ts:173-200`
 
 After the HookRunner is created and before toolExecutor is used, register the tool-repair hooks.
 
@@ -293,7 +293,7 @@ import { createToolRepairHooks } from "../../packages/tool-repair/src/adapters/a
   }
 ```
 
-Wait — the `.alix/hooks.json` hooks use a different execution model (shell commands in `src/hooks/runner.ts`). The HookRunner is for programmatic TypeScript hooks. Let me not wire `.alix/hooks.json` here — that's a different system. Keep it focused on registering the tool-repair hooks.
+Wait — the `.alix/hooks.json` hooks use a different execution model (shell commands in `src/operations/hooks/runner.ts`). The HookRunner is for programmatic TypeScript hooks. Let me not wire `.alix/hooks.json` here — that's a different system. Keep it focused on registering the tool-repair hooks.
 
 ```typescript
   // Register tool-repair hooks on the HookRunner
@@ -304,7 +304,7 @@ Wait — the `.alix/hooks.json` hooks use a different execution model (shell com
   }
 ```
 
-- [ ] **Step 1: Read `src/agent/agent.ts` lines 1-15 and 173-200**
+- [ ] **Step 1: Read `src/agents/agent/agent.ts` lines 1-15 and 173-200**
 
 Check the existing import style and the hook runner initialization area.
 
@@ -335,7 +335,7 @@ Expected: No errors
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/agent/agent.ts && git commit -m "feat(hooks): register tool-repair hooks in agent startup
+cd /home/babasola/Projects/Monolith && git add src/agents/agent/agent.ts && git commit -m "feat(hooks): register tool-repair hooks in agent startup
 
 Registers on_pre_tool and on_tool_error hooks from the tool-repair
 package on the HookRunner during agent initialization. Enables
@@ -349,7 +349,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 4: Wire on_tool_error reason into model context
 
 **Files:**
-- Modify: `src/run/task-loop.ts` (the error handling path that follows the hook)
+- Modify: `src/execution/run/task-loop.ts` (the error handling path that follows the hook)
 
 When `on_tool_error` returns a `reason` with repair info, the model should see it. Currently the error handling just logs and returns. We need to inject the repair hint when the hook handled it.
 
@@ -398,7 +398,7 @@ cd /home/babasola/Projects/Monolith && npx tsc --noEmit 2>&1
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /home/babasola/Projects/Monolith && git add src/run/task-loop.ts && git commit -m "feat(hooks): inject tool-repair hints into model context on error
+cd /home/babasola/Projects/Monolith && git add src/execution/run/task-loop.ts && git commit -m "feat(hooks): inject tool-repair hints into model context on error
 
 When on_tool_error hook returns a repair reason, append it to
 the error message the model sees so it learns the correct args.
@@ -425,7 +425,7 @@ Expected: No errors
 
 - [ ] **Step 2: Verify the HookRunner has registered hooks**
 
-Read `src/agent/agent.ts` to confirm hook registration code is present.
+Read `src/agents/agent/agent.ts` to confirm hook registration code is present.
 
 - [ ] **Step 3: Run existing tests**
 

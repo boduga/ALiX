@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildOutcomeReportId } from "../../src/executive/outcome-report-id.js";
+import { buildOutcomeReportId } from "../../src/execution/executive/outcome-report-id.js";
 
 describe("buildOutcomeReportId", () => {
   it("produces sanitized ID from planId and ISO timestamp", () => {

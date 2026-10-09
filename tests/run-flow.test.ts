@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runTask } from "../src/run.js";
-import { _setHomedirOverride } from "../src/config/loader.js";
+import { _setHomedirOverride } from "../src/operations/config/loader.js";
 
 // Integration test — skip when API credits unavailable
 test("run task creates event log and returns plan", { skip: "integration test: requires model API credits" }, async () => {

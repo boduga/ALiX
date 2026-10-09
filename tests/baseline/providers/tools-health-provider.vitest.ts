@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { ToolsRuntimeHealthProvider } from "../../../src/baseline/providers/tools-health-provider.js";
-import { buildDefaultToolIndex } from "../../../src/tools/tool-registry.js";
+import { ToolsRuntimeHealthProvider } from "../../../src/context/baseline/providers/tools-health-provider.js";
+import { buildDefaultToolIndex } from "../../../src/capabilities/tools/tool-registry.js";
 
 describe("ToolsRuntimeHealthProvider", () => {
   const provider = new ToolsRuntimeHealthProvider();

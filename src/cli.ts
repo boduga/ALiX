@@ -3,17 +3,17 @@ import "node:fs";
 import "node:fs/promises";
 import "node:os";
 import "node:path";
-import { loadConfig } from "./config/loader.js";
-import { createModelResolver } from "./config/model-resolver.js";
+import { loadConfig } from "./operations/config/loader.js";
+import { createModelResolver } from "./operations/config/model-resolver.js";
 import { ALIX_VERSION } from "./index.js";
 import "./run.js";
-import "./agent/session.js";
-import "./providers/base.js";
-import "./providers/catalog.js";
-import "./providers/catalog.js";
-import "./cli/commands/prompt.js";
-import "./cli/helpers/api-keys.js";
-import "./daemon/daemon-paths.js";
+import "./agents/agent/session.js";
+import "./models/providers/base.js";
+import "./models/providers/catalog.js";
+import "./models/providers/catalog.js";
+import "./interfaces/cli/commands/prompt.js";
+import "./interfaces/cli/helpers/api-keys.js";
+import "./operations/daemon/daemon-paths.js";
 
 
 const [, , command, ...args] = process.argv;
@@ -25,15 +25,15 @@ const COMMAND_ROUTER: Record<string, () => Promise<{ handler: CliHandler }>> = {
 
 // Already-extracted commands
 COMMAND_ROUTER["runs"] = async () => {
-  const { handleRunsCommand } = await import("./cli/commands/runs.js");
+  const { handleRunsCommand } = await import("./interfaces/cli/commands/runs.js");
   return { handler: async (a) => { await handleRunsCommand(a); return 0; } };
 };
 COMMAND_ROUTER["init"] = async () => {
-  const { runInit } = await import("./cli/commands/init.js");
+  const { runInit } = await import("./interfaces/cli/commands/init.js");
   return { handler: async (a) => { await runInit(process.cwd(), a); return 0; } };
 };
 COMMAND_ROUTER["tui"] = async () => {
-  const { runTui } = await import("./cli/commands/tui.js");
+  const { runTui } = await import("./interfaces/cli/commands/tui.js");
   return { handler: async (a) => {
     const modeIdx = a.indexOf("--mode");
     const sessionMode = modeIdx >= 0 ? a[modeIdx + 1] as "auto" | "ask" | "bypass" : undefined;
@@ -45,7 +45,7 @@ COMMAND_ROUTER["tui"] = async () => {
   }};
 };
 COMMAND_ROUTER["demo"] = async () => {
-  const { runDemo } = await import("./cli/commands/demo.js");
+  const { runDemo } = await import("./interfaces/cli/commands/demo.js");
   return { handler: async (a) => {
     if (a[0] !== "local") { console.error("Usage: alix demo local"); return 1; }
     await runDemo();
@@ -55,31 +55,31 @@ COMMAND_ROUTER["demo"] = async () => {
 
 // Extracted commands
 COMMAND_ROUTER["run"] = async () => {
-  const { handler } = await import("./cli/commands/run.js");
+  const { handler } = await import("./interfaces/cli/commands/run.js");
   return { handler };
 };
 COMMAND_ROUTER["session"] = async () => {
-  const { handler } = await import("./cli/commands/session.js");
+  const { handler } = await import("./interfaces/cli/commands/session.js");
   return { handler };
 };
 COMMAND_ROUTER["plan"] = async () => {
-  const { handler } = await import("./cli/commands/plan.js");
+  const { handler } = await import("./interfaces/cli/commands/plan.js");
   return { handler };
 };
 COMMAND_ROUTER["review"] = async () => {
-  const { handler } = await import("./cli/commands/review.js");
+  const { handler } = await import("./interfaces/cli/commands/review.js");
   return { handler };
 };
 COMMAND_ROUTER["apply"] = async () => {
-  const { handler } = await import("./cli/commands/apply.js");
+  const { handler } = await import("./interfaces/cli/commands/apply.js");
   return { handler };
 };
 COMMAND_ROUTER["submit"] = async () => {
-  const { handler } = await import("./cli/commands/submit.js");
+  const { handler } = await import("./interfaces/cli/commands/submit.js");
   return { handler };
 };
 COMMAND_ROUTER["failures"] = async () => {
-  const { handleFailuresCommand } = await import("./cli/commands/failures.js");
+  const { handleFailuresCommand } = await import("./interfaces/cli/commands/failures.js");
   return { handler: async (a) => { await handleFailuresCommand(a); return 0; } };
 };
 
@@ -179,147 +179,147 @@ if (command === "--version" || command === "-v") {
 
 // --- alix graph --- TaskGraph management ---
 if (command === "graph" && args[0] === "plan") {
-  const { handleGraphPlan } = await import("./cli/commands/graph.js");
+  const { handleGraphPlan } = await import("./interfaces/cli/commands/graph.js");
   await handleGraphPlan(args);
 }
 
 // --- alix graph run --- execute a planned graph ---
 if (command === "graph" && args[0] === "run") {
-  const { handleGraphRun } = await import("./cli/commands/graph.js");
+  const { handleGraphRun } = await import("./interfaces/cli/commands/graph.js");
   await handleGraphRun(args);
 }
 
 // --- alix graph rerun --- rerun a failed node ---
 if (command === "graph" && args[0] === "rerun") {
-  const { handleGraphRerun } = await import("./cli/commands/graph.js");
+  const { handleGraphRerun } = await import("./interfaces/cli/commands/graph.js");
   await handleGraphRerun(args);
 }
 
 // --- alix graph continue --- resume after approval ---
 if (command === "graph" && args[0] === "continue") {
-  const { handleGraphContinue } = await import("./cli/commands/graph.js");
+  const { handleGraphContinue } = await import("./interfaces/cli/commands/graph.js");
   await handleGraphContinue(args);
 }
 
 // --- alix graph runs --- show graph run history ---
 if (command === "graph" && args[0] === "runs") {
-  const { handleGraphRuns } = await import("./cli/commands/graph.js");
+  const { handleGraphRuns } = await import("./interfaces/cli/commands/graph.js");
   await handleGraphRuns(args);
 }
 // --- alix graph preflight --- capability check for each node ---
 if (command === "graph" && args[0] === "preflight") {
-  const { handleGraphPreflight } = await import("./cli/commands/graph.js");
+  const { handleGraphPreflight } = await import("./interfaces/cli/commands/graph.js");
   await handleGraphPreflight(args);
 }
 
 // --- alix graph list --- list saved graphs ---
 if (command === "graph" && args[0] === "list") {
-  const { handleGraphList } = await import("./cli/commands/graph.js");
+  const { handleGraphList } = await import("./interfaces/cli/commands/graph.js");
   await handleGraphList(args);
 }
 
 // --- alix graph inspect --- show graph details ---
 if (command === "graph" && args[0] === "inspect") {
-  const { handleGraphInspect } = await import("./cli/commands/graph.js");
+  const { handleGraphInspect } = await import("./interfaces/cli/commands/graph.js");
   await handleGraphInspect(args);
 }
 
 // --- alix graph export --- export graph as mermaid or json ---
 if (command === "graph" && args[0] === "export") {
-  const { handleGraphExport } = await import("./cli/commands/graph.js");
+  const { handleGraphExport } = await import("./interfaces/cli/commands/graph.js");
   await handleGraphExport(args);
 }
 
 // --- alix graph reconcile --- compare graph files against the R2 ledger ---
 if (command === "graph" && args[0] === "reconcile") {
-  const { handleGraphReconcile } = await import("./cli/commands/graph.js");
+  const { handleGraphReconcile } = await import("./interfaces/cli/commands/graph.js");
   await handleGraphReconcile(args);
 }
 
 // --- alix sop --- SOP management ---
 if (command === "sop") {
-  const { handleSopCommand } = await import("./cli/commands/sop.js");
+  const { handleSopCommand } = await import("./interfaces/cli/commands/sop.js");
   await handleSopCommand(args);
   process.exit(0);
 }
 
 // --- alix report --- report artifact commands ---
 if (command === "report") {
-  const { runReportCommand } = await import("./cli/commands/report.js");
+  const { runReportCommand } = await import("./interfaces/cli/commands/report.js");
   await runReportCommand(args);
   process.exit(0);
 }
 
 
 if (command === "config" && args[0] === "set-key") {
-  const { handleConfigSetKey } = await import("./cli/commands/config.js");
+  const { handleConfigSetKey } = await import("./interfaces/cli/commands/config.js");
   await handleConfigSetKey(args);
 }
 
 // --- alix config get <path> ---
 if (command === "config" && args[0] === "get") {
-  const { handleConfigGet } = await import("./cli/commands/config.js");
+  const { handleConfigGet } = await import("./interfaces/cli/commands/config.js");
   await handleConfigGet(args);
 }
 
 // --- alix config set <path> <value> ---
 if (command === "config" && args[0] === "set") {
-  const { handleConfigSet } = await import("./cli/commands/config.js");
+  const { handleConfigSet } = await import("./interfaces/cli/commands/config.js");
   await handleConfigSet(args);
 }
 
 // --- alix config delete <path> ---
 if (command === "config" && args[0] === "delete") {
-  const { handleConfigDelete } = await import("./cli/commands/config.js");
+  const { handleConfigDelete } = await import("./interfaces/cli/commands/config.js");
   await handleConfigDelete(args);
 }
 
 // --- alix config history ---
 if (command === "config" && args[0] === "history") {
-  const { handleConfigHistory } = await import("./cli/commands/config.js");
+  const { handleConfigHistory } = await import("./interfaces/cli/commands/config.js");
   await handleConfigHistory(args);
 }
 
 // --- alix config provenance [--json] [<path>] ---
 if (command === "config" && args[0] === "provenance") {
-  const { handleConfigProvenance } = await import("./cli/commands/config.js");
+  const { handleConfigProvenance } = await import("./interfaces/cli/commands/config.js");
   await handleConfigProvenance(args);
 }
 
 // --- alix config rollback <version> --force --reason "<reason>" ---
 if (command === "config" && args[0] === "rollback") {
-  const { handleConfigRollback } = await import("./cli/commands/config.js");
+  const { handleConfigRollback } = await import("./interfaces/cli/commands/config.js");
   await handleConfigRollback(args);
 }
 
 if (command === "config" && args[0] === "show") {
-  const { handleConfigShow } = await import("./cli/commands/config.js");
+  const { handleConfigShow } = await import("./interfaces/cli/commands/config.js");
   await handleConfigShow(args);
 }
 
 if (command === "serve") {
-  const { handleServe } = await import("./cli/commands/security-ops.js");
+  const { handleServe } = await import("./interfaces/cli/commands/security-ops.js");
   await handleServe(args);
 }
 
 // --- alix inspector -- start Inspector server and open browser ---
 if (command === "inspector" && args[0] === "open") {
-  const { handleInspectorOpen } = await import("./cli/commands/security-ops.js");
+  const { handleInspectorOpen } = await import("./interfaces/cli/commands/security-ops.js");
   await handleInspectorOpen(args);
 }
 
 if (command === "mcp") {
-  const { handleMcpRoot } = await import("./cli/commands/mcp-extension.js");
+  const { handleMcpRoot } = await import("./interfaces/cli/commands/mcp-extension.js");
   await handleMcpRoot(args);
 }
 
 if (command === "extension") {
-  const { handleExtensionRoot } = await import("./cli/commands/mcp-extension.js");
+  const { handleExtensionRoot } = await import("./interfaces/cli/commands/mcp-extension.js");
   await handleExtensionRoot(args);
 }
 
 if (command === "skill") {
-  const { handleSkillRoot } = await import("./cli/commands/skill.js");
+  const { handleSkillRoot } = await import("./interfaces/cli/commands/skill.js");
   await handleSkillRoot(args);
 }
 
@@ -379,46 +379,46 @@ if (command === "run" && args[0] === "--subagent") {
 
 // --- alix metrics --- observability metrics display command ---
 if (command === "metrics") {
-  const { handleMetricsRoot } = await import("./cli/commands/metrics-db-memory.js");
+  const { handleMetricsRoot } = await import("./interfaces/cli/commands/metrics-db-memory.js");
   await handleMetricsRoot(args);
 }
 
 // --- alix db --- database management ---
 if (command === "db") {
-  const { handleDbRoot } = await import("./cli/commands/metrics-db-memory.js");
+  const { handleDbRoot } = await import("./interfaces/cli/commands/metrics-db-memory.js");
   await handleDbRoot(args);
 }
 
 // --- alix memory --- memory management commands ---
 if (command === "memory") {
-  const { handleMemoryRoot } = await import("./cli/commands/metrics-db-memory.js");
+  const { handleMemoryRoot } = await import("./interfaces/cli/commands/metrics-db-memory.js");
   await handleMemoryRoot(args);
 }
 
 // --- alix session --- session management commands ---
 if (command === "skills") {
-  const { runSkillsCommand } = await import("./cli/commands/skills/run-skills.js");
+  const { runSkillsCommand } = await import("./interfaces/cli/commands/skills/run-skills.js");
   await runSkillsCommand(args);
   process.exit(0);
 }
 
 if (command === "policy") {
-  const { handlePolicyRoot } = await import("./cli/commands/policy-registry-runtime.js");
+  const { handlePolicyRoot } = await import("./interfaces/cli/commands/policy-registry-runtime.js");
   await handlePolicyRoot(args);
 }
 
 if (command === "registry") {
-  const { handleRegistryRoot } = await import("./cli/commands/policy-registry-runtime.js");
+  const { handleRegistryRoot } = await import("./interfaces/cli/commands/policy-registry-runtime.js");
   await handleRegistryRoot(args);
 }
 
 if (command === "runtime") {
-  const { handleRuntimeRoot } = await import("./cli/commands/policy-registry-runtime.js");
+  const { handleRuntimeRoot } = await import("./interfaces/cli/commands/policy-registry-runtime.js");
   await handleRuntimeRoot(args);
 }
 
 if (command === "daemon") {
-  const { handleDaemonRoot } = await import("./cli/commands/daemon-audit.js");
+  const { handleDaemonRoot } = await import("./interfaces/cli/commands/daemon-audit.js");
   await handleDaemonRoot(args);
 }
 
@@ -427,215 +427,215 @@ if (command === "daemon") {
 // exit; without this flag the file's fallthrough would print a
 // misleading "Unknown command" error after a successful submit.
 if (command === "audit") {
-  const { handleAuditRoot } = await import("./cli/commands/daemon-audit.js");
+  const { handleAuditRoot } = await import("./interfaces/cli/commands/daemon-audit.js");
   await handleAuditRoot(args);
 }
 
 // ── Evidence commands (P4.4b) ──────────────────────────────────────
 if (command === "evidence") {
-  const { handleEvidenceCommand } = await import("./cli/commands/evidence.js");
+  const { handleEvidenceCommand } = await import("./interfaces/cli/commands/evidence.js");
   await handleEvidenceCommand(args);
   process.exit(0);
 }
 
 // ── Workflow commands (P4.5c) ─────────────────────────────────────
 if (command === "workflow") {
-  const { handleWorkflowCommand } = await import("./cli/commands/workflow.js");
+  const { handleWorkflowCommand } = await import("./interfaces/cli/commands/workflow.js");
   await handleWorkflowCommand(args);
   process.exit(0);
 }
 
 // ── Reflection command (P5.0g) ────────────────────────────────────
 if (command === "reflection") {
-  const { handleReflectionCommand } = await import("./cli/commands/reflection.js");
+  const { handleReflectionCommand } = await import("./interfaces/cli/commands/reflection.js");
   await handleReflectionCommand(args);
   process.exit(0);
 }
 
 // ── Adaptation command (P5.1g) ───────────────────────────────────
 if (command === "adaptation") {
-  const { handleAdaptationCommand } = await import("./cli/commands/adaptation.js");
+  const { handleAdaptationCommand } = await import("./interfaces/cli/commands/adaptation.js");
   await handleAdaptationCommand(args);
   process.exit(0);
 }
 
 // ── Decision command (P6.0a) ──────────────────────────────────────
 if (command === "decision") {
-  const { handleDecisionCommand } = await import("./cli/commands/decision.js");
+  const { handleDecisionCommand } = await import("./interfaces/cli/commands/decision.js");
   await handleDecisionCommand(args);
   process.exit(0);
 }
 
 // ── Jev decision-subsystem command (J4/J5 operator surface) ───────
 if (command === "jev") {
-  const { handleJevCommand } = await import("./cli/commands/jev.js");
+  const { handleJevCommand } = await import("./interfaces/cli/commands/jev.js");
   await handleJevCommand(args);
   process.exit(0);
 }
 
 // ── Learning command (P8.7) ───────────────────────────────────────
 if (command === "learning") {
-  const { handleLearningCommand } = await import("./cli/commands/learning.js");
+  const { handleLearningCommand } = await import("./interfaces/cli/commands/learning.js");
   await handleLearningCommand(args);
   process.exit(0);
 }
 
 // ── Explain command (P8.5c) ──────────────────────────────────────
 if (command === "explain") {
-  const { handleExplainCommand } = await import("./cli/commands/explain.js");
+  const { handleExplainCommand } = await import("./interfaces/cli/commands/explain.js");
   await handleExplainCommand(args);
   process.exit(0);
 }
 
 // ── Governance command (P9.0b) ───────────────────────────────────
 if (command === "governance") {
-  const { handleGovernanceCommand } = await import("./cli/commands/governance.js");
+  const { handleGovernanceCommand } = await import("./interfaces/cli/commands/governance.js");
   await handleGovernanceCommand(args);
   process.exit(0);
 }
 
 // ── Executive command (P10.0) ────────────────────────────────────
 if (command === "executive") {
-  const { handleExecutiveCommand } = await import("./cli/commands/executive.js");
+  const { handleExecutiveCommand } = await import("./interfaces/cli/commands/executive.js");
   await handleExecutiveCommand(args);
   process.exit(0);
 }
 
 // ── Capability command (singular; CAP-11 owner of alix capability namespace) ──
 if (command === "capability") {
-  const { handleCapabilityRoot } = await import("./cli/commands/approvals-doctor-capability.js");
+  const { handleCapabilityRoot } = await import("./interfaces/cli/commands/approvals-doctor-capability.js");
   await handleCapabilityRoot(args);
 }
 
 // ── Baseline command (P10.10) ──────────────────────────────────
 if (command === "baseline") {
-  const { handleBaselineCommand } = await import("./cli/commands/baseline.js");
+  const { handleBaselineCommand } = await import("./interfaces/cli/commands/baseline.js");
   await handleBaselineCommand(args);
   process.exit(0);
 }
 if (command === "research") {
-  const { research } = await import("./cli/commands/research.js");
+  const { research } = await import("./interfaces/cli/commands/research.js");
   await research(args);
   process.exit(0);
 }
 
 if (command === "approvals") {
-  const { handleApprovalsRoot } = await import("./cli/commands/approvals-doctor-capability.js");
+  const { handleApprovalsRoot } = await import("./interfaces/cli/commands/approvals-doctor-capability.js");
   await handleApprovalsRoot(args);
 }
 
 if (command === "schedule") {
-  const { handleSchedule } = await import("./cli/commands/schedule.js");
+  const { handleSchedule } = await import("./interfaces/cli/commands/schedule.js");
   await handleSchedule(args);
   process.exit(0);
 }
 
 if (command === "models") {
-  const { handleModelsCommand } = await import("./cli/commands/models.js");
+  const { handleModelsCommand } = await import("./interfaces/cli/commands/models.js");
   await handleModelsCommand(args);
   process.exit(0);
 }
 
 if (command === "benchmark") {
-  const { handleBenchmarkCommand } = await import("./cli/commands/benchmark.js");
+  const { handleBenchmarkCommand } = await import("./interfaces/cli/commands/benchmark.js");
   await handleBenchmarkCommand(args);
   process.exit(0);
 }
 if (command === "evals") {
-  const { handleEvalsCommand } = await import("./cli/commands/evals.js");
+  const { handleEvalsCommand } = await import("./interfaces/cli/commands/evals.js");
   await handleEvalsCommand(args);
   process.exit(0);
 }
 
 if (command === "doctor") {
-  const { handleDoctorRoot } = await import("./cli/commands/approvals-doctor-capability.js");
+  const { handleDoctorRoot } = await import("./interfaces/cli/commands/approvals-doctor-capability.js");
   await handleDoctorRoot(args);
 }
 
 if (command === "security" && args[0] === "doctor") {
-  const { handleSecurityDoctor } = await import("./cli/commands/security-ops.js");
+  const { handleSecurityDoctor } = await import("./interfaces/cli/commands/security-ops.js");
   await handleSecurityDoctor(args);
 }
 
 // --- alix security gate --- P4.3-Sg2 ---
 if (command === "security" && args[0] === "gate") {
-  const { handleSecurityGate } = await import("./cli/commands/security-ops.js");
+  const { handleSecurityGate } = await import("./interfaces/cli/commands/security-ops.js");
   await handleSecurityGate(args);
 }
 
 // --- alix security config keygen --- P4.3-Se3 ---
 if (command === "security" && args[0] === "config" && args[1] === "keygen") {
-  const { handleSecurityConfigKeygen } = await import("./cli/commands/security-ops.js");
+  const { handleSecurityConfigKeygen } = await import("./interfaces/cli/commands/security-ops.js");
   await handleSecurityConfigKeygen(args);
 }
 
 // --- alix security config sign --- P4.3-Se3 ---
 if (command === "security" && args[0] === "config" && args[1] === "sign") {
-  const { handleSecurityConfigSign } = await import("./cli/commands/security-ops.js");
+  const { handleSecurityConfigSign } = await import("./interfaces/cli/commands/security-ops.js");
   await handleSecurityConfigSign(args);
 }
 
 // --- alix security config verify --- P4.3-Se3 ---
 if (command === "security" && args[0] === "config" && args[1] === "verify") {
-  const { handleSecurityConfigVerify } = await import("./cli/commands/security-ops.js");
+  const { handleSecurityConfigVerify } = await import("./interfaces/cli/commands/security-ops.js");
   await handleSecurityConfigVerify(args);
 }
 
 // --- alix security config trust-key <path> --- P4.3-Se3 ---
 if (command === "security" && args[0] === "config" && args[1] === "trust-key") {
-  const { handleSecurityConfigTrustKey } = await import("./cli/commands/security-ops.js");
+  const { handleSecurityConfigTrustKey } = await import("./interfaces/cli/commands/security-ops.js");
   await handleSecurityConfigTrustKey(args);
 }
 
 // --- alix security config allow-rollback --- P4.3-Se3 ---
 if (command === "security" && args[0] === "config" && args[1] === "allow-rollback") {
-  const { handleSecurityConfigAllowRollback } = await import("./cli/commands/security-ops.js");
+  const { handleSecurityConfigAllowRollback } = await import("./interfaces/cli/commands/security-ops.js");
   await handleSecurityConfigAllowRollback(args);
 }
 
 // --- alix credential --- P4.3-Se1 credential store management ---
 if (command === "credential") {
-  const { handleCredential } = await import("./cli/commands/security-ops.js");
+  const { handleCredential } = await import("./interfaces/cli/commands/security-ops.js");
   await handleCredential(args);
 }
 
 // --- alix inspector auth --- P4.3-Sb2 token management ---
 if (command === "inspector" && args[0] === "auth") {
-  const { handleInspectorAuth } = await import("./cli/commands/security-ops.js");
+  const { handleInspectorAuth } = await import("./interfaces/cli/commands/security-ops.js");
   await handleInspectorAuth(args);
 }
 
 // --- alix security supply-chain --- P4.3-Sf supply-chain policy ---
 if (command === "security" && args[0] === "supply-chain") {
-  const { handleSecuritySupplyChain } = await import("./cli/commands/security-ops.js");
+  const { handleSecuritySupplyChain } = await import("./interfaces/cli/commands/security-ops.js");
   await handleSecuritySupplyChain(args);
 }
 
 if (command === "security") {
-  const { handleSecurity } = await import("./cli/commands/security-ops.js");
+  const { handleSecurity } = await import("./interfaces/cli/commands/security-ops.js");
   await handleSecurity(args);
 }
 
 if (command === "recovery") {
-  const { handleRecovery } = await import("./cli/commands/security-ops.js");
+  const { handleRecovery } = await import("./interfaces/cli/commands/security-ops.js");
   await handleRecovery(args);
 }
 
 if (command === "coordination") {
-  const { handleCoordination } = await import("./cli/commands/coordination.js");
+  const { handleCoordination } = await import("./interfaces/cli/commands/coordination.js");
   await handleCoordination(args);
   process.exit(0);
 }
 
 if (command === "approval") {
-  const { handleApproval } = await import("./cli/commands/approval.js");
+  const { handleApproval } = await import("./interfaces/cli/commands/approval.js");
   await handleApproval(args);
   process.exit(0);
 }
 
 // --- alix observability --- P4.2 observability commands ---
 if (command === "observability") {
-  const { handleObservability } = await import("./cli/commands/observability.js");
+  const { handleObservability } = await import("./interfaces/cli/commands/observability.js");
   try {
     await handleObservability(args, process.cwd());
   } catch (err) {
@@ -646,19 +646,19 @@ if (command === "observability") {
 }
 
 if (command === "ownership") {
-  const { handleOwnershipCommand } = await import("./cli/commands/ownership.js");
+  const { handleOwnershipCommand } = await import("./interfaces/cli/commands/ownership.js");
   await handleOwnershipCommand(args);
   process.exit(0);
 }
 
 if (command === "provider" && args[0] === "doctor") {
-  const { handleProviderDoctor } = await import("./cli/commands/provider-doctor.js");
+  const { handleProviderDoctor } = await import("./interfaces/cli/commands/provider-doctor.js");
   await handleProviderDoctor(args.slice(1));
   process.exit(0);
 }
 
 if (command === "issue" && args[0] === "run") {
-  const { handleIssueRunCommand } = await import("./cli/commands/issue-run-handler.js");
+  const { handleIssueRunCommand } = await import("./interfaces/cli/commands/issue-run-handler.js");
   await handleIssueRunCommand(args.slice(1));
   process.exit(0);
 }

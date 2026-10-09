@@ -25,14 +25,14 @@
 **Event types needed:**
 - `agent.reasoning` — emitted when the model selects a tool or makes a decision
 
-**Where to emit:** In `src/run/task-loop.ts` after each model response.
+**Where to emit:** In `src/execution/run/task-loop.ts` after each model response.
 
 **Files:**
-- Modify: `src/events/types.ts` — add `REASONING` constant to event type
-- Modify: `src/run/task-loop.ts` — emit `agent.reasoning` after each model call with the model's reasoning text
-- Modify: `src/server/server.ts` — add `agent.reasoning` to SSE filter
-- Modify: `src/ui/app.js` — display reasoning in the event timeline
-- Modify: `src/inspector/session-reader.ts` — include reasoning in session snapshot
+- Modify: `src/runtime-state/events/types.ts` — add `REASONING` constant to event type
+- Modify: `src/execution/run/task-loop.ts` — emit `agent.reasoning` after each model call with the model's reasoning text
+- Modify: `src/interfaces/server/server.ts` — add `agent.reasoning` to SSE filter
+- Modify: `src/interfaces/ui/app.js` — display reasoning in the event timeline
+- Modify: `src/interfaces/inspector/session-reader.ts` — include reasoning in session snapshot
 
 **Payload:**
 ```typescript
@@ -66,12 +66,12 @@
 ```
 
 **Files:**
-- Modify: `src/ui/app.js` — render tool calls as collapsible cards with args/results/duration
-- Modify: `src/ui/styles.css` — card styling with border, labels, monospace code blocks
-- Modify: `src/events/types.ts` — ensure `tool.completed` payload includes `argsPreview` and `outputPreview` for display
-- Modify: `src/inspector/session-reader.ts` — pair `tool.requested` + `tool.output` + `tool.completed` events into a single structured tool call object
+- Modify: `src/interfaces/ui/app.js` — render tool calls as collapsible cards with args/results/duration
+- Modify: `src/interfaces/ui/styles.css` — card styling with border, labels, monospace code blocks
+- Modify: `src/runtime-state/events/types.ts` — ensure `tool.completed` payload includes `argsPreview` and `outputPreview` for display
+- Modify: `src/interfaces/inspector/session-reader.ts` — pair `tool.requested` + `tool.output` + `tool.completed` events into a single structured tool call object
 
-**UI component (in `src/ui/app.js`):**
+**UI component (in `src/interfaces/ui/app.js`):**
 
 ```javascript
 function renderToolCall(requested, output, completed) {
@@ -112,11 +112,11 @@ function renderToolCall(requested, output, completed) {
 ```
 
 **Files:**
-- Modify: `src/events/types.ts` — add `DECISION` event type
-- Modify: `src/run/task-loop.ts` — emit `agent.decision` at key branch points (tool selection, scope check, repair entry)
-- Modify: `src/ui/app.js` — render decisions as a vertical timeline with icons
-- Modify: `src/ui/styles.css` — timeline styling
-- Modify: `src/server/server.ts` — add `agent.decision` to SSE filter
+- Modify: `src/runtime-state/events/types.ts` — add `DECISION` event type
+- Modify: `src/execution/run/task-loop.ts` — emit `agent.decision` at key branch points (tool selection, scope check, repair entry)
+- Modify: `src/interfaces/ui/app.js` — render decisions as a vertical timeline with icons
+- Modify: `src/interfaces/ui/styles.css` — timeline styling
+- Modify: `src/interfaces/server/server.ts` — add `agent.decision` to SSE filter
 
 **Key branch points to instrument:**
 1. Line ~260 — after model responds, before tool execution: what tool was chosen?
@@ -136,7 +136,7 @@ function renderToolCall(requested, output, completed) {
 
 **Cost computation (pure function):**
 ```typescript
-// src/events/cost-calculator.ts
+// src/runtime-state/events/cost-calculator.ts
 const PROVIDER_RATES: Record<string, { inputPerM: number; outputPerM: number }> = {
   "google":  { inputPerM: 0.15,  outputPerM: 0.60  },
   "deepseek": { inputPerM: 0.014, outputPerM: 0.028 },
@@ -161,11 +161,11 @@ export function computeCost(provider: string, usage: { inputTokens: number; outp
 ```
 
 **Files:**
-- Create: `src/events/cost-calculator.ts` (~40 lines)
-- Modify: `src/inspector/session-reader.ts` — include per-tool-call cost in snapshot
-- Modify: `src/events/types.ts` — add `cost` field to `model.usage` event payload (optional)
-- Modify: `src/ui/app.js` — display cost per tool call + cumulative in sidebar
-- Modify: `src/events/event-log.ts` — annotate usage events with cost on write (optional; can compute on read)
+- Create: `src/runtime-state/events/cost-calculator.ts` (~40 lines)
+- Modify: `src/interfaces/inspector/session-reader.ts` — include per-tool-call cost in snapshot
+- Modify: `src/runtime-state/events/types.ts` — add `cost` field to `model.usage` event payload (optional)
+- Modify: `src/interfaces/ui/app.js` — display cost per tool call + cumulative in sidebar
+- Modify: `src/runtime-state/events/event-log.ts` — annotate usage events with cost on write (optional; can compute on read)
 
 **Test:** Run a task with DeepSeek, verify cost shows as `$0.0014` per call.
 
@@ -208,8 +208,8 @@ const VISIBLE_EVENTS = [
 ```
 
 **Files:**
-- Modify: `src/server/server.ts` — replace `TOOL_EVENT_FILTER` with expanded `VISIBLE_EVENTS`
-- Modify: `src/ui/app.js` — handle new event types in the renderer
+- Modify: `src/interfaces/server/server.ts` — replace `TOOL_EVENT_FILTER` with expanded `VISIBLE_EVENTS`
+- Modify: `src/interfaces/ui/app.js` — handle new event types in the renderer
 
 **Test:** Watch SSE stream during `alix run`, verify agent state changes and non-tool events appear.
 
@@ -226,12 +226,12 @@ const VISIBLE_EVENTS = [
 ```
 
 **Files:**
-- Modify: `src/events/types.ts` — add `SUBAGENT_STARTED`, `SUBAGENT_RESULT` to event types
+- Modify: `src/runtime-state/events/types.ts` — add `SUBAGENT_STARTED`, `SUBAGENT_RESULT` to event types
 - Modify: `src/agents/subagent-manager.ts` — emit `subagent.started` when spawning and `subagent.result` on completion
-- Modify: `src/server/server.ts` — add both to SSE filter
-- Modify: `src/ui/app.js` — render subagent events as nested cards within the parent agent's timeline
+- Modify: `src/interfaces/server/server.ts` — add both to SSE filter
+- Modify: `src/interfaces/ui/app.js` — render subagent events as nested cards within the parent agent's timeline
 
-**UI rendering (in `src/ui/app.js`):**
+**UI rendering (in `src/interfaces/ui/app.js`):**
 ```javascript
 function renderSubagentEvent(event) {
   const { role, taskId, status } = event.payload;

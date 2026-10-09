@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildProfilePatch, applyProfilePatch, PRESERVED_SECTIONS } from "../../src/config/profile-patch.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import type { ProfileData } from "../../src/config/profile-types.js";
+import { buildProfilePatch, applyProfilePatch, PRESERVED_SECTIONS } from "../../src/operations/config/profile-patch.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import type { ProfileData } from "../../src/operations/config/profile-types.js";
 
 function makeMinimalConfig(): AlixConfig {
   return {

@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
-import type { ForecastContent, CorrelationContent } from "../../src/evolution/forecast/contracts/contract.js";
+import type { ForecastContent, CorrelationContent } from "../../src/planning/evolution/forecast/contracts/contract.js";
 import {
   canonicalizeForecast,
   forecastIdFor,
   canonicalizeCorrelation,
   correlationIdFor,
-} from "../../src/evolution/forecast/identity.js";
-import { buildForecast } from "../../src/evolution/forecast/forecast-builder.js";
-import type { DetectorFinding } from "../../src/evolution/forecast/contracts/contract.js";
+} from "../../src/planning/evolution/forecast/identity.js";
+import { buildForecast } from "../../src/planning/evolution/forecast/forecast-builder.js";
+import type { DetectorFinding } from "../../src/planning/evolution/forecast/contracts/contract.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures

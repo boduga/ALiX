@@ -162,12 +162,12 @@ recentWorkspaces?: WorkspaceEntry[];
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/daemon/workspace-registry.ts` | **Create** | `WorkspaceEntry` type, `recordWorkspaceActivity()`, `listWorkspaces()`, `getCurrentWorkspace()` |
-| `src/daemon/daemon-server.ts` | **Modify** | Call `recordWorkspaceActivity()` after task creation |
-| `src/tui/store.ts` | **Modify** | Add `workspaceName`, `workspacePath`, `recentWorkspaces` to `TuiState` |
-| `src/tui/runtime-snapshot.ts` | **Modify** | Read workspace registry, populate workspace fields in snapshot |
-| `src/tui/panel-renderer.ts` | **Modify** | Show workspace name + path in daemon panel |
-| `src/cli/commands/tui.ts` | **Modify** | Show workspace info in welcome banner |
+| `src/operations/daemon/workspace-registry.ts` | **Create** | `WorkspaceEntry` type, `recordWorkspaceActivity()`, `listWorkspaces()`, `getCurrentWorkspace()` |
+| `src/operations/daemon/daemon-server.ts` | **Modify** | Call `recordWorkspaceActivity()` after task creation |
+| `src/interfaces/tui/store.ts` | **Modify** | Add `workspaceName`, `workspacePath`, `recentWorkspaces` to `TuiState` |
+| `src/interfaces/tui/runtime-snapshot.ts` | **Modify** | Read workspace registry, populate workspace fields in snapshot |
+| `src/interfaces/tui/panel-renderer.ts` | **Modify** | Show workspace name + path in daemon panel |
+| `src/interfaces/cli/commands/tui.ts` | **Modify** | Show workspace info in welcome banner |
 | `tests/daemon/workspace-registry.test.ts` | **Create** | Unit tests for workspace registry CRUD + auto-registration |
 | `tests/daemon/daemon-server.test.ts` | **Modify** | One test verifying workspace registry is written on task |
 

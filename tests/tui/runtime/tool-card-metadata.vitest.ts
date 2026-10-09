@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { AlixEvent } from '../../../src/events/types.js';
-import { buildExecutionTrace, IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
-import { ConversationProjection } from '../../../src/tui/workbench/projections/conversation-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { buildExecutionTrace, IncrementalExecutionTraceBuilder } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import { ConversationProjection } from '../../../src/interfaces/tui/workbench/projections/conversation-projection.js';
 
 function event(seq: number, type: string, payload: Record<string, unknown>): AlixEvent {
   return { id: `event-${seq}`, seq, version: 1, sessionId: 'session', actor: 'system',

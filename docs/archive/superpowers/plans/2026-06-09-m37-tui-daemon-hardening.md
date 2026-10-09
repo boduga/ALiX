@@ -12,14 +12,14 @@
 
 | # | Priority | Fix | Files |
 |---|----------|-----|-------|
-| 1 | P0 | Fix panel Enter behavior | `src/cli/commands/tui.ts` |
-| 2 | P0 | Fix dashboard card rendering height | `src/tui/render.ts` |
-| 3 | P0 | Validate daemon socket path | `src/tui/daemon-client.ts` |
-| 4 | P1 | Buffer JSON-line stream parsing | `src/tui/daemon-client.ts` |
-| 5 | P1 | Preserve daemonPid, sopItems in store | `src/tui/store.ts`, `src/tui/runtime-snapshot.ts` |
-| 6 | P1 | Extract panel rendering from command loop | `src/tui/panel-renderer.ts`, `src/cli/commands/tui.ts` |
+| 1 | P0 | Fix panel Enter behavior | `src/interfaces/cli/commands/tui.ts` |
+| 2 | P0 | Fix dashboard card rendering height | `src/interfaces/tui/render.ts` |
+| 3 | P0 | Validate daemon socket path | `src/interfaces/tui/daemon-client.ts` |
+| 4 | P1 | Buffer JSON-line stream parsing | `src/interfaces/tui/daemon-client.ts` |
+| 5 | P1 | Preserve daemonPid, sopItems in store | `src/interfaces/tui/store.ts`, `src/interfaces/tui/runtime-snapshot.ts` |
+| 6 | P1 | Extract panel rendering from command loop | `src/interfaces/tui/panel-renderer.ts`, `src/interfaces/cli/commands/tui.ts` |
 | 7 | P2 | Add dashboard/box ANSI-width tests | `tests/tui/box.test.ts`, `tests/tui/dashboard-renderer.test.ts` |
-| 8 | P2 | Daemon stop removes PID file | `src/daemon/daemon-manager.ts` |
+| 8 | P2 | Daemon stop removes PID file | `src/operations/daemon/daemon-manager.ts` |
 
 ---
 

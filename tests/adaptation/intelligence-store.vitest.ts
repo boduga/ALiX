@@ -8,8 +8,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, readdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { IntelligenceStore } from "../../src/adaptation/intelligence-store.js";
-import type { IntelligenceReport } from "../../src/adaptation/intelligence-types.js";
+import { IntelligenceStore } from "../../src/planning/adaptation/intelligence-store.js";
+import type { IntelligenceReport } from "../../src/planning/adaptation/intelligence-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -28,7 +28,7 @@ alix governance audit report [--section all|trends|anomalies|effectiveness] [--s
 | File | Change |
 |------|--------|
 | `src/governance/report-orchestrator.ts` | New — pure composition |
-| `src/cli/commands/governance.ts` | Add `case "report"` + handler |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "report"` + handler |
 | `tests/governance/report-orchestrator.test.ts` | New — unit tests |
 | `tests/cli/audit-report.test.ts` | New — integration tests |
 

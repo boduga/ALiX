@@ -1,9 +1,9 @@
 # Keyboard Navigation Controls for Workbench Input
 
-This document describes the keyboard shortcuts handled by the **Workbench** input system (located in `src/tui/workbench/input/`).
+This document describes the keyboard shortcuts handled by the **Workbench** input system (located in `src/interfaces/tui/workbench/input/`).
 
 ## Overview
-The core routing logic lives in `src/tui/workbench/input/input-router.ts`. It maps a raw key string and the current UI context to a **WorkbenchInputIntent** that drives UI actions.
+The core routing logic lives in `src/interfaces/tui/workbench/input/input-router.ts`. It maps a raw key string and the current UI context to a **WorkbenchInputIntent** that drives UI actions.
 
 ## Key Bindings
 | Key | Context Conditions | Action (Intent) | Description |
@@ -47,4 +47,4 @@ The core routing logic lives in `src/tui/workbench/input/input-router.ts`. It ma
 These flags are part of `WorkbenchInputContext` (see `input-router.ts`). The routing function evaluates them in order to decide which intent to emit.
 
 ---
-*Generated from the routing logic in `src/tui/workbench/input/input-router.ts` and command parsing in `src/tui/workbench/input/builtin-command.ts`.*
+*Generated from the routing logic in `src/interfaces/tui/workbench/input/input-router.ts` and command parsing in `src/interfaces/tui/workbench/input/builtin-command.ts`.*

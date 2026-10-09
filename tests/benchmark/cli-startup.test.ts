@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findRepoRoot, resolveBuiltCliPath } from "../../src/benchmark/cases/cli-startup.js";
+import { findRepoRoot, resolveBuiltCliPath } from "../../src/operations/benchmark/cases/cli-startup.js";
 
 const tempDirs: string[] = [];
 
@@ -17,7 +17,7 @@ describe("cli startup benchmark path resolution", () => {
   it("walks upward until package.json is found", () => {
     const root = mkdtempSync(join(tmpdir(), "alix-benchmark-root-"));
     tempDirs.push(root);
-    const nested = join(root, "dist", "src", "benchmark", "cases");
+    const nested = join(root, "dist", "src", "operations", "benchmark", "cases");
 
     writeFileSync(join(root, "package.json"), "{}");
     writeFileSync(join(root, "marker"), "");
@@ -29,7 +29,7 @@ describe("cli startup benchmark path resolution", () => {
   it("ignores a package.json inside dist", () => {
     const root = mkdtempSync(join(tmpdir(), "alix-benchmark-root-"));
     tempDirs.push(root);
-    const nested = join(root, "dist", "src", "benchmark", "cases");
+    const nested = join(root, "dist", "src", "operations", "benchmark", "cases");
 
     writeFileSync(join(root, "package.json"), "{}");
     mkdirSync(join(root, "dist"), { recursive: true });
@@ -41,7 +41,7 @@ describe("cli startup benchmark path resolution", () => {
   it("resolves built CLI from a compiled benchmark case directory", () => {
     const root = mkdtempSync(join(tmpdir(), "alix-benchmark-root-"));
     tempDirs.push(root);
-    const compiledCaseDir = join(root, "dist", "src", "benchmark", "cases");
+    const compiledCaseDir = join(root, "dist", "src", "operations", "benchmark", "cases");
 
     writeFileSync(join(root, "package.json"), "{}");
 

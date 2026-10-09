@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeBindingKey, computeOwnershipClaimsHash } from "../../src/approvals/approval-binding.js";
+import { computeBindingKey, computeOwnershipClaimsHash } from "../../src/governance/approvals/approval-binding.js";
 
 describe("computeBindingKey", () => {
   it("produces stable key for same inputs", () => {

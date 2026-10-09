@@ -1,7 +1,7 @@
 // tests/tui/diff-render.test.ts
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
-import { diffLines, renderDiff, type DiffOp } from "../../src/tui/diff-render.js";
+import { diffLines, renderDiff, type DiffOp } from "../../src/interfaces/tui/diff-render.js";
 
 describe("diffLines", () => {
   it("returns empty ops for identical strings", () => {

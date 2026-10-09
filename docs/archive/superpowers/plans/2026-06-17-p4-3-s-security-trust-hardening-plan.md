@@ -279,7 +279,7 @@ Create a reproducible pre-security baseline and an inventory of every route, con
 
 ### Route inventory
 
-- [ ] Enumerate every path handled in `src/server/server.ts`.
+- [ ] Enumerate every path handled in `src/interfaces/server/server.ts`.
 - [ ] Enumerate every path handled by coordination routes.
 - [ ] Enumerate every path handled by observability routes.
 - [ ] Enumerate static asset routes.
@@ -373,7 +373,7 @@ Remove the highest-risk current exposure: an unauthenticated Inspector that bind
 Files:
 
 ```text
-src/config/defaults.ts
+src/operations/config/defaults.ts
 tests/config-loader.test.ts
 tests/config/fresh-install-onboarding.test.ts
 ```
@@ -392,10 +392,10 @@ Tasks:
 Files:
 
 ```text
-src/config/schema.ts
-src/config/defaults.ts
-src/config/loader.ts
-src/config/validator.ts
+src/operations/config/schema.ts
+src/operations/config/defaults.ts
+src/operations/config/loader.ts
+src/operations/config/validator.ts
 tests/config-loader.test.ts
 tests/config-validator.test.ts
 ```
@@ -427,8 +427,8 @@ Tasks:
 Files:
 
 ```text
-src/security/inspector/host-policy.ts
-src/server/server.ts
+src/governance/security/inspector/host-policy.ts
+src/interfaces/server/server.ts
 tests/security/inspector/host-policy.test.ts
 tests/server/server.test.ts
 ```
@@ -450,8 +450,8 @@ Tasks:
 Files:
 
 ```text
-src/server/server.ts
-src/server/security-headers.ts
+src/interfaces/server/server.ts
+src/interfaces/server/security-headers.ts
 tests/server/server.test.ts
 ```
 
@@ -471,9 +471,9 @@ Tasks:
 Files:
 
 ```text
-src/security/inspector/remote-access-policy.ts
+src/governance/security/inspector/remote-access-policy.ts
 src/cli.ts
-src/cli/commands/security.ts
+src/interfaces/cli/commands/security.ts
 tests/cli/serve-security.test.ts
 ```
 
@@ -554,12 +554,12 @@ Create a reusable, non-throwing, bounded detector and redactor that can protect 
 ## 10.2 Design deliverables
 
 ```text
-src/security/redaction/classifications.ts
-src/security/redaction/secret-detector.ts
-src/security/redaction/redaction-policy.ts
-src/security/redaction/redactor.ts
-src/security/redaction/profiles.ts
-src/security/redaction/safe-error.ts
+src/governance/security/redaction/classifications.ts
+src/governance/security/redaction/secret-detector.ts
+src/governance/security/redaction/redaction-policy.ts
+src/governance/security/redaction/redactor.ts
+src/governance/security/redaction/profiles.ts
+src/governance/security/redaction/safe-error.ts
 tests/security/redaction/
 ```
 
@@ -671,11 +671,11 @@ Extend the current P4.2 observability system instead of creating a parallel moni
 ## 11.2 Files
 
 ```text
-src/observability/metric-registry.ts
-src/observability/security-telemetry.ts
-src/observability/telemetry-envelope.ts
-src/observability/metrics-store.ts
-src/observability/observability-config.ts
+src/operations/observability/metric-registry.ts
+src/operations/observability/security-telemetry.ts
+src/operations/observability/telemetry-envelope.ts
+src/operations/observability/metrics-store.ts
+src/operations/observability/observability-config.ts
 tests/observability/metric-registry.test.ts
 tests/observability/security-telemetry.test.ts
 tests/observability/metrics-store.test.ts
@@ -772,14 +772,14 @@ Replace scattered route security assumptions with one complete, testable, defaul
 ## 12.2 Files
 
 ```text
-src/security/inspector/route-policy.ts
-src/security/inspector/security-context.ts
-src/security/inspector/authorization.ts
-src/server/secure-response.ts
-src/server/security-middleware.ts
-src/server/server.ts
-src/server/coordination-routes.ts
-src/observability/observability-routes.ts
+src/governance/security/inspector/route-policy.ts
+src/governance/security/inspector/security-context.ts
+src/governance/security/inspector/authorization.ts
+src/interfaces/server/secure-response.ts
+src/interfaces/server/security-middleware.ts
+src/interfaces/server/server.ts
+src/interfaces/server/coordination-routes.ts
+src/operations/observability/observability-routes.ts
 tests/security/inspector/route-policy.test.ts
 tests/security/inspector/authorization.test.ts
 tests/server/route-coverage.test.ts
@@ -880,11 +880,11 @@ Add user-scoped, hash-only Inspector credentials for API clients.
 ## 13.2 Files
 
 ```text
-src/security/inspector/auth-store.ts
-src/security/inspector/auth-service.ts
-src/security/inspector/token-format.ts
-src/security/platform/user-state-paths.ts
-src/cli/commands/security.ts
+src/governance/security/inspector/auth-store.ts
+src/governance/security/inspector/auth-service.ts
+src/governance/security/inspector/token-format.ts
+src/governance/security/platform/user-state-paths.ts
+src/interfaces/cli/commands/security.ts
 src/cli.ts
 tests/security/inspector/auth-store.test.ts
 tests/security/inspector/auth-service.test.ts
@@ -995,12 +995,12 @@ Support browser REST and native EventSource without query-string or browser-stor
 ## 14.2 Files
 
 ```text
-src/security/inspector/browser-session-store.ts
-src/security/inspector/auth-service.ts
-src/server/auth-routes.ts
-src/ui/index.html
-src/ui/app.js
-src/ui/styles.css
+src/governance/security/inspector/browser-session-store.ts
+src/governance/security/inspector/auth-service.ts
+src/interfaces/server/auth-routes.ts
+src/interfaces/ui/index.html
+src/interfaces/ui/app.js
+src/interfaces/ui/styles.css
 tests/security/inspector/browser-session.test.ts
 tests/server/auth-routes.test.ts
 tests/inspector-stream.test.ts
@@ -1098,17 +1098,17 @@ Harden the complete network boundary and bound abusive request state.
 ## 15.2 Files
 
 ```text
-src/security/inspector/host-policy.ts
-src/security/inspector/origin-policy.ts
-src/security/inspector/client-address.ts
-src/security/inspector/remote-access-policy.ts
-src/security/inspector/rate-limiter.ts
-src/security/inspector/connection-limiter.ts
-src/server/http-limits.ts
-src/server/security-middleware.ts
-src/config/schema.ts
-src/config/defaults.ts
-src/config/validator.ts
+src/governance/security/inspector/host-policy.ts
+src/governance/security/inspector/origin-policy.ts
+src/governance/security/inspector/client-address.ts
+src/governance/security/inspector/remote-access-policy.ts
+src/governance/security/inspector/rate-limiter.ts
+src/governance/security/inspector/connection-limiter.ts
+src/interfaces/server/http-limits.ts
+src/interfaces/server/security-middleware.ts
+src/operations/config/schema.ts
+src/operations/config/defaults.ts
+src/operations/config/validator.ts
 tests/security/inspector/
 tests/stress/inspector-abuse.test.ts
 ```
@@ -1225,11 +1225,11 @@ Remove per-client expensive work, whole-file polling, and unbounded slow-client 
 ## 16.2 Files
 
 ```text
-src/server/secure-sse.ts
-src/server/observability-stream-hub.ts
-src/server/session-stream-hub.ts
-src/server/observability-stream.ts
-src/server/server.ts
+src/interfaces/server/secure-sse.ts
+src/interfaces/server/observability-stream-hub.ts
+src/interfaces/server/session-stream-hub.ts
+src/interfaces/server/observability-stream.ts
+src/interfaces/server/server.ts
 tests/server/observability-stream.test.ts
 tests/inspector-stream.test.ts
 tests/stress/inspector-abuse.test.ts
@@ -1350,11 +1350,11 @@ Make audit records tamper-evident and prevent chain forks under concurrent CLI a
 ## 17.2 Files
 
 ```text
-src/security/audit/canonical-json.ts
-src/security/audit/audit-lock.ts
-src/security/audit/audit-chain-writer.ts
-src/audit/audit-store.ts
-src/audit/audit-types.ts
+src/governance/security/audit/canonical-json.ts
+src/governance/security/audit/audit-lock.ts
+src/governance/security/audit/audit-chain-writer.ts
+src/governance/audit/audit-store.ts
+src/governance/audit/audit-types.ts
 tests/security/audit/canonical-json.test.ts
 tests/security/audit/audit-chain-writer.test.ts
 tests/stress/audit-concurrency.test.ts
@@ -1464,10 +1464,10 @@ Detect alteration, deletion, insertion, reordering, duplication, malformed lines
 ## 18.2 Files
 
 ```text
-src/security/audit/audit-verifier.ts
-src/security/audit/audit-checkpoint.ts
-src/audit/audit-store.ts
-src/cli/commands/security.ts
+src/governance/security/audit/audit-verifier.ts
+src/governance/security/audit/audit-checkpoint.ts
+src/governance/audit/audit-store.ts
+src/interfaces/cli/commands/security.ts
 src/cli.ts
 tests/security/audit/audit-verifier.test.ts
 tests/security/audit/audit-checkpoint.test.ts
@@ -1574,14 +1574,14 @@ Remove active credentials from project configuration and provide a safe compatib
 ## 19.2 Files
 
 ```text
-src/security/credentials/credential-store.ts
-src/security/credentials/credential-reference.ts
-src/security/credentials/credential-migration.ts
-src/security/platform/user-config-paths.ts
-src/config/schema.ts
-src/config/loader.ts
-src/config/validator.ts
-src/cli/commands/security.ts
+src/governance/security/credentials/credential-store.ts
+src/governance/security/credentials/credential-reference.ts
+src/governance/security/credentials/credential-migration.ts
+src/governance/security/platform/user-config-paths.ts
+src/operations/config/schema.ts
+src/operations/config/loader.ts
+src/operations/config/validator.ts
+src/interfaces/cli/commands/security.ts
 tests/security/credentials/
 tests/config-loader.test.ts
 ```
@@ -1687,11 +1687,11 @@ Ensure every production config change passes through one attributable, testable 
 ## 20.2 Files
 
 ```text
-src/config/config-mutation-service.ts
-src/security/config/config-provenance.ts
-src/security/config/config-digest.ts
+src/operations/config/config-mutation-service.ts
+src/governance/security/config/config-provenance.ts
+src/governance/security/config/config-digest.ts
 src/cli.ts
-src/cli/commands/init.ts
+src/interfaces/cli/commands/init.ts
 src/models/model-install.ts
 MCP/model/profile config writer files
 tests/security/config/config-mutation-service.test.ts
@@ -1786,14 +1786,14 @@ Verify security-sensitive configuration before execution and detect stale, incom
 ## 21.2 Files
 
 ```text
-src/security/config/config-projection.ts
-src/security/config/config-signing.ts
-src/security/config/config-key-store.ts
-src/security/config/config-version-store.ts
-src/security/config/trust-policy.ts
-src/config/loader.ts
-src/config/config-mutation-service.ts
-src/cli/commands/security.ts
+src/governance/security/config/config-projection.ts
+src/governance/security/config/config-signing.ts
+src/governance/security/config/config-key-store.ts
+src/governance/security/config/config-version-store.ts
+src/governance/security/config/trust-policy.ts
+src/operations/config/loader.ts
+src/operations/config/config-mutation-service.ts
+src/interfaces/cli/commands/security.ts
 tests/security/config/
 ```
 
@@ -1909,9 +1909,9 @@ Make dependency installation, exception handling, package contents, and publicat
 ## 22.2 Files
 
 ```text
-src/security/supply-chain/dependency-policy.ts
-src/security/supply-chain/security-exceptions.ts
-src/security/supply-chain/package-verifier.ts
+src/governance/security/supply-chain/dependency-policy.ts
+src/governance/security/supply-chain/security-exceptions.ts
+src/governance/security/supply-chain/package-verifier.ts
 security/lifecycle-script-allowlist.json
 security/audit-exceptions.json
 scripts/verify-lifecycle-scripts.mjs
@@ -2045,12 +2045,12 @@ Expose security posture through the current observability stack without making h
 ## 23.2 Files
 
 ```text
-src/observability/health-snapshot.ts
-src/observability/alert-engine.ts
-src/observability/security-telemetry.ts
-src/observability/observability-config.ts
-src/tui/health-panel.ts
-src/server/observability-stream-hub.ts
+src/operations/observability/health-snapshot.ts
+src/operations/observability/alert-engine.ts
+src/operations/observability/security-telemetry.ts
+src/operations/observability/observability-config.ts
+src/interfaces/tui/health-panel.ts
+src/interfaces/server/observability-stream-hub.ts
 tests/observability/security-health.test.ts
 tests/observability/security-alerts.test.ts
 ```
@@ -2126,10 +2126,10 @@ Turn security claims into executable checks with stable evidence and exit codes.
 ## 24.2 Files
 
 ```text
-src/security/acceptance/security-check-registry.ts
-src/security/acceptance/security-doctor.ts
-src/security/acceptance/security-report.ts
-src/cli/commands/security.ts
+src/governance/security/acceptance/security-check-registry.ts
+src/governance/security/acceptance/security-doctor.ts
+src/governance/security/acceptance/security-report.ts
+src/interfaces/cli/commands/security.ts
 src/cli.ts
 package.json
 scripts/release-gate.sh

@@ -17,9 +17,9 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/tui/workspace-manager.ts` | **Create** | `WorkspaceManager` class, resolution logic, `WorkspaceCommandResult`/`WorkspaceMatch` types |
-| `src/tui/store.ts` | **Modify** | Add `sessionDir` to `TuiState` |
-| `src/cli/commands/tui.ts` | **Modify** | Wire WorkspaceManager into input loop, add `softReinitWorkspace()`, update prompt to `[name] > ` |
+| `src/interfaces/tui/workspace-manager.ts` | **Create** | `WorkspaceManager` class, resolution logic, `WorkspaceCommandResult`/`WorkspaceMatch` types |
+| `src/interfaces/tui/store.ts` | **Modify** | Add `sessionDir` to `TuiState` |
+| `src/interfaces/cli/commands/tui.ts` | **Modify** | Wire WorkspaceManager into input loop, add `softReinitWorkspace()`, update prompt to `[name] > ` |
 | `tests/tui/workspace-manager.test.ts` | **Create** | 13+ unit tests for parsing, resolution, ambiguity |
 
 ---
@@ -27,7 +27,7 @@
 ### Task 1: Create WorkspaceManager
 
 **Files:**
-- Create: `src/tui/workspace-manager.ts`
+- Create: `src/interfaces/tui/workspace-manager.ts`
 
 - [ ] **Step 1: Write the WorkspaceManager class**
 
@@ -275,7 +275,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/tui/workspace-manager.ts
+git add src/interfaces/tui/workspace-manager.ts
 git commit -m "feat(tui): add WorkspaceManager class with /workspaces /switch /open commands"
 ```
 
@@ -284,7 +284,7 @@ git commit -m "feat(tui): add WorkspaceManager class with /workspaces /switch /o
 ### Task 2: Add sessionDir to TuiState
 
 **Files:**
-- Modify: `src/tui/store.ts`
+- Modify: `src/interfaces/tui/store.ts`
 
 - [ ] **Step 1: Add sessionDir to TuiState interface**
 
@@ -315,7 +315,7 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/tui/store.ts
+git add src/interfaces/tui/store.ts
 git commit -m "feat(tui): add sessionDir to TuiState for workspace re-init tracking"
 ```
 
@@ -324,7 +324,7 @@ git commit -m "feat(tui): add sessionDir to TuiState for workspace re-init track
 ### Task 3: Wire WorkspaceManager into runTui()
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add imports**
 
@@ -444,7 +444,7 @@ Expected: no errors.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): wire WorkspaceManager into input loop, add softReinitWorkspace, update prompt to [name] >"
 ```
 
@@ -463,8 +463,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { WorkspaceManager, promptLabel, type WorkspaceManagerDeps } from "../../src/tui/workspace-manager.js";
-import type { WorkspaceEntry } from "../../src/daemon/workspace-registry.js";
+import { WorkspaceManager, promptLabel, type WorkspaceManagerDeps } from "../../src/interfaces/tui/workspace-manager.js";
+import type { WorkspaceEntry } from "../../src/operations/daemon/workspace-registry.js";
 
 describe("WorkspaceManager", () => {
   let ws1: WorkspaceEntry;
@@ -752,9 +752,9 @@ git diff --stat HEAD~4..HEAD
 ```
 
 Expected files:
-- `src/tui/workspace-manager.ts` (new)
-- `src/tui/store.ts` (modified)
-- `src/cli/commands/tui.ts` (modified)
+- `src/interfaces/tui/workspace-manager.ts` (new)
+- `src/interfaces/tui/store.ts` (modified)
+- `src/interfaces/cli/commands/tui.ts` (modified)
 - `tests/tui/workspace-manager.test.ts` (new)
 
 - [ ] **Step 3: Push and tag**

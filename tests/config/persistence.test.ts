@@ -7,9 +7,9 @@ import { join } from "node:path";
 import {
   withoutDerivedModelProjections,
   writeConfig,
-} from "../../src/config/persistence.js";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
-import type { AlixConfig, PersistedAlixConfig } from "../../src/config/schema.js";
+} from "../../src/operations/config/persistence.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
+import type { AlixConfig, PersistedAlixConfig } from "../../src/operations/config/schema.js";
 
 // Compile-time fixture for the brand tripwires: `declare` emits nothing at
 // runtime, so `rawConfig` is undefined when the tests execute — the bodies

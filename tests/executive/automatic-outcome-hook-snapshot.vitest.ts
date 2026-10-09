@@ -28,12 +28,12 @@ import { createHash } from "node:crypto";
 import {
   AutomaticOutcomeEvaluator,
   createAutomaticOutcomeEvaluator,
-} from "../../src/executive/automatic-outcome-hook.js";
-import { OutcomeReportStore } from "../../src/executive/outcome-store.js";
-import { ExecutiveTrendStore } from "../../src/executive/trend-store.js";
-import { ExecutiveSnapshotStore } from "../../src/executive/executive-snapshot-store.js";
-import { createDefaultSnapshotProvider } from "../../src/executive/executive-snapshot-provider.js";
-import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/executive/executive-plan-types.js";
+} from "../../src/execution/executive/automatic-outcome-hook.js";
+import { OutcomeReportStore } from "../../src/execution/executive/outcome-store.js";
+import { ExecutiveTrendStore } from "../../src/execution/executive/trend-store.js";
+import { ExecutiveSnapshotStore } from "../../src/execution/executive/executive-snapshot-store.js";
+import { createDefaultSnapshotProvider } from "../../src/execution/executive/executive-snapshot-provider.js";
+import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/execution/executive/executive-plan-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -10,7 +10,7 @@
  * @module
  */
 
-import { type ExecutionEvidence } from "../runtime/contracts/execution-intent-contract.js";
+import { type ExecutionEvidence } from "../runtime-state/runtime/contracts/execution-intent-contract.js";
 import {
   type ExecutionRef,
   type ComplianceExecutionSummary,

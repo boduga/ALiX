@@ -9,11 +9,11 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { DefaultGovernanceIntakeAdapter } from "../../../src/evolution/pattern-discovery/governance-intake-adapter.js";
-import { DefaultEvolutionProposalGenerator } from "../../../src/evolution/pattern-discovery/evolution-proposal-generator.js";
-import { EvolutionStateMachine, DuplicateEvolutionError } from "../../../src/evolution/evolution-state-machine.js";
-import { EvolutionState } from "../../../src/evolution/contracts/evolution-contract.js";
-import type { EvolutionCandidate } from "../../../src/evolution/contracts/pattern-discovery-contract.js";
+import { DefaultGovernanceIntakeAdapter } from "../../../src/planning/evolution/pattern-discovery/governance-intake-adapter.js";
+import { DefaultEvolutionProposalGenerator } from "../../../src/planning/evolution/pattern-discovery/evolution-proposal-generator.js";
+import { EvolutionStateMachine, DuplicateEvolutionError } from "../../../src/planning/evolution/evolution-state-machine.js";
+import { EvolutionState } from "../../../src/planning/evolution/contracts/evolution-contract.js";
+import type { EvolutionCandidate } from "../../../src/planning/evolution/contracts/pattern-discovery-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

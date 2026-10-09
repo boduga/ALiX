@@ -8,7 +8,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { importedBindings } from "../helpers/import-graph.js";
-import type { IfamasApprovalContext } from "../../src/tui/ifamas-panel.js";
+import type { IfamasApprovalContext } from "../../src/interfaces/tui/ifamas-panel.js";
 
 /** Display-layer approval shape exercised by the local renderer simulation below. */
 interface PanelApprovalRecord {
@@ -160,7 +160,7 @@ describe("IFÁ-MAS approval context", () => {
     assert.equal(typeof ctx.chronicleRefCount, "number");
 
     // Verify the source file has no import of ToolExecutor/PolicyGate/ApprovalStore
-    const bindings = importedBindings("src/tui/ifamas-panel.ts");
+    const bindings = importedBindings("src/interfaces/tui/ifamas-panel.ts");
     for (const forbidden of ["ToolExecutor", "PolicyGate", "ApprovalStore"]) {
       assert.ok(!bindings.has(forbidden), `${forbidden} must not be imported`);
     }

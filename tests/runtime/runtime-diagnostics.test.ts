@@ -2,9 +2,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildRuntimeDiagnostic, formatRuntimeDiagnostic, createMultiplexDiagnosticSink } from "../../src/runtime/runtime-diagnostics.js";
-import { withTimeout, SideEffectTimeoutError } from "../../src/runtime/side-effect-timeout.js";
-import { withRetry, RetryError } from "../../src/runtime/retry.js";
+import { buildRuntimeDiagnostic, formatRuntimeDiagnostic, createMultiplexDiagnosticSink } from "../../src/runtime-state/runtime/runtime-diagnostics.js";
+import { withTimeout, SideEffectTimeoutError } from "../../src/runtime-state/runtime/side-effect-timeout.js";
+import { withRetry, RetryError } from "../../src/runtime-state/runtime/retry.js";
 
 // ---------------------------------------------------------------------------
 // Diagnostic helpers

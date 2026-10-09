@@ -118,7 +118,7 @@ Test cases (must include all):
 ### Task 3: Add CLI subcommand
 
 **Files:**
-- Modify: `src/cli/commands/governance.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts`
 
 Add `case "policy-suggestions":`, `runPolicySuggestions` handler (reads both `FileLedgerStore` + `FileFailureMemoryStore`, window filter on both, calls `computePolicySuggestions`), and renderer with confidence coloring + advisory banner ("advisory only — no policy files modified"). JSON output: `{ policySuggestions: [...] }`.
 

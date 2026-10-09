@@ -6,13 +6,13 @@
  * intentional: bump the baseline as part of the change, after updating the
  * plan that authorizes the modification.
  *
- * After P7.5p.1c, `src/adaptation/outcome-types.ts` is allowed to differ
+ * After P7.5p.1c, `src/planning/adaptation/outcome-types.ts` is allowed to differ
  * from the baseline by exactly the addition of the `confidence?: number`
  * field on `OutcomeRecord` (via the Omit<DecisionArtifact, "confidence">
  * & { confidence?: number } pattern). Any other change to that file fails
  * the test.
  *
- * After P7.5p.2c, `src/adaptation/outcome-types.ts` is allowed to
+ * After P7.5p.2c, `src/planning/adaptation/outcome-types.ts` is allowed to
  * additionally include the `riskScoreId?: string` field on
  * `OutcomeRecord` (NOT on `OutcomeArtifact` — that remains an Omit
  * wrapper for `confidence` only). The captured `ALLOWED_DELTA_CONTENT`
@@ -40,16 +40,16 @@ const BASELINE_FILE = "p8-5a-0-unchanged-types.json";
 
 // 5 files that MUST remain byte-identical to the P8.5a.0 baseline.
 const STRICT_PROTECTED = [
-  "src/adaptation/risk-score-types.ts",
-  "src/adaptation/governance-review-types.ts",
-  "src/adaptation/adaptation-types.ts",
-  "src/adaptation/decision-types.ts",
-  "src/learning/learning-types.ts",
+  "src/planning/adaptation/risk-score-types.ts",
+  "src/planning/adaptation/governance-review-types.ts",
+  "src/planning/adaptation/adaptation-types.ts",
+  "src/planning/adaptation/decision-types.ts",
+  "src/planning/learning/learning-types.ts",
 ];
 
 // 1 file that may differ from the P8.5a.0 baseline by EXACTLY the
 // approved P7.5p.1 addition.
-const ALLOWED_DELTA_PROTECTED = "src/adaptation/outcome-types.ts";
+const ALLOWED_DELTA_PROTECTED = "src/planning/adaptation/outcome-types.ts";
 
 // The post-change content is captured at module-load time. This is
 // the "approved delta" — if the file changes again, the test fails

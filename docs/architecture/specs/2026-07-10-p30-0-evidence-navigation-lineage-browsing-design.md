@@ -214,14 +214,14 @@ alix governance lineage list [--kind <signalKind>] [--outcome <outcomeType>] [--
 |-------|------|---------|
 | P30.1 | `src/governance/governance-lineage-types.ts` | Lineage types |
 | P30.2 | `src/governance/governance-lineage-builder.ts` | Pure lineage builder |
-| P30.3 | `src/cli/commands/governance-lineage.ts` | CLI handler |
+| P30.3 | `src/interfaces/cli/commands/governance-lineage.ts` | CLI handler |
 | P30.4 | `docs/architecture/checkpoints/<date>-p30-4-*.md` | Checkpoint |
 
 ### 8.2 Touched Files
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "lineage"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "lineage"` dispatch |
 
 ### 8.3 Untouched Files
 

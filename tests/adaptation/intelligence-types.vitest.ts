@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { MINIMUM_BUCKET_SIZE } from "../../src/adaptation/intelligence-types.js";
+import { MINIMUM_BUCKET_SIZE } from "../../src/planning/adaptation/intelligence-types.js";
 import type {
   EnrichedProposal,
   BucketStat,
@@ -17,7 +17,7 @@ import type {
   ConfidenceCalibration,
   IntelligenceReport,
   BucketReference,
-} from "../../src/adaptation/intelligence-types.js";
+} from "../../src/planning/adaptation/intelligence-types.js";
 
 describe("MINIMUM_BUCKET_SIZE", () => {
   it("defaults to 5", () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { ScopeTracker, TaskScope, Expansion, ChangeEvaluation } from "../../src/autonomy/scope-tracker.js";
+import { ScopeTracker, TaskScope, Expansion, ChangeEvaluation } from "../../src/planning/autonomy/scope-tracker.js";
 
 describe("ScopeTracker", () => {
   let tracker: ScopeTracker;
@@ -38,26 +38,26 @@ describe("ScopeTracker", () => {
     it("should not detect expansion when files are within scope", () => {
       const scope: TaskScope = {
         goal: "Refactor utils",
-        files: ["src/utils/math.ts", "src/utils/string.ts"],
+        files: ["src/operations/utils/math.ts", "src/operations/utils/string.ts"],
       };
       tracker.setInitialScope(scope);
       // No error thrown means no significant expansion detected
       expect(() => {
-        tracker.checkExpansion({ files: ["src/utils/math.ts"] });
+        tracker.checkExpansion({ files: ["src/operations/utils/math.ts"] });
       }).not.toThrow();
     });
 
     it("should detect when accessing files outside scope", () => {
       const scope: TaskScope = {
         goal: "Refactor utils",
-        files: ["src/utils/math.ts"],
+        files: ["src/operations/utils/math.ts"],
       };
       tracker.setInitialScope(scope);
       // Accessing a file outside scope should not throw (just tracks it)
-      tracker.checkExpansion({ files: ["src/utils/math.ts", "src/utils/string.ts"] });
+      tracker.checkExpansion({ files: ["src/operations/utils/math.ts", "src/operations/utils/string.ts"] });
       const expansions = tracker.getExpansions();
       expect(expansions.length).toBe(1);
-      expect(expansions[0].additionalFiles).toContain("src/utils/string.ts");
+      expect(expansions[0].additionalFiles).toContain("src/operations/utils/string.ts");
     });
 
     it("should record original files and new files on expansion", () => {

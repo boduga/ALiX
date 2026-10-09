@@ -4,9 +4,9 @@ import {
   TUI_SLASH_COMMANDS,
   CLI_COMMANDS,
   renderSelfCapabilitySection,
-} from "../../src/agent/self-capabilities.js";
-import { parseWorkbenchBuiltinCommand } from "../../src/tui/workbench/input/builtin-command.js";
-import { setupSystemPrompt } from "../../src/agent/session/setup.js";
+} from "../../src/agents/agent/self-capabilities.js";
+import { parseWorkbenchBuiltinCommand } from "../../src/interfaces/tui/workbench/input/builtin-command.js";
+import { setupSystemPrompt } from "../../src/agents/agent/session/setup.js";
 
 describe("self capabilities", () => {
   it("renders every CLI and TUI command", () => {

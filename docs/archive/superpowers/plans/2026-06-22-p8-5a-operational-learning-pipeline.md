@@ -15,19 +15,19 @@
 These apply to every task in this plan. The implementer MUST honor them verbatim.
 
 1. **No modification of existing artifact types.** The following files MUST remain byte-identical to their state at `b232e395` (P8 merge commit):
-   - `src/adaptation/outcome-types.ts`
-   - `src/adaptation/risk-score-types.ts`
-   - `src/adaptation/governance-review-types.ts`
-   - `src/adaptation/adaptation-types.ts`
-   - `src/adaptation/decision-types.ts`
-   - `src/learning/learning-types.ts`
+   - `src/planning/adaptation/outcome-types.ts`
+   - `src/planning/adaptation/risk-score-types.ts`
+   - `src/planning/adaptation/governance-review-types.ts`
+   - `src/planning/adaptation/adaptation-types.ts`
+   - `src/planning/adaptation/decision-types.ts`
+   - `src/planning/learning/learning-types.ts`
    - Test: `tests/learning/unchanged-types-invariance.vitest.ts` (Task 3).
 
 2. **EvidenceChainStore is append-only.** Methods allowed: `appendChain`, `getChainForRoot`, `listChains`. Methods forbidden: `delete`, `update`, `clear`, `truncate`, `setChain`, `replaceChain`, `modifySource`, `writeBack`. Test: store sentinel (Task 3).
 
 3. **No source-artifact mutation.** The store MUST NOT accept an existing artifact as a mutable parameter, MUST NOT have a method that returns a writable reference to a stored chain, and MUST NOT re-write a chain's content after `appendChain` returns. The chain is a record; the source artifacts are facts. Test: store sentinel (Task 3).
 
-4. **No forbidden imports in `src/learning/evidence-chain*` and `src/learning/forward-ref-extractors*`.** Forbidden: `ProposalStore`, `ApprovalGate`, `apply*`, `AutomaticProposalGenerator`, `writeFileSync` (for source-artifact paths), `ApproveCommand`, `ApplyCommand`. The chain layer is read-only relative to the governance lifecycle. Test: imports sentinel (Task 3).
+4. **No forbidden imports in `src/planning/learning/evidence-chain*` and `src/planning/learning/forward-ref-extractors*`.** Forbidden: `ProposalStore`, `ApprovalGate`, `apply*`, `AutomaticProposalGenerator`, `writeFileSync` (for source-artifact paths), `ApproveCommand`, `ApplyCommand`. The chain layer is read-only relative to the governance lifecycle. Test: imports sentinel (Task 3).
 
 5. **Default `alix explain` depth = 5, max cap = 12.** The depth argument is clamped to `[1, 12]`. The default is 5. (Note: `alix explain` itself ships in P8.5c; the depth constant lives in `evidence-chain-types.ts` and is referenced by both extractors and the future CLI.)
 
@@ -49,9 +49,9 @@ This plan creates or modifies these files:
 
 | File | Role |
 |---|---|
-| `src/learning/evidence-chain-types.ts` (Create) | `ProvenanceLink`, `ProvenanceRelationship`, `ArtifactType`, `LearningEvidenceChain`, `EXPLAIN_DEFAULT_DEPTH`, `EXPLAIN_MAX_DEPTH` |
-| `src/learning/forward-ref-extractors.ts` (Create) | `ForwardRefExtractor` type, `EXTRACTORS` registry, default `extractForwardRefs()` function |
-| `src/learning/evidence-chain-store.ts` (Create) | `EvidenceChainStore` class with append-only methods |
+| `src/planning/learning/evidence-chain-types.ts` (Create) | `ProvenanceLink`, `ProvenanceRelationship`, `ArtifactType`, `LearningEvidenceChain`, `EXPLAIN_DEFAULT_DEPTH`, `EXPLAIN_MAX_DEPTH` |
+| `src/planning/learning/forward-ref-extractors.ts` (Create) | `ForwardRefExtractor` type, `EXTRACTORS` registry, default `extractForwardRefs()` function |
+| `src/planning/learning/evidence-chain-store.ts` (Create) | `EvidenceChainStore` class with append-only methods |
 | `tests/learning/evidence-chain-types.vitest.ts` (Create) | Type-shape and relationship-validity tests |
 | `tests/learning/forward-ref-extractors.vitest.ts` (Create) | Per-type extractor tests using fixture instances |
 | `tests/learning/evidence-chain-store.vitest.ts` (Create) | Append-only invariant, query methods, corrupt-line skip |
@@ -65,13 +65,13 @@ This plan creates or modifies these files:
 ## Task 1: P8.5a.0.1 — Evidence Chain Types + Forward-Ref Extractors
 
 **Files:**
-- Create: `src/learning/evidence-chain-types.ts`
-- Create: `src/learning/forward-ref-extractors.ts`
+- Create: `src/planning/learning/evidence-chain-types.ts`
+- Create: `src/planning/learning/forward-ref-extractors.ts`
 - Create: `tests/learning/evidence-chain-types.vitest.ts`
 - Create: `tests/learning/forward-ref-extractors.vitest.ts`
 
 **Interfaces:**
-- Consumes: `DecisionArtifact` (from `src/adaptation/decision-types.ts`), `OutcomeRecord` (from `src/adaptation/outcome-types.ts`), `GovernanceReview` (from `src/adaptation/governance-review-types.ts`), `RiskScore` (from `src/adaptation/risk-score-types.ts`), `LearningSignal`, `CalibrationProfile`, `LearningProposal` (from `src/learning/learning-types.ts`), `AdaptationProposal` (from `src/adaptation/adaptation-types.ts`).
+- Consumes: `DecisionArtifact` (from `src/planning/adaptation/decision-types.ts`), `OutcomeRecord` (from `src/planning/adaptation/outcome-types.ts`), `GovernanceReview` (from `src/planning/adaptation/governance-review-types.ts`), `RiskScore` (from `src/planning/adaptation/risk-score-types.ts`), `LearningSignal`, `CalibrationProfile`, `LearningProposal` (from `src/planning/learning/learning-types.ts`), `AdaptationProposal` (from `src/planning/adaptation/adaptation-types.ts`).
 - Produces: types that later tasks depend on (`ProvenanceLink`, `ArtifactType`, `LearningEvidenceChain`, `EXTRACTORS`, `extractForwardRefs`).
 
 ### Step 1: Write the failing type test
@@ -87,11 +87,11 @@ import {
   EXPLAIN_MAX_DEPTH,
   isProvenanceRelationship,
   isArtifactType,
-} from "../../src/learning/evidence-chain-types.js";
+} from "../../src/planning/learning/evidence-chain-types.js";
 import type {
   ProvenanceLink,
   LearningEvidenceChain,
-} from "../../src/learning/evidence-chain-types.js";
+} from "../../src/planning/learning/evidence-chain-types.js";
 
 describe("evidence-chain-types: relationships and artifact types", () => {
   it("exposes exactly the five required provenance relationships", () => {
@@ -187,9 +187,9 @@ npx vitest run tests/learning/evidence-chain-types.vitest.ts
 
 Expected: FAIL — module not found (`evidence-chain-types.ts` does not exist).
 
-### Step 3: Write `src/learning/evidence-chain-types.ts`
+### Step 3: Write `src/planning/learning/evidence-chain-types.ts`
 
-Create `src/learning/evidence-chain-types.ts`:
+Create `src/planning/learning/evidence-chain-types.ts`:
 
 ```ts
 /**
@@ -365,13 +365,13 @@ import { describe, it, expect } from "vitest";
 import {
   EXTRACTORS,
   extractForwardRefs,
-} from "../../src/learning/forward-ref-extractors.js";
-import { ARTIFACT_TYPES } from "../../src/learning/evidence-chain-types.js";
-import type { OutcomeRecord, LensCalibrationReport } from "../../src/adaptation/outcome-types.js";
-import type { GovernanceReview } from "../../src/adaptation/governance-review-types.js";
-import type { RiskScore } from "../../src/adaptation/risk-score-types.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
-import type { LearningSignal, CalibrationProfile, LearningProposal } from "../../src/learning/learning-types.js";
+} from "../../src/planning/learning/forward-ref-extractors.js";
+import { ARTIFACT_TYPES } from "../../src/planning/learning/evidence-chain-types.js";
+import type { OutcomeRecord, LensCalibrationReport } from "../../src/planning/adaptation/outcome-types.js";
+import type { GovernanceReview } from "../../src/planning/adaptation/governance-review-types.js";
+import type { RiskScore } from "../../src/planning/adaptation/risk-score-types.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
+import type { LearningSignal, CalibrationProfile, LearningProposal } from "../../src/planning/learning/learning-types.js";
 
 describe("forward-ref-extractors: registry completeness", () => {
   it("has an extractor for every artifact type except learning_evidence_chain", () => {
@@ -590,9 +590,9 @@ npx vitest run tests/learning/forward-ref-extractors.vitest.ts
 
 Expected: FAIL — module not found (`forward-ref-extractors.ts` does not exist).
 
-### Step 7: Write `src/learning/forward-ref-extractors.ts`
+### Step 7: Write `src/planning/learning/forward-ref-extractors.ts`
 
-Create `src/learning/forward-ref-extractors.ts`:
+Create `src/planning/learning/forward-ref-extractors.ts`:
 
 ```ts
 /**
@@ -846,8 +846,8 @@ Expected: PASS. Total tests: prior 106 + new 19 = **125 tests across 12 files**.
 ### Step 10: Commit
 
 ```bash
-git add src/learning/evidence-chain-types.ts \
-        src/learning/forward-ref-extractors.ts \
+git add src/planning/learning/evidence-chain-types.ts \
+        src/planning/learning/forward-ref-extractors.ts \
         tests/learning/evidence-chain-types.vitest.ts \
         tests/learning/forward-ref-extractors.vitest.ts
 git commit -m "feat(p8.5a.0.1): evidence chain types + forward-ref extractors"
@@ -858,7 +858,7 @@ git commit -m "feat(p8.5a.0.1): evidence chain types + forward-ref extractors"
 ## Task 2: P8.5a.0.2 — EvidenceChainStore
 
 **Files:**
-- Create: `src/learning/evidence-chain-store.ts`
+- Create: `src/planning/learning/evidence-chain-store.ts`
 - Create: `tests/learning/evidence-chain-store.vitest.ts`
 
 **Interfaces:**
@@ -874,8 +874,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceChainStore } from "../../src/learning/evidence-chain-store.js";
-import type { LearningEvidenceChain } from "../../src/learning/evidence-chain-types.js";
+import { EvidenceChainStore } from "../../src/planning/learning/evidence-chain-store.js";
+import type { LearningEvidenceChain } from "../../src/planning/learning/evidence-chain-types.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
@@ -1001,9 +1001,9 @@ npx vitest run tests/learning/evidence-chain-store.vitest.ts
 
 Expected: FAIL — module not found.
 
-### Step 3: Write `src/learning/evidence-chain-store.ts`
+### Step 3: Write `src/planning/learning/evidence-chain-store.ts`
 
-Create `src/learning/evidence-chain-store.ts`:
+Create `src/planning/learning/evidence-chain-store.ts`:
 
 ```ts
 /**
@@ -1115,7 +1115,7 @@ Expected: PASS. Total tests: prior 125 + new 7 = **132 tests across 13 files**.
 ### Step 6: Commit
 
 ```bash
-git add src/learning/evidence-chain-store.ts tests/learning/evidence-chain-store.vitest.ts
+git add src/planning/learning/evidence-chain-store.ts tests/learning/evidence-chain-store.vitest.ts
 git commit -m "feat(p8.5a.0.2): EvidenceChainStore — append-only JSONL persistence"
 ```
 
@@ -1143,7 +1143,7 @@ Create `tests/learning/evidence-chain-sentinels.vitest.ts`:
  *   - The chain layer is read-only relative to the governance lifecycle.
  *   - The chain layer does not import approval / apply / proposal mutation.
  *   - EvidenceChainStore is append-only and never modifies source artifacts.
- *   - The chain layer lives in src/learning/ (matches the P8.0a boundary).
+ *   - The chain layer lives in src/planning/learning/ (matches the P8.0a boundary).
  */
 
 import { describe, it, expect } from "vitest";
@@ -1151,9 +1151,9 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const CHAIN_LAYER_DIRS = [
-  "src/learning/evidence-chain-types.ts",
-  "src/learning/forward-ref-extractors.ts",
-  "src/learning/evidence-chain-store.ts",
+  "src/planning/learning/evidence-chain-types.ts",
+  "src/planning/learning/forward-ref-extractors.ts",
+  "src/planning/learning/evidence-chain-store.ts",
 ];
 
 const FORBIDDEN_IMPORTS = [
@@ -1211,7 +1211,7 @@ describe("evidence-chain-sentinels: no call-site for approve/apply/reject", () =
 
 describe("evidence-chain-sentinels: append-only store", () => {
   it("EvidenceChainStore prototype has no mutation methods", async () => {
-    const { EvidenceChainStore } = await import("../../src/learning/evidence-chain-store.js");
+    const { EvidenceChainStore } = await import("../../src/planning/learning/evidence-chain-store.js");
     const proto = Object.getPrototypeOf(new EvidenceChainStore()) as Record<string, unknown>;
     for (const forbidden of [
       "delete", "update", "clear", "truncate",
@@ -1224,23 +1224,23 @@ describe("evidence-chain-sentinels: append-only store", () => {
 
 describe("evidence-chain-sentinels: no source-artifact mutation", () => {
   it("EvidenceChainStore.appendChain does not accept a source artifact", async () => {
-    const { EvidenceChainStore } = await import("../../src/learning/evidence-chain-store.js");
+    const { EvidenceChainStore } = await import("../../src/planning/learning/evidence-chain-store.js");
     const store = new EvidenceChainStore();
     // The signature should accept ONLY a chain record — no artifact parameter.
     expect(store.appendChain.length).toBe(1);
   });
 });
 
-describe("evidence-chain-sentinels: chain lives in src/learning/", () => {
-  it("the chain layer files are not in src/cli/ or src/adaptation/", () => {
+describe("evidence-chain-sentinels: chain lives in src/planning/learning/", () => {
+  it("the chain layer files are not in src/interfaces/cli/ or src/planning/adaptation/", () => {
     for (const file of CHAIN_LAYER_DIRS) {
-      expect(file.startsWith("src/learning/")).toBe(true);
+      expect(file.startsWith("src/planning/learning/")).toBe(true);
     }
   });
 });
 
 describe("evidence-chain-sentinels: no leaky helper", () => {
-  it("no file in src/cli/ or src/adaptation/ imports from the chain layer yet", () => {
+  it("no file in src/interfaces/cli/ or src/planning/adaptation/ imports from the chain layer yet", () => {
     // The chain layer ships in P8.5a.0 without consumers. P8.5c (explain)
     // will be the first consumer. Until then, no external module may import
     // the chain — that would mean a hidden coupling we haven't reviewed.
@@ -1285,12 +1285,12 @@ Create `tests/learning/unchanged-types-invariance.vitest.ts`:
  * the baseline must be re-captured as part of that change.
  *
  * The protected files:
- *   - src/adaptation/outcome-types.ts
- *   - src/adaptation/risk-score-types.ts
- *   - src/adaptation/governance-review-types.ts
- *   - src/adaptation/adaptation-types.ts
- *   - src/adaptation/decision-types.ts
- *   - src/learning/learning-types.ts
+ *   - src/planning/adaptation/outcome-types.ts
+ *   - src/planning/adaptation/risk-score-types.ts
+ *   - src/planning/adaptation/governance-review-types.ts
+ *   - src/planning/adaptation/adaptation-types.ts
+ *   - src/planning/adaptation/decision-types.ts
+ *   - src/planning/learning/learning-types.ts
  *
  * The test is read-only and self-validating: if a baseline is missing,
  * it captures one (test is permissive on first run, strict thereafter).
@@ -1302,12 +1302,12 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 const PROTECTED = [
-  "src/adaptation/outcome-types.ts",
-  "src/adaptation/risk-score-types.ts",
-  "src/adaptation/governance-review-types.ts",
-  "src/adaptation/adaptation-types.ts",
-  "src/adaptation/decision-types.ts",
-  "src/learning/learning-types.ts",
+  "src/planning/adaptation/outcome-types.ts",
+  "src/planning/adaptation/risk-score-types.ts",
+  "src/planning/adaptation/governance-review-types.ts",
+  "src/planning/adaptation/adaptation-types.ts",
+  "src/planning/adaptation/decision-types.ts",
+  "src/planning/learning/learning-types.ts",
 ];
 
 const BASELINE_DIR = ".alix/test-baselines";

@@ -14,17 +14,17 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CapabilityMeasurementEngine } from "../../src/capability/measurement/capability-measurement-engine.js";
-import { CapabilityMeasureFailedError } from "../../src/capability/errors/measure-failed.js";
-import { CapabilityMeasureInvalidTargetError } from "../../src/capability/errors/measure-invalid-target.js";
-import { MEASUREMENT_EVENT_PREFIX } from "../../src/capability/measurement/measurement-event-types.js";
-import type { Measurement } from "../../src/capability/measurement/measurement-contract.js";
-import type { CapabilityMeasurementOutcome } from "../../src/capability/measurement/outcome-discriminated-union.js";
-import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import type { ObservationProvider, Observation, ObservationResult } from "../../src/evolution/observation/contracts/observation-contract.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityMeasurementEngine } from "../../src/capabilities/capability/measurement/capability-measurement-engine.js";
+import { CapabilityMeasureFailedError } from "../../src/capabilities/capability/errors/measure-failed.js";
+import { CapabilityMeasureInvalidTargetError } from "../../src/capabilities/capability/errors/measure-invalid-target.js";
+import { MEASUREMENT_EVENT_PREFIX } from "../../src/capabilities/capability/measurement/measurement-event-types.js";
+import type { Measurement } from "../../src/capabilities/capability/measurement/measurement-contract.js";
+import type { CapabilityMeasurementOutcome } from "../../src/capabilities/capability/measurement/outcome-discriminated-union.js";
+import { ObservationEngine } from "../../src/planning/evolution/observation/observation-engine.js";
+import type { ObservationProvider, Observation, ObservationResult } from "../../src/planning/evolution/observation/contracts/observation-contract.js";
 
 class FakePassProvider implements ObservationProvider {
   readonly name = "native";

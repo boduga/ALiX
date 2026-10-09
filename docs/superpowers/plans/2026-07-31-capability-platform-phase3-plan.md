@@ -10,9 +10,9 @@
 
 ## Global Constraints
 
-- **`src/capability/*` is NOT modified.** (Phase-1 invariant 9: the platform has no UI assumptions.)
+- **`src/capabilities/capability/*` is NOT modified.** (Phase-1 invariant 9: the platform has no UI assumptions.)
 - NodeNext ESM (`import ... from "./x.js"`), strict TS, vitest.
-- **Direct `state.timelineEvents.push(...)` is banned outside `state.ts`** — enforced by `rg "timelineEvents\.push" src/tui` → `src/tui/state.ts` only. Writers route through `appendTimelineEvent`.
+- **Direct `state.timelineEvents.push(...)` is banned outside `state.ts`** — enforced by `rg "timelineEvents\.push" src/tui` → `src/interfaces/tui/state.ts` only. Writers route through `appendTimelineEvent`.
 - **`appendTimelineEvent` returns the actual stored object, never a clone** — the capability presenter mutates it in place. Identity test: `expect(state.timelineEvents[0]).toBe(event)`.
 - **`sequence` is a monotonic per-runtime counter** — the ordering tiebreak for same-millisecond events. Never use `Date.now()` alone for ordering.
 - **AgentView is a projection of the same timeline, not another source** — never create a second `agentTimelineEvents[]`.
@@ -24,7 +24,7 @@
 ### Task 1: State model + timeline helpers
 
 **Files:**
-- Modify: `src/tui/state.ts`
+- Modify: `src/interfaces/tui/state.ts`
 - Test: `tests/tui/timeline.vitest.ts` (new)
 - Test fixtures (add `timelineEvents: []` to every inline `PerTabState` literal): `tests/agent-view-formatting.vitest.ts`, `tests/response-blocks-smoke.vitest.ts`, `tests/tui/state.vitest.ts`, `tests/tui/views/approvals-view.vitest.ts`, `tests/tui/views/chat-view.vitest.ts`, `tests/tui/views/daemon-view.vitest.ts`, `tests/tui/views/dashboard-view.vitest.ts`, `tests/tui/views/policy-view.vitest.ts`, `tests/tui/views/runtime-view.vitest.ts`, `tests/tui/views/sops-view.vitest.ts`, `tests/tui/views/types.vitest.ts`
 
@@ -40,7 +40,7 @@ import {
   createInitialPerTabState, appendTimelineEvent, getOrderedTimeline,
   capabilityStatusText, formatTimelineEvent,
   type TimelineEvent,
-} from '../../src/tui/state.js';
+} from '../../src/interfaces/tui/state.js';
 
 describe('appendTimelineEvent', () => {
   it('stamps id/timestamp/sequence/source and returns the stored object', () => {
@@ -120,7 +120,7 @@ describe('capabilityStatusText + formatTimelineEvent', () => {
 Run: `npx vitest run tests/tui/timeline.vitest.ts --config vitest.config.mts`
 Expected: FAIL — `TimelineEvent` / `appendTimelineEvent` / `timelineEvents` do not exist.
 
-- [ ] **Step 3: Add the timeline model to `src/tui/state.ts`**
+- [ ] **Step 3: Add the timeline model to `src/interfaces/tui/state.ts`**
 
 Add near `CapabilityInvocationEntry` (which is deleted in Task 6 — keep it for now):
 
@@ -163,7 +163,7 @@ In `PerTabState`, add the field (near `capabilityInvocations`):
 
 In `createInitialPerTabState`, add `timelineEvents: [],`.
 
-- [ ] **Step 4: Add the helpers to `src/tui/state.ts`**
+- [ ] **Step 4: Add the helpers to `src/interfaces/tui/state.ts`**
 
 Add after `createInitialPerTabState`:
 
@@ -237,7 +237,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/state.ts tests/tui/timeline.vitest.ts tests/agent-view-formatting.vitest.ts tests/response-blocks-smoke.vitest.ts tests/tui/state.vitest.ts tests/tui/views/approvals-view.vitest.ts tests/tui/views/chat-view.vitest.ts tests/tui/views/daemon-view.vitest.ts tests/tui/views/dashboard-view.vitest.ts tests/tui/views/policy-view.vitest.ts tests/tui/views/runtime-view.vitest.ts tests/tui/views/sops-view.vitest.ts tests/tui/views/types.vitest.ts
+git add src/interfaces/tui/state.ts tests/tui/timeline.vitest.ts tests/agent-view-formatting.vitest.ts tests/response-blocks-smoke.vitest.ts tests/tui/state.vitest.ts tests/tui/views/approvals-view.vitest.ts tests/tui/views/chat-view.vitest.ts tests/tui/views/daemon-view.vitest.ts tests/tui/views/dashboard-view.vitest.ts tests/tui/views/policy-view.vitest.ts tests/tui/views/runtime-view.vitest.ts tests/tui/views/sops-view.vitest.ts tests/tui/views/types.vitest.ts
 git commit -m "feat(tui): unified operator timeline — state model + append/sort/format helpers"
 ```
 
@@ -246,8 +246,8 @@ git commit -m "feat(tui): unified operator timeline — state model + append/sor
 ### Task 2: Migrate the writers to `appendTimelineEvent`
 
 **Files:**
-- Modify: `src/tui/app.ts` (chat submit ~L316, agent submit ~L357, dispatchToSession perTab type + agent-response push ~L474-530, appendAgentMessage ~L817-824)
-- Modify: `src/tui/capabilities/invocation-presenter.ts`
+- Modify: `src/interfaces/tui/app.ts` (chat submit ~L316, agent submit ~L357, dispatchToSession perTab type + agent-response push ~L474-530, appendAgentMessage ~L817-824)
+- Modify: `src/interfaces/tui/capabilities/invocation-presenter.ts`
 - Test: `tests/tui/capabilities/invocation-presenter.vitest.ts` (rewrite to timelineEvents)
 - Test: `tests/tui/capabilities/integration.vitest.ts` (read `timelineEvents` instead of `capabilityInvocations`)
 - Test: `tests/tui/app.vitest.ts` (writer-behavior assertions read `timelineEvents` instead of `submittedPrompts`/`agentResponses`)
@@ -263,9 +263,9 @@ Update `tests/tui/capabilities/invocation-presenter.vitest.ts` — relocate the 
 ```typescript
 // tests/tui/capabilities/invocation-presenter.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { ChatInvocationPresenter, type InvocationPresenter } from '../../../src/tui/capabilities/invocation-presenter.js';
-import { createInitialPerTabState, type TimelineEvent } from '../../../src/tui/state.js';
-import type { Invocation, CapabilityEvent } from '../../../src/capability/types.js';
+import { ChatInvocationPresenter, type InvocationPresenter } from '../../../src/interfaces/tui/capabilities/invocation-presenter.js';
+import { createInitialPerTabState, type TimelineEvent } from '../../../src/interfaces/tui/state.js';
+import type { Invocation, CapabilityEvent } from '../../../src/capabilities/capability/types.js';
 
 function makeInvocation(id = 'inv_1', capabilityId = 'core.session.list'): Invocation & { __push(e: CapabilityEvent): void } {
   const events: CapabilityEvent[] = [];
@@ -317,7 +317,7 @@ describe('ChatInvocationPresenter', () => {
 Run: `npx vitest run tests/tui/capabilities/invocation-presenter.vitest.ts --config vitest.config.mts`
 Expected: FAIL — the presenter still writes `capabilityInvocations`, so `state.timelineEvents` is empty.
 
-- [ ] **Step 3: Migrate `src/tui/app.ts` writers**
+- [ ] **Step 3: Migrate `src/interfaces/tui/app.ts` writers**
 
 1. Add `appendTimelineEvent` to the value import from `./state.js` and `PerTabState` to the type import (line 1-2):
 
@@ -334,7 +334,7 @@ import { appendTimelineEvent, createInitialTuiAppState, SessionPhase } from './s
 
 3. Agent-tab submit (same replacement at the agent submit site).
 
-4. `dispatchToSession` — widen the `perTab` parameter to a narrow writable view (it currently narrows to `{ agentResponses: string[]; scrollOffset: number; planContent?: string; planTasks?: readonly PlanTask[] }`). Define the narrow type in `src/tui/app.ts` (or import a `TimelineWritableState` from `state.ts` if you prefer it co-located) so the function stays honest about what it writes — it only needs the timeline, not the whole `PerTabState`:
+4. `dispatchToSession` — widen the `perTab` parameter to a narrow writable view (it currently narrows to `{ agentResponses: string[]; scrollOffset: number; planContent?: string; planTasks?: readonly PlanTask[] }`). Define the narrow type in `src/interfaces/tui/app.ts` (or import a `TimelineWritableState` from `state.ts` if you prefer it co-located) so the function stays honest about what it writes — it only needs the timeline, not the whole `PerTabState`:
 
 ```typescript
 type TimelineWritableState = Pick<PerTabState, 'timelineEvents'>;
@@ -371,7 +371,7 @@ The function also assigns `perTab.planContent`/`perTab.planTasks`/`perTab.scroll
   }
 ```
 
-- [ ] **Step 4: Migrate `src/tui/capabilities/invocation-presenter.ts`**
+- [ ] **Step 4: Migrate `src/interfaces/tui/capabilities/invocation-presenter.ts`**
 
 Replace the whole file body (imports + class):
 
@@ -506,9 +506,9 @@ Expected: PASS.
 
 - [ ] **Step 8: Verify the push-banned invariant + full suite + commit**
 
-Run: `rg "timelineEvents\.push" src/tui` → only `src/tui/state.ts`. Then `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`.
+Run: `rg "timelineEvents\.push" src/tui` → only `src/interfaces/tui/state.ts`. Then `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`.
 ```bash
-git add src/tui/app.ts src/tui/capabilities/invocation-presenter.ts tests/tui/capabilities/invocation-presenter.vitest.ts tests/tui/capabilities/integration.vitest.ts tests/tui/app.vitest.ts
+git add src/interfaces/tui/app.ts src/interfaces/tui/capabilities/invocation-presenter.ts tests/tui/capabilities/invocation-presenter.vitest.ts tests/tui/capabilities/integration.vitest.ts tests/tui/app.vitest.ts
 git commit -m "feat(capabilities): migrate timeline writers to appendTimelineEvent"
 ```
 
@@ -517,7 +517,7 @@ git commit -m "feat(capabilities): migrate timeline writers to appendTimelineEve
 ### Task 3: ChatView — interleaved timeline rendering
 
 **Files:**
-- Modify: `src/tui/views/chat-view.ts`
+- Modify: `src/interfaces/tui/views/chat-view.ts`
 - Test: `tests/tui/capabilities/chat-invocations.vitest.ts` (rewrite — add the mid-conversation interleaving test)
 - Test: `tests/tui/views/chat-view.vitest.ts` (seed `timelineEvents` instead of `submittedPrompts`/`agentResponses`)
 - Test: `tests/response-blocks-smoke.vitest.ts` (seed `timelineEvents` instead of `submittedPrompts`/`agentResponses`)
@@ -533,9 +533,9 @@ Rewrite `tests/tui/capabilities/chat-invocations.vitest.ts`:
 ```typescript
 // tests/tui/capabilities/chat-invocations.vitest.ts
 import { describe, it, expect } from 'vitest';
-import { createInitialTuiAppState, appendTimelineEvent, type TabId } from '../../../src/tui/state.js';
-import { ChatView } from '../../../src/tui/views/chat-view.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
+import { createInitialTuiAppState, appendTimelineEvent, type TabId } from '../../../src/interfaces/tui/state.js';
+import { ChatView } from '../../../src/interfaces/tui/views/chat-view.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
 
 describe('capability invocation chat entries', () => {
   it('initializes timelineEvents empty for every tab', () => {
@@ -584,7 +584,7 @@ describe('capability invocation chat entries', () => {
 Run: `npx vitest run tests/tui/capabilities/chat-invocations.vitest.ts --config vitest.config.mts`
 Expected: FAIL — the capability renders after the turns (append-after-turns), so `capIdx` is not between `firstIdx` and `secondIdx`.
 
-- [ ] **Step 3: Migrate `src/tui/views/chat-view.ts` render**
+- [ ] **Step 3: Migrate `src/interfaces/tui/views/chat-view.ts` render**
 
 1. Update the import:
 
@@ -658,7 +658,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/views/chat-view.ts tests/tui/capabilities/chat-invocations.vitest.ts tests/tui/views/chat-view.vitest.ts tests/response-blocks-smoke.vitest.ts
+git add src/interfaces/tui/views/chat-view.ts tests/tui/capabilities/chat-invocations.vitest.ts tests/tui/views/chat-view.vitest.ts tests/response-blocks-smoke.vitest.ts
 git commit -m "feat(tui): ChatView renders the unified timeline interleaved by time"
 ```
 
@@ -667,7 +667,7 @@ git commit -m "feat(tui): ChatView renders the unified timeline interleaved by t
 ### Task 4: AgentView — filtered projection
 
 **Files:**
-- Modify: `src/tui/views/agent-view.ts`
+- Modify: `src/interfaces/tui/views/agent-view.ts`
 - Test: `tests/agent-view-formatting.vitest.ts` (seed `timelineEvents` instead of `submittedPrompts`/`agentResponses`)
 
 **Interfaces:**
@@ -707,7 +707,7 @@ it('does not render capability events on the agent tab', () => {
 Run: `npx vitest run tests/agent-view-formatting.vitest.ts --config vitest.config.mts`
 Expected: FAIL — the agent view still reads `submittedPrompts`/`agentResponses`, so the seeded `timelineEvents` are ignored.
 
-- [ ] **Step 3: Migrate `src/tui/views/agent-view.ts`**
+- [ ] **Step 3: Migrate `src/interfaces/tui/views/agent-view.ts`**
 
 1. Add the type import:
 
@@ -737,7 +737,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/views/agent-view.ts tests/agent-view-formatting.vitest.ts
+git add src/interfaces/tui/views/agent-view.ts tests/agent-view-formatting.vitest.ts
 git commit -m "feat(tui): AgentView reads the timeline as a user/agent projection"
 ```
 
@@ -746,7 +746,7 @@ git commit -m "feat(tui): AgentView reads the timeline as a user/agent projectio
 ### Task 5: Copy-scrollback — shared formatter
 
 **Files:**
-- Modify: `src/tui/app.ts` (`collectVisibleTranscript` ~L906-913)
+- Modify: `src/interfaces/tui/app.ts` (`collectVisibleTranscript` ~L906-913)
 - Test: `tests/tui/app.vitest.ts` (update the copy test ~L416-424 to seed `timelineEvents` + assert capability lines)
 
 **Interfaces:**
@@ -794,7 +794,7 @@ Expected: FAIL — the transcript builder still reads `submittedPrompts`/`agentR
     return getOrderedTimeline(v.timelineEvents).map(formatTimelineEvent).join('\n');
   }
 ```
-Add `getOrderedTimeline` and `formatTimelineEvent` to the `./state.js` value import in `src/tui/app.ts`.
+Add `getOrderedTimeline` and `formatTimelineEvent` to the `./state.js` value import in `src/interfaces/tui/app.ts`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -805,7 +805,7 @@ Expected: PASS.
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/app.ts tests/tui/app.vitest.ts
+git add src/interfaces/tui/app.ts tests/tui/app.vitest.ts
 git commit -m "feat(tui): copy-scrollback projects the unified timeline via formatTimelineEvent"
 ```
 
@@ -814,7 +814,7 @@ git commit -m "feat(tui): copy-scrollback projects the unified timeline via form
 ### Task 6: Delete the legacy arrays
 
 **Files:**
-- Modify: `src/tui/state.ts` (remove `CapabilityInvocationEntry`, `submittedPrompts`, `agentResponses`, `capabilityInvocations` from `PerTabState` + `createInitialPerTabState`)
+- Modify: `src/interfaces/tui/state.ts` (remove `CapabilityInvocationEntry`, `submittedPrompts`, `agentResponses`, `capabilityInvocations` from `PerTabState` + `createInitialPerTabState`)
 - Test fixtures (remove the three legacy fields from the remaining `PerTabState` literals — `chat-view.vitest`, `response-blocks-smoke`, `agent-view-formatting`, and `app.vitest` were already migrated in Tasks 2-4): `tests/tui/state.vitest.ts`, `tests/tui/views/{approvals,daemon,dashboard,policy,runtime,sops,types}.vitest.ts`
 
 **Interfaces:**
@@ -824,9 +824,9 @@ git commit -m "feat(tui): copy-scrollback projects the unified timeline via form
 - [ ] **Step 1: Verify zero production references**
 
 Run: `rg "submittedPrompts|agentResponses|capabilityInvocations" src/`
-Expected: only `src/tui/state.ts` (the definitions still to be deleted).
+Expected: only `src/interfaces/tui/state.ts` (the definitions still to be deleted).
 
-- [ ] **Step 2: Delete from `src/tui/state.ts`**
+- [ ] **Step 2: Delete from `src/interfaces/tui/state.ts`**
 
 1. Remove the `CapabilityInvocationEntry` interface.
 2. Remove `submittedPrompts`, `agentResponses`, `capabilityInvocations` from `PerTabState`.
@@ -841,7 +841,7 @@ Expected: tsc flags every `PerTabState` literal that still carries the removed f
 
 Run: `rg "submittedPrompts|agentResponses|capabilityInvocations" src/ tests/` → zero. Then `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`.
 ```bash
-git add src/tui/state.ts tests/tui/state.vitest.ts tests/tui/views/approvals-view.vitest.ts tests/tui/views/daemon-view.vitest.ts tests/tui/views/dashboard-view.vitest.ts tests/tui/views/policy-view.vitest.ts tests/tui/views/runtime-view.vitest.ts tests/tui/views/sops-view.vitest.ts tests/tui/views/types.vitest.ts
+git add src/interfaces/tui/state.ts tests/tui/state.vitest.ts tests/tui/views/approvals-view.vitest.ts tests/tui/views/daemon-view.vitest.ts tests/tui/views/dashboard-view.vitest.ts tests/tui/views/policy-view.vitest.ts tests/tui/views/runtime-view.vitest.ts tests/tui/views/sops-view.vitest.ts tests/tui/views/types.vitest.ts
 git commit -m "refactor(tui): remove legacy parallel conversation arrays"
 ```
 
@@ -874,12 +874,12 @@ instead of after all turns.
 
 One source of truth: ChatView (full timeline), AgentView (user/agent only),
 and copy-scrollback all project `timelineEvents`, so they can never diverge.
-Every write goes through `appendTimelineEvent()` in src/tui/state.ts, which
+Every write goes through `appendTimelineEvent()` in src/interfaces/tui/state.ts, which
 stamps id/timestamp/sequence/source; ordering is by timestamp with a
 monotonic sequence tiebreak for same-millisecond events.
 
 Tool calls remain on the agent tab as execution telemetry — they are not
-timeline events. The platform itself (src/capability/) is unchanged.
+timeline events. The platform itself (src/capabilities/capability/) is unchanged.
 ```
 
 - [ ] **Step 4: Commit**
@@ -901,7 +901,7 @@ git commit -m "docs(capabilities): Phase-3 usage note + spec status to implement
 - ✅ Capability entries render on the chat tab only; agent tab remains an
   execution workspace (plans/approvals/tools untouched).
 - ✅ `appendTimelineEvent` is the only writer path (`rg "timelineEvents\.push"
-  src/tui` → `src/tui/state.ts` only); it returns the actual stored object
+  src/tui` → `src/interfaces/tui/state.ts` only); it returns the actual stored object
   (identity test green).
 - ✅ Same-millisecond events render deterministically (timestamp, then
   sequence).

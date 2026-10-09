@@ -17,7 +17,7 @@ import {
   objectiveEvidenceGaps,
   VERIFICATION_EVIDENCE_GAP,
   type SuccessfulToolEvidence,
-} from '../../src/run/task-loop/predicates.js';
+} from '../../src/execution/run/task-loop/predicates.js';
 
 function evidence(item: Partial<SuccessfulToolEvidence> & { name: string }): SuccessfulToolEvidence {
   return { args: {}, ordinal: 0, ...item };

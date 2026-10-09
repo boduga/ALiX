@@ -142,13 +142,13 @@ Compact symbols (first pass text-based, testable):
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/runtime/trace-events.ts` | Create | `TraceEvent` type, `toTraceEvent()`, `traceEventsFromLog()` |
-| `src/tui/store.ts` | Modify | Add `traceEvents`, `traceFilter`, selectors, mutators |
-| `src/tui/runtime-snapshot.ts` | Modify | Load + normalize trace events from session log |
-| `src/tui/panel-renderer.ts` | Modify | Add Trace panel rendering |
-| `src/tui/index.ts` | Modify (minor) | Register Trace panel in cycle |
-| `src/cli/commands/tui.ts` | Modify | Bridge live events into trace stream |
-| `src/tui/dashboard-renderer.ts` | Modify (minor) | Update snapshot type if needed |
+| `src/runtime-state/runtime/trace-events.ts` | Create | `TraceEvent` type, `toTraceEvent()`, `traceEventsFromLog()` |
+| `src/interfaces/tui/store.ts` | Modify | Add `traceEvents`, `traceFilter`, selectors, mutators |
+| `src/interfaces/tui/runtime-snapshot.ts` | Modify | Load + normalize trace events from session log |
+| `src/interfaces/tui/panel-renderer.ts` | Modify | Add Trace panel rendering |
+| `src/interfaces/tui/index.ts` | Modify (minor) | Register Trace panel in cycle |
+| `src/interfaces/cli/commands/tui.ts` | Modify | Bridge live events into trace stream |
+| `src/interfaces/tui/dashboard-renderer.ts` | Modify (minor) | Update snapshot type if needed |
 | `tests/runtime/trace-events.test.ts` | Create | Event normalization tests |
 | `tests/tui/trace-panel.test.ts` | Create | Filtering + rendering tests |
 

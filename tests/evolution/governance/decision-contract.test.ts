@@ -12,7 +12,7 @@ import {
   isValidGovernanceDecisionKind,
   validateGovernanceDecision,
   validateGovernancePolicyConfig,
-} from "../../../src/evolution/governance/index.js";
+} from "../../../src/planning/evolution/governance/index.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures

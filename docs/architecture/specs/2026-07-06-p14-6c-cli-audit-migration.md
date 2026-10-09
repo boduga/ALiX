@@ -30,7 +30,7 @@ CLI Handler (governance.ts)
 
 ## P14.6a direct audit appends to remove (4 sites)
 
-All in `src/cli/commands/governance.ts`:
+All in `src/interfaces/cli/commands/governance.ts`:
 
 | # | Handler | Lines | Emitter | Event type |
 |---|---------|-------|---------|------------|
@@ -78,7 +78,7 @@ Stores used **only for reads** (no wrapping needed): `runInboxList`, `runReview`
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Replace 6 raw stores with audited wrappers; remove 4 direct audit append blocks |
+| `src/interfaces/cli/commands/governance.ts` | Replace 6 raw stores with audited wrappers; remove 4 direct audit append blocks |
 | `tests/governance/audit-migration.test.ts` | New: integration tests proving each operation emits exactly one audit event |
 
 ## Dependencies

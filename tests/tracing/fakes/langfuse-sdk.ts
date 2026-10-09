@@ -32,7 +32,7 @@
  * only ever dynamically imported (inside `createTraceClient`'s enabled branch),
  * so `@langfuse/otel` is also only ever dynamically imported: `vi.mock` (not
  * `vi.hoisted`) works. Do NOT static-import
- * `src/tracing/langfuse-client.js` in any file that also registers this mock
+ * `src/models/tracing/langfuse-client.js` in any file that also registers this mock
  * (hoisting TDZ).
  *
  * How the recording works: the REAL `@langfuse/tracing` `startObservation`

@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import * as scrollbackModule from '../../../src/tui/workbench/views/workbench-scrollback.js';
-import * as terminalText from '../../../src/tui/terminal-text.js';
-import type { AgentActivity } from '../../../src/agent/agent-activity.js';
-import type { AgentLivenessSnapshot } from '../../../src/agent/agent-liveness.js';
-import type { TimelineEntry } from '../../../src/tui/runtime/timeline-builder.js';
-import type { RuntimeSnapshot, SessionMetadata } from '../../../src/tui/snapshot.js';
-import { SessionPhase } from '../../../src/tui/state.js';
+import * as scrollbackModule from '../../../src/interfaces/tui/workbench/views/workbench-scrollback.js';
+import * as terminalText from '../../../src/interfaces/tui/terminal-text.js';
+import type { AgentActivity } from '../../../src/agents/agent/agent-activity.js';
+import type { AgentLivenessSnapshot } from '../../../src/agents/agent/agent-liveness.js';
+import type { TimelineEntry } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import type { RuntimeSnapshot, SessionMetadata } from '../../../src/interfaces/tui/snapshot.js';
+import { SessionPhase } from '../../../src/interfaces/tui/state.js';
 import { createWorkbenchRenderHarness } from '../../fixtures/tui/workbench-render-harness.js';
 
 /**

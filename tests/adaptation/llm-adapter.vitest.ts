@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import type { LLMAdapter, LLMCompletion } from "../../src/adaptation/llm-adapter.js";
-import { ProviderCatalogAdapter } from "../../src/adaptation/provider-catalog-adapter.js";
+import type { LLMAdapter, LLMCompletion } from "../../src/planning/adaptation/llm-adapter.js";
+import { ProviderCatalogAdapter } from "../../src/planning/adaptation/provider-catalog-adapter.js";
 
 describe("LLMAdapter", () => {
   it("has the correct interface shape", () => {

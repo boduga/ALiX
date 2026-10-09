@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { RiskScoreStore } from "../../src/adaptation/risk-score-store.js";
-import type { RiskScore } from "../../src/adaptation/risk-score-types.js";
+import { RiskScoreStore } from "../../src/planning/adaptation/risk-score-store.js";
+import type { RiskScore } from "../../src/planning/adaptation/risk-score-types.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;

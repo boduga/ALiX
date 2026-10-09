@@ -30,8 +30,8 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { handleEvaluate } from "../../../src/cli/commands/executive-evaluate-handler.js";
-import type { PlanExecutionState } from "../../../src/executive/executive-plan-types.js";
+import { handleEvaluate } from "../../../src/interfaces/cli/commands/executive-evaluate-handler.js";
+import type { PlanExecutionState } from "../../../src/execution/executive/executive-plan-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers — same layout as the rest of the suite

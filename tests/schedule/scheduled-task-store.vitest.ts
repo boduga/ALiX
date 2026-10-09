@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ScheduledTaskStore } from "../../src/schedule/scheduled-task-store.js";
+import { ScheduledTaskStore } from "../../src/operations/schedule/scheduled-task-store.js";
 
 let dir: string;
 let store: ScheduledTaskStore;

@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Turn `src/capability/registry.ts` into a canonical registry that is the runtime projection of the CAP-2 persistent catalog — one registry per runtime universe, lifecycle state owned by the registry (not an A7 overlay), legacy `Capability` served through a temporary read adapter, and the CLI's second registry eliminated.
+**Goal:** Turn `src/capabilities/capability/registry.ts` into a canonical registry that is the runtime projection of the CAP-2 persistent catalog — one registry per runtime universe, lifecycle state owned by the registry (not an A7 overlay), legacy `Capability` served through a temporary read adapter, and the CLI's second registry eliminated.
 
 **Architecture:** One canonical model. The registry stores `RegisteredCapability` (definition + lifecycle + availability + bindings) keyed by capability id, seeded by reading the catalog. Legacy `find/list/query/register` methods become a temporary adapter that DERIVES legacy `Capability` from the canonical state — never a second stored map. Mutations (`register`/`unregister`) route through a `CapabilityMutationPort`; CAP-3 ships the `CatalogBackedCapabilityMutationPort`, CAP-6 replaces its implementation with A4-governed execution without changing public call sites. `platform.ts` becomes the composition root: load catalog → build registry → resolve bindings.
 
-**Tech Stack:** TypeScript (ESM, `node:` imports), Vitest (`tests/capability/*.vitest.ts`), node:test (`*.test.ts` — A7 lifecycle tests), CAP-1 canonical module (`src/capability/canonical/`), CAP-2 `CapabilityCatalog`.
+**Tech Stack:** TypeScript (ESM, `node:` imports), Vitest (`tests/capability/*.vitest.ts`), node:test (`*.test.ts` — A7 lifecycle tests), CAP-1 canonical module (`src/capabilities/capability/canonical/`), CAP-2 `CapabilityCatalog`.
 
 ## Global Constraints
 
@@ -15,8 +15,8 @@
 - **register() is bootstrap-only.** CAP-3 registration is a bootstrap/compatibility operation — no A4 authorization, no governance approval, no lifecycle proposal, no mutation-ledger semantics. It routes through the catalog-backed port: `legacy register(cap) → convert → catalog → refresh projection`. CAP-6 replaces the port implementation with A4; **no consumer-facing registry mutation API may bypass the port after CAP-6**.
 - **CAP-3 provider reads are declarative/structural only.** `getProviders()` = distinct `binding.provider.type` across registered definitions. `getAvailableProviders(id)` = that capability's bindings whose provider type has a bound executor in the runtime `ExecutorRegistry`. MUST NOT claim CAP-4 health/fallback/availability semantics.
 - **Lifecycle state is current registry state** (#481): `setLifecycleState`/`getLifecycleState` are the authority; the A7 ledger (`capability-lifecycle-ledger.ts`) is HISTORY only. The six-state `LifecycleState` from `../adaptation/capability-evolution-types.js` is used verbatim (it already matches design §16).
-- **Files CAP-3 may modify**: `src/capability/registry.ts`, `src/capability/platform.ts`, `src/capability/runtime.ts` (read-path verification only), `src/cli.ts` (CLI second-registry removal), `src/capability/index.ts` (barrel), plus NEW files `src/capability/legacy-adapter.ts`, `src/capability/mutation-port.ts`, and their tests.
-- **Files CAP-3 MUST NOT modify**: `src/capability/initial-capabilities.ts`, `src/tools/tool-registry.ts`, `src/policy/capability-registry.ts`, and everything under `src/capability/canonical/` (CAP-1/2 module stays pure — the legacy adapter lives OUTSIDE it). Existing registry consumers outside the listed files must keep working unmodified.
+- **Files CAP-3 may modify**: `src/capabilities/capability/registry.ts`, `src/capabilities/capability/platform.ts`, `src/capabilities/capability/runtime.ts` (read-path verification only), `src/cli.ts` (CLI second-registry removal), `src/capabilities/capability/index.ts` (barrel), plus NEW files `src/capabilities/capability/legacy-adapter.ts`, `src/capabilities/capability/mutation-port.ts`, and their tests.
+- **Files CAP-3 MUST NOT modify**: `src/capabilities/capability/initial-capabilities.ts`, `src/capabilities/tools/tool-registry.ts`, `src/governance/policy/capability-registry.ts`, and everything under `src/capabilities/capability/canonical/` (CAP-1/2 module stays pure — the legacy adapter lives OUTSIDE it). Existing registry consumers outside the listed files must keep working unmodified.
 - **A7 lifecycle modules keep working**: `setLifecycleState` is the new current-state authority; **`applyLifecycleTransition` is retained as a deprecated delegating alias** — 3 production files call it (`capability-lifecycle-rehydration.ts:32`, `capability-lifecycle-step-executor.ts:34,53`) and are OUTSIDE the CAP-3 file allowlist, so they must keep working unmodified. `getLifecycleState`/`clearLifecycleState`/`listLifecycleStates` retain their signatures. The A7 ledger rehydration (`rehydrateLifecycleOverlay`) still reads the ledger into the registry at init, but the registry OWNS current state thereafter.
 - **Test runner**: Vitest for new tests (`tests/capability/*.vitest.ts`). After EACH task run `pnpm exec tsc --noEmit` — MUST exit 0 (Vitest/esbuild doesn't typecheck — CAP-1 lesson).
 
@@ -26,18 +26,18 @@
 
 | File | Responsibility |
 |------|---------------|
-| `src/capability/legacy-adapter.ts` (NEW) | `legacyToCanonicalDefinition`, `canonicalToLegacyCapability`, `buildLegacyBindings` — lossless legacy↔canonical conversion; `toolName` rides `binding.config` |
-| `src/capability/mutation-port.ts` (NEW) | `CapabilityMutationPort` interface + `CatalogBackedCapabilityMutationPort` (idempotent bootstrap register) |
-| `src/capability/registry.ts` (MODIFY) | Canonical projection storage + legacy adapter + canonical API + lifecycle-state authority |
-| `src/capability/platform.ts` (MODIFY) | Composition root: catalog → registry → runtime; wiring |
-| `src/capability/runtime.ts` (VERIFY) | Read paths keep working through the adapter (behavior unchanged) |
+| `src/capabilities/capability/legacy-adapter.ts` (NEW) | `legacyToCanonicalDefinition`, `canonicalToLegacyCapability`, `buildLegacyBindings` — lossless legacy↔canonical conversion; `toolName` rides `binding.config` |
+| `src/capabilities/capability/mutation-port.ts` (NEW) | `CapabilityMutationPort` interface + `CatalogBackedCapabilityMutationPort` (idempotent bootstrap register) |
+| `src/capabilities/capability/registry.ts` (MODIFY) | Canonical projection storage + legacy adapter + canonical API + lifecycle-state authority |
+| `src/capabilities/capability/platform.ts` (MODIFY) | Composition root: catalog → registry → runtime; wiring |
+| `src/capabilities/capability/runtime.ts` (VERIFY) | Read paths keep working through the adapter (behavior unchanged) |
 | `src/cli.ts` (MODIFY) | `alix capabilities` uses the composition root; second `new CapabilityRegistry()` removed |
-| `src/capability/index.ts` (MODIFY) | Barrel: export new types/adapters |
+| `src/capabilities/capability/index.ts` (MODIFY) | Barrel: export new types/adapters |
 
 ### Task 1: Legacy↔canonical conversion adapter
 
 **Files:**
-- Create: `src/capability/legacy-adapter.ts`
+- Create: `src/capabilities/capability/legacy-adapter.ts`
 - Test: `tests/capability/legacy-adapter.vitest.ts`
 
 **Interfaces:**
@@ -48,9 +48,9 @@
 
 ```ts
 import { describe, it, expect } from "vitest";
-import type { Capability } from "../../src/capability/types.js";
-import { legacyToCanonicalDefinition, canonicalToLegacyCapability, buildLegacyBindings } from "../../src/capability/legacy-adapter.js";
-import { migrateKind } from "../../src/capability/canonical/kind.js";
+import type { Capability } from "../../src/capabilities/capability/types.js";
+import { legacyToCanonicalDefinition, canonicalToLegacyCapability, buildLegacyBindings } from "../../src/capabilities/capability/legacy-adapter.js";
+import { migrateKind } from "../../src/capabilities/capability/canonical/kind.js";
 
 function makeLegacyCap(overrides: Partial<Capability> = {}): Capability {
   return {
@@ -219,7 +219,7 @@ Expected: PASS.
 Run: `pnpm exec tsc --noEmit` — exit 0.
 Commit:
 ```bash
-git add src/capability/legacy-adapter.ts tests/capability/legacy-adapter.vitest.ts
+git add src/capabilities/capability/legacy-adapter.ts tests/capability/legacy-adapter.vitest.ts
 git commit -m "feat(capability): CAP-3 legacy↔canonical conversion adapter"
 ```
 
@@ -228,7 +228,7 @@ git commit -m "feat(capability): CAP-3 legacy↔canonical conversion adapter"
 ### Task 2: Mutation port — catalog-backed bootstrap seam
 
 **Files:**
-- Create: `src/capability/mutation-port.ts`
+- Create: `src/capabilities/capability/mutation-port.ts`
 - Test: `tests/capability/mutation-port.vitest.ts`
 
 **Interfaces:**
@@ -242,11 +242,11 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CatalogBackedCapabilityMutationPort } from "../../src/capability/mutation-port.js";
-import { legacyToCanonicalDefinition } from "../../src/capability/legacy-adapter.js";
-import type { Capability } from "../../src/capability/types.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CatalogBackedCapabilityMutationPort } from "../../src/capabilities/capability/mutation-port.js";
+import { legacyToCanonicalDefinition } from "../../src/capabilities/capability/legacy-adapter.js";
+import type { Capability } from "../../src/capabilities/capability/types.js";
 
 function makeLegacyCap(): Capability {
   return { id: "tool.file.read", version: "1.0", kind: "tool", title: "Read file", description: "d",
@@ -339,7 +339,7 @@ Expected: PASS.
 Run: `pnpm exec tsc --noEmit` — exit 0.
 Commit:
 ```bash
-git add src/capability/mutation-port.ts tests/capability/mutation-port.vitest.ts
+git add src/capabilities/capability/mutation-port.ts tests/capability/mutation-port.vitest.ts
 git commit -m "feat(capability): CAP-3 catalog-backed bootstrap mutation port"
 ```
 
@@ -348,7 +348,7 @@ git commit -m "feat(capability): CAP-3 catalog-backed bootstrap mutation port"
 ### Task 3: Registry refactor — canonical projection + legacy adapter
 
 **Files:**
-- Modify: `src/capability/registry.ts` (entire file)
+- Modify: `src/capabilities/capability/registry.ts` (entire file)
 - Test: `tests/capability/registry.vitest.ts` (update existing), `tests/capability/registry-projection.vitest.ts` (NEW)
 
 **Interfaces:**
@@ -374,12 +374,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { CatalogBackedCapabilityMutationPort } from "../../src/capability/mutation-port.js";
-import { legacyToCanonicalDefinition } from "../../src/capability/legacy-adapter.js";
-import type { Capability } from "../../src/capability/types.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { CatalogBackedCapabilityMutationPort } from "../../src/capabilities/capability/mutation-port.js";
+import { legacyToCanonicalDefinition } from "../../src/capabilities/capability/legacy-adapter.js";
+import type { Capability } from "../../src/capabilities/capability/types.js";
 
 function makeLegacyCap(): Capability {
   return { id: "tool.file.read", version: "1.0", kind: "tool", title: "Read file", description: "d",
@@ -467,7 +467,7 @@ describe("CAP-3 registry projection", () => {
 Run: `pnpm vitest run tests/capability/registry-projection.vitest.ts`
 Expected: FAIL — `new CapabilityRegistry(catalog)` / `setMutationPort` / `get` / `setLifecycleState` not found.
 
-- [ ] **Step 3: Write the refactored registry** (`src/capability/registry.ts` — full replacement)
+- [ ] **Step 3: Write the refactored registry** (`src/capabilities/capability/registry.ts` — full replacement)
 
 ```ts
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
@@ -747,7 +747,7 @@ Run: `pnpm exec tsc --noEmit` — exit 0.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/capability/registry.ts tests/capability/registry.vitest.ts tests/capability/registry-projection.vitest.ts
+git add src/capabilities/capability/registry.ts tests/capability/registry.vitest.ts tests/capability/registry-projection.vitest.ts
 git commit -m "feat(capability): CAP-3 registry as canonical catalog projection + legacy adapter"
 ```
 
@@ -756,8 +756,8 @@ git commit -m "feat(capability): CAP-3 registry as canonical catalog projection 
 ### Task 4: platform.ts composition root + runtime read-path verification
 
 **Files:**
-- Modify: `src/capability/platform.ts`
-- Verify (no behavior change): `src/capability/runtime.ts`, `src/capability/execution-resolver.ts` — both use `registry.find()` which still works through the adapter.
+- Modify: `src/capabilities/capability/platform.ts`
+- Verify (no behavior change): `src/capabilities/capability/runtime.ts`, `src/capabilities/capability/execution-resolver.ts` — both use `registry.find()` which still works through the adapter.
 - Test: `tests/capability/platform-projection.vitest.ts` (NEW)
 
 **Interfaces:**
@@ -771,7 +771,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityPlatform } from "../../src/capability/platform.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
 
 describe("CAP-3 platform composition root", () => {
   let dir: string;
@@ -811,7 +811,7 @@ Expected: FAIL — `new CapabilityPlatform({ catalogDir })` rejects the arg (cur
 - [ ] **Step 3: Rewrite platform.ts as composition root**
 
 ```ts
-// src/capability/platform.ts
+// src/capabilities/capability/platform.ts
 import { CapabilityRegistry } from "./registry.js";
 import { HookRegistry } from "./hook-registry.js";
 import { ExecutionResolver } from "./execution-resolver.js";
@@ -880,7 +880,7 @@ Expected: all PASS (behavior unchanged).
 Run: `pnpm exec tsc --noEmit` — exit 0.
 Commit:
 ```bash
-git add src/capability/platform.ts tests/capability/platform-projection.vitest.ts
+git add src/capabilities/capability/platform.ts tests/capability/platform-projection.vitest.ts
 git commit -m "feat(capability): CAP-3 platform composition root (catalog→registry→runtime)"
 ```
 
@@ -889,7 +889,7 @@ git commit -m "feat(capability): CAP-3 platform composition root (catalog→regi
 ### Task 5: CLI second-registry removal + single-instance structural test
 
 **Files:**
-- Modify: `src/cli.ts` (the `alix capabilities` block), `src/capability/index.ts` (barrel)
+- Modify: `src/cli.ts` (the `alix capabilities` block), `src/capabilities/capability/index.ts` (barrel)
 - Test: `tests/capability/single-registry.vitest.ts` (NEW)
 
 **Interfaces:**
@@ -962,9 +962,9 @@ if (command === "capabilities") {
 }
 ```
 
-Confirm `join` is already imported in `cli.ts` (it is — used elsewhere). Remove the now-unused `CapabilityRegistry` import from `src/capability/registry.js` in this block if it became orphaned.
+Confirm `join` is already imported in `cli.ts` (it is — used elsewhere). Remove the now-unused `CapabilityRegistry` import from `src/capabilities/capability/registry.js` in this block if it became orphaned.
 
-- [ ] **Step 4: Barrel exports** (`src/capability/index.ts`)
+- [ ] **Step 4: Barrel exports** (`src/capabilities/capability/index.ts`)
 
 `registry.ts` is already re-exported via `export * from "./registry.js"` — so `RegisteredCapability`/`CapabilityAvailability` flow through automatically once Task 3 defines them (do NOT add a second explicit export — duplicate-export error). Just add the two new modules:
 `export * from "./legacy-adapter.js"; export * from "./mutation-port.js";`
@@ -979,7 +979,7 @@ Also run the A7 lifecycle suites that consume the registry: `pnpm vitest run tes
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli.ts src/capability/index.ts tests/capability/single-registry.vitest.ts
+git add src/cli.ts src/capabilities/capability/index.ts tests/capability/single-registry.vitest.ts
 git commit -m "feat(capability): CAP-3 CLI shares composition root; single-registry structural test"
 ```
 
@@ -1001,7 +1001,7 @@ git commit -m "feat(capability): CAP-3 CLI shares composition root; single-regis
 
 **Placeholder scan:** All steps have exact code; no TBD/TODO.
 
-**Type consistency:** `applyLifecycleTransition` is RETAINED as a delegating alias (3 production callers outside the allowlist). `setLifecycleState`/`getLifecycleState`/`clearLifecycleState`/`listLifecycleStates` signatures match what `src/evolution/capability-lifecycle/*` calls. `find`/`list`/`query`/`register`/`unregister`/`export` keep legacy shapes. `get(id)` returns `RegisteredCapability | undefined` (design §14). `CapabilityQuery` stays exported from registry.ts (consumers import it from there).
+**Type consistency:** `applyLifecycleTransition` is RETAINED as a delegating alias (3 production callers outside the allowlist). `setLifecycleState`/`getLifecycleState`/`clearLifecycleState`/`listLifecycleStates` signatures match what `src/planning/evolution/capability-lifecycle/*` calls. `find`/`list`/`query`/`register`/`unregister`/`export` keep legacy shapes. `get(id)` returns `RegisteredCapability | undefined` (design §14). `CapabilityQuery` stays exported from registry.ts (consumers import it from there).
 
 **Known seam (documented, not a defect):** `canonicalToLegacyCapability` cannot recover `aliases`/`examples` (no canonical home) — acceptable for a temporary adapter; CAP-8's full consumer migration removes the adapter entirely. `execution.timeout`/`cancellable` ARE recovered via `binding.config` (lossless). The `extensions` object now also includes `timeout`/`cancellable` keys — verify no executor misreads `extensions.timeout` as a domain extension (none do today; NativeExecutor reads id+handler, ToolExecutor reads extensions.toolName).
 

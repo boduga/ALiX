@@ -22,7 +22,7 @@
 - `inputBuffer` stays a flat `string`; cursor position and history recall are deferred.
 - Branch workflow: close all open branches/PRs before opening the new one (`memory/branch-workflow-policy.md`).
 - `mcp__gitnexus__impact({target: "AgentView", direction: "upstream"})` before opening the PR; `mcp__gitnexus__detect_changes()` before each commit.
-- TUI tests live under `src/tui/__tests__/` and `src/tui/views/__tests__/`; existing helpers `MockCanvas`, `MockInput`, `MockOutput` from `src/tui/io.ts` are the test seams.
+- TUI tests live under `src/interfaces/tui/__tests__/` and `src/interfaces/tui/views/__tests__/`; existing helpers `MockCanvas`, `MockInput`, `MockOutput` from `src/interfaces/tui/io.ts` are the test seams.
 
 ---
 
@@ -31,9 +31,9 @@
 Create:
 
 ```
-src/tui/views/bottom-anchored-viewport.ts
-src/tui/views/slash-overlay.ts
-src/tui/views/scroll-math.ts
+src/interfaces/tui/views/bottom-anchored-viewport.ts
+src/interfaces/tui/views/slash-overlay.ts
+src/interfaces/tui/views/scroll-math.ts
 tests/tui/views/helpers/mock-canvas.ts
 tests/tui/views/bottom-anchored-viewport.vitest.ts
 tests/tui/views/slash-overlay.vitest.ts
@@ -48,10 +48,10 @@ tests/tui/app-pinned-bottom.vitest.ts
 Modify:
 
 ```
-src/tui/views/agent-view.ts
-src/tui/views/chat-view.ts
-src/tui/app.ts
-src/tui/state.ts (only if `pinnedBottom` initialization needs adjustment — currently `true` by default, no change expected)
+src/interfaces/tui/views/agent-view.ts
+src/interfaces/tui/views/chat-view.ts
+src/interfaces/tui/app.ts
+src/interfaces/tui/state.ts (only if `pinnedBottom` initialization needs adjustment — currently `true` by default, no change expected)
 ```
 
 ---
@@ -59,7 +59,7 @@ src/tui/state.ts (only if `pinnedBottom` initialization needs adjustment — cur
 ## Interfaces (consumed/produced by tasks)
 
 ```ts
-// src/tui/views/bottom-anchored-viewport.ts
+// src/interfaces/tui/views/bottom-anchored-viewport.ts
 export interface ScrollbackLine {
   // Discriminated by `kind`; the helper does not constrain the union.
   kind: string;
@@ -81,7 +81,7 @@ export function renderBottomAnchoredSlice(opts: {
 ```
 
 ```ts
-// src/tui/views/slash-overlay.ts
+// src/interfaces/tui/views/slash-overlay.ts
 export function renderSlashOverlay(opts: {
   canvas: TerminalCanvas;
   slash: SlashStrip;
@@ -92,7 +92,7 @@ export function renderSlashOverlay(opts: {
 ```
 
 ```ts
-// src/tui/views/scroll-math.ts
+// src/interfaces/tui/views/scroll-math.ts
 import type { ScrollbackLine } from './bottom-anchored-viewport.js';
 import type { ViewRenderContext } from './types.js';
 
@@ -112,16 +112,16 @@ export function computeScrollbackRows(rows: number, scrollbackTop: number, panel
 export function computeBottomAnchor(ctx: ViewRenderContext, kind: 'agent' | 'chat', textWidth: number, panelRow: number): number;
 ```
 
-`SlashStrip` and `SlashStripEntry` are already defined in `src/tui/views/types.ts:25-41`. `TerminalCanvas` is `src/tui/canvas.ts`. `RuntimeSnapshot` is `src/tui/snapshot.ts`.
+`SlashStrip` and `SlashStripEntry` are already defined in `src/interfaces/tui/views/types.ts:25-41`. `TerminalCanvas` is `src/interfaces/tui/canvas.ts`. `RuntimeSnapshot` is `src/interfaces/tui/snapshot.ts`.
 
 ---
 
 # Task 1: Helper `renderBottomAnchoredSlice` + tests
 
-> **Note on test convention (corrected during pre-flight):** The plan originally specified `src/tui/views/__tests__/*.test.ts` with `node:test`. The project's TUI tests live under `tests/tui/views/*.vitest.ts` and use `vitest`. Follow the project convention. A shared `MockCanvas` test utility is created as a separate file under `tests/tui/views/helpers/`.
+> **Note on test convention (corrected during pre-flight):** The plan originally specified `src/interfaces/tui/views/__tests__/*.test.ts` with `node:test`. The project's TUI tests live under `tests/tui/views/*.vitest.ts` and use `vitest`. Follow the project convention. A shared `MockCanvas` test utility is created as a separate file under `tests/tui/views/helpers/`.
 
 **Files:**
-- Create: `src/tui/views/bottom-anchored-viewport.ts` (production helper)
+- Create: `src/interfaces/tui/views/bottom-anchored-viewport.ts` (production helper)
 - Create: `tests/tui/views/helpers/mock-canvas.ts` (test utility)
 - Create: `tests/tui/views/bottom-anchored-viewport.vitest.ts` (vitest)
 
@@ -178,7 +178,7 @@ Create `tests/tui/views/bottom-anchored-viewport.vitest.ts`:
 ```ts
 import { describe, it, expect } from 'vitest';
 import { MockCanvas } from './helpers/mock-canvas.js';
-import { renderBottomAnchoredSlice, type ScrollbackLine } from '../../src/tui/views/bottom-anchored-viewport.js';
+import { renderBottomAnchoredSlice, type ScrollbackLine } from '../../src/interfaces/tui/views/bottom-anchored-viewport.js';
 
 const line = (text: string, isFirst = false): ScrollbackLine => ({ kind: 'plain', text, isFirst });
 
@@ -269,11 +269,11 @@ describe('renderBottomAnchoredSlice', () => {
 - [ ] **Step 3: Run the test to verify it fails**
 
 Run: `pnpm test:vitest -- tests/tui/views/bottom-anchored-viewport.vitest.ts`
-Expected: FAIL with "Cannot find module '../../src/tui/views/bottom-anchored-viewport.js'" or equivalent.
+Expected: FAIL with "Cannot find module '../../src/interfaces/tui/views/bottom-anchored-viewport.js'" or equivalent.
 
 - [ ] **Step 4: Implement the helper**
 
-Create `src/tui/views/bottom-anchored-viewport.ts`:
+Create `src/interfaces/tui/views/bottom-anchored-viewport.ts`:
 
 ```ts
 import type { TerminalCanvas } from '../canvas.js';
@@ -337,7 +337,7 @@ Expected: PASS (7 cases).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/views/bottom-anchored-viewport.ts tests/tui/views/helpers/mock-canvas.ts tests/tui/views/bottom-anchored-viewport.vitest.ts
+git add src/interfaces/tui/views/bottom-anchored-viewport.ts tests/tui/views/helpers/mock-canvas.ts tests/tui/views/bottom-anchored-viewport.vitest.ts
 git commit -m "feat(tui): extract renderBottomAnchoredSlice helper" --no-verify
 ```
 
@@ -346,11 +346,11 @@ git commit -m "feat(tui): extract renderBottomAnchoredSlice helper" --no-verify
 # Task 2: Helper `renderSlashOverlay` + tests
 
 **Files:**
-- Create: `src/tui/views/slash-overlay.ts`
+- Create: `src/interfaces/tui/views/slash-overlay.ts`
 - Create: `tests/tui/views/slash-overlay.vitest.ts` (vitest; uses `./helpers/mock-canvas.js`)
 
 **Interfaces:**
-- Consumes: `SlashStrip` from `src/tui/views/types.ts`.
+- Consumes: `SlashStrip` from `src/interfaces/tui/views/types.ts`.
 - Produces: `renderSlashOverlay(opts)` (the helper consumed by Task 4).
 
 > MockCanvas lives in `tests/tui/views/helpers/mock-canvas.ts` (created in Task 1).
@@ -362,8 +362,8 @@ Create `tests/tui/views/slash-overlay.vitest.ts`:
 ```ts
 import { describe, it, expect } from 'vitest';
 import { MockCanvas } from './helpers/mock-canvas.js';
-import { renderSlashOverlay } from '../../src/tui/views/slash-overlay.js';
-import type { SlashStrip } from '../../src/tui/views/types.js';
+import { renderSlashOverlay } from '../../src/interfaces/tui/views/slash-overlay.js';
+import type { SlashStrip } from '../../src/interfaces/tui/views/types.js';
 
 const strip = (entries: Array<{ label: string; description: string }>, selected = 0, hint: string | null = null): SlashStrip => ({
   entries: entries.map((e) => ({ name: e.label, label: e.label, description: e.description })),
@@ -443,12 +443,12 @@ describe('renderSlashOverlay', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm test:node -- --test src/tui/views/__tests__/slash-overlay.test.ts`
+Run: `pnpm test:node -- --test src/interfaces/tui/views/__tests__/slash-overlay.test.ts`
 Expected: FAIL with "Cannot find module '../slash-overlay.js'".
 
 - [ ] **Step 3: Implement the helper**
 
-Create `src/tui/views/slash-overlay.ts`:
+Create `src/interfaces/tui/views/slash-overlay.ts`:
 
 ```ts
 import { RESET } from '../ansi-constants.js';
@@ -519,13 +519,13 @@ export function renderSlashOverlay(opts: RenderSlashOverlayOpts): RenderSlashOve
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm test:node -- --test src/tui/views/__tests__/slash-overlay.test.ts`
+Run: `pnpm test:node -- --test src/interfaces/tui/views/__tests__/slash-overlay.test.ts`
 Expected: PASS (6 cases).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/views/slash-overlay.ts src/tui/views/__tests__/slash-overlay.test.ts
+git add src/interfaces/tui/views/slash-overlay.ts src/interfaces/tui/views/__tests__/slash-overlay.test.ts
 git commit -m "feat(tui): extract renderSlashOverlay helper" --no-verify
 ```
 
@@ -534,9 +534,9 @@ git commit -m "feat(tui): extract renderSlashOverlay helper" --no-verify
 # Task 3: `scroll-math` module + `pinnedBottom` state mutations in `app.ts`
 
 **Files:**
-- Create: `src/tui/views/scroll-math.ts`
+- Create: `src/interfaces/tui/views/scroll-math.ts`
 - Create: `tests/tui/views/scroll-math.vitest.ts`
-- Modify: `src/tui/app.ts` (key handling + transitions; no rendering changes)
+- Modify: `src/interfaces/tui/app.ts` (key handling + transitions; no rendering changes)
 - Create: `tests/tui/app-pinned-bottom.vitest.ts`
 
 **Interfaces:**
@@ -549,7 +549,7 @@ The `handleRaw` function around `app.ts:559-658` owns chat + agent input; the `d
 
 - [ ] **Step 1: Write the failing test for `scroll-math`**
 
-Create `src/tui/views/__tests__/scroll-math.test.ts`:
+Create `src/interfaces/tui/views/__tests__/scroll-math.test.ts`:
 
 ```ts
 import { describe, it } from 'node:test';
@@ -634,12 +634,12 @@ describe('computeBottomAnchor', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm test:node -- --test src/tui/views/__tests__/scroll-math.test.ts`
+Run: `pnpm test:node -- --test src/interfaces/tui/views/__tests__/scroll-math.test.ts`
 Expected: FAIL with "Cannot find module '../scroll-math.js'".
 
 - [ ] **Step 3: Implement `scroll-math.ts`**
 
-Create `src/tui/views/scroll-math.ts`. The bodies of `buildAgentScrollbackLines` / `buildChatScrollbackLines` are the **existing line-builder code moved verbatim** from `agent-view.ts:86-153` and `chat-view.ts:64-89` — same wrap, same separator, same per-kind types. This is a copy-paste refactor, not new logic:
+Create `src/interfaces/tui/views/scroll-math.ts`. The bodies of `buildAgentScrollbackLines` / `buildChatScrollbackLines` are the **existing line-builder code moved verbatim** from `agent-view.ts:86-153` and `chat-view.ts:64-89` — same wrap, same separator, same per-kind types. This is a copy-paste refactor, not new logic:
 
 ```ts
 import { wrapText } from './wrap-text.js';
@@ -784,12 +784,12 @@ export function computeBottomAnchor(ctx: ViewRenderContext, kind: 'agent' | 'cha
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm test:node -- --test src/tui/views/__tests__/scroll-math.test.ts`
+Run: `pnpm test:node -- --test src/interfaces/tui/views/__tests__/scroll-math.test.ts`
 Expected: PASS (8 cases across the 4 functions).
 
 - [ ] **Step 5: Write the failing integration tests for the `pinnedBottom` state transitions**
 
-Create `src/tui/__tests__/app-pinned-bottom.test.ts`. Mirror the existing `src/tui/__tests__/app.test.ts` harness imports and setup — find the actual injection seam names in that file and use them. (Likely `app.injectKey(name)`, `app.injectRuntimeSnapshot(tab, snap)`, `app.activateTab(tabId)`, `app.getPerTabState(tabId)` — adjust if the existing test uses different names.)
+Create `src/interfaces/tui/__tests__/app-pinned-bottom.test.ts`. Mirror the existing `src/interfaces/tui/__tests__/app.test.ts` harness imports and setup — find the actual injection seam names in that file and use them. (Likely `app.injectKey(name)`, `app.injectRuntimeSnapshot(tab, snap)`, `app.activateTab(tabId)`, `app.getPerTabState(tabId)` — adjust if the existing test uses different names.)
 
 ```ts
 import { describe, it, beforeEach } from 'node:test';
@@ -904,7 +904,7 @@ describe('TuiApp pinnedBottom transitions', () => {
 
 - [ ] **Step 6: Run the test to verify it fails**
 
-Run: `pnpm test:node -- --test src/tui/__tests__/app-pinned-bottom.test.ts`
+Run: `pnpm test:node -- --test src/interfaces/tui/__tests__/app-pinned-bottom.test.ts`
 Expected: FAIL — the transitions are not yet implemented.
 
 - [ ] **Step 7: Implement the state transitions in `app.ts`**
@@ -996,13 +996,13 @@ In `dispatchToSession`: **remove the existing `perTab.scrollOffset = 0` line** �
 
 - [ ] **Step 8: Run the test to verify it passes**
 
-Run: `pnpm test:node -- --test src/tui/__tests__/app-pinned-bottom.test.ts`
+Run: `pnpm test:node -- --test src/interfaces/tui/__tests__/app-pinned-bottom.test.ts`
 Expected: PASS (8 cases including the focused first-ArrowUp-from-pinned regression).
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/tui/views/scroll-math.ts src/tui/views/__tests__/scroll-math.test.ts src/tui/app.ts src/tui/__tests__/app-pinned-bottom.test.ts
+git add src/interfaces/tui/views/scroll-math.ts src/interfaces/tui/views/__tests__/scroll-math.test.ts src/interfaces/tui/app.ts src/interfaces/tui/__tests__/app-pinned-bottom.test.ts
 git commit -m "feat(tui): scroll-math builders + pinnedBottom transitions (auto-follow + End + clear)" --no-verify
 ```
 
@@ -1011,7 +1011,7 @@ git commit -m "feat(tui): scroll-math builders + pinnedBottom transitions (auto-
 # Task 4: Agent view — relocate input panel + slash strip + use helpers
 
 **Files:**
-- Modify: `src/tui/views/agent-view.ts` (the line-builder code that already lives here is moved verbatim into `scroll-math.ts` by Task 3; this task removes it from this file)
+- Modify: `src/interfaces/tui/views/agent-view.ts` (the line-builder code that already lives here is moved verbatim into `scroll-math.ts` by Task 3; this task removes it from this file)
 - Create: `tests/tui/views/agent-view-bottom-anchored.vitest.ts`
 
 **Interfaces:**
@@ -1026,11 +1026,11 @@ Create `tests/tui/views/agent-view-bottom-anchored.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { AgentView } from '../../../src/tui/views/agent-view.js';
+import { AgentView } from '../../../src/interfaces/tui/views/agent-view.js';
 import { MockCanvas } from './helpers/mock-canvas.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
-import { createInitialPerTabState } from '../../../src/tui/state.js';
-import type { TerminalCanvas } from '../../../src/tui/canvas.js';
+import type { ViewRenderContext } from '../../../src/interfaces/tui/views/types.js';
+import { createInitialPerTabState } from '../../../src/interfaces/tui/state.js';
+import type { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
 
 // Cast factory: MockCanvas is intentionally minimal (only captures write()).
 // renderBottomAnchoredSlice only invokes write() via the kindStyles callbacks
@@ -1295,7 +1295,7 @@ if (this.state.activeTab === 'agent') {
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `pnpm test:node -- --test src/tui/__tests__/agent-view-bottom-anchored.test.ts`
+Run: `pnpm test:node -- --test src/interfaces/tui/__tests__/agent-view-bottom-anchored.test.ts`
 Expected: PASS (6 cases).
 
 - [ ] **Step 6: Run the full TUI test suite and update snapshots**
@@ -1313,7 +1313,7 @@ Only commit the snapshot updates after the implementer AND reviewer have audited
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/tui/views/agent-view.ts src/tui/__tests__/agent-view-bottom-anchored.test.ts src/tui/app.ts
+git add src/interfaces/tui/views/agent-view.ts src/interfaces/tui/__tests__/agent-view-bottom-anchored.test.ts src/interfaces/tui/app.ts
 git commit -m "feat(tui): relocate agent-tab input panel + slash strip to bottom" --no-verify
 ```
 
@@ -1322,7 +1322,7 @@ git commit -m "feat(tui): relocate agent-tab input panel + slash strip to bottom
 # Task 5: Chat view — relocate input panel + use helper (no slash strip)
 
 **Files:**
-- Modify: `src/tui/views/chat-view.ts` (the line-builder code that already lives here was moved verbatim into `scroll-math.ts` by Task 3; this task removes it from this file and imports it instead)
+- Modify: `src/interfaces/tui/views/chat-view.ts` (the line-builder code that already lives here was moved verbatim into `scroll-math.ts` by Task 3; this task removes it from this file and imports it instead)
 - Create: `tests/tui/views/chat-view-bottom-anchored.vitest.ts`
 
 **Interfaces:**
@@ -1337,11 +1337,11 @@ Create `tests/tui/views/chat-view-bottom-anchored.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { ChatView } from '../../../src/tui/views/chat-view.js';
+import { ChatView } from '../../../src/interfaces/tui/views/chat-view.js';
 import { MockCanvas } from './helpers/mock-canvas.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
-import { createInitialPerTabState } from '../../../src/tui/state.js';
-import type { TerminalCanvas } from '../../../src/tui/canvas.js';
+import type { ViewRenderContext } from '../../../src/interfaces/tui/views/types.js';
+import { createInitialPerTabState } from '../../../src/interfaces/tui/state.js';
+import type { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
 
 function canvas(columns: number, rows: number): TerminalCanvas {
   return new MockCanvas(columns, rows) as unknown as TerminalCanvas;
@@ -1508,7 +1508,7 @@ if (this.state.activeTab === 'chat') {
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `pnpm test:node -- --test src/tui/__tests__/chat-view-bottom-anchored.test.ts`
+Run: `pnpm test:node -- --test src/interfaces/tui/__tests__/chat-view-bottom-anchored.test.ts`
 Expected: PASS (4 cases).
 
 - [ ] **Step 6: Run the full test suite and update snapshots**
@@ -1518,7 +1518,7 @@ Same as Task 4 step 6 — run `pnpm test:vitest`, audit snapshot diff, update in
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/tui/views/chat-view.ts src/tui/__tests__/chat-view-bottom-anchored.test.ts src/tui/app.ts
+git add src/interfaces/tui/views/chat-view.ts src/interfaces/tui/__tests__/chat-view-bottom-anchored.test.ts src/interfaces/tui/app.ts
 git commit -m "feat(tui): relocate chat-tab input panel to bottom" --no-verify
 ```
 
@@ -1657,8 +1657,8 @@ No type drift detected.
 - `renderBottomAnchoredSlice`, `KindStyleMap`, `ScrollbackLine` ← Task 1
 - `renderSlashOverlay` ← Task 2
 - `buildAgentScrollbackLines`, `buildChatScrollbackLines`, `computeBottomAnchor` ← Task 3
-- `TerminalCanvas` ← existing `src/tui/canvas.ts`
-- `ViewRenderContext`, `ViewAction`, `ViewInputContext`, `PerTabState`, `TabId`, `SlashStrip` ← existing `src/tui/views/types.ts` and `src/tui/state.ts`
+- `TerminalCanvas` ← existing `src/interfaces/tui/canvas.ts`
+- `ViewRenderContext`, `ViewAction`, `ViewInputContext`, `PerTabState`, `TabId`, `SlashStrip` ← existing `src/interfaces/tui/views/types.ts` and `src/interfaces/tui/state.ts`
 
 Verified by grepping each import statement against the prior task's exports.
 

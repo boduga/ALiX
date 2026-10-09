@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tokenize } from '../../../src/tui/blocks/tokenize.js';
+import { tokenize } from '../../../src/interfaces/tui/blocks/tokenize.js';
 
 describe('tokenize', () => {
   it('returns plain tokens for unknown languages', () => {

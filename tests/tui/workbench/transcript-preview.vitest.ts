@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
-import { ConversationProjection } from '../../../src/tui/workbench/projections/conversation-projection.js';
-import { transcriptItemMatchesFilter, getTranscriptFocusAgentId } from '../../../src/tui/workbench/model/transcript-filter.js';
-import type { TranscriptItem } from '../../../src/tui/workbench/model/transcript-item.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { TimelineBuilder } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import { ConversationProjection } from '../../../src/interfaces/tui/workbench/projections/conversation-projection.js';
+import { transcriptItemMatchesFilter, getTranscriptFocusAgentId } from '../../../src/interfaces/tui/workbench/model/transcript-filter.js';
+import type { TranscriptItem } from '../../../src/interfaces/tui/workbench/model/transcript-item.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 const base = { id: 'row', startedAt: 1, sourceEvents: { firstSequence: 1, lastSequence: 1 } };
 const rows: TranscriptItem[] = [

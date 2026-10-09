@@ -70,7 +70,7 @@ function mockExit(): { spy: ReturnType<typeof vi.spyOn>; calls: () => (string | 
 
 /** Seed a proposal directly via AdaptationProposalStore. */
 async function seedProposal(overrides: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
-  const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+  const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
   const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
 
   const id = (overrides.id as string) || "prop-test-001";
@@ -91,7 +91,7 @@ async function seedProposal(overrides: Record<string, unknown> = {}): Promise<Re
     ...overrides,
   };
 
-  await store.save(proposal as unknown as import("../../../src/adaptation/adaptation-types.js").AdaptationProposal);
+  await store.save(proposal as unknown as import("../../../src/planning/adaptation/adaptation-types.js").AdaptationProposal);
   return proposal;
 }
 
@@ -129,7 +129,7 @@ describe("adaptation revert CLI", () => {
   // ---------------------------------------------------------------------------
 
   it("errors with exit 1 when the source proposal does not exist", async () => {
-    const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     const exit = mockExit();
 
@@ -149,7 +149,7 @@ describe("adaptation revert CLI", () => {
     // Seed a proposal but do NOT create a snapshot.
     await seedProposal({ id: "prop-no-snapshot", action: "create_agent_card" });
 
-    const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     const exit = mockExit();
 
@@ -178,7 +178,7 @@ describe("adaptation revert CLI", () => {
 
     await seedSnapshot(sourceProposal.id as string, cardPath, JSON.stringify(originalCard, null, 2));
 
-    const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     await handleAdaptationCommand(["revert", sourceProposal.id as string, "--reason", "Undo test change"]);
 
@@ -189,7 +189,7 @@ describe("adaptation revert CLI", () => {
     c.restore();
 
     // Load the store and verify the revert proposal was created.
-    const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+    const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
     const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     const all = await store.list();
     // Should have source proposal + revert proposal.
@@ -205,7 +205,7 @@ describe("adaptation revert CLI", () => {
     expect(revertProposal!.reason).toBe("Undo test change");
 
     // Evidence recorded.
-    const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+    const { EvidenceStore } = await import("../../../src/governance/security/evidence/evidence-store.js");
     const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
     const proposed = await evidence.query({ type: "adaptation_proposed" });
     // Filter to find revert_proposal events.
@@ -221,7 +221,7 @@ describe("adaptation revert CLI", () => {
   // ---------------------------------------------------------------------------
 
   it("errors with usage message when no proposal id is given", async () => {
-    const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     const exit = mockExit();
 
@@ -259,7 +259,7 @@ describe("adaptation revert CLI", () => {
 
     // Create and approve a revert_proposal.
     const revertProposalId = "prop-revert-001";
-    const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+    const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
     const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     const revertProposal = {
       id: revertProposalId,
@@ -279,7 +279,7 @@ describe("adaptation revert CLI", () => {
     await store.save(revertProposal);
 
     // Apply the revert.
-    const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+    const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
     const c = captureConsole();
     await handleAdaptationCommand(["apply", revertProposalId]);
     c.restore();
@@ -294,7 +294,7 @@ describe("adaptation revert CLI", () => {
     expect(reloaded!.status).toBe("applied");
 
     // Verify adaptation_applied evidence recorded.
-    const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+    const { EvidenceStore } = await import("../../../src/governance/security/evidence/evidence-store.js");
     const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
     const applied = await evidence.query({ type: "adaptation_applied" });
     const revertApplied = applied.records.filter((r) => r.payload.proposalId === revertProposalId);

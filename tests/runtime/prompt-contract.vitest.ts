@@ -17,7 +17,7 @@
  *     contain history contents; any reintroduction of EventLog dump without
  *     explicit opt-in is a test failure.
  *
- * Uses src/runtime/context/context-builder.ts (pure mechanical builder).
+ * Uses src/runtime-state/runtime/context/context-builder.ts (pure mechanical builder).
  */
 
 import { describe, it, expect } from "vitest";
@@ -26,11 +26,11 @@ import {
   MAX_PENDING_RENDER,
   type EvidenceInput,
   type ToolInput,
-} from "../../src/runtime/context/context-builder.js";
+} from "../../src/runtime-state/runtime/context/context-builder.js";
 import {
   EXECUTION_STATE_SCHEMA_VERSION,
   type ExecutionState,
-} from "../../src/runtime/execution-state/execution-state.js";
+} from "../../src/runtime-state/runtime/execution-state/execution-state.js";
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 

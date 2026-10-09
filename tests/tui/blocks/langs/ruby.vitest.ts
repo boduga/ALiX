@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rubyTokenizer } from '../../../../src/tui/blocks/langs/ruby.js';
+import { rubyTokenizer } from '../../../../src/interfaces/tui/blocks/langs/ruby.js';
 
 describe('rubyTokenizer', () => {
   it('tokenizes keywords', () => {

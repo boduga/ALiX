@@ -3,17 +3,17 @@ import { describe, it, expect } from 'vitest';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../../src/events/event-log.js';
-import { FileProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
-import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
-import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
-import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
-import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import { SnapshotBuilder } from '../../../src/tui/snapshot-builder.js';
+import { EventLog } from '../../../src/runtime-state/events/event-log.js';
+import { FileProjectionCheckpointStore } from '../../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
+import { RuntimeCollectorImpl } from '../../../src/interfaces/tui/runtime-collector.js';
+import { TimelineBuilder } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import { createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import { SnapshotBuilder } from '../../../src/interfaces/tui/snapshot-builder.js';
 
 describe('runTui bootstrap (thin)', () => {
   it('exports a runTui function', { timeout: 15_000 }, async () => {
-    const mod = await import('../../../src/cli/commands/tui.js');
+    const mod = await import('../../../src/interfaces/cli/commands/tui.js');
     expect(typeof mod.runTui).toBe('function');
     expect(mod.runTui.length).toBeLessThanOrEqual(3);
     // runTui is `export async function runTui`; it must remain async because
@@ -213,7 +213,7 @@ describe('runTui bootstrap (thin)', () => {
 describe('capability catalog persistence', () => {
   it('the TUI names the repository catalogDir explicitly', () => {
     const source = readFileSync(
-      join(process.cwd(), 'src', 'cli', 'commands', 'tui.ts'),
+      join(process.cwd(), 'src', 'interfaces', 'cli', 'commands', 'tui.ts'),
       'utf8',
     );
     const construction = /new CapabilityService\(undefined, \{([\s\S]{0,600}?)\}\)/.exec(source);

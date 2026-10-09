@@ -1,4 +1,4 @@
-import type { ModelRoutingCase } from "../src/kernel/model-routing-validation.js";
+import type { ModelRoutingCase } from "../src/coordination/kernel/model-routing-validation.js";
 
 /**
  * Curated prompts for model routing validation.

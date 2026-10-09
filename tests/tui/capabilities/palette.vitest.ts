@@ -1,8 +1,8 @@
 // tests/tui/capabilities/palette.vitest.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CapabilityProvider, PaletteModal, type PaletteEntry } from '../../../src/tui/capabilities/palette.js';
-import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/tui/capabilities/capability-service.js';
-import type { InvocationPresenter } from '../../../src/tui/capabilities/invocation-presenter.js';
+import { CapabilityProvider, PaletteModal, type PaletteEntry } from '../../../src/interfaces/tui/capabilities/palette.js';
+import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../../src/interfaces/tui/capabilities/capability-service.js';
+import type { InvocationPresenter } from '../../../src/interfaces/tui/capabilities/invocation-presenter.js';
 
 function makeService(): CapabilityService {
   const presenter: InvocationPresenter = { present: vi.fn(async () => {}) };

@@ -96,10 +96,10 @@ When two replays modified the same file path, the summary shows:
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/tui/store.ts` | MODIFY | Add `selectedReplayIds: string[]` state field + setter |
-| `src/tui/panel-renderer.ts` | MODIFY | Add `[x]`/`[ ]` selection prefix to replays panel entries |
-| `src/cli/commands/tui.ts` | MODIFY | Add `/batch` command handler with all subcommands |
-| `src/runtime/batch-preview.ts` | **NEW** | Batch preview builder: overlap detection, combined summaries |
+| `src/interfaces/tui/store.ts` | MODIFY | Add `selectedReplayIds: string[]` state field + setter |
+| `src/interfaces/tui/panel-renderer.ts` | MODIFY | Add `[x]`/`[ ]` selection prefix to replays panel entries |
+| `src/interfaces/cli/commands/tui.ts` | MODIFY | Add `/batch` command handler with all subcommands |
+| `src/runtime-state/runtime/batch-preview.ts` | **NEW** | Batch preview builder: overlap detection, combined summaries |
 | `tests/runtime/batch-preview.test.ts` | **NEW** | Tests for batch preview logic |
 | `tests/tui/batch-commands.test.ts` | **NEW** | Tests for store selection state + /batch command parsing |
 
@@ -110,13 +110,13 @@ When two replays modified the same file path, the summary shows:
 ### Task 1: Add selection state to store + panel
 
 **Files:**
-- Modify: `src/tui/store.ts`
-- Modify: `src/tui/panel-renderer.ts`
+- Modify: `src/interfaces/tui/store.ts`
+- Modify: `src/interfaces/tui/panel-renderer.ts`
 - Test: `tests/tui/batch-commands.test.ts`
 
 - [ ] **Step 1: Add selectedReplayIds to store**
 
-In `src/tui/store.ts`:
+In `src/interfaces/tui/store.ts`:
 
 Add to `TuiState` interface after `replayLockStates`:
 ```typescript
@@ -160,7 +160,7 @@ Create `tests/tui/batch-commands.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createTuiStore } from "../../src/tui/store.js";
+import { createTuiStore } from "../../src/interfaces/tui/store.js";
 
 describe("Batch selection state", () => {
   it("starts with empty selection", () => {
@@ -206,7 +206,7 @@ Expected: Tests pass (the store methods exist after Step 1).
 
 - [ ] **Step 4: Update replays panel rendering**
 
-In `src/tui/panel-renderer.ts`, locate the replays panel entry loop (lines 157-172). Add a `[x]`/`[ ]` selection prefix before each entry:
+In `src/interfaces/tui/panel-renderer.ts`, locate the replays panel entry loop (lines 157-172). Add a `[x]`/`[ ]` selection prefix before each entry:
 
 Replace the loop body from `const date = ...` through `buf.push(...)` with:
 
@@ -244,7 +244,7 @@ Expected: Clean build, 5 tests pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/store.ts src/tui/panel-renderer.ts tests/tui/batch-commands.test.ts
+git add src/interfaces/tui/store.ts src/interfaces/tui/panel-renderer.ts tests/tui/batch-commands.test.ts
 git commit -m "feat(tui): add batch selection state and panel markers"
 ```
 
@@ -253,7 +253,7 @@ git commit -m "feat(tui): add batch selection state and panel markers"
 ### Task 2: Build `batch-preview.ts`
 
 **Files:**
-- Create: `src/runtime/batch-preview.ts`
+- Create: `src/runtime-state/runtime/batch-preview.ts`
 - Test: `tests/runtime/batch-preview.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -263,8 +263,8 @@ Create `tests/runtime/batch-preview.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { ReplayDiffSet } from "../../src/runtime/replay-diff-store.js";
-import { buildBatchRollbackPreview, buildBatchSafetySummary, detectFileOverlaps, type BatchRollbackPreview } from "../../src/runtime/batch-preview.js";
+import type { ReplayDiffSet } from "../../src/runtime-state/runtime/replay-diff-store.js";
+import { buildBatchRollbackPreview, buildBatchSafetySummary, detectFileOverlaps, type BatchRollbackPreview } from "../../src/runtime-state/runtime/batch-preview.js";
 
 describe("buildBatchRollbackPreview", () => {
   it("combines diff sets from multiple replayIds", async () => {
@@ -352,7 +352,7 @@ Expected: FAIL — `buildBatchRollbackPreview` and `detectFileOverlaps` not defi
 
 - [ ] **Step 3: Write batch-preview.ts**
 
-Create `src/runtime/batch-preview.ts`:
+Create `src/runtime-state/runtime/batch-preview.ts`:
 
 ```typescript
 /**
@@ -521,7 +521,7 @@ Expected: All 5 tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/runtime/batch-preview.ts tests/runtime/batch-preview.test.ts
+git add src/runtime-state/runtime/batch-preview.ts tests/runtime/batch-preview.test.ts
 git commit -m "feat(runtime): add batch preview with overlap detection"
 ```
 
@@ -530,11 +530,11 @@ git commit -m "feat(runtime): add batch preview with overlap detection"
 ### Task 3: Add `/batch` commands to TUI
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add `/batch` command handler**
 
-In `src/cli/commands/tui.ts`, after the `/replay-status` block (around line ~696), before the `if (daemonMode)` block, add:
+In `src/interfaces/cli/commands/tui.ts`, after the `/replay-status` block (around line ~696), before the `if (daemonMode)` block, add:
 
 ```typescript
       // Check for /batch commands
@@ -685,7 +685,7 @@ Expected: All tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): add /batch commands for multi-replay selection and preview"
 ```
 

@@ -10,8 +10,8 @@
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { ExecutionAuthorization, type AuthorizationDeps } from "../../src/runtime/execution-authorization.js";
-import { type ExecutionDecision, type ExecutionDecisionRequest, decisionAllowed, decisionDenied, decisionApprovalRequired } from "../../src/runtime/execution-decision.js";
+import { ExecutionAuthorization, type AuthorizationDeps } from "../../src/runtime-state/runtime/execution-authorization.js";
+import { type ExecutionDecision, type ExecutionDecisionRequest, decisionAllowed, decisionDenied, decisionApprovalRequired } from "../../src/runtime-state/runtime/execution-decision.js";
 
 // ── Fake PolicyGate ──────────────────────────────────────────────────
 

@@ -4,8 +4,8 @@ import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { SkillInstallHistory } from "../../../src/security/evidence/skill-install-history.js";
-import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
+import { SkillInstallHistory } from "../../../src/governance/security/evidence/skill-install-history.js";
+import { EvidenceStore } from "../../../src/governance/security/evidence/evidence-store.js";
 
 describe("SkillInstallHistory", () => {
   let dir: string;

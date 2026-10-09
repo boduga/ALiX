@@ -24,18 +24,18 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { LearningEngine } from "../../src/evolution/learning/learning-engine.js";
-import { buildGovernanceRecommendation } from "../../src/evolution/learning/governance-bridge.js";
-import { generateDecision } from "../../src/evolution/governance/decision-engine.js";
+import { LearningEngine } from "../../src/planning/evolution/learning/learning-engine.js";
+import { buildGovernanceRecommendation } from "../../src/planning/evolution/learning/governance-bridge.js";
+import { generateDecision } from "../../src/planning/evolution/governance/decision-engine.js";
 import type {
   EnrichedProposalRecord,
   MeasurementOutcomeRecord,
   ProposalGovernanceRecord,
   RecommendationRecord,
-} from "../../src/evolution/learning/contracts/learning-contract.js";
-import type { LearningProposal } from "../../src/evolution/learning/contracts/learning-contract.js";
-import type { GovernanceRecommendation } from "../../src/evolution/verification/contracts/recommendation-contract.js";
-import type { VerificationEvidence } from "../../src/evolution/verification/contracts/verification-contract.js";
+} from "../../src/planning/evolution/learning/contracts/learning-contract.js";
+import type { LearningProposal } from "../../src/planning/evolution/learning/contracts/learning-contract.js";
+import type { GovernanceRecommendation } from "../../src/planning/evolution/verification/contracts/recommendation-contract.js";
+import type { VerificationEvidence } from "../../src/planning/evolution/verification/contracts/verification-contract.js";
 
 // ---------------------------------------------------------------------------
 // Constants

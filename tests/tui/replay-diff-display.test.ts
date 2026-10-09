@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { renderReplayDiffSummary, renderRollbackPreview } from "../../src/tui/trace-detail.js";
-import type { ReplayDiffSet, ReplayDiffRecord } from "../../src/runtime/replay-diff-store.js";
+import { renderReplayDiffSummary, renderRollbackPreview } from "../../src/interfaces/tui/trace-detail.js";
+import type { ReplayDiffSet, ReplayDiffRecord } from "../../src/runtime-state/runtime/replay-diff-store.js";
 
 const mockRecords: ReplayDiffRecord[] = [
   {

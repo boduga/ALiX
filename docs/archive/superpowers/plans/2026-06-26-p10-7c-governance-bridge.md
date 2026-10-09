@@ -58,7 +58,7 @@ git commit -m "docs(p10-7c): add implementation plan"
 ### Task 1: Pure `computeExecutiveProposals` + types + unit tests
 
 **Files:**
-- Create: `src/executive/executive-bridge-recommendations.ts` (pure function + types)
+- Create: `src/execution/executive/executive-bridge-recommendations.ts` (pure function + types)
 - Create: `tests/executive/executive-bridge-recommendations.vitest.ts` (unit tests)
 
 **Interfaces:**
@@ -73,10 +73,10 @@ git commit -m "docs(p10-7c): add implementation plan"
 import { describe, it, expect } from "vitest";
 import {
   computeExecutiveProposals,
-} from "../../src/executive/executive-bridge-recommendations.js";
-import type { ExecutiveBridgeResult } from "../../src/executive/executive-bridge-recommendations.js";
-import type { RecommendationReport } from "../../src/executive/recommendation-report-store.js";
-import type { ExecutiveRecommendation } from "../../src/executive/recommendation-report-store.js";
+} from "../../src/execution/executive/executive-bridge-recommendations.js";
+import type { ExecutiveBridgeResult } from "../../src/execution/executive/executive-bridge-recommendations.js";
+import type { RecommendationReport } from "../../src/execution/executive/recommendation-report-store.js";
+import type { ExecutiveRecommendation } from "../../src/execution/executive/recommendation-report-store.js";
 
 const FIXED_NOW = "2026-06-26T00:00:00.000Z";
 
@@ -268,7 +268,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement the pure function**
 
-`src/executive/executive-bridge-recommendations.ts`:
+`src/execution/executive/executive-bridge-recommendations.ts`:
 
 ```ts
 /**
@@ -383,7 +383,7 @@ Expected: no errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/executive/executive-bridge-recommendations.ts tests/executive/executive-bridge-recommendations.vitest.ts
+git add src/execution/executive/executive-bridge-recommendations.ts tests/executive/executive-bridge-recommendations.vitest.ts
 git commit -m "feat(p10-7c): computeExecutiveProposals pure bridge + 15 unit tests"
 ```
 
@@ -392,8 +392,8 @@ git commit -m "feat(p10-7c): computeExecutiveProposals pure bridge + 15 unit tes
 ### Task 2: CLI handler + routing + integration tests
 
 **Files:**
-- Create: `src/cli/commands/executive-bridge-handler.ts` (handler)
-- Modify: `src/cli/commands/executive.ts` (add `case "bridge"` + update subcommand list)
+- Create: `src/interfaces/cli/commands/executive-bridge-handler.ts` (handler)
+- Modify: `src/interfaces/cli/commands/executive.ts` (add `case "bridge"` + update subcommand list)
 - Create: `tests/cli/commands/executive-bridge-cli.vitest.ts` (integration tests)
 
 **Interfaces:**
@@ -419,11 +419,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleBridgeCommand } from "../../../src/cli/commands/executive-bridge-handler.js";
-import { RecommendationReportStore } from "../../../src/executive/recommendation-report-store.js";
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
-import type { RecommendationReport } from "../../../src/executive/recommendation-report-store.js";
-import type { ExecutiveRecommendation } from "../../../src/executive/recommendation-report-store.js";
+import { handleBridgeCommand } from "../../../src/interfaces/cli/commands/executive-bridge-handler.js";
+import { RecommendationReportStore } from "../../../src/execution/executive/recommendation-report-store.js";
+import { ProposalStore } from "../../../src/planning/adaptation/proposal-store.js";
+import type { RecommendationReport } from "../../../src/execution/executive/recommendation-report-store.js";
+import type { ExecutiveRecommendation } from "../../../src/execution/executive/recommendation-report-store.js";
 
 function captureConsole() {
   const out: string[] = [];
@@ -627,8 +627,8 @@ describe("executive bridge CLI", () => {
     // We instead rely on: ProposalStore.save throws on bad id (assertSafePathComponent).
     // Use an invalid title that, when normalized, produces an id with "../" — but id is set by handler.
     // Cleanest approach: throw inside save by mocking the module.
-    vi.mock("../../../src/adaptation/proposal-store.js", async () => {
-      const actual = await vi.importActual<any>("../../../src/adaptation/proposal-store.js");
+    vi.mock("../../../src/planning/adaptation/proposal-store.js", async () => {
+      const actual = await vi.importActual<any>("../../../src/planning/adaptation/proposal-store.js");
       return {
         ...actual,
         ProposalStore: class extends actual.ProposalStore {
@@ -648,7 +648,7 @@ describe("executive bridge CLI", () => {
     expect(reloaded.report.recommendations[1].proposalId).toBeUndefined();
     cwdSpy.mockRestore();
     c.restore();
-    vi.doUnmock("../../../src/adaptation/proposal-store.js");
+    vi.doUnmock("../../../src/planning/adaptation/proposal-store.js");
   });
 
   it("no reports in store: clean error, exit cleanly", async () => {
@@ -701,7 +701,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Create the CLI handler**
 
-`src/cli/commands/executive-bridge-handler.ts`:
+`src/interfaces/cli/commands/executive-bridge-handler.ts`:
 
 ```ts
 /**
@@ -881,7 +881,7 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
 
 - [ ] **Step 4: Wire routing into `executive.ts`**
 
-In `src/cli/commands/executive.ts`, add a `case "bridge"` block immediately after the `case "learn"` block:
+In `src/interfaces/cli/commands/executive.ts`, add a `case "bridge"` block immediately after the `case "learn"` block:
 
 ```ts
     case "bridge": {
@@ -917,7 +917,7 @@ Expected: no errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/executive-bridge-handler.ts src/cli/commands/executive.ts tests/cli/commands/executive-bridge-cli.vitest.ts
+git add src/interfaces/cli/commands/executive-bridge-handler.ts src/interfaces/cli/commands/executive.ts tests/cli/commands/executive-bridge-cli.vitest.ts
 git commit -m "feat(p10-7c): executive bridge CLI + routing + integration tests"
 ```
 
@@ -936,7 +936,7 @@ In `tests/executive/executive-sentinels.vitest.ts`, find the P10.7b group:
 
 ```ts
   // P10.7b files
-  "src/executive/recommendation-report-store.ts",
+  "src/execution/executive/recommendation-report-store.ts",
 ];
 ```
 
@@ -944,10 +944,10 @@ Append a P10.7c group before the closing `];`:
 
 ```ts
   // P10.7b files
-  "src/executive/recommendation-report-store.ts",
+  "src/execution/executive/recommendation-report-store.ts",
   // P10.7c files
-  "src/executive/executive-bridge-recommendations.ts",
-  "src/cli/commands/executive-bridge-handler.ts",
+  "src/execution/executive/executive-bridge-recommendations.ts",
+  "src/interfaces/cli/commands/executive-bridge-handler.ts",
 ];
 ```
 

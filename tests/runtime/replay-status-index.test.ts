@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ReplayStatusIndex } from "../../src/runtime/replay-status-index.js";
+import { ReplayStatusIndex } from "../../src/runtime-state/runtime/replay-status-index.js";
 
 describe("ReplayStatusIndex", () => {
   let tmpDir: string;

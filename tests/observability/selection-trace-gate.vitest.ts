@@ -12,14 +12,14 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { EventLog } from '../../src/events/event-log.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
 import {
   buildSelectionObservation,
   emitSelectionNotApplicable,
   emitSelectionObservation,
-} from '../../src/observability/tool-selection-observation.js';
-import { TOOL_EVENT_TYPES } from '../../src/events/types.js';
-import { builtinCandidateId, freezeToolCandidates } from '../../src/decision/tool-selection-candidates.js';
+} from '../../src/operations/observability/tool-selection-observation.js';
+import { TOOL_EVENT_TYPES } from '../../src/runtime-state/events/types.js';
+import { builtinCandidateId, freezeToolCandidates } from '../../src/planning/decision/tool-selection-candidates.js';
 
 const frozen = freezeToolCandidates({
   builtin: [

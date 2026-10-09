@@ -23,8 +23,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk } from "../../src/providers/types.js";
-import type { TraceClient } from "../../src/tracing/client.js";
+import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk } from "../../src/models/providers/types.js";
+import type { TraceClient } from "../../src/models/tracing/client.js";
 import type {
   ModelSpanInput,
   RunOutcome,
@@ -33,19 +33,19 @@ import type {
   TraceRun,
   TraceRunInput,
   TraceSpan,
-} from "../../src/tracing/types.js";
-import { NOOP_TRACE_CLIENT } from "../../src/tracing/noop-client.js";
-import { ExecutionCancelledError } from "../../src/runtime/cancellation-token.js";
+} from "../../src/models/tracing/types.js";
+import { NOOP_TRACE_CLIENT } from "../../src/models/tracing/noop-client.js";
+import { ExecutionCancelledError } from "../../src/runtime-state/runtime/cancellation-token.js";
 
 const mocks = vi.hoisted(() => ({
   getProcessTraceClient: vi.fn(),
 }));
 
-vi.mock("../../src/tracing/client-factory.js", () => ({
+vi.mock("../../src/models/tracing/client-factory.js", () => ({
   getProcessTraceClient: mocks.getProcessTraceClient,
 }));
 
-import { withProviderContracts } from "../../src/providers/provider-contract-validation.js";
+import { withProviderContracts } from "../../src/models/providers/provider-contract-validation.js";
 
 // ---------------------------------------------------------------------------
 // Recording fake TraceClient

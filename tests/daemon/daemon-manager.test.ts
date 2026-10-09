@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { DaemonManager } from "../../src/daemon/daemon-manager.js";
+import { DaemonManager } from "../../src/operations/daemon/daemon-manager.js";
 
 describe("DaemonManager", () => {
   let origHome: string | undefined;

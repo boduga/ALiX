@@ -16,9 +16,9 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/kernel/task-graph.ts` | **Modify** | Add `timeoutMs`, `maxIterations` to TaskNode |
-| `src/kernel/graph-executor.ts` | **Modify** | Add tool filtering, timeout, max iterations, skill-factory disable |
-| `src/sop/research-deep-report.ts` | **Modify** | Set timeoutMs and maxIterations per node |
+| `src/coordination/kernel/task-graph.ts` | **Modify** | Add `timeoutMs`, `maxIterations` to TaskNode |
+| `src/coordination/kernel/graph-executor.ts` | **Modify** | Add tool filtering, timeout, max iterations, skill-factory disable |
+| `src/coordination/sop/research-deep-report.ts` | **Modify** | Set timeoutMs and maxIterations per node |
 | `src/run.ts` | **Modify** | Add `disableSkillFactory` to RunOpts |
 | `tests/kernel/graph-executor.test.ts` | **Modify** | Test tool filtering, timeout enforcement |
 
@@ -26,7 +26,7 @@
 
 ### Task 1: Add timeoutMs and maxIterations to TaskNode
 
-**Files:** `src/kernel/task-graph.ts`
+**Files:** `src/coordination/kernel/task-graph.ts`
 
 - [ ] Add fields to `TaskNode`:
 
@@ -42,7 +42,7 @@ export interface TaskNode {
 
 ### Task 2: Add allowedTools and allowedWriteRoot to execution profile
 
-**Files:** `src/kernel/graph-executor.ts`
+**Files:** `src/coordination/kernel/graph-executor.ts`
 
 - [ ] Add profile definitions:
 
@@ -66,7 +66,7 @@ Also update system prompt to include profile restrictions.
 
 ### Task 3: Add timeout enforcement
 
-**Files:** `src/kernel/graph-executor.ts`
+**Files:** `src/coordination/kernel/graph-executor.ts`
 
 - [ ] In `execute()`, pass the timeout to `runTask`:
 
@@ -81,7 +81,7 @@ const result: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
 
 ### Task 4: Disable skill-factory during research execution  
 
-**Files:** `src/kernel/graph-executor.ts`
+**Files:** `src/coordination/kernel/graph-executor.ts`
 
 - [ ] Add to the `execute()` method before `runTask`:
 
@@ -108,7 +108,7 @@ try {
 
 ### Task 5: Update research.deep_report graph with timeouts and max iterations
 
-**Files:** `src/sop/research-deep-report.ts`
+**Files:** `src/coordination/sop/research-deep-report.ts`
 
 - [ ] Add `timeoutMs` and `maxIterations` to each node:
 

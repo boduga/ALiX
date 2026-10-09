@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MemoryStore } from "../../../src/utils/memory/store.js";
+import { MemoryStore } from "../../../src/operations/utils/memory/store.js";
 import { spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";

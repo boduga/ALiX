@@ -16,9 +16,9 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/tools/executor.ts` | **Modify** | Change output directory from `/tmp` to session artifacts; emit `artifact.created` event |
-| `src/events/types.ts` | **Modify** | Add `ArtifactCreatedPayload` type and `ARTIFACT_EVENT_TYPES` constant |
-| `src/inspector/projection.ts` | **Modify** | Update artifact path resolution |
+| `src/capabilities/tools/executor.ts` | **Modify** | Change output directory from `/tmp` to session artifacts; emit `artifact.created` event |
+| `src/runtime-state/events/types.ts` | **Modify** | Add `ArtifactCreatedPayload` type and `ARTIFACT_EVENT_TYPES` constant |
+| `src/interfaces/inspector/projection.ts` | **Modify** | Update artifact path resolution |
 | `tests/tools/large-output-artifact.test.ts` | **Create** | Tests for artifact path and event |
 
 ---
@@ -26,7 +26,7 @@
 ### Task 1: Add artifact event type
 
 **Files:**
-- Modify: `src/events/types.ts`
+- Modify: `src/runtime-state/events/types.ts`
 
 - [ ] **Step 1: Add ArtifactCreatedPayload and ARTIFACT_EVENT_TYPES**
 
@@ -58,7 +58,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/events/types.ts
+git add src/runtime-state/events/types.ts
 git commit -m "feat(events): add artifact.created event type"
 ```
 
@@ -67,7 +67,7 @@ git commit -m "feat(events): add artifact.created event type"
 ### Task 2: Change output path and emit artifact.created
 
 **Files:**
-- Modify: `src/tools/executor.ts`
+- Modify: `src/capabilities/tools/executor.ts`
 
 - [ ] **Step 1: Change writeOutputToFile to use session artifacts dir**
 
@@ -142,7 +142,7 @@ Expected: no errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tools/executor.ts
+git add src/capabilities/tools/executor.ts
 git commit -m "feat(tools): move large tool outputs from /tmp to session artifacts dir"
 ```
 
@@ -151,12 +151,12 @@ git commit -m "feat(tools): move large tool outputs from /tmp to session artifac
 ### Task 3: Update Inspector to read from new artifact path
 
 **Files:**
-- Modify: `src/inspector/projection.ts`
+- Modify: `src/interfaces/inspector/projection.ts`
 
 - [ ] **Step 1: Check if Inspector reads from /tmp/alix-tool-outputs**
 
 ```bash
-grep -n "alix-tool-outputs\|tmpdir\|/tmp" src/inspector/projection.ts
+grep -n "alix-tool-outputs\|tmpdir\|/tmp" src/interfaces/inspector/projection.ts
 ```
 
 If the Inspector reads tool outputs from `/tmp`, update the path to derive from the session directory. The typical pattern is:
@@ -170,7 +170,7 @@ Replace any `/tmp/alix-tool-outputs` reference with `artifactsDir`. If the Inspe
 - [ ] **Step 2: Commit (if changes needed)**
 
 ```bash
-git add src/inspector/projection.ts
+git add src/interfaces/inspector/projection.ts
 git commit -m "fix(inspector): read tool artifacts from session artifacts dir"
 ```
 
@@ -191,7 +191,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EventLog } from "../../src/events/event-log.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 describe("Artifact output path", () => {
   let tmpDir: string;

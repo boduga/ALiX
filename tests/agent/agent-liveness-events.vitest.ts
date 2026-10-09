@@ -6,18 +6,18 @@
  * (stalled/warning → healthy) state must surface as `agent.liveness.recovered`,
  * NOT a second `agent.liveness.warning`.
  *
- * The mapping lives in `livenessEventType` (src/agent/session.ts) — a pure
+ * The mapping lives in `livenessEventType` (src/agents/agent/session.ts) — a pure
  * function over `AgentLivenessState`. These tests drive `AgentLiveness` through
  * the full warning → stalled → recovered cycle (mirroring the state machine in
- * src/agent/agent-liveness.ts) and assert the emitted label for each state.
+ * src/agents/agent/agent-liveness.ts) and assert the emitted label for each state.
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
   AgentLiveness,
   DEFAULT_LIVENESS_THRESHOLDS,
-} from "../../src/agent/agent-liveness.js";
-import { livenessEventType } from "../../src/agent/session.js";
+} from "../../src/agents/agent/agent-liveness.js";
+import { livenessEventType } from "../../src/agents/agent/session.js";
 
 describe("livenessEventType", () => {
   it("maps stalled → agent.liveness.stalled", () => {

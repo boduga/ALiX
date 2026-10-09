@@ -4,7 +4,7 @@ import {
   clearModelDescriptorCache,
   getEncoding,
   SAFETY_FACTOR,
-} from "../../src/config/context-limits.js";
+} from "../../src/operations/config/context-limits.js";
 
 describe("resolveModelDescriptor", () => {
   beforeEach(() => {

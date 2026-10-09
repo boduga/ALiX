@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { MetricsProjection } from '../../../src/tui/runtime/metrics-projection.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { MetricsProjection } from '../../../src/interfaces/tui/runtime/metrics-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 /** Mirror the capability-projection `evt()` helper: capability.* events carry
  *  `at` (ms) in the payload; tool events carry their timestamp at the event
@@ -131,11 +131,11 @@ describe('MetricsProjection', () => {
   });
 
   it('imports only AlixEvent/payload types — never another projection\'s DTO (D4)', () => {
-    const src = readFileSync(join(process.cwd(), 'src/tui/runtime/metrics-projection.ts'), 'utf-8');
+    const src = readFileSync(join(process.cwd(), 'src/interfaces/tui/runtime/metrics-projection.ts'), 'utf-8');
     const importLines = src.split('\n').filter((l) => l.trim().startsWith('import'));
     expect(importLines.length).toBeGreaterThan(0);
     const specifiers = importLines.map((l) => l.match(/from\s+['"]([^'"]+)['"]/)?.[1] ?? l.trim());
-    const allowed = ['../../events/types.js', './projection-builder.js'];
+    const allowed = ['../../../runtime-state/events/types.js', './projection-builder.js'];
     for (const spec of specifiers) {
       expect(allowed, `metrics-projection.ts imports disallowed module: ${spec}`).toContain(spec);
     }

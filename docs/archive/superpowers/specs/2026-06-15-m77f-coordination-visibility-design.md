@@ -10,7 +10,7 @@ Add first-class visibility into coordination runs through a shared read model, e
 
 ## 2. Shared read model
 
-Create `src/kernel/coordination-view.ts` — a projection service that builds a unified view from CoordinationStore, ApprovalStore, OwnershipRegistry, ResultAggregator, and CoordinationAggregateStore.
+Create `src/coordination/kernel/coordination-view.ts` — a projection service that builds a unified view from CoordinationStore, ApprovalStore, OwnershipRegistry, ResultAggregator, and CoordinationAggregateStore.
 
 ```typescript
 export type CoordinationRunView = {
@@ -115,16 +115,16 @@ Events improve responsiveness, but the snapshot remains authoritative.
 ## 8. File structure
 
 ### Modify
-- `src/tui/index.ts` — register CoordinationPanel
-- `src/tui/panel-manager.ts` — add coordination panel type
-- `src/cli/commands/coordination.ts` — add list/inspect/watch/workers/approvals/ownership/events
-- `src/server/server.ts` — add Inspector routes
-- `src/events/types.ts` — ensure all coordination event types are in VISIBLE_EVENTS
+- `src/interfaces/tui/index.ts` — register CoordinationPanel
+- `src/interfaces/tui/panel-manager.ts` — add coordination panel type
+- `src/interfaces/cli/commands/coordination.ts` — add list/inspect/watch/workers/approvals/ownership/events
+- `src/interfaces/server/server.ts` — add Inspector routes
+- `src/runtime-state/events/types.ts` — ensure all coordination event types are in VISIBLE_EVENTS
 
 ### Create
-- `src/kernel/coordination-view.ts` — `buildCoordinationRunView()` shared projection
-- `src/tui/coordination-panel.ts` — TUI coordination panel
-- `src/server/coordination-routes.ts` — Inspector HTTP routes
+- `src/coordination/kernel/coordination-view.ts` — `buildCoordinationRunView()` shared projection
+- `src/interfaces/tui/coordination-panel.ts` — TUI coordination panel
+- `src/interfaces/server/coordination-routes.ts` — Inspector HTTP routes
 - `tests/kernel/coordination-view.test.ts`
 - `tests/cli/coordination-view.test.ts`
 - `tests/server/coordination-routes.test.ts`

@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { AlixEvent } from "../../src/events/types.js";
-import { EventLog } from "../../src/events/event-log.js";
-import type { TimingEventPayload } from "../../src/runtime/timing-events.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { TimingEventPayload } from "../../src/runtime-state/runtime/timing-events.js";
 
 describe("measurePhase", () => {
   let dir: string;
@@ -20,7 +20,7 @@ describe("measurePhase", () => {
   afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
   it("emits started + completed on success", async () => {
-    const { measurePhase } = await import("../../src/runtime/timing-events.js");
+    const { measurePhase } = await import("../../src/runtime-state/runtime/timing-events.js");
     const result = await measurePhase(log, "s1", "test.op", async () => "hello");
     assert.equal(result, "hello", "returns the work result");
     const events = await log.readAll() as AlixEvent<string, TimingEventPayload>[];
@@ -33,7 +33,7 @@ describe("measurePhase", () => {
   });
 
   it("emits completed with failure and rethrows on error", async () => {
-    const { measurePhase } = await import("../../src/runtime/timing-events.js");
+    const { measurePhase } = await import("../../src/runtime-state/runtime/timing-events.js");
     await assert.rejects(
       () => measurePhase(log, "s1", "failing.op", async () => { throw new Error("boom"); }),
       /boom/,
@@ -46,7 +46,7 @@ describe("measurePhase", () => {
   });
 
   it("timingId matches between started and completed", async () => {
-    const { measurePhase } = await import("../../src/runtime/timing-events.js");
+    const { measurePhase } = await import("../../src/runtime-state/runtime/timing-events.js");
     await measurePhase(log, "s1", "correlated.op", async () => {});
     const events = await log.readAll() as AlixEvent<string, TimingEventPayload>[];
     const started = events.find((e) => e.type === "runtime.phase.started")!;
@@ -55,7 +55,7 @@ describe("measurePhase", () => {
   });
 
   it("skips instrumentation when log is undefined", async () => {
-    const { measurePhase } = await import("../../src/runtime/timing-events.js");
+    const { measurePhase } = await import("../../src/runtime-state/runtime/timing-events.js");
     const result = await measurePhase(undefined, "s1", "unlogged", async () => 42);
     assert.equal(result, 42);
     const events = await log.readAll();

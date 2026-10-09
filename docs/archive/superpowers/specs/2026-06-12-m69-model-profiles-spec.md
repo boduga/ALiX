@@ -8,7 +8,7 @@ Add a model profile system to ALiX: built-in presets that configure provider/mod
 
 ## Architecture
 
-Five built-in profiles stored as JSON files in `src/config/profiles/`. A `ProfileRegistry` loads them at startup and validates them at runtime against TypeScript-defined type guards in `profile-types.ts`. Profiles are partial config patches — they set `model`, `subagents` tiers, and `runtime` limits, but must preserve unrelated config sections (policy, workspace, daemon, memory, approvals, tools, logging).
+Five built-in profiles stored as JSON files in `src/operations/config/profiles/`. A `ProfileRegistry` loads them at startup and validates them at runtime against TypeScript-defined type guards in `profile-types.ts`. Profiles are partial config patches — they set `model`, `subagents` tiers, and `runtime` limits, but must preserve unrelated config sections (policy, workspace, daemon, memory, approvals, tools, logging).
 
 CLI commands are thin wrappers; all logic lives in `src/models/*.ts`. Config precedence:
 
@@ -115,22 +115,22 @@ Manual `alix config set` overrides are tracked via `modelOverrides` and surfaced
 ## File structure
 
 ```
-src/config/profiles/
+src/operations/config/profiles/
   minimal-local.json
   balanced-local.json
   power-local.json
   cloud-balanced.json
   all-cloud.json
 
-src/config/profile-types.ts
-src/config/profile-registry.ts
-src/config/hardware-detect.ts
+src/operations/config/profile-types.ts
+src/operations/config/profile-registry.ts
+src/operations/config/hardware-detect.ts
 
 src/models/model-fit.ts
 src/models/model-doctor.ts
 src/models/model-install.ts
 
-src/cli/commands/models.ts
+src/interfaces/cli/commands/models.ts
 ```
 
 ## Sub-milestones
@@ -138,7 +138,7 @@ src/cli/commands/models.ts
 ### M0.69a — Profile Registry
 
 - `profile-types.ts`: `ProfileData`, `ProfileHardware`, `ProfileModelMap` types
-- 5 JSON profiles in `src/config/profiles/`
+- 5 JSON profiles in `src/operations/config/profiles/`
 - `profile-registry.ts`: `listProfiles()`, `getProfile(id)`, `matchHardware(profile, system) → 'compatible' | 'partial' | 'incompatible'`
 - Tests: validate every JSON profile loads and matches its type, matchHardware returns correct tier
 

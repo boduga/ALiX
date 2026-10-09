@@ -10,13 +10,13 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
 import {
   createCoordinationRun,
   createWorkerAssignment,
   transitionWorkerStatus,
   recomputeRunStatus,
-} from "../../src/kernel/coordination-types.js";
+} from "../../src/coordination/kernel/coordination-types.js";
 
 describe("CoordinationStore", () => {
   let tmpDir: string;

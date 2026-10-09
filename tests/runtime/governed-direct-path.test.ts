@@ -13,12 +13,12 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { executeRouteGoverned, governDirectRoute } from "../../src/runtime/governed-route-executor.js";
-import { PersistenceEvidenceEmitter } from "../../src/runtime/execution-persistence.js";
-import { ExecutionEvidenceStore } from "../../src/runtime/execution-evidence-store.js";
-import { ExecutionState } from "../../src/runtime/contracts/execution-runtime-contract.js";
-import type { RuntimeContext, RuntimeExecutor } from "../../src/runtime/route-executor.js";
-import type { TaskRoute } from "../../src/runtime/task-router.js";
+import { executeRouteGoverned, governDirectRoute } from "../../src/runtime-state/runtime/governed-route-executor.js";
+import { PersistenceEvidenceEmitter } from "../../src/runtime-state/runtime/execution-persistence.js";
+import { ExecutionEvidenceStore } from "../../src/runtime-state/runtime/execution-evidence-store.js";
+import { ExecutionState } from "../../src/runtime-state/runtime/contracts/execution-runtime-contract.js";
+import type { RuntimeContext, RuntimeExecutor } from "../../src/runtime-state/runtime/route-executor.js";
+import type { TaskRoute } from "../../src/runtime-state/runtime/task-router.js";
 
 const ARITHMETIC_ROUTE: TaskRoute = {
   kind: "direct",

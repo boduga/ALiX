@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { detectSystem } from "../../src/config/hardware-detect.js";
+import { detectSystem } from "../../src/operations/config/hardware-detect.js";
 
 describe("hardware-detect", () => {
   it("detects OS and CPU without throwing", () => {

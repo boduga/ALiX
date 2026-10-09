@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { runInstall, resolveInstallOptions, atomicInstallSkill } from "../../../../src/cli/commands/skills/install.js";
-import { invalidateSlashCatalog, setSlashCatalogLoaderForTest } from "../../../../src/skills/slash-catalog.js";
+import { runInstall, resolveInstallOptions, atomicInstallSkill } from "../../../../src/interfaces/cli/commands/skills/install.js";
+import { invalidateSlashCatalog, setSlashCatalogLoaderForTest } from "../../../../src/capabilities/skills/slash-catalog.js";
 import { join } from "node:path";
 import { existsSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { mkdirSync } from "node:fs";
@@ -375,11 +375,11 @@ describe("install --from (non-bundled skills)", () => {
       // asserted `loads === before + 1` with `before` captured post-install, but
       // install.ts never reads the catalog, so `loads` stayed 0 through install
       // and the assertion passed spuriously — the test could not fail at Step 2).
-      await import("../../../../src/skills/slash-catalog.js").then((m) => m.getSlashCatalog());
+      await import("../../../../src/capabilities/skills/slash-catalog.js").then((m) => m.getSlashCatalog());
       await runInstall({ from: writeFixture("---\nname: brand\ndescription: B\n---\nBody"), force: true });
       // A subsequent read must rebuild (loader called again) because install
       // invalidated the generation.
-      await import("../../../../src/skills/slash-catalog.js").then(async (m) => {
+      await import("../../../../src/capabilities/skills/slash-catalog.js").then(async (m) => {
         const before = loads; // === 1 after pre-warm
         await m.getSlashCatalog();
         // Without invalidation the pre-warmed cache is hit and loads stays at

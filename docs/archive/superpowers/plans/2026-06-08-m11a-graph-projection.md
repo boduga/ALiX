@@ -16,7 +16,7 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/kernel/graph-projection.ts` | **Create** | `GraphRunProjection` type + `buildGraphProjection()` function |
+| `src/coordination/kernel/graph-projection.ts` | **Create** | `GraphRunProjection` type + `buildGraphProjection()` function |
 | `src/cli.ts` | **Modify** | Wire projection into `alix graph inspect` |
 | `tests/kernel/graph-projection.test.ts` | **Create** | Tests for projection reconstruction |
 
@@ -25,7 +25,7 @@
 ### Task 1: Create graph projection module
 
 **Files:**
-- Create: `src/kernel/graph-projection.ts`
+- Create: `src/coordination/kernel/graph-projection.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -192,7 +192,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/graph-projection.ts
+git add src/coordination/kernel/graph-projection.ts
 git commit -m "feat(graph): add GraphRunProjection from events and graph JSON"
 ```
 
@@ -258,7 +258,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { buildGraphProjection } from "../../src/kernel/graph-projection.js";
+import { buildGraphProjection } from "../../src/coordination/kernel/graph-projection.js";
 
 describe("GraphProjection", () => {
   let tmpDir: string;

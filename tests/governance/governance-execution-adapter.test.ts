@@ -17,7 +17,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { type ExecutionEvidence } from "../../src/runtime/contracts/execution-intent-contract.js";
+import { type ExecutionEvidence } from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 import {
   toExecutionRef,
   toComplianceExecutionSummary,

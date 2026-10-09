@@ -14,9 +14,9 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../src/events/event-log.js';
-import { emitAgent } from '../../src/run/task-loop.js';
-import { TimelineBuilder } from '../../src/tui/runtime/timeline-builder.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { emitAgent } from '../../src/execution/run/task-loop.js';
+import { TimelineBuilder } from '../../src/interfaces/tui/runtime/timeline-builder.js';
 
 async function makeLog(): Promise<EventLog> {
   const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-emit-agent-')));

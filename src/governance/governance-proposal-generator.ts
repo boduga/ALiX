@@ -18,9 +18,9 @@ import { join } from "node:path";
 import type { Recommendation } from "./governance-types.js";
 import type { GovernanceChangePayload } from "./governance-types.js";
 import { GovernanceStore } from "./governance-store.js";
-import { AdaptationProposalStore } from "../adaptation/adaptation-proposal-store.js";
-import { EvidenceChainStore } from "../learning/evidence-chain-store.js";
-import type { ProvenanceLink } from "../learning/evidence-chain-types.js";
+import { AdaptationProposalStore } from "../planning/adaptation/adaptation-proposal-store.js";
+import { EvidenceChainStore } from "../planning/learning/evidence-chain-store.js";
+import type { ProvenanceLink } from "../planning/learning/evidence-chain-types.js";
 
 const MIN_PROPOSAL_CONFIDENCE = 0.6;
 

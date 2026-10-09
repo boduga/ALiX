@@ -12,13 +12,13 @@ import assert from "node:assert/strict";
 import {
   DefaultEvolutionProposalGenerator,
   generateCandidates,
-} from "../../../src/evolution/pattern-discovery/evolution-proposal-generator.js";
+} from "../../../src/planning/evolution/pattern-discovery/evolution-proposal-generator.js";
 import type {
   PatternObservation,
   EvolutionCandidate,
   PatternCategory,
-} from "../../../src/evolution/contracts/pattern-discovery-contract.js";
-import type { EvolutionRiskClass } from "../../../src/evolution/contracts/evolution-contract.js";
+} from "../../../src/planning/evolution/contracts/pattern-discovery-contract.js";
+import type { EvolutionRiskClass } from "../../../src/planning/evolution/contracts/evolution-contract.js";
 
 // ---------------------------------------------------------------------------
 // Constants

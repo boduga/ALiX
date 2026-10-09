@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   DefaultExecutiveSnapshotProvider,
-} from "../../src/executive/executive-snapshot-provider.js";
-import type { ExecutiveSnapshotProvider } from "../../src/executive/executive-snapshot-provider.js";
-import type { ExecutiveObservationProvider } from "../../src/executive/executive-observation-provider.js";
-import type { ExecutiveObservation } from "../../src/executive/executive-observation-provider.js";
-import type { ExecutivePlanSnapshot } from "../../src/executive/executive-snapshot-store.js";
+} from "../../src/execution/executive/executive-snapshot-provider.js";
+import type { ExecutiveSnapshotProvider } from "../../src/execution/executive/executive-snapshot-provider.js";
+import type { ExecutiveObservationProvider } from "../../src/execution/executive/executive-observation-provider.js";
+import type { ExecutiveObservation } from "../../src/execution/executive/executive-observation-provider.js";
+import type { ExecutivePlanSnapshot } from "../../src/execution/executive/executive-snapshot-store.js";
 import type {
   ExecutiveSnapshotCaptureSource,
   ExecutiveSnapshotCaptureReason,
-} from "../../src/executive/executive-snapshot-store.js";
+} from "../../src/execution/executive/executive-snapshot-store.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

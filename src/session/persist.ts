@@ -7,10 +7,10 @@
 import { mkdir, writeFile, readFile, appendFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, basename } from "node:path";
-import type { NormalizedMessage } from "../providers/types.js";
-import type { ScopeSnapshot } from "../autonomy/scope-tracker.js";
-import type { StateSnapshot } from "../autonomy/state-machine.js";
-import { getSharedLedger, appendFact, currentEntityVersion } from "../storage/runtime-ledger.js";
+import type { NormalizedMessage } from "../models/providers/types.js";
+import type { ScopeSnapshot } from "../planning/autonomy/scope-tracker.js";
+import type { StateSnapshot } from "../planning/autonomy/state-machine.js";
+import { getSharedLedger, appendFact, currentEntityVersion } from "../runtime-state/storage/runtime-ledger.js";
 
 const MESSAGES_FILE = "messages.jsonl";
 const SCOPE_FILE = "scope.json";

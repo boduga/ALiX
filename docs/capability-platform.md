@@ -138,6 +138,6 @@ A governed `register` proposal must contain a complete capability definition and
 
 ## Migration rule
 
-`src/capability/initial-capabilities.ts` remains a valid bootstrap source during migration, but it is not the long-term definition database. Built-in definitions, project definitions, plugins, MCP discovery, external providers, and governed registrations all converge on the same registry.
+`src/capabilities/capability/initial-capabilities.ts` remains a valid bootstrap source during migration, but it is not the long-term definition database. Built-in definitions, project definitions, plugins, MCP discovery, external providers, and governed registrations all converge on the same registry.
 
 Do not add another registry to solve a consumer-specific problem.

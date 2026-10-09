@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { IntentStore } from "../../src/adaptation/intent-store.js";
-import type { ExecutionIntent } from "../../src/adaptation/execution-intent-types.js";
+import { IntentStore } from "../../src/planning/adaptation/intent-store.js";
+import type { ExecutionIntent } from "../../src/planning/adaptation/execution-intent-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

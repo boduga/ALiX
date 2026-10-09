@@ -2,15 +2,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityPlatform } from '../../src/capability/platform.js';
-import { registerInitialCapabilities } from '../../src/capability/initial-capabilities.js';
-import { registerRegistryToolCapabilities } from '../../src/capability/registry-capabilities.js';
-import { createToolProviderExecutor } from '../../src/capability/tool-adapter.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import type { ToolCallRequest, ToolResult } from '../../src/tools/types.js';
+import { CapabilityPlatform } from '../../src/capabilities/capability/platform.js';
+import { registerInitialCapabilities } from '../../src/capabilities/capability/initial-capabilities.js';
+import { registerRegistryToolCapabilities } from '../../src/capabilities/capability/registry-capabilities.js';
+import { createToolProviderExecutor } from '../../src/capabilities/capability/tool-adapter.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import type { ToolCallRequest, ToolResult } from '../../src/capabilities/tools/types.js';
 
 describe('tool provider executor', () => {
   let dir: string;

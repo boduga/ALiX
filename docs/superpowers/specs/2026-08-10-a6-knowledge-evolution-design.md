@@ -32,10 +32,10 @@ Propose → Review → Approve → Apply → Measure.
 
 ## 3. Architecture
 
-New module `src/evolution/knowledge/`, mirroring the A5 `observation/` layout:
+New module `src/planning/evolution/knowledge/`, mirroring the A5 `observation/` layout:
 
 ```
-src/evolution/knowledge/
+src/planning/evolution/knowledge/
 ├── contracts/
 │   └── curation-contract.ts      — CurationFinding, CurationFindingKind, CurationProposal, CurationStore interface
 ├── curation-engine.ts            — CurationEngine: runs detectors, aggregates findings

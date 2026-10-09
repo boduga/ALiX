@@ -34,12 +34,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { GovernanceReviewStore } from "../../../src/adaptation/governance-review-store.js";
+import { GovernanceReviewStore } from "../../../src/planning/adaptation/governance-review-store.js";
 import type {
   GovernanceReview,
   LensScore,
   CouncilVote,
-} from "../../../src/adaptation/governance-review-types.js";
+} from "../../../src/planning/adaptation/governance-review-types.js";
 
 // ---------------------------------------------------------------------------
 // process.cwd override — store resolves under a per-test temp root.

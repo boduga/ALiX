@@ -21,8 +21,8 @@
  */
 
 import { join } from "node:path";
-import { GovernanceReviewStore } from "../adaptation/governance-review-store.js";
-import { assembleProposalExplanation } from "../explain/proposal-explanation-assembler.js";
+import { GovernanceReviewStore } from "../planning/adaptation/governance-review-store.js";
+import { assembleProposalExplanation } from "../operations/explain/proposal-explanation-assembler.js";
 import type { GovernanceIntegrityReport } from "./governance-types.js";
 
 // ---------------------------------------------------------------------------

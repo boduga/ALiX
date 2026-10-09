@@ -6,7 +6,7 @@
  *
  * Walks the §10 path: seed → registry → runtime → invoke. Steps 8-14 land in
  * T5 (appended to this file). The test composes the real composition root
- * (`src/capability/platform.ts`), a fake in-tempdir EventLog, and a single
+ * (`src/capabilities/capability/platform.ts`), a fake in-tempdir EventLog, and a single
  * `native` provider. Each step asserts identity equality on the canonical
  * projection fields (id, version, kind, bindings[0].type, lifecycle).
  *
@@ -16,7 +16,7 @@
  *   (the active CLI dispatcher) and asserts that the CLI surface reads
  *   exclusively through `CapabilityService` — never through a parallel
  *   registry it owns.
- * - The TUI list adapter lives at `src/tui/capabilities/capability-service.ts`
+ * - The TUI list adapter lives at `src/interfaces/tui/capabilities/capability-service.ts`
  *   but that file has 3 pre-existing type errors (private `registry`
  *   access). The test uses the adapter's PUBLIC read API (`query`,
  *   `find`) — never the private fields — so the test is independent of
@@ -45,28 +45,28 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { registerInitialCapabilities } from "../../src/capability/initial-capabilities.js";
-import { registerRegistryToolCapabilities } from "../../src/capability/registry-capabilities.js";
-import { registerSessionCapabilities } from "../../src/integrations/session-capabilities.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityProposalGenerator } from "../../src/capability/evolution/proposals.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { registerInitialCapabilities } from "../../src/capabilities/capability/initial-capabilities.js";
+import { registerRegistryToolCapabilities } from "../../src/capabilities/capability/registry-capabilities.js";
+import { registerSessionCapabilities } from "../../src/capabilities/integrations/session-capabilities.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityProposalGenerator } from "../../src/capabilities/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
-} from "../../src/capability/evolution/proposals.js";
-import { handleCapabilityCommand } from "../../src/cli/commands/capability.js";
-import { CapabilityService as TuiCapabilityService } from "../../src/tui/capabilities/capability-service.js";
-import type { CapabilityListItem } from "../../src/capability/types/service-results.js";
-import type { CapabilityApplyProposalResult } from "../../src/capability/types/service-results.js";
-import type { CapabilityServiceOptions } from "../../src/capability/types/service-results.js";
-import { CapabilityService } from "../../src/capability/capability-service.js";
-import type { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
-import { CapabilityMutationExecutor as CapabilityMutationExecutorImpl } from "../../src/evolution/execution/capability-mutation-executor.js";
-import type { CapabilityResolver } from "../../src/capability/provider-resolver.js";
-import { legacyToCanonicalDefinition } from "../../src/capability/legacy-adapter.js";
+} from "../../src/capabilities/capability/evolution/proposals.js";
+import { handleCapabilityCommand } from "../../src/interfaces/cli/commands/capability.js";
+import { CapabilityService as TuiCapabilityService } from "../../src/interfaces/tui/capabilities/capability-service.js";
+import type { CapabilityListItem } from "../../src/capabilities/capability/types/service-results.js";
+import type { CapabilityApplyProposalResult } from "../../src/capabilities/capability/types/service-results.js";
+import type { CapabilityServiceOptions } from "../../src/capabilities/capability/types/service-results.js";
+import { CapabilityService } from "../../src/capabilities/capability/capability-service.js";
+import type { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import type { CapabilityMutationExecutor } from "../../src/planning/evolution/execution/capability-mutation-executor.js";
+import { CapabilityMutationExecutor as CapabilityMutationExecutorImpl } from "../../src/planning/evolution/execution/capability-mutation-executor.js";
+import type { CapabilityResolver } from "../../src/capabilities/capability/provider-resolver.js";
+import { legacyToCanonicalDefinition } from "../../src/capabilities/capability/legacy-adapter.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -209,7 +209,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     // canonical universe). NOTE: `platform.registry` is private at the
     // TS level (CAP-11 ruling #8) — we cast through `unknown` to
     // bypass the visibility check. The TSC error is the same 3-line
-    // set that `src/tui/capabilities/capability-service.ts` already
+    // set that `src/interfaces/tui/capabilities/capability-service.ts` already
     // carries (out of scope per CAP-11); the test exercises the
     // runtime invariant, not the static access check.
     const registry = (platform as unknown as { readonly registry: CapabilityRegistry }).registry;
@@ -373,7 +373,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     // We canonicalize via `legacyToCanonicalDefinition` so the
     // version normalizes to SemVer and the kind maps to the
     // canonical form.
-    const { legacyToCanonicalDefinition } = await import("../../src/capability/legacy-adapter.js");
+    const { legacyToCanonicalDefinition } = await import("../../src/capabilities/capability/legacy-adapter.js");
     const queried = platform.query({}).map((c) => {
       const canonical = legacyToCanonicalDefinition(c);
       return {
@@ -415,7 +415,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     const { readFileSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const cliSrc = readFileSync(
-      fileURLToPath(new URL("../../src/cli/commands/capability.ts", import.meta.url)),
+      fileURLToPath(new URL("../../src/interfaces/cli/commands/capability.ts", import.meta.url)),
       "utf8",
     );
     expect(cliSrc).not.toMatch(/new\s+CapabilityRegistry\(/);
@@ -431,7 +431,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
 
   // ─── Step 5: TUI list adapter === service.list() (identity equality) ────
   it("step 5: TUI list adapter === service.list() (via public read API)", async () => {
-    // The TUI list adapter lives at `src/tui/capabilities/capability-service.ts`.
+    // The TUI list adapter lives at `src/interfaces/tui/capabilities/capability-service.ts`.
     // That file has 3 pre-existing TSC errors due to private `registry`
     // access — the test must NOT depend on those specific error paths.
     // Instead, the test uses the adapter's PUBLIC read API: `query()`.
@@ -783,7 +783,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
   // registry — so `executeCreate` actually calls
   // `catalog.register(...)` and the catalog grows by exactly one.
   //
-  // Note: per A7's `signalToCandidate` (`src/capability/evolution/
+  // Note: per A7's `signalToCandidate` (`src/capabilities/capability/evolution/
   // proposals.ts:194-205`), `gap` signals always yield
   // `target.id = "new.${candidateId}"` where
   // `candidateId = "a7-${kind}-${signal.capabilityId ?? 'new'}"`.

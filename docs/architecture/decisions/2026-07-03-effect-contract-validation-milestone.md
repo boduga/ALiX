@@ -42,7 +42,7 @@ All providers created through `createProvider()` (the central registry) are auto
 ## Schema Files
 
 ```
-src/contracts/
+src/runtime-state/contracts/
   index.ts                       — barrel re-export
   helpers.ts                    — decode(), parseOrThrow(), formatErrors()
   tool-schemas.ts               — ToolName, ToolCallRequest, ToolResult, FileMatch

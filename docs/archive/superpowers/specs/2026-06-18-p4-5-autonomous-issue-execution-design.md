@@ -372,16 +372,16 @@ This contract enables P4.7 Dynamic Teams: ALiX selects agents whose capabilities
 
 | File | Purpose |
 |------|---------|
-| `src/workflow/coordinator.ts` | WorkflowCoordinator — state machine, agent dispatch, block management, recovery |
-| `src/workflow/types.ts` | Shared contracts and interfaces |
-| `src/workflow/state-file.ts` | State file read/write with cross-process lock |
-| `src/workflow/evidence-writer.ts` | Evidence event recording |
-| `src/workflow/agents/issue-intake-agent.ts` | IssueIntakeAgent |
-| `src/workflow/agents/planning-agent.ts` | PlanningAgent |
-| `src/workflow/agents/execution-agent.ts` | ExecutionAgent |
-| `src/workflow/agents/review-agent.ts` | ReviewAgent |
-| `src/workflow/agents/pr-agent.ts` | PRAgent |
-| `src/cli/commands/workflow.ts` | CLI commands: `alix workflow status/list/transition` |
+| `src/coordination/workflow/coordinator.ts` | WorkflowCoordinator — state machine, agent dispatch, block management, recovery |
+| `src/coordination/workflow/types.ts` | Shared contracts and interfaces |
+| `src/coordination/workflow/state-file.ts` | State file read/write with cross-process lock |
+| `src/coordination/workflow/evidence-writer.ts` | Evidence event recording |
+| `src/coordination/workflow/agents/issue-intake-agent.ts` | IssueIntakeAgent |
+| `src/coordination/workflow/agents/planning-agent.ts` | PlanningAgent |
+| `src/coordination/workflow/agents/execution-agent.ts` | ExecutionAgent |
+| `src/coordination/workflow/agents/review-agent.ts` | ReviewAgent |
+| `src/coordination/workflow/agents/pr-agent.ts` | PRAgent |
+| `src/interfaces/cli/commands/workflow.ts` | CLI commands: `alix workflow status/list/transition` |
 
 ### State file schema
 

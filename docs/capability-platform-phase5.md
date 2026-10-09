@@ -13,5 +13,5 @@ Issue #321 resolved: deprecated flat `RuntimeEventSnapshot` /
 `RuntimeSnapshot.events` projection deleted — dashboard RUNTIME panel now
 reads last trace unit.
 
-operator timeline (chat) unchanged. platform (src/capability/)
+operator timeline (chat) unchanged. platform (src/capabilities/capability/)
 untouched. Durable checkpoint persistence deferred later phase.

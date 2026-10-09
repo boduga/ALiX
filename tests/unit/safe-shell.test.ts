@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { isSafeShellCommand, executeSafeShell, getAllowedSafeCommands } from "../../src/tools/safe-shell.js";
+import { isSafeShellCommand, executeSafeShell, getAllowedSafeCommands } from "../../src/capabilities/tools/safe-shell.js";
 
 describe("SafeShell", () => {
   describe("isSafeShellCommand", () => {

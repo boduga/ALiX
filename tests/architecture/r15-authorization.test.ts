@@ -37,7 +37,7 @@ describe("R1.5 authorization containment", () => {
         }],
         edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
       }));
-      const { GraphExecutor } = await import("../../src/kernel/graph-executor.js");
+      const { GraphExecutor } = await import("../../src/coordination/kernel/graph-executor.js");
       // No policyGate/config wired — enforcement ON by default must BLOCK,
       // not silently run the node.
       const exec = new GraphExecutor(dir);
@@ -67,7 +67,7 @@ describe("R1.5 authorization containment", () => {
         }],
         edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
       }));
-      const { GraphExecutor } = await import("../../src/kernel/graph-executor.js");
+      const { GraphExecutor } = await import("../../src/coordination/kernel/graph-executor.js");
       const exec = new GraphExecutor(dir);
       const result = await exec.rerunNode("g1", "n1");
       // Gate blocks the rerun instead of reaching runTask ungoverned.
@@ -81,9 +81,9 @@ describe("R1.5 authorization containment", () => {
   it("continuation-resume without a durable approval is denied (fail closed)", async () => {
     const dir = await mkdtemp(join(tmpdir(), "alix-r15-cont-"));
     try {
-      const { ToolExecutor } = await import("../../src/tools/executor.js");
-      const { DEFAULT_CONFIG } = await import("../../src/config/defaults.js");
-      const { EventLog } = await import("../../src/events/event-log.js");
+      const { ToolExecutor } = await import("../../src/capabilities/tools/executor.js");
+      const { DEFAULT_CONFIG } = await import("../../src/operations/config/defaults.js");
+      const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
       const log = new EventLog(dir);
       await log.init();
       const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir);
@@ -114,9 +114,9 @@ describe("R1.5 authorization containment", () => {
     const dir = await mkdtemp(join(tmpdir(), "alix-r15-cont-ok-"));
     try {
       await writeFile(join(dir, "ok.txt"), "hello");
-      const { ToolExecutor } = await import("../../src/tools/executor.js");
-      const { DEFAULT_CONFIG } = await import("../../src/config/defaults.js");
-      const { EventLog } = await import("../../src/events/event-log.js");
+      const { ToolExecutor } = await import("../../src/capabilities/tools/executor.js");
+      const { DEFAULT_CONFIG } = await import("../../src/operations/config/defaults.js");
+      const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
       const log = new EventLog(dir);
       await log.init();
       const fakeStore = {
@@ -156,7 +156,7 @@ describe("R1.5 authorization containment", () => {
     try {
       await writeFile(join(dir, "mine.txt"), "a");
       await writeFile(join(dir, "theirs.txt"), "b");
-      const { FileToolRouter } = await import("../../src/tools/tool-router.js");
+      const { FileToolRouter } = await import("../../src/capabilities/tools/tool-router.js");
       const router = new FileToolRouter(dir);
 
       // Owned scope covers mine.txt → delete allowed.
@@ -189,8 +189,8 @@ describe("R1.5 authorization containment", () => {
   it("bound-tool authorization is governed by the PolicyGate, not ungoverned (R1.5)", async () => {
     const dir = await mkdtemp(join(tmpdir(), "alix-r15-bound-"));
     try {
-      const { EventLog } = await import("../../src/events/event-log.js");
-      const { createToolExecutor } = await import("../../src/tools/tool-executor-factory.js");
+      const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+      const { createToolExecutor } = await import("../../src/capabilities/tools/tool-executor-factory.js");
       const log = new EventLog(join(dir, ".alix", "sessions", "s1"));
       await log.init();
       // Hermetic minimal config — the test must not require a configured model
@@ -205,7 +205,7 @@ describe("R1.5 authorization containment", () => {
         models: {},
       };
       const executor = createToolExecutor({
-        config: config as unknown as import("../../src/config/schema.js").AlixConfig,
+        config: config as unknown as import("../../src/operations/config/schema.js").AlixConfig,
         log,
         root: dir,
       });
@@ -232,7 +232,7 @@ describe("R1.5 authorization containment", () => {
   });
 
   it("synthesized approvals carry system authorization source, never operator", async () => {
-    const { createExecutionIntent } = await import("../../src/runtime/execution-intent-factory.js");
+    const { createExecutionIntent } = await import("../../src/runtime-state/runtime/execution-intent-factory.js");
     const route = { kind: "direct" as const, prompt: "hello" };
 
     const synthesized = createExecutionIntent(route as never, { now: "2026-01-01T00:00:00.000Z" });

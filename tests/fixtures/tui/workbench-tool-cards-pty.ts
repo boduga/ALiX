@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
-import type { AlixEvent } from '../../../src/events/types.js';
-import { buildExecutionTrace } from '../../../src/tui/runtime/execution-trace-builder.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { buildExecutionTrace } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
 import { createWorkbenchRenderHarness } from './workbench-render-harness.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../../../../tests/fixtures/tui/workbench-preview-events.json', import.meta.url), 'utf8')) as { events: AlixEvent[] };

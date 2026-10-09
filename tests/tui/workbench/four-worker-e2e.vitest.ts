@@ -3,19 +3,19 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { EventLog } from '../../../src/events/event-log.js';
-import { CoordinationScheduler } from '../../../src/kernel/coordination-scheduler.js';
-import { CoordinationStore } from '../../../src/kernel/coordination-store.js';
-import { createCoordinationRun, createWorkerAssignment } from '../../../src/kernel/coordination-types.js';
-import { OwnershipRegistry } from '../../../src/ownership/ownership-registry.js';
-import { AgentRosterProjection } from '../../../src/tui/workbench/projections/agent-roster-projection.js';
-import { TaskProjection } from '../../../src/tui/workbench/projections/task-projection.js';
-import { ArtifactProjection } from '../../../src/tui/workbench/projections/artifact-projection.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { resolveWorkbenchLayout } from '../../../src/tui/workbench/layout/responsive-layout.js';
-import { paintRosterDrawer } from '../../../src/tui/workbench/views/roster-drawer.js';
-import type { AlixConfig } from '../../../src/config/schema.js';
-import { closeAllSharedLedgers } from '../../../src/storage/runtime-ledger.js';
+import { EventLog } from '../../../src/runtime-state/events/event-log.js';
+import { CoordinationScheduler } from '../../../src/coordination/kernel/coordination-scheduler.js';
+import { CoordinationStore } from '../../../src/coordination/kernel/coordination-store.js';
+import { createCoordinationRun, createWorkerAssignment } from '../../../src/coordination/kernel/coordination-types.js';
+import { OwnershipRegistry } from '../../../src/coordination/ownership/ownership-registry.js';
+import { AgentRosterProjection } from '../../../src/interfaces/tui/workbench/projections/agent-roster-projection.js';
+import { TaskProjection } from '../../../src/interfaces/tui/workbench/projections/task-projection.js';
+import { ArtifactProjection } from '../../../src/interfaces/tui/workbench/projections/artifact-projection.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import { resolveWorkbenchLayout } from '../../../src/interfaces/tui/workbench/layout/responsive-layout.js';
+import { paintRosterDrawer } from '../../../src/interfaces/tui/workbench/views/roster-drawer.js';
+import type { AlixConfig } from '../../../src/operations/config/schema.js';
+import { closeAllSharedLedgers } from '../../../src/runtime-state/storage/runtime-ledger.js';
 
 function config(): AlixConfig {
   return {

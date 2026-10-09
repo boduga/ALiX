@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { paintTranscriptToolbar } from '../../../src/tui/workbench/views/transcript-toolbar.js';
-import { createInitialWorkbenchUiState } from '../../../src/tui/workbench/model/ui-state.js';
-import { getWorkbenchPreviewTheme } from '../../../src/tui/workbench/model/preview-theme.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import { paintTranscriptToolbar } from '../../../src/interfaces/tui/workbench/views/transcript-toolbar.js';
+import { createInitialWorkbenchUiState } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
+import { getWorkbenchPreviewTheme } from '../../../src/interfaces/tui/workbench/model/preview-theme.js';
 
 const strip = (text: string) => text.replace(/\x1b\[[0-9;]*m/gu, '');
 describe('transcript toolbar', () => {

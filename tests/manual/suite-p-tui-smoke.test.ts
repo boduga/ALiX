@@ -34,7 +34,7 @@ function ttyGuardOr(out: string, expected: string): boolean {
 
 describe("TUI smoke", () => {
   // The TUI title bar renders `ALiX v<version>  │  Session: ...` (see
-  // src/tui/frame-painter.ts). Match that stable marker; the alternate
+  // src/interfaces/tui/frame-painter.ts). Match that stable marker; the alternate
   // screen + header both go through the real renderer so this distinguishes
   // a live TUI from the piped-input TTY guard message.
   const TUI_MARKER = "ALiX v";

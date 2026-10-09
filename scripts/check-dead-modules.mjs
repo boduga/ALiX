@@ -25,20 +25,20 @@ const ENTRYPOINTS = new Set([
   "src/index.ts",
   "src/run.ts",
   // Spawned as a child process by DaemonManager (daemon-manager.ts).
-  "src/daemon/daemon-server.ts",
+  "src/operations/daemon/daemon-server.ts",
   // Deliberate compatibility aliases (re-export a canonical module).
-  "src/runtime/execution-state/state-transition.ts",
-  "src/runtime/retrieval.ts",
+  "src/runtime-state/runtime/execution-state/state-transition.ts",
+  "src/runtime-state/runtime/retrieval.ts",
   // Re-export barrels: package public surface (dist/ is published
   // wholesale). Zero internal importers is expected, not a defect.
-  "src/contracts/index.ts",
-  "src/evolution/forecast/index.ts",
-  "src/evolution/knowledge/index.ts",
-  "src/evolution/learning/index.ts",
-  "src/evolution/pattern-discovery/index.ts",
-  "src/policy/index.ts",
-  "src/run/index.ts",
-  "src/utils/memory/index.ts",
+  "src/runtime-state/contracts/index.ts",
+  "src/planning/evolution/forecast/index.ts",
+  "src/planning/evolution/knowledge/index.ts",
+  "src/planning/evolution/learning/index.ts",
+  "src/planning/evolution/pattern-discovery/index.ts",
+  "src/governance/policy/index.ts",
+  "src/execution/run/index.ts",
+  "src/operations/utils/memory/index.ts",
 ]);
 
 function walk(dir, out = []) {

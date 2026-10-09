@@ -49,25 +49,25 @@ pnpm check:dead
 
 | File | Responsibility | New / Modify |
 |------|----------------|--------------|
-| `src/decision/config.ts` | `DecisionMode` values + `mode?` on `DecisionRoutePolicy` + default `"baseline"` | Modify |
-| `src/config/validator.ts` | Reject unknown `mode` with its path | Modify |
-| `src/decision/decisions/claim-verification/selection-service.ts` | `selectClaimVerification` (`baseline`/`shadow`/`active`) | Create |
-| `src/decision/decisions/claim-verification/index.ts` | Export the selection service | Modify |
-| `src/decision/decisions/claim-verification/experiment-store.ts` | Protected projection store (`JsonlStore`, `storeDir` override) | Create |
-| `src/decision/paths.ts` | `resolveDecisionPaths(cwd)` — journal/fixture/profile paths, decision-owned so tools never import `cli/commands` | Create |
-| `src/decision/engines/jev.ts` | Host `JEV_KEY_PROVIDER_ID` (moved from `cli/commands/jev/ops.ts`) | Modify |
-| `src/decision/decisions/claim-verification/shadow.ts` | Expose `projection` (the sealed payload) on the shadow result | Modify |
-| `src/tools/claim-verification-tool.ts` | `handleClaimVerify`: validation, modes, degradation, payload | Create |
-| `src/tools/tool-router.ts` | `ClaimVerificationToolRouter` (lazy import, `StateToolRouter` pattern) | Modify |
-| `src/tools/tool-registry.ts` | `ToolCapability` entry + `"decision"` domain | Modify |
-| `src/tools/executor.ts` | Register the router | Modify |
-| `src/config/defaults.ts` | `permissions.tools["verify.claim"] = "allow"` | Modify |
-| `src/run/helpers.ts` | `BASE_TOOLS` manifest entry `alix_verify_claim` | Modify |
+| `src/planning/decision/config.ts` | `DecisionMode` values + `mode?` on `DecisionRoutePolicy` + default `"baseline"` | Modify |
+| `src/operations/config/validator.ts` | Reject unknown `mode` with its path | Modify |
+| `src/planning/decision/decisions/claim-verification/selection-service.ts` | `selectClaimVerification` (`baseline`/`shadow`/`active`) | Create |
+| `src/planning/decision/decisions/claim-verification/index.ts` | Export the selection service | Modify |
+| `src/planning/decision/decisions/claim-verification/experiment-store.ts` | Protected projection store (`JsonlStore`, `storeDir` override) | Create |
+| `src/planning/decision/paths.ts` | `resolveDecisionPaths(cwd)` — journal/fixture/profile paths, decision-owned so tools never import `cli/commands` | Create |
+| `src/planning/decision/engines/jev.ts` | Host `JEV_KEY_PROVIDER_ID` (moved from `cli/commands/jev/ops.ts`) | Modify |
+| `src/planning/decision/decisions/claim-verification/shadow.ts` | Expose `projection` (the sealed payload) on the shadow result | Modify |
+| `src/capabilities/tools/claim-verification-tool.ts` | `handleClaimVerify`: validation, modes, degradation, payload | Create |
+| `src/capabilities/tools/tool-router.ts` | `ClaimVerificationToolRouter` (lazy import, `StateToolRouter` pattern) | Modify |
+| `src/capabilities/tools/tool-registry.ts` | `ToolCapability` entry + `"decision"` domain | Modify |
+| `src/capabilities/tools/executor.ts` | Register the router | Modify |
+| `src/operations/config/defaults.ts` | `permissions.tools["verify.claim"] = "allow"` | Modify |
+| `src/execution/run/helpers.ts` | `BASE_TOOLS` manifest entry `alix_verify_claim` | Modify |
 | `src/agents/tool-name-map.ts` | `alix_verify_claim → verify.claim` | Modify |
-| `src/agent/agent-loop.ts` | `readOnlyToolFilter.add("alix_verify_claim")` | Modify |
-| `src/cli/commands/jev/ops.ts` | `buildDisagreements` + `labelPair` + shared grouping; re-export moved paths/key id | Modify |
-| `src/cli/commands/jev/render.ts` | `renderDisagreements` / `renderLabelPair` | Modify |
-| `src/cli/commands/jev/main.ts` | Two new subcommands + usage line | Modify |
+| `src/agents/agent/agent-loop.ts` | `readOnlyToolFilter.add("alix_verify_claim")` | Modify |
+| `src/interfaces/cli/commands/jev/ops.ts` | `buildDisagreements` + `labelPair` + shared grouping; re-export moved paths/key id | Modify |
+| `src/interfaces/cli/commands/jev/render.ts` | `renderDisagreements` / `renderLabelPair` | Modify |
+| `src/interfaces/cli/commands/jev/main.ts` | Two new subcommands + usage line | Modify |
 | `tests/config/decision-section.test.ts` | mode default/merge/reject | Modify |
 | `tests/decision/claim-verification.test.ts` | mode behaviour incl. shadow-divergence pin | Modify |
 | `tests/tools/capability-map.test.ts` | approval-trap pin, registry entry, manifest, alias, permission | Modify |
@@ -104,8 +104,8 @@ Expected: on `feat/claim-verification-shadow-tool`, based on merged `main`.
 ### Task 1: Decision route `mode` config field
 
 **Files:**
-- Modify: `src/decision/config.ts`
-- Modify: `src/config/validator.ts`
+- Modify: `src/planning/decision/config.ts`
+- Modify: `src/operations/config/validator.ts`
 - Test: `tests/config/decision-section.test.ts`
 
 **Interfaces:**
@@ -145,7 +145,7 @@ Expected: FAIL — `undefined !== "baseline"` (the `mode` property does not exis
 
 - [ ] **Step 3: Implement**
 
-In `src/decision/config.ts`, above `DecisionRoutePolicy`:
+In `src/planning/decision/config.ts`, above `DecisionRoutePolicy`:
 
 ```ts
 /** Claim-verification experiment seam (spec §6). Original draft said "off";
@@ -168,7 +168,7 @@ export type DecisionRoutePolicy = {
 
 In `DEFAULT_DECISION_CONFIG.claimVerification`, add `mode: "baseline",`.
 
-In `src/config/validator.ts`, inside the decision block's route loop (the `for … const route = decision[key]` loop), after the `enabled` check:
+In `src/operations/config/validator.ts`, inside the decision block's route loop (the `for … const route = decision[key]` loop), after the `enabled` check:
 
 ```ts
 if (route.mode !== undefined && !(DECISION_MODE_VALUES as readonly unknown[]).includes(route.mode)) {
@@ -190,7 +190,7 @@ Expected: PASS (all tests in the file).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/decision/config.ts src/config/validator.ts tests/config/decision-section.test.ts
+git add src/planning/decision/config.ts src/operations/config/validator.ts tests/config/decision-section.test.ts
 git commit -m "feat(decision): add route mode field (baseline|shadow|active)"
 ```
 
@@ -199,17 +199,17 @@ git commit -m "feat(decision): add route mode field (baseline|shadow|active)"
 ### Task 2: `selectClaimVerification` selection service
 
 **Files:**
-- Create: `src/decision/decisions/claim-verification/selection-service.ts`
-- Modify: `src/decision/decisions/claim-verification/index.ts` (add `export * from "./selection-service.js";`)
+- Create: `src/planning/decision/decisions/claim-verification/selection-service.ts`
+- Modify: `src/planning/decision/decisions/claim-verification/index.ts` (add `export * from "./selection-service.js";`)
 - Test: `tests/decision/claim-verification.test.ts`
 
 **Interfaces:**
-- Consumes (all already exported via `src/decision/index.js`): `runClaimVerificationShadow`, `ClaimVerificationShadowDeps`, `classifyClaimLocally`, `createClaimVerificationProjector`, `LOCAL_ENGINE_ID`, `JEV_ENGINE_ID`, `DEFAULT_DECISION_CONFIG`, `createDefaultRegistry`, `createDecisionJournalStore`, `registerJevEngine`, `createJevExecutor`, `JevTransport`.
+- Consumes (all already exported via `src/planning/decision/index.js`): `runClaimVerificationShadow`, `ClaimVerificationShadowDeps`, `classifyClaimLocally`, `createClaimVerificationProjector`, `LOCAL_ENGINE_ID`, `JEV_ENGINE_ID`, `DEFAULT_DECISION_CONFIG`, `createDefaultRegistry`, `createDecisionJournalStore`, `registerJevEngine`, `createJevExecutor`, `JevTransport`.
 - Produces: `ClaimSelectionMode = "baseline" | "shadow" | "active"`, `ClaimSelection = { mode, verdict?, engineId?, shadow? }`, `selectClaimVerification(input, deps): Promise<ClaimSelection>`. Task 4 is the only consumer.
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `tests/decision/claim-verification.test.ts` (the file already imports `mkdtempSync`/`rmSync`/`tmpdir`/`join`, `before`/`after`, `createDefaultRegistry`, `registerJevEngine`, `createDecisionJournalStore`, `runClaimVerificationShadow`, `JEV_ENGINE_ID`, `LOCAL_ENGINE_ID`; also add `selectClaimVerification` to its `src/decision/index.js` import list after Step 3 compiles):
+Append to `tests/decision/claim-verification.test.ts` (the file already imports `mkdtempSync`/`rmSync`/`tmpdir`/`join`, `before`/`after`, `createDefaultRegistry`, `registerJevEngine`, `createDecisionJournalStore`, `runClaimVerificationShadow`, `JEV_ENGINE_ID`, `LOCAL_ENGINE_ID`; also add `selectClaimVerification` to its `src/planning/decision/index.js` import list after Step 3 compiles):
 
 ```ts
 describe("selectClaimVerification modes", () => {
@@ -307,7 +307,7 @@ Expected: FAIL — `selectClaimVerification is not a function` / missing export.
 
 - [ ] **Step 3: Implement**
 
-Create `src/decision/decisions/claim-verification/selection-service.ts`:
+Create `src/planning/decision/decisions/claim-verification/selection-service.ts`:
 
 ```ts
 /**
@@ -379,7 +379,7 @@ export async function selectClaimVerification(
 }
 ```
 
-Add `export * from "./selection-service.js";` to `src/decision/decisions/claim-verification/index.ts`.
+Add `export * from "./selection-service.js";` to `src/planning/decision/decisions/claim-verification/index.ts`.
 
 - [ ] **Step 4: Run to verify pass**
 
@@ -389,7 +389,7 @@ Expected: PASS — all tests including the new `selectClaimVerification modes` b
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/decision/decisions/claim-verification/selection-service.ts src/decision/decisions/claim-verification/index.ts tests/decision/claim-verification.test.ts
+git add src/planning/decision/decisions/claim-verification/selection-service.ts src/planning/decision/decisions/claim-verification/index.ts tests/decision/claim-verification.test.ts
 git commit -m "feat(decision): add selectClaimVerification (baseline|shadow|active)"
 ```
 
@@ -398,12 +398,12 @@ git commit -m "feat(decision): add selectClaimVerification (baseline|shadow|acti
 ### Task 3: Protected experiment projection store
 
 **Files:**
-- Create: `src/decision/decisions/claim-verification/experiment-store.ts`
-- Modify: `src/decision/decisions/claim-verification/index.ts` (export it)
+- Create: `src/planning/decision/decisions/claim-verification/experiment-store.ts`
+- Modify: `src/planning/decision/decisions/claim-verification/index.ts` (export it)
 - Test: `tests/decision/claim-verification.test.ts`
 
 **Interfaces:**
-- Consumes: `JsonlStore` (`appendRecord`, `readRecords`) from `src/storage/jsonl-store.js`, `homedir()` from `node:os`.
+- Consumes: `JsonlStore` (`appendRecord`, `readRecords`) from `src/runtime-state/storage/jsonl-store.js`, `homedir()` from `node:os`.
 - Produces: `ClaimVerificationExperimentProjection`, `EXPERIMENTS_FILE = "experiments.jsonl"`, `experimentStorePath(storeDir?)`, `createExperimentProjectionStore(storeDir?): { path, append, has, readByHash }`. Task 4 writes; Task 7 reads.
 
 - [ ] **Step 1: Write the failing tests**
@@ -446,7 +446,7 @@ describe("protected experiment projection store", () => {
 });
 ```
 
-Add `createExperimentProjectionStore`, `experimentStorePath` to the file's `src/decision/index.js` import list (available once Step 3 exports them).
+Add `createExperimentProjectionStore`, `experimentStorePath` to the file's `src/planning/decision/index.js` import list (available once Step 3 exports them).
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -455,7 +455,7 @@ Expected: FAIL — `experimentStorePath is not a function`.
 
 - [ ] **Step 3: Implement**
 
-Create `src/decision/decisions/claim-verification/experiment-store.ts`:
+Create `src/planning/decision/decisions/claim-verification/experiment-store.ts`:
 
 ```ts
 /**
@@ -470,7 +470,7 @@ Create `src/decision/decisions/claim-verification/experiment-store.ts`:
  * (`{cwd}/.alix/decisions/decisions.jsonl`) while retained evidence lives
  * outside every repository and answers to one user-level retention policy.
  * Resolve via `storeDir ?? join(homedir(), ".alix")`: the same convention as
- * `src/config/calibration-store.ts`. Never hardcode `~`.
+ * `src/operations/config/calibration-store.ts`. Never hardcode `~`.
  */
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -541,7 +541,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/decision/decisions/claim-verification/experiment-store.ts src/decision/decisions/claim-verification/index.ts tests/decision/claim-verification.test.ts
+git add src/planning/decision/decisions/claim-verification/experiment-store.ts src/planning/decision/decisions/claim-verification/index.ts tests/decision/claim-verification.test.ts
 git commit -m "feat(decision): protected experiment projection store"
 ```
 
@@ -550,17 +550,17 @@ git commit -m "feat(decision): protected experiment projection store"
 ### Task 4: `verify.claim` tool handler
 
 **Files:**
-- Create: `src/decision/paths.ts` (+ `export * from "./paths.js"` in `src/decision/index.ts`)
-- Modify: `src/decision/engines/jev.ts` (host `JEV_KEY_PROVIDER_ID`), `src/cli/commands/jev/ops.ts` (import + re-export it; delegate `resolveJevPaths`)
-- Modify: `src/decision/decisions/claim-verification/shadow.ts` (expose `projection`)
-- Create: `src/tools/claim-verification-tool.ts`
+- Create: `src/planning/decision/paths.ts` (+ `export * from "./paths.js"` in `src/planning/decision/index.ts`)
+- Modify: `src/planning/decision/engines/jev.ts` (host `JEV_KEY_PROVIDER_ID`), `src/interfaces/cli/commands/jev/ops.ts` (import + re-export it; delegate `resolveJevPaths`)
+- Modify: `src/planning/decision/decisions/claim-verification/shadow.ts` (expose `projection`)
+- Create: `src/capabilities/tools/claim-verification-tool.ts`
 - Test: `tests/tools/claim-verification-tool.test.ts` (new file)
 
 **Interfaces:**
-- Consumes: `selectClaimVerification` (Task 2), `createExperimentProjectionStore` (Task 3), `DECISION_MODE_VALUES`, `projectClaimVerification`, `createClaimVerificationProjector`, `classifyClaimLocally`, `createDefaultRegistry`, `registerJevEngine`, `createDecisionJournalStore`, `loadConfig`, `getSavedApiKey` (import from `../cli/helpers/api-keys.js` — existing precedent: `src/tools/web-search.ts:1` does exactly this), `JournalWriteError`, `ProjectionRejectedError`, `EngineNotRegisteredError`, `MAX_*` bounds, `ToolResult`.
+- Consumes: `selectClaimVerification` (Task 2), `createExperimentProjectionStore` (Task 3), `DECISION_MODE_VALUES`, `projectClaimVerification`, `createClaimVerificationProjector`, `classifyClaimLocally`, `createDefaultRegistry`, `registerJevEngine`, `createDecisionJournalStore`, `loadConfig`, `getSavedApiKey` (import from `../cli/helpers/api-keys.js` — existing precedent: `src/capabilities/tools/web-search.ts:1` does exactly this), `JournalWriteError`, `ProjectionRejectedError`, `EngineNotRegisteredError`, `MAX_*` bounds, `ToolResult`.
 - Produces: `handleClaimVerify(args, deps?): Promise<ToolResult>` with payload `{verdict, engine, decisionId?, authority:"none", warning?}`. `ClaimVerificationShadowResult.projection` (added here) is what Task 3's store persists. Task 5 wires the name `verify.claim` to this handler.
 
-Why the three small moves in this task: the handler must locate the journal and resolve the TypeSafe key **without importing `src/cli/commands/*`** (only `cli/helpers/api-keys` has tools-side precedent in `web-search.ts`). Paths and the key id belong to the decision subsystem; `cli/commands/jev/ops.ts` keeps its existing exports by re-exporting, so `tests/cli/jev-ops.test.ts` keeps compiling.
+Why the three small moves in this task: the handler must locate the journal and resolve the TypeSafe key **without importing `src/interfaces/cli/commands/*`** (only `cli/helpers/api-keys` has tools-side precedent in `web-search.ts`). Paths and the key id belong to the decision subsystem; `cli/commands/jev/ops.ts` keeps its existing exports by re-exporting, so `tests/cli/jev-ops.test.ts` keeps compiling.
 
 - [ ] **Step 1: Write the failing test file**
 
@@ -575,7 +575,7 @@ import { join } from "node:path";
 import {
   handleClaimVerify,
   CLAIM_VERIFY_TOOL,
-} from "../../src/tools/claim-verification-tool.js";
+} from "../../src/capabilities/tools/claim-verification-tool.js";
 import {
   DEFAULT_DECISION_CONFIG,
   ProjectionRejectedError,
@@ -591,7 +591,7 @@ import {
   type DecisionConfig,
   type DecisionJournalRecord,
   type JevTransport,
-} from "../../src/decision/index.js";
+} from "../../src/planning/decision/index.js";
 
 const SUPPORTED = "Water boils at 100 degrees Celsius at sea level.";
 const EVIDENCE = [{ excerpt: "At sea level, water boils at 100 degrees Celsius." }];
@@ -792,15 +792,15 @@ describe("verify.claim tool", () => {
 - [ ] **Step 2: Run to verify failure**
 
 Run: `pnpm build`
-Expected: FAIL — module `src/tools/claim-verification-tool.js` does not exist; `JournalWriteError` may not yet be importable from the decision barrel (it is exported by `src/decision/journal.ts`, which the barrel re-exports — if the build complains, confirm the import resolves from `src/decision/index.js`).
+Expected: FAIL — module `src/capabilities/tools/claim-verification-tool.js` does not exist; `JournalWriteError` may not yet be importable from the decision barrel (it is exported by `src/planning/decision/journal.ts`, which the barrel re-exports — if the build complains, confirm the import resolves from `src/planning/decision/index.js`).
 
 - [ ] **Step 3: Implement the three supporting moves**
 
-(a) Create `src/decision/paths.ts` and export it from `src/decision/index.ts`:
+(a) Create `src/planning/decision/paths.ts` and export it from `src/planning/decision/index.ts`:
 
 ```ts
 /** paths.ts — decision-state paths, owned by the decision subsystem so tools
- *  never import src/cli/commands/*. Mirrors what cli/commands/jev/ops.ts
+ *  never import src/interfaces/cli/commands/*. Mirrors what cli/commands/jev/ops.ts
  *  called resolveJevPaths (which now delegates here). */
 import { join } from "node:path";
 
@@ -816,24 +816,24 @@ export function resolveDecisionPaths(cwd: string): DecisionPaths {
 }
 ```
 
-In `src/decision/index.ts`, add `export * from "./paths.js";`.
+In `src/planning/decision/index.ts`, add `export * from "./paths.js";`.
 
-(b) In `src/decision/engines/jev.ts`, add:
+(b) In `src/planning/decision/engines/jev.ts`, add:
 
 ```ts
 /** Provider id under which the TypeSafe/Jev key is stored (store-only). */
 export const JEV_KEY_PROVIDER_ID = "typesafe";
 ```
 
-In `src/cli/commands/jev/ops.ts`: replace `export const JEV_KEY_PROVIDER_ID = "typesafe";` with `import { JEV_KEY_PROVIDER_ID } from "../../decision/index.js";` plus `export { JEV_KEY_PROVIDER_ID };`, and change `resolveJevPaths` to delegate: `export function resolveJevPaths(cwd: string): JevPaths { return resolveDecisionPaths(cwd); }` (keep the `JevPaths` type alias = `DecisionPaths`). Existing imports from `ops.js` keep working.
+In `src/interfaces/cli/commands/jev/ops.ts`: replace `export const JEV_KEY_PROVIDER_ID = "typesafe";` with `import { JEV_KEY_PROVIDER_ID } from "../../decision/index.js";` plus `export { JEV_KEY_PROVIDER_ID };`, and change `resolveJevPaths` to delegate: `export function resolveJevPaths(cwd: string): JevPaths { return resolveDecisionPaths(cwd); }` (keep the `JevPaths` type alias = `DecisionPaths`). Existing imports from `ops.js` keep working.
 
-(c) In `src/decision/decisions/claim-verification/shadow.ts`, two additive changes:
+(c) In `src/planning/decision/decisions/claim-verification/shadow.ts`, two additive changes:
   - add `projection: ClaimVerificationProjection;` to `ClaimVerificationShadowResult` (import the type from `./projection.js`) and `projection: sealed.payload,` to the return. This is what the store persists — the *sealed* projection actually evaluated; re-sealing later could produce a different hash (`sealedAt`), so never re-project to reconstruct it.
   - add an optional boundary seam to `ClaimVerificationShadowDeps`: `project?: (input: ClaimVerificationInput) => RemoteSealedProjection<ClaimVerificationProjection>;`, then change `const sealed = projectClaimVerification(input);` to `const sealed = (deps.project ?? projectClaimVerification)(input);`. Tests inject a throwing `project` to exercise §12 without hardcoding a secret pattern (real secret rejection is already covered by `decision-boundary.test.ts`).
 
 - [ ] **Step 4: Implement the handler**
 
-Create `src/tools/claim-verification-tool.ts`:
+Create `src/capabilities/tools/claim-verification-tool.ts`:
 
 ```ts
 /**
@@ -1091,7 +1091,7 @@ Expected: PASS — new tool tests pass and the existing CLI tests still pass (th
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/decision/paths.ts src/decision/index.ts src/decision/engines/jev.ts src/decision/decisions/claim-verification/shadow.ts src/tools/claim-verification-tool.ts src/cli/commands/jev/ops.ts tests/tools/claim-verification-tool.test.ts
+git add src/planning/decision/paths.ts src/planning/decision/index.ts src/planning/decision/engines/jev.ts src/planning/decision/decisions/claim-verification/shadow.ts src/capabilities/tools/claim-verification-tool.ts src/interfaces/cli/commands/jev/ops.ts tests/tools/claim-verification-tool.test.ts
 git commit -m "feat(tools): verify.claim handler with baseline/shadow degradation"
 ```
 
@@ -1100,7 +1100,7 @@ git commit -m "feat(tools): verify.claim handler with baseline/shadow degradatio
 ### Task 5: Tool surface wiring (the seven edits that must land together)
 
 **Files:**
-- Modify: `src/tools/tool-registry.ts`, `src/config/defaults.ts`, `src/run/helpers.ts`, `src/agents/tool-name-map.ts`, `src/tools/tool-router.ts`, `src/tools/executor.ts`, `src/agent/agent-loop.ts`
+- Modify: `src/capabilities/tools/tool-registry.ts`, `src/operations/config/defaults.ts`, `src/execution/run/helpers.ts`, `src/agents/tool-name-map.ts`, `src/capabilities/tools/tool-router.ts`, `src/capabilities/tools/executor.ts`, `src/agents/agent/agent-loop.ts`
 - Test: `tests/tools/capability-map.test.ts`
 
 **Interfaces:**
@@ -1109,7 +1109,7 @@ git commit -m "feat(tools): verify.claim handler with baseline/shadow degradatio
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `tests/tools/capability-map.test.ts` (add imports: `BASE_TOOLS`, `READ_ONLY_TOOL_NAMES` not needed; add `import { BASE_TOOLS } from "../../src/run/helpers.js";`, `import { TOOL_NAME_MAP } from "../../src/agents/tool-name-map.js";`, `import { DEFAULT_CONFIG } from "../../src/config/defaults.js";`):
+Append to `tests/tools/capability-map.test.ts` (add imports: `BASE_TOOLS`, `READ_ONLY_TOOL_NAMES` not needed; add `import { BASE_TOOLS } from "../../src/execution/run/helpers.js";`, `import { TOOL_NAME_MAP } from "../../src/agents/tool-name-map.js";`, `import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";`):
 
 ```ts
 describe("verify.claim wiring (spec §7.1 approval trap)", () => {
@@ -1148,7 +1148,7 @@ Expected: FAIL — `inferCapability("verify.claim")` returns `tool.invoke`.
 
 - [ ] **Step 3: Implement all seven edits**
 
-(a) `src/tools/tool-registry.ts` — extend `ToolDomain` with `"decision"` (the union has no exhaustive consumer outside this file) and add to the `defaults` array:
+(a) `src/capabilities/tools/tool-registry.ts` — extend `ToolDomain` with `"decision"` (the union has no exhaustive consumer outside this file) and add to the `defaults` array:
 
 ```ts
     {
@@ -1164,9 +1164,9 @@ Expected: FAIL — `inferCapability("verify.claim")` returns `tool.invoke`.
     },
 ```
 
-(b) `src/config/defaults.ts` — in `permissions.tools`: `"verify.claim": "allow",`.
+(b) `src/operations/config/defaults.ts` — in `permissions.tools`: `"verify.claim": "allow",`.
 
-(c) `src/run/helpers.ts` — in `BASE_TOOLS`, immediately after the `alix_state_query` entry:
+(c) `src/execution/run/helpers.ts` — in `BASE_TOOLS`, immediately after the `alix_state_query` entry:
 
 ```ts
   {
@@ -1201,7 +1201,7 @@ Expected: FAIL — `inferCapability("verify.claim")` returns `tool.invoke`.
   alix_verify_claim:    "verify.claim",
 ```
 
-(e) `src/tools/tool-router.ts` — next to `StateToolRouter`:
+(e) `src/capabilities/tools/tool-router.ts` — next to `StateToolRouter`:
 
 ```ts
 /**
@@ -1223,13 +1223,13 @@ export class ClaimVerificationToolRouter implements ToolRouter {
 }
 ```
 
-(f) `src/tools/executor.ts` — import `ClaimVerificationToolRouter` alongside `StateToolRouter` (line ~29) and insert after `new StateToolRouter(this.root),`:
+(f) `src/capabilities/tools/executor.ts` — import `ClaimVerificationToolRouter` alongside `StateToolRouter` (line ~29) and insert after `new StateToolRouter(this.root),`:
 
 ```ts
       new ClaimVerificationToolRouter(this.root),
 ```
 
-(g) `src/agent/agent-loop.ts` — after `readOnlyToolFilter.add("alix_state_query");`:
+(g) `src/agents/agent/agent-loop.ts` — after `readOnlyToolFilter.add("alix_state_query");`:
 
 ```ts
   readOnlyToolFilter.add("alix_verify_claim");
@@ -1243,7 +1243,7 @@ Expected: PASS — including the existing `registry-derived views agree with bui
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tools/tool-registry.ts src/config/defaults.ts src/run/helpers.ts src/agents/tool-name-map.ts src/tools/tool-router.ts src/tools/executor.ts src/agent/agent-loop.ts tests/tools/capability-map.test.ts
+git add src/capabilities/tools/tool-registry.ts src/operations/config/defaults.ts src/execution/run/helpers.ts src/agents/tool-name-map.ts src/capabilities/tools/tool-router.ts src/capabilities/tools/executor.ts src/agents/agent/agent-loop.ts tests/tools/capability-map.test.ts
 git commit -m "feat(tools): wire alix_verify_claim (manifest, alias, allow, router)"
 ```
 
@@ -1252,7 +1252,7 @@ git commit -m "feat(tools): wire alix_verify_claim (manifest, alias, allow, rout
 ### Task 6: `alix jev disagreements`
 
 **Files:**
-- Modify: `src/cli/commands/jev/ops.ts`, `src/cli/commands/jev/render.ts`, `src/cli/commands/jev/main.ts`
+- Modify: `src/interfaces/cli/commands/jev/ops.ts`, `src/interfaces/cli/commands/jev/render.ts`, `src/interfaces/cli/commands/jev/main.ts`
 - Test: `tests/cli/jev-ops.test.ts`
 
 **Interfaces:**
@@ -1502,7 +1502,7 @@ describe("jev ops — disagreements", () => {
 });
 ```
 
-Add to that file's `src/cli/commands/jev/ops.js` import list: `buildDisagreements`; from `render.js`: `renderDisagreements`. (Existing imports already include `createOutcomeLabelStore`, `recordDecision`, `createOutcomeLabel`, `dispatchJevCommand`.) Also extend the file's existing `after()` hook to clean the fresh journals: `for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });`
+Add to that file's `src/interfaces/cli/commands/jev/ops.js` import list: `buildDisagreements`; from `render.js`: `renderDisagreements`. (Existing imports already include `createOutcomeLabelStore`, `recordDecision`, `createOutcomeLabel`, `dispatchJevCommand`.) Also extend the file's existing `after()` hook to clean the fresh journals: `for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });`
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -1511,7 +1511,7 @@ Expected: FAIL — `buildDisagreements is not a function` / unknown subcommand `
 
 - [ ] **Step 3: Implement ops**
 
-Append to `src/cli/commands/jev/ops.ts`:
+Append to `src/interfaces/cli/commands/jev/ops.ts`:
 
 ```ts
 // ─── Disagreements ────────────────────────────────────────────────────
@@ -1644,7 +1644,7 @@ Imports to add at the top of `ops.ts` as needed: `DecisionJournalRecord`, `index
 
 - [ ] **Step 4: Implement render**
 
-Append to `src/cli/commands/jev/render.ts`:
+Append to `src/interfaces/cli/commands/jev/render.ts`:
 
 ```ts
 export function renderDisagreements(report: DisagreementsReport): string {
@@ -1703,7 +1703,7 @@ Add `DisagreementsReport` to `render.ts`'s imports from `./ops.js`.
 
 - [ ] **Step 5: Implement dispatch**
 
-In `src/cli/commands/jev/main.ts`, first make dispatch hermetic (existing single-argument callers are unaffected):
+In `src/interfaces/cli/commands/jev/main.ts`, first make dispatch hermetic (existing single-argument callers are unaffected):
 
 ```ts
 export async function dispatchJevCommand(
@@ -1739,7 +1739,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/jev/ops.ts src/cli/commands/jev/render.ts src/cli/commands/jev/main.ts tests/cli/jev-ops.test.ts
+git add src/interfaces/cli/commands/jev/ops.ts src/interfaces/cli/commands/jev/render.ts src/interfaces/cli/commands/jev/main.ts tests/cli/jev-ops.test.ts
 git commit -m "feat(jev-cli): disagreements view with pairing, rate and tallies"
 ```
 
@@ -1748,7 +1748,7 @@ git commit -m "feat(jev-cli): disagreements view with pairing, rate and tallies"
 ### Task 7: `alix jev label-pair` (two-stage blind ground-truth labelling)
 
 **Files:**
-- Modify: `src/cli/commands/jev/ops.ts`, `src/cli/commands/jev/render.ts`, `src/cli/commands/jev/main.ts`
+- Modify: `src/interfaces/cli/commands/jev/ops.ts`, `src/interfaces/cli/commands/jev/render.ts`, `src/interfaces/cli/commands/jev/main.ts`
 - Test: `tests/cli/jev-ops.test.ts`
 
 **Interfaces:**
@@ -2013,7 +2013,7 @@ Expected: FAIL — `prepareLabelPair is not a function`.
 
 - [ ] **Step 3: Implement ops**
 
-Append to `src/cli/commands/jev/ops.ts`:
+Append to `src/interfaces/cli/commands/jev/ops.ts`:
 
 ```ts
 // ─── Blind ground-truth labelling (two-stage, spec §18) ────────────────
@@ -2139,7 +2139,7 @@ Add imports as needed: `CLAIM_VERDICT_CANDIDATES` (drop any `RISK_TIER_CANDIDATE
 
 - [ ] **Step 4: Implement render**
 
-Append to `src/cli/commands/jev/render.ts`:
+Append to `src/interfaces/cli/commands/jev/render.ts`:
 
 ```ts
 /**
@@ -2184,7 +2184,7 @@ Add `LabelPairStage`, `LabelPairResult` to `render.ts`'s `./ops.js` imports.
 
 - [ ] **Step 5: Implement dispatch (two-stage)**
 
-In `src/cli/commands/jev/main.ts`, add before `default:`:
+In `src/interfaces/cli/commands/jev/main.ts`, add before `default:`:
 
 ```ts
     case "label-pair": {
@@ -2232,7 +2232,7 @@ Expected: PASS — including the refusal-before-write assertions.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/jev/ops.ts src/cli/commands/jev/render.ts src/cli/commands/jev/main.ts tests/cli/jev-ops.test.ts
+git add src/interfaces/cli/commands/jev/ops.ts src/interfaces/cli/commands/jev/render.ts src/interfaces/cli/commands/jev/main.ts tests/cli/jev-ops.test.ts
 git commit -m "feat(jev-cli): blind label-pair derives two labels from one truth"
 ```
 
@@ -2241,9 +2241,9 @@ git commit -m "feat(jev-cli): blind label-pair derives two labels from one truth
 ### Task 8: Verification + DOX closeout
 
 **Files:**
-- Modify: `src/decision/decisions/claim-verification/AGENTS.md`
-- Modify: `src/decision/AGENTS.md`
-- Modify: `src/cli/commands/jev/AGENTS.md`
+- Modify: `src/planning/decision/decisions/claim-verification/AGENTS.md`
+- Modify: `src/planning/decision/AGENTS.md`
+- Modify: `src/interfaces/cli/commands/jev/AGENTS.md`
 
 **Interfaces:**
 - Consumes: everything from Tasks 1–7.
@@ -2262,29 +2262,29 @@ Expected: all PASS, `OK: every src module is imported or allowlisted.`
 - [ ] **Step 2: Canary the two one-line seams tests cannot reach**
 
 ```bash
-grep -q 'readOnlyToolFilter.add("alix_verify_claim")' src/agent/agent-loop.ts && \
-grep -q 'new ClaimVerificationToolRouter(this.root)' src/tools/executor.ts && echo "wiring seams present"
+grep -q 'readOnlyToolFilter.add("alix_verify_claim")' src/agents/agent/agent-loop.ts && \
+grep -q 'new ClaimVerificationToolRouter(this.root)' src/capabilities/tools/executor.ts && echo "wiring seams present"
 ```
 Expected: `wiring seams present`
 
 - [ ] **Step 3: Update the DOX chain**
 
-`src/decision/decisions/claim-verification/AGENTS.md` — Ownership gains:
+`src/planning/decision/decisions/claim-verification/AGENTS.md` — Ownership gains:
 - `selection-service.ts` — `selectClaimVerification` (`baseline` | `shadow` | `active`); **divergence: unlike `selectModelTier`/`selectRiskTier`, `shadow` returns the baseline verdict**, because the tool's entire response is the verdict (spec §10).
 - `experiment-store.ts` — protected projection store at `~/.alix/decisions/experiments.jsonl` via `storeDir ?? join(homedir(), ".alix")` + shared `JsonlStore`; the journal keeps only `projectionHash`, so this is what an operator judges from (§16).
 
 Local Contracts gain: mode default `baseline` (renamed from `off`, §3.1); model payload is exactly `{verdict, engine, decisionId?, authority:"none", warning?}`; boundary rejection degrades to a local verdict with `warning` and **no** record (no seal ⇒ no hash).
 
-`src/decision/AGENTS.md` — ownership line for `decisions/claim-verification/` gains `selection-service`/`experiment-store`; add `paths.ts` (decision-owned paths so tools never import `src/cli/commands/*`) to the ownership list.
+`src/planning/decision/AGENTS.md` — ownership line for `decisions/claim-verification/` gains `selection-service`/`experiment-store`; add `paths.ts` (decision-owned paths so tools never import `src/interfaces/cli/commands/*`) to the ownership list.
 
-`src/cli/commands/jev/AGENTS.md` — Commands gain:
+`src/interfaces/cli/commands/jev/AGENTS.md` — Commands gain:
 - `disagreements [--decision <d>] [--json]` — pairs by `projectionHash` (most recent Choice record per engine), footer with `invocations/paired/comparable_pairs/agreements/disagreements/disagreement_rate` + `jev_correct/baseline_correct/both_wrong`; prints `no disagreement data available` when `paired=0` (distinct from "the engines always agree", spec §11).
 - `label-pair --projection-hash <hash> --truth <v> [--store-dir <dir>] [--json]` — one truth, two derived labels, `note: truth=<v>`; refuses (writes nothing) on unknown hash / no pair / agreeing verdicts / illegal truth / already-labelled / missing projection. Requires the protected experiment store; Noul decisions are refused.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/decision/decisions/claim-verification/AGENTS.md src/decision/AGENTS.md src/cli/commands/jev/AGENTS.md
+git add src/planning/decision/decisions/claim-verification/AGENTS.md src/planning/decision/AGENTS.md src/interfaces/cli/commands/jev/AGENTS.md
 git commit -m "docs(dox): record selection service, experiment store, jev subcommands"
 ```
 

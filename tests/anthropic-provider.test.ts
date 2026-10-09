@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AnthropicProvider } from "../src/providers/anthropic-provider.js";
+import { AnthropicProvider } from "../src/models/providers/anthropic-provider.js";
 
 test("anthropic provider returns correct capabilities", () => {
   const provider = new AnthropicProvider({ apiKey: "test-key" });

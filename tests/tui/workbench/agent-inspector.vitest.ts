@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildAgentInspectorModel } from '../../../src/tui/workbench/model/agent-inspector.js';
-import { buildAgentInspectorSections, paintAgentInspector } from '../../../src/tui/workbench/views/agent-inspector.js';
+import { buildAgentInspectorModel } from '../../../src/interfaces/tui/workbench/model/agent-inspector.js';
+import { buildAgentInspectorSections, paintAgentInspector } from '../../../src/interfaces/tui/workbench/views/agent-inspector.js';
 import { createWorkbenchRenderHarness } from '../../fixtures/tui/workbench-render-harness.js';
-import type { AgentSummary } from '../../../src/tui/workbench/model/agent-roster.js';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { stripAnsi } from '../../../src/tui/box.js';
-import { getWorkbenchPreviewTheme } from '../../../src/tui/workbench/model/preview-theme.js';
+import type { AgentSummary } from '../../../src/interfaces/tui/workbench/model/agent-roster.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import { stripAnsi } from '../../../src/interfaces/tui/box.js';
+import { getWorkbenchPreviewTheme } from '../../../src/interfaces/tui/workbench/model/preview-theme.js';
 const agent = (id: string, overrides: Partial<AgentSummary> = {}): AgentSummary => ({ agentId: id, role: 'frontend-agent', state: 'tool_running', coordinationRunId: 'run1', currentTaskId: 'task1', startedAt: 1000, lastProgressAt: 1000, ownedPaths: [], usage: {}, activeTool: { toolCallId: 'call1', toolName: 'alix_patch_apply', startedAt: 1000, elapsedMs: 0, lastProgressAt: 1000 }, ...overrides });
 function snapshot(agents = [agent('a')]) {
   const base = createWorkbenchRenderHarness().state.lastSnapshot!;

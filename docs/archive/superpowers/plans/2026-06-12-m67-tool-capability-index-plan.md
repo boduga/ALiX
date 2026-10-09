@@ -4,7 +4,7 @@
 
 **Goal:** A searchable/retrievable tool registry that lets ALiX choose the right tool surface based on task intent, instead of stuffing every tool into every decision. Pure data layer — no execution changes.
 
-**Architecture:** One new module in `src/tools/` — `ToolRegistry` (register/lookup/search tools by name, capabilityId, domain, risk), `CapabilityIndex` (tag tools by intent), and `ToolRetriever` (select relevant tools for a given task intent). Compatible with existing `CompositeToolRouter` and `ToolName` types. No runtime integration yet. Pure TypeScript, no I/O.
+**Architecture:** One new module in `src/capabilities/tools/` — `ToolRegistry` (register/lookup/search tools by name, capabilityId, domain, risk), `CapabilityIndex` (tag tools by intent), and `ToolRetriever` (select relevant tools for a given task intent). Compatible with existing `CompositeToolRouter` and `ToolName` types. No runtime integration yet. Pure TypeScript, no I/O.
 
 **Tech Stack:** TypeScript, existing `ToolRouter`/`ToolName`/`ToolArgs` types, `node:test`.
 
@@ -13,7 +13,7 @@
 ## File Structure
 
 ### Create
-- `src/tools/tool-registry.ts` — `ToolRegistry`, `CapabilityIndex`, `ToolRetriever`
+- `src/capabilities/tools/tool-registry.ts` — `ToolRegistry`, `CapabilityIndex`, `ToolRetriever`
 - `tests/tools/tool-registry.test.ts` — 15+ test cases
 
 ### Modify (none)
@@ -24,7 +24,7 @@
 ### Task 1: Define tool capability metadata types
 
 **Files:**
-- Create: `src/tools/tool-registry.ts`
+- Create: `src/capabilities/tools/tool-registry.ts`
 
 - [ ] **Step 1: Define the capability metadata types at the top of the file**
 
@@ -95,7 +95,7 @@ export type ToolCapability = {
 ### Task 2: Implement ToolRegistry
 
 **Files:**
-- Continue in: `src/tools/tool-registry.ts`
+- Continue in: `src/capabilities/tools/tool-registry.ts`
 
 - [ ] **Step 1: Add the ToolRegistry class**
 
@@ -287,8 +287,8 @@ export class ToolRetriever {
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ToolRegistry, CapabilityIndex, ToolRetriever, buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
-import type { ToolCapability, ToolDomain, CapabilityRisk, IntentTag } from "../../src/tools/tool-registry.js";
+import { ToolRegistry, CapabilityIndex, ToolRetriever, buildDefaultToolIndex } from "../../src/capabilities/tools/tool-registry.js";
+import type { ToolCapability, ToolDomain, CapabilityRisk, IntentTag } from "../../src/capabilities/tools/tool-registry.js";
 
 describe("ToolRegistry", () => {
   it("register and lookup a tool", () => {

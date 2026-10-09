@@ -177,11 +177,11 @@ client.write(JSON.stringify({ command: "run", task: opts.task, cwd: opts.cwd, ro
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/daemon/daemon-manager.ts` | **Modify** | Move socket/pid/status paths to `~/.alix/` |
-| `src/daemon/daemon-server.ts` | **Modify** | Accept `cwd` per run request, write sessions to project dir |
-| `src/daemon/daemon-types.ts` | **Modify** | Add `cwd` to `DaemonCommand.run` |
-| `src/daemon/task-registry.ts` | **Modify** | Add `cwd` field to `DaemonTaskRecord` |
-| `src/tui/daemon-client.ts` | **Modify** | Connect to global socket, send `cwd` with request |
+| `src/operations/daemon/daemon-manager.ts` | **Modify** | Move socket/pid/status paths to `~/.alix/` |
+| `src/operations/daemon/daemon-server.ts` | **Modify** | Accept `cwd` per run request, write sessions to project dir |
+| `src/operations/daemon/daemon-types.ts` | **Modify** | Add `cwd` to `DaemonCommand.run` |
+| `src/operations/daemon/task-registry.ts` | **Modify** | Add `cwd` field to `DaemonTaskRecord` |
+| `src/interfaces/tui/daemon-client.ts` | **Modify** | Connect to global socket, send `cwd` with request |
 | `src/cli.ts` | **Modify** | Update `submit` command to use global daemon paths |
 | `tests/daemon/daemon-manager.test.ts` | **Modify** | Update for global paths |
 | `tests/daemon/daemon-server.test.ts` | **Modify** | Update for cwd-per-request protocol |

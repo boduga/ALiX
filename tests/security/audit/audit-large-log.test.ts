@@ -10,9 +10,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AuditChainWriter } from "../../../src/security/audit/audit-chain-writer.js";
-import { verifyAuditLog } from "../../../src/security/audit/audit-verifier.js";
-import { AuditStore } from "../../../src/audit/audit-store.js";
+import { AuditChainWriter } from "../../../src/governance/security/audit/audit-chain-writer.js";
+import { verifyAuditLog } from "../../../src/governance/security/audit/audit-verifier.js";
+import { AuditStore } from "../../../src/governance/audit/audit-store.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

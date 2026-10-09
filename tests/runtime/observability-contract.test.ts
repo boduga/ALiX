@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 
 // ── Contract types ──────────────────────────────────────────────
 
-import type { RuntimeEvidence } from "../../src/runtime/contracts/observability-contract.js";
+import type { RuntimeEvidence } from "../../src/runtime-state/runtime/contracts/observability-contract.js";
 import {
   OBSERVABILITY_INVARIANTS,
-} from "../../src/runtime/contracts/observability-contract.js";
-import type { GovernanceEvidenceFilter } from "../../src/runtime/contracts/observability-contract.js";
+} from "../../src/runtime-state/runtime/contracts/observability-contract.js";
+import type { GovernanceEvidenceFilter } from "../../src/runtime-state/runtime/contracts/observability-contract.js";
 
 // ── Tests ───────────────────────────────────────────────────────
 

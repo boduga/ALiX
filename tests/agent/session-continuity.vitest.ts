@@ -2,21 +2,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ExecutionCancelledError } from '../../src/runtime/cancellation-token.js';
-import { resumeSession } from '../../src/agent/session/resume.js';
-import { buildSessionConversationMessages } from '../../src/agent/session/conversation-history.js';
-import { classifyMessageToCategory } from '../../src/run/task-loop/context-helpers.js';
-import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
-import { MockInput, MockOutput } from '../../src/tui/io.js';
-import { processTurn } from '../../src/agent/session/turn.js';
-import { createSessionState } from '../../src/agent/session/state.js';
-import { EventLog } from '../../src/events/event-log.js';
-import { MemoryStore } from '../../src/utils/memory/store.js';
-import { ScopeTracker } from '../../src/autonomy/scope-tracker.js';
-import { MinimalMetrics } from '../../src/kernel/minimal-metrics.js';
-import { createContextBudget } from '../../src/config/context-budget.js';
-import { ensureEncoder } from '../../src/utils/tokens.js';
-import type { ModelAdapter, NormalizedRequest } from '../../src/providers/types.js';
+import { ExecutionCancelledError } from '../../src/runtime-state/runtime/cancellation-token.js';
+import { resumeSession } from '../../src/agents/agent/session/resume.js';
+import { buildSessionConversationMessages } from '../../src/agents/agent/session/conversation-history.js';
+import { classifyMessageToCategory } from '../../src/execution/run/task-loop/context-helpers.js';
+import { TuiApp, type TuiAppOptions } from '../../src/interfaces/tui/app.js';
+import { MockInput, MockOutput } from '../../src/interfaces/tui/io.js';
+import { processTurn } from '../../src/agents/agent/session/turn.js';
+import { createSessionState } from '../../src/agents/agent/session/state.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { MemoryStore } from '../../src/operations/utils/memory/store.js';
+import { ScopeTracker } from '../../src/planning/autonomy/scope-tracker.js';
+import { MinimalMetrics } from '../../src/coordination/kernel/minimal-metrics.js';
+import { createContextBudget } from '../../src/operations/config/context-budget.js';
+import { ensureEncoder } from '../../src/operations/utils/tokens.js';
+import type { ModelAdapter, NormalizedRequest } from '../../src/models/providers/types.js';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -172,7 +172,7 @@ describe('AgentSession conversation continuity through real task loop', () => {
   });
 
   it('records a grounded-route request/result once for the next foreground objective', async () => {
-    const module = await import('../../src/runtime/governed-route-executor.js');
+    const module = await import('../../src/runtime-state/runtime/governed-route-executor.js');
     const governed = vi.spyOn(module, 'executeRouteGoverned').mockResolvedValue({ result: findings } as any);
     try {
       const { state, requests } = await fixture('grounded-history');

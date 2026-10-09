@@ -7,9 +7,9 @@ instead of after all turns.
 
 One source of truth: ChatView (full timeline), AgentView (user/agent only),
 and copy-scrollback all project `timelineEvents`, so they can never diverge.
-Every write goes through `appendTimelineEvent()` in src/tui/state.ts, which
+Every write goes through `appendTimelineEvent()` in src/interfaces/tui/state.ts, which
 stamps id/timestamp/sequence/source; ordering is by timestamp with a
 monotonic sequence tiebreak for same-millisecond events.
 
 Tool calls remain on the agent tab as execution telemetry — they are not
-timeline events. The platform itself (src/capability/) is unchanged.
+timeline events. The platform itself (src/capabilities/capability/) is unchanged.

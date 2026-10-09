@@ -12,9 +12,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ConflictEvidenceComparator } from "../../src/kernel/collaboration-evidence-comparator.js";
-import { systemClock, type Clock } from "../../src/kernel/collaboration-freshness.js";
-import type { SharedFinding, EvidenceRef } from "../../src/kernel/collaboration-types.js";
+import { ConflictEvidenceComparator } from "../../src/coordination/kernel/collaboration-evidence-comparator.js";
+import { systemClock, type Clock } from "../../src/coordination/kernel/collaboration-freshness.js";
+import type { SharedFinding, EvidenceRef } from "../../src/coordination/kernel/collaboration-types.js";
 
 let nextId = 0;
 const mkFinding = (overrides: Partial<SharedFinding> & { runId: string; workerId: string }): SharedFinding => {

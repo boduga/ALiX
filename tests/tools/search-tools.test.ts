@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { writeFile, mkdir, rm, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { grepSearch, globMatch } from "../../src/tools/file-tools.js";
-import { FileToolRouter } from "../../src/tools/tool-router.js";
-import { inferCapability, canonicalCapabilityOf } from "../../src/tools/capability-map.js";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
+import { grepSearch, globMatch } from "../../src/capabilities/tools/file-tools.js";
+import { FileToolRouter } from "../../src/capabilities/tools/tool-router.js";
+import { inferCapability, canonicalCapabilityOf } from "../../src/capabilities/tools/capability-map.js";
+import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
 
 async function seed(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "search-tools-"));

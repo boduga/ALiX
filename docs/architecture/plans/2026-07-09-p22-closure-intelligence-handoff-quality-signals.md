@@ -23,7 +23,7 @@
 | P22.1 | `src/governance/handoff-intelligence-types.ts` + `handoff-outcome-aggregate.ts` | `tests/governance/handoff-outcome-aggregate.test.ts` |
 | P22.2 | `src/governance/handoff-quality-signals.ts` | `tests/governance/handoff-quality-signals.test.ts` |
 | P22.3 | `src/governance/handoff-readiness-calibration.ts` | `tests/governance/handoff-readiness-calibration.test.ts` |
-| P22.4 | `src/governance/handoff-intelligence-report.ts` + `src/cli/commands/governance.ts` | `tests/governance/handoff-intelligence-report.test.ts` |
+| P22.4 | `src/governance/handoff-intelligence-report.ts` + `src/interfaces/cli/commands/governance.ts` | `tests/governance/handoff-intelligence-report.test.ts` |
 | P22.5 | Phase report + checkpoint docs | Boundary verification |
 
 ## Task 1: P22.0 Spec + Plan

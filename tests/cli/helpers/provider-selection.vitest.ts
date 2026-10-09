@@ -13,13 +13,13 @@ import {
   resolveProviders,
   getAvailableModels,
   resolveInitialProviderAndModel,
-} from "../../../src/cli/helpers/provider-selection.js";
-import { _setUserConfigPathOverride as _setApiKeysConfigPathOverride } from "../../../src/cli/helpers/api-keys.js";
+} from "../../../src/interfaces/cli/helpers/provider-selection.js";
+import { _setUserConfigPathOverride as _setApiKeysConfigPathOverride } from "../../../src/interfaces/cli/helpers/api-keys.js";
 import {
   PROVIDERS,
   _setUserConfigPathOverride as _setCatalogConfigPathOverride,
-} from "../../../src/providers/catalog.js";
-import { parseInitArgs } from "../../../src/cli/helpers/init-args.js";
+} from "../../../src/models/providers/catalog.js";
+import { parseInitArgs } from "../../../src/interfaces/cli/helpers/init-args.js";
 
 /** Write a user-config `apiKeys` file into the per-test tmp dir and point the
  *  config seams at it. Replaces env-var key injection now that provider key
@@ -380,7 +380,7 @@ describe("resolveInitialProviderAndModel — interactive mode", () => {
     const origIsTTY = process.stdin.isTTY;
     Object.defineProperty(process.stdin, "isTTY", { value: true, configurable: true });
     // Force ollama to appear unavailable — dev environments may have it running.
-    const catalog = await import("../../../src/providers/catalog.js");
+    const catalog = await import("../../../src/models/providers/catalog.js");
     const ollamaSpy = vi.spyOn(catalog, "getInstalledOllamaModels").mockReturnValue([]);
     try {
       // No env vars, no user config → ollama unavailable, but local-llama is

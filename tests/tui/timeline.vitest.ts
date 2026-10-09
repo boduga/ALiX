@@ -7,11 +7,11 @@
 // (tests/tui/runtime/timeline-builder.vitest.ts). Phase-7 cleanup removed the
 // deprecated `appendTimelineEvent` compatibility wrapper and the shared
 // capability-status display helper moved to the presenter
-// (src/tui/capabilities/invocation-presenter.ts). This file keeps the
+// (src/interfaces/tui/capabilities/invocation-presenter.ts). This file keeps the
 // capability-status display helper's formatting contract.
 import { describe, it, expect } from 'vitest';
-import { capabilityStatusText } from '../../src/tui/capabilities/invocation-presenter.js';
-import type { CapabilityStatus } from '../../src/tui/capabilities/invocation-presenter.js';
+import { capabilityStatusText } from '../../src/interfaces/tui/capabilities/invocation-presenter.js';
+import type { CapabilityStatus } from '../../src/interfaces/tui/capabilities/invocation-presenter.js';
 
 function capEvent(status: CapabilityStatus['status'], output?: unknown, error?: string): CapabilityStatus {
   return {

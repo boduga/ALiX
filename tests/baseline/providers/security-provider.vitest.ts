@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, rmSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { SecurityBaselineProvider } from "../../../src/baseline/providers/security-provider.js";
+import { SecurityBaselineProvider } from "../../../src/context/baseline/providers/security-provider.js";
 
 describe("SecurityBaselineProvider", () => {
   let provider: SecurityBaselineProvider;

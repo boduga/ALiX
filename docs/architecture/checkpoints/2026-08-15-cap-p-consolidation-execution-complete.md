@@ -45,10 +45,10 @@ The discriminator table post-CAP-P is 5/5 cells green:
 
 | File | Change |
 |---|---|
-| `src/adaptation/capability-evolution-types.ts` | `CapabilityEvolutionCandidate` gains `consolidateDefinition?: CapabilityDefinition` and `sourceDisposition?: "deprecate" \| "remove"` (both optional, present only when `sourcePatternId === "consolidation_opportunity"`) |
-| `src/capability/evolution/a7-proposals.ts` | `consolidation_opportunity` signal variant gains required `consolidateDefinition` + `sourceDisposition` fields. `validateConsolidationOpportunitySignal` enforces all three shape invariants (defense in depth). `signalToCandidate` copies both new fields verbatim. Discriminator-table comment updated. |
-| `src/capability/evolution/overlap-signal-source.ts` | `OverlapIdentitySupplier` callback type extended with `consolidateDefinition` + `sourceDisposition`. The pair layer constructs the signal carrying all four operator-supplied fields verbatim. |
-| `src/capability/capability-service.ts` | `proposeConsolidation` constructs the signal with `consolidateDefinition: input.definition` and `sourceDisposition: input.sourceDisposition`. The candidate is built with all four fields verbatim. `candidateToExecutionStep` `case "consolidation_opportunity":` rewritten with three invariant guards and explicit `capability.consolidate` dispatch. The `default` case rewritten to THROW (fail-closed) — replaces the silent `capability.transition` fall-through. Discriminator-table docstring comment updated. |
+| `src/planning/adaptation/capability-evolution-types.ts` | `CapabilityEvolutionCandidate` gains `consolidateDefinition?: CapabilityDefinition` and `sourceDisposition?: "deprecate" \| "remove"` (both optional, present only when `sourcePatternId === "consolidation_opportunity"`) |
+| `src/capabilities/capability/evolution/a7-proposals.ts` | `consolidation_opportunity` signal variant gains required `consolidateDefinition` + `sourceDisposition` fields. `validateConsolidationOpportunitySignal` enforces all three shape invariants (defense in depth). `signalToCandidate` copies both new fields verbatim. Discriminator-table comment updated. |
+| `src/capabilities/capability/evolution/overlap-signal-source.ts` | `OverlapIdentitySupplier` callback type extended with `consolidateDefinition` + `sourceDisposition`. The pair layer constructs the signal carrying all four operator-supplied fields verbatim. |
+| `src/capabilities/capability/capability-service.ts` | `proposeConsolidation` constructs the signal with `consolidateDefinition: input.definition` and `sourceDisposition: input.sourceDisposition`. The candidate is built with all four fields verbatim. `candidateToExecutionStep` `case "consolidation_opportunity":` rewritten with three invariant guards and explicit `capability.consolidate` dispatch. The `default` case rewritten to THROW (fail-closed) — replaces the silent `capability.transition` fall-through. Discriminator-table docstring comment updated. |
 | `tests/capability/cap-p-consolidate-execution.vitest.ts` | **NEW.** 9 sentinels: (1) `consolidation_opportunity → capability.consolidate`; (2) `consolidateDefinition` verbatim; (3) `sourceDisposition` verbatim (`'deprecate'` AND `'remove'`); (4) `sources` in same order; (5) `target` verbatim; (6) missing `consolidateDefinition` throws; (7) invalid `sourceDisposition` throws; (8) empty `absorbedCapabilityIds` throws; (9) default case throws. |
 | `tests/capability/a7-proposals.vitest.ts` | Updated to include `consolidateDefinition` + `sourceDisposition` on every `consolidation_opportunity` signal literal (4 sites). |
 | `tests/capability/evolution/p5-pair-layer.vitest.ts` | Updated `supplierIdentityAtoB` + 4 other `identitySupplier` callbacks to include `consolidateDefinition` + `sourceDisposition`. Signal-top-level-keys test updated to include the new fields. |
@@ -122,8 +122,8 @@ Tests       684 passed (684)
 - CAP-P preserved decisions: `memory/cap-p-deferred-pending-analyzer.md` (8 preserved rulings, 2026-08-14)
 - P5.5/P5.6 rulings #534 (signal/survivorship/absorbed-set), #543 (pair layer shape), #544 (operator CLI caller)
 - ADR-0013 §4/§5/§7 (provider abstraction + execution binding + lifecycle)
-- Mutation contract: `src/capability/mutation-contract.ts:106-116` (`CapabilityConsolidateMutation`), 464-479 (`validateConsolidate`), 310-378 (`validateConsolidateMerge`)
-- Discriminator site: `src/capability/capability-service.ts:922+`
+- Mutation contract: `src/capabilities/capability/mutation-contract.ts:106-116` (`CapabilityConsolidateMutation`), 464-479 (`validateConsolidate`), 310-378 (`validateConsolidateMerge`)
+- Discriminator site: `src/capabilities/capability/capability-service.ts:922+`
 - CAP-P sentinels: `tests/capability/cap-p-consolidate-execution.vitest.ts`
 
 ## Tags

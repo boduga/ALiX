@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MetricsStore } from "../../src/observability/metrics-store.js";
-import { TrendAnalyzer } from "../../src/observability/trend-analyzer.js";
+import { MetricsStore } from "../../src/operations/observability/metrics-store.js";
+import { TrendAnalyzer } from "../../src/operations/observability/trend-analyzer.js";
 
 describe("TrendAnalyzer", () => {
   let tmpDir: string;

@@ -6,7 +6,7 @@
 
 **Goal:** Make each trace chain previewable — show what would be replayed without executing anything.
 
-**Architecture:** A `ReplayPreview` builder in `src/runtime/replay-preview.ts` that consumes a selected `TraceEvent` and all trace events, classifies each step by its replay action, assesses replayability, and returns a structured preview. A `renderTraceReplay()` renderer in `trace-detail.ts` displays the result. `p` keyboard shortcut switches to replay mode.
+**Architecture:** A `ReplayPreview` builder in `src/runtime-state/runtime/replay-preview.ts` that consumes a selected `TraceEvent` and all trace events, classifies each step by its replay action, assesses replayability, and returns a structured preview. A `renderTraceReplay()` renderer in `trace-detail.ts` displays the result. `p` keyboard shortcut switches to replay mode.
 
 **Tech Stack:** TypeScript/ESM, Node >= 24, trace-events (existing), trace-detail (existing), TuiStore (existing)
 
@@ -16,11 +16,11 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/runtime/replay-preview.ts` | Create | `ReplayPreview`, `ReplayPreviewStep`, `ReplayAction`, `buildReplayPreview()` |
-| `src/runtime/trace-events.ts` | Modify | Add `"replay"` to `TraceDetailMode` if not present |
-| `src/tui/trace-detail.ts` | Modify | Add `renderTraceReplay()` renderer |
-| `src/tui/store.ts` | Modify (minor) | No changes if `"replay"` already in `TraceDetailMode` |
-| `src/cli/commands/tui.ts` | Modify | Add `p` keyboard shortcut for replay mode |
+| `src/runtime-state/runtime/replay-preview.ts` | Create | `ReplayPreview`, `ReplayPreviewStep`, `ReplayAction`, `buildReplayPreview()` |
+| `src/runtime-state/runtime/trace-events.ts` | Modify | Add `"replay"` to `TraceDetailMode` if not present |
+| `src/interfaces/tui/trace-detail.ts` | Modify | Add `renderTraceReplay()` renderer |
+| `src/interfaces/tui/store.ts` | Modify (minor) | No changes if `"replay"` already in `TraceDetailMode` |
+| `src/interfaces/cli/commands/tui.ts` | Modify | Add `p` keyboard shortcut for replay mode |
 | `tests/runtime/replay-preview.test.ts` | Create | Reconstruction tests |
 | `tests/tui/replay-preview-detail.test.ts` | Create | Rendering tests |
 
@@ -29,7 +29,7 @@
 ### Replay preview model
 
 ```typescript
-// src/runtime/replay-preview.ts
+// src/runtime-state/runtime/replay-preview.ts
 
 export type ReplayAction =
   | "context-only"
@@ -105,7 +105,7 @@ A chain is **replayable** only when all of:
 ### Task 1: Create replay-preview.ts
 
 **Files:**
-- Create: `src/runtime/replay-preview.ts`
+- Create: `src/runtime-state/runtime/replay-preview.ts`
 
 - [ ] **Step 1: Write the complete module**
 
@@ -330,7 +330,7 @@ Expected: clean build.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/runtime/replay-preview.ts
+git add src/runtime-state/runtime/replay-preview.ts
 git commit -m "feat(runtime): add replay preview model and chain reconstruction"
 ```
 
@@ -339,12 +339,12 @@ git commit -m "feat(runtime): add replay preview model and chain reconstruction"
 ### Task 2: Add replay to TraceDetailMode and renderer
 
 **Files:**
-- Modify: `src/runtime/trace-events.ts` (check `TraceDetailMode`)
-- Modify: `src/tui/trace-detail.ts`
+- Modify: `src/runtime-state/runtime/trace-events.ts` (check `TraceDetailMode`)
+- Modify: `src/interfaces/tui/trace-detail.ts`
 
 - [ ] **Step 1: Verify `"replay"` is in `TraceDetailMode`**
 
-In `src/runtime/trace-events.ts`, check the `TraceDetailMode` type:
+In `src/runtime-state/runtime/trace-events.ts`, check the `TraceDetailMode` type:
 
 ```typescript
 export type TraceDetailMode = "summary" | "json" | "links" | "chain" | "replay";
@@ -444,7 +444,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/runtime/trace-events.ts src/tui/trace-detail.ts src/tui/panel-renderer.ts
+git add src/runtime-state/runtime/trace-events.ts src/interfaces/tui/trace-detail.ts src/interfaces/tui/panel-renderer.ts
 git commit -m "feat(tui): add replay preview trace detail mode and renderer"
 ```
 
@@ -453,7 +453,7 @@ git commit -m "feat(tui): add replay preview trace detail mode and renderer"
 ### Task 3: Wire keyboard shortcut for replay preview
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add `p` shortcut in the detail mode switching block**
 
@@ -500,7 +500,7 @@ node --test dist/tests/integration/smoke.test.js 2>&1 | tail -3
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/commands/tui.ts
+git add src/interfaces/cli/commands/tui.ts
 git commit -m "feat(tui): wire replay preview keyboard shortcut (p) in trace detail"
 ```
 
@@ -514,8 +514,8 @@ git commit -m "feat(tui): wire replay preview keyboard shortcut (p) in trace det
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildReplayPreview, classifyReplayStep } from "../../src/runtime/replay-preview.js";
-import type { TraceEvent } from "../../src/runtime/trace-events.js";
+import { buildReplayPreview, classifyReplayStep } from "../../src/runtime-state/runtime/replay-preview.js";
+import type { TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {
@@ -673,9 +673,9 @@ git commit -m "test(runtime): cover replay preview reconstruction and classifica
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { renderTraceReplay } from "../../src/tui/trace-detail.js";
-import { buildReplayPreview } from "../../src/runtime/replay-preview.js";
-import type { TraceEvent } from "../../src/runtime/trace-events.js";
+import { renderTraceReplay } from "../../src/interfaces/tui/trace-detail.js";
+import { buildReplayPreview } from "../../src/runtime-state/runtime/replay-preview.js";
+import type { TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {

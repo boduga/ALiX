@@ -21,7 +21,7 @@
 ### Task 1: Add policy_coverage to GovernanceChangeApplier
 
 **Files:**
-- Modify: `src/adaptation/appliers/governance-change-applier.ts`
+- Modify: `src/planning/adaptation/appliers/governance-change-applier.ts`
 - Test: `tests/adaptation/appliers/governance-change-applier.vitest.ts`
 
 **Interfaces:**
@@ -131,7 +131,7 @@ Expected: 5 new tests FAIL with schema validation errors ("Unknown governance pa
 
 - [ ] **Step 3: Modify SUPPORTED_KINDS and add the file constant**
 
-In `src/adaptation/appliers/governance-change-applier.ts`, add the constant and extend the set:
+In `src/planning/adaptation/appliers/governance-change-applier.ts`, add the constant and extend the set:
 
 ```ts
 const POLICY_COVERAGE_FILE = "policy-coverage.json";
@@ -228,7 +228,7 @@ Expected: all tests pass, tsc clean.
 - [ ] **Step 10: Commit**
 
 ```bash
-git add src/adaptation/appliers/governance-change-applier.ts tests/adaptation/appliers/governance-change-applier.vitest.ts
+git add src/planning/adaptation/appliers/governance-change-applier.ts tests/adaptation/appliers/governance-change-applier.vitest.ts
 git commit -m "feat(p9.4b): add policy_coverage mutation kind
 
 - Add POLICY_COVERAGE_FILE constant + SUPPORTED_KINDS entry

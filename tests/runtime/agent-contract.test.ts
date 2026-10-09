@@ -18,31 +18,31 @@ import type {
   RunResult,
   RunTransitionContext,
   AgentContext,
-} from "../../src/runtime/contracts/agent-contract.js";
+} from "../../src/runtime-state/runtime/contracts/agent-contract.js";
 import type {
   ScopeTrackerContract,
   RunLimiterContract,
   TaskStateMachineContract,
-} from "../../src/runtime/contracts/agent-contract.js";
+} from "../../src/runtime-state/runtime/contracts/agent-contract.js";
 import {
   AGENT_INVARIANTS,
-} from "../../src/runtime/contracts/agent-contract.js";
+} from "../../src/runtime-state/runtime/contracts/agent-contract.js";
 
 // ── Source types (structural comparison) ────────────────────────
 
-import type { AgentState as SourceAgentState } from "../../src/autonomy/scope-tracker.js";
-import type { TaskScope as SourceTaskScope } from "../../src/autonomy/scope-tracker.js";
-import type { ScopeSnapshot as SourceScopeSnapshot } from "../../src/autonomy/scope-tracker.js";
-import type { Expansion as SourceExpansion } from "../../src/autonomy/scope-tracker.js";
-import type { ChangeEvaluation as SourceChangeEvaluation } from "../../src/autonomy/scope-tracker.js";
-import type { RunLimits as SourceRunLimits } from "../../src/autonomy/state-machine.js";
-import type { RunCounters as SourceRunCounters } from "../../src/autonomy/state-machine.js";
-import type { StateSnapshot as SourceStateSnapshot } from "../../src/autonomy/state-machine.js";
-import type { RunResult as SourceRunResult } from "../../src/autonomy/state-machine.js";
-import type { AgentContext as SourceAgentContext } from "../../src/agent/agent.js";
+import type { AgentState as SourceAgentState } from "../../src/planning/autonomy/scope-tracker.js";
+import type { TaskScope as SourceTaskScope } from "../../src/planning/autonomy/scope-tracker.js";
+import type { ScopeSnapshot as SourceScopeSnapshot } from "../../src/planning/autonomy/scope-tracker.js";
+import type { Expansion as SourceExpansion } from "../../src/planning/autonomy/scope-tracker.js";
+import type { ChangeEvaluation as SourceChangeEvaluation } from "../../src/planning/autonomy/scope-tracker.js";
+import type { RunLimits as SourceRunLimits } from "../../src/planning/autonomy/state-machine.js";
+import type { RunCounters as SourceRunCounters } from "../../src/planning/autonomy/state-machine.js";
+import type { StateSnapshot as SourceStateSnapshot } from "../../src/planning/autonomy/state-machine.js";
+import type { RunResult as SourceRunResult } from "../../src/planning/autonomy/state-machine.js";
+import type { AgentContext as SourceAgentContext } from "../../src/agents/agent/agent.js";
 
-import { ScopeTracker } from "../../src/autonomy/scope-tracker.js";
-import { RunLimiter, TaskStateMachine } from "../../src/autonomy/state-machine.js";
+import { ScopeTracker } from "../../src/planning/autonomy/scope-tracker.js";
+import { RunLimiter, TaskStateMachine } from "../../src/planning/autonomy/state-machine.js";
 
 // ── Tests ───────────────────────────────────────────────────────
 

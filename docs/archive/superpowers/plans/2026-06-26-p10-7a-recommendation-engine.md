@@ -59,7 +59,7 @@ git commit -m "docs(p10-7a): add spec + implementation plan"
 ### Task 1: `recommendation-engine.ts` — pure function + types + unit tests
 
 **Files:**
-- Create: `src/executive/recommendation-engine.ts`
+- Create: `src/execution/executive/recommendation-engine.ts`
 - Create: `tests/executive/recommendation-engine.vitest.ts`
 
 **Interfaces:**
@@ -89,8 +89,8 @@ import {
   computeRecommendations,
   RECOMMENDATION_OK,
   RECOMMENDATION_INSUFFICIENT_DATA,
-} from "../../src/executive/recommendation-engine.js";
-import type { TrendResult } from "../../src/executive/learning-engine.js";
+} from "../../src/execution/executive/recommendation-engine.js";
+import type { TrendResult } from "../../src/execution/executive/learning-engine.js";
 
 const GENERATED_AT = "2026-01-01T00:00:00.000Z";
 
@@ -328,7 +328,7 @@ Expected: FAIL — `computeRecommendations` is not defined (module does not exis
 
 - [ ] **Step 3: Write the implementation**
 
-`src/executive/recommendation-engine.ts`:
+`src/execution/executive/recommendation-engine.ts`:
 
 ```ts
 /**
@@ -561,7 +561,7 @@ Expected: no errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/executive/recommendation-engine.ts tests/executive/recommendation-engine.vitest.ts
+git add src/execution/executive/recommendation-engine.ts tests/executive/recommendation-engine.vitest.ts
 git commit -m "feat(p10-7a): pure recommendation engine + unit tests"
 ```
 
@@ -570,8 +570,8 @@ git commit -m "feat(p10-7a): pure recommendation engine + unit tests"
 ### Task 2: `executive-recommend-handler.ts` + CLI routing + integration tests
 
 **Files:**
-- Create: `src/cli/commands/executive-recommend-handler.ts`
-- Modify: `src/cli/commands/executive.ts` (add `case "recommend"` + update subcommand list)
+- Create: `src/interfaces/cli/commands/executive-recommend-handler.ts`
+- Modify: `src/interfaces/cli/commands/executive.ts` (add `case "recommend"` + update subcommand list)
 - Create: `tests/cli/commands/executive-recommend-cli.vitest.ts`
 
 **Interfaces:**
@@ -591,9 +591,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleRecommendCommand } from "../../../src/cli/commands/executive-recommend-handler.js";
-import { OutcomeReportStore } from "../../../src/executive/outcome-store.js";
-import type { ExecutiveOutcomeEvaluationReport } from "../../../src/executive/outcome-evaluator.js";
+import { handleRecommendCommand } from "../../../src/interfaces/cli/commands/executive-recommend-handler.js";
+import { OutcomeReportStore } from "../../../src/execution/executive/outcome-store.js";
+import type { ExecutiveOutcomeEvaluationReport } from "../../../src/execution/executive/outcome-evaluator.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -793,7 +793,7 @@ Expected: FAIL — `handleRecommendCommand` is not defined (module does not exis
 
 - [ ] **Step 3: Write the CLI handler**
 
-`src/cli/commands/executive-recommend-handler.ts`:
+`src/interfaces/cli/commands/executive-recommend-handler.ts`:
 
 ```ts
 /**
@@ -900,7 +900,7 @@ function fmtDelta(delta: number): string {
 
 - [ ] **Step 4: Wire routing into `executive.ts`**
 
-In `src/cli/commands/executive.ts`, add a `case "recommend"` block immediately after the `case "learn"` block (which ends at the `}` before `default:`). The block:
+In `src/interfaces/cli/commands/executive.ts`, add a `case "recommend"` block immediately after the `case "learn"` block (which ends at the `}` before `default:`). The block:
 
 ```ts
     case "recommend": {
@@ -936,7 +936,7 @@ Expected: no errors.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/executive-recommend-handler.ts src/cli/commands/executive.ts tests/cli/commands/executive-recommend-cli.vitest.ts
+git add src/interfaces/cli/commands/executive-recommend-handler.ts src/interfaces/cli/commands/executive.ts tests/cli/commands/executive-recommend-cli.vitest.ts
 git commit -m "feat(p10-7a): executive recommend CLI + routing"
 ```
 
@@ -955,9 +955,9 @@ In `tests/executive/executive-sentinels.vitest.ts`, the `EXECUTIVE_FILES` array 
 
 ```ts
   // P10.5a files
-  "src/executive/outcome-evaluator.ts",
-  "src/cli/commands/executive-evaluate-handler.ts",
-  "src/cli/commands/executive-learn-handler.ts",
+  "src/execution/executive/outcome-evaluator.ts",
+  "src/interfaces/cli/commands/executive-evaluate-handler.ts",
+  "src/interfaces/cli/commands/executive-learn-handler.ts",
 ];
 ```
 
@@ -965,12 +965,12 @@ Append a P10.7a group before the closing `];`:
 
 ```ts
   // P10.5a files
-  "src/executive/outcome-evaluator.ts",
-  "src/cli/commands/executive-evaluate-handler.ts",
-  "src/cli/commands/executive-learn-handler.ts",
+  "src/execution/executive/outcome-evaluator.ts",
+  "src/interfaces/cli/commands/executive-evaluate-handler.ts",
+  "src/interfaces/cli/commands/executive-learn-handler.ts",
   // P10.7a files
-  "src/executive/recommendation-engine.ts",
-  "src/cli/commands/executive-recommend-handler.ts",
+  "src/execution/executive/recommendation-engine.ts",
+  "src/interfaces/cli/commands/executive-recommend-handler.ts",
 ];
 ```
 

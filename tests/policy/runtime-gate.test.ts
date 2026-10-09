@@ -8,9 +8,9 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateRuntimeGate } from "../../src/policy/runtime-gate.js";
-import { CardRegistry } from "../../src/registry/card-registry.js";
-import type { TaskNode } from "../../src/kernel/task-graph.js";
+import { evaluateRuntimeGate } from "../../src/governance/policy/runtime-gate.js";
+import { CardRegistry } from "../../src/capabilities/registry/card-registry.js";
+import type { TaskNode } from "../../src/coordination/kernel/task-graph.js";
 
 function makeNode(overrides: Partial<TaskNode> = {}): TaskNode {
   return {
@@ -106,7 +106,7 @@ describe("RuntimeGate", () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-ask-"));
     try {
       const store = new ApprovalStore(tmpDir);
@@ -202,7 +202,7 @@ describe("RuntimeGate", () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-reuse-"));
     try {
       const store = new ApprovalStore(tmpDir);
@@ -233,7 +233,7 @@ describe("RuntimeGate", () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
-    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-approved-"));
     try {
       const store = new ApprovalStore(tmpDir);

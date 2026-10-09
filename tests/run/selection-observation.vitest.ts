@@ -11,11 +11,11 @@ import {
   renderSurfaceBlockNotice,
   surfaceBlockedTheObjective,
   unexplainedRequirementCandidates,
-} from '../../src/run/task-loop/predicates.js';
+} from '../../src/execution/run/task-loop/predicates.js';
 import {
   builtinCandidateId,
   freezeToolCandidates,
-} from '../../src/decision/tool-selection-candidates.js';
+} from '../../src/planning/decision/tool-selection-candidates.js';
 
 const frozen = freezeToolCandidates({
   builtin: [

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildReplayPreview, classifyReplayStep } from "../../src/runtime/replay-preview.js";
-import type { TraceEvent } from "../../src/runtime/trace-events.js";
+import { buildReplayPreview, classifyReplayStep } from "../../src/runtime-state/runtime/replay-preview.js";
+import type { TraceEvent } from "../../src/runtime-state/runtime/trace-events.js";
 
 function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {

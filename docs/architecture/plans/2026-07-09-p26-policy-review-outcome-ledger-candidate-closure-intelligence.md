@@ -46,14 +46,14 @@
 | P26.2 | `src/governance/policy-review-outcome-ledger.ts` | File-based append-only store |
 | P26.3 | `src/governance/policy-review-outcome-analytics.ts` | Pure analytics functions |
 | P26.4 | `src/governance/policy-review-outcome-report.ts` | Pure report builder + text/json |
-| P26.4 | `src/cli/commands/governance-policy-review-outcome.ts` | CLI handler |
+| P26.4 | `src/interfaces/cli/commands/governance-policy-review-outcome.ts` | CLI handler |
 | P26.5 | `docs/architecture/checkpoints/2026-07-09-p26-5-policy-review-outcome-ledger-candidate-closure-intelligence-checkpoint.md` | Checkpoint |
 
 ### Touched Files
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "policy-review-outcome"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "policy-review-outcome"` dispatch |
 
 ### Untouched Files
 
@@ -1164,8 +1164,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 5: P26.4 — CLI Handler + Dispatch (governance-policy-review-outcome.ts)
 
 **Files:**
-- Create: `src/cli/commands/governance-policy-review-outcome.ts`
-- Modify: `src/cli/commands/governance.ts` — add `case "policy-review-outcome"` dispatch
+- Create: `src/interfaces/cli/commands/governance-policy-review-outcome.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts` — add `case "policy-review-outcome"` dispatch
 - Test: `tests/governance/policy-review-outcome-cli.test.ts`
 
 **Interfaces:**
@@ -1182,7 +1182,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleGovernancePolicyReviewOutcomeCommand } from "../../src/cli/commands/governance-policy-review-outcome.js";
+import { handleGovernancePolicyReviewOutcomeCommand } from "../../src/interfaces/cli/commands/governance-policy-review-outcome.js";
 
 let tmpDir: string;
 
@@ -1252,7 +1252,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Write the CLI handler**
 
-Create `src/cli/commands/governance-policy-review-outcome.ts`:
+Create `src/interfaces/cli/commands/governance-policy-review-outcome.ts`:
 
 ```typescript
 /**
@@ -1464,7 +1464,7 @@ export async function handleGovernancePolicyReviewOutcomeCommand(
 
 - [ ] **Step 4: Wire dispatch in governance.ts**
 
-Read `src/cli/commands/governance.ts` and add after the `case "policy-review"` block:
+Read `src/interfaces/cli/commands/governance.ts` and add after the `case "policy-review"` block:
 
 ```typescript
     case "policy-review-outcome": {
@@ -1486,7 +1486,7 @@ Expected: Clean compile
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/governance-policy-review-outcome.ts src/cli/commands/governance.ts tests/governance/policy-review-outcome-cli.test.ts
+git add src/interfaces/cli/commands/governance-policy-review-outcome.ts src/interfaces/cli/commands/governance.ts tests/governance/policy-review-outcome-cli.test.ts
 git commit -m "feat(P26.4): policy review outcome CLI — record|list|show|report
 
 Wires alix governance policy-review-outcome subcommand tree into

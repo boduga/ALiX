@@ -2,16 +2,16 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
-import { EventLog } from '../../src/events/event-log.js';
-import { computeBottomAnchor } from '../../src/tui/views/scroll-math.js';
-import type { ViewRenderContext } from '../../src/tui/views/types.js';
-import { RuntimeCollectorImpl } from '../../src/tui/runtime-collector.js';
-import { FileProjectionCheckpointStore } from '../../src/tui/runtime/projection-checkpoint-store.js';
-import { TimelineBuilder } from '../../src/tui/runtime/timeline-builder.js';
-import { IncrementalExecutionTraceBuilder } from '../../src/tui/runtime/execution-trace-builder.js';
-import { createProjectionRuntime } from '../../src/tui/runtime/projection-runtime.js';
-import * as viewportModule from '../../src/tui/views/bottom-anchored-viewport.js';
+import { TuiApp, type TuiAppOptions } from '../../src/interfaces/tui/app.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { computeBottomAnchor } from '../../src/interfaces/tui/views/scroll-math.js';
+import type { ViewRenderContext } from '../../src/interfaces/tui/views/types.js';
+import { RuntimeCollectorImpl } from '../../src/interfaces/tui/runtime-collector.js';
+import { FileProjectionCheckpointStore } from '../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
+import { TimelineBuilder } from '../../src/interfaces/tui/runtime/timeline-builder.js';
+import { IncrementalExecutionTraceBuilder } from '../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import { createProjectionRuntime } from '../../src/interfaces/tui/runtime/projection-runtime.js';
+import * as viewportModule from '../../src/interfaces/tui/views/bottom-anchored-viewport.js';
 
 async function makeApp() {
   const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-pinned-')));

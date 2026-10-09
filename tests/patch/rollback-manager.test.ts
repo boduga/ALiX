@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { RollbackManager } from "../../src/patch/rollback-manager.js";
+import { RollbackManager } from "../../src/execution/patch/rollback-manager.js";
 
 describe("RollbackManager", () => {
   let manager: RollbackManager;

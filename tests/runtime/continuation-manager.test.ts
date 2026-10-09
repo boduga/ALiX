@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ContinuationManager } from "../../src/runtime/continuation-manager.js";
-import { ContinuationStore } from "../../src/runtime/continuation-store.js";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
-import { hashArgs } from "../../src/tools/hash-args.js";
+import { ContinuationManager } from "../../src/runtime-state/runtime/continuation-manager.js";
+import { ContinuationStore } from "../../src/runtime-state/runtime/continuation-store.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import { hashArgs } from "../../src/capabilities/tools/hash-args.js";
 
 describe("ContinuationManager", () => {
   let tmpDir: string;

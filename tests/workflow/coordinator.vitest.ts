@@ -6,9 +6,9 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { StateFile } from "../../src/workflow/state-file.js";
-import { WorkflowCoordinator } from "../../src/workflow/coordinator.js";
-import type { WorkflowStateEntry } from "../../src/workflow/types.js";
+import { StateFile } from "../../src/coordination/workflow/state-file.js";
+import { WorkflowCoordinator } from "../../src/coordination/workflow/coordinator.js";
+import type { WorkflowStateEntry } from "../../src/coordination/workflow/types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

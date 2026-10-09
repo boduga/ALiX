@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { VerificationReporter } from "../../src/verification/verification-reporter.js";
+import { VerificationReporter } from "../../src/execution/verification/verification-reporter.js";
 
 describe("VerificationReporter", () => {
   it("aggregates multiple test results", () => {

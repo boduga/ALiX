@@ -56,14 +56,14 @@ Follow red-green-refactor.`);
   });
 
   it("does not promote on first use", async () => {
-    const { promoteIfEligible } = await import("../../src/skills/promotion.js");
+    const { promoteIfEligible } = await import("../../src/capabilities/skills/promotion.js");
     await promoteIfEligible(testSessionId);
     const skillPath = join(skillsDir, "tdd-loop", "SKILL.md");
     assert.ok(!existsSync(skillPath), "Should not promote on first use");
   });
 
   it("promotes candidate to skills/ on second successful use", async () => {
-    const { promoteIfEligible } = await import("../../src/skills/promotion.js");
+    const { promoteIfEligible } = await import("../../src/capabilities/skills/promotion.js");
     await promoteIfEligible(testSessionId);
     await promoteIfEligible(testSessionId);
     const skillPath = join(skillsDir, "tdd-loop", "SKILL.md");
@@ -73,7 +73,7 @@ Follow red-green-refactor.`);
   });
 
   it("does not re-promote an already-promoted skill", async () => {
-    const { promoteIfEligible } = await import("../../src/skills/promotion.js");
+    const { promoteIfEligible } = await import("../../src/capabilities/skills/promotion.js");
     await promoteIfEligible(testSessionId);
     await promoteIfEligible(testSessionId);
     await promoteIfEligible(testSessionId);
@@ -82,7 +82,7 @@ Follow red-green-refactor.`);
   });
 
   it("blocks promotion of a candidate colliding with an installed skill", async () => {
-    const { promoteIfEligible } = await import("../../src/skills/promotion.js");
+    const { promoteIfEligible } = await import("../../src/capabilities/skills/promotion.js");
     mkdirSync(join(skillsDir, "loop-guardian"), { recursive: true });
     writeFileSync(join(skillsDir, "loop-guardian", "SKILL.md"), `---
 name: loop-guardian
@@ -115,7 +115,7 @@ is_core: false
   });
 
   it("blocks a same-name candidate with a duplicate body", async () => {
-    const { promoteIfEligible } = await import("../../src/skills/promotion.js");
+    const { promoteIfEligible } = await import("../../src/capabilities/skills/promotion.js");
     mkdirSync(join(skillsDir, "dup-skill"), { recursive: true });
     writeFileSync(join(skillsDir, "dup-skill", "SKILL.md"), `---
 name: dup-skill
@@ -152,7 +152,7 @@ Same body content here.`);
   });
 
   it("versions a same-name candidate with a revised body", async () => {
-    const { promoteIfEligible } = await import("../../src/skills/promotion.js");
+    const { promoteIfEligible } = await import("../../src/capabilities/skills/promotion.js");
     mkdirSync(join(skillsDir, "rev-skill"), { recursive: true });
     writeFileSync(join(skillsDir, "rev-skill", "SKILL.md"), `---
 name: rev-skill
@@ -213,7 +213,7 @@ describe("LRU eviction", () => {
   });
 
   it("evicts least recently used non-core skill when maxStore exceeded", async () => {
-    const { evictIfNeeded } = await import("../../src/skills/lifecycle.js");
+    const { evictIfNeeded } = await import("../../src/capabilities/skills/lifecycle.js");
     const config = { maxStore: 3 };
     // Create 4 non-core skills with different mtimes
     for (let i = 0; i < 4; i++) {
@@ -237,7 +237,7 @@ is_core: false
   });
 
   it("protects is_core: true skills from eviction", async () => {
-    const { evictIfNeeded } = await import("../../src/skills/lifecycle.js");
+    const { evictIfNeeded } = await import("../../src/capabilities/skills/lifecycle.js");
     const config = { maxStore: 1, maxCandidates: 10 };
     mkdirSync(join(skillsDir, "core-skill"), { recursive: true });
     writeFileSync(join(skillsDir, "core-skill", "SKILL.md"), `---
@@ -264,7 +264,7 @@ is_core: false
   });
 
   it("eviction handles empty or nonexistent skills dir", async () => {
-    const { evictIfNeeded } = await import("../../src/skills/lifecycle.js");
+    const { evictIfNeeded } = await import("../../src/capabilities/skills/lifecycle.js");
     const config = { maxStore: 5, maxCandidates: 10 };
     // Should not throw when dir doesn't exist
     await evictIfNeeded("/tmp/nonexistent-dir-12345", config);

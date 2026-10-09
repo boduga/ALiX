@@ -31,10 +31,10 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { removeTempDirSync } from "../helpers/temp.js";
 import { longRunningCommand } from "../helpers/shell.js";
 import { tmpdir } from "node:os";
-import { ToolExecutor, type ExecuteResult } from "../../src/tools/executor.js";
-import type { EventLog } from "../../src/events/event-log.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import type { TraceClient } from "../../src/tracing/client.js";
+import { ToolExecutor, type ExecuteResult } from "../../src/capabilities/tools/executor.js";
+import type { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import type { TraceClient } from "../../src/models/tracing/client.js";
 import type {
   ModelSpanInput,
   RunOutcome,
@@ -43,15 +43,15 @@ import type {
   TraceRun,
   TraceRunInput,
   TraceSpan,
-} from "../../src/tracing/types.js";
-import { NOOP_TRACE_CLIENT } from "../../src/tracing/noop-client.js";
-import { ExecutionCancelledError } from "../../src/runtime/cancellation-token.js";
+} from "../../src/models/tracing/types.js";
+import { NOOP_TRACE_CLIENT } from "../../src/models/tracing/noop-client.js";
+import { ExecutionCancelledError } from "../../src/runtime-state/runtime/cancellation-token.js";
 
 const mocks = vi.hoisted(() => ({
   getProcessTraceClient: vi.fn(),
 }));
 
-vi.mock("../../src/tracing/client-factory.js", () => ({
+vi.mock("../../src/models/tracing/client-factory.js", () => ({
   getProcessTraceClient: mocks.getProcessTraceClient,
 }));
 

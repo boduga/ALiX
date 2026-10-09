@@ -1,7 +1,7 @@
 // tests/correlation/normalize-subsystem.vitest.ts
 
 import { describe, it, expect } from "vitest";
-import { executiveToCorrelationSubsystem } from "../../src/correlation/normalize-subsystem.js";
+import { executiveToCorrelationSubsystem } from "../../src/operations/correlation/normalize-subsystem.js";
 
 describe("executiveToCorrelationSubsystem", () => {
   it("maps 'workflow' to 'workflow'", () => {

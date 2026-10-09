@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { AlixEvent } from '../../../src/events/types.js';
-import { ArtifactProjection } from '../../../src/tui/workbench/projections/artifact-projection.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { ArtifactProjection } from '../../../src/interfaces/tui/workbench/projections/artifact-projection.js';
 
 const event = (seq: number, type: string, payload: Record<string, unknown>): AlixEvent => ({
   id: `e${seq}`, seq, version: 1, sessionId: 's', timestamp: new Date(seq * 1000).toISOString(), actor: 'system', type, payload,

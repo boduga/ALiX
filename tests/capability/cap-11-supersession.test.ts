@@ -9,20 +9,20 @@ import assert from "node:assert/strict";
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
 const DELETED_SOURCE_FILES = [
-  "src/evolution/capability-lifecycle/index.ts",
-  "src/evolution/capability-lifecycle/errors.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-analyzer.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-applier.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-cli.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-ledger.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-rehydration.ts",
-  "src/evolution/capability-lifecycle/capability-lifecycle-step-executor.ts",
-  "src/evolution/capability-lifecycle/capability-execution-projection.ts",
-  "src/evolution/capability-lifecycle/capability-governance-bridge.ts",
-  "src/evolution/capability-lifecycle/capability-proposal-builder.ts",
-  "src/evolution/capability-lifecycle/contracts/lifecycle-contract.ts",
-  "src/cli/commands/capabilities.ts",
+  "src/planning/evolution/capability-lifecycle/index.ts",
+  "src/planning/evolution/capability-lifecycle/errors.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-analyzer.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-applier.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-cli.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-ledger.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-measurer.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-rehydration.ts",
+  "src/planning/evolution/capability-lifecycle/capability-lifecycle-step-executor.ts",
+  "src/planning/evolution/capability-lifecycle/capability-execution-projection.ts",
+  "src/planning/evolution/capability-lifecycle/capability-governance-bridge.ts",
+  "src/planning/evolution/capability-lifecycle/capability-proposal-builder.ts",
+  "src/planning/evolution/capability-lifecycle/contracts/lifecycle-contract.ts",
+  "src/interfaces/cli/commands/capabilities.ts",
 ];
 
 const DELETED_TEST_FILES = [

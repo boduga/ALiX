@@ -1,8 +1,8 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { complete, _setFetchForTesting } from "../../src/providers/unified-complete.js";
+import { complete, _setFetchForTesting } from "../../src/models/providers/unified-complete.js";
 import { makeMockFetch } from "./helpers/mock-fetch.js";
-import { ApiError } from "../../src/providers/base.js";
+import { ApiError } from "../../src/models/providers/base.js";
 
 describe("unified-complete", () => {
   it("calls the right spec for provider 'openai'", async () => {

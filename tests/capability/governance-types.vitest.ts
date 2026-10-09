@@ -20,14 +20,14 @@ import {
   type CapabilityGovernanceEventType,
   type CapabilityGovernanceEventProjection,
   type CapabilityMutationResult,
-} from '../../src/capability/governance/governance-types.js';
+} from '../../src/capabilities/capability/governance/governance-types.js';
 import {
   type CapabilityProposeResult,
   type CapabilityApplyProposalResult,
   type CapabilityGovernanceResult,
-} from '../../src/capability/types/service-results.js';
-import type { CapabilityEvolutionCandidate } from '../../src/adaptation/capability-evolution-types.js';
-import type { ExecutionStepResult } from '../../src/evolution/execution/contracts/execution-contract.js';
+} from '../../src/capabilities/capability/types/service-results.js';
+import type { CapabilityEvolutionCandidate } from '../../src/planning/adaptation/capability-evolution-types.js';
+import type { ExecutionStepResult } from '../../src/planning/evolution/execution/contracts/execution-contract.js';
 
 function mkCandidate(): CapabilityEvolutionCandidate {
   return {

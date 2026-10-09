@@ -16,7 +16,7 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/kernel/minimal-metrics.ts` | **Create** | `MinimalMetrics` class, metric names/types |
+| `src/coordination/kernel/minimal-metrics.ts` | **Create** | `MinimalMetrics` class, metric names/types |
 | `src/cli.ts` | **Modify** | Add `alix metrics` command |
 | `tests/kernel/minimal-metrics.test.ts` | **Create** | Tests |
 
@@ -25,7 +25,7 @@
 ### Task 1: Create MinimalMetrics module
 
 **Files:**
-- Create: `src/kernel/minimal-metrics.ts`
+- Create: `src/coordination/kernel/minimal-metrics.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -97,13 +97,13 @@ export class MinimalMetrics {
 - [ ] **Step 2: Verify build**
 
 ```bash
-npx tsc --noEmit src/kernel/minimal-metrics.ts 2>&1
+npx tsc --noEmit src/coordination/kernel/minimal-metrics.ts 2>&1
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/minimal-metrics.ts
+git add src/coordination/kernel/minimal-metrics.ts
 git commit -m "feat(kernel): MinimalMetrics with counters, timers, and report"
 ```
 
@@ -112,8 +112,8 @@ git commit -m "feat(kernel): MinimalMetrics with counters, timers, and report"
 ### Task 2: Wire metrics into agent loop and tool executor
 
 **Files:**
-- Modify: `src/agent/agent-loop.ts`
-- Modify: `src/tools/executor.ts`
+- Modify: `src/agents/agent/agent-loop.ts`
+- Modify: `src/capabilities/tools/executor.ts`
 
 - [ ] **Step 1: Wire metrics in agent-loop.ts**
 
@@ -155,7 +155,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/agent/agent-loop.ts src/tools/executor.ts
+git add src/agents/agent/agent-loop.ts src/capabilities/tools/executor.ts
 git commit -m "feat(kernel): wire minimal metrics into agent loop and tool executor"
 ```
 
@@ -223,7 +223,7 @@ git commit -m "feat(cli): add alix metrics command"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { MinimalMetrics } from "../../src/kernel/minimal-metrics.js";
+import { MinimalMetrics } from "../../src/coordination/kernel/minimal-metrics.js";
 
 describe("MinimalMetrics", () => {
 

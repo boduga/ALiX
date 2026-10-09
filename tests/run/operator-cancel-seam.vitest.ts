@@ -16,8 +16,8 @@ import { mkdtempSync, mkdirSync, existsSync } from "node:fs";
 import { removeTempDirSync } from "../helpers/temp.js";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { ModelAdapter } from "../../src/providers/types.js";
-import type { TaskLoopDeps } from "../../src/run/task-loop.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
+import type { TaskLoopDeps } from "../../src/execution/run/task-loop.js";
 
 async function buildHarness(opts?: { streaming?: boolean }): Promise<{
   cleanup: () => void;
@@ -25,13 +25,13 @@ async function buildHarness(opts?: { streaming?: boolean }): Promise<{
   startedCalls: () => number;
   completedCalls: () => number;
 }> {
-  const { EventLog } = await import("../../src/events/event-log.js");
-  const { MemoryStore } = await import("../../src/utils/memory/store.js");
-  const { ScopeTracker } = await import("../../src/autonomy/scope-tracker.js");
-  const { TaskStateMachine, RunLimiter } = await import("../../src/autonomy/state-machine.js");
-  const { createContextBudget } = await import("../../src/config/context-budget.js");
-  const { ToolExecutor } = await import("../../src/tools/executor.js");
-  const { BASE_TOOLS } = await import("../../src/run/helpers.js");
+  const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+  const { MemoryStore } = await import("../../src/operations/utils/memory/store.js");
+  const { ScopeTracker } = await import("../../src/planning/autonomy/scope-tracker.js");
+  const { TaskStateMachine, RunLimiter } = await import("../../src/planning/autonomy/state-machine.js");
+  const { createContextBudget } = await import("../../src/operations/config/context-budget.js");
+  const { ToolExecutor } = await import("../../src/capabilities/tools/executor.js");
+  const { BASE_TOOLS } = await import("../../src/execution/run/helpers.js");
 
   const tmpRoot = mkdtempSync(join(tmpdir(), "operator-cancel-seam-"));
   const sessionDir = join(tmpRoot, ".alix", "sessions", "cancel-seam");
@@ -138,8 +138,8 @@ async function buildHarness(opts?: { streaming?: boolean }): Promise<{
 
 describe("real runTaskLoop operator-cancellation seam (Task 6.1/6.3)", () => {
   it("a cancel releases a hung provider complete() as ExecutionCancelledError — never a timeout, never a failure result", async () => {
-    const { CancellationToken, ExecutionCancelledError } = await import("../../src/runtime/cancellation-token.js");
-    const { runTaskLoop } = await import("../../src/run/task-loop.js");
+    const { CancellationToken, ExecutionCancelledError } = await import("../../src/runtime-state/runtime/cancellation-token.js");
+    const { runTaskLoop } = await import("../../src/execution/run/task-loop.js");
     const h = await buildHarness();
     try {
       const token = new CancellationToken();
@@ -168,8 +168,8 @@ describe("real runTaskLoop operator-cancellation seam (Task 6.1/6.3)", () => {
   });
 
   it("without cancellation the loop stays blocked (no false positive release)", async () => {
-    const { CancellationToken } = await import("../../src/runtime/cancellation-token.js");
-    const { runTaskLoop } = await import("../../src/run/task-loop.js");
+    const { CancellationToken } = await import("../../src/runtime-state/runtime/cancellation-token.js");
+    const { runTaskLoop } = await import("../../src/execution/run/task-loop.js");
     const h = await buildHarness();
     try {
       const token = new CancellationToken();
@@ -201,8 +201,8 @@ describe("real runTaskLoop operator-cancellation seam (Task 6.1/6.3)", () => {
   });
 
   it("a cancel releases a hung mid-stream generator promptly and never fail-soft falls back to complete()", async () => {
-    const { CancellationToken, ExecutionCancelledError } = await import("../../src/runtime/cancellation-token.js");
-    const { runTaskLoop } = await import("../../src/run/task-loop.js");
+    const { CancellationToken, ExecutionCancelledError } = await import("../../src/runtime-state/runtime/cancellation-token.js");
+    const { runTaskLoop } = await import("../../src/execution/run/task-loop.js");
     const h = await buildHarness({ streaming: true });
     try {
       const token = new CancellationToken();
@@ -255,15 +255,15 @@ async function buildToolHarness(): Promise<{
   buildDeps: (provider: ModelAdapter, executor?: unknown) => TaskLoopDeps;
   root: string;
   sessionDir: string;
-  eventLog: import("../../src/events/event-log.js").EventLog;
+  eventLog: import("../../src/runtime-state/events/event-log.js").EventLog;
 }> {
-  const { EventLog } = await import("../../src/events/event-log.js");
-  const { MemoryStore } = await import("../../src/utils/memory/store.js");
-  const { ScopeTracker } = await import("../../src/autonomy/scope-tracker.js");
-  const { TaskStateMachine, RunLimiter } = await import("../../src/autonomy/state-machine.js");
-  const { createContextBudget } = await import("../../src/config/context-budget.js");
-  const { ToolExecutor } = await import("../../src/tools/executor.js");
-  const { BASE_TOOLS } = await import("../../src/run/helpers.js");
+  const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+  const { MemoryStore } = await import("../../src/operations/utils/memory/store.js");
+  const { ScopeTracker } = await import("../../src/planning/autonomy/scope-tracker.js");
+  const { TaskStateMachine, RunLimiter } = await import("../../src/planning/autonomy/state-machine.js");
+  const { createContextBudget } = await import("../../src/operations/config/context-budget.js");
+  const { ToolExecutor } = await import("../../src/capabilities/tools/executor.js");
+  const { BASE_TOOLS } = await import("../../src/execution/run/helpers.js");
 
   const tmpRoot = mkdtempSync(join(tmpdir(), "operator-cancel-tool-"));
   const sessionDir = join(tmpRoot, ".alix", "sessions", "cancel-tool");
@@ -352,8 +352,8 @@ function toolProvider(responses: ToolProviderResponse[], calls?: () => void): Mo
 
 describe("operator cancel reaches an in-flight tool (Task 6.1 current-tool propagation)", () => {
   it("kills an in-flight shell.run child on operator cancel and unwinds as ExecutionCancelledError — never a tool failure", async () => {
-    const { CancellationToken, ExecutionCancelledError } = await import("../../src/runtime/cancellation-token.js");
-    const { runTaskLoop } = await import("../../src/run/task-loop.js");
+    const { CancellationToken, ExecutionCancelledError } = await import("../../src/runtime-state/runtime/cancellation-token.js");
+    const { runTaskLoop } = await import("../../src/execution/run/task-loop.js");
     const h = await buildToolHarness();
     try {
       const marker = join(h.root, "shell-spawn-proof");
@@ -406,8 +406,8 @@ describe("operator cancel reaches an in-flight tool (Task 6.1 current-tool propa
   });
 
   it("no NEW tool starts after a cancel lands mid-batch — the pre-dispatch check throws before the second tool", async () => {
-    const { CancellationToken, ExecutionCancelledError } = await import("../../src/runtime/cancellation-token.js");
-    const { runTaskLoop } = await import("../../src/run/task-loop.js");
+    const { CancellationToken, ExecutionCancelledError } = await import("../../src/runtime-state/runtime/cancellation-token.js");
+    const { runTaskLoop } = await import("../../src/execution/run/task-loop.js");
     const h = await buildToolHarness();
     try {
       // Cooperative, non-interruptible tools (a stub executor stands in for

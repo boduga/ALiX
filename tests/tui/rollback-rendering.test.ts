@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { renderRollbackResult } from "../../src/tui/trace-detail.js";
-import type { RollbackResult, RollbackStepResult } from "../../src/runtime/rollback-executor.js";
+import { renderRollbackResult } from "../../src/interfaces/tui/trace-detail.js";
+import type { RollbackResult, RollbackStepResult } from "../../src/runtime-state/runtime/rollback-executor.js";
 
 function makeStep(overrides: Partial<RollbackStepResult> = {}): RollbackStepResult {
   return {

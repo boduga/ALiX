@@ -1,0 +1,552 @@
+/**
+ * tool-registry.ts -- Canonical searchable tool capability index.
+ *
+ * Pure data structures for registering tool capabilities, indexing them by
+ * intent tag, and retrieving subsets by domain, risk, or intent keywords.
+ * No execution, no I/O, no side effects.
+ *
+ * This module is the single canonical source of tool/capability metadata for
+ * the repo. It covers the fixed executable surface (file.*, shell.run,
+ * patch.apply, done, delegate, web_*, self-extend tools) plus the dynamic
+ * `mcp.<server>.<tool>` family via the single `mcp.*` wildcard entry.
+ *
+ * Compatible with existing CompositeToolRouter. The registry keys tool names
+ * as plain strings (not the legacy ToolName union) so it can represent tools
+ * beyond the typed-arg subset, including the dynamic MCP tool family.
+ * No runtime integration with routers or PolicyGate yet.
+ */
+
+import type { ToolCapabilityEntry, ToolCapabilityRegistry } from "../../runtime-state/contracts/tool-capability-registry.js";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type CapabilityRisk = "low" | "medium" | "high" | "critical";
+
+export type ToolDomain =
+  | "filesystem" | "shell" | "network" | "code" | "search"
+  | "agent" | "memory" | "policy" | "system" | "mcp" | "decision";
+
+export type ToolCapability = {
+  /** Internal executor name; model-facing names live in the tool manifest or MCP handle index. */
+  name: string;
+  /** Canonical capability id (e.g. "filesystem.write"). Shared across tools that mutate the same underlying capability. */
+  capabilityId: string;
+  /** Config-facing policy key, read by the policy gate against config.permissions.tools[policyKey]. */
+  policyKey: string;
+  description: string;
+  risk: CapabilityRisk;
+  domain: ToolDomain;
+  mutates: boolean;
+  alwaysInclude: boolean;
+  tags: string[];
+  /** Optional execution-profile labels (e.g. "artifact", "research"). */
+  executionProfiles?: string[];
+  /** Optional JSON-Schema-shape of the tool's arguments. Declared only where
+   *  the tool historically carried one (file.read, shell.run); absent for the
+   *  rest. Powers structured detail rendering in the capabilities view. */
+  argsSchema?: Record<string, unknown>;
+  /** Optional JSON-Schema-shape of the tool's result. Declared only where the
+   *  tool historically carried one (file.read); absent for the rest. */
+  resultSchema?: Record<string, unknown>;
+  /** Optional per-tool execution profile — timeoutMs/cancellable. Declared
+   *  only where the tool historically carried one (file.read: 10s, non-cancellable;
+   *  shell.run: 30s, cancellable); absent means no declared profile, and the
+   *  capability projection must NOT fabricate one. */
+  execution?: { timeoutMs?: number; cancellable?: boolean };
+};
+
+// ---------------------------------------------------------------------------
+// ToolRegistry
+// ---------------------------------------------------------------------------
+
+export class ToolRegistry {
+  private tools = new Map<string, ToolCapability>();
+
+  register(capability: ToolCapability): void {
+    // Warn on duplicate registration — prevents CapabilityIndex sync drift
+    if (this.tools.has(capability.name)) {
+      console.warn(`ToolRegistry: overwriting existing tool "${capability.name}"`);
+    }
+    this.tools.set(capability.name, capability);
+  }
+
+  lookup(name: string): ToolCapability | undefined {
+    return this.tools.get(name);
+  }
+
+  lookupByName(name: string): ToolCapability | undefined {
+    return this.tools.get(name);
+  }
+
+  getAll(): ToolCapability[] {
+    return Array.from(this.tools.values());
+  }
+
+  getByDomain(domain: ToolDomain): ToolCapability[] {
+    return this.getAll().filter(t => t.domain === domain);
+  }
+
+  getByRisk(risk: CapabilityRisk): ToolCapability[] {
+    return this.getAll().filter(t => t.risk === risk);
+  }
+
+  getMutating(): ToolCapability[] {
+    return this.getAll().filter(t => t.mutates);
+  }
+
+  getEssential(): ToolCapability[] {
+    return this.getAll().filter(t => t.alwaysInclude);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CapabilityIndex
+// ---------------------------------------------------------------------------
+
+export type IntentTag = string;
+
+export class CapabilityIndex {
+  private tagToTools = new Map<IntentTag, string[]>();
+
+  index(capability: ToolCapability): void {
+    for (const tag of capability.tags) {
+      const existing = this.tagToTools.get(tag) ?? [];
+      if (!existing.includes(capability.name)) {
+        existing.push(capability.name);
+        this.tagToTools.set(tag, existing);
+      }
+    }
+  }
+
+  findByTag(tag: IntentTag): string[] {
+    // Return a copy to prevent callers from mutating internal state
+    return [...(this.tagToTools.get(tag) ?? [])];
+  }
+
+  findByTags(tags: IntentTag[]): string[] {
+    const results = new Set<string>();
+    for (const tag of tags) {
+      for (const tool of this.findByTag(tag)) {
+        results.add(tool);
+      }
+    }
+    return Array.from(results);
+  }
+
+  getAllTags(): IntentTag[] {
+    return Array.from(this.tagToTools.keys());
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Default tool index factory
+// ---------------------------------------------------------------------------
+
+export function buildDefaultToolIndex(): { registry: ToolRegistry; index: CapabilityIndex } {
+  const registry = new ToolRegistry();
+  const idx = new CapabilityIndex();
+
+  const defaults: ToolCapability[] = [
+    {
+      name: "file.read",
+      capabilityId: "filesystem.read",
+      policyKey: "file.read",
+      description: "Read the contents of a file",
+      risk: "low",
+      domain: "filesystem",
+      mutates: false,
+      alwaysInclude: true,
+      tags: ["read", "file", "code", "config"],
+      argsSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      resultSchema: {
+        type: "object",
+        properties: { path: { type: "string" }, content: { type: "string" } },
+      },
+      execution: { timeoutMs: 10_000, cancellable: false },
+    },
+    {
+      name: "file.create",
+      capabilityId: "filesystem.write",
+      policyKey: "file.write",
+      description: "Create or overwrite a file",
+      risk: "medium",
+      domain: "filesystem",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["write", "file", "create"],
+      executionProfiles: ["artifact"],
+    },
+    {
+      name: "file.delete",
+      capabilityId: "filesystem.write",
+      policyKey: "file.write",
+      description: "Delete a file",
+      risk: "high",
+      domain: "filesystem",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["delete", "file", "remove"],
+      executionProfiles: ["artifact"],
+    },
+    {
+      name: "file.exists",
+      capabilityId: "filesystem.read",
+      policyKey: "file.read",
+      description: "Check if a file exists",
+      risk: "low",
+      domain: "filesystem",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["read", "file", "check"],
+    },
+    {
+      name: "grep.search",
+      capabilityId: "filesystem.search",
+      policyKey: "file.search",
+      description: "Regex-search workspace file CONTENTS (path:line). Case-insensitive by default; a leading (?i) is accepted. For filenames use glob.match. Does not search the web.",
+      risk: "low",
+      domain: "filesystem",
+      mutates: false,
+      alwaysInclude: true,
+      tags: ["grep", "search", "content", "regex", "code"],
+      argsSchema: {
+        type: "object",
+        properties: {
+          pattern: { type: "string" },
+          caseSensitive: { type: "boolean" },
+          include: { type: "array", items: { type: "string" } },
+          headLimit: { type: "integer" },
+          path: { type: "string" },
+        },
+        required: ["pattern"],
+      },
+    },
+    {
+      name: "glob.match",
+      capabilityId: "filesystem.search",
+      policyKey: "file.search",
+      description: "Find workspace FILENAMES by glob (*, **, ?, {a,b}), returning relative paths. For file contents use grep.search.",
+      risk: "low",
+      domain: "filesystem",
+      mutates: false,
+      alwaysInclude: true,
+      tags: ["glob", "search", "filename", "files", "code"],
+      argsSchema: {
+        type: "object",
+        properties: {
+          pattern: { type: "string" },
+          headLimit: { type: "integer" },
+          path: { type: "string" },
+        },
+        required: ["pattern"],
+      },
+    },
+    {
+      name: "shell.run",
+      capabilityId: "shell.exec",
+      policyKey: "shell.run",
+      description: "Execute a non-interactive shell command. Prefer file/grep/glob tools over cat/grep/ls in shell.",
+      risk: "high",
+      domain: "shell",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["shell", "command", "run", "execute"],
+      argsSchema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] },
+      execution: { timeoutMs: 30_000, cancellable: true },
+    },
+    {
+      name: "patch.apply",
+      capabilityId: "patch.apply",
+      policyKey: "patch.apply",
+      description: "Apply a structured patch to the codebase. search_replace blocks start with '<<<<<<< SEARCH path=<file>'. Aider-style patches are normalized tool-side; prefer search_replace.",
+      risk: "high",
+      domain: "code",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["patch", "code", "edit", "modify"],
+    },
+    {
+      name: "task.complete",
+      capabilityId: "task.complete",
+      policyKey: "task.complete",
+      description: "Signal that the task is complete",
+      risk: "low",
+      domain: "system",
+      mutates: false,
+      alwaysInclude: true,
+      tags: ["done", "complete", "finish"],
+    },
+    {
+      name: "schedule.propose",
+      capabilityId: "schedule.propose",
+      policyKey: "schedule.propose",
+      description: "Propose a recurring job for human approval. Writes a PENDING approval; nothing is scheduled until a human approves it and the daemon materializes it.",
+      risk: "high",
+      domain: "system",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["schedule", "cron", "recurring", "job", "propose"],
+    },
+    {
+      name: "agent.delegate",
+      capabilityId: "agent.delegate",
+      policyKey: "delegate",
+      description: "Delegate a subtask to a sub-agent",
+      risk: "medium",
+      domain: "agent",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["delegate", "agent", "subtask"],
+    },
+    {
+      name: "coordination.run",
+      capabilityId: "coordination.run",
+      policyKey: "coordination.run",
+      description: "Start a multi-worker coordination run for parallel work (dispatches 1+ workers via the coordination scheduler, waits until idle)",
+      risk: "medium",
+      domain: "agent",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["coordination", "parallel", "workers", "multi-agent"],
+    },
+    {
+      name: "coordination.status",
+      capabilityId: "coordination.read",
+      policyKey: "coordination.read",
+      description: "Show the state of a coordination run (workers by status, block reasons, failures)",
+      risk: "low",
+      domain: "agent",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["coordination", "status", "workers"],
+    },
+    {
+      name: "coordination.list",
+      capabilityId: "coordination.read",
+      policyKey: "coordination.read",
+      description: "List recent coordination runs (id, status, goal, worker count), newest first",
+      risk: "low",
+      domain: "agent",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["coordination", "list", "runs"],
+    },
+    {
+      name: "coordination.results",
+      capabilityId: "coordination.read",
+      policyKey: "coordination.read",
+      description: "Show the aggregate results of a coordination run",
+      risk: "low",
+      domain: "agent",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["coordination", "results", "aggregate"],
+    },
+    {
+      name: "state.query",
+      capabilityId: "state.read",
+      policyKey: "state.read",
+      description: "Read ALiX's own local state: recent sessions, audit events, pending approvals, daemon tasks, scheduled jobs, or saved graphs. Use this instead of web-searching for local state.",
+      risk: "low",
+      domain: "system",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["state", "read", "self"],
+    },
+    {
+      name: "verify.claim",
+      capabilityId: "decision.claim-verification",
+      policyKey: "verify.claim",
+      description: "Verify whether evidence supports a claim (supported/contradicted/insufficient)",
+      risk: "low",
+      domain: "decision",
+      mutates: false,
+      alwaysInclude: true,
+      tags: ["claim", "verify", "evidence", "decision", "read"],
+    },
+    {
+      name: "web.search",
+      capabilityId: "web.search",
+      policyKey: "web.search",
+      description: "Search the public web (NOT the local workspace). For local code/text use grep.search; for local filenames use glob.match.",
+      risk: "low",
+      domain: "network",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["web", "search"],
+      executionProfiles: ["research"],
+    },
+    {
+      name: "web.fetch",
+      capabilityId: "web.fetch",
+      policyKey: "web.fetch",
+      description: "Fetch a web page",
+      risk: "medium",
+      domain: "network",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["web", "fetch"],
+      executionProfiles: ["research"],
+    },
+    {
+      name: "skill.create",
+      capabilityId: "tool.invoke",
+      policyKey: "tool.invoke",
+      description: "Create a reusable skill",
+      risk: "medium",
+      domain: "system",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["skill", "create", "self-extend"],
+    },
+    {
+      name: "extension.list",
+      capabilityId: "tool.invoke",
+      policyKey: "tool.invoke",
+      description: "List installed extensions",
+      risk: "low",
+      domain: "system",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["extension", "list", "self-extend"],
+    },
+    {
+      name: "extension.inspect",
+      capabilityId: "tool.invoke",
+      policyKey: "tool.invoke",
+      description: "Inspect an extension",
+      risk: "low",
+      domain: "system",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["extension", "inspect", "self-extend"],
+    },
+    {
+      name: "hook.create",
+      capabilityId: "tool.invoke",
+      policyKey: "tool.invoke",
+      description: "Create a hook",
+      risk: "high",
+      domain: "system",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["hook", "create", "self-extend"],
+    },
+    {
+      name: "mcp.*",
+      capabilityId: "mcp.invoke",
+      policyKey: "mcp.invoke",
+      description: "Invoke an MCP server tool",
+      risk: "high",
+      domain: "mcp",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["mcp", "tool"],
+    },
+  ];
+
+  for (const cap of defaults) {
+    registry.register(cap);
+    idx.index(cap);
+  }
+
+  return { registry, index: idx };
+}
+
+// ---------------------------------------------------------------------------
+// ToolCapabilityRegistry port adapter (R5.3)
+// ---------------------------------------------------------------------------
+
+/** Project a full `ToolCapability` onto the canonical port entry. */
+function toCapabilityEntry(capability: ToolCapability): ToolCapabilityEntry {
+  return {
+    name: capability.name,
+    capabilityId: capability.capabilityId,
+    policyKey: capability.policyKey,
+    risk: capability.risk,
+    mutates: capability.mutates,
+  };
+}
+
+/**
+ * The canonical `ToolCapabilityRegistry` (R1 port) over the single tool
+ * catalogue. This is the ONE tool/capability resolution surface other
+ * subsystems (MCP, agent manifest, card display) adapt to — they derive from
+ * or conform to this catalogue rather than defining a parallel taxonomy.
+ */
+export function createToolCapabilityRegistry(): ToolCapabilityRegistry {
+  const { registry } = buildDefaultToolIndex();
+  return {
+    resolve(name: string): ToolCapabilityEntry | undefined {
+      const capability = registry.lookup(name);
+      return capability ? toCapabilityEntry(capability) : undefined;
+    },
+    list(): readonly ToolCapabilityEntry[] {
+      return registry.getAll().map(toCapabilityEntry);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// ToolRetriever
+// ---------------------------------------------------------------------------
+
+export class ToolRetriever {
+  constructor(
+    private registry: ToolRegistry,
+    private index: CapabilityIndex,
+  ) {}
+
+  selectForIntent(intentKeywords: string[]): ToolCapability[] {
+    const selected = new Map<string, ToolCapability>();
+
+    // Always include essential tools
+    for (const tool of this.registry.getEssential()) {
+      selected.set(tool.name, tool);
+    }
+
+    // Add tools whose tags match the intent keywords
+    const matched = this.index.findByTags(intentKeywords);
+    for (const name of matched) {
+      const tool = this.registry.lookup(name);
+      if (tool) selected.set(tool.name, tool);
+    }
+
+    return Array.from(selected.values());
+  }
+
+  selectForDomain(domain: ToolDomain): ToolCapability[] {
+    return this.registry.getByDomain(domain);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Derived capability views
+// ---------------------------------------------------------------------------
+//
+// Thin, stateless derived lookups over the canonical default registry
+// (`buildDefaultToolIndex`). These are the ONLY reverse/forward capability↔tool
+// lookups callers should use. They are computed from the canonical data at call
+// time — no reverse mapping is independently maintained, so they cannot drift
+// from the registry.
+
+function defaultToolRegistry(): ToolRegistry {
+  return buildDefaultToolIndex().registry;
+}
+
+/** Names of every tool whose canonical `capabilityId` matches. Sorted for determinism. */
+export function getToolsForCapability(capabilityId: string): string[] {
+  return defaultToolRegistry()
+    .getAll()
+    .filter(t => t.capabilityId === capabilityId)
+    .map(t => t.name)
+    .sort();
+}
+
+/** Canonical `capabilityId`(s) for a tool name (`[]` for unknown tools). */
+export function getCapabilitiesForTool(toolName: string): string[] {
+  const entry = defaultToolRegistry().lookup(toolName);
+  return entry ? [entry.capabilityId] : [];
+}

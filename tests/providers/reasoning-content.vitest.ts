@@ -6,10 +6,10 @@
 // tripping the stream idle timeout, without polluting the final text.
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { openaiBaseSpec } from "../../src/providers/specs/_openai-base.js";
-import { deepseekSpec } from "../../src/providers/specs/deepseek-spec.js";
-import { validateStreamChunk } from "../../src/providers/provider-contract-validation.js";
-import { validateNormalizedResponse } from "../../src/providers/provider-contract-validation.js";
+import { openaiBaseSpec } from "../../src/models/providers/specs/_openai-base.js";
+import { deepseekSpec } from "../../src/models/providers/specs/deepseek-spec.js";
+import { validateStreamChunk } from "../../src/models/providers/provider-contract-validation.js";
+import { validateNormalizedResponse } from "../../src/models/providers/provider-contract-validation.js";
 
 const reasoningDelta = (text: string, content?: string) =>
   `data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: text, ...(content === undefined ? {} : { content }) } }] })}`;

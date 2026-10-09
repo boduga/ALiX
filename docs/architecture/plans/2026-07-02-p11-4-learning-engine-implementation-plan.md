@@ -10,11 +10,11 @@
 
 ## Task 1 — Types and config
 
-**Files:** `src/learning/learning-types.ts`, `src/learning/learning-config.ts`
+**Files:** `src/planning/learning/learning-types.ts`, `src/planning/learning/learning-config.ts`
 
 ### Steps
 
-1. Create `src/learning/learning-types.ts` with:
+1. Create `src/planning/learning/learning-types.ts` with:
    - `LearningSignal` type union: `"score_improvement" | "no_action_improvement" | "completed_no_improvement" | "deferred_recurrence"`
    - `ConfidenceUpdate` interface with fields:
      - `targetSubsystem: CorrelationSubsystemId`
@@ -68,7 +68,7 @@
      - `loadCurrentScores(): Promise<Map<CorrelationSubsystemId, number>>`
    - `LearningEngineError` class (extends Error, code `"LEARNING_ENGINE_ERROR"`)
 
-2. Create `src/learning/learning-config.ts` with:
+2. Create `src/planning/learning/learning-config.ts` with:
    - `DEFAULT_LEARNING_CONFIG` export — all defaults as specified above
 
 ### Key design decisions
@@ -87,7 +87,7 @@
 
 ## Task 2 — Pure function: `buildConfidenceModel()`
 
-**File:** `src/learning/build-confidence-model.ts`
+**File:** `src/planning/learning/build-confidence-model.ts`
 
 ### Steps
 
@@ -144,7 +144,7 @@
 
 ## Task 3 — Store: `ConfidenceModelStore`
 
-**File:** `src/learning/confidence-model-store.ts`
+**File:** `src/planning/learning/confidence-model-store.ts`
 
 ### Steps
 
@@ -176,7 +176,7 @@
 
 ## Task 4 — Engine orchestrator: `LearningEngine`
 
-**File:** `src/learning/learning-engine.ts`
+**File:** `src/planning/learning/learning-engine.ts`
 
 ### Steps
 
@@ -206,7 +206,7 @@
 
 ## Task 5 — CLI handler
 
-**File:** `src/cli/commands/executive-learn-handler.ts`
+**File:** `src/interfaces/cli/commands/executive-learn-handler.ts`
 
 ### Steps
 
@@ -220,15 +220,15 @@
    - JSON mode: full JSON dump
    - Summary mode: table format with columns for target subsystem, score delta, completed, signal, adjustment
 
-3. Register in `src/cli/commands/executive.ts`:
+3. Register in `src/interfaces/cli/commands/executive.ts`:
    - Add `case "learn":` with dynamic import
    - Add "learn" to the default-case available subcommands list
 
 ### Verification
 
 - `npm run typecheck` passes
-- CLI smoke test: `npx tsx src/cli/alix.ts executive learn --latest` prints helpful message
-- `npx tsx src/cli/alix.ts executive learn --json --latest` outputs JSON (or error about no data)
+- CLI smoke test: `npx tsx src/interfaces/cli/alix.ts executive learn --latest` prints helpful message
+- `npx tsx src/interfaces/cli/alix.ts executive learn --json --latest` outputs JSON (or error about no data)
 
 ---
 

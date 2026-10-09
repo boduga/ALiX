@@ -6,10 +6,10 @@
  * exempt. Fail-closed: an unknown provider id is treated as remote.
  */
 import { describe, expect, it } from "vitest";
-import type { ModelAdapter, NormalizedRequest, StreamChunk } from "../../src/providers/types.js";
-import { withProviderContracts } from "../../src/providers/provider-contract-validation.js";
-import { isLocalProvider, isRemoteProvider } from "../../src/providers/provider-locality.js";
-import { redactOutboundRequest } from "../../src/providers/outbound-redaction.js";
+import type { ModelAdapter, NormalizedRequest, StreamChunk } from "../../src/models/providers/types.js";
+import { withProviderContracts } from "../../src/models/providers/provider-contract-validation.js";
+import { isLocalProvider, isRemoteProvider } from "../../src/models/providers/provider-locality.js";
+import { redactOutboundRequest } from "../../src/models/providers/outbound-redaction.js";
 
 /** A string the security detector classifies as an api_key. */
 const SECRET = "sk-abcdefghijklmnopqrstuvwxyz123456";

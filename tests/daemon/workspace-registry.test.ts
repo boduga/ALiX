@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { recordWorkspaceActivity, listWorkspaces, getWorkspace } from "../../src/daemon/workspace-registry.js";
+import { recordWorkspaceActivity, listWorkspaces, getWorkspace } from "../../src/operations/daemon/workspace-registry.js";
 
 describe("WorkspaceRegistry", () => {
   let origHome: string | undefined;

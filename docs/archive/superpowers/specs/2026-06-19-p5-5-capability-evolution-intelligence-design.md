@@ -437,14 +437,14 @@ This is valid output. It tells the operator: "not enough data yet — keep runni
 
 | File | Role | Action |
 |---|---|---|
-| `src/adaptation/capability-evolution-types.ts` | CapabilityEvolutionReport, CapabilityHealth, CapabilityGap, CapabilityOverlap, CapabilityDrift, LifecycleState | **Create** |
-| `src/adaptation/capability-evolution-store.ts` | Save/load/list reports under `.alix/adaptation/capability-evolution/` | **Create** |
-| `src/adaptation/capability-health-analyzer.ts` | Compute lifecycle state for each registered capability | **Create** |
-| `src/adaptation/capability-gap-analyzer.ts` | Detect recurring unresolved capability requests | **Create** |
-| `src/adaptation/capability-overlap-analyzer.ts` | Compute pairwise overlap between capabilities | **Create** |
-| `src/adaptation/capability-drift-analyzer.ts` | Detect scope drift in capabilities | **Create** |
-| `src/adaptation/capability-evolution-reporter.ts` | Orchestrate analyzers, assemble report, persist | **Create** |
-| `src/cli/commands/adaptation.ts` | Add `capability-evolution` subcommand | **Modify** |
+| `src/planning/adaptation/capability-evolution-types.ts` | CapabilityEvolutionReport, CapabilityHealth, CapabilityGap, CapabilityOverlap, CapabilityDrift, LifecycleState | **Create** |
+| `src/planning/adaptation/capability-evolution-store.ts` | Save/load/list reports under `.alix/adaptation/capability-evolution/` | **Create** |
+| `src/planning/adaptation/capability-health-analyzer.ts` | Compute lifecycle state for each registered capability | **Create** |
+| `src/planning/adaptation/capability-gap-analyzer.ts` | Detect recurring unresolved capability requests | **Create** |
+| `src/planning/adaptation/capability-overlap-analyzer.ts` | Compute pairwise overlap between capabilities | **Create** |
+| `src/planning/adaptation/capability-drift-analyzer.ts` | Detect scope drift in capabilities | **Create** |
+| `src/planning/adaptation/capability-evolution-reporter.ts` | Orchestrate analyzers, assemble report, persist | **Create** |
+| `src/interfaces/cli/commands/adaptation.ts` | Add `capability-evolution` subcommand | **Modify** |
 | Tests | Per component + CLI integration | **Create** |
 
 ## Interaction with existing phases

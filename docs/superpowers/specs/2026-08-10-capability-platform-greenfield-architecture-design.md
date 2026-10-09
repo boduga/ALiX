@@ -2207,7 +2207,7 @@ A7-specific lifecycle applier
 # 71. Proposed Module Layout
 
 ```text
-src/capability/
+src/capabilities/capability/
 ├── definition.ts
 ├── identity.ts
 ├── lifecycle.ts
@@ -2237,7 +2237,7 @@ src/capability/
 A7:
 
 ```text
-src/evolution/capability/
+src/planning/evolution/capability/
 ├── analyzer.ts
 ├── proposal-builder.ts
 ├── governance-bridge.ts
@@ -2247,7 +2247,7 @@ src/evolution/capability/
 A4:
 
 ```text
-src/evolution/execution/
+src/planning/evolution/execution/
 ├── capability-mutation-executor.ts
 └── ...
 ```

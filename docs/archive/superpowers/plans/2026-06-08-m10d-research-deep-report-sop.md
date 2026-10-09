@@ -16,9 +16,9 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/sop/sop-registry.ts` | **Create** | `SopDefinition` type, `SopRegistry`, built-in SOP list |
-| `src/sop/research-deep-report.ts` | **Create** | `buildResearchDeepReportGraph()` — builds 6-node graph |
-| `src/sop/artifact-writer.ts` | **Create** | Write report artifacts to `.alix/reports/` |
+| `src/coordination/sop/sop-registry.ts` | **Create** | `SopDefinition` type, `SopRegistry`, built-in SOP list |
+| `src/coordination/sop/research-deep-report.ts` | **Create** | `buildResearchDeepReportGraph()` — builds 6-node graph |
+| `src/coordination/sop/artifact-writer.ts` | **Create** | Write report artifacts to `.alix/reports/` |
 | `src/cli.ts` | **Modify** | Add `alix sop list` and `alix sop run` |
 | `tests/sop/research-deep-report.test.ts` | **Create** | Tests for graph shape, artifacts, missing topic |
 
@@ -27,7 +27,7 @@
 ### Task 1: Create SOP types and registry
 
 **Files:**
-- Create: `src/sop/sop-registry.ts`
+- Create: `src/coordination/sop/sop-registry.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -72,7 +72,7 @@ npm run build 2>&1 | tail -3
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/sop/sop-registry.ts
+git add src/coordination/sop/sop-registry.ts
 git commit -m "feat(sop): add SOP registry with SopDefinition type"
 ```
 
@@ -81,7 +81,7 @@ git commit -m "feat(sop): add SOP registry with SopDefinition type"
 ### Task 2: Create research.deep_report graph builder
 
 **Files:**
-- Create: `src/sop/research-deep-report.ts`
+- Create: `src/coordination/sop/research-deep-report.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -211,7 +211,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/sop/research-deep-report.ts
+git add src/coordination/sop/research-deep-report.ts
 git commit -m "feat(sop): research.deep_report graph builder with 6 nodes"
 ```
 
@@ -220,7 +220,7 @@ git commit -m "feat(sop): research.deep_report graph builder with 6 nodes"
 ### Task 3: Create artifact writer
 
 **Files:**
-- Create: `src/sop/artifact-writer.ts`
+- Create: `src/coordination/sop/artifact-writer.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -276,7 +276,7 @@ npm run build 2>&1 | tail -3
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/sop/artifact-writer.ts
+git add src/coordination/sop/artifact-writer.ts
 git commit -m "feat(sop): report artifact writer for research.deep_report"
 ```
 
@@ -391,7 +391,7 @@ git commit -m "feat(cli): add alix sop list and alix sop run commands"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildResearchDeepReportGraph } from "../../src/sop/research-deep-report.js";
+import { buildResearchDeepReportGraph } from "../../src/coordination/sop/research-deep-report.js";
 
 describe("research.deep_report", () => {
 
@@ -454,11 +454,11 @@ git commit -m "test(sop): research.deep_report graph shape and artifact path tes
 ### Task 6: Wire registration and final build
 
 **Files:**
-- Modify: `src/sop/sop-registry.ts`
+- Modify: `src/coordination/sop/sop-registry.ts`
 
 - [ ] **Step 1: Wire automatic registration**
 
-Add at the bottom of `src/sop/sop-registry.ts`:
+Add at the bottom of `src/coordination/sop/sop-registry.ts`:
 
 ```typescript
 // Auto-register built-in SOPs
@@ -481,7 +481,7 @@ node --test dist/tests/sop/research-deep-report.test.js dist/tests/kernel/*.test
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/sop/sop-registry.ts
+git add src/coordination/sop/sop-registry.ts
 git commit -m "feat(sop): auto-register built-in SOPs"
 git push
 ```

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { toCanonicalEvent, CanonicalEventSink } from "../../src/kernel/event-envelope.js";
-import type { AlixEvent } from "../../src/events/types.js";
+import { toCanonicalEvent, CanonicalEventSink } from "../../src/coordination/kernel/event-envelope.js";
+import type { AlixEvent } from "../../src/runtime-state/events/types.js";
 
 describe("toCanonicalEvent", () => {
 

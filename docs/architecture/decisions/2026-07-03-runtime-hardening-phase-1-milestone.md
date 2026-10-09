@@ -65,7 +65,7 @@ Both are correct as-is. No retry wiring needed.
 
 ## Runtime Primitives
 
-### `src/runtime/side-effect-timeout.ts`
+### `src/runtime-state/runtime/side-effect-timeout.ts`
 
 ```
 SideEffectTimeoutError
@@ -81,7 +81,7 @@ withTimeout<T>(operation: string, timeoutMs: number, effect: () => Promise<T>): 
   - Timer is cleaned up on both success and error paths
 ```
 
-### `src/runtime/retry.ts`
+### `src/runtime-state/runtime/retry.ts`
 
 ```
 RetryError

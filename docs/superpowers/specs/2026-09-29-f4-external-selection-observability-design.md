@@ -12,12 +12,12 @@ observation seam, not one.
 
 | Piece | Location |
 |---|---|
-| Observation payload builder | `buildSelectionObservation` — `src/run/task-loop/predicates.ts:530` |
-| Emitter | `src/run/task-loop/main.ts:1267-1290`, inside `handleToolResult` |
-| Event type | `TOOL_EVENT_TYPES.SELECTION_OBSERVED = "tool.selection.observed"` — `src/events/types.ts:129` |
+| Observation payload builder | `buildSelectionObservation` — `src/execution/run/task-loop/predicates.ts:530` |
+| Emitter | `src/execution/run/task-loop/main.ts:1267-1290`, inside `handleToolResult` |
+| Event type | `TOOL_EVENT_TYPES.SELECTION_OBSERVED = "tool.selection.observed"` — `src/runtime-state/events/types.ts:129` |
 | Frozen surface | `frozenSurface.candidates` / `.bindings` built once per run in the task loop |
-| Replay reader | `extractToolSelectionScopes` — `src/decision/tool-selection-replay.ts:289` |
-| Evaluation | `selectionOutcomeFromObservation` — `src/decision/tool-selection-evaluation.ts:246` |
+| Replay reader | `extractToolSelectionScopes` — `src/planning/decision/tool-selection-replay.ts:289` |
+| Evaluation | `selectionOutcomeFromObservation` — `src/planning/decision/tool-selection-evaluation.ts:246` |
 
 Everything downstream (scope freezing, sanitized candidate ids, local-only
 bindings, scoping provenance, outcome dimensions, replay, corpus tooling)
@@ -26,11 +26,11 @@ already consumes that one event shape. It is the only seam that matters.
 ## 2. Bypass A — the `alix_mcp_search_tools` short-circuit
 
 ```text
-src/run/task-loop/main.ts:1401  const mcpSearchResult = await handleMcpToolSearch(toolCall, eventHandlerDeps);
-src/run/task-loop/main.ts:1402  if (mcpSearchResult.handled && mcpSearchResult.message) {
-src/run/task-loop/main.ts:1403    messages.push(mcpSearchResult.message);
-src/run/task-loop/main.ts:1404    continue;                       ← never reaches handleToolResult
-src/run/task-loop/main.ts:1405  }
+src/execution/run/task-loop/main.ts:1401  const mcpSearchResult = await handleMcpToolSearch(toolCall, eventHandlerDeps);
+src/execution/run/task-loop/main.ts:1402  if (mcpSearchResult.handled && mcpSearchResult.message) {
+src/execution/run/task-loop/main.ts:1403    messages.push(mcpSearchResult.message);
+src/execution/run/task-loop/main.ts:1404    continue;                       ← never reaches handleToolResult
+src/execution/run/task-loop/main.ts:1405  }
 ```
 
 (and the same short-circuit as a `GateSentinel` at `:1330`.)
@@ -54,8 +54,8 @@ the same inputs the loop already has (`frozenSurface`, `scopeId`, `iteration`,
 does make a model call:
 
 ```text
-src/runtime/route-execution.ts:270  provider.complete({ ..., tools: tools.length ? tools : undefined })
-src/runtime/route-execution.ts:281  if (response.toolCalls.length > 0) { const tc = response.toolCalls[0]; ... }
+src/runtime-state/runtime/route-execution.ts:270  provider.complete({ ..., tools: tools.length ? tools : undefined })
+src/runtime-state/runtime/route-execution.ts:281  if (response.toolCalls.length > 0) { const tc = response.toolCalls[0]; ... }
 ```
 
 The model **does** choose, from a small allowlisted surface (`web_search` and/or
@@ -69,9 +69,9 @@ offered web tools, chosen = the tool the model issued), not a
 model choice at all. That is better news for F4: the external family can produce
 genuine selection scopes.
 
-**Blocker to resolve first (layering):** `src/runtime/**` currently imports
-nothing from `src/decision/**` (verified: empty grep), while the observation
-builder lives in `src/run/task-loop/predicates.ts`, which *does* import
+**Blocker to resolve first (layering):** `src/runtime-state/runtime/**` currently imports
+nothing from `src/planning/decision/**` (verified: empty grep), while the observation
+builder lives in `src/execution/run/task-loop/predicates.ts`, which *does* import
 `decision/selection-outcome.js` and `decision/tool-selection-candidates.js`.
 Emitting from `executeGroundedChatBehavior` therefore needs a decision-neutral
 seam. Options:
@@ -79,7 +79,7 @@ seam. Options:
 1. dependency-neutral payload construction in the runtime path — the ids here
    are plain `builtin:alix_web_search` / `builtin:alix_web_fetch` with no MCP
    handles to sanitize, and the payload type can be shared from a neutral module
-   (`src/events/types.ts` or `src/runtime/contracts/`), with a shape-parity test
+   (`src/runtime-state/events/types.ts` or `src/runtime-state/runtime/contracts/`), with a shape-parity test
    against the loop emitter (recommended);
 2. inject the frozen surface into the route behaviour through `ToolExecutionDeps`
    (callers already pass `eventLog`/`cwd`), so the runtime never freezes anything;
@@ -98,16 +98,16 @@ Reconnaissance for the wiring found that the premise does not hold for this
 path:
 
 ```text
-src/agent/session/turn.ts:322-346   builds RuntimeContext, dispatches executeRouteGoverned
-src/daemon/daemon-server.ts:488     dispatches executeRoute
+src/agents/agent/session/turn.ts:322-346   builds RuntimeContext, dispatches executeRouteGoverned
+src/operations/daemon/daemon-server.ts:488     dispatches executeRoute
 ```
 
-Both grounded-chat dispatchers live in `src/agent/**` and `src/daemon/**`. The
+Both grounded-chat dispatchers live in `src/agents/agent/**` and `src/operations/daemon/**`. The
 documented Jev rule (`docs/jev/AGENTS.md` §Verification, and its import-specific
 grep) is that `src/agent`, `src/runtime`, `src/policy`, `src/providers` and
-`src/kernel` **never import `src/decision/`** — and today that grep is empty for
+`src/kernel` **never import `src/planning/decision/`** — and today that grep is empty for
 `src/agent`. The only layer that currently imports the selection machinery is
-`src/run/task-loop/predicates.ts` (`decision/selection-outcome.js`,
+`src/execution/run/task-loop/predicates.ts` (`decision/selection-outcome.js`,
 `decision/tool-selection-candidates.js`), which is outside the exclusion set.
 
 So "the run/orchestration layer owns selection semantics and freezes the
@@ -122,9 +122,9 @@ dispatcher is inside the exclusion set. Option 2 therefore needs one of:
    is never reachable from those layers, rather than the whole folder.
 2. **Move only the pure assembly** — `buildSelectionObservation` +
    `emitSelectionObservation` into a neutral module (e.g.
-   `src/runtime/contracts/selection-observation.ts`) with the DTO, leaving
+   `src/runtime-state/runtime/contracts/selection-observation.ts`) with the DTO, leaving
    candidate freezing in the run layer. Then runtime/agent import the neutral
-   module and never `src/decision/`. This is Option 3 reduced to its minimum:
+   module and never `src/planning/decision/`. This is Option 3 reduced to its minimum:
    one emitter, one builder, no second interpretation.
 
 Recommendation: **2** if the caller can supply frozen candidates through deps
@@ -134,10 +134,10 @@ described. Both preserve the single-builder property Option 1 was rejected for.
 Bypass B remains unimplemented until this is settled.
 
 ```text
-src/run/task-loop/main.ts              ← never entered (no model.usage/agent.decision in the trace)
-src/runtime/route-executor.ts:103      case "grounded_chat": return executor.executeGroundedChat(route, ctx);
-src/runtime/route-execution.ts:249     executeGroundedChatBehavior(...)   ← executes the external tool here
-src/daemon/daemon-runtime-executor.ts:85  async executeGroundedChat(...)
+src/execution/run/task-loop/main.ts              ← never entered (no model.usage/agent.decision in the trace)
+src/runtime-state/runtime/route-executor.ts:103      case "grounded_chat": return executor.executeGroundedChat(route, ctx);
+src/runtime-state/runtime/route-execution.ts:249     executeGroundedChatBehavior(...)   ← executes the external tool here
+src/operations/daemon/daemon-runtime-executor.ts:85  async executeGroundedChat(...)
 ```
 
 Cohort C evidence: `x2`–`x8` traces contain exactly one
@@ -181,7 +181,7 @@ Tests:
   `allowNetworkDomains`); nothing here relaxes them.
 - Offline replay never falls back to live network: external tools replay only
   from recorded-response fixtures under exact `(tool, argsSignature)` matching
-  and a miss is `unknown` (`src/decision/tool-selection-fixtures.ts`,
+  and a miss is `unknown` (`src/planning/decision/tool-selection-fixtures.ts`,
   `tool-selection-replay.ts`).
 - Recorded-response replay stays exact-match only.
 
@@ -194,8 +194,8 @@ cohort, none of which is a behaviour defect in the emitter itself:
 
 1. **The grounded route's provider-facing tool names are not the canonical
    candidate names.** `webSearchTool()` / `webFetchTool()` are named
-   `web_search` / `web_fetch` (`src/tools/web-search.ts:18`,
-   `src/tools/web-fetch.ts:351`), and `task-router.ts:479/521` allow-lists those
+   `web_search` / `web_fetch` (`src/capabilities/tools/web-search.ts:18`,
+   `src/capabilities/tools/web-fetch.ts:351`), and `task-router.ts:479/521` allow-lists those
    names, while the task loop's frozen candidate ids are
    `builtin:alix_web_search` / `builtin:alix_web_fetch`. Emitting
    `builtin:web_search` from the grounded path would put the same tool in two

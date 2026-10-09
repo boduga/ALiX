@@ -2,16 +2,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CapabilityResolver, type ResolverContext } from '../../src/capability/provider-resolver.js';
-import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
-import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import { CapabilityRegistry } from '../../src/capability/registry.js';
-import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
-import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
-import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
-import type { LifecycleState } from '../../src/adaptation/capability-evolution-types.js';
+import { CapabilityResolver, type ResolverContext } from '../../src/capabilities/capability/provider-resolver.js';
+import { ProviderExecutorRegistry } from '../../src/capabilities/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capabilities/capability/provider-executor.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import { CapabilityRegistry } from '../../src/capabilities/capability/registry.js';
+import { CapabilityCatalog } from '../../src/capabilities/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capabilities/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capabilities/capability/mutation-port.js';
+import type { CapabilityDefinition } from '../../src/capabilities/capability/canonical/definition.js';
+import type { LifecycleState } from '../../src/planning/adaptation/capability-evolution-types.js';
 
 /**
  * CAP-7 — Lifecycle × override × provider matrix (AC#1, AC#2, AC#3).

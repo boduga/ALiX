@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildRollbackPlan } from "../../src/runtime/rollback-plan.js";
-import type { ReplayDiffSet } from "../../src/runtime/replay-diff-store.js";
+import { buildRollbackPlan } from "../../src/runtime-state/runtime/rollback-plan.js";
+import type { ReplayDiffSet } from "../../src/runtime-state/runtime/replay-diff-store.js";
 
 function makeDiffSet(overrides: Partial<ReplayDiffSet> = {}): ReplayDiffSet {
   return {

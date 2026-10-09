@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CatalogBackedCapabilityMutationPort } from "../../src/capability/mutation-port.js";
-import { EventLog } from "../../src/events/event-log.js";
-import type { CapabilityDefinition } from "../../src/capability/canonical/definition.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CatalogBackedCapabilityMutationPort } from "../../src/capabilities/capability/mutation-port.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { CapabilityDefinition } from "../../src/capabilities/capability/canonical/definition.js";
 
 describe("CAP-3 platform composition root", () => {
   let dir: string;

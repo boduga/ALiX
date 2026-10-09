@@ -31,29 +31,29 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CapabilityCatalog } from "../../../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../../../src/capability/registry.js";
-import { authorizeExecution } from "../../../../src/evolution/execution/execution-authorization.js";
-import { createExecutionPlan } from "../../../../src/evolution/execution/execution-planner.js";
-import { GovernedExecutionRuntime } from "../../../../src/evolution/execution/execution-runtime.js";
-import { buildExecutionEvidence } from "../../../../src/evolution/execution/execution-evidence-bridge.js";
+import { CapabilityCatalog } from "../../../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../../../src/capabilities/capability/registry.js";
+import { authorizeExecution } from "../../../../src/planning/evolution/execution/execution-authorization.js";
+import { createExecutionPlan } from "../../../../src/planning/evolution/execution/execution-planner.js";
+import { GovernedExecutionRuntime } from "../../../../src/planning/evolution/execution/execution-runtime.js";
+import { buildExecutionEvidence } from "../../../../src/planning/evolution/execution/execution-evidence-bridge.js";
 import {
   CapabilityMutationExecutor,
   createCapabilityRollbackResolver,
   toCapabilityMutationChange,
   type GovernanceRecordSink,
-} from "../../../../src/evolution/execution/capability-mutation-executor.js";
-import { computeDecisionIntegrityHash } from "../../../../src/evolution/governance/decision-engine.js";
-import type { GovernanceDecision } from "../../../../src/evolution/governance/contracts/decision-contract.js";
-import type { EvolutionProposal } from "../../../../src/evolution/contracts/evolution-contract.js";
+} from "../../../../src/planning/evolution/execution/capability-mutation-executor.js";
+import { computeDecisionIntegrityHash } from "../../../../src/planning/evolution/governance/decision-engine.js";
+import type { GovernanceDecision } from "../../../../src/planning/evolution/governance/contracts/decision-contract.js";
+import type { EvolutionProposal } from "../../../../src/planning/evolution/contracts/evolution-contract.js";
 import type {
   ExecutionEnvironment,
   ExecutionRequest,
   EvolutionExecutionEvidence,
-} from "../../../../src/evolution/execution/contracts/execution-contract.js";
-import type { CapabilityMutation } from "../../../../src/capability/mutation-contract.js";
-import type { CapabilityDefinition } from "../../../../src/capability/canonical/definition.js";
+} from "../../../../src/planning/evolution/execution/contracts/execution-contract.js";
+import type { CapabilityMutation } from "../../../../src/capabilities/capability/mutation-contract.js";
+import type { CapabilityDefinition } from "../../../../src/capabilities/capability/canonical/definition.js";
 
 // ---------------------------------------------------------------------------
 // Test fixtures

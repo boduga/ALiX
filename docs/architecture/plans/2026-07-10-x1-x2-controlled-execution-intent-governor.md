@@ -19,7 +19,7 @@
 - Governor must never treat CREATED as executable
 - Execution eligibility: intent exists + status APPROVED + approval active + timestamp valid + expiration not exceeded
 - X2 produces ExecutionEvidence; X3 integrates into governance pipeline (deferred)
-- No existing runtime code modified (`src/agent/`, `src/providers/`, `src/tools/`, etc.)
+- No existing runtime code modified (`src/agents/agent/`, `src/models/providers/`, `src/capabilities/tools/`, etc.)
 - `import type` for type-only symbols
 - Tests use `node:test` (describe/it) + `node:assert/strict`
 
@@ -31,15 +31,15 @@
 
 | Slice | File | Purpose |
 |-------|------|---------|
-| X1 | `src/runtime/contracts/execution-intent-contract.ts` | ExecutionIntent, ExecutionConstraints, ExecutionEvidence, lifecycle types |
-| X2 | `src/runtime/execution-governor.ts` | ExecutionGovernor implementation |
+| X1 | `src/runtime-state/runtime/contracts/execution-intent-contract.ts` | ExecutionIntent, ExecutionConstraints, ExecutionEvidence, lifecycle types |
+| X2 | `src/runtime-state/runtime/execution-governor.ts` | ExecutionGovernor implementation |
 | X1 | `tests/runtime/execution-intent-contract.test.ts` | 6 contract tests |
 | X2 | `tests/runtime/execution-governor.test.ts` | 7 governor tests |
 
 ### Untouched Files
 
-- All files in `src/runtime/contracts/` (M1 contracts)
-- All files in `src/agent/`, `src/providers/`, `src/tools/`, `src/mcp/`, `src/events/`
+- All files in `src/runtime-state/runtime/contracts/` (M1 contracts)
+- All files in `src/agents/agent/`, `src/models/providers/`, `src/capabilities/tools/`, `src/capabilities/mcp/`, `src/runtime-state/events/`
 - All P5–P30 modules
 - P11.9 issue run handler and guardrails
 
@@ -48,7 +48,7 @@
 ### Task 1: X1 — Execution Intent Contract
 
 **Files:**
-- Create: `src/runtime/contracts/execution-intent-contract.ts`
+- Create: `src/runtime-state/runtime/contracts/execution-intent-contract.ts`
 - Test: `tests/runtime/execution-intent-contract.test.ts`
 
 **Contract types:**
@@ -132,7 +132,7 @@ Commit: `feat(X1): add execution intent contract — immutable ExecutionIntent, 
 ### Task 2: X2 — Execution Governor
 
 **Files:**
-- Create: `src/runtime/execution-governor.ts`
+- Create: `src/runtime-state/runtime/execution-governor.ts`
 - Test: `tests/runtime/execution-governor.test.ts`
 
 **Governor interface and implementation:**
@@ -187,7 +187,7 @@ export interface ExecutionGovernor {
 - `revoke()` appends REVOKED event to the event log
 
 **Architectural rules:**
-- Governor never imports from `src/agent/`, `src/providers/`, `src/tools/`, `src/mcp/`
+- Governor never imports from `src/agents/agent/`, `src/models/providers/`, `src/capabilities/tools/`, `src/capabilities/mcp/`
 - Governor never executes shell commands, git operations, or tool calls
 - All transitions stored as ExecutionIntentEvent records (X3 later persists these without changing the X2 API)
 
@@ -214,7 +214,7 @@ Commit: `feat(X2): add execution governor — validate, authorize, complete, fai
 - X2 Execution Governor created (gate, not executor)
 - All 13 tests pass (6 + 7)
 - No existing runtime code modified
-- Governor never imports agent/tool/provider/MCP modules — verified by static inspection (`grep -c "from.*src/agent\|from.*src/tools\|from.*src/providers\|from.*src/mcp" src/runtime/execution-governor.ts` == 0)
+- Governor never imports agent/tool/provider/MCP modules — verified by static inspection (`grep -c "from.*src/agent\|from.*src/tools\|from.*src/providers\|from.*src/mcp" src/runtime-state/runtime/execution-governor.ts` == 0)
 - Governor rejects non-APPROVED intents
 - tsc clean
 - Tag: `alix-x1-x2-controlled-execution-complete`

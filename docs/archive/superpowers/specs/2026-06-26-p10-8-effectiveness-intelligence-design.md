@@ -207,7 +207,7 @@ rec-2026-06-10    2026-06-10  routing    persistent_instability proposal_missing
 
 ## Routing
 
-Add to `src/cli/commands/executive.ts`:
+Add to `src/interfaces/cli/commands/executive.ts`:
 
 ```ts
 case "recommendation-effectiveness": {
@@ -223,8 +223,8 @@ Subcommand list updated to include `recommendation-effectiveness`.
 ## Sentinel
 
 Two new files:
-- `src/executive/recommendation-effectiveness.ts` — pure classification + aggregation functions, types
-- `src/cli/commands/executive-effectiveness-handler.ts` — CLI handler (reads, no writes)
+- `src/execution/executive/recommendation-effectiveness.ts` — pure classification + aggregation functions, types
+- `src/interfaces/cli/commands/executive-effectiveness-handler.ts` — CLI handler (reads, no writes)
 
 Both added to `EXECUTIVE_FILES`. **No write exceptions** — the handler only reads stores (load/list). No `ProposalStore.save`, no `RecommendationReportStore.save`.
 
@@ -234,9 +234,9 @@ The handler imports `ProposalStore` for load only (read pattern, same as P10.7c 
 
 | File | Responsibility |
 |---|---|
-| `src/executive/recommendation-effectiveness.ts` | Pure: types, `classifyRecommendation()`, `computeRecommendationEffectiveness()`, `SignalCalibration`, `EffectivenessResult` |
-| `src/cli/commands/executive-effectiveness-handler.ts` | CLI handler: load reports/proposals, compute age, call pure functions, render terminal/JSON |
-| `src/cli/commands/executive.ts` | Add `case "recommendation-effectiveness"` + update subcommand list |
+| `src/execution/executive/recommendation-effectiveness.ts` | Pure: types, `classifyRecommendation()`, `computeRecommendationEffectiveness()`, `SignalCalibration`, `EffectivenessResult` |
+| `src/interfaces/cli/commands/executive-effectiveness-handler.ts` | CLI handler: load reports/proposals, compute age, call pure functions, render terminal/JSON |
+| `src/interfaces/cli/commands/executive.ts` | Add `case "recommendation-effectiveness"` + update subcommand list |
 | `tests/executive/recommendation-effectiveness.vitest.ts` | Pure function tests |
 | `tests/cli/commands/executive-effectiveness-cli.vitest.ts` | CLI integration tests |
 | `tests/executive/executive-sentinels.vitest.ts` | Add 2 new files to `EXECUTIVE_FILES` |

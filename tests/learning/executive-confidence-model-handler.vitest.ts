@@ -3,7 +3,7 @@
 // P11.4 — CLI handler tests for `alix executive confidence-model`.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { handleConfidenceModelCommand } from "../../src/cli/commands/executive-confidence-model-handler.js";
+import { handleConfidenceModelCommand } from "../../src/interfaces/cli/commands/executive-confidence-model-handler.js";
 
 describe("executive-confidence-model-handler", () => {
   beforeEach(() => {

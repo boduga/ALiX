@@ -4,9 +4,9 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { runDelegateCase, normalizeSubagentResult } from "../../src/evals/drivers/delegate-driver.js";
-import type { SubagentResult, SubagentTask } from "../../src/config/schema.js";
-import type { EvalCase } from "../../src/evals/evals-types.js";
+import { runDelegateCase, normalizeSubagentResult } from "../../src/operations/evals/drivers/delegate-driver.js";
+import type { SubagentResult, SubagentTask } from "../../src/operations/config/schema.js";
+import type { EvalCase } from "../../src/operations/evals/evals-types.js";
 
 const baseCase: EvalCase = {
   id: "behavioral.write-file",

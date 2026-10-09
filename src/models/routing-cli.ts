@@ -3,9 +3,9 @@
 // Describes the configured/logical routing chain for `alix models routing`.
 // Describes config — never resolves a request-specific concrete free model.
 
-import { buildFallbackChain } from "../providers/routing-adapter.js";
-import { createModelResolver } from "../config/model-resolver.js";
-import type { AlixConfig } from "../config/schema.js";
+import { buildFallbackChain } from "./providers/routing-adapter.js";
+import { createModelResolver } from "../operations/config/model-resolver.js";
+import type { AlixConfig } from "../operations/config/schema.js";
 
 export type RoutingChainEntry = {
   provider: string;

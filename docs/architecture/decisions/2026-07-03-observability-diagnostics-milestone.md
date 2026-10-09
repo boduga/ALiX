@@ -33,11 +33,11 @@ Query: alix observability diagnostics list [--type] [--boundary] [--severity] [-
 
 | Layer | Component | Location |
 |-------|-----------|----------|
-| Sources | 5 runtime boundaries (shell, provider complete, provider stream, MCP, file.read) | `src/tools/`, `src/providers/`, `src/mcp/` |
-| Normalization | `runtimeDiagToEvent()`, `contractDiagToEvent()` | `src/observability/diagnostic-event.ts` |
-| Persistence | `DiagnosticEventStore` (append-only JSONL) | `src/observability/diagnostic-event-store.ts` |
-| Multiplex | `createMultiplexDiagnosticSink()` | `src/runtime/runtime-diagnostics.ts` |
-| Query | `alix observability diagnostics list` | `src/cli/commands/observability-diagnostics.ts` |
+| Sources | 5 runtime boundaries (shell, provider complete, provider stream, MCP, file.read) | `src/capabilities/tools/`, `src/models/providers/`, `src/capabilities/mcp/` |
+| Normalization | `runtimeDiagToEvent()`, `contractDiagToEvent()` | `src/operations/observability/diagnostic-event.ts` |
+| Persistence | `DiagnosticEventStore` (append-only JSONL) | `src/operations/observability/diagnostic-event-store.ts` |
+| Multiplex | `createMultiplexDiagnosticSink()` | `src/runtime-state/runtime/runtime-diagnostics.ts` |
+| Query | `alix observability diagnostics list` | `src/interfaces/cli/commands/observability-diagnostics.ts` |
 
 ## Wired boundaries
 

@@ -81,7 +81,7 @@ Replace four overlapping screen widgets with a container-owned sidebar.
 Modify:
 
 ```
-src/tui/renderers/blessed-renderer.ts
+src/interfaces/tui/renderers/blessed-renderer.ts
 tests/tui/blessed-renderer.vitest.ts
 ```
 
@@ -288,7 +288,7 @@ pnpm tsc --noEmit
 ## Step 7 — Commit
 
 ```bash
-git add src/tui/renderers/blessed-renderer.ts tests/tui/blessed-renderer.vitest.ts
+git add src/interfaces/tui/renderers/blessed-renderer.ts tests/tui/blessed-renderer.vitest.ts
 
 git commit -m "feat(tui): add sidebar container with stacked panels"
 ```
@@ -308,9 +308,9 @@ Create a shared presentation layer consumed by Blessed and Canvas.
 Modify:
 
 ```
-src/tui/dashboard-renderer.ts
-src/tui/renderers/blessed/sidebar-painter.ts
-src/tui/presentation/types.ts
+src/interfaces/tui/dashboard-renderer.ts
+src/interfaces/tui/renderers/blessed/sidebar-painter.ts
+src/interfaces/tui/presentation/types.ts
 ```
 
 ---
@@ -470,9 +470,9 @@ pnpm vitest run tests/tui/
 # Step 5 — Commit
 
 ```bash
-git add src/tui/dashboard-renderer.ts \
-src/tui/renderers/blessed/sidebar-painter.ts \
-src/tui/presentation/types.ts
+git add src/interfaces/tui/dashboard-renderer.ts \
+src/interfaces/tui/renderers/blessed/sidebar-painter.ts \
+src/interfaces/tui/presentation/types.ts
 
 git commit -m "feat(tui): introduce shared sidebar view models"
 ```
@@ -486,14 +486,14 @@ git commit -m "feat(tui): introduce shared sidebar view models"
 Modify:
 
 ```
-src/tui/snapshot.ts
-src/tui/presentation/builder.ts
+src/interfaces/tui/snapshot.ts
+src/interfaces/tui/presentation/builder.ts
 ```
 
 Create:
 
 ```
-src/tui/presentation/formatters/tokens.ts
+src/interfaces/tui/presentation/formatters/tokens.ts
 ```
 
 ---
@@ -525,7 +525,7 @@ Not:
 Create:
 
 ```
-src/tui/presentation/formatters/tokens.ts
+src/interfaces/tui/presentation/formatters/tokens.ts
 ```
 
 Function:
@@ -580,9 +580,9 @@ RULES:6
 # Commit
 
 ```bash
-git add src/tui/snapshot.ts \
-src/tui/presentation/builder.ts \
-src/tui/presentation/formatters/tokens.ts
+git add src/interfaces/tui/snapshot.ts \
+src/interfaces/tui/presentation/builder.ts \
+src/interfaces/tui/presentation/formatters/tokens.ts
 
 git commit -m "feat(tui): add token and file status metrics"
 ```
@@ -596,10 +596,10 @@ git commit -m "feat(tui): add token and file status metrics"
 Modify:
 
 ```
-src/tui/presentation/types.ts
-src/tui/presentation/builder.ts
-src/tui/renderers/blessed-renderer.ts
-src/tui/renderers/canvas-renderer.ts
+src/interfaces/tui/presentation/types.ts
+src/interfaces/tui/presentation/builder.ts
+src/interfaces/tui/renderers/blessed-renderer.ts
+src/interfaces/tui/renderers/canvas-renderer.ts
 ```
 
 ---
@@ -675,10 +675,10 @@ Use identical metadata formatting.
 # Commit
 
 ```bash
-git add src/tui/presentation/types.ts \
-src/tui/presentation/builder.ts \
-src/tui/renderers/blessed-renderer.ts \
-src/tui/renderers/canvas-renderer.ts
+git add src/interfaces/tui/presentation/types.ts \
+src/interfaces/tui/presentation/builder.ts \
+src/interfaces/tui/renderers/blessed-renderer.ts \
+src/interfaces/tui/renderers/canvas-renderer.ts
 
 git commit -m "feat(tui): restore operator header metadata parity"
 ```

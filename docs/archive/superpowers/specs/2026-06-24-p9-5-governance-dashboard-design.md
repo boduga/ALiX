@@ -25,7 +25,7 @@ Pure read-only function. The single boundary that touches the data layer. Return
 export async function buildGovernanceDashboardReport(opts: GovernanceDashboardOptions): Promise<GovernanceDashboardReport>
 ```
 
-### 2. Renderer — `src/cli/commands/governance-dashboard-renderer.ts`
+### 2. Renderer — `src/interfaces/cli/commands/governance-dashboard-renderer.ts`
 
 Terminal formatter. Consumes the typed report. Renders 6 panels in fixed order. No data access.
 
@@ -33,7 +33,7 @@ Terminal formatter. Consumes the typed report. Renders 6 panels in fixed order. 
 export function renderGovernanceDashboard(report: GovernanceDashboardReport, opts?: { jsonMode?: boolean }): void
 ```
 
-### 3. CLI dispatcher — `src/cli/commands/governance.ts` (modify) + `src/cli/commands/governance-dashboard-handler.ts` (new)
+### 3. CLI dispatcher — `src/interfaces/cli/commands/governance.ts` (modify) + `src/interfaces/cli/commands/governance-dashboard-handler.ts` (new)
 
 The `dashboard` subcommand is registered in `governance.ts` (one new `case` in the switch). The actual handler logic (`runDashboard`) lives in its own file, `governance-dashboard-handler.ts`. This separation is required so the sentinel can scan a precise file (see "Sentinel" below) without false-positiving on the rest of the dispatcher.
 
@@ -137,8 +137,8 @@ New test file: `tests/governance/governance-dashboard-sentinels.vitest.ts`.
 ```ts
 const DASHBOARD_FILES = [
   "src/governance/governance-dashboard.ts",
-  "src/cli/commands/governance-dashboard-renderer.ts",
-  "src/cli/commands/governance-dashboard-handler.ts",  // extracted runDashboard
+  "src/interfaces/cli/commands/governance-dashboard-renderer.ts",
+  "src/interfaces/cli/commands/governance-dashboard-handler.ts",  // extracted runDashboard
 ];
 ```
 
@@ -204,9 +204,9 @@ For each of the 3 dashboard files, scan for any forbidden symbol from `FORBIDDEN
 | # | Path | Action | Purpose |
 |---|------|--------|---------|
 | 1 | `src/governance/governance-dashboard.ts` | NEW | Aggregator: `buildGovernanceDashboardReport` |
-| 2 | `src/cli/commands/governance-dashboard-renderer.ts` | NEW | Terminal formatter: `renderGovernanceDashboard` |
-| 3 | `src/cli/commands/governance-dashboard-handler.ts` | NEW | `runDashboard` CLI handler (extracted for sentinel scoping) |
-| 4 | `src/cli/commands/governance.ts` | MODIFY | Register `dashboard` subcommand case (delegates to handler) |
+| 2 | `src/interfaces/cli/commands/governance-dashboard-renderer.ts` | NEW | Terminal formatter: `renderGovernanceDashboard` |
+| 3 | `src/interfaces/cli/commands/governance-dashboard-handler.ts` | NEW | `runDashboard` CLI handler (extracted for sentinel scoping) |
+| 4 | `src/interfaces/cli/commands/governance.ts` | MODIFY | Register `dashboard` subcommand case (delegates to handler) |
 | 5 | `tests/governance/governance-dashboard.vitest.ts` | NEW | 7-9 unit tests |
 | 6 | `tests/cli/commands/governance-dashboard-cli.vitest.ts` | NEW | 2-3 CLI tests |
 | 7 | `tests/governance/governance-dashboard-sentinels.vitest.ts` | NEW | Purity sentinel (scoped to 3 dashboard files) |

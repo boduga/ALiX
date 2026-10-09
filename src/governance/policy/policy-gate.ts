@@ -1,0 +1,616 @@
+/**
+ * policy-gate.ts — Single authoritative policy decision engine.
+ *
+ * All execution paths (ToolExecutor, RuntimeGate, daemon routes) call
+ * PolicyGate for policy decisions. There is exactly one decision per
+ * request, and that decision is both logged and enforced.
+ */
+
+import type { AlixConfig, SessionMode } from "../../operations/config/schema.js";
+import type { ApprovalStore } from "../approvals/approval-store.js";
+import type { EventLog } from "../../runtime-state/events/event-log.js";
+import type { WorkerOwnershipClaim } from "../../coordination/kernel/coordination-types.js";
+import type { PolicySnapshot, PolicyRuleSnapshot } from "../../interfaces/tui/snapshot.js";
+import { computePolicyRevision } from "./policy-revision.js";
+import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
+import { inferCapability } from "../../capabilities/tools/capability-map.js";
+import { extractPatchPaths } from "../../execution/patch/patch-paths.js";
+import { resolve } from "node:path";
+import { isWithinOwnedScope } from "../../coordination/ownership/path-scope.js";
+
+// ─── Types ───────────────────────────────────────────────────────────
+
+export type PolicyGateDecision = {
+  requestId: string;
+  capability: string;
+  decision: "allow" | "ask" | "deny";
+  reason: string;
+  matchedRuleId?: string;
+  approvalId?: string;
+  policyRevision?: string;
+};
+
+export type ToolPolicyRequest = {
+  requestId: string;
+  toolName: string;
+  capability?: string;       // caller-provided; falls back to inferCapability
+  args: Record<string, unknown>;
+  cwd: string;
+  sessionMode: SessionMode;
+  sessionId?: string;
+  agentId?: string;
+  source: "tool" | "graph" | "daemon" | "tui" | "replay";
+  // Coordination context
+  coordinationRunId?: string;
+  workerId?: string;
+  workerAttempt?: number;
+  ownershipClaims?: WorkerOwnershipClaim[];
+  requestFingerprint?: string;
+  // Owned-path auto-approval (headless write subagents): paths this caller
+  // is authorized to mutate without approval.
+  ownedPaths?: string[];
+};
+
+export type CapabilityPolicyRequest = {
+  requestId: string;
+  capability: string;
+  sessionMode: SessionMode;
+  nodeId?: string;
+  graphId?: string;
+  sessionId?: string;
+  agentId?: string;
+  source: "tool" | "graph" | "daemon" | "tui" | "replay";
+  metadata?: Record<string, unknown>;
+  // Coordination context
+  coordinationRunId?: string;
+  workerId?: string;
+  workerAttempt?: number;
+  ownershipClaims?: WorkerOwnershipClaim[];
+  requestFingerprint?: string;
+};
+
+// ─── Path resolution helper ──────────────────────────────────────────
+
+/** Normalize a path argument against cwd for policy checks. */
+export function resolvePolicyPath(cwd: string, path: string): string {
+  if (path.startsWith("/")) return path;
+  return resolve(cwd, path);
+}
+
+// ─── Owned-path auto-approval helpers ─────────────────────────────────
+
+/** Write tools whose mutation targets can be scoped to ownedPaths. */
+const OWNED_WRITE_TOOLS = new Set(["file.create", "file.delete", "patch.apply"]);
+
+/** Extract the mutation targets from a write-tool's args. */
+function mutationTargets(args: Record<string, unknown>): string[] {
+  const path = typeof args.path === "string" ? args.path : undefined;
+  if (path) return [path];
+  const format = typeof args.format === "string" ? args.format : undefined;
+  return extractPatchPaths(format, args.patchText);
+}
+
+// Owned-scope matching is `isWithinOwnedScope` (see the Local Contracts in
+// src/governance/policy/AGENTS.md). This gate runs BEFORE the file router, so a
+// normalization difference between them would silently deny every owned write
+// the router allowed — call the shared function directly, do not alias it.
+
+// ─── Evasion patterns (single authority) ───────────────────────────────
+
+type EvasionPattern = {
+  pattern: RegExp;
+  severity: "deny" | "ask";
+  reason: string;
+};
+
+const EVASION_PATTERNS: EvasionPattern[] = [
+  { pattern: /\|.*base64.*-d\s*\|.*sh/si, severity: "deny", reason: "Base64 encoded command execution" },
+  { pattern: /xxd.*-r.*-p.*\|.*sh/si, severity: "deny", reason: "Hex encoded command execution" },
+  { pattern: /\$.*rm/si, severity: "ask", reason: "Variable expansion with rm - need approval" },
+  { pattern: /\/dev\/tcp\//, severity: "deny", reason: "Network socket /dev/tcp detected" },
+  { pattern: /nc\s+-[eEv]\s+.*\/(bash|sh|bin)/, severity: "deny", reason: "Netcat reverse shell detected" },
+  { pattern: /bash\s+-i\s*>&.*\/dev\/tcp\//, severity: "deny", reason: "Bash reverse shell detected" },
+  { pattern: /curl\s+.*\|.*(bash|sh)\s*$/smi, severity: "deny", reason: "Download and execute pipe detected" },
+  { pattern: /wget.*-O-.*\|.*(bash|sh)\s*$/smi, severity: "deny", reason: "Wget pipe execute detected" },
+  { pattern: /sudo\s+su\s+-/, severity: "ask", reason: "Privilege escalation attempt" },
+  { pattern: /passwd\s+root/, severity: "deny", reason: "Root password modification" },
+  { pattern: /chmod\s+777.*\/(etc|usr|var|bin)/, severity: "deny", reason: "Permission escalation on system directories" },
+  { pattern: /crontab\s+-r/, severity: "ask", reason: "Crontab manipulation detected" },
+  // Persistence mechanisms: the agent proposes schedules via schedule.propose
+  // (human-approved); writing OS persistence directly is always reviewed.
+  { pattern: /\bcrontab\b/, severity: "ask", reason: "Crontab access — use schedule.propose (approval-gated) instead" },
+  { pattern: /\bat\s+(?:\d|now)\b|\bbatch\s+-f\b/, severity: "ask", reason: "at(1)/batch job access detected" },
+  { pattern: /\bsystemd-run\b|\bloginctl\b|\bsystemctl\s+(?:enable|start)\b/, severity: "ask", reason: "systemd unit control detected" },
+  { pattern: /\/etc\/(?:cron|systemd|init\.d)|\/var\/spool\/cron|\.config\/systemd\/|\/\.ssh\/authorized_keys/, severity: "ask", reason: "Write to a persistence location detected" },
+  { pattern: /authorized_keys|ssh.*key.*>>/, severity: "ask", reason: "SSH key injection detected" },
+  // Merged from the retired PolicyEngine (#689) so no prior denial is lost
+  // now that PolicyGate is the single authority:
+  { pattern: /python.*-c.*import\s+socket/s, severity: "ask", reason: "Python socket creation - manual review recommended" },
+  { pattern: /php.*exec.*socket_create/s, severity: "ask", reason: "PHP socket creation - manual review recommended" },
+  { pattern: /\.bashrc|\.bash_profile.*rm/si, severity: "ask", reason: "Shell profile modification detected" },
+  { pattern: /export\s+PATH=.*:\/\$PATH/, severity: "ask", reason: "PATH manipulation detected" },
+  { pattern: /alias\s+rm=/, severity: "ask", reason: "Alias manipulation detected" },
+  { pattern: /nohup\s+.*rm\s/si, severity: "deny", reason: "Background execution of destructive command" },
+  { pattern: /disown\s+.*rm/si, severity: "deny", reason: "Disowned destructive command" },
+  { pattern: /setsid\s+.*rm/si, severity: "deny", reason: "Setsid background destructive command" },
+  { pattern: /\&\&.*rm\s+-rf/si, severity: "deny", reason: "Chained destructive rm command" },
+];
+
+function detectEvasion(command: string): { blocked: boolean; ask: boolean; reason?: string } {
+  for (const p of EVASION_PATTERNS) {
+    if (p.pattern.test(command)) {
+      return { blocked: p.severity === "deny", ask: p.severity === "ask", reason: p.reason };
+    }
+  }
+  return { blocked: false, ask: false };
+}
+
+// ─── Session mode application ────────────────────────────────────────
+
+function applySessionMode(toolDecision: string, mode: SessionMode): "allow" | "ask" | "deny" {
+  if (toolDecision === "allow") return "allow";
+  if (toolDecision === "deny") return "deny";
+  if (mode === "auto" || mode === "bypass") return "allow";
+  return "ask";
+}
+
+// ─── Protected path check ────────────────────────────────────────────
+
+function isProtectedPath(patterns: string[], path: string): boolean {
+  return patterns.some((pattern) => {
+    if (pattern.endsWith("/**")) return path.startsWith(pattern.slice(0, -3));
+    if (pattern.endsWith(".*")) return path === pattern.slice(0, -2) || path.startsWith(pattern.slice(0, -1));
+    return path === pattern;
+  });
+}
+
+// ─── PolicyGate ──────────────────────────────────────────────────────
+
+export class PolicyGate {
+  constructor(
+    private readonly config: AlixConfig,
+    private readonly deps: {
+      approvalStore?: ApprovalStore;
+      eventLog?: EventLog;
+    } = {},
+  ) {}
+
+  /**
+   * Evaluate a tool call against policy.
+   * Returns one decision that should be both logged and enforced.
+   */
+  async evaluateToolCall(request: ToolPolicyRequest): Promise<PolicyGateDecision> {
+    const policyRevision = computePolicyRevision(this.config);
+
+    const capability = request.capability ?? inferCapability(request.toolName);
+    const args = request.args;
+
+    // 1. Check protected paths
+    const rawPath = typeof args.path === "string" ? args.path : undefined;
+    if (rawPath) {
+      const resolvedPath = resolvePolicyPath(request.cwd, rawPath);
+      if (isProtectedPath(this.config.permissions.protectedPaths, resolvedPath)) {
+        return {
+          requestId: request.requestId,
+          capability,
+          decision: "deny",
+          reason: `Path is protected: ${resolvedPath}`,
+          matchedRuleId: "protected-path-rule",
+          policyRevision,
+        };
+      }
+    }
+
+    // 2. Check deny commands
+    const command = typeof args.command === "string" ? args.command : undefined;
+    if (command && this.config.permissions.denyCommands.includes(command)) {
+      return {
+        requestId: request.requestId,
+        capability,
+        decision: "deny",
+        reason: `Command is denied: ${command}`,
+        matchedRuleId: "deny-command-rule",
+        policyRevision,
+      };
+    }
+
+    // 3. Check shell whitelist
+    if (command && this.config.permissions.shellWhitelist?.enabled) {
+      const whitelist = this.config.permissions.shellWhitelist;
+      const commands = whitelist.commands.length > 0
+        ? whitelist.commands
+        : parseWhitelistEnv(process.env.ALIX_SHELL_WHITELIST ?? "");
+      const baseCmd = command.split(/\s+/)[0];
+
+      if (BLOCKED_COMMANDS.includes(baseCmd)) {
+        return {
+          requestId: request.requestId,
+          capability,
+          decision: "deny",
+          reason: `Command '${baseCmd}' is blocked for security reasons`,
+          matchedRuleId: "blocked-command-rule",
+          policyRevision,
+        };
+      }
+
+      if (!commands.includes(baseCmd)) {
+        if (whitelist.allowUnmatched) {
+          return {
+            requestId: request.requestId,
+            capability,
+            decision: "ask",
+            reason: `Command '${baseCmd}' requires approval (not in whitelist)`,
+            matchedRuleId: "shell-whitelist-rule",
+            policyRevision,
+          };
+        }
+        return {
+          requestId: request.requestId,
+          capability,
+          decision: "deny",
+          reason: `Command '${baseCmd}' is not in the allowed whitelist`,
+          matchedRuleId: "shell-whitelist-rule",
+          policyRevision,
+        };
+      }
+    }
+
+    // 4. Evasion detection
+    if (command) {
+      const evasionResult = detectEvasion(command);
+      if (evasionResult.blocked || evasionResult.ask) {
+        return {
+          requestId: request.requestId,
+          capability,
+          decision: evasionResult.blocked ? "deny" : "ask",
+          reason: evasionResult.reason!,
+          matchedRuleId: "evasion-detection-rule",
+          policyRevision,
+        };
+      }
+    }
+
+    // 5. Tool permission from config
+    const toolDecision = this.config.permissions.tools?.[capability];
+    if (toolDecision) {
+      const effective = applySessionMode(toolDecision, request.sessionMode);
+      if (effective === "allow") {
+        return { requestId: request.requestId, capability, decision: "allow", reason: `Allowed by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
+      }
+      if (effective === "deny") {
+        return { requestId: request.requestId, capability, decision: "deny", reason: `Denied by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
+      }
+    }
+
+    // 5.5 Owned-path auto-approval (headless write subagents).
+    // The subagent's ownedPaths ARE the authorization: a write scoped entirely to
+    // owned paths is allowed; a write touching anything outside them is denied.
+    if (request.ownedPaths?.length && OWNED_WRITE_TOOLS.has(request.toolName)) {
+      const targets = mutationTargets(args);
+      if (targets.length === 0) {
+        // Unscoped (unparseable targets) — fall through to default/ask; headless
+        // subagents have no approval store so this fails closed.
+      } else {
+        const resolvedTargets = targets.map((t) => resolvePolicyPath(request.cwd, t));
+        // Protected paths are a hard deny even when owned (patch.apply has no
+        // args.path, so step 1 never sees its targets — check them here).
+        const protectedTarget = resolvedTargets.find((t) => isProtectedPath(this.config.permissions.protectedPaths, t));
+        if (protectedTarget) {
+          return {
+            requestId: request.requestId, capability, decision: "deny",
+            reason: `Path protected: ${protectedTarget}`, matchedRuleId: "protected-path-rule", policyRevision,
+          };
+        }
+        if (resolvedTargets.every((t) => isWithinOwnedScope(t, request.ownedPaths!, request.cwd))) {
+          return {
+            requestId: request.requestId, capability, decision: "allow",
+            reason: "Write targets owned path", matchedRuleId: "owned-path-rule", policyRevision,
+          };
+        }
+        const outside = resolvedTargets.filter((t) => !isWithinOwnedScope(t, request.ownedPaths!, request.cwd));
+        return {
+          requestId: request.requestId, capability, decision: "deny",
+          reason: `Write target outside owned paths: ${outside.join(", ")}`, matchedRuleId: "owned-path-rule", policyRevision,
+        };
+      }
+    }
+
+    // 6. Default policy
+    const defaultDecision = applySessionMode(this.config.permissions.default ?? "ask", request.sessionMode);
+    if (defaultDecision === "allow") {
+      return { requestId: request.requestId, capability, decision: "allow", reason: `Allowed by default policy (mode: ${request.sessionMode})`, matchedRuleId: "default-policy", policyRevision };
+    }
+    if (defaultDecision === "deny") {
+      return { requestId: request.requestId, capability, decision: "deny", reason: "Denied by default policy", matchedRuleId: "default-policy", policyRevision };
+    }
+
+    // 7. Ask — approval lifecycle
+    // Embed the target (file path or command) in the reason so the operator
+    // can see WHAT they're approving in the TUI approval panel — otherwise
+    // every shell.run shows "shell.run" with no command context.
+    let askReason = `Requires approval for capability: ${capability}`;
+    if (capability === "shell.run" && typeof args.command === "string") {
+      askReason = `Requires approval to run command: ${args.command}`;
+    } else if (capability === "file.write" && typeof args.path === "string") {
+      askReason = `Requires approval to write file: ${args.path}`;
+    }
+    const askDecision = await this.handleAskDecision(
+      request.requestId,
+      capability,
+      request.sessionMode,
+      askReason,
+      request.sessionId,
+      request.agentId,
+      request.coordinationRunId ? {
+        coordinationRunId: request.coordinationRunId,
+        workerId: request.workerId,
+        workerAttempt: request.workerAttempt,
+        ownershipClaims: request.ownershipClaims,
+        requestFingerprint: request.requestFingerprint,
+      } : undefined,
+    );
+
+    // Emit approval lifecycle event (created or reused)
+    if (this.deps.eventLog && askDecision.approvalId && askDecision.decision === "ask") {
+      const isReused = askDecision.matchedRuleId === "pending-approval";
+      await this.deps.eventLog.append({
+        sessionId: request.sessionId ?? "unknown",
+        actor: "policy",
+        type: isReused ? "approval.reused" : "approval.created",
+        payload: {
+          approvalId: askDecision.approvalId,
+          requestId: request.requestId,
+          sessionId: request.sessionId,
+          agentId: request.agentId,
+          capability,
+          toolName: (request as ToolPolicyRequest).toolName,
+          status: isReused ? ("reused" as const) : ("pending" as const),
+          reason: askDecision.reason,
+          cwd: (request as ToolPolicyRequest).cwd,
+          previousApprovalId: isReused ? askDecision.approvalId : undefined,
+        },
+      }).catch(() => {});
+    }
+
+    return askDecision;
+  }
+
+  /**
+   * Evaluate a capability against policy (for graph node checks).
+   * Simpler than evaluateToolCall — no path/command/evasion checks.
+   */
+  async evaluateCapability(request: CapabilityPolicyRequest): Promise<PolicyGateDecision> {
+    const policyRevision = computePolicyRevision(this.config);
+
+    const toolDecision = this.config.permissions.tools?.[request.capability];
+
+    if (toolDecision) {
+      const effective = applySessionMode(toolDecision, request.sessionMode);
+      if (effective === "allow") {
+        return { requestId: request.requestId, capability: request.capability, decision: "allow", reason: `Allowed by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${request.capability}`, policyRevision };
+      }
+      if (effective === "deny") {
+        return { requestId: request.requestId, capability: request.capability, decision: "deny", reason: `Denied by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${request.capability}`, policyRevision };
+      }
+    }
+
+    const defaultDecision = applySessionMode(this.config.permissions.default ?? "ask", request.sessionMode);
+    if (defaultDecision === "allow") {
+      return { requestId: request.requestId, capability: request.capability, decision: "allow", reason: "Allowed by default policy", matchedRuleId: "default-policy", policyRevision };
+    }
+    if (defaultDecision === "deny") {
+      return { requestId: request.requestId, capability: request.capability, decision: "deny", reason: "Denied by default policy", matchedRuleId: "default-policy", policyRevision };
+    }
+
+    // Pending-approval reuse (#687): consecutive capability asks for the same
+    // capability must share one pending approval instead of duplicating it —
+    // the same reuse the tool path gets via RuntimeGate. Scoped to
+    // non-coordination asks only: coordination asks carry an exact binding key
+    // and reuse through handleAskDecision, where a capability-wide match
+    // would wrongly merge distinct bindings.
+    let capAskDecision: PolicyGateDecision;
+    const existingPending = !request.coordinationRunId
+      ? this.deps.approvalStore?.findPending({ capability: request.capability })
+      : undefined;
+    if (existingPending) {
+      capAskDecision = {
+        requestId: request.requestId,
+        capability: request.capability,
+        decision: "ask",
+        reason: `Pending approval: ${existingPending.id}`,
+        approvalId: existingPending.id,
+        matchedRuleId: "pending-approval",
+        policyRevision,
+      };
+    } else {
+      capAskDecision = await this.handleAskDecision(
+        request.requestId,
+        request.capability,
+        request.sessionMode,
+        `Requires approval for capability: ${request.capability}`,
+        request.sessionId,
+        request.agentId,
+        request.coordinationRunId ? {
+          coordinationRunId: request.coordinationRunId,
+          workerId: request.workerId,
+          workerAttempt: request.workerAttempt,
+          ownershipClaims: request.ownershipClaims,
+          requestFingerprint: request.requestFingerprint,
+        } : undefined,
+      );
+    }
+
+    // Emit approval lifecycle event (created or reused)
+    if (this.deps.eventLog && capAskDecision.approvalId && capAskDecision.decision === "ask") {
+      const isReused = capAskDecision.matchedRuleId === "pending-approval";
+      await this.deps.eventLog.append({
+        sessionId: request.sessionId ?? "unknown",
+        actor: "policy",
+        type: isReused ? "approval.reused" : "approval.created",
+        payload: {
+          approvalId: capAskDecision.approvalId,
+          requestId: request.requestId,
+          sessionId: request.sessionId,
+          agentId: request.agentId,
+          capability: request.capability,
+          status: isReused ? ("reused" as const) : ("pending" as const),
+          reason: capAskDecision.reason,
+          previousApprovalId: isReused ? capAskDecision.approvalId : undefined,
+        },
+      }).catch(() => {});
+    }
+
+    return capAskDecision;
+  }
+
+  /** Handle the approval lifecycle for "ask" decisions. */
+  private async handleAskDecision(
+    requestId: string,
+    capability: string,
+    sessionMode: string,
+    reason: string,
+    sessionId?: string,
+    agentId?: string,
+    coordinationContext?: {
+      coordinationRunId?: string;
+      workerId?: string;
+      workerAttempt?: number;
+      ownershipClaims?: WorkerOwnershipClaim[];
+      requestFingerprint?: string;
+    },
+  ): Promise<PolicyGateDecision> {
+    const store = this.deps.approvalStore;
+    const policyRevision = computePolicyRevision(this.config);
+
+    if (!store) {
+      // Headless contexts (delegate subagent child CLI) configure no
+      // approval store, so every ask would fail closed here — including
+      // read-only public-web capabilities the default rules explicitly
+      // allow (allow-web-search / allow-web-fetch). Keep those usable
+      // headless; everything else still fails closed.
+      // `task.complete` (alix_done) is a zero-side-effect status signal:
+      // denying it headless means a subagent can never finish early and
+      // always burns its full iteration budget.
+      if (capability === "web.search" || capability === "web.fetch" || capability === "task.complete") {
+        return { requestId, capability, decision: "allow", reason: "Auto-allowed: read-only/headless-safe capability with no approval store", matchedRuleId: "headless-read-allow", policyRevision };
+      }
+      return { requestId, capability, decision: "deny", reason: "Approval required but no approval store configured", matchedRuleId: "approval-store-missing", policyRevision };
+    }
+
+    // When coordination context is provided, use exact binding key
+    if (coordinationContext?.coordinationRunId) {
+      const { computeBindingKey } = await import("../approvals/approval-binding.js");
+      const bindingKey = computeBindingKey({
+        coordinationRunId: coordinationContext.coordinationRunId,
+        workerId: coordinationContext.workerId,
+        workerAttempt: coordinationContext.workerAttempt,
+        capabilities: [capability],
+        ownershipClaims: coordinationContext.ownershipClaims,
+        requestFingerprint: coordinationContext.requestFingerprint ?? capability,
+        policyRevision,
+      });
+
+      // Check for existing approved binding
+      const approved = store.findExact(bindingKey);
+      if (approved?.status === "approved" && new Date(approved.expiresAt) > new Date()) {
+        // Try to consume it
+        const consumed = await store.consumeApproved(approved.id, bindingKey, {});
+        if (consumed.consumed) {
+          return { requestId, capability, decision: "allow", reason: "Approved by prior exact binding", approvalId: approved.id, matchedRuleId: "exact-binding-approved", policyRevision };
+        }
+      }
+
+      // Check for existing pending
+      const pending = store.findPendingByBindingKey(bindingKey);
+      if (pending) {
+        return { requestId, capability, decision: "ask", reason: `Pending approval: ${pending.id}`, approvalId: pending.id, matchedRuleId: "pending-approval", policyRevision };
+      }
+
+      // Create new pending with binding key
+      const approval = await store.request({ reason, capability, sessionId, agentId });
+      // Update the approval with binding key via store's internal state
+      approval.bindingKey = bindingKey;
+      approval.policyRevision = policyRevision;
+      approval.requestFingerprint = coordinationContext.requestFingerprint ?? capability;
+      approval.coordinationRunId = coordinationContext.coordinationRunId;
+      approval.workerId = coordinationContext.workerId;
+      approval.workerAttempt = coordinationContext.workerAttempt;
+      approval.ownershipClaims = coordinationContext.ownershipClaims ?? [];
+      return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
+    }
+
+    // Fallback to legacy behavior for non-coordination requests
+    // In "ask" mode, always create a fresh approval — don't reuse prior approvals.
+    // Prior-approval reuse only applies in "auto" (auto-approve) mode.
+    if (sessionMode !== "auto") {
+      // De-dup: if the same tool call has already been resolved (approved
+      // OR denied), honour that resolution. The agent loop re-executes the
+      // tool after waitForApproval returns "approved", which would otherwise
+      // create a SECOND approval for the same call — and the LLM never sees
+      // the resolved result, just another "Approval required" denial.
+      const prior = requestId ? store.findByRequestId?.(requestId) : undefined;
+      if (prior) {
+        if (prior.status === "approved") {
+          return { requestId, capability, decision: "allow", reason: `Already approved: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-approved", policyRevision };
+        }
+        if (prior.status === "denied") {
+          return { requestId, capability, decision: "deny", reason: `Already denied: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-denied", policyRevision };
+        }
+        // pending → reuse the existing pending approval
+        if (prior.status === "pending") {
+          return { requestId, capability, decision: "ask", reason: `Pending approval: ${prior.id}`, approvalId: prior.id, matchedRuleId: "pending-approval", policyRevision };
+        }
+      }
+      // Create new pending approval
+      const approval = await store.request({ reason, capability, sessionId, agentId, requestId });
+      return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
+    }
+
+    // Auto mode: check existing resolved approval
+    const resolved = store.findResolved({ capability });
+    if (resolved) {
+      if (resolved.status === "approved") {
+        return { requestId, capability, decision: "allow", reason: `Approved by prior approval: ${resolved.id}`, approvalId: resolved.id, policyRevision };
+      }
+      return { requestId, capability, decision: "deny", reason: `Prior approval was denied: ${resolved.id}`, approvalId: resolved.id, policyRevision };
+    }
+
+    // Check existing pending approval — reuse
+    const existing = store.findPending({ capability });
+    if (existing) {
+      return { requestId, capability, decision: "ask", reason: `Pending approval: ${existing.id}`, approvalId: existing.id, matchedRuleId: "pending-approval", policyRevision };
+    }
+
+    // Create new pending approval
+    const approval = await store.request({ reason, capability, sessionId, agentId });
+    return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
+  }
+
+  /**
+   * Build a PolicySnapshot for the TUI policy section: one rule per
+   * configured tool permission plus the effective enforcement mode.
+   * No violation tracking yet — violations are deferred.
+   */
+  async snapshot(): Promise<PolicySnapshot> {
+    const rules: PolicyRuleSnapshot[] = Object.entries(
+      this.config.permissions?.tools ?? {},
+    ).map(([key]) => ({
+      id: key,
+      name: key,
+      severity: "medium" as const,
+      lastResult: "pass" as const,
+      lastEvaluatedAt: Date.now(),
+    }));
+
+    const rawMode = this.config.permissions?.sessionMode ?? "auto";
+    const enforcementMode: "strict" | "auto" | "bypass" =
+      rawMode === "ask" ? "strict" : rawMode;
+
+    return {
+      rules,
+      violations: [],
+      enforcementMode,
+      recentViolationCount: 0,
+    };
+  }
+}

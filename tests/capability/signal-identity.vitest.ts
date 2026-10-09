@@ -5,8 +5,8 @@ import { describe, it, expect } from "vitest";
 import {
   computeSignalId,
   isValidSignalId,
-} from "../../src/capability/evolution/signal-identity.js";
-import type { CapabilityEvolutionSignal } from "../../src/capability/evolution/proposals.js";
+} from "../../src/capabilities/capability/evolution/signal-identity.js";
+import type { CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/proposals.js";
 
 describe("computeSignalId (CAP-10.5 ruling #R5)", () => {
   const underperformer: CapabilityEvolutionSignal = {

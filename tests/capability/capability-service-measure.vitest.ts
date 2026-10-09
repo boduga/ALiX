@@ -15,18 +15,18 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityService } from "../../src/capability/capability-service.js";
-import { CapabilityServiceNotImplementedError } from "../../src/capability/errors/service-not-implemented.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { CapabilityResolver } from "../../src/capability/provider-resolver.js";
-import { ProviderExecutorRegistry } from "../../src/capability/provider-registry.js";
-import { CapabilityMeasurementEngine } from "../../src/capability/measurement/capability-measurement-engine.js";
-import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import type { Measurement } from "../../src/capability/measurement/measurement-contract.js";
-import type { CapabilityMeasurementOutcome } from "../../src/capability/measurement/outcome-discriminated-union.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityService } from "../../src/capabilities/capability/capability-service.js";
+import { CapabilityServiceNotImplementedError } from "../../src/capabilities/capability/errors/service-not-implemented.js";
+import { CapabilityCatalog } from "../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../src/capabilities/capability/canonical/catalog-store.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { CapabilityResolver } from "../../src/capabilities/capability/provider-resolver.js";
+import { ProviderExecutorRegistry } from "../../src/capabilities/capability/provider-registry.js";
+import { CapabilityMeasurementEngine } from "../../src/capabilities/capability/measurement/capability-measurement-engine.js";
+import { ObservationEngine } from "../../src/planning/evolution/observation/observation-engine.js";
+import type { Measurement } from "../../src/capabilities/capability/measurement/measurement-contract.js";
+import type { CapabilityMeasurementOutcome } from "../../src/capabilities/capability/measurement/outcome-discriminated-union.js";
 
 function mkA5(): Measurement {
   return {

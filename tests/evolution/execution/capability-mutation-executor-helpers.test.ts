@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { bumpSemVer, applyCapabilityDefinitionPatch, toCapabilityMutationChange } from "../../../src/evolution/execution/capability-mutation-executor.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
+import { bumpSemVer, applyCapabilityDefinitionPatch, toCapabilityMutationChange } from "../../../src/planning/evolution/execution/capability-mutation-executor.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
 
 function def(overrides: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return {

@@ -1,7 +1,7 @@
 /**
  * P10.10 — Baseline intelligence purity sentinel.
  *
- * Enforces hard boundary: src/baseline/ must not import from
+ * Enforces hard boundary: src/context/baseline/ must not import from
  * Executive or Adaptation, and must not perform file I/O.
  *
  * Exceptions (explicitly allowed):
@@ -21,7 +21,7 @@ import { importedSpecifiers, toPosix } from "../helpers/import-graph.js";
 // ---------------------------------------------------------------------------
 
 const ROOT = resolve(import.meta.dirname, "../..");
-const BASELINE_SRC = join(ROOT, "src", "baseline");
+const BASELINE_SRC = join(ROOT, "src", "context", "baseline");
 
 /** Files granted special import exceptions. */
 const ALLOWED_FS: string[] = [
@@ -44,7 +44,7 @@ const ALLOWED_EXECUTIVE: string[] = [
 
 const baselineFiles = globSync("**/*.ts", { cwd: BASELINE_SRC, ignore: ["**/node_modules/**"] });
 
-/** Matches a relative specifier that resolves into `src/<name>/…` from anywhere under src/baseline/. */
+/** Matches a relative specifier that resolves into `src/<name>/…` from anywhere under src/context/baseline/. */
 function intoModule(name: string): RegExp {
   return new RegExp(`^\\.\\./(?:\\.\\./)*${name}(?:/|$)`);
 }

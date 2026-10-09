@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { AgentRuntimeHealthProvider } from "../../../src/baseline/providers/agent-runtime-health-provider.js";
+import { AgentRuntimeHealthProvider } from "../../../src/context/baseline/providers/agent-runtime-health-provider.js";
 
 describe("AgentRuntimeHealthProvider", () => {
   const provider = new AgentRuntimeHealthProvider();

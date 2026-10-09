@@ -1,8 +1,8 @@
 # Workbench Smoke-Test Checklist
 
 A short manual checklist for verifying the core Workbench controls in the TUI.
-Run through it after any change to `src/tui/workbench/`. Source of truth for key
-routing: `src/tui/workbench/input/input-router.ts` (see `docs/keyboard-navigation.md`).
+Run through it after any change to `src/interfaces/tui/workbench/`. Source of truth for key
+routing: `src/interfaces/tui/workbench/input/input-router.ts` (see `docs/keyboard-navigation.md`).
 
 ## Prerequisites
 

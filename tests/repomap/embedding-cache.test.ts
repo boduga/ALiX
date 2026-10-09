@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
-import { EmbeddingCache } from "../../src/repomap/embedding-cache.js";
+import { EmbeddingCache } from "../../src/context/repomap/embedding-cache.js";
 
 // Embedding tests download a model from HuggingFace at runtime.
 // CI runners may not have reliable access to the model hub, so check

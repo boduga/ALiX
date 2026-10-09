@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { mkdtemp } from "node:fs/promises";
 import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { discoverVerification } from "../src/verifier/verifier.js";
+import { discoverVerification } from "../src/execution/verifier/verifier.js";
 
 test("orders typecheck before build before test", async () => {
     const root = await mkdtemp(join(tmpdir(), "cost-order-"));

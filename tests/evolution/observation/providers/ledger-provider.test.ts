@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { LedgerObservationProvider } from "../../../../src/evolution/observation/providers/ledger-provider.js";
-import { ExecutionEvidenceStore } from "../../../../src/evolution/verification/evidence/evidence-store.js";
+import { LedgerObservationProvider } from "../../../../src/planning/evolution/observation/providers/ledger-provider.js";
+import { ExecutionEvidenceStore } from "../../../../src/planning/evolution/verification/evidence/evidence-store.js";
 
 describe("LedgerObservationProvider", () => {
   let evidenceDir: string;

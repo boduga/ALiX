@@ -602,7 +602,7 @@ Version 1:
       "id": "task-001",
       "index": 1,
       "title": "Create action classifier",
-      "detail": "src/runtime/task-router.ts",
+      "detail": "src/runtime-state/runtime/task-router.ts",
       "status": "pending",
       "createdAt": "2026-07-24T00:00:00Z"
     }

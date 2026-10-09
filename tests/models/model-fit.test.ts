@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { rankProfiles } from "../../src/models/model-fit.js";
-import type { ProfileData } from "../../src/config/profile-types.js";
-import type { SystemInfo } from "../../src/config/profile-registry.js";
+import type { ProfileData } from "../../src/operations/config/profile-types.js";
+import type { SystemInfo } from "../../src/operations/config/profile-registry.js";
 
 describe("rankProfiles", () => {
   const system: SystemInfo = {

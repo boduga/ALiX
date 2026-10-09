@@ -6,9 +6,9 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PriorityStore } from "../../src/adaptation/priority-store.js";
-import { SCORING_VERSION } from "../../src/adaptation/priority-types.js";
-import type { ProposalPriorityReport } from "../../src/adaptation/priority-types.js";
+import { PriorityStore } from "../../src/planning/adaptation/priority-store.js";
+import { SCORING_VERSION } from "../../src/planning/adaptation/priority-types.js";
+import type { ProposalPriorityReport } from "../../src/planning/adaptation/priority-types.js";
 
 function makeReport(ts?: string): ProposalPriorityReport {
   const generatedAt = ts ?? "2026-06-19T23:30:00.000Z";

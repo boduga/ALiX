@@ -2,23 +2,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile, readFile, unlink, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { NormalizedRequest } from "../../src/providers/types.js";
+import type { NormalizedRequest } from "../../src/models/providers/types.js";
 
 const harness = vi.hoisted(() => ({ complete: vi.fn(), execute: vi.fn() }));
-vi.mock("../../src/providers/registry.js", () => ({ createProvider: async () => ({ complete: harness.complete }) }));
-vi.mock("../../src/config/loader.js", async () => {
-  const { DEFAULT_CONFIG } = await import("../../src/config/defaults.js");
+vi.mock("../../src/models/providers/registry.js", () => ({ createProvider: async () => ({ complete: harness.complete }) }));
+vi.mock("../../src/operations/config/loader.js", async () => {
+  const { DEFAULT_CONFIG } = await import("../../src/operations/config/defaults.js");
   return { loadConfig: async () => ({ ...structuredClone(DEFAULT_CONFIG), models: { default: { provider: "fixture", name: "fixture" } } }) };
 });
-vi.mock("../../src/events/event-log.js", () => ({ EventLog: class { async init() {} async append() {} } }));
-vi.mock("../../src/repomap/context-compiler.js", () => ({ ContextCompiler: class {
+vi.mock("../../src/runtime-state/events/event-log.js", () => ({ EventLog: class { async init() {} async append() {} } }));
+vi.mock("../../src/context/repomap/context-compiler.js", () => ({ ContextCompiler: class {
   async warm() {} async compileContext() { return { primaryFiles: [] }; }
 } }));
-vi.mock("../../src/mcp/manager.js", () => ({ McpManager: class {
+vi.mock("../../src/capabilities/mcp/manager.js", () => ({ McpManager: class {
   async initialize() { throw new Error("No MCP in deterministic fixture"); }
   async closeAll() {}
 } }));
-vi.mock("../../src/tools/executor.js", () => ({ ToolExecutor: class { execute = harness.execute; } }));
+vi.mock("../../src/capabilities/tools/executor.js", () => ({ ToolExecutor: class { execute = harness.execute; } }));
 vi.mock("../../src/run.js", () => ({ buildToolsForProvider: () => ["alix_grep_search", "alix_file_create", "alix_file_delete", "alix_done"].map(name => ({
   name, description: name, input_schema: { type: "object", properties: {} },
 })) }));

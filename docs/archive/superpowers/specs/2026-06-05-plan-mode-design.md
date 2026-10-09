@@ -90,15 +90,15 @@ New:      classify → context → PLAN ──→ approve? ──→ tool loop �
 ## 3. Implementation
 
 ### Files to create
-- `src/run/plan-phase.ts` — new module: `generatePlan()` and `promptForPlanApproval()`
+- `src/execution/run/plan-phase.ts` — new module: `generatePlan()` and `promptForPlanApproval()`
 
 ### Files to modify
-- `src/agent/agent-loop.ts` — in `runTask()`, after context compilation, call `runPlanPhase()` before entering the tool loop
+- `src/agents/agent/agent-loop.ts` — in `runTask()`, after context compilation, call `runPlanPhase()` before entering the tool loop
 - `src/run.ts` — add `planMode?: boolean` to `RunOpts` (default true)
 - `src/cli.ts` — add `--no-plan` flag parsing
 - `src/task-classifier.ts` — ensure classifier exposes whether the task requires file changes (for auto-skip logic)
 
-### `src/run/plan-phase.ts`
+### `src/execution/run/plan-phase.ts`
 
 ```typescript
 export interface PlanPhaseResult {

@@ -20,14 +20,14 @@ import {
   validateEvolutionExecutionEvidence,
   validateExecutionStep,
   validateRollbackStep,
-} from "../../../src/evolution/execution/index.js";
+} from "../../../src/planning/evolution/execution/index.js";
 import type {
   ExecutionPlan,
   ExecutionReport,
   EvolutionExecutionEvidence,
   ExecutionAuthorizationResult,
-} from "../../../src/evolution/execution/index.js";
-import { VALID_EVIDENCE_CLASSES } from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/execution/index.js";
+import { VALID_EVIDENCE_CLASSES } from "../../../src/planning/evolution/verification/index.js";
 
 // ---------------------------------------------------------------------------
 // ExecutionState

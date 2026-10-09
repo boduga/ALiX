@@ -334,18 +334,18 @@ interface PolicyDecision {
 
 | File | Action | Task |
 |------|--------|------|
-| `src/kernel/replan-types.ts` | CREATE | 1a |
-| `src/kernel/replan-proposal-store.ts` | CREATE | 1a |
-| `src/kernel/collaboration-context-builder.ts` | MODIFY | 1b |
-| `src/kernel/model-replan-adapter.ts` | CREATE | 1c |
-| `src/kernel/replan-validator.ts` | CREATE | 1d |
-| `src/kernel/replan-simulator.ts` | CREATE | 1d |
-| `src/kernel/replan-impact-analyzer.ts` | CREATE | 1e |
-| `src/kernel/replan-approval-gate.ts` | CREATE | 1f |
-| `src/kernel/replan-applier.ts` | CREATE | 1g |
-| `src/kernel/model-assisted-replan-service.ts` | CREATE | 1h |
-| `src/kernel/approval-store.ts` | MODIFY | 1f (requestFresh/requestOrReusePending) |
-| `src/kernel/coordination-types.ts` | MODIFY (minor) | 1a |
+| `src/coordination/kernel/replan-types.ts` | CREATE | 1a |
+| `src/coordination/kernel/replan-proposal-store.ts` | CREATE | 1a |
+| `src/coordination/kernel/collaboration-context-builder.ts` | MODIFY | 1b |
+| `src/coordination/kernel/model-replan-adapter.ts` | CREATE | 1c |
+| `src/coordination/kernel/replan-validator.ts` | CREATE | 1d |
+| `src/coordination/kernel/replan-simulator.ts` | CREATE | 1d |
+| `src/coordination/kernel/replan-impact-analyzer.ts` | CREATE | 1e |
+| `src/coordination/kernel/replan-approval-gate.ts` | CREATE | 1f |
+| `src/coordination/kernel/replan-applier.ts` | CREATE | 1g |
+| `src/coordination/kernel/model-assisted-replan-service.ts` | CREATE | 1h |
+| `src/coordination/kernel/approval-store.ts` | MODIFY | 1f (requestFresh/requestOrReusePending) |
+| `src/coordination/kernel/coordination-types.ts` | MODIFY (minor) | 1a |
 | `tests/kernel/replan-proposal-store.test.ts` | CREATE | 1a |
 | `tests/kernel/model-replan-adapter.test.ts` | CREATE | 1c |
 | `tests/kernel/replan-validator.test.ts` | CREATE | 1d |

@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { stripAnsi } from '../../../src/tui/box.js';
+import { stripAnsi } from '../../../src/interfaces/tui/box.js';
 import { expectGolden, renderAsciiPreviewFrame, renderFullFrame } from './golden-helper.js';
 
 /**

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { NativeExecutor } from '../../src/capability/executors.js';
-import type { Capability, CapabilityContext } from '../../src/capability/types.js';
+import { NativeExecutor } from '../../src/capabilities/capability/executors.js';
+import type { Capability, CapabilityContext } from '../../src/capabilities/capability/types.js';
 
 function cap(strategy: string): Capability {
   return {

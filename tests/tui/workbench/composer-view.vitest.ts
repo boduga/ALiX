@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutComposer } from '../../../src/tui/workbench/views/composer-view.js';
+import { layoutComposer } from '../../../src/interfaces/tui/workbench/views/composer-view.js';
 
 describe('layoutComposer', () => {
   it('preserves explicit newlines and reports the terminal cursor', () => {

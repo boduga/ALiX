@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceChainStore } from "../../src/learning/evidence-chain-store.js";
-import type { LearningEvidenceChain } from "../../src/learning/evidence-chain-types.js";
+import { EvidenceChainStore } from "../../src/planning/learning/evidence-chain-store.js";
+import type { LearningEvidenceChain } from "../../src/planning/learning/evidence-chain-types.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;

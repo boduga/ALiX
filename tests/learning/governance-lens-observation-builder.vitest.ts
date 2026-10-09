@@ -13,16 +13,16 @@ import { describe, it, expect } from "vitest";
 import {
   buildLensObservations,
   isWarningVerdict,
-} from "../../src/learning/governance-lens-observation-builder.js";
+} from "../../src/planning/learning/governance-lens-observation-builder.js";
 import type {
   GovernanceReview,
   LensName,
   LensScore,
-} from "../../src/adaptation/governance-review-types.js";
+} from "../../src/planning/adaptation/governance-review-types.js";
 import type {
   GovernanceVerdict,
-} from "../../src/adaptation/governance-review-types.js";
-import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
+} from "../../src/planning/adaptation/governance-review-types.js";
+import type { OutcomeRecord } from "../../src/planning/adaptation/outcome-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers (mirror the fixture pattern used by governance-calibration-adapter)

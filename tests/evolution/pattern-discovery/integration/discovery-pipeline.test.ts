@@ -23,10 +23,10 @@
 
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
-import { PatternDiscoveryEngine } from "../../../../src/evolution/pattern-discovery/pattern-discovery-engine.js";
-import { ExecutionFailureStrategy } from "../../../../src/evolution/pattern-discovery/strategies/execution-failure-strategy.js";
-import { ApprovalFrictionStrategy } from "../../../../src/evolution/pattern-discovery/strategies/approval-friction-strategy.js";
-import type { ExecutionEvidence } from "../../../../src/runtime/contracts/execution-intent-contract.js";
+import { PatternDiscoveryEngine } from "../../../../src/planning/evolution/pattern-discovery/pattern-discovery-engine.js";
+import { ExecutionFailureStrategy } from "../../../../src/planning/evolution/pattern-discovery/strategies/execution-failure-strategy.js";
+import { ApprovalFrictionStrategy } from "../../../../src/planning/evolution/pattern-discovery/strategies/approval-friction-strategy.js";
+import type { ExecutionEvidence } from "../../../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 import type { GovernanceAuditEvent } from "../../../../src/governance/audit-types.js";
 
 // ---------------------------------------------------------------------------

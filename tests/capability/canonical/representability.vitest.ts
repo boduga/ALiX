@@ -5,19 +5,19 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityRegistry } from "../../../src/capability/registry.js";
-import { NativeExecutor } from "../../../src/capability/executors.js";
-import { registerInitialCapabilities } from "../../../src/capability/initial-capabilities.js";
-import { CapabilityCatalog } from "../../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
-import { CatalogBackedCapabilityMutationPort } from "../../../src/capability/mutation-port.js";
-import type { Capability } from "../../../src/capability/types.js";
-import { migrateKind } from "../../../src/capability/canonical/kind.js";
-import { validateCapabilityDefinition } from "../../../src/capability/canonical/definition.js";
-import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
-import { isValidVersion } from "../../../src/capability/canonical/version.js";
-import { PROVIDER_TYPES } from "../../../src/capability/canonical/provider.js";
-import type { ProviderType } from "../../../src/capability/canonical/provider.js";
+import { CapabilityRegistry } from "../../../src/capabilities/capability/registry.js";
+import { NativeExecutor } from "../../../src/capabilities/capability/executors.js";
+import { registerInitialCapabilities } from "../../../src/capabilities/capability/initial-capabilities.js";
+import { CapabilityCatalog } from "../../../src/capabilities/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../../src/capabilities/capability/canonical/catalog-store.js";
+import { CatalogBackedCapabilityMutationPort } from "../../../src/capabilities/capability/mutation-port.js";
+import type { Capability } from "../../../src/capabilities/capability/types.js";
+import { migrateKind } from "../../../src/capabilities/capability/canonical/kind.js";
+import { validateCapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
+import type { CapabilityDefinition } from "../../../src/capabilities/capability/canonical/definition.js";
+import { isValidVersion } from "../../../src/capabilities/capability/canonical/version.js";
+import { PROVIDER_TYPES } from "../../../src/capabilities/capability/canonical/provider.js";
+import type { ProviderType } from "../../../src/capabilities/capability/canonical/provider.js";
 
 /** Normalize short SemVer to full MAJOR.MINOR.PATCH ("1.0" -> "1.0.0").
  *  Already-full versions pass through unchanged. */

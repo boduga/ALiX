@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
-import { EventLog } from "../../src/events/event-log.js";
-import { FileToolRouter, PatchToolRouter } from "../../src/tools/tool-router.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { FileToolRouter, PatchToolRouter } from "../../src/capabilities/tools/tool-router.js";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";

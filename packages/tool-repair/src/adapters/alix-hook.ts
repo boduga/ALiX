@@ -6,7 +6,7 @@
  *   - on_tool_error: reports corrected args via reason field
  */
 import { ToolRepair } from "../index.js";
-import type { HookFn, HookEvent, HookResult } from "../../../../src/extensions/hook-runner.js";
+import type { HookFn, HookEvent, HookResult } from "../../../../src/capabilities/extensions/hook-runner.js";
 
 export function createToolRepairHooks(modelKey: string): Array<{ name: string; fn: HookFn }> {
   const repair = new ToolRepair(modelKey);

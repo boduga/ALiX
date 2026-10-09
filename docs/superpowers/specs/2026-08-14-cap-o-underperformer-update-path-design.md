@@ -4,14 +4,14 @@
 **Date:** 2026-08-14
 **Author:** CAP-O spec drafting session
 **Parent program:** CAP-1 → CAP-12 greenfield capability platform (tag `alix-capability-greenfield-complete`) → CAP-N
-**Predecessor frontier:** CAP-N (`f5b2f663`) closed the §20 #12 carve-out at `src/capability/capability-service.ts:702,704`.
+**Predecessor frontier:** CAP-N (`f5b2f663`) closed the §20 #12 carve-out at `src/capabilities/capability/capability-service.ts:702,704`.
 **Closes:** the post-CAP-N discriminator gap where `underperformer` `sourcePatternId` routes to `capability.transition` instead of `capability.update`.
 
 ## 1. Problem
 
 CAP-N closed the greenfield program carve-out (`gap` → `capability.create`, `deprecation_signal` → `capability.remove`). Two sourcePatternIds still route to `capability.transition`: `underperformer` and `consolidation_opportunity`. The post-CAP-N wayfinder map #511 (closed 2026-08-14) locked the frontier order `CAP-O → CAP-P → A8 → A9 → TUI/Web`. CAP-O is the next authorized frontier.
 
-The carve-out is in the same function CAP-N edited: `candidateToExecutionStep` at `src/capability/capability-service.ts:695-771`. The fallback path at lines 757-771 catches both `underperformer` and `consolidation_opportunity` (and `default`) and emits `capability.transition`.
+The carve-out is in the same function CAP-N edited: `candidateToExecutionStep` at `src/capabilities/capability/capability-service.ts:695-771`. The fallback path at lines 757-771 catches both `underperformer` and `consolidation_opportunity` (and `default`) and emits `capability.transition`.
 
 For `underperformer` this is semantically wrong. The signal reports that an existing capability is underperforming. The right mutation is to **update** that capability, recording the approved evolutionary decision and its evidence so it is durably attributable. The current fallback emits a transition from `emerging` to `active`, which is exactly what `capability.transition` should do — but the signal isn't asking for a lifecycle change.
 
@@ -39,13 +39,13 @@ The architectural progression: `CAP-N → CAP-O → CAP-P` — each CAP adds one
 - **Mutation contract changes.** `CapabilityUpdateMutation` already requires `capabilityId`, `sourceVersion`, non-empty `patch`. CAP-O supplies those via the candidate; no contract changes.
 - **Executor changes.** `nextDefinitionForUpdate` and the executor's update path handle the provenance-only patch without modification.
 - **No CAP-O tag.** CAP-O merges like CAP-N — no separate tag ceremony.
-- **CAP-12 forbidden-file policy partly lifted.** `src/capability/capability-service.ts` is on the CAP-12 forbidden list. CAP-O lifts the restriction for that single file because the discriminator is exactly in that file. All other CAP-12 forbidden files remain forbidden.
+- **CAP-12 forbidden-file policy partly lifted.** `src/capabilities/capability/capability-service.ts` is on the CAP-12 forbidden list. CAP-O lifts the restriction for that single file because the discriminator is exactly in that file. All other CAP-12 forbidden files remain forbidden.
 
 ## 4. Architecture
 
 ### 4.1 Operation mapping (locked)
 
-The discriminator lives in `candidateToExecutionStep` at `src/capability/capability-service.ts:695-771`. CAP-O rewrites the `case "underperformer":` arm (currently falls through to `capability.transition`).
+The discriminator lives in `candidateToExecutionStep` at `src/capabilities/capability/capability-service.ts:695-771`. CAP-O rewrites the `case "underperformer":` arm (currently falls through to `capability.transition`).
 
 ```typescript
 case "underperformer": {
@@ -76,7 +76,7 @@ case "underperformer": {
 
 ### 4.2 Candidate extension (locked)
 
-`src/adaptation/capability-evolution-types.ts:172-181` adds one optional field:
+`src/planning/adaptation/capability-evolution-types.ts:172-181` adds one optional field:
 
 ```typescript
 export interface CapabilityEvolutionCandidate {
@@ -102,7 +102,7 @@ Invariant: `proposedPatch` is **only present and non-empty** when `sourcePattern
 
 ### 4.3 A7 derivation (locked)
 
-`src/capability/evolution/a7-proposals.ts:206-216` (`signalToCandidate` `case "underperformer":`) constructs the patch:
+`src/capabilities/capability/evolution/a7-proposals.ts:206-216` (`signalToCandidate` `case "underperformer":`) constructs the patch:
 
 ```typescript
 case "underperformer": {
@@ -170,7 +170,7 @@ An underperformer signal arrives at A5 (`a5-capability-measurement.ts`) → A5 p
 
 ## 6. Composition root
 
-No changes. The composition root at `src/capability/platform.ts` already provides `CapabilityService` with `executor`, `proposalStore`, and `catalog`. CAP-O is internal to `candidateToExecutionStep` and `signalToCandidate`.
+No changes. The composition root at `src/capabilities/capability/platform.ts` already provides `CapabilityService` with `executor`, `proposalStore`, and `catalog`. CAP-O is internal to `candidateToExecutionStep` and `signalToCandidate`.
 
 ## 7. Migration boundary
 
@@ -247,18 +247,18 @@ Full capability vitest suite passes with **zero regressions**: all existing test
 ## 12. References
 
 - CAP-N spec: `docs/superpowers/specs/2026-08-14-cap-n-end-to-end-create-path-design.md`
-- CAP-N implementation: `src/capability/capability-service.ts:695-771` (discriminator); `tests/capability/cap-n-candidate-mapping.vitest.ts`
+- CAP-N implementation: `src/capabilities/capability/capability-service.ts:695-771` (discriminator); `tests/capability/cap-n-candidate-mapping.vitest.ts`
 - Post-CAP-N wayfinder map #511: closed 2026-08-14; locked frontier order `CAP-O → CAP-P → A8 → A9 → TUI/Web`
 - Post-CAP-N Ticket B (M2/A8): commit `b7cc01e0` — M2 does not block A8
 - Post-CAP-N Ticket C (CAP-P contract): commit `3772e941` — CAP-P is contract-extension
 - Post-CAP-N Ticket D (A8 store): commit `9f36adb3` — A8 mirrors A6 curation pattern
-- Discriminator site: `src/capability/capability-service.ts:695-771`
-- Candidate type: `src/adaptation/capability-evolution-types.ts:172-181`
-- A7 derivation: `src/capability/evolution/a7-proposals.ts:206-216`
-- Mutation contract: `src/capability/mutation-contract.ts:90-95` (`CapabilityUpdateMutation`), 435-449 (`validateUpdate`)
-- Update-bump classifier: `src/capability/mutation-contract.ts:161-193` (`classifyUpdateBump`); extensions is a PATCH field
-- Executor update path: `src/evolution/execution/capability-mutation-executor.ts:110-123` (`nextDefinitionForUpdate`)
-- A7 proposal generator: `src/capability/evolution/a7-proposals.ts:192-242` (discriminator mapping)
-- A5 measurement (out of scope for CAP-O): `src/evolution/observation/a5-capability-measurement.ts`
-- M1 emission seam (out of scope for CAP-O): `src/capability/evolution/proposal-signal-channel.ts`
+- Discriminator site: `src/capabilities/capability/capability-service.ts:695-771`
+- Candidate type: `src/planning/adaptation/capability-evolution-types.ts:172-181`
+- A7 derivation: `src/capabilities/capability/evolution/a7-proposals.ts:206-216`
+- Mutation contract: `src/capabilities/capability/mutation-contract.ts:90-95` (`CapabilityUpdateMutation`), 435-449 (`validateUpdate`)
+- Update-bump classifier: `src/capabilities/capability/mutation-contract.ts:161-193` (`classifyUpdateBump`); extensions is a PATCH field
+- Executor update path: `src/planning/evolution/execution/capability-mutation-executor.ts:110-123` (`nextDefinitionForUpdate`)
+- A7 proposal generator: `src/capabilities/capability/evolution/a7-proposals.ts:192-242` (discriminator mapping)
+- A5 measurement (out of scope for CAP-O): `src/planning/evolution/observation/a5-capability-measurement.ts`
+- M1 emission seam (out of scope for CAP-O): `src/capabilities/capability/evolution/proposal-signal-channel.ts`
 - ADR-0013 §4/§5/§7 (provider abstraction + execution binding + lifecycle)

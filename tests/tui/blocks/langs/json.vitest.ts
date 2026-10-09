@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { jsonTokenizer } from '../../../../src/tui/blocks/langs/json.js';
+import { jsonTokenizer } from '../../../../src/interfaces/tui/blocks/langs/json.js';
 
 describe('jsonTokenizer', () => {
   it('tokenizes keys and values as strings', () => {

@@ -18,14 +18,14 @@
 - `observeAll()` MUST preserve input ordering in output for deterministic evidence hashing
 - Branch: `feat/a5-outcome-observation` (tracking `origin/main`)
 - Tests mirror source at `tests/evolution/observation/`
-- All test files import from `../../../src/evolution/observation/...` using `.js` extensions
+- All test files import from `../../../src/planning/evolution/observation/...` using `.js` extensions
 
 ---
 
 ## File Structure
 
 ```
-src/evolution/observation/
+src/planning/evolution/observation/
 ├── contracts/
 │   └── observation-contract.ts     — Observation, ObservationResult, ObservationProvider
 ├── observation-engine.ts            — ObservationEngine class
@@ -59,7 +59,7 @@ tests/evolution/observation/
 ### Task 1: Core Contracts
 
 **Files:**
-- Create: `src/evolution/observation/contracts/observation-contract.ts`
+- Create: `src/planning/evolution/observation/contracts/observation-contract.ts`
 - Test: `tests/evolution/observation/observation-contract.test.ts`
 
 **Interfaces:**
@@ -226,7 +226,7 @@ import {
   validateObservationResult,
   type Observation,
   type ObservationResult,
-} from "../../../src/evolution/observation/contracts/observation-contract.js";
+} from "../../../src/planning/evolution/observation/contracts/observation-contract.js";
 
 describe("validateObservation", () => {
   it("accepts a valid observation", () => {
@@ -326,8 +326,8 @@ Expected: FAIL with module-not-found errors (file doesn't exist yet)
 - [ ] **Step 4: Create src directory structure**
 
 ```bash
-mkdir -p src/evolution/observation/contracts
-mkdir -p src/evolution/observation/providers
+mkdir -p src/planning/evolution/observation/contracts
+mkdir -p src/planning/evolution/observation/providers
 mkdir -p tests/evolution/observation/providers
 mkdir -p tests/evolution/observation/integration
 ```
@@ -345,7 +345,7 @@ Expected: ALL tests pass
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/evolution/observation/contracts/observation-contract.ts tests/evolution/observation/observation-contract.test.ts
+git add src/planning/evolution/observation/contracts/observation-contract.ts tests/evolution/observation/observation-contract.test.ts
 git commit -m "feat(A5): add observation contract types
 
 Define Observation, ObservationResult, ObservationProvider interfaces
@@ -360,7 +360,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 2: ObservationEngine
 
 **Files:**
-- Create: `src/evolution/observation/observation-engine.ts`
+- Create: `src/planning/evolution/observation/observation-engine.ts`
 - Test: `tests/evolution/observation/observation-engine.test.ts`
 
 **Interfaces:**
@@ -375,8 +375,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
-import { ObservationEngine } from "../../../src/evolution/observation/observation-engine.js";
-import type { Observation, ObservationResult, ObservationProvider } from "../../../src/evolution/observation/contracts/observation-contract.js";
+import { ObservationEngine } from "../../../src/planning/evolution/observation/observation-engine.js";
+import type { Observation, ObservationResult, ObservationProvider } from "../../../src/planning/evolution/observation/contracts/observation-contract.js";
 
 function makeMockProvider(name: string): ObservationProvider {
   return {
@@ -640,7 +640,7 @@ Expected: ALL tests pass
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/evolution/observation/observation-engine.ts tests/evolution/observation/observation-engine.test.ts
+git add src/planning/evolution/observation/observation-engine.ts tests/evolution/observation/observation-engine.test.ts
 git commit -m "feat(A5): add ObservationEngine with provider dispatch
 
 ObservationEngine routes observations to registered providers by
@@ -655,7 +655,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 3: CLI Provider
 
 **Files:**
-- Create: `src/evolution/observation/providers/cli-provider.ts`
+- Create: `src/planning/evolution/observation/providers/cli-provider.ts`
 - Test: `tests/evolution/observation/providers/cli-provider.test.ts`
 
 **Interfaces:**
@@ -670,7 +670,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { CliObservationProvider } from "../../../../src/evolution/observation/providers/cli-provider.js";
+import { CliObservationProvider } from "../../../../src/planning/evolution/observation/providers/cli-provider.js";
 
 describe("CliObservationProvider", () => {
   const provider = new CliObservationProvider();
@@ -885,7 +885,7 @@ Expected: ALL tests pass
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/evolution/observation/providers/cli-provider.ts tests/evolution/observation/providers/cli-provider.test.ts
+git add src/planning/evolution/observation/providers/cli-provider.ts tests/evolution/observation/providers/cli-provider.test.ts
 git commit -m "feat(A5): add CLI observation provider
 
 CLI Provider executes commands via execFile, captures exit code,
@@ -900,7 +900,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 4: Filesystem Provider
 
 **Files:**
-- Create: `src/evolution/observation/providers/filesystem-provider.ts`
+- Create: `src/planning/evolution/observation/providers/filesystem-provider.ts`
 - Test: `tests/evolution/observation/providers/filesystem-provider.test.ts`
 
 **Interfaces:**
@@ -918,7 +918,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { FilesystemObservationProvider } from "../../../../src/evolution/observation/providers/filesystem-provider.js";
+import { FilesystemObservationProvider } from "../../../../src/planning/evolution/observation/providers/filesystem-provider.js";
 
 describe("FilesystemObservationProvider", () => {
   const provider = new FilesystemObservationProvider();
@@ -1164,7 +1164,7 @@ Expected: ALL tests pass
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/evolution/observation/providers/filesystem-provider.ts tests/evolution/observation/providers/filesystem-provider.test.ts
+git add src/planning/evolution/observation/providers/filesystem-provider.ts tests/evolution/observation/providers/filesystem-provider.test.ts
 git commit -m "feat(A5): add filesystem observation provider
 
 Filesystem Provider checks file existence, SHA-256 hashes, and stat
@@ -1179,7 +1179,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 5: Git Provider
 
 **Files:**
-- Create: `src/evolution/observation/providers/git-provider.ts`
+- Create: `src/planning/evolution/observation/providers/git-provider.ts`
 - Test: `tests/evolution/observation/providers/git-provider.test.ts`
 
 **Interfaces:**
@@ -1198,7 +1198,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
-import { GitObservationProvider } from "../../../../src/evolution/observation/providers/git-provider.js";
+import { GitObservationProvider } from "../../../../src/planning/evolution/observation/providers/git-provider.js";
 
 function gitInit(dir: string, branch = "main") {
   execSync("git init", { cwd: dir, stdio: "pipe" });
@@ -1451,7 +1451,7 @@ Expected: ALL tests pass
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/evolution/observation/providers/git-provider.ts tests/evolution/observation/providers/git-provider.test.ts
+git add src/planning/evolution/observation/providers/git-provider.ts tests/evolution/observation/providers/git-provider.test.ts
 git commit -m "feat(A5): add git observation provider
 
 Git Provider observes branch, diff stats, file listing, and clean
@@ -1466,7 +1466,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 6: Ledger Provider
 
 **Files:**
-- Create: `src/evolution/observation/providers/ledger-provider.ts`
+- Create: `src/planning/evolution/observation/providers/ledger-provider.ts`
 - Test: `tests/evolution/observation/providers/ledger-provider.test.ts`
 
 **Interfaces:**
@@ -1485,8 +1485,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { LedgerObservationProvider } from "../../../../src/evolution/observation/providers/ledger-provider.js";
-import { ExecutionEvidenceStore } from "../../../src/evolution/verification/evidence/evidence-store.js";
+import { LedgerObservationProvider } from "../../../../src/planning/evolution/observation/providers/ledger-provider.js";
+import { ExecutionEvidenceStore } from "../../../src/planning/evolution/verification/evidence/evidence-store.js";
 
 describe("LedgerObservationProvider", () => {
   let evidenceDir: string;
@@ -1671,7 +1671,7 @@ Expected: ALL tests pass
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/evolution/observation/providers/ledger-provider.ts tests/evolution/observation/providers/ledger-provider.test.ts
+git add src/planning/evolution/observation/providers/ledger-provider.ts tests/evolution/observation/providers/ledger-provider.test.ts
 git commit -m "feat(A5): add ledger observation provider
 
 Ledger Provider observes the governance evidence store: record counts
@@ -1685,7 +1685,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 7: Evidence Bridge
 
 **Files:**
-- Create: `src/evolution/observation/observation-evidence-bridge.ts`
+- Create: `src/planning/evolution/observation/observation-evidence-bridge.ts`
 - Test: `tests/evolution/observation/observation-evidence-bridge.test.ts`
 
 **Interfaces:**
@@ -1701,8 +1701,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildObservationEvidence } from "../../../src/evolution/observation/observation-evidence-bridge.js";
-import type { ObservationResult } from "../../../src/evolution/observation/contracts/observation-contract.js";
+import { buildObservationEvidence } from "../../../src/planning/evolution/observation/observation-evidence-bridge.js";
+import type { ObservationResult } from "../../../src/planning/evolution/observation/contracts/observation-contract.js";
 
 const BASE_TIME = "2026-07-12T00:00:00.000Z";
 
@@ -1989,7 +1989,7 @@ Expected: ALL tests pass
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/evolution/observation/observation-evidence-bridge.ts tests/evolution/observation/observation-evidence-bridge.test.ts
+git add src/planning/evolution/observation/observation-evidence-bridge.ts tests/evolution/observation/observation-evidence-bridge.test.ts
 git commit -m "feat(A5): add observation evidence bridge
 
 Aggregates ObservationResult[] into VerificationEvidence with
@@ -2004,7 +2004,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 8: CLI Handler
 
 **Files:**
-- Create: `src/evolution/observation/observation-cli.ts`
+- Create: `src/planning/evolution/observation/observation-cli.ts`
 - Modify: `src/governance/evolution-cli.ts` (add `observe` case + help + import)
 - Test: `tests/evolution/observation/observation-cli.test.ts`
 
@@ -2024,12 +2024,12 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { runObserve } from "../../../src/evolution/observation/observation-cli.js";
-import { ObservationEngine } from "../../../src/evolution/observation/observation-engine.js";
-import { CliObservationProvider } from "../../../src/evolution/observation/providers/cli-provider.js";
-import { FilesystemObservationProvider } from "../../../src/evolution/observation/providers/filesystem-provider.js";
-import { ExecutionEvidenceStore } from "../../../src/evolution/verification/evidence/evidence-store.js";
-import { EvolutionStateMachine } from "../../../src/evolution/evolution-state-machine.js";
+import { runObserve } from "../../../src/planning/evolution/observation/observation-cli.js";
+import { ObservationEngine } from "../../../src/planning/evolution/observation/observation-engine.js";
+import { CliObservationProvider } from "../../../src/planning/evolution/observation/providers/cli-provider.js";
+import { FilesystemObservationProvider } from "../../../src/planning/evolution/observation/providers/filesystem-provider.js";
+import { ExecutionEvidenceStore } from "../../../src/planning/evolution/verification/evidence/evidence-store.js";
+import { EvolutionStateMachine } from "../../../src/planning/evolution/evolution-state-machine.js";
 
 describe("runObserve", () => {
   let engine: ObservationEngine;
@@ -2304,7 +2304,7 @@ Expected: ALL pass, tsc clean
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/evolution/observation/observation-cli.ts tests/evolution/observation/observation-cli.test.ts src/governance/evolution-cli.ts
+git add src/planning/evolution/observation/observation-cli.ts tests/evolution/observation/observation-cli.test.ts src/governance/evolution-cli.ts
 git commit -m "feat(A5): add observation CLI handler
 
 Add alix governance evolution observe command. Dispatches default
@@ -2343,13 +2343,13 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
 
-import { ObservationEngine } from "../../../../src/evolution/observation/observation-engine.js";
-import { CliObservationProvider } from "../../../../src/evolution/observation/providers/cli-provider.js";
-import { FilesystemObservationProvider } from "../../../../src/evolution/observation/providers/filesystem-provider.js";
-import { GitObservationProvider } from "../../../../src/evolution/observation/providers/git-provider.js";
-import { LedgerObservationProvider } from "../../../../src/evolution/observation/providers/ledger-provider.js";
-import { buildObservationEvidence } from "../../../../src/evolution/observation/observation-evidence-bridge.js";
-import { ExecutionEvidenceStore } from "../../../../src/evolution/verification/evidence/evidence-store.js";
+import { ObservationEngine } from "../../../../src/planning/evolution/observation/observation-engine.js";
+import { CliObservationProvider } from "../../../../src/planning/evolution/observation/providers/cli-provider.js";
+import { FilesystemObservationProvider } from "../../../../src/planning/evolution/observation/providers/filesystem-provider.js";
+import { GitObservationProvider } from "../../../../src/planning/evolution/observation/providers/git-provider.js";
+import { LedgerObservationProvider } from "../../../../src/planning/evolution/observation/providers/ledger-provider.js";
+import { buildObservationEvidence } from "../../../../src/planning/evolution/observation/observation-evidence-bridge.js";
+import { ExecutionEvidenceStore } from "../../../../src/planning/evolution/verification/evidence/evidence-store.js";
 
 function createGitRepo(dir: string) {
   execSync("git init", { cwd: dir, stdio: "pipe" });
@@ -2510,7 +2510,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 10: Barrel Exports
 
 **Files:**
-- Create: `src/evolution/observation/index.ts`
+- Create: `src/planning/evolution/observation/index.ts`
 
 - [ ] **Step 1: Write the barrel exports**
 
@@ -2549,7 +2549,7 @@ Expected: ALL tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/evolution/observation/index.ts
+git add src/planning/evolution/observation/index.ts
 git commit -m "feat(A5): add barrel exports
 
 Export all A5 public interfaces from index.ts.

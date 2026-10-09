@@ -11,19 +11,19 @@ import {
   ReplayStatusIndex,
   replayLedgerStatus,
   resetReplayLedgerStatus,
-} from "../../src/runtime/replay-status-index.js";
+} from "../../src/runtime-state/runtime/replay-status-index.js";
 import {
   ExecutionEvidenceStore,
   computeEvidenceChecksum,
   evidenceLedgerStatus,
   resetEvidenceLedgerStatus,
-} from "../../src/runtime/execution-evidence-store.js";
+} from "../../src/runtime-state/runtime/execution-evidence-store.js";
 import {
   reconcileReplayLedger,
   reconcileEvidenceLedger,
-} from "../../src/runtime/runtime-evidence-ledger-reconcile.js";
-import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/storage/runtime-ledger.js";
-import type { ExecutionEvidence } from "../../src/runtime/contracts/execution-intent-contract.js";
+} from "../../src/runtime-state/runtime/runtime-evidence-ledger-reconcile.js";
+import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/runtime-state/storage/runtime-ledger.js";
+import type { ExecutionEvidence } from "../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 
 const dirs: string[] = [];
 

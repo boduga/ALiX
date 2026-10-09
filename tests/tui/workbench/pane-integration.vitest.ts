@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { AgentView } from '../../../src/tui/views/agent-view.js';
-import { computeBottomAnchor } from '../../../src/tui/views/scroll-math.js';
-import { createInitialPerTabState } from '../../../src/tui/state.js';
-import { createInitialWorkbenchUiState } from '../../../src/tui/workbench/model/ui-state.js';
-import { layoutWorkbenchSurface } from '../../../src/tui/workbench/views/composer-view.js';
+import { TerminalCanvas } from '../../../src/interfaces/tui/canvas.js';
+import { AgentView } from '../../../src/interfaces/tui/views/agent-view.js';
+import { computeBottomAnchor } from '../../../src/interfaces/tui/views/scroll-math.js';
+import { createInitialPerTabState } from '../../../src/interfaces/tui/state.js';
+import { createInitialWorkbenchUiState } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
+import { layoutWorkbenchSurface } from '../../../src/interfaces/tui/workbench/views/composer-view.js';
 import { createWorkbenchRenderHarness } from '../../fixtures/tui/workbench-render-harness.js';
 
 const originalColumns = Object.getOwnPropertyDescriptor(process.stdout, 'columns');

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createPermissivePolicyDecision, hashArguments, assertPolicyArgumentsMatch } from "../../src/kernel/policy-decision.js";
+import { createPermissivePolicyDecision, hashArguments, assertPolicyArgumentsMatch } from "../../src/coordination/kernel/policy-decision.js";
 
 describe("PolicyDecision", () => {
 

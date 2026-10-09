@@ -62,21 +62,21 @@ ConfidenceCalibrationAnalyzer ◄───────────────�
 
 | File | Action |
 |---|---|
-| `src/adaptation/intelligence-types.ts` | **Create** — IntelligenceReport, BucketSet, BucketStat, RevertSignalAnalysis, ConfidenceCalibration, ConfidenceBucket, EnrichedProposal |
-| `src/adaptation/intelligence-store.ts` | **Create** — save/load/list report files under `.alix/adaptation/intelligence/` |
-| `src/adaptation/proposal-lifecycle-analyzer.ts` | **Create** — load + enrich proposals with lifecycle data |
-| `src/adaptation/effectiveness-trend-analyzer.ts` | **Create** — per-bucket keep/revert/investigate rates |
-| `src/adaptation/revert-signal-analyzer.ts` | **Create** — advisory vs actual revert analysis |
-| `src/adaptation/confidence-calibration-analyzer.ts` | **Create** — confidence → outcome bucketing |
-| `src/adaptation/bucket-aggregator.ts` | **Create** — group by each dimension, compute stats |
-| `src/adaptation/intelligence-reporter.ts` | **Create** — orchestrate, assemble, persist report |
-| `src/cli/commands/adaptation.ts` | **Modify** — add `intelligence` subcommand |
+| `src/planning/adaptation/intelligence-types.ts` | **Create** — IntelligenceReport, BucketSet, BucketStat, RevertSignalAnalysis, ConfidenceCalibration, ConfidenceBucket, EnrichedProposal |
+| `src/planning/adaptation/intelligence-store.ts` | **Create** — save/load/list report files under `.alix/adaptation/intelligence/` |
+| `src/planning/adaptation/proposal-lifecycle-analyzer.ts` | **Create** — load + enrich proposals with lifecycle data |
+| `src/planning/adaptation/effectiveness-trend-analyzer.ts` | **Create** — per-bucket keep/revert/investigate rates |
+| `src/planning/adaptation/revert-signal-analyzer.ts` | **Create** — advisory vs actual revert analysis |
+| `src/planning/adaptation/confidence-calibration-analyzer.ts` | **Create** — confidence → outcome bucketing |
+| `src/planning/adaptation/bucket-aggregator.ts` | **Create** — group by each dimension, compute stats |
+| `src/planning/adaptation/intelligence-reporter.ts` | **Create** — orchestrate, assemble, persist report |
+| `src/interfaces/cli/commands/adaptation.ts` | **Modify** — add `intelligence` subcommand |
 | Tests | Per task |
 
 ## Task 1: Intelligence types + report schema
 
 **Files:**
-- Create: `src/adaptation/intelligence-types.ts`
+- Create: `src/planning/adaptation/intelligence-types.ts`
 - Test: `tests/adaptation/intelligence-types.vitest.ts`
 
 **Interfaces to define:**
@@ -188,7 +188,7 @@ export const MINIMUM_BUCKET_SIZE = 5;
 ## Task 2: IntelligenceStore persistence
 
 **Files:**
-- Create: `src/adaptation/intelligence-store.ts`
+- Create: `src/planning/adaptation/intelligence-store.ts`
 - Test: `tests/adaptation/intelligence-store.vitest.ts`
 
 **Behavior:**
@@ -206,7 +206,7 @@ export const MINIMUM_BUCKET_SIZE = 5;
 ## Task 3: ProposalLifecycleAnalyzer
 
 **Files:**
-- Create: `src/adaptation/proposal-lifecycle-analyzer.ts`
+- Create: `src/planning/adaptation/proposal-lifecycle-analyzer.ts`
 - Test: `tests/adaptation/proposal-lifecycle-analyzer.vitest.ts`
 
 **Behavior:**
@@ -246,7 +246,7 @@ Performance: The evidence query for revert status is the most expensive step. Fo
 ## Task 4: EffectivenessTrendAnalyzer
 
 **Files:**
-- Create: `src/adaptation/effectiveness-trend-analyzer.ts`
+- Create: `src/planning/adaptation/effectiveness-trend-analyzer.ts`
 - Test: `tests/adaptation/effectiveness-trend-analyzer.vitest.ts`
 
 **Behavior:**
@@ -278,7 +278,7 @@ This analyzer is called per-bucket-value by the BucketAggregator. It has no conc
 ## Task 5: RevertSignalAnalyzer
 
 **Files:**
-- Create: `src/adaptation/revert-signal-analyzer.ts`
+- Create: `src/planning/adaptation/revert-signal-analyzer.ts`
 - Test: `tests/adaptation/revert-signal-analyzer.vitest.ts`
 
 **Behavior:**
@@ -305,7 +305,7 @@ Computes top-level revert analysis:
 ## Task 6: ConfidenceCalibrationAnalyzer
 
 **Files:**
-- Create: `src/adaptation/confidence-calibration-analyzer.ts`
+- Create: `src/planning/adaptation/confidence-calibration-analyzer.ts`
 - Test: `tests/adaptation/confidence-calibration-analyzer.vitest.ts`
 
 **Behavior:**
@@ -333,7 +333,7 @@ class ConfidenceCalibrationAnalyzer {
 ## Task 7: BucketAggregator
 
 **Files:**
-- Create: `src/adaptation/bucket-aggregator.ts`
+- Create: `src/planning/adaptation/bucket-aggregator.ts`
 - Test: `tests/adaptation/bucket-aggregator.vitest.ts`
 
 **Behavior:**
@@ -380,7 +380,7 @@ For each dimension:
 ## Task 8: IntelligenceReporter
 
 **Files:**
-- Create: `src/adaptation/intelligence-reporter.ts`
+- Create: `src/planning/adaptation/intelligence-reporter.ts`
 - Test: `tests/adaptation/intelligence-reporter.vitest.ts`
 
 **Behavior:**
@@ -430,7 +430,7 @@ The `executiveSummary` is generated programmatically from structured data — no
 ## Task 9: CLI: alix adaptation intelligence
 
 **Files:**
-- Modify: `src/cli/commands/adaptation.ts`
+- Modify: `src/interfaces/cli/commands/adaptation.ts`
 - Test: `tests/cli/commands/adaptation-intelligence.vitest.ts`
 
 **Subcommand:** `alix adaptation intelligence`

@@ -16,9 +16,9 @@ import { resolve } from "node:path";
 import { readFileSync } from "node:fs";
 import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 
-const STORE = resolve(__dirname, "../../src/adaptation/outcome-store.ts");
-const TYPES = resolve(__dirname, "../../src/adaptation/outcome-types.ts");
-const DECISION_MAIN = resolve(__dirname, "../../src/cli/commands/decision/main.ts");
+const STORE = resolve(__dirname, "../../src/planning/adaptation/outcome-store.ts");
+const TYPES = resolve(__dirname, "../../src/planning/adaptation/outcome-types.ts");
+const DECISION_MAIN = resolve(__dirname, "../../src/interfaces/cli/commands/decision/main.ts");
 
 describe("P7 — no recommendation mutation", () => {
   it("outcome-store.ts does not import ProposalStore", () => {

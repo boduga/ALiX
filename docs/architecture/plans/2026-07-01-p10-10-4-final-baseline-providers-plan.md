@@ -14,7 +14,7 @@ P10.10.2 added Governance + Memory. P10.10.3 added Skills + Agents + Workflow. T
 ### Task 1 — Security Baseline Provider
 
 **Files:**
-- `src/baseline/providers/security-provider.ts`
+- `src/context/baseline/providers/security-provider.ts`
 - `tests/baseline/providers/security-provider.vitest.ts`
 
 **Deliverables:**
@@ -55,7 +55,7 @@ P10.10.2 added Governance + Memory. P10.10.3 added Skills + Agents + Workflow. T
 ### Task 2 — Tools Runtime Health Provider
 
 **Files:**
-- `src/baseline/providers/tools-health-provider.ts`
+- `src/context/baseline/providers/tools-health-provider.ts`
 - `tests/baseline/providers/tools-health-provider.vitest.ts`
 
 **Deliverables:**
@@ -91,7 +91,7 @@ P10.10.2 added Governance + Memory. P10.10.3 added Skills + Agents + Workflow. T
 ### Task 3 — Adaptation Baseline Provider
 
 **Files:**
-- `src/baseline/providers/adaptation-provider.ts`
+- `src/context/baseline/providers/adaptation-provider.ts`
 - `tests/baseline/providers/adaptation-provider.vitest.ts`
 
 **Deliverables:**
@@ -131,7 +131,7 @@ P10.10.2 added Governance + Memory. P10.10.3 added Skills + Agents + Workflow. T
 ### Task 4 — Registry + Sentinel + CLI Updates
 
 **Files:**
-- `src/baseline/baseline-registry.ts` — register all 3 new providers
+- `src/context/baseline/baseline-registry.ts` — register all 3 new providers
 - `tests/baseline/baseline-sentinels.vitest.ts` — update allowlists
 - `tests/baseline/baseline-registry.vitest.ts` — 9-provider assertion
 - `tests/cli/commands/baseline-cli.vitest.ts` — 9-provider JSON output

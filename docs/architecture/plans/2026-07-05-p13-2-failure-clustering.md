@@ -97,7 +97,7 @@ export interface FailureAnalysis {
 ### Task 2: Add CLI subcommand
 
 **Files:**
-- Modify: `src/cli/commands/governance.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts`
 
 **Changes:**
 1. Add type import for `FailureAnalysis` (and optionally `FailureCluster` if needed by renderer)

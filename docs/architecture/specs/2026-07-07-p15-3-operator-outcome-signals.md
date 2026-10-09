@@ -138,7 +138,7 @@ The pure computation module accepts already-fetched data. The CLI handler fetche
 | File | Change |
 |------|--------|
 | `src/governance/operator-effectiveness.ts` | **New** — pure module, ~250 lines |
-| `src/cli/commands/governance.ts` | Extend audit dispatch (`case "effectiveness"`) + handler, ~80 lines |
+| `src/interfaces/cli/commands/governance.ts` | Extend audit dispatch (`case "effectiveness"`) + handler, ~80 lines |
 | `tests/governance/operator-effectiveness.test.ts` | **New** — unit tests with fixture data, ~250 lines |
 
 ## Deterministic sort rules (no ranking)

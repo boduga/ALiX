@@ -8,7 +8,7 @@ import {
   defaultAgentCards,
   defaultWorkflowAgentCards,
   deriveNlpAgentCards,
-} from "../../src/registry/card-loader.js";
+} from "../../src/capabilities/registry/card-loader.js";
 
 describe("agent taxonomy architecture sentinels", () => {
   it("Sentinel L: getToolPolicy buckets match registry policyBucket", () => {

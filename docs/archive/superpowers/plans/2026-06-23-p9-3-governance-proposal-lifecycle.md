@@ -33,12 +33,12 @@
 | File | Action | Responsibility |
 |------|--------|---------------|
 | `src/governance/governance-types.ts` | Modify | Add `GovernanceCriteriaResult` + 3 evidence event payload types |
-| `src/workflow/evidence-writer.ts` | Modify | Add 3 record methods: `recordGovernanceApprovalDenied`, `recordGovernanceApprovalDecision`, `recordGovernanceOrphanCleaned` |
+| `src/coordination/workflow/evidence-writer.ts` | Modify | Add 3 record methods: `recordGovernanceApprovalDenied`, `recordGovernanceApprovalDecision`, `recordGovernanceOrphanCleaned` |
 | `src/governance/governance-approval-criteria.ts` | **Create** | Pure read-only criteria module — 6 checks, returns `GovernanceCriteriaResult` |
 | `tests/governance/governance-approval-criteria.vitest.ts` | **Create** | Tests: 7+ cases covering all criteria pass/fail scenarios |
-| `src/adaptation/approval-gate.ts` | Modify | Add governance criteria injection point + gating in `approve()` |
+| `src/planning/adaptation/approval-gate.ts` | Modify | Add governance criteria injection point + gating in `approve()` |
 | `tests/adaptation/approval-gate-governance.vitest.ts` | **Create** | Tests: governance flow through ApprovalGate, pass/fail/evidence recording |
-| `src/cli/commands/governance.ts` | Modify | Add `approve`, `reject`, `list`, `cleanup` subcommands + ANSI renderers |
+| `src/interfaces/cli/commands/governance.ts` | Modify | Add `approve`, `reject`, `list`, `cleanup` subcommands + ANSI renderers |
 | `tests/cli/commands/governance-cli.vitest.ts` | Modify | Add 5+ tests for new subcommands |
 | `tests/governance/governance-sentinels.vitest.ts` | Modify | Add criteria file to `ALL_FILES` + `ALLOWED_IN_FILE` |
 
@@ -47,7 +47,7 @@
 
 **Files:**
 - Modify: `src/governance/governance-types.ts` (add 3 payload types + `GovernanceCriteriaResult`)
-- Modify: `src/workflow/evidence-writer.ts` (add 3 record methods)
+- Modify: `src/coordination/workflow/evidence-writer.ts` (add 3 record methods)
 - Test: `tests/governance/governance-approval-criteria.vitest.ts` (partially — type-level test for GovernanceCriteriaResult)
 
 **Interfaces:**
@@ -95,7 +95,7 @@ export type GovernanceOrphanCleanedPayload = {
 
 - [ ] **Step 2: Add 3 record methods to EvidenceEventWriter**
 
-In `src/workflow/evidence-writer.ts`, add after the `recordRevertFailed` block:
+In `src/coordination/workflow/evidence-writer.ts`, add after the `recordRevertFailed` block:
 
 ```ts
 // -----------------------------------------------------------------------
@@ -147,7 +147,7 @@ Expected: existing tests still pass, no failures.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/governance/governance-types.ts src/workflow/evidence-writer.ts
+git add src/governance/governance-types.ts src/coordination/workflow/evidence-writer.ts
 git commit -m "feat(p9.3): governance evidence event types + writer methods
 
 - GovernanceCriteriaResult type
@@ -199,9 +199,9 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EvidenceChainStore } from "../../src/learning/evidence-chain-store.js";
+import { EvidenceChainStore } from "../../src/planning/learning/evidence-chain-store.js";
 import { GovernanceStore } from "../../src/governance/governance-store.js";
-import type { AdaptationProposal, ProposalTarget } from "../../src/adaptation/adaptation-types.js";
+import type { AdaptationProposal, ProposalTarget } from "../../src/planning/adaptation/adaptation-types.js";
 ```
 
 Test cases:
@@ -441,7 +441,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 3: ApprovalGate extension
 
 **Files:**
-- Modify: `src/adaptation/approval-gate.ts`
+- Modify: `src/planning/adaptation/approval-gate.ts`
 - Create: `tests/adaptation/approval-gate-governance.vitest.ts`
 
 **Interfaces:**
@@ -565,7 +565,7 @@ Expected: clean.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/adaptation/approval-gate.ts tests/adaptation/approval-gate-governance.vitest.ts
+git add src/planning/adaptation/approval-gate.ts tests/adaptation/approval-gate-governance.vitest.ts
 git commit -m "feat(p9.3): extend ApprovalGate with governance criteria gating
 
 - Add optional governance criteria callback + threshold to constructor
@@ -581,7 +581,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Task 4: CLI facade
 
 **Files:**
-- Modify: `src/cli/commands/governance.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts`
 - Modify: `tests/cli/commands/governance-cli.vitest.ts`
 
 **Interfaces:**
@@ -984,7 +984,7 @@ Expected: clean.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/cli/commands/governance.ts tests/cli/commands/governance-cli.vitest.ts
+git add src/interfaces/cli/commands/governance.ts tests/cli/commands/governance-cli.vitest.ts
 git commit -m "feat(p9.3): governance CLI facade (approve/reject/list/cleanup/explain)
 
 - 5 new subcommands: approve, reject, list, cleanup, explain
@@ -1019,7 +1019,7 @@ const ALL_FILES = [
   "src/governance/governance-recommendation-generator.ts",
   "src/governance/governance-proposal-generator.ts",
   "src/governance/governance-approval-criteria.ts",    // NEW: P9.3
-  "src/cli/commands/governance.ts",
+  "src/interfaces/cli/commands/governance.ts",
 ];
 ```
 
@@ -1038,7 +1038,7 @@ Following the P9.2 pattern, add a test that verifies `ProposalAction` still cont
 
 ```ts
 it("adaptation-types.ts ProposalAction preserves all P9.2 actions (P9.3 does NOT extend it)", () => {
-  const source = readSource("src/adaptation/adaptation-types.ts");
+  const source = readSource("src/planning/adaptation/adaptation-types.ts");
   const match = source.match(/export type ProposalAction\s*=\s*([\s\S]+?);/);
   expect(match).not.toBeNull();
   if (!match) return;
@@ -1065,7 +1065,7 @@ Expected: clean.
 
 - [ ] **Step 5: Verify protected files are unchanged**
 
-Run: `git diff --stat main -- 'src/adaptation/adaptation-types.ts' 'src/adaptation/risk-score-types.ts' 'src/adaptation/governance-review-types.ts' 'src/adaptation/decision-types.ts' 'src/learning/learning-types.ts' 'src/adaptation/outcome-types.ts'`
+Run: `git diff --stat main -- 'src/planning/adaptation/adaptation-types.ts' 'src/planning/adaptation/risk-score-types.ts' 'src/planning/adaptation/governance-review-types.ts' 'src/planning/adaptation/decision-types.ts' 'src/planning/learning/learning-types.ts' 'src/planning/adaptation/outcome-types.ts'`
 Expected: no output (all 6 protected type files are unchanged — P9.3 does not touch them).
 
 - [ ] **Step 6: Commit**

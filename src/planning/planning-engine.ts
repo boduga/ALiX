@@ -6,9 +6,9 @@
 // and StrategicPlanStore (P11.3) into a thin orchestrator:
 //   load -> pure function -> save -> return
 
-import type { RootCauseAnalysis } from "../reasoning/reasoning-types.js";
-import "../reasoning/reasoning-types.js";
-import { RootCauseStore } from "../reasoning/root-cause-store.js";
+import type { RootCauseAnalysis } from "./reasoning/reasoning-types.js";
+import "./reasoning/reasoning-types.js";
+import { RootCauseStore } from "./reasoning/root-cause-store.js";
 import { StrategicPlanStore } from "./strategic-plan-store.js";
 import { buildStrategicPlan } from "./build-strategic-plan.js";
 import type { StrategicPlan, PlanningEngineConfig } from "./planning-types.js";

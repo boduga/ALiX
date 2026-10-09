@@ -6,13 +6,13 @@ import {
   EXPLAIN_MAX_DEPTH,
   isProvenanceRelationship,
   isArtifactType,
-} from "../../src/learning/evidence-chain-types.js";
+} from "../../src/planning/learning/evidence-chain-types.js";
 import type {
   ProvenanceLink,
   ProvenanceRelationship,
   ArtifactType,
   LearningEvidenceChain,
-} from "../../src/learning/evidence-chain-types.js";
+} from "../../src/planning/learning/evidence-chain-types.js";
 
 describe("evidence-chain-types: relationships and artifact types", () => {
   it("exposes exactly six required provenance relationships", () => {

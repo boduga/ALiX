@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseDistillArgs } from "../../../../src/cli/commands/skills/distill-from-traces.js";
+import { parseDistillArgs } from "../../../../src/interfaces/cli/commands/skills/distill-from-traces.js";
 
 describe("parseDistillArgs", () => {
   it("parses valued options with defaults left undefined", () => {

@@ -2,8 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { homedir } from "os";
-import { ExtensionRegistry } from "../../src/extensions/registry.js";
-import { getDefaultExtensionStore } from "../../src/extensions/index.js";
+import { ExtensionRegistry } from "../../src/capabilities/extensions/registry.js";
+import { getDefaultExtensionStore } from "../../src/capabilities/extensions/index.js";
 
 describe("extension config integration", () => {
   it("getDefaultExtensionStore returns correct default path", () => {

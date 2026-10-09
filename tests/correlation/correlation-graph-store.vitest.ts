@@ -3,9 +3,9 @@ import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { CorrelationGraphStore } from "../../src/correlation/correlation-graph-store.js";
-import { CorrelationGraphLoadError } from "../../src/correlation/correlation-types.js";
-import type { CorrelationGraph } from "../../src/correlation/correlation-types.js";
+import { CorrelationGraphStore } from "../../src/operations/correlation/correlation-graph-store.js";
+import { CorrelationGraphLoadError } from "../../src/operations/correlation/correlation-types.js";
+import type { CorrelationGraph } from "../../src/operations/correlation/correlation-types.js";
 
 function makeGraph(overrides: Partial<CorrelationGraph> = {}): CorrelationGraph {
   return {

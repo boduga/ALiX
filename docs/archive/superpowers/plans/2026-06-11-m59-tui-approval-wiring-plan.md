@@ -4,7 +4,7 @@
 
 **Goal:** Fix two platform plumbing gaps exposed by real usage — wire ApprovalStore into the TUI direct execution path so "ask" decisions work correctly, and improve the `/ifamas` command to handle missing trace selection gracefully.
 
-**Architecture:** Two independent fixes in the same module (`src/cli/commands/tui.ts`):
+**Architecture:** Two independent fixes in the same module (`src/interfaces/cli/commands/tui.ts`):
 1. Pass the TUI's `approvalStore` into the `LocalRuntimeExecutor` so `PolicyGate` can create pending approvals instead of denying with "no approval store configured"
 2. Add fallback logic to `/ifamas`: if no trace selected but a previous diagnostic exists, show that; if none exists, show a helpful empty state
 
@@ -15,9 +15,9 @@
 ## File Structure
 
 ### Modify
-- `src/cli/commands/tui.ts` — both fixes
-- `src/runtime/route-executor.ts` — accept optional `approvalStore` in `LocalRuntimeExecutor`
-- `src/tui/store.ts` — add method to retrieve latest diagnostic without selected trace
+- `src/interfaces/cli/commands/tui.ts` — both fixes
+- `src/runtime-state/runtime/route-executor.ts` — accept optional `approvalStore` in `LocalRuntimeExecutor`
+- `src/interfaces/tui/store.ts` — add method to retrieve latest diagnostic without selected trace
 
 ### Create
 - `tests/tui/tui-approval-store.test.ts` — test the approval store wiring
@@ -28,8 +28,8 @@
 ### Task 1: Pass approvalStore through LocalRuntimeExecutor
 
 **Files:**
-- Modify: `src/runtime/route-executor.ts`
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/runtime-state/runtime/route-executor.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 **Problem:** `LocalRuntimeExecutor.executeTool()` creates `new ToolExecutor(ctx.config, ctx.eventLog, ctx.cwd)` and `PolicyGate` inside that creates `handleAskDecision()` which returns `"deny"` when `this.deps.approvalStore` is undefined.
 
@@ -37,7 +37,7 @@
 
 - [ ] **Step 1: Add `approvalStore` to `RuntimeContext`**
 
-In `src/runtime/route-executor.ts`, find the `RuntimeContext` type and add:
+In `src/runtime-state/runtime/route-executor.ts`, find the `RuntimeContext` type and add:
 ```typescript
   approvalStore?: import("../approvals/approval-store.js").ApprovalStore;
 ```
@@ -62,7 +62,7 @@ This passes the approvalStore through ToolExecutor's `ToolExecutorOptions` param
 
 - [ ] **Step 3: Wire approvalStore into TUI's execution context**
 
-In `src/cli/commands/tui.ts`, find the `RuntimeContext` construction in the direct execution path (around line 948) and add `approvalStore` to the context object:
+In `src/interfaces/cli/commands/tui.ts`, find the `RuntimeContext` construction in the direct execution path (around line 948) and add `approvalStore` to the context object:
 ```typescript
 const ctx: RuntimeContext = {
   cwd: activeCwd, sessionId: activeSessionId, sessionDir: activeSessionDir,
@@ -129,8 +129,8 @@ Expected: clean compile
 ### Task 2: Add /ifamas fallback when no trace selected
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
-- Modify: `src/tui/store.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
+- Modify: `src/interfaces/tui/store.ts`
 
 **Problem:** `/ifamas` immediately returns "No trace event selected" without trying to show any existing diagnostic data.
 
@@ -141,7 +141,7 @@ Expected: clean compile
 
 - [ ] **Step 1: Add `hasIfamasPanelData` helper to store.ts**
 
-In `src/tui/store.ts`, add to the `TuiStore` class:
+In `src/interfaces/tui/store.ts`, add to the `TuiStore` class:
 ```typescript
   hasIfamasPanelData(): boolean {
     return this.state.ifamasPanelData !== undefined;
@@ -231,7 +231,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ApprovalStore } from "../../src/approvals/approval-store.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
 
 describe("TUI approval store wiring", () => {
   let tmpDir: string;
@@ -302,8 +302,8 @@ describe("TUI approval store wiring", () => {
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatIfamasPanel } from "../../src/tui/ifamas-panel.js";
-import type { IfamasTracePanel } from "../../src/tui/ifamas-panel.js";
+import { formatIfamasPanel } from "../../src/interfaces/tui/ifamas-panel.js";
+import type { IfamasTracePanel } from "../../src/interfaces/tui/ifamas-panel.js";
 
 describe("/ifamas fallback", () => {
   function makePanelData(overrides: Partial<IfamasTracePanel> = {}): IfamasTracePanel {
@@ -384,5 +384,5 @@ Expected: 9/9 tests pass (5 approval store + 4 fallback)
 2. `node --test dist/tests/tui/tui-approval-store.test.js` — 5/5 pass
 3. `node --test dist/tests/tui/ifamas-fallback.test.js` — 4/4 pass
 4. `node --test dist/tests/runtime/*.test.js dist/tests/tui/*.test.js` — no regressions
-5. `grep -n 'approvalStore' src/runtime/route-executor.ts` — verify it appears in both RuntimeContext and executeTool
+5. `grep -n 'approvalStore' src/runtime-state/runtime/route-executor.ts` — verify it appears in both RuntimeContext and executeTool
 6. Git diff shows only the intended files

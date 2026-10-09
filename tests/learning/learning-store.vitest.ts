@@ -3,8 +3,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { LearningStore } from "../../src/learning/learning-store.js";
-import type { LearningSignal, CalibrationProfile, LearningReport } from "../../src/learning/learning-types.js";
+import { LearningStore } from "../../src/planning/learning/learning-store.js";
+import type { LearningSignal, CalibrationProfile, LearningReport } from "../../src/planning/learning/learning-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

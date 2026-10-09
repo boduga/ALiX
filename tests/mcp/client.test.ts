@@ -1,8 +1,8 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { McpClient } from "../../src/mcp/client.js";
-import type { McpTransport } from "../../src/mcp/transport.js";
-import type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification } from "../../src/mcp/types.js";
+import { McpClient } from "../../src/capabilities/mcp/client.js";
+import type { McpTransport } from "../../src/capabilities/mcp/transport.js";
+import type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification } from "../../src/capabilities/mcp/types.js";
 
 function makeMockTransport(): McpTransport & {
   responses: JsonRpcResponse[];

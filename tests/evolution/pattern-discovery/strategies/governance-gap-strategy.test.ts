@@ -9,8 +9,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { GovernanceGapStrategy } from "../../../../src/evolution/pattern-discovery/strategies/governance-gap-strategy.js";
-import type { DiscoveryContext } from "../../../../src/evolution/contracts/discovery-context.js";
+import { GovernanceGapStrategy } from "../../../../src/planning/evolution/pattern-discovery/strategies/governance-gap-strategy.js";
+import type { DiscoveryContext } from "../../../../src/planning/evolution/contracts/discovery-context.js";
 import type { GovernanceAuditEvent } from "../../../../src/governance/audit-types.js";
 
 // ---------------------------------------------------------------------------

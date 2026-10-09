@@ -4,7 +4,7 @@
 
 **Goal:** Close the post-CAP-N discriminator gap by making `apply()` route `underperformer` candidates to `capability.update` (currently falls through to `capability.transition`). After CAP-O: the `underperformer` row of the discriminator table is green; `consolidation_opportunity` continues routing to `capability.transition` (CAP-P's territory).
 
-**Architecture:** Single-function rewrite of the `case "underperformer":` arm in `candidateToExecutionStep` at `src/capability/capability-service.ts`. Adds an optional `proposedPatch?: CapabilityDefinitionPatch` field to `CapabilityEvolutionCandidate` (`src/adaptation/capability-evolution-types.ts`); A7's `signalToCandidate` (`src/capability/evolution/a7-proposals.ts`) constructs a **provenance-only** patch. Invariant guard rejects empty/missing `proposedPatch` deterministically. Composition root, executor, catalog, governance, and proposal store are unchanged.
+**Architecture:** Single-function rewrite of the `case "underperformer":` arm in `candidateToExecutionStep` at `src/capabilities/capability/capability-service.ts`. Adds an optional `proposedPatch?: CapabilityDefinitionPatch` field to `CapabilityEvolutionCandidate` (`src/planning/adaptation/capability-evolution-types.ts`); A7's `signalToCandidate` (`src/capabilities/capability/evolution/a7-proposals.ts`) constructs a **provenance-only** patch. Invariant guard rejects empty/missing `proposedPatch` deterministically. Composition root, executor, catalog, governance, and proposal store are unchanged.
 
 **Tech Stack:** TypeScript, vitest, pnpm. Existing capability platform architecture.
 
@@ -12,7 +12,7 @@
 
 These are binding on every task — copy verbatim:
 
-- **Carve-out site:** `src/capability/capability-service.ts:695-771` (`candidateToExecutionStep` function). This is the **only** file on the CAP-12 forbidden list that CAP-O modifies. All other CAP-12 forbidden files (`src/capability/platform.ts`, `legacy-adapter.ts`, `registry.ts`, `provider-resolver.ts`, all CAP-1…CAP-11 sentinels) remain FORBIDDEN.
+- **Carve-out site:** `src/capabilities/capability/capability-service.ts:695-771` (`candidateToExecutionStep` function). This is the **only** file on the CAP-12 forbidden list that CAP-O modifies. All other CAP-12 forbidden files (`src/capabilities/capability/platform.ts`, `legacy-adapter.ts`, `registry.ts`, `provider-resolver.ts`, all CAP-1…CAP-11 sentinels) remain FORBIDDEN.
 - **Operation mapping contract (locked):** `sourcePatternId === "gap"` → `capability.create` (CAP-N); `sourcePatternId === "deprecation_signal"` → `capability.remove` (CAP-N); `sourcePatternId === "underperformer"` → `capability.update` (CAP-O); `sourcePatternId === "consolidation_opportunity"` → `capability.transition` (CAP-P territory, preserved); defensive `default` → `capability.transition`.
 - **Patch policy — provenance only (locked, governance-critical):** The underperformer candidate carries ONLY an audit/provenance patch — never a semantic modification to the capability definition. Patch shape:
   ```typescript
@@ -29,7 +29,7 @@ These are binding on every task — copy verbatim:
   ```
   No `risk` bump, no `tags` annotation, no other field. If evidence cannot deterministically justify a meaningful patch, the candidate must not manufacture one merely to satisfy `CapabilityUpdateMutation`'s non-empty-patch requirement.
 - **Invariant guard (locked):** `case "underperformer":` MUST throw a deterministic error if `candidate.proposedPatch` is missing, `undefined`, or structurally empty (`{}`). The guard lives at the discriminator seam (inside `candidateToExecutionStep`), BEFORE executor invocation. Empty-detection is structural (`Object.keys(patch).length === 0`) — NOT truthiness (`!patch` would let `{}` slip through). The guard test must cover both `undefined` and `{}` cases.
-- **Candidate extension (locked):** `CapabilityEvolutionCandidate` gains exactly one new optional readonly field: `proposedPatch?: CapabilityDefinitionPatch` at `src/adaptation/capability-evolution-types.ts:172-181`. Import `CapabilityDefinitionPatch` from `../capability/mutation-contract.js`. No other type changes; no `executionHints` abstraction; no discriminated-union refactor.
+- **Candidate extension (locked):** `CapabilityEvolutionCandidate` gains exactly one new optional readonly field: `proposedPatch?: CapabilityDefinitionPatch` at `src/planning/adaptation/capability-evolution-types.ts:172-181`. Import `CapabilityDefinitionPatch` from `../capability/mutation-contract.js`. No other type changes; no `executionHints` abstraction; no discriminated-union refactor.
 - **A7 derivation (locked):** `signalToCandidate`'s `case "underperformer":` constructs the provenance-only patch. Copy `evidenceIds` to avoid aliasing (`[...signal.evidenceIds]`).
 - **`sourceId` semantics:** For `underperformer`, `sourceId` arrives as the existing capability's id (matches `candidate.target.id`, which is `signal.capabilityId`). Caller at `capability-service.ts:409` is unchanged. The signature `candidateToExecutionStep(candidate, sourceId, currentVersion)` is preserved.
 - **Forecast pin:** `parameters.sourceVersion` = `currentVersion` (forward-pinned catalog version at apply time, CAP-9 ruling #17). Empty guard failure happens before the version is used.
@@ -166,9 +166,9 @@ it("axis 3: underperformer with empty proposedPatch {} throws (guard)", async ()
 ### Task 2: Rewrite `candidateToExecutionStep` per §4.1 mapping + add `proposedPatch` to candidate + A7 derivation
 
 **Files:**
-- Modify: `src/capability/capability-service.ts:695-771` — rewrite `case "underperformer":` arm + add `isNonEmptyPatch` helper (next to `candidateToExecutionStep` in the same file)
-- Modify: `src/adaptation/capability-evolution-types.ts:172-181` — add `readonly proposedPatch?: CapabilityDefinitionPatch` field; add `import type { CapabilityDefinitionPatch } from "../capability/mutation-contract.js"`
-- Modify: `src/capability/evolution/a7-proposals.ts:206-216` — `case "underperformer":` constructs `proposedPatch`
+- Modify: `src/capabilities/capability/capability-service.ts:695-771` — rewrite `case "underperformer":` arm + add `isNonEmptyPatch` helper (next to `candidateToExecutionStep` in the same file)
+- Modify: `src/planning/adaptation/capability-evolution-types.ts:172-181` — add `readonly proposedPatch?: CapabilityDefinitionPatch` field; add `import type { CapabilityDefinitionPatch } from "../capability/mutation-contract.js"`
+- Modify: `src/capabilities/capability/evolution/a7-proposals.ts:206-216` — `case "underperformer":` constructs `proposedPatch`
 
 **Interfaces:**
 - Consumes: existing `CapabilityEvolutionCandidate` (now with optional `proposedPatch` field); existing `signalToCandidate(signal)` returns `CapabilityEvolutionCandidate`.
@@ -176,7 +176,7 @@ it("axis 3: underperformer with empty proposedPatch {} throws (guard)", async ()
 
 **Code blocks (verbatim):**
 
-`src/capability/capability-service.ts` — replace the `case "underperformer":` arm and add a small helper just before `candidateToExecutionStep`:
+`src/capabilities/capability/capability-service.ts` — replace the `case "underperformer":` arm and add a small helper just before `candidateToExecutionStep`:
 
 ```typescript
 /**
@@ -219,7 +219,7 @@ case "underperformer": {
 }
 ```
 
-`src/adaptation/capability-evolution-types.ts` — add one import line and one field to the interface:
+`src/planning/adaptation/capability-evolution-types.ts` — add one import line and one field to the interface:
 
 ```typescript
 // Add at the top, alongside existing imports:
@@ -235,7 +235,7 @@ import type { CapabilityDefinitionPatch } from "../capability/mutation-contract.
   readonly proposedPatch?: CapabilityDefinitionPatch;
 ```
 
-`src/capability/evolution/a7-proposals.ts` — replace the `case "underperformer":` arm:
+`src/capabilities/capability/evolution/a7-proposals.ts` — replace the `case "underperformer":` arm:
 
 ```typescript
 case "underperformer": {
@@ -271,11 +271,11 @@ case "underperformer": {
 
 - [ ] **Step 1: Add `proposedPatch` to `CapabilityEvolutionCandidate`**
 
-  In `src/adaptation/capability-evolution-types.ts:172-181`, add the `import type` line and the new readonly field per the code block above.
+  In `src/planning/adaptation/capability-evolution-types.ts:172-181`, add the `import type` line and the new readonly field per the code block above.
 
 - [ ] **Step 2: Update `signalToCandidate` `case "underperformer":`**
 
-  In `src/capability/evolution/a7-proposals.ts:206-216`, replace the `case "underperformer":` arm per the code block above. The change adds `proposedPatch` to the returned candidate.
+  In `src/capabilities/capability/evolution/a7-proposals.ts:206-216`, replace the `case "underperformer":` arm per the code block above. The change adds `proposedPatch` to the returned candidate.
 
 - [ ] **Step 3: Run capability suite to verify T2 changes haven't broken anything yet**
 
@@ -290,7 +290,7 @@ case "underperformer": {
 
 - [ ] **Step 4: Rewrite `case "underperformer":` arm in `candidateToExecutionStep`**
 
-  In `src/capability/capability-service.ts`, add the `isNonEmptyPatch` helper just before `candidateToExecutionStep`, then replace the `case "underperformer":` arm per the code block above.
+  In `src/capabilities/capability/capability-service.ts`, add the `isNonEmptyPatch` helper just before `candidateToExecutionStep`, then replace the `case "underperformer":` arm per the code block above.
 
 - [ ] **Step 5: Run T1's test to verify it flips GREEN**
 
@@ -317,7 +317,7 @@ case "underperformer": {
 
   ```bash
   cd /home/babasola/Projects/Monolith/.claude/worktrees/cap-o-underperformer-update-path
-  git add src/capability/capability-service.ts src/adaptation/capability-evolution-types.ts src/capability/evolution/a7-proposals.ts tests/capability/cap-o-candidate-mapping.vitest.ts
+  git add src/capabilities/capability/capability-service.ts src/planning/adaptation/capability-evolution-types.ts src/capabilities/capability/evolution/a7-proposals.ts tests/capability/cap-o-candidate-mapping.vitest.ts
   git commit -m "feat(capability): CAP-O T2 underperformer → capability.update + invariant guard"
   ```
 
@@ -401,7 +401,7 @@ it("step 12c: apply(underperformer) durably attributes the existing capability",
 
   Add the code block above to `tests/capability/cap-12-e2e.vitest.ts` immediately after the existing step 12b. Use `pnpm vitest run tests/capability/cap-12-e2e.vitest.ts -t "step 12c"` to run just this new step.
 
-  **Discovery task:** Before writing the test, verify that `sibling.platformCatalog.get(seedId)` returns the full `CapabilityDefinition` (with `extensions`). If it doesn't, you may need to use the catalog's list path or a different accessor. If unsure, read `src/capability/canonical/catalog.ts` and identify the correct accessor.
+  **Discovery task:** Before writing the test, verify that `sibling.platformCatalog.get(seedId)` returns the full `CapabilityDefinition` (with `extensions`). If it doesn't, you may need to use the catalog's list path or a different accessor. If unsure, read `src/capabilities/capability/canonical/catalog.ts` and identify the correct accessor.
 
 - [ ] **Step 3: Run step 12c to verify it PASSES**
 
@@ -459,13 +459,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { registerInitialCapabilities } from "../../src/capability/initial-capabilities.js";
-import { registerSessionCapabilities } from "../../src/integrations/session-capabilities.js";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityService } from "../../src/capability/capability-service.js";
-import type { CapabilityEvolutionCandidate } from "../../src/adaptation/capability-evolution-types.js";
+import { CapabilityPlatform } from "../../src/capabilities/capability/platform.js";
+import { registerInitialCapabilities } from "../../src/capabilities/capability/initial-capabilities.js";
+import { registerSessionCapabilities } from "../../src/capabilities/integrations/session-capabilities.js";
+import { CapabilityRegistry } from "../../src/capabilities/capability/registry.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
+import { CapabilityService } from "../../src/capabilities/capability/capability-service.js";
+import type { CapabilityEvolutionCandidate } from "../../src/planning/adaptation/capability-evolution-types.js";
 
 // ... setup/teardown mirrors cap-n-candidate-mapping.vitest.ts ...
 
@@ -595,7 +595,7 @@ describe("CAP-O behavioral sentinel", () => {
     --title "CAP-O Underperformer Update-Path Closure" \
     --body "Closes the post-CAP-N frontier map #511 next-frontier authorization. Fills the underperformer row of the discriminator table post-CAP-N; CAP-P remains the next locked frontier.
 
-  **CAP-O routes \`underperformer\` candidates to \`capability.update\`** at \`src/capability/capability-service.ts:695-771\` (the CAP-N carve-out site). After this PR:
+  **CAP-O routes \`underperformer\` candidates to \`capability.update\`** at \`src/capabilities/capability/capability-service.ts:695-771\` (the CAP-N carve-out site). After this PR:
   - \`apply()\` discriminates per candidate \`sourcePatternId\`:
     - \`gap\` → \`capability.create\` (CAP-N, preserved)
     - \`deprecation_signal\` → \`capability.remove\` (CAP-N, preserved)

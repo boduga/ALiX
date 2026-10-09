@@ -3,12 +3,12 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { detectStale } from "../../../src/evolution/knowledge/detectors/index.js";
+import { detectStale } from "../../../src/planning/evolution/knowledge/detectors/index.js";
 import {
   DEFAULT_CURATION_CONFIG,
   type CurationConfig,
   type KnowledgeArtifact,
-} from "../../../src/evolution/knowledge/contracts/curation-contract.js";
+} from "../../../src/planning/evolution/knowledge/contracts/curation-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -23,7 +23,7 @@
 ### Task 1: objective-engine.ts — Types + pure generator
 
 **Files:**
-- Create: `src/executive/objective-engine.ts`
+- Create: `src/execution/executive/objective-engine.ts`
 - Create: `tests/executive/objective-engine.vitest.ts`
 
 **Interfaces:**
@@ -41,9 +41,9 @@ Create `tests/executive/objective-engine.vitest.ts`:
  */
 
 import { describe, expect, it } from "vitest";
-import { buildObjectiveReport } from "../../src/executive/objective-engine.js";
-import type { ExecutiveHealthReport } from "../../src/executive/objective-engine.js"; // re-exported from executive-health
-import type { ExecutivePriorityReport, ExecutivePriorityEntry } from "../../src/executive/objective-engine.js";
+import { buildObjectiveReport } from "../../src/execution/executive/objective-engine.js";
+import type { ExecutiveHealthReport } from "../../src/execution/executive/objective-engine.js"; // re-exported from executive-health
+import type { ExecutivePriorityReport, ExecutivePriorityEntry } from "../../src/execution/executive/objective-engine.js";
 import type { InvestigationRecommendation } from "../../src/governance/investigation-types.js";
 
 // ---------------------------------------------------------------------------
@@ -238,7 +238,7 @@ Expected: FAIL — "Cannot find module" (module not yet implemented)
 
 - [ ] **Step 3: Write the objective-engine.ts implementation**
 
-Create `src/executive/objective-engine.ts`:
+Create `src/execution/executive/objective-engine.ts`:
 
 ```typescript
 /**
@@ -557,7 +557,7 @@ Expected: Clean compile
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/executive/objective-engine.ts tests/executive/objective-engine.vitest.ts
+git add src/execution/executive/objective-engine.ts tests/executive/objective-engine.vitest.ts
 git commit -m "feat(p10.2): add Executive Objective Engine types + pure generator"
 ```
 
@@ -566,7 +566,7 @@ git commit -m "feat(p10.2): add Executive Objective Engine types + pure generato
 ### Task 2: Dashboard renderer — add Objectives panel
 
 **Files:**
-- Modify: `src/cli/commands/executive-dashboard-renderer.ts`
+- Modify: `src/interfaces/cli/commands/executive-dashboard-renderer.ts`
 
 **Interfaces:**
 - Consumes: `ExecutiveObjectiveReport` from `objective-engine.js`
@@ -662,7 +662,7 @@ Expected: Clean compile
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/executive-dashboard-renderer.ts
+git add src/interfaces/cli/commands/executive-dashboard-renderer.ts
 git commit -m "feat(p10.2): add Objectives panel to executive dashboard renderer"
 ```
 
@@ -671,7 +671,7 @@ git commit -m "feat(p10.2): add Objectives panel to executive dashboard renderer
 ### Task 3: Dashboard handler — integrate objective engine + P9.6 investigations
 
 **Files:**
-- Modify: `src/cli/commands/executive-dashboard-handler.ts`
+- Modify: `src/interfaces/cli/commands/executive-dashboard-handler.ts`
 
 **Interfaces:**
 - Consumes: `buildObjectiveReport`, `InvestigationStore`, `GovernanceStore`, `listCompatibleInvestigations`
@@ -712,7 +712,7 @@ Expected: Clean compile
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/executive-dashboard-handler.ts
+git add src/interfaces/cli/commands/executive-dashboard-handler.ts
 git commit -m "feat(p10.2): integrate objective engine + P9.6 investigations into dashboard handler"
 ```
 
@@ -730,7 +730,7 @@ Read the existing JSON test (around line 49). Update it to also check the new ob
 ```typescript
 it("emits valid JSON in --json mode", async () => {
   const log = vi.spyOn(console, "log").mockImplementation(() => {});
-  const { runDashboard } = await import("../../../src/cli/commands/executive-dashboard-handler.js");
+  const { runDashboard } = await import("../../../src/interfaces/cli/commands/executive-dashboard-handler.js");
   await runDashboard(["--json"]);
   const out = log.mock.calls.map((c: unknown[]) => String(c[0])).join("");
   log.mockRestore();
@@ -754,7 +754,7 @@ The existing test checks for `EXECUTIVE DASHBOARD`, `EXECUTIVE HEALTH SUMMARY`, 
 ```typescript
 it("renders 4 panel headers in text mode", async () => {
   const log = vi.spyOn(console, "log").mockImplementation(() => {});
-  const { runDashboard } = await import("../../../src/cli/commands/executive-dashboard-handler.js");
+  const { runDashboard } = await import("../../../src/interfaces/cli/commands/executive-dashboard-handler.js");
   await runDashboard([]);
   const out = log.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
   log.mockRestore();

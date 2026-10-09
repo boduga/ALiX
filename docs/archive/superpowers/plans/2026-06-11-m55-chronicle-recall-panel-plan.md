@@ -25,21 +25,21 @@
 ## File Structure
 
 ### Create
-- `src/tui/chronicle-panel.ts` — Chronicle panel model + formatting
+- `src/interfaces/tui/chronicle-panel.ts` — Chronicle panel model + formatting
 - `tests/tui/chronicle-panel.test.ts` — 10 test cases
 
 ### Modify
-- `src/tui/store.ts` — add `"chronicle"` to `TuiPanel`, add state fields
-- `src/tui/panel-renderer.ts` — add chronicle render branch
-- `src/tui/runtime-snapshot.ts` — carry chronicle panel data
-- `src/cli/commands/tui.ts` — add `/chronicle` command
+- `src/interfaces/tui/store.ts` — add `"chronicle"` to `TuiPanel`, add state fields
+- `src/interfaces/tui/panel-renderer.ts` — add chronicle render branch
+- `src/interfaces/tui/runtime-snapshot.ts` — carry chronicle panel data
+- `src/interfaces/cli/commands/tui.ts` — add `/chronicle` command
 
 ---
 
-### Task 1: Create `src/tui/chronicle-panel.ts`
+### Task 1: Create `src/interfaces/tui/chronicle-panel.ts`
 
 **Files:**
-- Create: `src/tui/chronicle-panel.ts`
+- Create: `src/interfaces/tui/chronicle-panel.ts`
 
 - [ ] **Step 1: Write the panel model and formatter**
 
@@ -113,7 +113,7 @@ Expected: clean compile
 ### Task 2: Add `"chronicle"` panel to store.ts
 
 **Files:**
-- Modify: `src/tui/store.ts`
+- Modify: `src/interfaces/tui/store.ts`
 
 - [ ] **Step 1: Add `"chronicle"` to `TuiPanel`**
 
@@ -146,7 +146,7 @@ Expected: clean compile
 ### Task 3: Render the chronicle panel in panel-renderer.ts
 
 **Files:**
-- Modify: `src/tui/panel-renderer.ts`
+- Modify: `src/interfaces/tui/panel-renderer.ts`
 
 - [ ] **Step 1: Add import**
 
@@ -180,7 +180,7 @@ Expected: clean compile
 ### Task 4: Wire chronicle data in runtime-snapshot.ts
 
 **Files:**
-- Modify: `src/tui/runtime-snapshot.ts`
+- Modify: `src/interfaces/tui/runtime-snapshot.ts`
 
 - [ ] **Step 1: Add `chroniclePanelData` to `TuiRuntimeSnapshot`**
 
@@ -208,7 +208,7 @@ Expected: clean compile
 ### Task 5: Wire `/chronicle` command in TUI
 
 **Files:**
-- Modify: `src/cli/commands/tui.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts`
 
 - [ ] **Step 1: Add `/chronicle` command handler**
 
@@ -285,8 +285,8 @@ Expected: clean compile
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { formatChroniclePanel, chronicleEntryToPanelEntry } from "../../src/tui/chronicle-panel.js";
-import type { ChroniclePanelData, ChroniclePanelEntry } from "../../src/tui/chronicle-panel.js";
+import { formatChroniclePanel, chronicleEntryToPanelEntry } from "../../src/interfaces/tui/chronicle-panel.js";
+import type { ChroniclePanelData, ChroniclePanelEntry } from "../../src/interfaces/tui/chronicle-panel.js";
 
 describe("chronicle-panel", () => {
   it("formats an empty Chronicle panel", () => {
@@ -353,7 +353,7 @@ describe("chronicle-panel", () => {
   });
 
   it("does NOT import ToolExecutor, PolicyGate, or ApprovalStore", () => {
-    const source = require("fs").readFileSync("src/tui/chronicle-panel.ts", "utf-8");
+    const source = require("fs").readFileSync("src/interfaces/tui/chronicle-panel.ts", "utf-8");
     assert.ok(!source.includes("ToolExecutor"));
     assert.ok(!source.includes("PolicyGate"));
     assert.ok(!source.includes("ApprovalStore"));
@@ -373,5 +373,5 @@ Expected: 6/6 tests pass (only tests for the new panel module)
 1. `npm run build` — clean compile
 2. `node --test dist/tests/tui/chronicle-panel.test.js` — 6/6 pass
 3. `node --test dist/tests/runtime/*.test.js dist/tests/tui/*.test.js` — no regressions
-4. `grep -rn 'ToolExecutor\|PolicyGate\|ApprovalStore' src/tui/chronicle-panel.ts` — no output
+4. `grep -rn 'ToolExecutor\|PolicyGate\|ApprovalStore' src/interfaces/tui/chronicle-panel.ts` — no output
 5. Git diff shows only the intended files

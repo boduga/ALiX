@@ -2,7 +2,7 @@
 
 ALiX uses a **closed metrics registry** for all operational and security observability.
 Every metric name, type, unit, description, and allowed label vocabulary is defined in
-[`src/observability/metric-registry.ts`](../../src/observability/metric-registry.ts).
+[`src/operations/observability/metric-registry.ts`](../../src/operations/observability/metric-registry.ts).
 
 > **Python metrics catalog (legacy):** Previous Python-based deployments maintained a
 > separate metrics catalog in `pylib/metrics/catalog.py`. That catalog is superseded by
@@ -10,7 +10,7 @@ Every metric name, type, unit, description, and allowed label vocabulary is defi
 
 ## Registered Production Metrics
 
-All `M09MetricName` values from `src/kernel/minimal-metrics.ts` are registered.
+All `M09MetricName` values from `src/coordination/kernel/minimal-metrics.ts` are registered.
 
 | Name | Type | Unit | Description | Labels |
 |------|------|------|-------------|--------|
@@ -67,7 +67,7 @@ All `M09MetricName` values from `src/kernel/minimal-metrics.ts` are registered.
 ## How to Add a New Metric
 
 1. Add a `MetricDefinition` to either `PRODUCTION_METRIC_DEFINITIONS` or `SECURITY_METRIC_DEFINITIONS` in
-   `src/observability/metric-registry.ts`.
+   `src/operations/observability/metric-registry.ts`.
 2. If the metric name starts with `security_`, add it to `SECURITY_METRIC_DEFINITIONS`.
 3. If the metric uses `counter_delta` or `gauge`, define its `allowedLabelKeys` and
    optional `allowedLabelValues`.

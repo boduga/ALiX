@@ -13,10 +13,10 @@ import {
   sessionLedgerStatus, resetSessionLedgerStatus,
 } from "../../src/session/persist.js";
 import { reconcileSessionLedger } from "../../src/session/session-ledger-reconcile.js";
-import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/storage/runtime-ledger.js";
-import type { NormalizedMessage } from "../../src/providers/types.js";
-import type { ScopeSnapshot } from "../../src/autonomy/scope-tracker.js";
-import type { StateSnapshot } from "../../src/autonomy/state-machine.js";
+import { getSharedLedger, closeSharedLedger, runtimeLedgerPath } from "../../src/runtime-state/storage/runtime-ledger.js";
+import type { NormalizedMessage } from "../../src/models/providers/types.js";
+import type { ScopeSnapshot } from "../../src/planning/autonomy/scope-tracker.js";
+import type { StateSnapshot } from "../../src/planning/autonomy/state-machine.js";
 
 const dirs: string[] = [];
 

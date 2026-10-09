@@ -4,12 +4,12 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { CoordinationPlanner, DOMAIN_SCOPE_MAP, extractGoalPaths, inferOwnershipScopes } from "../../src/kernel/coordination-planner.js";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
-import type { TaskGraphPlanner } from "../../src/kernel/coordination-planner.js";
-import type { TaskGraph, TaskNode } from "../../src/kernel/task-graph.js";
-import type { ToolRegistry } from "../../src/tools/tool-registry.js";
+import { CoordinationPlanner, DOMAIN_SCOPE_MAP, extractGoalPaths, inferOwnershipScopes } from "../../src/coordination/kernel/coordination-planner.js";
+import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { buildDefaultToolIndex } from "../../src/capabilities/tools/tool-registry.js";
+import type { TaskGraphPlanner } from "../../src/coordination/kernel/coordination-planner.js";
+import type { TaskGraph, TaskNode } from "../../src/coordination/kernel/task-graph.js";
+import type { ToolRegistry } from "../../src/capabilities/tools/tool-registry.js";
 
 function makeNode(id: string, dependencies: string[] = [], overrides: Partial<TaskNode> = {}): TaskNode {
   const now = new Date().toISOString();
@@ -295,7 +295,7 @@ describe("CoordinationPlanner", () => {
     const base = ".tmp/workbench-e2e-manual-20260923";
     const graph = makeGraph([
       makeNode("n1", [], { goal: "Create project.md by reading package.json and README.md" }),
-      makeNode("n2", [], { goal: "Create tui.md summarizing src/tui/workbench/" }),
+      makeNode("n2", [], { goal: "Create tui.md summarizing src/interfaces/tui/workbench/" }),
       makeNode("n3", [], { goal: "Create tests.md summarizing tests/tui/workbench/" }),
       makeNode("n4", ["n1", "n2", "n3"], { goal: "Read project.md, tui.md, tests.md, then create final-report.md" }),
     ]);
@@ -330,7 +330,7 @@ describe("CoordinationPlanner", () => {
     const base = ".tmp/workbench-e2e-manual-20260923";
     const graph = makeGraph([
       makeNode("n1", [], { goal: "Create project.md from package.json and README.md", domain: "docs" }),
-      makeNode("n2", [], { goal: "Create tui.md summarizing src/tui/workbench/", domain: "docs" }),
+      makeNode("n2", [], { goal: "Create tui.md summarizing src/interfaces/tui/workbench/", domain: "docs" }),
       makeNode("n3", [], { goal: "Create tests.md summarizing tests/tui/workbench/", domain: "docs" }),
       makeNode("n4", ["n1", "n2", "n3"], { goal: "Create final-report.md", domain: "docs" }),
     ]);
@@ -357,14 +357,14 @@ describe("CoordinationPlanner", () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([
       makeNode("n1", [], { goal: `Inspect ./package.json and write a short project summary to ${base}/project.md` }),
-      makeNode("n2", [], { goal: `Inspect src/tui/workbench and summarize its architecture to ${base}/workbench.md` }),
+      makeNode("n2", [], { goal: `Inspect src/interfaces/tui/workbench and summarize its architecture to ${base}/workbench.md` }),
       makeNode("n3", [], { goal: `Inspect tests/tui/workbench and summarize its test coverage to ${base}/tests.md` }),
       makeNode("n4", ["n1", "n2", "n3"], { goal: `Read ${base}/project.md, ${base}/workbench.md, and ${base}/tests.md, then combine them into ${base}/final-report.md` }),
     ]);
     const goal = [
       "Launch exactly four coordinated workers:",
       `1. Worker “Project summary” — Own only \`${base}/project.md\`; inspect package.json and write a summary.`,
-      `2. Worker “Workbench summary” — Own only \`${base}/workbench.md\`; inspect src/tui/workbench and summarize it.`,
+      `2. Worker “Workbench summary” — Own only \`${base}/workbench.md\`; inspect src/interfaces/tui/workbench and summarize it.`,
       `3. Worker “Workbench tests” — Own only \`${base}/tests.md\`; inspect tests/tui/workbench and summarize coverage.`,
       `4. Worker “Final report” — Own only \`${base}/final-report.md\`; depend on workers 1, 2, and 3; read their outputs and combine them.`,
     ].join("\n");
@@ -384,7 +384,7 @@ describe("CoordinationPlanner", () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([
       makeNode("n1", [], { goal: `Inspect the repository's package.json and write a short project summary containing name, purpose, and dependencies to ${base}/project.md.` }),
-      makeNode("n2", [], { goal: `Inspect src/tui/workbench and its subdirectories, then write an architecture summary to ${base}/workbench.md.` }),
+      makeNode("n2", [], { goal: `Inspect src/interfaces/tui/workbench and its subdirectories, then write an architecture summary to ${base}/workbench.md.` }),
       makeNode("n3", [], { goal: `Inspect tests/tui/workbench and write a coverage summary to ${base}/tests.md.` }),
       makeNode("n4", ["n1", "n2", "n3"], { goal: `Read project.md, workbench.md, and tests.md, combine them into ${base}/final-report.md, and verify that all four files exist.`, domain: "docs" }),
     ]);
@@ -393,7 +393,7 @@ describe("CoordinationPlanner", () => {
       "",
       "Deliverables and ownership (each worker owns ONLY its one file):",
       `1. Worker “Project summary” — owns only ${base}/project.md. Inspect the repository's package.json and write a short summary.`,
-      `2. Worker “Workbench summary” — owns only ${base}/workbench.md. Inspect src/tui/workbench and summarize its architecture.`,
+      `2. Worker “Workbench summary” — owns only ${base}/workbench.md. Inspect src/interfaces/tui/workbench and summarize its architecture.`,
       `3. Worker “Workbench tests” — owns only ${base}/tests.md. Inspect tests/tui/workbench and summarize its coverage.`,
       `4. Worker “Final report” — owns only ${base}/final-report.md. DEPENDS ON workers 1, 2, and 3. Read their outputs and combine them.`,
       "",
@@ -417,7 +417,7 @@ describe("CoordinationPlanner", () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([
       makeNode("n1", [], { goal: `Read package.json at the repo root and write a project summary into ${base}/project.md` }),
-      makeNode("n2", [], { goal: `Inspect src/tui/workbench and summarize its architecture into ${base}/workbench.md` }),
+      makeNode("n2", [], { goal: `Inspect src/interfaces/tui/workbench and summarize its architecture into ${base}/workbench.md` }),
       makeNode("n3", [], { goal: `Inspect tests/tui/workbench and summarize its coverage into ${base}/tests.md` }),
       makeNode("n4", ["n1", "n2", "n3"], { goal: `Read ${base}/project.md, ${base}/workbench.md, and ${base}/tests.md, then combine them into a final report in ${base}/final-report.md`, domain: "docs" }),
     ]);
@@ -473,7 +473,7 @@ describe("CoordinationPlanner", () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([
       makeNode("n1", [], { goal: `Inspect package.json in the repo root and write a short project summary to ${base}/project.md.` }),
-      makeNode("n2", [], { goal: `Inspect src/tui/workbench and write an architecture summary to ${base}/workbench.md.` }),
+      makeNode("n2", [], { goal: `Inspect src/interfaces/tui/workbench and write an architecture summary to ${base}/workbench.md.` }),
       makeNode("n3", [], { goal: `Inspect tests/tui/workbench and write a coverage summary to ${base}/tests.md.` }),
       makeNode("n4", ["n1", "n2", "n3"], { goal: `Read ${base}/project.md, ${base}/workbench.md, and ${base}/tests.md, combine them into ${base}/final-report.md.`, domain: "docs" }),
     ]);
@@ -482,7 +482,7 @@ describe("CoordinationPlanner", () => {
     const goal = [
       `Produce four markdown deliverables under the directory ${base}/. Launch exactly four workers with disjoint single-file ownership.`,
       `Worker 1 "Project summary": own only ${base}/project.md — inspect package.json in the repo root and write a short project summary.`,
-      `Worker 2 "Workbench summary": own only ${base}/workbench.md — inspect src/tui/workbench and summarize its architecture.`,
+      `Worker 2 "Workbench summary": own only ${base}/workbench.md — inspect src/interfaces/tui/workbench and summarize its architecture.`,
       `Worker 3 "Workbench tests": own only ${base}/tests.md — inspect tests/tui/workbench and summarize its coverage.`,
       `Worker 4 "Final report": own only ${base}/final-report.md — DEPEND on workers 1, 2 and 3, then combine them into a final report.`,
     ].join(" ");
@@ -500,7 +500,7 @@ describe("CoordinationPlanner", () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([
       makeNode("n1", [], { goal: `Inspect package.json and write a short project summary to ${base}/project.md` }),
-      makeNode("n2", [], { goal: `Inspect src/tui/workbench and write an architecture summary to ${base}/workbench.md` }),
+      makeNode("n2", [], { goal: `Inspect src/interfaces/tui/workbench and write an architecture summary to ${base}/workbench.md` }),
       makeNode("n3", ["n1", "n2"], { goal: `Read ${base}/project.md and ${base}/workbench.md and combine them into ${base}/final-report.md`, domain: "docs" }),
     ]);
     const goal = [
@@ -508,7 +508,7 @@ describe("CoordinationPlanner", () => {
       "",
       `Worker 1 name "Project summary". Owned path: \`${base}/project.md\`. Task: inspect package.json and write a short project summary into its owned path.`,
       "",
-      `Worker 2 name "Workbench summary". Owned path: \`${base}/workbench.md\`. Task: inspect src/tui/workbench and summarize its architecture.`,
+      `Worker 2 name "Workbench summary". Owned path: \`${base}/workbench.md\`. Task: inspect src/interfaces/tui/workbench and summarize its architecture.`,
       "",
       `Worker 3 name "Final report" owns ${base}/final-report.md: depends on workers 1 and 2 and combines their outputs.`,
     ].join("\n");
@@ -547,7 +547,7 @@ describe("CoordinationPlanner", () => {
     const graph = makeGraph([
       makeNode("n1", [], { goal: `Create the directory ${base}/ if it does not already exist`, requiredCapabilities: ["shell.run"], domain: "infra" }),
       makeNode("n2", ["n1"], { goal: `Inspect package.json and write a short project summary to ${base}/project.md, owning only that file` }),
-      makeNode("n3", ["n1"], { goal: `Inspect src/tui/workbench and write an architecture summary to ${base}/workbench.md, owning only that file` }),
+      makeNode("n3", ["n1"], { goal: `Inspect src/interfaces/tui/workbench and write an architecture summary to ${base}/workbench.md, owning only that file` }),
       makeNode("n4", ["n1"], { goal: `Inspect tests/tui/workbench and write a coverage summary to ${base}/tests.md, owning only that file` }),
       makeNode("n5", ["n2", "n3", "n4"], { goal: `Read ${base}/project.md, ${base}/workbench.md, and ${base}/tests.md and combine them into ${base}/final-report.md, owning only that file`, domain: "docs" }),
       makeNode("n6", ["n5"], { goal: `Verify that ${base}/project.md, ${base}/workbench.md, ${base}/tests.md, and ${base}/final-report.md all exist`, requiredCapabilities: ["file.exists"], domain: "infra" }),
@@ -607,14 +607,14 @@ describe("CoordinationPlanner", () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([
       makeNode("n1", [], { goal: `Read package.json and write ${base}/project.md with a short project summary.` }),
-      makeNode("n2", [], { goal: `Inspect src/tui/workbench and write ${base}/workbench.md summarizing its architecture.` }),
+      makeNode("n2", [], { goal: `Inspect src/interfaces/tui/workbench and write ${base}/workbench.md summarizing its architecture.` }),
       makeNode("n3", [], { goal: `Inspect tests/tui/workbench and write ${base}/tests.md summarizing its coverage.` }),
       makeNode("n4", ["n1", "n2", "n3"], { goal: `Read ${base}/project.md, workbench.md, and tests.md and combine them into ${base}/final-report.md.`, domain: "docs" }),
     ]);
     const goal = [
       `Produce four markdown files inside ${base}/ using four coordinated workers with disjoint ownership.`,
       "Worker 1 (Project summary): writes project.md — read package.json and write a short project summary. Owns only project.md.",
-      "Worker 2 (Workbench summary): writes workbench.md — inspect src/tui/workbench and summarize its architecture. Owns only workbench.md.",
+      "Worker 2 (Workbench summary): writes workbench.md — inspect src/interfaces/tui/workbench and summarize its architecture. Owns only workbench.md.",
       "Worker 3 (Workbench tests): writes tests.md — inspect tests/tui/workbench and summarize its coverage. Owns only tests.md.",
       "Worker 4 (Final report): writes final-report.md — depends on Worker 1, Worker 2 and Worker 3; read their three output files and combine them. Owns only final-report.md.",
     ].join("\n");
@@ -634,7 +634,7 @@ describe("CoordinationPlanner", () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([
       makeNode("n1", [], { goal: `Read package.json and write a project summary to ${base}/project.md`, domain: "docs" }),
-      makeNode("n2", [], { goal: `Read src/tui/workbench and write an architecture summary to ${base}/workbench.md`, domain: "docs" }),
+      makeNode("n2", [], { goal: `Read src/interfaces/tui/workbench and write an architecture summary to ${base}/workbench.md`, domain: "docs" }),
       makeNode("n3", [], { goal: `Read tests/tui/workbench and write a coverage summary to ${base}/tests.md`, domain: "docs" }),
       makeNode("n4", ["n1", "n2", "n3"], { goal: `Read ${base}/project.md, ${base}/workbench.md, and ${base}/tests.md, then write ${base}/final-report.md`, domain: "docs" }),
     ]);
@@ -661,7 +661,7 @@ describe("CoordinationPlanner", () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([
       makeNode("n1", [], { goal: `Read package.json and write a project summary to ${base}/project.md`, domain: "docs" }),
-      makeNode("n2", [], { goal: `Read src/tui/workbench and write an architecture summary to ${base}/workbench.md`, domain: "docs" }),
+      makeNode("n2", [], { goal: `Read src/interfaces/tui/workbench and write an architecture summary to ${base}/workbench.md`, domain: "docs" }),
       makeNode("n3", [], { goal: `Read tests/tui/workbench and write a coverage summary to ${base}/tests.md`, domain: "docs" }),
       makeNode("n4", ["n1", "n2", "n3"], { goal: `Read ${base}/project.md, ${base}/workbench.md, and ${base}/tests.md, then write ${base}/final-report.md`, domain: "docs" }),
     ]);

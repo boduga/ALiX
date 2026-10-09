@@ -283,13 +283,13 @@ Tests verify that `strategic-brief.ts` does NOT import:
 
 ```
 Create:
-  src/adaptation/strategic-brief-types.ts   — StrategicBriefInput, StrategicBrief, StrategicFinding, Trend, Hotspot, TimeWindow, StrategicBriefOptions
-  src/adaptation/strategic-brief.ts          — StrategicBriefBuilder class (pure synthesis)
+  src/planning/adaptation/strategic-brief-types.ts   — StrategicBriefInput, StrategicBrief, StrategicFinding, Trend, Hotspot, TimeWindow, StrategicBriefOptions
+  src/planning/adaptation/strategic-brief.ts          — StrategicBriefBuilder class (pure synthesis)
   tests/adaptation/strategic-brief.vitest.ts — Unit tests
   tests/adaptation/strategic-brief-governance-sentinels.vitest.ts — Purity + no-proposal-ID + no-per-proposal-recommendation sentinels
 
 Modify:
-  src/cli/commands/decision.ts              — Add `brief` subcommand handler + case in switch
+  src/interfaces/cli/commands/decision.ts              — Add `brief` subcommand handler + case in switch
 ```
 
 ## Tests

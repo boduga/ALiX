@@ -147,14 +147,14 @@ No new sink method required. The `onDiagnostic` callback signature stays the sam
 
 | Step | Description | Files to touch |
 |------|-------------|----------------|
-| 1 | Add `ExecutionContext` type | New: `src/observability/execution-context.ts` |
-| 2 | Add optional `context` field to `RuntimeDiagnostic` | `src/runtime/runtime-diagnostics.ts` |
-| 3 | Thread context through `withTimeout()` / `withRetry()` | `src/runtime/side-effect-timeout.ts`, `src/runtime/retry.ts` |
-| 4 | Thread context through provider boundaries | `src/providers/provider-contract-validation.ts` |
-| 5 | Thread context through shell/MCP/file tools | `src/tools/shell-tool.ts`, `src/mcp/client.ts`, `src/tools/file-tools.ts` |
-| 6 | Add `context` field to `DiagnosticEvent` and mapping | `src/observability/diagnostic-event.ts` |
-| 7 | Add CLI filter by context fields | `src/cli/commands/observability-diagnostics.ts` |
-| 8 | (Deferred) Thread context through planning/adaptation | `src/planning/`, `src/adaptation/` |
+| 1 | Add `ExecutionContext` type | New: `src/operations/observability/execution-context.ts` |
+| 2 | Add optional `context` field to `RuntimeDiagnostic` | `src/runtime-state/runtime/runtime-diagnostics.ts` |
+| 3 | Thread context through `withTimeout()` / `withRetry()` | `src/runtime-state/runtime/side-effect-timeout.ts`, `src/runtime-state/runtime/retry.ts` |
+| 4 | Thread context through provider boundaries | `src/models/providers/provider-contract-validation.ts` |
+| 5 | Thread context through shell/MCP/file tools | `src/capabilities/tools/shell-tool.ts`, `src/capabilities/mcp/client.ts`, `src/capabilities/tools/file-tools.ts` |
+| 6 | Add `context` field to `DiagnosticEvent` and mapping | `src/operations/observability/diagnostic-event.ts` |
+| 7 | Add CLI filter by context fields | `src/interfaces/cli/commands/observability-diagnostics.ts` |
+| 8 | (Deferred) Thread context through planning/adaptation | `src/planning/`, `src/planning/adaptation/` |
 
 ## Data flow example
 

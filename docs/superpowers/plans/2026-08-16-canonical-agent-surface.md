@@ -15,7 +15,7 @@
 ALiX currently has multiple representations of "agents":
 
 1. The runtime `SubagentRole` system used by `delegate` and `SubagentManager`.
-2. Agent cards in `src/registry/card-loader.ts`.
+2. Agent cards in `src/capabilities/registry/card-loader.ts`.
 3. Workflow cards representing the P4.5 workflow pipeline.
 4. Control-plane roles such as `operator`, `governor`, `executor`, and `verifier`.
 
@@ -113,7 +113,7 @@ It does **not** own execution.
 The existing:
 
 ```text
-src/config/schema.ts
+src/operations/config/schema.ts
 ```
 
 continues to own:
@@ -411,8 +411,8 @@ tests/agents/agent-taxonomy-sentinel.vitest.ts
 ```text
 src/agents/subagent-cli.ts
 src/agents/tool-policy.ts
-src/config/defaults.ts
-src/registry/card-loader.ts
+src/operations/config/defaults.ts
+src/capabilities/registry/card-loader.ts
 src/agents/role-mapper.ts
 
 tests/registry/card-loader.test.ts
@@ -448,7 +448,7 @@ SubagentStyle
 from:
 
 ```text
-src/config/schema.ts
+src/operations/config/schema.ts
 ```
 
 Produces:
@@ -1000,7 +1000,7 @@ git commit -m "refactor(agents): derive tool policy buckets from canonical regis
 Modify:
 
 ```text
-src/config/defaults.ts
+src/operations/config/defaults.ts
 ```
 
 ---
@@ -1082,7 +1082,7 @@ PASS
 ## Step 5: Commit
 
 ```bash
-git add src/config/defaults.ts
+git add src/operations/config/defaults.ts
 git commit -m "refactor(config): derive subagent role defaults from canonical registry"
 ```
 
@@ -1095,7 +1095,7 @@ git commit -m "refactor(config): derive subagent role defaults from canonical re
 Modify:
 
 ```text
-src/registry/card-loader.ts
+src/capabilities/registry/card-loader.ts
 tests/registry/card-loader.test.ts
 tests/agents/agent-taxonomy-sentinel.vitest.ts
 docs/user-manual.md
@@ -1161,7 +1161,7 @@ import {
   defaultAgentCards,
   defaultToolCards,
   defaultWorkflowAgentCards,
-} from "../../src/registry/card-loader.js";
+} from "../../src/capabilities/registry/card-loader.js";
 ```
 
 ---
@@ -1189,7 +1189,7 @@ because legacy cards still exist.
 In:
 
 ```text
-src/registry/card-loader.ts
+src/capabilities/registry/card-loader.ts
 ```
 
 add:
@@ -1341,7 +1341,7 @@ add:
 import {
   defaultAgentCards,
   defaultWorkflowAgentCards,
-} from "../../src/registry/card-loader.js";
+} from "../../src/capabilities/registry/card-loader.js";
 
 it("Sentinel M: defaultAgentCards is derived; no dead cards; workflow is separate", () => {
   const cards = defaultAgentCards();
@@ -1446,7 +1446,7 @@ The total remains:
 
 ```bash
 git add \
-  src/registry/card-loader.ts \
+  src/capabilities/registry/card-loader.ts \
   tests/registry/card-loader.test.ts \
   tests/agents/agent-taxonomy-sentinel.vitest.ts \
   docs/user-manual.md
@@ -1860,7 +1860,7 @@ After #560:
 | NLP router sentinel | `SubagentRole`                           | `auto`                              | routing only                 |
 | Workflow            | P4.5 workflow surface                    | 5 `workflow.*` cards                | workflow orchestration       |
 | Control plane       | Existing runtime/governance architecture | operator/governor/executor/verifier | governed runtime             |
-| Tools               | `src/tools/tool-registry.ts`             | canonical tools                     | tool execution               |
+| Tools               | `src/capabilities/tools/tool-registry.ts`             | canonical tools                     | tool execution               |
 | Capabilities        | Capability platform                      | capability IDs/lifecycle            | PolicyGate/governance        |
 
 ---
@@ -1870,7 +1870,7 @@ After #560:
 This issue must **not**:
 
 * create a universal agent registry;
-* move `SubagentRole` out of `src/config/schema.ts`;
+* move `SubagentRole` out of `src/operations/config/schema.ts`;
 * add `auto` to `AGENT_REGISTRY`;
 * add workflow agents to `AGENT_REGISTRY`;
 * add control-plane roles to `AGENT_REGISTRY`;
@@ -1962,7 +1962,7 @@ SubagentRole
 remains owned by:
 
 ```text
-src/config/schema.ts
+src/operations/config/schema.ts
 ```
 
 ### INV-3 — Exactly six concrete registry entries

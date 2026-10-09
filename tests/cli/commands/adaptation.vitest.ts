@@ -21,11 +21,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { ReflectionReport } from "../../../src/reflection/reflection-types.js";
-import type { AdaptationProposal, ProposalTarget } from "../../../src/adaptation/adaptation-types.js";
-import { SnapshotStore } from "../../../src/adaptation/snapshot-store.js";
-import type { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
-import { selectApplier } from "../../../src/cli/commands/adaptation.js";
+import type { ReflectionReport } from "../../../src/planning/reflection/reflection-types.js";
+import type { AdaptationProposal, ProposalTarget } from "../../../src/planning/adaptation/adaptation-types.js";
+import { SnapshotStore } from "../../../src/planning/adaptation/snapshot-store.js";
+import type { EvidenceEventWriter } from "../../../src/coordination/workflow/evidence-writer.js";
+import { selectApplier } from "../../../src/interfaces/cli/commands/adaptation.js";
 
 // ---------------------------------------------------------------------------
 // process.cwd override helpers
@@ -83,7 +83,7 @@ function writeReportFile(name: string, report: ReflectionReport): string {
 async function seedProposal(
   overrides: Partial<AdaptationProposal> = {},
 ): Promise<AdaptationProposal> {
-  const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+  const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
   const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
   const proposal: AdaptationProposal = {
     id: "prop-test-001",
@@ -167,7 +167,7 @@ describe("adaptation CLI", () => {
       await seedProposal({ id: "prop-A", action: "create_agent_card", status: "pending" });
       await seedProposal({ id: "prop-B", action: "update_agent_card", status: "approved" });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["list"]);
       c.restore();
@@ -183,7 +183,7 @@ describe("adaptation CLI", () => {
       await seedProposal({ id: "prop-PENDING", status: "pending" });
       await seedProposal({ id: "prop-APPROVED", status: "approved" });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["list", "--status", "approved"]);
       c.restore();
@@ -194,7 +194,7 @@ describe("adaptation CLI", () => {
     });
 
     it("prints a no-proposals message when the store is empty", async () => {
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["list"]);
       c.restore();
@@ -211,7 +211,7 @@ describe("adaptation CLI", () => {
     it("prints full details for a known id", async () => {
       const proposal = await seedProposal({ id: "prop-show-1", reason: "a specific reason" });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["show", proposal.id]);
       c.restore();
@@ -223,7 +223,7 @@ describe("adaptation CLI", () => {
     });
 
     it("errors cleanly with exit 1 on unknown id", async () => {
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
@@ -236,7 +236,7 @@ describe("adaptation CLI", () => {
     });
 
     it("errors when no id is given", async () => {
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
@@ -264,13 +264,13 @@ describe("adaptation CLI", () => {
       ]);
       const reportPath = writeReportFile("report.json", report);
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["propose", reportPath]);
       c.restore();
 
       // Proposal was saved to the store directory.
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const all = await store.list();
       expect(all.length).toBe(1);
@@ -294,12 +294,12 @@ describe("adaptation CLI", () => {
       ]);
       const reportPath = writeReportFile("report.json", report);
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["propose", reportPath]);
       c.restore();
 
-      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const { EvidenceStore } = await import("../../../src/governance/security/evidence/evidence-store.js");
       const store = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
       const proposed = await store.query({ type: "adaptation_proposed" });
       expect(proposed.total).toBe(1);
@@ -315,19 +315,19 @@ describe("adaptation CLI", () => {
       ]);
       const reportPath = writeReportFile("report.json", report);
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["propose", reportPath]);
       c.restore();
 
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const all = await store.list();
       expect(all.length).toBe(1); // skill_revision IS mapped; only truly unknown types are skipped
     });
 
     it("errors with exit 1 when the report file is missing", async () => {
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
@@ -347,20 +347,20 @@ describe("adaptation CLI", () => {
     it("routes through ApprovalGate and records adaptation_approved evidence", async () => {
       const proposal = await seedProposal({ id: "prop-approve-1" });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["approve", proposal.id, "--by", "alice"]);
       c.restore();
 
       // Status transitioned by the gate.
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("approved");
       expect(reloaded!.approvedBy).toBe("alice");
 
       // Evidence recorded by the gate.
-      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const { EvidenceStore } = await import("../../../src/governance/security/evidence/evidence-store.js");
       const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
       const approved = await evidence.query({ type: "adaptation_approved" });
       expect(approved.total).toBe(1);
@@ -368,7 +368,7 @@ describe("adaptation CLI", () => {
     });
 
     it("errors with exit 1 on unknown id", async () => {
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
@@ -386,13 +386,13 @@ describe("adaptation CLI", () => {
       const p2 = await seedProposal({ id: "prop-batch-2" });
       const p3 = await seedProposal({ id: "prop-batch-3" });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["approve", p1.id, p2.id, p3.id, "--by", "bob"]);
       c.restore();
 
       // Verify all 3 transitioned to approved by bob.
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       for (const p of [p1, p2, p3]) {
         const reloaded = await store.load(p.id);
@@ -401,7 +401,7 @@ describe("adaptation CLI", () => {
       }
 
       // Evidence recorded for all 3.
-      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const { EvidenceStore } = await import("../../../src/governance/security/evidence/evidence-store.js");
       const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
       const approved = await evidence.query({ type: "adaptation_approved" });
       expect(approved.total).toBe(3);
@@ -418,13 +418,13 @@ describe("adaptation CLI", () => {
       const p1 = await seedProposal({ id: "prop-partial-1" });
       // "prop-nonexistent" is not seeded.
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["approve", p1.id, "prop-nonexistent", "--by", "carol"]);
       c.restore();
 
       // Valid proposal was still approved.
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(p1.id);
       expect(reloaded!.status).toBe("approved");
@@ -442,12 +442,12 @@ describe("adaptation CLI", () => {
       const p1 = await seedProposal({ id: "prop-by-a" });
       const p2 = await seedProposal({ id: "prop-by-b" });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["approve", p1.id, p2.id, "--by", "dave"]);
       c.restore();
 
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       for (const p of [p1, p2]) {
         const reloaded = await store.load(p.id);
@@ -460,12 +460,12 @@ describe("adaptation CLI", () => {
       const p1 = await seedProposal({ id: "prop-default-by" });
       const p2 = await seedProposal({ id: "prop-default-by-2" });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["approve", p1.id, p2.id]);
       c.restore();
 
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       for (const p of [p1, p2]) {
         const reloaded = await store.load(p.id);
@@ -481,13 +481,13 @@ describe("adaptation CLI", () => {
     it("batch: single id still uses fast path via gate.approve", async () => {
       const p1 = await seedProposal({ id: "prop-single-batch" });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       // Pass single id without --by to exercise detectActor default.
       await handleAdaptationCommand(["approve", p1.id]);
       c.restore();
 
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(p1.id);
       expect(reloaded!.status).toBe("approved");
@@ -499,7 +499,7 @@ describe("adaptation CLI", () => {
     });
 
     it("errors with exit 1 and usage when no id is given", async () => {
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
@@ -520,17 +520,17 @@ describe("adaptation CLI", () => {
     it("routes through ApprovalGate and records adaptation_rejected with reason", async () => {
       const proposal = await seedProposal({ id: "prop-reject-1" });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["reject", proposal.id, "--reason", "not now"]);
       c.restore();
 
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("rejected");
 
-      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const { EvidenceStore } = await import("../../../src/governance/security/evidence/evidence-store.js");
       const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
       const rejected = await evidence.query({ type: "adaptation_rejected" });
       expect(rejected.total).toBe(1);
@@ -546,7 +546,7 @@ describe("adaptation CLI", () => {
     it("is BLOCKED by the gate when the proposal is still pending (no-approval-no-mutation)", async () => {
       const proposal = await seedProposal({ id: "prop-block-1", status: "pending" });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
@@ -563,7 +563,7 @@ describe("adaptation CLI", () => {
     it("dispatches to AgentCardApplier for an approved agent_card proposal", async () => {
       const proposal = await seedProposal({ id: "prop-apply-card", status: "approved", approvedBy: "alice" });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["apply", proposal.id]);
       c.restore();
@@ -575,13 +575,13 @@ describe("adaptation CLI", () => {
       expect(card.id).toBe("new.agent");
 
       // Status transitioned to applied by the gate.
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("applied");
 
       // adaptation_applied evidence recorded.
-      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const { EvidenceStore } = await import("../../../src/governance/security/evidence/evidence-store.js");
       const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
       const applied = await evidence.query({ type: "adaptation_applied" });
       expect(applied.total).toBe(1);
@@ -614,7 +614,7 @@ describe("adaptation CLI", () => {
         payload: { step: "plan", action: "new improved action" },
       });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       await handleAdaptationCommand(["apply", proposal.id]);
       c.restore();
@@ -637,20 +637,20 @@ describe("adaptation CLI", () => {
         payload: { step: "plan", action: "x" },
       });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
       await expect(handleAdaptationCommand(["apply", proposal.id]))
         .rejects.toThrow("process.exit(1)");
 
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("failed");
       expect(reloaded!.error).toBeTruthy();
 
-      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const { EvidenceStore } = await import("../../../src/governance/security/evidence/evidence-store.js");
       const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
       const failed = await evidence.query({ type: "adaptation_failed" });
       expect(failed.total).toBe(1);
@@ -660,7 +660,7 @@ describe("adaptation CLI", () => {
     });
 
     it("errors with exit 1 on unknown id", async () => {
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
@@ -692,7 +692,7 @@ describe("adaptation CLI", () => {
         reason: "Under-routed capability — code-review requests blocked 3x",
       });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
@@ -717,14 +717,14 @@ describe("adaptation CLI", () => {
       expect(existsSync(join(tempRoot, ".alix", "skills", "workflow", "code-review.json"))).toBe(false);
 
       // Proposal stays approved — the human acts out-of-band.
-      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../src/planning/adaptation/adaptation-proposal-store.js");
       const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("approved");
       expect(reloaded!.appliedAt).toBeUndefined();
 
       // No apply/failed evidence recorded.
-      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const { EvidenceStore } = await import("../../../src/governance/security/evidence/evidence-store.js");
       const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
       expect((await evidence.query({ type: "adaptation_applied" })).total).toBe(0);
       expect((await evidence.query({ type: "adaptation_failed" })).total).toBe(0);
@@ -745,7 +745,7 @@ describe("adaptation CLI", () => {
         reason: "Process change recommended by reflection — needs human design",
       });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
@@ -763,7 +763,7 @@ describe("adaptation CLI", () => {
       expect(joined.toLowerCase()).toContain("github issue");
       expect(joined).toContain("Plan workflow drops context on retry");
 
-      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const { EvidenceStore } = await import("../../../src/governance/security/evidence/evidence-store.js");
       const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
       expect((await evidence.query({ type: "adaptation_applied" })).total).toBe(0);
       expect((await evidence.query({ type: "adaptation_failed" })).total).toBe(0);
@@ -784,7 +784,7 @@ describe("adaptation CLI", () => {
         reason: "Capability requested but not declared on the agent card",
       });
 
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
@@ -800,7 +800,7 @@ describe("adaptation CLI", () => {
       expect(joined.toLowerCase()).toContain("summarization");
       expect(joined.toLowerCase()).toContain("reviewer.agent");
 
-      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const { EvidenceStore } = await import("../../../src/governance/security/evidence/evidence-store.js");
       const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
       expect((await evidence.query({ type: "adaptation_applied" })).total).toBe(0);
       expect((await evidence.query({ type: "adaptation_failed" })).total).toBe(0);
@@ -813,7 +813,7 @@ describe("adaptation CLI", () => {
 
   describe("unknown subcommand", () => {
     it("errors with exit 1 on an unknown subcommand", async () => {
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 
@@ -825,7 +825,7 @@ describe("adaptation CLI", () => {
     });
 
     it("errors with exit 1 when no subcommand is provided", async () => {
-      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const { handleAdaptationCommand } = await import("../../../src/interfaces/cli/commands/adaptation.js");
       const c = captureConsole();
       const exit = mockExit();
 

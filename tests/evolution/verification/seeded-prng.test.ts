@@ -6,7 +6,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { SeededPRNG } from "../../../src/evolution/verification/index.js";
+import { SeededPRNG } from "../../../src/planning/evolution/verification/index.js";
 
 describe("SeededPRNG", () => {
   it("same seed produces same sequence", () => {

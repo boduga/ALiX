@@ -24,11 +24,11 @@ Three outcomes: (1) remove the deprecated flat `RuntimeEventSnapshot`/`RuntimeSn
 | D5 | **Idempotency by event `seq`.** `ExecutionTraceState.seenSequences` dedups; replaying events 11–13 leaves the projection unchanged. Terminal dedup: completed lifecycles leave `openByKey` into `terminalById` keyed by `tr-${firstSequence}`; a duplicate terminal with a different payload does NOT silently rewrite history — **first terminal completion wins**, later duplicates are ignored after reconciliation (their seqs may be retained internally for diagnostics). |
 | D6 | **Mutable internal state, immutable published snapshots.** The builder holds a mutable `ExecutionTraceState` (open lifecycles, terminal map); `snapshot()` returns a fresh `retention.apply(materializeTrace(state))` of immutable `ExecutionTraceEntry[]` DTOs. **`materializeTrace()` must never expose internal map objects** — it always returns freshly-constructed DTOs (`[...terminalEntries].map(cloneEntry)` or equivalent), never references into `terminalById`/`openByKey`. An earlier snapshot never changes after a later `update` — enforced by a mandatory immutability test. |
 | D7 | **#321 dashboard migration:** the RUNTIME panel "Last event:" row switches from newest raw event to the last trace unit (e.g. `✔ tool.search`). `totalEventCount`/`lastEventAt` stay raw-log metadata. Trace = interpretation; EventLog metadata = accounting. |
-| D8 | **Boundary:** `timelineEvents[]`, ChatView, AgentView, the capability presenter, and `src/capability/*` are UNTOUCHED. The Timeline Projection phase will later reuse `EventLogCursor`/`readSince`/the reconciliation engine/`ProjectionCheckpoint` without dragging the Phase-3 timeline migration into this phase. |
+| D8 | **Boundary:** `timelineEvents[]`, ChatView, AgentView, the capability presenter, and `src/capabilities/capability/*` are UNTOUCHED. The Timeline Projection phase will later reuse `EventLogCursor`/`readSince`/the reconciliation engine/`ProjectionCheckpoint` without dragging the Phase-3 timeline migration into this phase. |
 
 ## Architecture
 
-### Cursor (`src/events/event-log.ts`)
+### Cursor (`src/runtime-state/events/event-log.ts`)
 
 ```ts
 declare const eventLogCursorBrand: unique symbol;
@@ -68,7 +68,7 @@ interface EventLog {
 
 Semantics frozen: fabricated/negative/future cursors cannot be constructed through the public API (the brand is private); `beginningCursor()` is never null-based; cursors are log-local.
 
-### Reconciliation engine + builder (`src/tui/runtime/execution-trace-builder.ts`)
+### Reconciliation engine + builder (`src/interfaces/tui/runtime/execution-trace-builder.ts`)
 
 ```ts
 interface MutableLifecycle {
@@ -137,7 +137,7 @@ export class IncrementalExecutionTraceBuilder {
 - **Synthesized:** terminal-without-open becomes a standalone completed unit (e.g. `policy.decision`, `patch.checkpoint_created`).
 - **materializeTrace:** emits terminal entries (oldest→newest by firstSequence) then open entries as `running` (no `lastSequence`).
 
-### Collector integration (`src/tui/runtime-collector.ts`)
+### Collector integration (`src/interfaces/tui/runtime-collector.ts`)
 
 The collector owns TWO concerns: the trace (via the incremental builder) and the workflow/runtime accounting (via a bounded recent-events buffer). **`recentEvents` is NOT a second execution projection — it is workflow-accounting input owned by `RuntimeCollector`** (a future maintainer must not merge it with trace state). `computeWorkflow` scans for `workflow.created`/`workflow.completed` boundaries then counts steps since the last `workflow.created` — it needs events since that boundary, NOT the trace (non-lifecycle events like `workflow.completed` don't appear in the trace). So the collector retains a bounded `recentEvents` buffer (events appended per batch; trimmed when a new `workflow.created` arrives; unbounded during a single active workflow by design (trimming on completion would hide the completion from `computeWorkflow`)) used only by `computeWorkflow`; `totalEventCount`/`lastEventAt` come from the raw log head (`getCursor`/latest read).
 
@@ -154,7 +154,7 @@ sample():
 
 Startup is fully incremental — no `readAll()`. Poll-failure keeps the previous snapshot (existing invariant). `ProjectionCheckpoint` is in-memory only (D3).
 
-### #321: dashboard migration (`src/tui/dashboard-renderer.ts` + `src/tui/snapshot.ts`)
+### #321: dashboard migration (`src/interfaces/tui/dashboard-renderer.ts` + `src/interfaces/tui/snapshot.ts`)
 
 - Delete `RuntimeEventSnapshot` and the `events?` field from `RuntimeSnapshot`; remove the collector's flat `mapped` producer and the `runtime.events` guard in `dashboard-renderer.ts`.
 - The RUNTIME panel "Last event:" row reads the last trace unit from `runtime.trace` (its title + status + started time). `totalEventCount`/`lastEventAt` remain raw-log metadata (D7).
@@ -199,7 +199,7 @@ RuntimeView + dashboard-renderer (renders trace)
 - ✅ Idempotent by event `seq`; terminal first-wins; snapshot immutability test green.
 - ✅ `RuntimeCollectorImpl` starts from `beginningCursor` and consumes incrementally — no `readAll()` in normal startup.
 - ✅ #321 resolved: `RuntimeEventSnapshot` + `RuntimeSnapshot.events?` deleted, dashboard-renderer reads `trace`, zero references remain.
-- ✅ `timelineEvents[]`, ChatView, AgentView, capability presenter, `src/capability/*` untouched; vitest green; `tsc --noEmit` clean.
+- ✅ `timelineEvents[]`, ChatView, AgentView, capability presenter, `src/capabilities/capability/*` untouched; vitest green; `tsc --noEmit` clean.
 
 ## Non-Goals (Phase 5)
 
@@ -207,7 +207,7 @@ RuntimeView + dashboard-renderer (renders trace)
 - **Timeline Projection unification.** The Timeline Projection phase reuses the cursor/reconciliation/checkpoint machinery later — not this phase (D8).
 - **`timelineEvents[]`, ChatView, AgentView, capability presenter changes.**
 - **New event kinds / richer timeline kinds.** The existing `tool|policy|capability|runtime` trace vocabulary is unchanged.
-- **`src/capability/*` modification.**
+- **`src/capabilities/capability/*` modification.**
 
 ## Future Direction
 

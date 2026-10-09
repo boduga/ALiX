@@ -31,33 +31,33 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { ModelAdapter } from "../../src/providers/types.js";
-import type { AgentTurnResult } from "../../src/agent/session.js";
+import type { ModelAdapter } from "../../src/models/providers/types.js";
+import type { AgentTurnResult } from "../../src/agents/agent/session.js";
 import type { RunResult } from "../../src/run.js";
-import type { EventLog } from "../../src/events/event-log.js";
-import type { AgentActivity } from "../../src/agent/agent-activity.js";
-import type { AgentLivenessSnapshot } from "../../src/agent/agent-liveness.js";
+import type { EventLog } from "../../src/runtime-state/events/event-log.js";
+import type { AgentActivity } from "../../src/agents/agent/agent-activity.js";
+import type { AgentLivenessSnapshot } from "../../src/agents/agent/agent-liveness.js";
 
 const mocks = vi.hoisted(() => ({
   initAgent: vi.fn(),
 }));
 
-vi.mock("../../src/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
-vi.mock("../../src/utils/memory/recall.js", () => ({
+vi.mock("../../src/agents/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
+vi.mock("../../src/operations/utils/memory/recall.js", () => ({
   buildMemoryContext: vi.fn(() => Promise.resolve(undefined)),
   buildMemoryStats: vi.fn(() => Promise.resolve(undefined)),
 }));
-vi.mock("../../src/skills/loader.js", () => ({
+vi.mock("../../src/capabilities/skills/loader.js", () => ({
   loadSkillManifests: vi.fn(() => Promise.resolve([])),
 }));
-vi.mock("../../src/skills/catalog.js", () => ({
+vi.mock("../../src/capabilities/skills/catalog.js", () => ({
   buildSkillCatalog: vi.fn(() => ({
     getMatchedContent: vi.fn(() => Promise.resolve([])),
   })),
 }));
-vi.mock("../../src/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
+vi.mock("../../src/capabilities/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
 
-// NOTE: `../../src/run/task-loop.js` is deliberately NOT mocked — the real
+// NOTE: `../../src/execution/run/task-loop.js` is deliberately NOT mocked — the real
 // loop is the thing under test together with the real processTurn closure.
 
 type StreamChunk =
@@ -206,7 +206,7 @@ async function makeSession(opts: {
   cwd: string;
   onStream?: (chunk: { type: string; text?: string }) => void;
 }): Promise<SessionHandle> {
-  const { createAgentSession } = await import("../../src/agent/session.js");
+  const { createAgentSession } = await import("../../src/agents/agent/session.js");
   const session = createAgentSession({ cwd: opts.cwd, task: "", planMode: false, onStream: opts.onStream });
   return {
     processTurn: (m: string) => session.processTurn(m),
@@ -231,9 +231,9 @@ async function buildHarness(opts: {
   createSession: () => Promise<SessionHandle>;
   cleanup: () => Promise<void>;
 }> {
-  const { EventLog } = await import("../../src/events/event-log.js");
-  const { MemoryStore } = await import("../../src/utils/memory/store.js");
-  const { ScopeTracker } = await import("../../src/autonomy/scope-tracker.js");
+  const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+  const { MemoryStore } = await import("../../src/operations/utils/memory/store.js");
+  const { ScopeTracker } = await import("../../src/planning/autonomy/scope-tracker.js");
 
   const tmpRoot = mkdtempSync(join(tmpdir(), "long-running-turn-"));
   const sessionDir = join(tmpRoot, ".alix", "sessions", "lt");
@@ -747,7 +747,7 @@ describe("long-running agent turns across the old 120s deadline (Tests 7.1-7.9)"
 
       // Animate: re-derive the spinner line repeatedly against the live
       // activity record (what the ~1s render cadence does every tick).
-      const { formatActivityLine, activitySpinnerFrame } = await import("../../src/tui/views/activity-line.js");
+      const { formatActivityLine, activitySpinnerFrame } = await import("../../src/interfaces/tui/views/activity-line.js");
       const a = session.getActivity();
       expect(a).toBeDefined();
       for (let t = 1_000; t <= 60_000; t += 250) {
@@ -779,14 +779,14 @@ describe("long-running agent turns across the old 120s deadline (Tests 7.1-7.9)"
     // Session-level proof above already crosses the boundary; this guards the
     // loop in isolation so a future loop-level deadline cannot hide behind the
     // session wrapper.
-    const { EventLog } = await import("../../src/events/event-log.js");
-    const { MemoryStore } = await import("../../src/utils/memory/store.js");
-    const { ScopeTracker } = await import("../../src/autonomy/scope-tracker.js");
-    const { TaskStateMachine, RunLimiter } = await import("../../src/autonomy/state-machine.js");
-    const { createContextBudget } = await import("../../src/config/context-budget.js");
-    const { ToolExecutor } = await import("../../src/tools/executor.js");
-    const { runTaskLoop } = await import("../../src/run/task-loop.js");
-    const { CancellationToken } = await import("../../src/runtime/cancellation-token.js");
+    const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+    const { MemoryStore } = await import("../../src/operations/utils/memory/store.js");
+    const { ScopeTracker } = await import("../../src/planning/autonomy/scope-tracker.js");
+    const { TaskStateMachine, RunLimiter } = await import("../../src/planning/autonomy/state-machine.js");
+    const { createContextBudget } = await import("../../src/operations/config/context-budget.js");
+    const { ToolExecutor } = await import("../../src/capabilities/tools/executor.js");
+    const { runTaskLoop } = await import("../../src/execution/run/task-loop.js");
+    const { CancellationToken } = await import("../../src/runtime-state/runtime/cancellation-token.js");
 
     const tmpRoot = mkdtempSync(join(tmpdir(), "long-running-loop-"));
     const sessionDir = join(tmpRoot, ".alix", "sessions", "loop");
@@ -798,7 +798,7 @@ describe("long-running agent turns across the old 120s deadline (Tests 7.1-7.9)"
     const executor = new ToolExecutor({} as any, eventLog, tmpRoot);
 
     const provider = new ControllableProvider(false);
-    const deps: import("../../src/run/task-loop.js").TaskLoopDeps = {
+    const deps: import("../../src/execution/run/task-loop.js").TaskLoopDeps = {
       config: { models: { default: { provider: "mock", name: "mock", streaming: false } }, permissions: {}, context: {} } as any,
       provider: provider as unknown as ModelAdapter,
       providerTools: [],

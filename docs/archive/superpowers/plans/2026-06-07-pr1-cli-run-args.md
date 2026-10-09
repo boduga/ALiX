@@ -16,7 +16,7 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/cli/run-args.ts` | **Create** | `parseRunArgs()` function + `RunArgs` type |
+| `src/interfaces/cli/run-args.ts` | **Create** | `parseRunArgs()` function + `RunArgs` type |
 | `src/cli.ts` | **Modify** | Replace inline regex parsing with `parseRunArgs()` call |
 | `tests/cli/run-args.test.ts` | **Create** | Tests for flag parsing edge cases |
 
@@ -25,7 +25,7 @@
 ### Task 1: Create parseRunArgs module
 
 **Files:**
-- Create: `src/cli/run-args.ts`
+- Create: `src/interfaces/cli/run-args.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -140,7 +140,7 @@ export function parseRunArgs(rawArgs: string[]): RunArgs {
 - [ ] **Step 2: Verify it compiles**
 
 ```bash
-npx tsc --noEmit src/cli/run-args.ts 2>&1
+npx tsc --noEmit src/interfaces/cli/run-args.ts 2>&1
 ```
 
 Expected: no errors.
@@ -148,7 +148,7 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/cli/run-args.ts
+git add src/interfaces/cli/run-args.ts
 git commit -m "feat(cli): add parseRunArgs for structured run arg parsing"
 ```
 
@@ -164,7 +164,7 @@ git commit -m "feat(cli): add parseRunArgs for structured run arg parsing"
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseRunArgs } from "../../src/cli/run-args.js";
+import { parseRunArgs } from "../../src/interfaces/cli/run-args.js";
 
 describe("parseRunArgs", () => {
 

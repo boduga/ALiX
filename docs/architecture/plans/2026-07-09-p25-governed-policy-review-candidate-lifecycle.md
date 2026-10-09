@@ -43,14 +43,14 @@
 | P25.2 | `src/governance/policy-review-candidate-builder.ts` | Pure `buildCandidates()` with medium/high filter |
 | P25.3 | `src/governance/policy-review-candidate-store.ts` | File-based store with transition validation |
 | P25.4 | `src/governance/policy-review-candidate-report.ts` | Pure report builder + text/json |
-| P25.4 | `src/cli/commands/governance-policy-review.ts` | CLI handler |
+| P25.4 | `src/interfaces/cli/commands/governance-policy-review.ts` | CLI handler |
 | P25.5 | `docs/architecture/checkpoints/2026-07-09-p25-5-governed-policy-review-candidate-lifecycle-checkpoint.md` | Checkpoint |
 
 ### Touched Files
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "policy-review"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "policy-review"` dispatch |
 
 ### Untouched Files
 
@@ -1442,8 +1442,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 5: P25.4 — CLI Handler + Dispatch (governance-policy-review.ts)
 
 **Files:**
-- Create: `src/cli/commands/governance-policy-review.ts`
-- Modify: `src/cli/commands/governance.ts` — add `case "policy-review"` dispatch
+- Create: `src/interfaces/cli/commands/governance-policy-review.ts`
+- Modify: `src/interfaces/cli/commands/governance.ts` — add `case "policy-review"` dispatch
 - Test: `tests/governance/policy-review-cli.test.ts`
 
 **Interfaces:**
@@ -1460,7 +1460,7 @@ import assert from "node:assert/strict";
 import { writeFileSync, mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleGovernancePolicyReviewCommand } from "../../src/cli/commands/governance-policy-review.js";
+import { handleGovernancePolicyReviewCommand } from "../../src/interfaces/cli/commands/governance-policy-review.js";
 
 const VALID_ISO = "2026-07-08T18:00:00.000Z";
 
@@ -1553,7 +1553,7 @@ Expected: FAIL (module not found)
 
 - [ ] **Step 3: Write the CLI handler**
 
-Create `src/cli/commands/governance-policy-review.ts`:
+Create `src/interfaces/cli/commands/governance-policy-review.ts`:
 
 ```typescript
 /**
@@ -1888,7 +1888,7 @@ export async function handleGovernancePolicyReviewCommand(
 
 - [ ] **Step 4: Wire dispatch in governance.ts**
 
-Read `src/cli/commands/governance.ts` and add after the `case "calibration"` block:
+Read `src/interfaces/cli/commands/governance.ts` and add after the `case "calibration"` block:
 
 ```typescript
     case "policy-review": {
@@ -1910,7 +1910,7 @@ Expected: Clean compile
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/cli/commands/governance-policy-review.ts src/cli/commands/governance.ts tests/governance/policy-review-cli.test.ts
+git add src/interfaces/cli/commands/governance-policy-review.ts src/interfaces/cli/commands/governance.ts tests/governance/policy-review-cli.test.ts
 git commit -m "feat(P25.4): policy review CLI — build|open|list|show|transition|note|report
 
 Wires alix governance policy-review subcommand tree into governance.ts dispatch.

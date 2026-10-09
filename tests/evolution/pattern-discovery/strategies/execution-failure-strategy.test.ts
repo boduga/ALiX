@@ -5,10 +5,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ExecutionFailureStrategy,
-} from "../../../../src/evolution/pattern-discovery/strategies/execution-failure-strategy.js";
-import { normalizeIntentId } from "../../../../src/evolution/pattern-discovery/strategies/strategy-utils.js";
-import type { DiscoveryContext } from "../../../../src/evolution/contracts/discovery-context.js";
-import type { ExecutionEvidence } from "../../../../src/runtime/contracts/execution-intent-contract.js";
+} from "../../../../src/planning/evolution/pattern-discovery/strategies/execution-failure-strategy.js";
+import { normalizeIntentId } from "../../../../src/planning/evolution/pattern-discovery/strategies/strategy-utils.js";
+import type { DiscoveryContext } from "../../../../src/planning/evolution/contracts/discovery-context.js";
+import type { ExecutionEvidence } from "../../../../src/runtime-state/runtime/contracts/execution-intent-contract.js";
 
 // ---------------------------------------------------------------------------
 // Test helpers

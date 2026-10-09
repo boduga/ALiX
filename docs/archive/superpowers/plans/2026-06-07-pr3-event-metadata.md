@@ -16,8 +16,8 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/events/types.ts` | **Modify** | Add `EventMeta` type and `meta?: EventMeta` to `AlixEvent` |
-| `src/events/event-log.ts` | **Modify** | Accept and persist `meta` in `NewEvent` / `append()` |
+| `src/runtime-state/events/types.ts` | **Modify** | Add `EventMeta` type and `meta?: EventMeta` to `AlixEvent` |
+| `src/runtime-state/events/event-log.ts` | **Modify** | Accept and persist `meta` in `NewEvent` / `append()` |
 | `tests/events/event-meta.test.ts` | **Create** | Tests for meta field creation, serialization, backward compat |
 
 ---
@@ -25,7 +25,7 @@
 ### Task 1: Add EventMeta type to events/types.ts
 
 **Files:**
-- Modify: `src/events/types.ts`
+- Modify: `src/runtime-state/events/types.ts`
 
 - [ ] **Step 1: Add EventMeta type and update AlixEvent**
 
@@ -82,7 +82,7 @@ Expected: succeeds. If any existing code constructs `AlixEvent` objects inline, 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/events/types.ts
+git add src/runtime-state/events/types.ts
 git commit -m "feat(events): add optional EventMeta field to AlixEvent"
 ```
 
@@ -91,7 +91,7 @@ git commit -m "feat(events): add optional EventMeta field to AlixEvent"
 ### Task 2: Accept meta in EventLog.append()
 
 **Files:**
-- Modify: `src/events/event-log.ts`
+- Modify: `src/runtime-state/events/event-log.ts`
 
 - [ ] **Step 1: Ensure EventLog.append() passes meta through**
 
@@ -120,7 +120,7 @@ If this spread is present (it should be — check around line 27-33), `meta` is 
 To confirm, search for `const fullEvent` in `event-log.ts` and verify the spread:
 
 ```bash
-grep -A8 "const fullEvent" src/events/event-log.ts
+grep -A8 "const fullEvent" src/runtime-state/events/event-log.ts
 ```
 
 Expected output shows `...event` in the object literal. If it explicit-lists fields instead of spreading, add `meta: (event as any).meta` to the object.
@@ -128,7 +128,7 @@ Expected output shows `...event` in the object literal. If it explicit-lists fie
 - [ ] **Step 2: Commit (if changes needed)**
 
 ```bash
-git add src/events/event-log.ts
+git add src/runtime-state/events/event-log.ts
 git commit -m "fix(events): pass meta field through EventLog.append"
 ```
 
@@ -149,7 +149,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { EventLog } from "../../src/events/event-log.js";
+import { EventLog } from "../../src/runtime-state/events/event-log.js";
 
 describe("EventMeta", () => {
   let tmpDir: string;

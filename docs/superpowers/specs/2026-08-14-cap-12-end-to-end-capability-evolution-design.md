@@ -91,7 +91,7 @@ E2e test that walks the §10 path. The test is a **scenario script**, not a unit
 14. history reads back measured event in the right order
 ```
 
-The test uses the **composition root** (`src/capability/platform.ts`) to construct the service, fakes only the providers and the event log, and asserts identity equality at each step. No mocks of `CapabilityService` itself.
+The test uses the **composition root** (`src/capabilities/capability/platform.ts`) to construct the service, fakes only the providers and the event log, and asserts identity equality at each step. No mocks of `CapabilityService` itself.
 
 ### 4.2 D2 — CLI/runtime catalog parity test
 
@@ -173,7 +173,7 @@ The migration fixture data flow:
 legacy fixture (M-series Capability[])
    │
    ▼
-legacy-adapter.toCanonical(cap) [src/capability/legacy-adapter.ts]
+legacy-adapter.toCanonical(cap) [src/capabilities/capability/legacy-adapter.ts]
    │  maps execution.strategy → bindings[].type
    │  maps legacy kind → canonical kind
    │  normalizes version to SemVer
@@ -182,13 +182,13 @@ legacy-adapter.toCanonical(cap) [src/capability/legacy-adapter.ts]
 CapabilityDefinition[] (canonical)
    │
    ▼
-Catalog.write(def) [src/capability/canonical/catalog.ts]
+Catalog.write(def) [src/capabilities/capability/canonical/catalog.ts]
    │
    ▼
-Registry projection [src/capability/registry.ts]
+Registry projection [src/capabilities/capability/registry.ts]
    │
    ▼
-Runtime resolver view [src/capability/provider-resolver.ts]
+Runtime resolver view [src/capabilities/capability/provider-resolver.ts]
    │
    ▼
 assertions (per fixture row, vs expected table)
@@ -198,7 +198,7 @@ assertions (per fixture row, vs expected table)
 
 ## 6. Composition root
 
-No new composition root. CAP-12 **consumes** the existing `src/capability/platform.ts` composition root. The e2e test bootstraps it with:
+No new composition root. CAP-12 **consumes** the existing `src/capabilities/capability/platform.ts` composition root. The e2e test bootstraps it with:
 - a temp directory for the canonical catalog (via `mkdtemp`)
 - a fake event log (in-memory)
 - fake providers (one per provider type covered by the test)
@@ -218,7 +218,7 @@ CAP-12 is **terminal**. There is no migration *to* CAP-12. The migration CAP-12 
 
 What stays after CAP-12:
 - A7/A7.1 design/plan/checkpoint docs (historical record, marked SUPERSEDED)
-- Legacy-adapter (`src/capability/legacy-adapter.ts`) — the inverse direction is still needed for runtimes that haven't migrated to canonical reads
+- Legacy-adapter (`src/capabilities/capability/legacy-adapter.ts`) — the inverse direction is still needed for runtimes that haven't migrated to canonical reads
 - The reconciliation roadmap P29/P30 if still referenced
 
 What leaves after CAP-12:
@@ -292,6 +292,6 @@ The migration fixture is forward-compatible: if a future capability kind is adde
 - `docs/architecture/checkpoints/2026-08-10-a7-1-capability-application-checkpoint.md` — A7.1 superseded checkpoint
 - `tests/capability/cap-10-5-emission-sentinel.vitest.ts` — prior CAP sentinel pattern
 - `tests/capability/cap-11-structural-cleanup-sentinel.vitest.ts` — prior CAP sentinel pattern
-- `src/capability/legacy-adapter.ts` — M-series ↔ canonical adapter
-- `src/capability/platform.ts` — composition root
-- `src/capability/capability-service.ts` — service surface
+- `src/capabilities/capability/legacy-adapter.ts` — M-series ↔ canonical adapter
+- `src/capabilities/capability/platform.ts` — composition root
+- `src/capabilities/capability/capability-service.ts` — service surface

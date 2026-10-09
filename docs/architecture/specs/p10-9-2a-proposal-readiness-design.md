@@ -41,7 +41,7 @@ type ProposalStatus = "pending" | "approved" | "rejected" | "applied" | "failed"
 ### Derived (new — pure, no persistence)
 
 ```typescript
-// New file: src/adaptation/proposal-readiness.ts
+// New file: src/planning/adaptation/proposal-readiness.ts
 
 type ProposalReadiness =
   | "needs_approval"        // pending, has applier → needs human approve
@@ -272,10 +272,10 @@ P10.9.2a implements gates 1 and 3 as readiness-aware surfaces. Gate 2 (the remed
 
 | File | Action | Purpose |
 |---|---|---|
-| `src/adaptation/proposal-readiness.ts` | **Create** | Pure types + `computeProposalReadiness()` + `getApplySupport()` |
+| `src/planning/adaptation/proposal-readiness.ts` | **Create** | Pure types + `computeProposalReadiness()` + `getApplySupport()` |
 | `tests/adaptation/proposal-readiness.vitest.ts` | **Create** | Unit tests: every row of the decision table + edge cases |
-| `src/cli/commands/adaptation.ts` | **Modify** | `list` columns, `show` readiness block, `runApply` readiness gate |
-| `src/cli/commands/executive-bridge-handler.ts` | **Modify** | Add `status` subcommand handler + routing |
+| `src/interfaces/cli/commands/adaptation.ts` | **Modify** | `list` columns, `show` readiness block, `runApply` readiness gate |
+| `src/interfaces/cli/commands/executive-bridge-handler.ts` | **Modify** | Add `status` subcommand handler + routing |
 | `tests/cli/commands/executive-bridge-status.vitest.ts` | **Create** | Bridge status CLI tests: summary counts, detail rendering, `--json`, `--plan` |
 | `tests/cli/commands/adaptation-readiness.vitest.ts` | **Create** | CLI integration tests: list columns, show readiness, apply gate |
 

@@ -69,10 +69,10 @@ export type RuntimeIndex = {
 
 | File | Action |
 |------|--------|
-| `src/runtime/runtime-index.ts` | Create — RuntimeIndex builder + query functions |
+| `src/runtime-state/runtime/runtime-index.ts` | Create — RuntimeIndex builder + query functions |
 | `tests/runtime/runtime-index.test.ts` | Create — tests with example data |
 | `src/cli.ts` | Modify — add `alix runtime` commands (M0.19-C) |
-| `src/server/server.ts` | Modify — add `GET /api/runtime` route (M0.19-C) |
-| `src/ui/index.html` | Modify — add Runtime tab (M0.19-C) |
-| `src/ui/app.js` | Modify — render timeline (M0.19-C) |
-| `src/ui/styles.css` | Modify — timeline styles (M0.19-C) |
+| `src/interfaces/server/server.ts` | Modify — add `GET /api/runtime` route (M0.19-C) |
+| `src/interfaces/ui/index.html` | Modify — add Runtime tab (M0.19-C) |
+| `src/interfaces/ui/app.js` | Modify — render timeline (M0.19-C) |
+| `src/interfaces/ui/styles.css` | Modify — timeline styles (M0.19-C) |

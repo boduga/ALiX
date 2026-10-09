@@ -74,7 +74,7 @@ This is a structural choice now that prevents engine rewrites later.
 2. **The TrendStore is the only new write path.** It may append snapshots to `.alix/executive/trends.jsonl`. Everything else remains read-only.
 3. **Trend snapshots are append-only.** The priority engine never modifies an existing snapshot. Snapshot pruning is deferred.
 4. **All three factor scores are 0–100 integers.**
-5. **No new mutation paths, no new evidence types.** The P10 sentinel is extended with a scoped write exception for `src/executive/trend-store.ts:save` — the only approved P10.1 write path. All other P10.1 files remain fully read-only and are added to the sentinel scan list.
+5. **No new mutation paths, no new evidence types.** The P10 sentinel is extended with a scoped write exception for `src/execution/executive/trend-store.ts:save` — the only approved P10.1 write path. All other P10.1 files remain fully read-only and are added to the sentinel scan list.
 
 ## Types
 
@@ -164,7 +164,7 @@ Governance and security are highest because a breakdown there cascades everywher
 
 ## Architecture (2 components)
 
-### 1. Priority engine — `src/executive/priority-engine.ts`
+### 1. Priority engine — `src/execution/executive/priority-engine.ts`
 
 Pure read function. Consumes `ExecutiveHealthReport` (P10.0) and optional prior snapshot. Returns `ExecutivePriorityReport`.
 
@@ -183,7 +183,7 @@ export async function computeExecutivePriorities(
 
 The async variant reads the trend snapshot from the TrendStore.
 
-### 2. Trend store — `src/executive/trend-store.ts`
+### 2. Trend store — `src/execution/executive/trend-store.ts`
 
 Reads and appends trend snapshots from `.alix/executive/trends.jsonl`. Thin wrapper over `readFileSync` / `writeFileSync` / `appendFileSync`.
 
@@ -246,11 +246,11 @@ Panel 1 (priorities) can show either the P10.0 top-3 worst or the P10.1 top-3 pr
 
 | # | Path | Action | Purpose |
 |---|------|--------|---------|
-| 1 | `src/executive/priority-engine.ts` | NEW | `computePriorityScore` + `computeExecutivePriorities` |
-| 2 | `src/executive/trend-store.ts` | NEW | `ExecutiveTrendStore` — load/save trend snapshots to `.alix/executive/trends.jsonl` |
-| 3 | `src/executive/executive-health.ts` | MODIFY | Export `ExecutiveSubsystemName` if not already exported (verify) |
-| 4 | `src/cli/commands/executive-dashboard-renderer.ts` | MODIFY | Add priority column to panel 0; sort by priority in panel 1 |
-| 5 | `src/cli/commands/executive-dashboard-handler.ts` | MODIFY | Call priority engine + trend store after aggregator |
+| 1 | `src/execution/executive/priority-engine.ts` | NEW | `computePriorityScore` + `computeExecutivePriorities` |
+| 2 | `src/execution/executive/trend-store.ts` | NEW | `ExecutiveTrendStore` — load/save trend snapshots to `.alix/executive/trends.jsonl` |
+| 3 | `src/execution/executive/executive-health.ts` | MODIFY | Export `ExecutiveSubsystemName` if not already exported (verify) |
+| 4 | `src/interfaces/cli/commands/executive-dashboard-renderer.ts` | MODIFY | Add priority column to panel 0; sort by priority in panel 1 |
+| 5 | `src/interfaces/cli/commands/executive-dashboard-handler.ts` | MODIFY | Call priority engine + trend store after aggregator |
 | 6 | `tests/executive/priority-engine.vitest.ts` | NEW | Unit tests for formula + edge cases (6-8 tests) |
 | 7 | `tests/executive/trend-store.vitest.ts` | NEW | Unit tests for snapshot read/write/fallback (3-4 tests) |
 | 8 | `docs/superpowers/specs/2026-06-24-p10-1-priority-engine-design.md` | NEW | This spec |

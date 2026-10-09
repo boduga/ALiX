@@ -337,7 +337,7 @@ src/governance/replay/replay-input-assembler.ts
 src/governance/replay/counterfactual-readiness-evaluator.ts
 src/governance/replay/replay-diff-model.ts
 src/governance/replay/replay-report.ts
-src/cli/commands/governance-replay.ts
+src/interfaces/cli/commands/governance-replay.ts
 ```
 
 Pure modules:

@@ -12,13 +12,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
-import { ApprovalRecommendationStore } from "../../src/adaptation/approval-recommendation-store.js";
-import { RiskScoreStore } from "../../src/adaptation/risk-score-store.js";
-import { GovernanceReviewStore } from "../../src/adaptation/governance-review-store.js";
-import { LearningStore } from "../../src/learning/learning-store.js";
-import { EvidenceChainStore } from "../../src/learning/evidence-chain-store.js";
-import { assembleProposalExplanation } from "../../src/explain/proposal-explanation-assembler.js";
+import { OutcomeStore } from "../../src/planning/adaptation/outcome-store.js";
+import { ApprovalRecommendationStore } from "../../src/planning/adaptation/approval-recommendation-store.js";
+import { RiskScoreStore } from "../../src/planning/adaptation/risk-score-store.js";
+import { GovernanceReviewStore } from "../../src/planning/adaptation/governance-review-store.js";
+import { LearningStore } from "../../src/planning/learning/learning-store.js";
+import { EvidenceChainStore } from "../../src/planning/learning/evidence-chain-store.js";
+import { assembleProposalExplanation } from "../../src/operations/explain/proposal-explanation-assembler.js";
 
 const OUTCOMES_DIR = join(".alix", "adaptation", "outcomes");
 const RECOMMENDATIONS_DIR = join(".alix", "recommendations");

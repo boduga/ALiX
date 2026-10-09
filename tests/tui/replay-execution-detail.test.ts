@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { renderReplayResult } from "../../src/tui/trace-detail.js";
-import type { ReplayResult } from "../../src/runtime/replay-executor.js";
+import { renderReplayResult } from "../../src/interfaces/tui/trace-detail.js";
+import type { ReplayResult } from "../../src/runtime-state/runtime/replay-executor.js";
 
 function makeResult(overrides: Partial<ReplayResult> = {}): ReplayResult {
   return {

@@ -13,7 +13,7 @@ import { join } from "node:path";
  * pattern (file-existence + content-shape sentinels).
  *
  * Note: brief originally asserted
- * `src/evolution/capability-lifecycle/*` was untouched. That assertion
+ * `src/planning/evolution/capability-lifecycle/*` was untouched. That assertion
  * was dropped (Bug 2 amendment): Task 9 legitimately modified
  * `capability-lifecycle-cli.ts` to wire governance CLI switch cases
  * (`proposals` / `approve` / `reject`) through the new CapabilityService
@@ -48,7 +48,7 @@ function readSrc(rel: string): string {
 
 describe("CAP-9 supersession — forbidden files", () => {
   it("CAP-8 forbidden files preserved", () => {
-    const a7 = readSrc("src/capability/evolution/proposals.ts");
+    const a7 = readSrc("src/capabilities/capability/evolution/proposals.ts");
     // Module has imports (sanity check — would be a regression if it
     // suddenly had no imports).
     assert.equal(a7.includes("from"), true);
@@ -76,14 +76,14 @@ describe("CAP-9 supersession — forbidden files", () => {
     // TUI façade is a distinct composition-root service from CAP-9's
     // governance path. CAP-9 must not touch it (CAP-11 owns the broader
     // migration).
-    const tui = readSrc("src/tui/capabilities/capability-service.ts");
+    const tui = readSrc("src/interfaces/tui/capabilities/capability-service.ts");
     assert.equal(tui.length > 0, true, "TUI façade must exist.");
   });
 });
 
 describe("CAP-9 governance event type prefix", () => {
   it("uses capability.governance.proposal.* (ruling #1, #2)", () => {
-    const types = readSrc("src/capability/governance/governance-types.ts");
+    const types = readSrc("src/capabilities/capability/governance/governance-types.ts");
     assert.match(
       types,
       /capability\.governance\.proposal\./,

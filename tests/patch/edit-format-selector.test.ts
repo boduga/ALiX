@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { EditFormatSelector } from "../../src/patch/edit-format-selector.js";
+import { EditFormatSelector } from "../../src/execution/patch/edit-format-selector.js";
 
 describe("EditFormatSelector", () => {
   it("selects unified diff for simple line changes", () => {

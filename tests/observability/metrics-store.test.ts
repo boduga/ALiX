@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   MetricsStore, RollupStore, type MetricRow, type MetricType,
-} from "../../src/observability/metrics-store.js";
+} from "../../src/operations/observability/metrics-store.js";
 
 describe("MetricsStore", () => {
   let tmpDir: string;

@@ -27,11 +27,11 @@
 ### Task 1: ApprovalStore complete lifecycle emissions
 
 **Files:**
-- Modify: `src/approvals/approval-store.ts`
+- Modify: `src/governance/approvals/approval-store.ts`
 - Test: `tests/approvals/approval-store-events.vitest.ts` (create)
 
 **Interfaces:**
-- Consumes: `APPROVAL_EVENT_TYPES` (`src/events/types.ts:410`), `ApprovalStore` constructor (`eventLog?: EventLog`), `ApprovalRecord` shape (`src/approvals/approval-types.ts`).
+- Consumes: `APPROVAL_EVENT_TYPES` (`src/runtime-state/events/types.ts:410`), `ApprovalStore` constructor (`eventLog?: EventLog`), `ApprovalRecord` shape (`src/governance/approvals/approval-types.ts`).
 - Produces: After this task, the EventLog contains a complete approval lifecycle record. `ApprovalProjection` (Task 2) will consume `approval.created`, `approval.resolved`, `approval.expired`, `approval.revoked`, `approval.consumed`, `approval.invalidated`.
 
 **Context:** The store mutates `approvals.json` in 7 paths; 5 leave no EventLog trace (`expireDue`, `revoke`, `consumeApproved`, `invalidateByPolicyRevision`, `resolveGroup`), so an EventLog reader can never see those transitions. The fix is to append exactly one lifecycle event per successful persisted mutation, **after** the mutation succeeds. `resolve` already emits; `requestBound`/`requestFresh`/`requestOrReusePending` already emit `approval.created` but must enrich it.
@@ -45,8 +45,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../src/events/event-log.js';
-import { ApprovalStore } from '../../src/approvals/approval-store.js';
+import { EventLog } from '../../src/runtime-state/events/event-log.js';
+import { ApprovalStore } from '../../src/governance/approvals/approval-store.js';
 
 async function fresh() {
   const dir = mkdtempSync(join(tmpdir(), 'approval-events-'));
@@ -150,7 +150,7 @@ Expected: FAIL — expired/revoked/consumed/invalidated/resolveGroup assertions 
 
 - [ ] **Step 3: Implement the emissions**
 
-In `src/approvals/approval-store.ts`:
+In `src/governance/approvals/approval-store.ts`:
 
 > **Append-error convention (LOCKED — Option 3):** keep the repository's established fire-and-forget convention for ALL approval-store emissions, existing and new. The EventLog append happens **after** the durable mutation succeeds (persist-before-append), so a failed append never risks losing the mutation; the append is best-effort telemetry of governance state, and a failure must not change the store method's contract. Use `this.eventLog?.append(...).catch(() => {})` for every emission (matching the existing store `created`/`resolve` emissions and `policy-gate.ts`). **Do NOT convert to `await` in this increment.**
 >
@@ -226,7 +226,7 @@ Expected: all pass; typecheck clean.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/approvals/approval-store.ts tests/approvals/approval-store-events.vitest.ts
+git add src/governance/approvals/approval-store.ts tests/approvals/approval-store-events.vitest.ts
 git commit -m "feat(approvals): emit complete approval lifecycle events
 
 Store mutations now mirror into the EventLog after durable persist:
@@ -242,11 +242,11 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 2: ApprovalProjection union-reader normalization
 
 **Files:**
-- Modify: `src/tui/runtime/approval-projection.ts`
+- Modify: `src/interfaces/tui/runtime/approval-projection.ts`
 - Test: `tests/tui/runtime/approval-projection.vitest.ts` (extend)
 
 **Interfaces:**
-- Consumes: `AlixEvent` (`src/events/types.ts`), existing `ApprovalProjectionSnapshot` / `ApprovalProjectionEntry` / `MAX_COMPLETED` / `VALID_STATUSES` (all exported or module-internal from `approval-projection.ts`), `DurableProjectionBuilder` interface.
+- Consumes: `AlixEvent` (`src/runtime-state/events/types.ts`), existing `ApprovalProjectionSnapshot` / `ApprovalProjectionEntry` / `MAX_COMPLETED` / `VALID_STATUSES` (all exported or module-internal from `approval-projection.ts`), `DurableProjectionBuilder` interface.
 - Produces: `ApprovalProjection` that normalizes BOTH vocabularies — `approval.created`/`approval.requested` create pending entries with merge-enrich; `approval.resolved` accepts `decision` OR `status`; `approval.expired`/`revoked`/`consumed`/`invalidated`/`reused` handled; terminal states immutable; contradictions throw. Status union gains `'invalidated'`.
 
 **Context:** Currently the projection only understands the CLI vocab (`approval.requested`, `approval.resolved` with `decision`), and line 96-98 silently `continue`s past `approval.created` (store vocab). After Task 1, the store emits rich events — the projection must normalize them all. The existing `update()` loops events with monotonicity + timestamp validation already in place; preserve those.
@@ -396,7 +396,7 @@ Expected: FAIL — `approval.created` is currently ignored (line 96-98 `continue
 
 - [ ] **Step 3: Implement the union-reader projection**
 
-In `src/tui/runtime/approval-projection.ts`:
+In `src/interfaces/tui/runtime/approval-projection.ts`:
 
 1. **Add `'invalidated'` to `VALID_STATUSES`** and to the `ApprovalProjectionEntry['status']` union.
 
@@ -549,7 +549,7 @@ Expected: all pass; typecheck clean.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/runtime/approval-projection.ts tests/tui/runtime/approval-projection.vitest.ts
+git add src/interfaces/tui/runtime/approval-projection.ts tests/tui/runtime/approval-projection.vitest.ts
 git commit -m "feat(approvals): normalize approval events in projection
 
 ApprovalProjection is now a union-reader over both approval vocabularies:
@@ -568,21 +568,21 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 3: ApprovalProjectionCollector adapter + atomic swap
 
 **Files:**
-- Create: `src/tui/runtime/approval-projection-collector.ts`
-- Modify: `src/cli/commands/tui.ts` (extract shared runtime, swap adapter)
-- Modify: `src/approvals/extract-target.ts` (new shared helper — move from `src/tui/approval-manager.ts`)
-- Modify: `src/tui/approval-manager.ts` (remove `snapshot()`, import shared `extractTarget`)
+- Create: `src/interfaces/tui/runtime/approval-projection-collector.ts`
+- Modify: `src/interfaces/cli/commands/tui.ts` (extract shared runtime, swap adapter)
+- Modify: `src/governance/approvals/extract-target.ts` (new shared helper — move from `src/interfaces/tui/approval-manager.ts`)
+- Modify: `src/interfaces/tui/approval-manager.ts` (remove `snapshot()`, import shared `extractTarget`)
 - Test: `tests/tui/runtime/approval-projection-collector.vitest.ts` (create)
 
 **Interfaces:**
-- Consumes: `ProjectionRuntime` (`src/tui/runtime/projection-runtime.ts`, `snapshotOf<TSnapshot>(id): TSnapshot | undefined`), `ProjectionIds.approval`, `ApprovalProjectionSnapshot` / `ApprovalProjectionEntry` (`approval-projection.ts`), `ApprovalCollector` (`snapshot-builder.ts:30`), `ApprovalSnapshot` / `ApprovalRecordSnapshot` (`src/tui/snapshot.ts:78`), `extractTarget` (new shared helper).
+- Consumes: `ProjectionRuntime` (`src/interfaces/tui/runtime/projection-runtime.ts`, `snapshotOf<TSnapshot>(id): TSnapshot | undefined`), `ProjectionIds.approval`, `ApprovalProjectionSnapshot` / `ApprovalProjectionEntry` (`approval-projection.ts`), `ApprovalCollector` (`snapshot-builder.ts:30`), `ApprovalSnapshot` / `ApprovalRecordSnapshot` (`src/interfaces/tui/snapshot.ts:78`), `extractTarget` (new shared helper).
 - Produces: `ApprovalProjectionCollector implements ApprovalCollector` with `snapshot(): Promise<ApprovalSnapshot | null>`. `SnapshotBuilder`'s `approvals` becomes this adapter. `ApprovalManager` no longer has `snapshot()`.
 
 **Context:** The `ApprovalProjection` is already registered and fed on the outer runtime collector (`tui.ts:133`) but unread. This task wires a reader adapter and flips the `SnapshotBuilder`'s approval source atomically. `ApprovalManager` keeps its command/mutation role; only its `snapshot()` (sole caller `snapshot-builder.ts:130`) is removed. The adapter maps `ApprovalProjectionSnapshot` → `ApprovalSnapshot` per the spec's Section 3 table.
 
 - [ ] **Step 1: Create the shared `extractTarget` helper**
 
-Create `src/approvals/extract-target.ts`:
+Create `src/governance/approvals/extract-target.ts`:
 ```ts
 /**
  * Extract a path/target from an approval reason string, if the reason embeds
@@ -602,11 +602,11 @@ export function extractTarget(reason: string | undefined): string | undefined {
 Create `tests/tui/runtime/approval-projection-collector.vitest.ts`:
 ```ts
 import { describe, it, expect } from 'vitest';
-import { ApprovalProjectionCollector } from '../../../src/tui/runtime/approval-projection-collector.js';
-import { ApprovalProjection } from '../../../src/tui/runtime/approval-projection.js';
-import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
-import type { AlixEvent } from '../../../src/events/types.js';
+import { ApprovalProjectionCollector } from '../../../src/interfaces/tui/runtime/approval-projection-collector.js';
+import { ApprovalProjection } from '../../../src/interfaces/tui/runtime/approval-projection.js';
+import { createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import { ProjectionIds } from '../../../src/interfaces/tui/runtime/projection-ids.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
 
 function evt(type: string, payload: Record<string, unknown>, seq: number, ts = seq * 1000): AlixEvent {
   return { id: `e${seq}`, seq, version: 1, sessionId: 's', timestamp: new Date(ts).toISOString(), type, actor: 'system', payload };
@@ -653,7 +653,7 @@ describe('ApprovalProjectionCollector', () => {
     expect(snap2!.recentlyResolved).toHaveLength(1);
     // ApprovalRecordSnapshot has no status field (UI contract); the distinction
     // is expressed by list membership. The projection's own snapshot carries it:
-    expect(runtime2.snapshotOf<import('../../../src/tui/runtime/approval-projection.js').ApprovalProjectionSnapshot>(ProjectionIds.approval)!.completed[0]!.status).toBe('expired');
+    expect(runtime2.snapshotOf<import('../../../src/interfaces/tui/runtime/approval-projection.js').ApprovalProjectionSnapshot>(ProjectionIds.approval)!.completed[0]!.status).toBe('expired');
   });
 
   it('targetPath is derived from prompt via extractTarget; falls back to raw prompt', async () => {
@@ -698,7 +698,7 @@ Expected: FAIL — `approval-projection-collector.ts` doesn't exist.
 
 - [ ] **Step 4: Implement the adapter**
 
-Create `src/tui/runtime/approval-projection-collector.ts`:
+Create `src/interfaces/tui/runtime/approval-projection-collector.ts`:
 ```ts
 import type { ProjectionRuntime } from './projection-runtime.js';
 import { ProjectionIds } from './projection-ids.js';
@@ -737,16 +737,16 @@ export class ApprovalProjectionCollector implements ApprovalCollector {
 
 - [ ] **Step 5: Remove `snapshot()` from ApprovalManager; use shared helper**
 
-In `src/tui/approval-manager.ts`:
+In `src/interfaces/tui/approval-manager.ts`:
 - Delete the `snapshot(): Promise<ApprovalSnapshot>` method (and the now-unused `ApprovalSnapshot`/`ApprovalRecordSnapshot` imports if unused elsewhere).
 - Change the inline `extractTarget` function to import from `../../approvals/extract-target.js` (delete the local copy).
 - Keep `tryHandleCommand`, `/approve`, `/deny`, `handleList`, `handleResolve` unchanged.
 
-Verify no other callers of `ApprovalManager.snapshot()` exist: `grep -rn "approvalManager.snapshot\|\.approvals?.snapshot\|\.snapshot()" src/tui/app.ts src/tui/views/ src/cli/commands/tui.ts` — the only snapshot consumer is `snapshot-builder.ts:130` (via the `ApprovalCollector` interface, which the adapter now satisfies).
+Verify no other callers of `ApprovalManager.snapshot()` exist: `grep -rn "approvalManager.snapshot\|\.approvals?.snapshot\|\.snapshot()" src/interfaces/tui/app.ts src/interfaces/tui/views/ src/interfaces/cli/commands/tui.ts` — the only snapshot consumer is `snapshot-builder.ts:130` (via the `ApprovalCollector` interface, which the adapter now satisfies).
 
 - [ ] **Step 6: Wire the swap in the composition root**
 
-In `src/cli/commands/tui.ts`:
+In `src/interfaces/cli/commands/tui.ts`:
 
 1. **Extract the shared projection runtime** (currently inline at line 131):
 ```ts
@@ -791,7 +791,7 @@ Expected: all pass; typecheck clean. The approval-manager's removed `snapshot()`
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/tui/runtime/approval-projection-collector.ts src/approvals/extract-target.ts src/tui/approval-manager.ts src/cli/commands/tui.ts tests/tui/runtime/approval-projection-collector.vitest.ts
+git add src/interfaces/tui/runtime/approval-projection-collector.ts src/governance/approvals/extract-target.ts src/interfaces/tui/approval-manager.ts src/interfaces/cli/commands/tui.ts tests/tui/runtime/approval-projection-collector.vitest.ts
 git commit -m "feat(tui): migrate approval snapshot reads to projection adapter
 
 Adds ApprovalProjectionCollector adapting ApprovalProjectionSnapshot to the
@@ -824,13 +824,13 @@ Extend `tests/tui/runtime/approval-projection-collector.vitest.ts`:
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../../src/events/event-log.js';
-import { ApprovalStore } from '../../../src/approvals/approval-store.js';
-import { ApprovalProjection } from '../../../src/tui/runtime/approval-projection.js';
-import { ApprovalProjectionCollector } from '../../../src/tui/runtime/approval-projection-collector.js';
-import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
-import { extractTarget } from '../../../src/approvals/extract-target.js';
+import { EventLog } from '../../../src/runtime-state/events/event-log.js';
+import { ApprovalStore } from '../../../src/governance/approvals/approval-store.js';
+import { ApprovalProjection } from '../../../src/interfaces/tui/runtime/approval-projection.js';
+import { ApprovalProjectionCollector } from '../../../src/interfaces/tui/runtime/approval-projection-collector.js';
+import { createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import { ProjectionIds } from '../../../src/interfaces/tui/runtime/projection-ids.js';
+import { extractTarget } from '../../../src/governance/approvals/extract-target.js';
 ```
 
 ```ts
@@ -902,7 +902,7 @@ it('FULL LIFECYCLE: request → resolve(approved) → consume → attempted revo
   expect(projSnap!.pending).toHaveLength(0);
   expect(projSnap!.recentlyResolved.map(r => r.id)).toContain(rec.id);
   // the projection's own snapshot carries the precise terminal status
-  const raw = runtime.snapshotOf<import('../../../src/tui/runtime/approval-projection.js').ApprovalProjectionSnapshot>(ProjectionIds.approval)!;
+  const raw = runtime.snapshotOf<import('../../../src/interfaces/tui/runtime/approval-projection.js').ApprovalProjectionSnapshot>(ProjectionIds.approval)!;
   expect(raw.completed[0]!.status).toBe('consumed');
 });
 ```

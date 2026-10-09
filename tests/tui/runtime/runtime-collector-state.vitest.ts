@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
-import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
-import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
-import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import { CHECKPOINT_CONTAINER_VERSION } from '../../../src/tui/runtime/projection-checkpoint-store.js';
-import { EventLogCursorError, type EventLog, type EventLogCursor } from '../../../src/events/event-log.js';
-import type { AlixEvent } from '../../../src/events/types.js';
-import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
+import { RuntimeCollectorImpl } from '../../../src/interfaces/tui/runtime-collector.js';
+import { TimelineBuilder } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import { createProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import { CHECKPOINT_CONTAINER_VERSION } from '../../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
+import { EventLogCursorError, type EventLog, type EventLogCursor } from '../../../src/runtime-state/events/event-log.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
 
 const SESSION_ID = 's';
 function makeTimeline(sessionId: string): TimelineBuilder { return new TimelineBuilder(sessionId); }

@@ -6,8 +6,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
-import type { EvidenceRecord } from "../../../src/security/evidence/evidence-types.js";
+import { EvidenceStore } from "../../../src/governance/security/evidence/evidence-store.js";
+import type { EvidenceRecord } from "../../../src/governance/security/evidence/evidence-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

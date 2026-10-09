@@ -163,6 +163,6 @@ node bin/alix.js governance failure-analysis --json
 ```
 src/governance/failure-clustering.ts    # Create
 tests/governance/failure-clustering.test.ts  # Create
-src/cli/commands/governance.ts            # Amend (add failure-analysis subcommand)
+src/interfaces/cli/commands/governance.ts            # Amend (add failure-analysis subcommand)
 docs/architecture/plans/2026-07-05-p13-2-failure-clustering.md  # Plan
 ```

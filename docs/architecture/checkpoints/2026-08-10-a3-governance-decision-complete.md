@@ -19,13 +19,13 @@ CLI: `alix governance evolution decide <evolution-id> [--policy <name>] [--json]
 
 | File | Responsibility |
 |------|----------------|
-| `src/evolution/governance/contracts/decision-contract.ts` | A3.0: `GovernanceDecision`, `GovernanceDecisionKind`, `GovernancePolicyConfig` |
-| `src/evolution/governance/contracts/decision-store-contract.ts` | A3.1: `GovernanceDecisionStore` interface |
-| `src/evolution/governance/decision-engine.ts` | A3.2: Pure decision function |
-| `src/evolution/governance/decision-store.ts` | A3.5: `InMemoryGovernanceDecisionStore` |
-| `src/evolution/governance/governance-decision-bridge.ts` | A3.3: Lifecycle bridge (decision → state machine) |
-| `src/evolution/governance/governance-decision-cli.ts` | A3.4: CLI handler |
-| `src/evolution/governance/index.ts` | Barrel re-exports |
+| `src/planning/evolution/governance/contracts/decision-contract.ts` | A3.0: `GovernanceDecision`, `GovernanceDecisionKind`, `GovernancePolicyConfig` |
+| `src/planning/evolution/governance/contracts/decision-store-contract.ts` | A3.1: `GovernanceDecisionStore` interface |
+| `src/planning/evolution/governance/decision-engine.ts` | A3.2: Pure decision function |
+| `src/planning/evolution/governance/decision-store.ts` | A3.5: `InMemoryGovernanceDecisionStore` |
+| `src/planning/evolution/governance/governance-decision-bridge.ts` | A3.3: Lifecycle bridge (decision → state machine) |
+| `src/planning/evolution/governance/governance-decision-cli.ts` | A3.4: CLI handler |
+| `src/planning/evolution/governance/index.ts` | Barrel re-exports |
 
 **Tests:** `tests/evolution/governance/` — decision-contract, decision-engine,
 decision-store, governance-decision-bridge, governance-decision-cli, and

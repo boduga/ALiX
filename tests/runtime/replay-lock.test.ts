@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ReplayLock } from "../../src/runtime/replay-lock.js";
+import { ReplayLock } from "../../src/runtime-state/runtime/replay-lock.js";
 
 describe("ReplayLock", () => {
   let tmpDir: string;

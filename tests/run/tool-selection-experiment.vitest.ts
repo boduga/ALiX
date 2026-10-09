@@ -18,25 +18,25 @@ import {
   readToolSelectionProjection,
   type ExperimentRankingRecord,
   type ToolSelectionProjection,
-} from '../../src/decision/tool-selection-experiment.js';
+} from '../../src/planning/decision/tool-selection-experiment.js';
 import {
   TOOL_SELECTION_JEV_MAPPING,
   TOOL_SELECTION_JEV_QUESTION_ID,
   createJevToolSelectionScorer,
   renderToolSelectionState,
-} from '../../src/decision/tool-selection-jev-mapping.js';
+} from '../../src/planning/decision/tool-selection-jev-mapping.js';
 import {
   TOOL_SELECTION_EXPERIMENT,
   replayToolSelection,
   type ToolSelectionScope,
-} from '../../src/decision/tool-selection-replay.js';
+} from '../../src/planning/decision/tool-selection-replay.js';
 import {
   builtinCandidateId,
   candidateIdFor,
   freezeToolCandidates,
-} from '../../src/decision/tool-selection-candidates.js';
-import { sealForRemote } from '../../src/decision/boundary.js';
-import { createJevExecutor } from '../../src/decision/engines/jev.js';
+} from '../../src/planning/decision/tool-selection-candidates.js';
+import { sealForRemote } from '../../src/planning/decision/boundary.js';
+import { createJevExecutor } from '../../src/planning/decision/engines/jev.js';
 
 const frozen = freezeToolCandidates({
   builtin: [
@@ -508,7 +508,7 @@ describe('createJevToolSelectionScorer', () => {
 describe('offline-only isolation', () => {
   /**
    * The experiment must not gain runtime influence by accident: nothing outside
-   * `src/decision/` (the decision layer that owns it) may import the experiment
+   * `src/planning/decision/` (the decision layer that owns it) may import the experiment
    * scorer, its Jev mapping, or the replay engine. A `src/run`, `src/agent`,
    * `src/tools` or `src/mcp` importer would make tool selection a runtime
    * surface without a promotion decision.
@@ -535,7 +535,7 @@ describe('offline-only isolation', () => {
         // Normalise separators before the prefix check: on Windows the slice
         // below yields backslashes, which would never match 'decision/'.
         const relative = path.slice(root.length).split(sep).join('/');
-        if (relative.startsWith('decision/')) continue;
+        if (relative.startsWith('planning/decision/')) continue;
         const source = readFileSync(path, 'utf8');
         for (const banned of [
           'tool-selection-experiment.js',

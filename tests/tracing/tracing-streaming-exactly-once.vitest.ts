@@ -20,7 +20,7 @@
  *
  * Deliberately NOT driven through runTaskLoop/streamToResponse: a mid-stream
  * error there triggers the design's fail-soft blocking complete() fallback
- * (src/run/helpers.ts:351-360), which is R6's documented "2 physical requests →
+ * (src/execution/run/helpers.ts:351-360), which is R6's documented "2 physical requests →
  * 2 spans" behavior for a LOGICAL stream. That is a different invariant. This
  * test holds the exactly-once-per-PHYSICAL-request invariant by consuming the
  * wrapper's stream() async iterator directly (the seam that creates/closes the
@@ -39,16 +39,16 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AlixConfig } from "../../src/config/schema.js";
-import { createTraceClient } from "../../src/tracing/client-factory.js";
-import type { TraceClient } from "../../src/tracing/client.js";
-import { withProviderContracts } from "../../src/providers/provider-contract-validation.js";
-import { ExecutionCancelledError } from "../../src/runtime/cancellation-token.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import { createTraceClient } from "../../src/models/tracing/client-factory.js";
+import type { TraceClient } from "../../src/models/tracing/client.js";
+import { withProviderContracts } from "../../src/models/providers/provider-contract-validation.js";
+import { ExecutionCancelledError } from "../../src/runtime-state/runtime/cancellation-token.js";
 import type {
   ModelAdapter,
   NormalizedRequest,
   StreamChunk,
-} from "../../src/providers/types.js";
+} from "../../src/models/providers/types.js";
 
 import {
   FakeLangfuseSpanProcessor,

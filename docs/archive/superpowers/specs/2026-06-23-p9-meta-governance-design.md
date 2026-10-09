@@ -209,7 +209,7 @@ src/governance/governance-assessment.ts      # Pure: interpretation → Governan
 src/governance/governance-drift-detector.ts  # Pure: drift detection
 src/governance/governance-lens-review.ts     # Pure: lens lifecycle analysis
 src/governance/governance-integrity.ts       # Pure: GovernanceIntegrityReport
-src/cli/commands/governance.ts              # CLI dispatcher
+src/interfaces/cli/commands/governance.ts              # CLI dispatcher
 tests/governance/                           # Tests per builder
 tests/cli/commands/governance-cli.vitest.ts  # CLI tests
 ```

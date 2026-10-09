@@ -19,7 +19,7 @@ P6.5a shipped the deterministic framework: types, LensAgent interface, council a
 ```
 LLMAdapter  (interface — completes a prompt, returns raw text)
   │
-  └─ ProviderCatalogAdapter  (concrete — wraps src/providers/catalog.ts)
+  └─ ProviderCatalogAdapter  (concrete — wraps src/models/providers/catalog.ts)
        └─ complete(input, options?) → Promise<string>
 
 LLMLensAgent implements LensAgent  (one instance per lens)
@@ -47,7 +47,7 @@ CLI: alix decision review <id>
 ## LLMAdapter
 
 ```typescript
-// src/adaptation/llm-adapter.ts
+// src/planning/adaptation/llm-adapter.ts
 
 export interface LLMCompletion {
   content: string;
@@ -69,7 +69,7 @@ export interface LLMAdapter {
 ## ProviderCatalogAdapter
 
 ```typescript
-// src/adaptation/provider-catalog-adapter.ts
+// src/planning/adaptation/provider-catalog-adapter.ts
 
 export class ProviderCatalogAdapter implements LLMAdapter {
   constructor(private catalog: ProviderCatalog) {}
@@ -100,7 +100,7 @@ Note: The exact `ProviderCatalog.complete()` signature must be verified against 
 ## LLMLensAgent
 
 ```typescript
-// src/adaptation/llm-lens-agent.ts
+// src/planning/adaptation/llm-lens-agent.ts
 
 export class LLMLensAgent implements LensAgent {
   constructor(
@@ -286,16 +286,16 @@ Full `GovernanceReview` as JSON. Includes raw `lensScores[]` with their rational
 ## File Structure
 
 **Create:**
-- `src/adaptation/llm-adapter.ts` — `LLMAdapter` interface
-- `src/adaptation/provider-catalog-adapter.ts` — `ProviderCatalogAdapter implements LLMAdapter`
-- `src/adaptation/llm-lens-agent.ts` — `LLMLensAgent implements LensAgent`
+- `src/planning/adaptation/llm-adapter.ts` — `LLMAdapter` interface
+- `src/planning/adaptation/provider-catalog-adapter.ts` — `ProviderCatalogAdapter implements LLMAdapter`
+- `src/planning/adaptation/llm-lens-agent.ts` — `LLMLensAgent implements LensAgent`
 - `tests/adaptation/llm-adapter.vitest.ts` — adapter contract tests
 - `tests/adaptation/llm-lens-agent.vitest.ts` — JSON parsing, authority detection, fallback, error handling
 - `tests/adaptation/governance-review-sentinels.vitest.ts` — update sentinels for P6.5b
 
 **Modify:**
-- `src/cli/commands/decision.ts` — Replace `case "review"` stub with live execution, add `runReview`
-- `src/adaptation/lens-agent.ts` — Append JSON-only suffix to all `LENS_PROMPTS` entries
+- `src/interfaces/cli/commands/decision.ts` — Replace `case "review"` stub with live execution, add `runReview`
+- `src/planning/adaptation/lens-agent.ts` — Append JSON-only suffix to all `LENS_PROMPTS` entries
 
 **No new stores. No new evidence types. No queue changes. No persistence.**
 

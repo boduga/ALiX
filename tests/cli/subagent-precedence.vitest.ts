@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resolveEffectiveModel } from "../../src/agents/subagent-cli.js";
-import type { AlixConfig } from "../../src/config/schema.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
 
 const DEFAULT_MODEL = { provider: "openai", name: "gpt-4o" };
 const CODING_MODEL = { provider: "anthropic", name: "claude-3-5-sonnet" };

@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import * as terminalText from '../../../src/tui/terminal-text.js';
+import * as terminalText from '../../../src/interfaces/tui/terminal-text.js';
 import { createWorkbenchRenderHarness } from '../../fixtures/tui/workbench-render-harness.js';
 
 it('paints a raw keystroke without quadratic grapheme work', () => {

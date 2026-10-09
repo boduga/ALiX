@@ -37,13 +37,13 @@ eliminates the parallel state entirely.
 | D2 | **Timeline scope = chat + capabilities only.** Tool calls, plans, approvals, runtime status remain on the agent tab as execution observability, NOT timeline events. Operator narrative (chat) and execution telemetry (agent) stay separate. |
 | D3 | **Ordering by `timestamp`, tiebreak `sequence`.** `sequence` is a monotonic per-runtime counter so same-millisecond events render deterministically. |
 | D4 | **Event contract is frozen as a compatibility boundary.** `kind` (what happened) and `source` (who produced it) are orthogonal axes. `source` is stamped internally by the append helper — writers never specify it. |
-| D5 | **Writers route through a single `appendTimelineEvent(state, event)` helper.** Direct `state.timelineEvents.push(...)` is banned outside `state.ts` (grep-enforced: `rg "timelineEvents\.push" src/tui` → `src/tui/state.ts` only). The helper owns id/timestamp/sequence/source generation and returns the **actual stored object** (never a clone) for the capability presenter to mutate in place. |
+| D5 | **Writers route through a single `appendTimelineEvent(state, event)` helper.** Direct `state.timelineEvents.push(...)` is banned outside `state.ts` (grep-enforced: `rg "timelineEvents\.push" src/tui` → `src/interfaces/tui/state.ts` only). The helper owns id/timestamp/sequence/source generation and returns the **actual stored object** (never a clone) for the capability presenter to mutate in place. |
 | D6 | **Incremental replace.** Add `timelineEvents[]` alongside the legacy arrays → migrate writers → migrate views → migrate copy → delete legacy arrays only after zero production references remain. The TUI suite stays green at every intermediate commit. |
 | D7 | **Capability events are the only mutable events.** Pushed as `running`, updated in place by the presenter. `timestamp` stays at invocation time so the event holds its interleaved position while status text updates. |
 
 ## Architecture
 
-### Timeline event model (`src/tui/state.ts`)
+### Timeline event model (`src/interfaces/tui/state.ts`)
 
 ```ts
 export type TimelineSource = 'operator' | 'agent' | 'capability'; // `'system'` added when the first system event exists
@@ -71,7 +71,7 @@ export type TimelineEvent =
 All events serialize through JSON (no Set/Map/function) — satisfies the
 `PerTabState` round-trip invariant.
 
-### Timeline helpers (`src/tui/state.ts`)
+### Timeline helpers (`src/interfaces/tui/state.ts`)
 
 ```ts
 let timelineSequence = 0;
@@ -92,7 +92,7 @@ export function appendTimelineEvent(state: PerTabState, event: Omit<TimelineEven
 ```bash
 rg "timelineEvents\.push" src/tui
 ```
-Expected: `src/tui/state.ts` only.
+Expected: `src/interfaces/tui/state.ts` only.
 
 **Identity test (mandatory):** the state tests assert the helper returns the stored object:
 ```ts
@@ -151,12 +151,12 @@ what the chat tab shows.
 
 ### `CapabilityInvocationEntry` is superseded
 
-The Phase-2 `CapabilityInvocationEntry` interface (`src/tui/state.ts`) is
+The Phase-2 `CapabilityInvocationEntry` interface (`src/interfaces/tui/state.ts`) is
 replaced by the capability `TimelineEvent` variant. Its `at` field becomes the
 event's `timestamp`; `invocationId`/`capabilityId`/`status`/`output`/`error`
 carry over. The interface is deleted in Task 6 alongside the legacy arrays.
 
-### The presenter (`src/tui/capabilities/invocation-presenter.ts`)
+### The presenter (`src/interfaces/tui/capabilities/invocation-presenter.ts`)
 
 `ChatInvocationPresenter.present()`:
 1. `const event = appendTimelineEvent(getChatState(), { kind: 'capability', invocationId, capabilityId, status: 'running' })`.

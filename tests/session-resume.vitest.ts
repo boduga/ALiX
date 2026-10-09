@@ -25,7 +25,7 @@ import {
   reconstructSession,
   sessionInfo,
 } from "../src/session/resume.js";
-import { closeAllSharedLedgers } from "../src/storage/runtime-ledger.js";
+import { closeAllSharedLedgers } from "../src/runtime-state/storage/runtime-ledger.js";
 
 const SESSIONS_DIR = ".alix/sessions";
 const PLANS_DIR = ".alix/plans";

@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
-import type { OwnershipEventSink } from "../../src/ownership/ownership-types.js";
+import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
+import type { OwnershipEventSink } from "../../src/coordination/ownership/ownership-types.js";
 
 describe("OwnershipRegistry", () => {
   let dir: string;

@@ -360,7 +360,7 @@ auto-adopt outcomes, or auto-close candidates.
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "policy-review-outcome"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "policy-review-outcome"` dispatch |
 
 ### 13.3 Untouched Files
 

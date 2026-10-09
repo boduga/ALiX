@@ -14,7 +14,7 @@ P14.7 closes that gap and hardens the audit spine with full-matrix coverage: a d
 
 ## Governance mutation paths (the matrix)
 
-All in `src/cli/commands/governance.ts`. After P14.6c, each routes through an audited store decorator:
+All in `src/interfaces/cli/commands/governance.ts`. After P14.6c, each routes through an audited store decorator:
 
 | # | CLI operation | Handler | Decorated write | Emitter | Event type |
 |---|---------------|---------|-----------------|---------|------------|

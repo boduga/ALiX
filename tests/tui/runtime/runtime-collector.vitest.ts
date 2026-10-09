@@ -1,16 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
-import { RuntimeCollectorImpl, computeWorkflow, WORKFLOW_STEP_FALLBACK_TYPES } from '../../../src/tui/runtime-collector.js';
-import { EventLogCursorError } from '../../../src/events/event-log.js';
-import type { EventLog, EventLogCursor } from '../../../src/events/event-log.js';
-import type { AlixEvent } from '../../../src/events/types.js';
-import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
-import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
-import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
-import { CapabilityProjection } from '../../../src/tui/runtime/capability-projection.js';
-import { MetricsProjection } from '../../../src/tui/runtime/metrics-projection.js';
-import { createProjectionRuntime, ProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
-import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
-import type { DurableProjectionBuilder } from '../../../src/tui/runtime/durable-projection-builder.js';
+import { RuntimeCollectorImpl, computeWorkflow, WORKFLOW_STEP_FALLBACK_TYPES } from '../../../src/interfaces/tui/runtime-collector.js';
+import { EventLogCursorError } from '../../../src/runtime-state/events/event-log.js';
+import type { EventLog, EventLogCursor } from '../../../src/runtime-state/events/event-log.js';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/interfaces/tui/runtime/projection-checkpoint-store.js';
+import { TimelineBuilder } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import { CapabilityProjection } from '../../../src/interfaces/tui/runtime/capability-projection.js';
+import { MetricsProjection } from '../../../src/interfaces/tui/runtime/metrics-projection.js';
+import { createProjectionRuntime, ProjectionRuntime } from '../../../src/interfaces/tui/runtime/projection-runtime.js';
+import { ProjectionIds } from '../../../src/interfaces/tui/runtime/projection-ids.js';
+import type { DurableProjectionBuilder } from '../../../src/interfaces/tui/runtime/durable-projection-builder.js';
 
 /** Default session stamped by makeEventLog's append when no sessionId is
  *  passed (the pre-Task-2 tests all used this single-session world). */

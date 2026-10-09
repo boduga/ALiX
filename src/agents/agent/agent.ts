@@ -1,0 +1,230 @@
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { loadConfig } from "../../operations/config/loader.js";
+import { createModelResolver } from "../../operations/config/model-resolver.js";
+import { EventLog } from "../../runtime-state/events/event-log.js";
+import { ApprovalManager } from "../../governance/policy/approvals.js";
+import { buildRepoMapLite } from "../../context/repomap/repomap-lite.js";
+import { buildRoutingAdapter } from "../../models/providers/routing-adapter.js";
+import type { ModelAdapter } from "../../models/providers/types.js";
+import type { McpManager } from "../../capabilities/mcp/manager.js";
+import type { ToolExecutor } from "../../capabilities/tools/executor.js";
+import { createToolExecutor } from "../../capabilities/tools/tool-executor-factory.js";
+import { buildEditFormatPolicy } from "../../execution/patch/edit-format-policy.js";
+import { CheckpointManager } from "../../execution/patch/checkpoint.js";
+import "../../operations/utils/session-digest.js";
+import { MemoryStore } from "../../operations/utils/memory/store.js";
+import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
+import { buildMemoryContext, buildMemoryStats } from "../../operations/utils/memory/recall.js";
+import { createToolRepairHooks } from "../../../packages/tool-repair/src/adapters/alix-hook.js";
+import { DEFAULT_FACTORY_CONFIG } from "../../capabilities/skills/dispatcher.js";
+import { extractInitialScope, createScopeTracker } from "../../planning/autonomy/scope-tracker.js";
+import type { ScopeTracker } from "../../planning/autonomy/scope-tracker.js";
+import { shouldAutoDisableStreaming } from "./stream.js";
+
+export type AgentContext = {
+  sessionId: string;
+  sessionDir: string;
+  log: EventLog;
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  provider: ModelAdapter;
+  editFormatPolicy: ReturnType<typeof buildEditFormatPolicy>;
+  mcpManager: McpManager | null;
+  toolExecutor: ToolExecutor;
+  checkpointManager: CheckpointManager;
+  memoryStore: MemoryStore;
+  repoMap: Awaited<ReturnType<typeof buildRepoMapLite>> | undefined;
+  mergeCoordinator?: import("../merge-coordinator.js").MergeCoordinator;
+  subagentManager?: import("../subagent-manager.js").SubagentManager;
+  scope: ScopeTracker;
+  hookRunner: import("../../capabilities/extensions/hook-runner.js").HookRunner;
+};
+
+export type InitAgentOpts = {
+  cwd: string;
+  task: string;
+  sessionId?: string;
+  sessionDir?: string;
+  sharedSession?: {
+    sessionId: string;
+    sessionDir: string;
+    eventLog: EventLog;
+  };
+  sessionMode?: "auto" | "ask" | "bypass";
+  approvalStore?: ApprovalStore;
+  /** Suppress config warnings when a presentation layer owns the terminal. */
+  suppressConfigWarnings?: boolean;
+};
+
+export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<AgentContext> {
+  let sessionId: string;
+  let sessionDir: string;
+  let log: EventLog;
+
+  // Use shared session if provided (for TUI integration)
+  if (opts.sharedSession) {
+    sessionId = opts.sharedSession.sessionId;
+    sessionDir = opts.sharedSession.sessionDir;
+    log = opts.sharedSession.eventLog;
+  } else {
+    sessionId = opts.sessionId ?? randomUUID();
+    sessionDir = opts.sessionDir ?? join(cwd, ".alix", "sessions", sessionId);
+    await mkdir(sessionDir, { recursive: true });
+    log = new EventLog(sessionDir);
+    await log.init();
+  }
+
+  const config = await loadConfig(cwd, { suppressWarnings: opts.suppressConfigWarnings });
+  // CLI flag overrides config for session mode
+  if (opts.sessionMode) {
+    config.permissions.sessionMode = opts.sessionMode;
+  }
+
+  // Auto-disable streaming in non-TTY environments unless explicitly forced.
+  // Streaming lives on the canonical models.default (§2.8.3). Never mutate the
+  // loaded config: build a local override so the resolver sees the disabled
+  // flag while the persisted/loaded config stays untouched (R5.2).
+  const effectiveConfig =
+    shouldAutoDisableStreaming() && config.models?.default?.streaming
+      ? { ...config, models: { ...config.models, default: { ...config.models.default, streaming: false } } }
+      : config;
+
+  // Create approval manager with event log
+  new ApprovalManager({
+    eventLog: log,
+    sessionId,
+  });
+
+  // Initialize CheckpointManager for the session
+  const checkpointManager = new CheckpointManager(join(sessionDir, "checkpoints"));
+  await checkpointManager.init();
+
+  const session = { sessionId, actor: "system" as const };
+
+  await log.append({ ...session, type: "session.started", payload: { cwd, configHash: "mvp" } });
+  await log.append({ ...session, actor: "user", type: "user.message", payload: { text: opts.task, attachments: [] } });
+
+  // Load memory context for injection into system prompt
+  const memoryStore = new MemoryStore(join(cwd, ".alix", "memory"));
+  await buildMemoryContext(memoryStore);
+  await buildMemoryStats(memoryStore);
+
+  const repoMap = config.context.repoMap ? await buildRepoMapLite(cwd) : undefined;
+  await log.append({
+    ...session,
+    type: "context.repo_map_lite_created",
+    payload: { fileCount: repoMap?.files.length ?? 0, sourceCount: repoMap?.sourceFiles.length ?? 0, testCount: repoMap?.testFiles.length ?? 0 }
+  });
+
+  const model = createModelResolver(effectiveConfig).require();
+  const apiKeyFor = (pid: string): string => config.apiKeys?.[pid] ?? "";
+  const provider = await buildRoutingAdapter(model, apiKeyFor);
+  const editFormatPolicy = buildEditFormatPolicy({ provider: model.provider, preferred: provider.editFormatPreference });
+
+  // Initialize MCP manager (lazy - only needed if config.mcpServers?.length > 0)
+  let mcpManager: McpManager | null = null;
+  if (config.mcpServers?.length) {
+    const { McpManager: McpManagerClass } = await import("../../capabilities/mcp/manager.js");
+    mcpManager = new McpManagerClass(config);
+    await mcpManager.initialize();
+  }
+
+  const { discoverHooks } = await import("../../operations/hooks/discover.js");
+  await discoverHooks(cwd);
+
+  // Load skills (manifests only at startup, bodies lazy-loaded on match).
+  // Discovery unions project-local (<cwd>/.alix/skills) with the ALiX user
+  // store and ~/.agents/skills; eviction stays scoped to the ALiX user
+  // store (the project store is managed explicitly, never auto-evicted).
+  const { loadDiscoveredSkillManifests, getAlixSkillsDir } = await import("../../capabilities/skills/discovery.js");
+  const { buildSkillCatalog } = await import("../../capabilities/skills/catalog.js");
+  const skillManifests = await loadDiscoveredSkillManifests(process.env.HOME ?? "", cwd);
+  buildSkillCatalog(skillManifests);
+
+  // Enforce store limits
+  const { evictIfNeeded } = await import("../../capabilities/skills/lifecycle.js");
+  const { maxStore, maxCandidates } = config.skills?.factory ?? DEFAULT_FACTORY_CONFIG;
+  evictIfNeeded(getAlixSkillsDir(process.env.HOME ?? ""), { maxStore, maxCandidates: maxCandidates ?? 200 });
+
+  // Initialize subagent infrastructure only if enabled
+  let mergeCoordinator: import("../merge-coordinator.js").MergeCoordinator | undefined;
+  let subagentManager: import("../subagent-manager.js").SubagentManager | undefined;
+  let delegateHandler: ((args: Record<string, unknown>) => Promise<import("../../capabilities/tools/types.js").ToolResult>) | undefined;
+
+  if (config.subagents?.enabled) {
+    const { SubagentManager: SubagentManagerClass } = await import("../subagent-manager.js");
+    const { MergeCoordinator: MergeCoordinatorClass } = await import("../merge-coordinator.js");
+    const { createDelegateHandler: createDelegateHandlerFn } = await import("../delegate-tool.js");
+
+    // R3.2: spawn-time ownership claims go through the durable registry
+    // inside SubagentManager (no separate in-memory claim registry here).
+    mergeCoordinator = new MergeCoordinatorClass();
+    subagentManager = new SubagentManagerClass({ sessionId, cwd, config, eventLog: log });
+    subagentManager.onResult((result) => {
+      mergeCoordinator!.enqueue(result);
+    });
+    delegateHandler = createDelegateHandlerFn(subagentManager, (opts) => {
+      const taskId = crypto.randomUUID();
+      return { id: taskId, role: opts.role, mode: opts.mode ?? "read_only", prompt: opts.prompt, ownedPaths: opts.ownedPaths };
+    });
+  }
+
+  // Initialize HookRunner for runtime-registered hooks
+  const { HookRunner } = await import("../../capabilities/extensions/hook-runner.js");
+  const hookRunner = new HookRunner();
+
+  // Register tool-repair hooks for monitoring and error recovery
+  const modelKey = `${model.provider}-${model.name}`;
+  const repairHooks = createToolRepairHooks(modelKey);
+  for (const hook of repairHooks) {
+    hookRunner.register(hook.name, hook.fn);
+  }
+
+  // Coordination chat tools (chat-initiated parallel runs). Always
+  // available — policy-gated like every other tool (ask in ask mode,
+  // allow in bypass). The ToolExecutor's own approval store governs the
+  // tool call itself; opts.approvalStore flows into worker authorization.
+  const { createCoordinationHandlers } = await import("../../coordination/kernel/coordination-tools.js");
+  const coordinationHandlers = createCoordinationHandlers({
+    cwd, config, sessionId, approvalStore: opts.approvalStore, eventLog: log,
+  });
+
+  const toolExecutor = createToolExecutor({
+    config,
+    log,
+    root: cwd,
+    mcpManager: mcpManager ?? undefined,
+    editFormatPolicy,
+    extraHandlers: {
+      ...(delegateHandler ? { delegate: delegateHandler } : {}),
+      ...coordinationHandlers,
+    },
+    checkpointManager,
+    approvalStore: opts.approvalStore,
+  });
+
+  // Scope tracking: derive initial scope from task string
+  const initialScope = extractInitialScope(opts.task);
+  const scope = createScopeTracker(initialScope?.files ?? [], cwd);
+
+  return {
+    sessionId,
+    sessionDir,
+    log,
+    // Return the effective config: the task loop re-resolves the model from
+    // this object, so the non-TTY streaming override must travel with it.
+    config: effectiveConfig,
+    provider,
+    editFormatPolicy,
+    mcpManager,
+    toolExecutor,
+    checkpointManager,
+    memoryStore,
+    repoMap,
+    mergeCoordinator,
+    subagentManager,
+    scope,
+    hookRunner,
+  };
+}

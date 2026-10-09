@@ -16,16 +16,16 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/cli/commands/demo.ts` | **Create** | `alix demo local` command |
+| `src/interfaces/cli/commands/demo.ts` | **Create** | `alix demo local` command |
 | `src/cli.ts` | **Modify** | Add `demo` command handler |
-| `src/inspector/projection.ts` | **Modify** | Display workflow/graph/node IDs from event meta |
+| `src/interfaces/inspector/projection.ts` | **Modify** | Display workflow/graph/node IDs from event meta |
 
 ---
 
 ### Task 1: Create demo command
 
 **Files:**
-- Create: `src/cli/commands/demo.ts`
+- Create: `src/interfaces/cli/commands/demo.ts`
 
 - [ ] **Step 1: Write demo command**
 
@@ -121,7 +121,7 @@ export async function runDemo(): Promise<void> {
 
 - [ ] **Step 2: Add missing imports**
 
-Add to the top of `src/cli/commands/demo.ts`:
+Add to the top of `src/interfaces/cli/commands/demo.ts`:
 
 ```typescript
 import { join } from "node:path";
@@ -137,7 +137,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/cli/commands/demo.ts
+git add src/interfaces/cli/commands/demo.ts
 git commit -m "feat(cli): M0.9 demo command with kernel artifact display"
 ```
 
@@ -179,7 +179,7 @@ git commit -m "feat(cli): wire alix demo local command"
 ### Task 3: Update Inspector projection
 
 **Files:**
-- Modify: `src/inspector/projection.ts`
+- Modify: `src/interfaces/inspector/projection.ts`
 
 - [ ] **Step 1: Add workflow/graph/node ID display**
 
@@ -212,6 +212,6 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/inspector/projection.ts
+git add src/interfaces/inspector/projection.ts
 git commit -m "feat(inspector): display WorkflowRun and TaskGraph IDs from event meta"
 ```

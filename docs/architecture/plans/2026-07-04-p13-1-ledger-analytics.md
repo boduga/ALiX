@@ -550,12 +550,12 @@ git commit -m "test(governance): add P13.1 ledger analytics tests"
 ### Task 3: Add analytics CLI subcommand
 
 **Files:**
-- Modify: `src/cli/commands/governance.ts` — add `analytics` case to switch + `runAnalytics` handler + renderer
+- Modify: `src/interfaces/cli/commands/governance.ts` — add `analytics` case to switch + `runAnalytics` handler + renderer
 - Reads: `src/governance/ledger-analytics.ts` (computeAnalytics, computePeriodRollups)
 
 - [ ] **Step 1: Add the analytics case to the dispatcher switch**
 
-In `src/cli/commands/governance.ts`, after the `"approval"` case (line ~228), add:
+In `src/interfaces/cli/commands/governance.ts`, after the `"approval"` case (line ~228), add:
 
 ```typescript
     case "analytics":
@@ -731,7 +731,7 @@ pnpm build && pnpm test:vitest && node --test dist/tests/governance/ledger-analy
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/governance.ts
+git add src/interfaces/cli/commands/governance.ts
 git commit -m "feat(governance): add 'alix governance analytics' CLI subcommand"
 ```
 

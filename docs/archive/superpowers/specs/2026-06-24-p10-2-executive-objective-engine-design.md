@@ -200,12 +200,12 @@ CLI: `alix executive dashboard` shows all 4 panels. JSON mode includes all 4 rep
 
 ```
 Create:
-  src/executive/objective-engine.ts       — ExecutiveObjective types + buildObjectiveReport
+  src/execution/executive/objective-engine.ts       — ExecutiveObjective types + buildObjectiveReport
   tests/executive/objective-engine.vitest.ts
 
 Modify:
-  src/cli/commands/executive-dashboard-renderer.ts  — add Objectives panel
-  src/cli/commands/executive-dashboard-handler.ts   — read P9.6 investigations, pass to generator
+  src/interfaces/cli/commands/executive-dashboard-renderer.ts  — add Objectives panel
+  src/interfaces/cli/commands/executive-dashboard-handler.ts   — read P9.6 investigations, pass to generator
   tests/cli/commands/executive-dashboard-cli.vitest.ts
   tests/executive/executive-sentinels.vitest.ts     — if needed
 ```

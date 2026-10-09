@@ -26,10 +26,10 @@
 
 ## Grounding (established by SDS + exploration — do not re-derive)
 
-- `RecommendationToProposal.convert(rec)` (`src/adaptation/recommendation-to-proposal.ts:95-113`): static, 1:1 P5.0→P5.1 mapping, sets `status:"pending"` and spreads `rec.evidence` into `evidenceFingerprints`. Returns `null` for unknown types.
-- `ReflectionReport` is written to **stdout** by `alix reflection report` (`src/cli/commands/reflection.ts:80`); user redirects: `alix reflection report > report.json`.
-- `ProposalEffectivenessReport` is persisted at `.alix/adaptation/effectiveness/<proposalId>.json` via `EffectivenessStore` (`src/cli/commands/adaptation.ts:52`).
-- `ApprovalGate` exposes only `approve/reject/apply` (`src/adaptation/approval-gate.ts:47,77,109`) — the generator must not import it.
+- `RecommendationToProposal.convert(rec)` (`src/planning/adaptation/recommendation-to-proposal.ts:95-113`): static, 1:1 P5.0→P5.1 mapping, sets `status:"pending"` and spreads `rec.evidence` into `evidenceFingerprints`. Returns `null` for unknown types.
+- `ReflectionReport` is written to **stdout** by `alix reflection report` (`src/interfaces/cli/commands/reflection.ts:80`); user redirects: `alix reflection report > report.json`.
+- `ProposalEffectivenessReport` is persisted at `.alix/adaptation/effectiveness/<proposalId>.json` via `EffectivenessStore` (`src/interfaces/cli/commands/adaptation.ts:52`).
+- `ApprovalGate` exposes only `approve/reject/apply` (`src/planning/adaptation/approval-gate.ts:47,77,109`) — the generator must not import it.
 - No existing scheduler in `src/`; P5.2c stays a manual CLI trigger.
 
 ---
@@ -38,11 +38,11 @@
 
 | File | Role |
 |------|------|
-| `src/adaptation/adaptation-types.ts` | **Modify** — add optional `provenance?: "auto" \| "manual"` to `AdaptationProposal` |
-| `src/adaptation/recommendation-to-proposal.ts` | **Modify** — leave `provenance` undefined (manual) |
-| `src/adaptation/auto-proposal-generator.ts` | **Create** — `AutomaticProposalGenerator` class with reflection + effectiveness methods |
+| `src/planning/adaptation/adaptation-types.ts` | **Modify** — add optional `provenance?: "auto" \| "manual"` to `AdaptationProposal` |
+| `src/planning/adaptation/recommendation-to-proposal.ts` | **Modify** — leave `provenance` undefined (manual) |
+| `src/planning/adaptation/auto-proposal-generator.ts` | **Create** — `AutomaticProposalGenerator` class with reflection + effectiveness methods |
 | `tests/adaptation/auto-proposal-generator.vitest.ts` | **Create** — TDD |
-| `src/cli/commands/adaptation.ts` | **Modify** — add `generate` subcommand + `runGenerate` + help line |
+| `src/interfaces/cli/commands/adaptation.ts` | **Modify** — add `generate` subcommand + `runGenerate` + help line |
 | `tests/cli/commands/adaptation-generate.vitest.ts` | **Create** — CLI TDD |
 
 ---
@@ -50,8 +50,8 @@
 ## Task 1: P5.2c.1 — `provenance` field on `AdaptationProposal`
 
 **Files:**
-- Modify: `src/adaptation/adaptation-types.ts`
-- Modify: `src/adaptation/recommendation-to-proposal.ts`
+- Modify: `src/planning/adaptation/adaptation-types.ts`
+- Modify: `src/planning/adaptation/recommendation-to-proposal.ts`
 - Test: `tests/adaptation/adaptation-types.provenance.vitest.ts` (or extend existing)
 
 **Interfaces:**
@@ -60,7 +60,7 @@
 - [ ] **Step 0: Impact analysis** — `gitnexus_impact({ target: "AdaptationProposal", direction: "upstream", repo: "ALiX" })`. Expected LOW (optional field, additive). Also confirm the existing `RecommendationToProposal.convert` is unchanged in behavior.
 - [ ] **Step 1: Write failing test** — assert (a) a constructed `AdaptationProposal` without `provenance` type-checks; (b) `provenance: "auto"` is accepted; (c) the existing `RecommendationToProposal.convert` output leaves `provenance` undefined.
 - [ ] **Step 2: Run → FAIL** (optional field not yet declared).
-- [ ] **Step 3: Implement** — add to `src/adaptation/adaptation-types.ts` inside `AdaptationProposal`:
+- [ ] **Step 3: Implement** — add to `src/planning/adaptation/adaptation-types.ts` inside `AdaptationProposal`:
   ```ts
   /** How this proposal was generated: "auto" by AutomaticProposalGenerator, "manual" by RecommendationToProposal.convert (default). */
   provenance?: "auto" | "manual";
@@ -74,7 +74,7 @@
 ## Task 2: P5.2c.2 — `AutomaticProposalGenerator` core
 
 **Files:**
-- Create: `src/adaptation/auto-proposal-generator.ts`
+- Create: `src/planning/adaptation/auto-proposal-generator.ts`
 - Test: `tests/adaptation/auto-proposal-generator.vitest.ts`
 
 **Interfaces:**
@@ -84,7 +84,7 @@
 
 - [ ] **Step 1: Write failing tests** — assert (a) constructor takes `ProposalStore` + `EvidenceEventWriter`; (b) no import of `ApprovalGate`/`AgentCardApplier`/`SkillApplier` (compile-time + grep test); (c) `generateFromReflection` returns a result object `{ generated, skipped, proposals }`; (d) `generateFromEffectiveness` returns the same shape.
 - [ ] **Step 2: Run → FAIL** (module missing).
-- [ ] **Step 3: Implement** `src/adaptation/auto-proposal-generator.ts`:
+- [ ] **Step 3: Implement** `src/planning/adaptation/auto-proposal-generator.ts`:
   ```ts
   /**
    * P5.2c — AutomaticProposalGenerator.
@@ -154,7 +154,7 @@
 ## Task 3: P5.2c.3 — Reflection path
 
 **Files:**
-- Modify: `src/adaptation/auto-proposal-generator.ts` (replace the `throw` in `generateFromReflection`)
+- Modify: `src/planning/adaptation/auto-proposal-generator.ts` (replace the `throw` in `generateFromReflection`)
 - Test: extend `tests/adaptation/auto-proposal-generator.vitest.ts`
 
 **Behavior:**
@@ -178,7 +178,7 @@
 ## Task 4: P5.2c.4 — Effectiveness revert path
 
 **Files:**
-- Modify: `src/adaptation/auto-proposal-generator.ts` (replace the `throw` in `generateFromEffectiveness`)
+- Modify: `src/planning/adaptation/auto-proposal-generator.ts` (replace the `throw` in `generateFromEffectiveness`)
 - Test: extend `tests/adaptation/auto-proposal-generator.vitest.ts`
 
 **Behavior:**
@@ -213,7 +213,7 @@
 ## Task 5: P5.2c.5 — CLI `alix adaptation generate`
 
 **Files:**
-- Modify: `src/cli/commands/adaptation.ts` (new subcommand + `runGenerate` + help line + imports)
+- Modify: `src/interfaces/cli/commands/adaptation.ts` (new subcommand + `runGenerate` + help line + imports)
 - Test: extend `tests/cli/commands/adaptation.vitest.ts` (or create `adaptation-generate.vitest.ts` mirroring the P5.2b CLI test style)
 
 **Subcommand:**

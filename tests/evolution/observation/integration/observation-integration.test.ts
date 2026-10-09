@@ -17,13 +17,13 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
 
-import { ObservationEngine } from "../../../../src/evolution/observation/observation-engine.js";
-import { CliObservationProvider } from "../../../../src/evolution/observation/providers/cli-provider.js";
-import { FilesystemObservationProvider } from "../../../../src/evolution/observation/providers/filesystem-provider.js";
-import { GitObservationProvider } from "../../../../src/evolution/observation/providers/git-provider.js";
-import { LedgerObservationProvider } from "../../../../src/evolution/observation/providers/ledger-provider.js";
-import { buildObservationEvidence } from "../../../../src/evolution/observation/observation-evidence-bridge.js";
-import { ExecutionEvidenceStore } from "../../../../src/evolution/verification/evidence/evidence-store.js";
+import { ObservationEngine } from "../../../../src/planning/evolution/observation/observation-engine.js";
+import { CliObservationProvider } from "../../../../src/planning/evolution/observation/providers/cli-provider.js";
+import { FilesystemObservationProvider } from "../../../../src/planning/evolution/observation/providers/filesystem-provider.js";
+import { GitObservationProvider } from "../../../../src/planning/evolution/observation/providers/git-provider.js";
+import { LedgerObservationProvider } from "../../../../src/planning/evolution/observation/providers/ledger-provider.js";
+import { buildObservationEvidence } from "../../../../src/planning/evolution/observation/observation-evidence-bridge.js";
+import { ExecutionEvidenceStore } from "../../../../src/planning/evolution/verification/evidence/evidence-store.js";
 
 function createGitRepo(dir: string) {
   execSync("git init", { cwd: dir, stdio: "pipe" });

@@ -94,7 +94,7 @@ test("init with Ollama fallback and no installed models writes no model at all",
   const keys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "DEEPSEEK_API_KEY", "OLLAMA_API_KEY"];
   await withSavedEnv(keys, async () => {
     await withTempDir(async (dir) => {
-      const { runInit } = await import("../../src/cli/commands/init.js");
+      const { runInit } = await import("../../src/interfaces/cli/commands/init.js");
       await runInit(dir);
 
       const configPath = join(dir, ".alix", "config.json");
@@ -122,7 +122,7 @@ test("models doctor works with incomplete model config", { timeout: 15_000 }, as
       JSON.stringify(INCOMPLETE_CONFIG)
     );
 
-    const { handleModelsDoctor } = await import("../../src/cli/commands/models.js");
+    const { handleModelsDoctor } = await import("../../src/interfaces/cli/commands/models.js");
     // handler calls loadConfig(process.cwd()) — scope cwd to fixture dir
     await withScopedCwd(dir, async () => {
       await handleModelsDoctor(["--json"]);
@@ -140,7 +140,7 @@ test("models fit works with incomplete model config", { timeout: 15_000 }, async
       JSON.stringify(INCOMPLETE_CONFIG)
     );
 
-    const { handleModelsFit } = await import("../../src/cli/commands/models.js");
+    const { handleModelsFit } = await import("../../src/interfaces/cli/commands/models.js");
     await withScopedCwd(dir, async () => {
       await handleModelsFit(["--json"]);
     });
@@ -157,7 +157,7 @@ test("models list-profiles works with incomplete model config", { timeout: 15_00
       JSON.stringify(INCOMPLETE_CONFIG)
     );
 
-    const { handleModelsList } = await import("../../src/cli/commands/models.js");
+    const { handleModelsList } = await import("../../src/interfaces/cli/commands/models.js");
     await withScopedCwd(dir, async () => {
       await handleModelsList(["--json"]);
     });
@@ -180,7 +180,7 @@ test("strict loadConfig throws when model is missing", { timeout: 15_000 }, asyn
       })
     );
 
-    const { loadConfig, _setHomedirOverride } = await import("../../src/config/loader.js");
+    const { loadConfig, _setHomedirOverride } = await import("../../src/operations/config/loader.js");
     _setHomedirOverride(dir);
     try {
       await assert.rejects(
@@ -209,7 +209,7 @@ test("doctor recommends install-profile when no model is configured", { timeout:
     console.log = (...args: string[]) => logs.push(args.join(" "));
 
     try {
-      const { handleModelsDoctor } = await import("../../src/cli/commands/models.js");
+      const { handleModelsDoctor } = await import("../../src/interfaces/cli/commands/models.js");
       await withScopedCwd(dir, async () => {
         await handleModelsDoctor([]);
       });
@@ -228,7 +228,7 @@ test("end-to-end: init then doctor then fit then install-profile --dry-run", { t
   await withSavedEnv(keys, async () => {
     await withTempDir(async (dir) => {
       // Step 1: init
-      const { runInit } = await import("../../src/cli/commands/init.js");
+      const { runInit } = await import("../../src/interfaces/cli/commands/init.js");
       await runInit(dir);
 
       // Verify config is valid (models.default.name not empty if set)
@@ -240,7 +240,7 @@ test("end-to-end: init then doctor then fit then install-profile --dry-run", { t
       }
 
       // Step 2-4: doctor, fit, apply-profile (scoped cwd so handlers read fresh fixture)
-      const { handleModelsDoctor, handleModelsFit, handleModelsApply } = await import("../../src/cli/commands/models.js");
+      const { handleModelsDoctor, handleModelsFit, handleModelsApply } = await import("../../src/interfaces/cli/commands/models.js");
       await withScopedCwd(dir, async () => {
         await handleModelsDoctor(["--json"]);
         await handleModelsFit(["--json"]);

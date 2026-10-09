@@ -23,12 +23,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { globSync } from "glob";
 import { codeOnly, toPosix } from "../helpers/import-graph.js";
-import { ProposalSignalChannel } from "../../src/capability/evolution/proposal-signal-channel.js";
+import { ProposalSignalChannel } from "../../src/capabilities/capability/evolution/proposal-signal-channel.js";
 import {
   CAPABILITY_MEASUREMENT_EVENT_TYPES,
   isMeasurementEventType,
-} from "../../src/capability/measurement/measurement-event-types.js";
-import type { CapabilityEvolutionSignal } from "../../src/capability/evolution/proposals.js";
+} from "../../src/capabilities/capability/measurement/measurement-event-types.js";
+import type { CapabilityEvolutionSignal } from "../../src/capabilities/capability/evolution/proposals.js";
 
 const SRC = resolve(__dirname, "../../src");
 
@@ -89,7 +89,7 @@ describe("CAP-10.5 emission-sentinel (6-axis)", () => {
       const found = code.match(/new\s+ProposalSignalChannel\s*\(/g) ?? [];
       for (const _ of found) sites.push(toPosix(rel));
     }
-    expect(sites).toEqual(["capability/platform.ts"]);
+    expect(sites).toEqual(["capabilities/capability/platform.ts"]);
   });
 
   it("axis 5: signals_unpublished is a live measurement event type", () => {
@@ -107,7 +107,7 @@ describe("CAP-10.5 emission-sentinel (6-axis)", () => {
     // tests/capability/a5-capability-measurement.vitest.ts; this axis pins
     // the critical path so the emission seam can never silently change it.
     const { CapabilityMeasurement } = await import(
-      "../../src/evolution/observation/capability-measurement.js"
+      "../../src/planning/evolution/observation/capability-measurement.js"
     );
     const published: CapabilityEvolutionSignal[] = [];
     const measurement = new CapabilityMeasurement({

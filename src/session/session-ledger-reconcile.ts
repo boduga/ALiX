@@ -17,8 +17,8 @@ import { readdir } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { SESSION_LEDGER_EVENT_TYPES, sessionScopeEntityId, sessionStateEntityId } from "./persist.js";
-import { drainLedgerEvents, type LedgerEventRow } from "../storage/runtime-ledger.js";
-import { streamJsonlLines } from "../storage/jsonl-store.js";
+import { drainLedgerEvents, type LedgerEventRow } from "../runtime-state/storage/runtime-ledger.js";
+import { streamJsonlLines } from "../runtime-state/storage/jsonl-store.js";
 
 export type SessionReconcileIssueKind =
   | "missing_in_ledger"

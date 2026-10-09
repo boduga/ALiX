@@ -5,7 +5,7 @@
 
 ## 1. Key-dispatch flow
 
-All inside `TuiApp.handleRaw(buf)` at `src/tui/app.ts:237`:
+All inside `TuiApp.handleRaw(buf)` at `src/interfaces/tui/app.ts:237`:
 
 1. **`handlePaste(buf)`** (line 239, def 796-843) — bracketed-paste `\x1b[200~`/`\x1b[201~` envelope.
 2. **`parseKey(buf)`** (line 241, def 1085-1119) — Buffer → named key strings. `\r\n`→Enter, `\t`→Tab, `\x0c`→Ctrl+l, `\x7f`→Backspace, ESC+digit→Ctrl+N, ESC+letter→Alt+letter, ANSI arrows→ArrowUp/Down/Left/Right/Shift+Tab, single printable bytes pass through, else null.

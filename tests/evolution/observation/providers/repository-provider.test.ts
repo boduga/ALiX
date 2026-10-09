@@ -7,7 +7,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
-import { RepositoryObservationProvider } from "../../../../src/evolution/observation/providers/repository-provider.js";
+import { RepositoryObservationProvider } from "../../../../src/planning/evolution/observation/providers/repository-provider.js";
 
 describe("RepositoryObservationProvider", () => {
   const provider = new RepositoryObservationProvider();

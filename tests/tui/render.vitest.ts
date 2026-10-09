@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TuiRenderer, type Region } from '../../src/tui/render.js';
+import { TuiRenderer, type Region } from '../../src/interfaces/tui/render.js';
 
 describe('Region union exhaustiveness', () => {
   it('lists exactly four regions plus wildcard', () => {

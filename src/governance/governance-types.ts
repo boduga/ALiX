@@ -10,8 +10,8 @@
  * @module
  */
 
-import type { DecisionArtifact } from "../adaptation/decision-types.js";
-import type { LensName } from "../adaptation/governance-review-types.js";
+import type { DecisionArtifact } from "../planning/adaptation/decision-types.js";
+import type { LensName } from "../planning/adaptation/governance-review-types.js";
 
 // ---------------------------------------------------------------------------
 // GovernanceHealthReport

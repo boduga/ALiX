@@ -24,7 +24,7 @@
 ### Task 1: Queue Type Definitions
 
 **Files:**
-- Create: `src/adaptation/operator-queue-types.ts`
+- Create: `src/planning/adaptation/operator-queue-types.ts`
 - Test: `tests/adaptation/operator-queue.vitest.ts` (type-shape tests added in Task 3)
 
 **Interfaces:**
@@ -120,13 +120,13 @@ export interface QueueItem extends DecisionArtifact {
 
 - [ ] **Step 2: Verify the file compiles**
 
-Run: `npx tsc --noEmit src/adaptation/operator-queue-types.ts 2>&1 | head -10`
+Run: `npx tsc --noEmit src/planning/adaptation/operator-queue-types.ts 2>&1 | head -10`
 Expected: no errors (or no output = clean)
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/adaptation/operator-queue-types.ts
+git add src/planning/adaptation/operator-queue-types.ts
 git commit -m "feat(p6.2): QueueItem, QueueInput, and RecommendationPriority types"
 ```
 
@@ -135,7 +135,7 @@ git commit -m "feat(p6.2): QueueItem, QueueInput, and RecommendationPriority typ
 ### Task 2: OperatorQueue — Pure Sorting Class
 
 **Files:**
-- Create: `src/adaptation/operator-queue.ts`
+- Create: `src/planning/adaptation/operator-queue.ts`
 
 **Interfaces:**
 - Consumes: `QueueInput`, `QueueItem`, `QueueItemOrdering`, `RECOMMENDATION_RANK`, `RecommendationPriority` from `./operator-queue-types.js`; `SourceArtifact` from `./decision-types.js`
@@ -146,7 +146,7 @@ git commit -m "feat(p6.2): QueueItem, QueueInput, and RecommendationPriority typ
 ```typescript
 // Place this in tests/adaptation/operator-queue.vitest.ts (will be expanded in Task 3)
 import { describe, it, expect } from "vitest";
-import { OperatorQueue } from "../../src/adaptation/operator-queue.js";
+import { OperatorQueue } from "../../src/planning/adaptation/operator-queue.js";
 
 describe("OperatorQueue", () => {
   it("exists and has a build method", () => {
@@ -329,7 +329,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/adaptation/operator-queue.ts tests/adaptation/operator-queue.vitest.ts
+git add src/planning/adaptation/operator-queue.ts tests/adaptation/operator-queue.vitest.ts
 git commit -m "feat(p6.2): OperatorQueue pure sorting class with four-tier sort"
 ```
 
@@ -342,8 +342,8 @@ git commit -m "feat(p6.2): OperatorQueue pure sorting class with four-tier sort"
 - Note: Tests must use `.js` extensions on all source imports (NodeNext)
 
 **Interfaces:**
-- Consumes: `QueueItem`, `QueueInput`, `RECOMMENDATION_RANK` from `../../src/adaptation/operator-queue-types.js`
-- Consumes: `OperatorQueue` from `../../src/adaptation/operator-queue.js`
+- Consumes: `QueueItem`, `QueueInput`, `RECOMMENDATION_RANK` from `../../src/planning/adaptation/operator-queue-types.js`
+- Consumes: `OperatorQueue` from `../../src/planning/adaptation/operator-queue.js`
 - Consumes: Type-only imports for `DecisionContext`, `RiskScore`, `ApprovalRecommendation` from respective source paths (with `.js` extensions)
 
 - [ ] **Step 1: Write a helper that creates minimal QueueInput fixtures**
@@ -715,7 +715,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const QUEUE_SRC = resolve(__dirname, "../../src/adaptation/operator-queue.ts");
+const QUEUE_SRC = resolve(__dirname, "../../src/planning/adaptation/operator-queue.ts");
 const source = readFileSync(QUEUE_SRC, "utf-8");
 
 describe("P6.2 — OperatorQueue purity sentinel", () => {
@@ -820,11 +820,11 @@ git commit -m "feat(p6.2): governance sentinels — purity, no mutation, Intelli
 ### Task 5: CLI — `alix decision queue` Subcommand
 
 **Files:**
-- Modify: `src/cli/commands/decision.ts`
+- Modify: `src/interfaces/cli/commands/decision.ts`
 
 **Interfaces:**
-- Consumes: `OperatorQueue` from `../../src/adaptation/operator-queue.js`
-- Consumes: `QueueItem`, `QueueInput` from `../../src/adaptation/operator-queue-types.js`
+- Consumes: `OperatorQueue` from `../../src/planning/adaptation/operator-queue.js`
+- Consumes: `QueueItem`, `QueueInput` from `../../src/planning/adaptation/operator-queue-types.js`
 - Consumes: Existing `DecisionInfrastructure` and `buildDecisionInfrastructure` (already in file)
 - Consumes: All existing builders (`DecisionContextBuilder`, `RiskScoreBuilder`, `RecommendationEngine`)
 
@@ -934,7 +934,7 @@ async function runQueue(args: string[]): Promise<void> {
 
 - [ ] **Step 4: Verify the file compiles**
 
-Run: `npx tsc --noEmit src/cli/commands/decision.ts 2>&1 | head -10`
+Run: `npx tsc --noEmit src/interfaces/cli/commands/decision.ts 2>&1 | head -10`
 Expected: no errors
 
 - [ ] **Step 5: Run all existing tests to confirm nothing is broken**
@@ -945,7 +945,7 @@ Expected: All tests PASS (including the new queue tests and sentinels)
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/cli/commands/decision.ts
+git add src/interfaces/cli/commands/decision.ts
 git commit -m "feat(p6.2): alix decision queue CLI subcommand"
 ```
 

@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { writeFileSync, mkdtempSync, rmSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleGovernanceExplainCommand } from "../../src/cli/commands/governance-explain.js";
+import { handleGovernanceExplainCommand } from "../../src/interfaces/cli/commands/governance-explain.js";
 
 let tmpDir: string;
 let bundlePath: string;

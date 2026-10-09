@@ -8,7 +8,7 @@ import {
   getInProcess,
   _clearInProcessForTesting,
   type InProcessExtension,
-} from "../../src/self-extend/registry.js";
+} from "../../src/capabilities/self-extend/registry.js";
 
 describe("in-process registry", () => {
   beforeEach(() => _clearInProcessForTesting());

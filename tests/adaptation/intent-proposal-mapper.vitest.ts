@@ -9,10 +9,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import type { ExecutionIntent } from "../../src/adaptation/execution-intent-types.js";
-import { IntentProposalMapper } from "../../src/adaptation/intent-proposal-mapper.js";
-import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
-import { IntentStore } from "../../src/adaptation/intent-store.js";
+import type { ExecutionIntent } from "../../src/planning/adaptation/execution-intent-types.js";
+import { IntentProposalMapper } from "../../src/planning/adaptation/intent-proposal-mapper.js";
+import { AdaptationProposalStore } from "../../src/planning/adaptation/adaptation-proposal-store.js";
+import { IntentStore } from "../../src/planning/adaptation/intent-store.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

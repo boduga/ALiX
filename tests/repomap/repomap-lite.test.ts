@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { RepoMapLiteIndexer } from "../../src/repomap/repomap-lite.js";
+import { RepoMapLiteIndexer } from "../../src/context/repomap/repomap-lite.js";
 
 function createTestData() {
   return {

@@ -1,11 +1,11 @@
-// Back-compat shim - prefer importing from src/agent/ directly
-export { shouldAutoDisableStreaming, type StreamHandler } from "./agent/stream.js";
-export { buildErrorMessage, buildToolsForProvider, buildContextBundleEventPayload, buildModelUsageEventPayload, renderContextBundleForPrompt } from "./agent/messages.js";
-export { extractMutationPaths, validMutationPaths, recordMutationInSessionState, type MutationSessionState } from "./agent/mutations.js";
+// Back-compat shim - prefer importing from src/agents/agent/ directly
+export { shouldAutoDisableStreaming, type StreamHandler } from "./agents/agent/stream.js";
+export { buildErrorMessage, buildToolsForProvider, buildContextBundleEventPayload, buildModelUsageEventPayload, renderContextBundleForPrompt } from "./agents/agent/messages.js";
+export { extractMutationPaths, validMutationPaths, recordMutationInSessionState, type MutationSessionState } from "./agents/agent/mutations.js";
 
-import type { EventLog } from "./events/event-log.js";
-import type { NormalizedMessage } from "./providers/types.js";
-import type { ContextBudgetOverflowError } from "./config/context-budget.js";
+import type { EventLog } from "./runtime-state/events/event-log.js";
+import type { NormalizedMessage } from "./models/providers/types.js";
+import type { ContextBudgetOverflowError } from "./operations/config/context-budget.js";
 export interface SharedSession {
   sessionId: string;
   sessionDir: string;
@@ -73,7 +73,7 @@ export type RunOpts = {
    * decisions mint resolvable pending approvals instead of the headless
    * fail-closed deny (R1.5). Mirrors `createAgentSession`/`createAgent`.
    */
-  approvalStore?: import("./approvals/approval-store.js").ApprovalStore;
+  approvalStore?: import("./governance/approvals/approval-store.js").ApprovalStore;
   sharedSession?: SharedSession;
   planMode?: boolean;
   /**
@@ -90,7 +90,7 @@ export type RunOpts = {
    * the operator's approve/reject/edit/detail decision through this gate
    * instead of the legacy TTY prompt. The TUI owns the gate.
    */
-  planApprovalGate?: import("./run/plan-approval-gate.js").PlanApprovalGate;
+  planApprovalGate?: import("./execution/run/plan-approval-gate.js").PlanApprovalGate;
   resumeSessionId?: string;
   planFilePath?: string;
   readOnly?: boolean;
@@ -118,4 +118,4 @@ export const EXIT_CODES = {
 } as const;
 
 // Re-export runTask last to avoid circular import issues
-export { runTask } from "./agent/agent-loop.js";
+export { runTask } from "./agents/agent/agent-loop.js";

@@ -10,7 +10,7 @@ import {
   OUTCOME_CLASSIFICATIONS,
   isValidOutcomeClassification,
   validateCounterfactualMetricEvaluation,
-} from "../../../src/evolution/verification/index.js";
+} from "../../../src/planning/evolution/verification/index.js";
 
 describe("OutcomeClassification", () => {
   it("has 4 classifications", () => {

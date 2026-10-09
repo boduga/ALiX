@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildRuntimeIndex } from "../../src/runtime/runtime-index.js";
-import { TaskRegistry } from "../../src/daemon/task-registry.js";
-import { resolveDaemonTasksPath } from "../../src/daemon/daemon-paths.js";
+import { buildRuntimeIndex } from "../../src/runtime-state/runtime/runtime-index.js";
+import { TaskRegistry } from "../../src/operations/daemon/task-registry.js";
+import { resolveDaemonTasksPath } from "../../src/operations/daemon/daemon-paths.js";
 
 function seedDir(): string {
   const tmpDir = mkdtempSync(join(tmpdir(), "runtime-index-test-"));

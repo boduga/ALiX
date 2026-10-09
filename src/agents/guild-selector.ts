@@ -2,7 +2,7 @@ import {
   checkEssenceCompatibility,
   type EssenceProfile,
 } from "./essence-profile.js";
-import type { BridgeEnvelope } from "../runtime/bridge-envelope.js";
+import type { BridgeEnvelope } from "../runtime-state/runtime/bridge-envelope.js";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

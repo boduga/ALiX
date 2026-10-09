@@ -56,13 +56,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createAgentSession } from "../../src/agent/session.js";
-import { createTraceClient } from "../../src/tracing/client-factory.js";
-import { withProviderContracts } from "../../src/providers/provider-contract-validation.js";
-import type { TraceClient } from "../../src/tracing/client.js";
-import type { AlixConfig } from "../../src/config/schema.js";
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse } from "../../src/providers/types.js";
-import { TRUNCATION_CONTINUE_PROMPT } from "../../src/run/helpers.js";
+import { createAgentSession } from "../../src/agents/agent/session.js";
+import { createTraceClient } from "../../src/models/tracing/client-factory.js";
+import { withProviderContracts } from "../../src/models/providers/provider-contract-validation.js";
+import type { TraceClient } from "../../src/models/tracing/client.js";
+import type { AlixConfig } from "../../src/operations/config/schema.js";
+import type { ModelAdapter, NormalizedRequest, NormalizedResponse } from "../../src/models/providers/types.js";
+import { TRUNCATION_CONTINUE_PROMPT } from "../../src/execution/run/helpers.js";
 
 import {
   FakeLangfuseSpanProcessor,
@@ -82,7 +82,7 @@ vi.mock("@langfuse/otel", () => ({ LangfuseSpanProcessor: FakeLangfuseSpanProces
 // ---------------------------------------------------------------------------
 
 const RUN_ID_RE = /^run-[0-9a-f]{8}$/;
-// Canonical continuation prompt lives with the shared helper (src/run/helpers.ts)
+// Canonical continuation prompt lives with the shared helper (src/execution/run/helpers.ts)
 // so prompt-copy tweaks don't break this run-identity test.
 const CONTINUE_PROMPT = TRUNCATION_CONTINUE_PROMPT;
 

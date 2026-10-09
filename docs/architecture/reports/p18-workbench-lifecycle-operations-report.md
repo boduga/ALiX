@@ -61,7 +61,7 @@ The phase delivered **5 slices** across queue views, lifecycle traces, a read mo
 | **ANSI coloring** | Critical (red), warning (yellow), dim (info), labels in cyan |
 | **Sentinel enforcement** | CLI handler does not call `.append()`, `.write()`, `.transition()`; imports no audit emitters |
 
-**Files:** `src/cli/commands/governance.ts` (P18 section: ~210 lines at lines 2443–2652), `tests/cli/governance-workbench-cli.test.ts` (335 lines)
+**Files:** `src/interfaces/cli/commands/governance.ts` (P18 section: ~210 lines at lines 2443–2652), `tests/cli/governance-workbench-cli.test.ts` (335 lines)
 
 ### P18.5 — Workbench Report / Checkpoint
 

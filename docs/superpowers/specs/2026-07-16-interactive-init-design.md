@@ -31,7 +31,7 @@ Goal: let users pick interactively at init time, while preserving all existing n
 
 ## 3. Architecture
 
-### 3.1 New file: `src/cli/helpers/interactive.ts`
+### 3.1 New file: `src/interfaces/cli/helpers/interactive.ts`
 
 Extracted from `src/cli.ts:839-908` (`set-default-model` block). Pure helpers, no side effects on module load.
 
@@ -62,11 +62,11 @@ export async function selectModelInteractive(providerId: string, apiKey: string)
 export async function saveModelConfig(providerId: string, modelId: string, cwd: string): Promise<void>
 ```
 
-### 3.2 New file: `src/cli/helpers/api-keys.ts`
+### 3.2 New file: `src/interfaces/cli/helpers/api-keys.ts`
 
 Extracts `getSavedApiKey` and `setApiKey` from `src/cli.ts:18-48`. Lets `init` and `set-default-model` share them without duplicating the user-config path logic.
 
-### 3.3 Modified: `src/cli/commands/init.ts`
+### 3.3 Modified: `src/interfaces/cli/commands/init.ts`
 
 ```ts
 export async function runInit(cwd: string, deps?: InitDependencies): Promise<void> {

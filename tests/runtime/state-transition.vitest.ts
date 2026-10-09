@@ -10,8 +10,8 @@ import {
   allowAllPermission,
   noopExecutor,
   validateStateTransitionProposal,
-} from "../../src/runtime/state/state-transition.js";
-import { EXECUTION_STATE_SCHEMA_VERSION, type ExecutionState } from "../../src/runtime/execution-state/execution-state.js";
+} from "../../src/runtime-state/runtime/state/state-transition.js";
+import { EXECUTION_STATE_SCHEMA_VERSION, type ExecutionState } from "../../src/runtime-state/runtime/execution-state/execution-state.js";
 
 function makeState(executionId: string, version: number, step: number, overrides: Partial<ExecutionState> = {}): ExecutionState {
   return {

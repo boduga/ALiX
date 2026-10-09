@@ -3,12 +3,12 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { SnapshotStore } from "../../src/adaptation/snapshot-store.js";
-import type { AdaptationSnapshot } from "../../src/adaptation/snapshot-store.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
-import type { EvidenceRecord } from "../../src/security/evidence/evidence-types.js";
-import { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import { RevertApplier } from "../../src/adaptation/revert-applier.js";
+import { SnapshotStore } from "../../src/planning/adaptation/snapshot-store.js";
+import type { AdaptationSnapshot } from "../../src/planning/adaptation/snapshot-store.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
+import type { EvidenceRecord } from "../../src/governance/security/evidence/evidence-types.js";
+import { EvidenceEventWriter } from "../../src/coordination/workflow/evidence-writer.js";
+import { RevertApplier } from "../../src/planning/adaptation/revert-applier.js";
 
 function makeSnapshot(overrides?: Partial<AdaptationSnapshot>): AdaptationSnapshot {
   const content = "original file content for revert test";

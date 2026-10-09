@@ -16,8 +16,8 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/kernel/task-graph.ts` | **Create** | TaskGraph/TaskNode types, `createSingleNodeGraph()`, status helpers |
-| `src/agent/agent-loop.ts` | **Modify** | Create graph, emit events, attach meta |
+| `src/coordination/kernel/task-graph.ts` | **Create** | TaskGraph/TaskNode types, `createSingleNodeGraph()`, status helpers |
+| `src/agents/agent/agent-loop.ts` | **Modify** | Create graph, emit events, attach meta |
 | `tests/kernel/task-graph.test.ts` | **Create** | Tests |
 
 ---
@@ -25,7 +25,7 @@
 ### Task 1: Create TaskGraph module
 
 **Files:**
-- Create: `src/kernel/task-graph.ts`
+- Create: `src/coordination/kernel/task-graph.ts`
 
 - [ ] **Step 1: Write the module**
 
@@ -125,13 +125,13 @@ export function transitionGraphStatus(graph: TaskGraph, status: TaskGraphStatus)
 - [ ] **Step 2: Verify build**
 
 ```bash
-npx tsc --noEmit src/kernel/task-graph.ts 2>&1
+npx tsc --noEmit src/coordination/kernel/task-graph.ts 2>&1
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/kernel/task-graph.ts
+git add src/coordination/kernel/task-graph.ts
 git commit -m "feat(kernel): TaskGraph types and createSingleNodeGraph"
 ```
 
@@ -140,7 +140,7 @@ git commit -m "feat(kernel): TaskGraph types and createSingleNodeGraph"
 ### Task 2: Wire into agent-loop.ts
 
 **Files:**
-- Modify: `src/agent/agent-loop.ts`
+- Modify: `src/agents/agent/agent-loop.ts`
 
 - [ ] **Step 1: Create graph alongside WorkflowRun**
 
@@ -180,7 +180,7 @@ npm run build 2>&1 | tail -5
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/agent/agent-loop.ts
+git add src/agents/agent/agent-loop.ts
 git commit -m "feat(kernel): single-node TaskGraph with graph.created/task.* events"
 ```
 
@@ -196,7 +196,7 @@ git commit -m "feat(kernel): single-node TaskGraph with graph.created/task.* eve
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../../src/kernel/task-graph.js";
+import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../../src/coordination/kernel/task-graph.js";
 
 describe("TaskGraph", () => {
 

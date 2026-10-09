@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import type { ReflectionReport, Observation, Analyzer, AnalysisResult } from "../../src/reflection/reflection-types.js";
+import type { ReflectionReport, Observation, Analyzer, AnalysisResult } from "../../src/planning/reflection/reflection-types.js";
 
 describe("ReflectionReport types", () => {
   it("constructs a valid ReflectionReport with metrics", () => {

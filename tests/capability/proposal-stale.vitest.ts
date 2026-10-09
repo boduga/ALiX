@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CapabilityProposalStaleError } from "../../src/capability/errors/proposal-stale.js";
+import { CapabilityProposalStaleError } from "../../src/capabilities/capability/errors/proposal-stale.js";
 
 describe("CapabilityProposalStaleError (CAP-9 ruling #17)", () => {
   it("carries the standard code", () => {

@@ -41,12 +41,12 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
   describe("CAP-10 forbidden imports (ruling #9, #19)", () => {
     it("CAP-10 measurement files MUST NOT import capability-lifecycle-measurer", () => {
       const files = [
-        "src/capability/measurement/capability-measurement-engine.ts",
-        "src/capability/measurement/measurement-contract.ts",
-        "src/evolution/observation/capability-measurement.ts",
-        "src/capability/capability-service.ts",
-        "src/capability/platform.ts",
-        "src/cli/commands/capability-measure.ts",
+        "src/capabilities/capability/measurement/capability-measurement-engine.ts",
+        "src/capabilities/capability/measurement/measurement-contract.ts",
+        "src/planning/evolution/observation/capability-measurement.ts",
+        "src/capabilities/capability/capability-service.ts",
+        "src/capabilities/capability/platform.ts",
+        "src/interfaces/cli/commands/capability-measure.ts",
       ];
       for (const f of files) {
         const src = readSrc(f);
@@ -58,20 +58,20 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
       }
     });
 
-    it("CAP-10 measurement files MUST NOT import src/evolution/capability-lifecycle/*", () => {
+    it("CAP-10 measurement files MUST NOT import src/planning/evolution/capability-lifecycle/*", () => {
       const files = [
-        "src/capability/measurement/capability-measurement-engine.ts",
-        "src/capability/measurement/measurement-contract.ts",
-        "src/capability/capability-service.ts",
-        "src/capability/platform.ts",
-        "src/cli/commands/capability-measure.ts",
+        "src/capabilities/capability/measurement/capability-measurement-engine.ts",
+        "src/capabilities/capability/measurement/measurement-contract.ts",
+        "src/capabilities/capability/capability-service.ts",
+        "src/capabilities/capability/platform.ts",
+        "src/interfaces/cli/commands/capability-measure.ts",
       ];
       for (const f of files) {
         const src = readSrc(f);
         assert.equal(
           /from\s+["'].*evolution\/capability-lifecycle\//.test(src),
           false,
-          `${f} MUST NOT import src/evolution/capability-lifecycle/* — ruling #9 violated.`,
+          `${f} MUST NOT import src/planning/evolution/capability-lifecycle/* — ruling #9 violated.`,
         );
       }
     });
@@ -79,7 +79,7 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
 
   describe("CAP-10 type-only A5 import (ruling #7)", () => {
     it("A5 interface lives at capability/measurement/measurement-contract.ts", () => {
-      const a5Ifc = readSrc("src/capability/measurement/measurement-contract.ts");
+      const a5Ifc = readSrc("src/capabilities/capability/measurement/measurement-contract.ts");
       assert.match(a5Ifc, /interface\s+Measurement/);
       assert.match(a5Ifc, /measureCapability/);
     });
@@ -92,7 +92,7 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
       // ('capability/measurement/measurement-contract'); match either form ending
       // in the measurement-contract module.
       const engine = readSrc(
-        "src/capability/measurement/capability-measurement-engine.ts",
+        "src/capabilities/capability/measurement/capability-measurement-engine.ts",
       );
       assert.match(
         engine,
@@ -102,7 +102,7 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
     });
 
     it("service MUST NOT import the A5 implementation", () => {
-      const service = readSrc("src/capability/capability-service.ts");
+      const service = readSrc("src/capabilities/capability/capability-service.ts");
       assert.equal(
         /from\s+["'].*evolution\/observation\/capability-measurement/.test(service),
         false,
@@ -113,12 +113,12 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
 
   describe("CAP-10 long-form event types (ruling #1)", () => {
     it("measurement event type uses full long-form prefix", () => {
-      const types = readSrc("src/capability/measurement/measurement-event-types.ts");
+      const types = readSrc("src/capabilities/capability/measurement/measurement-event-types.ts");
       assert.match(types, /capability\.governance\.measurement\.measured/);
     });
 
     it("orchestrator persists the long-form event type", () => {
-      const engine = readSrc("src/capability/measurement/capability-measurement-engine.ts");
+      const engine = readSrc("src/capabilities/capability/measurement/capability-measurement-engine.ts");
       assert.match(
         engine,
         /capability\.governance\.measurement\.measured/,
@@ -129,7 +129,7 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
 
   describe("CAP-10 governance() widening (ruling #6, #20)", () => {
     it("MEASUREMENT_GOVERNANCE_PREFIX equals parent prefix 'capability.governance.'", () => {
-      const types = readSrc("src/capability/measurement/measurement-event-types.ts");
+      const types = readSrc("src/capabilities/capability/measurement/measurement-event-types.ts");
       assert.match(
         types,
         /export\s+const\s+MEASUREMENT_GOVERNANCE_PREFIX\s*=\s*["']capability\.governance\.["']/,
@@ -137,7 +137,7 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
     });
 
     it("service.governance() uses the parent prefix (not the narrower proposal prefix)", () => {
-      const service = readSrc("src/capability/capability-service.ts");
+      const service = readSrc("src/capabilities/capability/capability-service.ts");
       const govMatch = service.match(/^ {2}async governance[\s\S]+?^ {2}}/m);
       assert.ok(govMatch, "governance() method must exist");
       assert.match(govMatch![0], /MEASUREMENT_GOVERNANCE_PREFIX/);
@@ -147,14 +147,14 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
   describe("CAP-10 file presence", () => {
     it("all CAP-10 files exist", () => {
       const paths = [
-        "src/capability/measurement/measurement-event-types.ts",
-        "src/capability/measurement/outcome-discriminated-union.ts",
-        "src/capability/measurement/measurement-contract.ts",
-        "src/capability/measurement/capability-measurement-engine.ts",
-        "src/evolution/observation/capability-measurement.ts",
-        "src/capability/errors/measure-failed.ts",
-        "src/capability/errors/measure-invalid-target.ts",
-        "src/cli/commands/capability-measure.ts",
+        "src/capabilities/capability/measurement/measurement-event-types.ts",
+        "src/capabilities/capability/measurement/outcome-discriminated-union.ts",
+        "src/capabilities/capability/measurement/measurement-contract.ts",
+        "src/capabilities/capability/measurement/capability-measurement-engine.ts",
+        "src/planning/evolution/observation/capability-measurement.ts",
+        "src/capabilities/capability/errors/measure-failed.ts",
+        "src/capabilities/capability/errors/measure-invalid-target.ts",
+        "src/interfaces/cli/commands/capability-measure.ts",
         "tests/capability/five-axis-sentinel.vitest.ts",
         "tests/capability/capability-measure-cli.test.ts",
       ];

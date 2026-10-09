@@ -23,7 +23,7 @@ All 9 tasks of M1 — Runtime Contract Standardization — are complete. Seven r
 
 ## Contracts Created
 
-All contracts reside in `src/runtime/contracts/`:
+All contracts reside in `src/runtime-state/runtime/contracts/`:
 
 | Contract | File | Source Files | Key Types |
 |----------|------|-------------|-----------|

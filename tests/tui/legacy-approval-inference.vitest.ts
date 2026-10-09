@@ -7,7 +7,7 @@
  * evidence existed.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
+import { TuiApp, type TuiAppOptions } from '../../src/interfaces/tui/app.js';
 
 function snapshot(approvals: unknown) {
   return {

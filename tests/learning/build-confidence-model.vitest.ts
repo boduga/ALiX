@@ -3,11 +3,11 @@
 // P11.4 — Pure function tests for buildConfidenceModel.
 
 import { describe, it, expect } from "vitest";
-import { buildConfidenceModel } from "../../src/learning/build-confidence-model.js";
+import { buildConfidenceModel } from "../../src/planning/learning/build-confidence-model.js";
 import type { StrategicPlan, PlanningObjective } from "../../src/planning/planning-types.js";
-import type { LearningOutcomeRecord, LearningObservationContext, LearningEngineConfig } from "../../src/learning/learning-types.js";
-import type { CorrelationSubsystemId } from "../../src/correlation/correlation-types.js";
-import type { CausalMechanism } from "../../src/reasoning/reasoning-types.js";
+import type { LearningOutcomeRecord, LearningObservationContext, LearningEngineConfig } from "../../src/planning/learning/learning-types.js";
+import type { CorrelationSubsystemId } from "../../src/operations/correlation/correlation-types.js";
+import type { CausalMechanism } from "../../src/planning/reasoning/reasoning-types.js";
 
 // ---------------------------------------------------------------------------
 // Factory helpers

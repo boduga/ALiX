@@ -27,17 +27,17 @@
 
 | File | Action | Task |
 |------|--------|------|
-| `src/kernel/replan-types.ts` | CREATE | 1a |
-| `src/kernel/replan-proposal-store.ts` | CREATE | 1a |
-| `src/kernel/collaboration-context-builder.ts` | MODIFY | 1b |
-| `src/kernel/model-replan-adapter.ts` | CREATE | 1c |
-| `src/kernel/replan-validator.ts` | CREATE | 1d |
-| `src/kernel/replan-simulator.ts` | CREATE | 1d |
-| `src/kernel/replan-impact-analyzer.ts` | CREATE | 1e |
-| `src/kernel/replan-approval-gate.ts` | CREATE | 1f |
-| `src/kernel/approval-store.ts` | MODIFY | 1f |
-| `src/kernel/replan-applier.ts` | CREATE | 1g |
-| `src/kernel/model-assisted-replan-service.ts` | CREATE | 1h |
+| `src/coordination/kernel/replan-types.ts` | CREATE | 1a |
+| `src/coordination/kernel/replan-proposal-store.ts` | CREATE | 1a |
+| `src/coordination/kernel/collaboration-context-builder.ts` | MODIFY | 1b |
+| `src/coordination/kernel/model-replan-adapter.ts` | CREATE | 1c |
+| `src/coordination/kernel/replan-validator.ts` | CREATE | 1d |
+| `src/coordination/kernel/replan-simulator.ts` | CREATE | 1d |
+| `src/coordination/kernel/replan-impact-analyzer.ts` | CREATE | 1e |
+| `src/coordination/kernel/replan-approval-gate.ts` | CREATE | 1f |
+| `src/coordination/kernel/approval-store.ts` | MODIFY | 1f |
+| `src/coordination/kernel/replan-applier.ts` | CREATE | 1g |
+| `src/coordination/kernel/model-assisted-replan-service.ts` | CREATE | 1h |
 | `tests/kernel/replan-proposal-store.test.ts` | CREATE | 1a |
 | `tests/kernel/model-replan-adapter.test.ts` | CREATE | 1c |
 | `tests/kernel/replan-validator.test.ts` | CREATE | 1d |
@@ -53,8 +53,8 @@
 ### Task 1a: Proposal Schema, Types, and Proposal Store
 
 **Files:**
-- Create: `src/kernel/replan-types.ts`
-- Create: `src/kernel/replan-proposal-store.ts`
+- Create: `src/coordination/kernel/replan-types.ts`
+- Create: `src/coordination/kernel/replan-proposal-store.ts`
 - Test: `tests/kernel/replan-proposal-store.test.ts`
 
 **Interfaces:**
@@ -105,8 +105,8 @@ type ProposalStatus =
 
 The proposal store persists at `.alix/coordination/replans/<runId>/<proposalId>.json` using atomic temp-file + rename writes. It contains the full proposal record with expected plan revision, draft fingerprint, validation results, impact fingerprint, approval ID, provider/model/usage metadata, and timestamps.
 
-- [ ] **Step 1: Write `src/kernel/replan-types.ts`** with all types
-- [ ] **Step 2: Write `src/kernel/replan-proposal-store.ts`** with CRUD, fingerprinting
+- [ ] **Step 1: Write `src/coordination/kernel/replan-types.ts`** with all types
+- [ ] **Step 2: Write `src/coordination/kernel/replan-proposal-store.ts`** with CRUD, fingerprinting
 - [ ] **Step 3: Write tests** — valid draft constructs, proposal CRUD, fingerprinting, atomic write safety
 - [ ] **Step 4: Build and run tests**
 - [ ] **Step 5: Commit**
@@ -116,7 +116,7 @@ The proposal store persists at `.alix/coordination/replans/<runId>/<proposalId>.
 ### Task 1b: Bounded Untrusted Replan Context
 
 **Files:**
-- Modify: `src/kernel/collaboration-context-builder.ts`
+- Modify: `src/coordination/kernel/collaboration-context-builder.ts`
 - Test: extend existing context-builder-replan test
 
 Extend `CollaborationContextBuilder.buildReplanContext()` to add:
@@ -141,7 +141,7 @@ Missing run returns explicit error (not empty context).
 ### Task 1c: ModelAdapter-Based Proposal Generation
 
 **Files:**
-- Create: `src/kernel/model-replan-adapter.ts`
+- Create: `src/coordination/kernel/model-replan-adapter.ts`
 - Test: `tests/kernel/model-replan-adapter.test.ts`
 
 Uses ALiX's real `ModelAdapter.complete()` with `NormalizedRequest.structuredOutputSchema`. Tools disabled (empty tool list). Always runs runtime JSON parsing + validation even when provider claims structured-output support.
@@ -186,8 +186,8 @@ Key behaviors:
 ### Task 1d: Runtime Validator and Graph Simulator
 
 **Files:**
-- Create: `src/kernel/replan-validator.ts`
-- Create: `src/kernel/replan-simulator.ts`
+- Create: `src/coordination/kernel/replan-validator.ts`
+- Create: `src/coordination/kernel/replan-simulator.ts`
 - Tests: `tests/kernel/replan-validator.test.ts`, `tests/kernel/replan-simulator.test.ts`
 
 **ReplanValidator** — checks:
@@ -236,7 +236,7 @@ interface SimulatedGraph {
 ### Task 1e: Deterministic Assignment and Impact Analysis
 
 **Files:**
-- Create: `src/kernel/replan-impact-analyzer.ts`
+- Create: `src/coordination/kernel/replan-impact-analyzer.ts`
 - Test: `tests/kernel/replan-impact-analyzer.test.ts`
 
 Reuses `CollaborativePlanner.matchCapabilities()` with controlled alias registry:
@@ -270,8 +270,8 @@ Build complete `ImpactAnalysis`:
 ### Task 1f: Atomic Approval Reuse and Exact Approval Gate
 
 **Files:**
-- Create: `src/kernel/replan-approval-gate.ts`
-- Modify: `src/kernel/approval-store.ts` (add `requestFresh()` and `requestOrReusePending()`)
+- Create: `src/coordination/kernel/replan-approval-gate.ts`
+- Modify: `src/coordination/kernel/approval-store.ts` (add `requestFresh()` and `requestOrReusePending()`)
 - Test: `tests/kernel/replan-approval-gate.test.ts`
 
 **ApprovalStore additions:**
@@ -303,7 +303,7 @@ async requestOrReusePending(params: FreshApprovalParams): Promise<ApprovalBound>
 ### Task 1g: History-Preserving CAS Applier
 
 **Files:**
-- Create: `src/kernel/replan-applier.ts`
+- Create: `src/coordination/kernel/replan-applier.ts`
 - Test: `tests/kernel/replan-applier.test.ts`
 
 Rules:
@@ -339,7 +339,7 @@ Rules:
 ### Task 1h: Model-Assisted Orchestration Service
 
 **Files:**
-- Create: `src/kernel/model-assisted-replan-service.ts`
+- Create: `src/coordination/kernel/model-assisted-replan-service.ts`
 - Test: `tests/kernel/model-assisted-replan-service.test.ts`
 
 `ModelAssistedReplanService` owns the full workflow:

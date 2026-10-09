@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { LIFECYCLE_ELIGIBILITY, isLifecycleEligible, type LifecycleEligibility } from '../../src/capability/lifecycle-eligibility.js';
-import type { LifecycleState } from '../../src/adaptation/capability-evolution-types.js';
+import { LIFECYCLE_ELIGIBILITY, isLifecycleEligible, type LifecycleEligibility } from '../../src/capabilities/capability/lifecycle-eligibility.js';
+import type { LifecycleState } from '../../src/planning/adaptation/capability-evolution-types.js';
 
 describe('LIFECYCLE_ELIGIBILITY (CAP-7 table)', () => {
   it('contains exactly the six CAP-5 states', () => {

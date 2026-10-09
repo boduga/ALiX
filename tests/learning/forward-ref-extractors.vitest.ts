@@ -2,20 +2,20 @@ import { describe, it, expect } from "vitest";
 import {
   EXTRACTORS,
   extractForwardRefs,
-} from "../../src/learning/forward-ref-extractors.js";
-import { ARTIFACT_TYPES } from "../../src/learning/evidence-chain-types.js";
+} from "../../src/planning/learning/forward-ref-extractors.js";
+import { ARTIFACT_TYPES } from "../../src/planning/learning/evidence-chain-types.js";
 import type {
   OutcomeRecord,
   LensCalibrationReport,
-} from "../../src/adaptation/outcome-types.js";
-import type { GovernanceReview } from "../../src/adaptation/governance-review-types.js";
-import type { RiskScore } from "../../src/adaptation/risk-score-types.js";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+} from "../../src/planning/adaptation/outcome-types.js";
+import type { GovernanceReview } from "../../src/planning/adaptation/governance-review-types.js";
+import type { RiskScore } from "../../src/planning/adaptation/risk-score-types.js";
+import type { AdaptationProposal } from "../../src/planning/adaptation/adaptation-types.js";
 import type {
   LearningSignal,
   CalibrationProfile,
   LearningProposal,
-} from "../../src/learning/learning-types.js";
+} from "../../src/planning/learning/learning-types.js";
 
 const TS = "2026-06-22T00:00:00.000Z";
 

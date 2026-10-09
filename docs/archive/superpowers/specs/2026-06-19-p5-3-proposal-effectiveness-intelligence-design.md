@@ -420,15 +420,15 @@ These findings are embedded in the `executiveSummary` text and can be derived fr
 
 | File | Role | Action |
 |---|---|---|
-| `src/adaptation/intelligence-types.ts` | IntelligenceReport, BucketStat, BucketSet, RevertSignalAnalysis, EnrichedProposal types | **Create** |
-| `src/adaptation/proposal-lifecycle-analyzer.ts` | Load + enrich proposals with lifecycle metadata | **Create** |
-| `src/adaptation/effectiveness-trend-analyzer.ts` | Compute per-bucket success metrics | **Create** |
-| `src/adaptation/revert-signal-analyzer.ts` | Compare advisory revert vs actual revert | **Create** |
-| `src/adaptation/confidence-calibration-analyzer.ts` | Map sourceConfidence ranges to outcome rates | **Create** |
-| `src/adaptation/bucket-aggregator.ts` | Group proposals by each dimension, compute per-bucket stats | **Create** |
-| `src/adaptation/intelligence-reporter.ts` | Orchestrate analyzers, assemble IntelligenceReport, generate executive summary, persist to disk | **Create** |
-| `src/adaptation/intelligence-store.ts` | Save/load/list IntelligenceReport files under `.alix/adaptation/intelligence/` | **Create** |
-| `src/cli/commands/adaptation.ts` | Add `intelligence` subcommand | **Modify** |
+| `src/planning/adaptation/intelligence-types.ts` | IntelligenceReport, BucketStat, BucketSet, RevertSignalAnalysis, EnrichedProposal types | **Create** |
+| `src/planning/adaptation/proposal-lifecycle-analyzer.ts` | Load + enrich proposals with lifecycle metadata | **Create** |
+| `src/planning/adaptation/effectiveness-trend-analyzer.ts` | Compute per-bucket success metrics | **Create** |
+| `src/planning/adaptation/revert-signal-analyzer.ts` | Compare advisory revert vs actual revert | **Create** |
+| `src/planning/adaptation/confidence-calibration-analyzer.ts` | Map sourceConfidence ranges to outcome rates | **Create** |
+| `src/planning/adaptation/bucket-aggregator.ts` | Group proposals by each dimension, compute per-bucket stats | **Create** |
+| `src/planning/adaptation/intelligence-reporter.ts` | Orchestrate analyzers, assemble IntelligenceReport, generate executive summary, persist to disk | **Create** |
+| `src/planning/adaptation/intelligence-store.ts` | Save/load/list IntelligenceReport files under `.alix/adaptation/intelligence/` | **Create** |
+| `src/interfaces/cli/commands/adaptation.ts` | Add `intelligence` subcommand | **Modify** |
 | Tests | Per component + CLI integration | **Create** |
 
 ## Expected first-run behavior

@@ -192,14 +192,14 @@ alix governance report compliance --p24-bundle bundle.json --json --output ./com
 | P29.1 | `src/governance/governance-reporting-types.ts` | CompliancePackage types |
 | P29.2 | `src/governance/governance-reporting-builder.ts` | Pure builder |
 | P29.3 | `src/governance/governance-reporting-export.ts` | JSON/text output |
-| P29.3 | `src/cli/commands/governance-report.ts` | CLI handler |
+| P29.3 | `src/interfaces/cli/commands/governance-report.ts` | CLI handler |
 | P29.4 | `docs/architecture/checkpoints/<date>-p29-4-*.md` | Checkpoint |
 
 ### 8.2 Touched Files
 
 | File | Change |
 |------|--------|
-| `src/cli/commands/governance.ts` | Add `case "report"` dispatch |
+| `src/interfaces/cli/commands/governance.ts` | Add `case "report"` dispatch |
 
 ### 8.3 Untouched Files
 

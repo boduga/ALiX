@@ -6,7 +6,7 @@
 
 **Architecture:** All work threads through the C0/C1 budget pipeline — `context-limits.ts` (descriptor + calibration factor), `context-budget.ts` (budget + knobs), `context-assembly.ts` (selector + ordering), `task-loop.ts` (admission + emission + tool loop). Changes are additive/observability-first except §4A (a correctness fix) and §2 (tool admission), which are deliberate behavior changes. Rollout order: recency fix → instrumentation → knob split + config → tool scoping → rot-rot mechanism.
 
-**Tech Stack:** TypeScript, tiktoken (`cl100k_base`/`o200k_base`), EventLog (append-only, `src/events/`), vitest. JSON state precedent: `src/adaptation/*-store.ts` + `~/.alix` home-dir convention.
+**Tech Stack:** TypeScript, tiktoken (`cl100k_base`/`o200k_base`), EventLog (append-only, `src/runtime-state/events/`), vitest. JSON state precedent: `src/planning/adaptation/*-store.ts` + `~/.alix` home-dir convention.
 
 ## Global Constraints
 
@@ -25,7 +25,7 @@
 ### Task 1: §4 Part A — Recency fix (flip T4/T5 admission order)
 
 **Files:**
-- Modify: `src/config/context-assembly.ts` (best-effort loop, ~lines 192-201)
+- Modify: `src/operations/config/context-assembly.ts` (best-effort loop, ~lines 192-201)
 - Modify: `tests/context/context-assembly.vitest.ts` (4 tests inverted by the fix)
 
 **Interfaces:**
@@ -111,7 +111,7 @@ Expected: FAIL — the updated assertions (`["c","a","b"]`, `["sys","c","b"]`, `
 
 - [ ] **Step 3: Implement the minimal fix**
 
-In `src/config/context-assembly.ts`, replace the best-effort loop (currently iterating `items` in source order):
+In `src/operations/config/context-assembly.ts`, replace the best-effort loop (currently iterating `items` in source order):
 
 ```ts
 // Tiers 4–6 best-effort: skip-and-continue within the tier.
@@ -145,7 +145,7 @@ Run: `pnpm build && pnpm test:vitest && npx tsc --noEmit`
 Expected: build + tsc clean; vitest green (node-lane baseline ignored here).
 
 ```bash
-git add src/config/context-assembly.ts tests/context/context-assembly.vitest.ts
+git add src/operations/config/context-assembly.ts tests/context/context-assembly.vitest.ts
 git commit -m "fix(context): admit T4/T5 newest-first under budget pressure
 
 Reverse recent_conversation/recent_tool_results bucket iteration in
@@ -160,8 +160,8 @@ unchanged. T6 older_context stays chronological. (spec §4 Part A)"
 
 **Files:**
 - Modify: `src/run.ts` (`RunResult` + `ContextPressure` types)
-- Create: `src/run/context-pressure.ts` (pure tracker)
-- Modify: `src/run/task-loop.ts` (tracker wiring + return sites)
+- Create: `src/execution/run/context-pressure.ts` (pure tracker)
+- Modify: `src/execution/run/task-loop.ts` (tracker wiring + return sites)
 - Test: `tests/run/context-pressure.vitest.ts` (new)
 - Modify: `tests/run/task-loop-context-budget.vitest.ts` (integration assertion)
 
@@ -201,8 +201,8 @@ Create `tests/run/context-pressure.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { createContextPressureTracker } from "../../src/run/context-pressure.js";
-import type { AssembledContext } from "../../src/config/context-assembly.js";
+import { createContextPressureTracker } from "../../src/execution/run/context-pressure.js";
+import type { AssembledContext } from "../../src/operations/config/context-assembly.js";
 
 function assembled(overrides: Partial<AssembledContext> = {}): AssembledContext {
   return {
@@ -262,7 +262,7 @@ Expected: FAIL — module `context-pressure.js` does not exist.
 
 - [ ] **Step 3: Implement the tracker**
 
-Create `src/run/context-pressure.ts`:
+Create `src/execution/run/context-pressure.ts`:
 
 ```ts
 import type { AssembledContext } from "../config/context-assembly.js";
@@ -319,7 +319,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Wire the tracker into runTaskLoop**
 
-In `src/run/task-loop.ts`:
+In `src/execution/run/task-loop.ts`:
 1. Import `createContextPressureTracker` from `./context-pressure.js`.
 2. Near the top of `runTaskLoop` (after the `deps` destructure, ~line 312): `const contextPressure = createContextPressureTracker();`.
 3. After each successful assembly — inside the try at line 482, right after `assembled = assembleContext(...)` — add `contextPressure.record(i, assembled);`.
@@ -369,7 +369,7 @@ it("returns contextPressure on the RunResult when the run drops context items", 
 Run: `pnpm build && pnpm test:vitest && npx tsc --noEmit`
 
 ```bash
-git add src/run.ts src/run/context-pressure.ts src/run/task-loop.ts tests/run/context-pressure.vitest.ts tests/run/task-loop-context-budget.vitest.ts
+git add src/run.ts src/execution/run/context-pressure.ts src/execution/run/task-loop.ts tests/run/context-pressure.vitest.ts tests/run/task-loop-context-budget.vitest.ts
 git commit -m "feat(context): contextPressure aggregate+peak on RunResult + EventLog
 
 Tag every terminal RunResult with aggregate+peak context pressure (tier4/5/6
@@ -383,9 +383,9 @@ Pure instrumentation — no admission behavior change. (spec §3)"
 ### Task 3: §1 — `token.calibration` event logging (+ raw token tracking)
 
 **Files:**
-- Modify: `src/events/types.ts` (`CONTEXT_EVENT_TYPES` + payload type)
-- Modify: `src/config/context-assembly.ts` (`CandidateContextItem.rawTokens`, `AssembledContext.admittedRawTokens`)
-- Modify: `src/run/task-loop.ts` (populate rawTokens; emit `token.calibration`)
+- Modify: `src/runtime-state/events/types.ts` (`CONTEXT_EVENT_TYPES` + payload type)
+- Modify: `src/operations/config/context-assembly.ts` (`CandidateContextItem.rawTokens`, `AssembledContext.admittedRawTokens`)
+- Modify: `src/execution/run/task-loop.ts` (populate rawTokens; emit `token.calibration`)
 - Modify: `tests/context/context-assembly.vitest.ts` (fixture gains rawTokens)
 - Test: `tests/events/token-calibration.vitest.ts` (new)
 
@@ -450,16 +450,16 @@ Expected: FAIL — `rawTokens` not on type, `admittedRawTokens` missing, no `tok
 
 - [ ] **Step 3: Implement raw-token tracking**
 
-In `src/config/context-assembly.ts`:
+In `src/operations/config/context-assembly.ts`:
 1. Add to `CandidateContextItem`: `readonly rawTokens: number;` (with a comment: unpadded base tokenizer estimate; admission reads only `tokens`, `rawTokens` is calibration telemetry).
 2. Add to `AssembledContext`: `readonly admittedRawTokens: number;`.
 3. In `assembleContext`, track `let admittedRawTokens = 0;` and add `item.rawTokens` when admitting (both mandatory and best-effort paths). Return it in the frozen result.
 
 - [ ] **Step 4: Implement calibration event emission**
 
-In `src/run/task-loop.ts`:
+In `src/execution/run/task-loop.ts`:
 1. Populate `rawTokens` on the system-prompt + message candidate items (from `meta.rawEstimate` / `sysMeta.rawEstimate` in `classifyCandidateContext`, ~lines 1377-1419). Populate it on the tool-schema reservation items (lines 429-448) from `estimateBudgetTokens(...).rawEstimate`.
-2. In `src/events/types.ts`, add to `CONTEXT_EVENT_TYPES`:
+2. In `src/runtime-state/events/types.ts`, add to `CONTEXT_EVENT_TYPES`:
 
 ```ts
 TOKEN_CALIBRATION: "token.calibration",
@@ -508,14 +508,14 @@ Expected: PASS.
 
 - [ ] **Step 6: Update event-contract doc count**
 
-In `src/runtime/contracts/event-contract.ts` (~line 107), bump the Context table row: `| Context | CONTEXT_EVENT_TYPES | 6 |`.
+In `src/runtime-state/runtime/contracts/event-contract.ts` (~line 107), bump the Context table row: `| Context | CONTEXT_EVENT_TYPES | 6 |`.
 
 - [ ] **Step 7: Run full suite + commit**
 
 Run: `pnpm build && pnpm test:vitest && npx tsc --noEmit`
 
 ```bash
-git add src/events/types.ts src/config/context-assembly.ts src/run/task-loop.ts src/runtime/contracts/event-contract.ts tests/context/context-assembly.vitest.ts tests/events/token-calibration.vitest.ts
+git add src/runtime-state/events/types.ts src/operations/config/context-assembly.ts src/execution/run/task-loop.ts src/runtime-state/runtime/contracts/event-contract.ts tests/context/context-assembly.vitest.ts tests/events/token-calibration.vitest.ts
 git commit -m "feat(context): token.calibration event logging + raw token tracking
 
 Emit token.calibration per model-facing request keyed by invocationId, logging
@@ -529,10 +529,10 @@ AssembledContext. Pure observation — no admission change. (spec §1)"
 ### Task 4: §1 — Calibration store + per-provider factor (default 1.2 until burn-in)
 
 **Files:**
-- Create: `src/config/calibration-store.ts`
-- Modify: `src/config/context-limits.ts` (`providerCalibration` map, `getCalibrationFactor`)
-- Modify: `src/config/context-budget.ts` (accept `safetyFactor` in options, use in reserved math if needed — see note)
-- Modify: `src/utils/tokens.ts` (accept `safetyFactor` param, default `SAFETY_FACTOR`)
+- Create: `src/operations/config/calibration-store.ts`
+- Modify: `src/operations/config/context-limits.ts` (`providerCalibration` map, `getCalibrationFactor`)
+- Modify: `src/operations/config/context-budget.ts` (accept `safetyFactor` in options, use in reserved math if needed — see note)
+- Modify: `src/operations/utils/tokens.ts` (accept `safetyFactor` param, default `SAFETY_FACTOR`)
 - Test: `tests/config/calibration-store.vitest.ts` (new)
 
 **Interfaces:**
@@ -548,7 +548,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadCalibration, saveCalibration, deriveCalibrationFactor, getCalibrationFactor } from "../../src/config/calibration-store.js";
+import { loadCalibration, saveCalibration, deriveCalibrationFactor, getCalibrationFactor } from "../../src/operations/config/calibration-store.js";
 
 describe("calibration store", () => {
   it("defaults to a 1.2 factor when no calibration exists", () => {
@@ -581,7 +581,7 @@ Expected: FAIL — module does not exist.
 
 - [ ] **Step 3: Implement the store**
 
-Create `src/config/calibration-store.ts`:
+Create `src/operations/config/calibration-store.ts`:
 
 ```ts
 import { homedir } from "node:os";
@@ -639,7 +639,7 @@ export function getCalibrationFactor(provider: string, calibration?: Calibration
 
 - [ ] **Step 4: Thread the factor into the estimators**
 
-In `src/utils/tokens.ts`, change `estimateBudgetTokens` and `estimateMessageBudgetTokens` to accept an optional factor (default `SAFETY_FACTOR`), so `budgetEstimate = ceil(raw × factor)` uses the per-provider factor when the caller provides it:
+In `src/operations/utils/tokens.ts`, change `estimateBudgetTokens` and `estimateMessageBudgetTokens` to accept an optional factor (default `SAFETY_FACTOR`), so `budgetEstimate = ceil(raw × factor)` uses the per-provider factor when the caller provides it:
 
 ```ts
 export async function estimateBudgetTokens(
@@ -667,7 +667,7 @@ Expected: PASS.
 Run: `pnpm build && pnpm test:vitest && npx tsc --noEmit`
 
 ```bash
-git add src/config/calibration-store.ts src/config/context-limits.ts src/utils/tokens.ts tests/config/calibration-store.vitest.ts
+git add src/operations/config/calibration-store.ts src/operations/config/context-limits.ts src/operations/utils/tokens.ts tests/config/calibration-store.vitest.ts
 git commit -m "feat(context): calibration store + per-provider factor (defaults to 1.2)
 
 Add ~/.alix/calibration.json persistence, p95(actual/raw) derivation clamped to
@@ -681,11 +681,11 @@ behavior change until calibration data lands. (spec §1)"
 ### Task 5: §5 — Split `reservedOutputTokens` into `budgetReservation` + `requestedMaxOutputTokens`
 
 **Files:**
-- Modify: `src/config/context-budget.ts` (interface + factory + invariant + `maxOutputTokens` config)
-- Modify: `src/config/schema.ts` + `src/config/validator.ts` (config key)
-- Modify: `src/run/task-loop.ts` (consumers: event payload + `maxOutputTokens`)
-- Modify: `src/tui/runtime/metrics-projection.ts` (payload reader)
-- Modify: `src/events/types.ts` (`ContextBudgetComputedPayload`)
+- Modify: `src/operations/config/context-budget.ts` (interface + factory + invariant + `maxOutputTokens` config)
+- Modify: `src/operations/config/schema.ts` + `src/operations/config/validator.ts` (config key)
+- Modify: `src/execution/run/task-loop.ts` (consumers: event payload + `maxOutputTokens`)
+- Modify: `src/interfaces/tui/runtime/metrics-projection.ts` (payload reader)
+- Modify: `src/runtime-state/events/types.ts` (`ContextBudgetComputedPayload`)
 - Modify: `tests/context/context-assembly.vitest.ts` (fixture `budget()`)
 - Modify: `tests/run/task-loop-context-budget.vitest.ts` (fixtures/assertions)
 
@@ -728,7 +728,7 @@ Add a §5-specific test in a new `tests/config/context-budget-knobs.vitest.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { createContextBudget } from "../../src/config/context-budget.js";
+import { createContextBudget } from "../../src/operations/config/context-budget.js";
 
 const descriptor = { provider: "test", model: "m", contextWindowTokens: 64_000, tokenizer: "cl100k_base" as const, safetyFactor: 1.2 };
 
@@ -761,7 +761,7 @@ Expected: FAIL — `budgetReservation`/`requestedMaxOutputTokens` don't exist on
 
 - [ ] **Step 3: Implement the split**
 
-In `src/config/context-budget.ts`:
+In `src/operations/config/context-budget.ts`:
 
 ```ts
 export interface ContextBudgetConfig {
@@ -813,13 +813,13 @@ export function createContextBudget(descriptor, options = {}): ContextBudget {
 
 - [ ] **Step 4: Update all consumers**
 
-1. `src/config/schema.ts`: `ContextConfig.budget` already types as `ContextBudgetConfig` — no change needed (the new key rides along). 
-2. `src/config/validator.ts`: add validation for `budget.maxOutputTokens` (positive integer, `≤` cap context if both set), mirroring the existing outputRatio/Floor/Cap block (~lines 66-83).
-3. `src/run/task-loop.ts`:
+1. `src/operations/config/schema.ts`: `ContextConfig.budget` already types as `ContextBudgetConfig` — no change needed (the new key rides along). 
+2. `src/operations/config/validator.ts`: add validation for `budget.maxOutputTokens` (positive integer, `≤` cap context if both set), mirroring the existing outputRatio/Floor/Cap block (~lines 66-83).
+3. `src/execution/run/task-loop.ts`:
    - Line 471 BUDGET_COMPUTED payload: `reservedOutputTokens: contextBudget.reservedOutputTokens` → `budgetReservation: contextBudget.budgetReservation, requestedMaxOutputTokens: contextBudget.requestedMaxOutputTokens`.
    - Lines 594/605: `maxOutputTokens: contextBudget.reservedOutputTokens` → `maxOutputTokens: contextBudget.requestedMaxOutputTokens`.
-4. `src/events/types.ts` `ContextBudgetComputedPayload` (~line 412): replace `reservedOutputTokens: number` with `budgetReservation: number; requestedMaxOutputTokens: number;`.
-5. `src/tui/runtime/metrics-projection.ts` (lines 29, 103-106, 137): read `budgetReservation` from the payload instead of `reservedOutputTokens` (rename field `ctxReservedOutput` → `ctxBudgetReservation`).
+4. `src/runtime-state/events/types.ts` `ContextBudgetComputedPayload` (~line 412): replace `reservedOutputTokens: number` with `budgetReservation: number; requestedMaxOutputTokens: number;`.
+5. `src/interfaces/tui/runtime/metrics-projection.ts` (lines 29, 103-106, 137): read `budgetReservation` from the payload instead of `reservedOutputTokens` (rename field `ctxReservedOutput` → `ctxBudgetReservation`).
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -833,7 +833,7 @@ Expected: PASS (fixtures updated, no legacy `reservedOutputTokens` references re
 Run: `pnpm build && pnpm test:vitest && npx tsc --noEmit`
 
 ```bash
-git add src/config/context-budget.ts src/config/schema.ts src/config/validator.ts src/run/task-loop.ts src/events/types.ts src/tui/runtime/metrics-projection.ts tests/context/context-assembly.vitest.ts tests/config/context-budget-knobs.vitest.ts tests/run/task-loop-context-budget.vitest.ts
+git add src/operations/config/context-budget.ts src/operations/config/schema.ts src/operations/config/validator.ts src/execution/run/task-loop.ts src/runtime-state/events/types.ts src/interfaces/tui/runtime/metrics-projection.ts tests/context/context-assembly.vitest.ts tests/config/context-budget-knobs.vitest.ts tests/run/task-loop-context-budget.vitest.ts
 git commit -m "feat(context): decouple output reservation from requested max output
 
 Split ContextBudget.reservedOutputTokens into budgetReservation (safety-margin,
@@ -848,9 +848,9 @@ output length no longer changes the input budget. (spec §5)"
 ### Task 6: §4 Part B — `tierOrderingStrategy` explicit config
 
 **Files:**
-- Modify: `src/config/context-budget.ts` (config type + default)
-- Modify: `src/config/context-assembly.ts` (consume strategy)
-- Modify: `src/config/schema.ts` (optional — rides on `ContextBudgetConfig`)
+- Modify: `src/operations/config/context-budget.ts` (config type + default)
+- Modify: `src/operations/config/context-assembly.ts` (consume strategy)
+- Modify: `src/operations/config/schema.ts` (optional — rides on `ContextBudgetConfig`)
 - Test: `tests/context/context-assembly.vitest.ts`
 
 **Interfaces:**
@@ -893,7 +893,7 @@ Expected: FAIL — `assembleContext` takes only 2 args; no ordering config exist
 
 - [ ] **Step 3: Implement**
 
-In `src/config/context-budget.ts`:
+In `src/operations/config/context-budget.ts`:
 
 ```ts
 export type TierOrderingStrategy = "recency" | "recency-dedup" | "relevance";
@@ -913,7 +913,7 @@ export const DEFAULT_TIER_ORDERING: TierOrderingConfig = {
 
 Add `tierOrdering?: TierOrderingConfig` to `ContextBudgetConfig`.
 
-In `src/config/context-assembly.ts`, change `assembleContext` signature to `(candidate, budget, ordering: TierOrderingConfig = {})` and apply:
+In `src/operations/config/context-assembly.ts`, change `assembleContext` signature to `(candidate, budget, ordering: TierOrderingConfig = {})` and apply:
 
 ```ts
 const strategyFor = (category: ContextCategory): TierOrderingStrategy =>
@@ -941,7 +941,7 @@ Expected: PASS (Task 1 tests still green — default ordering preserves the rece
 Run: `pnpm build && pnpm test:vitest && npx tsc --noEmit`
 
 ```bash
-git add src/config/context-budget.ts src/config/context-assembly.ts tests/context/context-assembly.vitest.ts
+git add src/operations/config/context-budget.ts src/operations/config/context-assembly.ts tests/context/context-assembly.vitest.ts
 git commit -m "feat(context): explicit tierOrderingStrategy config
 
 Expose per-tier ordering policy (recency/recency-dedup/relevance) with recency
@@ -955,10 +955,10 @@ gated on §3 contextPressure evidence. (spec §4 Part B)"
 ### Task 7: §2 — Tool scoping: T1a/T1b split + relevance filter + `fallback_full`
 
 **Files:**
-- Create: `src/config/tool-scoping.ts` (relevance filter)
-- Modify: `src/run/task-loop.ts` (T1a/T1b split + filtered tool reservation + `tools` payload)
-- Modify: `src/events/types.ts` (`tooling.scope.fallback_full` + `context.irreducible.tooling/content`)
-- Modify: `src/run/event-handlers.ts` (`handleScopeExpansion` gains shed-tool awareness — Task 8)
+- Create: `src/operations/config/tool-scoping.ts` (relevance filter)
+- Modify: `src/execution/run/task-loop.ts` (T1a/T1b split + filtered tool reservation + `tools` payload)
+- Modify: `src/runtime-state/events/types.ts` (`tooling.scope.fallback_full` + `context.irreducible.tooling/content`)
+- Modify: `src/execution/run/event-handlers.ts` (`handleScopeExpansion` gains shed-tool awareness — Task 8)
 - Test: `tests/config/tool-scoping.vitest.ts` (new)
 
 **Interfaces:**
@@ -971,7 +971,7 @@ gated on §3 contextPressure evidence. (spec §4 Part B)"
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { CORE_TOOL_NAMES, scopeToolsByTask, type ScopedTools } from "../../src/config/tool-scoping.js";
+import { CORE_TOOL_NAMES, scopeToolsByTask, type ScopedTools } from "../../src/operations/config/tool-scoping.js";
 
 const tool = (name: string, description = "generic") => ({ name, description, input_schema: { type: "object" as const, properties: {} } });
 const mcp = (name: string, description = "generic", serverName = "server") => ({ name, execName: `mcp.${serverName}.${name}`, serverName, toolName: name, description });
@@ -1011,7 +1011,7 @@ Expected: FAIL — module does not exist.
 
 - [ ] **Step 3: Implement the filter**
 
-Create `src/config/tool-scoping.ts`:
+Create `src/operations/config/tool-scoping.ts`:
 
 ```ts
 import type { ToolDef } from "../providers/types.js";
@@ -1110,7 +1110,7 @@ Replace the two tool-schema reservation `unshift` blocks (lines 429-448) so they
 
 - [ ] **Step 5: Add the event types**
 
-In `src/events/types.ts`, add to `CONTEXT_EVENT_TYPES`:
+In `src/runtime-state/events/types.ts`, add to `CONTEXT_EVENT_TYPES`:
 
 ```ts
 TOOLING_SCOPE_FALLBACK_FULL: "tooling.scope.fallback_full",
@@ -1136,7 +1136,7 @@ Expected: PASS.
 Run: `pnpm build && pnpm test:vitest && npx tsc --noEmit`
 
 ```bash
-git add src/config/tool-scoping.ts src/run/task-loop.ts src/events/types.ts src/runtime/contracts/event-contract.ts tests/config/tool-scoping.vitest.ts
+git add src/operations/config/tool-scoping.ts src/execution/run/task-loop.ts src/runtime-state/events/types.ts src/runtime-state/runtime/contracts/event-contract.ts tests/config/tool-scoping.vitest.ts
 git commit -m "feat(context): T1a/T1b tool scoping + relevance filter + fallback_full
 
 Split mandatory tool schemas into core (always-admitted) and extended/MCP
@@ -1150,8 +1150,8 @@ excluded from the wire; re-scope on call is Task 8. (spec §2)"
 ### Task 8: §2 — Shed-tool contract (reintroduce on call, retry once, additive-only)
 
 **Files:**
-- Modify: `src/run/task-loop.ts` (tool-execution loop ~919: shed-tool detection + re-scope)
-- Modify: `src/run/event-handlers.ts` (`handleScopeExpansion` or a sibling shed-tool handler)
+- Modify: `src/execution/run/task-loop.ts` (tool-execution loop ~919: shed-tool detection + re-scope)
+- Modify: `src/execution/run/event-handlers.ts` (`handleScopeExpansion` or a sibling shed-tool handler)
 - Modify: `src/run.ts` (`RunOpts.boundTools` unchanged; new local state)
 - Test: `tests/run/task-loop-shed-tool.vitest.ts` (new)
 
@@ -1187,7 +1187,7 @@ Expected: FAIL — no shed-tool handling; the shed call falls into the invalid-t
 
 > **Dependencies (from Task 7):** `scopedOutNames: Set<string>` and `fullToolRegistry: Array<ToolDef | DeferredToolEntry>` are defined in Task 7's wiring block — do not re-derive them here. `scopedOutNames` is empty when Task 7's filter fell back to full admission (`fallbackFull`), in which case no shed-tool path can trigger.
 
-In `src/run/event-handlers.ts`, add a sibling to `handleScopeExpansion`:
+In `src/execution/run/event-handlers.ts`, add a sibling to `handleScopeExpansion`:
 
 ```ts
 /** §2 shed-tool contract: a tool scoped OUT of T1b is called by the model.
@@ -1243,7 +1243,7 @@ Expected: PASS.
 Run: `pnpm build && pnpm test:vitest && npx tsc --noEmit`
 
 ```bash
-git add src/run/event-handlers.ts src/run/task-loop.ts src/events/types.ts tests/run/task-loop-shed-tool.vitest.ts
+git add src/execution/run/event-handlers.ts src/execution/run/task-loop.ts src/runtime-state/events/types.ts tests/run/task-loop-shed-tool.vitest.ts
 git commit -m "feat(context): shed-tool reintroduce-on-call, retry once, additive-only
 
 When the model calls a tool scoped out by §2, re-admit its schema (one tool,
@@ -1257,10 +1257,10 @@ guardrail). Distinguish context.irreducible.tooling vs .content. (spec §2)"
 ### Task 9: §6 — Context-rot threshold mechanism (advisory, unset by default)
 
 **Files:**
-- Modify: `src/config/calibration-store.ts` (`contextRotThreshold` field — already typed as `unknown`; tighten)
-- Modify: `src/run/task-loop.ts` (advisory `context.rot_risk` emission)
-- Modify: `src/events/types.ts` (`context.rot_risk` + payload)
-- Modify: `src/runtime/contracts/event-contract.ts` (Context count)
+- Modify: `src/operations/config/calibration-store.ts` (`contextRotThreshold` field — already typed as `unknown`; tighten)
+- Modify: `src/execution/run/task-loop.ts` (advisory `context.rot_risk` emission)
+- Modify: `src/runtime-state/events/types.ts` (`context.rot_risk` + payload)
+- Modify: `src/runtime-state/runtime/contracts/event-contract.ts` (Context count)
 - Test: `tests/config/calibration-store.vitest.ts` + a task-loop assertion
 
 **Interfaces:**
@@ -1300,7 +1300,7 @@ Expected: FAIL — `contextRotThreshold` not yet a named field / rot_risk emissi
 
 - [ ] **Step 3: Implement**
 
-In `src/config/calibration-store.ts`, tighten the type:
+In `src/operations/config/calibration-store.ts`, tighten the type:
 
 ```ts
 export type ContextRotThreshold = {
@@ -1364,7 +1364,7 @@ Expected: PASS.
 Run: `pnpm build && pnpm test:vitest && npx tsc --noEmit`
 
 ```bash
-git add src/config/calibration-store.ts src/run/task-loop.ts src/events/types.ts src/runtime/contracts/event-contract.ts tests/config/calibration-store.vitest.ts tests/run/task-loop-shed-tool.vitest.ts
+git add src/operations/config/calibration-store.ts src/execution/run/task-loop.ts src/runtime-state/events/types.ts src/runtime-state/runtime/contracts/event-contract.ts tests/config/calibration-store.vitest.ts tests/run/task-loop-shed-tool.vitest.ts
 git commit -m "feat(context): context.rot_risk advisory emission (threshold unset)
 
 Ship the §6 mechanism only: a ContextRotThreshold in calibration.json and an

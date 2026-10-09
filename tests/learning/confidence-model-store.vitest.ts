@@ -7,9 +7,9 @@ import { existsSync, unlinkSync, rmdirSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { ConfidenceModelStore, validateConfidenceModel } from "../../src/learning/confidence-model-store.js";
-import type { UpdatedConfidenceModel } from "../../src/learning/learning-types.js";
-import { LearningEngineError } from "../../src/learning/learning-types.js";
+import { ConfidenceModelStore, validateConfidenceModel } from "../../src/planning/learning/confidence-model-store.js";
+import type { UpdatedConfidenceModel } from "../../src/planning/learning/learning-types.js";
+import { LearningEngineError } from "../../src/planning/learning/learning-types.js";
 
 function makeModel(overrides?: Partial<UpdatedConfidenceModel>): UpdatedConfidenceModel {
   return {

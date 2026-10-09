@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { CapabilityEvolutionProposalGenerator } from "../../src/adaptation/capability-evolution-proposal-generator.js";
-import type { CapabilityEvolutionReport } from "../../src/adaptation/capability-evolution-types.js";
+import { CapabilityEvolutionProposalGenerator } from "../../src/planning/adaptation/capability-evolution-proposal-generator.js";
+import type { CapabilityEvolutionReport } from "../../src/planning/adaptation/capability-evolution-types.js";
 
 function makeMinimalReport(
   overrides?: Partial<CapabilityEvolutionReport>,

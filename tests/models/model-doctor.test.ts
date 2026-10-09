@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { runDoctor } from "../../src/models/model-doctor.js";
-import type { ProfileData } from "../../src/config/profile-types.js";
-import type { SystemInfo } from "../../src/config/profile-registry.js";
+import type { ProfileData } from "../../src/operations/config/profile-types.js";
+import type { SystemInfo } from "../../src/operations/config/profile-registry.js";
 
 function makeProfile(overrides: Partial<ProfileData> = {}): ProfileData {
   return { id: "balanced-local", name: "Balanced Local", description: "", mode: "local-first", hardware: { minRamGb: 8, recommendedRamGb: 16, requiresGpu: false, minVramGb: 0 }, models: { default: { provider: "ollama", name: "test" } }, ...overrides };

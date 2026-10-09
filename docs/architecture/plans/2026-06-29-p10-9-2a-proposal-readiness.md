@@ -23,21 +23,21 @@
 ### Task 1: Pure types + `computeProposalReadiness` + `getApplySupport` + unit tests
 
 **Files:**
-- Create: `src/adaptation/proposal-readiness.ts`
+- Create: `src/planning/adaptation/proposal-readiness.ts`
 - Create: `tests/adaptation/proposal-readiness.vitest.ts`
 
 **Interfaces:**
-- Consumes: `AdaptationProposal` from `src/adaptation/adaptation-types.ts`, `ProposalTarget` kinds, `ProposalStatus`, `ProposalAction`
+- Consumes: `AdaptationProposal` from `src/planning/adaptation/adaptation-types.ts`, `ProposalTarget` kinds, `ProposalStatus`, `ProposalAction`
 - Produces: `ProposalReadiness`, `ApplySupport`, `ProposalReadinessInfo`, `computeProposalReadiness()`, `getApplySupport()`
 
 - [ ] **Step 1: Write the failing unit tests**
 
-Create `tests/adaptation/proposal-readiness.vitest.ts`. The test file should import `ProposalTarget` from `../../src/adaptation/adaptation-types.js` but define its own minimal `AdaptationProposal` factory inline (avoids importing the full type with all fields). Tests for every row of the decision table:
+Create `tests/adaptation/proposal-readiness.vitest.ts`. The test file should import `ProposalTarget` from `../../src/planning/adaptation/adaptation-types.js` but define its own minimal `AdaptationProposal` factory inline (avoids importing the full type with all fields). Tests for every row of the decision table:
 
 ```typescript
 import { describe, it, expect } from "vitest";
-import { computeProposalReadiness, getApplySupport } from "../../src/adaptation/proposal-readiness.js";
-import type { AdaptationProposal, ProposalTarget } from "../../src/adaptation/adaptation-types.js";
+import { computeProposalReadiness, getApplySupport } from "../../src/planning/adaptation/proposal-readiness.js";
+import type { AdaptationProposal, ProposalTarget } from "../../src/planning/adaptation/adaptation-types.js";
 
 function makeProposal(overrides: Partial<AdaptationProposal> = {}): AdaptationProposal {
   return {
@@ -90,7 +90,7 @@ Expected: All tests FAIL with "module not found" or "function not defined" error
 
 - [ ] **Step 3: Write minimal implementation**
 
-Create `src/adaptation/proposal-readiness.ts`:
+Create `src/planning/adaptation/proposal-readiness.ts`:
 
 ```typescript
 /**
@@ -362,7 +362,7 @@ Expected: No errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/adaptation/proposal-readiness.ts tests/adaptation/proposal-readiness.vitest.ts
+git add src/planning/adaptation/proposal-readiness.ts tests/adaptation/proposal-readiness.vitest.ts
 git commit -m "P10.9.2a-T1: pure readiness types + computeProposalReadiness + getApplySupport
 
 - ProposalReadiness type (6 values: needs_approval through completed)
@@ -381,11 +381,11 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 2: Wire readiness into `adaptation.ts` — list columns, show block, apply gate
 
 **Files:**
-- Modify: `src/cli/commands/adaptation.ts`
+- Modify: `src/interfaces/cli/commands/adaptation.ts`
 - Create: `tests/cli/commands/adaptation-readiness.vitest.ts`
 
 **Interfaces:**
-- Consumes: `computeProposalReadiness`, `ProposalReadinessInfo` from `src/adaptation/proposal-readiness.ts`
+- Consumes: `computeProposalReadiness`, `ProposalReadinessInfo` from `src/planning/adaptation/proposal-readiness.ts`
 - Modifies: `runList()` (lines ~162-191), `runShow()` (lines ~194-208), `runApply()` (lines ~330-371)
 
 - [ ] **Step 1: Write the failing CLI integration tests**
@@ -394,7 +394,7 @@ Create `tests/cli/commands/adaptation-readiness.vitest.ts`:
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { computeProposalReadiness } from "../../../src/adaptation/proposal-readiness.js";
+import { computeProposalReadiness } from "../../../src/planning/adaptation/proposal-readiness.js";
 // ... test helpers for CLI output capture
 ```
 
@@ -420,7 +420,7 @@ npx vitest run tests/cli/commands/adaptation-readiness.vitest.ts --reporter=verb
 
 Expected: Tests FAIL with output not matching expected readiness columns/messages.
 
-- [ ] **Step 3: Modify `runList()` in `src/cli/commands/adaptation.ts`**
+- [ ] **Step 3: Modify `runList()` in `src/interfaces/cli/commands/adaptation.ts`**
 
 Replace the current header and row format (lines ~181-189):
 
@@ -543,7 +543,7 @@ Expected: No errors.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/cli/commands/adaptation.ts tests/cli/commands/adaptation-readiness.vitest.ts
+git add src/interfaces/cli/commands/adaptation.ts tests/cli/commands/adaptation-readiness.vitest.ts
 git commit -m "P10.9.2a-T2: wire readiness into adaptation list, show, and apply
 
 - list: adds Readiness (20-char) and Applyable (10-char) columns
@@ -560,12 +560,12 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 3: Add `alix executive bridge status` read-only subcommand
 
 **Files:**
-- Modify: `src/cli/commands/executive-bridge-handler.ts`
-- Modify: `src/cli/commands/executive.ts` (routing)
+- Modify: `src/interfaces/cli/commands/executive-bridge-handler.ts`
+- Modify: `src/interfaces/cli/commands/executive.ts` (routing)
 - Create: `tests/cli/commands/executive-bridge-status.vitest.ts`
 
 **Interfaces:**
-- Consumes: `ProposalStore` from `src/adaptation/proposal-store.ts`, `computeProposalReadiness`, `ProposalReadiness`, `isExecutiveBridgeProposal` from `src/adaptation/proposal-readiness.ts`
+- Consumes: `ProposalStore` from `src/planning/adaptation/proposal-store.ts`, `computeProposalReadiness`, `ProposalReadiness`, `isExecutiveBridgeProposal` from `src/planning/adaptation/proposal-readiness.ts`
 - Modifies: `handleBridgeCommand()` to route to `handleBridgeStatus()` when `args[0] === "status"`
 
 - [ ] **Step 1: Write failing tests**
@@ -737,7 +737,7 @@ Expected: All tests pass. tsc clean.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/cli/commands/executive-bridge-handler.ts tests/cli/commands/executive-bridge-status.vitest.ts
+git add src/interfaces/cli/commands/executive-bridge-handler.ts tests/cli/commands/executive-bridge-status.vitest.ts
 git commit -m "P10.9.2a-T3: add alix executive bridge status subcommand
 
 - handleBridgeStatus(): read-only aggregation of bridge proposal readiness
@@ -758,7 +758,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - Modify: `tests/executive/executive-sentinels.vitest.ts` (if `proposal-readiness.ts` needs allowlist entry)
 - No other source changes
 
-**Note:** `proposal-readiness.ts` is a pure function with no I/O, no file system access, no mutation. It should NOT need a sentinel allowlist entry. The executive purity sentinel covers `src/executive/` files — `proposal-readiness.ts` lives in `src/adaptation/`, which is outside the executive sentinel scope. Verify this in Step 2.
+**Note:** `proposal-readiness.ts` is a pure function with no I/O, no file system access, no mutation. It should NOT need a sentinel allowlist entry. The executive purity sentinel covers `src/execution/executive/` files — `proposal-readiness.ts` lives in `src/planning/adaptation/`, which is outside the executive sentinel scope. Verify this in Step 2.
 
 - [ ] **Step 1: Run full test suite**
 
@@ -790,7 +790,7 @@ Run the sentinel tests to ensure no new file triggers a purity violation:
 npx vitest run tests/executive/executive-sentinels.vitest.ts --reporter=verbose 2>&1 | tail -30
 ```
 
-Expected: All 44 (or current count) sentinel checks pass. If `proposal-readiness.ts` is flagged, add it to the executive files allowlist — but it shouldn't be, since it's under `src/adaptation/` not `src/executive/`.
+Expected: All 44 (or current count) sentinel checks pass. If `proposal-readiness.ts` is flagged, add it to the executive files allowlist — but it shouldn't be, since it's under `src/planning/adaptation/` not `src/execution/executive/`.
 
 - [ ] **Step 4: Verify no ADR-0004 protected files were modified**
 
@@ -798,7 +798,7 @@ Expected: All 44 (or current count) sentinel checks pass. If `proposal-readiness
 # Check protected baselines (if they exist)
 ls docs/architecture/adrs/baselines/ 2>/dev/null
 # Verify key files haven't changed
-git diff --name-only HEAD -- src/adaptation/adaptation-types.ts src/adaptation/proposal-store.ts src/adaptation/approval-gate.ts
+git diff --name-only HEAD -- src/planning/adaptation/adaptation-types.ts src/planning/adaptation/proposal-store.ts src/planning/adaptation/approval-gate.ts
 ```
 
 Expected: No output (no changes to protected files).
@@ -838,11 +838,11 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 | File | Action | Purpose |
 |---|---|---|
-| `src/adaptation/proposal-readiness.ts` | **Create** | Pure types + `computeProposalReadiness()` + `getApplySupport()` + `isExecutiveBridgeProposal()` |
+| `src/planning/adaptation/proposal-readiness.ts` | **Create** | Pure types + `computeProposalReadiness()` + `getApplySupport()` + `isExecutiveBridgeProposal()` |
 | `tests/adaptation/proposal-readiness.vitest.ts` | **Create** | 14 unit tests for all decision table rows + edge cases |
-| `src/cli/commands/adaptation.ts` | **Modify** | `list` columns, `show` readiness block, `apply` readiness gate |
+| `src/interfaces/cli/commands/adaptation.ts` | **Modify** | `list` columns, `show` readiness block, `apply` readiness gate |
 | `tests/cli/commands/adaptation-readiness.vitest.ts` | **Create** | 9 CLI integration tests for apply gate + list/show rendering |
-| `src/cli/commands/executive-bridge-handler.ts` | **Modify** | Add `handleBridgeStatus()` + routing in `handleBridgeCommand()` |
+| `src/interfaces/cli/commands/executive-bridge-handler.ts` | **Modify** | Add `handleBridgeStatus()` + routing in `handleBridgeCommand()` |
 | `tests/cli/commands/executive-bridge-status.vitest.ts` | **Create** | 6 tests for bridge status aggregation + filtering + JSON |
 | `tests/executive/executive-sentinels.vitest.ts` | **Maybe modify** | If sentinel flags `proposal-readiness.ts` (unlikely — it's outside executive scope) |
 

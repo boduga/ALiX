@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleGovernanceCommand } from "../../../src/cli/commands/governance.js";
+import { handleGovernanceCommand } from "../../../src/interfaces/cli/commands/governance.js";
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { CommandClassifier, type CommandRisk } from "../../src/policy/command-classifier.js";
+import { CommandClassifier, type CommandRisk } from "../../src/governance/policy/command-classifier.js";
 
 describe("CommandClassifier", () => {
   const classifier = new CommandClassifier();
