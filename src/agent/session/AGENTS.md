@@ -54,6 +54,7 @@ and the TUI. `../session.ts` preserves public imports as a re-export barrel.
 - Relative imports: `../../` → `src/`, `../` → `src/agent/`.
 - `AgentSessionConfig.suppressConfigWarnings` is a composition-root presentation policy. It passes through `initialize`/`setupSession` to `initAgent` and defaults off; the TUI enables it because the frame painter owns terminal output.
 - `AgentSessionConfig.verbose` owns raw stdout for both tool results and model streaming. The direct route and full task loop pass it to `streamToResponse.writeToStdout`; TUI `verbose: false` must still forward tokens through `events.onToken` without writing raw terminal bytes.
+- **Approval store threading (R1.5).** `AgentSessionConfig.approvalStore` flows through `initialize`/`setupSession` into `agent-loop`/`turn`, where the task loop and direct route pass it to the `ToolExecutor` so ask-mode decisions mint durable pending approvals instead of failing closed headless. Composition roots supply it via `loadApprovalStore(cwd)` (fail-open to `undefined`).
 - Source-scan sentinels: `tests/agent/session-skills.test.ts` reads
   `agent/session/chat.ts`; `tests/tracing/langfuse-boundary.vitest.ts` reads
   `agent/session/state.ts`.

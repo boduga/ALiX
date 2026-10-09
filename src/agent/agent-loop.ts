@@ -113,7 +113,7 @@ async function runTaskCoreImpl(
   const metrics = new MinimalMetrics();
   metrics.increment("workflow_runs_total", { goal: task.slice(0, 50) });
 
-  const ctx = await initAgent(cwd, { cwd, task, sessionId: opts?.sharedSession?.sessionId, sessionDir: opts?.sharedSession?.sessionDir, sharedSession: opts?.sharedSession, sessionMode: opts?.sessionMode });
+  const ctx = await initAgent(cwd, { cwd, task, sessionId: opts?.sharedSession?.sessionId, sessionDir: opts?.sharedSession?.sessionDir, sharedSession: opts?.sharedSession, sessionMode: opts?.sessionMode, approvalStore: opts?.approvalStore });
   const cancellationToken = new CancellationToken();
   const cancel = () => cancellationToken.cancel(String(opts?.signal?.reason ?? "cancelled by operator"));
   if (opts?.signal?.aborted) cancel();

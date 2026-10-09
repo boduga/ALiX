@@ -53,8 +53,22 @@ reason about.
   and canonicalizes. A second hand-rolled `relative`/`startsWith` check in a
   router case is a laxer copy of a rule already enforced — do not add one.
 - `alix_collaboration_*` reach a worker only as bound tools, which bypass
-  `filterTools` entirely. They are deliberately in neither the read nor the write
-  policy set; see `src/agents/AGENTS.md`.
+  `filterTools` entirely. They are deliberately in neither the read nor the
+  write policy set; see `src/agents/AGENTS.md`. **R1.5:** bound tools are
+  still authorized — `handleToolCall` calls `ToolExecutor.authorizeBoundTool`
+  (same PolicyGate pipeline as dispatch) before the handler runs: `allow` →
+  run, `ask` → durable approval wait, `deny`/unbacked-ask → `Access denied`.
+  The handler never runs ungoverned.
+- **Continuation resumes re-validate authorization (R1.5).** A request with
+  `source: "continuation-resume"` must carry `approvalId`, and the executor
+  independently checks the durable record (present, `approved`, not expired)
+  before dispatch. Caller-set `source` alone is never authorization; missing
+  or invalid evidence returns `denied`.
+- **`alix_file_delete` shares the owned-write second net.** When the request
+  declares `ownedPaths`, the router runs the same `isOwnedWriteTarget` /
+  `isWithinOwnedScope` check `alix_file_create` uses for overwrites — a worker
+  may only delete inside its own scope. Requests with no declared ownership
+  (operator context) are unchanged and governed by the gate.
 - Sensitive-path denials are hard, non-retryable, and are never escalated to an
   approval request — see the root `AGENTS.md`.
 

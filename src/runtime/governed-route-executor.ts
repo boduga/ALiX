@@ -172,7 +172,9 @@ export async function executeRouteGoverned(
   // APPROVED event (reason matches Alignment A); validate() then passes.
   await governor.approve(intent.intentId, {
     actor: "governor",
-    reason: "auto-approved: low-risk route kind",
+    // R1.5: record WHO authorized the intent in the durable event trail, so a
+    // synthesized `system` self-approval is never read as an operator decision.
+    reason: `auto-approved: low-risk route kind (authorizationSource=${intent.authorizationSource ?? "unknown"})`,
   });
   const validation = await governor.validate(intent);
   if (!validation.valid) {

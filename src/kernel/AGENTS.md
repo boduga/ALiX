@@ -31,6 +31,13 @@
 ## Local Contracts
 
 - GraphExecutor runs nodes sequentially, stops on first failure.
+- **Capability enforcement is ON by default (R1.5).** `enforceCapabilities`
+  defaults to `true`; the composed gate (CapabilityResolver → RuntimeGate →
+  ApprovalStore) evaluates before `runTask`. Missing policyGate/config blocks
+  the node instead of running ungoverned. `rerunNode` runs the same gate —
+  reruns require fresh authorization. `enforceCapabilities: false` remains the
+  explicit opt-out for tests and read-only demos; the CLI
+  `--enforce-capabilities` flag is a no-op (always enforced).
 - Cancellation is terminal. `cancelRun` marks running/pending/ready workers,
   the run, and persisted TaskGraph cancelled and releases ownership leases.
   Set run status explicitly; do not re-derive an idle cancelled run as blocked.

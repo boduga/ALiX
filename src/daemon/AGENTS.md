@@ -22,6 +22,14 @@ Persistent background daemon for task execution, lifecycle management, and local
 
 - Daemon binds to a Unix socket only (`.alix/alixd.sock`). No remote access.
 - Task queue is FIFO sequential (one task at a time). Queued tasks receive `queue.position`.
+- **Both daemon execution branches run with governance wired (R1.5).** One
+  project `ApprovalStore` is created per run and shared: the non-agent route
+  branch passes it via `RuntimeContext.approvalStore` (route tool behaviors),
+  and the agent `runTask` branch runs `sessionMode: "ask"` with
+  `RunOpts.approvalStore` — state-changing tools mint durable pending
+  approvals (operator-resolvable via `alix approvals`) instead of executing
+  under silent `bypass`. A broken approvals dir fails open to headless
+  fail-closed denies at the gate, never to allow.
 - Cancellation is cooperative: `cancel_requested` status is checked between `runTask()` iterations. No SIGKILL.
 - Task registry is file-backed and survives daemon restart.
 - Inspector reads task state via `GET /api/daemon/tasks` (API, not direct file access).

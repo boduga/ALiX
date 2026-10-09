@@ -113,7 +113,10 @@ export class GraphExecutor {
   constructor(cwd: string, opts?: ExecutorOpts) {
     this.cwd = cwd;
     this.registry = opts?.registry;
-    this.enforceCapabilities = opts?.enforceCapabilities ?? false;
+    // R1.5: enforcement defaults ON — capability/policy/approval evaluation
+    // must not be opt-in. Sites that deliberately skip enforcement (tests,
+    // read-only demos) pass `enforceCapabilities: false` explicitly.
+    this.enforceCapabilities = opts?.enforceCapabilities ?? true;
     this.policyGate = opts?.policyGate;
     this.config = opts?.config;
     this.approvalStore = opts?.approvalStore;
@@ -229,7 +232,7 @@ export class GraphExecutor {
       }
 
       // Regular execution path — runs for:
-      //   - no enforcement (default)
+      //   - explicit enforcement opt-out (enforceCapabilities: false)
       //   - enforcement on + ready status (falls through from above)
       //   - nodes with no requiredCapabilities (capabilityResolution is undefined)
       if (!this.enforceCapabilities || !capabilityResolution || capabilityResolution.status === "ready") {
@@ -237,7 +240,7 @@ export class GraphExecutor {
           const result: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
             planMode: false,
             skipContext: isResearch ? true : undefined,
-            sessionMode: node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
+            sessionMode: this.enforceCapabilities || node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
           });
           summary = result.summary;
           if (result.reason && result.reason !== "completed") {
@@ -294,6 +297,33 @@ export class GraphExecutor {
       throw new Error(`Node ${nodeId} status is "${node.status}". Use --force to rerun anyway.`);
     }
 
+    // R1.5: a rerun requires FRESH authorization — same composed gate as
+    // execute(). No path may reach runTask without a current policy decision,
+    // including a node that declares no required capabilities.
+    if (this.enforceCapabilities) {
+      if (!this.policyGate || !this.config) {
+        return {
+          nodeId: node.id, title: node.title, status: "blocked",
+          reason: "Policy gate or config not provided — cannot enforce capabilities",
+          summary: "", durationMs: 0,
+        };
+      }
+      const gateResult = await evaluateRuntimeGate({
+        node,
+        registry: this.registry ?? new CardRegistry(),
+        policyGate: this.policyGate,
+        config: this.config,
+        approvalStore: this.approvalStore,
+      });
+      if (gateResult.status !== "ready") {
+        return {
+          nodeId: node.id, title: node.title, status: "blocked",
+          reason: gateResult.reason,
+          summary: "", durationMs: 0,
+        };
+      }
+    }
+
     const startTime = Date.now();
     let status: TaskNodeStatus = "done";
     let summary = "";
@@ -311,7 +341,7 @@ export class GraphExecutor {
         planMode: false,
         skipContext: isResearch ? true : undefined,
         disableSkillFactory: isResearch ? true : undefined,
-        sessionMode: node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
+        sessionMode: this.enforceCapabilities || node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
       });
       summary = result.summary;
       if (result.reason && result.reason !== "completed") {

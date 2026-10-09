@@ -47,6 +47,13 @@ export interface ExecutionIntentFactoryOptions {
   proposalId?: string;
   /** Upstream evidence this intent derives from, if any. Defaults to "". */
   sourceEvidenceId?: string;
+  /**
+   * Authorization provenance (R1.5): who/what authorized execution.
+   * Defaults: `"system"` for synthesized auto-approvals, `"policy"` when the
+   * caller supplies a real approval reference. Callers with an operator
+   * decision must pass `"operator"` explicitly — it is never inferred.
+   */
+  authorizationSource?: import("../contracts/authorized-execution-port.js").AuthorizationSource;
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +189,11 @@ export function createExecutionIntent(
     approvalReference: opts.approvalReference ?? `auto:${intentId}`,
     approvedBy: opts.approvedBy ?? SYNTHETIC_APPROVER,
     approvedAt: opts.approvedAt ?? now,
+    // R1.5: synthesized `auto:` approvals are system-authored, never operator;
+    // only an explicit non-auto approval reference reads as policy.
+    authorizationSource:
+      opts.authorizationSource ??
+      (opts.approvalReference && !opts.approvalReference.startsWith("auto:") ? "policy" : "system"),
   };
 
   const intent: ExecutionIntent = {

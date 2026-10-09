@@ -1,0 +1,352 @@
+// SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
+// SPDX-License-Identifier: MIT
+
+/**
+ * R1 boundary freeze — architecture/dependency test.
+ *
+ * Rejects NEW direct dependencies on protected implementations:
+ * - direct-tool-dispatch: value imports of src/tools/executor.ts
+ * - status-store-writes: value imports of lifecycle status stores
+ * - eventlog-append-producers: value imports of src/events/event-log.ts
+ * - ownership-registry-construction: value imports of ownership registries
+ * - model-resolver-impls: new model-resolution definitions
+ * - tool-taxonomy-defs: new tool taxonomy definitions
+ * - metrics-vocabs: new metrics vocabulary definitions
+ * - ui-store-imports: UI (tui/ui/inspector) value imports of stores/executors/event-log
+ *
+ * Type-only imports (`import type`, type-position `import("...")`) are
+ * exempt: the R1 ports in src/contracts/ reuse domain types that way.
+ * Bare side-effect imports (`import "..."`) are exempt: they bind nothing
+ * and cannot dispatch/append/acquire by themselves.
+ *
+ * Allowlist (tests/architecture/r1-allowlist.json) holds EXACT
+ * file-level entries derived from R0. Shrink-only: a new violation fails,
+ * a stale entry (no longer observed) fails, a duplicate triple fails,
+ * and an entry without R0 reference + removal phase fails.
+ *
+ * @module r1-boundary-freeze
+ */
+
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { resolve, dirname, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// TS compiles tests/ → dist/tests/ so __dirname is dist/tests/architecture.
+// 3 levels up from dist/tests/architecture/ reaches the repo root.
+const PROJECT_ROOT = resolve(__dirname, "../../..");
+const SRC_ROOT = resolve(PROJECT_ROOT, "src");
+
+type AllowEntry = {
+  rule: string;
+  importer: string;
+  imported: string;
+  reason: string;
+  removalPhase: string;
+};
+
+const RULES = [
+  "direct-tool-dispatch",
+  "status-store-writes",
+  "eventlog-append-producers",
+  "ownership-registry-construction",
+  "model-resolver-impls",
+  "tool-taxonomy-defs",
+  "metrics-vocabs",
+  "ui-store-imports",
+] as const;
+
+const IMPORT_RULE_TARGETS: Record<string, string[]> = {
+  "direct-tool-dispatch": ["src/tools/executor.ts"],
+  "status-store-writes": [
+    "src/kernel/coordination-store.ts",
+    "src/approvals/approval-store.ts",
+    "src/daemon/task-registry.ts",
+    "src/runtime/continuation-store.ts",
+    "src/kernel/collaboration-store.ts",
+    "src/executive/execution-state-store.ts",
+    "src/runtime/execution-state/execution-state-store.ts",
+    "src/workflow/state-file.ts",
+    "src/governance/execution-approval-store.ts",
+  ],
+  "eventlog-append-producers": ["src/events/event-log.ts"],
+  "ownership-registry-construction": [
+    "src/ownership/ownership-registry.ts",
+    "src/agents/ownership-registry.ts",
+  ],
+};
+
+const UI_DIRS = ["src/tui/", "src/ui/", "src/inspector/"];
+const UI_RULE_TARGETS = [
+  "src/kernel/coordination-store.ts",
+  "src/approvals/approval-store.ts",
+  "src/daemon/task-registry.ts",
+  "src/runtime/continuation-store.ts",
+  "src/kernel/collaboration-store.ts",
+  "src/executive/execution-state-store.ts",
+  "src/runtime/execution-state/execution-state-store.ts",
+  "src/workflow/state-file.ts",
+  "src/governance/execution-approval-store.ts",
+  "src/tools/executor.ts",
+  "src/events/event-log.ts",
+  "src/ownership/ownership-registry.ts",
+  "src/agents/ownership-registry.ts",
+];
+
+const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: string }> = {
+  "model-resolver-impls": {
+    files: [
+      "src/config/model-resolver.ts",
+      "src/providers/model-resolver.ts",
+      "src/decision/decisions/model-tier/resolution.ts",
+    ],
+    symbols: [
+      "resolveModelConfig",
+      "tryResolveModelConfig",
+      "selectModelFromDiscovery",
+      "resolveModelSelectionId",
+      "resolveConcreteFreeModel",
+      "resolveTierModel",
+    ],
+    marker: "definition:model-resolution",
+  },
+  "tool-taxonomy-defs": {
+    files: [
+      "src/tools/tool-registry.ts",
+      "src/capability/registry.ts",
+      "src/registry/card-registry.ts",
+      "src/mcp/registry.ts",
+      "src/agents/tool-manifest.ts",
+    ],
+    symbols: [
+      "buildDefaultToolIndex",
+      "ALIX_BUILTIN_EXECUTORS",
+      "CapabilityRegistry",
+      "CardRegistry",
+      "McpToolRegistry",
+    ],
+    marker: "definition:tool-taxonomy",
+  },
+  "metrics-vocabs": {
+    files: [
+      "src/kernel/minimal-metrics.ts",
+      "src/observability/metric-registry.ts",
+      "src/tracing/client-factory.ts",
+      "src/tui/daemon-metrics-collector.ts",
+    ],
+    symbols: [
+      "MinimalMetrics",
+      "createMetricRegistry",
+      "getProcessTraceClient",
+      "createTraceClient",
+      "DaemonMetricsCollectorImpl",
+    ],
+    marker: "definition:metrics-vocabulary",
+  },
+};
+
+function toPosix(p: string): string {
+  return p.split("\\").join("/");
+}
+
+function normalizeRepo(p: string): string {
+  return toPosix(p).replace(/^\.\//, "");
+}
+
+function walkTs(dir: string, out: string[]): void {
+  for (const name of readdirSync(dir).sort()) {
+    const full = resolve(dir, name);
+    const st = statSync(full);
+    if (st.isDirectory()) {
+      walkTs(full, out);
+    } else if (name.endsWith(".ts") && !name.endsWith(".d.ts")) {
+      out.push(full);
+    }
+  }
+}
+
+function resolveSpecifier(importerFile: string, spec: string): string | null {
+  if (!spec.startsWith(".")) return null;
+  const abs = resolve(dirname(importerFile), spec);
+  let rel = normalizeRepo(relative(PROJECT_ROOT, abs));
+  if (rel.endsWith(".js")) {
+    const tsGuess = rel.slice(0, -3) + ".ts";
+    if (existsSync(resolve(PROJECT_ROOT, tsGuess))) rel = tsGuess;
+  }
+  return rel;
+}
+
+function isBareSideEffect(line: string): boolean {
+  return /^\s*import\s+["']/.test(line);
+}
+
+function isTypeOnly(line: string): boolean {
+  return /^\s*import\s+type\b/.test(line);
+}
+
+function isTypePositionDynamic(line: string): boolean {
+  // import("...") inside a type annotation: `?:`, `:`, Awaited<, ReturnType<, Promise<, generics.
+  return /[?:]\s*import\(|Awaited<|ReturnType<|Promise<[^>]*import\(|<\s*import\(/.test(line);
+}
+
+type Violation = { rule: string; importer: string; imported: string };
+
+function scanImports(): Violation[] {
+  const files: string[] = [];
+  walkTs(SRC_ROOT, files);
+  const found = new Map<string, Violation>();
+  const staticFrom = /from\s+["']([^"']+)["']/g;
+  const awaitImport = /await\s+import\(["']([^"']+)["']\)/g;
+  const bareImport = /import\(["']([^"']+)["']\)/g;
+
+  for (const file of files) {
+    const importer = normalizeRepo(relative(PROJECT_ROOT, file));
+    const content = readFileSync(file, "utf-8");
+    const lines = content.split("\n");
+    for (const line of lines) {
+      if (isTypeOnly(line) || isBareSideEffect(line)) continue;
+      const specs = new Set<string>();
+      staticFrom.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = staticFrom.exec(line)) !== null) specs.add(m[1]);
+      awaitImport.lastIndex = 0;
+      while ((m = awaitImport.exec(line)) !== null) specs.add(m[1]);
+      // Bare import() in expression position (e.g. inside Promise.all).
+      // Skip type-position uses (annotated with :, ?:, Awaited<, ReturnType<).
+      if (!isTypePositionDynamic(line)) {
+        bareImport.lastIndex = 0;
+        while ((m = bareImport.exec(line)) !== null) specs.add(m[1]);
+      }
+      for (const spec of specs) {
+        const resolved = resolveSpecifier(file, spec);
+        if (!resolved) continue;
+        for (const [rule, targets] of Object.entries(IMPORT_RULE_TARGETS)) {
+          if (targets.some((t) => resolved === t || resolved.endsWith("/" + t))) {
+            found.set(`${rule}|${importer}|${resolved}`, { rule, importer, imported: resolved });
+          }
+        }
+        if (UI_DIRS.some((d) => importer.startsWith(d))) {
+          if (UI_RULE_TARGETS.some((t) => resolved === t || resolved.endsWith("/" + t))) {
+            found.set(`ui-store-imports|${importer}|${resolved}`, {
+              rule: "ui-store-imports",
+              importer,
+              imported: resolved,
+            });
+          }
+        }
+      }
+    }
+  }
+  return [...found.values()];
+}
+
+function scanDefinitions(): Violation[] {
+  const files: string[] = [];
+  walkTs(SRC_ROOT, files);
+  const found = new Map<string, Violation>();
+  const defRe =
+    /export\s+(?:function|const|class|interface|type|enum)\s+([A-Za-z0-9_]+)/g;
+  for (const file of files) {
+    const importer = normalizeRepo(relative(PROJECT_ROOT, file));
+    const content = readFileSync(file, "utf-8");
+    const defined = new Set<string>();
+    defRe.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = defRe.exec(content)) !== null) defined.add(m[1]);
+    if (defined.size === 0) continue;
+    for (const [rule, cfg] of Object.entries(DEF_RULES)) {
+      if (cfg.symbols.some((s) => defined.has(s))) {
+        found.set(`${rule}|${importer}|${cfg.marker}`, {
+          rule,
+          importer,
+          imported: cfg.marker,
+        });
+      }
+    }
+  }
+  return [...found.values()];
+}
+
+function loadAllowlist(): AllowEntry[] {
+  const p = resolve(PROJECT_ROOT, "tests/architecture/r1-allowlist.json");
+  return JSON.parse(readFileSync(p, "utf-8")) as AllowEntry[];
+}
+
+function key(v: { rule: string; importer: string; imported: string }): string {
+  return `${v.rule}|${normalizeRepo(v.importer)}|${normalizeRepo(v.imported)}`;
+}
+
+describe("R1 boundary freeze", () => {
+  it("allowlist entries are well-formed with R0 reference and removal phase", () => {
+    const list = loadAllowlist();
+    assert.ok(Array.isArray(list) && list.length > 0, "allowlist must be non-empty");
+    const seen = new Set<string>();
+    for (const e of list) {
+      assert.ok(
+        (RULES as readonly string[]).includes(e.rule),
+        `unknown rule: ${e.rule}`,
+      );
+      assert.ok(e.importer && e.imported, `entry needs importer+imported: ${e.rule}`);
+      assert.ok(
+        typeof e.reason === "string" && /R0\b/.test(e.reason),
+        `entry lacks R0 reference: ${e.rule} ${e.importer} -> ${e.imported}`,
+      );
+      assert.ok(
+        typeof e.removalPhase === "string" && /^R\d/.test(e.removalPhase),
+        `entry lacks removal phase: ${e.rule} ${e.importer} -> ${e.imported}`,
+      );
+      const k = key(e);
+      assert.ok(!seen.has(k), `duplicate allowlist entry: ${k}`);
+      seen.add(k);
+    }
+  });
+
+  it("no new violations beyond the exact allowlist", () => {
+    const actual = [...scanImports(), ...scanDefinitions()];
+    const allowed = new Set(loadAllowlist().map(key));
+    const fresh = actual
+      .filter((v) => !allowed.has(key(v)))
+      .sort((a, b) => key(a).localeCompare(key(b)));
+    assert.deepEqual(
+      fresh,
+      [],
+      `new bypass(es) outside allowlist — add a port instead:\n${fresh.map((v) => `  ${key(v)}`).join("\n")}`,
+    );
+  });
+
+  it("allowlist is shrink-only: no stale entries", () => {
+    const actual = new Set([...scanImports(), ...scanDefinitions()].map(key));
+    const stale = loadAllowlist()
+      .map(key)
+      .filter((k) => !actual.has(k))
+      .sort();
+    assert.deepEqual(
+      stale,
+      [],
+      `stale allowlist entr(ies) — violation gone, remove entry:\n${stale.map((k) => `  ${k}`).join("\n")}`,
+    );
+  });
+
+  it("ten R1 ports exist and compile as authority boundaries", () => {
+    const ports = [
+      "runtime-fact-port",
+      "runtime-state-reader",
+      "authorized-execution-port",
+      "approval-decision-port",
+      "ownership-authority",
+      "agent-lifecycle-port",
+      "model-resolver",
+      "context-compiler",
+      "tool-capability-registry",
+      "metrics-sink",
+    ];
+    for (const p of ports) {
+      const full = resolve(SRC_ROOT, "contracts", `${p}.ts`);
+      assert.ok(existsSync(full), `missing R1 port: src/contracts/${p}.ts`);
+      const content = readFileSync(full, "utf-8");
+      assert.ok(/export\s+interface\s+\w+/.test(content), `${p}.ts must export an interface`);
+    }
+  });
+});

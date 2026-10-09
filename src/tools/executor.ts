@@ -185,6 +185,49 @@ export class ToolExecutor {
     return this.approvalStore?.get?.(id);
   }
 
+  /**
+   * Authorize a bound (non-routed) tool through the SAME PolicyGate pipeline
+   * dispatch uses (R1.5): bound collaboration tools previously executed inline
+   * with no policy decision at all. This returns the gate decision only — the
+   * caller maps `allow` → handler, `ask` → approval wait, `deny` → denial.
+   * Evidence: the gate emits `policy.decision` via the executor's EventLog.
+   */
+  async authorizeBoundTool(request: {
+    toolCallId: string;
+    name: string;
+    args: Record<string, unknown>;
+    sessionId?: string;
+    agentId?: string;
+  }): Promise<{ decision: "allow" | "ask" | "deny"; approvalId?: string; reason: string }> {
+    const policyGate = await this.policyGate();
+    const decision = await policyGate.evaluateToolCall({
+      requestId: request.toolCallId,
+      toolName: request.name,
+      args: request.args,
+      cwd: this.root,
+      sessionMode: this.config.permissions.sessionMode ?? "ask",
+      sessionId: request.sessionId,
+      agentId: request.agentId ?? this.sessionId(),
+      source: "tool",
+    });
+    return {
+      decision: decision.decision,
+      ...(decision.approvalId ? { approvalId: decision.approvalId } : {}),
+      reason: decision.reason,
+    };
+  }
+
+  /** One memoized PolicyGate per executor — shared by bound-tool and routed dispatch. */
+  private policyGateInstance?: import("../policy/policy-gate.js").PolicyGate;
+
+  private async policyGate(): Promise<import("../policy/policy-gate.js").PolicyGate> {
+    if (!this.policyGateInstance) {
+      const { PolicyGate } = await import("../policy/policy-gate.js");
+      this.policyGateInstance = new PolicyGate(this.config, { eventLog: this.log, approvalStore: this.approvalStore });
+    }
+    return this.policyGateInstance;
+  }
+
   private sessionId(): string {
     // Extract sessionId from EventLog sessionDir: .alix/sessions/<sessionId>
     const parts = this.log.sessionDir.split("sessions/");
@@ -406,9 +449,26 @@ export class ToolExecutor {
       }
     }
 
-    // Continuation resumes bypass main policy gate — approval was already verified.
-    // But OwnershipGate runs ALWAYS (even for continuation-resume).
+    // Continuation resumes bypass main policy gate — approval was already verified
+    // by ContinuationManager. R1.5: the executor independently re-validates the
+    // durable approval (present, still `approved`, not expired) — a caller-set
+    // `source` string is not authorization. Missing/invalid evidence fails closed.
     if (request.source === "continuation-resume") {
+      const approval = request.approvalId && this.approvalStore
+        ? this.approvalStore.get?.(request.approvalId)
+        : undefined;
+      const stillAuthorized =
+        !!approval &&
+        approval.status === "approved" &&
+        (!approval.expiresAt || new Date(approval.expiresAt).getTime() > Date.now());
+      if (!stillAuthorized) {
+        return {
+          kind: "denied",
+          reason: request.approvalId
+            ? `Continuation resume rejected: approval ${request.approvalId} missing, not approved, or expired`
+            : "Continuation resume rejected: no durable approval backing this request",
+        };
+      }
       const contGateResult = await this.checkOwnershipGate(request, name, args);
       if (contGateResult) return contGateResult;
       await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
@@ -447,8 +507,7 @@ export class ToolExecutor {
     // Unified authorization via ExecutionAuthorization — composes PolicyGate,
     // OwnershipGate, and audit/event emission into a single decision.
     const { ExecutionAuthorization } = await import("../runtime/execution-authorization.js");
-    const { PolicyGate } = await import("../policy/policy-gate.js");
-    const policyGate = new PolicyGate(this.config, { eventLog: this.log, approvalStore: this.approvalStore });
+    const policyGate = await this.policyGate();
     const execAuth = new ExecutionAuthorization({
       policyGate,
       toolRegistry: this.toolRegistry,

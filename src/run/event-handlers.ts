@@ -9,7 +9,7 @@
 
 import { ALIX_BUILTIN_EXECUTORS } from "../agents/tool-manifest.js";
 import { buildOfferedExecutableTools, resolveExecutableToolName, ToolNotFoundError } from "../agents/tool-name-resolver.js";
-import { TOOL_EVENT_TYPES } from "../events/types.js";
+import { TOOL_EVENT_TYPES, POLICY_EVENT_TYPES } from "../events/types.js";
 import type { NormalizedMessage, ToolCall, ToolDef } from "../providers/types.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
 import type { MutationSessionState } from "../run.js";
@@ -34,6 +34,9 @@ export type EventHandlerDeps = {
   mcpDiscovery: ToolDiscovery | null;
   scope: ScopeTracker;
   session: { sessionId: string; actor: "system" };
+  /** Roster execution identity for bound-tool approval attribution; falls back
+   *  to the executor's session id when absent (never a generic "alix"). */
+  agentId?: string;
   sessionState: MutationSessionState;
   log: EventLog;
   selectedTools: { name: string; execName: string }[];
@@ -383,6 +386,47 @@ export async function handleToolCall(
 
   const boundTool = deps.boundTools?.find((tool) => tool.definition.name === toolCall.name);
   if (boundTool) {
+    // R1.5: bound tools carry a policy decision before dispatch — the same
+    // gate every routed tool passes. allow → run; ask → durable approval wait;
+    // deny/unknown → denial. The handler never runs ungoverned.
+    const auth = await deps.executor.authorizeBoundTool({
+      toolCallId: toolCall.id,
+      name: toolCall.name,
+      args: (toolCall.args ?? {}) as Record<string, unknown>,
+      sessionId: deps.session.sessionId,
+      agentId: deps.agentId,
+    });
+    let authorized = auth.decision === "allow";
+    if (auth.decision === "ask") {
+      if (auth.approvalId) {
+        deps.onProgress?.("approval_pending", execName);
+        const approvalId = auth.approvalId;
+        const outcome = await waitForApproval(approvalId, deps);
+        authorized = outcome === "approved";
+        await deps.log.append({
+          sessionId: deps.session.sessionId,
+          actor: "system",
+          type: POLICY_EVENT_TYPES.APPROVAL_RESOLVED,
+          payload: { approvalId, decision: outcome === "approved" ? "approved" : "denied" },
+        });
+      } else {
+        // ask without a durable pending record (no approval store) → fail closed
+        authorized = false;
+      }
+    }
+    if (!authorized) {
+      const reason =
+        auth.decision === "ask"
+          ? `Approval ${auth.approvalId ?? ""} not granted for ${toolCall.name}`.trim()
+          : `Denied by policy: ${auth.reason}`;
+      return {
+        message: {
+          role: "user",
+          content: buildCorrelatedToolResultMessage(toolCall.id, `Access denied: ${reason}`, correlation),
+        },
+        succeeded: false,
+      };
+    }
     try {
       const output = await boundTool.handler((toolCall.args ?? {}) as Record<string, unknown>);
       return {
@@ -510,8 +554,8 @@ export async function handleToolCall(
         await deps.log.append({
           sessionId: deps.session.sessionId,
           actor: "system",
-          type: "approval.resolved",
-          payload: { approvalId, outcome },
+          type: POLICY_EVENT_TYPES.APPROVAL_RESOLVED,
+          payload: { approvalId, decision: "denied" },
         });
       }
     }

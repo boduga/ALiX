@@ -68,6 +68,12 @@ export type ContextPressure = {
 export type RunOpts = {
   streaming?: boolean;
   sessionMode?: "auto" | "ask" | "bypass";
+  /**
+   * Durable approval store wired into the session's ToolExecutor so ask-mode
+   * decisions mint resolvable pending approvals instead of the headless
+   * fail-closed deny (R1.5). Mirrors `createAgentSession`/`createAgent`.
+   */
+  approvalStore?: import("./approvals/approval-store.js").ApprovalStore;
   sharedSession?: SharedSession;
   planMode?: boolean;
   /**

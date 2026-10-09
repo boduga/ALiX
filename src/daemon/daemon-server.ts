@@ -69,6 +69,10 @@ async function startCoordinationService(): Promise<void> {
   const config = await loadConfig(defaultCwd);
   const store = new CoordinationStore(defaultCwd);
   const toolRegistry = buildDefaultToolIndex().registry;
+  // R1.5: the coordination scheduler's gate must share the project approval
+  // store, or ask-mode worker capabilities fail closed headless.
+  const { loadApprovalStore } = await import("../approvals/approval-store.js");
+  const approvalStore = await loadApprovalStore(defaultCwd);
 
   let executor: import("../kernel/worker-executor.js").CoordinationWorkerExecutor;
   if (config.subagents?.enabled) {
@@ -85,7 +89,7 @@ async function startCoordinationService(): Promise<void> {
     configProvider: async () => config,
     store,
     authorization: new ExecutionAuthorization({
-      policyGate: new PolicyGate(config, {}),
+      policyGate: new PolicyGate(config, { approvalStore }),
       toolRegistry,
     }),
     ownershipRegistry: new OwnershipRegistry(defaultCwd),
@@ -468,6 +472,13 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
     route = await taskRouter(task);
   }
 
+  // R1.5: one project ApprovalStore for BOTH branches — non-agent route tool
+  // behaviors and the agent runTask path. Previously neither had one, so every
+  // ask-mode decision failed closed headless (or, on the agent path with
+  // sessionMode bypass, silently allowed).
+  const { loadApprovalStore } = await import("../approvals/approval-store.js");
+  const daemonApprovalStore = await loadApprovalStore(requestCwd);
+
   try {
     // Route execution — tool/chat/grounded_chat/direct cross the RuntimeExecutor
     // seam via DaemonRuntimeExecutor (which delegates to the shared behaviors);
@@ -487,6 +498,7 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
         // Config is loaded exactly once by the executor and shared into the
         // context from the same cached instance.
         config: await daemonExecutor.getConfig(),
+        ...(daemonApprovalStore ? { approvalStore: daemonApprovalStore } : {}),
       };
       await executeRoute(route, runtimeCtx, daemonExecutor);
       registry.update(taskId, { status: "completed", completedAt: new Date().toISOString() });
@@ -495,7 +507,13 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
       return;
     }
 
-    // Agent route — runTask path
+    // Agent route — runTask path.
+    // R1.5 fail-closed: this path used to run `sessionMode: "bypass"` with no
+    // approval store, so every ask silently became allow. The project
+    // ApprovalStore (created above, shared with the route branch) is wired and
+    // ask-mode holds: state-changing tools mint a durable pending approval
+    // (operator-resolvable via `alix approvals`) instead of executing
+    // ungoverned; a broken store still fails closed at the gate.
     const { loadConfig } = await import("../config/loader.js");
     await loadConfig(requestCwd);
     const { runTask } = await import("../run.js");
@@ -504,7 +522,8 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
     const result = await runTask(requestCwd, task, {
       planApprovalMode: "deferred",
       streaming: true,
-      sessionMode: "bypass",
+      sessionMode: "ask",
+      ...(daemonApprovalStore ? { approvalStore: daemonApprovalStore } : {}),
       skipContext: true,
       sharedSession: {
         sessionId,

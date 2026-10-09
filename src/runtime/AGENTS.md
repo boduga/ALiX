@@ -27,6 +27,13 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
 ## Local Contracts
 
 - No new storage — all data read from existing backends at query time.
+- **Execution intents carry authorization provenance (R1.5).** `createExecutionIntent`
+  tags source from the `AuthorizationSource` union
+  (`src/contracts/authorized-execution-port.ts`): synthesized `auto:` approvals
+  are `"system"`, caller-supplied approval references default `"policy"`, and
+  `"operator"` is only ever passed explicitly — X-series self-approval can
+  never be read as an operator decision. `verificationPassed` on governor
+  evidence remains an outcome claim, never authorization.
 - `ExecutionAuthorization` preserves an execution request's canonical `agentId` when delegating tool or capability decisions to `PolicyGate`; approval correlation must not substitute `workerId`.
 - Sorted newest-first by default; `order=asc` reverses.
 - Session events use an allowlist to filter out noisy event types.
