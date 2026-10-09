@@ -3,9 +3,37 @@ import {
   claimsArtifactWritten,
   durableCompletionSummary,
   lastToolResultShowsClientError,
+  latestToolFailure,
 } from "../../src/execution/run/task-loop.js";
 
 const user = (content: string) => ({ role: "user", content });
+
+describe("latestToolFailure", () => {
+  it("reports a failure in the most recent tool result", () => {
+    const messages = [
+      user("do the task"),
+      user("<tool_result>Error: worker pool failed</tool_result>"),
+    ];
+    expect(latestToolFailure(messages)).toBe("worker pool failed");
+  });
+
+  it("ignores a failure superseded by a later successful result", () => {
+    const messages = [
+      user("<tool_result>Error: worker pool failed</tool_result>"),
+      user("<tool_result>Coordination run succeeded</tool_result>"),
+    ];
+    expect(latestToolFailure(messages)).toBeUndefined();
+  });
+
+  it("returns undefined when the latest result succeeded despite older failures", () => {
+    const messages = [
+      user("<tool_result>Error: first attempt failed</tool_result>"),
+      user("<tool_result>Error: second attempt failed</tool_result>"),
+      user("<tool_result>ok</tool_result>"),
+    ];
+    expect(latestToolFailure(messages)).toBeUndefined();
+  });
+});
 
 describe("lastToolResultShowsClientError", () => {
   it("flags the most recent tool_result that is an HTTP client error", () => {

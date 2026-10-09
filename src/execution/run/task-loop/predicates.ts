@@ -827,7 +827,12 @@ export function lastToolResultShowsClientError(
   return false;
 }
 
-/** Return a concise, user-facing description of the latest failed tool result. */
+/** Return a concise, user-facing description of the latest FAILED tool result.
+ *
+ * Only the most recent tool result counts: a failure superseded by a later
+ * successful retry is not the current state. Scanning past a later success
+ * would report a recovered run as failed and, worse, block the empty-`done`
+ * synthesis re-prompt because `priorToolFailure` looked truthy. */
 
 export function latestToolFailure(
   messages: ReadonlyArray<{ role?: string; content?: unknown }>,
@@ -837,7 +842,9 @@ export function latestToolFailure(
     if (message?.role !== "user" || typeof message.content !== "string") continue;
     if (!message.content.includes("<tool_result")) continue;
     const resultBody = toolResultFailureBody(message.content);
-    if (!resultBody) continue;
+    // The latest tool result succeeded — there is no current failure to report,
+    // even if an earlier result in the history failed.
+    if (!resultBody) return undefined;
     const plain = resultBody
       .replace(/<\/tool_result>\s*$/i, "")
       .replace(/\s+/g, " ")
