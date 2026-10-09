@@ -191,11 +191,20 @@ describe("R1.5 authorization containment", () => {
     try {
       const { EventLog } = await import("../../src/events/event-log.js");
       const { ToolExecutor } = await import("../../src/tools/executor.js");
-      const { loadConfig } = await import("../../src/config/loader.js");
       const log = new EventLog(join(dir, ".alix", "sessions", "s1"));
       await log.init();
-      const config = await loadConfig(dir, { suppressWarnings: true });
-      const executor = new ToolExecutor(config, log, dir);
+      // Hermetic minimal config — the test must not require a configured model
+      // or credentials (CI has none).
+      const config = {
+        permissions: {
+          sessionMode: "bypass" as "bypass" | "ask",
+          allowNetworkDomains: [] as string[],
+          protectedPaths: [] as string[],
+          tools: {} as Record<string, boolean>,
+        },
+        models: {},
+      };
+      const executor = new ToolExecutor(config as unknown as import("../../src/config/schema.js").AlixConfig, log, dir);
       const request = {
         toolCallId: "tc-bound-1",
         name: "alix_collaboration_publish_finding",
