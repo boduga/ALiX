@@ -366,6 +366,25 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
 }
 
 /**
+ * R4/V7 — declared step-accounting fallback vocabulary.
+ *
+ * No canonical `workflow.step_*` event is emitted (only `workflow.created` and
+ * `workflow.completed`). `computeWorkflow` therefore derives `currentStep`/
+ * `totalSteps` by counting these `tool.*`/`task.ready` events since
+ * `workflow.created`. This is a documented FALLBACK, never an authoritative
+ * step count: if a canonical step event is ever added, consume it here and keep
+ * this only as the pre-emitter fallback. See src/tui/AGENTS.md.
+ */
+export const WORKFLOW_STEP_FALLBACK_TYPES = [
+  'tool.started',
+  'tool.completed',
+  'tool.failed',
+  'task.ready',
+] as const;
+
+const WORKFLOW_STEP_FALLBACK_SET: ReadonlySet<string> = new Set<string>(WORKFLOW_STEP_FALLBACK_TYPES);
+
+/**
  * Derive the active workflow state by scanning the event log for
  * `workflow.created`, `workflow.completed`, and step-related events.
  *
@@ -373,9 +392,10 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
  * recent workflow has already been completed/finalized.
  *
  * `currentStep` starts at 1 (the workflow creation itself) and increments
- * for every `tool.started` (and other step-related) event seen after
- * `workflow.created`. `totalSteps` is the cumulative step-event count so
- * the progress bar reflects work-in-progress.
+ * for every `tool.started` event seen after `workflow.created`. `totalSteps`
+ * is the cumulative count of `WORKFLOW_STEP_FALLBACK_TYPES` events so the
+ * progress bar reflects work-in-progress. Both are a declared fallback: no
+ * canonical `workflow.step_*` event exists (R4/V7).
  */
 export function computeWorkflow(events: readonly AlixEvent[]): WorkflowStateSnapshot | null {
   // Scan from newest to oldest to locate the boundaries of the active workflow.
@@ -419,14 +439,7 @@ export function computeWorkflow(events: readonly AlixEvent[]): WorkflowStateSnap
   for (let i = createdIdx + 1; i < events.length; i++) {
     const t = events[i]!.type;
     if (t === 'tool.started') toolStartedCount++;
-    if (
-      t === 'tool.started' ||
-      t === 'tool.completed' ||
-      t === 'tool.failed' ||
-      t === 'task.ready'
-    ) {
-      totalStepEvents++;
-    }
+    if (WORKFLOW_STEP_FALLBACK_SET.has(t)) totalStepEvents++;
   }
 
   const currentStep = 1 + toolStartedCount;

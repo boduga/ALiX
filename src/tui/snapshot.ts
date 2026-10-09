@@ -47,6 +47,12 @@ export interface SessionMetadata {
   readonly mode: 'auto' | 'ask' | 'bypass';
   readonly phase: SessionPhase;
   readonly version: string;
+  /**
+   * The session directory identity this snapshot projects, captured once at
+   * snapshot time (R4/V1). Painters must read it here, never from the live
+   * `AgentSession` — the header must show the sampled fact, not a live read.
+   */
+  readonly sessionId?: string;
   readonly startedAt: number;
   readonly turns: number;
   /**

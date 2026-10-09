@@ -14,6 +14,11 @@
  * Core invariant: the snapshot is an association/read model over canonical
  * artifacts — never a new domain store.
  *
+ * Authoritative sources (R4/V6): lifecycle/forecasts/correlations/decisions are
+ * READ from canonical persisted artifacts, not the EventLog, and are declared
+ * as such by NON_EVENTLOG_AUTHORITATIVE_STAGES below. Only measurements and the
+ * A8 learning recompute are relay-fed.
+ *
  * Durable-builder note: this class intentionally does NOT write
  * `implements DurableProjectionBuilder<EvolutionProjectionSnapshot>`. The base
  * contract declares a synchronous `snapshot()`, while this projection is
@@ -27,7 +32,7 @@
  */
 import type { AlixEvent } from '../../../events/types.js';
 import type { LifecycleState } from '../../../adaptation/capability-evolution-types.js';
-import type { EvolutionProjectionSnapshot } from './evolution-projection-snapshot.js';
+import type { EvolutionProjectionSnapshot, EvolutionStageName } from './evolution-projection-snapshot.js';
 import { assembleEvolutionSnapshot, type MeasurementRecord } from './evolution-snapshot-assembler.js';
 import type { CapabilityMeasurementPayload } from '../../../capability/measurement/measurement-event-types.js';
 import type { ProposalSubmittedPayload } from '../../../capability/governance/governance-types.js';
@@ -76,6 +81,24 @@ type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 const MEASUREMENT_EVENT = 'capability.governance.measurement.measured';
 const PROPOSAL_SUBMITTED = 'capability.governance.proposal.submitted';
 const PROPOSAL_PREFIX = 'capability.governance.proposal.';
+
+/**
+ * R4/V6 authoritative-source declaration.
+ *
+ * Four evolution stages have NO canonical EventLog emitter: their authority is
+ * the persisted canonical artifact (A7 lifecycle registry, A9 forecasts, A9
+ * correlations, A2.5 recommendations) read fresh through `EvolutionReadSources`
+ * each cycle. Only `measurements` and the A8 learning recompute consume the
+ * EventLog sessionless relay (Q-C4). This is a declared read-model boundary —
+ * never a second truth and never an inference. Pinned by
+ * `tests/tui/runtime/evolution-projection.vitest.ts`; see src/tui/AGENTS.md.
+ */
+export const NON_EVENTLOG_AUTHORITATIVE_STAGES = [
+  'lifecycle',
+  'forecasts',
+  'correlations',
+  'decisions',
+] as const satisfies readonly EvolutionStageName[];
 
 function isLearningRelevant(type: string): boolean {
   return type.startsWith(PROPOSAL_PREFIX) || type === MEASUREMENT_EVENT;

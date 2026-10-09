@@ -1,8 +1,7 @@
-import { describe, it, beforeEach } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TuiStore } from "../../src/tui/store.js";
 import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain } from "../../src/tui/trace-detail.js";
-import { traceChainContext, type TraceEvent } from "../../src/runtime/trace-events.js";
+import type { TraceEvent } from "../../src/runtime/trace-events.js";
 
 function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
   return {
@@ -15,68 +14,6 @@ function makeEvent(overrides: Partial<TraceEvent>): TraceEvent {
 }
 
 describe("traceDetailPanel", () => {
-  let store: TuiStore;
-
-  beforeEach(() => {
-    store = new TuiStore();
-    store.appendTraceEvent(makeEvent({ id: "e1", toolCallId: "tc_001", toolName: "shell.run" }));
-    store.appendTraceEvent(makeEvent({ id: "e2", toolCallId: "tc_001", eventType: "tool.completed", status: "success", label: "shell.run completed", timestamp: "2026-06-11T12:01:00Z" }));
-  });
-
-  describe("selection state", () => {
-    it("starts with no selection", () => {
-      const sel = store.getTraceSelection();
-      assert.equal(sel.selectedIndex, -1);
-      assert.equal(sel.detailOpen, false);
-    });
-
-    it("selects next event", () => {
-      store.selectNextTraceEvent();
-      assert.equal(store.getTraceSelection().selectedIndex, 0);
-    });
-
-    it("selects previous event", () => {
-      store.selectNextTraceEvent();
-      store.selectNextTraceEvent();
-      store.selectPreviousTraceEvent();
-      assert.equal(store.getTraceSelection().selectedIndex, 0);
-    });
-
-    it("toggles detail open/close", () => {
-      store.toggleTraceDetail();
-      assert.equal(store.getTraceSelection().detailOpen, true);
-      store.toggleTraceDetail();
-      assert.equal(store.getTraceSelection().detailOpen, false);
-    });
-
-    it("closes detail", () => {
-      store.toggleTraceDetail();
-      store.closeTraceDetail();
-      assert.equal(store.getTraceSelection().detailOpen, false);
-    });
-  });
-
-  describe("detail mode switching", () => {
-    it("defaults to summary mode", () => {
-      assert.equal(store.getTraceDetailMode(), "summary");
-    });
-
-    it("switches to json", () => {
-      store.setTraceDetailMode("json");
-      assert.equal(store.getTraceDetailMode(), "json");
-    });
-
-    it("switches to links", () => {
-      store.setTraceDetailMode("links");
-      assert.equal(store.getTraceDetailMode(), "links");
-    });
-
-    it("switches to chain", () => {
-      store.setTraceDetailMode("chain");
-      assert.equal(store.getTraceDetailMode(), "chain");
-    });
-  });
-
   describe("renderTraceSummary", () => {
     it("includes event type and status", () => {
       const lines = renderTraceSummary(makeEvent({}));

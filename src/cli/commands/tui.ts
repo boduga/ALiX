@@ -152,6 +152,9 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // stateless over the store, so a single instance is safe to reuse.
   const recommendationStore = new RecommendationStore(evolutionStoreDir);
   const recommendationsAdapter = new RecommendationsAdapter(recommendationStore);
+  // R4/V6 — these sources are the DECLARED authority for the four non-EventLog
+  // stages (NON_EVENTLOG_AUTHORITATIVE_STAGES in evolution-projection.ts), not
+  // a second truth; only the measurement/A8 learning relay is EventLog-fed.
   const evolutionProjection = new EvolutionProjection({
     sources: {
       // The platform's service projection types lifecycle as optional

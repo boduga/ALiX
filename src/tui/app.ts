@@ -195,7 +195,7 @@ export class TuiApp {
     this.framePainter = new FramePainter({
       state: () => this.state,
       views: () => this.views,
-      opts: { themeName: this.opts.themeName, agentSession: this.opts.agentSession, workbenchEnabled: this.opts.workbenchEnabled },
+      opts: { themeName: this.opts.themeName, workbenchEnabled: this.opts.workbenchEnabled },
       chatRuntime: () => this.chatRuntime,
       agentRuntime: () => this.agentRuntime,
       computeSlashStrip: () => this.slash.computeStrip(),
@@ -709,21 +709,22 @@ export class TuiApp {
       // and the approvals tab's own view.handleKey only moves the cursor.
       if ((key === 'a' || key === 'd') && perTab.pendingApprovals.length > 0) {
         const target = perTab.pendingApprovals[0]!;
-        // Mark the approval as resolved in our local UI state immediately
-        // so the inline card disappears. The ApprovalManager call still
-        // persists the decision; if it fails we restore the entry.
-        perTab.pendingApprovals.shift();
+        // R4/V3: never infer the outcome locally. The pending card clears only
+        // when the authoritative resolved projection is sampled
+        // (syncPendingApprovals), exactly as the Workbench path does — the
+        // old optimistic shift/unshift removed the card before any evidence
+        // existed, and its "restore on failure" was never implemented.
+        if (this.pendingApprovalDecisions.has(target.id)) {
+          this.paintFullFrame();
+          return;
+        }
+        this.pendingApprovalDecisions.add(target.id);
         const status = key === 'a' ? 'approved' : 'denied';
-        perTab.resolvedApprovals.unshift({
-          id: target.id,
-          toolName: target.toolName,
-          target: target.target,
-          status,
-          requestedAt: target.requestedAt,
-          resolvedAt: Date.now(),
-        });
-        if (perTab.resolvedApprovals.length > 200) perTab.resolvedApprovals.length = 200;
-        void this.approvalResolver.resolve(target.id, status);
+        void this.approvalResolver.resolve(target.id, status, { recordLocally: false })
+          .then((handled) => {
+            if (!handled) this.pendingApprovalDecisions.delete(target.id);
+            this.paintFullFrame();
+          });
         this.paintFullFrame();
         return;
       }

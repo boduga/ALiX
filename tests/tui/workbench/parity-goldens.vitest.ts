@@ -134,7 +134,7 @@ const cases: readonly GoldenCase[] = [
     ids: 'L10, F04',
     render: () => renderFullFrame({ columns: 160, rows: 36, overlay: 'coordination' }),
     mustContain: [
-      'COORDINATION RUN', 'Objective · mode unavailable · idle',
+      'COORDINATION RUN', 'Objective · auto · idle',
       'Enter launch · Shift+Enter newline · Esc close', 'ALiX WORKBENCH',
     ],
   },

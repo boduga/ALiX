@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AlixEvent } from "../src/events/types.js";
-import { buildInspectorSnapshot, compareInspectorSnapshots } from "../src/inspector/projection.js";
+import { buildInspectorSnapshot, compareInspectorSnapshots, projectSubagentEvents } from "../src/inspector/projection.js";
 
 function event(seq: number, type: string, payload: unknown, timestamp = `2026-01-01T00:00:${String(seq).padStart(2, "0")}Z`): AlixEvent {
   return {
@@ -130,4 +130,51 @@ test("buildInspectorSnapshot finishes the latest matching verification command",
     { command: "npm test", reason: "first run", status: "failed", output: "first failure" },
     { command: "npm test", reason: "repair run", status: "passed", output: "second pass" }
   ]);
+});
+
+test("projectSubagentEvents prefers the canonical agent.* lifecycle over legacy subagent.* (R4/V10)", () => {
+  const subagentEvent = (seq: number, type: string, payload: unknown): AlixEvent => ({
+    ...event(seq, type, payload),
+    actor: "subagent",
+  });
+  const projected = projectSubagentEvents([
+    subagentEvent(1, "subagent.started", { subagentId: "a1", role: "worker" }),
+    subagentEvent(2, "agent.spawned", { agentId: "a1", role: "worker" }),
+    subagentEvent(3, "subagent.completed", { subagentId: "a1", role: "worker" }),
+    subagentEvent(4, "agent.completed", { agentId: "a1", role: "worker" }),
+  ]);
+
+  assert.deepEqual(projected.map((entry) => entry.type), ["agent.spawned", "agent.completed"]);
+  assert.equal(projected[0]!.subagentId, "a1");
+  assert.equal(projected[1]!.status, "success");
+});
+
+test("projectSubagentEvents falls back to legacy subagent.* when no canonical lifecycle exists", () => {
+  const subagentEvent = (seq: number, type: string, payload: unknown): AlixEvent => ({
+    ...event(seq, type, payload),
+    actor: "subagent",
+  });
+  const projected = projectSubagentEvents([
+    subagentEvent(1, "subagent.started", { subagentId: "a1", role: "worker" }),
+    subagentEvent(2, "subagent.completed", { subagentId: "a1", role: "worker" }),
+  ]);
+
+  assert.deepEqual(projected.map((entry) => entry.type), ["subagent.started", "subagent.completed"]);
+  assert.equal(projected[1]!.status, "success");
+  assert.equal(projected[1]!.duration, 1000);
+});
+
+test("projectSubagentEvents ignores a main-agent agent.state_changed without an agent id", () => {
+  const subagentEvent = (seq: number, type: string, payload: unknown): AlixEvent => ({
+    ...event(seq, type, payload),
+    actor: "subagent",
+  });
+  const projected = projectSubagentEvents([
+    { ...event(1, "agent.state_changed", { state: "thinking" }), actor: "system" },
+    subagentEvent(2, "agent.spawned", { agentId: "a1", role: "worker" }),
+    subagentEvent(3, "agent.completed", { agentId: "a1", role: "worker" }),
+  ]);
+
+  assert.deepEqual(projected.map((entry) => entry.type), ["agent.spawned", "agent.completed"]);
+  assert.equal(projected[0]!.subagentId, "a1");
 });

@@ -1,16 +1,48 @@
+// Canonical multi-agent lifecycle (R4/V10). The runtime emits the `agent.*`
+// lifecycle alongside the legacy `subagent.*` vocabulary; the browser timeline
+// must show the same roster the TUI does. A canonical row counts only when it
+// carries an agent identity (`agentId`/`subagentId`): the main agent loop also
+// emits `agent.state_changed` with no agent id, and that must never appear in
+// the subagent timeline. When a canonical subagent row is present, legacy rows
+// are ignored (dual-emitting runtime is not rendered twice); an older log with
+// only `subagent.*` still projects through the legacy path.
+const AGENT_LIFECYCLE_TYPES = new Set([
+  "agent.spawned",
+  "agent.state_changed",
+  "agent.completed",
+  "agent.failed",
+  "agent.cancelled",
+]);
+const SUBAGENT_START_TYPES = new Set(["subagent.started", "agent.spawned"]);
+const SUBAGENT_SUCCESS_TYPES = new Set(["subagent.completed", "agent.completed"]);
+const SUBAGENT_FAILURE_TYPES = new Set(["subagent.failed", "agent.failed", "agent.cancelled"]);
+
 export function projectSubagentEvents(events) {
+  const isCanonicalSubagent = (e) =>
+    AGENT_LIFECYCLE_TYPES.has(e.type) &&
+    (e.payload?.subagentId !== undefined || e.payload?.agentId !== undefined);
+  const useCanonical = events.some(isCanonicalSubagent);
+  const isLegacy = (e) => e.actor === "subagent" && e.type?.startsWith("subagent.");
   return events
-    .filter(e => e.actor === "subagent" && e.type.startsWith("subagent."))
-    .map(e => ({
-      type: e.type,
-      subagentId: e.payload?.subagentId ?? "",
-      role: e.payload?.role ?? "",
-      timestamp: e.timestamp,
-      duration: e.type === "subagent.completed"
-        ? new Date(e.timestamp).getTime() - new Date(events.find(x => x.type === "subagent.started" && x.payload?.subagentId === e.payload?.subagentId)?.timestamp ?? e.timestamp).getTime()
-        : undefined,
-      status: e.type === "subagent.completed" ? "success" : e.type === "subagent.failed" ? "failed" : undefined,
-    }));
+    .filter((e) => (useCanonical ? isCanonicalSubagent(e) : isLegacy(e)))
+    .map((e) => {
+      const payload = e.payload ?? {};
+      const subagentId = payload.subagentId ?? payload.agentId ?? "";
+      const started = events.find(
+        (x) => SUBAGENT_START_TYPES.has(x.type) && (x.payload?.subagentId ?? x.payload?.agentId) === subagentId,
+      );
+      const isTerminal = SUBAGENT_SUCCESS_TYPES.has(e.type) || SUBAGENT_FAILURE_TYPES.has(e.type);
+      return {
+        type: e.type,
+        subagentId,
+        role: payload.role ?? "",
+        timestamp: e.timestamp,
+        duration: isTerminal && started
+          ? new Date(e.timestamp).getTime() - new Date(started.timestamp).getTime()
+          : undefined,
+        status: SUBAGENT_SUCCESS_TYPES.has(e.type) ? "success" : SUBAGENT_FAILURE_TYPES.has(e.type) ? "failed" : undefined,
+      };
+    });
 }
 
 export function buildUiProjection(events) {
@@ -166,7 +198,10 @@ function getPatchStatus(type) {
 }
 
 function buildContext(events) {
-  const latestBundle = latestPayload(events, "context.bundle_created");
+  // Canonical context event is `context.bundle_compiled` (R4/V10); keep
+  // `context.bundle_created` as a legacy fallback for older logs.
+  const latestBundle = latestPayload(events, "context.bundle_compiled")
+    ?? latestPayload(events, "context.bundle_created");
   const latestRepoMap = latestPayload(events, "context.repo_map_created");
   return {
     bundle: latestBundle ? { bundleId: latestBundle.bundleId, primaryFiles: latestBundle.primaryFiles ?? [] } : null,

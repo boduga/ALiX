@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
+import { RuntimeCollectorImpl, computeWorkflow, WORKFLOW_STEP_FALLBACK_TYPES } from '../../../src/tui/runtime-collector.js';
 import { EventLogCursorError } from '../../../src/events/event-log.js';
 import type { EventLog, EventLogCursor } from '../../../src/events/event-log.js';
 import type { AlixEvent } from '../../../src/events/types.js';
@@ -598,5 +598,46 @@ describe('RuntimeCollectorImpl metrics projection (Increment B)', () => {
     const snap = await collector.snapshot();
     expect(snap?.metrics).toBeNull();
     collector.stop();
+  });
+});
+
+describe('computeWorkflow step accounting (R4/V7)', () => {
+  let seq = 0;
+  const evt = (type: string, payload: Record<string, unknown> = {}): AlixEvent => ({
+    id: `e${++seq}`, seq, version: 1, sessionId: SESSION_ID,
+    timestamp: new Date(seq * 1000).toISOString(), type, actor: 'system', payload,
+  });
+
+  it('declares the tool/task fallback vocabulary (no canonical step emitter exists)', () => {
+    expect([...WORKFLOW_STEP_FALLBACK_TYPES]).toEqual([
+      'tool.started',
+      'tool.completed',
+      'tool.failed',
+      'task.ready',
+    ]);
+  });
+
+  it('derives currentStep/totalSteps by counting fallback events since workflow.created', () => {
+    const wf = computeWorkflow([
+      evt('workflow.created', { workflowId: 'wf1', goal: 'do work' }),
+      evt('tool.started'),
+      evt('tool.completed'),
+      evt('task.ready'),
+      evt('tool.failed'),
+    ]);
+    expect(wf).not.toBeNull();
+    // currentStep = 1 (creation) + one tool.started.
+    expect(wf!.currentStep).toBe(2);
+    // totalSteps = max(currentStep, 1 + 4 fallback events).
+    expect(wf!.totalSteps).toBe(5);
+    expect(wf!.name).toBe('do work');
+  });
+
+  it('reports no active workflow once workflow.completed follows workflow.created', () => {
+    expect(computeWorkflow([
+      evt('workflow.created', { workflowId: 'wf1' }),
+      evt('tool.started'),
+      evt('workflow.completed', { workflowId: 'wf1' }),
+    ])).toBeNull();
   });
 });
