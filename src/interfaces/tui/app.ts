@@ -31,6 +31,7 @@ import { FramePainter } from './frame-painter.js';
 import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { buildWorkbenchInputContext } from './workbench/input/input-context.js';
+import { moveAgentSelection, moveArtifactSelection, moveRunSelection, moveTaskSelection, selectAgentShortcut } from './workbench/controller/selection-intent.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
@@ -904,9 +905,8 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       case 'agent.shortcut': {
-        const agents = visibleForRun(this.state.lastSnapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);
-        const selected = agents[intent.index - 1];
-        if (selected) this.workbenchStore.dispatch({ type: 'agent.select', agentId: selected.agentId, scrollOffset: Math.max(0, intent.index - 2) });
+        const target = selectAgentShortcut(this.state.lastSnapshot, state, intent.index);
+        if (target) this.workbenchStore.dispatch({ type: 'agent.select', ...target });
         this.paintFullFrame();
         return true;
       }
@@ -923,51 +923,21 @@ export class TuiApp {
         return true;
       case 'drawer.move': {
         if (state.drawer === 'agents') {
-          const agents = visibleForRun(this.state.lastSnapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);
-          const ids: Array<string | undefined> = [undefined, ...agents.map((agent) => agent.agentId)];
-          const selectedIndex = ids.findIndex((id) => id === state.selectedAgentId);
-          const current = selectedIndex >= 0 ? selectedIndex : 0;
-          const target = Math.max(0, Math.min(ids.length - 1, current + intent.direction));
-          this.workbenchStore.dispatch({ type: 'agent.select', agentId: ids[target], scrollOffset: Math.max(0, target - 2) });
+          this.workbenchStore.dispatch({ type: 'agent.select', ...moveAgentSelection(this.state.lastSnapshot, state, intent.direction) });
         } else if (state.drawer === 'tasks') {
-          const tasks = visibleForRun(this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [], state.selectedRunId);
-          if (tasks.length === 0) return true;
-          const selectedIndex = tasks.findIndex((task) => task.taskId === state.selectedTaskId);
-          const current = selectedIndex >= 0 ? selectedIndex : intent.direction > 0 ? -1 : 0;
-          const target = Math.max(0, Math.min(tasks.length - 1, current + intent.direction));
-          const selected = tasks[target]!;
-          this.workbenchStore.dispatch({ type: 'task.select', taskId: selected.taskId, agentId: selected.agentId, scrollOffset: Math.max(0, target - 1) });
+          const target = moveTaskSelection(this.state.lastSnapshot, state, intent.direction);
+          if (!target) return true;
+          this.workbenchStore.dispatch({ type: 'task.select', ...target });
         } else if (state.drawer === 'artifacts') {
-          const items = visibleArtifacts(artifactItemsFrom(this.state.lastSnapshot), {
-            runId: state.selectedRunId,
-            agentId: state.selectedAgentId,
-            taskId: state.selectedTaskId,
-          });
-          if (items.length === 0) return true;
-          const selectedIndex = items.findIndex((item) => item.id === state.selectedArtifactId);
-          const current = selectedIndex >= 0 ? selectedIndex : intent.direction > 0 ? -1 : 0;
-          const target = Math.max(0, Math.min(items.length - 1, current + intent.direction));
-          const selected = items[target]!;
-          this.workbenchStore.dispatch({
-            type: 'artifact.select',
-            artifactId: selected.id,
-            runId: selected.coordinationRunId,
-            agentId: selected.agentId,
-            taskId: selected.taskId,
-            scrollOffset: Math.max(0, target - 1),
-          });
+          const target = moveArtifactSelection(this.state.lastSnapshot, state, intent.direction);
+          if (!target) return true;
+          this.workbenchStore.dispatch({ type: 'artifact.select', ...target });
         }
         this.paintFullFrame();
         return true;
       }
       case 'run.move': {
-        const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
-        const tasks = this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [];
-        const runs = coordinationRunIds([...agents, ...tasks]);
-        const ids: Array<string | undefined> = [undefined, ...runs];
-        const current = Math.max(0, ids.findIndex((id) => id === state.selectedRunId));
-        const target = (current + intent.direction + ids.length) % ids.length;
-        this.workbenchStore.dispatch({ type: 'run.select', runId: ids[target] });
+        this.workbenchStore.dispatch({ type: 'run.select', ...moveRunSelection(this.state.lastSnapshot, state, intent.direction) });
         this.paintFullFrame();
         return true;
       }

@@ -12,6 +12,7 @@
 - `workbench/` owns the conversation-first semantic transcript and the Workbench shell.
 - `src/interfaces/tui/workbench/model/preview-theme.ts` owns explicit truecolor, ANSI-16, monochrome, and ASCII/Unicode presentation tokens for preview parity; lifecycle labels remain readable without color. Region painters integrate these tokens as their parity phases land.
 - `src/interfaces/tui/workbench/model/ui-state.ts`, `src/interfaces/tui/workbench/app/workbench-store.ts`, `src/interfaces/tui/workbench/input/input-router.ts`, and `src/interfaces/tui/workbench/input/input-context.ts` own feature-gated presentation state, context-sensitive composer input, and the shared key-routing context both renderers consume; runtime truth stays in `AgentSession` and `EventLog`.
+- `src/interfaces/tui/workbench/controller/selection-intent.ts` owns the pure navigation-intent resolution (agent/task/artifact/run selection) shared by both renderers; the caller dispatches the resulting store selection and repaints.
 - `workbench/view-state/` owns the renderer-neutral `WorkbenchViewState` and its pure `assembleWorkbenchViewState` composer; renderers consume it and never derive additional semantic runtime or operator-intent state.
 - `workbench/opentui/` owns the native OpenTUI Workbench renderer slices; its child contract covers retained layout and renderer lifecycle boundaries.
 - `src/interfaces/tui/workbench/projections/conversation-cache.ts` owns the content-keyed conversation memo shared by the view-state assembler and the scrollback builder.
