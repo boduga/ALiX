@@ -12,6 +12,17 @@ const rounds = Number(process.env.ROUNDS ?? 6)
 const updatesPerRound = Number(process.env.UPDATES_PER_ROUND ?? 2000)
 const burst = Number(process.env.BURST ?? 500)
 
+// Provisional rollout thresholds, derived from measured headroom on this fixed
+// fixture (see README "Performance thresholds"). Absolute "no pathological"
+// bounds, not ANSI/OpenTUI parity. Pending operator sign-off.
+const THRESHOLDS = {
+  idleCpuMsPerSecondMax: 150,
+  inputToRenderP95MsMax: 16,
+  netGrowthMiBMax: 32,
+  tailSlopeMiBPerRoundMax: 4,
+  burstCoalesceFactor: 10,
+}
+
 function ansiFrame(value) {
   const canvas = new TerminalCanvas(120, 30)
   canvas.drawBox(0, 0, 28, 24, 'Agents')
@@ -101,6 +112,44 @@ const result = await withTestRenderer({ width: 120, height: 30 }, async (setup) 
   await setup.renderOnce()
   const framesRenderedForBurst = framesAfterBurst - framesBeforeBurst
 
+  const idleCpuMsPerSecond = +((idleCpu.user + idleCpu.system) / 1000).toFixed(1)
+  const p50Ms = +latencies[Math.floor(updates * 0.5)].toFixed(2)
+  const p95Ms = +latencies[Math.floor(updates * 0.95)].toFixed(2)
+  const maxBurstFrames = Math.max(1, Math.floor(burst / THRESHOLDS.burstCoalesceFactor))
+
+  const thresholdChecks = [
+    {
+      name: 'idleCpuMsPerSecond',
+      value: idleCpuMsPerSecond,
+      limit: `<= ${THRESHOLDS.idleCpuMsPerSecondMax}`,
+      ok: idleCpuMsPerSecond <= THRESHOLDS.idleCpuMsPerSecondMax,
+    },
+    {
+      name: 'inputToRenderP95Ms',
+      value: p95Ms,
+      limit: `<= ${THRESHOLDS.inputToRenderP95MsMax}`,
+      ok: p95Ms <= THRESHOLDS.inputToRenderP95MsMax,
+    },
+    {
+      name: 'netGrowthMiB(abs)',
+      value: netGrowthMiB,
+      limit: `<= ${THRESHOLDS.netGrowthMiBMax}`,
+      ok: Math.abs(netGrowthMiB) <= THRESHOLDS.netGrowthMiBMax,
+    },
+    {
+      name: 'tailSlopeMiBPerRound(abs)',
+      value: tailSlopeMiBPerRound,
+      limit: `<= ${THRESHOLDS.tailSlopeMiBPerRoundMax}`,
+      ok: Math.abs(tailSlopeMiBPerRound) <= THRESHOLDS.tailSlopeMiBPerRoundMax,
+    },
+    {
+      name: 'burstFramesRendered',
+      value: framesRenderedForBurst,
+      limit: `<= ${maxBurstFrames} (and no residual scheduled render)`,
+      ok: framesRenderedForBurst <= maxBurstFrames && !hasScheduledAfterDrain,
+    },
+  ]
+
   return {
     runtime: process.version,
     fixture: `120x30, four agents, ${frames} full frames, ${updates} input updates`,
@@ -113,10 +162,10 @@ const result = await withTestRenderer({ width: 120, height: 30 }, async (setup) 
     inputToRender: {
       updates,
       totalMs: +inputMs.toFixed(1),
-      p50Ms: +latencies[Math.floor(updates * 0.5)].toFixed(2),
-      p95Ms: +latencies[Math.floor(updates * 0.95)].toFixed(2),
+      p50Ms,
+      p95Ms,
     },
-    idleCpuMsPerSecond: +((idleCpu.user + idleCpu.system) / 1000).toFixed(1),
+    idleCpuMsPerSecond,
     steadyStateRss: {
       rounds,
       updatesPerRound,
@@ -132,6 +181,8 @@ const result = await withTestRenderer({ width: 120, height: 30 }, async (setup) 
       hasScheduledRenderDuring: scheduledDuringBurst,
       hasScheduledRenderAfterDrain: hasScheduledAfterDrain,
     },
+    thresholds: { provisional: true, pendingOperatorSignoff: true, ...THRESHOLDS },
+    verdict: { passed: thresholdChecks.every((c) => c.ok), checks: thresholdChecks },
     limitations: 'ANSI paint/serialize and OpenTUI native render/transport do different work; compare shapes, not absolutes. Single Linux host, one run.',
   }
 })

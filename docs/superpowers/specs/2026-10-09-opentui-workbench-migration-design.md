@@ -83,3 +83,17 @@ The spike deliverable ("confined to `experiments/opentui/`") is amended to allow
 - `experiments/opentui/AGENTS.md` — the child contract for the new boundary.
 
 No other production file is in scope. `WorkbenchViewState` extraction, renderer selection, and launcher-owned `--experimental-ffi` remain later slices.
+
+## Amendment 2026-10-10: provisional performance thresholds
+
+Measured on the fixed fixture (`experiments/opentui/perf-check.mjs`; Linux x64, official Node 26.11.0). The benchmark now reports a pass/fail `verdict` against these absolute "no pathological" bounds — not ANSI/OpenTUI parity, and **proposed pending operator sign-off**:
+
+| Metric | Bound |
+| --- | --- |
+| Idle CPU | ≤ 150 ms/s |
+| Input-to-render p95 | ≤ 16 ms (one 60 fps frame) |
+| Steady-state net RSS growth | ≤ 32 MiB over six tranches |
+| Steady-state RSS slope | ≤ 4 MiB/round |
+| Burst frames rendered | ≤ 10% of requests, no residual scheduled render |
+
+All five passed on the measured run with at least 3.7× headroom. Single-host, single-run: widen the evidence across supported platforms before these gate a rollout. They do not by themselves close the performance gate.

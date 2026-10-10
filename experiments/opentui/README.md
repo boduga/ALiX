@@ -85,29 +85,30 @@ Default run (`FRAMES=200 UPDATES=5000 ROUNDS=6 UPDATES_PER_ROUND=2000 BURST=500`
 ```json
 {
   "fullFrame": {
-    "ansiCanvasPaintAndSerializeMsPerFrame": 28.586,
-    "openTuiRenderMsPerFrame": 1.722
+    "ansiCanvasPaintAndSerializeMsPerFrame": 26.105,
+    "openTuiRenderMsPerFrame": 1.499
   },
-  "inputToRender": { "updates": 5000, "p50Ms": 0.78, "p95Ms": 3.56 },
-  "idleCpuMsPerSecond": 42.2,
+  "inputToRender": { "updates": 5000, "p50Ms": 0.74, "p95Ms": 2.52 },
+  "idleCpuMsPerSecond": 39.8,
   "steadyStateRss": {
-    "samplesMiB": [212, 211, 212, 212, 212, 213],
-    "netGrowthMiB": 1,
-    "tailSlopeMiBPerRound": 0.4
+    "samplesMiB": [224, 224, 224, 224, 224, 227],
+    "netGrowthMiB": 3,
+    "tailSlopeMiBPerRound": 0.6
   },
   "frameBacklog": {
     "requestsFired": 500,
     "framesRenderedForBurst": 1,
     "coalesced": 499,
     "hasScheduledRenderAfterDrain": false
-  }
+  },
+  "verdict": { "passed": true }
 }
 ```
 
 Reading the numbers:
 
 - **Steady-state RSS plateaus.** Six tranches of 2,000 merges hold a flat
-  ~212 MiB working set after warmup (`netGrowthMiB: 1`, tail slope +0.4
+  ~224 MiB working set after warmup (`netGrowthMiB: 3`, tail slope +0.6
   MiB/round), sampled after two GC passes. No unbounded growth was observed.
   An earlier single before/after sample showed `+63 MiB`; the plateau
   measurement is the trustworthy one — a cold first tranche includes native
@@ -117,9 +118,27 @@ Reading the numbers:
   settle render), and `hasScheduledRender` cleared after drain — the scheduler
   collapses pending work into flags rather than a growing queue. No
   accumulating frame backlog was observed.
-- **Idle CPU ~42 ms/s** with no input over one second.
-- **Input latency** p50 **0.78 ms**, p95 **3.56 ms** over 5,000 bounded
+- **Idle CPU ~40 ms/s** with no input over one second.
+- **Input latency** p50 **0.74 ms**, p95 **2.52 ms** over 5,000 bounded
   keystrokes driving a full re-render each.
+
+### Performance thresholds (provisional)
+
+The spec says to set rollout thresholds *after* measuring the fixed fixture.
+`perf-check.mjs` now reports a `verdict` against the bounds below — absolute
+"no pathological" limits, **not** ANSI/OpenTUI parity, and **pending operator
+sign-off**:
+
+| Metric | Bound | Measured | Headroom |
+| --- | --- | --- | --- |
+| Idle CPU | ≤ 150 ms/s | ~40 ms/s | ~3.7× |
+| Input-to-render p95 | ≤ 16 ms (one 60 fps frame) | ~2.5 ms | ~6× |
+| Steady-state net RSS growth | ≤ 32 MiB over 6 rounds | ~+3 MiB | ~10× |
+| Steady-state RSS slope | ≤ 4 MiB/round | ~+0.6 MiB/round | ~6× |
+| Burst frames rendered | ≤ 50 per 500 requests, no residual scheduled render | 1 | 50× |
+
+All five pass on the measured Linux run. These are a reproducible proposal, not
+a closed gate: sign-off is required before they gate a rollout.
 
 ### Benchmark limitations — read before quoting
 
@@ -149,9 +168,9 @@ every declared leg passed. No Linux arm64, musl, or macOS x64 leg is configured.
 
 ## Remaining gaps (do not report as passed)
 
-1. **Performance gate not closed.** Idle CPU, latency, RSS plateau, and
-   frame-coalescing are measured on one Linux host/run and still need a
-   comparably framed workload before any threshold is set.
+1. **Performance thresholds provisional.** The benchmark reports a pass/fail
+   `verdict` against proposed bounds, but they come from single-host/single-run
+   measurements and are pending operator sign-off before they gate a rollout.
 2. **Not wired.** `WorkbenchViewState` extraction, renderer selection at the
    CLI composition root, and launcher-owned `--experimental-ffi` are later
    slices, out of scope here.

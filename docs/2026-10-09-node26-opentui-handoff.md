@@ -30,11 +30,11 @@ Used official Node 26.11.0 binary at `/tmp/alix-node26/node-v26.11.0-linux-x64/b
 - Windows terminal restoration is covered by `pty-check-win.py` (ConPTY via pywinpty) on the Windows CI leg; it cannot run on this Linux dev host.
 - `npm ci --offline` from a clean temp directory loaded native Core and closed successfully.
 - Root `pnpm build` passed on Node 26.11.0; needed only to make compiled ANSI canvas code available for the diagnostic benchmark.
-- `npm run bench --prefix experiments/opentui` (diagnostic, not a parity verdict): steady-state RSS **plateaus** across six tranches of 2,000 merges (`[212,211,212,212,212,213]` MiB; net `+1`; tail slope `+0.4` MiB/round, two GC passes); **500 back-to-back `requestRender()` calls coalesce to 1 frame** with no residual scheduled render (no accumulating backlog); idle CPU ~42 ms/s; input-to-render p50 **0.78 ms**, p95 **3.56 ms**. ANSI vs OpenTUI full-frame timings do different work and are diagnostic only. Full detail in `experiments/opentui/README.md`.
+- `npm run bench --prefix experiments/opentui` (diagnostic, not a parity verdict): steady-state RSS **plateaus** across six tranches of 2,000 merges (`[224,224,224,224,224,227]` MiB; net `+3`; tail slope `+0.6` MiB/round, two GC passes); **500 back-to-back `requestRender()` calls coalesce to 1 frame** with no residual scheduled render (no accumulating backlog); idle CPU ~40 ms/s; input-to-render p50 **0.74 ms**, p95 **2.52 ms**; `verdict` passes all five proposed thresholds with ≥3.7× headroom (provisional). ANSI vs OpenTUI full-frame timings do different work and are diagnostic only. Full detail in `experiments/opentui/README.md`.
 
 ## Remaining gates
 
-1. **Close the performance gate.** Current numbers are single-host/single-run with differently framed workloads. Define a comparable ANSI/OpenTUI workload and thresholds before any pass claim.
+1. **Sign off provisional performance thresholds.** `perf-check.mjs` now reports a passing `verdict` against proposed absolute bounds (spec amendment 2026-10-10), but they are single-host/single-run and need operator sign-off before gating a rollout.
 2. **Then, and only then**, extract renderer-neutral `WorkbenchViewState` and add selected-renderer launch with launcher-owned `--experimental-ffi`. Default switching and ANSI canvas removal remain later decisions.
 3. **Optional platform breadth.** No Linux arm64, musl, or macOS x64 CI leg is configured. Windows terminal restoration is verified green by `pty-check-win.py` (ConPTY via pywinpty) in CI.
 

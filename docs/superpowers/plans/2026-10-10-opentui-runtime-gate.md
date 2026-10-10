@@ -33,17 +33,20 @@ Pass only with successful native operations and terminal restoration, reproducib
   (`npm test` + PTY), Windows x64 Node 26.11.0 (`npm test` + ConPTY
   restoration check) — all green.
 - Benchmark (`perf-check.mjs`): steady-state RSS plateaus (tranches
-  `[212,211,212,212,212,213]` MiB, net `+1`, slope `+0.4` MiB/round, sampled
+  `[224,224,224,224,224,227]` MiB, net `+3`, slope `+0.6` MiB/round, sampled
   after two GC passes); 500 back-to-back `requestRender()` calls coalesce to
   **1** frame (499 coalesced) with no residual scheduled render; idle CPU
-  ~42 ms/s; input-to-render p50 0.78 ms / p95 3.56 ms. ANSI-vs-OpenTUI
-  full-frame numbers are diagnostic only (different work; not a parity
-  verdict). Full detail: [README](../../experiments/opentui/README.md).
+  ~40 ms/s; input-to-render p50 0.74 ms / p95 2.52 ms. `verdict`: all five
+  proposed thresholds pass with ≥3.7× headroom (provisional, pending
+  sign-off). ANSI-vs-OpenTUI full-frame numbers are diagnostic only (different
+  work; not a parity verdict). Full detail:
+  [README](../../experiments/opentui/README.md).
 
 ## Remaining gaps
 
-1. Performance gate not closed: measurements are single-host/single-run; no
-   comparable ANSI/OpenTUI workload or thresholds yet.
+1. Performance thresholds are provisional: `perf-check.mjs` reports a passing
+   `verdict` against proposed bounds, but they are single-host/single-run and
+   pending operator sign-off before gating a rollout.
 2. `WorkbenchViewState` extraction, renderer selection, and launcher-owned
    `--experimental-ffi` remain out of scope for this spike.
 3. No Linux arm64, musl, or macOS x64 CI leg is configured.

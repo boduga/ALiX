@@ -17,7 +17,7 @@ production TUI code.
 | `workbench-fixture.mjs` | Single source of the static four-agent fixture text. |
 | `static-workbench.mjs` | `mountWorkbench` (OpenTUI renderables) and the `npm start` entry. |
 | `harness.mjs` | Native test-renderer lifecycle (`withTestRenderer`, `disposeTestRenderer`). |
-| `perf-check.mjs` | Diagnostic benchmark: full frame, input latency, idle CPU, RSS plateau, frame coalescing. |
+| `perf-check.mjs` | Diagnostic benchmark: full frame, input latency, idle CPU, RSS plateau, frame coalescing, and a provisional threshold verdict. |
 | `pty-check.py` | Unix PTY checks: escape exit, Ctrl+C cancellation, SIGWINCH resize, focused typing, bracketed paste, terminal restoration. |
 | `pty-check-win.py` | Windows ConPTY restoration check via pywinpty. |
 | `*.test.mjs` | In-memory native tests (render, wide/medium/narrow layout, input, resize, cleanup). |
@@ -41,7 +41,9 @@ production TUI code.
 - **Native Core loads only on Node ≥26.4.0 with ESM and
   `--experimental-ffi`.** Renderer creation fails without the flag.
 - **Benchmark numbers are diagnostic.** ANSI and OpenTUI do different work;
-  the benchmark compares shapes and trends, never a parity verdict.
+  the benchmark compares shapes and trends, never a parity verdict. Its
+  threshold `verdict` is provisional and requires operator sign-off before it
+  gates a rollout (see spec amendment 2026-10-10).
 
 ## Work Guidance
 
