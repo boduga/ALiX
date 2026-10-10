@@ -13,6 +13,7 @@
 - `src/interfaces/tui/workbench/model/preview-theme.ts` owns explicit truecolor, ANSI-16, monochrome, and ASCII/Unicode presentation tokens for preview parity; lifecycle labels remain readable without color. Region painters integrate these tokens as their parity phases land.
 - `workbench/model/ui-state.ts`, `workbench/app/workbench-store.ts`, and `workbench/input/input-router.ts` own feature-gated presentation state and context-sensitive composer input; runtime truth stays in `AgentSession` and `EventLog`.
 - `workbench/view-state/` owns the renderer-neutral `WorkbenchViewState` and its pure `assembleWorkbenchViewState` composer; renderers consume it and never derive additional semantic runtime or operator-intent state.
+- `workbench/opentui/` owns the native OpenTUI Workbench renderer slices; its child contract covers retained layout and renderer lifecycle boundaries.
 - `src/interfaces/tui/workbench/projections/conversation-cache.ts` owns the content-keyed conversation memo shared by the view-state assembler and the scrollback builder.
 - `src/interfaces/tui/workbench/model/transcript-filter.ts` owns transcript category/scope selectors; `src/interfaces/tui/workbench/views/transcript-toolbar.ts` owns bounded filter/follow chrome. Inspector identity and transcript scope remain separate presentation choices.
 - `src/interfaces/tui/workbench/model/agent-inspector.ts` joins immutable selected-agent, task, trace, approval, artifact and usage snapshots. `src/interfaces/tui/workbench/views/agent-inspector.ts` owns bounded inspector sections in reference order: AGENT DETAILS, LIVE ACTIVITY, APPROVALS, ARTIFACTS, USAGE.
@@ -110,7 +111,7 @@
 - Oversized tool-output artifacts inherit authoritative coordination run, worker, and task correlation from their tool request so strict drawer filters retain the selected worker's artifacts.
 - Diagnostic overlays consume editing, paste, and navigation input; Escape closes them and Ctrl+C retains cancellation/exit. Approval cards paint above diagnostics and their decision keys remain actionable.
 - Workbench rollout is additive and feature-gated until legacy parity is proven.
-- Keep the custom ANSI canvas as production renderer. The approved [OpenTUI Workbench migration design](../../../docs/superpowers/specs/2026-10-09-opentui-workbench-migration-design.md) permits an isolated experimental renderer spike; default switching, canvas removal, and production dependency adoption require its runtime and parity gates.
+- Keep the custom ANSI canvas as default renderer. The approved [OpenTUI Workbench migration design](../../../docs/superpowers/specs/2026-10-09-opentui-workbench-migration-design.md) permits the pinned production OpenTUI dependency after the runtime gate; default switching and canvas removal require cross-renderer parity.
 - While the TUI owns stdin in raw mode, runtime cleanup, persistence, and model-stream helpers must not write directly to stdout/stderr or open readline prompts; surface output through projections/token callbacks and keep routine no-op outcomes silent. The TUI composition root sets `loadConfig(..., { suppressWarnings: true })`, `AgentSessionConfig.suppressConfigWarnings`, and `verbose: false`; both direct-route and task-loop calls must pass that ownership into `streamToResponse(writeToStdout: false)`.
 
 ## Work Guidance
@@ -129,10 +130,13 @@
 
 - Run `pnpm build`.
 - Run affected `tests/tui/**` and CLI bootstrap tests.
+- Run `pnpm test:opentui` after a build for native OpenTUI layout changes; the native matrix covers supported release platforms.
 - Add deterministic projection tests for new event vocabulary.
 - Add render/golden coverage for every new responsive state.
 - Use PTY integration tests for terminal modes, resize, paste, focus, cancellation, and cleanup changes.
 
 ## Child DOX Index
 
-No child AGENTS.md files currently exist below this boundary.
+| Path | Scope |
+| --- | --- |
+| `workbench/opentui/AGENTS.md` | Native OpenTUI Workbench layout and future renderer slices |
