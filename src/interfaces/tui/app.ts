@@ -30,6 +30,7 @@ import { createApprovalResolver, type ApprovalResolver } from './approval-resolv
 import { FramePainter } from './frame-painter.js';
 import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
+import { buildWorkbenchInputContext } from './workbench/input/input-context.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
@@ -781,19 +782,11 @@ export class TuiApp {
         return { id: oldest.id, toolName: oldest.toolName, target: oldest.target, requestedAt: oldest.requestedAt };
       })()
       : undefined;
-    const intent = routeWorkbenchInput(key, {
+    const intent = routeWorkbenchInput(key, buildWorkbenchInputContext(state, {
       turnActive: this.sessionDispatchActive,
-      composerText: state.composer.text,
       slashActive: this.slash.active(),
       approvalPending: perTab.pendingApprovals.length > 0 || fallbackTarget !== undefined,
-      overlayOpen: state.overlayStack.length > 0,
-      inspectorOpen: state.overlayStack.at(-1) === 'inspector',
-      coordinationOpen: state.overlayStack.at(-1) === 'coordination',
-      coordinationBusy: state.coordination.phase === 'submitting',
-      transcriptMode: state.transcriptMode,
-      drawer: state.drawer,
-      focus: state.focus,
-    });
+    }));
 
     switch (intent.type) {
       case 'coordination.edit':
