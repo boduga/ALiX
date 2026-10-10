@@ -122,12 +122,12 @@ Reading the numbers:
 - **Input latency** p50 **0.74 ms**, p95 **2.52 ms** over 5,000 bounded
   keystrokes driving a full re-render each.
 
-### Performance thresholds (provisional)
+### Performance thresholds (approved)
 
 The spec says to set rollout thresholds *after* measuring the fixed fixture.
-`perf-check.mjs` now reports a `verdict` against the bounds below — absolute
-"no pathological" limits, **not** ANSI/OpenTUI parity, and **pending operator
-sign-off**:
+`perf-check.mjs` reports a `verdict` against the bounds below — absolute
+"no pathological" limits, **not** ANSI/OpenTUI parity. **Approved by the
+operator 2026-10-10**:
 
 | Metric | Bound | Measured | Headroom |
 | --- | --- | --- | --- |
@@ -137,8 +137,8 @@ sign-off**:
 | Steady-state RSS slope | ≤ 4 MiB/round | ~+0.6 MiB/round | ~6× |
 | Burst frames rendered | ≤ 50 per 500 requests, no residual scheduled render | 1 | 50× |
 
-All five pass on the measured Linux run. These are a reproducible proposal, not
-a closed gate: sign-off is required before they gate a rollout.
+All five pass on the measured Linux run. These are the approved rollout bounds;
+widen the evidence across supported platforms before a rollout relies on them.
 
 ### Benchmark limitations — read before quoting
 
@@ -171,9 +171,9 @@ via the Unix PTY checks and Windows via ConPTY.
 
 ## Remaining gaps (do not report as passed)
 
-1. **Performance thresholds provisional.** The benchmark reports a pass/fail
-   `verdict` against proposed bounds, but they come from single-host/single-run
-   measurements and are pending operator sign-off before they gate a rollout.
+1. **Performance thresholds approved 2026-10-10** (see above). Measured on one
+   Linux host/run; widen the evidence across platforms before a rollout gate
+   relies on them.
 2. **Not wired.** `WorkbenchViewState` extraction, renderer selection at the
    CLI composition root, and launcher-owned `--experimental-ffi` are later
    slices, out of scope here.

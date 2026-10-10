@@ -84,9 +84,9 @@ The spike deliverable ("confined to `experiments/opentui/`") is amended to allow
 
 No other production file is in scope for the spike itself. `WorkbenchViewState` extraction (migration slice 1) is included in the same PR — see the slice-1 amendment below; renderer selection at the CLI composition root and launcher-owned `--experimental-ffi` remain later slices.
 
-## Amendment 2026-10-10: provisional performance thresholds
+## Amendment 2026-10-10: approved performance thresholds
 
-Measured on the fixed fixture (`experiments/opentui/perf-check.mjs`; Linux x64, official Node 26.11.0). The benchmark now reports a pass/fail `verdict` against these absolute "no pathological" bounds — not ANSI/OpenTUI parity, and **proposed pending operator sign-off**:
+Measured on the fixed fixture (`experiments/opentui/perf-check.mjs`; Linux x64, official Node 26.11.0). The benchmark reports a pass/fail `verdict` against these absolute "no pathological" bounds — not ANSI/OpenTUI parity — **approved by the operator 2026-10-10**:
 
 | Metric | Bound |
 | --- | --- |
@@ -96,7 +96,7 @@ Measured on the fixed fixture (`experiments/opentui/perf-check.mjs`; Linux x64, 
 | Steady-state RSS slope | ≤ 4 MiB/round |
 | Burst frames rendered | ≤ 10% of requests, no residual scheduled render |
 
-All five passed on the measured run with at least 3.7× headroom. Single-host, single-run: widen the evidence across supported platforms before these gate a rollout. They do not by themselves close the performance gate.
+All five passed on the measured run with at least 3.7× headroom. These are the approved rollout bounds. Single-host, single-run: widen the evidence across supported platforms before a rollout relies on them.
 
 ## Amendment 2026-10-10: migration slice 1 (view-state extraction)
 

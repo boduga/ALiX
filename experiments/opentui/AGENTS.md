@@ -42,8 +42,8 @@ production TUI code.
   `--experimental-ffi`.** Renderer creation fails without the flag.
 - **Benchmark numbers are diagnostic.** ANSI and OpenTUI do different work;
   the benchmark compares shapes and trends, never a parity verdict. Its
-  threshold `verdict` is provisional and requires operator sign-off before it
-  gates a rollout (see spec amendment 2026-10-10).
+  threshold `verdict` uses operator-approved bounds (2026-10-10; see the spec
+  amendment).
 
 ## Work Guidance
 

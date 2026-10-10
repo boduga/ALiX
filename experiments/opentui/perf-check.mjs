@@ -12,9 +12,9 @@ const rounds = Number(process.env.ROUNDS ?? 6)
 const updatesPerRound = Number(process.env.UPDATES_PER_ROUND ?? 2000)
 const burst = Number(process.env.BURST ?? 500)
 
-// Provisional rollout thresholds, derived from measured headroom on this fixed
-// fixture (see README "Performance thresholds"). Absolute "no pathological"
-// bounds, not ANSI/OpenTUI parity. Pending operator sign-off.
+// Rollout thresholds, derived from measured headroom on this fixed fixture (see
+// README "Performance thresholds"). Absolute "no pathological" bounds, not
+// ANSI/OpenTUI parity. Approved by the operator 2026-10-10.
 const THRESHOLDS = {
   idleCpuMsPerSecondMax: 150,
   inputToRenderP95MsMax: 16,
@@ -181,7 +181,7 @@ const result = await withTestRenderer({ width: 120, height: 30 }, async (setup) 
       hasScheduledRenderDuring: scheduledDuringBurst,
       hasScheduledRenderAfterDrain: hasScheduledAfterDrain,
     },
-    thresholds: { provisional: true, pendingOperatorSignoff: true, ...THRESHOLDS },
+    thresholds: { approved: true, approvedAt: '2026-10-10', ...THRESHOLDS },
     verdict: { passed: thresholdChecks.every((c) => c.ok), checks: thresholdChecks },
     limitations: 'ANSI paint/serialize and OpenTUI native render/transport do different work; compare shapes, not absolutes. Single Linux host, one run.',
   }
