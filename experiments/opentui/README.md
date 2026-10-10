@@ -51,8 +51,8 @@ npm start
 
 | Command (from `experiments/opentui/`) | Purpose |
 | --- | --- |
-| `npm test` | Four in-memory native tests: frame regions/four agents, focused input, resize, repeated cleanup. |
-| `npm run test:pty` | Unix PTY check: live frame, Escape exit, alternate-screen enter/leave, raw input-mode restoration. |
+| `npm test` | Seven in-memory native tests: frame regions/four agents, wide/medium/narrow layouts, focused input, resize, repeated cleanup. |
+| `npm run test:pty` | Unix PTY checks: live frame, Escape exit, Ctrl+C cancellation, SIGWINCH resize, alternate-screen enter/leave, raw input-mode restoration. |
 | `npm run bench` | Diagnostic microbenchmark (`perf-check.mjs`). Needs `--expose-gc` (set in the script). |
 | `npm start` | Interactive static fixture. |
 
@@ -61,16 +61,17 @@ so run root `pnpm build` first.
 
 The static fixture (`static-workbench.mjs`) is a four-agent, three-pane
 Workbench shell: `Agents` roster, `Transcript`, `Inspector`, `Composer`, and
-`Footer` at 120x30.
+`Footer` at 120x30. Fixture text lives once in `workbench-fixture.mjs`; the
+native test-renderer lifecycle lives once in `harness.mjs`.
 
 ## Local results
 
 Linux x86_64, official Node **v26.11.0**, `@opentui/core@0.5.17`, one run.
 
-- `npm test` — **4/4 pass** (render, input, resize, idempotent cleanup).
-- `npm run test:pty` — **pass**: frame painted, Escape exited 0,
-  `\x1b[?1049h`/`\x1b[?1049l` alternate-screen enter/leave observed, and
-  `ECHO`/`ICANON` restored.
+- `npm test` — **7/7 pass** (render, wide/medium/narrow layout, input, resize, idempotent cleanup).
+- `npm run test:pty` — **pass**: frame painted; Escape exit, Ctrl+C cancellation,
+  and SIGWINCH resize each exited 0 with `\x1b[?1049h`/`\x1b[?1049l`
+  alternate-screen enter/leave observed and `ECHO`/`ICANON` restored.
 - `npm ci --offline` installed the package from the isolated lockfile into a
   clean temp directory; `createTestRenderer()` loaded native Core there and
   closed cleanly.
@@ -82,20 +83,20 @@ Default run (`FRAMES=200 UPDATES=5000 ROUNDS=6 UPDATES_PER_ROUND=2000 BURST=500`
 ```json
 {
   "fullFrame": {
-    "ansiCanvasPaintAndSerializeMsPerFrame": 27.995,
-    "openTuiRenderMsPerFrame": 1.761
+    "ansiCanvasPaintAndSerializeMsPerFrame": 28.586,
+    "openTuiRenderMsPerFrame": 1.722
   },
-  "inputToRender": { "updates": 5000, "p50Ms": 0.78, "p95Ms": 2.68 },
-  "idleCpuMsPerSecond": 50.8,
+  "inputToRender": { "updates": 5000, "p50Ms": 0.78, "p95Ms": 3.56 },
+  "idleCpuMsPerSecond": 42.2,
   "steadyStateRss": {
-    "samplesMiB": [170, 167, 167, 167, 167, 168],
-    "netGrowthMiB": -2,
-    "tailSlopeMiBPerRound": 0.2
+    "samplesMiB": [212, 211, 212, 212, 212, 213],
+    "netGrowthMiB": 1,
+    "tailSlopeMiBPerRound": 0.4
   },
   "frameBacklog": {
     "requestsFired": 500,
-    "framesRenderedForBurst": 2,
-    "coalesced": 498,
+    "framesRenderedForBurst": 1,
+    "coalesced": 499,
     "hasScheduledRenderAfterDrain": false
   }
 }
@@ -104,16 +105,18 @@ Default run (`FRAMES=200 UPDATES=5000 ROUNDS=6 UPDATES_PER_ROUND=2000 BURST=500`
 Reading the numbers:
 
 - **Steady-state RSS plateaus.** Six tranches of 2,000 merges hold a flat
-  ~167 MiB working set after warmup (`netGrowthMiB: -2`, tail slope +0.2
-  MiB/round). No unbounded growth was observed. An earlier single
-  before/after sample showed `+63 MiB`; the plateau measurement is the
-  trustworthy one — a cold first tranche includes native warmup.
+  ~212 MiB working set after warmup (`netGrowthMiB: 1`, tail slope +0.4
+  MiB/round), sampled after two GC passes. No unbounded growth was observed.
+  An earlier single before/after sample showed `+63 MiB`; the plateau
+  measurement is the trustworthy one — a cold first tranche includes native
+  warmup.
 - **Frame requests coalesce.** 500 back-to-back `requestRender()` calls
-  produced 2 frames, and `hasScheduledRender` cleared after drain — the
-  scheduler collapses pending work into flags rather than a growing queue.
-  No accumulating frame backlog was observed.
-- **Idle CPU ~51 ms/s** (~5%) with no input over one second.
-- **Input latency** p50 **0.78 ms**, p95 **2.68 ms** over 5,000 bounded
+  produced **1** frame (sampled after `idle()` drained the burst, before the
+  settle render), and `hasScheduledRender` cleared after drain — the scheduler
+  collapses pending work into flags rather than a growing queue. No
+  accumulating frame backlog was observed.
+- **Idle CPU ~42 ms/s** with no input over one second.
+- **Input latency** p50 **0.78 ms**, p95 **3.56 ms** over 5,000 bounded
   keystrokes driving a full re-render each.
 
 ### Benchmark limitations — read before quoting
@@ -147,9 +150,13 @@ every declared leg passed. No Linux arm64, musl, or macOS x64 leg is configured.
 1. **Windows terminal restoration unmeasured.** Native load and in-memory
    tests pass on Windows CI, but the PTY restoration check is Unix-only and has
    no Windows (ConPTY) equivalent yet.
-2. **Performance gate not closed.** Idle CPU, latency, RSS plateau, and
+2. **PTY paste and focus unmeasured.** The PTY checks cover frame paint, Escape
+   exit, Ctrl+C cancellation, SIGWINCH resize, and cleanup; bracketed paste and
+   focus semantics are not asserted (the in-memory input test covers focus at
+   the renderable level only).
+3. **Performance gate not closed.** Idle CPU, latency, RSS plateau, and
    frame-coalescing are measured on one Linux host/run and still need a
    comparably framed workload before any threshold is set.
-3. **Not wired.** `WorkbenchViewState` extraction, renderer selection at the
+4. **Not wired.** `WorkbenchViewState` extraction, renderer selection at the
    CLI composition root, and launcher-owned `--experimental-ffi` are later
    slices, out of scope here.

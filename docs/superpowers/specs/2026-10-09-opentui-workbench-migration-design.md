@@ -72,3 +72,14 @@ Keep the first PR confined to `experiments/opentui/`: a pinned package, static W
 ## Metrics after parity
 
 Start with measures that have defined timestamps or counters: projection age (`render time - snapshot generatedAt`), projection-to-render latency, and keypress-to-render latency. Show unavailable when timestamps cannot be correlated. Existing token and context-utilization projections should be reused. Defer parallel speedup, completion accuracy, and cost per successful task until their baseline and success definitions are specified and instrumented in owning subsystems.
+
+## Amendment 2026-10-10: spike support files
+
+The spike deliverable ("confined to `experiments/opentui/`") is amended to allow the minimum supporting artifacts the runtime gate itself needs, keeping the production renderer, root dependencies, and `node_modules` untouched:
+
+- `.github/workflows/opentui-spike.yml` — the platform matrix that proves native load and packaging on Linux/macOS/Windows.
+- `scripts/check-package-manager.sh` — a scoped exemption so the experiment's deliberately isolated npm lockfile does not trip the pnpm-only policy.
+- `src/interfaces/tui/AGENTS.md` — the DOX line recording this approved exception.
+- `experiments/opentui/AGENTS.md` — the child contract for the new boundary.
+
+No other production file is in scope. `WorkbenchViewState` extraction, renderer selection, and launcher-owned `--experimental-ffi` remain later slices.

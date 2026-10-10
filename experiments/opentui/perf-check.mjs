@@ -1,12 +1,13 @@
 import { performance } from 'node:perf_hooks'
-import { createTestRenderer } from '@opentui/core/testing'
 import { TerminalCanvas } from '../../dist/src/interfaces/tui/canvas.js'
+import { withTestRenderer } from './harness.mjs'
+import { WORKBENCH } from './workbench-fixture.mjs'
 import { mountWorkbench } from './static-workbench.mjs'
 
 // Diagnostic microbenchmark only. ANSI and OpenTUI do different work, so no
 // number here is a parity verdict; see README "Benchmark limitations".
 const frames = Number(process.env.FRAMES ?? 200)
-const updates = Number(process.env.UPDATES ?? process.env.OPEN_UPDATES ?? 5000)
+const updates = Number(process.env.UPDATES ?? 5000)
 const rounds = Number(process.env.ROUNDS ?? 6)
 const updatesPerRound = Number(process.env.UPDATES_PER_ROUND ?? 2000)
 const burst = Number(process.env.BURST ?? 500)
@@ -18,14 +19,11 @@ function ansiFrame(value) {
   canvas.drawBox(90, 0, 30, 24, 'Inspector')
   canvas.drawBox(0, 24, 120, 3, 'Composer')
   canvas.drawBox(0, 27, 120, 3, 'Footer')
-  canvas.write(2, 2, 'orchestrator RUNNING')
-  canvas.write(2, 3, 'frontend RUNNING')
-  canvas.write(2, 4, 'backend WAITING')
-  canvas.write(2, 5, 'tests READY')
+  WORKBENCH.roster.split('\n').forEach((row, i) => canvas.write(2, 2 + i, row))
   canvas.write(30, 2, `Frontend: ${value}`)
-  canvas.write(92, 2, 'AGENT DETAILS')
-  canvas.write(2, 25, 'Add your next instruction...')
-  canvas.write(2, 28, 'TOKENS 7.3k | AGENTS 4 | BLOCKED 1')
+  canvas.write(92, 2, WORKBENCH.inspector.split('\n')[0])
+  canvas.write(2, 25, WORKBENCH.composerPlaceholder)
+  canvas.write(2, 28, WORKBENCH.footer)
   return canvas.renderFrame()
 }
 
@@ -33,8 +31,7 @@ const ansiStart = performance.now()
 for (let i = 0; i < frames; i++) ansiFrame(i)
 const ansiMs = performance.now() - ansiStart
 
-const setup = await createTestRenderer({ width: 120, height: 30 })
-try {
+const result = await withTestRenderer({ width: 120, height: 30 }, async (setup) => {
   const { input } = mountWorkbench(setup.renderer)
   input.focus()
   await setup.renderOnce()
@@ -75,6 +72,7 @@ try {
       await setup.renderOnce()
     }
     global.gc()
+    global.gc()
     rssSamplesMiB.push(Math.round(process.memoryUsage().rss / 1048576))
   }
   const rssDeltasMiB = rssSamplesMiB.slice(1).map((v, i) => v - rssSamplesMiB[i])
@@ -88,6 +86,8 @@ try {
 
   // Streaming frame backlog: fire many render requests without awaiting; the
   // scheduler must coalesce them into pending flags, not an unbounded queue.
+  // Frames are sampled after idle() drains the burst, before the settle
+  // renderOnce(), so the burst count excludes that manual frame.
   const framesBeforeBurst = setup.getNativeStats().nativeFrameCount
   for (let i = 0; i < burst; i++) {
     input.value = ''
@@ -96,10 +96,12 @@ try {
   }
   const scheduledDuringBurst = setup.renderer.getSchedulerState().hasScheduledRender
   await setup.renderer.idle()
-  await setup.renderOnce()
   const framesAfterBurst = setup.getNativeStats().nativeFrameCount
+  const hasScheduledAfterDrain = setup.renderer.getSchedulerState().hasScheduledRender
+  await setup.renderOnce()
+  const framesRenderedForBurst = framesAfterBurst - framesBeforeBurst
 
-  console.log(JSON.stringify({
+  return {
     runtime: process.version,
     fixture: `120x30, four agents, ${frames} full frames, ${updates} input updates`,
     fullFrame: {
@@ -125,14 +127,13 @@ try {
     },
     frameBacklog: {
       requestsFired: burst,
-      framesRenderedForBurst: framesAfterBurst - framesBeforeBurst,
-      coalesced: burst - (framesAfterBurst - framesBeforeBurst),
+      framesRenderedForBurst,
+      coalesced: burst - framesRenderedForBurst,
       hasScheduledRenderDuring: scheduledDuringBurst,
-      hasScheduledRenderAfterDrain: setup.renderer.getSchedulerState().hasScheduledRender,
+      hasScheduledRenderAfterDrain: hasScheduledAfterDrain,
     },
     limitations: 'ANSI paint/serialize and OpenTUI native render/transport do different work; compare shapes, not absolutes. Single Linux host, one run.',
-  }, null, 2))
-} finally {
-  setup.renderer.destroy()
-  await setup.renderer.closed
-}
+  }
+})
+
+console.log(JSON.stringify(result, null, 2))

@@ -7,7 +7,7 @@
   },
   "scripts": {
     "start": "node --experimental-ffi static-workbench.mjs",
-    "test": "node --experimental-ffi --test render.test.mjs input.test.mjs resize.test.mjs cleanup.test.mjs",
+    "test": "node --experimental-ffi --test render.test.mjs layout.test.mjs input.test.mjs resize.test.mjs cleanup.test.mjs",
     "test:pty": "python3 pty-check.py",
     "bench": "node --experimental-ffi --expose-gc perf-check.mjs"
   },
