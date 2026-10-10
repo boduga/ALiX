@@ -100,4 +100,8 @@ All five passed on the measured run with at least 3.7× headroom. Single-host, s
 
 ## Amendment 2026-10-10: migration slice 1 (view-state extraction)
 
-Slice 1 landed in PR #898 as `src/interfaces/tui/workbench/view-state/` — the renderer-neutral `WorkbenchViewState` interface plus the pure `assembleWorkbenchViewState` composer, covered by `tests/tui/workbench/workbench-view-state.vitest.ts`. It composes the immutable snapshot, the Workbench UI store, the operator-shell projection, and the agent transcript sources, adding no second state store and no event stream. The ANSI painter still reads its current inputs; wiring it (and CLI renderer selection) onto this boundary is slice 2.
+Slice 1 landed in PR #898 as `src/interfaces/tui/workbench/view-state/` — the renderer-neutral `WorkbenchViewState` interface plus the pure `assembleWorkbenchViewState` composer, covered by `tests/tui/workbench/workbench-view-state.vitest.ts`. It composes the immutable snapshot, the Workbench UI store, the operator-shell projection, and the agent transcript sources, adding no second state store and no event stream. Painter consumption and CLI renderer selection are slice 2 (below).
+
+## Amendment 2026-10-10: migration slice 2 (painter consumption + renderer selection)
+
+Slice 2 (partial) also lands in PR #898: the ANSI frame painter assembles `WorkbenchViewState` once per frame, and the agent view, inspector, and operator-shell chrome consume it instead of each deriving the same models. The conversation projection is memoized (`workbench/projections/conversation-cache.ts`) and shared with the scrollback builder, so the transcript is never projected twice per frame. `runTui` accepts a single renderer and the CLI rejects an unsupported `--renderer`; only the ANSI canvas is selectable today. A production OpenTUI renderer, its launcher-owned `--experimental-ffi` activation, default switching, and canvas removal remain gated on parity.

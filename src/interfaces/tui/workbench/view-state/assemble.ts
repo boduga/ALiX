@@ -6,7 +6,7 @@ import type { OperatorShellSnapshot } from '../model/operator-shell.js';
 import { getTranscriptFocusAgentId } from '../model/transcript-filter.js';
 import type { TranscriptMode } from '../model/transcript-item.js';
 import type { WorkbenchUiState } from '../model/ui-state.js';
-import { ConversationProjection } from '../projections/conversation-projection.js';
+import { projectConversation } from '../projections/conversation-cache.js';
 import type { WorkbenchViewState } from './types.js';
 
 export interface WorkbenchViewStateInput {
@@ -23,19 +23,18 @@ export interface WorkbenchViewStateInput {
   };
 }
 
-const transcriptProjection = new ConversationProjection();
-
 /**
  * Assemble the renderer-neutral Workbench view state. Pure: it reads only the
  * supplied snapshot, UI store, chrome projection, and transcript sources — no
  * runtime service or event log. No second state store and no event stream are
- * introduced; the same projection the ANSI painter uses builds the transcript.
+ * introduced; the memoized conversation projection the ANSI scrollback uses
+ * builds the transcript, so it is never projected twice per frame.
  */
 export function assembleWorkbenchViewState(input: WorkbenchViewStateInput): WorkbenchViewState {
   const { snapshot, ui, chrome, transcriptSource } = input;
   const mode: TranscriptMode = ui.transcriptMode === 'detailed' ? 'detailed' : 'compact';
   const focusAgentId = getTranscriptFocusAgentId(ui);
-  const conversation = transcriptProjection.project({
+  const conversation = projectConversation({
     timeline: transcriptSource.timeline,
     trace: transcriptSource.trace,
     mode,

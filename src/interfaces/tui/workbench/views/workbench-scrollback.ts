@@ -2,7 +2,7 @@ import { formatActivityLine } from '../../views/activity-line.js';
 import type { ScrollbackLine } from '../../views/bottom-anchored-viewport.js';
 import { wrapText } from '../../views/wrap-text.js';
 import type { ViewRenderContext } from '../../views/types.js';
-import { ConversationProjection } from '../projections/conversation-projection.js';
+import { projectConversation, timelineFingerprint, traceFingerprint } from '../projections/conversation-cache.js';
 import type { TranscriptItem, TranscriptMode } from '../model/transcript-item.js';
 import { buildWorkbenchApprovalCardLines } from './approval-dialog.js';
 import { buildWorkbenchToolCardLines } from './tool-card.js';
@@ -12,8 +12,6 @@ import { stripAnsi } from '../../box.js';
 import { renderResponse } from '../../blocks/render.js';
 import { getTheme } from '../../blocks/theme.js';
 import { getWorkbenchPreviewTheme } from '../model/preview-theme.js';
-import type { TimelineEntry } from '../../runtime/timeline-builder.js';
-import type { ExecutionTraceEntry } from '../../runtime/execution-trace.js';
 
 export interface WorkbenchScrollbackLine extends ScrollbackLine {
   readonly previewFormatted?: true;
@@ -109,38 +107,6 @@ interface ScrollbackCacheEntry {
 
 let scrollbackCache: ScrollbackCacheEntry | undefined;
 
-function timelineFingerprint(timeline: readonly TimelineEntry[]): string {
-  // Full text/detail content (not lengths): same-length edits (e.g. a glyph
-  // swap ✓→✗ in tests, or a corrected word) must invalidate. Event-sourced
-  // timelines are append-only in practice, but the key must not assume that.
-  return `${timeline.length}|${timeline
-    .map((e) =>
-      [
-        e.id,
-        e.kind,
-        e.actor ?? '',
-        e.agentId ?? '',
-        e.sessionId,
-        e.startedAt,
-        e.text ?? '',
-        e.userSafe ?? '',
-        e.activityState ?? '',
-        e.verifiedOutcome ?? '',
-        e.detail ?? '',
-        e.planTasks?.map((t) => `${t.index}:${t.status}:${t.title}`).join(',') ?? '',
-      ].join(','),
-    )
-    .join(';')}`;
-}
-
-function traceFingerprint(trace: readonly ExecutionTraceEntry[]): string {
-  return `${trace.length}|${trace
-    .map((e) =>
-      [e.id, e.kind, e.status, e.title, e.agentId ?? '', e.startedAt, e.detail ?? '', JSON.stringify(e.toolMetadata ?? null)].join(','),
-    )
-    .join(';')}`;
-}
-
 function scrollbackCacheKey(ctx: ViewRenderContext, textWidth: number): string {
   const ui = ctx.workbenchUiState;
   const perTab = ctx.perTab;
@@ -183,7 +149,7 @@ function buildStableScrollbackLines(
   const pendingApproval = pendingApprovals[0];
   const pendingApprovalTool = pendingApproval?.toolName;
   let inlineApprovalRendered = false;
-  const conversation = new ConversationProjection().project({
+  const conversation = projectConversation({
     timeline: ctx.runtime?.agent?.timeline ?? [],
     trace: ctx.snap.runtime?.trace ?? [],
     mode,

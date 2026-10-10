@@ -35,7 +35,7 @@ Used official Node 26.11.0 binary at `/tmp/alix-node26/node-v26.11.0-linux-x64/b
 ## Remaining gates
 
 1. **Sign off provisional performance thresholds.** `perf-check.mjs` now reports a passing `verdict` against proposed absolute bounds (spec amendment 2026-10-10), but they are single-host/single-run and need operator sign-off before gating a rollout.
-2. **`WorkbenchViewState` slice 1 landed** (`src/interfaces/tui/workbench/view-state/`, tests in `tests/tui/workbench/workbench-view-state.vitest.ts`). The ANSI painter does not yet consume it and there is no CLI renderer selection. Slice 2 wires the painter onto the boundary and adds selected-renderer launch with launcher-owned `--experimental-ffi`; default switching and ANSI canvas removal remain later decisions.
+2. **`WorkbenchViewState` slices 1–2 landed** (`src/interfaces/tui/workbench/view-state/`; tests in `tests/tui/workbench/workbench-view-state.vitest.ts`). The ANSI painter now assembles the view state once per frame and consumes it (inspector, operator shell, transcript), the conversation projection is memoized and shared, and `runTui` accepts a single `renderer` (only `canvas`; the CLI rejects an unsupported `--renderer`). Remaining: a production OpenTUI renderer with launcher-owned `--experimental-ffi`, then default switching and canvas removal — all gated on parity.
 3. **Optional platform breadth.** No musl CI leg is configured. Windows terminal restoration is verified green by `pty-check-win.py` (ConPTY via pywinpty) in CI; Linux arm64 and macOS x64 legs are now green too.
 
 Current [OpenTUI runtime requirements](https://opentui.com/docs/getting-started/runtime-support/) specify Node 26.4+, ESM, and `--experimental-ffi`.

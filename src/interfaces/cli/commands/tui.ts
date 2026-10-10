@@ -49,6 +49,12 @@ export interface TuiOptions {
   sessionMode?: "auto" | "ask" | "bypass";
   daemonMode?: boolean;
   themeName?: string;
+  /**
+   * Terminal renderer selection. Only the production ANSI canvas is
+   * available; the OpenTUI renderer is an isolated experiment
+   * (experiments/opentui) pending its runtime and parity gates.
+   */
+  renderer?: "canvas";
 }
 
 /**
@@ -65,6 +71,13 @@ function shouldUseStubAgent(): boolean {
 }
 
 export async function runTui(opts: TuiOptions = {}): Promise<void> {
+  // Single-renderer terminal ownership: exactly one renderer may own stdin,
+  // stdout, raw mode, resize, and cleanup. Only the ANSI canvas is selectable
+  // in production; everything below composes that one renderer.
+  const renderer = opts.renderer ?? "canvas";
+  if (renderer !== "canvas") {
+    throw new Error(`Unsupported TUI renderer '${renderer}'. Only 'canvas' is available; OpenTUI is experimental (see experiments/opentui).`);
+  }
   const cwd = process.cwd();
   const sessionId = opts.sessionName ?? `${Date.now()}`;
   const sessionDir = join(cwd, '.alix', 'sessions', sessionId);
