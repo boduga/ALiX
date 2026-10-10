@@ -18,7 +18,7 @@ import type {
   ReproducibilityLevel,
 } from "../contracts/verification-contract.js";
 import type { ConfidenceProfile } from "../contracts/confidence-contract.js";
-import { canonicalStringify } from "../../../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../../operations/utils/canonical-json.js";
 import { createHash } from "node:crypto";
 import { randomUUID } from "node:crypto";
 

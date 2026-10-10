@@ -8,34 +8,6 @@
   },
   {
     "rule": "experience-is-top",
-    "importer": "src/capabilities/skills/factory.ts",
-    "imported": "interfaces",
-    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",
-    "removalPhase": "R7"
-  },
-  {
-    "rule": "experience-is-top",
-    "importer": "src/capabilities/tools/claim-verification-tool.ts",
-    "imported": "interfaces",
-    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",
-    "removalPhase": "R7"
-  },
-  {
-    "rule": "experience-is-top",
-    "importer": "src/capabilities/tools/web-search.ts",
-    "imported": "interfaces",
-    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",
-    "removalPhase": "R7"
-  },
-  {
-    "rule": "experience-is-top",
-    "importer": "src/coordination/kernel/default-worker-review.ts",
-    "imported": "interfaces",
-    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",
-    "removalPhase": "R7"
-  },
-  {
-    "rule": "experience-is-top",
     "importer": "src/execution/run/plan-phase.ts",
     "imported": "interfaces",
     "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",

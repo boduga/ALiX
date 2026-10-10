@@ -20,10 +20,10 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { PROVIDERS } from "../../../models/providers/catalog.js";
-import { isKeylessProvider } from "../../../models/providers/keyless-providers.js";
-import { isCredentialReference, parseCredentialReference } from "../../../governance/security/credentials/credential-reference.js";
-import type { CredentialStore } from "../../../governance/security/credentials/credential-store.js";
+import { PROVIDERS } from "../../models/providers/catalog.js";
+import { isKeylessProvider } from "../../models/providers/keyless-providers.js";
+import { isCredentialReference, parseCredentialReference } from "../../governance/security/credentials/credential-reference.js";
+import type { CredentialStore } from "../../governance/security/credentials/credential-store.js";
 
 // Test seam - override the user-config path without touching real filesystem.
 let userConfigPathOverride: string | undefined;
@@ -83,7 +83,7 @@ let _credentialStore: CredentialStore | undefined;
 async function loadCredentialStore(): Promise<CredentialStore> {
   if (_credentialStore) return _credentialStore;
   const { chooseBackend, loadCredentialStoreWithKeychainFallback } =
-    await import("../../../governance/security/credentials/backend-selection.js");
+    await import("../../governance/security/credentials/backend-selection.js");
   const backend = await chooseBackend();
   _credentialStore = await loadCredentialStoreWithKeychainFallback(
     backend,

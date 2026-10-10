@@ -9,7 +9,7 @@ import {
   getSavedApiKey,
   setApiKey,
   getApiKey,
-} from "../../../src/interfaces/cli/helpers/api-keys.js";
+} from "../../../src/operations/config/api-keys.js";
 import { PROVIDERS } from "../../../src/models/providers/catalog.js";
 
 const ALL_ENV_VARS = PROVIDERS.map((p) => p.env);

@@ -46,7 +46,7 @@ import {
   type ThresholdProfile,
 } from "../../../../planning/decision/index.js";
 import { loadConfig } from "../../../../operations/config/loader.js";
-import { getSavedApiKey } from "../../helpers/api-keys.js";
+import { getSavedApiKey } from "../../../../operations/config/api-keys.js";
 
 export { JEV_KEY_PROVIDER_ID };
 

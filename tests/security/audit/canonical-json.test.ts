@@ -7,7 +7,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { canonicalStringify, canonicalHash, getDomainPrefix } from "../../../src/governance/security/audit/canonical-json.js";
+import { canonicalStringify, canonicalHash, getDomainPrefix } from "../../../src/operations/utils/canonical-json.js";
 import { createHash } from "node:crypto";
 
 // ---------------------------------------------------------------------------

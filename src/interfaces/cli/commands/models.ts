@@ -221,7 +221,7 @@ export function resolveTierArg(name: string | undefined): (typeof MODEL_SUBAGENT
 /** Shared interactive flow: pick a provider (with API key) then a model. */
 async function selectProviderAndModel(): Promise<{ providerId: string; model: ModelInfo; ollamaBaseUrl?: string; localLlamaBaseUrl?: string }> {
   const { resolveProviders, getAvailableModels, selectFromList, selectModelInteractive } = await import("../helpers/provider-selection.js");
-  const { getApiKey, setApiKey } = await import("../helpers/api-keys.js");
+  const { getApiKey, setApiKey } = await import("../../../operations/config/api-keys.js");
   const { isKeylessProvider } = await import("../../../models/providers/keyless-providers.js");
   const { isValidHttpUrl } = await import("../../../operations/config/validator.js");
   const { prompt } = await import("./prompt.js");

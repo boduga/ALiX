@@ -1,4 +1,4 @@
-import { getSavedApiKey, getSearchConfig } from "../../interfaces/cli/helpers/api-keys.js";
+import { getSavedApiKey, getSearchConfig } from "../../operations/config/api-keys.js";
 
 export type WebSearchArgs = {
   query: string;

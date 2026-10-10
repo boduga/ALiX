@@ -173,7 +173,7 @@ describe("ADR-0004: Protected Type Files", () => {
 describe("ADR-0009: Integrity Hashing", () => {
   it("all three evidence producers compute deterministic hashes", async () => {
     // A2 projected evidence uses canonical JSON hashing
-    const { canonicalStringify } = await import("../../src/governance/security/audit/canonical-json.js");
+    const { canonicalStringify } = await import("../../src/operations/utils/canonical-json.js");
     const { createHash } = await import("node:crypto");
 
     const obj1 = { b: 2, a: 1 };

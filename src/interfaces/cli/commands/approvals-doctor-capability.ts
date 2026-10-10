@@ -8,7 +8,7 @@ import { join } from "node:path";
 import "../../../operations/config/model-resolver.js";
 import "../../../index.js";
 import "./prompt.js";
-import "../helpers/api-keys.js";
+import "../../../operations/config/api-keys.js";
 import "../../../models/providers/catalog.js";
 import { resolveDaemonTasksReadPath } from "../../../operations/daemon/daemon-paths.js";
 

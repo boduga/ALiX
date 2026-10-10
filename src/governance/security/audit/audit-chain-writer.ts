@@ -27,7 +27,7 @@
 import { appendFileSync, readFileSync, writeFileSync, mkdirSync, renameSync, existsSync, openSync, closeSync, fsyncSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { canonicalStringify } from "./canonical-json.js";
+import { canonicalStringify } from "../../../operations/utils/canonical-json.js";
 import { acquire, type LockHandle, type LockOptions } from "./audit-lock.js";
 import type { AuditRecordV2, AuditHead, ActivationResult, LegacyAuditRecord, AnyAuditAction } from "../../audit/audit-types.js";
 import { isAuditRecordV2, isLegacyAuditRecord } from "../../audit/audit-types.js";

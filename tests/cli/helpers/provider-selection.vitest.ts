@@ -14,7 +14,7 @@ import {
   getAvailableModels,
   resolveInitialProviderAndModel,
 } from "../../../src/interfaces/cli/helpers/provider-selection.js";
-import { _setUserConfigPathOverride as _setApiKeysConfigPathOverride } from "../../../src/interfaces/cli/helpers/api-keys.js";
+import { _setUserConfigPathOverride as _setApiKeysConfigPathOverride } from "../../../src/operations/config/api-keys.js";
 import {
   PROVIDERS,
   _setUserConfigPathOverride as _setCatalogConfigPathOverride,

@@ -154,7 +154,7 @@ export async function handleEvalsRunDataset(args: string[]): Promise<void> {
   }
 
   const { loadConfig } = await import("../../../operations/config/loader.js");
-  const { getSavedApiKey } = await import("../helpers/api-keys.js");
+  const { getSavedApiKey } = await import("../../../operations/config/api-keys.js");
   const { createProvider } = await import("../../../models/providers/registry.js");
   const { runDatasetEval, normalizeIncident, readScoreLedger, gateDatasetEval } = await import("../../../operations/evals/dataset-eval.js");
   const { readFile, writeFile } = await import("node:fs/promises");

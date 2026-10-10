@@ -4,7 +4,7 @@
  * Forecast/correlation identities are content-addressed: SHA-256 hex of the
  * canonical JSON form of the artifact's CONTENT. Canonicalization is
  * deterministic (recursively sorted keys, arrays in order) via the generic
- * `canonicalStringify` serializer in `security/audit/canonical-json.ts` —
+ * `canonicalStringify` serializer in `operations/utils/canonical-json.ts` —
  * the suitable existing generic canonicalization helper (the brief's Phase 2
  * "if no suitable existing generic canonicalization helper already exists"
  * is satisfied by reuse rather than an A9-local serializer).
@@ -27,7 +27,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { canonicalStringify } from "../../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../operations/utils/canonical-json.js";
 import type {
   CorrelationContent,
   ForecastContent,

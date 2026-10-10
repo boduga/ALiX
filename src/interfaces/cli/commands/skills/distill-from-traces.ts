@@ -55,7 +55,7 @@ export async function handleSkillsDistillFromTraces(args: string[]): Promise<voi
     process.exit(1);
   }
   const { loadConfig } = await import("../../../../operations/config/loader.js");
-  const { getSavedApiKey } = await import("../../helpers/api-keys.js");
+  const { getSavedApiKey } = await import("../../../../operations/config/api-keys.js");
   const { createProvider } = await import("../../../../models/providers/registry.js");
   const { distillMinedCandidates } = await import("../../../../capabilities/skills/factory.js");
 

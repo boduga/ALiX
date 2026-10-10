@@ -16,7 +16,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { canonicalStringify } from "../../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../operations/utils/canonical-json.js";
 import type { CapabilityEvolutionSignal } from "./proposals.js";
 
 const SIGNAL_ID_DOMAIN_PREFIX = "alix-capability-signal-id-v1:";

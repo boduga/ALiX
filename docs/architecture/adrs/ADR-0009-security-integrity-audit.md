@@ -68,7 +68,7 @@ All cryptographic hashing in ALiX uses canonical JSON — a deterministic serial
 canonicalHash(value) = sha256("alix-audit-v1:" + canonicalStringify(value))
 ```
 
-The canonical serializer lives in `src/governance/security/audit/canonical-json.ts` and is imported by every evidence-producing subsystem (A2, A4, A5, chat recall, patch tracking).
+The canonical serializer lives in `src/operations/utils/canonical-json.ts` and is imported by every evidence-producing subsystem (A2, A4, A5, chat recall, patch tracking).
 
 **Rationale:** Standard `JSON.stringify` does not guarantee key ordering, making it unsuitable for cryptographic hashing. Without canonical JSON, the same logical object can produce different hashes across different JS engine versions or platform implementations.
 
@@ -242,7 +242,7 @@ The lineage is NOT integrity-protected by the containing evidence's hash — it 
 
 ## 7. Key References
 
-- `src/governance/security/audit/canonical-json.ts` — Canonical JSON serializer
+- `src/operations/utils/canonical-json.ts` — Canonical JSON serializer
 - `src/governance/audit/audit-types.ts` — Audit event type definitions (v1 + v2 hash-chained)
 - `src/governance/audit/audit-store.ts` — Append-only JSONL audit store with streaming queries
 - `src/governance/security/credentials/credential-store.ts` — Encrypted credential storage

@@ -12,7 +12,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { canonicalStringify } from "../../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../operations/utils/canonical-json.js";
 import type { ExecutionPlan, ExecutionStep, ExecutionStepResult, ExecutionReport, ExecutionContext, ExecutionCheckpoint, RollbackResult } from "./contracts/execution-contract.js";
 import type { ExecutionState } from "./contracts/execution-lifecycle.js";
 

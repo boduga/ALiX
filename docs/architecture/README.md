@@ -147,7 +147,7 @@ Read: src/session/persist.ts, src/session/resume.ts
 Read: ADR-0006 (pipeline), ADR-0011 (verification model)
 Read: ADR-0009 (integrity hashing)
 Read: src/planning/evolution/verification/contracts/verification-contract.ts
-Read: src/governance/security/audit/canonical-json.ts
+Read: src/operations/utils/canonical-json.ts
 ```
 
 ### Changing governance decisions
