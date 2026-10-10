@@ -222,6 +222,18 @@ describe("SessionPhase (contract)", () => {
     await session.save({ interactiveDecisions: true });
     expect(mock).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), { confirm: true });
   });
+
+  it("save() before initialization is a no-op — the generation-only direct route never persists", async () => {
+    // The direct route returns before initialize(), so state.ctx is unset and
+    // save() must do nothing (no decision extraction, no snapshot).
+    const session = createAgentSession({ cwd: phaseTestCwd, task: "", planMode: false });
+    const mock = saveDecisionsToMemory as unknown as ReturnType<typeof vi.fn>;
+    mock.mockClear();
+
+    await session.save();
+
+    expect(mock).not.toHaveBeenCalled();
+  });
 });
 
 describe("processChat (lightweight chat path)", () => {

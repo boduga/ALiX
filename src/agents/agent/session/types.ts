@@ -380,7 +380,6 @@ export interface AgentSession {
    * Undefined when the last turn was not cancelled.
    */
   getLastCancelSummary?(): string | undefined;
-  /** Save session state to memory (stub — external via SessionStore). */
   /**
    * Persist the session (memory-decision extraction + SessionStore snapshot).
    *
