@@ -3,6 +3,8 @@
 > **Purpose:** Navigate the architectural decision records, understand subsystem ownership, and find the right ADR before changing something.
 >
 > **Not a replacement for reading ADRs.** This map tells you *which* ADR to read for a given change. Read the ADR before making the change.
+>
+> **Subsystem shape:** see [`overview.md`](overview.md) for the current 12-subsystem / 4-layer architecture, boundaries, single-owner authorities, and the guard tests that enforce them.
 
 ---
 
