@@ -97,3 +97,7 @@ Measured on the fixed fixture (`experiments/opentui/perf-check.mjs`; Linux x64, 
 | Burst frames rendered | ≤ 10% of requests, no residual scheduled render |
 
 All five passed on the measured run with at least 3.7× headroom. Single-host, single-run: widen the evidence across supported platforms before these gate a rollout. They do not by themselves close the performance gate.
+
+## Amendment 2026-10-10: migration slice 1 (view-state extraction)
+
+Slice 1 landed as `src/interfaces/tui/workbench/view-state/` — the renderer-neutral `WorkbenchViewState` interface plus the pure `assembleWorkbenchViewState` composer, covered by `tests/tui/workbench/workbench-view-state.vitest.ts`. It composes the immutable snapshot, the Workbench UI store, the operator-shell projection, and the agent transcript sources, adding no second state store and no event stream. The ANSI painter still reads its current inputs; wiring it (and CLI renderer selection) onto this boundary is slice 2.
