@@ -144,6 +144,48 @@ describe("run handler · bounded shutdown at the composition root (Task 14)", ()
     expect(createTraceClient).not.toHaveBeenCalled();
   });
 
+  it("prints usage and returns 0 for --help without creating a client", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const code = await handler(["--help"]);
+      expect(code).toBe(0);
+      expect(createTraceClient).not.toHaveBeenCalled();
+      expect(String(log.mock.calls.at(-1)?.[0] ?? "")).toMatch(/Usage: alix run/);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("returns 1 for a failed terminal outcome (completed_unverified)", async () => {
+    const { client } = fakeTraceClient();
+    (createTraceClient as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(client);
+    (createAgentSession as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+      processTurn: vi.fn(async () => ({ streamed: true, sessionId: "s1", toolCalls: [], reason: "completed_unverified" })),
+    });
+
+    const code = await handler(["do a thing"]);
+
+    expect(code).toBe(1);
+  });
+
+  it("returns 0 for the generation-only direct route and does not print a resumable Session line", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const { client } = fakeTraceClient();
+      (createTraceClient as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(client);
+      (createAgentSession as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+        processTurn: vi.fn(async () => ({ streamed: true, sessionId: "eph-1", toolCalls: [], reason: "direct" })),
+      });
+
+      const code = await handler(["reply with pong"]);
+
+      expect(code).toBe(0);
+      const printed = log.mock.calls.map((c) => String(c[0]));
+      expect(printed.some((line) => line.includes("Session: eph-1"))).toBe(false);
+    } finally {
+      log.mockRestore();
+    }
+  });
   it("survives an unreachable credential backend: warns and runs with fallbacks (#680)", async () => {
     // Headless tolerance: loadConfig throws when no Secret Service bus is
     // available (cron). The run must proceed with no chat-model hint and a

@@ -11,6 +11,10 @@ import { createModelResolver } from "../../../operations/config/model-resolver.j
 import { parseRunArgs } from "../run-args.js";
 
 export async function handler(args: string[]): Promise<number> {
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log('Usage: alix run "<task>" [--no-stream] [--no-plan] [--mode=auto|ask|bypass] [--resume <session-id>] [--plan-file <path>] [--intent] [--propose] [--read-only] [--chat]');
+    return 0;
+  }
   const { task, noStream, noPlan, sessionMode, resumeSessionId, planFilePath, intent: intentFlag, propose: proposeFlag, readOnly, chat } = parseRunArgs(args);
 
   if (!task && !resumeSessionId && !chat) {
@@ -103,7 +107,11 @@ export async function handler(args: string[]): Promise<number> {
       if (!result.streamed) {
         console.log(result.summary);
       }
-      if (result.sessionId) {
+      // The generation-only "direct" route is ephemeral (no session artifact
+      // is persisted), so its id is NOT resumable — print `Session:` only for
+      // routes that persist one, to avoid advertising a dead `--resume` id.
+      const reason = result.reason as string | undefined;
+      if (result.sessionId && reason !== "direct") {
         console.log(`Session: ${result.sessionId}`);
       }
       // Headless ask-mode UX: pending approvals have no TUI panel here,
@@ -219,6 +227,13 @@ export async function handler(args: string[]): Promise<number> {
         `\n    Needs ${cbo.overageTokens} more input tokens (${cbo.availableInputTokens} available, core is ${cbo.mandatoryTokens}).` +
         `\n\nFix: raise context.budget, or shrink mandatory context components.`
       );
+      return 1;
+    }
+    // Only the documented FAILED terminal reasons map to a nonzero exit.
+    // `completed` and the generation-only `direct` route are successes;
+    // `rejected_scope_expansion`/`context_budget_overflow` returned above.
+    const failedReasons = new Set(["completed_unverified", "max_repairs", "max_iterations"]);
+    if (result?.reason && failedReasons.has(result.reason)) {
       return 1;
     }
   } catch (err) {
