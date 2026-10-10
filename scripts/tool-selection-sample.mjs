@@ -83,7 +83,7 @@ const { deriveEvaluationEligibility, summarizeCorpus } = await import(
 async function selectorFor(options, scope, objective, onRanking) {
   if (options.engine === "none") return undefined;
   if (options.engine !== "jev") throw new Error(`unknown engine: ${options.engine}`);
-  const { getSavedApiKey } = await import(`${ROOT}/dist/src/interfaces/cli/helpers/api-keys.js`);
+  const { getSavedApiKey } = await import(`${ROOT}/dist/src/governance/security/credentials/api-keys.js`);
   const { createJevToolSelectionScorer } = await import(
     `${ROOT}/dist/src/planning/decision/tool-selection-jev-mapping.js`
   );
