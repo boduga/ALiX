@@ -1,132 +1,174 @@
 [
   {
-    "rule": "experience-top",
+    "rule": "experience-is-top",
+    "importer": "src/agents/agent/response-blocks.ts",
+    "imported": "interfaces",
+    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",
+    "removalPhase": "R7"
+  },
+  {
+    "rule": "experience-is-top",
     "importer": "src/capabilities/skills/factory.ts",
     "imported": "interfaces",
-    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt); relocate to a neutral credentials/prompt layer",
+    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",
     "removalPhase": "R7"
   },
   {
-    "rule": "experience-top",
+    "rule": "experience-is-top",
     "importer": "src/capabilities/tools/claim-verification-tool.ts",
     "imported": "interfaces",
-    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt); relocate to a neutral credentials/prompt layer",
+    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",
     "removalPhase": "R7"
   },
   {
-    "rule": "experience-top",
+    "rule": "experience-is-top",
     "importer": "src/capabilities/tools/web-search.ts",
     "imported": "interfaces",
-    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt); relocate to a neutral credentials/prompt layer",
+    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",
     "removalPhase": "R7"
   },
   {
-    "rule": "experience-top",
+    "rule": "experience-is-top",
     "importer": "src/coordination/kernel/default-worker-review.ts",
     "imported": "interfaces",
-    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt); relocate to a neutral credentials/prompt layer",
+    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",
     "removalPhase": "R7"
   },
   {
-    "rule": "experience-top",
+    "rule": "experience-is-top",
     "importer": "src/execution/run/plan-phase.ts",
     "imported": "interfaces",
-    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt); relocate to a neutral credentials/prompt layer",
+    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",
     "removalPhase": "R7"
   },
   {
-    "rule": "models-foundational",
+    "rule": "experience-is-top",
+    "importer": "src/operations/observability/observability-routes.ts",
+    "imported": "interfaces",
+    "reason": "R0 experience layer is top — tools/coordination/execution resolve credentials/prompts through interfaces/cli (api-keys, prompt) or re-export from interfaces/tui; relocate to a neutral layer",
+    "removalPhase": "R7"
+  },
+  {
+    "rule": "models-not-governance",
     "importer": "src/models/providers/outbound-redaction.ts",
     "imported": "governance",
     "reason": "R0/R5.1 deliberate seam — models owns the outbound redaction gate; the redaction primitives live in governance/security/redaction",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/contracts/tool-schemas.ts",
     "imported": "agents",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
+    "importer": "src/runtime-state/events/types.ts",
+    "imported": "planning",
+    "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
+    "removalPhase": "R7"
+  },
+  {
+    "rule": "platform-not-upward",
+    "importer": "src/runtime-state/runtime/continuation-manager.ts",
+    "imported": "capabilities",
+    "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
+    "removalPhase": "R7"
+  },
+  {
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/execution-authorization.ts",
     "imported": "coordination",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/ifamas-pipeline.ts",
     "imported": "agents",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/replay-executor.ts",
     "imported": "capabilities",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
+    "importer": "src/runtime-state/runtime/replay-executor.ts",
+    "imported": "execution",
+    "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
+    "removalPhase": "R7"
+  },
+  {
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/replay-plan.ts",
     "imported": "capabilities",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/route-execution.ts",
     "imported": "agents",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
+    "importer": "src/runtime-state/runtime/route-execution.ts",
+    "imported": "capabilities",
+    "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
+    "removalPhase": "R7"
+  },
+  {
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/route-executor.ts",
     "imported": "agents",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/runtime-builder.ts",
     "imported": "agents",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/runtime-builder.ts",
     "imported": "capabilities",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/runtime-builder.ts",
     "imported": "execution",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/runtime-builder.ts",
     "imported": "planning",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/tool-scheduler.ts",
     "imported": "agents",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",
     "removalPhase": "R7"
   },
   {
-    "rule": "state-foundational",
+    "rule": "platform-not-upward",
     "importer": "src/runtime-state/runtime/tool-scheduler.ts",
     "imported": "capabilities",
     "reason": "R0 runtime composition/orchestration site (runtime-state/runtime/*, contracts) wires capabilities/agents/planning; revisit at the R7 physical split",

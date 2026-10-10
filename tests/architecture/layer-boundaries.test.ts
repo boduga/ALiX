@@ -9,15 +9,24 @@
  * freeze allows a reverse-looking edge as long as the exact file pair is
  * allowlisted; it cannot express "tools must never import the CLI layer".
  *
- * Rules (value imports only; `import type` and bare side-effect imports are
- * exempt, matching the R1 freeze policy):
- * - experience-top: only `interfaces` may import `interfaces`. Tools,
- *   coordination, execution, etc. resolve credentials/prompts through
- *   `interfaces/cli/...` today — that is debt, not a licence to widen it.
- * - state-foundational: `runtime-state` (the truth/ledger layer) must not
- *   import `agents`/`capabilities`/`coordination`/`execution`/`planning`.
- * - models-foundational: `models` (provider adapters) must not import
- *   `governance`, except the deliberate outbound-redaction seam.
+ * Detection shares `freeze-utils.collectValueImportSpecifiers`, so it covers
+ * static `import … from`, `export … from`, and dynamic `import(…)` — the same
+ * value-edge universe R1 walks. Type-only forms are exempt.
+ *
+ * Rules (decidable boundaries from the R0 findings / register layer model):
+ * - `experience-is-top`: the `interfaces` layer is command+display only; no
+ *   other subsystem may value-import it. (Importer set derived from the live
+ *   `src/` subsystems, minus `interfaces`.)
+ * - `platform-not-upward`: `runtime-state` (truth/ledger/platform) must not
+ *   import the domain layers `agents`/`capabilities`/`coordination`/
+ *   `execution`/`planning`.
+ * - `models-not-governance`: `models` (provider adapters) must not import
+ *   `governance`, except the deliberate R5.1 outbound-redaction seam.
+ *
+ * Deliberately NOT modeled: `operations` (observability) is cross-cutting —
+ * it both emits telemetry into other subsystems and reads their state to
+ * measure. A single direction rule would misrepresent it ("observability
+ * measures, controls nothing"), so it is left unconstrained here.
  *
  * Allowlist (`layer-allowlist.json`) holds exact (rule, importer, imported)
  * triples for the current edges. Shrink-only: a new violation fails, a stale
@@ -29,14 +38,24 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { resolve, dirname, relative } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  allowKey,
+  collectValueImportSpecifiers,
+  listSubsystemDirs,
+  loadAllowlist,
+  normalizeRepo,
+  walkTs,
+  type AllowEntry,
+} from "./freeze-utils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // TS compiles tests/ → dist/tests/ so __dirname is dist/tests/architecture.
 const PROJECT_ROOT = resolve(__dirname, "../../..");
 const SRC_ROOT = resolve(PROJECT_ROOT, "src");
+const SUBSYSTEMS = listSubsystemDirs(SRC_ROOT);
 
 type LayerRule = {
   name: string;
@@ -48,68 +67,34 @@ type LayerRule = {
 
 const RULES: readonly LayerRule[] = [
   {
-    name: "experience-top",
-    importerDirs: [
-      "agents", "capabilities", "context", "coordination", "execution",
-      "governance", "models", "operations", "planning", "runtime-state", "session",
-    ],
+    name: "experience-is-top",
+    importerDirs: SUBSYSTEMS.filter((s) => s !== "interfaces"),
     imported: ["interfaces"],
   },
   {
-    name: "state-foundational",
+    name: "platform-not-upward",
     importerDirs: ["runtime-state"],
     imported: ["agents", "capabilities", "coordination", "execution", "planning"],
   },
   {
-    name: "models-foundational",
+    name: "models-not-governance",
     importerDirs: ["models"],
     imported: ["governance"],
   },
 ];
 
-type AllowEntry = {
-  rule: string;
-  importer: string;
-  imported: string;
-  reason: string;
-  removalPhase: string;
-};
-
-type Violation = { rule: string; importer: string; imported: string };
-
-function toPosix(p: string): string {
-  return p.split("\\").join("/");
-}
-
-function normalizeRepo(p: string): string {
-  return toPosix(p).replace(/^\.\//, "");
-}
-
-function walkTs(dir: string, out: string[]): void {
-  for (const name of readdirSync(dir).sort()) {
-    const full = resolve(dir, name);
-    const st = statSync(full);
-    if (st.isDirectory()) walkTs(full, out);
-    else if (name.endsWith(".ts") && !name.endsWith(".d.ts")) out.push(full);
-  }
-}
-
-const IMPORT_RE = /(^|\n)\s*import\s+(type\s+)?([^;]*?)\s*from\s+["']([^"']+)["']/g;
+type LayerEdge = { rule: string; importer: string; imported: string };
 
 /** Value imports between top-level subsystems that violate a layer rule. */
-function scanLayerViolations(): Violation[] {
+function scanLayerViolations(): LayerEdge[] {
   const files: string[] = [];
   walkTs(SRC_ROOT, files);
-  const found = new Map<string, Violation>();
+  const found = new Map<string, LayerEdge>();
   for (const file of files) {
     const importerTop = normalizeRepo(relative(SRC_ROOT, file)).split("/")[0];
-    const content = readFileSync(file, "utf-8");
+    if (!SUBSYSTEMS.includes(importerTop)) continue; // skip root entrypoints (cli.ts, run.ts, …)
     const importer = normalizeRepo(relative(PROJECT_ROOT, file));
-    IMPORT_RE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = IMPORT_RE.exec(content)) !== null) {
-      if (m[2] || /^\s*type\b/.test(m[3] ?? "")) continue; // import type
-      const spec = m[4];
+    for (const spec of collectValueImportSpecifiers(readFileSync(file, "utf-8"))) {
       if (!spec.startsWith(".")) continue;
       const resolved = relative(SRC_ROOT, resolve(dirname(file), spec));
       if (resolved.startsWith("..")) continue;
@@ -128,18 +113,29 @@ function scanLayerViolations(): Violation[] {
   return [...found.values()];
 }
 
-function loadAllowlist(): AllowEntry[] {
-  const p = resolve(PROJECT_ROOT, "tests/architecture/layer-allowlist.json");
-  return JSON.parse(readFileSync(p, "utf-8")) as AllowEntry[];
+// Scan once — the walk reads ~1.4k files and every test consumes the result.
+let cached: LayerEdge[] | undefined;
+function violations(): LayerEdge[] {
+  cached ??= scanLayerViolations();
+  return cached;
 }
 
-function key(v: { rule: string; importer: string; imported: string }): string {
-  return `${v.rule}|${normalizeRepo(v.importer)}|${normalizeRepo(v.imported)}`;
+function key(v: LayerEdge): string {
+  return allowKey(v);
 }
 
 describe("Layer boundaries", () => {
+  it("scanner observes cross-subsystem value edges (non-vacuous)", () => {
+    // Guards against a silently broken scanner: if the walk/parse regresses to
+    // zero edges, the allowlist tests below would pass without checking.
+    assert.ok(
+      violations().length >= 1,
+      "layer scanner observed no cross-subsystem value imports — scanner is broken",
+    );
+  });
+
   it("allowlist entries are well-formed with R0 reference and removal phase", () => {
-    const list = loadAllowlist();
+    const list: AllowEntry[] = loadAllowlist(PROJECT_ROOT, "layer-allowlist.json");
     const ruleNames = new Set(RULES.map((r) => r.name));
     const seen = new Set<string>();
     for (const e of list) {
@@ -153,16 +149,15 @@ describe("Layer boundaries", () => {
         typeof e.removalPhase === "string" && /^R\d/.test(e.removalPhase),
         `entry lacks removal phase: ${e.rule} ${e.importer} -> ${e.imported}`,
       );
-      const k = key(e);
+      const k = allowKey(e);
       assert.ok(!seen.has(k), `duplicate allowlist entry: ${k}`);
       seen.add(k);
     }
   });
 
   it("no reverse-layer imports beyond the exact allowlist", () => {
-    const actual = scanLayerViolations();
-    const allowed = new Set(loadAllowlist().map(key));
-    const fresh = actual
+    const allowed = new Set(loadAllowlist(PROJECT_ROOT, "layer-allowlist.json").map(key));
+    const fresh = violations()
       .filter((v) => !allowed.has(key(v)))
       .sort((a, b) => key(a).localeCompare(key(b)));
     assert.deepEqual(
@@ -173,8 +168,11 @@ describe("Layer boundaries", () => {
   });
 
   it("allowlist is shrink-only: no stale entries", () => {
-    const actual = new Set(scanLayerViolations().map(key));
-    const stale = loadAllowlist().map(key).filter((k) => !actual.has(k)).sort();
+    const actual = new Set(violations().map(key));
+    const stale = loadAllowlist(PROJECT_ROOT, "layer-allowlist.json")
+      .map(key)
+      .filter((k) => !actual.has(k))
+      .sort();
     assert.deepEqual(
       stale,
       [],

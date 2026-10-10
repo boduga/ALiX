@@ -25,7 +25,6 @@ Type-only authority boundaries and schema contracts. No runtime, no I/O.
 - Ports are interfaces only. They describe authority, never implementation.
 - Ports reuse domain types via `import type`; never duplicate them.
 - `tests/architecture/r1-boundary-freeze.test.ts` pins the freeze; `r1-allowlist.json` is shrink-only with R0 refs and removal phases.
-- `tests/architecture/layer-boundaries.test.ts` pins the direction of value imports between the 12 subsystems (`experience-top`, `state-foundational`, `models-foundational`); `layer-allowlist.json` is shrink-only with R0 refs and removal phases. A new reverse-layer import fails; a stale entry fails.
 
 ## Verification
 

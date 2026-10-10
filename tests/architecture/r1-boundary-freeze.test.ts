@@ -29,23 +29,22 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  allowKey,
+  loadAllowlist as loadSharedAllowlist,
+  normalizeRepo,
+  walkTs,
+  type AllowEntry,
+} from "./freeze-utils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // TS compiles tests/ → dist/tests/ so __dirname is dist/tests/architecture.
 // 3 levels up from dist/tests/architecture/ reaches the repo root.
 const PROJECT_ROOT = resolve(__dirname, "../../..");
 const SRC_ROOT = resolve(PROJECT_ROOT, "src");
-
-type AllowEntry = {
-  rule: string;
-  importer: string;
-  imported: string;
-  reason: string;
-  removalPhase: string;
-};
 
 const RULES = [
   "direct-tool-dispatch",
@@ -167,26 +166,6 @@ const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: st
   },
 };
 
-function toPosix(p: string): string {
-  return p.split("\\").join("/");
-}
-
-function normalizeRepo(p: string): string {
-  return toPosix(p).replace(/^\.\//, "");
-}
-
-function walkTs(dir: string, out: string[]): void {
-  for (const name of readdirSync(dir).sort()) {
-    const full = resolve(dir, name);
-    const st = statSync(full);
-    if (st.isDirectory()) {
-      walkTs(full, out);
-    } else if (name.endsWith(".ts") && !name.endsWith(".d.ts")) {
-      out.push(full);
-    }
-  }
-}
-
 function resolveSpecifier(importerFile: string, spec: string): string | null {
   if (!spec.startsWith(".")) return null;
   const abs = resolve(dirname(importerFile), spec);
@@ -292,12 +271,11 @@ function scanDefinitions(): Violation[] {
 }
 
 function loadAllowlist(): AllowEntry[] {
-  const p = resolve(PROJECT_ROOT, "tests/architecture/r1-allowlist.json");
-  return JSON.parse(readFileSync(p, "utf-8")) as AllowEntry[];
+  return loadSharedAllowlist(PROJECT_ROOT, "r1-allowlist.json");
 }
 
 function key(v: { rule: string; importer: string; imported: string }): string {
-  return `${v.rule}|${normalizeRepo(v.importer)}|${normalizeRepo(v.imported)}`;
+  return allowKey(v);
 }
 
 describe("R1 boundary freeze", () => {
