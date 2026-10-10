@@ -28,10 +28,10 @@ Pass only with successful native operations and terminal restoration, reproducib
   input-mode restore); `npm ci --offline` from a clean temp dir loaded native
   Core and closed cleanly.
 - Platform matrix green on draft [PR #898](https://github.com/boduga/ALiX/pull/898)
-  ([run 38035406119](https://github.com/boduga/ALiX/actions/runs/38035406119)):
-  Linux x64 Node 26.4.0/26.11.0 (`npm test` + PTY), macOS arm64 Node 26.11.0
-  (`npm test` + PTY), Windows x64 Node 26.11.0 (`npm test` + ConPTY
-  restoration check) — all green.
+  ([run 38063059589](https://github.com/boduga/ALiX/actions/runs/38063059589)):
+  Linux x64 Node 26.4.0/26.11.0 (`npm test` + PTY), Linux arm64 Node 26.11.0
+  (`npm test`), macOS arm64 and x64 Node 26.11.0 (`npm test` + PTY), Windows
+  x64 Node 26.11.0 (`npm test` + ConPTY restoration check) — all green.
 - Benchmark (`perf-check.mjs`): steady-state RSS plateaus (tranches
   `[224,224,224,224,224,227]` MiB, net `+3`, slope `+0.6` MiB/round, sampled
   after two GC passes); 500 back-to-back `requestRender()` calls coalesce to
@@ -49,4 +49,4 @@ Pass only with successful native operations and terminal restoration, reproducib
    pending operator sign-off before gating a rollout.
 2. `WorkbenchViewState` extraction, renderer selection, and launcher-owned
    `--experimental-ffi` remain out of scope for this spike.
-3. No Linux arm64, musl, or macOS x64 CI leg is configured.
+3. No musl CI leg is configured.

@@ -15,7 +15,7 @@ Committed paths (draft PR #898):
 - `src/interfaces/tui/AGENTS.md` — approved spike exception.
 - `docs/superpowers/specs/2026-10-09-opentui-workbench-migration-design.md`, `docs/superpowers/plans/2026-10-10-opentui-runtime-gate.md`, and this hand-off.
 - `experiments/opentui/` — pinned `@opentui/core@0.5.17` and `web-tree-sitter@0.25.10`, lockfile, shared fixture (`workbench-fixture.mjs`), renderer lifecycle (`harness.mjs`), static four-agent fixture, render/layout/input/resize/cleanup tests, Unix PTY checks (`pty-check.py`), Windows ConPTY check (`pty-check-win.py`), `perf-check.mjs`, `AGENTS.md` (child DOX contract), and `README.md` (setup, versions, results, benchmark limitations, support matrix, gaps).
-- `.github/workflows/opentui-spike.yml` — Linux Node 26.4/26.11, macOS 26.11, and Windows 26.11 matrix, pinned action SHAs and `contents: read`; green on PR #898 ([run 38035406119](https://github.com/boduga/ALiX/actions/runs/38035406119)).
+- `.github/workflows/opentui-spike.yml` — Linux x64 Node 26.4/26.11, Linux arm64, macOS arm64/x64, and Windows 26.11 matrix, pinned action SHAs and `contents: read`; green on PR #898 ([run 38063059589](https://github.com/boduga/ALiX/actions/runs/38063059589)).
 - `scripts/check-package-manager.sh` — scoped exemption so the isolated npm lockfile (and its workflow/hand-off references) do not trip the pnpm-only policy.
 - `AGENTS.md` — root Child DOX Index entry for `experiments/opentui/AGENTS.md`.
 
@@ -36,6 +36,6 @@ Used official Node 26.11.0 binary at `/tmp/alix-node26/node-v26.11.0-linux-x64/b
 
 1. **Sign off provisional performance thresholds.** `perf-check.mjs` now reports a passing `verdict` against proposed absolute bounds (spec amendment 2026-10-10), but they are single-host/single-run and need operator sign-off before gating a rollout.
 2. **`WorkbenchViewState` slice 1 landed** (`src/interfaces/tui/workbench/view-state/`, tests in `tests/tui/workbench/workbench-view-state.vitest.ts`). The ANSI painter does not yet consume it and there is no CLI renderer selection. Slice 2 wires the painter onto the boundary and adds selected-renderer launch with launcher-owned `--experimental-ffi`; default switching and ANSI canvas removal remain later decisions.
-3. **Optional platform breadth.** No Linux arm64, musl, or macOS x64 CI leg is configured. Windows terminal restoration is verified green by `pty-check-win.py` (ConPTY via pywinpty) in CI.
+3. **Optional platform breadth.** No musl CI leg is configured. Windows terminal restoration is verified green by `pty-check-win.py` (ConPTY via pywinpty) in CI; Linux arm64 and macOS x64 legs are now green too.
 
 Current [OpenTUI runtime requirements](https://opentui.com/docs/getting-started/runtime-support/) specify Node 26.4+, ESM, and `--experimental-ffi`.
