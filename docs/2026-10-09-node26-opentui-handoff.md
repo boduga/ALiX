@@ -16,6 +16,7 @@ Committed paths (draft PR #898):
 - `docs/superpowers/specs/2026-10-09-opentui-workbench-migration-design.md`, `docs/superpowers/plans/2026-10-10-opentui-runtime-gate.md`, and this hand-off.
 - `experiments/opentui/` — pinned `@opentui/core@0.5.17` and `web-tree-sitter@0.25.10`, lockfile, static four-agent fixture, render/input/resize/cleanup tests, PTY cleanup check, `perf-check.mjs`, and `README.md` (setup, versions, results, benchmark limitations, support matrix, gaps).
 - `.github/workflows/opentui-spike.yml` — Linux Node 26.4/26.11, macOS 26.11, and Windows 26.11 matrix with a 20-minute timeout; green on PR #898 ([run 38031068405](https://github.com/boduga/ALiX/actions/runs/38031068405)).
+- `scripts/check-package-manager.sh` — scoped exemption so the isolated npm lockfile (and its workflow/hand-off references) do not trip the pnpm-only policy.
 
 `experiments/opentui/node_modules/` is local install output and ignored by Git. No root dependency or production renderer code changed. Do not accidentally stage generated dependencies.
 
