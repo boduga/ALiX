@@ -1,9 +1,31 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { WorkspacePathResolver } from "../../src/runtime-state/runtime/workspace-path.js";
+import { relativeIsOutside, WorkspacePathResolver } from "../../src/runtime-state/runtime/workspace-path.js";
 
 const ROOT = "/home/user/project";
 const resolver = new WorkspacePathResolver(ROOT, [".git/**", ".env", "secrets/**"]);
+
+describe("relativeIsOutside — the one lexical containment predicate", () => {
+  /** [relative(root, target), escapes?] */
+  const CASES: Array<[string, boolean]> = [
+    ["", false],        // same directory
+    [".", false],
+    ["a", false],
+    ["a/b", false],
+    ["..foo", false],   // ordinary in-tree sibling name, not an escape
+    ["..foo/x", false],
+    ["dir/..foo", false],
+    ["..", true],
+    ["../x", true],
+    ["../..", true],
+    ["/etc/passwd", true], // absolute remainder
+  ];
+  for (const [rel, expected] of CASES) {
+    it(`${JSON.stringify(rel)} -> ${expected ? "escapes" : "inside"}`, () => {
+      assert.equal(relativeIsOutside(rel), expected);
+    });
+  }
+});
 
 describe("WorkspacePathResolver", () => {
   // --- resolve ---

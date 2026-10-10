@@ -7,7 +7,7 @@
  */
 
 import { CoordinationStore } from "./coordination-store.js";
-import { relativeEscapesRoot } from "../../runtime-state/runtime/workspace-path.js";
+import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js";
 import { CoordinationAggregateStore } from "./coordination-aggregate-store.js";
 import { buildFailureChains } from "./coordination-failure-chain.js";
 import { computeAggregationSourceFingerprint } from "./coordination-aggregation-fingerprint.js";
@@ -151,7 +151,7 @@ export async function readRunSessionEvents(
     const sessionsRoot = resolve(cwd, ".alix", "sessions");
     const sessionDir = resolve(sessionsRoot, sessionId);
     const rel = relative(sessionsRoot, sessionDir);
-    if (relativeEscapesRoot(rel)) return [];
+    if (relativeIsOutside(rel)) return [];
     const eventPath = join(sessionDir, "events.jsonl");
     if (!existsSync(eventPath)) return [];
     const { readFileSync } = await import("node:fs");
@@ -300,7 +300,7 @@ export async function buildCoordinationRunView(
     const sessionsRoot = resolve(cwd, ".alix", "sessions");
     const sessionDir = resolve(sessionsRoot, run.sessionId);
     const rel = relative(sessionsRoot, sessionDir);
-    if (!relativeEscapesRoot(rel)) {
+    if (!relativeIsOutside(rel)) {
       const eventPath = join(sessionDir, "events.jsonl");
       if (existsSync(eventPath)) {
         const { readFileSync } = await import("node:fs");

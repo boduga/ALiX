@@ -11,7 +11,8 @@
  *    scope covers the specific target path.
  */
 
-import { resolve, relative, sep, normalize, isAbsolute } from "node:path";
+import { resolve, relative, normalize } from "node:path";
+import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js";
 import type { PathScope } from "./ownership-types.js";
 
 /**
@@ -114,10 +115,7 @@ function isInside(parent: string, child: string): boolean {
   // Same path is inside (allows workspace root as scope)
   if (parent === child) return true;
   const rel = relative(parent, child);
-  return rel !== "" &&
-    rel !== ".." &&
-    !rel.startsWith(`..${sep}`) &&
-    !isAbsolute(rel);
+  return rel !== "" && !relativeIsOutside(rel);
 }
 
 /** Get a display-friendly scope string. */
@@ -191,7 +189,7 @@ export function resolveOwnedScopePrefix(raw: string, cwd: string): string | unde
   // authorizing `/etc` because a worker wrote it in `ownedPaths` would be a
   // privilege escalation dressed as a convenience.
   const rel = relative(resolve(cwd), absolute);
-  if (rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) return undefined;
+  if (relativeIsOutside(rel)) return undefined;
   return absolute;
 }
 

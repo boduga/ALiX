@@ -11,7 +11,8 @@
  * - Invalid claims fail closed
  */
 
-import { resolve, relative, sep } from "node:path";
+import { resolve, relative } from "node:path";
+import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js";
 import type { OwnershipRegistry, AcquireRequest } from "../ownership/ownership-registry.js";
 import type { WorkerOwnershipClaim, CoordinationRun, WorkerAssignment } from "./coordination-types.js";
 
@@ -33,8 +34,7 @@ function toOwnershipScope(
 
   // Reject traversal outside workspace
   if (
-    rel === ".." ||
-    rel.startsWith(`..${sep}`) ||
+    relativeIsOutside(rel) ||
     (root === workspaceRoot && claim.path === "..")
   ) {
     return null;

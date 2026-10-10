@@ -22,7 +22,7 @@ export type ResolvedPath = {
 };
 
 function relativeIsInside(rel: string): boolean {
-  return rel === "" || !relativeEscapesRoot(rel);
+  return rel === "" || !relativeIsOutside(rel);
 }
 
 /**
@@ -32,7 +32,7 @@ function relativeIsInside(rel: string): boolean {
  * `WorkspacePathResolver` and the router/patch/coordination backstops so the
  * rule is not re-implemented per site.
  */
-export function relativeEscapesRoot(rel: string): boolean {
+export function relativeIsOutside(rel: string): boolean {
   return rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
 }
 

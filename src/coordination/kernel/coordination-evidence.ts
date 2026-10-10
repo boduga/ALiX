@@ -25,7 +25,7 @@
  */
 
 import { relative, resolve, sep } from "node:path";
-import { relativeEscapesRoot, WorkspacePathResolver } from "../../runtime-state/runtime/workspace-path.js";
+import { relativeIsOutside, WorkspacePathResolver } from "../../runtime-state/runtime/workspace-path.js";
 
 /** Event types that record an actual filesystem write. */
 export const MUTATION_EVENT_TYPES = ["file.created", "file.deleted", "patch.changed_files"] as const;
@@ -103,7 +103,7 @@ function normalizeEvidencePath(
   }
   if (!resolver.isInWorkspace(absolute) || !resolver.isCanonicalInWorkspace(absolute)) return undefined;
   const rel = relative(resolve(workspaceRoot), resolve(absolute));
-  if (!rel || rel === "." || relativeEscapesRoot(rel)) return undefined;
+  if (!rel || rel === "." || relativeIsOutside(rel)) return undefined;
   return sep === "/" ? rel : rel.split(sep).join("/");
 }
 
