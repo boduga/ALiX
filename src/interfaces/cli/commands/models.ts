@@ -224,7 +224,7 @@ async function selectProviderAndModel(): Promise<{ providerId: string; model: Mo
   const { getApiKey, setApiKey } = await import("../../../governance/security/credentials/api-keys.js");
   const { isKeylessProvider } = await import("../../../models/providers/keyless-providers.js");
   const { isValidHttpUrl } = await import("../../../operations/config/validator.js");
-  const { prompt } = await import("./prompt.js");
+  const { prompt } = await import("../../../operations/utils/prompt.js");
 
   const avail = await resolveProviders();
   const pick = await selectFromList(
@@ -299,7 +299,7 @@ export async function handleModelsSetDefault(_args: string[]): Promise<void> {
 }
 
 export async function handleModelsSetTier(args: string[]): Promise<void> {
-  const { prompt } = await import("./prompt.js");
+  const { prompt } = await import("../../../operations/utils/prompt.js");
   const TIER_DESC: Record<string, string> = {
     thinking: "Strategic reasoning, planning, complex logic",
     coding: "Code generation, tool execution, patches",

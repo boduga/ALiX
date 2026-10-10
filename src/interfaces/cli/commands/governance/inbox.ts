@@ -36,7 +36,8 @@ import "../../../../runtime-state/events/event-log.js";
 import type { GovernanceSignal } from "../../../../governance/governance-signal.js";
 import type { DecisionKind } from "../../../../governance/decision-capture.js";
 import { BAR, severityColor } from "./analytics.js";
-import { extractPositionalArg, parseInlineFlag } from "./audit.js";
+import { extractPositionalArg } from "./audit.js";
+import { parseInlineFlag } from "./shared.js";
 import { BOLD, CYAN, DIM, GREEN, RED, RESET, YELLOW, parseFlags } from "./shared.js";
 
 // ---------------------------------------------------------------------------

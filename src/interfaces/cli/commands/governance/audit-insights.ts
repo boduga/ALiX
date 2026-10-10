@@ -34,7 +34,7 @@ import "../../../../planning/evolution/learning/learning-cli.js";
 import "../../../../planning/evolution/forecast/forecast-cli.js";
 import "../../../../runtime-state/events/event-log.js";
 import type { ActionProposalStatusTransition } from "../../../../governance/action-queue.js";
-import { eventTypeColor, parseInlineFlag } from "./audit.js";
+import { eventTypeColor, parseInlineFlag } from "./shared.js";
 import { BOLD, DIM, RED, RESET, YELLOW } from "./shared.js";
 
 /**

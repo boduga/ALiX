@@ -8,13 +8,6 @@
   },
   {
     "rule": "experience-is-top",
-    "importer": "src/execution/run/plan-phase.ts",
-    "imported": "interfaces",
-    "reason": "R0 experience layer is top — execution/agents/observability reach into interfaces (CLI prompt, TUI re-export); relocate to a neutral layer",
-    "removalPhase": "R7"
-  },
-  {
-    "rule": "experience-is-top",
     "importer": "src/operations/observability/observability-routes.ts",
     "imported": "interfaces",
     "reason": "R0 experience layer is top — execution/agents/observability reach into interfaces (CLI prompt, TUI re-export); relocate to a neutral layer",

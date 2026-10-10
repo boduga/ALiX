@@ -11,7 +11,7 @@ import "./agents/agent/session.js";
 import "./models/providers/base.js";
 import "./models/providers/catalog.js";
 import "./models/providers/catalog.js";
-import "./interfaces/cli/commands/prompt.js";
+import "./operations/utils/prompt.js";
 import "./governance/security/credentials/api-keys.js";
 import "./operations/daemon/daemon-paths.js";
 

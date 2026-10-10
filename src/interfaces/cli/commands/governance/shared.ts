@@ -211,3 +211,43 @@ export function parseSectionFlag(args: string[]): string | null {
   }
   return val;
 }
+
+// ─── Shared render/parse helpers ──────────────────────────────────────────
+// Owned here so `audit.ts`/`audit-insights.ts`/`execution.ts`/`workbench.ts`
+// do not cross-import each other (breaks the CLI command cycles).
+
+export const EVENT_TYPE_COLORS: Record<string, string> = {
+  "policy.evaluated": CYAN,
+  "runtime.allowed": GREEN,
+  "runtime.blocked": RED,
+  "runtime.requires_approval": YELLOW,
+  "approval.created": CYAN,
+  "approval.approved": GREEN,
+  "approval.denied": RED,
+  "override.applied": MAGENTA,
+};
+
+export function eventTypeColor(eventType: string): string {
+  return EVENT_TYPE_COLORS[eventType] ?? RESET;
+}
+
+export function parseInlineFlag(args: string[], flag: string): string | null {
+  const idx = args.indexOf(flag);
+  if (idx === -1 || idx + 1 >= args.length) return null;
+  const value = args[idx + 1];
+  if (value.startsWith("--")) return null; // next arg is another flag, not a value
+  return value;
+}
+
+export function colorForState(state: string | null): string {
+  switch (state) {
+    case "executed": return GREEN;
+    case "failed":
+    case "partial":  return RED;
+    case "reverted": return YELLOW;
+    case "approved": return CYAN;
+    case "rejected": return RED;
+    case "draft":    return DIM;
+    default:         return RESET;
+  }
+}

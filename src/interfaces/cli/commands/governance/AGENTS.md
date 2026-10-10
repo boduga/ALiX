@@ -4,9 +4,12 @@
 `../governance.ts` is the compatibility re-export barrel.
 
 **Ownership:**
-- `shared.ts` — ANSI colors (`RESET`…`MAGENTA`, `BAR`), severity/priority/rate
-  color helpers, flag parsers (`parseFlags`, `parseRecommendFlags`,
-  `parseSectionFlag`) + their option interfaces.
+- `shared.ts` — ANSI colors (`RESET`…`MAGENTA`, `BAR`), severity/priority/rate/state
+  color helpers (`colorForSeverity`/`colorForRecommendation`/`colorForRate`/`colorForState`),
+  event-type color (`eventTypeColor`/`EVENT_TYPE_COLORS`), flag parsers
+  (`parseFlags`, `parseRecommendFlags`, `parseSectionFlag`, `parseInlineFlag`) +
+  their option interfaces. Shared here so the command modules do not cross-import
+  each other (breaks the audit↔audit-insights and execution↔workbench cycles).
 - `evolution.ts` — `runEvolutionLearn/Discover/Forecast`.
 - `status.ts` — `runStatus/Health/Drift/LensReview/Integrity/Recommend` + their
   renderers.
@@ -18,7 +21,7 @@
 - `inbox.ts` — `runInbox*`, `runReview*`, `runDecide*` + renderers.
 - `actions.ts` — `runActions*` + `transitionId`.
 - `execution.ts` — `runExecution*` + `loadExecutionStores`.
-- `workbench.ts` — `runWorkbench*`, `loadWorkbenchSnapshot`, `colorForState`.
+- `workbench.ts` — `runWorkbench*`, `loadWorkbenchSnapshot`.
 - `readiness.ts` — `runReadiness` + readiness compute/render helpers.
 - `handoff.ts` — `runHandoff`, `runHandoffClosureAction` + renderers.
 - `intelligence.ts` — `runIntelligence`.

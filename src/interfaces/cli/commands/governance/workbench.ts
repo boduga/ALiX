@@ -268,17 +268,3 @@ export async function runWorkbenchSummary(jsonMode: boolean): Promise<void> {
     }
   }
 }
-
-
-export function colorForState(state: string | null): string {
-  switch (state) {
-    case "executed": return "\x1b[32m";  // GREEN
-    case "failed":
-    case "partial":  return "\x1b[31m";  // RED
-    case "reverted": return "\x1b[33m";  // YELLOW
-    case "approved": return "\x1b[36m";  // CYAN
-    case "rejected": return "\x1b[31m";  // RED
-    case "draft":    return "\x1b[2m";   // DIM
-    default:         return "\x1b[0m";   // RESET
-  }
-}

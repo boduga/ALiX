@@ -33,7 +33,7 @@ import "../../../../planning/evolution/learning/learning-cli.js";
 // A9 Slice 5 — pre-execution risk forecast CLI surface.
 import "../../../../planning/evolution/forecast/forecast-cli.js";
 import "../../../../runtime-state/events/event-log.js";
-import { parseInlineFlag } from "./audit.js";
+import { parseInlineFlag } from "./shared.js";
 
 // P19-READINESS-START
 // ---------------------------------------------------------------------------

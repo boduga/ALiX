@@ -21,7 +21,7 @@ import { existsSync } from "node:fs";
 import type { AgentContext } from "../../agents/agent/agent.js";
 import type { ContextBundle } from "../../context/repomap/context-compiler.js";
 import type { ExecutionContext } from "../../operations/observability/execution-context.js";
-import { prompt } from "../../interfaces/cli/commands/prompt.js";
+import { prompt } from "../../operations/utils/prompt.js";
 import { isReadOnlyTask, isShellTask, isClaimVerificationTask } from "../../task-classifier.js";
 import {
   parsePlanTasks,

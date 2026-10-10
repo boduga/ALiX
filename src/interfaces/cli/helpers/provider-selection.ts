@@ -14,7 +14,7 @@
 import { PROVIDERS, getInstalledOllamaModels, getDefaultModel, listModels, detectProvider, type ModelInfo } from "../../../models/providers/catalog.js";
 import { isKeylessProvider } from "../../../models/providers/keyless-providers.js";
 import { getApiKey } from "../../../governance/security/credentials/api-keys.js";
-import { prompt as defaultPrompt } from "../commands/prompt.js";
+import { prompt as defaultPrompt } from "../../../operations/utils/prompt.js";
 import type { ParsedInitArgs } from "./init-args.js";
 
 export interface ProviderAvailability {
@@ -257,7 +257,7 @@ async function reAsk(promptFn: (q: string) => Promise<string>, q: string, tries 
  *
  * - Re-prompts on empty / non-numeric / out-of-range input.
  * - `promptFn` is a test seam; defaults to the global `prompt()` from
- *   `src/interfaces/cli/commands/prompt.ts`.
+ *   `src/operations/utils/prompt.ts`.
  */
 export async function selectFromList<T>(
   items: T[],

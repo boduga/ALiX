@@ -7,7 +7,7 @@ import "node:fs";
 import { join } from "node:path";
 import "../../../operations/config/model-resolver.js";
 import "../../../index.js";
-import "./prompt.js";
+import "../../../operations/utils/prompt.js";
 import "../../../governance/security/credentials/api-keys.js";
 import "../../../models/providers/catalog.js";
 
