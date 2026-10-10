@@ -140,11 +140,11 @@ Reading the numbers:
 | Linux x64 | 26.11.0 | **Verified** — local tests/PTY/benchmark plus CI green. |
 | Linux x64 | 26.4.0 | **Verified in CI** — green. |
 | macOS arm64 | 26.11.0 | **Verified in CI** — `npm test` plus PTY terminal restoration green. |
-| Windows x64 | 26.11.0 | **Native load + in-memory tests green in CI**; ConPTY restoration check added and runs in CI. |
+| Windows x64 | 26.11.0 | **Verified in CI** — native load, in-memory tests, and ConPTY terminal restoration all green. |
 
 `.github/workflows/opentui-spike.yml` ran on draft PR
 [#898](https://github.com/boduga/ALiX/pull/898)
-([native-core run 38031068405](https://github.com/boduga/ALiX/actions/runs/38031068405));
+([native-core run 38035406119](https://github.com/boduga/ALiX/actions/runs/38035406119));
 every declared leg passed. No Linux arm64, musl, or macOS x64 leg is configured.
 
 ## Remaining gaps (do not report as passed)

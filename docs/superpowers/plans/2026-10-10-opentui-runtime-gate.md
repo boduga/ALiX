@@ -28,10 +28,10 @@ Pass only with successful native operations and terminal restoration, reproducib
   input-mode restore); `npm ci --offline` from a clean temp dir loaded native
   Core and closed cleanly.
 - Platform matrix green on draft [PR #898](https://github.com/boduga/ALiX/pull/898)
-  ([run 38031068405](https://github.com/boduga/ALiX/actions/runs/38031068405)):
+  ([run 38035406119](https://github.com/boduga/ALiX/actions/runs/38035406119)):
   Linux x64 Node 26.4.0/26.11.0 (`npm test` + PTY), macOS arm64 Node 26.11.0
   (`npm test` + PTY), Windows x64 Node 26.11.0 (`npm test` + ConPTY
-  restoration check).
+  restoration check) — all green.
 - Benchmark (`perf-check.mjs`): steady-state RSS plateaus (tranches
   `[212,211,212,212,212,213]` MiB, net `+1`, slope `+0.4` MiB/round, sampled
   after two GC passes); 500 back-to-back `requestRender()` calls coalesce to

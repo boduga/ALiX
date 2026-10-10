@@ -15,7 +15,7 @@ Committed paths (draft PR #898):
 - `src/interfaces/tui/AGENTS.md` — approved spike exception.
 - `docs/superpowers/specs/2026-10-09-opentui-workbench-migration-design.md`, `docs/superpowers/plans/2026-10-10-opentui-runtime-gate.md`, and this hand-off.
 - `experiments/opentui/` — pinned `@opentui/core@0.5.17` and `web-tree-sitter@0.25.10`, lockfile, shared fixture (`workbench-fixture.mjs`), renderer lifecycle (`harness.mjs`), static four-agent fixture, render/layout/input/resize/cleanup tests, Unix PTY checks (`pty-check.py`), Windows ConPTY check (`pty-check-win.py`), `perf-check.mjs`, `AGENTS.md` (child DOX contract), and `README.md` (setup, versions, results, benchmark limitations, support matrix, gaps).
-- `.github/workflows/opentui-spike.yml` — Linux Node 26.4/26.11, macOS 26.11, and Windows 26.11 matrix, pinned action SHAs and `contents: read`; green on PR #898 ([run 38031068405](https://github.com/boduga/ALiX/actions/runs/38031068405)).
+- `.github/workflows/opentui-spike.yml` — Linux Node 26.4/26.11, macOS 26.11, and Windows 26.11 matrix, pinned action SHAs and `contents: read`; green on PR #898 ([run 38035406119](https://github.com/boduga/ALiX/actions/runs/38035406119)).
 - `scripts/check-package-manager.sh` — scoped exemption so the isolated npm lockfile (and its workflow/hand-off references) do not trip the pnpm-only policy.
 - `AGENTS.md` — root Child DOX Index entry for `experiments/opentui/AGENTS.md`.
 
@@ -36,6 +36,6 @@ Used official Node 26.11.0 binary at `/tmp/alix-node26/node-v26.11.0-linux-x64/b
 
 1. **Close the performance gate.** Current numbers are single-host/single-run with differently framed workloads. Define a comparable ANSI/OpenTUI workload and thresholds before any pass claim.
 2. **Then, and only then**, extract renderer-neutral `WorkbenchViewState` and add selected-renderer launch with launcher-owned `--experimental-ffi`. Default switching and ANSI canvas removal remain later decisions.
-3. **Optional platform breadth.** No Linux arm64, musl, or macOS x64 CI leg is configured. Windows terminal restoration is now checked by `pty-check-win.py` (ConPTY via pywinpty) in CI.
+3. **Optional platform breadth.** No Linux arm64, musl, or macOS x64 CI leg is configured. Windows terminal restoration is verified green by `pty-check-win.py` (ConPTY via pywinpty) in CI.
 
 Current [OpenTUI runtime requirements](https://opentui.com/docs/getting-started/runtime-support/) specify Node 26.4+, ESM, and `--experimental-ffi`.
