@@ -15,7 +15,6 @@ import type { ToolCall } from "../../../models/providers/types.js";
 import { resolveExecutableToolName, ToolNotFoundError, type OfferedExecutableTool } from '../../../agents/tool-name-resolver.js';
 import type { EventLog } from "../../../runtime-state/events/event-log.js";
 import "../../../task-classifier.js";
-import "../../../run.js";
 import "../../../capabilities/skills/dispatcher.js";
 import "../../verifier/index.js";
 import "../../verifier/enhanced-verifier.js";

@@ -15,7 +15,6 @@ import type { NormalizedMessage } from "../../../models/providers/types.js";
 import type { EventLog } from "../../../runtime-state/events/event-log.js";
 import type { TaskType } from "../../../task-classifier.js";
 import "../../../task-classifier.js";
-import "../../../run.js";
 import "../../../capabilities/skills/dispatcher.js";
 import "../../verifier/index.js";
 import "../../verifier/enhanced-verifier.js";
