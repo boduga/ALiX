@@ -16,6 +16,12 @@ fi
 # Use -w for word-boundary matching so pnpm install is not caught by npm install
 SEARCH_PATHS=(.github/workflows scripts docs package.json)
 
+# Exemptions below: `npm publish`/`npm sbom` are not package-manager choices
+# for the project; `npm install ...$TARBALL` is the sanctioned smoke-install of
+# a PACKED tarball in a clean temp dir (pinning the tarball and its native
+# builds), because pnpm's tarball install trips ERR_PNPM_IGNORED_BUILDS for
+# protobufjs/sharp. Project dependency management stays pnpm.
+
 if grep -Rnw "${SEARCH_PATHS[@]}" \
   -e "npm ci" \
   -e "npm install" \
@@ -29,6 +35,7 @@ if grep -Rnw "${SEARCH_PATHS[@]}" \
   2>/dev/null \
   | grep -v "npm publish" \
   | grep -v "npm sbom" \
+  | grep -v "npm install.*TARBALL" \
   | grep -v "package-manager" \
   | grep -v "check-supply-chain.sh" \
   | grep -v "docs/archive/" \

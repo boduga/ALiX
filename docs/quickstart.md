@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-- Node.js 24+
+- Node.js 26.4.0+
 - pnpm (enable with `corepack enable`)
 - A model provider API key (DeepSeek, Anthropic, OpenAI, etc.)
 

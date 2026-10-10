@@ -29,7 +29,7 @@ jobs:
       # actions/setup-node v4 — pinned to SHA
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           registry-url: "https://registry.npmjs.org"
           cache: pnpm
 
@@ -62,7 +62,7 @@ jobs:
       - name: Pack (Sf.7 step 3)
         id: pack
         run: |
-          TARBALL="$(pnpm pack --json | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'))[0].filename" 2>/dev/null)"
+          TARBALL="$(pnpm pack --json | node -p "const parsed = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); (Array.isArray(parsed) ? parsed[0] : parsed).filename" 2>/dev/null)"
           echo "Tarball: $TARBALL"
           echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
 
@@ -82,7 +82,7 @@ jobs:
           TARBALL="${{ steps.pack.outputs.tarball }}"
           TMP_DIR="$(mktemp -d)"
           echo "Installing tarball into $TMP_DIR"
-          if pnpm install --prefix "$TMP_DIR" "$PWD/$TARBALL" > /dev/null 2>&1; then
+          if npm install --prefix "$TMP_DIR" --no-audit --no-fund "$PWD/$TARBALL" > /dev/null 2>&1; then
             if (cd "$TMP_DIR" && ./node_modules/.bin/alix init > /dev/null 2>&1 && \
                 ./node_modules/.bin/alix doctor > /dev/null 2>&1 && \
                 ./node_modules/.bin/alix models doctor --json > /dev/null 2>&1); then
@@ -134,7 +134,7 @@ jobs:
       # actions/setup-node v4 — pinned to SHA
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           registry-url: "https://registry.npmjs.org"
 
       # Download the exact tarball that passed the release gate

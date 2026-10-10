@@ -10,7 +10,7 @@ npm install -g alix
 
 (Or run from source: `git clone https://github.com/boduga/ALiX && cd ALiX && corepack enable && pnpm install && pnpm build`.)
 
-Requires Node 24+.
+Requires Node.js 26.4.0+.
 
 ## 2. Set up an LLM provider
 

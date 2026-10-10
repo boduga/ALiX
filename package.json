@@ -65,7 +65,7 @@
     "fresh": "pnpm build && node dist/src/cli.js doctor"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=26.4.0"
   },
   "devDependencies": {
     "@langfuse/core": "5.11.1",
@@ -73,7 +73,6 @@
     "@types/node": "26.5.1",
     "c8": "12.0.0",
     "glob": "13.0.6",
-    "minimatch": "10.2.6",
     "typescript": "7.0.2",
     "undici-types": "8.10.2",
     "vitest": "5.0.3"
@@ -90,6 +89,7 @@
     "better-sqlite3": "13.0.3",
     "cli-spinners": "3.4.0",
     "effect": "3.22.2",
+    "minimatch": "10.2.6",
     "tiktoken": "1.0.22",
     "yaml": "2.9.1"
   }
