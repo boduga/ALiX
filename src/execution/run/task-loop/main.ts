@@ -27,7 +27,8 @@ import type { ExecutionContext } from "../../../operations/observability/executi
 import type { ScopeTracker } from "../../../planning/autonomy/scope-tracker.js";
 import type { TaskStateMachine } from "../../../planning/autonomy/state-machine.js";
 import { classifyTask } from "../../../task-classifier.js";
-import type { MutationSessionState, RunResult } from "../../../run.js";
+import type { MutationSessionState } from "../../../agents/agent/mutations.js";
+import type { RunResult } from "../../../execution/run/run-contract.js";
 import { recordMutationInSessionState, extractMutationPaths } from "../../../agents/agent/mutations.js";
 import { buildModelUsageEventPayload } from "../../../agents/agent/messages.js";
 import { DEFAULT_FACTORY_CONFIG } from "../../../capabilities/skills/dispatcher.js";

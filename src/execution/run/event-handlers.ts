@@ -12,7 +12,7 @@ import { buildOfferedExecutableTools, resolveExecutableToolName, ToolNotFoundErr
 import { TOOL_EVENT_TYPES, POLICY_EVENT_TYPES } from "../../runtime-state/events/types.js";
 import type { NormalizedMessage, ToolCall, ToolDef } from "../../models/providers/types.js";
 import type { ScopeTracker } from "../../planning/autonomy/scope-tracker.js";
-import type { MutationSessionState } from "../../run.js";
+import type { MutationSessionState } from "../../agents/agent/mutations.js";
 import { extractMutationPaths } from "../../agents/agent/mutations.js";
 import { buildErrorMessage } from "../../agents/agent/messages.js";
 import { ToolDiscovery } from "../../capabilities/mcp/tool-discovery.js";

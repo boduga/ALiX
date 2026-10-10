@@ -8,7 +8,8 @@
 
 import type { NormalizedMessage } from "../../../models/providers/types.js";
 import type { EventLog } from "../../../runtime-state/events/event-log.js";
-import type { MutationSessionState, RunResult } from "../../../run.js";
+import type { MutationSessionState } from "../../../agents/agent/mutations.js";
+import type { RunResult } from "../../../execution/run/run-contract.js";
 import type { TaskStateMachine } from "../../../planning/autonomy/state-machine.js";
 import type { EnhancedVerifier } from "../../verifier/enhanced-verifier.js";
 import type { ContextBudget } from "../../../operations/config/context-budget.js";

@@ -1,5 +1,5 @@
 import type { AssembledContext } from "../../operations/config/context-assembly.js";
-import type { ContextPressure } from "../../run.js";
+import type { ContextPressure } from "./run-contract.js";
 
 export function createContextPressureTracker() {
   let tier4Dropped = 0;

@@ -1,5 +1,5 @@
 import type { TaskLoopDeps } from './main.js';
-import type { RunResult } from '../../../run.js';
+import type { RunResult } from '../../../execution/run/run-contract.js';
 import type { EnhancedVerifier } from '../../verifier/enhanced-verifier.js';
 import type { ContextRotThreshold } from '../../../operations/config/calibration-store.js';
 import type { createContextPressureTracker } from '../context-pressure.js';

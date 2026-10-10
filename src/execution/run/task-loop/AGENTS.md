@@ -93,10 +93,11 @@ barrel preserving public import paths.
 - **Never import the `src/run.ts` back-compat shim from task-loop internals.**
   `run.ts` re-exports `runTask` from `agent/agent-loop.ts`, so any value (or
   bare side-effect) import of it re-creates the
-  `task-loop ↔ run.ts ↔ agent-loop` import cycle (22 elementary cycles). Import
-  `RunResult`/`ContextPressure`/`MutationSessionState` from their home modules
-  and `extractMutationPaths`/`recordMutationInSessionState`/`buildErrorMessage`/
-  `buildModelUsageEventPayload` from `agents/agent/{mutations,messages}.js`.
+  `task-loop ↔ run.ts ↔ agent-loop` import cycle. Import `RunResult`/
+  `ContextPressure` from `execution/run/run-contract.js`, `MutationSessionState`
+  from `agents/agent/mutations.js`, and the mutation/message helpers
+  (`extractMutationPaths`/`recordMutationInSessionState`/`buildErrorMessage`/
+  `buildModelUsageEventPayload`) directly from `agents/agent/{mutations,messages}.js`.
 - Keep every module, including the orchestrator `main.ts`, within 1,500 lines;
   extract phases rather than inlining.
 - The unindented `runTaskLoop` body contains inner statements at column zero;
