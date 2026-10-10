@@ -11,7 +11,7 @@ import { closeAllSharedLedgers } from '../../src/runtime-state/storage/runtime-l
 
 const mocks=vi.hoisted(()=>({complete:vi.fn(),runTask:vi.fn()}));
 vi.mock('../../src/models/providers/registry.js',()=>({createProvider:async()=>({complete:mocks.complete})}));
-vi.mock('../../src/operations/config/api-keys.js',()=>({getApiKey:async()=>undefined}));
+vi.mock('../../src/governance/security/credentials/api-keys.js',()=>({getApiKey:async()=>undefined}));
 vi.mock('../../src/run.js',()=>({runTask:mocks.runTask}));
 afterEach(()=>vi.clearAllMocks());
 async function fixture(){

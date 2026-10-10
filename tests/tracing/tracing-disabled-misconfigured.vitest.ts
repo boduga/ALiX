@@ -62,7 +62,7 @@
  *     the run-level half: a disabled run seeded with `cred://` references never
  *     calls `resolveCredential` (spy) and never mutates the references. NOTE:
  *     the credential-reference module itself IS part of the run-loop graph
- *     (task-loop → skills/dispatcher → skills/factory → operations/config/api-keys),
+ *     (task-loop → skills/dispatcher → skills/factory → governance/security/credentials/api-keys),
  *     so a module-evaluation probe would be polluted by non-tracing harness
  *     machinery — a call-spy is the honest observable, not module absence.
  *   - Zero network: NoopTraceClient has no transport by construction

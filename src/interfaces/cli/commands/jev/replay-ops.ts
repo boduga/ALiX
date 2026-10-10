@@ -35,7 +35,7 @@ import {
   type ReplayRun,
 } from "../../../../planning/decision/index.js";
 import type { AlixConfig } from "../../../../operations/config/schema.js";
-import { getSavedApiKey } from "../../../../operations/config/api-keys.js";
+import { getSavedApiKey } from "../../../../governance/security/credentials/api-keys.js";
 import {
   JEV_KEY_PROVIDER_ID,
   JevOperatorError,

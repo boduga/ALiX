@@ -10,7 +10,7 @@ import { loadConfig, projectConfigDir, userConfigDir } from "../../../operations
 import "../../../operations/config/model-resolver.js";
 import "../../../index.js";
 import { prompt } from "./prompt.js";
-import { setApiKey } from "../../../operations/config/api-keys.js";
+import { setApiKey } from "../../../governance/security/credentials/api-keys.js";
 import { PROVIDERS } from "../../../models/providers/catalog.js";
 
 async function selectProvider(): Promise<string> {

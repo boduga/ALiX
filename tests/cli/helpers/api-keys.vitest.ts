@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 // Mutating test seam to redirect user-config reads/writes inside a temp dir.
+import { _setUserConfigPathOverride } from "../../../src/operations/config/user-config-path.js";
 import {
-  _setUserConfigPathOverride,
   getSavedApiKey,
   setApiKey,
   getApiKey,
-} from "../../../src/operations/config/api-keys.js";
+} from "../../../src/governance/security/credentials/api-keys.js";
 import { PROVIDERS } from "../../../src/models/providers/catalog.js";
 
 const ALL_ENV_VARS = PROVIDERS.map((p) => p.env);

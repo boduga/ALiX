@@ -8,7 +8,7 @@ import { renderWorkerExecutionPrompt } from "./coordination-worker-context.js";
 import { reviewCoordinationResult, type ObjectiveArtifact } from "../../agents/coordination-objective-review.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
 import { createProvider } from "../../models/providers/registry.js";
-import { getApiKey } from "../../operations/config/api-keys.js";
+import { getApiKey } from "../../governance/security/credentials/api-keys.js";
 import { createToolExecutor } from "../../capabilities/tools/tool-executor-factory.js";
 import { loadApprovalStore } from "../../governance/approvals/approval-store.js";
 import { toolResultText } from "../../capabilities/tools/result-text.js";

@@ -1,5 +1,5 @@
 /**
- * API-key resolution shared by all CLI commands that touch a provider's key.
+ * API-key resolution shared by every caller that needs a provider key.
  *
  * API key resolution (store-only; spec §7, amended — durable user decision:
  * no environment-variable-first resolution for any current or future key).
@@ -17,24 +17,13 @@
  */
 import { existsSync } from "node:fs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 
-import { PROVIDERS } from "../../models/providers/catalog.js";
-import { isKeylessProvider } from "../../models/providers/keyless-providers.js";
-import { isCredentialReference, parseCredentialReference } from "../../governance/security/credentials/credential-reference.js";
-import type { CredentialStore } from "../../governance/security/credentials/credential-store.js";
-
-// Test seam - override the user-config path without touching real filesystem.
-let userConfigPathOverride: string | undefined;
-
-export function _setUserConfigPathOverride(path: string | undefined): void {
-  userConfigPathOverride = path;
-}
-
-function resolveUserConfigPath(): string {
-  return userConfigPathOverride ?? join(homedir(), ".config", "alix", "config.json");
-}
+import { PROVIDERS } from "../../../models/providers/catalog.js";
+import { isKeylessProvider } from "../../../models/providers/keyless-providers.js";
+import { isCredentialReference, parseCredentialReference } from "./credential-reference.js";
+import type { CredentialStore } from "./credential-store.js";
+import { resolveUserConfigPath } from "../../../operations/config/user-config-path.js";
 
 /**
  * Read the `apiKeys[providerId]` value from the user config.
@@ -83,55 +72,13 @@ let _credentialStore: CredentialStore | undefined;
 async function loadCredentialStore(): Promise<CredentialStore> {
   if (_credentialStore) return _credentialStore;
   const { chooseBackend, loadCredentialStoreWithKeychainFallback } =
-    await import("../../governance/security/credentials/backend-selection.js");
+    await import("./backend-selection.js");
   const backend = await chooseBackend();
   _credentialStore = await loadCredentialStoreWithKeychainFallback(
     backend,
     () => { /* silent — key resolution should not surface store warnings */ },
   );
   return _credentialStore;
-}
-
-/**
- * Web-search provider selection (user-local infra).
- *
- * Read from the `search` section of the user config
- * (`~/.config/alix/config.json`), e.g.:
- *
-  *   { "search": { "provider": "searxng", "searxngBaseUrl": "http://10.1.1.160:8080" } }
- *
- * Defaults to `{ provider: "brave" }` (current behavior). Unknown provider
- * values fall back to Brave so a typo never breaks search entirely.
- * Never throws — missing files / malformed JSON resolve to the default.
- */
-export type SearchProvider = "brave" | "searxng";
-
-export type SearchConfig = {
-  provider: SearchProvider;
-  searxngBaseUrl?: string;
-  /** Optional engine pin, e.g. "bing,wikipedia" (instance defaults when unset). */
-  searxngEngines?: string;
-};
-
-export async function getSearchConfig(): Promise<SearchConfig> {
-  const path = resolveUserConfigPath();
-  if (!existsSync(path)) return { provider: "brave" };
-  try {
-    const raw = await readFile(path, "utf8");
-    const parsed = JSON.parse(raw) as { search?: Partial<SearchConfig> };
-    const provider = parsed.search?.provider;
-    return {
-      provider: provider === "searxng" ? "searxng" : "brave",
-      ...(typeof parsed.search?.searxngBaseUrl === "string" && parsed.search.searxngBaseUrl.length > 0
-        ? { searxngBaseUrl: parsed.search.searxngBaseUrl.replace(/\/+$/, "") }
-        : {}),
-      ...(typeof parsed.search?.searxngEngines === "string" && parsed.search.searxngEngines.length > 0
-        ? { searxngEngines: parsed.search.searxngEngines }
-        : {}),
-    };
-  } catch {
-    return { provider: "brave" };
-  }
 }
 
 /**

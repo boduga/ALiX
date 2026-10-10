@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { webSearchTool } from "../../src/capabilities/tools/web-search.js";
-import { _setUserConfigPathOverride } from "../../src/operations/config/api-keys.js";
+import { _setUserConfigPathOverride } from "../../src/operations/config/user-config-path.js";
 
 describe("webSearchTool", () => {
   let tmpDir: string;
