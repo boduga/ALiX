@@ -6,6 +6,7 @@
  */
 
 import { writeFile, rename as renameFile, mkdir, readFile } from "node:fs/promises";
+import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js";
 import { existsSync } from "node:fs";
 import { join, relative, isAbsolute, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -129,7 +130,7 @@ export class CoordinationResultStore {
     const resolved = resolve(this.cwd, resultRef);
     const rel = relative(this.baseDir, resolved);
     // The resolved path must be within the results directory and be a .json file
-    if (rel.startsWith("..") || isAbsolute(rel) || !rel.endsWith(".json")) {
+    if (relativeIsOutside(rel) || !rel.endsWith(".json")) {
       return { status: "invalid_ref", message: "Reference outside result directory or invalid format" };
     }
     // Reject aggregate runs/ paths (those are not worker results)

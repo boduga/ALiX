@@ -31,6 +31,14 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
 
 ## Local Contracts
 
+- **Containment predicate is one function.** `relativeIsOutside(rel)` in
+  `workspace-path.ts` is the single lexical check for a resolved
+  `relative(root, target)` result (`rel === ".." || rel.startsWith("../") ||
+  isAbsolute(rel)`); it backs `WorkspacePathResolver` and every resolved-path
+  backstop (tool-router, file-tools, patch-engine, coordination). Never
+  re-inline the `relative`+`startsWith` pattern. Raw-input sanitizers
+  (`isTraversalSafe`, `isPathSafe`) validate unresolved strings and are their
+  own heuristics — do not confuse them with this predicate.
 - **The R2 transactional ledger is a storage authority, not a query-time
   backend.** Domains that flipped (execution-state R2.12, continuations
   R2.14, replay + evidence R2.17) read and write

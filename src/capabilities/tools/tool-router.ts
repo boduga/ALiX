@@ -1,10 +1,11 @@
 import type { ToolResult, ToolCallRequest } from "./types.js";
+import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js";
 import { readFile, grepSearch, globMatch } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
 import { applyPatch } from "../../execution/patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../../execution/patch/edit-format-policy.js";
@@ -191,7 +192,7 @@ export class FileToolRouter implements ToolRouter {
         // escapes above, but resolve lexically so a symlinked path cannot change
         // the target between that check and this write.
         const rel = relative(baseRoot, resolvedPath);
-        if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+        if (relativeIsOutside(rel)) {
           return { kind: "error", message: "Path is outside workspace", retryable: false };
         }
         await mkdir(dirname(resolvedPath), { recursive: true });
@@ -268,7 +269,7 @@ export class FileToolRouter implements ToolRouter {
         const resolvedPath = resolve(baseRoot, path);
         // Defence in depth, as in file.create: checkPath already rejected escapes.
         const rel = relative(baseRoot, resolvedPath);
-        if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+        if (relativeIsOutside(rel)) {
           return { kind: "error", message: "Path is outside workspace", retryable: false, hint: "Check the path is relative and inside the project directory." };
         }
         // R1.5: parity with file.create's overwrite backstop — a caller

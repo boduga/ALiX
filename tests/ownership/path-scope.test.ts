@@ -187,6 +187,12 @@ describe("resolveOwnedScopePrefix — parity table", () => {
     [".tmp/out/a.md", ".tmp/out/a.md"],
     ["/ws/src", "src"],
 
+    // ── in-tree names that merely START with ".." are NOT escapes ──
+    // (only ".." or "../" segments escape; `..foo` is an ordinary sibling name)
+    ["..foo", "..foo"],
+    ["..foo/x", "..foo/x"],
+    ["dir/..foo", "dir/..foo"],
+
     // ── must NOT be workspace-wide: a real directory narrows the grant ──
     ["docs/*.ts", null],
     ["docs/**/*.ts", null],
