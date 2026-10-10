@@ -67,6 +67,18 @@ The next reviewable piece added native inspector and composer content:
 - `workbench-layout.ts` exposes the latest `ComposerLayout` (not just geometry) so content renders the same wrapped rows the layout sized.
 - `tests/tui/workbench/opentui-layout.native.ts` adds inspector selection/aggregate frames and composer placeholder/draft/multiline frames (11 native tests).
 
-Committed as `829e29cd` (`feat(tui): render OpenTUI inspector and composer`). Remaining view content: task/artifact drawer bodies, approvals, transcript scroll controls, then input routing, live snapshot wiring, and terminal lifecycle.
+Committed as `829e29cd` (`feat(tui): render OpenTUI inspector and composer`). Remaining view content: approvals and transcript scroll controls, then input routing, live snapshot wiring, and terminal lifecycle.
 
 Verification: `pnpm build`; `pnpm test:opentui` 11/11; `pnpm typecheck:unused`; `pnpm check:dead`; both architecture tests 8/8; `tests/tui` vitest 1380/1380; `pnpm check:dox`; `git diff --check`. GitNexus `detect-changes --scope all` reported 4 files / 55 symbols, 0 affected processes, low risk, not partial. Anchored `impact` for `mountOpenTuiWorkbenchLayout`/`buildAgentInspectorSections` again returned NUL-corrupted, fuzzy-matched CRITICAL caller sets (the known resolver defect); text search confirms the only callers are the native test and `agent-view.ts` respectively.
+
+## Drawer bodies slice
+
+The roster/overlay pane previously painted the agent roster for every drawer. `workbench-content.ts` now routes drawer content by the active drawer:
+
+- `tasksLines` renders the task summary, `RUN` scope, per-task state glyph/title/subtitle, and selected-task correlation plus block/operation/ownership/dependency details, using `visibleForRun` and the existing `TaskRosterSnapshot` fields.
+- `artifactsLines` renders the file/result counts, `RUN` scope, per-artifact kind/status marker, and the selected item's correlation, URI, media/size/digest metadata, and bounded preview, using `visibleArtifacts`.
+- The same body paints in both the wide side pane and the narrow overlay; `drawerLines` picks it by `overlay.drawer` and falls back to the agent roster.
+
+Committed as `775dd817` (`feat(tui): render OpenTUI task and artifact drawers`). Remaining view content: approvals and transcript scroll controls, then input routing, live snapshot wiring, and terminal lifecycle.
+
+Verification: `pnpm build`; `pnpm test:opentui` 12/12; `pnpm typecheck:unused`; `pnpm check:dead`; both architecture tests 8/8; `tests/tui` vitest 1380/1380; `pnpm check:dox`; `git diff --check`; GitNexus `detect-changes --scope all` reported 4 files / 7 symbols, 0 affected processes, low risk, not partial. Generic helper names (`formatBytes`, `count`, a task-state glyph object) first tripped the name-matched process attribution to CRITICAL; renaming them to unique module-private names (`drawerByteSize`, `countStates`, `taskDrawerGlyph`) cleared it.
