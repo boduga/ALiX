@@ -1,6 +1,6 @@
 import { TextRenderable, type CliRenderer } from '@opentui/core';
 import { getWorkbenchAgentPresentation, getWorkbenchPreviewTheme } from '../model/preview-theme.js';
-import { visibleForRun } from '../model/selection.js';
+import { visibleArtifacts, visibleForRun } from '../model/selection.js';
 import { transcriptItemMatchesFilter } from '../model/transcript-filter.js';
 import type { ConversationSnapshot, TranscriptItem } from '../model/transcript-item.js';
 import { truncateDisplayText, wrapDisplayText } from '../render/terminal-text.js';
@@ -120,6 +120,96 @@ function transcriptLines(state: ContentState, conversation: ConversationSnapshot
   return lines.slice(-height);
 }
 
+function taskDrawerGlyph(state: string): string {
+  if (state === 'running') return '●';
+  if (state === 'completed') return '✓';
+  if (state === 'partial') return '◐';
+  if (state === 'failed') return '✗';
+  if (state === 'blocked') return '!';
+  if (state === 'cancelled') return '○';
+  return '◌';
+}
+
+function drawerByteSize(value: number): string {
+  if (value < 1_024) return `${value} B`;
+  if (value < 1_048_576) return `${(value / 1_024).toFixed(1)} KiB`;
+  return `${(value / 1_048_576).toFixed(1)} MiB`;
+}
+
+function tasksLines(state: ContentState, width: number, height: number): string[] {
+  if (height === 0 || width === 0) return [];
+  const tasks = state.roster.tasks;
+  if (!tasks) return ['Tasks unavailable'];
+  const scoped = visibleForRun(tasks.tasks, state.selection.selectedRunId);
+  const countStates = (states: readonly string[]): number => scoped.filter(task => states.includes(task.state)).length;
+  const lines = [
+    `${tasks.blocked} blocked · ${countStates(['waiting_dependency', 'waiting_approval'])} waiting · ${countStates(['running'])} running · ${countStates(['queued', 'assigned'])} queued`,
+    `RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`,
+  ];
+  if (scoped.length === 0) return [...lines, 'No delegated tasks'].slice(0, height);
+  for (const task of scoped) {
+    if (lines.length >= height) break;
+    const selected = task.taskId === state.selection.selectedTaskId;
+    lines.push(truncateDisplayText(safeLine(`${selected ? '›' : ' '}${taskDrawerGlyph(task.state)} ${task.title}`), width));
+    if (lines.length < height) lines.push(truncateDisplayText(safeLine(`  ${task.state.toUpperCase().replaceAll('_', ' ')}${task.agentId ? ` · agent ${task.agentId}` : ''}`), width));
+    if (!selected) continue;
+    const details = [
+      [task.coordinationRunId ? `run ${task.coordinationRunId}` : '', task.assignedAgentId ? `assigned ${task.assignedAgentId}` : ''].filter(Boolean).join(' · '),
+      task.blockReason ? `BLOCKED · ${task.blockReason}` : '',
+      task.currentOperation && task.currentOperation !== task.title ? task.currentOperation : '',
+      task.ownedPaths.length ? `owns ${task.ownedPaths.join(', ')}` : '',
+      task.dependencyIds?.length ? `Depends on ${task.dependencyIds.join(', ')}` : '',
+    ];
+    for (const detail of details) {
+      if (lines.length >= height || !detail) continue;
+      lines.push(truncateDisplayText(safeLine(`    ${detail}`), width));
+    }
+  }
+  return lines.slice(0, height);
+}
+
+function artifactsLines(state: ContentState, width: number, height: number): string[] {
+  if (height === 0 || width === 0) return [];
+  const artifacts = state.roster.artifacts;
+  if (!artifacts) return ['Artifacts unavailable'];
+  const items = visibleArtifacts(artifacts.items, {
+    runId: state.selection.selectedRunId,
+    agentId: state.selection.selectedAgentId,
+    taskId: state.selection.selectedTaskId,
+  });
+  const lines = [
+    `${artifacts.artifacts} files · ${artifacts.results} results`,
+    `RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`,
+  ];
+  if (items.length === 0) return [...lines, 'No artifacts or results'].slice(0, height);
+  for (const item of items) {
+    if (lines.length >= height) break;
+    const selected = item.id === state.selection.selectedArtifactId;
+    const marker = item.status === 'failed' ? '✗' : item.status === 'unavailable' ? '!' : item.kind === 'artifact' ? '◆' : '✓';
+    lines.push(truncateDisplayText(safeLine(`${selected ? '›' : ' '}${marker} ${item.title}`), width));
+    if (!selected) continue;
+    const details = [
+      [item.artifactType ?? item.kind, item.agentId ? `agent ${item.agentId}` : '', item.taskId ? `task ${item.taskId}` : ''].filter(Boolean).join(' · '),
+      item.uri ?? '',
+      [item.mediaType ?? '', item.sizeBytes !== undefined ? drawerByteSize(item.sizeBytes) : '', item.digest ? `digest ${item.digest.slice(0, 12)}` : ''].filter(Boolean).join(' · '),
+      ...(item.preview ? item.preview.split(/\r?\n/).slice(0, 5).map(line => `  ${line}`) : []),
+    ];
+    for (const detail of details) {
+      if (lines.length >= height || !detail) continue;
+      lines.push(truncateDisplayText(safeLine(`  ${detail}`), width));
+    }
+  }
+  return lines.slice(0, height);
+}
+
+function drawerLines(state: ContentState, width: number, height: number): string[] {
+  switch (state.overlay.drawer) {
+    case 'tasks': return tasksLines(state, width, height);
+    case 'artifacts': return artifactsLines(state, width, height);
+    default: return rosterLines(state, width, height);
+  }
+}
+
 function inspectorLines(state: ContentState, width: number, height: number): string[] {
   if (height === 0 || width === 0) return [];
   const lines: string[] = [];
@@ -166,7 +256,7 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     const overlaySize = placeText(overlay, layout.regions.overlay, layout.geometry.regions.overlay);
     const inspectorSize = placeText(inspector, layout.regions.inspector, layout.geometry.regions.inspector);
     const composerSize = placeText(composer, layout.regions.composer, layout.geometry.regions.composer);
-    roster.content = rosterLines(state, rosterSize.width, rosterSize.height).join('\n');
+    roster.content = drawerLines(state, rosterSize.width, rosterSize.height).join('\n');
     if (state.transcript.followTail) pausedConversation = undefined;
     else pausedConversation ??= lastConversation ?? state.transcript.conversation;
     transcript.content = transcriptLines(
@@ -175,8 +265,8 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     lastConversation = state.transcript.conversation;
     inspector.content = inspectorLines(state, inspectorSize.width, inspectorSize.height).join('\n');
     composer.content = composerLines(state, layout.composer, composerSize.width, composerSize.height).join('\n');
-    overlay.content = state.overlay.drawer === 'agents'
-      ? rosterLines(state, overlaySize.width, overlaySize.height).join('\n') : '';
+    overlay.content = state.overlay.drawer !== 'closed'
+      ? drawerLines(state, overlaySize.width, overlaySize.height).join('\n') : '';
   };
   update(initial);
   let disposed = false;

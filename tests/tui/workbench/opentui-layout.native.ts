@@ -346,3 +346,46 @@ test('native composer shows placeholder, draft, and multiline rows', async () =>
     await dispose(setup);
   }
 });
+
+test('native drawers render task and artifact bodies by drawer selection', async () => {
+  const setup = await createTestRenderer({ width: 180, height: 40 });
+  try {
+    const shell = layoutState('tasks');
+    const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shell);
+    const base: ContentState = {
+      inspector: inspectorState(), composer: shell.composer,
+      roster: {
+        agents: null,
+        tasks: { tasks: [
+          { taskId: 't1', agentId: 'worker-1', coordinationRunId: 'run-a', title: 'Build draft', state: 'running', ownedPaths: ['src/x.ts'], createdAt: 1, updatedAt: 2 },
+          { taskId: 't2', agentId: 'worker-1', coordinationRunId: 'run-a', title: 'Publish', state: 'completed', ownedPaths: [], createdAt: 1, updatedAt: 2 },
+        ], blocked: 0, running: 1, queued: 0 },
+        artifacts: { items: [
+          { id: 'a1', kind: 'artifact', status: 'available', title: 'report.md', artifactType: 'markdown', uri: 'file:///out/report.md', sizeBytes: 2048, coordinationRunId: 'run-a', taskId: 't1', createdAt: 1, sourceSequence: 1 },
+        ], artifacts: 1, results: 0, failed: 0 },
+      },
+      transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
+      selection: { selectedRunId: 'run-a', selectedTaskId: 't1', selectedArtifactId: 'a1' }, overlay: shell.overlay,
+    };
+    const content = mountOpenTuiWorkbenchContent(setup.renderer, layout, base);
+    await setup.renderOnce();
+    let frame = setup.captureCharFrame();
+    assert.match(frame, /Build draft/);
+    assert.match(frame, /1 running/);
+    assert.match(frame, /src\/x\.ts/);
+
+    const artifactShell = layoutState('artifacts');
+    layout.update(artifactShell);
+    content.update({ ...base, composer: artifactShell.composer, overlay: artifactShell.overlay });
+    await setup.renderOnce();
+    frame = setup.captureCharFrame();
+    assert.match(frame, /report\.md/);
+    assert.match(frame, /1 files · 0 results/);
+    assert.match(frame, /2\.0 KiB/);
+    assert.doesNotMatch(frame, /Build draft/);
+    content.dispose();
+    layout.dispose();
+  } finally {
+    await dispose(setup);
+  }
+});
