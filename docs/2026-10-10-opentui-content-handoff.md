@@ -19,7 +19,7 @@ The next reviewable piece is agent-roster and transcript content inside the reta
 - `tests/tui/workbench/opentui-layout.native.ts`: adds native frames for run/agent selection, filters, compact/detailed tool output, paused follow, short-window roster, unavailable state, and a very long transcript item.
 - `src/interfaces/tui/workbench/opentui/AGENTS.md`: records content ownership and partial-slice contracts.
 
-This is still a partial renderer slice. Task/artifact drawer bodies, inspector, composer, approvals, transcript scroll controls, keyboard/paste routing, live snapshot wiring, and terminal lifecycle remain to be built. Keep the CLI's explicit unavailable exit until a complete selected renderer can own the terminal. Cross-renderer parity gates the later default switch.
+This is still a partial renderer slice. Task/artifact drawer bodies, approvals, transcript scroll controls, keyboard/paste routing, live snapshot wiring, and terminal lifecycle remain to be built; inspector and composer landed in the slice below. Keep the CLI's explicit unavailable exit until a complete selected renderer can own the terminal. Cross-renderer parity gates the later default switch.
 
 ## Review findings and current fix
 
@@ -58,3 +58,15 @@ Committed as `3af27254` (`feat(tui): render OpenTUI roster and transcript`) on `
 Before editing, `impact mountOpenTuiWorkbenchLayout --direction upstream` returned `UNKNOWN` with no resolved callers; text search found only the native test. `impact place --direction upstream` reported `CRITICAL` with 49 processes and 20 modules, including unrelated CLI/governance paths. Treat the warning as unresolved graph evidence, not an all-clear. Shared Workbench model and layout functions were left unchanged. The index reported one commit behind HEAD during this slice; it was refreshed before the closeout `detect-changes` run.
 
 No PR has been opened for the content slice; it is committed on `feat/opentui-native-layout` as `3af27254`.
+
+## Inspector and composer slice
+
+The next reviewable piece added native inspector and composer content:
+
+- `workbench-content.ts` now mounts retained inspector and composer `TextRenderable` nodes alongside roster/transcript/overlay. Inspector reuses the shared `buildAgentInspectorSections` builder and clips to the pane; composer renders the shared `layoutComposer` rows with the `>`/`…` prefix and the empty placeholder.
+- `workbench-layout.ts` exposes the latest `ComposerLayout` (not just geometry) so content renders the same wrapped rows the layout sized.
+- `tests/tui/workbench/opentui-layout.native.ts` adds inspector selection/aggregate frames and composer placeholder/draft/multiline frames (11 native tests).
+
+Committed as `829e29cd` (`feat(tui): render OpenTUI inspector and composer`). Remaining view content: task/artifact drawer bodies, approvals, transcript scroll controls, then input routing, live snapshot wiring, and terminal lifecycle.
+
+Verification: `pnpm build`; `pnpm test:opentui` 11/11; `pnpm typecheck:unused`; `pnpm check:dead`; both architecture tests 8/8; `tests/tui` vitest 1380/1380; `pnpm check:dox`; `git diff --check`. GitNexus `detect-changes --scope all` reported 4 files / 55 symbols, 0 affected processes, low risk, not partial. Anchored `impact` for `mountOpenTuiWorkbenchLayout`/`buildAgentInspectorSections` again returned NUL-corrupted, fuzzy-matched CRITICAL caller sets (the known resolver defect); text search confirms the only callers are the native test and `agent-view.ts` respectively.
