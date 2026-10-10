@@ -17,7 +17,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { canonicalStringify } from "../../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../operations/utils/canonical-json.js";
 import type { CapabilityCatalog } from "../../../capabilities/capability/canonical/catalog.js";
 import type { CapabilityProviderBinding } from "../../../capabilities/capability/canonical/provider.js";
 import type { CapabilityDefinition } from "../../../capabilities/capability/canonical/definition.js";

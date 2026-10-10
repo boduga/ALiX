@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getSavedApiKey } from "../../interfaces/cli/helpers/api-keys.js";
+import { getSavedApiKey } from "../../governance/security/credentials/api-keys.js";
 import { createProvider } from "../../models/providers/registry.js";
 import type { ModelAdapter } from "../../models/providers/types.js";
 import type { SkillFactoryConfig } from "../../operations/config/schema.js";

@@ -162,7 +162,7 @@ const DOMAIN_PREFIX = "alix-execution-v1:";
 // ─── Helper Functions ───────────────────────────────────────────────
 
 import { createHash } from "node:crypto";
-import { canonicalStringify } from "../../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../operations/utils/canonical-json.js";
 
 /**
  * Generate a deterministic intentId from proposalId, actor, and optional timestamp.

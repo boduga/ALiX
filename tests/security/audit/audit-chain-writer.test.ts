@@ -12,7 +12,7 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { AuditChainWriter } from "../../../src/governance/security/audit/audit-chain-writer.js";
-import { canonicalHash } from "../../../src/governance/security/audit/canonical-json.js";
+import { canonicalHash } from "../../../src/operations/utils/canonical-json.js";
 import type { AuditRecordV2, AnyAuditAction } from "../../../src/governance/audit/audit-types.js";
 import { acquire, type LockHandle } from "../../../src/governance/security/audit/audit-lock.js";
 

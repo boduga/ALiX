@@ -16,7 +16,7 @@
  */
 
 import type { ValidationResult } from "../../contracts/evolution-contract.js";
-import { canonicalStringify } from "../../../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../../operations/utils/canonical-json.js";
 import { createHash } from "node:crypto";
 
 // ---------------------------------------------------------------------------

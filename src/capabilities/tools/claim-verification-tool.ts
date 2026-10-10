@@ -11,7 +11,7 @@
  */
 import type { ToolResult } from "./types.js";
 import { loadConfig } from "../../operations/config/loader.js";
-import { getSavedApiKey } from "../../interfaces/cli/helpers/api-keys.js";
+import { getSavedApiKey } from "../../governance/security/credentials/api-keys.js";
 import {
   DEFAULT_DECISION_CONFIG,
   EngineNotRegisteredError,

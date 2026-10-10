@@ -33,7 +33,7 @@
  */
 
 import { join } from "node:path";
-import { canonicalStringify } from "../../../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../../operations/utils/canonical-json.js";
 import type { GovernanceRecommendation } from "../contracts/recommendation-contract.js";
 import { JsonlStore } from "../../forecast/jsonl-store.js";
 

@@ -13,7 +13,7 @@
 import { generateKeyPairSync, sign, verify, createHash, createPublicKey, createPrivateKey } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { canonicalStringify } from "./canonical-json.js";
+import { canonicalStringify } from "../../../operations/utils/canonical-json.js";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
 
 // ---------------------------------------------------------------------------

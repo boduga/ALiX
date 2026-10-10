@@ -13,7 +13,7 @@
  */
 import { PROVIDERS, getInstalledOllamaModels, getDefaultModel, listModels, detectProvider, type ModelInfo } from "../../../models/providers/catalog.js";
 import { isKeylessProvider } from "../../../models/providers/keyless-providers.js";
-import { getApiKey } from "./api-keys.js";
+import { getApiKey } from "../../../governance/security/credentials/api-keys.js";
 import { prompt as defaultPrompt } from "../commands/prompt.js";
 import type { ParsedInitArgs } from "./init-args.js";
 

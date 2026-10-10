@@ -10,7 +10,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { canonicalStringify } from "../../../src/governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../src/operations/utils/canonical-json.js";
 import {
   buildExecutionEvidence,
   buildLineage,

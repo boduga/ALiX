@@ -15,7 +15,7 @@
  */
 
 import { join } from "node:path";
-import { canonicalStringify } from "../../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../operations/utils/canonical-json.js";
 import type { Forecast, ForecastId } from "./contracts/contract.js";
 import { JsonlStore } from "./jsonl-store.js";
 

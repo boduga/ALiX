@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
 import { acquire, release } from "../audit/audit-lock.js";
-import { canonicalHash, canonicalStringify } from "../audit/canonical-json.js";
+import { canonicalHash, canonicalStringify } from "../../../operations/utils/canonical-json.js";
 import {
   EVIDENCE_SCHEMA_VERSION,
   type EvidenceRecord,

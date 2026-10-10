@@ -68,7 +68,7 @@ The audit store is a **plain JSONL file with hash-chaining**, following the same
 └─────────────┘    └─────────────┘    └─────────────┘
 ```
 
-Each event's `eventHash` = `canonicalHash(eventWithoutEventHash)` — covers every field including `previousHash` but excluding `eventHash` itself. Uses the existing `canonicalStringify`/`canonicalHash` from the security audit module (`src/governance/security/audit/canonical-json.ts`), which produces deterministic sorted-key JSON with a domain prefix.
+Each event's `eventHash` = `canonicalHash(eventWithoutEventHash)` — covers every field including `previousHash` but excluding `eventHash` itself. Uses the existing `canonicalStringify`/`canonicalHash` from the security audit module (`src/operations/utils/canonical-json.ts`), which produces deterministic sorted-key JSON with a domain prefix.
 
 ## Core Objects
 
@@ -207,7 +207,7 @@ type RiskLevel = "low" | "medium" | "high" | "critical";
 
 ## Dependencies
 
-- `src/governance/security/audit/canonical-json.ts` — `canonicalStringify`, `canonicalHash` for deterministic JSON and SHA-256
+- `src/operations/utils/canonical-json.ts` — `canonicalStringify`, `canonicalHash` for deterministic JSON and SHA-256
 - Node.js `node:crypto` — `createHash`
 - Node.js `node:fs/promises` — `readFile`, `appendFile`, `mkdir`
 - Node.js `node:path` — `join`

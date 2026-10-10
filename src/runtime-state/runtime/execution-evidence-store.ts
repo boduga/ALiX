@@ -13,7 +13,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import type { ExecutionEvidence } from "./contracts/execution-intent-contract.js";
-import { canonicalStringify } from "../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../operations/utils/canonical-json.js";
 import { JsonlStore } from "../storage/jsonl-store.js";
 import { appendFact, drainLedgerEvents } from "../storage/runtime-ledger.js";
 

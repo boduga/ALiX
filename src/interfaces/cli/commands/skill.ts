@@ -7,7 +7,7 @@ import "node:fs";
 import "../../../operations/config/model-resolver.js";
 import "../../../index.js";
 import "./prompt.js";
-import "../helpers/api-keys.js";
+import "../../../governance/security/credentials/api-keys.js";
 import "../../../models/providers/catalog.js";
 
 export async function handleSkillRoot(args: string[]): Promise<void> {

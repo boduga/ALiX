@@ -12,7 +12,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { canonicalStringify } from "../../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../../operations/utils/canonical-json.js";
 import type { ReproducibilityLevel, VerificationEvidence } from "../verification/contracts/verification-contract.js";
 import type { ObservationResult } from "./contracts/observation-contract.js";
 

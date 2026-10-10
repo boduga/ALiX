@@ -176,7 +176,7 @@ export async function handleCredentialSet(args: string[]): Promise<void> {
   // Wire the reference into the user config's `apiKeys` so CLI commands can
   // discover the key. A `cred://` reference is a pointer (safe to persist) —
   // the secret itself lives only in the store.
-  const { setApiKey } = await import("../../helpers/api-keys.js");
+  const { setApiKey } = await import("../../../../governance/security/credentials/api-keys.js");
   await setApiKey(provider, reference);
 
   if (jsonMode) {
@@ -212,7 +212,7 @@ export async function handleCredentialDelete(args: string[]): Promise<void> {
   // Best-effort: remove the apiKeys reference for this provider so CLI
   // commands stop trying to resolve a now-deleted credential.
   try {
-    const { deleteApiKey } = await import("../../helpers/api-keys.js");
+    const { deleteApiKey } = await import("../../../../governance/security/credentials/api-keys.js");
     await deleteApiKey(provider);
   } catch {
     /* config write failure should not mask the delete */

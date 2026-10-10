@@ -45,7 +45,7 @@ Validation rules:
 
 - `computeEventHash(event)` — strips `eventHash`, canonical-stringifies remaining fields, SHA-256 via `canonicalHash`
 - `computePreviousHash(readChronological)` — returns the last event's `eventHash` (or null for empty store)
-- Reuses `canonicalStringify`/`canonicalHash` from `src/governance/security/audit/canonical-json.ts`
+- Reuses `canonicalStringify`/`canonicalHash` from `src/operations/utils/canonical-json.ts`
 
 Hash formula:
 ```
@@ -152,7 +152,7 @@ All take an event array and filter parameters:
 
 ## Dependencies
 
-- `src/governance/security/audit/canonical-json.ts` — `canonicalStringify`, `canonicalHash`
+- `src/operations/utils/canonical-json.ts` — `canonicalStringify`, `canonicalHash`
 - Node.js `node:crypto` — `createHash` (used by canonical-json)
 - Node.js `node:fs/promises` — `readFile`, `appendFile`, `mkdir`
 - Node.js `node:path` — `join`

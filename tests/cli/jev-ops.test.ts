@@ -42,7 +42,7 @@ import {
   renderLabelPairReveal,
 } from "../../src/interfaces/cli/commands/jev/render.js";
 import { dispatchJevCommand } from "../../src/interfaces/cli/commands/jev/main.js";
-import { _setUserConfigPathOverride } from "../../src/interfaces/cli/helpers/api-keys.js";
+import { _setUserConfigPathOverride } from "../../src/operations/config/user-config-path.js";
 import { _setHomedirOverride } from "../../src/operations/config/loader.js";
 
 let cwd: string;

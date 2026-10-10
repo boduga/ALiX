@@ -13,7 +13,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { canonicalStringify } from "./canonical-json.js";
+import { canonicalStringify } from "../../../operations/utils/canonical-json.js";
 import { streamJsonlLines } from "../../../runtime-state/storage/jsonl-store.js";
 import type { AuditHead, AuditRecordV2 } from "../../audit/audit-types.js";
 import { isAuditRecordV2, isLegacyAuditRecord } from "../../audit/audit-types.js";

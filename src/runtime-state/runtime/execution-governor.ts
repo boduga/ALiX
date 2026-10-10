@@ -35,7 +35,7 @@ import type {
   ExecutionEvidence,
 } from "./contracts/execution-intent-contract.js";
 import { deriveIntentStatus } from "./contracts/execution-intent-contract.js";
-import { canonicalStringify } from "../../governance/security/audit/canonical-json.js";
+import { canonicalStringify } from "../../operations/utils/canonical-json.js";
 
 /** Domain/version prefix for evidence hash computation. */
 const DOMAIN_PREFIX = "alix-execution-evidence-v1:";
