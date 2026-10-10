@@ -32,6 +32,7 @@ import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { buildWorkbenchInputContext } from './workbench/input/input-context.js';
 import { moveAgentSelection, moveArtifactSelection, moveRunSelection, moveTaskSelection, selectAgentShortcut } from './workbench/controller/selection-intent.js';
+import { applyWorkbenchStoreIntent } from './workbench/controller/store-intent.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
@@ -789,11 +790,19 @@ export class TuiApp {
       approvalPending: perTab.pendingApprovals.length > 0 || fallbackTarget !== undefined,
     }));
 
+    const storeResult = applyWorkbenchStoreIntent(this.workbenchStore, intent, {
+      coordinationAvailable: Boolean(this.opts.agentSession?.runCoordination),
+    });
+    if (storeResult.handled) {
+      if (storeResult.syncComposer) this.syncWorkbenchComposer();
+      if (storeResult.pinnedBottom !== undefined) perTab.pinnedBottom = storeResult.pinnedBottom;
+      if (storeResult.transcriptMode) perTab.transcriptMode = storeResult.transcriptMode;
+      if (storeResult.followToBottom) this.resetScrollOffsetToBottom('agent');
+      if (storeResult.repaint) this.paintFullFrame();
+      return true;
+    }
+
     switch (intent.type) {
-      case 'coordination.edit':
-        this.workbenchStore.dispatch(intent);
-        this.paintFullFrame();
-        return true;
       case 'coordination.submit':
         void this.submitWorkbenchCoordination();
         return true;
@@ -804,16 +813,6 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       }
-      case 'focus.set':
-        this.workbenchStore.dispatch(intent);
-        this.paintFullFrame();
-        return true;
-      case 'transcript.filter':
-      case 'transcript.scope.toggle':
-        this.workbenchStore.dispatch(intent);
-        if (state.followTail) this.resetScrollOffsetToBottom('agent');
-        this.paintFullFrame();
-        return true;
       case 'transcript.follow.toggle': {
         const followTail = !state.followTail;
         // Capture the currently visible bottom before stopping automatic follow.
@@ -824,25 +823,6 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       }
-      case 'composer.insert':
-        this.workbenchStore.dispatch({ type: 'composer.insert', text: intent.text });
-        this.syncWorkbenchComposer();
-        this.paintFullFrame();
-        return true;
-      case 'composer.backspace':
-        this.workbenchStore.dispatch({ type: 'composer.backspace' });
-        this.syncWorkbenchComposer();
-        this.paintFullFrame();
-        return true;
-      case 'composer.delete':
-        this.workbenchStore.dispatch({ type: 'composer.delete' });
-        this.syncWorkbenchComposer();
-        this.paintFullFrame();
-        return true;
-      case 'composer.move':
-        this.workbenchStore.dispatch({ type: 'composer.move', direction: intent.direction });
-        this.paintFullFrame();
-        return true;
       case 'slash.submit':
         if (this.openWorkbenchBuiltinSurface(state.composer.text)) {
           this.workbenchStore.dispatch({ type: 'composer.clear' });
@@ -882,45 +862,12 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       }
-      case 'transcript.toggle': {
-        const next = state.transcriptMode === 'compact' ? 'detailed' : 'compact';
-        this.workbenchStore.dispatch({ type: 'transcript.mode', mode: next });
-        perTab.transcriptMode = next;
-        perTab.pinnedBottom = true;
-        this.resetScrollOffsetToBottom('agent');
-        this.paintFullFrame();
-        return true;
-      }
-      case 'inspector.open':
-        this.workbenchStore.dispatch({ type: 'overlay.toggle', overlay: 'inspector' });
-        this.paintFullFrame();
-        return true;
-      case 'drawer.toggle':
-        if (state.overlayStack.at(-1) === 'inspector') this.workbenchStore.dispatch({ type: 'overlay.close' });
-        this.workbenchStore.dispatch({ type: 'drawer.toggle', drawer: intent.drawer });
-        this.paintFullFrame();
-        return true;
-      case 'drawer.close':
-        this.workbenchStore.dispatch({ type: 'drawer.close' });
-        this.paintFullFrame();
-        return true;
       case 'agent.shortcut': {
         const target = selectAgentShortcut(this.state.lastSnapshot, state, intent.index);
         if (target) this.workbenchStore.dispatch({ type: 'agent.select', ...target });
         this.paintFullFrame();
         return true;
       }
-      case 'agent.aggregate':
-        this.workbenchStore.dispatch({ type: 'agent.select', agentId: undefined, scrollOffset: 0 });
-        this.paintFullFrame();
-        return true;
-      case 'coordination.inspect':
-        this.workbenchStore.dispatch({ type: 'overlay.toggle', overlay: 'coordination' });
-        if (!this.opts.agentSession?.runCoordination) this.workbenchStore.dispatch({
-          type: 'coordination.status', phase: 'idle', message: 'Coordination launch unavailable in this session.',
-        });
-        this.paintFullFrame();
-        return true;
       case 'drawer.move': {
         if (state.drawer === 'agents') {
           this.workbenchStore.dispatch({ type: 'agent.select', ...moveAgentSelection(this.state.lastSnapshot, state, intent.direction) });
@@ -941,10 +888,6 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       }
-      case 'agentRoster.toggle':
-        this.workbenchStore.dispatch({ type: 'agentRoster.toggle' });
-        this.paintFullFrame();
-        return true;
       case 'approval.resolve': {
         const target = perTab.pendingApprovals[0] ?? fallbackTarget;
         if (!target) return false;
@@ -964,10 +907,6 @@ export class TuiApp {
         this.cyclePermissionMode();
         void this.refresh();
         return true;
-      case 'overlay.close':
-        this.workbenchStore.dispatch({ type: 'overlay.close' });
-        this.paintFullFrame();
-        return true;
       case 'turn.cancel':
         if (this.opts.agentSession?.cancelActiveTurn?.('operator pressed Escape')) {
           this.paintFullFrame();
@@ -975,6 +914,8 @@ export class TuiApp {
         }
         return false;
       case 'unhandled':
+        return false;
+      default:
         return false;
     }
   }
