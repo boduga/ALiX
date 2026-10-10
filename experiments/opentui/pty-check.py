@@ -1,9 +1,9 @@
 """Linux/macOS terminal-session checks for the isolated OpenTUI fixture.
 
-Covers escape-exit, Ctrl+C cancellation, and SIGWINCH resize, asserting in each
-case that the alternate screen is entered and left and the raw input-mode flags
-are restored. Paste and focus are not asserted here (see README "Remaining
-gaps"). Windows has no equivalent check; the PTY API used here is Unix-only.
+Covers escape-exit, Ctrl+C cancellation, SIGWINCH resize, focused typing, and
+bracketed paste, asserting in each case that the alternate screen is entered and
+left and the raw input-mode flags are restored. Windows has no equivalent check;
+the PTY API used here is Unix-only.
 """
 
 import fcntl
@@ -119,7 +119,36 @@ def run_resize():
         os.close(slave)
 
 
+def run_focus_and_paste():
+    master, slave, before, process = spawn()
+    try:
+        output, rendered = wait_for(process, master, b"Agents")
+        assert rendered, "focus/paste: static fixture did not render"
+        assert b"\x1b[?2004h" in output, "focus/paste: bracketed paste mode was not enabled"
+        os.write(master, b"focusok")
+        typed = drain(process, master, 1)
+        output += typed
+        assert b"focusok" in typed, "focus: typed input did not reach the focused composer"
+        os.write(master, b"\x1b[200~pasteok\x1b[201~")
+        pasted = drain(process, master, 1)
+        output += pasted
+        assert b"pasteok" in pasted, "paste: bracketed paste did not reach the composer"
+        os.write(master, b"\x1b")
+        output += drain(process, master, 3)
+        process.wait(timeout=3)
+        assert_restored(slave, before, process, output, "focus/paste")
+    finally:
+        if process.poll() is None:
+            process.kill()
+        os.close(master)
+        os.close(slave)
+
+
 run_escape_exit()
 run_ctrl_c_cancel()
 run_resize()
-print("PTY: escape exit, Ctrl+C cancellation, and SIGWINCH resize all restored the terminal")
+run_focus_and_paste()
+print(
+    "PTY: escape exit, Ctrl+C cancellation, SIGWINCH resize, and focused "
+    "typing/bracketed paste all restored the terminal"
+)
