@@ -63,7 +63,7 @@ npm run bench --prefix experiments/opentui    # diagnostic (needs root pnpm buil
 # Windows only: pip install pywinpty && python pty-check-win.py
 ```
 
-`.github/workflows/opentui-spike.yml` runs `npm test` plus the Unix PTY check
+`.github/workflows/opentui-spike.yml` runs the production native layout test, `npm test`, and the Unix PTY check
 (Linux/macOS) and the pywinpty ConPTY check (Windows) across Linux x64
 Node 26.4/26.11, Linux arm64, macOS arm64/x64, and Windows x64.
 
