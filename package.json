@@ -25,6 +25,8 @@
   "files": [
     "bin/",
     "dist/",
+    "!dist/tests",
+    "!dist/benchmark",
     "README.md",
     "LICENSE",
     "package.json"
@@ -60,6 +62,7 @@
     "check:dox": "node scripts/check-dox-claims.mjs",
     "selection:sample": "node scripts/tool-selection-sample.mjs",
     "check:package-manager": "bash scripts/check-package-manager.sh",
+    "prepublishOnly": "npm run build",
     "fresh": "pnpm build && node dist/src/cli.js doctor"
   },
   "engines": {
