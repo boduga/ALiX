@@ -1,10 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createTestRenderer, type TestRendererSetup } from '@opentui/core/testing';
+import type { AgentInspectorModel } from '../../../src/interfaces/tui/workbench/model/agent-inspector.js';
 import type { WorkbenchDrawer } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
-import type { WorkbenchViewState } from '../../../src/interfaces/tui/workbench/view-state/types.js';
+import type { WorkbenchViewComposer, WorkbenchViewState } from '../../../src/interfaces/tui/workbench/view-state/types.js';
 import { mountOpenTuiWorkbenchContent } from '../../../src/interfaces/tui/workbench/opentui/workbench-content.js';
 import { mountOpenTuiWorkbenchLayout } from '../../../src/interfaces/tui/workbench/opentui/workbench-layout.js';
+
+type ContentState = Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay' | 'inspector' | 'composer'>;
+
+function inspectorState(overrides: Partial<AgentInspectorModel> = {}): AgentInspectorModel {
+  return { selection: 'aggregate', explicitTaskSelection: false, approvals: [], artifacts: [], tokensPartial: false, costPartial: false, ...overrides };
+}
+
+function contentComposer(text = '', cursor = text.length): WorkbenchViewComposer {
+  return { composer: { text, cursor }, coordination: { draft: { text: '', cursor: 0 }, phase: 'idle' }, queuedMessages: [] };
+}
 
 function layoutState(drawer: WorkbenchDrawer, text = ''): Pick<WorkbenchViewState, 'composer' | 'overlay'> {
   return {
@@ -85,7 +96,9 @@ test('native roster and transcript show selected run content and update in place
   try {
     const shellState = layoutState('agents');
     const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shellState);
-    const state: Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay'> = {
+    const state: ContentState = {
+      inspector: inspectorState(),
+      composer: contentComposer(),
       roster: {
         agents: {
           agents: [
@@ -172,7 +185,9 @@ test('very long transcript item stays bounded to native viewport', async () => {
   try {
     const shellState = layoutState('closed');
     const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shellState);
-    const state: Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay'> = {
+    const state: ContentState = {
+      inspector: inspectorState(),
+      composer: contentComposer(),
       roster: { agents: null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [
         { id: 'long', kind: 'assistant', text: `${'word '.repeat(60_000)}TAIL MARKER`, startedAt: 1, sourceEvents: { firstSequence: 1, lastSequence: 1 } },
@@ -199,7 +214,9 @@ test('narrow roster keeps selected agent visible after resize', async () => {
       agentId: `worker-${index}`, role: `Role-${index}`, state: 'thinking' as const,
       taskLabel: `Task-${index}`, ownedPaths: [], startedAt: 1, lastProgressAt: 1, usage: {},
     }));
-    const state: Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay'> = {
+    const state: ContentState = {
+      inspector: inspectorState(),
+      composer: contentComposer(),
       roster: { agents: { agents, active: 8, totals: { agents: 8, running: 8, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 } }, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: { selectedAgentId: 'worker-7' }, overlay: shellState.overlay,
@@ -222,7 +239,9 @@ test('native content preserves unavailable roster and moves into narrow overlay'
   try {
     const shellState = layoutState('agents');
     const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shellState);
-    const state: Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay'> = {
+    const state: ContentState = {
+      inspector: inspectorState(),
+      composer: contentComposer(),
       roster: { agents: null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: {}, overlay: shellState.overlay,
@@ -239,6 +258,88 @@ test('native content preserves unavailable roster and moves into narrow overlay'
     assert.ok(content.overlay.screenX > layout.regions.overlay.screenX);
     assert.ok(content.overlay.screenX < layout.regions.overlay.screenX + layout.geometry.regions.overlay!.width);
     content.dispose();
+    content.dispose();
+    layout.dispose();
+  } finally {
+    await dispose(setup);
+  }
+});
+
+test('native inspector shows bounded agent sections and updates in place', async () => {
+  const setup = await createTestRenderer({ width: 180, height: 40 });
+  try {
+    const shellState = layoutState('agents');
+    const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shellState);
+    const agent = {
+      agentId: 'worker-1', role: 'Researcher', model: 'gpt-test', state: 'tool_running' as const,
+      taskLabel: 'Find sources', ownedPaths: [], startedAt: 1, lastProgressAt: 1, usage: { totalTokens: 1200 },
+    };
+    const selected = inspectorState({
+      selection: 'selected', agent, tokens: 1200,
+      activity: { toolName: 'search', toolCallId: 'call-1', startedAt: 1, elapsedMs: 4200, status: 'running tool' },
+    });
+    const state: ContentState = {
+      inspector: selected, composer: contentComposer(),
+      roster: { agents: null, tasks: null, artifacts: null },
+      transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
+      selection: { selectedAgentId: 'worker-1' }, overlay: shellState.overlay,
+    };
+    const content = mountOpenTuiWorkbenchContent(setup.renderer, layout, state);
+    await setup.renderOnce();
+    const frame = setup.captureCharFrame();
+    assert.match(frame, /AGENT DETAILS/);
+    assert.match(frame, /Researcher/);
+    assert.match(frame, /Find sources/);
+    assert.match(frame, /LIVE ACTIVITY/);
+    assert.match(frame, /search/);
+    assert.match(frame, /No pending approvals/);
+    assert.match(frame, /1,200/);
+    assert.ok(content.inspector.plainText.split('\n').length <= 38);
+
+    const inspectorNode = content.inspector;
+    content.update({ ...state, inspector: inspectorState({ selection: 'aggregate', agentCount: 3, runningCount: 2 }) });
+    await setup.renderOnce();
+    assert.strictEqual(content.inspector, inspectorNode);
+    assert.match(setup.captureCharFrame(), /All agents/);
+    assert.doesNotMatch(setup.captureCharFrame(), /Researcher/);
+    content.dispose();
+    layout.dispose();
+  } finally {
+    await dispose(setup);
+  }
+});
+
+test('native composer shows placeholder, draft, and multiline rows', async () => {
+  const setup = await createTestRenderer({ width: 120, height: 30 });
+  try {
+    const shellState = layoutState('agents');
+    const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shellState);
+    const base: ContentState = {
+      inspector: inspectorState(), composer: shellState.composer,
+      roster: { agents: null, tasks: null, artifacts: null },
+      transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
+      selection: {}, overlay: shellState.overlay,
+    };
+    const content = mountOpenTuiWorkbenchContent(setup.renderer, layout, base);
+    await setup.renderOnce();
+    assert.match(setup.captureCharFrame(), /Add your next instruction/);
+
+    const composerNode = content.composer;
+    const draft = layoutState('agents', 'hello world');
+    layout.update(draft);
+    content.update({ ...base, composer: draft.composer });
+    await setup.renderOnce();
+    assert.strictEqual(content.composer, composerNode);
+    assert.match(setup.captureCharFrame(), /> hello world/);
+
+    const multiline = layoutState('agents', 'line one\nline two\nline three\nline four\nline five\nline six\nline seven');
+    layout.update(multiline);
+    content.update({ ...base, composer: multiline.composer });
+    await setup.renderOnce();
+    const frame = setup.captureCharFrame();
+    assert.match(frame, /… line three/);
+    assert.doesNotMatch(frame, /line one/);
+    assert.match(frame, /line seven/);
     content.dispose();
     layout.dispose();
   } finally {

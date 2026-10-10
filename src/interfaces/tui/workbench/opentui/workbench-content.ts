@@ -6,14 +6,18 @@ import type { ConversationSnapshot, TranscriptItem } from '../model/transcript-i
 import { truncateDisplayText, wrapDisplayText } from '../render/terminal-text.js';
 import type { WorkbenchRegion } from '../layout/responsive-layout.js';
 import type { WorkbenchViewState } from '../view-state/types.js';
+import { buildAgentInspectorSections } from '../views/agent-inspector.js';
+import type { ComposerLayout } from '../views/composer-view.js';
 import type { OpenTuiWorkbenchLayout } from './workbench-layout.js';
 
-type ContentState = Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay'>;
+type ContentState = Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay' | 'inspector' | 'composer'>;
 
 export interface OpenTuiWorkbenchContent {
   readonly roster: TextRenderable;
   readonly transcript: TextRenderable;
   readonly overlay: TextRenderable;
+  readonly inspector: TextRenderable;
+  readonly composer: TextRenderable;
   update(state: ContentState): void;
   dispose(): void;
 }
@@ -116,6 +120,32 @@ function transcriptLines(state: ContentState, conversation: ConversationSnapshot
   return lines.slice(-height);
 }
 
+function inspectorLines(state: ContentState, width: number, height: number): string[] {
+  if (height === 0 || width === 0) return [];
+  const lines: string[] = [];
+  for (const section of buildAgentInspectorSections(state.inspector)) {
+    if (lines.length >= height) break;
+    lines.push(truncateDisplayText(section.title, width));
+    for (const row of section.rows) {
+      if (lines.length >= height) break;
+      lines.push(truncateDisplayText(safeLine(row.label ? `${row.label}  ${row.value}` : row.value), width));
+    }
+  }
+  return lines.length === 0 ? ['Inspector unavailable'] : lines;
+}
+
+function composerLines(state: ContentState, composer: ComposerLayout, width: number, height: number): string[] {
+  if (height === 0 || width === 0) return [];
+  const empty = state.composer.composer.text.length === 0;
+  const prefixWidth = Math.min(2, Math.max(1, width - 1));
+  const rows = composer.rows.slice(0, height);
+  return rows.map((row, index) => {
+    const prefix = (index === 0 ? (composer.hiddenRows > 0 ? '…' : '>') : ' ').padEnd(prefixWidth, ' ');
+    const content = empty && index === 0 ? 'Add your next instruction...' : row;
+    return truncateDisplayText(safeLine(`${prefix}${content}`), width);
+  });
+}
+
 /** Retained native content; semantic selection and filtering come from WorkbenchViewState. */
 export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: OpenTuiWorkbenchLayout, initial: ContentState): OpenTuiWorkbenchContent {
   const make = (id: string, parent: OpenTuiWorkbenchLayout['regions']['roster']): TextRenderable => {
@@ -126,12 +156,16 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   const roster = make('opentui-roster-content', layout.regions.roster);
   const transcript = make('opentui-transcript-content', layout.regions.transcript);
   const overlay = make('opentui-overlay-content', layout.regions.overlay);
+  const inspector = make('opentui-inspector-content', layout.regions.inspector);
+  const composer = make('opentui-composer-content', layout.regions.composer);
   let pausedConversation: ConversationSnapshot | undefined;
   let lastConversation: ConversationSnapshot | undefined;
   const update = (state: ContentState): void => {
     const rosterSize = placeText(roster, layout.regions.roster, layout.geometry.regions.roster);
     const transcriptSize = placeText(transcript, layout.regions.transcript, layout.geometry.regions.transcript);
     const overlaySize = placeText(overlay, layout.regions.overlay, layout.geometry.regions.overlay);
+    const inspectorSize = placeText(inspector, layout.regions.inspector, layout.geometry.regions.inspector);
+    const composerSize = placeText(composer, layout.regions.composer, layout.geometry.regions.composer);
     roster.content = rosterLines(state, rosterSize.width, rosterSize.height).join('\n');
     if (state.transcript.followTail) pausedConversation = undefined;
     else pausedConversation ??= lastConversation ?? state.transcript.conversation;
@@ -139,22 +173,28 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
       state, pausedConversation ?? state.transcript.conversation, transcriptSize.width, transcriptSize.height,
     ).join('\n');
     lastConversation = state.transcript.conversation;
+    inspector.content = inspectorLines(state, inspectorSize.width, inspectorSize.height).join('\n');
+    composer.content = composerLines(state, layout.composer, composerSize.width, composerSize.height).join('\n');
     overlay.content = state.overlay.drawer === 'agents'
       ? rosterLines(state, overlaySize.width, overlaySize.height).join('\n') : '';
   };
   update(initial);
   let disposed = false;
   return {
-    roster, transcript, overlay, update,
+    roster, transcript, overlay, inspector, composer, update,
     dispose: () => {
       if (disposed) return;
       disposed = true;
       layout.regions.roster.remove(roster);
       layout.regions.transcript.remove(transcript);
       layout.regions.overlay.remove(overlay);
+      layout.regions.inspector.remove(inspector);
+      layout.regions.composer.remove(composer);
       roster.destroy();
       transcript.destroy();
       overlay.destroy();
+      inspector.destroy();
+      composer.destroy();
     },
   };
 }

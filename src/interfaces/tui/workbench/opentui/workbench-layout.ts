@@ -1,7 +1,7 @@
 import { BoxRenderable, TextRenderable, type CliRenderer } from '@opentui/core';
 import { type WorkbenchRegion, type WorkbenchSurfaceGeometry } from '../layout/responsive-layout.js';
 import type { WorkbenchViewState } from '../view-state/types.js';
-import { layoutWorkbenchSurface } from '../views/composer-view.js';
+import { layoutWorkbenchSurface, type ComposerLayout } from '../views/composer-view.js';
 
 type LayoutState = Pick<WorkbenchViewState, 'composer' | 'overlay'>;
 
@@ -9,6 +9,7 @@ export interface OpenTuiWorkbenchLayout {
   readonly shell: BoxRenderable;
   readonly regions: Readonly<Record<'header' | 'tabs' | 'roster' | 'transcript' | 'inspector' | 'composer' | 'footer' | 'overlay', BoxRenderable>>;
   readonly geometry: WorkbenchSurfaceGeometry;
+  readonly composer: ComposerLayout;
   update(state: LayoutState): WorkbenchSurfaceGeometry;
   dispose(): void;
 }
@@ -50,13 +51,13 @@ export function mountOpenTuiWorkbenchLayout(renderer: CliRenderer, initial: Layo
   for (const box of Object.values(regions)) shell.add(box);
   renderer.root.add(shell);
 
-  const update = (state: LayoutState): WorkbenchSurfaceGeometry => {
-    const composer = state.composer.composer;
-    const { geometry } = layoutWorkbenchSurface(
-      composer.text,
+  const compute = (state: LayoutState): { composer: ComposerLayout; geometry: WorkbenchSurfaceGeometry } => {
+    const composerState = state.composer.composer;
+    const { composer, geometry } = layoutWorkbenchSurface(
+      composerState.text,
       { columns: renderer.width, rows: renderer.height },
       state.overlay.drawer,
-      composer.cursor,
+      composerState.cursor,
     );
     const drawerTitle = {
       closed: 'Agents',
@@ -69,16 +70,17 @@ export function mountOpenTuiWorkbenchLayout(renderer: CliRenderer, initial: Layo
     for (const name of Object.keys(regions) as (keyof typeof regions)[]) {
       place(regions[name], geometry.regions[name]);
     }
-    return geometry;
+    return { composer, geometry };
   };
-  let geometry = update(initial);
+  let current = compute(initial);
   let disposed = false;
 
   return {
     shell,
     regions,
-    get geometry() { return geometry; },
-    update: (state) => { geometry = update(state); return geometry; },
+    get geometry() { return current.geometry; },
+    get composer() { return current.composer; },
+    update: (state) => { current = compute(state); return current.geometry; },
     dispose: () => {
       if (disposed) return;
       disposed = true;
