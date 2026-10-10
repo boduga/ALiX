@@ -1,4 +1,5 @@
 import { BoxRenderable, InputRenderable, TextRenderable, createCliRenderer } from '@opentui/core'
+import { pathToFileURL } from 'node:url'
 import { WORKBENCH } from './workbench-fixture.mjs'
 
 export function mountWorkbench(renderer) {
@@ -25,7 +26,7 @@ export function mountWorkbench(renderer) {
   return { shell, input }
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const renderer = await createCliRenderer({ exitOnCtrlC: false, exitSignals: [] })
   try {
     const { input } = mountWorkbench(renderer)

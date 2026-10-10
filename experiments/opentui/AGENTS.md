@@ -18,7 +18,8 @@ production TUI code.
 | `static-workbench.mjs` | `mountWorkbench` (OpenTUI renderables) and the `npm start` entry. |
 | `harness.mjs` | Native test-renderer lifecycle (`withTestRenderer`, `disposeTestRenderer`). |
 | `perf-check.mjs` | Diagnostic benchmark: full frame, input latency, idle CPU, RSS plateau, frame coalescing. |
-| `pty-check.py` | Unix PTY checks: escape exit, Ctrl+C cancellation, SIGWINCH resize, terminal restoration. |
+| `pty-check.py` | Unix PTY checks: escape exit, Ctrl+C cancellation, SIGWINCH resize, focused typing, bracketed paste, terminal restoration. |
+| `pty-check-win.py` | Windows ConPTY restoration check via pywinpty. |
 | `*.test.mjs` | In-memory native tests (render, wide/medium/narrow layout, input, resize, cleanup). |
 | `README.md` | Setup, versions, results, benchmark limitations, support matrix, gaps. |
 
@@ -57,10 +58,12 @@ production TUI code.
 npm test --prefix experiments/opentui        # in-memory native tests
 npm run test:pty --prefix experiments/opentui # Unix terminal restoration
 npm run bench --prefix experiments/opentui    # diagnostic (needs root pnpm build)
+# Windows only: pip install pywinpty && python pty-check-win.py
 ```
 
-`.github/workflows/opentui-spike.yml` runs `npm test` (plus PTY on Unix) across
-Linux 26.4/26.11, macOS, and Windows.
+`.github/workflows/opentui-spike.yml` runs `npm test` plus the Unix PTY check
+(Linux/macOS) and the pywinpty ConPTY check (Windows) across Linux 26.4/26.11,
+macOS, and Windows.
 
 ## Child DOX Index
 

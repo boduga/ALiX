@@ -30,7 +30,8 @@ Pass only with successful native operations and terminal restoration, reproducib
 - Platform matrix green on draft [PR #898](https://github.com/boduga/ALiX/pull/898)
   ([run 38031068405](https://github.com/boduga/ALiX/actions/runs/38031068405)):
   Linux x64 Node 26.4.0/26.11.0 (`npm test` + PTY), macOS arm64 Node 26.11.0
-  (`npm test` + PTY), Windows x64 Node 26.11.0 (`npm test`; PTY skipped).
+  (`npm test` + PTY), Windows x64 Node 26.11.0 (`npm test` + ConPTY
+  restoration check).
 - Benchmark (`perf-check.mjs`): steady-state RSS plateaus (tranches
   `[212,211,212,212,212,213]` MiB, net `+1`, slope `+0.4` MiB/round, sampled
   after two GC passes); 500 back-to-back `requestRender()` calls coalesce to
@@ -41,9 +42,8 @@ Pass only with successful native operations and terminal restoration, reproducib
 
 ## Remaining gaps
 
-1. Windows terminal restoration is unmeasured; the PTY check is Unix-only and
-   has no ConPTY equivalent. No Linux arm64, musl, or macOS x64 leg configured.
-2. Performance gate not closed: measurements are single-host/single-run; no
+1. Performance gate not closed: measurements are single-host/single-run; no
    comparable ANSI/OpenTUI workload or thresholds yet.
-3. `WorkbenchViewState` extraction, renderer selection, and launcher-owned
+2. `WorkbenchViewState` extraction, renderer selection, and launcher-owned
    `--experimental-ffi` remain out of scope for this spike.
+3. No Linux arm64, musl, or macOS x64 CI leg is configured.
