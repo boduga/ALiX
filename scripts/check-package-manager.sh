@@ -20,7 +20,10 @@ SEARCH_PATHS=(.github/workflows scripts docs package.json)
 # for the project; `npm install ...$TARBALL` is the sanctioned smoke-install of
 # a PACKED tarball in a clean temp dir (pinning the tarball and its native
 # builds), because pnpm's tarball install trips ERR_PNPM_IGNORED_BUILDS for
-# protobufjs/sharp. Project dependency management stays pnpm.
+# protobufjs/sharp. Project dependency management stays pnpm. The isolated
+# OpenTUI spike (`experiments/opentui/`) deliberately carries its own npm
+# lockfile and is never published, so its workflow commands and hand-off notes
+# are exempt; no root or published dependency uses npm.
 
 if grep -Rnw "${SEARCH_PATHS[@]}" \
   -e "npm ci" \
@@ -38,6 +41,8 @@ if grep -Rnw "${SEARCH_PATHS[@]}" \
   | grep -v "npm install.*TARBALL" \
   | grep -v "package-manager" \
   | grep -v "check-supply-chain.sh" \
+  | grep -v "experiments/opentui" \
+  | grep -v "docs/2026-10-09-node26-opentui-handoff.md" \
   | grep -v "docs/archive/" \
   | grep -v "docs/superpowers/plans/" \
   | grep -v "docs/architecture/" \

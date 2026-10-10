@@ -17,6 +17,7 @@ import { reconcileWorkbenchScrollAnchor } from './workbench/layout/scroll-anchor
 import type { ScrollbackLine } from './views/bottom-anchored-viewport.js';
 import { diffFrameRows, renderFramePatches } from './workbench/render/frame-differ.js';
 import { buildAgentInspectorModel } from './workbench/model/agent-inspector.js';
+import { assembleWorkbenchViewState } from './workbench/view-state/assemble.js';
 import { paintAgentInspector } from './workbench/views/agent-inspector.js';
 import { paintWorkbenchDiagnosticOverlay } from './workbench/views/diagnostic-overlay.js';
 import { paintCoordinationEntry } from './workbench/views/coordination-entry.js';
@@ -149,6 +150,36 @@ export class FramePainter {
       runtime: { chat: this.deps.chatRuntime(), agent: this.deps.agentRuntime() },
       slash: this.deps.computeSlashStrip() ?? undefined,
     };
+    // Assemble the renderer-neutral Workbench view state once per frame so the
+    // agent view, inspector, and chrome consume one boundary instead of each
+    // deriving the same models.
+    const workbenchForView = this.deps.workbenchState?.();
+    if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent' && workbenchForView) {
+      const chrome = projectOperatorShell(
+        s.lastSnapshot,
+        s.views.agent,
+        s.lastSnapshot.session?.mode ?? 'auto',
+        workbenchForView.queuedMessages.length,
+        {
+          closeSurface: workbenchForView.drawer !== 'closed' || workbenchForView.overlayStack.length > 0,
+          focus: workbenchForView.focus,
+          drawer: workbenchForView.drawer,
+          inspectorOpen: workbenchForView.overlayStack.at(-1) === 'inspector',
+        },
+      );
+      viewCtx = {
+        ...viewCtx,
+        workbenchViewState: assembleWorkbenchViewState({
+          snapshot: s.lastSnapshot,
+          ui: workbenchForView,
+          chrome,
+          transcriptSource: {
+            timeline: this.deps.agentRuntime()?.timeline ?? [],
+            trace: s.lastSnapshot.runtime?.trace ?? [],
+          },
+        }),
+      };
+    }
     if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
       const surface = layoutWorkbenchSurface(viewCtx.perTab.inputBuffer, dims, viewCtx.workbenchUiState?.drawer ?? 'closed', viewCtx.workbenchUiState?.composer.cursor);
       const state = viewCtx.workbenchUiState;
@@ -192,7 +223,7 @@ export class FramePainter {
         const { geometry } = layoutWorkbenchSurface(s.views.agent.inputBuffer, dims, workbench.drawer, workbench.composer.cursor);
         const body = geometry.regions.body;
         for (let row = body.y; row < body.y + body.height; row++) viewCanvas.write(0, row, ' '.repeat(body.width));
-        paintAgentInspector(viewCanvas, body, buildAgentInspectorModel(s.lastSnapshot, workbench));
+        paintAgentInspector(viewCanvas, body, viewCtx.workbenchViewState?.inspector ?? buildAgentInspectorModel(s.lastSnapshot, workbench));
       } else if (workbench?.overlayStack.at(-1) === 'coordination') {
           this.coordinationCaret = paintCoordinationEntry(overlayRect, workbench.coordination,
           s.lastSnapshot.session?.mode ?? 'mode unavailable');
@@ -379,7 +410,7 @@ export class FramePainter {
         canvas: c,
         width: dims.columns,
         height: dims.rows,
-        model: projectOperatorShell(
+        model: viewCtx.workbenchViewState?.header ?? projectOperatorShell(
           snap,
           s.views.agent,
           sessionMode,

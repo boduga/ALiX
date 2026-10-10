@@ -12,6 +12,8 @@
 - `workbench/` owns the conversation-first semantic transcript and the Workbench shell.
 - `src/interfaces/tui/workbench/model/preview-theme.ts` owns explicit truecolor, ANSI-16, monochrome, and ASCII/Unicode presentation tokens for preview parity; lifecycle labels remain readable without color. Region painters integrate these tokens as their parity phases land.
 - `workbench/model/ui-state.ts`, `workbench/app/workbench-store.ts`, and `workbench/input/input-router.ts` own feature-gated presentation state and context-sensitive composer input; runtime truth stays in `AgentSession` and `EventLog`.
+- `workbench/view-state/` owns the renderer-neutral `WorkbenchViewState` and its pure `assembleWorkbenchViewState` composer; renderers consume it and never derive additional semantic runtime or operator-intent state.
+- `src/interfaces/tui/workbench/projections/conversation-cache.ts` owns the content-keyed conversation memo shared by the view-state assembler and the scrollback builder.
 - `src/interfaces/tui/workbench/model/transcript-filter.ts` owns transcript category/scope selectors; `src/interfaces/tui/workbench/views/transcript-toolbar.ts` owns bounded filter/follow chrome. Inspector identity and transcript scope remain separate presentation choices.
 - `src/interfaces/tui/workbench/model/agent-inspector.ts` joins immutable selected-agent, task, trace, approval, artifact and usage snapshots. `src/interfaces/tui/workbench/views/agent-inspector.ts` owns bounded inspector sections in reference order: AGENT DETAILS, LIVE ACTIVITY, APPROVALS, ARTIFACTS, USAGE.
 - `src/interfaces/tui/workbench/views/coordination-entry.ts` owns bounded objective-entry painting and input validation; its draft and submission feedback are presentation state, never worker lifecycle truth.
@@ -38,6 +40,8 @@
   pending card clears only when `syncPendingApprovals` samples an authoritative
   resolved projection.
 - **One TUI read model, no legacy store (R4/V4–V5).** Views read the immutable `RuntimeSnapshot` composed by `snapshot-builder.ts`; there is no second mutable TUI store and the TUI never reads `ApprovalStore` or `ContinuationStore` directly.
+- **Renderer-neutral Workbench view state (R4/V8).** `assembleWorkbenchViewState` composes `WorkbenchViewState` from the immutable snapshot, the Workbench UI store, the operator-shell projection, and the agent transcript sources. It adds no second state store and no event stream. The ANSI agent view and frame chrome consume it (inspector, operator shell, transcript); a future OpenTUI renderer consumes the same boundary.
+- **Single-renderer terminal ownership (R4/V9).** `runTui` accepts exactly one renderer; the CLI rejects an unsupported value from `--renderer`. Only the ANSI canvas owns stdin/stdout/raw mode/resize/cleanup today; OpenTUI stays an isolated experiment until its runtime and parity gates pass.
 - **Evolution-loop stages carry a declared source authority (R4/V6).** In `evolution-projection.ts`, `lifecycle`, `forecasts`, `correlations`, and `decisions` have no canonical EventLog emitter; their authority is the persisted canonical artifact read through `EvolutionReadSources` each cycle (`NON_EVENTLOG_AUTHORITATIVE_STAGES`). Only `measurements` and the A8 learning recompute are EventLog-relay-fed; the projection stays a read model over canonical artifacts.
 - **Workflow step counts are a declared fallback (R4/V7).** No canonical `workflow.step_*` event is emitted; `computeWorkflow` in `runtime-collector.ts` derives `currentStep`/`totalSteps` by counting `WORKFLOW_STEP_FALLBACK_TYPES` (`tool.*` + `task.ready`) since `workflow.created`. Consume a canonical step event here if one is ever added.
 - UI actions reach runtime through explicit controller/port boundaries.
@@ -106,7 +110,7 @@
 - Oversized tool-output artifacts inherit authoritative coordination run, worker, and task correlation from their tool request so strict drawer filters retain the selected worker's artifacts.
 - Diagnostic overlays consume editing, paste, and navigation input; Escape closes them and Ctrl+C retains cancellation/exit. Approval cards paint above diagnostics and their decision keys remain actionable.
 - Workbench rollout is additive and feature-gated until legacy parity is proven.
-- Keep the custom ANSI canvas; do not introduce a second terminal UI framework without a separately approved architecture change.
+- Keep the custom ANSI canvas as production renderer. The approved [OpenTUI Workbench migration design](../../../docs/superpowers/specs/2026-10-09-opentui-workbench-migration-design.md) permits an isolated experimental renderer spike; default switching, canvas removal, and production dependency adoption require its runtime and parity gates.
 - While the TUI owns stdin in raw mode, runtime cleanup, persistence, and model-stream helpers must not write directly to stdout/stderr or open readline prompts; surface output through projections/token callbacks and keep routine no-op outcomes silent. The TUI composition root sets `loadConfig(..., { suppressWarnings: true })`, `AgentSessionConfig.suppressConfigWarnings`, and `verbose: false`; both direct-route and task-loop calls must pass that ownership into `streamToResponse(writeToStdout: false)`.
 
 ## Work Guidance

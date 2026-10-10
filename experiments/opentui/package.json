@@ -1,0 +1,19 @@
+{
+  "name": "alix-opentui-runtime-spike",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26.4.0"
+  },
+  "scripts": {
+    "start": "node --experimental-ffi static-workbench.mjs",
+    "test": "node --experimental-ffi --test render.test.mjs layout.test.mjs input.test.mjs resize.test.mjs cleanup.test.mjs",
+    "test:pty": "python3 pty-check.py",
+    "test:pty:win": "python pty-check-win.py",
+    "bench": "node --experimental-ffi --expose-gc perf-check.mjs"
+  },
+  "dependencies": {
+    "@opentui/core": "0.5.17",
+    "web-tree-sitter": "0.25.10"
+  }
+}

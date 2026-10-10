@@ -183,7 +183,7 @@ export class AgentView implements TuiView {
         frameCanvas.write(pane.x, row, rows[row] ?? '');
       }
       const inspector = geometry.regions.inspector;
-      if (inspector && inspector.height > 0) paintAgentInspector(frameCanvas, inspector, buildAgentInspectorModel(ctx.snap, ctx.workbenchUiState));
+      if (inspector && inspector.height > 0) paintAgentInspector(frameCanvas, inspector, ctx.workbenchViewState?.inspector ?? buildAgentInspectorModel(ctx.snap, ctx.workbenchUiState));
     }
 
     // Input panel at panelRow.

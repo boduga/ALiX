@@ -65,6 +65,8 @@ export interface ViewRenderContext {
   readonly slash?: SlashStrip;
   /** Feature-gated Workbench presentation state; never runtime authority. */
   readonly workbenchUiState?: import('../workbench/model/ui-state.js').WorkbenchUiState;
+  /** Renderer-neutral Workbench view state assembled by the composition root. */
+  readonly workbenchViewState?: import('../workbench/view-state/types.js').WorkbenchViewState;
 }
 
 export interface ViewInputContext {

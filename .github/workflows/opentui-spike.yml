@@ -1,0 +1,53 @@
+name: OpenTUI runtime spike
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/opentui/**'
+      - '.github/workflows/opentui-spike.yml'
+  workflow_dispatch:
+
+# P4.3-Sf.4: Explicit least-privilege permissions
+permissions:
+  contents: read
+
+jobs:
+  native-core:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: 26.4.0
+          - os: ubuntu-latest
+            node: 26.11.0
+          - os: ubuntu-24.04-arm
+            node: 26.11.0
+          - os: macos-15-intel
+            node: 26.11.0
+          - os: macos-latest
+            node: 26.11.0
+          - os: windows-latest
+            node: 26.11.0
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v7.0.1 — pinned SHA (matches ci.yml)
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # actions/setup-node v7.0.0 — pinned SHA (matches ci.yml)
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --prefix experiments/opentui --no-audit --no-fund
+      - run: npm test --prefix experiments/opentui
+      # PTY check needs fcntl/termios/openpty and is Unix-only. Windows native
+      # load and in-memory render are covered by `npm test`; Windows terminal
+      # restoration is covered below via a pywinpty/ConPTY check.
+      - name: Terminal restoration
+        if: runner.os != 'Windows'
+        run: npm run test:pty --prefix experiments/opentui
+      - name: Terminal restoration (Windows ConPTY)
+        if: runner.os == 'Windows'
+        run: |
+          python -m pip install --quiet pywinpty
+          python experiments/opentui/pty-check-win.py

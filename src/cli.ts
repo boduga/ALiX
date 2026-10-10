@@ -40,7 +40,15 @@ COMMAND_ROUTER["tui"] = async () => {
     const daemonMode = a.includes("--daemon");
     const themeIdx = a.indexOf("--theme");
     const themeName = themeIdx >= 0 ? a[themeIdx + 1] : undefined;
-    await runTui({ sessionMode, daemonMode, themeName });
+    const rendererIdx = a.indexOf("--renderer");
+    const renderer = rendererIdx >= 0 ? a[rendererIdx + 1] : undefined;
+    if (renderer && renderer !== "canvas") {
+      console.error(renderer === "opentui"
+        ? "The OpenTUI renderer is experimental and not available in production; see experiments/opentui and the migration design."
+        : `Unknown TUI renderer '${renderer}'. Supported: canvas.`);
+      return 1;
+    }
+    await runTui({ sessionMode, daemonMode, themeName, renderer: renderer as "canvas" | undefined });
     return 0;
   }};
 };
