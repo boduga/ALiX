@@ -51,3 +51,16 @@ if (existsSync(strategiesSrc)) {
     cpSync(resolve(strategiesSrc, file), resolve(strategiesDest, file));
   }
 }
+
+// Copy tool-repair model patterns (data JSON, read module-relative at runtime
+// by `PatternRegistry.loadModel` as `<compiled>/../patterns/<model>.json`).
+// tsc never emits an unimported JSON, so without this the repair engine loads
+// zero patterns and is inert.
+const patternsSrc = resolve(root, "packages/tool-repair/src/patterns");
+const patternsDest = resolve(root, "dist/packages/tool-repair/src/patterns");
+mkdirSync(patternsDest, { recursive: true });
+if (existsSync(patternsSrc)) {
+  for (const file of readdirSync(patternsSrc).filter((f) => f.endsWith(".json"))) {
+    cpSync(resolve(patternsSrc, file), resolve(patternsDest, file));
+  }
+}

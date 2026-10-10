@@ -25,6 +25,8 @@
   "files": [
     "bin/",
     "dist/",
+    "!dist/tests",
+    "!dist/benchmark",
     "README.md",
     "LICENSE",
     "package.json"
