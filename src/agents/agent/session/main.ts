@@ -109,14 +109,16 @@ export class AgentSessionBuilder {
     };
   }
 
-  async function save(): Promise<void> {
+  async function save(options?: { interactiveDecisions?: boolean }): Promise<void> {
     if (!state.ctx) return;
-    // Always run the legacy memory-decision extraction (best-effort).
-    // `save()` is an explicit user action, so interactive confirmation stays
-    // allowed here (unlike turn completion, which must never prompt).
+    // Decision-memory extraction. `interactiveDecisions` gates the [y/n/q]
+    // stdin prompt: only a UI surface that owns the terminal may request it.
+    // Default false keeps this safe for headless/daemon/CI callers.
     try {
       const sessionEvents = await state.ctx.log.readAll();
-      await saveDecisionsToMemory(sessionEvents, state.ctx.memoryStore, { confirm: true });
+      await saveDecisionsToMemory(sessionEvents, state.ctx.memoryStore, {
+        confirm: options?.interactiveDecisions === true,
+      });
     } catch {
       // Best-effort — never let persistence fail a save().
     }

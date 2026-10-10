@@ -110,7 +110,7 @@ export function createReplRenderer(
           }
           if (trimmed === "/save") {
             try {
-              await session.save();
+              await session.save({ interactiveDecisions: true });
               console.log("Saved.");
             } catch (err) {
               console.error("Save failed:", err);

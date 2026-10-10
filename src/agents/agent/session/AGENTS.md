@@ -82,6 +82,14 @@ and the TUI. `../session.ts` preserves public imports as a re-export barrel.
   `context.bundle_compiled` (the Inspector/browser context panel reads it) and
   returns before the plan phase, and the compiled bundle is NOT injected into
   the read-only system prompt. Shell tasks skip P6 entirely.
+- **Session persistence is non-interactive by default.** `save(options?)`
+  extracts memory decisions with `confirm` = `options?.interactiveDecisions === true`
+  — it never reads stdin unless a UI surface that owns the terminal asks (the
+  REPL's `/save` passes `interactiveDecisions: true`). Headless/daemon/CI
+  callers persist safely. The generation-only `direct` route is **intentionally
+  ephemeral**: it returns before `initialize()` (`turn.ts`), creates no session
+  artifact, and never persists — callers must not advertise a resumable id for
+  it (`alix run` suppresses the `Session:` line for `reason === "direct"`).
 
 ## Work Guidance
 
