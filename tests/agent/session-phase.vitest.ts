@@ -43,6 +43,12 @@ vi.mock("../../src/capabilities/skills/catalog.js", () => ({
   })),
 }));
 vi.mock("../../src/capabilities/skills/lifecycle.js", () => ({ evictIfNeeded: vi.fn() }));
+vi.mock("../../src/execution/run/helpers.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/execution/run/helpers.js")>();
+  return { ...actual, saveDecisionsToMemory: vi.fn(async () => {}) };
+});
+
+import { saveDecisionsToMemory } from "../../src/execution/run/helpers.js";
 
 beforeEach(() => {
   mocks.append.mockClear();
@@ -202,6 +208,19 @@ describe("SessionPhase (contract)", () => {
     await session.processTurn("Read the file notes.txt and report its contents");
     const types = (mocks.append.mock.calls as unknown as Array<[{ type: string }]>).map(([event]) => event.type);
     expect(types).toContain("context.bundle_compiled");
+  });
+
+  it("save() is non-interactive by default and interactive only on request", async () => {
+    const session = createAgentSession({ cwd: phaseTestCwd, task: "Refactor this repo", planMode: false });
+    await session.processTurn("Refactor this repo");
+    const mock = saveDecisionsToMemory as unknown as ReturnType<typeof vi.fn>;
+    mock.mockClear();
+
+    await session.save();
+    expect(mock).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), { confirm: false });
+
+    await session.save({ interactiveDecisions: true });
+    expect(mock).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), { confirm: true });
   });
 });
 

@@ -381,7 +381,14 @@ export interface AgentSession {
    */
   getLastCancelSummary?(): string | undefined;
   /** Save session state to memory (stub — external via SessionStore). */
-  save(): Promise<void>;
+  /**
+   * Persist the session (memory-decision extraction + SessionStore snapshot).
+   *
+   * Non-interactive by default — safe for headless/daemon/CI callers; it never
+   * reads stdin. Only a UI surface that owns the terminal (the REPL's `/save`)
+   * passes `interactiveDecisions: true` to allow the [y/n/q] decision prompt.
+   */
+  save(options?: { interactiveDecisions?: boolean }): Promise<void>;
   /** Resume from a prior session (stub — reconstruct from saved state). */
   resume(sessionId: string): Promise<void>;
   /**
