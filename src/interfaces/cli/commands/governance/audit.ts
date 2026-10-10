@@ -34,25 +34,9 @@ import "../../../../planning/evolution/learning/learning-cli.js";
 import "../../../../planning/evolution/forecast/forecast-cli.js";
 import "../../../../runtime-state/events/event-log.js";
 import { runAuditActor, runAuditAnomalies, runAuditEffectiveness, runAuditPolicy, runAuditReport, runAuditStats } from "./audit-insights.js";
-import { BOLD, CYAN, DIM, GREEN, MAGENTA, RED, RESET, YELLOW } from "./shared.js";
+import { BOLD, DIM, eventTypeColor, GREEN, parseInlineFlag, RED, RESET } from "./shared.js";
 
 // P22-INTELLIGENCE-END
-
-export const EVENT_TYPE_COLORS: Record<string, string> = {
-  "policy.evaluated": CYAN,
-  "runtime.allowed": GREEN,
-  "runtime.blocked": RED,
-  "runtime.requires_approval": YELLOW,
-  "approval.created": CYAN,
-  "approval.approved": GREEN,
-  "approval.denied": RED,
-  "override.applied": MAGENTA,
-};
-
-
-export function eventTypeColor(eventType: string): string {
-  return EVENT_TYPE_COLORS[eventType] ?? RESET;
-}
 
 
 export async function runAudit(rawArgs: string[]): Promise<void> {
@@ -611,15 +595,6 @@ export async function runAuditExport(
     // Print to stdout (use console.log to avoid P8 sentinel false positive)
     console.log(output);
   }
-}
-
-
-export function parseInlineFlag(args: string[], flag: string): string | null {
-  const idx = args.indexOf(flag);
-  if (idx === -1 || idx + 1 >= args.length) return null;
-  const value = args[idx + 1];
-  if (value.startsWith("--")) return null; // next arg is another flag, not a value
-  return value;
 }
 
 

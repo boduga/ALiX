@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { loadConfig, projectConfigDir } from "../../../operations/config/loader.js";
 import "../../../operations/config/model-resolver.js";
 import "../../../index.js";
-import { prompt } from "./prompt.js";
+import { prompt } from "../../../operations/utils/prompt.js";
 import "../../../governance/security/credentials/api-keys.js";
 import "../../../models/providers/catalog.js";
 

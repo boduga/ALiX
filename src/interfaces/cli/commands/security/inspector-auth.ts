@@ -269,7 +269,7 @@ export async function handleInspectorAuthRevoke(args: string[]): Promise<void> {
 
   // Confirm unless --yes
   if (!args.includes("--yes")) {
-    const { prompt } = await import("../prompt.js");
+    const { prompt } = await import("../../../../operations/utils/prompt.js");
     const confirm = await prompt(`Revoke token ${tokenId}? This cannot be undone. [y/N]: `);
     if (confirm.toLowerCase() !== "y") {
       console.log("Cancelled.");

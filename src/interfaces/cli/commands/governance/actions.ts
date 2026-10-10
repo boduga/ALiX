@@ -35,7 +35,7 @@ import "../../../../planning/evolution/forecast/forecast-cli.js";
 import "../../../../runtime-state/events/event-log.js";
 import type { ActionProposalKind, ActionProposalStatus, ActionProposalStatusTransition } from "../../../../governance/action-queue.js";
 import { BAR } from "./analytics.js";
-import { parseInlineFlag } from "./audit.js";
+import { parseInlineFlag } from "./shared.js";
 import { BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, YELLOW } from "./shared.js";
 
 // ---------------------------------------------------------------------------

@@ -48,7 +48,7 @@ export async function createCredentialStore(): Promise<CredentialStore> {
   // Pass the hidden prompt so an encrypted-file store can be unlocked by
   // typing the passphrase once per session (spec Phase 3). The loader does
   // NOT pass a prompt — config load must never block on interactive input.
-  const { promptHidden } = await import("../prompt.js");
+  const { promptHidden } = await import("../../../../operations/utils/prompt.js");
   return loadCredentialStoreWithKeychainFallback(backend, undefined, promptHidden);
 }
 
@@ -136,7 +136,7 @@ export async function handleCredentialSet(args: string[]): Promise<void> {
       process.exit(1);
     }
     const { resolveProviders, selectFromList } = await import("../../helpers/provider-selection.js");
-    const { prompt, promptHidden } = await import("../prompt.js");
+    const { prompt, promptHidden } = await import("../../../../operations/utils/prompt.js");
     const providers = await resolveProviders();
     if (providers.length === 0) {
       console.error("No providers available to pick from.");
@@ -335,7 +335,7 @@ export async function migrateBetweenBackends(
   // Env var (headless) → interactive hidden prompt (TTY) → error.
   let passphrase: string | undefined;
   if (current === "encrypted-file" || to === "encrypted-file") {
-    const { promptHidden } = await import("../prompt.js");
+    const { promptHidden } = await import("../../../../operations/utils/prompt.js");
     passphrase = await resolveCredentialPassphrase(undefined, promptHidden);
   }
 

@@ -38,8 +38,8 @@ import type { GovernanceRemediationProposal } from "../../../../governance/remed
 import type { GovernanceExecutionPlan } from "../../../../governance/execution-plans.js";
 import type { GovernanceExecutionApproval } from "../../../../governance/execution-approval.js";
 import type { GovernanceExecutionAttempt } from "../../../../governance/execution-recorder.js";
-import { parseInlineFlag } from "./audit.js";
-import { colorForState } from "./workbench.js";
+import { parseInlineFlag } from "./shared.js";
+import { colorForState } from "./shared.js";
 
 // ---------------------------------------------------------------------------
 // P17.5 — Execution report subcommands
