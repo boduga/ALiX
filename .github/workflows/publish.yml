@@ -62,7 +62,7 @@ jobs:
       - name: Pack (Sf.7 step 3)
         id: pack
         run: |
-          TARBALL="$(pnpm pack --json | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'))[0].filename" 2>/dev/null)"
+          TARBALL="$(pnpm pack --json | node -p "const parsed = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); (Array.isArray(parsed) ? parsed[0] : parsed).filename" 2>/dev/null)"
           echo "Tarball: $TARBALL"
           echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
 
