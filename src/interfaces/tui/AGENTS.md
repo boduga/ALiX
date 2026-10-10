@@ -106,7 +106,7 @@
 - Oversized tool-output artifacts inherit authoritative coordination run, worker, and task correlation from their tool request so strict drawer filters retain the selected worker's artifacts.
 - Diagnostic overlays consume editing, paste, and navigation input; Escape closes them and Ctrl+C retains cancellation/exit. Approval cards paint above diagnostics and their decision keys remain actionable.
 - Workbench rollout is additive and feature-gated until legacy parity is proven.
-- Keep the custom ANSI canvas; do not introduce a second terminal UI framework without a separately approved architecture change.
+- Keep the custom ANSI canvas as production renderer. The approved [OpenTUI Workbench migration design](../../../docs/superpowers/specs/2026-10-09-opentui-workbench-migration-design.md) permits an isolated experimental renderer spike; default switching, canvas removal, and production dependency adoption require its runtime and parity gates.
 - While the TUI owns stdin in raw mode, runtime cleanup, persistence, and model-stream helpers must not write directly to stdout/stderr or open readline prompts; surface output through projections/token callbacks and keep routine no-op outcomes silent. The TUI composition root sets `loadConfig(..., { suppressWarnings: true })`, `AgentSessionConfig.suppressConfigWarnings`, and `verbose: false`; both direct-route and task-loop calls must pass that ownership into `streamToResponse(writeToStdout: false)`.
 
 ## Work Guidance

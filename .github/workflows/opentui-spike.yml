@@ -1,0 +1,38 @@
+name: OpenTUI runtime spike
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/opentui/**'
+      - '.github/workflows/opentui-spike.yml'
+  workflow_dispatch:
+
+jobs:
+  native-core:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: 26.4.0
+          - os: ubuntu-latest
+            node: 26.11.0
+          - os: macos-latest
+            node: 26.11.0
+          - os: windows-latest
+            node: 26.11.0
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --prefix experiments/opentui --no-audit --no-fund
+      - run: npm test --prefix experiments/opentui
+      # PTY check needs fcntl/termios/openpty and is Unix-only. Windows native
+      # load and in-memory render are covered by `npm test`; Windows terminal
+      # restoration remains an explicit, unmeasured gap.
+      - name: Terminal restoration
+        if: runner.os != 'Windows'
+        run: npm run test:pty --prefix experiments/opentui
