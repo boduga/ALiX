@@ -15,7 +15,6 @@ import type { EventLog } from "../../../runtime-state/events/event-log.js";
 import type { MemoryStore } from "../../../operations/utils/memory/store.js";
 import "../../../task-classifier.js";
 import type { RunResult, ContextPressure } from "../../../run.js";
-import "../../../run.js";
 import "../../../capabilities/skills/dispatcher.js";
 import "../../verifier/index.js";
 import { EnhancedVerifier } from "../../verifier/enhanced-verifier.js";

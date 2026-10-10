@@ -13,8 +13,8 @@ import { TOOL_EVENT_TYPES, POLICY_EVENT_TYPES } from "../../runtime-state/events
 import type { NormalizedMessage, ToolCall, ToolDef } from "../../models/providers/types.js";
 import type { ScopeTracker } from "../../planning/autonomy/scope-tracker.js";
 import type { MutationSessionState } from "../../run.js";
-import { extractMutationPaths } from "../../run.js";
-import { buildErrorMessage } from "../../run.js";
+import { extractMutationPaths } from "../../agents/agent/mutations.js";
+import { buildErrorMessage } from "../../agents/agent/messages.js";
 import { ToolDiscovery } from "../../capabilities/mcp/tool-discovery.js";
 import type { ToolExecutor } from "../../capabilities/tools/executor.js";
 import { McpManager } from "../../capabilities/mcp/manager.js";

@@ -90,6 +90,13 @@ barrel preserving public import paths.
   must not rewrite the original call. See
   `tests/agents/exact-tool-name-resolver.vitest.ts`.
 - `../task-loop.ts` re-exports the public surface; do not add logic there.
+- **Never import the `src/run.ts` back-compat shim from task-loop internals.**
+  `run.ts` re-exports `runTask` from `agent/agent-loop.ts`, so any value (or
+  bare side-effect) import of it re-creates the
+  `task-loop ↔ run.ts ↔ agent-loop` import cycle (22 elementary cycles). Import
+  `RunResult`/`ContextPressure`/`MutationSessionState` from their home modules
+  and `extractMutationPaths`/`recordMutationInSessionState`/`buildErrorMessage`/
+  `buildModelUsageEventPayload` from `agents/agent/{mutations,messages}.js`.
 - Keep every module, including the orchestrator `main.ts`, within 1,500 lines;
   extract phases rather than inlining.
 - The unindented `runTaskLoop` body contains inner statements at column zero;
