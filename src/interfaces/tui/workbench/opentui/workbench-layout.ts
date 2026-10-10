@@ -8,6 +8,7 @@ type LayoutState = Pick<WorkbenchViewState, 'composer' | 'overlay'>;
 export interface OpenTuiWorkbenchLayout {
   readonly shell: BoxRenderable;
   readonly regions: Readonly<Record<'header' | 'tabs' | 'roster' | 'transcript' | 'inspector' | 'composer' | 'footer' | 'overlay', BoxRenderable>>;
+  readonly geometry: WorkbenchSurfaceGeometry;
   update(state: LayoutState): WorkbenchSurfaceGeometry;
   dispose(): void;
 }
@@ -70,13 +71,14 @@ export function mountOpenTuiWorkbenchLayout(renderer: CliRenderer, initial: Layo
     }
     return geometry;
   };
-  update(initial);
+  let geometry = update(initial);
   let disposed = false;
 
   return {
     shell,
     regions,
-    update,
+    get geometry() { return geometry; },
+    update: (state) => { geometry = update(state); return geometry; },
     dispose: () => {
       if (disposed) return;
       disposed = true;
