@@ -37,7 +37,8 @@ production TUI code.
   `perf-check.mjs`, and the frame assertions import them rather than re-typing.
 - **One teardown path.** Tests and the benchmark dispose the native renderer
   through `harness.mjs` so `destroy()` + `await closed` cannot drift.
-- **Native use requires Node ≥26.4.0 with ESM and `--experimental-ffi`.**
+- **Native Core loads only on Node ≥26.4.0 with ESM and
+  `--experimental-ffi`.** Renderer creation fails without the flag.
 - **Benchmark numbers are diagnostic.** ANSI and OpenTUI do different work;
   the benchmark compares shapes and trends, never a parity verdict.
 
