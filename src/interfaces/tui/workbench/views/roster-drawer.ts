@@ -6,34 +6,11 @@ import type { WorkbenchArtifactSnapshot } from '../model/artifact-inspection.js'
 import type { WorkbenchResponsiveLayout } from '../layout/responsive-layout.js';
 import { truncateDisplayText } from '../render/terminal-text.js';
 import { getWorkbenchPreviewTheme, getWorkbenchAgentPresentation, type WorkbenchPreviewTheme } from '../model/preview-theme.js';
+import { formatByteSize, formatCoordMeta, taskStateGlyph } from '../model/display-format.js';
 import { visibleArtifacts, visibleForRun } from '../model/selection.js';
 
 function fit(text: string, width: number): string {
   return truncateDisplayText(text, width);
-}
-
-function taskStateGlyph(state: TaskRosterSnapshot['tasks'][number]['state']): string {
-  if (state === 'running') return '●';
-  if (state === 'queued' || state === 'assigned' || state === 'waiting_dependency' || state === 'waiting_approval') return '◌';
-  if (state === 'completed') return '✓';
-  if (state === 'partial') return '◐';
-  if (state === 'failed') return '✗';
-  if (state === 'blocked') return '!';
-  return '○';
-}
-
-/** Dim coordination correlation line shared by agent and task rows. */
-function formatCoordMeta(entry: { coordinationRunId?: string; assignedAgentId?: string }): string | null {
-  if (!entry.coordinationRunId && !entry.assignedAgentId) return null;
-  const run = entry.coordinationRunId ? `run ${entry.coordinationRunId}` : '';
-  const assigned = entry.assignedAgentId ? `assigned ${entry.assignedAgentId}` : '';
-  return [run, assigned].filter(Boolean).join(' · ');
-}
-
-function formatBytes(value: number): string {
-  if (value < 1_024) return `${value} B`;
-  if (value < 1_048_576) return `${(value / 1_024).toFixed(1)} KiB`;
-  return `${(value / 1_048_576).toFixed(1)} MiB`;
 }
 
 export function paintRosterDrawer(input: {
@@ -107,7 +84,7 @@ export function paintRosterDrawer(input: {
         .filter(Boolean).join(' · ');
       if (row <= contentBottom) write(left + 2, row++, `\x1b[90m${fit(correlation, inner)}${RESET}`);
       if (row <= contentBottom && item.uri) write(left + 2, row++, `\x1b[90m${fit(item.uri, inner)}${RESET}`);
-      const metadata = [item.mediaType, item.sizeBytes !== undefined ? formatBytes(item.sizeBytes) : '', item.digest ? `digest ${item.digest.slice(0, 12)}` : '']
+      const metadata = [item.mediaType, item.sizeBytes !== undefined ? formatByteSize(item.sizeBytes) : '', item.digest ? `digest ${item.digest.slice(0, 12)}` : '']
         .filter(Boolean).join(' · ');
       if (row <= contentBottom && metadata) write(left + 2, row++, `\x1b[90m${fit(metadata, inner)}${RESET}`);
       if (row <= contentBottom && item.preview) {

@@ -11,8 +11,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const maxMem = process.env.ALIX_MAX_HEAP || "4096";
 const cliPath = join(__dirname, "..", "dist", "src", "cli.js");
 const cliArgs = process.argv.slice(2);
+const rendererFlag = cliArgs.find((arg) => arg === "--renderer" || arg.startsWith("--renderer="));
 const rendererIndex = cliArgs.indexOf("--renderer");
-const useOpenTui = cliArgs[0] === "tui" && rendererIndex >= 0 && cliArgs[rendererIndex + 1] === "opentui";
+const rendererValue = rendererFlag?.startsWith("--renderer=")
+  ? rendererFlag.slice("--renderer=".length)
+  : rendererIndex >= 0
+    ? cliArgs[rendererIndex + 1]
+    : undefined;
+const useOpenTui = cliArgs[0] === "tui" && rendererValue === "opentui";
 
 const child = spawn(
   process.execPath,

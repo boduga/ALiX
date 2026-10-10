@@ -23,6 +23,9 @@ describe("OpenTUI launcher selection", () => {
       }
     `);
 
+    // Workload rationale: each case cold-spawns a fresh Node process
+    // (preload probe + launcher + CLI) several times over; 15s per spawn and a
+    // 30s test budget absorb cold module load on slow CI runners.
     const run = (args: string[]) => {
       rmSync(capturedErrors, { force: true });
       const result = spawnSync(process.execPath, [launcher, ...args], {
@@ -52,6 +55,11 @@ describe("OpenTUI launcher selection", () => {
       expect(selected.nodeArgs).toContain("--experimental-ffi");
       expect(selected.errors).toContain("OpenTUI renderer is not implemented yet");
       expect(existsSync(join(cwd, ".alix"))).toBe(false);
+
+      const selectedEquals = run(["tui", "--renderer=opentui"]);
+      expect(selectedEquals.status).toBe(1);
+      expect(selectedEquals.nodeArgs).toContain("--experimental-ffi");
+      expect(selectedEquals.errors).toContain("OpenTUI renderer is not implemented yet");
 
       const unknown = run(["tui", "--renderer", "unknown"]);
       expect(unknown.status).toBe(1);

@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createTestRenderer, type TestRendererSetup } from '@opentui/core/testing';
 import type { AgentInspectorModel } from '../../../src/interfaces/tui/workbench/model/agent-inspector.js';
+import type { OperatorShellSnapshot } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
 import type { WorkbenchDrawer } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
 import type { WorkbenchViewComposer, WorkbenchViewState } from '../../../src/interfaces/tui/workbench/view-state/types.js';
-import { mountOpenTuiWorkbenchContent } from '../../../src/interfaces/tui/workbench/opentui/workbench-content.js';
+import { mountOpenTuiWorkbenchContent, type ContentState } from '../../../src/interfaces/tui/workbench/opentui/workbench-content.js';
 import { mountOpenTuiWorkbenchLayout } from '../../../src/interfaces/tui/workbench/opentui/workbench-layout.js';
 
-type ContentState = Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay' | 'inspector' | 'composer' | 'approval'>;
+function chromeState(overrides: Partial<OperatorShellSnapshot> = {}): OperatorShellSnapshot {
+  return { workspace: '/w', mode: 'auto', transcriptMode: 'compact', running: false, queuedMessages: 0, ...overrides };
+}
 
 function inspectorState(overrides: Partial<AgentInspectorModel> = {}): AgentInspectorModel {
   return { selection: 'aggregate', explicitTaskSelection: false, approvals: [], artifacts: [], tokensPartial: false, costPartial: false, ...overrides };
@@ -47,7 +50,6 @@ for (const { name, width, height, drawer, inspector, overlay } of [
       const layout = mountOpenTuiWorkbenchLayout(setup.renderer, layoutState(drawer));
       await setup.renderOnce();
       const frame = setup.captureCharFrame();
-      assert.match(frame, /ALiX WORKBENCH/);
       if (!overlay) assert.match(frame, /Transcript/);
       assert.match(frame, /Composer/);
       assert.equal(layout.regions.inspector.visible, inspector);
@@ -60,7 +62,7 @@ for (const { name, width, height, drawer, inspector, overlay } of [
       layout.dispose();
       layout.dispose();
       await setup.renderOnce();
-      assert.doesNotMatch(setup.captureCharFrame(), /ALiX WORKBENCH/);
+      assert.doesNotMatch(setup.captureCharFrame(), /Composer/);
     } finally {
       await dispose(setup);
     }
@@ -100,6 +102,8 @@ test('native roster and transcript show selected run content and update in place
       inspector: inspectorState(),
       composer: contentComposer(),
       approval: [],
+      header: chromeState(),
+      footer: chromeState(),
       roster: {
         agents: {
           agents: [
@@ -190,6 +194,8 @@ test('very long transcript item stays bounded to native viewport', async () => {
       inspector: inspectorState(),
       composer: contentComposer(),
       approval: [],
+      header: chromeState(),
+      footer: chromeState(),
       roster: { agents: null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [
         { id: 'long', kind: 'assistant', text: `${'word '.repeat(60_000)}TAIL MARKER`, startedAt: 1, sourceEvents: { firstSequence: 1, lastSequence: 1 } },
@@ -220,6 +226,8 @@ test('narrow roster keeps selected agent visible after resize', async () => {
       inspector: inspectorState(),
       composer: contentComposer(),
       approval: [],
+      header: chromeState(),
+      footer: chromeState(),
       roster: { agents: { agents, active: 8, totals: { agents: 8, running: 8, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 } }, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: { selectedAgentId: 'worker-7' }, overlay: shellState.overlay,
@@ -246,6 +254,8 @@ test('native content preserves unavailable roster and moves into narrow overlay'
       inspector: inspectorState(),
       composer: contentComposer(),
       approval: [],
+      header: chromeState(),
+      footer: chromeState(),
       roster: { agents: null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: {}, overlay: shellState.overlay,
@@ -284,6 +294,7 @@ test('native inspector shows bounded agent sections and updates in place', async
     });
     const state: ContentState = {
       inspector: selected, composer: contentComposer(), approval: [],
+      header: chromeState(), footer: chromeState(),
       roster: { agents: null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: { selectedAgentId: 'worker-1' }, overlay: shellState.overlay,
@@ -320,6 +331,7 @@ test('native composer shows placeholder, draft, and multiline rows', async () =>
     const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shellState);
     const base: ContentState = {
       inspector: inspectorState(), composer: shellState.composer, approval: [],
+      header: chromeState(), footer: chromeState(),
       roster: { agents: null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: {}, overlay: shellState.overlay,
@@ -358,6 +370,7 @@ test('native drawers render task and artifact bodies by drawer selection', async
     const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shell);
     const base: ContentState = {
       inspector: inspectorState(), composer: shell.composer, approval: [],
+      header: chromeState(), footer: chromeState(),
       roster: {
         agents: null,
         tasks: { tasks: [
@@ -402,7 +415,9 @@ test('native approval card paints above the drawer overlay', async () => {
     const state: ContentState = {
       inspector: inspectorState(), composer: contentComposer(), approval: [
         { id: 'ap-1', toolName: 'write_file', target: 'src/x.ts', args: {}, requestedAt: 1, requestedBy: 'worker-1', agentId: 'worker-1' },
+        { id: 'ap-2', toolName: 'run_shell', target: 'npm test', args: {}, requestedAt: 2, requestedBy: 'worker-1', agentId: 'worker-1' },
       ],
+      header: chromeState(), footer: chromeState(),
       roster: { agents: null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: {}, overlay: shell.overlay,
@@ -412,14 +427,54 @@ test('native approval card paints above the drawer overlay', async () => {
     const frame = setup.captureCharFrame();
     assert.match(frame, /APPROVAL REQUIRED/);
     assert.match(frame, /write_file/);
+    assert.match(frame, /npm test/);
+    assert.match(frame, /1 OF 2/);
     assert.match(frame, /a approve · d deny/);
     assert.equal(content.approval.visible, true);
     assert.ok(content.approval.screenY < layout.regions.overlay.screenY + layout.regions.overlay.height);
+    const rows = frame.split('\n');
+    assert.match(rows[content.approval.screenY] ?? '', /APPROVAL REQUIRED/);
 
     content.update({ ...state, approval: [] });
     await setup.renderOnce();
     assert.equal(content.approval.visible, false);
     assert.doesNotMatch(setup.captureCharFrame(), /APPROVAL REQUIRED/);
+    content.dispose();
+    layout.dispose();
+  } finally {
+    await dispose(setup);
+  }
+});
+
+test('native header and footer render operator chrome', async () => {
+  const setup = await createTestRenderer({ width: 120, height: 30 });
+  try {
+    const shell = layoutState('closed');
+    const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shell);
+    const chrome = chromeState({
+      mode: 'ask', running: true, workspace: '/work/project', tokensUsed: 1234,
+      filesTouched: 3, eventCount: 9, escapeAction: 'cancel',
+      agents: { active: 2, total: 4, running: 2, waitingApproval: 1, stalled: 0, costCoverage: 0 },
+      approval: { count: 2, toolName: 'write_file' },
+      focus: 'composer',
+    });
+    const state: ContentState = {
+      inspector: inspectorState(), composer: contentComposer(), approval: [],
+      header: chrome, footer: chrome,
+      roster: { agents: null, tasks: null, artifacts: null },
+      transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
+      selection: {}, overlay: shell.overlay,
+    };
+    const content = mountOpenTuiWorkbenchContent(setup.renderer, layout, state);
+    await setup.renderOnce();
+    const frame = setup.captureCharFrame();
+    assert.match(frame, /ALiX WORKBENCH/);
+    assert.match(frame, /PREVIEW/);
+    assert.match(frame, /workspace: \/work\/project/);
+    assert.match(frame, /TOKENS 1,234/);
+    assert.match(frame, /a approve/);
+    assert.match(frame, /d deny/);
+    assert.match(frame, /Esc cancel/);
     content.dispose();
     layout.dispose();
   } finally {

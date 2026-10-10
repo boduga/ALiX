@@ -40,9 +40,12 @@ COMMAND_ROUTER["tui"] = async () => {
     const daemonMode = a.includes("--daemon");
     const themeIdx = a.indexOf("--theme");
     const themeName = themeIdx >= 0 ? a[themeIdx + 1] : undefined;
+    const rendererFlag = a.find((arg) => arg === "--renderer" || arg.startsWith("--renderer="));
     const rendererIdx = a.indexOf("--renderer");
-    const renderer = rendererIdx >= 0 ? a[rendererIdx + 1] : undefined;
-    if (rendererIdx >= 0 && !renderer) {
+    const renderer = rendererFlag?.startsWith("--renderer=")
+      ? rendererFlag.slice("--renderer=".length)
+      : rendererIdx >= 0 ? a[rendererIdx + 1] : undefined;
+    if (rendererFlag !== undefined && !renderer) {
       console.error("Missing TUI renderer after --renderer. Supported: canvas, opentui.");
       return 1;
     }

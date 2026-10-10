@@ -46,7 +46,6 @@ export function mountOpenTuiWorkbenchLayout(renderer: CliRenderer, initial: Layo
     footer: panel('footer'),
     overlay: panel('overlay', 'Agents'),
   };
-  regions.header.add(new TextRenderable(renderer, { content: 'ALiX WORKBENCH' }));
   regions.tabs.add(new TextRenderable(renderer, { content: 'AGENT' }));
   for (const box of Object.values(regions)) shell.add(box);
   renderer.root.add(shell);

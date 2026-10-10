@@ -77,9 +77,6 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   if (renderer === "opentui") {
     throw new Error("OpenTUI renderer is not implemented yet; use --renderer canvas.");
   }
-  if (renderer !== "canvas") {
-    throw new Error(`Unsupported TUI renderer '${renderer}'.`);
-  }
   const cwd = process.cwd();
   const sessionId = opts.sessionName ?? `${Date.now()}`;
   const sessionDir = join(cwd, '.alix', 'sessions', sessionId);
