@@ -16,6 +16,11 @@ import { resolveWorkbenchLayout } from '../../../src/interfaces/tui/workbench/la
 import { paintRosterDrawer } from '../../../src/interfaces/tui/workbench/views/roster-drawer.js';
 import type { AlixConfig } from '../../../src/operations/config/schema.js';
 import { closeAllSharedLedgers } from '../../../src/runtime-state/storage/runtime-ledger.js';
+import type { DashboardSnapshot } from '../../../src/interfaces/tui/snapshot.js';
+import { createInitialPerTabState, SessionPhase } from '../../../src/interfaces/tui/state.js';
+import { assembleWorkbenchViewState } from '../../../src/interfaces/tui/workbench/view-state/assemble.js';
+import { createInitialWorkbenchUiState } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
+import { projectOperatorShell } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
 
 function config(): AlixConfig {
   return {
@@ -126,18 +131,51 @@ describe('four-worker Workbench end-to-end', () => {
       expect(taskSnapshot.tasks.every((task) => task.state === 'completed')).toBe(true);
       expect(artifactSnapshot).toMatchObject({ artifacts: 4, results: 0, failed: 0 });
 
-      const canvas = new TerminalCanvas(72, 34);
-      paintRosterDrawer({
-        canvas, terminalColumns: 72, top: 3, bottom: 31,
-        layout: resolveWorkbenchLayout(72, 'agents'), agents: agentSnapshot, tasks: taskSnapshot,
-        artifacts: artifactSnapshot, selectedRunId: run.id,
-      });
-      const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-      for (let number = 1; number <= 4; number++) {
-        expect(frame).toContain(`alix#${number} COMPLETED`);
-        expect(frame).toContain(`Report ${number}`);
+      // Slice 3 parity: the fixed four-worker fixture renders at every spec
+      // size, and the renderer-neutral view state carries the same semantics
+      // regardless of layout (identity/counts are size-independent).
+      const sizes = [
+        { name: 'wide', columns: 180, rows: 44 },
+        { name: 'medium', columns: 120, rows: 36 },
+        { name: 'narrow', columns: 80, rows: 34 },
+      ] as const;
+      for (const size of sizes) {
+        const canvas = new TerminalCanvas(size.columns, size.rows);
+        paintRosterDrawer({
+          canvas, terminalColumns: size.columns, top: 3, bottom: size.rows - 3,
+          layout: resolveWorkbenchLayout(size.columns, 'agents'), agents: agentSnapshot, tasks: taskSnapshot,
+          artifacts: artifactSnapshot, selectedRunId: run.id,
+        });
+        const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+        for (let number = 1; number <= 4; number++) {
+          expect(frame, `${size.name}: alix#${number}`).toContain(`alix#${number} COMPLETED`);
+          expect(frame, `${size.name}: Report ${number}`).toContain(`Report ${number}`);
+        }
       }
-      expect(frame.match(/COMPLETED/g)).toHaveLength(4);
+
+      const snapshot: DashboardSnapshot = {
+        generatedAt: 1,
+        session: { mode: 'auto', phase: SessionPhase.Idle, version: 'test', startedAt: 1, turns: 0 },
+        daemon: null,
+        approvals: { pending: [], recentlyResolved: [], totalPending: 0, totalResolved: 0 },
+        runtime: {
+          trace: [], timeline: [], workflow: null, totalEventCount: events.length, lastEventAt: null,
+          sessionId, capabilities: null, metrics: null, context: null,
+          agents: agentSnapshot, tasks: taskSnapshot, artifacts: artifactSnapshot,
+        },
+        sops: null, policy: null, cwd,
+      };
+      const viewState = assembleWorkbenchViewState({
+        snapshot,
+        ui: createInitialWorkbenchUiState({ columns: 120, rows: 30 }),
+        chrome: projectOperatorShell(snapshot, createInitialPerTabState()),
+        transcriptSource: { timeline: [], trace: [] },
+      });
+      expect(viewState.roster.agents?.agents).toHaveLength(4);
+      expect(new Set(viewState.roster.agents?.agents.map((entry) => entry.agentId)).size).toBe(4);
+      expect(viewState.roster.tasks?.tasks).toHaveLength(4);
+      expect(viewState.roster.artifacts?.artifacts).toBe(4);
+      expect(viewState.inspector.selection).toBe('aggregate');
     } finally {
       await scheduler.shutdown();
     }
