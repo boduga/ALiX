@@ -136,7 +136,12 @@ export async function initialize(state: SessionState): Promise<void> {
   state.cappedIterations = p5.cappedIterations;
 
   // P6: Context compilation + Plan
-  if (!state.shellTask && !state.readOnlyTask && state.currentTask) {
+  // Read-only tasks skip the PLAN (no interactive prompt) but still compile
+  // context so the canonical `context.bundle_compiled` event is emitted — the
+  // Inspector/browser context panel reads that event, and previously a
+  // read-only run showed an empty panel. The compiled bundle is NOT injected
+  // into the read-only system prompt (prompt behavior unchanged).
+  if (!state.shellTask && state.currentTask) {
     const p6 = await setupContextAndPlan(
       state.ctx,
       state.config.cwd,
@@ -145,7 +150,7 @@ export async function initialize(state: SessionState): Promise<void> {
       state.taskType,
       state.ctx.sessionId,
       {
-        planMode: state.config.planMode,
+        planMode: state.readOnlyTask ? false : state.config.planMode,
         planFilePath: state.config.planFilePath,
         planApprovalMode: state.config.planApprovalMode,
         planApprovalGate: state.config.planApprovalGate,
@@ -153,7 +158,9 @@ export async function initialize(state: SessionState): Promise<void> {
         context: state.currentRunContext,
       },
     );
-    state.contextBundle = p6.contextBundle;
+    if (!state.readOnlyTask) {
+      state.contextBundle = p6.contextBundle;
+    }
 
     if (p6.approvedPlanContent) {
       advancePhase(state, SessionPhase.Planning);
