@@ -96,3 +96,15 @@ Committed as `feat(tui): render OpenTUI approval card`. Remaining view content: 
 Verification: `pnpm build`; `pnpm test:opentui` 13/13; `pnpm typecheck:unused`; `pnpm check:dead`; both architecture tests 8/8; `tests/tui` vitest 1380/1380; `pnpm check:dox`; `git diff --check`.
 
 GitNexus caveat: a first `analyze --index-only` produced a corrupt index (it attributed `TEXT`, `kind`, `input`, `ok`, `result` to `workbench-content.ts`, and node/edge counts jumped between rebuilds). `analyze --index-only --force --no-parse-cache` restored a sane index (86,273 nodes / 197,273 edges). `detect-changes --scope all` then listed only real changed symbols (docs/AGENTS sections and `workbench-content.ts` symbols) but still reported **CRITICAL** with 237 processes — every affected flow is attributed solely through the generic method name `update` (`HandleClaimVerify → … — changed: update`), which is the documented name-based process-attribution false positive (cf. the `TuiOptions` false positive in the Node 26 handoff), not a real call path. The only callers of `mountOpenTuiWorkbenchContent` are the native test and no production host yet; compiler and the 13 native + 1380 TUI + 8 architecture tests are authoritative.
+
+## Review fixes (PR #899)
+
+Addressed the two-axis review of the stacked PR:
+
+- **Spec**: header and footer now render from the operator-shell snapshot; all pending approvals stack as bounded cards (not just the first); task-drawer counts are run-scoped; the approval test proves z-order by asserting the card occupies the row over the overlay.
+- **Bug**: launcher and CLI accept `--renderer=opentui` as well as `--renderer opentui`.
+- **Standards**: the launcher test carries the required workload-rationale comment; added an owning `docs/AGENTS.md` and registered it in the root Child DOX Index.
+- **Smells**: extracted shared `model/display-format.ts` (task glyph, byte size, coordination line) used by the native content and the ANSI drawer; added a `BoundedLines` accumulator for the drawer/inspector bodies; typed region params as `BoxRenderable`; exported `ContentState` and imported it in the native test; dropped the unreachable renderer guard in `runTui`; named the transcript char budget.
+- Not changed: the ANSI `transcriptActor` and the native actor label stay separate — the ANSI form resolves the assigned agent from the runtime snapshot, which the native `itemLines` does not carry.
+
+Verification: `pnpm build`; `pnpm test:opentui` 14/14; `pnpm typecheck:unused`; `pnpm check:dead`; architecture 8/8; `tests/cli` + `tests/tui` vitest 1791 passed / 7 skipped; `pnpm check:dox`; `git diff --check`.

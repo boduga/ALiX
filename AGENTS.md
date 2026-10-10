@@ -246,6 +246,7 @@ Single-context: read CONTEXT.md at the repo root and docs/adr/ when they exist; 
 | `src/interfaces/tui/AGENTS.md` | Interactive terminal UI — projections, Workbench transcript, views, input, layout, rendering |
 | `src/models/tracing/AGENTS.md` | Langfuse tracing facade — TraceClient, noop client, capture policy, adapter |
 | `benchmark/AGENTS.md` | Benchmark harness history vs summary vs state vs hybrid — deterministic maintenance/reconciliation, FakeModel substrate isolation, 4-group metrics |
+| `docs/AGENTS.md` | Durable documentation — dated hand-off records at the docs root, plus pointers to the agent/architecture/superpowers/jev subtrees |
 | `docs/superpowers/AGENTS.md` | Implementation specs and plans |
 | `docs/jev/AGENTS.md` | Jev / System One integration docs — design spec, delivery plan, current status |
 | `experiments/opentui/AGENTS.md` | Isolated OpenTUI runtime spike — pinned fixture, in-memory tests, PTY checks, diagnostic benchmark |
