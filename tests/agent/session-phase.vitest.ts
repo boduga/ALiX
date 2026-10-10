@@ -194,6 +194,15 @@ describe("SessionPhase (contract)", () => {
     expect(workflows[1]!.payload.goal).toBe("Fix the tests in this repo");
     expect(workflows[0]!.payload.workflowId).not.toBe(workflows[1]!.payload.workflowId);
   });
+
+  it("emits context.bundle_compiled for a read-only task (Inspector context parity)", async () => {
+    // Read-only tasks skip the PLAN but must still compile context so the
+    // canonical event the Inspector/browser context panel reads is emitted.
+    const session = createAgentSession({ cwd: phaseTestCwd, task: "", planMode: false });
+    await session.processTurn("Read the file notes.txt and report its contents");
+    const types = (mocks.append.mock.calls as unknown as Array<[{ type: string }]>).map(([event]) => event.type);
+    expect(types).toContain("context.bundle_compiled");
+  });
 });
 
 describe("processChat (lightweight chat path)", () => {

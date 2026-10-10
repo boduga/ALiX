@@ -77,6 +77,11 @@ and the TUI. `../session.ts` preserves public imports as a re-export barrel.
 - Model-facing prior conversation is one optional assistant data item: at most 24 public messages, 8,000 JSON-encoded characters per content value and 24,000 characters overall. Exclude tool payloads/calls, runtime ledgers/nudges and private reasoning; current request stays the final user message. Historical instructions and claims are context only, never current permissions, task scoping or executed verification evidence. Contentful current requests replace the continuation objective; explicit bare continuation resumes the latest substantive public request, including restored history, while ignoring runtime prompts. Never fall back to the first stale objective.
 - `completed_unverified` is a failed terminal outcome. Session wrappers must
   emit failed task/graph/workflow state for it, never completed state.
+- **Read-only tasks compile context but skip the plan.** `init.ts` P6 runs for
+  read-only tasks with `planMode: false`: it emits the canonical
+  `context.bundle_compiled` (the Inspector/browser context panel reads it) and
+  returns before the plan phase, and the compiled bundle is NOT injected into
+  the read-only system prompt. Shell tasks skip P6 entirely.
 
 ## Work Guidance
 
