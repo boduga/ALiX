@@ -132,22 +132,24 @@ Reading the numbers:
 
 | OS | Node | Status |
 | --- | --- | --- |
-| Linux x64 | 26.11.0 | **Verified locally** — tests, PTY, benchmark. |
-| Linux x64 | 26.4.0 | Configured in CI, **not yet run**. |
-| macOS x64/arm64 | 26.11.0 | Configured in CI, **not yet run**. |
-| Windows x64 | 26.11.0 | Configured in CI, **not yet run**; terminal-restoration check **not implemented** (PTY check is Unix-only). |
+| Linux x64 | 26.11.0 | **Verified** — local tests/PTY/benchmark plus CI green. |
+| Linux x64 | 26.4.0 | **Verified in CI** — green. |
+| macOS arm64 | 26.11.0 | **Verified in CI** — `npm test` plus PTY terminal restoration green. |
+| Windows x64 | 26.11.0 | **Native load + in-memory tests green in CI**; terminal restoration **not implemented** (PTY check is Unix-only). |
 
-`.github/workflows/opentui-spike.yml` declares the full matrix. It is a
-proposed job that has **not executed**; platform results are unmeasured, not
-passed.
+`.github/workflows/opentui-spike.yml` ran on draft PR
+[#898](https://github.com/boduga/ALiX/pull/898)
+([native-core run 38031068405](https://github.com/boduga/ALiX/actions/runs/38031068405));
+every declared leg passed. No Linux arm64, musl, or macOS x64 leg is configured.
 
 ## Remaining gaps (do not report as passed)
 
-1. **Platform CI unrun.** macOS/Windows/musl native load, tests, and packaging
-   are unverified. Windows has no terminal-restoration check.
+1. **Windows terminal restoration unmeasured.** Native load and in-memory
+   tests pass on Windows CI, but the PTY restoration check is Unix-only and has
+   no Windows (ConPTY) equivalent yet.
 2. **Performance gate not closed.** Idle CPU, latency, RSS plateau, and
-   frame-coalescing are measured on Linux only and still need a comparably
-   framed workload before any threshold is set.
+   frame-coalescing are measured on one Linux host/run and still need a
+   comparably framed workload before any threshold is set.
 3. **Not wired.** `WorkbenchViewState` extraction, renderer selection at the
    CLI composition root, and launcher-owned `--experimental-ffi` are later
    slices, out of scope here.
