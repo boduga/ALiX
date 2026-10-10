@@ -65,7 +65,7 @@
     "fresh": "pnpm build && node dist/src/cli.js doctor"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=26.4.0"
   },
   "devDependencies": {
     "@langfuse/core": "5.11.1",

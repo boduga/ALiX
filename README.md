@@ -85,7 +85,7 @@ recorded with full audit metadata, creating a complete provenance trail.
 
 ### Requirements
 
-- Node 24+
+- Node.js 26.4.0+
 - An API key from one of the supported providers (free tier available on Google, DeepSeek)
 
 ### Install

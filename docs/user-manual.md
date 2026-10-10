@@ -27,7 +27,7 @@ Daemon       → DaemonManager, TaskRegistry, Unix socket server
 
 ### Requirements
 
-- **Node.js 24+**
+- **Node.js 26.4.0+**
 - An API key from a supported LLM provider (DeepSeek, Anthropic, OpenAI, Google, Groq, etc.)
 
 ### From source

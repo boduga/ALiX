@@ -26,7 +26,7 @@ jobs:
       # actions/setup-node v4 — pinned SHA
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
@@ -56,7 +56,7 @@ jobs:
           version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: TypeScript typecheck
@@ -83,7 +83,7 @@ jobs:
       # actions/setup-node v4 — pinned SHA
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
       - name: DOX claim/code audit
         run: node scripts/check-dox-claims.mjs --base "${{ github.event.pull_request.base.sha || 'main' }}"
 
@@ -97,7 +97,7 @@ jobs:
           version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
@@ -125,7 +125,7 @@ jobs:
           version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
@@ -150,7 +150,7 @@ jobs:
           version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
@@ -171,18 +171,18 @@ jobs:
           version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: TUI manual smoke
         run: pnpm test:manual:tui
 
-  # ─── Lane 5: Cross-platform — macOS (Node LTS + current) ──────────────
+  # ─── Lane 5: Cross-platform — macOS (minimum + tested Node) ──────────
   unit-macos:
     strategy:
       matrix:
-        node-version: ["22", "24"]
+        node-version: ["26.4.0", "26.11.0"]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -200,11 +200,11 @@ jobs:
       - name: Vitest (#693 — exercise macOS filesystem/process semantics)
         run: pnpm test:vitest
 
-  # ─── Lane 6: Cross-platform — Windows (Node LTS) ──────────────────────
+  # ─── Lane 6: Cross-platform — Windows (supported Node runtime) ───────
   unit-windows:
     strategy:
       matrix:
-        node-version: ["22"]
+        node-version: ["26.11.0"]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -242,7 +242,7 @@ jobs:
           version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
@@ -274,7 +274,7 @@ jobs:
           version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
@@ -296,7 +296,7 @@ jobs:
           version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build

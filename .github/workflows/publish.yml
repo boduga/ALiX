@@ -29,7 +29,7 @@ jobs:
       # actions/setup-node v4 — pinned to SHA
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           registry-url: "https://registry.npmjs.org"
           cache: pnpm
 
@@ -134,7 +134,7 @@ jobs:
       # actions/setup-node v4 — pinned to SHA
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "24"
+          node-version: "26.11.0"
           registry-url: "https://registry.npmjs.org"
 
       # Download the exact tarball that passed the release gate
