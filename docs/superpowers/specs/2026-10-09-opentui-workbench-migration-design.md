@@ -82,7 +82,7 @@ The spike deliverable ("confined to `experiments/opentui/`") is amended to allow
 - `src/interfaces/tui/AGENTS.md` — the DOX line recording this approved exception.
 - `experiments/opentui/AGENTS.md` — the child contract for the new boundary.
 
-No other production file is in scope. `WorkbenchViewState` extraction, renderer selection, and launcher-owned `--experimental-ffi` remain later slices.
+No other production file is in scope for the spike itself. `WorkbenchViewState` extraction (migration slice 1) is included in the same PR — see the slice-1 amendment below; renderer selection at the CLI composition root and launcher-owned `--experimental-ffi` remain later slices.
 
 ## Amendment 2026-10-10: provisional performance thresholds
 
@@ -100,4 +100,4 @@ All five passed on the measured run with at least 3.7× headroom. Single-host, s
 
 ## Amendment 2026-10-10: migration slice 1 (view-state extraction)
 
-Slice 1 landed as `src/interfaces/tui/workbench/view-state/` — the renderer-neutral `WorkbenchViewState` interface plus the pure `assembleWorkbenchViewState` composer, covered by `tests/tui/workbench/workbench-view-state.vitest.ts`. It composes the immutable snapshot, the Workbench UI store, the operator-shell projection, and the agent transcript sources, adding no second state store and no event stream. The ANSI painter still reads its current inputs; wiring it (and CLI renderer selection) onto this boundary is slice 2.
+Slice 1 landed in PR #898 as `src/interfaces/tui/workbench/view-state/` — the renderer-neutral `WorkbenchViewState` interface plus the pure `assembleWorkbenchViewState` composer, covered by `tests/tui/workbench/workbench-view-state.vitest.ts`. It composes the immutable snapshot, the Workbench UI store, the operator-shell projection, and the agent transcript sources, adding no second state store and no event stream. The ANSI painter still reads its current inputs; wiring it (and CLI renderer selection) onto this boundary is slice 2.
