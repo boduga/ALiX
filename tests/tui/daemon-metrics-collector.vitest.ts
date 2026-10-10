@@ -46,11 +46,14 @@ describe('DaemonMetricsCollector — dead daemon', () => {
   });
 
   it('zeroes process metrics when readMetrics returns null even if readPid succeeded', async () => {
+    // A PID that is guaranteed not to exist, so the degraded-path /proc read
+    // fails deterministically (a real low PID like 4242 may exist on the host).
+    const DEAD_PID = 99_999_999;
     // First phase: pid + metrics both available (live daemon).
     // Second phase: pid still available but metrics go null (degraded daemon).
     let metricsAvailable = true;
     const c = new DaemonMetricsCollectorImpl({
-      readPid: () => 4242,
+      readPid: () => DEAD_PID,
       readMetrics: () =>
         metricsAvailable
           ? { uptimeSeconds: 10, cpuPercent: 7.5, memoryRssBytes: 9999, memoryTotalBytes: 16384, diskUsedBytes: 1, diskTotalBytes: 10 }
@@ -61,7 +64,7 @@ describe('DaemonMetricsCollector — dead daemon', () => {
     // Drive at least one sample so the cache holds non-zero process metrics.
     await new Promise((r) => setTimeout(r, 1100));
     let snap = await c.snapshot();
-    expect(snap.pid).toBe(4242);
+    expect(snap.pid).toBe(DEAD_PID);
     expect(snap.cpuPercent).toBe(7.5);
     expect(snap.memoryRssBytes).toBe(9999);
 
@@ -71,7 +74,7 @@ describe('DaemonMetricsCollector — dead daemon', () => {
     snap = await c.snapshot();
     // Degraded daemon: pid still known but metrics unavailable — falls
     // back to reading /proc/<pid>/ directly.
-    expect(snap.pid).toBe(4242);
+    expect(snap.pid).toBe(DEAD_PID);
     expect(snap.cpuPercent).toBe(0);
     expect(snap.memoryRssBytes).toBe(0);
     expect(snap.memoryTotalBytes).toBeGreaterThan(0);  // read from /proc/meminfo
