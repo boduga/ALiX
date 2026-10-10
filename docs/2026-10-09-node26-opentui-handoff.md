@@ -1,41 +1,48 @@
 # Node 26 → OpenTUI hand-off
 
-Updated 2026-10-10 (America/Edmonton). **Current branch:** `spike/tui-opentui-runtime-gate`. Committed; draft [PR #898](https://github.com/boduga/ALiX/pull/898) is open with the platform matrix green.
+Updated 2026-10-10 (America/Edmonton). **Branch:** `spike/tui-opentui-runtime-gate`. [PR #898](https://github.com/boduga/ALiX/pull/898) is open (ready for review); every check on the PR is green.
 
 ## Landed prerequisite
 
-[PR #896](https://github.com/boduga/ALiX/pull/896) merged at `f496c18abcf64b2fde40ac24e7215e8f04f89ad1`. ALiX requires Node `>=26.4.0`, pins `26.11.0` in `.nvmrc`, and uses ESM. [Final CI run 38028717817](https://github.com/boduga/ALiX/actions/runs/38028717817) passed every PR gate, including supply-chain, node-tests, TUI smoke, macOS 26.4/26.11, and Windows 26.11. The production TUI remains a custom ANSI canvas; there is no Blessed dependency.
+[PR #896](https://github.com/boduga/ALiX/pull/896) merged at `f496c18abcf64b2fde40ac24e7215e8f04f89ad1`. ALiX requires Node `>=26.4.0`, pins `26.11.0` in `.nvmrc`, and uses ESM. The production TUI remains a custom ANSI canvas; there is no Blessed dependency.
 
-## Approved scope and spike contents
+## Scope: runtime spike + migration slices 1–3
 
-The [migration design](superpowers/specs/2026-10-09-opentui-workbench-migration-design.md) is approved for an **isolated experimental spike** only. It names `WorkbenchViewState`, single-renderer terminal ownership, import boundaries, semantic/interaction parity, and a performance gate. The TUI [DOX contract](../src/interfaces/tui/AGENTS.md) records this exception. The [spike plan](superpowers/plans/2026-10-10-opentui-runtime-gate.md) is now an as-built record with measured result and remaining gaps.
+The [migration design](superpowers/specs/2026-10-09-opentui-workbench-migration-design.md) approved an isolated experimental spike, and gates that spike on runtime, cleanup, packaging, and performance evidence. All four now pass, so PR #898 also carries the first three migration slices (renderer-neutral `WorkbenchViewState`; painter consumption + renderer selection; four-worker parity). The TUI [DOX contract](../src/interfaces/tui/AGENTS.md) and the as-built [spike plan](superpowers/plans/2026-10-10-opentui-runtime-gate.md) are updated with dated amendments.
 
-Committed paths (draft PR #898):
+Committed paths (PR #898):
 
-- `src/interfaces/tui/AGENTS.md` — approved spike exception.
-- `docs/superpowers/specs/2026-10-09-opentui-workbench-migration-design.md`, `docs/superpowers/plans/2026-10-10-opentui-runtime-gate.md`, and this hand-off.
-- `experiments/opentui/` — pinned `@opentui/core@0.5.17` and `web-tree-sitter@0.25.10`, lockfile, shared fixture (`workbench-fixture.mjs`), renderer lifecycle (`harness.mjs`), static four-agent fixture, render/layout/input/resize/cleanup tests, Unix PTY checks (`pty-check.py`), Windows ConPTY check (`pty-check-win.py`), `perf-check.mjs`, `AGENTS.md` (child DOX contract), and `README.md` (setup, versions, results, benchmark limitations, support matrix, gaps).
-- `.github/workflows/opentui-spike.yml` — Linux x64 Node 26.4/26.11, Linux arm64, macOS arm64/x64, and Windows 26.11 matrix, pinned action SHAs and `contents: read`; green on PR #898 ([run 38063059589](https://github.com/boduga/ALiX/actions/runs/38063059589)).
-- `scripts/check-package-manager.sh` — scoped exemption so the isolated npm lockfile (and its workflow/hand-off references) do not trip the pnpm-only policy.
-- `AGENTS.md` — root Child DOX Index entry for `experiments/opentui/AGENTS.md`.
+- **Isolated spike** — `experiments/opentui/`: pinned `@opentui/core@0.5.17` + `web-tree-sitter@0.25.10`, lockfile, shared fixture (`workbench-fixture.mjs`), lifecycle (`harness.mjs`), static four-agent fixture, render/layout/input/resize/cleanup tests, Unix PTY checks (`pty-check.py`), Windows ConPTY check (`pty-check-win.py`), `perf-check.mjs`, child `AGENTS.md`, `README.md`.
+- `.github/workflows/opentui-spike.yml` — Linux x64 26.4/26.11, Linux arm64, macOS arm64/x64, Windows x64; pinned action SHAs and `contents: read`.
+- `scripts/check-package-manager.sh` — scoped exemption for the isolated npm lockfile.
+- `AGENTS.md` — root Child DOX Index entry.
+- **Production (slices 1–3)** — `src/interfaces/tui/workbench/view-state/` (`types.ts`, `assemble.ts`), `src/interfaces/tui/workbench/projections/conversation-cache.ts`, and consumption in `frame-painter.ts`, `views/agent-view.ts`, `views/types.ts`, `workbench/views/workbench-scrollback.ts`; `renderer` selection in `cli/commands/tui.ts` + `cli.ts`.
+- **Tests** — `tests/tui/workbench/workbench-view-state.vitest.ts`, `tests/tui/workbench/view-state-parity.vitest.ts`, and the extended `tests/tui/workbench/four-worker-e2e.vitest.ts`.
 
-`experiments/opentui/node_modules/` is local install output and ignored by Git. No root dependency or production renderer code changed. Do not accidentally stage generated dependencies.
+No root dependency changed and the production renderer was **not** switched — the ANSI canvas remains the default. `experiments/opentui/node_modules/` is local install output and git-ignored; do not stage it.
 
 ## Local evidence
 
-Used official Node 26.11.0 binary at `/tmp/alix-node26/node-v26.11.0-linux-x64/bin/node` (checksum verified during PR #896). The shell default `node` is still 24.21.0, so prepend that Node 26 bin directory to `PATH` for spike commands.
+Used the official Node 26.11.0 binary at `/tmp/alix-node26/node-v26.11.0-linux-x64/bin/node`. The shell default `node` is still 24.x, so prepend that bin directory to `PATH` for spike commands.
 
-- `npm test --prefix experiments/opentui` passed seven native in-memory tests: frame regions/four agents, wide/medium/narrow layout, focused input, resize, repeated cleanup.
-- `npm run test:pty --prefix experiments/opentui` passed on Linux: live frame, Escape exit, Ctrl+C cancellation, SIGWINCH resize, and focused typing/bracketed paste, each with alternate-screen enter/leave and raw input-mode restoration.
-- Windows terminal restoration is covered by `pty-check-win.py` (ConPTY via pywinpty) on the Windows CI leg; it cannot run on this Linux dev host.
-- `npm ci --offline` from a clean temp directory loaded native Core and closed successfully.
-- Root `pnpm build` passed on Node 26.11.0; needed only to make compiled ANSI canvas code available for the diagnostic benchmark.
-- `npm run bench --prefix experiments/opentui` (diagnostic, not a parity verdict): steady-state RSS **plateaus** across six tranches of 2,000 merges (`[224,224,224,224,224,227]` MiB; net `+3`; tail slope `+0.6` MiB/round, two GC passes); **500 back-to-back `requestRender()` calls coalesce to 1 frame** with no residual scheduled render (no accumulating backlog); idle CPU ~40 ms/s; input-to-render p50 **0.74 ms**, p95 **2.52 ms**; `verdict` passes all five approved thresholds with ≥3.7× headroom (approved 2026-10-10). ANSI vs OpenTUI full-frame timings do different work and are diagnostic only. Full detail in `experiments/opentui/README.md`.
+- Spike: `npm test` 7/7; Unix PTY (Escape, Ctrl+C cancellation, SIGWINCH resize, focused typing/bracketed paste, terminal restoration); Windows ConPTY green in CI.
+- Benchmark (`perf-check.mjs`): RSS plateaus; 500 `requestRender()` calls coalesce to 1 frame; idle CPU ~40 ms/s; input p50 0.74 / p95 2.52 ms; `verdict` passes all five **approved** thresholds (2026-10-10) with ≥3.7× headroom.
+- Production: `pnpm typecheck`, `typecheck:unused`, `check:dead`, the R1/layer architecture tests, and all 1377 TUI tests pass; the four-worker parity tests pass.
 
-## Remaining gates
+## Gates and remaining work
 
-1. **Performance thresholds approved (2026-10-10).** `perf-check.mjs` reports a passing `verdict` against the approved absolute bounds; measured single-host, so widen the evidence across platforms before a rollout relies on them.
-2. **`WorkbenchViewState` slices 1–2 landed** (`src/interfaces/tui/workbench/view-state/`; tests in `tests/tui/workbench/workbench-view-state.vitest.ts`). The ANSI painter now assembles the view state once per frame and consumes it (inspector, operator shell, transcript), the conversation projection is memoized and shared, and `runTui` accepts a single `renderer` (only `canvas`; the CLI rejects an unsupported `--renderer`). Remaining: a production OpenTUI renderer with launcher-owned `--experimental-ffi`, then default switching and canvas removal — all gated on parity.
-3. **Optional platform breadth.** No musl CI leg is configured. Windows terminal restoration is verified green by `pty-check-win.py` (ConPTY via pywinpty) in CI; Linux arm64 and macOS x64 legs are now green too.
+1. **Runtime / cleanup / packaging / performance — pass.** Six-leg matrix green; thresholds approved. Caveat: performance evidence is single-host/single-run — widen across platforms before a rollout relies on it.
+2. **Slices 1–3 landed.** Next: **slice 4 — production OpenTUI renderer** consuming `WorkbenchViewState`, single-terminal ownership, launcher-owned `--experimental-ffi`. Then a default-switch decision and canvas removal (later decisions, still gated on cross-renderer parity).
+3. **Optional breadth** — no musl CI leg.
+
+## Recommendation
+
+Start with the **launcher groundwork** (the spec's named prerequisite for selected-renderer launch), not the renderer itself: make the bin launcher own `--experimental-ffi` re-exec and accept `--renderer opentui` end-to-end, with the OpenTUI path failing over **explicitly** (never silently rendering nothing) until the renderer lands. It is small, testable, and unblocks the renderer without committing to a large surface. Then build the renderer in reviewable pieces (layout → roster/transcript → inspector/composer → input routing), and only after that run the cross-renderer parity comparison and the default-switch decision.
+
+Interaction parity is already well covered at the ANSI level (`input-router`, `composer-view`, `roster-shortcuts-integration`, `transcript-toolbar`, `coordination-entry`, and the 1377-test suite), so further ANSI-only parity tests have diminishing returns; the parity that is still unproven is cross-renderer and cannot exist until the renderer does.
+
+## GitNexus caveat for the next agent
+
+`detect_changes` reports **CRITICAL** for `TuiOptions`/`FramePainter`/`AgentView` edits. The `TuiOptions` verdict is a **false positive**: the name is duplicated in the tracked scratch dump `docs/files-from-claude/runTui.ts`, and the resolver fuzzy-matches it; the real symbol has 2 references. Anchored impact for the classes is sane and confined to the TUI subsystem (`FramePainter` 6 direct / 1 module). Re-ran `analyze --force`; the index still stamps "behind" after rebuild (tool quirk). Treat compiler + tests as authoritative for these.
 
 Current [OpenTUI runtime requirements](https://opentui.com/docs/getting-started/runtime-support/) specify Node 26.4+, ESM, and `--experimental-ffi`.
