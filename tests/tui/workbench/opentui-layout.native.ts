@@ -7,7 +7,7 @@ import type { WorkbenchViewComposer, WorkbenchViewState } from '../../../src/int
 import { mountOpenTuiWorkbenchContent } from '../../../src/interfaces/tui/workbench/opentui/workbench-content.js';
 import { mountOpenTuiWorkbenchLayout } from '../../../src/interfaces/tui/workbench/opentui/workbench-layout.js';
 
-type ContentState = Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay' | 'inspector' | 'composer'>;
+type ContentState = Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay' | 'inspector' | 'composer' | 'approval'>;
 
 function inspectorState(overrides: Partial<AgentInspectorModel> = {}): AgentInspectorModel {
   return { selection: 'aggregate', explicitTaskSelection: false, approvals: [], artifacts: [], tokensPartial: false, costPartial: false, ...overrides };
@@ -99,6 +99,7 @@ test('native roster and transcript show selected run content and update in place
     const state: ContentState = {
       inspector: inspectorState(),
       composer: contentComposer(),
+      approval: [],
       roster: {
         agents: {
           agents: [
@@ -188,6 +189,7 @@ test('very long transcript item stays bounded to native viewport', async () => {
     const state: ContentState = {
       inspector: inspectorState(),
       composer: contentComposer(),
+      approval: [],
       roster: { agents: null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [
         { id: 'long', kind: 'assistant', text: `${'word '.repeat(60_000)}TAIL MARKER`, startedAt: 1, sourceEvents: { firstSequence: 1, lastSequence: 1 } },
@@ -217,6 +219,7 @@ test('narrow roster keeps selected agent visible after resize', async () => {
     const state: ContentState = {
       inspector: inspectorState(),
       composer: contentComposer(),
+      approval: [],
       roster: { agents: { agents, active: 8, totals: { agents: 8, running: 8, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 } }, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: { selectedAgentId: 'worker-7' }, overlay: shellState.overlay,
@@ -242,6 +245,7 @@ test('native content preserves unavailable roster and moves into narrow overlay'
     const state: ContentState = {
       inspector: inspectorState(),
       composer: contentComposer(),
+      approval: [],
       roster: { agents: null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: {}, overlay: shellState.overlay,
@@ -279,7 +283,7 @@ test('native inspector shows bounded agent sections and updates in place', async
       activity: { toolName: 'search', toolCallId: 'call-1', startedAt: 1, elapsedMs: 4200, status: 'running tool' },
     });
     const state: ContentState = {
-      inspector: selected, composer: contentComposer(),
+      inspector: selected, composer: contentComposer(), approval: [],
       roster: { agents: null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: { selectedAgentId: 'worker-1' }, overlay: shellState.overlay,
@@ -315,7 +319,7 @@ test('native composer shows placeholder, draft, and multiline rows', async () =>
     const shellState = layoutState('agents');
     const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shellState);
     const base: ContentState = {
-      inspector: inspectorState(), composer: shellState.composer,
+      inspector: inspectorState(), composer: shellState.composer, approval: [],
       roster: { agents: null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: {}, overlay: shellState.overlay,
@@ -353,7 +357,7 @@ test('native drawers render task and artifact bodies by drawer selection', async
     const shell = layoutState('tasks');
     const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shell);
     const base: ContentState = {
-      inspector: inspectorState(), composer: shell.composer,
+      inspector: inspectorState(), composer: shell.composer, approval: [],
       roster: {
         agents: null,
         tasks: { tasks: [
@@ -383,6 +387,39 @@ test('native drawers render task and artifact bodies by drawer selection', async
     assert.match(frame, /1 files · 0 results/);
     assert.match(frame, /2\.0 KiB/);
     assert.doesNotMatch(frame, /Build draft/);
+    content.dispose();
+    layout.dispose();
+  } finally {
+    await dispose(setup);
+  }
+});
+
+test('native approval card paints above the drawer overlay', async () => {
+  const setup = await createTestRenderer({ width: 80, height: 24 });
+  try {
+    const shell = layoutState('agents');
+    const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shell);
+    const state: ContentState = {
+      inspector: inspectorState(), composer: contentComposer(), approval: [
+        { id: 'ap-1', toolName: 'write_file', target: 'src/x.ts', args: {}, requestedAt: 1, requestedBy: 'worker-1', agentId: 'worker-1' },
+      ],
+      roster: { agents: null, tasks: null, artifacts: null },
+      transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
+      selection: {}, overlay: shell.overlay,
+    };
+    const content = mountOpenTuiWorkbenchContent(setup.renderer, layout, state);
+    await setup.renderOnce();
+    const frame = setup.captureCharFrame();
+    assert.match(frame, /APPROVAL REQUIRED/);
+    assert.match(frame, /write_file/);
+    assert.match(frame, /a approve · d deny/);
+    assert.equal(content.approval.visible, true);
+    assert.ok(content.approval.screenY < layout.regions.overlay.screenY + layout.regions.overlay.height);
+
+    content.update({ ...state, approval: [] });
+    await setup.renderOnce();
+    assert.equal(content.approval.visible, false);
+    assert.doesNotMatch(setup.captureCharFrame(), /APPROVAL REQUIRED/);
     content.dispose();
     layout.dispose();
   } finally {

@@ -1,4 +1,4 @@
-import { TextRenderable, type CliRenderer } from '@opentui/core';
+import { BoxRenderable, TextRenderable, type CliRenderer } from '@opentui/core';
 import { getWorkbenchAgentPresentation, getWorkbenchPreviewTheme } from '../model/preview-theme.js';
 import { visibleArtifacts, visibleForRun } from '../model/selection.js';
 import { transcriptItemMatchesFilter } from '../model/transcript-filter.js';
@@ -7,10 +7,11 @@ import { truncateDisplayText, wrapDisplayText } from '../render/terminal-text.js
 import type { WorkbenchRegion } from '../layout/responsive-layout.js';
 import type { WorkbenchViewState } from '../view-state/types.js';
 import { buildAgentInspectorSections } from '../views/agent-inspector.js';
+import { buildWorkbenchApprovalCardLines } from '../views/approval-dialog.js';
 import type { ComposerLayout } from '../views/composer-view.js';
 import type { OpenTuiWorkbenchLayout } from './workbench-layout.js';
 
-type ContentState = Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay' | 'inspector' | 'composer'>;
+type ContentState = Pick<WorkbenchViewState, 'roster' | 'transcript' | 'selection' | 'overlay' | 'inspector' | 'composer' | 'approval'>;
 
 export interface OpenTuiWorkbenchContent {
   readonly roster: TextRenderable;
@@ -18,6 +19,7 @@ export interface OpenTuiWorkbenchContent {
   readonly overlay: TextRenderable;
   readonly inspector: TextRenderable;
   readonly composer: TextRenderable;
+  readonly approval: BoxRenderable;
   update(state: ContentState): void;
   dispose(): void;
 }
@@ -248,6 +250,10 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   const overlay = make('opentui-overlay-content', layout.regions.overlay);
   const inspector = make('opentui-inspector-content', layout.regions.inspector);
   const composer = make('opentui-composer-content', layout.regions.composer);
+  const approval = new BoxRenderable(renderer, { id: 'opentui-approval', position: 'absolute', left: 0, top: 0, width: 1, height: 1, backgroundColor: '#101820' });
+  layout.shell.add(approval);
+  const approvalText = new TextRenderable(renderer, { id: 'opentui-approval-content', content: '' });
+  approval.add(approvalText);
   let pausedConversation: ConversationSnapshot | undefined;
   let lastConversation: ConversationSnapshot | undefined;
   const update = (state: ContentState): void => {
@@ -267,11 +273,24 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     composer.content = composerLines(state, layout.composer, composerSize.width, composerSize.height).join('\n');
     overlay.content = state.overlay.drawer !== 'closed'
       ? drawerLines(state, overlaySize.width, overlaySize.height).join('\n') : '';
+    const approvalLines = state.approval.length
+      ? buildWorkbenchApprovalCardLines(state.approval[0]!, state.approval.length, renderer.width) : [];
+    approval.visible = approvalLines.length > 0;
+    if (approvalLines.length > 0) {
+      const cardWidth = approvalLines[0]!.length;
+      approvalText.content = approvalLines.join('\n');
+      approval.width = Math.max(1, cardWidth);
+      approval.height = approvalLines.length;
+      approval.left = Math.max(0, Math.floor((renderer.width - cardWidth) / 2));
+      approval.top = Math.min(Math.max(0, renderer.height - approvalLines.length), 3);
+    } else {
+      approvalText.content = '';
+    }
   };
   update(initial);
   let disposed = false;
   return {
-    roster, transcript, overlay, inspector, composer, update,
+    roster, transcript, overlay, inspector, composer, approval, update,
     dispose: () => {
       if (disposed) return;
       disposed = true;
@@ -280,11 +299,13 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
       layout.regions.overlay.remove(overlay);
       layout.regions.inspector.remove(inspector);
       layout.regions.composer.remove(composer);
+      layout.shell.remove(approval);
       roster.destroy();
       transcript.destroy();
       overlay.destroy();
       inspector.destroy();
       composer.destroy();
+      approval.destroy();
     },
   };
 }
