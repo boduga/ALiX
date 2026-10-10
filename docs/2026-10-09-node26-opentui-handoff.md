@@ -41,6 +41,14 @@ Start with the **launcher groundwork** (the spec's named prerequisite for select
 
 Interaction parity is already well covered at the ANSI level (`input-router`, `composer-view`, `roster-shortcuts-integration`, `transcript-toolbar`, `coordination-entry`, and the 1377-test suite), so further ANSI-only parity tests have diminishing returns; the parity that is still unproven is cross-renderer and cannot exist until the renderer does.
 
+## Suggested skills
+
+- `gitnexus-work` — execute the launcher-groundwork plan with pre-edit impact checks and `detect_changes` gating each commit.
+- `gitnexus-plan` — write an implementation-ready plan first.
+- `tdd` — the launcher/selection change is small and test-first friendly.
+- `caveman-commit` — commit-message style for this repo.
+- `gitnexus-review` — review the diff before/after the renderer lands.
+
 ## GitNexus caveat for the next agent
 
 `detect_changes` reports **CRITICAL** for `TuiOptions`/`FramePainter`/`AgentView` edits. The `TuiOptions` verdict is a **false positive**: the name is duplicated in the tracked scratch dump `docs/files-from-claude/runTui.ts`, and the resolver fuzzy-matches it; the real symbol has 2 references. Anchored impact for the classes is sane and confined to the TUI subsystem (`FramePainter` 6 direct / 1 module). Re-ran `analyze --force`; the index still stamps "behind" after rebuild (tool quirk). Treat compiler + tests as authoritative for these.
