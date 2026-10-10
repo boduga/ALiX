@@ -22,7 +22,18 @@ export type ResolvedPath = {
 };
 
 function relativeIsInside(rel: string): boolean {
-  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+  return rel === "" || !relativeEscapesRoot(rel);
+}
+
+/**
+ * True when a `relative(root, target)` result escapes `root` — the single
+ * lexical containment predicate. `""` (same dir) and in-tree paths are inside;
+ * only `..`, `../…`, or an absolute remainder escape. Shared by
+ * `WorkspacePathResolver` and the router/patch/coordination backstops so the
+ * rule is not re-implemented per site.
+ */
+export function relativeEscapesRoot(rel: string): boolean {
+  return rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
 }
 
 export function isCanonicalPathWithinWorkspace(workspaceRoot: string, targetPath: string): boolean {

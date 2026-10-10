@@ -31,6 +31,11 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
 
 ## Local Contracts
 
+- **Containment predicate is one function.** `relativeEscapesRoot(rel)` in
+  `workspace-path.ts` is the single lexical containment check
+  (`rel === ".." || rel.startsWith("../") || isAbsolute(rel)`); it backs both
+  `WorkspacePathResolver` and the tool-router/patch/coordination backstops.
+  Never re-inline the `relative`+`startsWith` pattern — call this.
 - **The R2 transactional ledger is a storage authority, not a query-time
   backend.** Domains that flipped (execution-state R2.12, continuations
   R2.14, replay + evidence R2.17) read and write

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { isAbsolute, relative, sep } from "node:path";
-import { isCanonicalPathWithinWorkspace } from "../../runtime-state/runtime/workspace-path.js";
+import { relative } from "node:path";
+import { isCanonicalPathWithinWorkspace, relativeEscapesRoot } from "../../runtime-state/runtime/workspace-path.js";
 import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -311,7 +311,7 @@ function resolvePatchPath(root: string, patchPath: string): string {
   const resolvedRoot = resolve(root);
   const resolvedPath = resolve(resolvedRoot, patchPath);
   const rel = relative(resolvedRoot, resolvedPath);
-  if ((rel !== "" && (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel))) || !isCanonicalPathWithinWorkspace(resolvedRoot, resolvedPath)) {
+  if ((rel !== "" && relativeEscapesRoot(rel)) || !isCanonicalPathWithinWorkspace(resolvedRoot, resolvedPath)) {
     throw new Error(`Patch path is outside workspace: ${patchPath}`);
   }
   return resolvedPath;

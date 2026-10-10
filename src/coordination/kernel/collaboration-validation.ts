@@ -3,6 +3,7 @@
  */
 
 import { resolve, relative, isAbsolute } from "node:path";
+import { relativeEscapesRoot } from "../../runtime-state/runtime/workspace-path.js";
 import type { PublishFindingInput, PublishArtifactInput, WorkerContextManifest, CollaborationState } from "./collaboration-types.js";
 import "./coordination-types.js";
 import type { ContextBudget } from "./collaboration-relevance-types.js";
@@ -75,7 +76,7 @@ export function validatePublishArtifactInput(input: PublishArtifactInput, cwd: s
     // Reject traversal
     const resolved = resolve(cwd, input.uri);
     const rel = relative(cwd, resolved);
-    if (rel.startsWith("..") || isAbsolute(rel)) {
+    if (relativeEscapesRoot(rel)) {
       errors.push("uri must remain inside workspace");
     }
   }

@@ -1,7 +1,8 @@
 import { existsSync, createReadStream } from "node:fs";
+import { relativeEscapesRoot } from "../../runtime-state/runtime/workspace-path.js";
 import { readdir, readFile as fsReadFile } from "node:fs/promises";
 import { createInterface } from "node:readline";
-import { isAbsolute, join, resolve, relative, sep } from "node:path";
+import { join, resolve, relative, sep } from "node:path";
 import { minimatch } from "minimatch";
 import type { ToolResult, FileMatch } from "./types.js";
 import { withRetry } from "../../runtime-state/runtime/retry.js";
@@ -64,7 +65,7 @@ export async function* walkWorkspaceFiles(
   const start = subdir ? resolve(resolvedRoot, subdir) : resolvedRoot;
   // Fail closed for a scope that escapes the workspace.
   const relStart = relative(resolvedRoot, start);
-  if (relStart === ".." || relStart.startsWith(`..${sep}`) || isAbsolute(relStart)) return;
+  if (relativeEscapesRoot(relStart)) return;
   async function* walk(dir: string): AsyncGenerator<string> {
     let entries;
     try {
@@ -189,7 +190,7 @@ export async function readFile(args: { root: string; path: string }): Promise<To
   }
 
   const relPath = relative(resolvedRoot, resolvedPath);
-  if (relPath === ".." || relPath.startsWith(`..${sep}`) || isAbsolute(relPath)) {
+  if (relativeEscapesRoot(relPath)) {
     return { kind: "error", message: `Path is outside workspace: ${path}` };
   }
 
