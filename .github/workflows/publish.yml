@@ -82,7 +82,7 @@ jobs:
           TARBALL="${{ steps.pack.outputs.tarball }}"
           TMP_DIR="$(mktemp -d)"
           echo "Installing tarball into $TMP_DIR"
-          if pnpm install --prefix "$TMP_DIR" "$PWD/$TARBALL" > /dev/null 2>&1; then
+          if npm install --prefix "$TMP_DIR" --no-audit --no-fund "$PWD/$TARBALL" > /dev/null 2>&1; then
             if (cd "$TMP_DIR" && ./node_modules/.bin/alix init > /dev/null 2>&1 && \
                 ./node_modules/.bin/alix doctor > /dev/null 2>&1 && \
                 ./node_modules/.bin/alix models doctor --json > /dev/null 2>&1); then

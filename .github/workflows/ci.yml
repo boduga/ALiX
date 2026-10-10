@@ -50,7 +50,7 @@ jobs:
           PACK_JSON="$(pnpm pack --json --pack-destination "$RUNNER_TEMP")"
           TARBALL="$(printf '%s' "$PACK_JSON" | node -p "const parsed = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8')); (Array.isArray(parsed) ? parsed[0] : parsed).filename")"
           SMOKE_DIR="$(mktemp -d)"
-          pnpm install --dir "$SMOKE_DIR" "$TARBALL"
+          npm install --prefix "$SMOKE_DIR" --no-audit --no-fund "$TARBALL"
           (cd "$SMOKE_DIR" && ./node_modules/.bin/alix init && ./node_modules/.bin/alix doctor && ./node_modules/.bin/alix models doctor --json)
 
   # ─── Lane 1: TypeScript typecheck (fast, no build needed) ─────────────
