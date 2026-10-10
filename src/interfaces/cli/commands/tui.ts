@@ -50,11 +50,10 @@ export interface TuiOptions {
   daemonMode?: boolean;
   themeName?: string;
   /**
-   * Terminal renderer selection. Only the production ANSI canvas is
-   * available; the OpenTUI renderer is an isolated experiment
-   * (experiments/opentui) pending its runtime and parity gates.
+   * Terminal renderer selection. OpenTUI selection remains an explicit
+   * unavailable error until its production renderer is implemented.
    */
-  renderer?: "canvas";
+  renderer?: "canvas" | "opentui";
 }
 
 /**
@@ -75,8 +74,11 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // stdout, raw mode, resize, and cleanup. Only the ANSI canvas is selectable
   // in production; everything below composes that one renderer.
   const renderer = opts.renderer ?? "canvas";
+  if (renderer === "opentui") {
+    throw new Error("OpenTUI renderer is not implemented yet; use --renderer canvas.");
+  }
   if (renderer !== "canvas") {
-    throw new Error(`Unsupported TUI renderer '${renderer}'. Only 'canvas' is available; OpenTUI is experimental (see experiments/opentui).`);
+    throw new Error(`Unsupported TUI renderer '${renderer}'.`);
   }
   const cwd = process.cwd();
   const sessionId = opts.sessionName ?? `${Date.now()}`;

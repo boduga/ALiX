@@ -42,13 +42,21 @@ COMMAND_ROUTER["tui"] = async () => {
     const themeName = themeIdx >= 0 ? a[themeIdx + 1] : undefined;
     const rendererIdx = a.indexOf("--renderer");
     const renderer = rendererIdx >= 0 ? a[rendererIdx + 1] : undefined;
-    if (renderer && renderer !== "canvas") {
-      console.error(renderer === "opentui"
-        ? "The OpenTUI renderer is experimental and not available in production; see experiments/opentui and the migration design."
-        : `Unknown TUI renderer '${renderer}'. Supported: canvas.`);
+    if (rendererIdx >= 0 && !renderer) {
+      console.error("Missing TUI renderer after --renderer. Supported: canvas, opentui.");
       return 1;
     }
-    await runTui({ sessionMode, daemonMode, themeName, renderer: renderer as "canvas" | undefined });
+    if (renderer && renderer !== "canvas" && renderer !== "opentui") {
+      console.error(`Unknown TUI renderer '${renderer}'. Supported: canvas, opentui.`);
+      return 1;
+    }
+    try {
+      await runTui({ sessionMode, daemonMode, themeName, renderer: renderer as "canvas" | "opentui" | undefined });
+    } catch (error) {
+      if (renderer !== "opentui") throw error;
+      console.error(error instanceof Error ? error.message : String(error));
+      return 1;
+    }
     return 0;
   }};
 };

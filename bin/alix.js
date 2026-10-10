@@ -10,10 +10,13 @@ import { dirname, join } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const maxMem = process.env.ALIX_MAX_HEAP || "4096";
 const cliPath = join(__dirname, "..", "dist", "src", "cli.js");
+const cliArgs = process.argv.slice(2);
+const rendererIndex = cliArgs.indexOf("--renderer");
+const useOpenTui = cliArgs[0] === "tui" && rendererIndex >= 0 && cliArgs[rendererIndex + 1] === "opentui";
 
 const child = spawn(
   process.execPath,
-  [`--max-old-space-size=${maxMem}`, cliPath, ...process.argv.slice(2)],
+  [`--max-old-space-size=${maxMem}`, ...(useOpenTui ? ["--experimental-ffi"] : []), cliPath, ...cliArgs],
   {
     stdio: "inherit",
     env: process.env,
