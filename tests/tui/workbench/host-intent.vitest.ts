@@ -18,6 +18,7 @@ function harness(overrides: Partial<WorkbenchHostPorts> = {}) {
     reportSubmitUnavailable: vi.fn(),
     setCancelArmed: vi.fn(),
     setPinnedBottom: vi.fn(),
+    setTranscriptMode: vi.fn(),
     anchorTranscriptBottom: vi.fn(),
     emitUserTimeline: vi.fn(),
     submitTurn: vi.fn(),
