@@ -33,14 +33,15 @@ import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { buildWorkbenchInputContext } from './workbench/input/input-context.js';
 import { applyWorkbenchIntent } from './workbench/controller/intent.js';
 import type { WorkbenchHostPorts } from './workbench/controller/host-intent.js';
-import { projectOperatorShell } from './workbench/model/operator-shell.js';
-import { assembleWorkbenchViewState } from './workbench/view-state/assemble.js';
+import { buildWorkbenchFrameViewState } from './workbench/view-state/assemble.js';
 import type { WorkbenchViewState } from './workbench/view-state/types.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
 import { validateCoordinationObjective } from './workbench/views/coordination-entry.js';
+
+export type RendererId = 'canvas' | 'opentui';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -67,15 +68,8 @@ export interface TuiAppOptions {
   themeName?: string;
   /** Enables the conversation-first Workbench transcript during migration. */
   workbenchEnabled?: boolean;
-  /**
-   * Selected renderer. `canvas` (default) owns the terminal and paints ANSI.
-   * `opentui` leaves terminal ownership and painting to the caller: the app
-   * skips raw-mode/resize/input setup and emits each frame's view state to
-   * `onWorkbenchFrame` instead of painting.
-   */
-  renderer?: 'canvas' | 'opentui';
-  /** Sink for each assembled Workbench frame when `renderer` is `opentui`. */
-  onWorkbenchFrame?: (state: import('./workbench/view-state/types.js').WorkbenchViewState) => void;
+  renderer?: RendererId;
+  onWorkbenchFrame?: (state: WorkbenchViewState) => void;
   /** Optional capability service — the palette only activates when a
    *  service is available (either here or via the module accessor). */
   capabilityService?: import('./capabilities/capability-service.js').CapabilityService;
@@ -1467,7 +1461,7 @@ export class TuiApp {
           ? text.slice(0, MAX_CLIPBOARD) + '\n[truncated at 64 KB]'
           : text;
         const b64 = Buffer.from(truncated, 'utf8').toString('base64');
-        this.output.write(`\x1b]52;;${b64}\x1b\\`);
+        if (this.opts.renderer !== 'opentui') this.output.write(`\x1b]52;;${b64}\x1b\\`);
         this.paintFullFrame();
         break;
       }
@@ -1598,43 +1592,41 @@ export class TuiApp {
   /** Build a complete frame containing all regions and write it to stdout. */
   private paintFullFrame(): void {
     if (this.opts.renderer === 'opentui') {
-      const state = this.assembleWorkbenchViewState();
+      const state = this.buildWorkbenchViewState();
       if (state) this.opts.onWorkbenchFrame?.(state);
       return;
     }
     this.framePainter.paintFullFrame();
   }
 
-  private assembleWorkbenchViewState(): WorkbenchViewState | undefined {
+  private buildWorkbenchViewState(): WorkbenchViewState | undefined {
     const snapshot = this.state.lastSnapshot;
-    if (!snapshot) return undefined;
-    const ui = this.workbenchStore.snapshot();
-    const chrome = projectOperatorShell(snapshot, this.state.views.agent, snapshot.session?.mode ?? 'auto', ui.queuedMessages.length, {
-      closeSurface: ui.drawer !== 'closed' || ui.overlayStack.length > 0,
-      focus: ui.focus,
-      drawer: ui.drawer,
-      inspectorOpen: ui.overlayStack.at(-1) === 'inspector',
-    });
-    return assembleWorkbenchViewState({
+    if (!this.opts.workbenchEnabled || this.state.activeTab !== 'agent' || !snapshot) return undefined;
+    return buildWorkbenchFrameViewState({
       snapshot,
-      ui,
-      chrome,
-      transcriptSource: { timeline: this.agentRuntime?.timeline ?? [], trace: snapshot.runtime?.trace ?? [] },
+      ui: this.workbenchStore.snapshot(),
+      agentTab: this.state.views.agent,
+      agentTimeline: this.agentRuntime?.timeline,
     });
   }
 
-  /** Normalized-key entry for an external (OpenTUI) renderer. */
   routeWorkbenchKey(key: string): boolean {
     return this.handleWorkbenchAgentInput(key);
   }
 
-  /** Insert one normalized paste block through the shared intent entry. */
   routeWorkbenchPaste(text: string): boolean {
-    return applyWorkbenchIntent(this.workbenchStore, { type: 'composer.insert', text }, {
-      snapshot: this.state.lastSnapshot,
-      ports: this.workbenchHostPorts(),
-      coordinationAvailable: Boolean(this.opts.agentSession?.runCoordination),
-    });
+    const ui = this.workbenchStore.snapshot();
+    if (this.opts.workbenchEnabled && this.state.activeTab === 'agent' && ui.overlayStack.length > 0) {
+      if (ui.overlayStack.at(-1) === 'coordination') {
+        this.workbenchStore.dispatch({ type: 'coordination.edit', edit: { type: 'composer.insert', text } });
+        this.paintFullFrame();
+      }
+      return true;
+    }
+    this.workbenchStore.dispatch({ type: 'composer.insert', text });
+    this.syncWorkbenchComposer();
+    this.paintFullFrame();
+    return true;
   }
 
   private async cleanupSync(): Promise<void> {

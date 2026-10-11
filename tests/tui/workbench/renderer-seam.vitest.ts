@@ -19,4 +19,17 @@ describe('TuiApp OpenTUI renderer seam', () => {
     assert.equal(app.routeWorkbenchKey('x'), true);
     assert.equal(frames.at(-1)!.composer.composer.text, 'x');
   });
+
+  it('routes paste into the composer and the coordination draft', () => {
+    const { app, paint } = createWorkbenchRenderHarness('hello', { renderer: 'opentui' });
+    paint();
+    app.routeWorkbenchPaste('pasted');
+    assert.equal(app.getWorkbenchStateForTest().composer.text, 'pasted');
+
+    const store = (app as unknown as { workbenchStore: { dispatch(action: unknown): void } }).workbenchStore;
+    store.dispatch({ type: 'overlay.toggle', overlay: 'coordination' });
+    app.routeWorkbenchPaste('objective');
+    assert.equal(app.getWorkbenchStateForTest().composer.text, 'pasted');
+    assert.equal(app.getWorkbenchStateForTest().coordination.draft.text, 'objective');
+  });
 });

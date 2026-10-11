@@ -1,13 +1,38 @@
 import type { ExecutionTraceEntry } from '../../runtime/execution-trace.js';
 import type { TimelineEntry } from '../../runtime/timeline-builder.js';
 import type { DashboardSnapshot } from '../../snapshot.js';
+import type { PerTabState } from '../../state.js';
 import { buildAgentInspectorModel } from '../model/agent-inspector.js';
-import type { OperatorShellSnapshot } from '../model/operator-shell.js';
+import { projectOperatorShell, type OperatorShellSnapshot } from '../model/operator-shell.js';
 import { getTranscriptFocusAgentId } from '../model/transcript-filter.js';
 import type { TranscriptMode } from '../model/transcript-item.js';
 import type { WorkbenchUiState } from '../model/ui-state.js';
 import { projectConversation } from '../projections/conversation-cache.js';
 import type { WorkbenchViewState } from './types.js';
+
+export interface WorkbenchFrameViewInput {
+  readonly snapshot: DashboardSnapshot;
+  readonly ui: WorkbenchUiState;
+  readonly agentTab: PerTabState;
+  readonly agentTimeline: readonly TimelineEntry[] | undefined;
+}
+
+/** The one agent-surface frame assembly both renderers consume. */
+export function buildWorkbenchFrameViewState(input: WorkbenchFrameViewInput): WorkbenchViewState {
+  const { snapshot, ui, agentTab, agentTimeline } = input;
+  const chrome = projectOperatorShell(snapshot, agentTab, snapshot.session?.mode ?? 'auto', ui.queuedMessages.length, {
+    closeSurface: ui.drawer !== 'closed' || ui.overlayStack.length > 0,
+    focus: ui.focus,
+    drawer: ui.drawer,
+    inspectorOpen: ui.overlayStack.at(-1) === 'inspector',
+  });
+  return assembleWorkbenchViewState({
+    snapshot,
+    ui,
+    chrome,
+    transcriptSource: { timeline: agentTimeline ?? [], trace: snapshot.runtime?.trace ?? [] },
+  });
+}
 
 export interface WorkbenchViewStateInput {
   /** Immutable dashboard snapshot composed by SnapshotBuilder. */
