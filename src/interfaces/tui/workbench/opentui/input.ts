@@ -22,6 +22,7 @@ const NAMED_KEYS: Readonly<Record<string, string>> = {
 export function translateKeyEvent(event: OpenTuiKey): string | null {
   if (event.eventType === 'release') return null;
   if (event.meta || event.option) return null;
+  if (event.ctrl && event.name === 'c') return '\u0003';
   if (event.ctrl && event.name.length === 1) return `Ctrl+${event.name.toLowerCase()}`;
   if (event.name === 'tab') return event.shift ? 'Shift+Tab' : 'Tab';
   if (event.name === 'return' || event.name === 'enter') return event.shift ? 'Shift+Enter' : 'Enter';
