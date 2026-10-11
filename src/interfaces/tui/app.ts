@@ -33,6 +33,7 @@ import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { buildWorkbenchInputContext } from './workbench/input/input-context.js';
 import { moveAgentSelection, moveArtifactSelection, moveRunSelection, moveTaskSelection, selectAgentShortcut } from './workbench/controller/selection-intent.js';
 import { applyWorkbenchStoreIntent } from './workbench/controller/store-intent.js';
+import { applyWorkbenchHostIntent, type WorkbenchHostPorts } from './workbench/controller/host-intent.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
@@ -802,17 +803,9 @@ export class TuiApp {
       return true;
     }
 
+    if (applyWorkbenchHostIntent(this.workbenchStore, intent, this.workbenchHostPorts())) return true;
+
     switch (intent.type) {
-      case 'coordination.submit':
-        void this.submitWorkbenchCoordination();
-        return true;
-      case 'overlay.scroll': {
-        const limit = this.framePainter.overlayScrollLimit;
-        const next = Math.max(0, Math.min(limit, Math.min(limit, state.overlayScrollOffset) + intent.delta));
-        this.workbenchStore.dispatch({ type: 'overlay.scroll', delta: next - state.overlayScrollOffset });
-        this.paintFullFrame();
-        return true;
-      }
       case 'transcript.follow.toggle': {
         const followTail = !state.followTail;
         // Capture the currently visible bottom before stopping automatic follow.
@@ -820,45 +813,6 @@ export class TuiApp {
         this.workbenchStore.dispatch({ type: 'transcript.follow', followTail });
         perTab.pinnedBottom = followTail;
         if (followTail) this.resetScrollOffsetToBottom('agent');
-        this.paintFullFrame();
-        return true;
-      }
-      case 'slash.submit':
-        if (this.openWorkbenchBuiltinSurface(state.composer.text)) {
-          this.workbenchStore.dispatch({ type: 'composer.clear' });
-          this.syncWorkbenchComposer();
-          this.slash.hint = null;
-          this.paintFullFrame();
-          return true;
-        }
-        void this.submitSlashCommand();
-        this.paintFullFrame();
-        return true;
-      case 'turn.submit': {
-        if (!this.state.lastSnapshot) {
-          this.slash.hint = 'Submission unavailable; instruction retained.';
-          this.paintFullFrame();
-          return true;
-        }
-        const text = state.composer.text;
-        this.workbenchStore.dispatch({ type: 'composer.clear' });
-        this.syncWorkbenchComposer();
-        this.workbenchCancelArmed = false;
-        perTab.pinnedBottom = true;
-        this.resetScrollOffsetToBottom('agent');
-        this.timelineEmitter.emitTimelineLog('user', text, this.opts.agentSessionId);
-        void this.submitAgentInput(text);
-        this.paintFullFrame();
-        return true;
-      }
-      case 'turn.queue': {
-        const text = state.composer.text;
-        this.workbenchStore.dispatch({
-          type: 'queue.add',
-          message: { id: `queued-${++this.workbenchQueueSequence}`, text, createdAt: Date.now() },
-        });
-        this.workbenchStore.dispatch({ type: 'composer.clear' });
-        this.syncWorkbenchComposer();
         this.paintFullFrame();
         return true;
       }
@@ -888,36 +842,48 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       }
-      case 'approval.resolve': {
-        const target = perTab.pendingApprovals[0] ?? fallbackTarget;
-        if (!target) return false;
-        if (this.pendingApprovalDecisions.has(target.id)) return true;
-        this.pendingApprovalDecisions.add(target.id);
-        // Workbench deliberately leaves the pending projection untouched.
-        // The card disappears only after approval.resolved is sampled.
-        void this.approvalResolver.resolve(target.id, intent.decision, { recordLocally: false })
-          .then((handled) => {
-            if (!handled) this.pendingApprovalDecisions.delete(target.id);
-            this.paintFullFrame();
-          });
-        this.paintFullFrame();
-        return true;
-      }
-      case 'permission.cycle':
-        this.cyclePermissionMode();
-        void this.refresh();
-        return true;
-      case 'turn.cancel':
-        if (this.opts.agentSession?.cancelActiveTurn?.('operator pressed Escape')) {
-          this.paintFullFrame();
-          return true;
-        }
-        return false;
       case 'unhandled':
         return false;
       default:
         return false;
     }
+  }
+
+  /** Host implementation of the shared Workbench effects. */
+  private workbenchHostPorts(): WorkbenchHostPorts {
+    const perTab = this.state.views.agent;
+    return {
+      repaint: () => this.paintFullFrame(),
+      syncComposer: () => this.syncWorkbenchComposer(),
+      overlayScrollLimit: () => this.framePainter.overlayScrollLimit,
+      submitCoordination: () => void this.submitWorkbenchCoordination(),
+      openBuiltinSurface: (text) => this.openWorkbenchBuiltinSurface(text),
+      clearSlashHint: () => { this.slash.hint = null; },
+      submitSlash: () => void this.submitSlashCommand(),
+      hasSnapshot: () => Boolean(this.state.lastSnapshot),
+      reportSubmitUnavailable: () => { this.slash.hint = 'Submission unavailable; instruction retained.'; },
+      setCancelArmed: (armed) => { this.workbenchCancelArmed = armed; },
+      setPinnedBottom: (value) => { perTab.pinnedBottom = value; },
+      anchorTranscriptBottom: () => this.resetScrollOffsetToBottom('agent'),
+      emitUserTimeline: (text) => this.timelineEmitter.emitTimelineLog('user', text, this.opts.agentSessionId),
+      submitTurn: (text) => void this.submitAgentInput(text),
+      nextQueuedId: () => `queued-${++this.workbenchQueueSequence}`,
+      approvalTarget: () => {
+        const direct = perTab.pendingApprovals[0];
+        if (direct) return { id: direct.id };
+        const oldest = this.state.lastSnapshot?.approvals?.pending?.[0];
+        return oldest ? { id: oldest.id } : undefined;
+      },
+      isApprovalDecisionPending: (id) => this.pendingApprovalDecisions.has(id),
+      markApprovalDecision: (id) => { this.pendingApprovalDecisions.add(id); },
+      unmarkApprovalDecision: (id) => { this.pendingApprovalDecisions.delete(id); },
+      resolveApproval: (id, decision, onSettled) => {
+        void this.approvalResolver.resolve(id, decision, { recordLocally: false }).then(onSettled);
+      },
+      cyclePermission: () => this.cyclePermissionMode(),
+      refresh: () => { void this.refresh(); },
+      cancelActiveTurn: () => Boolean(this.opts.agentSession?.cancelActiveTurn?.('operator pressed Escape')),
+    };
   }
 
   private syncWorkbenchComposer(): void {
