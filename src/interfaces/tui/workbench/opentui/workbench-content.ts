@@ -1,20 +1,53 @@
-import { BoxRenderable, TextRenderable, type CliRenderer } from '@opentui/core';
+import { BoxRenderable, StyledText, TextRenderable, bg, fg, type CliRenderer } from '@opentui/core';
 import { getWorkbenchAgentPresentation, getWorkbenchPreviewTheme } from '../model/preview-theme.js';
 import { formatByteSize, formatCoordMeta, taskStateGlyph } from '../model/display-format.js';
 import type { OperatorShellSnapshot, OperatorShellStatus } from '../model/operator-shell.js';
 import { visibleArtifacts, visibleForRun } from '../model/selection.js';
 import { transcriptItemMatchesFilter } from '../model/transcript-filter.js';
 import type { ConversationSnapshot, TranscriptItem } from '../model/transcript-item.js';
-import { truncateDisplayText, wrapDisplayText } from '../render/terminal-text.js';
+import { displayWidth, truncateDisplayText, wrapDisplayText } from '../render/terminal-text.js';
 import type { WorkbenchRegion } from '../layout/responsive-layout.js';
 import type { WorkbenchViewState } from '../view-state/types.js';
 import { buildAgentInspectorSections } from '../views/agent-inspector.js';
 import { buildWorkbenchApprovalCardLines } from '../views/approval-dialog.js';
+import { buildWorkbenchToolCardLines } from '../views/tool-card.js';
 import type { ComposerLayout } from '../views/composer-view.js';
 import type { OpenTuiWorkbenchLayout } from './workbench-layout.js';
 
 /** Maximum characters retained from one transcript item before wrapping. */
 const MAX_ITEM_CHARS = 4;
+const COLORS = {
+  background: '#08151b', foreground: '#e6edf3', muted: '#9cb4ca',
+  cyan: '#06c9ef', green: '#3df451', yellow: '#ffc63d',
+  purple: '#b169ee', teal: '#08e3b5', red: '#ff636e',
+  divider: '#547b91', selection: '#06313d',
+} as const;
+const ACTIVITY_STATUS: Readonly<Record<string, string>> = {
+  starting: 'STARTING', thinking: 'RUNNING', tool_running: 'RUNNING', verifying: 'VERIFYING',
+  waiting: 'WAITING', waiting_dependency: 'WAITING', waiting_approval: 'APPROVAL',
+  completed: 'COMPLETED', partial: 'PARTIAL', failed: 'FAILED', cancelled: 'CANCELLED',
+};
+
+type Color = keyof typeof COLORS;
+interface NativePart { readonly text: string; readonly color?: Color; readonly background?: Color }
+interface NativeLine { readonly text: string; readonly color?: Color; readonly fill?: boolean; readonly parts?: readonly NativePart[] }
+
+function styledLines(lines: readonly NativeLine[], width: number): StyledText {
+  const chunks = lines.flatMap((line, index) => {
+    let remaining = width;
+    const styled = (line.parts ?? [{ text: line.text, color: line.color }]).flatMap(part => {
+      if (remaining <= 0) return [];
+      const clipped = truncateDisplayText(part.text, remaining);
+      remaining -= displayWidth(clipped);
+      const chunk = fg(COLORS[part.color ?? line.color ?? 'foreground'])(clipped);
+      return [part.background || line.fill ? bg(COLORS[part.background ?? 'selection'])(chunk) : chunk];
+    });
+    if (line.fill && remaining > 0) styled.push(bg(COLORS.selection)(fg(COLORS.foreground)(' '.repeat(remaining))));
+    if (index < lines.length - 1) styled.push(fg(COLORS.foreground)('\n'));
+    return styled;
+  });
+  return new StyledText(chunks);
+}
 
 export type ContentState = Pick<WorkbenchViewState, 'header' | 'footer' | 'roster' | 'transcript' | 'selection' | 'overlay' | 'inspector' | 'composer' | 'approval'>;
 
@@ -27,6 +60,7 @@ export interface OpenTuiWorkbenchContent {
   readonly inspector: TextRenderable;
   readonly composer: TextRenderable;
   readonly approval: BoxRenderable;
+  readonly resolvedScrollRows: number;
   update(state: ContentState): void;
   dispose(): void;
 }
@@ -66,87 +100,115 @@ function contentSize(box: BoxRenderable, region: WorkbenchRegion | null): { widt
 
 function placeText(text: TextRenderable, box: BoxRenderable, region: WorkbenchRegion | null): { width: number; height: number } {
   const { width, height } = contentSize(box, region);
-  text.left = 0;
+  const horizontalInset = box.id !== 'opentui-composer' && box.border && width >= 3 ? 1 : 0;
+  text.left = horizontalInset;
   text.top = 0;
-  text.width = Math.max(1, width);
+  text.width = Math.max(1, width - horizontalInset * 2);
   text.height = Math.max(1, height);
+  text.fg = COLORS.foreground;
+  text.bg = COLORS.background;
   text.visible = box.visible && width > 0 && height > 0;
-  return { width, height };
+  return { width: Math.max(0, width - horizontalInset * 2), height };
 }
 
 function rosterLines(state: ContentState, width: number, height: number): string[] {
   if (height === 0 || width === 0) return [];
   const roster = state.roster.agents;
-  if (!roster) return ['Roster unavailable'];
+  if (!roster) return ['AGENTS & TASKS', '', 'Roster unavailable'];
   const agents = visibleForRun(roster.agents, state.selection.selectedRunId);
-  const lines = [state.selection.selectedRunId ? `RUN ${safeLine(state.selection.selectedRunId)}` : 'RUN all', `All agents · ${agents.length} total`];
+  const running = agents.filter(agent => ['starting', 'thinking', 'tool_running', 'verifying'].includes(agent.state)).length;
+  const lines = ['AGENTS & TASKS', '', `○ All agents  /`, `  ${agents.length} agents • ${running} running`, '─'.repeat(width)];
+  if (state.selection.selectedRunId) lines.splice(2, 0, `RUN ${safeLine(state.selection.selectedRunId)}`);
   if (!state.overlay.agentRosterExpanded) return [...lines, 'Enter to expand roster'].slice(0, height);
-  if (agents.length === 0) return [...lines, 'No subagents'].slice(0, height);
+  if (agents.length === 0) return [...lines, 'No subagents', '─'.repeat(width), '○ Coordination Run  c', '  Start a coordinated run'].slice(0, height);
   const theme = getWorkbenchPreviewTheme();
-  const agentLine = (agent: typeof agents[number]): string => {
+  const agentLine = (agent: typeof agents[number], index: number): string => {
     const status = getWorkbenchAgentPresentation(agent.state, theme);
     const selected = agent.agentId === state.selection.selectedAgentId ? '›' : ' ';
-    return truncateDisplayText(safeLine(`${selected}${status.glyph} ${agent.assignedAgentId ?? agent.role}  ${status.label}`), width);
+    const label = truncateDisplayText(safeLine(`${selected}${status.glyph} ${agent.assignedAgentId ?? agent.role}  ${status.label}`), Math.max(1, width - 3));
+    return index < 9 && width >= 6 ? `${label}${' '.repeat(Math.max(1, width - displayWidth(label) - 1))}${index + 1}` : label;
   };
   const selectedAgent = agents.find(agent => agent.agentId === state.selection.selectedAgentId);
-  if (height <= 2 && selectedAgent) return height === 1 ? [agentLine(selectedAgent)] : [lines[0]!, agentLine(selectedAgent)];
+  if (height <= 2 && selectedAgent) return height === 1 ? [agentLine(selectedAgent, agents.indexOf(selectedAgent))] : [lines[0]!, agentLine(selectedAgent, agents.indexOf(selectedAgent))];
   const selectedIndex = agents.findIndex(agent => agent.agentId === state.selection.selectedAgentId);
-  const capacity = Math.max(1, Math.floor((height - lines.length) / 2));
+  const capacity = Math.max(1, Math.floor((height - lines.length - 3) / 3));
   let offset = Math.max(0, Math.min(agents.length - 1, state.overlay.drawerScrollOffset));
   if (selectedIndex >= 0) offset = Math.max(Math.min(offset, selectedIndex), selectedIndex - capacity + 1);
-  for (const agent of agents.slice(offset)) {
+  for (const [index, agent] of agents.slice(offset).entries()) {
     if (lines.length >= height) break;
-    lines.push(agentLine(agent));
+    lines.push(agentLine(agent, index + offset));
     if (lines.length < height) lines.push(truncateDisplayText(safeLine(`  ${agent.taskLabel ?? agent.currentOperation ?? 'Task unavailable'}`), width));
+    if (lines.length < height) lines.push('');
   }
+  if (lines.length + 3 <= height) lines.push('─'.repeat(width), '○ Coordination Run  c', '  Start a coordinated run');
   return lines;
 }
 
-function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number): string[] {
+function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number, width: number, actor: string): string[] {
+  const time = Number.isFinite(item.startedAt) && item.startedAt >= 0 && item.startedAt <= 8640000000000000
+    ? new Date(item.startedAt).toISOString().slice(11, 19) : '--:--:--';
+  const prefix = `[${time}]  ${actor.padEnd(16, ' ')} `;
   switch (item.kind) {
-    case 'user': return [`YOU  ${item.text}`];
-    case 'assistant': return [`${item.agentId ?? 'ALiX'}  ${item.text}`];
-    case 'activity': return [`ACTIVITY  ${item.text}`];
-    case 'approval': return [`APPROVAL  ${item.text}`];
-    case 'diagnostic': return [`${item.severity.toUpperCase()}  ${item.text}`];
-    case 'phase': return [`PHASE  ${item.phase}`];
+    case 'user': return [`${prefix}${item.text}`];
+    case 'assistant': return [`${prefix}${item.text}`];
+    case 'activity': return [`${prefix}${item.verifiedOutcome === 'success' ? '✓ ' : item.verifiedOutcome === 'failure' ? '✗ ' : ''}${item.status ? `${ACTIVITY_STATUS[item.status] ?? item.status.toUpperCase()}  ` : ''}${item.text}`];
+    case 'approval': return [`${prefix}APPROVAL  ${item.text}`];
+    case 'diagnostic': return [`${prefix}${item.severity.toUpperCase()}  ${item.text}`];
+    case 'phase': return [`${prefix}PHASE  ${item.phase}`];
     case 'plan': return [
-      ...(item.text ? [`PLAN  ${item.text}`] : []),
+      ...(item.text ? [`${prefix}PLAN  ${item.text}`] : []),
       ...item.tasks.slice(0, 20).map(task => `[${task.status}] ${task.index}. ${task.title}`),
     ];
     case 'tool-group': return item.tools
       .filter(tool => !errorOnly || tool.status === 'failed')
       .slice(-height)
-      .flatMap(tool => detailed && tool.detail
-        ? [`TOOL  ${tool.name} · ${tool.status}`, `  ${tool.detail}`]
-        : [`TOOL  ${tool.name} · ${tool.status}`]);
+      .flatMap(tool => {
+        const heading = `${prefix}TOOL  ${tool.name} · ${tool.status}`;
+        if (tool.status === 'running' && !detailed) return [heading];
+        const card = buildWorkbenchToolCardLines(tool, {
+          width: Math.max(8, width - Math.min(prefix.length, 24)), mode: detailed ? 'detailed' : 'compact', indent: 2,
+        });
+        return [heading, ...card.slice(0, Math.max(0, height - 1)).map(line => `  ${safeLine(line.text)}`)];
+      });
   }
 }
 
-function transcriptLines(state: ContentState, conversation: ConversationSnapshot, width: number, height: number): string[] {
-  if (height === 0 || width === 0) return [];
+function transcriptLines(state: ContentState, conversation: ConversationSnapshot, width: number, height: number): { lines: NativeLine[]; resolvedScrollRows: number } {
+  if (height === 0 || width === 0) return { lines: [], resolvedScrollRows: 0 };
   const { transcript, selection } = state;
+  const scrollRows = transcript.followTail ? 0 : Math.max(0, Math.floor(transcript.scrollRowsFromTail ?? 0));
+  const neededRows = height + scrollRows;
   const visible = (item: TranscriptItem): boolean =>
     transcriptItemMatchesFilter(item, transcript.filter) &&
     (transcript.scope !== 'selected' || !selection.selectedAgentId || !item.agentId || item.agentId === selection.selectedAgentId || item.kind === 'approval');
-  const lines: string[] = [];
+  const lines: NativeLine[] = [];
+  const roster = state.roster.agents?.agents ?? [];
   const items = conversation.items;
   for (let index = items.length - 1; index >= 0; index--) {
     const item = items[index]!;
     if (!visible(item)) continue;
-    const itemContent = itemLines(item, transcript.filter === 'error', transcript.mode === 'detailed', height);
-    for (let contentIndex = itemContent.length - 1; contentIndex >= 0 && lines.length < height; contentIndex--) {
-      const bounded = itemContent[contentIndex]!.slice(-Math.max(1, width * height * MAX_ITEM_CHARS));
+    const agent = roster.find(entry => entry.agentId === item.agentId);
+    const actor = item.kind === 'user' ? 'YOU' : agent?.assignedAgentId ?? agent?.role ?? item.agentId ?? 'ALiX';
+    const itemContent = itemLines(item, transcript.filter === 'error', transcript.mode === 'detailed', neededRows, width, actor);
+    const color: Color = item.kind === 'tool-group' ? item.tools.some(tool => tool.status === 'failed') ? 'red' : 'cyan'
+      : item.kind === 'activity' ? item.verifiedOutcome === 'failure' ? 'red' : item.verifiedOutcome === 'success' ? 'green' : 'muted'
+        : item.kind === 'diagnostic' ? item.severity === 'error' ? 'red' : 'yellow'
+          : item.kind === 'approval' ? 'yellow' : item.kind === 'plan' ? 'purple' : 'foreground';
+    for (let contentIndex = itemContent.length - 1; contentIndex >= 0 && lines.length < neededRows; contentIndex--) {
+      const bounded = itemContent[contentIndex]!.slice(-Math.max(1, width * neededRows * MAX_ITEM_CHARS));
       const parts = safe(bounded).split('\n');
-      for (let partIndex = parts.length - 1; partIndex >= 0 && lines.length < height; partIndex--) {
+      for (let partIndex = parts.length - 1; partIndex >= 0 && lines.length < neededRows; partIndex--) {
         const wrapped = wrapDisplayText(parts[partIndex]!, width);
-        for (let row = wrapped.length - 1; row >= 0 && lines.length < height; row--) lines.unshift(wrapped[row]!);
+        for (let row = wrapped.length - 1; row >= 0 && lines.length < neededRows; row--) lines.push({ text: wrapped[row]!, color });
       }
     }
-    if (lines.length >= height) break;
+    if (lines.length >= neededRows) break;
   }
-  if (lines.length === 0) return ['No conversation yet'];
-  return lines.slice(-height);
+  if (lines.length === 0) return { lines: [{ text: 'No conversation yet', color: 'muted' }], resolvedScrollRows: 0 };
+  return {
+    lines: lines.reverse().slice(0, height),
+    resolvedScrollRows: lines.length < neededRows ? Math.max(0, lines.length - height) : scrollRows,
+  };
 }
 
 function tasksLines(state: ContentState, width: number, height: number): string[] {
@@ -156,7 +218,7 @@ function tasksLines(state: ContentState, width: number, height: number): string[
   const scoped = visibleForRun(tasks.tasks, state.selection.selectedRunId);
   const countStates = (states: readonly string[]): number => scoped.filter(task => states.includes(task.state)).length;
   const out = new BoundedLines(width, height);
-  out.push(`${countStates(['blocked'])} blocked · ${countStates(['waiting_dependency', 'waiting_approval'])} waiting · ${countStates(['running'])} running · ${countStates(['queued', 'assigned'])} queued`);
+  out.push(`${countStates(['running'])} running · ${countStates(['waiting_dependency', 'waiting_approval'])} waiting · ${countStates(['blocked'])} blocked · ${countStates(['queued', 'assigned'])} queued`);
   out.push(`RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`);
   if (scoped.length === 0) {
     out.push('No delegated tasks');
@@ -233,22 +295,15 @@ function headerLines(model: OperatorShellSnapshot, width: number, height: number
   if (height === 0 || width === 0) return [];
   const brand = width >= 20 ? 'ALiX WORKBENCH' : width >= 6 ? 'ALiX' : '';
   const badge = model.demo ? 'CONCEPT PREVIEW' : 'PREVIEW';
-  const facts = [
-    `workspace: ${model.workspace}`,
-    model.mode,
+  const left = `${brand}  ${badge}`;
+  const facts = safeLine([
+    `workspace: ${model.workspace}`, model.mode,
     model.status ? statusLabel(model.status) : model.running ? 'RUNNING' : '',
-    model.agents ? `${model.agents.total} agents · ${model.agents.running} running` : '',
-    model.agents?.waitingApproval ? `${model.agents.waitingApproval} approvals` : '',
-    model.agents?.stalled ? `${model.agents.stalled} stalled` : '',
-    `TOKENS ${chromeCount(model.tokensUsed)}`,
-    `FILES ${chromeCount(model.filesTouched)}`,
-    `EVENTS ${chromeCount(model.eventCount)}`,
-  ].filter(Boolean).join(' · ');
-  if (height === 1) return [truncateDisplayText(safeLine([brand, badge].filter(Boolean).join('  ')), width)];
-  return [
-    truncateDisplayText(safeLine([brand, badge].filter(Boolean).join('  ')), width),
-    truncateDisplayText(safeLine(facts), width),
-  ];
+    model.agents ? `${model.agents.total} agents • ${model.agents.running} running` : '',
+  ].filter(Boolean).join('  |  '));
+  if (width >= displayWidth(left) + displayWidth(facts) + 2) return [`${left}${' '.repeat(width - displayWidth(left) - displayWidth(facts))}${facts}`];
+  if (height === 1) return [truncateDisplayText(safeLine(left), width)];
+  return [truncateDisplayText(safeLine(left), width), truncateDisplayText(safeLine(facts), width)];
 }
 
 function footerLines(model: OperatorShellSnapshot, width: number, height: number): string[] {
@@ -267,23 +322,34 @@ function footerLines(model: OperatorShellSnapshot, width: number, height: number
   const counters = [
     `TOKENS ${chromeCount(model.tokensUsed)}`,
     `FILES ${chromeCount(model.filesTouched)}`,
+    `EVENTS ${chromeCount(model.eventCount)}`,
     `AGENTS ${model.agents?.total ?? 'unavailable'}`,
-  ].join(' · ');
-  return [truncateDisplayText(safeLine(`${hints.filter(Boolean).join(' · ')}   ${counters}`), width)].slice(0, Math.max(1, height));
+  ].join('  |  ');
+  const left = hints.filter(Boolean).join('  •  ');
+  const gap = Math.max(2, width - left.length - counters.length);
+  return [truncateDisplayText(safeLine(`${left}${' '.repeat(gap)}${counters}`), width)].slice(0, Math.max(1, height));
 }
 
-function inspectorLines(state: ContentState, width: number, height: number): string[] {
+function inspectorLines(state: ContentState, width: number, height: number): NativeLine[] {
   if (height === 0 || width === 0) return [];
-  const out = new BoundedLines(width, height);
-  for (const section of buildAgentInspectorSections(state.inspector)) {
-    if (out.full) break;
-    out.pushSafe(section.title);
+  const out: NativeLine[] = [];
+  const palette = getWorkbenchPreviewTheme().palette;
+  const push = (line: NativeLine): void => { if (out.length < height) out.push(line); };
+  for (const [index, section] of buildAgentInspectorSections(state.inspector).entries()) {
+    if (out.length >= height) break;
+    if (index > 0) push({ text: '─'.repeat(width), color: 'divider' });
+    push({ text: section.title, color: 'cyan' });
+    push({ text: '' });
     for (const row of section.rows) {
-      if (out.full) break;
-      out.push(row.label ? `${row.label}  ${row.value}` : row.value);
+      if (out.length >= height) break;
+      const label = row.label ? row.label.padEnd(Math.min(12, Math.max(1, width - 1)), ' ') : '';
+      const value = safeLine(row.value);
+      const color: Color = row.color === palette.green ? 'green' : row.color === palette.yellow ? 'yellow'
+        : row.color === palette.red ? 'red' : row.color === palette.purple ? 'purple' : 'foreground';
+      push({ text: `${label}${value}`, parts: label ? [{ text: label, color: 'muted' }, { text: value, color }] : [{ text: value, color }] });
     }
   }
-  return out.value().length === 0 ? ['Inspector unavailable'] : out.value();
+  return out.length === 0 ? [{ text: 'Inspector unavailable' }] : out;
 }
 
 function composerLines(state: ContentState, composer: ComposerLayout, width: number, height: number): string[] {
@@ -301,7 +367,7 @@ function composerLines(state: ContentState, composer: ComposerLayout, width: num
 /** Retained native content; semantic selection and filtering come from WorkbenchViewState. */
 export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: OpenTuiWorkbenchLayout, initial: ContentState): OpenTuiWorkbenchContent {
   const make = (id: string, parent: BoxRenderable): TextRenderable => {
-    const node = new TextRenderable(renderer, { id, position: 'absolute', width: 1, height: 1, content: '' });
+    const node = new TextRenderable(renderer, { id, position: 'absolute', width: 1, height: 1, content: '', fg: COLORS.foreground, bg: COLORS.background, wrapMode: 'none' });
     parent.add(node);
     return node;
   };
@@ -318,6 +384,7 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   approval.add(approvalText);
   let pausedConversation: ConversationSnapshot | undefined;
   let lastConversation: ConversationSnapshot | undefined;
+  let resolvedScrollRows = 0;
   const update = (state: ContentState): void => {
     const headerSize = placeText(header, layout.regions.header, layout.geometry.regions.header);
     const footerSize = placeText(footer, layout.regions.footer, layout.geometry.regions.footer);
@@ -326,19 +393,66 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     const overlaySize = placeText(overlay, layout.regions.overlay, layout.geometry.regions.overlay);
     const inspectorSize = placeText(inspector, layout.regions.inspector, layout.geometry.regions.inspector);
     const composerSize = placeText(composer, layout.regions.composer, layout.geometry.regions.composer);
-    header.content = headerLines(state.header, headerSize.width, headerSize.height).join('\n');
-    footer.content = footerLines(state.footer, footerSize.width, footerSize.height).join('\n');
-    roster.content = drawerLines(state, rosterSize.width, rosterSize.height).join('\n');
+    const brand = headerSize.width >= 20 ? 'ALiX WORKBENCH' : headerSize.width >= 6 ? 'ALiX' : '';
+    const badge = state.header.demo ? 'CONCEPT PREVIEW' : 'PREVIEW';
+    const brandLine = `${brand}  ${badge}`;
+    const agentFacts = state.header.agents ? `${state.header.agents.total} agents • ${state.header.agents.running} running` : '';
+    header.content = styledLines(headerLines(state.header, headerSize.width, headerSize.height).map((line, index) => {
+      if (index > 0 || !line.startsWith(brandLine)) return { text: line, color: 'muted' };
+      const remainder = line.slice(brandLine.length);
+      const countAt = agentFacts ? remainder.lastIndexOf(agentFacts) : -1;
+      return { text: line, parts: [
+        { text: brand, color: 'cyan' }, { text: `  ${badge}`, color: 'muted' },
+        { text: countAt >= 0 ? remainder.slice(0, countAt) : remainder, color: 'muted' },
+        ...(countAt >= 0 ? [{ text: remainder.slice(countAt), color: 'green' as const }] : []),
+      ] };
+    }), headerSize.width);
+    footer.content = styledLines(footerLines(state.footer, footerSize.width, footerSize.height).map(line => {
+      const counterAt = line.indexOf('TOKENS ');
+      return { text: line, parts: counterAt < 0 ? [{ text: line, color: 'muted' as const }] : [
+        { text: line.slice(0, counterAt), color: 'cyan' as const }, { text: line.slice(counterAt), color: 'muted' as const },
+      ] };
+    }), footerSize.width);
+    const rosterRows = drawerLines(state, rosterSize.width, rosterSize.height);
+    roster.content = styledLines(rosterRows.map((line, index) => ({
+      text: line,
+      color: /^(AGENTS & TASKS|TASKS|ARTIFACTS)$/.test(line) ? 'cyan'
+        : line.startsWith('›') ? 'cyan'
+          : /FAILED/.test(line) ? 'red' : /WAITING|APPROVAL/.test(line) ? 'yellow'
+            : /RUNNING|VERIFYING/.test(line) ? 'green' : /COMPLETED/.test(line) ? 'purple'
+              : line.startsWith('  ') ? 'muted' : 'foreground',
+      fill: line.startsWith('›') || (rosterRows[index - 1]?.startsWith('›') && line.startsWith('  ')),
+    })), rosterSize.width);
     if (state.transcript.followTail) pausedConversation = undefined;
     else pausedConversation ??= lastConversation ?? state.transcript.conversation;
-    transcript.content = transcriptLines(
-      state, pausedConversation ?? state.transcript.conversation, transcriptSize.width, transcriptSize.height,
-    ).join('\n');
+    const categories = ['ALL', 'RESPONSE', 'TOOL', 'ACTIVITY', 'ERROR'];
+    const toolbarParts: NativePart[] = categories.flatMap((category, index) => {
+      const active = category.toLowerCase() === state.transcript.filter;
+      return [
+        { text: active ? `[${category}]` : category, color: active ? 'background' : 'muted', ...(active ? { background: 'cyan' as const } : {}) },
+        { text: index === categories.length - 1 ? '    ' : '  ', color: 'muted' },
+      ];
+    });
+    toolbarParts.push({ text: 'Auto-follow: ', color: 'muted' }, { text: state.transcript.followTail ? 'ON' : 'OFF', color: state.transcript.followTail ? 'green' : 'yellow' });
+    const toolbar = toolbarParts.map(part => part.text).join('');
+    const heading = 'LIVE TRANSCRIPT';
+    const toolbarOnHeading = displayWidth(heading) + 3 + displayWidth(toolbar) <= transcriptSize.width;
+    const transcriptChrome: NativeLine[] = toolbarOnHeading
+      ? [{ text: `${heading}   ${toolbar}`, parts: [{ text: heading, color: 'cyan' }, { text: '   ' }, ...toolbarParts] }, { text: '' }]
+      : [{ text: heading, color: 'cyan' }, { text: toolbar, parts: toolbarParts }, { text: '' }];
+    const transcriptWindow = transcriptLines(
+      state, pausedConversation ?? state.transcript.conversation, transcriptSize.width, Math.max(0, transcriptSize.height - transcriptChrome.length),
+    );
+    resolvedScrollRows = transcriptWindow.resolvedScrollRows;
+    transcript.content = styledLines([
+      ...transcriptChrome,
+      ...transcriptWindow.lines,
+    ].slice(0, transcriptSize.height), transcriptSize.width);
     lastConversation = state.transcript.conversation;
-    inspector.content = inspectorLines(state, inspectorSize.width, inspectorSize.height).join('\n');
-    composer.content = composerLines(state, layout.composer, composerSize.width, composerSize.height).join('\n');
+    inspector.content = styledLines(inspectorLines(state, inspectorSize.width, inspectorSize.height), inspectorSize.width);
+    composer.content = styledLines(composerLines(state, layout.composer, composerSize.width, composerSize.height).map(line => ({ text: line, color: line.startsWith('>') ? 'cyan' : 'foreground' })), composerSize.width);
     overlay.content = state.overlay.drawer !== 'closed'
-      ? drawerLines(state, overlaySize.width, overlaySize.height).join('\n') : '';
+      ? styledLines(drawerLines(state, overlaySize.width, overlaySize.height).map(line => ({ text: line })), overlaySize.width) : '';
     const approvalLines = state.approval.length
       ? state.approval
           .flatMap(entry => buildWorkbenchApprovalCardLines(entry, state.approval.length, renderer.width))
@@ -360,6 +474,7 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   let disposed = false;
   return {
     header, footer, roster, transcript, overlay, inspector, composer, approval, update,
+    get resolvedScrollRows() { return resolvedScrollRows; },
     dispose: () => {
       if (disposed) return;
       disposed = true;

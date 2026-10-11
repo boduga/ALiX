@@ -20,6 +20,12 @@ export interface OpenTuiWorkbenchHost {
 export function mountOpenTuiWorkbenchHost(renderer: CliRenderer, deps: OpenTuiHostDeps): OpenTuiWorkbenchHost {
   const layout = mountOpenTuiWorkbenchLayout(renderer, deps.layoutState());
   const content = mountOpenTuiWorkbenchContent(renderer, layout, deps.contentState());
+  layout.regions.transcript.onMouseScroll = (event): void => {
+    if (event.scroll?.direction === 'up') deps.onKey('ArrowUp');
+    else if (event.scroll?.direction === 'down') deps.onKey('ArrowDown');
+    else return;
+    event.preventDefault();
+  };
   const update = (): void => {
     layout.update(deps.layoutState());
     content.update(deps.contentState());

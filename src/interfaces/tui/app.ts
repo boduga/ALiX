@@ -70,6 +70,7 @@ export interface TuiAppOptions {
   workbenchEnabled?: boolean;
   renderer?: RendererId;
   onWorkbenchFrame?: (state: WorkbenchViewState) => void;
+  onExit?: () => void;
   /** Optional capability service — the palette only activates when a
    *  service is available (either here or via the module accessor). */
   capabilityService?: import('./capabilities/capability-service.js').CapabilityService;
@@ -1244,6 +1245,10 @@ export class TuiApp {
     const isInputTab = inputTabs.includes(this.state.activeTab);
     const qHandledByTab = this.state.activeTab === 'evolution';
     if (key === '' || (!isInputTab && !qHandledByTab && (key === 'q' || key === 'Q'))) {
+      if (this.opts.renderer === 'opentui') {
+        this.opts.onExit?.();
+        return true;
+      }
       // Terminate immediately. The 'exit' event handler (installed by
       // installEmergencyCleanup in start()) runs cleanupSync synchronously
       // to restore the terminal — no async stop() needed, and avoiding the
@@ -1383,6 +1388,7 @@ export class TuiApp {
     if (this.opts.workbenchEnabled && tab === 'agent') {
       this.workbenchStore.dispatch({ type: 'transcript.follow', followTail: true });
       this.state.views.agent.pinnedBottom = true;
+      this.state.views.agent.nativeTranscriptScrollRows = 0;
     }
     const ctx = this.framePainter.buildViewRenderContext(tab);
     this.state.views[tab].scrollOffset = computeBottomAnchor(ctx, tab);
@@ -1401,6 +1407,16 @@ export class TuiApp {
       case 'scroll': {
         const tab = this.state.activeTab;
         const per = this.state.views[tab];
+        if (tab === 'agent' && this.opts.workbenchEnabled && this.opts.renderer === 'opentui') {
+          const delta = action.offset - per.scrollOffset;
+          const current = per.pinnedBottom ? 0 : per.nativeTranscriptScrollRows ?? 0;
+          per.nativeTranscriptScrollRows = Math.max(0, current + delta);
+          per.scrollOffset = Math.max(0, action.offset);
+          per.pinnedBottom = per.nativeTranscriptScrollRows === 0;
+          this.workbenchStore.dispatch({ type: 'transcript.follow', followTail: per.pinnedBottom });
+          this.paintFullFrame();
+          break;
+        }
         const isAgentOrChat = tab === 'agent' || tab === 'chat';
         if (isAgentOrChat) {
           if (this.opts.workbenchEnabled && tab === 'agent') per.pinnedBottom = this.workbenchStore.snapshot().followTail;
@@ -1608,6 +1624,12 @@ export class TuiApp {
 
   routeWorkbenchKey(key: string): void {
     this.handleKey(key);
+  }
+
+  /** Accept the native renderer's clamped viewport position after each frame. */
+  setNativeTranscriptScrollRows(rows: number): void {
+    if (this.opts.renderer !== 'opentui' || !Number.isFinite(rows)) return;
+    this.state.views.agent.nativeTranscriptScrollRows = Math.max(0, Math.floor(rows));
   }
 
   routeWorkbenchPaste(text: string): boolean {

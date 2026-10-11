@@ -18,6 +18,7 @@ describe('OpenTUI key translation', () => {
   it('maps control chords to the Ctrl+<letter> vocabulary', () => {
     assert.equal(translateKeyEvent(key({ name: 'e', ctrl: true, sequence: '\u0005' })), 'Ctrl+e');
     assert.equal(translateKeyEvent(key({ name: 'R', ctrl: true, sequence: '\u0012' })), 'Ctrl+r');
+    assert.equal(translateKeyEvent(key({ name: 'c', ctrl: true, sequence: '\u0003' })), '\u0003');
   });
 
   it('maps named control and navigation keys', () => {

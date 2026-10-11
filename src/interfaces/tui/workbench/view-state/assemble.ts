@@ -31,6 +31,7 @@ export function buildWorkbenchFrameViewState(input: WorkbenchFrameViewInput): Wo
     ui,
     chrome,
     transcriptSource: { timeline: agentTimeline ?? [], trace: snapshot.runtime?.trace ?? [] },
+    transcriptScrollRowsFromTail: agentTab.nativeTranscriptScrollRows ?? 0,
   });
 }
 
@@ -46,6 +47,7 @@ export interface WorkbenchViewStateInput {
     readonly timeline: readonly TimelineEntry[];
     readonly trace: readonly ExecutionTraceEntry[];
   };
+  readonly transcriptScrollRowsFromTail?: number;
 }
 
 /**
@@ -80,6 +82,7 @@ export function assembleWorkbenchViewState(input: WorkbenchViewStateInput): Work
       filter: ui.transcriptFilter,
       scope: ui.transcriptScope,
       followTail: ui.followTail,
+      scrollRowsFromTail: input.transcriptScrollRowsFromTail ?? 0,
     },
     inspector: buildAgentInspectorModel(snapshot, {
       selectedAgentId: ui.selectedAgentId,

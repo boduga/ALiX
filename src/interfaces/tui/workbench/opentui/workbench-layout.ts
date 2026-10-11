@@ -28,25 +28,25 @@ function place(box: BoxRenderable, region: WorkbenchRegion | null): void {
 /** Retained OpenTUI layout; callers own renderer creation, input, and teardown. */
 export function mountOpenTuiWorkbenchLayout(renderer: CliRenderer, initial: LayoutState): OpenTuiWorkbenchLayout {
   const shell = new BoxRenderable(renderer, { id: 'opentui-workbench', width: '100%', height: '100%' });
-  const panel = (id: string, title?: string): BoxRenderable => new BoxRenderable(renderer, {
+  const panel = (id: string): BoxRenderable => new BoxRenderable(renderer, {
     id: `opentui-${id}`,
     position: 'absolute',
     width: 1,
     height: 1,
-    title,
-    backgroundColor: '#101820',
+    backgroundColor: '#08151b',
+    borderColor: '#06c9ef',
   });
   const regions = {
     header: panel('header'),
     tabs: panel('tabs'),
-    roster: panel('roster', 'Agents'),
-    transcript: panel('transcript', 'Transcript'),
-    inspector: panel('inspector', 'Inspector'),
-    composer: panel('composer', 'Composer'),
+    roster: panel('roster'),
+    transcript: panel('transcript'),
+    inspector: panel('inspector'),
+    composer: panel('composer'),
     footer: panel('footer'),
-    overlay: panel('overlay', 'Agents'),
+    overlay: panel('overlay'),
   };
-  regions.tabs.add(new TextRenderable(renderer, { content: 'AGENT' }));
+  regions.tabs.add(new TextRenderable(renderer, { content: '' }));
   for (const box of Object.values(regions)) shell.add(box);
   renderer.root.add(shell);
 
@@ -58,14 +58,6 @@ export function mountOpenTuiWorkbenchLayout(renderer: CliRenderer, initial: Layo
       state.overlay.drawer,
       composerState.cursor,
     );
-    const drawerTitle = {
-      closed: 'Agents',
-      agents: 'Agents',
-      tasks: 'Tasks',
-      artifacts: 'Artifacts',
-    }[geometry.layout.drawer];
-    regions.roster.title = drawerTitle;
-    regions.overlay.title = drawerTitle;
     for (const name of Object.keys(regions) as (keyof typeof regions)[]) {
       place(regions[name], geometry.regions[name]);
     }
