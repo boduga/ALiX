@@ -506,17 +506,13 @@ export class TuiApp {
   }
 
   private handleRaw(buf: Buffer): void {
-    // 1. Bracketed paste detector — runs on raw bytes, before key parsing.
     if (this.handlePaste(buf)) return;
-
     const key = parseKey(buf);
     if (!key) return;
-    // Command palette is a modal — while open, route EVERY key (Escape,
-    // q, Tab, arrows, text) to the modal BEFORE the global handler gets a
-    // chance to act. Without this ordering Escape could never dismiss the
-    // palette (navigation.interpret('Escape') → home → tryHandleGlobal
-    // switches to chat and returns true) and 'q' on a non-input tab would
-    // hit the global quit path and terminate the process mid-search.
+    this.handleKey(key);
+  }
+
+  private handleKey(key: string): void {
     if (this.paletteController.open) {
       this.paletteController.handleKey(key);
       return;
@@ -1610,8 +1606,8 @@ export class TuiApp {
     });
   }
 
-  routeWorkbenchKey(key: string): boolean {
-    return this.handleWorkbenchAgentInput(key);
+  routeWorkbenchKey(key: string): void {
+    this.handleKey(key);
   }
 
   routeWorkbenchPaste(text: string): boolean {

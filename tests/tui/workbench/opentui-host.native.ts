@@ -5,6 +5,9 @@ import { WorkbenchStore } from '../../../src/interfaces/tui/workbench/app/workbe
 import { createInitialWorkbenchUiState } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
 import type { OperatorShellSnapshot } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
 import type { WorkbenchHostPorts } from '../../../src/interfaces/tui/workbench/controller/host-intent.js';
+import { applyWorkbenchIntent } from '../../../src/interfaces/tui/workbench/controller/intent.js';
+import { buildWorkbenchInputContext } from '../../../src/interfaces/tui/workbench/input/input-context.js';
+import { routeWorkbenchInput } from '../../../src/interfaces/tui/workbench/input/input-router.js';
 import { mountOpenTuiWorkbenchHost, type OpenTuiWorkbenchHost } from '../../../src/interfaces/tui/workbench/opentui/host.js';
 import type { ContentState } from '../../../src/interfaces/tui/workbench/opentui/workbench-content.js';
 import { disposeTestRenderer } from './opentui-native-harness.js';
@@ -58,18 +61,23 @@ function mount(setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }
     };
   };
   const host = mountOpenTuiWorkbenchHost(setup.renderer, {
-    store,
     layoutState: () => ({ composer: contentState().composer, overlay: contentState().overlay }),
     contentState,
-    signals: () => signals,
-    snapshot: () => undefined,
-    ports,
-    coordinationAvailable: true,
+    onKey: (key) => {
+      applyWorkbenchIntent(store, routeWorkbenchInput(key, buildWorkbenchInputContext(store.snapshot(), signals)), {
+        snapshot: undefined, ports, coordinationAvailable: true,
+      });
+      host.update();
+    },
+    onPaste: (text) => {
+      store.dispatch({ type: 'composer.insert', text });
+      host.update();
+    },
   });
   return { store, host, calls, signals };
 }
 
-test('OpenTUI host routes typing and Ctrl+e into the store and repaints', async () => {
+test('OpenTUI host routes typing and Ctrl+e into the store', async () => {
   const setup = await createTestRenderer({ width: 120, height: 30 });
   try {
     const { store, host } = mount(setup);
@@ -103,73 +111,50 @@ test('OpenTUI host normalizes paste and routes Unicode keys', async () => {
   }
 });
 
-test('OpenTUI host closes an open overlay first', async () => {
+test('OpenTUI host closes an open overlay and routes cancellation', async () => {
   const setup = await createTestRenderer({ width: 120, height: 30 });
   try {
-    const { store, host } = mount(setup);
-    store.dispatch({ type: 'overlay.toggle', overlay: 'help' });
+    const status = mount(setup);
+    status.store.dispatch({ type: 'overlay.toggle', overlay: 'help' });
     pressEscape(setup);
     await setup.renderOnce();
-    assert.deepEqual(store.snapshot().overlayStack, []);
-    host.dispose();
+    assert.deepEqual(status.store.snapshot().overlayStack, []);
+
+    status.signals.turnActive = true;
+    status.store.dispatch({ type: 'focus.set', focus: 'transcript' });
+    pressEscape(setup);
+    await setup.renderOnce();
+    assert.equal(status.calls.cancelActiveTurn, 1);
+    status.host.dispose();
   } finally {
     await disposeTestRenderer(setup);
   }
 });
 
-test('OpenTUI host routes cancellation', async () => {
+test('OpenTUI host routes approval, queue, and slash', async () => {
   const setup = await createTestRenderer({ width: 120, height: 30 });
   try {
-    const { calls, signals, store, host } = mount(setup);
-    signals.turnActive = true;
-    store.dispatch({ type: 'focus.set', focus: 'transcript' });
-    pressEscape(setup);
-    await setup.renderOnce();
-    assert.equal(calls.cancelActiveTurn, 1);
-    host.dispose();
-  } finally {
-    await disposeTestRenderer(setup);
-  }
-});
-
-test('OpenTUI host routes approval keys', async () => {
-  const setup = await createTestRenderer({ width: 120, height: 30 });
-  try {
-    const { calls, signals, host } = mount(setup);
-    signals.approvalPending = true;
+    const approval = mount(setup);
+    approval.signals.approvalPending = true;
     setup.mockInput.pressKey('a');
     await setup.renderOnce();
-    assert.deepEqual(calls.resolveApproval, [['ap1', 'approved']]);
-    host.dispose();
-  } finally {
-    await disposeTestRenderer(setup);
-  }
-});
+    assert.deepEqual(approval.calls.resolveApproval, [['ap1', 'approved']]);
+    approval.host.dispose();
 
-test('OpenTUI host queues a follow-up while a turn is active', async () => {
-  const setup = await createTestRenderer({ width: 120, height: 30 });
-  try {
-    const { signals, store, host } = mount(setup);
-    signals.turnActive = true;
-    store.dispatch({ type: 'composer.replace', text: 'job' });
+    const queued = mount(setup);
+    queued.signals.turnActive = true;
+    queued.store.dispatch({ type: 'composer.replace', text: 'job' });
     setup.mockInput.pressEnter();
     await setup.renderOnce();
-    assert.equal(store.snapshot().queuedMessages.length, 1);
-    host.dispose();
-  } finally {
-    await disposeTestRenderer(setup);
-  }
-});
+    assert.equal(queued.store.snapshot().queuedMessages.length, 1);
+    queued.host.dispose();
 
-test('OpenTUI host submits slash completion', async () => {
-  const setup = await createTestRenderer({ width: 120, height: 30 });
-  try {
-    const { calls, signals, host } = mount(setup);
-    signals.slashActive = true;
+    const slash = mount(setup);
+    slash.signals.slashActive = true;
     setup.mockInput.pressEnter();
     await setup.renderOnce();
-    assert.equal(calls.submitSlash, 1);
-    host.dispose();
+    assert.equal(slash.calls.submitSlash, 1);
+    slash.host.dispose();
   } finally {
     await disposeTestRenderer(setup);
   }
