@@ -10,6 +10,7 @@ Build the native OpenTUI renderer from renderer-neutral `WorkbenchViewState` whi
 - `workbench-content.ts` mounts retained operator-shell header/footer, agent-roster, transcript, inspector, composer, task/artifact drawer, and approval-card content in the layout regions; it consumes the assembled view state and owns no runtime projection.
 - `input.ts` normalizes native OpenTUI key and paste events into the shared Workbench vocabulary and routes them through `routeWorkbenchInput`; it maps to typed intents and owns no terminal I/O.
 - `key-handler.ts` is the host's input entry: it builds the shared context from a `WorkbenchStore` and live signals and applies key/paste intents through the shared `applyWorkbenchIntent`. It owns no terminal I/O.
+- `host.ts` mounts the retained layout and content on a native renderer, subscribes to the renderer's key/paste/resize stream, routes through `key-handler.ts`, and repaints on each handled intent. It interposes its own `repaint` (native content update + `requestRender`) over the caller's effectful ports; `syncComposer`/`setPinnedBottom`/`setTranscriptMode`/`anchorTranscriptBottom` are no-ops until the live-runtime and transcript-scroll slices land. Terminal lifecycle (raw mode, restore) is supplied by the renderer it is given.
 
 ## Local Contracts
 
@@ -27,7 +28,7 @@ Build the native OpenTUI renderer from renderer-neutral `WorkbenchViewState` whi
 ## Verification
 
 - Run `pnpm build && pnpm test:opentui` on Node 26.4+.
-- Native frame coverage lives in `tests/tui/workbench/opentui-layout.native.ts`; `.github/workflows/opentui-spike.yml` runs it across the supported matrix.
+- Native frame coverage lives in `tests/tui/workbench/opentui-layout.native.ts` and `tests/tui/workbench/opentui-host.native.ts`; `.github/workflows/opentui-spike.yml` runs them across the supported matrix.
 
 ## Child DOX Index
 

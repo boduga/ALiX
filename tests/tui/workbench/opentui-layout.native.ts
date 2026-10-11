@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createTestRenderer, type TestRendererSetup } from '@opentui/core/testing';
+import { createTestRenderer } from '@opentui/core/testing';
+import { disposeTestRenderer } from './opentui-native-harness.js';
 import type { AgentInspectorModel } from '../../../src/interfaces/tui/workbench/model/agent-inspector.js';
 import type { OperatorShellSnapshot } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
 import type { WorkbenchDrawer } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
@@ -33,10 +34,6 @@ function layoutState(drawer: WorkbenchDrawer, text = ''): Pick<WorkbenchViewStat
   };
 }
 
-async function dispose(setup: TestRendererSetup): Promise<void> {
-  setup.renderer.destroy();
-  await (setup.renderer as typeof setup.renderer & { closed: Promise<void> }).closed;
-}
 
 for (const { name, width, height, drawer, inspector, overlay } of [
   { name: 'wide', width: 180, height: 40, drawer: 'closed', inspector: true, overlay: false },
@@ -64,7 +61,7 @@ for (const { name, width, height, drawer, inspector, overlay } of [
       await setup.renderOnce();
       assert.doesNotMatch(setup.captureCharFrame(), /Composer/);
     } finally {
-      await dispose(setup);
+      await disposeTestRenderer(setup);
     }
   });
 }
@@ -89,7 +86,7 @@ test('resize updates retained pane positions and composer height', async () => {
     assert.ok(layout.regions.composer.height > wideComposerHeight);
     assert.equal(layout.regions.overlay.visible, true);
   } finally {
-    await dispose(setup);
+    await disposeTestRenderer(setup);
   }
 });
 
@@ -181,7 +178,7 @@ test('native roster and transcript show selected run content and update in place
     content.dispose();
     layout.dispose();
   } finally {
-    await dispose(setup);
+    await disposeTestRenderer(setup);
   }
 });
 
@@ -209,7 +206,7 @@ test('very long transcript item stays bounded to native viewport', async () => {
     content.dispose();
     layout.dispose();
   } finally {
-    await dispose(setup);
+    await disposeTestRenderer(setup);
   }
 });
 
@@ -241,7 +238,7 @@ test('narrow roster keeps selected agent visible after resize', async () => {
     content.dispose();
     layout.dispose();
   } finally {
-    await dispose(setup);
+    await disposeTestRenderer(setup);
   }
 });
 
@@ -275,7 +272,7 @@ test('native content preserves unavailable roster and moves into narrow overlay'
     content.dispose();
     layout.dispose();
   } finally {
-    await dispose(setup);
+    await disposeTestRenderer(setup);
   }
 });
 
@@ -320,7 +317,7 @@ test('native inspector shows bounded agent sections and updates in place', async
     content.dispose();
     layout.dispose();
   } finally {
-    await dispose(setup);
+    await disposeTestRenderer(setup);
   }
 });
 
@@ -359,7 +356,7 @@ test('native composer shows placeholder, draft, and multiline rows', async () =>
     content.dispose();
     layout.dispose();
   } finally {
-    await dispose(setup);
+    await disposeTestRenderer(setup);
   }
 });
 
@@ -403,7 +400,7 @@ test('native drawers render task and artifact bodies by drawer selection', async
     content.dispose();
     layout.dispose();
   } finally {
-    await dispose(setup);
+    await disposeTestRenderer(setup);
   }
 });
 
@@ -442,7 +439,7 @@ test('native approval card paints above the drawer overlay', async () => {
     content.dispose();
     layout.dispose();
   } finally {
-    await dispose(setup);
+    await disposeTestRenderer(setup);
   }
 });
 
@@ -478,6 +475,6 @@ test('native header and footer render operator chrome', async () => {
     content.dispose();
     layout.dispose();
   } finally {
-    await dispose(setup);
+    await disposeTestRenderer(setup);
   }
 });

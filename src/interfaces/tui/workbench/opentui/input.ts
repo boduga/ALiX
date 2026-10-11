@@ -32,8 +32,10 @@ export function translateKeyEvent(event: OpenTuiKey): string | null {
   return null;
 }
 
+const ANSI_SEQUENCES = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]/g;
+
 export function pasteText(event: Pick<PasteEvent, 'bytes'>): string {
-  return new TextDecoder().decode(event.bytes).replace(/\r\n?/g, '\n');
+  return new TextDecoder().decode(event.bytes).replace(ANSI_SEQUENCES, '').replace(/\r\n?/g, '\n');
 }
 
 export function pasteIntent(event: Pick<PasteEvent, 'bytes'>): WorkbenchInputIntent {

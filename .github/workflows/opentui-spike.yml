@@ -10,6 +10,7 @@ on:
       - 'src/interfaces/tui/workbench/render/terminal-text.ts'
       - 'src/interfaces/tui/workbench/model/ui-state.ts'
       - 'tests/tui/workbench/opentui-layout.native.ts'
+      - 'tests/tui/workbench/opentui-host.native.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/opentui-spike.yml'
