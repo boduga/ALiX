@@ -40,7 +40,7 @@
     "test:node": "node scripts/run-node-tests.mjs",
     "test:integration": "node --test --test-concurrency=1 dist/tests/integration/*.test.js",
     "test:vitest": "vitest run --config vitest.config.mts",
-    "test:opentui": "node --experimental-ffi --test dist/tests/tui/workbench/opentui-layout.native.js",
+    "test:opentui": "node --experimental-ffi --test dist/tests/tui/workbench/opentui-layout.native.js dist/tests/tui/workbench/opentui-host.native.js",
     "test:evals": "vitest run tests/evals --config vitest.config.mts",
     "test:manual": "node scripts/run-node-tests.mjs --manual",
     "test:slow": "node scripts/run-node-tests.mjs --slow",

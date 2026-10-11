@@ -10,6 +10,7 @@ Build the native OpenTUI renderer from renderer-neutral `WorkbenchViewState` whi
 - `workbench-content.ts` mounts retained operator-shell header/footer, agent-roster, transcript, inspector, composer, task/artifact drawer, and approval-card content in the layout regions; it consumes the assembled view state and owns no runtime projection.
 - `input.ts` normalizes native OpenTUI key and paste events into the shared Workbench vocabulary and routes them through `routeWorkbenchInput`; it maps to typed intents and owns no terminal I/O.
 - `key-handler.ts` is the host's input entry: it builds the shared context from a `WorkbenchStore` and live signals and applies key/paste intents through the shared `applyWorkbenchIntent`. It owns no terminal I/O.
+- `host.ts` mounts the retained layout and content on a native renderer, subscribes to the renderer's key/paste stream, routes through `key-handler.ts`, and repaints on each handled intent. It implements the rendering side of `WorkbenchHostPorts` (repaint/composer mirror/follow anchors) over the host-supplied effectful ports; it does not own terminal lifecycle (raw mode, resize, restore), which is supplied by the renderer it is given.
 
 ## Local Contracts
 
