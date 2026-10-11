@@ -70,6 +70,7 @@ export interface TuiAppOptions {
   workbenchEnabled?: boolean;
   renderer?: RendererId;
   onWorkbenchFrame?: (state: WorkbenchViewState) => void;
+  onExit?: () => void;
   /** Optional capability service — the palette only activates when a
    *  service is available (either here or via the module accessor). */
   capabilityService?: import('./capabilities/capability-service.js').CapabilityService;
@@ -1244,6 +1245,10 @@ export class TuiApp {
     const isInputTab = inputTabs.includes(this.state.activeTab);
     const qHandledByTab = this.state.activeTab === 'evolution';
     if (key === '' || (!isInputTab && !qHandledByTab && (key === 'q' || key === 'Q'))) {
+      if (this.opts.renderer === 'opentui') {
+        this.opts.onExit?.();
+        return true;
+      }
       // Terminate immediately. The 'exit' event handler (installed by
       // installEmergencyCleanup in start()) runs cleanupSync synchronously
       // to restore the terminal — no async stop() needed, and avoiding the

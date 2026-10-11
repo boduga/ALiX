@@ -6,6 +6,9 @@ import { createModelResolver } from "../../../operations/config/model-resolver.j
 import { ApprovalManager } from "../../tui/approval-manager.js";
 import { ApprovalStore } from "../../../governance/approvals/approval-store.js";
 import { TuiApp, type RendererId } from "../../tui/app.js";
+import { createOpenTuiLifecycle, type OpenTuiLifecycle } from "../../tui/workbench/opentui/lifecycle.js";
+import { mountOpenTuiWorkbenchHost, type OpenTuiWorkbenchHost } from "../../tui/workbench/opentui/host.js";
+import type { WorkbenchViewState } from "../../tui/workbench/view-state/types.js";
 import { SnapshotBuilder } from "../../tui/snapshot-builder.js";
 import { DaemonMetricsCollectorImpl, createPlatformMetricsReader } from "../../tui/daemon-metrics-collector.js";
 import { RuntimeCollectorImpl } from "../../tui/runtime-collector.js";
@@ -70,8 +73,9 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // stdout, raw mode, resize, and cleanup. Only the ANSI canvas is selectable
   // in production; everything below composes that one renderer.
   const renderer = opts.renderer ?? "canvas";
-  if (renderer === "opentui") {
-    throw new Error("OpenTUI renderer is not implemented yet; use --renderer canvas.");
+  const isOpenTui = renderer === "opentui";
+  if (isOpenTui && !process.stdout.isTTY) {
+    throw new Error("OpenTUI renderer requires an interactive terminal (stdout is not a TTY).");
   }
   const cwd = process.cwd();
   const sessionId = opts.sessionName ?? `${Date.now()}`;
@@ -414,18 +418,29 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   setCapabilityService(capabilityService);
   await capabilityService.ready();
 
+  let latest: WorkbenchViewState | undefined;
+  let host: OpenTuiWorkbenchHost | undefined;
+  let lifecycle: OpenTuiLifecycle | undefined;
+  let resolveExit: (() => void) | undefined;
+  const exitPromise = new Promise<void>((resolve) => { resolveExit = resolve; });
+
   app = new TuiApp({
     builder,
     daemonMetrics,
     agentSession,
     approvalManager: approvals,
     themeName: opts.themeName,
-    workbenchEnabled: process.env.ALIX_TUI_WORKBENCH === '1',
+    workbenchEnabled: isOpenTui || process.env.ALIX_TUI_WORKBENCH === '1',
     capabilityService,
     eventLog,
     chatSessionId,
     agentSessionId,
     runtimeCollectors: { chat: chatCollector, agent: agentCollector },
+    ...(isOpenTui ? {
+      renderer: 'opentui' as const,
+      onWorkbenchFrame: (state: WorkbenchViewState) => { latest = state; host?.update(); },
+      onExit: () => { resolveExit?.(); },
+    } : {}),
   });
 
   // Point the streaming bridge at the now-constructed app: every streamed
@@ -438,7 +453,25 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   sopCollector.start();
 
   await app.start();
-  await app.run();
+  if (isOpenTui) {
+    lifecycle = await createOpenTuiLifecycle();
+    host = mountOpenTuiWorkbenchHost(lifecycle.renderer, {
+      layoutState: () => ({ composer: latest!.composer, overlay: latest!.overlay }),
+      contentState: () => ({
+        header: latest!.header, footer: latest!.footer, roster: latest!.roster, transcript: latest!.transcript,
+        selection: latest!.selection, overlay: latest!.overlay, inspector: latest!.inspector,
+        composer: latest!.composer, approval: latest!.approval,
+      }),
+      onKey: (key) => app.routeWorkbenchKey(key),
+      onPaste: (text) => app.routeWorkbenchPaste(text),
+    });
+    await exitPromise;
+    host.dispose();
+    await lifecycle.dispose();
+    await app.stop();
+  } else {
+    await app.run();
+  }
   } catch (err) {
     if (app) await app.stop();
     throw err;

@@ -53,13 +53,13 @@ describe("OpenTUI launcher selection", () => {
       const selected = run(["tui", "--renderer", "opentui"]);
       expect(selected.status).toBe(1);
       expect(selected.nodeArgs).toContain("--experimental-ffi");
-      expect(selected.errors).toContain("OpenTUI renderer is not implemented yet");
+      expect(selected.errors).toContain("OpenTUI renderer requires an interactive terminal");
       expect(existsSync(join(cwd, ".alix"))).toBe(false);
 
       const selectedEquals = run(["tui", "--renderer=opentui"]);
       expect(selectedEquals.status).toBe(1);
       expect(selectedEquals.nodeArgs).toContain("--experimental-ffi");
-      expect(selectedEquals.errors).toContain("OpenTUI renderer is not implemented yet");
+      expect(selectedEquals.errors).toContain("OpenTUI renderer requires an interactive terminal");
 
       const unknown = run(["tui", "--renderer", "unknown"]);
       expect(unknown.status).toBe(1);

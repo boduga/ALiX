@@ -115,3 +115,7 @@ Slice 4 (OpenTUI input routing + renderer host) is built in reviewable pieces. T
 - `src/interfaces/tui/workbench/controller/selection-intent.ts`, `store-intent.ts`, and `host-intent.ts` own navigation resolution, store-only transitions, and the effectful sequence (through a `WorkbenchHostPorts` interface).
 
 `TuiApp` implements `WorkbenchHostPorts` and delegates; ANSI behavior is unchanged (1400 TUI tests). `routeWorkbenchInput` defines no `Ctrl+Shift+<letter>` token, so native `Ctrl+Shift+<letter>` collapses to the unshifted chord. The OpenTUI host, terminal lifecycle, and `--renderer opentui` wiring remain the next slice.
+
+## Amendment 2026-10-11: renderer selection (slice 4 delivered)
+
+The production OpenTUI renderer is now selectable through `alix tui --renderer opentui`, which requires an interactive TTY (non-TTY invocations fail closed). `runTui` builds `TuiApp` in the external-renderer mode, creates the native renderer via `createOpenTuiLifecycle`, mounts `mountOpenTuiWorkbenchHost`, forwards normalized keys/paste to the controller, and disposes the renderer and app on exit. The ANSI canvas remains the default. Transcript scroll controls, live-snapshot breadth, cross-renderer parity, and the default-switch/canvas-removal decisions remain later slices.
