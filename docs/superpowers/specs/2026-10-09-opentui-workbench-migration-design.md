@@ -105,3 +105,13 @@ Slice 1 landed in PR #898 as `src/interfaces/tui/workbench/view-state/` — the 
 ## Amendment 2026-10-10: migration slice 2 (painter consumption + renderer selection)
 
 Slice 2 (partial) also lands in PR #898: the ANSI frame painter assembles `WorkbenchViewState` once per frame, and the agent view, inspector, and operator-shell chrome consume it instead of each deriving the same models. The conversation projection is memoized (`workbench/projections/conversation-cache.ts`) and shared with the scrollback builder, so the transcript is never projected twice per frame. `runTui` accepts a single renderer and the CLI rejects an unsupported `--renderer`; only the ANSI canvas is selectable today. A production OpenTUI renderer, its launcher-owned `--experimental-ffi` activation, default switching, and canvas removal remain gated on parity.
+
+## Amendment 2026-10-10: renderer-neutral controller groundwork (slice 4, part 1)
+
+Slice 4 (OpenTUI input routing + renderer host) is built in reviewable pieces. The first piece (PR #900) extracts the shared input and intent seams out of the ANSI `TuiApp` so both renderers consume one source:
+
+- `src/interfaces/tui/workbench/opentui/input.ts` normalizes native OpenTUI key and paste events to the `routeWorkbenchInput` vocabulary and decodes/normalizes bracketed paste to one text block.
+- `src/interfaces/tui/workbench/input/input-context.ts` builds the key-routing context from presentation state and live signals.
+- `src/interfaces/tui/workbench/controller/selection-intent.ts`, `store-intent.ts`, and `host-intent.ts` own navigation resolution, store-only transitions, and the effectful sequence (through a `WorkbenchHostPorts` interface).
+
+`TuiApp` implements `WorkbenchHostPorts` and delegates; ANSI behavior is unchanged (1400 TUI tests). `routeWorkbenchInput` defines no `Ctrl+Shift+<letter>` token, so native `Ctrl+Shift+<letter>` collapses to the unshifted chord. The OpenTUI host, terminal lifecycle, and `--renderer opentui` wiring remain the next slice.
