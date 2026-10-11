@@ -18,6 +18,12 @@ describe('applyWorkbenchStoreIntent', () => {
     assert.deepEqual(result, { handled: true, repaint: true, syncComposer: true });
   });
 
+  it('does not mirror the composer on a cursor move', () => {
+    const s = store();
+    s.dispatch({ type: 'composer.insert', text: 'ab' });
+    assert.equal(applyWorkbenchStoreIntent(s, { type: 'composer.move', direction: 'left' }, context).syncComposer, undefined);
+  });
+
   it('re-anchors follow for filtering when following', () => {
     const s = store();
     assert.equal(applyWorkbenchStoreIntent(s, { type: 'transcript.filter', filter: 'tool' }, context).followToBottom, true);

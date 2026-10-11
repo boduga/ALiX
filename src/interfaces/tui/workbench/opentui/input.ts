@@ -20,11 +20,6 @@ const NAMED_KEYS: Readonly<Record<string, string>> = {
   space: ' ',
 };
 
-/**
- * Normalize a native OpenTUI key event to the exact key vocabulary
- * `routeWorkbenchInput` consumes. Returns `null` for events no Workbench
- * binding should see (modifier combos the OS owns, key releases).
- */
 export function translateKeyEvent(event: OpenTuiKey): string | null {
   if (event.eventType === 'release') return null;
   if (event.meta || event.option) return null;
@@ -37,12 +32,14 @@ export function translateKeyEvent(event: OpenTuiKey): string | null {
   return null;
 }
 
-/** Decode a native bracketed-paste payload to text for the authoritative cursor. */
 export function pasteText(event: Pick<PasteEvent, 'bytes'>): string {
-  return new TextDecoder().decode(event.bytes);
+  return new TextDecoder().decode(event.bytes).replace(/\r\n?/g, '\n');
 }
 
-/** Route a native key event through the shared Workbench key router. */
+export function pasteIntent(event: Pick<PasteEvent, 'bytes'>): WorkbenchInputIntent {
+  return { type: 'composer.insert', text: pasteText(event) };
+}
+
 export function routeOpenTuiKey(event: OpenTuiKey, context: WorkbenchInputContext): WorkbenchInputIntent {
   const key = translateKeyEvent(event);
   return key === null ? { type: 'unhandled' } : routeWorkbenchInput(key, context);

@@ -2,21 +2,13 @@ import type { WorkbenchStore } from '../app/workbench-store.js';
 import type { WorkbenchInputIntent } from '../input/input-router.js';
 
 export interface WorkbenchStoreIntentContext {
-  /** Whether the session exposes a coordination launcher. */
   readonly coordinationAvailable: boolean;
 }
 
-/**
- * Declarative host effects a store-only intent implies. The neutral applier
- * mutates only `WorkbenchStore`; the host performs mirrors, scroll anchoring,
- * and repaint so ANSI and OpenTUI share one transition table.
- */
 export interface WorkbenchStoreIntentResult {
   readonly handled: boolean;
   readonly repaint: boolean;
-  /** Mirror the authoritative composer into the host's adapter. */
   readonly syncComposer?: boolean;
-  /** Re-anchor the transcript to the semantic bottom. */
   readonly followToBottom?: boolean;
   readonly pinnedBottom?: boolean;
   readonly transcriptMode?: 'compact' | 'detailed';
@@ -24,12 +16,6 @@ export interface WorkbenchStoreIntentResult {
 
 const NONE: WorkbenchStoreIntentResult = { handled: false, repaint: false };
 
-/**
- * Apply the store-only Workbench intents. Effectful intents (submit, cancel,
- * approval, slash, coordination submit, overlay scroll, selection navigation,
- * follow-toggle) return `{ handled: false }` for the host to run; follow-toggle
- * stays on the host because stopping follow must anchor before the dispatch.
- */
 export function applyWorkbenchStoreIntent(
   store: WorkbenchStore,
   intent: WorkbenchInputIntent,
@@ -47,7 +33,7 @@ export function applyWorkbenchStoreIntent(
     case 'composer.move': {
       store.dispatch(intent);
       const followToBottom = (intent.type === 'transcript.filter' || intent.type === 'transcript.scope.toggle') && state.followTail;
-      const syncComposer = intent.type.startsWith('composer.');
+      const syncComposer = intent.type === 'composer.insert' || intent.type === 'composer.backspace' || intent.type === 'composer.delete';
       return { handled: true, repaint: true, ...(followToBottom ? { followToBottom: true } : {}), ...(syncComposer ? { syncComposer: true } : {}) };
     }
     case 'transcript.toggle': {

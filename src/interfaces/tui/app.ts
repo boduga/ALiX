@@ -849,7 +849,6 @@ export class TuiApp {
     }
   }
 
-  /** Host implementation of the shared Workbench effects. */
   private workbenchHostPorts(): WorkbenchHostPorts {
     const perTab = this.state.views.agent;
     return {

@@ -2,9 +2,11 @@ import type { AgentSummary } from '../model/agent-roster.js';
 import type { WorkbenchInspectableItem } from '../model/artifact-inspection.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from '../model/selection.js';
 import type { TaskSummary } from '../model/task-roster.js';
+import type { WorkbenchUiAction } from '../model/ui-action.js';
 import type { WorkbenchUiState } from '../model/ui-state.js';
 
-/** The runtime facts selection resolution reads; a `DashboardSnapshot` satisfies it. */
+export type NavigationDirection = -1 | 1;
+
 export interface SelectionSnapshot {
   readonly runtime?: {
     readonly agents?: { readonly agents: readonly AgentSummary[] } | null;
@@ -13,51 +15,45 @@ export interface SelectionSnapshot {
   } | null;
 }
 
-export interface AgentSelection {
-  readonly agentId?: string;
-  readonly scrollOffset: number;
+type AgentSelect = Omit<Extract<WorkbenchUiAction, { type: 'agent.select' }>, 'type'>;
+type TaskSelect = Omit<Extract<WorkbenchUiAction, { type: 'task.select' }>, 'type'>;
+type ArtifactSelect = Omit<Extract<WorkbenchUiAction, { type: 'artifact.select' }>, 'type'>;
+type RunSelect = Omit<Extract<WorkbenchUiAction, { type: 'run.select' }>, 'type'>;
+
+function navigate(length: number, currentIndex: number, direction: NavigationDirection, fallbackIndex: number): number {
+  const current = currentIndex >= 0 ? currentIndex : fallbackIndex;
+  return Math.max(0, Math.min(length - 1, current + direction));
 }
 
-/**
- * Pure selection resolution shared by both renderers. Each function maps a
- * navigation intent plus the current projection to the store selection it
- * should produce; the caller dispatches and repaints.
- */
-export function selectAgentShortcut(snapshot: SelectionSnapshot | undefined, state: WorkbenchUiState, index: number): AgentSelection | undefined {
+export function selectAgentShortcut(snapshot: SelectionSnapshot | undefined, state: WorkbenchUiState, index: number): AgentSelect | undefined {
   const agents = visibleForRun(snapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);
   const selected = agents[index - 1];
   return selected ? { agentId: selected.agentId, scrollOffset: Math.max(0, index - 2) } : undefined;
 }
 
-export function moveAgentSelection(snapshot: SelectionSnapshot | undefined, state: WorkbenchUiState, direction: -1 | 1): AgentSelection {
+export function moveAgentSelection(snapshot: SelectionSnapshot | undefined, state: WorkbenchUiState, direction: NavigationDirection): AgentSelect {
   const agents = visibleForRun(snapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);
   const ids: Array<string | undefined> = [undefined, ...agents.map((agent) => agent.agentId)];
-  const selectedIndex = ids.findIndex((id) => id === state.selectedAgentId);
-  const current = selectedIndex >= 0 ? selectedIndex : 0;
-  const target = Math.max(0, Math.min(ids.length - 1, current + direction));
+  const target = navigate(ids.length, ids.findIndex((id) => id === state.selectedAgentId), direction, 0);
   return { agentId: ids[target], scrollOffset: Math.max(0, target - 2) };
 }
 
-export function moveTaskSelection(snapshot: SelectionSnapshot | undefined, state: WorkbenchUiState, direction: -1 | 1): { taskId: string; agentId?: string; scrollOffset: number } | undefined {
+export function moveTaskSelection(snapshot: SelectionSnapshot | undefined, state: WorkbenchUiState, direction: NavigationDirection): TaskSelect | undefined {
   const tasks = visibleForRun(snapshot?.runtime?.tasks?.tasks ?? [], state.selectedRunId);
   if (tasks.length === 0) return undefined;
-  const selectedIndex = tasks.findIndex((task) => task.taskId === state.selectedTaskId);
-  const current = selectedIndex >= 0 ? selectedIndex : direction > 0 ? -1 : 0;
-  const target = Math.max(0, Math.min(tasks.length - 1, current + direction));
+  const target = navigate(tasks.length, tasks.findIndex((task) => task.taskId === state.selectedTaskId), direction, direction > 0 ? -1 : 0);
   const selected = tasks[target]!;
   return { taskId: selected.taskId, agentId: selected.agentId, scrollOffset: Math.max(0, target - 1) };
 }
 
-export function moveArtifactSelection(snapshot: SelectionSnapshot | undefined, state: WorkbenchUiState, direction: -1 | 1): { artifactId: string; runId?: string; agentId?: string; taskId?: string; scrollOffset: number } | undefined {
+export function moveArtifactSelection(snapshot: SelectionSnapshot | undefined, state: WorkbenchUiState, direction: NavigationDirection): ArtifactSelect | undefined {
   const items = visibleArtifacts(artifactItemsFrom(snapshot), {
     runId: state.selectedRunId,
     agentId: state.selectedAgentId,
     taskId: state.selectedTaskId,
   });
   if (items.length === 0) return undefined;
-  const selectedIndex = items.findIndex((item) => item.id === state.selectedArtifactId);
-  const current = selectedIndex >= 0 ? selectedIndex : direction > 0 ? -1 : 0;
-  const target = Math.max(0, Math.min(items.length - 1, current + direction));
+  const target = navigate(items.length, items.findIndex((item) => item.id === state.selectedArtifactId), direction, direction > 0 ? -1 : 0);
   const selected = items[target]!;
   return {
     artifactId: selected.id,
@@ -68,7 +64,7 @@ export function moveArtifactSelection(snapshot: SelectionSnapshot | undefined, s
   };
 }
 
-export function moveRunSelection(snapshot: SelectionSnapshot | undefined, state: WorkbenchUiState, direction: -1 | 1): { runId?: string } {
+export function moveRunSelection(snapshot: SelectionSnapshot | undefined, state: WorkbenchUiState, direction: NavigationDirection): RunSelect {
   const agents = snapshot?.runtime?.agents?.agents ?? [];
   const tasks = snapshot?.runtime?.tasks?.tasks ?? [];
   const runs = coordinationRunIds([...agents, ...tasks]);

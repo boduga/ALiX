@@ -1,11 +1,6 @@
 import type { WorkbenchStore } from '../app/workbench-store.js';
 import type { WorkbenchInputIntent } from '../input/input-router.js';
 
-/**
- * Host effects the effectful Workbench intents require. A host implements
- * these over its own runtime (ANSI `TuiApp` or the OpenTUI renderer); the
- * neutral applier owns only the store transition and the sequencing.
- */
 export interface WorkbenchHostPorts {
   repaint(): void;
   syncComposer(): void;
@@ -32,11 +27,6 @@ export interface WorkbenchHostPorts {
   cancelActiveTurn(): boolean;
 }
 
-/**
- * Apply the effectful Workbench intents. Returns whether the intent was
- * handled. Selection navigation and follow-toggle are handled by the callers;
- * everything here runs through host ports so the transition sequence is shared.
- */
 export function applyWorkbenchHostIntent(store: WorkbenchStore, intent: WorkbenchInputIntent, ports: WorkbenchHostPorts): boolean {
   switch (intent.type) {
     case 'overlay.scroll': {

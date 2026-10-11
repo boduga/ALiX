@@ -143,3 +143,4 @@
 | Path | Scope |
 | --- | --- |
 | `workbench/opentui/AGENTS.md` | Native OpenTUI Workbench layout and future renderer slices |
+| `workbench/controller/AGENTS.md` | Renderer-neutral Workbench intent transitions (selection, store-only, host-effectful) |
