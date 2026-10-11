@@ -3,7 +3,7 @@ import { type WorkbenchRegion, type WorkbenchSurfaceGeometry } from '../layout/r
 import type { WorkbenchViewState } from '../view-state/types.js';
 import { layoutWorkbenchSurface, type ComposerLayout } from '../views/composer-view.js';
 
-type LayoutState = Pick<WorkbenchViewState, 'composer' | 'overlay'>;
+export type LayoutState = Pick<WorkbenchViewState, 'composer' | 'overlay'>;
 
 export interface OpenTuiWorkbenchLayout {
   readonly shell: BoxRenderable;

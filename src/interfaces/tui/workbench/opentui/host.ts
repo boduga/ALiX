@@ -1,15 +1,11 @@
-import type { CliRenderer, CliRendererConfig, KeyEvent, PasteEvent } from '@opentui/core';
+import type { CliRenderer, KeyEvent, PasteEvent } from '@opentui/core';
 import type { WorkbenchStore } from '../app/workbench-store.js';
 import type { WorkbenchHostPorts } from '../controller/host-intent.js';
 import type { SelectionSnapshot } from '../controller/selection-intent.js';
 import type { WorkbenchInputSignals } from '../input/input-context.js';
-import type { WorkbenchViewState } from '../view-state/types.js';
 import { handleOpenTuiKey, handleOpenTuiPaste } from './key-handler.js';
-import { createOpenTuiLifecycle } from './lifecycle.js';
 import { mountOpenTuiWorkbenchContent, type ContentState, type OpenTuiWorkbenchContent } from './workbench-content.js';
-import { mountOpenTuiWorkbenchLayout, type OpenTuiWorkbenchLayout } from './workbench-layout.js';
-
-type LayoutState = Pick<WorkbenchViewState, 'composer' | 'overlay'>;
+import { mountOpenTuiWorkbenchLayout, type LayoutState, type OpenTuiWorkbenchLayout } from './workbench-layout.js';
 
 export interface OpenTuiHostDeps {
   readonly store: WorkbenchStore;
@@ -57,8 +53,12 @@ export function mountOpenTuiWorkbenchHost(renderer: CliRenderer, deps: OpenTuiHo
   const onPaste = (event: PasteEvent): void => {
     handleOpenTuiPaste(event, input);
   };
+  const onResize = (): void => {
+    update();
+  };
   renderer.keyInput.on('keypress', onKey);
   renderer.keyInput.on('paste', onPaste);
+  renderer.on('resize', onResize);
   update();
   let disposed = false;
   return {
@@ -70,25 +70,9 @@ export function mountOpenTuiWorkbenchHost(renderer: CliRenderer, deps: OpenTuiHo
       disposed = true;
       renderer.keyInput.off('keypress', onKey);
       renderer.keyInput.off('paste', onPaste);
+      renderer.off('resize', onResize);
       content.dispose();
       layout.dispose();
-    },
-  };
-}
-
-export interface OpenTuiHostSession {
-  readonly host: OpenTuiWorkbenchHost;
-  dispose(): Promise<void>;
-}
-
-export async function startOpenTuiWorkbenchHost(config: CliRendererConfig, deps: OpenTuiHostDeps): Promise<OpenTuiHostSession> {
-  const lifecycle = await createOpenTuiLifecycle(config);
-  const host = mountOpenTuiWorkbenchHost(lifecycle.renderer, deps);
-  return {
-    host,
-    dispose: async () => {
-      host.dispose();
-      await lifecycle.dispose();
     },
   };
 }
