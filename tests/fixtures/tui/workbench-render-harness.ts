@@ -4,7 +4,7 @@ import type { DashboardSnapshot } from '../../../src/interfaces/tui/snapshot.js'
 import { SessionPhase } from '../../../src/interfaces/tui/state.js';
 import type { TimelineEntry } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
 
-export function createWorkbenchRenderHarness(text = 'pane transcript') {
+export function createWorkbenchRenderHarness(text = 'pane transcript', extra: Partial<TuiAppOptions> = {}) {
   const timeline: TimelineEntry[] = Array.from({ length: 8 }, (_, index) => ({
     id: `message-${index}`, kind: 'agent.message', actor: 'assistant', sessionId: 'test',
     text: `${index}: ${text}`, startedAt: index * 1000,
@@ -19,6 +19,7 @@ export function createWorkbenchRenderHarness(text = 'pane transcript') {
   const output = new MockOutput();
   const app = new TuiApp({ builder: { build: async () => snapshot, buildSync: () => snapshot },
     daemonMetrics: { start: () => {}, stop: async () => {} }, input: new MockInput(), output, workbenchEnabled: true,
+    ...extra,
   } as unknown as TuiAppOptions);
   const state = app.getStateForTest();
   state.lastSnapshot = snapshot;

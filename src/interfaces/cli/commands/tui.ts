@@ -5,7 +5,7 @@ import { loadConfig } from "../../../operations/config/loader.js";
 import { createModelResolver } from "../../../operations/config/model-resolver.js";
 import { ApprovalManager } from "../../tui/approval-manager.js";
 import { ApprovalStore } from "../../../governance/approvals/approval-store.js";
-import { TuiApp } from "../../tui/app.js";
+import { TuiApp, type RendererId } from "../../tui/app.js";
 import { SnapshotBuilder } from "../../tui/snapshot-builder.js";
 import { DaemonMetricsCollectorImpl, createPlatformMetricsReader } from "../../tui/daemon-metrics-collector.js";
 import { RuntimeCollectorImpl } from "../../tui/runtime-collector.js";
@@ -49,11 +49,7 @@ export interface TuiOptions {
   sessionMode?: "auto" | "ask" | "bypass";
   daemonMode?: boolean;
   themeName?: string;
-  /**
-   * Terminal renderer selection. OpenTUI selection remains an explicit
-   * unavailable error until its production renderer is implemented.
-   */
-  renderer?: "canvas" | "opentui";
+  renderer?: RendererId;
 }
 
 /**

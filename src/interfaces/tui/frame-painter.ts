@@ -17,7 +17,7 @@ import { reconcileWorkbenchScrollAnchor } from './workbench/layout/scroll-anchor
 import type { ScrollbackLine } from './views/bottom-anchored-viewport.js';
 import { diffFrameRows, renderFramePatches } from './workbench/render/frame-differ.js';
 import { buildAgentInspectorModel } from './workbench/model/agent-inspector.js';
-import { assembleWorkbenchViewState } from './workbench/view-state/assemble.js';
+import { buildWorkbenchFrameViewState } from './workbench/view-state/assemble.js';
 import { paintAgentInspector } from './workbench/views/agent-inspector.js';
 import { paintWorkbenchDiagnosticOverlay } from './workbench/views/diagnostic-overlay.js';
 import { paintCoordinationEntry } from './workbench/views/coordination-entry.js';
@@ -155,28 +155,13 @@ export class FramePainter {
     // deriving the same models.
     const workbenchForView = this.deps.workbenchState?.();
     if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent' && workbenchForView) {
-      const chrome = projectOperatorShell(
-        s.lastSnapshot,
-        s.views.agent,
-        s.lastSnapshot.session?.mode ?? 'auto',
-        workbenchForView.queuedMessages.length,
-        {
-          closeSurface: workbenchForView.drawer !== 'closed' || workbenchForView.overlayStack.length > 0,
-          focus: workbenchForView.focus,
-          drawer: workbenchForView.drawer,
-          inspectorOpen: workbenchForView.overlayStack.at(-1) === 'inspector',
-        },
-      );
       viewCtx = {
         ...viewCtx,
-        workbenchViewState: assembleWorkbenchViewState({
+        workbenchViewState: buildWorkbenchFrameViewState({
           snapshot: s.lastSnapshot,
           ui: workbenchForView,
-          chrome,
-          transcriptSource: {
-            timeline: this.deps.agentRuntime()?.timeline ?? [],
-            trace: s.lastSnapshot.runtime?.trace ?? [],
-          },
+          agentTab: s.views.agent,
+          agentTimeline: this.deps.agentRuntime()?.timeline,
         }),
       };
     }

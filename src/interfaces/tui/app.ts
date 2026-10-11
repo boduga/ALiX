@@ -33,11 +33,15 @@ import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { buildWorkbenchInputContext } from './workbench/input/input-context.js';
 import { applyWorkbenchIntent } from './workbench/controller/intent.js';
 import type { WorkbenchHostPorts } from './workbench/controller/host-intent.js';
+import { buildWorkbenchFrameViewState } from './workbench/view-state/assemble.js';
+import type { WorkbenchViewState } from './workbench/view-state/types.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
 import { validateCoordinationObjective } from './workbench/views/coordination-entry.js';
+
+export type RendererId = 'canvas' | 'opentui';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -64,6 +68,8 @@ export interface TuiAppOptions {
   themeName?: string;
   /** Enables the conversation-first Workbench transcript during migration. */
   workbenchEnabled?: boolean;
+  renderer?: RendererId;
+  onWorkbenchFrame?: (state: WorkbenchViewState) => void;
   /** Optional capability service — the palette only activates when a
    *  service is available (either here or via the module accessor). */
   capabilityService?: import('./capabilities/capability-service.js').CapabilityService;
@@ -231,11 +237,14 @@ export class TuiApp {
   }
 
   async start(): Promise<void> {
-    // Capture stderr before taking the screen so config warnings and
-    // diagnostics can't paint over the frame; replayed on cleanupSync().
-    captureStderr();
-    this.terminal.enableTerminalModes();
-    this.resizeCleanup = this.terminal.onResize(() => this.paintFullFrame());
+    const ownsTerminal = this.opts.renderer !== 'opentui';
+    if (ownsTerminal) {
+      // Capture stderr before taking the screen so config warnings and
+      // diagnostics can't paint over the frame; replayed on cleanupSync().
+      captureStderr();
+      this.terminal.enableTerminalModes();
+      this.resizeCleanup = this.terminal.onResize(() => this.paintFullFrame());
+    }
 
     this.opts.daemonMetrics.start();
 
@@ -262,8 +271,10 @@ export class TuiApp {
       if (!this.detached && this.state.activeTab === 'agent') this.paintFullFrame();
     });
 
-    this.terminal.installEmergencyCleanup(() => this.cleanupSync());
-    this.inputCleanup = this.input.onData((buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
+    if (ownsTerminal) {
+      this.terminal.installEmergencyCleanup(() => this.cleanupSync());
+      this.inputCleanup = this.input.onData((buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
+    }
     this.snapshotTimer = setInterval(() => void this.refresh(), 1_000);
   }
 
@@ -1450,7 +1461,7 @@ export class TuiApp {
           ? text.slice(0, MAX_CLIPBOARD) + '\n[truncated at 64 KB]'
           : text;
         const b64 = Buffer.from(truncated, 'utf8').toString('base64');
-        this.output.write(`\x1b]52;;${b64}\x1b\\`);
+        if (this.opts.renderer !== 'opentui') this.output.write(`\x1b]52;;${b64}\x1b\\`);
         this.paintFullFrame();
         break;
       }
@@ -1580,14 +1591,51 @@ export class TuiApp {
 
   /** Build a complete frame containing all regions and write it to stdout. */
   private paintFullFrame(): void {
+    if (this.opts.renderer === 'opentui') {
+      const state = this.buildWorkbenchViewState();
+      if (state) this.opts.onWorkbenchFrame?.(state);
+      return;
+    }
     this.framePainter.paintFullFrame();
   }
 
+  private buildWorkbenchViewState(): WorkbenchViewState | undefined {
+    const snapshot = this.state.lastSnapshot;
+    if (!this.opts.workbenchEnabled || this.state.activeTab !== 'agent' || !snapshot) return undefined;
+    return buildWorkbenchFrameViewState({
+      snapshot,
+      ui: this.workbenchStore.snapshot(),
+      agentTab: this.state.views.agent,
+      agentTimeline: this.agentRuntime?.timeline,
+    });
+  }
+
+  routeWorkbenchKey(key: string): boolean {
+    return this.handleWorkbenchAgentInput(key);
+  }
+
+  routeWorkbenchPaste(text: string): boolean {
+    const ui = this.workbenchStore.snapshot();
+    if (this.opts.workbenchEnabled && this.state.activeTab === 'agent' && ui.overlayStack.length > 0) {
+      if (ui.overlayStack.at(-1) === 'coordination') {
+        this.workbenchStore.dispatch({ type: 'coordination.edit', edit: { type: 'composer.insert', text } });
+        this.paintFullFrame();
+      }
+      return true;
+    }
+    this.workbenchStore.dispatch({ type: 'composer.insert', text });
+    this.syncWorkbenchComposer();
+    this.paintFullFrame();
+    return true;
+  }
+
   private async cleanupSync(): Promise<void> {
-    this.terminal.disableTerminalModes();
-    // Replay after the alt buffer exits so buffered diagnostics land in the
-    // scrollback instead of the (now gone) frame.
-    releaseStderr();
+    if (this.opts.renderer !== 'opentui') {
+      this.terminal.disableTerminalModes();
+      // Replay after the alt buffer exits so buffered diagnostics land in the
+      // scrollback instead of the (now gone) frame.
+      releaseStderr();
+    }
     this.inputCleanup?.();
     this.resizeCleanup?.();
   }
