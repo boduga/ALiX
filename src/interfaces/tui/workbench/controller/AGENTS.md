@@ -8,6 +8,7 @@ Renderer-neutral Workbench input and intent transitions shared by the ANSI canva
 
 | Path | Responsibility |
 |------|----------------|
+| `intent.ts` | Composes the store, host, and selection appliers; the single intent entry for both renderers. |
 | `selection-intent.ts` | Pure agent/task/artifact/run selection resolution. |
 | `store-intent.ts` | Store-only intents; returns declarative host effects. |
 | `host-intent.ts` | Effectful intents via `WorkbenchHostPorts`. |

@@ -13,6 +13,7 @@ export interface WorkbenchHostPorts {
   reportSubmitUnavailable(): void;
   setCancelArmed(armed: boolean): void;
   setPinnedBottom(value: boolean): void;
+  setTranscriptMode(mode: 'compact' | 'detailed'): void;
   anchorTranscriptBottom(): void;
   emitUserTimeline(text: string): void;
   submitTurn(text: string): void;

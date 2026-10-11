@@ -31,9 +31,8 @@ import { FramePainter } from './frame-painter.js';
 import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { buildWorkbenchInputContext } from './workbench/input/input-context.js';
-import { moveAgentSelection, moveArtifactSelection, moveRunSelection, moveTaskSelection, selectAgentShortcut } from './workbench/controller/selection-intent.js';
-import { applyWorkbenchStoreIntent } from './workbench/controller/store-intent.js';
-import { applyWorkbenchHostIntent, type WorkbenchHostPorts } from './workbench/controller/host-intent.js';
+import { applyWorkbenchIntent } from './workbench/controller/intent.js';
+import type { WorkbenchHostPorts } from './workbench/controller/host-intent.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
@@ -791,62 +790,11 @@ export class TuiApp {
       approvalPending: perTab.pendingApprovals.length > 0 || fallbackTarget !== undefined,
     }));
 
-    const storeResult = applyWorkbenchStoreIntent(this.workbenchStore, intent, {
+    return applyWorkbenchIntent(this.workbenchStore, intent, {
+      snapshot: this.state.lastSnapshot,
+      ports: this.workbenchHostPorts(),
       coordinationAvailable: Boolean(this.opts.agentSession?.runCoordination),
     });
-    if (storeResult.handled) {
-      if (storeResult.syncComposer) this.syncWorkbenchComposer();
-      if (storeResult.pinnedBottom !== undefined) perTab.pinnedBottom = storeResult.pinnedBottom;
-      if (storeResult.transcriptMode) perTab.transcriptMode = storeResult.transcriptMode;
-      if (storeResult.followToBottom) this.resetScrollOffsetToBottom('agent');
-      if (storeResult.repaint) this.paintFullFrame();
-      return true;
-    }
-
-    if (applyWorkbenchHostIntent(this.workbenchStore, intent, this.workbenchHostPorts())) return true;
-
-    switch (intent.type) {
-      case 'transcript.follow.toggle': {
-        const followTail = !state.followTail;
-        // Capture the currently visible bottom before stopping automatic follow.
-        if (state.followTail) this.resetScrollOffsetToBottom('agent');
-        this.workbenchStore.dispatch({ type: 'transcript.follow', followTail });
-        perTab.pinnedBottom = followTail;
-        if (followTail) this.resetScrollOffsetToBottom('agent');
-        this.paintFullFrame();
-        return true;
-      }
-      case 'agent.shortcut': {
-        const target = selectAgentShortcut(this.state.lastSnapshot, state, intent.index);
-        if (target) this.workbenchStore.dispatch({ type: 'agent.select', ...target });
-        this.paintFullFrame();
-        return true;
-      }
-      case 'drawer.move': {
-        if (state.drawer === 'agents') {
-          this.workbenchStore.dispatch({ type: 'agent.select', ...moveAgentSelection(this.state.lastSnapshot, state, intent.direction) });
-        } else if (state.drawer === 'tasks') {
-          const target = moveTaskSelection(this.state.lastSnapshot, state, intent.direction);
-          if (!target) return true;
-          this.workbenchStore.dispatch({ type: 'task.select', ...target });
-        } else if (state.drawer === 'artifacts') {
-          const target = moveArtifactSelection(this.state.lastSnapshot, state, intent.direction);
-          if (!target) return true;
-          this.workbenchStore.dispatch({ type: 'artifact.select', ...target });
-        }
-        this.paintFullFrame();
-        return true;
-      }
-      case 'run.move': {
-        this.workbenchStore.dispatch({ type: 'run.select', ...moveRunSelection(this.state.lastSnapshot, state, intent.direction) });
-        this.paintFullFrame();
-        return true;
-      }
-      case 'unhandled':
-        return false;
-      default:
-        return false;
-    }
   }
 
   private workbenchHostPorts(): WorkbenchHostPorts {
@@ -863,6 +811,7 @@ export class TuiApp {
       reportSubmitUnavailable: () => { this.slash.hint = 'Submission unavailable; instruction retained.'; },
       setCancelArmed: (armed) => { this.workbenchCancelArmed = armed; },
       setPinnedBottom: (value) => { perTab.pinnedBottom = value; },
+      setTranscriptMode: (mode) => { perTab.transcriptMode = mode; },
       anchorTranscriptBottom: () => this.resetScrollOffsetToBottom('agent'),
       emitUserTimeline: (text) => this.timelineEmitter.emitTimelineLog('user', text, this.opts.agentSessionId),
       submitTurn: (text) => void this.submitAgentInput(text),
