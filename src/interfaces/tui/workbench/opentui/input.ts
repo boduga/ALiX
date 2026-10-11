@@ -1,5 +1,4 @@
 import type { KeyEvent, PasteEvent } from '@opentui/core';
-import { routeWorkbenchInput, type WorkbenchInputContext, type WorkbenchInputIntent } from '../input/input-router.js';
 
 export type OpenTuiKey = Pick<KeyEvent, 'name' | 'ctrl' | 'meta' | 'shift' | 'option' | 'sequence'> & {
   readonly eventType?: string;
@@ -32,17 +31,8 @@ export function translateKeyEvent(event: OpenTuiKey): string | null {
   return null;
 }
 
-const ANSI_SEQUENCES = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]/g;
-
 export function pasteText(event: Pick<PasteEvent, 'bytes'>): string {
   return new TextDecoder().decode(event.bytes).replace(ANSI_SEQUENCES, '').replace(/\r\n?/g, '\n');
 }
 
-export function pasteIntent(event: Pick<PasteEvent, 'bytes'>): WorkbenchInputIntent {
-  return { type: 'composer.insert', text: pasteText(event) };
-}
-
-export function routeOpenTuiKey(event: OpenTuiKey, context: WorkbenchInputContext): WorkbenchInputIntent {
-  const key = translateKeyEvent(event);
-  return key === null ? { type: 'unhandled' } : routeWorkbenchInput(key, context);
-}
+const ANSI_SEQUENCES = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]/g;

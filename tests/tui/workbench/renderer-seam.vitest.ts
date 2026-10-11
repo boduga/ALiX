@@ -16,7 +16,7 @@ describe('TuiApp OpenTUI renderer seam', () => {
     assert.ok(frames[0]!.transcript);
     assert.equal(output.writes.length, 0);
 
-    assert.equal(app.routeWorkbenchKey('x'), true);
+    app.routeWorkbenchKey('x');
     assert.equal(frames.at(-1)!.composer.composer.text, 'x');
   });
 

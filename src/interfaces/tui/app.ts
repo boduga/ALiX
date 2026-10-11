@@ -1606,9 +1606,8 @@ export class TuiApp {
     });
   }
 
-  routeWorkbenchKey(key: string): boolean {
+  routeWorkbenchKey(key: string): void {
     this.handleKey(key);
-    return true;
   }
 
   routeWorkbenchPaste(text: string): boolean {

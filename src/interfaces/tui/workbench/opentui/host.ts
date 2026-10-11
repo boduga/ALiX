@@ -6,8 +6,8 @@ import { mountOpenTuiWorkbenchLayout, type LayoutState, type OpenTuiWorkbenchLay
 export interface OpenTuiHostDeps {
   readonly layoutState: () => LayoutState;
   readonly contentState: () => ContentState;
-  readonly onKey: (key: string) => boolean;
-  readonly onPaste: (text: string) => boolean;
+  readonly onKey: (key: string) => void;
+  readonly onPaste: (text: string) => void;
 }
 
 export interface OpenTuiWorkbenchHost {

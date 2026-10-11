@@ -9,7 +9,7 @@ Build the native OpenTUI renderer from renderer-neutral `WorkbenchViewState` whi
 - `workbench-layout.ts` mounts retained native region nodes and maps shared Workbench surface geometry to their positions. Its caller owns renderer creation, input, and teardown.
 - `workbench-content.ts` mounts retained operator-shell header/footer, agent-roster, transcript, inspector, composer, task/artifact drawer, and approval-card content in the layout regions; it consumes the assembled view state and owns no runtime projection.
 - `input.ts` normalizes native OpenTUI key and paste events into the shared Workbench vocabulary and routes them through `routeWorkbenchInput`; it maps to typed intents and owns no terminal I/O.
-- `host.ts` mounts the retained layout and content on a native renderer, subscribes to the renderer's key/paste/resize stream, and forwards normalized keys/paste to caller-supplied `onKey`/`onPaste` callbacks (the controller owns routing and repaint). It owns no terminal lifecycle (raw mode, resize, restore) beyond the renderer it is given, and no store or runtime ports.
+- `host.ts` mounts the retained layout and content on a native renderer, subscribes to the renderer's key/paste/resize stream, and forwards normalized keys/paste to caller-supplied `onKey`/`onPaste` callbacks (the controller owns routing). It exposes `update()` for the controller to push each frame and repaints on resize; it owns no store, runtime ports, or terminal lifecycle (raw mode, restore) beyond the renderer it is given.
 
 ## Local Contracts
 

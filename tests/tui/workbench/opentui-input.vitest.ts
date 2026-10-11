@@ -1,18 +1,9 @@
 import assert from 'node:assert/strict';
-import { describe, expect, it } from 'vitest';
-import { pasteIntent, pasteText, routeOpenTuiKey, translateKeyEvent, type OpenTuiKey } from '../../../src/interfaces/tui/workbench/opentui/input.js';
-import type { WorkbenchInputContext } from '../../../src/interfaces/tui/workbench/input/input-router.js';
+import { describe, it } from 'vitest';
+import { pasteText, translateKeyEvent, type OpenTuiKey } from '../../../src/interfaces/tui/workbench/opentui/input.js';
 
 function key(overrides: Partial<OpenTuiKey> & { name: string }): OpenTuiKey {
   return { ctrl: false, meta: false, shift: false, option: false, sequence: '', ...overrides };
-}
-
-function context(overrides: Partial<WorkbenchInputContext> = {}): WorkbenchInputContext {
-  return {
-    turnActive: false, composerText: '', slashActive: false,
-    transcriptMode: 'compact', drawer: 'closed', focus: 'composer',
-    ...overrides,
-  };
 }
 
 describe('OpenTUI key translation', () => {
@@ -45,40 +36,18 @@ describe('OpenTUI key translation', () => {
     assert.equal(translateKeyEvent(key({ name: 'return', shift: true, sequence: '\r' })), 'Shift+Enter');
   });
 
+  it('routes a multi-byte grapheme from the sequence', () => {
+    assert.equal(translateKeyEvent(key({ name: '漢', sequence: '漢' })), '漢');
+  });
+
   it('drops modifier combos the OS owns and key releases', () => {
     assert.equal(translateKeyEvent(key({ name: 'a', meta: true, sequence: 'a' })), null);
     assert.equal(translateKeyEvent(key({ name: 'a', option: true, sequence: 'a' })), null);
     assert.equal(translateKeyEvent(key({ name: 'a', sequence: 'a', eventType: 'release' })), null);
   });
 
-  it('routes through the shared Workbench router', () => {
-    expect(routeOpenTuiKey(key({ name: 'e', ctrl: true }), context())).toEqual({ type: 'inspector.open' });
-    expect(routeOpenTuiKey(key({ name: 'x', sequence: 'x' }), context())).toEqual({ type: 'composer.insert', text: 'x' });
-    expect(routeOpenTuiKey(key({ name: 'a', sequence: 'a' }), context({ approvalPending: true })))
-      .toEqual({ type: 'approval.resolve', decision: 'approved' });
-    expect(routeOpenTuiKey(key({ name: 'a', meta: true, sequence: 'a' }), context())).toEqual({ type: 'unhandled' });
-  });
-
-  it('routes focus, overlay priority, cancellation, queue, and slash keys', () => {
-    expect(routeOpenTuiKey(key({ name: 'f', ctrl: true }), context())).toEqual({ type: 'focus.set', focus: 'transcript' });
-    expect(routeOpenTuiKey(key({ name: 'escape' }), context({ overlayOpen: true }))).toEqual({ type: 'overlay.close' });
-    expect(routeOpenTuiKey(key({ name: 'escape' }), context({ turnActive: true, focus: 'transcript' }))).toEqual({ type: 'turn.cancel' });
-    expect(routeOpenTuiKey(key({ name: 'return' }), context({ turnActive: true, composerText: 'next' }))).toEqual({ type: 'turn.queue' });
-    expect(routeOpenTuiKey(key({ name: 'return' }), context({ slashActive: true }))).toEqual({ type: 'slash.submit' });
-  });
-
-  it('routes a multi-byte grapheme from the sequence', () => {
-    assert.equal(translateKeyEvent(key({ name: '漢', sequence: '漢' })), '漢');
-    expect(routeOpenTuiKey(key({ name: '漢', sequence: '漢' }), context())).toEqual({ type: 'composer.insert', text: '漢' });
-  });
-
-  it('normalizes paste line endings and yields a composer intent', () => {
-    const bytes = new TextEncoder().encode('a\r\nb\rc');
-    assert.equal(pasteText({ bytes }), 'a\nb\nc');
-    expect(pasteIntent({ bytes })).toEqual({ type: 'composer.insert', text: 'a\nb\nc' });
-  });
-
-  it('decodes bracketed paste payloads', () => {
-    assert.equal(pasteText({ bytes: new TextEncoder().encode('line one\nline two') }), 'line one\nline two');
+  it('normalizes paste line endings and strips ANSI', () => {
+    assert.equal(pasteText({ bytes: new TextEncoder().encode('a\r\nb\rc') }), 'a\nb\nc');
+    assert.equal(pasteText({ bytes: new TextEncoder().encode('x\x1b[31mred\x1b[0m') }), 'xred');
   });
 });
