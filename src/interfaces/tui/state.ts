@@ -58,6 +58,8 @@ export type RuntimeTraceFilter = 'all' | 'tool' | 'capability' | 'policy' | 'run
 export interface PerTabState {
   cursor: number;
   scrollOffset: number;
+  /** Native Workbench viewport rows above the transcript tail. */
+  nativeTranscriptScrollRows?: number;
   searchQuery: string;
   expandedSections: string[];
   lastEventArrivedAt: number;

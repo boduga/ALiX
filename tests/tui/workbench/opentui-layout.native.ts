@@ -227,6 +227,44 @@ test('very long transcript item stays bounded to native viewport', async () => {
   }
 });
 
+test('native transcript shows older rows at a paused scroll offset', async () => {
+  const setup = await createTestRenderer({ width: 80, height: 24 });
+  try {
+    const shell = layoutState('closed');
+    const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shell);
+    const conversation = { items: Array.from({ length: 30 }, (_, index) => ({
+      id: `row-${index}`, kind: 'assistant' as const, text: `ROW ${String(index).padStart(2, '0')}`,
+      startedAt: index, sourceEvents: { firstSequence: index, lastSequence: index },
+    })), hiddenDiagnostics: 0 };
+    const base: ContentState = {
+      inspector: inspectorState(), composer: contentComposer(), approval: [],
+      header: chromeState(), footer: chromeState(),
+      roster: { agents: null, tasks: null, artifacts: null },
+      transcript: { conversation, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
+      selection: {}, overlay: shell.overlay,
+    };
+    const content = mountOpenTuiWorkbenchContent(setup.renderer, layout, base);
+    await setup.renderOnce();
+    assert.match(content.transcript.plainText, /ROW 29/);
+    assert.doesNotMatch(content.transcript.plainText, /ROW 00/);
+
+    content.update({ ...base, transcript: { ...base.transcript, followTail: false, scrollRowsFromTail: 3 } });
+    await setup.renderOnce();
+    assert.match(content.transcript.plainText, /ROW 14/);
+    assert.doesNotMatch(content.transcript.plainText, /ROW 29/);
+
+    content.update({ ...base, transcript: { ...base.transcript, followTail: false, scrollRowsFromTail: 100 } } as ContentState);
+    await setup.renderOnce();
+    assert.match(content.transcript.plainText, /ROW 00/);
+    assert.doesNotMatch(content.transcript.plainText, /ROW 29/);
+    assert.equal(content.resolvedScrollRows, 17);
+    content.dispose();
+    layout.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
 test('narrow roster keeps selected agent visible after resize', async () => {
   const setup = await createTestRenderer({ width: 180, height: 40 });
   try {

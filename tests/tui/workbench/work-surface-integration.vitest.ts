@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TuiApp, type TuiAppOptions } from '../../../src/interfaces/tui/app.js';
 import { MockInput, MockOutput } from '../../../src/interfaces/tui/io.js';
 import { buildWorkbenchApprovalCardLines } from '../../../src/interfaces/tui/workbench/views/approval-dialog.js';
+import type { WorkbenchViewState } from '../../../src/interfaces/tui/workbench/view-state/types.js';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -13,6 +14,7 @@ function makeWorkbench(
   processTurn: (text: string) => Promise<any>,
   cancelActiveTurn = vi.fn(() => false),
   approvalManager?: { tryHandleCommand(command: string): Promise<{ handled: boolean; message: string }> },
+  nativeFrames?: WorkbenchViewState[],
 ) {
   const snapshot = {
     generatedAt: 1,
@@ -27,9 +29,12 @@ function makeWorkbench(
     input: new MockInput(),
     output: new MockOutput(),
     workbenchEnabled: true,
+    ...(nativeFrames ? { renderer: 'opentui', onWorkbenchFrame: (frame: WorkbenchViewState) => { nativeFrames.push(frame); } } : {}),
   } as unknown as TuiAppOptions);
   const internal = app as unknown as {
     handleRaw(buffer: Buffer): void;
+    routeWorkbenchKey(key: string): void;
+    setNativeTranscriptScrollRows(rows: number): void;
     getStateForTest(): any;
     getWorkbenchStateForTest(): any;
     syncPendingApprovals(): void;
@@ -209,6 +214,29 @@ describe('Workbench work surface integration', () => {
     internal.handleRaw(Buffer.from('\x1b[F'));
     expect(internal.getWorkbenchStateForTest().followTail).toBe(true);
     expect(per.pinnedBottom).toBe(true);
+  });
+
+  it('sends native transcript scroll distance through the view state', () => {
+    const frames: WorkbenchViewState[] = [];
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }), undefined, undefined, frames);
+    (internal as unknown as { agentRuntime: unknown }).agentRuntime = {
+      timeline: Array.from({ length: 60 }, (_, index) => ({ id: `message-${index}`, kind: 'agent.response',
+        text: `message ${index}`, startedAt: index, sessionId: 'test', sourceEvents: { firstSequence: index + 1 } })), trace: [],
+    };
+    internal.routeWorkbenchKey('Ctrl+f');
+    internal.routeWorkbenchKey('ArrowUp');
+    expect(frames.at(-1)?.transcript).toMatchObject({ followTail: false, scrollRowsFromTail: 3 });
+    internal.routeWorkbenchKey('PageUp');
+    expect(frames.at(-1)?.transcript.scrollRowsFromTail).toBe(11);
+    internal.routeWorkbenchKey('ArrowDown');
+    expect(frames.at(-1)?.transcript.scrollRowsFromTail).toBe(8);
+    internal.routeWorkbenchKey('PageUp');
+    internal.routeWorkbenchKey('PageUp');
+    internal.setNativeTranscriptScrollRows(17);
+    internal.routeWorkbenchKey('ArrowDown');
+    expect(frames.at(-1)?.transcript.scrollRowsFromTail).toBe(14);
+    internal.routeWorkbenchKey('End');
+    expect(frames.at(-1)?.transcript).toMatchObject({ followTail: true, scrollRowsFromTail: 0 });
   });
 
   it('preserves active Escape cancellation while transcript focused', async () => {

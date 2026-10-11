@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createTestRenderer, type TestRendererSetup } from '@opentui/core/testing';
+import { createMockMouse, createTestRenderer, type TestRendererSetup } from '@opentui/core/testing';
 import { WorkbenchStore } from '../../../src/interfaces/tui/workbench/app/workbench-store.js';
 import { createInitialWorkbenchUiState } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
 import type { OperatorShellSnapshot } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
@@ -33,6 +33,7 @@ interface Harness {
   store: WorkbenchStore;
   host: OpenTuiWorkbenchHost;
   calls: ReturnType<typeof makePorts>['calls'];
+  keys: string[];
   signals: { turnActive: boolean; slashActive: boolean; approvalPending: boolean };
 }
 
@@ -47,6 +48,7 @@ function mount(setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }
   const store = new WorkbenchStore(createInitialWorkbenchUiState(dimensions));
   const { ports, calls } = makePorts();
   const signals = { turnActive: false, slashActive: false, approvalPending: false };
+  const keys: string[] = [];
   const contentState = (): ContentState => {
     const state = store.snapshot();
     return {
@@ -64,6 +66,7 @@ function mount(setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }
     layoutState: () => ({ composer: contentState().composer, overlay: contentState().overlay }),
     contentState,
     onKey: (key) => {
+      keys.push(key);
       applyWorkbenchIntent(store, routeWorkbenchInput(key, buildWorkbenchInputContext(store.snapshot(), signals)), {
         snapshot: undefined, ports, coordinationAvailable: true,
       });
@@ -74,7 +77,7 @@ function mount(setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }
       host.update();
     },
   });
-  return { store, host, calls, signals };
+  return { store, host, calls, keys, signals };
 }
 
 test('OpenTUI host routes typing and Ctrl+e into the store', async () => {
@@ -169,6 +172,20 @@ test('OpenTUI host re-lays-out on resize', async () => {
     setup.resize(80, 24);
     await setup.renderOnce();
     assert.notEqual(host.layout.regions.transcript.screenX, wideX);
+    host.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
+test('OpenTUI transcript wheel routes scroll keys', async () => {
+  const setup = await createTestRenderer({ width: 120, height: 30 });
+  try {
+    const { host, keys } = mount(setup);
+    await setup.renderOnce();
+    const mouse = createMockMouse(setup.renderer);
+    await mouse.scroll(host.layout.regions.transcript.screenX + 10, host.layout.regions.transcript.screenY + 5, 'up');
+    assert.ok(keys.includes('ArrowUp'));
     host.dispose();
   } finally {
     await disposeTestRenderer(setup);

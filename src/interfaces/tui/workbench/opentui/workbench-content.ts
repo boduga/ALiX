@@ -60,6 +60,7 @@ export interface OpenTuiWorkbenchContent {
   readonly inspector: TextRenderable;
   readonly composer: TextRenderable;
   readonly approval: BoxRenderable;
+  readonly resolvedScrollRows: number;
   update(state: ContentState): void;
   dispose(): void;
 }
@@ -172,9 +173,11 @@ function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, 
   }
 }
 
-function transcriptLines(state: ContentState, conversation: ConversationSnapshot, width: number, height: number): NativeLine[] {
-  if (height === 0 || width === 0) return [];
+function transcriptLines(state: ContentState, conversation: ConversationSnapshot, width: number, height: number): { lines: NativeLine[]; resolvedScrollRows: number } {
+  if (height === 0 || width === 0) return { lines: [], resolvedScrollRows: 0 };
   const { transcript, selection } = state;
+  const scrollRows = transcript.followTail ? 0 : Math.max(0, Math.floor(transcript.scrollRowsFromTail ?? 0));
+  const neededRows = height + scrollRows;
   const visible = (item: TranscriptItem): boolean =>
     transcriptItemMatchesFilter(item, transcript.filter) &&
     (transcript.scope !== 'selected' || !selection.selectedAgentId || !item.agentId || item.agentId === selection.selectedAgentId || item.kind === 'approval');
@@ -186,23 +189,26 @@ function transcriptLines(state: ContentState, conversation: ConversationSnapshot
     if (!visible(item)) continue;
     const agent = roster.find(entry => entry.agentId === item.agentId);
     const actor = item.kind === 'user' ? 'YOU' : agent?.assignedAgentId ?? agent?.role ?? item.agentId ?? 'ALiX';
-    const itemContent = itemLines(item, transcript.filter === 'error', transcript.mode === 'detailed', height, width, actor);
+    const itemContent = itemLines(item, transcript.filter === 'error', transcript.mode === 'detailed', neededRows, width, actor);
     const color: Color = item.kind === 'tool-group' ? item.tools.some(tool => tool.status === 'failed') ? 'red' : 'cyan'
       : item.kind === 'activity' ? item.verifiedOutcome === 'failure' ? 'red' : item.verifiedOutcome === 'success' ? 'green' : 'muted'
         : item.kind === 'diagnostic' ? item.severity === 'error' ? 'red' : 'yellow'
           : item.kind === 'approval' ? 'yellow' : item.kind === 'plan' ? 'purple' : 'foreground';
-    for (let contentIndex = itemContent.length - 1; contentIndex >= 0 && lines.length < height; contentIndex--) {
-      const bounded = itemContent[contentIndex]!.slice(-Math.max(1, width * height * MAX_ITEM_CHARS));
+    for (let contentIndex = itemContent.length - 1; contentIndex >= 0 && lines.length < neededRows; contentIndex--) {
+      const bounded = itemContent[contentIndex]!.slice(-Math.max(1, width * neededRows * MAX_ITEM_CHARS));
       const parts = safe(bounded).split('\n');
-      for (let partIndex = parts.length - 1; partIndex >= 0 && lines.length < height; partIndex--) {
+      for (let partIndex = parts.length - 1; partIndex >= 0 && lines.length < neededRows; partIndex--) {
         const wrapped = wrapDisplayText(parts[partIndex]!, width);
-        for (let row = wrapped.length - 1; row >= 0 && lines.length < height; row--) lines.unshift({ text: wrapped[row]!, color });
+        for (let row = wrapped.length - 1; row >= 0 && lines.length < neededRows; row--) lines.push({ text: wrapped[row]!, color });
       }
     }
-    if (lines.length >= height) break;
+    if (lines.length >= neededRows) break;
   }
-  if (lines.length === 0) return [{ text: 'No conversation yet', color: 'muted' }];
-  return lines.slice(-height);
+  if (lines.length === 0) return { lines: [{ text: 'No conversation yet', color: 'muted' }], resolvedScrollRows: 0 };
+  return {
+    lines: lines.reverse().slice(0, height),
+    resolvedScrollRows: lines.length < neededRows ? Math.max(0, lines.length - height) : scrollRows,
+  };
 }
 
 function tasksLines(state: ContentState, width: number, height: number): string[] {
@@ -378,6 +384,7 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   approval.add(approvalText);
   let pausedConversation: ConversationSnapshot | undefined;
   let lastConversation: ConversationSnapshot | undefined;
+  let resolvedScrollRows = 0;
   const update = (state: ContentState): void => {
     const headerSize = placeText(header, layout.regions.header, layout.geometry.regions.header);
     const footerSize = placeText(footer, layout.regions.footer, layout.geometry.regions.footer);
@@ -433,12 +440,13 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     const transcriptChrome: NativeLine[] = toolbarOnHeading
       ? [{ text: `${heading}   ${toolbar}`, parts: [{ text: heading, color: 'cyan' }, { text: '   ' }, ...toolbarParts] }, { text: '' }]
       : [{ text: heading, color: 'cyan' }, { text: toolbar, parts: toolbarParts }, { text: '' }];
-    const transcriptRows = transcriptLines(
+    const transcriptWindow = transcriptLines(
       state, pausedConversation ?? state.transcript.conversation, transcriptSize.width, Math.max(0, transcriptSize.height - transcriptChrome.length),
     );
+    resolvedScrollRows = transcriptWindow.resolvedScrollRows;
     transcript.content = styledLines([
       ...transcriptChrome,
-      ...transcriptRows,
+      ...transcriptWindow.lines,
     ].slice(0, transcriptSize.height), transcriptSize.width);
     lastConversation = state.transcript.conversation;
     inspector.content = styledLines(inspectorLines(state, inspectorSize.width, inspectorSize.height), inspectorSize.width);
@@ -466,6 +474,7 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   let disposed = false;
   return {
     header, footer, roster, transcript, overlay, inspector, composer, approval, update,
+    get resolvedScrollRows() { return resolvedScrollRows; },
     dispose: () => {
       if (disposed) return;
       disposed = true;

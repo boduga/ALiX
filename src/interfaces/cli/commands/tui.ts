@@ -438,7 +438,13 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     runtimeCollectors: { chat: chatCollector, agent: agentCollector },
     ...(isOpenTui ? {
       renderer: 'opentui' as const,
-      onWorkbenchFrame: (state: WorkbenchViewState) => { latest = state; host?.update(); },
+      onWorkbenchFrame: (state: WorkbenchViewState) => {
+        latest = state;
+        if (host) {
+          host.update();
+          app.setNativeTranscriptScrollRows(host.content.resolvedScrollRows);
+        }
+      },
       onExit: () => { resolveExit?.(); },
     } : {}),
   });

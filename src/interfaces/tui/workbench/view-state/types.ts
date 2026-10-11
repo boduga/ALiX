@@ -37,6 +37,8 @@ export interface WorkbenchViewTranscript {
   readonly filter: WorkbenchTranscriptFilter;
   readonly scope: WorkbenchTranscriptScope;
   readonly followTail: boolean;
+  /** Presentation rows above the live tail while follow is paused. */
+  readonly scrollRowsFromTail?: number;
 }
 
 export interface WorkbenchViewComposer {
