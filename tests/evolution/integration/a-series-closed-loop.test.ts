@@ -70,7 +70,7 @@ import { ExecutionEvidenceStore } from "../../../src/planning/evolution/verifica
 // Constants
 // ---------------------------------------------------------------------------
 
-const T = "2026-07-13T00:00:00.000Z";
+const T = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
 // ---------------------------------------------------------------------------
 // Test data
