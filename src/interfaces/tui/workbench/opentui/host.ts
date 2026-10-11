@@ -1,20 +1,13 @@
 import type { CliRenderer, KeyEvent, PasteEvent } from '@opentui/core';
-import type { WorkbenchStore } from '../app/workbench-store.js';
-import type { WorkbenchHostPorts } from '../controller/host-intent.js';
-import type { SelectionSnapshot } from '../controller/selection-intent.js';
-import type { WorkbenchInputSignals } from '../input/input-context.js';
-import { handleOpenTuiKey, handleOpenTuiPaste } from './key-handler.js';
+import { pasteText, translateKeyEvent } from './input.js';
 import { mountOpenTuiWorkbenchContent, type ContentState, type OpenTuiWorkbenchContent } from './workbench-content.js';
 import { mountOpenTuiWorkbenchLayout, type LayoutState, type OpenTuiWorkbenchLayout } from './workbench-layout.js';
 
 export interface OpenTuiHostDeps {
-  readonly store: WorkbenchStore;
   readonly layoutState: () => LayoutState;
   readonly contentState: () => ContentState;
-  readonly signals: () => WorkbenchInputSignals;
-  readonly snapshot: () => SelectionSnapshot | undefined;
-  readonly ports: WorkbenchHostPorts;
-  readonly coordinationAvailable: boolean;
+  readonly onKey: (key: string) => boolean;
+  readonly onPaste: (text: string) => boolean;
 }
 
 export interface OpenTuiWorkbenchHost {
@@ -32,26 +25,12 @@ export function mountOpenTuiWorkbenchHost(renderer: CliRenderer, deps: OpenTuiHo
     content.update(deps.contentState());
     renderer.requestRender();
   };
-  const ports: WorkbenchHostPorts = {
-    ...deps.ports,
-    repaint: update,
-    syncComposer: () => {},
-    setPinnedBottom: () => {},
-    setTranscriptMode: () => {},
-    anchorTranscriptBottom: () => {},
-  };
-  const input = {
-    store: deps.store,
-    signals: deps.signals,
-    snapshot: deps.snapshot,
-    ports,
-    coordinationAvailable: deps.coordinationAvailable,
-  };
-  const onKey = (key: KeyEvent): void => {
-    handleOpenTuiKey(key, input);
+  const onKey = (event: KeyEvent): void => {
+    const key = translateKeyEvent(event);
+    if (key !== null) deps.onKey(key);
   };
   const onPaste = (event: PasteEvent): void => {
-    handleOpenTuiPaste(event, input);
+    deps.onPaste(pasteText(event));
   };
   const onResize = (): void => {
     update();
