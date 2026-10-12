@@ -23,6 +23,16 @@
 - `src/interfaces/tui/workbench/views/coordination-entry.ts` owns bounded objective-entry painting and input validation; its draft and submission feedback are presentation state, never worker lifecycle truth.
 - `src/interfaces/tui/workbench/projections/agent-roster-projection.ts` and `src/interfaces/tui/workbench/projections/task-projection.ts` own distinct EventLog-derived agent and delegated-task read models; painters must not reconstruct either model from the other.
 - `views/` owns presentation-only rendering and view-local input mappings.
+- `blocks/` owns the shared markdown response renderer (`renderResponse` /
+  `renderBlocks`): parse → block layout → ANSI-styled rows. Both renderers
+  consume it — the ANSI transcript directly and the native OpenTUI transcript
+  through `ansiRowToNativeParts` — so it is the ONE markdown implementation;
+  never add a second. Every block that carries raw markdown text must run it
+  through `parseInline` before layout: list items and table cells previously
+  skipped inline parsing, so `**bold**` reached the operator literally, and
+  column padding must be measured on VISIBLE width (`stripAnsi`) because the
+  styled content carries ANSI escapes that occupy no columns. Pinned by
+  `tests/tui/blocks/render.vitest.ts`.
 - `canvas.ts`, `frame-painter.ts`, and `render.ts` own terminal composition and output.
 
 ## Local Contracts

@@ -66,6 +66,37 @@ describe('renderBlocks', () => {
     expect(rows[1]!.text).toContain('two');
   });
 
+  it('parses inline emphasis inside list items', () => {
+    // Regression: list items are raw markdown text and used to skip inline
+    // parsing, so `**bold**` reached the operator literally.
+    const rows = renderBlocks(parseBlocks('* **Nigeria:** Bola Tinubu'), defaultTheme, W);
+    const first = rows[0]!.text;
+    expect(first).not.toContain('**');
+    expect(first).toContain('Nigeria:');
+    expect(first).not.toContain('Nigeria:**'); // marker consumed, not just hidden
+  });
+
+  it('parses inline emphasis inside table cells and keeps columns aligned', () => {
+    // Regression: table cells skipped inline parsing AND padding measured raw
+    // text length, so `**Benin**` printed literally and mis-sized its column.
+    const rows = renderBlocks(parseBlocks('| C |\n|---|\n| **Benin** |'), defaultTheme, W);
+    const joined = rows.map(r => r.text).join('\n');
+    expect(joined).not.toContain('**');
+    expect(joined).toContain('Benin');
+    // Every rendered table row must be the same visible width — i.e. the
+    // right border lines up despite the cell now carrying ANSI bold.
+    const borderRows = rows.filter(r => /[┌├└]/.test(r.text));
+    const widths = new Set(borderRows.map(r => r.text.replace(/\x1b\[[0-9;]*m/g, '').length));
+    expect(widths.size).toBe(1);
+  });
+
+  it('renders padded bold table cell to the same visible width as plain text', () => {
+    const withBold = renderBlocks(parseBlocks('| A |\n|---|\n| **x** |'), defaultTheme, W);
+    const withPlain = renderBlocks(parseBlocks('| A |\n|---|\n| x |'), defaultTheme, W);
+    const strip = (s: string): number => s.replace(/\x1b\[[0-9;]*m/g, '').length;
+    expect(withBold.map(r => strip(r.text))).toEqual(withPlain.map(r => strip(r.text)));
+  });
+
   it('returns isFirst: true only on the first row of the first block', () => {
     const blocks = parseBlocks('first paragraph\n\nsecond paragraph');
     const rows = renderBlocks(blocks, defaultTheme, W);
