@@ -13,6 +13,7 @@ import { defaultTheme } from './theme.js';
 import { parseInline } from './inline.js';
 import { tokenize } from './tokenize.js';
 import { wrapText } from '../views/wrap-text.js';
+import { stripAnsi } from '../box.js';
 import { RESET } from '../ansi-constants.js';
 
 /**
@@ -171,7 +172,11 @@ function renderList(
     }
     const indent = ' '.repeat(prefixVisibleLen);
     const innerWidth = Math.max(1, width - prefixVisibleLen);
-    const wrapped = wrapText(item, innerWidth);
+    // Items are raw markdown text, so inline emphasis must be parsed here —
+    // otherwise `**bold**` reaches the operator literally (the paragraph path
+    // already parses; the list path used to skip it).
+    const styledItem = parseInline(item).map((s) => styleInlineSpan(s, theme)).join('');
+    const wrapped = wrapText(styledItem, innerWidth);
     wrapped.forEach((line, i) => {
       rows.push({
         text: i === 0 ? prefix + line : indent + line,
@@ -293,12 +298,14 @@ function renderTable(
   const colCount = headers.length;
   if (colCount === 0) return [];
 
-  // Compute column widths (max of header/row content + 2 padding)
+  // Compute column widths from VISIBLE cell width (markdown markers and ANSI
+  // escapes do not occupy columns), max of header/row content + 2 padding.
   const colWidths = headers.map((h, i) => {
-    let maxW = h.length;
+    let maxW = stripAnsi(parseInline(h).map((s) => styleInlineSpan(s, theme)).join('')).length;
     for (const row of rows) {
       if (row[i] !== undefined) {
-        maxW = Math.max(maxW, row[i]!.length);
+        const visible = stripAnsi(parseInline(row[i]!).map((s) => styleInlineSpan(s, theme)).join('')).length;
+        maxW = Math.max(maxW, visible);
       }
     }
     return Math.max(3, maxW + 2);
@@ -314,12 +321,15 @@ function renderTable(
   };
 
   // Wrap and pad cell content per alignment — returns array of padded lines.
+  // Cell text is raw markdown, so parse inline emphasis first; padding is then
+  // measured on VISIBLE width (ANSI escapes add no columns).
   const wrapCell = (content: string, col: number): string[] => {
     const w = colWidths[col]! - 2;
     const alignDir = align?.[col] ?? 'left';
-    const lines = wrapText(content || ' ', w);
+    const styled = content ? parseInline(content).map((s) => styleInlineSpan(s, theme)).join('') : '';
+    const lines = wrapText(styled || ' ', w);
     return lines.map((line) => {
-      const padTotal = w - line.length;
+      const padTotal = Math.max(0, w - stripAnsi(line).length);
       const padded = alignDir === 'right' ? ' '.repeat(padTotal) + line
         : alignDir === 'center' ? (() => {
             const l = Math.floor(padTotal / 2);
