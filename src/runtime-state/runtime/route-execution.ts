@@ -17,7 +17,7 @@ import { createModelResolver } from "../../operations/config/model-resolver.js";
 import { createContextBudget } from "../../operations/config/context-budget.js";
 import { ALIX_EXECUTOR_TO_MODEL_FACING } from "../../agents/tool-manifest.js";
 import { resolveExecutableToolName } from "../../agents/tool-name-resolver.js";
-import type { ModelAdapter, ToolDef } from "../../models/providers/types.js";
+import type { ModelAdapter, NormalizedResponse, ToolDef } from "../../models/providers/types.js";
 import type { ExecutionContext } from "../../operations/observability/execution-context.js";
 
 /**
@@ -146,20 +146,82 @@ export async function groundedSynthesisTokenCap(
 }
 
 /**
+ * True when a synthesis response is not an answer: empty, a pure restatement of
+ * intent ("I'll fetch the page and compile the list"), a leftover tool-call
+ * block, or nothing but connective prose. These shapes previously reached the
+ * operator as if they were results. A genuine answer always carries either
+ * substantive content or an explicit insufficiency statement, so this stays a
+ * deliberately small heuristic — it guards against obvious non-answers, it does
+ * not judge answer quality.
+ */
+export function isNonSubstantiveSynthesis(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return true;
+  // Leftover tool-call syntax in any of the observed wrappers.
+  if (/<dots_function_call>/i.test(trimmed) || /\[[a-z_][\w.]*\]\s*\{/i.test(trimmed)) return true;
+  // Strip a leading plan sentence, then require something left to read.
+  const withoutPlan = trimmed
+    .replace(/^(?:i(?:'ll| will)\b[^.]*\.)+/i, "")
+    .replace(/^(?:let me|i(?:'ll| will)|now i(?:'ll| will))\b[^.]*\./i, "")
+    .trim();
+  if (withoutPlan.length < 12) return true;
+  return false;
+}
+
+/**
+ * Recover a tool call a model leaked as prose instead of returning it
+ * structurally. Two observed shapes:
+ *
+ *  - `<dots_function_call>[alix_web_fetch]{"url":"..."}``` ` (session
+ *    1791828877329) — a provider-internal tag wrapping a bracketed name and a
+ *    JSON argument object.
+ *  - `[alix_web_fetch]{"url":"..."}` — the same payload without the tag.
+ *
+ * Only names that were actually OFFERED on this turn are accepted, so leaked
+ * prose can never widen the route's tool surface. Returns undefined when there
+ * is no recoverable call, which leaves the text as a normal (non-substantive)
+ * answer for the empty-answer guard to handle.
+ */
+export function extractLeakedToolCall(text: string, offeredNames: ReadonlySet<string>): { name: string; args: Record<string, unknown> } | undefined {
+  if (!text.includes("_function_call") && !text.includes("[")) return undefined;
+  const bracketed = /\[([a-z_][\w.]*)\]\s*(\{[\s\S]*\})/.exec(text);
+  if (!bracketed) return undefined;
+  const name = bracketed[1]!;
+  if (!offeredNames.has(name)) return undefined;
+  let args: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(bracketed[2]!);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return undefined;
+    args = parsed as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+  return { name, args };
+}
+
+/**
  * Grounded synthesis system prompt. The first call may satisfy the query from
  * search metadata alone (titles/URLs/snippets) instead of fetched page
  * content, which is how a "list all X" question previously returned a single
- * leading item with no error and no truncation. Demand a complete, enumerated
- * answer so a partially-informative tool result cannot read as a finished one.
+ * leading item with no error and no truncation.
+ *
+ * Deliberately does NOT invite the model to describe further retrieval it would
+ * need: that wording made models answer with a plan ("I'll fetch the page...")
+ * instead of an answer, sometimes leaking a raw `<dots_function_call>` block as
+ * prose. The model must commit to an answer from what it already has, or state
+ * plainly that the supplied data is insufficient — never emit a tool call,
+ * placeholder, or future-tense preamble. See
+ * `tests/runtime/grounded-synthesis.test.ts`.
  */
 export const GROUNDED_SYNTHESIS_PROMPT = [
   "Answer the user's question using the tool result below.",
   "",
   "Rules:",
   "- Answer the question that was actually asked. When it asks for ALL of something, enumerate every item you can support from the tool result; never answer with just the first one.",
-  "- If the tool result is only search metadata (titles, URLs, snippets) rather than page content, say what the result supports and state plainly what still needs fetching.",
+  "- Answer now, using only the tool result you were given. Do not request, describe, or emit another tool call, and do not describe what you plan to fetch next.",
+  "- If the tool result genuinely cannot answer the question, say exactly that in one sentence. Otherwise give the answer you can support.",
   "- Do not invent items to fill out a list.",
-  "- Reply with the answer only; no preamble about what you are about to do.",
+  "- Output only the answer text. No preamble, no plan, no tool-call syntax.",
 ].join("\n");
 
 /**
@@ -450,24 +512,65 @@ export async function executeGroundedChatBehavior(
 
     // Second call: model synthesizes answer from tool result
     // Tool results are passed as user messages in the normalized format
-    const synthesisMessages = [
-      { role: "user" as const, content: retrievalPrompt.userPromptTemplate(route.prompt) },
-      { role: "assistant" as const, content: response.text || "" },
-      { role: "user" as const, content: `[Tool result from ${tc.name}]\n${toolContent}` },
-    ];
-    const finalResponse = await provider.complete({
-      systemPrompt: GROUNDED_SYNTHESIS_PROMPT,
-      messages: synthesisMessages,
-      ...(await groundedSynthesisTokenCap(deps, config)),
-      ...(deps.context ? { context: deps.context } : {}),
-    }, { signal: deps.signal });
+    const synthesize = async (toolName: string, resultContent: string, assistantText: string): Promise<NormalizedResponse> =>
+      provider.complete({
+        systemPrompt: GROUNDED_SYNTHESIS_PROMPT,
+        messages: [
+          { role: "user" as const, content: retrievalPrompt.userPromptTemplate(route.prompt) },
+          { role: "assistant" as const, content: assistantText },
+          { role: "user" as const, content: `[Tool result from ${toolName}]\n${resultContent}` },
+        ],
+        ...(await groundedSynthesisTokenCap(deps, config)),
+        ...(deps.context ? { context: deps.context } : {}),
+      }, { signal: deps.signal });
+
+    let finalResponse = await synthesize(tc.name, toolContent, response.text || "");
+
+    // A model that leaks a tool call as prose meant to fetch more, not answer.
+    // Dispatch the single leaked call against the OFFERED surface and
+    // re-synthesize exactly once — bounded so a model that keeps asking for
+    // tools cannot spin an unbounded loop.
+    const leaked = extractLeakedToolCall(finalResponse.text, offeredModelFacing);
+    if (leaked) {
+      let leakExecName: string;
+      try {
+        leakExecName = resolveExecutableToolName(leaked.name, tools.map((tool) => ({ name: tool.name })));
+      } catch {
+        leakExecName = "";
+      }
+      if (leakExecName) {
+        const leakResult = await executor.execute({
+          toolCallId: await newToolCallId(),
+          name: leakExecName,
+          args: leaked.args,
+          signal: deps.signal,
+          runId: deps.context?.runId,
+        });
+        const leakContent = leakResult.kind === "success"
+          ? (leakResult.output || leakResult.content || "(no output)")
+          : leakResult.kind === "error"
+            ? `Error: ${leakResult.message}`
+            : "Tool request denied by policy";
+        finalResponse = await synthesize(leaked.name, leakContent, finalResponse.text || "");
+      }
+    }
+
+    const synthesisText = (finalResponse.text ?? "").trim();
+
+    // An answer that is only a plan, a placeholder, or leftover tool-call
+    // syntax is not an answer. Never present it as one — say the data was
+    // insufficient so the operator is not handed a non-answer as a result.
+    if (isNonSubstantiveSynthesis(synthesisText)) {
+      return "The retrieved data was not sufficient to answer this question.";
+    }
+
     // A `length` stop means the answer was cut mid-sentence, not finished.
     // Returning it verbatim is how a truncated list used to pass as a complete
     // answer; mark it so the caller can see the answer is partial.
     if (finalResponse.finishReason === "length") {
-      return `${finalResponse.text || "(no response)"}\n\n[response truncated at the model output limit]`;
+      return `${synthesisText}\n\n[response truncated at the model output limit]`;
     }
-    return finalResponse.text || "(no response)";
+    return synthesisText || "(no response)";
   }
 
   // No tool call — model answered directly

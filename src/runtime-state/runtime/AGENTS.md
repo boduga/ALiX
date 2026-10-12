@@ -67,10 +67,18 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
   A `finishReason: "length"` stop is appended with an explicit truncation marker
   rather than returned as a finished answer. The synthesis prompt
   (`GROUNDED_SYNTHESIS_PROMPT`) requires enumerating every item for "list all"
-  queries and requires the model to say when the tool result is only search
-  metadata, because a first call satisfied from titles/URLs/snippets otherwise
-  returned a single leading item as if complete (session `1791824290404` returned
-  one president of sixteen). Pinned by `tests/runtime/grounded-synthesis.test.ts`.
+  queries and must NOT invite the model to describe further retrieval it would
+  need — that wording made models answer with a plan ("I'll fetch the page…")
+  instead of an answer (session `1791828877329`).
+- **Grounded synthesis never returns a non-answer.** A synthesis response is
+  checked by `isNonSubstantiveSynthesis` (empty, plan-only, or leftover
+  tool-call syntax) and replaced with an explicit insufficient-data sentence
+  rather than shown as a result. A model that leaks a tool call as prose
+  (`<dots_function_call>[name]{json}`, `[name]{json}`) is recovered by
+  `extractLeakedToolCall`, dispatched against the OFFERED surface only, and
+  re-synthesized exactly once — bounded, so leaked calls cannot spin an
+  unbounded loop and cannot widen the tool surface. Pinned by
+  `tests/runtime/grounded-synthesis.test.ts`.
 
 ## Work Guidance
 
