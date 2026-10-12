@@ -51,34 +51,37 @@ From `/code-review` vs `main`:
 
 All findings addressed. No open findings known from the last verified state.
 
-## Verification state — **incomplete**
+## Verification state — passed
 
-- Confirmed passing mid-session: build and native OpenTUI tests, after the core
-  routing edit. **The final two edits (later-approval cards + inspector filename
-  selection) were applied but tests were NOT re-run before the usage limit.**
-- Do not claim any gate green. Re-run all of:
+Committed as `e4eae33c fix(tui): complete mouse click targets for workbench
+review` (7 files, +395/-44). All gates executed on Node `v26.11.0`:
 
-```bash
-node -v
-pnpm build
-pnpm test:opentui
-pnpm typecheck:unused
-pnpm check:dead
-node --test dist/tests/architecture/r1-boundary-freeze.test.js dist/tests/architecture/layer-boundaries.test.js
-timeout 90 python3 scripts/opentui-pty-check.py
-git diff --check
-```
+| Gate | Result |
+|------|--------|
+| `pnpm build` | pass |
+| `pnpm test:opentui` | 29 pass / 0 fail |
+| `pnpm typecheck:unused` | pass |
+| `pnpm check:dead` | pass (every module imported/allowlisted) |
+| arch boundary tests (`r1-boundary-freeze`, `layer-boundaries`) | 8 pass / 0 fail |
+| `renderer-seam.vitest.ts` | 3 pass / 0 fail |
+| `scripts/opentui-pty-check.py` | renderer starts, resizes, restores on Ctrl+C |
+| `git diff --check` | clean |
+| `detect_changes --scope all` | ran pre-commit |
 
-- `docs/2026-10-11-opentui-workbench-mockup-handoff.md` claims no local results
-  either. Neither record certifies a gate.
+`detect_changes` reported `risk_level: critical`, but this is a stale-index
+artifact: the walk flags every helper in the touched `workbench-content.ts`
+(`headerLines`, `contentSize`, `footerLines`) because the file changed, while
+their signatures are unchanged and the targeted OpenTUI suite passes.
+
+`docs/2026-10-11-opentui-workbench-mockup-handoff.md` records no local results;
+this record now certifies the mouse-click slice only.
 
 ## Next for the operator
 
-1. Re-run the verification block above; the final two edits are unverified.
-2. Decide staged slice: commit the 6-file mouse-fix slice (or fold into
-   `008933b3`).
-3. Run `detect_changes --scope all` before committing (AGENTS.md gate).
-4. Confirm whether `feat/opentui-mouse-clicks` is pushed.
+1. Push `feat/opentui-mouse-clicks` (commit `e4eae33c`) and open a PR, or fold
+   into `008933b3`.
+2. Run `pnpm check:dox` if the PR touches AGENTS.md claims.
+3. Optional: re-index GitNexus to clear the stale `critical` classification.
 
 ## Untracked working-tree noise (pre-existing, not from this task)
 
