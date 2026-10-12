@@ -339,7 +339,15 @@ function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, 
           width: Math.max(8, width - prefix.length - 2), mode: detailed ? 'detailed' : 'compact', indent: 0,
         });
         const headingLine: NativeLine = { text: heading, parts: [{ text: prefix, color: 'muted' }, { text: `TOOL  ${tool.name} · ${tool.status}`, color: 'cyan' }] };
-        return [headingLine, ...card.slice(0, Math.max(0, height - 1)).map(line => ({ text: `  ${safeLine(line.text)}`, parts: ansiRowToNativeParts(line.text).map(part => ({ ...part, text: `  ${part.text}` })) }))];
+        return [headingLine, ...card.slice(0, Math.max(0, height - 1)).map(line => {
+          // Indent the card once. Prefixing EVERY styled run would insert
+          // spaces inside the card and break its column alignment.
+          const parts = ansiRowToNativeParts(line.text);
+          const indented = parts.length > 0
+            ? [{ ...parts[0]!, text: `  ${parts[0]!.text}` }, ...parts.slice(1)]
+            : [{ text: '  ' }];
+          return { text: `  ${safeLine(line.text)}`, parts: indented };
+        })];
       });
   }
 }
