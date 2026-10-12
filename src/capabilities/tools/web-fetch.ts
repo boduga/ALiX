@@ -14,18 +14,114 @@ export type WebFetchResult = {
   data?: { content: string; url: string; status: number };
 };
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]+>/g, " ")
+/**
+ * Pull human-readable text out of JSON-LD blocks before script stripping.
+ *
+ * Many article/list pages serve their body as `application/ld+json`
+ * (schema.org `Article`/`NewsArticle`/`BlogPosting`) rather than in the HTML
+ * flow. Stripping every `<script>` therefore deleted the actual content and
+ * left only navigation chrome — an external fetch of a "list of presidents"
+ * page returned 423 bytes of nav and none of the list (session
+ * `1791833097742`). This recovers those blocks' text fields only.
+ *
+ * Injection safety: JSON-LD is untrusted remote content. Only descriptive
+ * fields (headline, name, description, articleBody, text) are read, and the
+ * caller keeps treating the whole payload as fetched DATA — never as
+ * instructions. Executable scripts are still stripped below.
+ */
+function extractJsonLdText(html: string): string {
+  const parts: string[] = [];
+  const re = /<script[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let match: RegExpExecArray | null;
+  const seen = new Set<string>();
+  while ((match = re.exec(html)) !== null) {
+    for (const value of collectJsonLdStrings(match[1]!)) {
+      const normalised = value.replace(/\s+/g, " ").trim();
+      // Bounded and deduplicated: JSON-LD repeats the same strings per block.
+      if (normalised.length < 3 || normalised.length > 20_000) continue;
+      if (seen.has(normalised)) continue;
+      seen.add(normalised);
+      parts.push(normalised);
+    }
+  }
+  return parts.join(" ");
+}
+
+/** Recursively collect the descriptive string fields of a JSON-LD document. */
+function collectJsonLdStrings(raw: string): string[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw.trim());
+  } catch {
+    // A JSON-LD block can be HTML-escaped or malformed; recover the obvious
+    // quoted strings rather than dropping the whole block.
+    const matches = raw.match(/"(?:headline|name|description|articleBody|text)"\s*:\s*"((?:[^"\\]|\\.)*)"/gi);
+    return matches ? matches.map((m) => decodeJsonLdString(m.replace(/^.*?:\s*"([\s\S]*)"?$/, "$1"))) : [];
+  }
+  const out: string[] = [];
+  const visit = (node: unknown, key?: string): void => {
+    if (typeof node === "string") {
+      if (key && DESCRIPTIVE_JSON_LD_FIELDS.has(key)) out.push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, key);
+      return;
+    }
+    if (node && typeof node === "object") {
+      for (const [childKey, value] of Object.entries(node as Record<string, unknown>)) {
+        visit(value, childKey);
+      }
+    }
+  };
+  visit(parsed);
+  return out;
+}
+
+const DESCRIPTIVE_JSON_LD_FIELDS = new Set([
+  "headline",
+  "alternativeHeadline",
+  "name",
+  "description",
+  "articleBody",
+  "text",
+  "abstract",
+]);
+
+function decodeJsonLdString(value: string): string {
+  try {
+    return JSON.parse(`"${value}"`) as string;
+  } catch {
+    return value;
+  }
+}
+
+function decodeEntities(text: string): string {
+  return text
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_m, code: string) => String.fromCodePoint(Number(code)));
+}
+
+function stripHtml(html: string): string {
+  // Structured data first: it is stripped as a <script> immediately below, so
+  // its text has to be lifted out ahead of that.
+  const structured = extractJsonLdText(html);
+  const visible = html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ");
+  const text = decodeEntities(visible).replace(/\s+/g, " ").trim();
+  // Append the recovered structured content so an article served only as
+  // JSON-LD still reads. It stays clearly delimited as fetched data.
+  if (!structured) return text;
+  return structured.length >= text.length
+    ? `[structured page data] ${structured}`
+    : `${text} [structured page data] ${structured}`;
 }
 
 export type WebFetchOptions = {

@@ -74,6 +74,94 @@ describe("webFetchTool", () => {
     assert.ok(content.length <= 100);
   });
 
+  // Session 1791833097742: a "list of presidents" page served its body as
+  // JSON-LD, so stripping every <script> returned 423 bytes of navigation
+  // chrome and none of the list.
+  describe("JSON-LD structured content", () => {
+    const pageWithJsonLd = (body: string) =>
+      `<html><head><title>Nav Title</title></head><body>` +
+      `<nav>Home Africa Ranking Society &amp; Culture</nav>` +
+      `<script type="application/ld+json">` +
+      JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: "West African Countries and their Presidents",
+        articleBody: body,
+      }) +
+      `</script></body></html>`;
+
+    it("recovers article body served only as JSON-LD", async () => {
+      const tool = webFetchTool({
+        resolveHost: PUBLIC_RESOLVE,
+        transport: recordingTransport(
+          () => textRes(pageWithJsonLd("Benin - Patrice Talon. Ghana - John Mahama."), 200, "text/html"),
+          [],
+        ),
+      });
+      const result = await tool.execute({ url: "https://example.com" });
+      const content = (result.data as any).content as string;
+      assert.match(content, /Benin - Patrice Talon/);
+      assert.match(content, /Ghana - John Mahama/);
+    });
+
+    it("recovers content from a @graph JSON-LD document", async () => {
+      const html = `<html><body><script type="application/ld+json">` +
+        JSON.stringify({
+          "@context": "https://schema.org",
+          "@graph": [
+            { "@type": "WebPage", name: "Page" },
+            { "@type": "Article", articleBody: "Sierra Leone - Julius Maada Bio." },
+          ],
+        }) +
+        `</script></body></html>`;
+      const tool = webFetchTool({
+        resolveHost: PUBLIC_RESOLVE,
+        transport: recordingTransport(() => textRes(html, 200, "text/html"), []),
+      });
+      const result = await tool.execute({ url: "https://example.com" });
+      assert.match((result.data as any).content as string, /Julius Maada Bio/);
+    });
+
+    it("tolerates a malformed JSON-LD block without failing the fetch", async () => {
+      const html = `<html><body><script type="application/ld+json">` +
+        `{"headline": "Broken Block", articleBody": ` +
+        `</script><p>Visible fallback text</p></body></html>`;
+      const tool = webFetchTool({
+        resolveHost: PUBLIC_RESOLVE,
+        transport: recordingTransport(() => textRes(html, 200, "text/html"), []),
+      });
+      const result = await tool.execute({ url: "https://example.com" });
+      assert.equal(result.ok, true);
+      assert.match((result.data as any).content as string, /Visible fallback text/);
+    });
+
+    it("still strips executable scripts (never surfaces JS source)", async () => {
+      const html = `<html><body><p>Real text</p>` +
+        `<script>window.__X = "IGNORE_ME_AS_INSTRUCTION";</script></body></html>`;
+      const tool = webFetchTool({
+        resolveHost: PUBLIC_RESOLVE,
+        transport: recordingTransport(() => textRes(html, 200, "text/html"), []),
+      });
+      const result = await tool.execute({ url: "https://example.com" });
+      const content = (result.data as any).content as string;
+      assert.match(content, /Real text/);
+      assert.doesNotMatch(content, /IGNORE_ME_AS_INSTRUCTION/);
+    });
+
+    it("does not duplicate repeated strings across blocks", async () => {
+      const block = (body: string) =>
+        `<script type="application/ld+json">${JSON.stringify({ articleBody: body })}</script>`;
+      const html = `<html><body>${block("Same sentence.")}${block("Same sentence.")}</body></html>`;
+      const tool = webFetchTool({
+        resolveHost: PUBLIC_RESOLVE,
+        transport: recordingTransport(() => textRes(html, 200, "text/html"), []),
+      });
+      const result = await tool.execute({ url: "https://example.com" });
+      const content = (result.data as any).content as string;
+      assert.equal(content.split("Same sentence.").length - 1, 1);
+    });
+  });
+
   it("validates URL scheme", async () => {
     const tool = webFetchTool({ resolveHost: PUBLIC_RESOLVE });
     const result = await tool.execute({ url: "ftp://example.com" });

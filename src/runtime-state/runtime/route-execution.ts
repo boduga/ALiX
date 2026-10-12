@@ -446,6 +446,11 @@ export async function executeGroundedChatBehavior(
     }, { signal: deps.signal });
 
   const collected: string[] = [];
+  // A repeated fetch inside one turn reuses the first result instead of
+  // spending a round: models often re-fetch the same URL with a different
+  // maxLength, which silently burned the bounded budget (session 1791833097742
+  // spent two of three rounds on one URL).
+  const fetchedUrls = new Map<string, string>();
   let response = await callRetrieval();
   let rounds = 0;
 
@@ -469,6 +474,21 @@ export async function executeGroundedChatBehavior(
       execName = resolveExecutableToolName(tc.name, tools.map((tool) => ({ name: tool.name })));
     } catch {
       return `Tool "${tc.name}" is not available.`;
+    }
+
+    // Repeat fetch of an already-retrieved URL: reuse the cached content.
+    const fetchKey = tc.name === "alix_web_fetch" && typeof tc.args?.url === "string"
+      ? String(tc.args.url).trim()
+      : undefined;
+    const cached = fetchKey !== undefined ? fetchedUrls.get(fetchKey) : undefined;
+    if (cached !== undefined) {
+      retrievalMessages.push({ role: "assistant", content: response.text || "" });
+      retrievalMessages.push({
+        role: "user",
+        content: `[Tool result from ${tc.name}]\n${cached}\n(already retrieved this URL earlier in this turn)`,
+      });
+      response = await callRetrieval();
+      continue;
     }
 
     const toolResult = await executor.execute({
@@ -533,6 +553,7 @@ export async function executeGroundedChatBehavior(
         : "Tool request denied by policy";
     const labelled = `[Tool result from ${tc.name}]\n${toolContent}`;
     collected.push(labelled);
+    if (fetchKey !== undefined) fetchedUrls.set(fetchKey, toolContent);
     retrievalMessages.push({ role: "assistant", content: response.text || "" });
     retrievalMessages.push({ role: "user", content: labelled });
 

@@ -73,6 +73,17 @@ reason about.
   (operator context) are unchanged and governed by the gate.
 - Sensitive-path denials are hard, non-retryable, and are never escalated to an
   approval request — see the root `AGENTS.md`.
+- **`alix_web_fetch` recovers JSON-LD article content before stripping scripts.** Many
+  article/list pages serve their body as `application/ld+json` (schema.org
+  `Article`/`NewsArticle`), so removing every `<script>` deleted the real content
+  and returned only navigation chrome — an external fetch of a presidents page
+  yielded 423 bytes of nav and none of the list (session `1791833097742`).
+  `extractJsonLdText` lifts the descriptive fields (`headline`, `name`,
+  `description`, `articleBody`, `text`, `abstract`, including `@graph` documents)
+  out first, tolerates malformed blocks, and deduplicates across blocks. Only
+  those fields are read and the payload stays untrusted fetched DATA — never
+  instructions. Executable scripts must still be stripped: a `<script>` whose
+  body is never `application/ld+json` must not reach the model.
 - **Web search degrades, then falls back.** `web-search.ts` uses the configured
   `search.provider`. A SearXNG run that is unconfigured, unreachable, errored,
   or returned no results with `unresponsive_engines` (e.g. `duckduckgo (CAPTCHA)`)
