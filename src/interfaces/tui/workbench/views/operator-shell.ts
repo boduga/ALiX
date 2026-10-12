@@ -53,6 +53,45 @@ function partsWidth(parts: readonly ChromePart[], separator: string): number {
     + Math.max(0, parts.length - 1) * displayWidth(separator);
 }
 
+export type OperatorStatusTone = 'approval-wait' | 'running' | 'warning' | 'muted';
+
+export interface OperatorStatusSegment {
+  readonly text: string;
+  readonly tone: OperatorStatusTone;
+}
+
+/**
+ * Single source for the top status line's text and emphasis. Both renderers
+ * consume these segments: the ANSI canvas maps `tone` to escapes, the native
+ * OpenTUI renderer maps it to palette colors. Elapsed text is computed from the
+ * paint-time clock so painters never read a second clock.
+ */
+export function buildOperatorStatusSegments(status: OperatorShellStatus, now: number): readonly OperatorStatusSegment[] {
+  if (status.kind === 'approval-wait') {
+    return [{ text: `WAITING FOR APPROVAL · ${formatActivityElapsed(now - status.requestedAt)}`, tone: 'approval-wait' }];
+  }
+  const segments: OperatorStatusSegment[] = [
+    { text: `RUNNING ${formatActivityElapsed(now - status.startedAt)}`, tone: 'running' },
+    { text: ` | progress ${formatActivityElapsed(now - status.lastProgressAt)} ago`, tone: 'muted' },
+  ];
+  if (status.state !== 'healthy') {
+    const kind = status.lastProgressKind ?? 'no activity';
+    const desc = status.lastProgressDescription ?? '';
+    const flag = status.state === 'stalled' ? 'POSSIBLY STALLED' : 'SLOW';
+    segments.push({ text: ' | ', tone: 'muted' });
+    segments.push({ text: `⚠ ${flag}`, tone: 'warning' });
+    segments.push({ text: ` (${kind}${desc ? `: ${desc}` : ''})`, tone: 'muted' });
+  }
+  return segments;
+}
+
+const STATUS_ANSI: Record<OperatorStatusTone, readonly [string, string]> = {
+  'approval-wait': ['\x1b[33m', RESET],
+  running: ['\x1b[36m', '\x1b[0m'],
+  warning: ['\x1b[33m', '\x1b[0m'],
+  muted: ['', ''],
+};
+
 interface StatusPart {
   readonly text: string;
   readonly open: string;
@@ -62,25 +101,14 @@ interface StatusPart {
 /**
  * Formats the top status line byte-for-byte like AgentView's legacy status
  * write: yellow approval-wait, cyan RUNNING with the ⚠ SLOW/POSSIBLY
- * STALLED suffix. Elapsed text is computed from the paint-time clock.
+ * STALLED suffix.
  */
 function buildStatusParts(status: OperatorShellStatus, now: number): readonly StatusPart[] {
-  if (status.kind === 'approval-wait') {
-    return [{ text: `WAITING FOR APPROVAL · ${formatActivityElapsed(now - status.requestedAt)}`, open: '\x1b[33m', close: RESET }];
-  }
-  const parts: StatusPart[] = [
-    { text: `RUNNING ${formatActivityElapsed(now - status.startedAt)}`, open: '\x1b[36m', close: '\x1b[0m' },
-    { text: ` | progress ${formatActivityElapsed(now - status.lastProgressAt)} ago`, open: '', close: '' },
-  ];
-  if (status.state !== 'healthy') {
-    const kind = status.lastProgressKind ?? 'no activity';
-    const desc = status.lastProgressDescription ?? '';
-    const flag = status.state === 'stalled' ? 'POSSIBLY STALLED' : 'SLOW';
-    parts.push({ text: ' | ', open: '', close: '' });
-    parts.push({ text: `⚠ ${flag}`, open: '\x1b[33m', close: '\x1b[0m' });
-    parts.push({ text: ` (${kind}${desc ? `: ${desc}` : ''})`, open: '', close: '' });
-  }
-  return parts;
+  return buildOperatorStatusSegments(status, now).map(segment => ({
+    text: segment.text,
+    open: STATUS_ANSI[segment.tone][0],
+    close: STATUS_ANSI[segment.tone][1],
+  }));
 }
 
 function joinStatusParts(parts: readonly StatusPart[], maxWidth: number): string {

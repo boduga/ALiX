@@ -41,51 +41,37 @@ export function mountOpenTuiWorkbenchHost(renderer: CliRenderer, deps: OpenTuiHo
   layout.shell.onMouseDrag = (): void => { dragged = true; };
   const isClick = (event: MouseEvent): boolean =>
     event.button === 0 && !dragged && pressedAt?.x === event.x && pressedAt.y === event.y;
-  layout.regions.roster.onMouseUp = (event): void => {
-    if (!isClick(event) || !clickAllowed()) return;
-    const action = content.rosterClickTarget(event.y - content.roster.screenY);
-    if (!action) return;
-    deps.onClick(action);
-    event.preventDefault();
+  /**
+   * One wiring path for every clickable region. `blocked` regions answer for
+   * their own policy (approval cards stay actionable while panes are covered);
+   * `action` resolves the hit target for the rest.
+   */
+  const wire = (
+    region: { onMouseUp: ((event: MouseEvent) => void) | undefined },
+    action: (event: MouseEvent) => OpenTuiClickAction | undefined,
+  ): void => {
+    region.onMouseUp = (event): void => {
+      if (!isClick(event) || !clickAllowed()) return;
+      const resolved = action(event);
+      if (!resolved) return;
+      deps.onClick(resolved);
+      event.preventDefault();
+    };
   };
-  layout.regions.overlay.onMouseUp = (event): void => {
-    if (!isClick(event) || !clickAllowed()) return;
-    const action = content.rosterClickTarget(event.y - content.overlay.screenY, 'overlay');
-    if (!action) return;
-    deps.onClick(action);
-    event.preventDefault();
-  };
-  layout.regions.transcript.onMouseUp = (event): void => {
-    if (!isClick(event) || !clickAllowed()) return;
-    const action = content.transcriptClickTarget(event.x - content.transcript.screenX, event.y - content.transcript.screenY)
-      ?? { type: 'focus.set', focus: 'transcript' };
-    deps.onClick(action);
-    event.preventDefault();
-  };
-  layout.regions.composer.onMouseUp = (event): void => {
-    if (!isClick(event) || !clickAllowed()) return;
-    deps.onClick({ type: 'focus.set', focus: 'composer' });
-    event.preventDefault();
-  };
-  layout.regions.inspector.onMouseUp = (event): void => {
-    if (!isClick(event) || !clickAllowed()) return;
-    const action = content.inspectorClickTarget(event.y - content.inspector.screenY);
-    if (!action) return;
-    deps.onClick(action);
-    event.preventDefault();
-  };
-  layout.regions.footer.onMouseUp = (event): void => {
-    if (!isClick(event) || !clickAllowed()) return;
-    const action = content.footerClickTarget(event.x - content.footer.screenX, event.y - content.footer.screenY);
-    if (!action) return;
-    deps.onClick(action);
-    event.preventDefault();
-  };
+  wire(layout.regions.roster, event => content.rosterClickTarget(event.y - content.roster.screenY));
+  wire(layout.regions.overlay, event => content.rosterClickTarget(event.y - content.overlay.screenY, 'overlay'));
+  wire(layout.regions.transcript, event => content.transcriptClickTarget(event.x - content.transcript.screenX, event.y - content.transcript.screenY)
+    ?? { type: 'focus.set', focus: 'transcript' });
+  wire(layout.regions.composer, () => ({ type: 'focus.set', focus: 'composer' }));
+  wire(layout.regions.inspector, event => content.inspectorClickTarget(event.y - content.inspector.screenY));
+  wire(layout.regions.footer, event => content.footerClickTarget(event.x - content.footer.screenX, event.y - content.footer.screenY));
+  // The approval card sits above every other region, so it answers its own
+  // policy: its decision labels stay actionable while panes stay blocked.
   content.approval.onMouseUp = (event): void => {
     if (!isClick(event)) return;
-    const action = content.approvalClickTarget(event.x - content.approval.screenX, event.y - content.approval.screenY);
-    if (!action) return;
-    deps.onClick(action);
+    const resolved = content.approvalClickTarget(event.x - content.approval.screenX, event.y - content.approval.screenY);
+    if (!resolved) return;
+    deps.onClick(resolved);
     event.preventDefault();
   };
   const update = (): void => {

@@ -94,7 +94,7 @@ function mount(
         }
       }
       else if (action.type === 'tab.next') keys.push('Tab');
-      else if (action.type === 'approval.resolve') applyWorkbenchIntent(store, { type: action.type, decision: action.decision }, { snapshot: undefined, ports, coordinationAvailable: true });
+      else if (action.type === 'approval.resolve') applyWorkbenchIntent(store, { type: action.type, decision: action.decision, approvalId: action.approvalId }, { snapshot: undefined, ports, coordinationAvailable: true });
       else applyWorkbenchIntent(store, action, { snapshot: undefined, ports, coordinationAvailable: true });
       host.update();
     },
@@ -401,9 +401,11 @@ test('OpenTUI inspector and footer hints respond to clicks', async () => {
     assert.equal(store.snapshot().drawer, 'artifacts');
     await mouse.click(host.content.footer.screenX + 2, host.content.footer.screenY);
     assert.deepEqual(keys, ['Tab']);
+    // Section headings are structure, not controls; they must not open anything.
     const detailsRow = host.content.inspector.plainText.split('\n').findIndex(line => line.includes('AGENT DETAILS'));
+    assert.ok(detailsRow >= 0);
     await mouse.click(host.content.inspector.screenX + 2, host.content.inspector.screenY + detailsRow);
-    assert.equal(store.snapshot().overlayStack.at(-1), 'inspector');
+    assert.equal(store.snapshot().overlayStack.at(-1), undefined);
     host.dispose();
   } finally {
     await disposeTestRenderer(setup);
@@ -421,14 +423,18 @@ test('OpenTUI approval buttons resolve the visible approval while blocking cover
     await setup.renderOnce();
     await mouse.click(host.content.transcript.screenX + 3, host.content.transcript.screenY + 4);
     assert.equal(store.snapshot().focus, 'composer');
-    const y = host.content.approval.screenY + 3;
     const frame = setup.captureCharFrame();
-    assert.equal(frame.split('a approve').length - 1, 1);
-    assert.match(frame, /Resolve oldest approval first/);
-    const approvalRow = frame.split('\n')[y]!;
-    await mouse.click(approvalRow.indexOf('a approve'), y);
-    await mouse.click(approvalRow.indexOf('d deny'), y);
+    // Every authoritative card keeps the shared decision row; each click
+    // resolves the approval that card names, not the oldest one.
+    assert.equal(frame.split('a approve').length - 1, 2);
+    assert.doesNotMatch(frame, /Resolve oldest approval first/);
+    const firstRow = frame.split('\n')[host.content.approval.screenY + 3]!;
+    await mouse.click(firstRow.indexOf('a approve'), host.content.approval.screenY + 3);
+    await mouse.click(firstRow.indexOf('d deny'), host.content.approval.screenY + 3);
     assert.deepEqual(calls.resolveApproval, [['ap1', 'approved'], ['ap1', 'denied']]);
+    const secondRow = frame.split('\n')[host.content.approval.screenY + 9]!;
+    await mouse.click(secondRow.indexOf('a approve'), host.content.approval.screenY + 9);
+    assert.deepEqual(calls.resolveApproval, [['ap1', 'approved'], ['ap1', 'denied'], ['ap2', 'approved']]);
     host.dispose();
   } finally {
     await disposeTestRenderer(setup);

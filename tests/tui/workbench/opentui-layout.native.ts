@@ -540,11 +540,19 @@ test('native header and footer render operator chrome', async () => {
     assert.match(frame, /a approve/);
     assert.match(frame, /d deny/);
     assert.match(frame, /Esc cancel/);
-    // Header row 0 groups are workspace | mode | roster counts only; the run
-    // status never joins them (canonical ANSI row 0 and the preview target).
+    // Row 0 groups are workspace | mode | warnings | counters; the run status
+    // never joins them. Warning groups take precedence over the counters.
     const headerRow = content.header.plainText.split('\n')[0] ?? '';
-    assert.match(headerRow, /workspace: \/work\/project\s+\|\s+ask\s+\|\s+4 agents • 2 running/);
-    assert.doesNotMatch(headerRow, /RUNNING|APPROVAL/);
+    assert.match(headerRow, /workspace: \/work\/project\s+\|\s+ask\s+\|\s+1 approval\s+\|\s+4 agents • 2 running/);
+    assert.doesNotMatch(headerRow, /RUNNING|WAITING FOR APPROVAL/);
+    // A running turn paints its status on the reserved status row, not row 0.
+    content.update({ ...state, header: chromeState({ ...chrome, status: { kind: 'liveness', startedAt: Date.now() - 5_000, lastProgressAt: Date.now() - 1_000, state: 'healthy' } }) });
+    await setup.renderOnce();
+    const statusRow = content.header.plainText.split('\n')[1] ?? '';
+    assert.match(statusRow, /^RUNNING \d/);
+    content.update({ ...state, header: chromeState({ ...chrome, status: undefined }) });
+    await setup.renderOnce();
+    assert.doesNotMatch(content.header.plainText, /RUNNING|WAITING FOR APPROVAL/);
     content.update({ ...state, header: chromeState({ workspace: '/漢\n\x1b[31mwork' }) });
     await setup.renderOnce();
     assert.doesNotMatch(content.header.plainText, /\n|\x1b/);

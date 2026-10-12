@@ -9,7 +9,10 @@ import { displayWidth, truncateDisplayText, wrapDisplayText } from '../render/te
 import type { WorkbenchRegion } from '../layout/responsive-layout.js';
 import type { WorkbenchViewState } from '../view-state/types.js';
 import { buildAgentInspectorSections } from '../views/agent-inspector.js';
-import { buildWorkbenchApprovalCardLines } from '../views/approval-dialog.js';
+import {
+  WORKBENCH_APPROVAL_DECISION_ROW, buildWorkbenchApprovalCardLines, workbenchApprovalDecisionSpans,
+} from '../views/approval-dialog.js';
+import { buildOperatorStatusSegments } from '../views/operator-shell.js';
 import { buildWorkbenchToolCardLines } from '../views/tool-card.js';
 import type { ComposerLayout } from '../views/composer-view.js';
 import type { OpenTuiWorkbenchLayout } from './workbench-layout.js';
@@ -61,6 +64,8 @@ export type OpenTuiClickAction =
   | { readonly type: 'drawer.toggle'; readonly drawer: 'artifacts' }
   | { readonly type: 'inspector.open' }
   | { readonly type: 'tab.next' }
+  | { readonly type: 'turn.cancel' }
+  | { readonly type: 'overlay.close' }
   | { readonly type: 'approval.resolve'; readonly approvalId: string; readonly decision: 'approved' | 'denied' }
   | { readonly type: 'agentRoster.toggle' }
   | { readonly type: 'coordination.inspect' }
@@ -94,23 +99,45 @@ function safeLine(text: string): string {
   return safe(text).replaceAll('\n', ' ');
 }
 
-/** Accumulates width-clipped, height-bounded region content. */
+/** Accumulates width-clipped, height-bounded region content plus its row actions. */
 class BoundedLines {
   private readonly lines: string[] = [];
+  private readonly actions: Array<OpenTuiClickAction | undefined> = [];
   constructor(private readonly width: number, private readonly height: number) {}
   get full(): boolean {
     return this.lines.length >= this.height;
   }
+  get length(): number {
+    return this.lines.length;
+  }
   /** Append unsafe text, sanitized to a single line and clipped to width. */
-  push(text: string): void {
-    if (!this.full) this.lines.push(truncateDisplayText(safeLine(text), this.width));
+  push(text: string, action?: OpenTuiClickAction): void {
+    if (!this.full) {
+      this.lines.push(truncateDisplayText(safeLine(text), this.width));
+      this.actions.push(action);
+    }
   }
   /** Append already-safe text, clipped to width. */
-  pushSafe(text: string): void {
-    if (!this.full) this.lines.push(truncateDisplayText(text, this.width));
+  pushSafe(text: string, action?: OpenTuiClickAction): void {
+    if (!this.full) {
+      this.lines.push(truncateDisplayText(text, this.width));
+      this.actions.push(action);
+    }
+  }
+  /** Insert before an existing row, keeping each row's action aligned. */
+  insert(index: number, text: string, action?: OpenTuiClickAction): void {
+    if (this.full) return;
+    this.lines.splice(index, 0, truncateDisplayText(safeLine(text), this.width));
+    this.actions.splice(index, 0, action);
+  }
+  at(index: number): string | undefined {
+    return this.lines[index];
   }
   value(): string[] {
     return this.lines;
+  }
+  targets(): ReadonlyArray<OpenTuiClickAction | undefined> {
+    return this.actions;
   }
 }
 
@@ -132,29 +159,35 @@ function placeText(text: TextRenderable, box: BoxRenderable, region: WorkbenchRe
   return { width: Math.max(0, width - horizontalInset * 2), height };
 }
 
-function rosterLines(state: ContentState, width: number, height: number, clickTargets?: Array<OpenTuiClickAction | undefined>): string[] {
-  if (height === 0 || width === 0) return [];
+function rosterLines(state: ContentState, width: number, height: number): { lines: string[]; targets: ReadonlyArray<OpenTuiClickAction | undefined> } {
+  const empty = { lines: [] as string[], targets: [] as ReadonlyArray<OpenTuiClickAction | undefined> };
+  if (height === 0 || width === 0) return empty;
   const roster = state.roster.agents;
-  if (!roster) return ['AGENTS & TASKS', '', 'Roster unavailable'];
+  const out = new BoundedLines(width, height);
+  if (!roster) {
+    out.push('AGENTS & TASKS');
+    out.push('');
+    out.push('Roster unavailable');
+    return { lines: out.value(), targets: out.targets() };
+  }
   const agents = visibleForRun(roster.agents, state.selection.selectedRunId);
   const running = agents.filter(agent => ['starting', 'thinking', 'tool_running', 'verifying'].includes(agent.state)).length;
-  const lines = ['AGENTS & TASKS', '', `○ All agents  /`, `  ${agents.length} agents • ${running} running`, '─'.repeat(width)];
-  const targets: Array<OpenTuiClickAction | undefined> = [undefined, undefined, { type: 'agent.select', scrollOffset: 0 }, undefined, undefined];
-  const finish = (rows: string[]): string[] => {
-    clickTargets?.push(...targets.slice(0, Math.min(rows.length, height)));
-    return rows.slice(0, height);
-  };
-  if (state.selection.selectedRunId) {
-    lines.splice(2, 0, `RUN ${safeLine(state.selection.selectedRunId)}`);
-    targets.splice(2, 0, undefined);
-  }
+  out.push('AGENTS & TASKS');
+  out.push('');
+  out.push('○ All agents  /', { type: 'agent.select', scrollOffset: 0 });
+  out.push(`  ${agents.length} agents • ${running} running`);
+  out.push('─'.repeat(width));
+  if (state.selection.selectedRunId) out.insert(2, `RUN ${state.selection.selectedRunId}`);
   if (!state.overlay.agentRosterExpanded) {
-    targets.push({ type: 'agentRoster.toggle' });
-    return finish([...lines, 'Enter to expand roster']);
+    out.push('Enter to expand roster', { type: 'agentRoster.toggle' });
+    return { lines: out.value(), targets: out.targets() };
   }
   if (agents.length === 0) {
-    targets.push(undefined, undefined, { type: 'coordination.inspect' }, { type: 'coordination.inspect' });
-    return finish([...lines, 'No subagents', '─'.repeat(width), '○ Coordination Run  c', '  Start a coordinated run']);
+    out.push('No subagents');
+    out.push('─'.repeat(width));
+    out.push('○ Coordination Run  c', { type: 'coordination.inspect' });
+    out.push('  Start a coordinated run', { type: 'coordination.inspect' });
+    return { lines: out.value(), targets: out.targets() };
   }
   const theme = getWorkbenchPreviewTheme();
   const agentLine = (agent: typeof agents[number], index: number): string => {
@@ -166,29 +199,28 @@ function rosterLines(state: ContentState, width: number, height: number, clickTa
   const selectedAgent = agents.find(agent => agent.agentId === state.selection.selectedAgentId);
   if (height <= 2 && selectedAgent) {
     const target: OpenTuiClickAction = { type: 'agent.select', agentId: selectedAgent.agentId, scrollOffset: 0 };
-    clickTargets?.push(...(height === 1 ? [target] : [undefined, target]));
-    return height === 1 ? [agentLine(selectedAgent, agents.indexOf(selectedAgent))] : [lines[0]!, agentLine(selectedAgent, agents.indexOf(selectedAgent))];
+    const short = new BoundedLines(width, height);
+    if (height >= 2) short.push('AGENTS & TASKS');
+    short.push(agentLine(selectedAgent, agents.indexOf(selectedAgent)), target);
+    return { lines: short.value(), targets: short.targets() };
   }
   const selectedIndex = agents.findIndex(agent => agent.agentId === state.selection.selectedAgentId);
-  const capacity = Math.max(1, Math.floor((height - lines.length - 3) / 3));
+  const capacity = Math.max(1, Math.floor((height - out.length - 3) / 3));
   let offset = Math.max(0, Math.min(agents.length - 1, state.overlay.drawerScrollOffset));
   if (selectedIndex >= 0) offset = Math.max(Math.min(offset, selectedIndex), selectedIndex - capacity + 1);
   for (const [index, agent] of agents.slice(offset).entries()) {
-    if (lines.length >= height) break;
-    lines.push(agentLine(agent, index + offset));
+    if (out.full) break;
     const target: OpenTuiClickAction = { type: 'agent.select', agentId: agent.agentId, scrollOffset: Math.max(0, index + offset - 1) };
-    targets.push(target);
-    if (lines.length < height) {
-      lines.push(truncateDisplayText(safeLine(`  ${agent.taskLabel ?? agent.currentOperation ?? 'Task unavailable'}`), width));
-      targets.push(target);
-    }
-    if (lines.length < height) { lines.push(''); targets.push(undefined); }
+    out.push(agentLine(agent, index + offset), target);
+    out.push(truncateDisplayText(safeLine(`  ${agent.taskLabel ?? agent.currentOperation ?? 'Task unavailable'}`), width), target);
+    out.push('');
   }
-  if (lines.length + 3 <= height) {
-    lines.push('─'.repeat(width), '○ Coordination Run  c', '  Start a coordinated run');
-    targets.push(undefined, { type: 'coordination.inspect' }, { type: 'coordination.inspect' });
+  if (out.length + 3 <= height) {
+    out.push('─'.repeat(width));
+    out.push('○ Coordination Run  c', { type: 'coordination.inspect' });
+    out.push('  Start a coordinated run', { type: 'coordination.inspect' });
   }
-  return finish(lines);
+  return { lines: out.value(), targets: out.targets() };
 }
 
 function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number, width: number, actor: string): string[] {
@@ -258,30 +290,26 @@ function transcriptLines(state: ContentState, conversation: ConversationSnapshot
   };
 }
 
-function tasksLines(state: ContentState, width: number, height: number, clickTargets?: Array<OpenTuiClickAction | undefined>): string[] {
-  if (height === 0 || width === 0) return [];
+function tasksLines(state: ContentState, width: number, height: number): { lines: string[]; targets: ReadonlyArray<OpenTuiClickAction | undefined> } {
+  const empty = { lines: [] as string[], targets: [] as ReadonlyArray<OpenTuiClickAction | undefined> };
+  if (height === 0 || width === 0) return empty;
   const tasks = state.roster.tasks;
-  if (!tasks) return ['Tasks unavailable'];
+  if (!tasks) return { lines: ['Tasks unavailable'], targets: empty.targets };
   const scoped = visibleForRun(tasks.tasks, state.selection.selectedRunId);
   const countStates = (states: readonly string[]): number => scoped.filter(task => states.includes(task.state)).length;
   const out = new BoundedLines(width, height);
-  const push = (line: string, action?: OpenTuiClickAction): void => {
-    const before = out.value().length;
-    out.push(line);
-    if (out.value().length > before) clickTargets?.push(action);
-  };
-  push(`${countStates(['running'])} running · ${countStates(['waiting_dependency', 'waiting_approval'])} waiting · ${countStates(['blocked'])} blocked · ${countStates(['queued', 'assigned'])} queued`);
-  push(`RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`);
+  out.push(`${countStates(['running'])} running · ${countStates(['waiting_dependency', 'waiting_approval'])} waiting · ${countStates(['blocked'])} blocked · ${countStates(['queued', 'assigned'])} queued`);
+  out.push(`RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`);
   if (scoped.length === 0) {
-    push('No delegated tasks');
-    return out.value();
+    out.push('No delegated tasks');
+    return { lines: out.value(), targets: out.targets() };
   }
   for (const [index, task] of scoped.entries()) {
     if (out.full) break;
     const selected = task.taskId === state.selection.selectedTaskId;
     const action: OpenTuiClickAction = { type: 'task.select', taskId: task.taskId, agentId: task.agentId, scrollOffset: Math.max(0, index - 1) };
-    push(`${selected ? '›' : ' '}${taskStateGlyph(task.state)} ${task.title}`, action);
-    push(`  ${task.state.toUpperCase().replaceAll('_', ' ')}${task.agentId ? ` · agent ${task.agentId}` : ''}`, action);
+    out.push(`${selected ? '›' : ' '}${taskStateGlyph(task.state)} ${task.title}`, action);
+    out.push(`  ${task.state.toUpperCase().replaceAll('_', ' ')}${task.agentId ? ` · agent ${task.agentId}` : ''}`, action);
     if (!selected) continue;
     const details = [
       formatCoordMeta(task) ?? '',
@@ -290,31 +318,27 @@ function tasksLines(state: ContentState, width: number, height: number, clickTar
       task.ownedPaths.length ? `owns ${task.ownedPaths.join(', ')}` : '',
       task.dependencyIds?.length ? `Depends on ${task.dependencyIds.join(', ')}` : '',
     ];
-    for (const detail of details) if (detail) push(`    ${detail}`, action);
+    for (const detail of details) if (detail) out.push(`    ${detail}`, action);
   }
-  return out.value();
+  return { lines: out.value(), targets: out.targets() };
 }
 
-function artifactsLines(state: ContentState, width: number, height: number, clickTargets?: Array<OpenTuiClickAction | undefined>): string[] {
-  if (height === 0 || width === 0) return [];
+function artifactsLines(state: ContentState, width: number, height: number): { lines: string[]; targets: ReadonlyArray<OpenTuiClickAction | undefined> } {
+  const empty = { lines: [] as string[], targets: [] as ReadonlyArray<OpenTuiClickAction | undefined> };
+  if (height === 0 || width === 0) return empty;
   const artifacts = state.roster.artifacts;
-  if (!artifacts) return ['Artifacts unavailable'];
+  if (!artifacts) return { lines: ['Artifacts unavailable'], targets: empty.targets };
   const items = visibleArtifacts(artifacts.items, {
     runId: state.selection.selectedRunId,
     agentId: state.selection.selectedAgentId,
     taskId: state.selection.selectedTaskId,
   });
   const out = new BoundedLines(width, height);
-  const push = (line: string, action?: OpenTuiClickAction): void => {
-    const before = out.value().length;
-    out.push(line);
-    if (out.value().length > before) clickTargets?.push(action);
-  };
-  push(`${artifacts.artifacts} files · ${artifacts.results} results`);
-  push(`RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`);
+  out.push(`${artifacts.artifacts} files · ${artifacts.results} results`);
+  out.push(`RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`);
   if (items.length === 0) {
-    push('No artifacts or results');
-    return out.value();
+    out.push('No artifacts or results');
+    return { lines: out.value(), targets: out.targets() };
   }
   for (const [index, item] of items.entries()) {
     if (out.full) break;
@@ -324,7 +348,7 @@ function artifactsLines(state: ContentState, width: number, height: number, clic
       type: 'artifact.select', artifactId: item.id, runId: item.coordinationRunId,
       agentId: item.agentId, taskId: item.taskId, scrollOffset: Math.max(0, index - 1),
     };
-    push(`${selected ? '›' : ' '}${marker} ${item.title}`, action);
+    out.push(`${selected ? '›' : ' '}${marker} ${item.title}`, action);
     if (!selected) continue;
     const details = [
       [item.artifactType ?? item.kind, item.agentId ? `agent ${item.agentId}` : '', item.taskId ? `task ${item.taskId}` : ''].filter(Boolean).join(' · '),
@@ -332,16 +356,16 @@ function artifactsLines(state: ContentState, width: number, height: number, clic
       [item.mediaType ?? '', item.sizeBytes !== undefined ? formatByteSize(item.sizeBytes) : '', item.digest ? `digest ${item.digest.slice(0, 12)}` : ''].filter(Boolean).join(' · '),
       ...(item.preview ? item.preview.split(/\r?\n/).slice(0, 5).map(line => `  ${line}`) : []),
     ];
-    for (const detail of details) if (detail) push(`  ${detail}`, action);
+    for (const detail of details) if (detail) out.push(`  ${detail}`, action);
   }
-  return out.value();
+  return { lines: out.value(), targets: out.targets() };
 }
 
-function drawerLines(state: ContentState, width: number, height: number, clickTargets?: Array<OpenTuiClickAction | undefined>): string[] {
+function drawerLines(state: ContentState, width: number, height: number): { lines: string[]; targets: ReadonlyArray<OpenTuiClickAction | undefined> } {
   switch (state.overlay.drawer) {
-    case 'tasks': return tasksLines(state, width, height, clickTargets);
-    case 'artifacts': return artifactsLines(state, width, height, clickTargets);
-    default: return rosterLines(state, width, height, clickTargets);
+    case 'tasks': return tasksLines(state, width, height);
+    case 'artifacts': return artifactsLines(state, width, height);
+    default: return rosterLines(state, width, height);
   }
 }
 
@@ -349,64 +373,173 @@ function chromeCount(value: number | undefined): string {
   return value === undefined ? 'unavailable' : value.toLocaleString('en-US');
 }
 
-function headerLines(model: OperatorShellSnapshot, width: number, height: number): string[] {
+interface ChromeRun {
+  readonly text: string;
+  readonly color: Color;
+}
+
+/** Row-0 facts in the canonical precedence: mode, warnings, then counters. */
+function headerFactRuns(model: OperatorShellSnapshot): ChromeRun[] {
+  const runs: ChromeRun[] = [{ text: model.mode, color: model.mode === 'bypass' ? 'red' : model.mode === 'ask' ? 'green' : 'yellow' }];
+  const agents = model.agents;
+  if (agents?.waitingApproval) {
+    runs.push({ text: `${agents.waitingApproval} ${agents.waitingApproval === 1 ? 'approval' : 'approvals'}`, color: 'yellow' });
+  }
+  if (agents?.stalled) runs.push({ text: `${agents.stalled} stalled`, color: 'yellow' });
+  if (agents) runs.push({ text: `${agents.total} agents • ${agents.running} running`, color: 'green' });
+  return runs;
+}
+
+function runsWidth(runs: readonly ChromeRun[]): number {
+  return runs.reduce((sum, run) => sum + displayWidth(run.text), 0) + Math.max(0, runs.length - 1) * 3;
+}
+
+/**
+ * Three-row native header mirroring the canonical ANSI band: row 0 carries the
+ * brand, badge and the workspace/mode/warning/counter groups; row 1 carries the
+ * top status line; row 2 stays reserved blank.
+ */
+function headerLines(model: OperatorShellSnapshot, width: number, height: number, now: number): NativeLine[] {
   if (height === 0 || width === 0) return [];
   const brand = width >= 20 ? 'ALiX WORKBENCH' : width >= 6 ? 'ALiX' : '';
   const badge = model.demo ? 'CONCEPT PREVIEW' : 'PREVIEW';
-  const left = `${brand}  ${badge}`;
-  const facts = safeLine([
-    `workspace: ${model.workspace}`, model.mode,
-    model.agents ? `${model.agents.total} agents • ${model.agents.running} running` : '',
-  ].filter(Boolean).join('  |  '));
-  if (width >= displayWidth(left) + displayWidth(facts) + 2) return [`${left}${' '.repeat(width - displayWidth(left) - displayWidth(facts))}${facts}`];
-  if (height === 1) return [truncateDisplayText(safeLine(left), width)];
-  return [truncateDisplayText(safeLine(left), width), truncateDisplayText(safeLine(facts), width)];
+  const facts = headerFactRuns(model);
+  // Under width pressure the canonical band keeps mode and drops the optional
+  // groups from the right; workspace gives up its tail before either.
+  let factsWidth = runsWidth(facts);
+  while (factsWidth > width / 2 && facts.length > 1) {
+    facts.pop();
+    factsWidth = runsWidth(facts);
+  }
+  const pathRoom = Math.max(0, width - displayWidth(brand) - displayWidth(badge) - factsWidth - 8);
+  const path = truncateDisplayText(safeLine(model.workspace), Math.max(0, pathRoom));
+  const leftParts: NativePart[] = [];
+  if (brand) leftParts.push({ text: brand, color: 'cyan', bold: true });
+  leftParts.push({ text: `  ${badge}`, color: 'muted' });
+  const rightParts: NativePart[] = [];
+  if (path) rightParts.push({ text: 'workspace: ', color: 'muted' }, { text: path, color: 'cyan' });
+  facts.forEach((run, index) => {
+    if (index > 0 || path) rightParts.push({ text: '  |  ', color: 'muted' });
+    rightParts.push({ text: run.text, color: run.color });
+  });
+  const leftText = leftParts.map(part => part.text).join('');
+  const rightText = rightParts.map(part => part.text).join('');
+  const rows: NativeLine[] = [];
+  const room = width - displayWidth(leftText) - displayWidth(rightText);
+  const paddedLeft = room > 0 ? [...leftParts, { text: ' '.repeat(room), color: 'muted' as const }] : leftParts;
+  const topRow: NativeLine = { text: truncateDisplayText(safeLine(`${leftText}${' '.repeat(Math.max(0, room))}${rightText}`), width), parts: room > 0 ? [...paddedLeft, ...rightParts] : undefined };
+  if (room <= 0) {
+    // Narrow band: brand row, then the facts on their own row.
+    rows.push({ text: truncateDisplayText(safeLine(leftText), width), parts: leftParts });
+    if (height > 1) rows.push({ text: truncateDisplayText(safeLine(rightText), width), parts: rightParts });
+  } else {
+    rows.push(topRow);
+  }
+  if (height > 1 && model.status) {
+    const statusParts: NativePart[] = buildOperatorStatusSegments(model.status, now).map(segment => ({
+      text: segment.text,
+      color: segment.tone === 'approval-wait' || segment.tone === 'warning' ? 'yellow' : segment.tone === 'running' ? 'cyan' : 'muted',
+    }));
+    const statusText = statusParts.map(part => part.text).join('');
+    rows.push({ text: truncateDisplayText(safeLine(statusText), width), parts: statusParts });
+  }
+  return rows.slice(0, height);
 }
 
-function footerLines(model: OperatorShellSnapshot, width: number, height: number): string[] {
+interface ColumnTarget { readonly start: number; readonly end: number; readonly action: OpenTuiClickAction }
+interface FooterRow { readonly text: string; readonly targets: readonly ColumnTarget[] }
+
+/**
+ * One footer hint list drives both the painted text and its hit targets, so a
+ * hint is never clickable without being advertised (or vice versa).
+ */
+function footerHints(model: OperatorShellSnapshot): ReadonlyArray<{ readonly text: string; readonly action?: OpenTuiClickAction }> {
+  const escapeText = model.escapeAction === 'close' ? 'Esc close' : model.running ? 'Esc cancel' : model.focus === 'transcript' ? 'Esc type' : '';
+  const escapeHint: { readonly text: string; readonly action?: OpenTuiClickAction } = {
+    text: escapeText,
+    // Each Escape label means what its key means; it never resolves a decision.
+    ...(model.escapeAction === 'close' ? { action: { type: 'overlay.close' } }
+      : model.running ? { action: { type: 'turn.cancel' } }
+        : model.focus === 'transcript' ? { action: { type: 'focus.set', focus: 'composer' } } : {}),
+  };
+  if (model.approval) {
+    return [
+      { text: `${model.approval.count} ${model.approval.count === 1 ? 'approval' : 'approvals'}` },
+      { text: model.approval.toolName },
+      { text: 'a approve' },
+      { text: 'd deny' },
+      escapeHint,
+    ];
+  }
+  const transcript = model.focus === 'transcript';
+  return [
+    transcript ? { text: 'Ctrl+F type', action: { type: 'focus.set', focus: 'composer' } }
+      : { text: 'Tab views', action: { type: 'tab.next' } },
+    { text: 'Ctrl+O details', action: { type: 'inspector.open' } },
+    { text: 'Ctrl+R artifacts', action: { type: 'drawer.toggle', drawer: 'artifacts' } },
+    ...(model.focus === 'composer' ? [{ text: 'Ctrl+F transcript', action: { type: 'focus.set', focus: 'transcript' } as const }] : []),
+    ...(model.queuedMessages > 0 ? [{ text: `${model.queuedMessages} queued` }] : []),
+    escapeHint,
+  ];
+}
+
+function footerLines(model: OperatorShellSnapshot, width: number, height: number): FooterRow[] {
   if (height === 0 || width === 0) return [];
-  const escape = model.escapeAction === 'close' ? 'Esc close' : model.running ? 'Esc cancel' : model.focus === 'transcript' ? 'Esc type' : '';
-  const hints = model.approval
-    ? [`${model.approval.count} ${model.approval.count === 1 ? 'approval' : 'approvals'}`, model.approval.toolName, 'a approve', 'd deny', escape]
-    : [
-        model.focus === 'transcript' ? 'Ctrl+F type' : 'Tab views',
-        'Ctrl+O details',
-        'Ctrl+R artifacts',
-        model.focus === 'composer' ? 'Ctrl+F transcript' : '',
-        model.queuedMessages > 0 ? `${model.queuedMessages} queued` : '',
-        escape,
-      ];
+  const hints = footerHints(model).filter(hint => hint.text.length > 0);
   const counters = [
     `TOKENS ${chromeCount(model.tokensUsed)}`,
     `FILES ${chromeCount(model.filesTouched)}`,
     `EVENTS ${chromeCount(model.eventCount)}`,
     `AGENTS ${model.agents?.total ?? 'unavailable'}`,
-  ].join('  |  ');
-  const left = hints.filter(Boolean).join('  •  ');
-  const gap = Math.max(2, width - left.length - counters.length);
-  return [truncateDisplayText(safeLine(`${left}${' '.repeat(gap)}${counters}`), width)].slice(0, Math.max(1, height));
+  ];
+  const left = hints.map(hint => hint.text).join('  •  ');
+  const right = counters.join('  |  ');
+  const gap = Math.max(2, width - left.length - right.length);
+  const text = truncateDisplayText(safeLine(`${left}${' '.repeat(gap)}${right}`), width);
+  const targets: ColumnTarget[] = [];
+  let column = 0;
+  for (const hint of hints) {
+    if (!hint.action) { column += displayWidth(hint.text) + 5; continue; }
+    targets.push({ start: column, end: column + displayWidth(hint.text), action: hint.action });
+    column += displayWidth(hint.text) + 5;
+  }
+  return [{ text, targets }].slice(0, Math.max(1, height));
 }
 
-function inspectorLines(state: ContentState, width: number, height: number): NativeLine[] {
+interface InspectorRow { readonly line: NativeLine; readonly action?: OpenTuiClickAction }
+
+/**
+ * Native inspector rows carry the action of the shared section that produced
+ * them. Artifact rows resolve their identity from the shared artifact list, so
+ * a painter change cannot silently retarget a click.
+ */
+function inspectorLines(state: ContentState, width: number, height: number): InspectorRow[] {
   if (height === 0 || width === 0) return [];
-  const out: NativeLine[] = [];
+  const out: InspectorRow[] = [];
   const palette = getWorkbenchPreviewTheme().palette;
-  const push = (line: NativeLine): void => { if (out.length < height) out.push(line); };
+  const push = (line: NativeLine, action?: OpenTuiClickAction): void => { if (out.length < height) out.push({ line, action }); };
   for (const [index, section] of buildAgentInspectorSections(state.inspector).entries()) {
     if (out.length >= height) break;
     if (index > 0) push({ text: '─'.repeat(width), color: 'divider' });
     push({ text: section.title, color: 'cyan' });
     push({ text: '' });
+    const artifacts = section.title === 'ARTIFACTS' ? state.inspector.artifacts ?? [] : undefined;
+    let artifactIndex = 0;
     for (const row of section.rows) {
       if (out.length >= height) break;
       const label = row.label ? row.label.padEnd(Math.min(12, Math.max(1, width - 1)), ' ') : '';
       const value = safeLine(row.value);
       const color: Color = row.color === palette.green ? 'green' : row.color === palette.yellow ? 'yellow'
         : row.color === palette.red ? 'red' : row.color === palette.purple ? 'purple' : 'foreground';
-      push({ text: `${label}${value}`, parts: label ? [{ text: label, color: 'muted' }, { text: value, color }] : [{ text: value, color }] });
+      const rendered: NativeLine = { text: `${label}${value}`, parts: label ? [{ text: label, color: 'muted' }, { text: value, color }] : [{ text: value, color }] };
+      // Only artifact rows carry an action; section headings are structure,
+      // not controls, and the inspector pane is already visible.
+      const artifact = artifacts?.[artifactIndex++];
+      push(rendered, artifact ? { type: 'artifact.open', artifactId: artifact.id } : undefined);
     }
   }
-  return out.length === 0 ? [{ text: 'Inspector unavailable' }] : out;
+  if (out.length === 0) return [{ line: { text: 'Inspector unavailable' } }];
+  return out;
 }
 
 function composerLines(state: ContentState, composer: ComposerLayout, width: number, height: number): string[] {
@@ -442,9 +575,9 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   let pausedConversation: ConversationSnapshot | undefined;
   let lastConversation: ConversationSnapshot | undefined;
   let resolvedScrollRows = 0;
-  let rosterClickTargets: Array<OpenTuiClickAction | undefined> = [];
-  let overlayClickTargets: Array<OpenTuiClickAction | undefined> = [];
-  let inspectorClickTargets: Array<OpenTuiClickAction | undefined> = [];
+  let rosterClickTargets: ReadonlyArray<OpenTuiClickAction | undefined> = [];
+  let overlayClickTargets: ReadonlyArray<OpenTuiClickAction | undefined> = [];
+  let inspectorClickTargets: ReadonlyArray<OpenTuiClickAction | undefined> = [];
   let transcriptClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
   let footerClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
   let approvalClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
@@ -456,52 +589,27 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     const overlaySize = placeText(overlay, layout.regions.overlay, layout.geometry.regions.overlay);
     const inspectorSize = placeText(inspector, layout.regions.inspector, layout.geometry.regions.inspector);
     const composerSize = placeText(composer, layout.regions.composer, layout.geometry.regions.composer);
-    const brand = headerSize.width >= 20 ? 'ALiX WORKBENCH' : headerSize.width >= 6 ? 'ALiX' : '';
-    const badge = state.header.demo ? 'CONCEPT PREVIEW' : 'PREVIEW';
-    const brandLine = `${brand}  ${badge}`;
-    const agentFacts = state.header.agents ? `${state.header.agents.total} agents • ${state.header.agents.running} running` : '';
-    header.content = styledLines(headerLines(state.header, headerSize.width, headerSize.height).map((line, index) => {
-      const parts: NativePart[] = [];
-      let remainder = line;
-      if (index === 0 && line.startsWith(brandLine)) {
-        parts.push({ text: brand, color: 'cyan', bold: true }, { text: `  ${badge}`, color: 'muted' });
-        remainder = line.slice(brandLine.length);
-      }
-      const workspaceLabel = 'workspace: ';
-      const workspaceAt = remainder.indexOf(workspaceLabel);
-      if (workspaceAt >= 0) {
-        parts.push({ text: remainder.slice(0, workspaceAt + workspaceLabel.length), color: 'muted' });
-        remainder = remainder.slice(workspaceAt + workspaceLabel.length);
-        const pathLength = safeLine(state.header.workspace).length;
-        parts.push({ text: remainder.slice(0, pathLength), color: 'cyan' });
-        remainder = remainder.slice(pathLength);
-      }
-      const countAt = agentFacts ? remainder.lastIndexOf(agentFacts) : -1;
-      parts.push({ text: countAt >= 0 ? remainder.slice(0, countAt) : remainder, color: 'muted' });
-      if (countAt >= 0) parts.push({ text: remainder.slice(countAt), color: 'green' });
-      return { text: line, parts };
-    }), headerSize.width);
+    header.content = styledLines(headerLines(state.header, headerSize.width, headerSize.height, Date.now()), headerSize.width);
     const footerRows = footerLines(state.footer, footerSize.width, footerSize.height);
-    footerClickTargets = footerRows.flatMap((line, row) => line.startsWith('Tab views')
-      ? [{ row, start: 0, end: displayWidth('Tab views'), action: { type: 'tab.next' } as const }] : []);
-    footer.content = styledLines(footerRows.map(line => {
-      const counterAt = line.indexOf('TOKENS ');
-      return { text: line, parts: counterAt < 0 ? [{ text: line, color: 'muted' as const }] : [
-        { text: line.slice(0, counterAt), color: 'cyan' as const }, { text: line.slice(counterAt), color: 'muted' as const },
+    footerClickTargets = footerRows.flatMap((row, index) => row.targets.map(target => ({ row: index, ...target })));
+    footer.content = styledLines(footerRows.map(row => {
+      const counterAt = row.text.indexOf('TOKENS ');
+      return { text: row.text, parts: counterAt < 0 ? [{ text: row.text, color: 'muted' as const }] : [
+        { text: row.text.slice(0, counterAt), color: 'cyan' as const }, { text: row.text.slice(counterAt), color: 'muted' as const },
       ] };
     }), footerSize.width);
-    rosterClickTargets = [];
-    const rosterRows = state.overlay.drawer === 'closed'
-      ? rosterLines(state, rosterSize.width, rosterSize.height, rosterClickTargets)
-      : drawerLines(state, rosterSize.width, rosterSize.height, rosterClickTargets);
-    roster.content = styledLines(rosterRows.map((line, index) => ({
+    const rosterBody = state.overlay.drawer === 'closed'
+      ? rosterLines(state, rosterSize.width, rosterSize.height)
+      : drawerLines(state, rosterSize.width, rosterSize.height);
+    rosterClickTargets = rosterBody.targets;
+    roster.content = styledLines(rosterBody.lines.map((line, index) => ({
       text: line,
       color: /^(AGENTS & TASKS|TASKS|ARTIFACTS)$/.test(line) ? 'cyan'
         : line.startsWith('›') ? 'cyan'
           : /FAILED/.test(line) ? 'red' : /WAITING|APPROVAL/.test(line) ? 'yellow'
             : /RUNNING|VERIFYING/.test(line) ? 'green' : /COMPLETED/.test(line) ? 'purple'
               : line.startsWith('  ') ? 'muted' : 'foreground',
-      fill: line.startsWith('›') || (rosterRows[index - 1]?.startsWith('›') && line.startsWith('  ')),
+      fill: line.startsWith('›') || (rosterBody.lines[index - 1]?.startsWith('›') && line.startsWith('  ')),
     })), rosterSize.width);
     if (state.transcript.followTail) pausedConversation = undefined;
     else pausedConversation ??= lastConversation ?? state.transcript.conversation;
@@ -551,52 +659,29 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
       ...transcriptWindow.lines,
     ].slice(0, transcriptSize.height), transcriptSize.width);
     lastConversation = state.transcript.conversation;
-    const inspectorRows = inspectorLines(state, inspectorSize.width, inspectorSize.height);
-    let inspectorSection = '';
-    let inspectorArtifactIndex = 0;
-    inspectorClickTargets = inspectorRows.map(line => {
-      if (['AGENT DETAILS', 'LIVE ACTIVITY', 'APPROVALS', 'ARTIFACTS', 'USAGE'].includes(line.text)) {
-        inspectorSection = line.text;
-        if (line.text === 'ARTIFACTS') inspectorArtifactIndex = 0;
-        return line.text === 'ARTIFACTS' ? { type: 'drawer.toggle', drawer: 'artifacts' } : { type: 'inspector.open' };
-      }
-      if (!line.text || line.text.startsWith('─')) return undefined;
-      if (inspectorSection === 'ARTIFACTS') {
-        const item = state.inspector.artifacts?.[inspectorArtifactIndex++];
-        return item ? { type: 'artifact.open', artifactId: item.id } : undefined;
-      }
-      return undefined;
-    });
-    inspector.content = styledLines(inspectorRows, inspectorSize.width);
+    const inspectorBody = inspectorLines(state, inspectorSize.width, inspectorSize.height);
+    inspectorClickTargets = inspectorBody.map(entry => entry.action);
+    inspector.content = styledLines(inspectorBody.map(entry => entry.line), inspectorSize.width);
     composer.content = styledLines(composerLines(state, layout.composer, composerSize.width, composerSize.height).map(line => ({ text: line, color: line.startsWith('>') ? 'cyan' : 'foreground' })), composerSize.width);
-    overlayClickTargets = [];
-    overlay.content = state.overlay.drawer !== 'closed'
-      ? styledLines((state.overlay.drawer === 'agents'
-        ? rosterLines(state, overlaySize.width, overlaySize.height, overlayClickTargets)
-        : drawerLines(state, overlaySize.width, overlaySize.height, overlayClickTargets)).map(line => ({ text: line })), overlaySize.width) : '';
-    const approvalLines = state.approval.length
-      ? state.approval
-          .flatMap((entry, index) => buildWorkbenchApprovalCardLines(entry, state.approval.length, renderer.width)
-            .map((line, row) => {
-              if (index === 0 || row !== 3) return line;
-              const inner = Math.max(0, displayWidth(line) - 2);
-              return `│${truncateDisplayText('Resolve oldest approval first', inner).padEnd(inner)}│`;
-            }))
-          .slice(0, Math.max(1, renderer.height - 3))
-      : [];
-    approval.visible = approvalLines.length > 0;
+    const overlayBody = state.overlay.drawer !== 'closed' ? drawerLines(state, overlaySize.width, overlaySize.height) : undefined;
+    overlayClickTargets = overlayBody?.targets ?? [];
+    overlay.content = overlayBody ? styledLines(overlayBody.lines.map(line => ({ text: line })), overlaySize.width) : '';
+    const approvalLines: string[] = [];
     approvalClickTargets = [];
-    if (approvalLines.length > 0) {
-      const decisionLine = approvalLines.findIndex(line => line.includes('a approve') && line.includes('d deny'));
-      const oldest = state.approval[0];
-      if (oldest && decisionLine >= 0) for (const [label, decision] of [['a approve', 'approved'], ['d deny', 'denied']] as const) {
-        const at = approvalLines[decisionLine]!.indexOf(label);
-        if (at >= 0) approvalClickTargets.push({
-          row: decisionLine, start: displayWidth(approvalLines[decisionLine]!.slice(0, at)),
-          end: displayWidth(approvalLines[decisionLine]!.slice(0, at)) + displayWidth(label),
-          action: { type: 'approval.resolve', approvalId: oldest.id, decision },
+    for (const entry of state.approval) {
+      const card = buildWorkbenchApprovalCardLines(entry, state.approval.length, renderer.width);
+      const base = approvalLines.length;
+      approvalLines.push(...card.slice(0, Math.max(0, Math.max(1, renderer.height - 3) - base)));
+      if (base + WORKBENCH_APPROVAL_DECISION_ROW >= approvalLines.length) continue;
+      for (const span of workbenchApprovalDecisionSpans()) {
+        approvalClickTargets.push({
+          row: base + WORKBENCH_APPROVAL_DECISION_ROW, start: span.start, end: span.end,
+          action: { type: 'approval.resolve', approvalId: entry.id, decision: span.decision },
         });
       }
+    }
+    approval.visible = approvalLines.length > 0;
+    if (approvalLines.length > 0) {
       const cardWidth = approvalLines[0]!.length;
       approvalText.content = approvalLines.join('\n');
       approval.width = Math.max(1, cardWidth);

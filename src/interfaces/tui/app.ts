@@ -38,6 +38,7 @@ import type { WorkbenchViewState } from './workbench/view-state/types.js';
 import type { OpenTuiClickAction } from './workbench/opentui/workbench-content.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
+import type { WorkbenchUiAction } from './workbench/model/ui-action.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
 import { validateCoordinationObjective } from './workbench/views/coordination-entry.js';
@@ -306,6 +307,16 @@ export class TuiApp {
   /** Test seam for the pure Workbench presentation store. */
   getWorkbenchStateForTest(): WorkbenchUiState {
     return this.workbenchStore.snapshot();
+  }
+
+  /**
+   * Test seam: apply a presentation-only Workbench store action. Prefer a
+   * routed click or key when one produces the state the test needs; this
+   * exists so a test can seed overlay/drawer state without reaching into the
+   * private store through a cast.
+   */
+  dispatchWorkbenchStoreForTest(action: WorkbenchUiAction): void {
+    this.workbenchStore.dispatch(action);
   }
 
   /**
@@ -1631,8 +1642,15 @@ export class TuiApp {
     if (!this.opts.workbenchEnabled || this.state.activeTab !== 'agent') return;
     const state = this.workbenchStore.snapshot();
     if (action.type === 'approval.resolve') {
-      if (this.workbenchHostPorts().approvalTarget()?.id !== action.approvalId) return;
-      applyWorkbenchIntent(this.workbenchStore, { type: 'approval.resolve', decision: action.decision }, {
+      // A click must name an approval the operator can currently see. The
+      // authoritative pending set decides; the renderer never resolves an id
+      // it did not read from supplied state.
+      const pendingIds = new Set([
+        ...this.state.views.agent.pendingApprovals.map(entry => entry.id),
+        ...(this.state.lastSnapshot?.approvals?.pending ?? []).map(entry => entry.id),
+      ]);
+      if (!pendingIds.has(action.approvalId)) return;
+      applyWorkbenchIntent(this.workbenchStore, { type: 'approval.resolve', decision: action.decision, approvalId: action.approvalId }, {
         snapshot: this.state.lastSnapshot,
         ports: this.workbenchHostPorts(),
         coordinationAvailable: Boolean(this.opts.agentSession?.runCoordination),

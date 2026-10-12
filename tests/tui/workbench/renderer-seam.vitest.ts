@@ -47,8 +47,7 @@ describe('TuiApp OpenTUI renderer seam', () => {
     assert.equal(app.getWorkbenchStateForTest().selectedTaskId, undefined);
     app.routeWorkbenchClick({ type: 'artifact.select', artifactId: 'missing', scrollOffset: 0 });
     assert.equal(app.getWorkbenchStateForTest().selectedArtifactId, undefined);
-    const store = (app as unknown as { workbenchStore: { dispatch(action: unknown): void } }).workbenchStore;
-    store.dispatch({ type: 'overlay.toggle', overlay: 'help' });
+    app.dispatchWorkbenchStoreForTest({ type: 'overlay.toggle', overlay: 'help' });
     app.routeWorkbenchClick({ type: 'focus.set', focus: 'composer' });
     assert.equal(app.getWorkbenchStateForTest().focus, 'modal');
   });

@@ -79,7 +79,11 @@ export function applyWorkbenchHostIntent(store: WorkbenchStore, intent: Workbenc
       return true;
     }
     case 'approval.resolve': {
-      const target = ports.approvalTarget();
+      // Keyboard resolves the oldest pending approval; a renderer that shows
+      // several authoritative cards resolves the exact card the operator acted
+      // on. Neither path infers a decision locally.
+      const requested = intent.approvalId;
+      const target = requested ? { id: requested } : ports.approvalTarget();
       if (!target) return false;
       if (ports.isApprovalDecisionPending(target.id)) return true;
       ports.markApprovalDecision(target.id);

@@ -76,6 +76,15 @@ their signatures are unchanged and the targeted OpenTUI suite passes.
 `docs/2026-10-11-opentui-workbench-mockup-handoff.md` records no local results;
 this record now certifies the mouse-click slice only.
 
+## Still open: the mockup-parity definition of done
+
+This record certifies the mouse-click and header slices only. The broader
+mockup-parity goal recorded in `docs/2026-10-11-opentui-workbench-mockup-handoff.md`
+(an untracked draft, not part of either spec) remains unverified: wide-frame
+reproduction of every supplied pane, geometry fit for long content and tool
+output, and bounded/sanitized output are not yet demonstrated against the
+preview image. Treat that record as a draft, not an accepted contract.
+
 ## Next for the operator
 
 1. Push `feat/opentui-mouse-clicks` (commit `e4eae33c`) and open a PR, or fold
