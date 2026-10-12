@@ -52,6 +52,14 @@ function styledLines(lines: readonly NativeLine[], width: number): StyledText {
 
 export type ContentState = Pick<WorkbenchViewState, 'header' | 'footer' | 'roster' | 'transcript' | 'selection' | 'overlay' | 'inspector' | 'composer' | 'approval'>;
 
+export type OpenTuiClickAction =
+  | { readonly type: 'focus.set'; readonly focus: 'composer' | 'transcript' }
+  | { readonly type: 'agent.select'; readonly agentId?: string; readonly scrollOffset: number }
+  | { readonly type: 'agentRoster.toggle' }
+  | { readonly type: 'coordination.inspect' }
+  | { readonly type: 'transcript.filter'; readonly filter: ContentState['transcript']['filter'] }
+  | { readonly type: 'transcript.follow.toggle' };
+
 export interface OpenTuiWorkbenchContent {
   readonly header: TextRenderable;
   readonly footer: TextRenderable;
@@ -62,6 +70,8 @@ export interface OpenTuiWorkbenchContent {
   readonly composer: TextRenderable;
   readonly approval: BoxRenderable;
   readonly resolvedScrollRows: number;
+  rosterClickTarget(row: number, surface?: 'roster' | 'overlay'): OpenTuiClickAction | undefined;
+  transcriptClickTarget(column: number, row: number): OpenTuiClickAction | undefined;
   update(state: ContentState): void;
   dispose(): void;
 }
@@ -112,16 +122,30 @@ function placeText(text: TextRenderable, box: BoxRenderable, region: WorkbenchRe
   return { width: Math.max(0, width - horizontalInset * 2), height };
 }
 
-function rosterLines(state: ContentState, width: number, height: number): string[] {
+function rosterLines(state: ContentState, width: number, height: number, clickTargets?: Array<OpenTuiClickAction | undefined>): string[] {
   if (height === 0 || width === 0) return [];
   const roster = state.roster.agents;
   if (!roster) return ['AGENTS & TASKS', '', 'Roster unavailable'];
   const agents = visibleForRun(roster.agents, state.selection.selectedRunId);
   const running = agents.filter(agent => ['starting', 'thinking', 'tool_running', 'verifying'].includes(agent.state)).length;
   const lines = ['AGENTS & TASKS', '', `○ All agents  /`, `  ${agents.length} agents • ${running} running`, '─'.repeat(width)];
-  if (state.selection.selectedRunId) lines.splice(2, 0, `RUN ${safeLine(state.selection.selectedRunId)}`);
-  if (!state.overlay.agentRosterExpanded) return [...lines, 'Enter to expand roster'].slice(0, height);
-  if (agents.length === 0) return [...lines, 'No subagents', '─'.repeat(width), '○ Coordination Run  c', '  Start a coordinated run'].slice(0, height);
+  const targets: Array<OpenTuiClickAction | undefined> = [undefined, undefined, { type: 'agent.select', scrollOffset: 0 }, undefined, undefined];
+  const finish = (rows: string[]): string[] => {
+    clickTargets?.push(...targets.slice(0, Math.min(rows.length, height)));
+    return rows.slice(0, height);
+  };
+  if (state.selection.selectedRunId) {
+    lines.splice(2, 0, `RUN ${safeLine(state.selection.selectedRunId)}`);
+    targets.splice(2, 0, undefined);
+  }
+  if (!state.overlay.agentRosterExpanded) {
+    targets.push({ type: 'agentRoster.toggle' });
+    return finish([...lines, 'Enter to expand roster']);
+  }
+  if (agents.length === 0) {
+    targets.push(undefined, undefined, { type: 'coordination.inspect' }, { type: 'coordination.inspect' });
+    return finish([...lines, 'No subagents', '─'.repeat(width), '○ Coordination Run  c', '  Start a coordinated run']);
+  }
   const theme = getWorkbenchPreviewTheme();
   const agentLine = (agent: typeof agents[number], index: number): string => {
     const status = getWorkbenchAgentPresentation(agent.state, theme);
@@ -130,7 +154,11 @@ function rosterLines(state: ContentState, width: number, height: number): string
     return index < 9 && width >= 6 ? `${label}${' '.repeat(Math.max(1, width - displayWidth(label) - 1))}${index + 1}` : label;
   };
   const selectedAgent = agents.find(agent => agent.agentId === state.selection.selectedAgentId);
-  if (height <= 2 && selectedAgent) return height === 1 ? [agentLine(selectedAgent, agents.indexOf(selectedAgent))] : [lines[0]!, agentLine(selectedAgent, agents.indexOf(selectedAgent))];
+  if (height <= 2 && selectedAgent) {
+    const target: OpenTuiClickAction = { type: 'agent.select', agentId: selectedAgent.agentId, scrollOffset: 0 };
+    clickTargets?.push(...(height === 1 ? [target] : [undefined, target]));
+    return height === 1 ? [agentLine(selectedAgent, agents.indexOf(selectedAgent))] : [lines[0]!, agentLine(selectedAgent, agents.indexOf(selectedAgent))];
+  }
   const selectedIndex = agents.findIndex(agent => agent.agentId === state.selection.selectedAgentId);
   const capacity = Math.max(1, Math.floor((height - lines.length - 3) / 3));
   let offset = Math.max(0, Math.min(agents.length - 1, state.overlay.drawerScrollOffset));
@@ -138,11 +166,19 @@ function rosterLines(state: ContentState, width: number, height: number): string
   for (const [index, agent] of agents.slice(offset).entries()) {
     if (lines.length >= height) break;
     lines.push(agentLine(agent, index + offset));
-    if (lines.length < height) lines.push(truncateDisplayText(safeLine(`  ${agent.taskLabel ?? agent.currentOperation ?? 'Task unavailable'}`), width));
-    if (lines.length < height) lines.push('');
+    const target: OpenTuiClickAction = { type: 'agent.select', agentId: agent.agentId, scrollOffset: Math.max(0, index + offset - 1) };
+    targets.push(target);
+    if (lines.length < height) {
+      lines.push(truncateDisplayText(safeLine(`  ${agent.taskLabel ?? agent.currentOperation ?? 'Task unavailable'}`), width));
+      targets.push(target);
+    }
+    if (lines.length < height) { lines.push(''); targets.push(undefined); }
   }
-  if (lines.length + 3 <= height) lines.push('─'.repeat(width), '○ Coordination Run  c', '  Start a coordinated run');
-  return lines;
+  if (lines.length + 3 <= height) {
+    lines.push('─'.repeat(width), '○ Coordination Run  c', '  Start a coordinated run');
+    targets.push(undefined, { type: 'coordination.inspect' }, { type: 'coordination.inspect' });
+  }
+  return finish(lines);
 }
 
 function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number, width: number, actor: string): string[] {
@@ -386,6 +422,9 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   let pausedConversation: ConversationSnapshot | undefined;
   let lastConversation: ConversationSnapshot | undefined;
   let resolvedScrollRows = 0;
+  let rosterClickTargets: Array<OpenTuiClickAction | undefined> = [];
+  let overlayClickTargets: Array<OpenTuiClickAction | undefined> = [];
+  let transcriptClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
   const update = (state: ContentState): void => {
     const headerSize = placeText(header, layout.regions.header, layout.geometry.regions.header);
     const footerSize = placeText(footer, layout.regions.footer, layout.geometry.regions.footer);
@@ -425,7 +464,10 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
         { text: line.slice(0, counterAt), color: 'cyan' as const }, { text: line.slice(counterAt), color: 'muted' as const },
       ] };
     }), footerSize.width);
-    const rosterRows = drawerLines(state, rosterSize.width, rosterSize.height);
+    rosterClickTargets = [];
+    const rosterRows = state.overlay.drawer === 'closed' || state.overlay.drawer === 'agents'
+      ? rosterLines(state, rosterSize.width, rosterSize.height, rosterClickTargets)
+      : drawerLines(state, rosterSize.width, rosterSize.height);
     roster.content = styledLines(rosterRows.map((line, index) => ({
       text: line,
       color: /^(AGENTS & TASKS|TASKS|ARTIFACTS)$/.test(line) ? 'cyan'
@@ -449,6 +491,22 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     const toolbar = toolbarParts.map(part => part.text).join('');
     const heading = 'LIVE TRANSCRIPT';
     const toolbarOnHeading = displayWidth(heading) + 3 + displayWidth(toolbar) <= transcriptSize.width;
+    transcriptClickTargets = [];
+    let toolbarColumn = toolbarOnHeading ? displayWidth(heading) + 3 : 0;
+    const toolbarRow = toolbarOnHeading ? 0 : 1;
+    for (const [index, category] of categories.entries()) {
+      const label = category.toLowerCase() === state.transcript.filter ? `[${category}]` : category;
+      transcriptClickTargets.push({
+        row: toolbarRow, start: toolbarColumn, end: toolbarColumn + displayWidth(label),
+        action: { type: 'transcript.filter', filter: category.toLowerCase() as ContentState['transcript']['filter'] },
+      });
+      toolbarColumn += displayWidth(label) + (index === categories.length - 1 ? 4 : 2);
+    }
+    transcriptClickTargets.push({
+      row: toolbarRow, start: toolbarColumn,
+      end: toolbarColumn + displayWidth(`Auto-follow: ${state.transcript.followTail ? 'ON' : 'OFF'}`),
+      action: { type: 'transcript.follow.toggle' },
+    });
     const transcriptChrome: NativeLine[] = toolbarOnHeading
       ? [{ text: `${heading}   ${toolbar}`, parts: [{ text: heading, color: 'cyan' }, { text: '   ' }, ...toolbarParts] }, { text: '' }]
       : [{ text: heading, color: 'cyan' }, { text: toolbar, parts: toolbarParts }, { text: '' }];
@@ -463,8 +521,11 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     lastConversation = state.transcript.conversation;
     inspector.content = styledLines(inspectorLines(state, inspectorSize.width, inspectorSize.height), inspectorSize.width);
     composer.content = styledLines(composerLines(state, layout.composer, composerSize.width, composerSize.height).map(line => ({ text: line, color: line.startsWith('>') ? 'cyan' : 'foreground' })), composerSize.width);
+    overlayClickTargets = [];
     overlay.content = state.overlay.drawer !== 'closed'
-      ? styledLines(drawerLines(state, overlaySize.width, overlaySize.height).map(line => ({ text: line })), overlaySize.width) : '';
+      ? styledLines((state.overlay.drawer === 'agents'
+        ? rosterLines(state, overlaySize.width, overlaySize.height, overlayClickTargets)
+        : drawerLines(state, overlaySize.width, overlaySize.height)).map(line => ({ text: line })), overlaySize.width) : '';
     const approvalLines = state.approval.length
       ? state.approval
           .flatMap(entry => buildWorkbenchApprovalCardLines(entry, state.approval.length, renderer.width))
@@ -487,6 +548,11 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   return {
     header, footer, roster, transcript, overlay, inspector, composer, approval, update,
     get resolvedScrollRows() { return resolvedScrollRows; },
+    rosterClickTarget: (row, surface = 'roster') =>
+      row >= 0 ? (surface === 'roster' ? rosterClickTargets : overlayClickTargets)[row] : undefined,
+    transcriptClickTarget: (column, row) =>
+      column >= 0 && column < transcript.width && row >= 0 && row < transcript.height
+        ? transcriptClickTargets.find(target => target.row === row && column >= target.start && column < target.end)?.action : undefined,
     dispose: () => {
       if (disposed) return;
       disposed = true;

@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createMockMouse, createTestRenderer, type TestRendererSetup } from '@opentui/core/testing';
 import { WorkbenchStore } from '../../../src/interfaces/tui/workbench/app/workbench-store.js';
 import { createInitialWorkbenchUiState } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
+import type { AgentSummary } from '../../../src/interfaces/tui/workbench/model/agent-roster.js';
 import type { OperatorShellSnapshot } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
 import type { WorkbenchHostPorts } from '../../../src/interfaces/tui/workbench/controller/host-intent.js';
 import { applyWorkbenchIntent } from '../../../src/interfaces/tui/workbench/controller/intent.js';
@@ -44,7 +45,7 @@ function pressEscape(setup: TestRendererSetup): void {
   });
 }
 
-function mount(setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }): Harness {
+function mount(setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }, agents: readonly AgentSummary[] = []): Harness {
   const store = new WorkbenchStore(createInitialWorkbenchUiState(dimensions));
   const { ports, calls } = makePorts();
   const signals = { turnActive: false, slashActive: false, approvalPending: false };
@@ -53,8 +54,11 @@ function mount(setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }
     const state = store.snapshot();
     return {
       header: chrome, footer: chrome,
-      roster: { agents: null, tasks: null, artifacts: null },
-      transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: state.transcriptMode, filter: 'all', scope: 'all', followTail: state.followTail },
+      roster: { agents: agents.length > 0 ? {
+        agents, active: agents.length,
+        totals: { agents: agents.length, running: agents.length, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 },
+      } : null, tasks: null, artifacts: null },
+      transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: state.transcriptMode, filter: state.transcriptFilter, scope: state.transcriptScope, followTail: state.followTail },
       inspector: { selection: 'aggregate', explicitTaskSelection: false, approvals: [], artifacts: [], tokensPartial: false, costPartial: false },
       composer: { composer: state.composer, coordination: state.coordination, queuedMessages: state.queuedMessages },
       approval: [],
@@ -74,6 +78,11 @@ function mount(setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }
     },
     onPaste: (text) => {
       store.dispatch({ type: 'composer.insert', text });
+      host.update();
+    },
+    onClick: (action) => {
+      if (action.type === 'agent.select') store.dispatch(action);
+      else applyWorkbenchIntent(store, action, { snapshot: undefined, ports, coordinationAvailable: true });
       host.update();
     },
   });
@@ -186,6 +195,115 @@ test('OpenTUI transcript wheel routes scroll keys', async () => {
     const mouse = createMockMouse(setup.renderer);
     await mouse.scroll(host.layout.regions.transcript.screenX + 10, host.layout.regions.transcript.screenY + 5, 'up');
     assert.ok(keys.includes('ArrowUp'));
+    host.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
+test('OpenTUI clicks focus the transcript and composer and use toolbar controls', async () => {
+  const setup = await createTestRenderer({ width: 120, height: 30 });
+  try {
+    const { host, store } = mount(setup);
+    const mouse = createMockMouse(setup.renderer);
+    await setup.renderOnce();
+    await mouse.click(host.content.transcript.screenX + 8, host.content.transcript.screenY + 5);
+    assert.equal(store.snapshot().focus, 'transcript');
+    await mouse.click(host.content.composer.screenX + 3, host.content.composer.screenY);
+    assert.equal(store.snapshot().focus, 'composer');
+
+    const toolbar = host.content.transcript.plainText.split('\n');
+    const toolbarRow = toolbar.findIndex(line => line.includes('TOOL') && line.includes('Auto-follow:'));
+    assert.ok(toolbarRow >= 0);
+    await mouse.click(host.content.transcript.screenX + toolbar[toolbarRow]!.indexOf('TOOL'), host.content.transcript.screenY + toolbarRow);
+    assert.equal(store.snapshot().transcriptFilter, 'tool');
+    store.dispatch({ type: 'transcript.follow', followTail: false });
+    host.update();
+    await setup.renderOnce();
+    const followToolbar = host.content.transcript.plainText.split('\n');
+    const followRow = followToolbar.findIndex(line => line.includes('Auto-follow:'));
+    await mouse.click(host.content.transcript.screenX + followToolbar[followRow]!.indexOf('Auto-follow:'), host.content.transcript.screenY + followRow);
+    assert.equal(store.snapshot().followTail, true);
+    setup.resize(60, 24);
+    await setup.renderOnce();
+    const narrowToolbar = host.content.transcript.plainText.split('\n');
+    const narrowRow = narrowToolbar.findIndex(line => line.includes('RESPONSE') && line.includes('Auto-follow:'));
+    assert.equal(narrowRow, 1);
+    await mouse.click(host.content.transcript.screenX + narrowToolbar[narrowRow]!.indexOf('RESPONSE'), host.content.transcript.screenY + narrowRow);
+    assert.equal(store.snapshot().transcriptFilter, 'response');
+    host.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
+test('OpenTUI roster clicks select by agent identity and ignore covered or right clicks', async () => {
+  const setup = await createTestRenderer({ width: 180, height: 30 });
+  try {
+    const agents: AgentSummary[] = [
+      { agentId: 'worker-1', role: 'worker', state: 'thinking', taskLabel: 'First task', ownedPaths: [], startedAt: 1, lastProgressAt: 1, usage: {} },
+      { agentId: 'worker-2', role: 'worker', state: 'thinking', taskLabel: 'Second task', ownedPaths: [], startedAt: 1, lastProgressAt: 1, usage: {} },
+    ];
+    const { host, store } = mount(setup, { columns: 180, rows: 30 }, agents);
+    const mouse = createMockMouse(setup.renderer);
+    await setup.renderOnce();
+    const roster = host.content.roster.plainText.split('\n');
+    const secondRow = roster.findIndex(line => line.includes('Second task'));
+    assert.ok(secondRow >= 0);
+    const x = host.content.roster.screenX + 3;
+    const y = host.content.roster.screenY + secondRow;
+    await mouse.click(x, y, 2);
+    assert.equal(store.snapshot().selectedAgentId, undefined);
+    await mouse.drag(x, y, x, y + 1);
+    assert.equal(store.snapshot().selectedAgentId, undefined);
+    await mouse.click(x, y);
+    assert.equal(store.snapshot().selectedAgentId, 'worker-2');
+
+    store.dispatch({ type: 'overlay.toggle', overlay: 'help' });
+    host.update();
+    await setup.renderOnce();
+    await mouse.click(host.content.roster.screenX + 3, host.content.roster.screenY + 2);
+    assert.equal(store.snapshot().selectedAgentId, 'worker-2');
+    store.dispatch({ type: 'overlay.close' });
+    host.update();
+    await setup.renderOnce();
+    await mouse.click(host.content.roster.screenX + 3, host.content.roster.screenY + 2);
+    assert.equal(store.snapshot().selectedAgentId, undefined);
+
+    store.dispatch({ type: 'agentRoster.toggle' });
+    host.update();
+    await setup.renderOnce();
+    const collapsedRow = host.content.roster.plainText.split('\n').findIndex(line => line.includes('Enter to expand roster'));
+    await mouse.click(host.content.roster.screenX + 3, host.content.roster.screenY + collapsedRow);
+    assert.equal(store.snapshot().agentRosterExpanded, true);
+    host.update();
+    await setup.renderOnce();
+    const coordinationRow = host.content.roster.plainText.split('\n').findIndex(line => line.includes('Coordination Run'));
+    await mouse.click(host.content.roster.screenX + 3, host.content.roster.screenY + coordinationRow);
+    assert.equal(store.snapshot().overlayStack.at(-1), 'coordination');
+    host.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
+test('OpenTUI narrow drawer uses its visible roster rows for clicks', async () => {
+  const setup = await createTestRenderer({ width: 80, height: 24 });
+  try {
+    const agents: AgentSummary[] = [
+      { agentId: 'worker-1', role: 'worker', state: 'thinking', taskLabel: 'First task', ownedPaths: [], startedAt: 1, lastProgressAt: 1, usage: {} },
+    ];
+    const { host, store } = mount(setup, { columns: 80, rows: 24 }, agents);
+    store.dispatch({ type: 'drawer.toggle', drawer: 'agents' });
+    host.update();
+    await setup.renderOnce();
+    assert.equal(host.layout.regions.overlay.visible, true);
+    const rows = host.content.overlay.plainText.split('\n');
+    const row = rows.findIndex(line => line.includes('First task'));
+    assert.ok(row >= 0);
+    const mouse = createMockMouse(setup.renderer);
+    await mouse.click(host.content.overlay.screenX + 3, host.content.overlay.screenY + row);
+    assert.equal(store.snapshot().selectedAgentId, 'worker-1');
     host.dispose();
   } finally {
     await disposeTestRenderer(setup);

@@ -35,6 +35,7 @@ import { applyWorkbenchIntent } from './workbench/controller/intent.js';
 import type { WorkbenchHostPorts } from './workbench/controller/host-intent.js';
 import { buildWorkbenchFrameViewState } from './workbench/view-state/assemble.js';
 import type { WorkbenchViewState } from './workbench/view-state/types.js';
+import type { OpenTuiClickAction } from './workbench/opentui/workbench-content.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
@@ -1624,6 +1625,25 @@ export class TuiApp {
 
   routeWorkbenchKey(key: string): void {
     this.handleKey(key);
+  }
+
+  routeWorkbenchClick(action: OpenTuiClickAction): void {
+    if (!this.opts.workbenchEnabled || this.state.activeTab !== 'agent') return;
+    const state = this.workbenchStore.snapshot();
+    if (state.overlayStack.length > 0 || this.state.views.agent.pendingApprovals.length > 0
+      || (this.state.lastSnapshot?.approvals?.pending?.length ?? 0) > 0) return;
+    if (action.type === 'agent.select') {
+      const agents = visibleForRun(this.state.lastSnapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);
+      if (action.agentId !== undefined && !agents.some(agent => agent.agentId === action.agentId)) return;
+      this.workbenchStore.dispatch(action);
+      this.paintFullFrame();
+      return;
+    }
+    applyWorkbenchIntent(this.workbenchStore, action, {
+      snapshot: this.state.lastSnapshot,
+      ports: this.workbenchHostPorts(),
+      coordinationAvailable: Boolean(this.opts.agentSession?.runCoordination),
+    });
   }
 
   /** Accept the native renderer's clamped viewport position after each frame. */

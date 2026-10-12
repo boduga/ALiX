@@ -470,6 +470,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
       }),
       onKey: (key) => app.routeWorkbenchKey(key),
       onPaste: (text) => app.routeWorkbenchPaste(text),
+      onClick: (action) => app.routeWorkbenchClick(action),
     });
     await exitPromise;
     host.dispose();
