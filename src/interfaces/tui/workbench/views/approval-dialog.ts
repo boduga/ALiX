@@ -7,6 +7,34 @@ function fit(text: string, width: number): string {
   return text.length <= width ? text : width === 1 ? '…' : `${text.slice(0, width - 1)}…`;
 }
 
+const DECISION_ROW_TEXT = 'a approve · d deny';
+const APPROVE_LABEL = 'a approve';
+const DENY_LABEL = 'd deny';
+
+/** Row index of the decision labels inside a built approval card. */
+export const WORKBENCH_APPROVAL_DECISION_ROW = 3;
+
+export interface WorkbenchApprovalDecisionSpan {
+  readonly label: string;
+  readonly decision: 'approved' | 'denied';
+  readonly start: number;
+  readonly end: number;
+}
+
+/**
+ * Column spans of the approve/deny labels inside a built card. Both renderers
+ * derive these from the same literal the card text is built from, so a hit
+ * target can never drift from the painted label.
+ */
+export function workbenchApprovalDecisionSpans(): readonly WorkbenchApprovalDecisionSpan[] {
+  const base = 1;
+  const denyAt = DECISION_ROW_TEXT.indexOf(DENY_LABEL);
+  return [
+    { label: APPROVE_LABEL, decision: 'approved', start: base, end: base + APPROVE_LABEL.length },
+    { label: DENY_LABEL, decision: 'denied', start: base + denyAt, end: base + denyAt + DENY_LABEL.length },
+  ];
+}
+
 /** Build the shared, bounded representation of an authoritative approval. */
 export function buildWorkbenchApprovalCardLines(
   approval: Pick<ApprovalRecordSnapshot, 'id' | 'toolName' | 'target' | 'requestedAt'>,
@@ -23,7 +51,7 @@ export function buildWorkbenchApprovalCardLines(
     `╭${title}${'─'.repeat(Math.max(0, inner - title.length))}╮`,
     `│${fit(approval.target || 'No target details provided', inner).padEnd(inner)}│`,
     `│${fit(`pending · id ${approval.id}`, inner).padEnd(inner)}│`,
-    `│${fit('a approve · d deny', inner).padEnd(inner)}│`,
+    `│${fit(DECISION_ROW_TEXT, inner).padEnd(inner)}│`,
     `│${fit('Ctrl+O details · remains pending until runtime confirms', inner).padEnd(inner)}│`,
     `╰${'─'.repeat(inner)}╯`,
   ];

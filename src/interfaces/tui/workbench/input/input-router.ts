@@ -21,7 +21,7 @@ export type WorkbenchInputIntent =
   | { readonly type: 'turn.queue' }
   | { readonly type: 'slash.submit' }
   | { readonly type: 'turn.cancel' }
-  | { readonly type: 'approval.resolve'; readonly decision: 'approved' | 'denied' }
+  | { readonly type: 'approval.resolve'; readonly decision: 'approved' | 'denied'; readonly approvalId?: string }
   | { readonly type: 'permission.cycle' }
   | { readonly type: 'overlay.close' }
   | { readonly type: 'overlay.scroll'; readonly delta: number }

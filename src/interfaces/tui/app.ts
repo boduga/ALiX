@@ -35,8 +35,10 @@ import { applyWorkbenchIntent } from './workbench/controller/intent.js';
 import type { WorkbenchHostPorts } from './workbench/controller/host-intent.js';
 import { buildWorkbenchFrameViewState } from './workbench/view-state/assemble.js';
 import type { WorkbenchViewState } from './workbench/view-state/types.js';
+import type { OpenTuiClickAction } from './workbench/opentui/workbench-content.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
+import type { WorkbenchUiAction } from './workbench/model/ui-action.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
 import { validateCoordinationObjective } from './workbench/views/coordination-entry.js';
@@ -70,6 +72,7 @@ export interface TuiAppOptions {
   workbenchEnabled?: boolean;
   renderer?: RendererId;
   onWorkbenchFrame?: (state: WorkbenchViewState) => void;
+  onExit?: () => void;
   /** Optional capability service — the palette only activates when a
    *  service is available (either here or via the module accessor). */
   capabilityService?: import('./capabilities/capability-service.js').CapabilityService;
@@ -304,6 +307,16 @@ export class TuiApp {
   /** Test seam for the pure Workbench presentation store. */
   getWorkbenchStateForTest(): WorkbenchUiState {
     return this.workbenchStore.snapshot();
+  }
+
+  /**
+   * Test seam: apply a presentation-only Workbench store action. Prefer a
+   * routed click or key when one produces the state the test needs; this
+   * exists so a test can seed overlay/drawer state without reaching into the
+   * private store through a cast.
+   */
+  dispatchWorkbenchStoreForTest(action: WorkbenchUiAction): void {
+    this.workbenchStore.dispatch(action);
   }
 
   /**
@@ -1244,6 +1257,10 @@ export class TuiApp {
     const isInputTab = inputTabs.includes(this.state.activeTab);
     const qHandledByTab = this.state.activeTab === 'evolution';
     if (key === '' || (!isInputTab && !qHandledByTab && (key === 'q' || key === 'Q'))) {
+      if (this.opts.renderer === 'opentui') {
+        this.opts.onExit?.();
+        return true;
+      }
       // Terminate immediately. The 'exit' event handler (installed by
       // installEmergencyCleanup in start()) runs cleanupSync synchronously
       // to restore the terminal — no async stop() needed, and avoiding the
@@ -1383,6 +1400,7 @@ export class TuiApp {
     if (this.opts.workbenchEnabled && tab === 'agent') {
       this.workbenchStore.dispatch({ type: 'transcript.follow', followTail: true });
       this.state.views.agent.pinnedBottom = true;
+      this.state.views.agent.nativeTranscriptScrollRows = 0;
     }
     const ctx = this.framePainter.buildViewRenderContext(tab);
     this.state.views[tab].scrollOffset = computeBottomAnchor(ctx, tab);
@@ -1401,6 +1419,16 @@ export class TuiApp {
       case 'scroll': {
         const tab = this.state.activeTab;
         const per = this.state.views[tab];
+        if (tab === 'agent' && this.opts.workbenchEnabled && this.opts.renderer === 'opentui') {
+          const delta = action.offset - per.scrollOffset;
+          const current = per.pinnedBottom ? 0 : per.nativeTranscriptScrollRows ?? 0;
+          per.nativeTranscriptScrollRows = Math.max(0, current + delta);
+          per.scrollOffset = Math.max(0, action.offset);
+          per.pinnedBottom = per.nativeTranscriptScrollRows === 0;
+          this.workbenchStore.dispatch({ type: 'transcript.follow', followTail: per.pinnedBottom });
+          this.paintFullFrame();
+          break;
+        }
         const isAgentOrChat = tab === 'agent' || tab === 'chat';
         if (isAgentOrChat) {
           if (this.opts.workbenchEnabled && tab === 'agent') per.pinnedBottom = this.workbenchStore.snapshot().followTail;
@@ -1608,6 +1636,77 @@ export class TuiApp {
 
   routeWorkbenchKey(key: string): void {
     this.handleKey(key);
+  }
+
+  routeWorkbenchClick(action: OpenTuiClickAction): void {
+    if (!this.opts.workbenchEnabled || this.state.activeTab !== 'agent') return;
+    const state = this.workbenchStore.snapshot();
+    if (action.type === 'approval.resolve') {
+      // A click must name an approval the operator can currently see. The
+      // authoritative pending set decides; the renderer never resolves an id
+      // it did not read from supplied state.
+      const pendingIds = new Set([
+        ...this.state.views.agent.pendingApprovals.map(entry => entry.id),
+        ...(this.state.lastSnapshot?.approvals?.pending ?? []).map(entry => entry.id),
+      ]);
+      if (!pendingIds.has(action.approvalId)) return;
+      applyWorkbenchIntent(this.workbenchStore, { type: 'approval.resolve', decision: action.decision, approvalId: action.approvalId }, {
+        snapshot: this.state.lastSnapshot,
+        ports: this.workbenchHostPorts(),
+        coordinationAvailable: Boolean(this.opts.agentSession?.runCoordination),
+      });
+      return;
+    }
+    if (state.overlayStack.length > 0 || this.state.views.agent.pendingApprovals.length > 0
+      || (this.state.lastSnapshot?.approvals?.pending?.length ?? 0) > 0) return;
+    if (action.type === 'tab.next') {
+      this.tryHandleGlobal('Tab');
+      return;
+    }
+    if (action.type === 'agent.select') {
+      const agents = visibleForRun(this.state.lastSnapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);
+      if (action.agentId !== undefined && !agents.some(agent => agent.agentId === action.agentId)) return;
+      this.workbenchStore.dispatch(action);
+      this.paintFullFrame();
+      return;
+    }
+    if (action.type === 'task.select') {
+      const tasks = visibleForRun(this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [], state.selectedRunId);
+      const task = tasks.find(entry => entry.taskId === action.taskId);
+      if (!task) return;
+      this.workbenchStore.dispatch({ type: 'task.select', taskId: task.taskId, agentId: task.agentId, scrollOffset: action.scrollOffset });
+      this.paintFullFrame();
+      return;
+    }
+    if (action.type === 'artifact.select' || action.type === 'artifact.open') {
+      const items = visibleArtifacts(artifactItemsFrom(this.state.lastSnapshot), {
+        runId: state.selectedRunId, agentId: state.selectedAgentId, taskId: state.selectedTaskId,
+      });
+      const item = items.find(entry => entry.id === action.artifactId);
+      if (!item) return;
+      this.workbenchStore.dispatch({ type: 'artifact.select', artifactId: item.id,
+        runId: item.coordinationRunId, agentId: item.agentId, taskId: item.taskId,
+        scrollOffset: action.type === 'artifact.select' ? action.scrollOffset : 0 });
+      if (action.type === 'artifact.open' && state.drawer !== 'artifacts') {
+        applyWorkbenchIntent(this.workbenchStore, { type: 'drawer.toggle', drawer: 'artifacts' }, {
+          snapshot: this.state.lastSnapshot,
+          ports: this.workbenchHostPorts(),
+          coordinationAvailable: Boolean(this.opts.agentSession?.runCoordination),
+        });
+      } else this.paintFullFrame();
+      return;
+    }
+    applyWorkbenchIntent(this.workbenchStore, action, {
+      snapshot: this.state.lastSnapshot,
+      ports: this.workbenchHostPorts(),
+      coordinationAvailable: Boolean(this.opts.agentSession?.runCoordination),
+    });
+  }
+
+  /** Accept the native renderer's clamped viewport position after each frame. */
+  setNativeTranscriptScrollRows(rows: number): void {
+    if (this.opts.renderer !== 'opentui' || !Number.isFinite(rows)) return;
+    this.state.views.agent.nativeTranscriptScrollRows = Math.max(0, Math.floor(rows));
   }
 
   routeWorkbenchPaste(text: string): boolean {

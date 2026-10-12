@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createTestRenderer } from '@opentui/core/testing';
+import type { AlixEvent } from '../../../src/runtime-state/events/types.js';
+import { buildExecutionTrace } from '../../../src/interfaces/tui/runtime/execution-trace-builder.js';
+import { TimelineBuilder } from '../../../src/interfaces/tui/runtime/timeline-builder.js';
+import { AgentRosterProjection } from '../../../src/interfaces/tui/workbench/projections/agent-roster-projection.js';
+import { ArtifactProjection } from '../../../src/interfaces/tui/workbench/projections/artifact-projection.js';
+import { ConversationProjection } from '../../../src/interfaces/tui/workbench/projections/conversation-projection.js';
+import { TaskProjection } from '../../../src/interfaces/tui/workbench/projections/task-projection.js';
 import { disposeTestRenderer } from './opentui-native-harness.js';
 import type { AgentInspectorModel } from '../../../src/interfaces/tui/workbench/model/agent-inspector.js';
 import type { OperatorShellSnapshot } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
@@ -47,19 +55,19 @@ for (const { name, width, height, drawer, inspector, overlay } of [
       const layout = mountOpenTuiWorkbenchLayout(setup.renderer, layoutState(drawer));
       await setup.renderOnce();
       const frame = setup.captureCharFrame();
-      if (!overlay) assert.match(frame, /Transcript/);
-      assert.match(frame, /Composer/);
+      if (!overlay) assert.equal(layout.regions.transcript.visible, true);
+      assert.equal(layout.regions.composer.visible, true);
+      assert.match(frame, /┌─/);
       assert.equal(layout.regions.inspector.visible, inspector);
       assert.equal(layout.regions.overlay.visible, overlay);
       const geometry = layout.update(layoutState(drawer));
       assert.equal(layout.regions.transcript.screenX, geometry.regions.transcript.x);
       assert.equal(layout.regions.transcript.screenY, geometry.regions.transcript.y);
-      if (inspector) assert.match(frame, /Inspector/);
-      if (drawer !== 'closed' || width >= 160 && height >= 36) assert.match(frame, /Agents/);
+      if (drawer !== 'closed' || width >= 160 && height >= 36) assert.equal(layout.regions.roster.visible || layout.regions.overlay.visible, true);
       layout.dispose();
       layout.dispose();
       await setup.renderOnce();
-      assert.doesNotMatch(setup.captureCharFrame(), /Composer/);
+      assert.doesNotMatch(setup.captureCharFrame(), /┌─/);
     } finally {
       await disposeTestRenderer(setup);
     }
@@ -115,7 +123,7 @@ test('native roster and transcript show selected run content and update in place
       },
       transcript: {
         conversation: { items: [
-          { id: 'u', kind: 'user', text: 'Please research', startedAt: 1, sourceEvents: { firstSequence: 1, lastSequence: 1 } },
+          { id: 'u', kind: 'user', text: 'Please research FAILED TOOL ✓', startedAt: 1, sourceEvents: { firstSequence: 1, lastSequence: 1 } },
           { id: 'a', kind: 'assistant', agentId: 'worker-1', text: 'Sources ready', startedAt: 2, sourceEvents: { firstSequence: 2, lastSequence: 2 } },
           { id: 'other', kind: 'assistant', agentId: 'worker-2', text: 'Other run response', startedAt: 2, sourceEvents: { firstSequence: 2, lastSequence: 2 } },
           { id: 't', kind: 'tool-group', agentId: 'worker-1', startedAt: 3, sourceEvents: { firstSequence: 3, lastSequence: 3 }, tools: [
@@ -131,14 +139,23 @@ test('native roster and transcript show selected run content and update in place
     const content = mountOpenTuiWorkbenchContent(setup.renderer, layout, state);
     await setup.renderOnce();
     let frame = setup.captureCharFrame();
+    assert.match(frame, /AGENTS & TASKS/);
+    assert.match(frame, /LIVE TRANSCRIPT/);
+    assert.match(frame, /\[ALL\]  RESPONSE  TOOL  ACTIVITY  ERROR/);
+    assert.match(frame, /Auto-follow: ON/);
+    assert.match(frame, /\[00:00:00\]/);
     assert.match(frame, /Researcher/);
     assert.match(frame, /RUN run-a/);
     assert.match(frame, /Find sources/);
     assert.doesNotMatch(frame, /Builder/);
     assert.match(frame, /Please research/);
+    const prose = content.transcript.chunks.find(chunk => chunk.text.includes('Please research FAILED TOOL ✓'));
+    assert.equal(prose?.fg?.toInts().slice(0, 3).join(','), '230,237,243');
     assert.match(frame, /Sources ready/);
     assert.doesNotMatch(frame, /Other run response/);
     assert.match(frame, /TOOL  search/);
+    assert.match(frame, /requested lines: unavailable/);
+    assert.ok(content.roster.chunks.filter(chunk => chunk.bg?.toInts().slice(0, 3).join(',') === '6,49,61').length >= 2);
 
     const rosterNode = content.roster;
     content.update({ ...state, transcript: { ...state.transcript, filter: 'response' } });
@@ -203,6 +220,44 @@ test('very long transcript item stays bounded to native viewport', async () => {
     await setup.renderOnce();
     assert.match(setup.captureCharFrame(), /TAIL MARKER/);
     assert.ok(content.transcript.plainText.length < 2_000);
+    content.dispose();
+    layout.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
+test('native transcript shows older rows at a paused scroll offset', async () => {
+  const setup = await createTestRenderer({ width: 80, height: 24 });
+  try {
+    const shell = layoutState('closed');
+    const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shell);
+    const conversation = { items: Array.from({ length: 30 }, (_, index) => ({
+      id: `row-${index}`, kind: 'assistant' as const, text: `ROW ${String(index).padStart(2, '0')}`,
+      startedAt: index, sourceEvents: { firstSequence: index, lastSequence: index },
+    })), hiddenDiagnostics: 0 };
+    const base: ContentState = {
+      inspector: inspectorState(), composer: contentComposer(), approval: [],
+      header: chromeState(), footer: chromeState(),
+      roster: { agents: null, tasks: null, artifacts: null },
+      transcript: { conversation, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
+      selection: {}, overlay: shell.overlay,
+    };
+    const content = mountOpenTuiWorkbenchContent(setup.renderer, layout, base);
+    await setup.renderOnce();
+    assert.match(content.transcript.plainText, /ROW 29/);
+    assert.doesNotMatch(content.transcript.plainText, /ROW 00/);
+
+    content.update({ ...base, transcript: { ...base.transcript, followTail: false, scrollRowsFromTail: 3 } });
+    await setup.renderOnce();
+    assert.match(content.transcript.plainText, /ROW 14/);
+    assert.doesNotMatch(content.transcript.plainText, /ROW 29/);
+
+    content.update({ ...base, transcript: { ...base.transcript, followTail: false, scrollRowsFromTail: 100 } } as ContentState);
+    await setup.renderOnce();
+    assert.match(content.transcript.plainText, /ROW 00/);
+    assert.doesNotMatch(content.transcript.plainText, /ROW 29/);
+    assert.equal(content.resolvedScrollRows, 17);
     content.dispose();
     layout.dispose();
   } finally {
@@ -345,6 +400,14 @@ test('native composer shows placeholder, draft, and multiline rows', async () =>
     assert.strictEqual(content.composer, composerNode);
     assert.match(setup.captureCharFrame(), /> hello world/);
 
+    const fullWidth = `Q${'x'.repeat(114)}Z`;
+    const filled = layoutState('agents', fullWidth);
+    layout.update(filled);
+    content.update({ ...base, composer: filled.composer });
+    await setup.renderOnce();
+    assert.equal(content.composer.width, 118);
+    assert.ok(content.composer.plainText.includes(fullWidth));
+
     const multiline = layoutState('agents', 'line one\nline two\nline three\nline four\nline five\nline six\nline seven');
     layout.update(multiline);
     content.update({ ...base, composer: multiline.composer });
@@ -468,10 +531,95 @@ test('native header and footer render operator chrome', async () => {
     assert.match(frame, /ALiX WORKBENCH/);
     assert.match(frame, /PREVIEW/);
     assert.match(frame, /workspace: \/work\/project/);
+    const brand = content.header.chunks.find(chunk => chunk.text === 'ALiX WORKBENCH');
+    const workspace = content.header.chunks.find(chunk => chunk.text === '/work/project');
+    assert.ok(brand?.attributes, 'brand uses terminal bold');
+    assert.deepEqual(brand.fg?.toInts().slice(0, 3), [6, 201, 239]);
+    assert.deepEqual(workspace?.fg?.toInts().slice(0, 3), [6, 201, 239]);
     assert.match(frame, /TOKENS 1,234/);
     assert.match(frame, /a approve/);
     assert.match(frame, /d deny/);
     assert.match(frame, /Esc cancel/);
+    // Row 0 groups are workspace | mode | warnings | counters; the run status
+    // never joins them. Warning groups take precedence over the counters.
+    const headerRow = content.header.plainText.split('\n')[0] ?? '';
+    assert.match(headerRow, /workspace: \/work\/project\s+\|\s+ask\s+\|\s+1 approval\s+\|\s+4 agents • 2 running/);
+    assert.doesNotMatch(headerRow, /RUNNING|WAITING FOR APPROVAL/);
+    // A running turn paints its status on the reserved status row, not row 0.
+    content.update({ ...state, header: chromeState({ ...chrome, status: { kind: 'liveness', startedAt: Date.now() - 5_000, lastProgressAt: Date.now() - 1_000, state: 'healthy' } }) });
+    await setup.renderOnce();
+    const statusRow = content.header.plainText.split('\n')[1] ?? '';
+    assert.match(statusRow, /^RUNNING \d/);
+    content.update({ ...state, header: chromeState({ ...chrome, status: undefined }) });
+    await setup.renderOnce();
+    assert.doesNotMatch(content.header.plainText, /RUNNING|WAITING FOR APPROVAL/);
+    content.update({ ...state, header: chromeState({ workspace: '/漢\n\x1b[31mwork' }) });
+    await setup.renderOnce();
+    assert.doesNotMatch(content.header.plainText, /\n|\x1b/);
+    assert.match(content.header.plainText, /workspace: \/漢 work/);
+    content.dispose();
+    layout.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
+test('native wide frame renders the event-backed preview scene', async () => {
+  const fixture = JSON.parse(readFileSync('tests/fixtures/tui/workbench-preview-events.json', 'utf8')) as {
+    now: string; workspace: string; sessionId: string; selectedAgentId: string; events: AlixEvent[];
+  };
+  const now = Date.parse(fixture.now);
+  const agentProjection = new AgentRosterProjection();
+  const taskProjection = new TaskProjection();
+  const artifactProjection = new ArtifactProjection();
+  const timeline = new TimelineBuilder(fixture.sessionId);
+  agentProjection.update(fixture.events);
+  taskProjection.update(fixture.events);
+  artifactProjection.update(fixture.events);
+  timeline.update(fixture.events);
+  const agents = agentProjection.snapshot(now);
+  const tasks = taskProjection.snapshot();
+  const artifacts = artifactProjection.snapshot();
+  const agent = agents.agents.find(entry => entry.agentId === fixture.selectedAgentId)!;
+  const shell = layoutState('agents');
+  const chrome = chromeState({
+    demo: true, workspace: fixture.workspace, mode: 'bypass', running: true,
+    agents: { active: agents.active, total: agents.totals.agents, running: agents.totals.running,
+      waitingApproval: 0, stalled: 0, costCoverage: 0 },
+    tokensUsed: 7352, filesTouched: artifacts.artifacts, eventCount: fixture.events.length,
+  });
+  const state: ContentState = {
+    header: chrome, footer: chrome,
+    roster: { agents, tasks, artifacts },
+    transcript: { conversation: new ConversationProjection().project({
+      timeline: timeline.snapshot(), trace: buildExecutionTrace(fixture.events), mode: 'compact',
+    }), mode: 'compact', filter: 'all', scope: 'all', followTail: true },
+    inspector: inspectorState({
+      selection: 'selected', agent, task: tasks.tasks.find(entry => entry.agentId === fixture.selectedAgentId),
+      artifacts: artifacts.items.filter(entry => entry.agentId === fixture.selectedAgentId),
+      tokens: agent.usage.totalTokens,
+      activity: agent.activeTool && { toolName: agent.activeTool.toolName, toolCallId: agent.activeTool.toolCallId,
+        startedAt: agent.activeTool.startedAt, elapsedMs: now - agent.activeTool.startedAt, status: 'writing file...' },
+    }),
+    composer: contentComposer(), approval: [],
+    selection: { selectedAgentId: fixture.selectedAgentId }, overlay: shell.overlay,
+  };
+  const setup = await createTestRenderer({ width: 200, height: 44 });
+  try {
+    const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shell);
+    const content = mountOpenTuiWorkbenchContent(setup.renderer, layout, state);
+    await setup.renderOnce();
+    const frame = setup.captureCharFrame();
+    for (const text of ['AGENTS & TASKS', 'LIVE TRANSCRIPT', 'AGENT DETAILS', 'frontend-agent',
+      'backend-agent', 'test-agent', 'review-agent', 'Planning phase complete.',
+      'sidebar.tsx', 'right-sidebar.ts', 'Auto-follow: ON', 'Tokens', '7,352']) {
+      assert.ok(frame.includes(text), `preview frame missing ${text}\n${content.transcript.plainText}`);
+    }
+    assert.match(frame, /5 agents • 3 running/);
+    assert.match(frame, /frontend-agent.*3/);
+    assert.doesNotMatch(frame, /THINKING|WAITING_DEPENDENCY/);
+    assert.match(frame, /CONCEPT PREVIEW/);
+    assert.match(frame, /EVENTS 38/);
     content.dispose();
     layout.dispose();
   } finally {

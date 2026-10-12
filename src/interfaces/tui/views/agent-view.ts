@@ -355,10 +355,14 @@ export class AgentView implements TuiView {
         return { type: 'toggleTranscriptMode' };
       case 'ArrowUp':
         return { type: 'scroll', offset: ctx.perTab.scrollOffset + SCROLL_STEP };
+      case 'PageUp':
+        return { type: 'scroll', offset: ctx.perTab.scrollOffset + 8 };
       case 'ArrowDown': {
         const offset = Math.max(0, ctx.perTab.scrollOffset - SCROLL_STEP);
         return { type: 'scroll', offset };
       }
+      case 'PageDown':
+        return { type: 'scroll', offset: Math.max(0, ctx.perTab.scrollOffset - 8) };
       default:
         return { type: 'handled' };
     }

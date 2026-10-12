@@ -32,4 +32,23 @@ describe('TuiApp OpenTUI renderer seam', () => {
     assert.equal(app.getWorkbenchStateForTest().composer.text, 'pasted');
     assert.equal(app.getWorkbenchStateForTest().coordination.draft.text, 'objective');
   });
+
+  it('routes clicks through Workbench state and rejects stale agent rows', () => {
+    const { app, paint } = createWorkbenchRenderHarness('hello', { renderer: 'opentui' });
+    paint();
+    app.routeWorkbenchClick({ type: 'focus.set', focus: 'transcript' });
+    app.routeWorkbenchClick({ type: 'transcript.filter', filter: 'tool' });
+    assert.equal(app.getWorkbenchStateForTest().focus, 'transcript');
+    assert.equal(app.getWorkbenchStateForTest().transcriptFilter, 'tool');
+
+    app.routeWorkbenchClick({ type: 'agent.select', agentId: 'missing', scrollOffset: 0 });
+    assert.equal(app.getWorkbenchStateForTest().selectedAgentId, undefined);
+    app.routeWorkbenchClick({ type: 'task.select', taskId: 'missing', scrollOffset: 0 });
+    assert.equal(app.getWorkbenchStateForTest().selectedTaskId, undefined);
+    app.routeWorkbenchClick({ type: 'artifact.select', artifactId: 'missing', scrollOffset: 0 });
+    assert.equal(app.getWorkbenchStateForTest().selectedArtifactId, undefined);
+    app.dispatchWorkbenchStoreForTest({ type: 'overlay.toggle', overlay: 'help' });
+    app.routeWorkbenchClick({ type: 'focus.set', focus: 'composer' });
+    assert.equal(app.getWorkbenchStateForTest().focus, 'modal');
+  });
 });

@@ -1,22 +1,76 @@
-import { BoxRenderable, TextRenderable, type CliRenderer } from '@opentui/core';
+import { BoxRenderable, StyledText, TextRenderable, bg, bold, fg, type CliRenderer } from '@opentui/core';
 import { getWorkbenchAgentPresentation, getWorkbenchPreviewTheme } from '../model/preview-theme.js';
 import { formatByteSize, formatCoordMeta, taskStateGlyph } from '../model/display-format.js';
-import type { OperatorShellSnapshot, OperatorShellStatus } from '../model/operator-shell.js';
+import type { OperatorShellSnapshot } from '../model/operator-shell.js';
 import { visibleArtifacts, visibleForRun } from '../model/selection.js';
 import { transcriptItemMatchesFilter } from '../model/transcript-filter.js';
 import type { ConversationSnapshot, TranscriptItem } from '../model/transcript-item.js';
-import { truncateDisplayText, wrapDisplayText } from '../render/terminal-text.js';
+import { displayWidth, truncateDisplayText, wrapDisplayText } from '../render/terminal-text.js';
 import type { WorkbenchRegion } from '../layout/responsive-layout.js';
 import type { WorkbenchViewState } from '../view-state/types.js';
 import { buildAgentInspectorSections } from '../views/agent-inspector.js';
-import { buildWorkbenchApprovalCardLines } from '../views/approval-dialog.js';
+import {
+  WORKBENCH_APPROVAL_DECISION_ROW, buildWorkbenchApprovalCardLines, workbenchApprovalDecisionSpans,
+} from '../views/approval-dialog.js';
+import { buildOperatorStatusSegments } from '../views/operator-shell.js';
+import { buildWorkbenchToolCardLines } from '../views/tool-card.js';
 import type { ComposerLayout } from '../views/composer-view.js';
 import type { OpenTuiWorkbenchLayout } from './workbench-layout.js';
 
 /** Maximum characters retained from one transcript item before wrapping. */
 const MAX_ITEM_CHARS = 4;
+const COLORS = {
+  background: '#08151b', foreground: '#e6edf3', muted: '#9cb4ca',
+  cyan: '#06c9ef', green: '#3df451', yellow: '#ffc63d',
+  purple: '#b169ee', teal: '#08e3b5', red: '#ff636e',
+  divider: '#547b91', selection: '#06313d',
+} as const;
+const ACTIVITY_STATUS: Readonly<Record<string, string>> = {
+  starting: 'STARTING', thinking: 'RUNNING', tool_running: 'RUNNING', verifying: 'VERIFYING',
+  waiting: 'WAITING', waiting_dependency: 'WAITING', waiting_approval: 'APPROVAL',
+  completed: 'COMPLETED', partial: 'PARTIAL', failed: 'FAILED', cancelled: 'CANCELLED',
+};
+
+type Color = keyof typeof COLORS;
+interface NativePart { readonly text: string; readonly color?: Color; readonly background?: Color; readonly bold?: boolean }
+interface NativeLine { readonly text: string; readonly color?: Color; readonly fill?: boolean; readonly parts?: readonly NativePart[] }
+
+function styledLines(lines: readonly NativeLine[], width: number): StyledText {
+  const chunks = lines.flatMap((line, index) => {
+    let remaining = width;
+    const styled = (line.parts ?? [{ text: line.text, color: line.color }]).flatMap(part => {
+      if (remaining <= 0) return [];
+      const clipped = truncateDisplayText(part.text, remaining);
+      remaining -= displayWidth(clipped);
+      const colored = fg(COLORS[part.color ?? line.color ?? 'foreground'])(clipped);
+      const chunk = part.bold ? bold(colored) : colored;
+      return [part.background || line.fill ? bg(COLORS[part.background ?? 'selection'])(chunk) : chunk];
+    });
+    if (line.fill && remaining > 0) styled.push(bg(COLORS.selection)(fg(COLORS.foreground)(' '.repeat(remaining))));
+    if (index < lines.length - 1) styled.push(fg(COLORS.foreground)('\n'));
+    return styled;
+  });
+  return new StyledText(chunks);
+}
 
 export type ContentState = Pick<WorkbenchViewState, 'header' | 'footer' | 'roster' | 'transcript' | 'selection' | 'overlay' | 'inspector' | 'composer' | 'approval'>;
+
+export type OpenTuiClickAction =
+  | { readonly type: 'focus.set'; readonly focus: 'composer' | 'transcript' }
+  | { readonly type: 'agent.select'; readonly agentId?: string; readonly scrollOffset: number }
+  | { readonly type: 'task.select'; readonly taskId: string; readonly agentId?: string; readonly scrollOffset: number }
+  | { readonly type: 'artifact.select'; readonly artifactId: string; readonly runId?: string; readonly agentId?: string; readonly taskId?: string; readonly scrollOffset: number }
+  | { readonly type: 'artifact.open'; readonly artifactId: string }
+  | { readonly type: 'drawer.toggle'; readonly drawer: 'artifacts' }
+  | { readonly type: 'inspector.open' }
+  | { readonly type: 'tab.next' }
+  | { readonly type: 'turn.cancel' }
+  | { readonly type: 'overlay.close' }
+  | { readonly type: 'approval.resolve'; readonly approvalId: string; readonly decision: 'approved' | 'denied' }
+  | { readonly type: 'agentRoster.toggle' }
+  | { readonly type: 'coordination.inspect' }
+  | { readonly type: 'transcript.filter'; readonly filter: ContentState['transcript']['filter'] }
+  | { readonly type: 'transcript.follow.toggle' };
 
 export interface OpenTuiWorkbenchContent {
   readonly header: TextRenderable;
@@ -27,6 +81,12 @@ export interface OpenTuiWorkbenchContent {
   readonly inspector: TextRenderable;
   readonly composer: TextRenderable;
   readonly approval: BoxRenderable;
+  readonly resolvedScrollRows: number;
+  rosterClickTarget(row: number, surface?: 'roster' | 'overlay'): OpenTuiClickAction | undefined;
+  transcriptClickTarget(column: number, row: number): OpenTuiClickAction | undefined;
+  inspectorClickTarget(row: number): OpenTuiClickAction | undefined;
+  footerClickTarget(column: number, row: number): OpenTuiClickAction | undefined;
+  approvalClickTarget(column: number, row: number): OpenTuiClickAction | undefined;
   update(state: ContentState): void;
   dispose(): void;
 }
@@ -39,23 +99,45 @@ function safeLine(text: string): string {
   return safe(text).replaceAll('\n', ' ');
 }
 
-/** Accumulates width-clipped, height-bounded region content. */
+/** Accumulates width-clipped, height-bounded region content plus its row actions. */
 class BoundedLines {
   private readonly lines: string[] = [];
+  private readonly actions: Array<OpenTuiClickAction | undefined> = [];
   constructor(private readonly width: number, private readonly height: number) {}
   get full(): boolean {
     return this.lines.length >= this.height;
   }
+  get length(): number {
+    return this.lines.length;
+  }
   /** Append unsafe text, sanitized to a single line and clipped to width. */
-  push(text: string): void {
-    if (!this.full) this.lines.push(truncateDisplayText(safeLine(text), this.width));
+  push(text: string, action?: OpenTuiClickAction): void {
+    if (!this.full) {
+      this.lines.push(truncateDisplayText(safeLine(text), this.width));
+      this.actions.push(action);
+    }
   }
   /** Append already-safe text, clipped to width. */
-  pushSafe(text: string): void {
-    if (!this.full) this.lines.push(truncateDisplayText(text, this.width));
+  pushSafe(text: string, action?: OpenTuiClickAction): void {
+    if (!this.full) {
+      this.lines.push(truncateDisplayText(text, this.width));
+      this.actions.push(action);
+    }
+  }
+  /** Insert before an existing row, keeping each row's action aligned. */
+  insert(index: number, text: string, action?: OpenTuiClickAction): void {
+    if (this.full) return;
+    this.lines.splice(index, 0, truncateDisplayText(safeLine(text), this.width));
+    this.actions.splice(index, 0, action);
+  }
+  at(index: number): string | undefined {
+    return this.lines[index];
   }
   value(): string[] {
     return this.lines;
+  }
+  targets(): ReadonlyArray<OpenTuiClickAction | undefined> {
+    return this.actions;
   }
 }
 
@@ -66,107 +148,168 @@ function contentSize(box: BoxRenderable, region: WorkbenchRegion | null): { widt
 
 function placeText(text: TextRenderable, box: BoxRenderable, region: WorkbenchRegion | null): { width: number; height: number } {
   const { width, height } = contentSize(box, region);
-  text.left = 0;
+  const horizontalInset = box.id !== 'opentui-composer' && box.border && width >= 3 ? 1 : 0;
+  text.left = horizontalInset;
   text.top = 0;
-  text.width = Math.max(1, width);
+  text.width = Math.max(1, width - horizontalInset * 2);
   text.height = Math.max(1, height);
+  text.fg = COLORS.foreground;
+  text.bg = COLORS.background;
   text.visible = box.visible && width > 0 && height > 0;
-  return { width, height };
+  return { width: Math.max(0, width - horizontalInset * 2), height };
 }
 
-function rosterLines(state: ContentState, width: number, height: number): string[] {
-  if (height === 0 || width === 0) return [];
+function rosterLines(state: ContentState, width: number, height: number): { lines: string[]; targets: ReadonlyArray<OpenTuiClickAction | undefined> } {
+  const empty = { lines: [] as string[], targets: [] as ReadonlyArray<OpenTuiClickAction | undefined> };
+  if (height === 0 || width === 0) return empty;
   const roster = state.roster.agents;
-  if (!roster) return ['Roster unavailable'];
+  const out = new BoundedLines(width, height);
+  if (!roster) {
+    out.push('AGENTS & TASKS');
+    out.push('');
+    out.push('Roster unavailable');
+    return { lines: out.value(), targets: out.targets() };
+  }
   const agents = visibleForRun(roster.agents, state.selection.selectedRunId);
-  const lines = [state.selection.selectedRunId ? `RUN ${safeLine(state.selection.selectedRunId)}` : 'RUN all', `All agents · ${agents.length} total`];
-  if (!state.overlay.agentRosterExpanded) return [...lines, 'Enter to expand roster'].slice(0, height);
-  if (agents.length === 0) return [...lines, 'No subagents'].slice(0, height);
+  const running = agents.filter(agent => ['starting', 'thinking', 'tool_running', 'verifying'].includes(agent.state)).length;
+  out.push('AGENTS & TASKS');
+  out.push('');
+  out.push('○ All agents  /', { type: 'agent.select', scrollOffset: 0 });
+  out.push(`  ${agents.length} agents • ${running} running`);
+  out.push('─'.repeat(width));
+  if (state.selection.selectedRunId) out.insert(2, `RUN ${state.selection.selectedRunId}`);
+  if (!state.overlay.agentRosterExpanded) {
+    out.push('Enter to expand roster', { type: 'agentRoster.toggle' });
+    return { lines: out.value(), targets: out.targets() };
+  }
+  if (agents.length === 0) {
+    out.push('No subagents');
+    out.push('─'.repeat(width));
+    out.push('○ Coordination Run  c', { type: 'coordination.inspect' });
+    out.push('  Start a coordinated run', { type: 'coordination.inspect' });
+    return { lines: out.value(), targets: out.targets() };
+  }
   const theme = getWorkbenchPreviewTheme();
-  const agentLine = (agent: typeof agents[number]): string => {
+  const agentLine = (agent: typeof agents[number], index: number): string => {
     const status = getWorkbenchAgentPresentation(agent.state, theme);
     const selected = agent.agentId === state.selection.selectedAgentId ? '›' : ' ';
-    return truncateDisplayText(safeLine(`${selected}${status.glyph} ${agent.assignedAgentId ?? agent.role}  ${status.label}`), width);
+    const label = truncateDisplayText(safeLine(`${selected}${status.glyph} ${agent.assignedAgentId ?? agent.role}  ${status.label}`), Math.max(1, width - 3));
+    return index < 9 && width >= 6 ? `${label}${' '.repeat(Math.max(1, width - displayWidth(label) - 1))}${index + 1}` : label;
   };
   const selectedAgent = agents.find(agent => agent.agentId === state.selection.selectedAgentId);
-  if (height <= 2 && selectedAgent) return height === 1 ? [agentLine(selectedAgent)] : [lines[0]!, agentLine(selectedAgent)];
+  if (height <= 2 && selectedAgent) {
+    const target: OpenTuiClickAction = { type: 'agent.select', agentId: selectedAgent.agentId, scrollOffset: 0 };
+    const short = new BoundedLines(width, height);
+    if (height >= 2) short.push('AGENTS & TASKS');
+    short.push(agentLine(selectedAgent, agents.indexOf(selectedAgent)), target);
+    return { lines: short.value(), targets: short.targets() };
+  }
   const selectedIndex = agents.findIndex(agent => agent.agentId === state.selection.selectedAgentId);
-  const capacity = Math.max(1, Math.floor((height - lines.length) / 2));
+  const capacity = Math.max(1, Math.floor((height - out.length - 3) / 3));
   let offset = Math.max(0, Math.min(agents.length - 1, state.overlay.drawerScrollOffset));
   if (selectedIndex >= 0) offset = Math.max(Math.min(offset, selectedIndex), selectedIndex - capacity + 1);
-  for (const agent of agents.slice(offset)) {
-    if (lines.length >= height) break;
-    lines.push(agentLine(agent));
-    if (lines.length < height) lines.push(truncateDisplayText(safeLine(`  ${agent.taskLabel ?? agent.currentOperation ?? 'Task unavailable'}`), width));
+  for (const [index, agent] of agents.slice(offset).entries()) {
+    if (out.full) break;
+    const target: OpenTuiClickAction = { type: 'agent.select', agentId: agent.agentId, scrollOffset: Math.max(0, index + offset - 1) };
+    out.push(agentLine(agent, index + offset), target);
+    out.push(truncateDisplayText(safeLine(`  ${agent.taskLabel ?? agent.currentOperation ?? 'Task unavailable'}`), width), target);
+    out.push('');
   }
-  return lines;
+  if (out.length + 3 <= height) {
+    out.push('─'.repeat(width));
+    out.push('○ Coordination Run  c', { type: 'coordination.inspect' });
+    out.push('  Start a coordinated run', { type: 'coordination.inspect' });
+  }
+  return { lines: out.value(), targets: out.targets() };
 }
 
-function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number): string[] {
+function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number, width: number, actor: string): string[] {
+  const time = Number.isFinite(item.startedAt) && item.startedAt >= 0 && item.startedAt <= 8640000000000000
+    ? new Date(item.startedAt).toISOString().slice(11, 19) : '--:--:--';
+  const prefix = `[${time}]  ${actor.padEnd(16, ' ')} `;
   switch (item.kind) {
-    case 'user': return [`YOU  ${item.text}`];
-    case 'assistant': return [`${item.agentId ?? 'ALiX'}  ${item.text}`];
-    case 'activity': return [`ACTIVITY  ${item.text}`];
-    case 'approval': return [`APPROVAL  ${item.text}`];
-    case 'diagnostic': return [`${item.severity.toUpperCase()}  ${item.text}`];
-    case 'phase': return [`PHASE  ${item.phase}`];
+    case 'user': return [`${prefix}${item.text}`];
+    case 'assistant': return [`${prefix}${item.text}`];
+    case 'activity': return [`${prefix}${item.verifiedOutcome === 'success' ? '✓ ' : item.verifiedOutcome === 'failure' ? '✗ ' : ''}${item.status ? `${ACTIVITY_STATUS[item.status] ?? item.status.toUpperCase()}  ` : ''}${item.text}`];
+    case 'approval': return [`${prefix}APPROVAL  ${item.text}`];
+    case 'diagnostic': return [`${prefix}${item.severity.toUpperCase()}  ${item.text}`];
+    case 'phase': return [`${prefix}PHASE  ${item.phase}`];
     case 'plan': return [
-      ...(item.text ? [`PLAN  ${item.text}`] : []),
+      ...(item.text ? [`${prefix}PLAN  ${item.text}`] : []),
       ...item.tasks.slice(0, 20).map(task => `[${task.status}] ${task.index}. ${task.title}`),
     ];
     case 'tool-group': return item.tools
       .filter(tool => !errorOnly || tool.status === 'failed')
       .slice(-height)
-      .flatMap(tool => detailed && tool.detail
-        ? [`TOOL  ${tool.name} · ${tool.status}`, `  ${tool.detail}`]
-        : [`TOOL  ${tool.name} · ${tool.status}`]);
+      .flatMap(tool => {
+        const heading = `${prefix}TOOL  ${tool.name} · ${tool.status}`;
+        if (tool.status === 'running' && !detailed) return [heading];
+        const card = buildWorkbenchToolCardLines(tool, {
+          width: Math.max(8, width - Math.min(prefix.length, 24)), mode: detailed ? 'detailed' : 'compact', indent: 2,
+        });
+        return [heading, ...card.slice(0, Math.max(0, height - 1)).map(line => `  ${safeLine(line.text)}`)];
+      });
   }
 }
 
-function transcriptLines(state: ContentState, conversation: ConversationSnapshot, width: number, height: number): string[] {
-  if (height === 0 || width === 0) return [];
+function transcriptLines(state: ContentState, conversation: ConversationSnapshot, width: number, height: number): { lines: NativeLine[]; resolvedScrollRows: number } {
+  if (height === 0 || width === 0) return { lines: [], resolvedScrollRows: 0 };
   const { transcript, selection } = state;
+  const scrollRows = transcript.followTail ? 0 : Math.max(0, Math.floor(transcript.scrollRowsFromTail ?? 0));
+  const neededRows = height + scrollRows;
   const visible = (item: TranscriptItem): boolean =>
     transcriptItemMatchesFilter(item, transcript.filter) &&
     (transcript.scope !== 'selected' || !selection.selectedAgentId || !item.agentId || item.agentId === selection.selectedAgentId || item.kind === 'approval');
-  const lines: string[] = [];
+  const lines: NativeLine[] = [];
+  const roster = state.roster.agents?.agents ?? [];
   const items = conversation.items;
   for (let index = items.length - 1; index >= 0; index--) {
     const item = items[index]!;
     if (!visible(item)) continue;
-    const itemContent = itemLines(item, transcript.filter === 'error', transcript.mode === 'detailed', height);
-    for (let contentIndex = itemContent.length - 1; contentIndex >= 0 && lines.length < height; contentIndex--) {
-      const bounded = itemContent[contentIndex]!.slice(-Math.max(1, width * height * MAX_ITEM_CHARS));
+    const agent = roster.find(entry => entry.agentId === item.agentId);
+    const actor = item.kind === 'user' ? 'YOU' : agent?.assignedAgentId ?? agent?.role ?? item.agentId ?? 'ALiX';
+    const itemContent = itemLines(item, transcript.filter === 'error', transcript.mode === 'detailed', neededRows, width, actor);
+    const color: Color = item.kind === 'tool-group' ? item.tools.some(tool => tool.status === 'failed') ? 'red' : 'cyan'
+      : item.kind === 'activity' ? item.verifiedOutcome === 'failure' ? 'red' : item.verifiedOutcome === 'success' ? 'green' : 'muted'
+        : item.kind === 'diagnostic' ? item.severity === 'error' ? 'red' : 'yellow'
+          : item.kind === 'approval' ? 'yellow' : item.kind === 'plan' ? 'purple' : 'foreground';
+    for (let contentIndex = itemContent.length - 1; contentIndex >= 0 && lines.length < neededRows; contentIndex--) {
+      const bounded = itemContent[contentIndex]!.slice(-Math.max(1, width * neededRows * MAX_ITEM_CHARS));
       const parts = safe(bounded).split('\n');
-      for (let partIndex = parts.length - 1; partIndex >= 0 && lines.length < height; partIndex--) {
+      for (let partIndex = parts.length - 1; partIndex >= 0 && lines.length < neededRows; partIndex--) {
         const wrapped = wrapDisplayText(parts[partIndex]!, width);
-        for (let row = wrapped.length - 1; row >= 0 && lines.length < height; row--) lines.unshift(wrapped[row]!);
+        for (let row = wrapped.length - 1; row >= 0 && lines.length < neededRows; row--) lines.push({ text: wrapped[row]!, color });
       }
     }
-    if (lines.length >= height) break;
+    if (lines.length >= neededRows) break;
   }
-  if (lines.length === 0) return ['No conversation yet'];
-  return lines.slice(-height);
+  if (lines.length === 0) return { lines: [{ text: 'No conversation yet', color: 'muted' }], resolvedScrollRows: 0 };
+  return {
+    lines: lines.reverse().slice(0, height),
+    resolvedScrollRows: lines.length < neededRows ? Math.max(0, lines.length - height) : scrollRows,
+  };
 }
 
-function tasksLines(state: ContentState, width: number, height: number): string[] {
-  if (height === 0 || width === 0) return [];
+function tasksLines(state: ContentState, width: number, height: number): { lines: string[]; targets: ReadonlyArray<OpenTuiClickAction | undefined> } {
+  const empty = { lines: [] as string[], targets: [] as ReadonlyArray<OpenTuiClickAction | undefined> };
+  if (height === 0 || width === 0) return empty;
   const tasks = state.roster.tasks;
-  if (!tasks) return ['Tasks unavailable'];
+  if (!tasks) return { lines: ['Tasks unavailable'], targets: empty.targets };
   const scoped = visibleForRun(tasks.tasks, state.selection.selectedRunId);
   const countStates = (states: readonly string[]): number => scoped.filter(task => states.includes(task.state)).length;
   const out = new BoundedLines(width, height);
-  out.push(`${countStates(['blocked'])} blocked · ${countStates(['waiting_dependency', 'waiting_approval'])} waiting · ${countStates(['running'])} running · ${countStates(['queued', 'assigned'])} queued`);
+  out.push(`${countStates(['running'])} running · ${countStates(['waiting_dependency', 'waiting_approval'])} waiting · ${countStates(['blocked'])} blocked · ${countStates(['queued', 'assigned'])} queued`);
   out.push(`RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`);
   if (scoped.length === 0) {
     out.push('No delegated tasks');
-    return out.value();
+    return { lines: out.value(), targets: out.targets() };
   }
-  for (const task of scoped) {
+  for (const [index, task] of scoped.entries()) {
     if (out.full) break;
     const selected = task.taskId === state.selection.selectedTaskId;
-    out.push(`${selected ? '›' : ' '}${taskStateGlyph(task.state)} ${task.title}`);
-    out.push(`  ${task.state.toUpperCase().replaceAll('_', ' ')}${task.agentId ? ` · agent ${task.agentId}` : ''}`);
+    const action: OpenTuiClickAction = { type: 'task.select', taskId: task.taskId, agentId: task.agentId, scrollOffset: Math.max(0, index - 1) };
+    out.push(`${selected ? '›' : ' '}${taskStateGlyph(task.state)} ${task.title}`, action);
+    out.push(`  ${task.state.toUpperCase().replaceAll('_', ' ')}${task.agentId ? ` · agent ${task.agentId}` : ''}`, action);
     if (!selected) continue;
     const details = [
       formatCoordMeta(task) ?? '',
@@ -175,15 +318,16 @@ function tasksLines(state: ContentState, width: number, height: number): string[
       task.ownedPaths.length ? `owns ${task.ownedPaths.join(', ')}` : '',
       task.dependencyIds?.length ? `Depends on ${task.dependencyIds.join(', ')}` : '',
     ];
-    for (const detail of details) if (detail) out.push(`    ${detail}`);
+    for (const detail of details) if (detail) out.push(`    ${detail}`, action);
   }
-  return out.value();
+  return { lines: out.value(), targets: out.targets() };
 }
 
-function artifactsLines(state: ContentState, width: number, height: number): string[] {
-  if (height === 0 || width === 0) return [];
+function artifactsLines(state: ContentState, width: number, height: number): { lines: string[]; targets: ReadonlyArray<OpenTuiClickAction | undefined> } {
+  const empty = { lines: [] as string[], targets: [] as ReadonlyArray<OpenTuiClickAction | undefined> };
+  if (height === 0 || width === 0) return empty;
   const artifacts = state.roster.artifacts;
-  if (!artifacts) return ['Artifacts unavailable'];
+  if (!artifacts) return { lines: ['Artifacts unavailable'], targets: empty.targets };
   const items = visibleArtifacts(artifacts.items, {
     runId: state.selection.selectedRunId,
     agentId: state.selection.selectedAgentId,
@@ -194,13 +338,17 @@ function artifactsLines(state: ContentState, width: number, height: number): str
   out.push(`RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`);
   if (items.length === 0) {
     out.push('No artifacts or results');
-    return out.value();
+    return { lines: out.value(), targets: out.targets() };
   }
-  for (const item of items) {
+  for (const [index, item] of items.entries()) {
     if (out.full) break;
     const selected = item.id === state.selection.selectedArtifactId;
     const marker = item.status === 'failed' ? '✗' : item.status === 'unavailable' ? '!' : item.kind === 'artifact' ? '◆' : '✓';
-    out.push(`${selected ? '›' : ' '}${marker} ${item.title}`);
+    const action: OpenTuiClickAction = {
+      type: 'artifact.select', artifactId: item.id, runId: item.coordinationRunId,
+      agentId: item.agentId, taskId: item.taskId, scrollOffset: Math.max(0, index - 1),
+    };
+    out.push(`${selected ? '›' : ' '}${marker} ${item.title}`, action);
     if (!selected) continue;
     const details = [
       [item.artifactType ?? item.kind, item.agentId ? `agent ${item.agentId}` : '', item.taskId ? `task ${item.taskId}` : ''].filter(Boolean).join(' · '),
@@ -208,12 +356,12 @@ function artifactsLines(state: ContentState, width: number, height: number): str
       [item.mediaType ?? '', item.sizeBytes !== undefined ? formatByteSize(item.sizeBytes) : '', item.digest ? `digest ${item.digest.slice(0, 12)}` : ''].filter(Boolean).join(' · '),
       ...(item.preview ? item.preview.split(/\r?\n/).slice(0, 5).map(line => `  ${line}`) : []),
     ];
-    for (const detail of details) if (detail) out.push(`  ${detail}`);
+    for (const detail of details) if (detail) out.push(`  ${detail}`, action);
   }
-  return out.value();
+  return { lines: out.value(), targets: out.targets() };
 }
 
-function drawerLines(state: ContentState, width: number, height: number): string[] {
+function drawerLines(state: ContentState, width: number, height: number): { lines: string[]; targets: ReadonlyArray<OpenTuiClickAction | undefined> } {
   switch (state.overlay.drawer) {
     case 'tasks': return tasksLines(state, width, height);
     case 'artifacts': return artifactsLines(state, width, height);
@@ -225,65 +373,173 @@ function chromeCount(value: number | undefined): string {
   return value === undefined ? 'unavailable' : value.toLocaleString('en-US');
 }
 
-function statusLabel(status: OperatorShellStatus): string {
-  return status.kind === 'approval-wait' ? 'WAITING FOR APPROVAL' : `RUNNING · ${status.state}`;
+interface ChromeRun {
+  readonly text: string;
+  readonly color: Color;
 }
 
-function headerLines(model: OperatorShellSnapshot, width: number, height: number): string[] {
+/** Row-0 facts in the canonical precedence: mode, warnings, then counters. */
+function headerFactRuns(model: OperatorShellSnapshot): ChromeRun[] {
+  const runs: ChromeRun[] = [{ text: model.mode, color: model.mode === 'bypass' ? 'red' : model.mode === 'ask' ? 'green' : 'yellow' }];
+  const agents = model.agents;
+  if (agents?.waitingApproval) {
+    runs.push({ text: `${agents.waitingApproval} ${agents.waitingApproval === 1 ? 'approval' : 'approvals'}`, color: 'yellow' });
+  }
+  if (agents?.stalled) runs.push({ text: `${agents.stalled} stalled`, color: 'yellow' });
+  if (agents) runs.push({ text: `${agents.total} agents • ${agents.running} running`, color: 'green' });
+  return runs;
+}
+
+function runsWidth(runs: readonly ChromeRun[]): number {
+  return runs.reduce((sum, run) => sum + displayWidth(run.text), 0) + Math.max(0, runs.length - 1) * 3;
+}
+
+/**
+ * Three-row native header mirroring the canonical ANSI band: row 0 carries the
+ * brand, badge and the workspace/mode/warning/counter groups; row 1 carries the
+ * top status line; row 2 stays reserved blank.
+ */
+function headerLines(model: OperatorShellSnapshot, width: number, height: number, now: number): NativeLine[] {
   if (height === 0 || width === 0) return [];
   const brand = width >= 20 ? 'ALiX WORKBENCH' : width >= 6 ? 'ALiX' : '';
   const badge = model.demo ? 'CONCEPT PREVIEW' : 'PREVIEW';
-  const facts = [
-    `workspace: ${model.workspace}`,
-    model.mode,
-    model.status ? statusLabel(model.status) : model.running ? 'RUNNING' : '',
-    model.agents ? `${model.agents.total} agents · ${model.agents.running} running` : '',
-    model.agents?.waitingApproval ? `${model.agents.waitingApproval} approvals` : '',
-    model.agents?.stalled ? `${model.agents.stalled} stalled` : '',
-    `TOKENS ${chromeCount(model.tokensUsed)}`,
-    `FILES ${chromeCount(model.filesTouched)}`,
-    `EVENTS ${chromeCount(model.eventCount)}`,
-  ].filter(Boolean).join(' · ');
-  if (height === 1) return [truncateDisplayText(safeLine([brand, badge].filter(Boolean).join('  ')), width)];
+  const facts = headerFactRuns(model);
+  // Under width pressure the canonical band keeps mode and drops the optional
+  // groups from the right; workspace gives up its tail before either.
+  let factsWidth = runsWidth(facts);
+  while (factsWidth > width / 2 && facts.length > 1) {
+    facts.pop();
+    factsWidth = runsWidth(facts);
+  }
+  const pathRoom = Math.max(0, width - displayWidth(brand) - displayWidth(badge) - factsWidth - 8);
+  const path = truncateDisplayText(safeLine(model.workspace), Math.max(0, pathRoom));
+  const leftParts: NativePart[] = [];
+  if (brand) leftParts.push({ text: brand, color: 'cyan', bold: true });
+  leftParts.push({ text: `  ${badge}`, color: 'muted' });
+  const rightParts: NativePart[] = [];
+  if (path) rightParts.push({ text: 'workspace: ', color: 'muted' }, { text: path, color: 'cyan' });
+  facts.forEach((run, index) => {
+    if (index > 0 || path) rightParts.push({ text: '  |  ', color: 'muted' });
+    rightParts.push({ text: run.text, color: run.color });
+  });
+  const leftText = leftParts.map(part => part.text).join('');
+  const rightText = rightParts.map(part => part.text).join('');
+  const rows: NativeLine[] = [];
+  const room = width - displayWidth(leftText) - displayWidth(rightText);
+  const paddedLeft = room > 0 ? [...leftParts, { text: ' '.repeat(room), color: 'muted' as const }] : leftParts;
+  const topRow: NativeLine = { text: truncateDisplayText(safeLine(`${leftText}${' '.repeat(Math.max(0, room))}${rightText}`), width), parts: room > 0 ? [...paddedLeft, ...rightParts] : undefined };
+  if (room <= 0) {
+    // Narrow band: brand row, then the facts on their own row.
+    rows.push({ text: truncateDisplayText(safeLine(leftText), width), parts: leftParts });
+    if (height > 1) rows.push({ text: truncateDisplayText(safeLine(rightText), width), parts: rightParts });
+  } else {
+    rows.push(topRow);
+  }
+  if (height > 1 && model.status) {
+    const statusParts: NativePart[] = buildOperatorStatusSegments(model.status, now).map(segment => ({
+      text: segment.text,
+      color: segment.tone === 'approval-wait' || segment.tone === 'warning' ? 'yellow' : segment.tone === 'running' ? 'cyan' : 'muted',
+    }));
+    const statusText = statusParts.map(part => part.text).join('');
+    rows.push({ text: truncateDisplayText(safeLine(statusText), width), parts: statusParts });
+  }
+  return rows.slice(0, height);
+}
+
+interface ColumnTarget { readonly start: number; readonly end: number; readonly action: OpenTuiClickAction }
+interface FooterRow { readonly text: string; readonly targets: readonly ColumnTarget[] }
+
+/**
+ * One footer hint list drives both the painted text and its hit targets, so a
+ * hint is never clickable without being advertised (or vice versa).
+ */
+function footerHints(model: OperatorShellSnapshot): ReadonlyArray<{ readonly text: string; readonly action?: OpenTuiClickAction }> {
+  const escapeText = model.escapeAction === 'close' ? 'Esc close' : model.running ? 'Esc cancel' : model.focus === 'transcript' ? 'Esc type' : '';
+  const escapeHint: { readonly text: string; readonly action?: OpenTuiClickAction } = {
+    text: escapeText,
+    // Each Escape label means what its key means; it never resolves a decision.
+    ...(model.escapeAction === 'close' ? { action: { type: 'overlay.close' } }
+      : model.running ? { action: { type: 'turn.cancel' } }
+        : model.focus === 'transcript' ? { action: { type: 'focus.set', focus: 'composer' } } : {}),
+  };
+  if (model.approval) {
+    return [
+      { text: `${model.approval.count} ${model.approval.count === 1 ? 'approval' : 'approvals'}` },
+      { text: model.approval.toolName },
+      { text: 'a approve' },
+      { text: 'd deny' },
+      escapeHint,
+    ];
+  }
+  const transcript = model.focus === 'transcript';
   return [
-    truncateDisplayText(safeLine([brand, badge].filter(Boolean).join('  ')), width),
-    truncateDisplayText(safeLine(facts), width),
+    transcript ? { text: 'Ctrl+F type', action: { type: 'focus.set', focus: 'composer' } }
+      : { text: 'Tab views', action: { type: 'tab.next' } },
+    { text: 'Ctrl+O details', action: { type: 'inspector.open' } },
+    { text: 'Ctrl+R artifacts', action: { type: 'drawer.toggle', drawer: 'artifacts' } },
+    ...(model.focus === 'composer' ? [{ text: 'Ctrl+F transcript', action: { type: 'focus.set', focus: 'transcript' } as const }] : []),
+    ...(model.queuedMessages > 0 ? [{ text: `${model.queuedMessages} queued` }] : []),
+    escapeHint,
   ];
 }
 
-function footerLines(model: OperatorShellSnapshot, width: number, height: number): string[] {
+function footerLines(model: OperatorShellSnapshot, width: number, height: number): FooterRow[] {
   if (height === 0 || width === 0) return [];
-  const escape = model.escapeAction === 'close' ? 'Esc close' : model.running ? 'Esc cancel' : model.focus === 'transcript' ? 'Esc type' : '';
-  const hints = model.approval
-    ? [`${model.approval.count} ${model.approval.count === 1 ? 'approval' : 'approvals'}`, model.approval.toolName, 'a approve', 'd deny', escape]
-    : [
-        model.focus === 'transcript' ? 'Ctrl+F type' : 'Tab views',
-        'Ctrl+O details',
-        'Ctrl+R artifacts',
-        model.focus === 'composer' ? 'Ctrl+F transcript' : '',
-        model.queuedMessages > 0 ? `${model.queuedMessages} queued` : '',
-        escape,
-      ];
+  const hints = footerHints(model).filter(hint => hint.text.length > 0);
   const counters = [
     `TOKENS ${chromeCount(model.tokensUsed)}`,
     `FILES ${chromeCount(model.filesTouched)}`,
+    `EVENTS ${chromeCount(model.eventCount)}`,
     `AGENTS ${model.agents?.total ?? 'unavailable'}`,
-  ].join(' · ');
-  return [truncateDisplayText(safeLine(`${hints.filter(Boolean).join(' · ')}   ${counters}`), width)].slice(0, Math.max(1, height));
+  ];
+  const left = hints.map(hint => hint.text).join('  •  ');
+  const right = counters.join('  |  ');
+  const gap = Math.max(2, width - left.length - right.length);
+  const text = truncateDisplayText(safeLine(`${left}${' '.repeat(gap)}${right}`), width);
+  const targets: ColumnTarget[] = [];
+  let column = 0;
+  for (const hint of hints) {
+    if (!hint.action) { column += displayWidth(hint.text) + 5; continue; }
+    targets.push({ start: column, end: column + displayWidth(hint.text), action: hint.action });
+    column += displayWidth(hint.text) + 5;
+  }
+  return [{ text, targets }].slice(0, Math.max(1, height));
 }
 
-function inspectorLines(state: ContentState, width: number, height: number): string[] {
+interface InspectorRow { readonly line: NativeLine; readonly action?: OpenTuiClickAction }
+
+/**
+ * Native inspector rows carry the action of the shared section that produced
+ * them. Artifact rows resolve their identity from the shared artifact list, so
+ * a painter change cannot silently retarget a click.
+ */
+function inspectorLines(state: ContentState, width: number, height: number): InspectorRow[] {
   if (height === 0 || width === 0) return [];
-  const out = new BoundedLines(width, height);
-  for (const section of buildAgentInspectorSections(state.inspector)) {
-    if (out.full) break;
-    out.pushSafe(section.title);
+  const out: InspectorRow[] = [];
+  const palette = getWorkbenchPreviewTheme().palette;
+  const push = (line: NativeLine, action?: OpenTuiClickAction): void => { if (out.length < height) out.push({ line, action }); };
+  for (const [index, section] of buildAgentInspectorSections(state.inspector).entries()) {
+    if (out.length >= height) break;
+    if (index > 0) push({ text: '─'.repeat(width), color: 'divider' });
+    push({ text: section.title, color: 'cyan' });
+    push({ text: '' });
+    const artifacts = section.title === 'ARTIFACTS' ? state.inspector.artifacts ?? [] : undefined;
+    let artifactIndex = 0;
     for (const row of section.rows) {
-      if (out.full) break;
-      out.push(row.label ? `${row.label}  ${row.value}` : row.value);
+      if (out.length >= height) break;
+      const label = row.label ? row.label.padEnd(Math.min(12, Math.max(1, width - 1)), ' ') : '';
+      const value = safeLine(row.value);
+      const color: Color = row.color === palette.green ? 'green' : row.color === palette.yellow ? 'yellow'
+        : row.color === palette.red ? 'red' : row.color === palette.purple ? 'purple' : 'foreground';
+      const rendered: NativeLine = { text: `${label}${value}`, parts: label ? [{ text: label, color: 'muted' }, { text: value, color }] : [{ text: value, color }] };
+      // Only artifact rows carry an action; section headings are structure,
+      // not controls, and the inspector pane is already visible.
+      const artifact = artifacts?.[artifactIndex++];
+      push(rendered, artifact ? { type: 'artifact.open', artifactId: artifact.id } : undefined);
     }
   }
-  return out.value().length === 0 ? ['Inspector unavailable'] : out.value();
+  if (out.length === 0) return [{ line: { text: 'Inspector unavailable' } }];
+  return out;
 }
 
 function composerLines(state: ContentState, composer: ComposerLayout, width: number, height: number): string[] {
@@ -301,7 +557,7 @@ function composerLines(state: ContentState, composer: ComposerLayout, width: num
 /** Retained native content; semantic selection and filtering come from WorkbenchViewState. */
 export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: OpenTuiWorkbenchLayout, initial: ContentState): OpenTuiWorkbenchContent {
   const make = (id: string, parent: BoxRenderable): TextRenderable => {
-    const node = new TextRenderable(renderer, { id, position: 'absolute', width: 1, height: 1, content: '' });
+    const node = new TextRenderable(renderer, { id, position: 'absolute', width: 1, height: 1, content: '', fg: COLORS.foreground, bg: COLORS.background, wrapMode: 'none' });
     parent.add(node);
     return node;
   };
@@ -318,6 +574,13 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   approval.add(approvalText);
   let pausedConversation: ConversationSnapshot | undefined;
   let lastConversation: ConversationSnapshot | undefined;
+  let resolvedScrollRows = 0;
+  let rosterClickTargets: ReadonlyArray<OpenTuiClickAction | undefined> = [];
+  let overlayClickTargets: ReadonlyArray<OpenTuiClickAction | undefined> = [];
+  let inspectorClickTargets: ReadonlyArray<OpenTuiClickAction | undefined> = [];
+  let transcriptClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
+  let footerClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
+  let approvalClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
   const update = (state: ContentState): void => {
     const headerSize = placeText(header, layout.regions.header, layout.geometry.regions.header);
     const footerSize = placeText(footer, layout.regions.footer, layout.geometry.regions.footer);
@@ -326,24 +589,97 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     const overlaySize = placeText(overlay, layout.regions.overlay, layout.geometry.regions.overlay);
     const inspectorSize = placeText(inspector, layout.regions.inspector, layout.geometry.regions.inspector);
     const composerSize = placeText(composer, layout.regions.composer, layout.geometry.regions.composer);
-    header.content = headerLines(state.header, headerSize.width, headerSize.height).join('\n');
-    footer.content = footerLines(state.footer, footerSize.width, footerSize.height).join('\n');
-    roster.content = drawerLines(state, rosterSize.width, rosterSize.height).join('\n');
+    header.content = styledLines(headerLines(state.header, headerSize.width, headerSize.height, Date.now()), headerSize.width);
+    const footerRows = footerLines(state.footer, footerSize.width, footerSize.height);
+    footerClickTargets = footerRows.flatMap((row, index) => row.targets.map(target => ({ row: index, ...target })));
+    footer.content = styledLines(footerRows.map(row => {
+      const counterAt = row.text.indexOf('TOKENS ');
+      return { text: row.text, parts: counterAt < 0 ? [{ text: row.text, color: 'muted' as const }] : [
+        { text: row.text.slice(0, counterAt), color: 'cyan' as const }, { text: row.text.slice(counterAt), color: 'muted' as const },
+      ] };
+    }), footerSize.width);
+    const rosterBody = state.overlay.drawer === 'closed'
+      ? rosterLines(state, rosterSize.width, rosterSize.height)
+      : drawerLines(state, rosterSize.width, rosterSize.height);
+    rosterClickTargets = rosterBody.targets;
+    roster.content = styledLines(rosterBody.lines.map((line, index) => ({
+      text: line,
+      color: /^(AGENTS & TASKS|TASKS|ARTIFACTS)$/.test(line) ? 'cyan'
+        : line.startsWith('›') ? 'cyan'
+          : /FAILED/.test(line) ? 'red' : /WAITING|APPROVAL/.test(line) ? 'yellow'
+            : /RUNNING|VERIFYING/.test(line) ? 'green' : /COMPLETED/.test(line) ? 'purple'
+              : line.startsWith('  ') ? 'muted' : 'foreground',
+      fill: line.startsWith('›') || (rosterBody.lines[index - 1]?.startsWith('›') && line.startsWith('  ')),
+    })), rosterSize.width);
     if (state.transcript.followTail) pausedConversation = undefined;
     else pausedConversation ??= lastConversation ?? state.transcript.conversation;
-    transcript.content = transcriptLines(
-      state, pausedConversation ?? state.transcript.conversation, transcriptSize.width, transcriptSize.height,
-    ).join('\n');
+    const categories = ['ALL', 'RESPONSE', 'TOOL', 'ACTIVITY', 'ERROR'] as const;
+    const toolbarSegments = categories.map((category, index) => {
+      const active = category.toLowerCase() === state.transcript.filter;
+      return { label: active ? `[${category}]` : category, gap: index === categories.length - 1 ? '    ' : '  ', active, filter: category.toLowerCase() as ContentState['transcript']['filter'] };
+    });
+    const followValue = state.transcript.followTail ? 'ON' : 'OFF';
+    const followParts: NativePart[] = [
+      { text: 'Auto-follow: ', color: 'muted' },
+      { text: followValue, color: state.transcript.followTail ? 'green' : 'yellow' },
+    ];
+    const followLabel = followParts.map(part => part.text).join('');
+    const toolbarParts: NativePart[] = toolbarSegments.flatMap(segment => [
+      { text: segment.label, color: segment.active ? 'background' : 'muted', ...(segment.active ? { background: 'cyan' as const } : {}) },
+      { text: segment.gap, color: 'muted' },
+    ]);
+    toolbarParts.push(...followParts);
+    const toolbar = toolbarParts.map(part => part.text).join('');
+    const heading = 'LIVE TRANSCRIPT';
+    const toolbarOnHeading = displayWidth(heading) + 3 + displayWidth(toolbar) <= transcriptSize.width;
+    transcriptClickTargets = [];
+    let toolbarColumn = toolbarOnHeading ? displayWidth(heading) + 3 : 0;
+    const toolbarRow = toolbarOnHeading ? 0 : 1;
+    for (const segment of toolbarSegments) {
+      transcriptClickTargets.push({
+        row: toolbarRow, start: toolbarColumn, end: toolbarColumn + displayWidth(segment.label),
+        action: { type: 'transcript.filter', filter: segment.filter },
+      });
+      toolbarColumn += displayWidth(segment.label) + displayWidth(segment.gap);
+    }
+    transcriptClickTargets.push({
+      row: toolbarRow, start: toolbarColumn,
+      end: toolbarColumn + displayWidth(followLabel),
+      action: { type: 'transcript.follow.toggle' },
+    });
+    const transcriptChrome: NativeLine[] = toolbarOnHeading
+      ? [{ text: `${heading}   ${toolbar}`, parts: [{ text: heading, color: 'cyan' }, { text: '   ' }, ...toolbarParts] }, { text: '' }]
+      : [{ text: heading, color: 'cyan' }, { text: toolbar, parts: toolbarParts }, { text: '' }];
+    const transcriptWindow = transcriptLines(
+      state, pausedConversation ?? state.transcript.conversation, transcriptSize.width, Math.max(0, transcriptSize.height - transcriptChrome.length),
+    );
+    resolvedScrollRows = transcriptWindow.resolvedScrollRows;
+    transcript.content = styledLines([
+      ...transcriptChrome,
+      ...transcriptWindow.lines,
+    ].slice(0, transcriptSize.height), transcriptSize.width);
     lastConversation = state.transcript.conversation;
-    inspector.content = inspectorLines(state, inspectorSize.width, inspectorSize.height).join('\n');
-    composer.content = composerLines(state, layout.composer, composerSize.width, composerSize.height).join('\n');
-    overlay.content = state.overlay.drawer !== 'closed'
-      ? drawerLines(state, overlaySize.width, overlaySize.height).join('\n') : '';
-    const approvalLines = state.approval.length
-      ? state.approval
-          .flatMap(entry => buildWorkbenchApprovalCardLines(entry, state.approval.length, renderer.width))
-          .slice(0, Math.max(1, renderer.height - 3))
-      : [];
+    const inspectorBody = inspectorLines(state, inspectorSize.width, inspectorSize.height);
+    inspectorClickTargets = inspectorBody.map(entry => entry.action);
+    inspector.content = styledLines(inspectorBody.map(entry => entry.line), inspectorSize.width);
+    composer.content = styledLines(composerLines(state, layout.composer, composerSize.width, composerSize.height).map(line => ({ text: line, color: line.startsWith('>') ? 'cyan' : 'foreground' })), composerSize.width);
+    const overlayBody = state.overlay.drawer !== 'closed' ? drawerLines(state, overlaySize.width, overlaySize.height) : undefined;
+    overlayClickTargets = overlayBody?.targets ?? [];
+    overlay.content = overlayBody ? styledLines(overlayBody.lines.map(line => ({ text: line })), overlaySize.width) : '';
+    const approvalLines: string[] = [];
+    approvalClickTargets = [];
+    for (const entry of state.approval) {
+      const card = buildWorkbenchApprovalCardLines(entry, state.approval.length, renderer.width);
+      const base = approvalLines.length;
+      approvalLines.push(...card.slice(0, Math.max(0, Math.max(1, renderer.height - 3) - base)));
+      if (base + WORKBENCH_APPROVAL_DECISION_ROW >= approvalLines.length) continue;
+      for (const span of workbenchApprovalDecisionSpans()) {
+        approvalClickTargets.push({
+          row: base + WORKBENCH_APPROVAL_DECISION_ROW, start: span.start, end: span.end,
+          action: { type: 'approval.resolve', approvalId: entry.id, decision: span.decision },
+        });
+      }
+    }
     approval.visible = approvalLines.length > 0;
     if (approvalLines.length > 0) {
       const cardWidth = approvalLines[0]!.length;
@@ -360,6 +696,17 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   let disposed = false;
   return {
     header, footer, roster, transcript, overlay, inspector, composer, approval, update,
+    get resolvedScrollRows() { return resolvedScrollRows; },
+    rosterClickTarget: (row, surface = 'roster') =>
+      row >= 0 ? (surface === 'roster' ? rosterClickTargets : overlayClickTargets)[row] : undefined,
+    transcriptClickTarget: (column, row) =>
+      column >= 0 && column < transcript.width && row >= 0 && row < transcript.height
+        ? transcriptClickTargets.find(target => target.row === row && column >= target.start && column < target.end)?.action : undefined,
+    inspectorClickTarget: (row) => row >= 0 && row < inspector.height ? inspectorClickTargets[row] : undefined,
+    footerClickTarget: (column, row) => column >= 0 && column < footer.width && row >= 0 && row < footer.height
+      ? footerClickTargets.find(target => target.row === row && column >= target.start && column < target.end)?.action : undefined,
+    approvalClickTarget: (column, row) => approval.visible && column >= 0 && column < approval.width && row >= 0 && row < approval.height
+      ? approvalClickTargets.find(target => target.row === row && column >= target.start && column < target.end)?.action : undefined,
     dispose: () => {
       if (disposed) return;
       disposed = true;
