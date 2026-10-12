@@ -1630,13 +1630,52 @@ export class TuiApp {
   routeWorkbenchClick(action: OpenTuiClickAction): void {
     if (!this.opts.workbenchEnabled || this.state.activeTab !== 'agent') return;
     const state = this.workbenchStore.snapshot();
+    if (action.type === 'approval.resolve') {
+      if (this.workbenchHostPorts().approvalTarget()?.id !== action.approvalId) return;
+      applyWorkbenchIntent(this.workbenchStore, { type: 'approval.resolve', decision: action.decision }, {
+        snapshot: this.state.lastSnapshot,
+        ports: this.workbenchHostPorts(),
+        coordinationAvailable: Boolean(this.opts.agentSession?.runCoordination),
+      });
+      return;
+    }
     if (state.overlayStack.length > 0 || this.state.views.agent.pendingApprovals.length > 0
       || (this.state.lastSnapshot?.approvals?.pending?.length ?? 0) > 0) return;
+    if (action.type === 'tab.next') {
+      this.tryHandleGlobal('Tab');
+      return;
+    }
     if (action.type === 'agent.select') {
       const agents = visibleForRun(this.state.lastSnapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);
       if (action.agentId !== undefined && !agents.some(agent => agent.agentId === action.agentId)) return;
       this.workbenchStore.dispatch(action);
       this.paintFullFrame();
+      return;
+    }
+    if (action.type === 'task.select') {
+      const tasks = visibleForRun(this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [], state.selectedRunId);
+      const task = tasks.find(entry => entry.taskId === action.taskId);
+      if (!task) return;
+      this.workbenchStore.dispatch({ type: 'task.select', taskId: task.taskId, agentId: task.agentId, scrollOffset: action.scrollOffset });
+      this.paintFullFrame();
+      return;
+    }
+    if (action.type === 'artifact.select' || action.type === 'artifact.open') {
+      const items = visibleArtifacts(artifactItemsFrom(this.state.lastSnapshot), {
+        runId: state.selectedRunId, agentId: state.selectedAgentId, taskId: state.selectedTaskId,
+      });
+      const item = items.find(entry => entry.id === action.artifactId);
+      if (!item) return;
+      this.workbenchStore.dispatch({ type: 'artifact.select', artifactId: item.id,
+        runId: item.coordinationRunId, agentId: item.agentId, taskId: item.taskId,
+        scrollOffset: action.type === 'artifact.select' ? action.scrollOffset : 0 });
+      if (action.type === 'artifact.open' && state.drawer !== 'artifacts') {
+        applyWorkbenchIntent(this.workbenchStore, { type: 'drawer.toggle', drawer: 'artifacts' }, {
+          snapshot: this.state.lastSnapshot,
+          ports: this.workbenchHostPorts(),
+          coordinationAvailable: Boolean(this.opts.agentSession?.runCoordination),
+        });
+      } else this.paintFullFrame();
       return;
     }
     applyWorkbenchIntent(this.workbenchStore, action, {

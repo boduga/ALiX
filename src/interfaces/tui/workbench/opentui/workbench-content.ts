@@ -55,6 +55,13 @@ export type ContentState = Pick<WorkbenchViewState, 'header' | 'footer' | 'roste
 export type OpenTuiClickAction =
   | { readonly type: 'focus.set'; readonly focus: 'composer' | 'transcript' }
   | { readonly type: 'agent.select'; readonly agentId?: string; readonly scrollOffset: number }
+  | { readonly type: 'task.select'; readonly taskId: string; readonly agentId?: string; readonly scrollOffset: number }
+  | { readonly type: 'artifact.select'; readonly artifactId: string; readonly runId?: string; readonly agentId?: string; readonly taskId?: string; readonly scrollOffset: number }
+  | { readonly type: 'artifact.open'; readonly artifactId: string }
+  | { readonly type: 'drawer.toggle'; readonly drawer: 'artifacts' }
+  | { readonly type: 'inspector.open' }
+  | { readonly type: 'tab.next' }
+  | { readonly type: 'approval.resolve'; readonly approvalId: string; readonly decision: 'approved' | 'denied' }
   | { readonly type: 'agentRoster.toggle' }
   | { readonly type: 'coordination.inspect' }
   | { readonly type: 'transcript.filter'; readonly filter: ContentState['transcript']['filter'] }
@@ -72,6 +79,9 @@ export interface OpenTuiWorkbenchContent {
   readonly resolvedScrollRows: number;
   rosterClickTarget(row: number, surface?: 'roster' | 'overlay'): OpenTuiClickAction | undefined;
   transcriptClickTarget(column: number, row: number): OpenTuiClickAction | undefined;
+  inspectorClickTarget(row: number): OpenTuiClickAction | undefined;
+  footerClickTarget(column: number, row: number): OpenTuiClickAction | undefined;
+  approvalClickTarget(column: number, row: number): OpenTuiClickAction | undefined;
   update(state: ContentState): void;
   dispose(): void;
 }
@@ -248,24 +258,30 @@ function transcriptLines(state: ContentState, conversation: ConversationSnapshot
   };
 }
 
-function tasksLines(state: ContentState, width: number, height: number): string[] {
+function tasksLines(state: ContentState, width: number, height: number, clickTargets?: Array<OpenTuiClickAction | undefined>): string[] {
   if (height === 0 || width === 0) return [];
   const tasks = state.roster.tasks;
   if (!tasks) return ['Tasks unavailable'];
   const scoped = visibleForRun(tasks.tasks, state.selection.selectedRunId);
   const countStates = (states: readonly string[]): number => scoped.filter(task => states.includes(task.state)).length;
   const out = new BoundedLines(width, height);
-  out.push(`${countStates(['running'])} running · ${countStates(['waiting_dependency', 'waiting_approval'])} waiting · ${countStates(['blocked'])} blocked · ${countStates(['queued', 'assigned'])} queued`);
-  out.push(`RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`);
+  const push = (line: string, action?: OpenTuiClickAction): void => {
+    const before = out.value().length;
+    out.push(line);
+    if (out.value().length > before) clickTargets?.push(action);
+  };
+  push(`${countStates(['running'])} running · ${countStates(['waiting_dependency', 'waiting_approval'])} waiting · ${countStates(['blocked'])} blocked · ${countStates(['queued', 'assigned'])} queued`);
+  push(`RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`);
   if (scoped.length === 0) {
-    out.push('No delegated tasks');
+    push('No delegated tasks');
     return out.value();
   }
-  for (const task of scoped) {
+  for (const [index, task] of scoped.entries()) {
     if (out.full) break;
     const selected = task.taskId === state.selection.selectedTaskId;
-    out.push(`${selected ? '›' : ' '}${taskStateGlyph(task.state)} ${task.title}`);
-    out.push(`  ${task.state.toUpperCase().replaceAll('_', ' ')}${task.agentId ? ` · agent ${task.agentId}` : ''}`);
+    const action: OpenTuiClickAction = { type: 'task.select', taskId: task.taskId, agentId: task.agentId, scrollOffset: Math.max(0, index - 1) };
+    push(`${selected ? '›' : ' '}${taskStateGlyph(task.state)} ${task.title}`, action);
+    push(`  ${task.state.toUpperCase().replaceAll('_', ' ')}${task.agentId ? ` · agent ${task.agentId}` : ''}`, action);
     if (!selected) continue;
     const details = [
       formatCoordMeta(task) ?? '',
@@ -274,12 +290,12 @@ function tasksLines(state: ContentState, width: number, height: number): string[
       task.ownedPaths.length ? `owns ${task.ownedPaths.join(', ')}` : '',
       task.dependencyIds?.length ? `Depends on ${task.dependencyIds.join(', ')}` : '',
     ];
-    for (const detail of details) if (detail) out.push(`    ${detail}`);
+    for (const detail of details) if (detail) push(`    ${detail}`, action);
   }
   return out.value();
 }
 
-function artifactsLines(state: ContentState, width: number, height: number): string[] {
+function artifactsLines(state: ContentState, width: number, height: number, clickTargets?: Array<OpenTuiClickAction | undefined>): string[] {
   if (height === 0 || width === 0) return [];
   const artifacts = state.roster.artifacts;
   if (!artifacts) return ['Artifacts unavailable'];
@@ -289,17 +305,26 @@ function artifactsLines(state: ContentState, width: number, height: number): str
     taskId: state.selection.selectedTaskId,
   });
   const out = new BoundedLines(width, height);
-  out.push(`${artifacts.artifacts} files · ${artifacts.results} results`);
-  out.push(`RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`);
+  const push = (line: string, action?: OpenTuiClickAction): void => {
+    const before = out.value().length;
+    out.push(line);
+    if (out.value().length > before) clickTargets?.push(action);
+  };
+  push(`${artifacts.artifacts} files · ${artifacts.results} results`);
+  push(`RUN ${state.selection.selectedRunId ?? 'all'} · [ ] switch`);
   if (items.length === 0) {
-    out.push('No artifacts or results');
+    push('No artifacts or results');
     return out.value();
   }
-  for (const item of items) {
+  for (const [index, item] of items.entries()) {
     if (out.full) break;
     const selected = item.id === state.selection.selectedArtifactId;
     const marker = item.status === 'failed' ? '✗' : item.status === 'unavailable' ? '!' : item.kind === 'artifact' ? '◆' : '✓';
-    out.push(`${selected ? '›' : ' '}${marker} ${item.title}`);
+    const action: OpenTuiClickAction = {
+      type: 'artifact.select', artifactId: item.id, runId: item.coordinationRunId,
+      agentId: item.agentId, taskId: item.taskId, scrollOffset: Math.max(0, index - 1),
+    };
+    push(`${selected ? '›' : ' '}${marker} ${item.title}`, action);
     if (!selected) continue;
     const details = [
       [item.artifactType ?? item.kind, item.agentId ? `agent ${item.agentId}` : '', item.taskId ? `task ${item.taskId}` : ''].filter(Boolean).join(' · '),
@@ -307,16 +332,16 @@ function artifactsLines(state: ContentState, width: number, height: number): str
       [item.mediaType ?? '', item.sizeBytes !== undefined ? formatByteSize(item.sizeBytes) : '', item.digest ? `digest ${item.digest.slice(0, 12)}` : ''].filter(Boolean).join(' · '),
       ...(item.preview ? item.preview.split(/\r?\n/).slice(0, 5).map(line => `  ${line}`) : []),
     ];
-    for (const detail of details) if (detail) out.push(`  ${detail}`);
+    for (const detail of details) if (detail) push(`  ${detail}`, action);
   }
   return out.value();
 }
 
-function drawerLines(state: ContentState, width: number, height: number): string[] {
+function drawerLines(state: ContentState, width: number, height: number, clickTargets?: Array<OpenTuiClickAction | undefined>): string[] {
   switch (state.overlay.drawer) {
-    case 'tasks': return tasksLines(state, width, height);
-    case 'artifacts': return artifactsLines(state, width, height);
-    default: return rosterLines(state, width, height);
+    case 'tasks': return tasksLines(state, width, height, clickTargets);
+    case 'artifacts': return artifactsLines(state, width, height, clickTargets);
+    default: return rosterLines(state, width, height, clickTargets);
   }
 }
 
@@ -424,7 +449,10 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   let resolvedScrollRows = 0;
   let rosterClickTargets: Array<OpenTuiClickAction | undefined> = [];
   let overlayClickTargets: Array<OpenTuiClickAction | undefined> = [];
+  let inspectorClickTargets: Array<OpenTuiClickAction | undefined> = [];
   let transcriptClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
+  let footerClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
+  let approvalClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
   const update = (state: ContentState): void => {
     const headerSize = placeText(header, layout.regions.header, layout.geometry.regions.header);
     const footerSize = placeText(footer, layout.regions.footer, layout.geometry.regions.footer);
@@ -458,16 +486,19 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
       if (countAt >= 0) parts.push({ text: remainder.slice(countAt), color: 'green' });
       return { text: line, parts };
     }), headerSize.width);
-    footer.content = styledLines(footerLines(state.footer, footerSize.width, footerSize.height).map(line => {
+    const footerRows = footerLines(state.footer, footerSize.width, footerSize.height);
+    footerClickTargets = footerRows.flatMap((line, row) => line.startsWith('Tab views')
+      ? [{ row, start: 0, end: displayWidth('Tab views'), action: { type: 'tab.next' } as const }] : []);
+    footer.content = styledLines(footerRows.map(line => {
       const counterAt = line.indexOf('TOKENS ');
       return { text: line, parts: counterAt < 0 ? [{ text: line, color: 'muted' as const }] : [
         { text: line.slice(0, counterAt), color: 'cyan' as const }, { text: line.slice(counterAt), color: 'muted' as const },
       ] };
     }), footerSize.width);
     rosterClickTargets = [];
-    const rosterRows = state.overlay.drawer === 'closed' || state.overlay.drawer === 'agents'
+    const rosterRows = state.overlay.drawer === 'closed'
       ? rosterLines(state, rosterSize.width, rosterSize.height, rosterClickTargets)
-      : drawerLines(state, rosterSize.width, rosterSize.height);
+      : drawerLines(state, rosterSize.width, rosterSize.height, rosterClickTargets);
     roster.content = styledLines(rosterRows.map((line, index) => ({
       text: line,
       color: /^(AGENTS & TASKS|TASKS|ARTIFACTS)$/.test(line) ? 'cyan'
@@ -479,32 +510,38 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     })), rosterSize.width);
     if (state.transcript.followTail) pausedConversation = undefined;
     else pausedConversation ??= lastConversation ?? state.transcript.conversation;
-    const categories = ['ALL', 'RESPONSE', 'TOOL', 'ACTIVITY', 'ERROR'];
-    const toolbarParts: NativePart[] = categories.flatMap((category, index) => {
+    const categories = ['ALL', 'RESPONSE', 'TOOL', 'ACTIVITY', 'ERROR'] as const;
+    const toolbarSegments = categories.map((category, index) => {
       const active = category.toLowerCase() === state.transcript.filter;
-      return [
-        { text: active ? `[${category}]` : category, color: active ? 'background' : 'muted', ...(active ? { background: 'cyan' as const } : {}) },
-        { text: index === categories.length - 1 ? '    ' : '  ', color: 'muted' },
-      ];
+      return { label: active ? `[${category}]` : category, gap: index === categories.length - 1 ? '    ' : '  ', active, filter: category.toLowerCase() as ContentState['transcript']['filter'] };
     });
-    toolbarParts.push({ text: 'Auto-follow: ', color: 'muted' }, { text: state.transcript.followTail ? 'ON' : 'OFF', color: state.transcript.followTail ? 'green' : 'yellow' });
+    const followValue = state.transcript.followTail ? 'ON' : 'OFF';
+    const followParts: NativePart[] = [
+      { text: 'Auto-follow: ', color: 'muted' },
+      { text: followValue, color: state.transcript.followTail ? 'green' : 'yellow' },
+    ];
+    const followLabel = followParts.map(part => part.text).join('');
+    const toolbarParts: NativePart[] = toolbarSegments.flatMap(segment => [
+      { text: segment.label, color: segment.active ? 'background' : 'muted', ...(segment.active ? { background: 'cyan' as const } : {}) },
+      { text: segment.gap, color: 'muted' },
+    ]);
+    toolbarParts.push(...followParts);
     const toolbar = toolbarParts.map(part => part.text).join('');
     const heading = 'LIVE TRANSCRIPT';
     const toolbarOnHeading = displayWidth(heading) + 3 + displayWidth(toolbar) <= transcriptSize.width;
     transcriptClickTargets = [];
     let toolbarColumn = toolbarOnHeading ? displayWidth(heading) + 3 : 0;
     const toolbarRow = toolbarOnHeading ? 0 : 1;
-    for (const [index, category] of categories.entries()) {
-      const label = category.toLowerCase() === state.transcript.filter ? `[${category}]` : category;
+    for (const segment of toolbarSegments) {
       transcriptClickTargets.push({
-        row: toolbarRow, start: toolbarColumn, end: toolbarColumn + displayWidth(label),
-        action: { type: 'transcript.filter', filter: category.toLowerCase() as ContentState['transcript']['filter'] },
+        row: toolbarRow, start: toolbarColumn, end: toolbarColumn + displayWidth(segment.label),
+        action: { type: 'transcript.filter', filter: segment.filter },
       });
-      toolbarColumn += displayWidth(label) + (index === categories.length - 1 ? 4 : 2);
+      toolbarColumn += displayWidth(segment.label) + displayWidth(segment.gap);
     }
     transcriptClickTargets.push({
       row: toolbarRow, start: toolbarColumn,
-      end: toolbarColumn + displayWidth(`Auto-follow: ${state.transcript.followTail ? 'ON' : 'OFF'}`),
+      end: toolbarColumn + displayWidth(followLabel),
       action: { type: 'transcript.follow.toggle' },
     });
     const transcriptChrome: NativeLine[] = toolbarOnHeading
@@ -519,20 +556,52 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
       ...transcriptWindow.lines,
     ].slice(0, transcriptSize.height), transcriptSize.width);
     lastConversation = state.transcript.conversation;
-    inspector.content = styledLines(inspectorLines(state, inspectorSize.width, inspectorSize.height), inspectorSize.width);
+    const inspectorRows = inspectorLines(state, inspectorSize.width, inspectorSize.height);
+    let inspectorSection = '';
+    let inspectorArtifactIndex = 0;
+    inspectorClickTargets = inspectorRows.map(line => {
+      if (['AGENT DETAILS', 'LIVE ACTIVITY', 'APPROVALS', 'ARTIFACTS', 'USAGE'].includes(line.text)) {
+        inspectorSection = line.text;
+        if (line.text === 'ARTIFACTS') inspectorArtifactIndex = 0;
+        return line.text === 'ARTIFACTS' ? { type: 'drawer.toggle', drawer: 'artifacts' } : { type: 'inspector.open' };
+      }
+      if (!line.text || line.text.startsWith('─')) return undefined;
+      if (inspectorSection === 'ARTIFACTS') {
+        const item = state.inspector.artifacts?.[inspectorArtifactIndex++];
+        return item ? { type: 'artifact.open', artifactId: item.id } : undefined;
+      }
+      return undefined;
+    });
+    inspector.content = styledLines(inspectorRows, inspectorSize.width);
     composer.content = styledLines(composerLines(state, layout.composer, composerSize.width, composerSize.height).map(line => ({ text: line, color: line.startsWith('>') ? 'cyan' : 'foreground' })), composerSize.width);
     overlayClickTargets = [];
     overlay.content = state.overlay.drawer !== 'closed'
       ? styledLines((state.overlay.drawer === 'agents'
         ? rosterLines(state, overlaySize.width, overlaySize.height, overlayClickTargets)
-        : drawerLines(state, overlaySize.width, overlaySize.height)).map(line => ({ text: line })), overlaySize.width) : '';
+        : drawerLines(state, overlaySize.width, overlaySize.height, overlayClickTargets)).map(line => ({ text: line })), overlaySize.width) : '';
     const approvalLines = state.approval.length
       ? state.approval
-          .flatMap(entry => buildWorkbenchApprovalCardLines(entry, state.approval.length, renderer.width))
+          .flatMap((entry, index) => buildWorkbenchApprovalCardLines(entry, state.approval.length, renderer.width)
+            .map((line, row) => {
+              if (index === 0 || row !== 3) return line;
+              const inner = Math.max(0, displayWidth(line) - 2);
+              return `│${truncateDisplayText('Resolve oldest approval first', inner).padEnd(inner)}│`;
+            }))
           .slice(0, Math.max(1, renderer.height - 3))
       : [];
     approval.visible = approvalLines.length > 0;
+    approvalClickTargets = [];
     if (approvalLines.length > 0) {
+      const decisionLine = approvalLines.findIndex(line => line.includes('a approve') && line.includes('d deny'));
+      const oldest = state.approval[0];
+      if (oldest && decisionLine >= 0) for (const [label, decision] of [['a approve', 'approved'], ['d deny', 'denied']] as const) {
+        const at = approvalLines[decisionLine]!.indexOf(label);
+        if (at >= 0) approvalClickTargets.push({
+          row: decisionLine, start: displayWidth(approvalLines[decisionLine]!.slice(0, at)),
+          end: displayWidth(approvalLines[decisionLine]!.slice(0, at)) + displayWidth(label),
+          action: { type: 'approval.resolve', approvalId: oldest.id, decision },
+        });
+      }
       const cardWidth = approvalLines[0]!.length;
       approvalText.content = approvalLines.join('\n');
       approval.width = Math.max(1, cardWidth);
@@ -553,6 +622,11 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     transcriptClickTarget: (column, row) =>
       column >= 0 && column < transcript.width && row >= 0 && row < transcript.height
         ? transcriptClickTargets.find(target => target.row === row && column >= target.start && column < target.end)?.action : undefined,
+    inspectorClickTarget: (row) => row >= 0 && row < inspector.height ? inspectorClickTargets[row] : undefined,
+    footerClickTarget: (column, row) => column >= 0 && column < footer.width && row >= 0 && row < footer.height
+      ? footerClickTargets.find(target => target.row === row && column >= target.start && column < target.end)?.action : undefined,
+    approvalClickTarget: (column, row) => approval.visible && column >= 0 && column < approval.width && row >= 0 && row < approval.height
+      ? approvalClickTargets.find(target => target.row === row && column >= target.start && column < target.end)?.action : undefined,
     dispose: () => {
       if (disposed) return;
       disposed = true;

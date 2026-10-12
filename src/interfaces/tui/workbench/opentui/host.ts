@@ -67,6 +67,27 @@ export function mountOpenTuiWorkbenchHost(renderer: CliRenderer, deps: OpenTuiHo
     deps.onClick({ type: 'focus.set', focus: 'composer' });
     event.preventDefault();
   };
+  layout.regions.inspector.onMouseUp = (event): void => {
+    if (!isClick(event) || !clickAllowed()) return;
+    const action = content.inspectorClickTarget(event.y - content.inspector.screenY);
+    if (!action) return;
+    deps.onClick(action);
+    event.preventDefault();
+  };
+  layout.regions.footer.onMouseUp = (event): void => {
+    if (!isClick(event) || !clickAllowed()) return;
+    const action = content.footerClickTarget(event.x - content.footer.screenX, event.y - content.footer.screenY);
+    if (!action) return;
+    deps.onClick(action);
+    event.preventDefault();
+  };
+  content.approval.onMouseUp = (event): void => {
+    if (!isClick(event)) return;
+    const action = content.approvalClickTarget(event.x - content.approval.screenX, event.y - content.approval.screenY);
+    if (!action) return;
+    deps.onClick(action);
+    event.preventDefault();
+  };
   const update = (): void => {
     layout.update(deps.layoutState());
     content.update(deps.contentState());

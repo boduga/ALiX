@@ -45,7 +45,10 @@ function pressEscape(setup: TestRendererSetup): void {
   });
 }
 
-function mount(setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }, agents: readonly AgentSummary[] = []): Harness {
+function mount(
+  setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }, agents: readonly AgentSummary[] = [],
+  overrides: Partial<Pick<ContentState, 'roster' | 'approval' | 'inspector'>> = {},
+): Harness {
   const store = new WorkbenchStore(createInitialWorkbenchUiState(dimensions));
   const { ports, calls } = makePorts();
   const signals = { turnActive: false, slashActive: false, approvalPending: false };
@@ -54,14 +57,14 @@ function mount(setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }
     const state = store.snapshot();
     return {
       header: chrome, footer: chrome,
-      roster: { agents: agents.length > 0 ? {
+      roster: overrides.roster ?? { agents: agents.length > 0 ? {
         agents, active: agents.length,
         totals: { agents: agents.length, running: agents.length, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 },
       } : null, tasks: null, artifacts: null },
       transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: state.transcriptMode, filter: state.transcriptFilter, scope: state.transcriptScope, followTail: state.followTail },
-      inspector: { selection: 'aggregate', explicitTaskSelection: false, approvals: [], artifacts: [], tokensPartial: false, costPartial: false },
+      inspector: overrides.inspector ?? { selection: 'aggregate', explicitTaskSelection: false, approvals: [], artifacts: [], tokensPartial: false, costPartial: false },
       composer: { composer: state.composer, coordination: state.coordination, queuedMessages: state.queuedMessages },
-      approval: [],
+      approval: overrides.approval ?? [],
       selection: {},
       overlay: { stack: state.overlayStack, scrollOffset: state.overlayScrollOffset, drawer: state.drawer, drawerScrollOffset: state.drawerScrollOffset, agentRosterExpanded: state.agentRosterExpanded },
     };
@@ -81,7 +84,17 @@ function mount(setup: TestRendererSetup, dimensions = { columns: 120, rows: 30 }
       host.update();
     },
     onClick: (action) => {
-      if (action.type === 'agent.select') store.dispatch(action);
+      if (action.type === 'agent.select' || action.type === 'task.select' || action.type === 'artifact.select') store.dispatch(action);
+      else if (action.type === 'artifact.open') {
+        const item = overrides.roster?.artifacts?.items.find(entry => entry.id === action.artifactId);
+        if (item) {
+          store.dispatch({ type: 'artifact.select', artifactId: item.id, runId: item.coordinationRunId,
+            agentId: item.agentId, taskId: item.taskId, scrollOffset: 0 });
+          if (store.snapshot().drawer !== 'artifacts') store.dispatch({ type: 'drawer.toggle', drawer: 'artifacts' });
+        }
+      }
+      else if (action.type === 'tab.next') keys.push('Tab');
+      else if (action.type === 'approval.resolve') applyWorkbenchIntent(store, { type: action.type, decision: action.decision }, { snapshot: undefined, ports, coordinationAvailable: true });
       else applyWorkbenchIntent(store, action, { snapshot: undefined, ports, coordinationAvailable: true });
       host.update();
     },
@@ -304,6 +317,118 @@ test('OpenTUI narrow drawer uses its visible roster rows for clicks', async () =
     const mouse = createMockMouse(setup.renderer);
     await mouse.click(host.content.overlay.screenX + 3, host.content.overlay.screenY + row);
     assert.equal(store.snapshot().selectedAgentId, 'worker-1');
+    host.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
+test('OpenTUI task and artifact rows select projected identities', async () => {
+  const setup = await createTestRenderer({ width: 180, height: 40 });
+  try {
+    const { host, store } = mount(setup, { columns: 180, rows: 40 }, [], { roster: {
+      agents: null,
+      tasks: { tasks: [
+        { taskId: 'task-1', agentId: 'worker-1', title: 'Build draft', state: 'running', ownedPaths: [], createdAt: 1, updatedAt: 2 },
+        { taskId: 'task-2', agentId: 'worker-2', title: 'Publish', state: 'completed', ownedPaths: [], createdAt: 1, updatedAt: 2 },
+      ], blocked: 0, running: 1, queued: 0 },
+      artifacts: { items: [
+        { id: 'artifact-1', kind: 'artifact', status: 'available', title: 'report.md', agentId: 'worker-2', taskId: 'task-2', createdAt: 1, sourceSequence: 1 },
+      ], artifacts: 1, results: 0, failed: 0 },
+    } });
+    const mouse = createMockMouse(setup.renderer);
+    store.dispatch({ type: 'drawer.toggle', drawer: 'tasks' });
+    host.update();
+    await setup.renderOnce();
+    const taskRow = host.content.roster.plainText.split('\n').findIndex(line => line.includes('Publish'));
+    assert.ok(taskRow >= 0);
+    await mouse.click(host.content.roster.screenX + 3, host.content.roster.screenY + taskRow);
+    assert.equal(store.snapshot().selectedTaskId, 'task-2');
+    assert.equal(store.snapshot().selectedAgentId, 'worker-2');
+
+    store.dispatch({ type: 'drawer.toggle', drawer: 'artifacts' });
+    host.update();
+    await setup.renderOnce();
+    const artifactRow = host.content.roster.plainText.split('\n').findIndex(line => line.includes('report.md'));
+    assert.ok(artifactRow >= 0);
+    await mouse.click(host.content.roster.screenX + 3, host.content.roster.screenY + artifactRow);
+    assert.equal(store.snapshot().selectedArtifactId, 'artifact-1');
+    host.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
+test('OpenTUI narrow task overlay uses visible row targets', async () => {
+  const setup = await createTestRenderer({ width: 80, height: 24 });
+  try {
+    const { host, store } = mount(setup, { columns: 80, rows: 24 }, [], { roster: {
+      agents: null,
+      tasks: { tasks: [
+        { taskId: 'task-1', title: 'Narrow task', state: 'running', ownedPaths: [], createdAt: 1, updatedAt: 2 },
+      ], blocked: 0, running: 1, queued: 0 },
+      artifacts: null,
+    } });
+    store.dispatch({ type: 'drawer.toggle', drawer: 'tasks' });
+    host.update();
+    await setup.renderOnce();
+    assert.equal(host.layout.regions.overlay.visible, true);
+    const row = host.content.overlay.plainText.split('\n').findIndex(line => line.includes('Narrow task'));
+    assert.ok(row >= 0);
+    await createMockMouse(setup.renderer).click(host.content.overlay.screenX + 3, host.content.overlay.screenY + row);
+    assert.equal(store.snapshot().selectedTaskId, 'task-1');
+    host.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
+test('OpenTUI inspector and footer hints respond to clicks', async () => {
+  const setup = await createTestRenderer({ width: 180, height: 40 });
+  try {
+    const artifact = { id: 'inspector-artifact', kind: 'artifact', status: 'available', title: 'inspector.md',
+      createdAt: 1, sourceSequence: 1 } as const;
+    const { host, store, keys } = mount(setup, { columns: 180, rows: 40 }, [], {
+      roster: { agents: null, tasks: null, artifacts: { items: [artifact], artifacts: 1, results: 0, failed: 0 } },
+      inspector: { selection: 'aggregate', explicitTaskSelection: false, approvals: [], artifacts: [artifact], tokensPartial: false, costPartial: false },
+    });
+    const mouse = createMockMouse(setup.renderer);
+    await setup.renderOnce();
+    const artifactsRow = host.content.inspector.plainText.split('\n').findIndex(line => line.includes('inspector.md'));
+    assert.ok(artifactsRow >= 0);
+    await mouse.click(host.content.inspector.screenX + 2, host.content.inspector.screenY + artifactsRow);
+    assert.equal(store.snapshot().selectedArtifactId, 'inspector-artifact');
+    assert.equal(store.snapshot().drawer, 'artifacts');
+    await mouse.click(host.content.footer.screenX + 2, host.content.footer.screenY);
+    assert.deepEqual(keys, ['Tab']);
+    const detailsRow = host.content.inspector.plainText.split('\n').findIndex(line => line.includes('AGENT DETAILS'));
+    await mouse.click(host.content.inspector.screenX + 2, host.content.inspector.screenY + detailsRow);
+    assert.equal(store.snapshot().overlayStack.at(-1), 'inspector');
+    host.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
+test('OpenTUI approval buttons resolve the visible approval while blocking covered panes', async () => {
+  const setup = await createTestRenderer({ width: 120, height: 30 });
+  try {
+    const { host, store, calls } = mount(setup, { columns: 120, rows: 30 }, [], { approval: [
+      { id: 'ap1', toolName: 'write_file', target: 'src/x.ts', args: {}, requestedAt: 1, requestedBy: 'worker-1' },
+      { id: 'ap2', toolName: 'run_shell', target: 'npm test', args: {}, requestedAt: 2, requestedBy: 'worker-2' },
+    ] });
+    const mouse = createMockMouse(setup.renderer);
+    await setup.renderOnce();
+    await mouse.click(host.content.transcript.screenX + 3, host.content.transcript.screenY + 4);
+    assert.equal(store.snapshot().focus, 'composer');
+    const y = host.content.approval.screenY + 3;
+    const frame = setup.captureCharFrame();
+    assert.equal(frame.split('a approve').length - 1, 1);
+    assert.match(frame, /Resolve oldest approval first/);
+    const approvalRow = frame.split('\n')[y]!;
+    await mouse.click(approvalRow.indexOf('a approve'), y);
+    await mouse.click(approvalRow.indexOf('d deny'), y);
+    assert.deepEqual(calls.resolveApproval, [['ap1', 'approved'], ['ap1', 'denied']]);
     host.dispose();
   } finally {
     await disposeTestRenderer(setup);
