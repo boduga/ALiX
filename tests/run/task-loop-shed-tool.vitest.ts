@@ -193,6 +193,17 @@ async function makeTestDeps(overrides: {
 
 // ── Tests ─────────────────────────────────────────────────────────────
 
+const doneTool: ToolDef = {
+  name: 'alix_done',
+  description: 'Signal completion',
+  input_schema: { type: 'object', properties: {} },
+};
+const fetchTool: ToolDef = {
+  name: 'alix_web_fetch',
+  description: 'Fetch a web page for research',
+  input_schema: { type: 'object', properties: { url: { type: 'string' } } },
+};
+
 describe('explicit mutation target extraction', () => {
   it('recognizes strict named and absolute-path file tasks', () => {
     expect(explicitMutationTargets('Create a file named note.md.')).toEqual(['note.md']);
@@ -499,11 +510,6 @@ describe('task-loop completion termination', () => {
   const readTool: ToolDef = {
     name: 'alix_file_read',
     description: 'Read a file',
-    input_schema: { type: 'object', properties: {} },
-  };
-  const doneTool: ToolDef = {
-    name: 'alix_done',
-    description: 'Signal completion',
     input_schema: { type: 'object', properties: {} },
   };
   const shellTool: ToolDef = {
@@ -1117,5 +1123,73 @@ describe('telemetry labels resolve against the OFFERED surface', () => {
       expect(p.data?.toolName).not.toBe('alix_file_read');
     }
     await log.readAll();
+  });
+
+  // Regression: a synthesis reprompt is requested when the model runs tools but
+  // returns only a short narration. The FIRST `done` it then emits is the real
+  // completion, not a redundant one — it must run, and must not be swallowed by
+  // the redundant-done suppression and end the session on the narration.
+  it('honors the first done after a synthesis reprompt instead of suppressing it', async () => {
+    const narration = 'I have gathered the list. Now I am compiling the final list for the user.';
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000, outputTokenLimit: 16_384,
+        supportsTools: true, supportsStreaming: false, supportsStructuredOutput: false,
+        supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests: [],
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        (provider.requests as RecordedRequest[]).push({
+          systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools,
+        });
+        iteration++;
+        // Iteration 1: research tool with no synthesis → triggers reprompt.
+        // Iteration 2: real answer prose + the first-ever `done`.
+        if (iteration === 1) {
+          return {
+            text: '',
+            toolCalls: [{ name: 'alix_web_fetch', id: 'fetch-1', args: { url: 'https://example.com/list' } }],
+            usage: { inputTokens: 100, outputTokens: 20 },
+            finishReason: 'tool_use',
+          };
+        }
+        return {
+          text: narration,
+          toolCalls: [{ name: 'alix_done', id: 'done-1', args: {} }],
+          usage: { inputTokens: 100, outputTokens: 30 },
+          finishReason: 'stop',
+        };
+      },
+    };
+    const executor = {
+      execute: async ({ name }: { name: string }) =>
+        name === 'task.complete'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: 'fetched page content' },
+    } as any;
+    const { deps, log } = await makeTestDeps({
+      provider,
+      task: 'List the current heads of state for the region.',
+      providerTools: [doneTool, fetchTool],
+      executor,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+    const events = await log.readAll();
+
+    // The first done must have actually dispatched (the completion tool ran).
+    const doneDispatched = events.some((e) =>
+      e.type === 'agent.decision' && String((e.payload as any)?.description ?? '').includes('alix_done')
+      && (e.payload as any)?.outcome === 'executed');
+    expect(doneDispatched).toBe(true);
+    // And it must NOT be recorded as a suppressed redundant done.
+    expect(events.some((e) => e.type === 'completion.redundant_done_ignored')).toBe(false);
+    // The session completes on the completion signal, not on narration.
+    expect(result.reason === 'completed' || result.reason === 'completed_unverified').toBe(true);
   });
 });
