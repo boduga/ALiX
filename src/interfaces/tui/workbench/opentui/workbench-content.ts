@@ -1,4 +1,4 @@
-import { BoxRenderable, StyledText, TextRenderable, bg, fg, type CliRenderer } from '@opentui/core';
+import { BoxRenderable, StyledText, TextRenderable, bg, bold, fg, type CliRenderer } from '@opentui/core';
 import { getWorkbenchAgentPresentation, getWorkbenchPreviewTheme } from '../model/preview-theme.js';
 import { formatByteSize, formatCoordMeta, taskStateGlyph } from '../model/display-format.js';
 import type { OperatorShellSnapshot, OperatorShellStatus } from '../model/operator-shell.js';
@@ -29,7 +29,7 @@ const ACTIVITY_STATUS: Readonly<Record<string, string>> = {
 };
 
 type Color = keyof typeof COLORS;
-interface NativePart { readonly text: string; readonly color?: Color; readonly background?: Color }
+interface NativePart { readonly text: string; readonly color?: Color; readonly background?: Color; readonly bold?: boolean }
 interface NativeLine { readonly text: string; readonly color?: Color; readonly fill?: boolean; readonly parts?: readonly NativePart[] }
 
 function styledLines(lines: readonly NativeLine[], width: number): StyledText {
@@ -39,7 +39,8 @@ function styledLines(lines: readonly NativeLine[], width: number): StyledText {
       if (remaining <= 0) return [];
       const clipped = truncateDisplayText(part.text, remaining);
       remaining -= displayWidth(clipped);
-      const chunk = fg(COLORS[part.color ?? line.color ?? 'foreground'])(clipped);
+      const colored = fg(COLORS[part.color ?? line.color ?? 'foreground'])(clipped);
+      const chunk = part.bold ? bold(colored) : colored;
       return [part.background || line.fill ? bg(COLORS[part.background ?? 'selection'])(chunk) : chunk];
     });
     if (line.fill && remaining > 0) styled.push(bg(COLORS.selection)(fg(COLORS.foreground)(' '.repeat(remaining))));
@@ -398,14 +399,25 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     const brandLine = `${brand}  ${badge}`;
     const agentFacts = state.header.agents ? `${state.header.agents.total} agents • ${state.header.agents.running} running` : '';
     header.content = styledLines(headerLines(state.header, headerSize.width, headerSize.height).map((line, index) => {
-      if (index > 0 || !line.startsWith(brandLine)) return { text: line, color: 'muted' };
-      const remainder = line.slice(brandLine.length);
+      const parts: NativePart[] = [];
+      let remainder = line;
+      if (index === 0 && line.startsWith(brandLine)) {
+        parts.push({ text: brand, color: 'cyan', bold: true }, { text: `  ${badge}`, color: 'muted' });
+        remainder = line.slice(brandLine.length);
+      }
+      const workspaceLabel = 'workspace: ';
+      const workspaceAt = remainder.indexOf(workspaceLabel);
+      if (workspaceAt >= 0) {
+        parts.push({ text: remainder.slice(0, workspaceAt + workspaceLabel.length), color: 'muted' });
+        remainder = remainder.slice(workspaceAt + workspaceLabel.length);
+        const pathLength = safeLine(state.header.workspace).length;
+        parts.push({ text: remainder.slice(0, pathLength), color: 'cyan' });
+        remainder = remainder.slice(pathLength);
+      }
       const countAt = agentFacts ? remainder.lastIndexOf(agentFacts) : -1;
-      return { text: line, parts: [
-        { text: brand, color: 'cyan' }, { text: `  ${badge}`, color: 'muted' },
-        { text: countAt >= 0 ? remainder.slice(0, countAt) : remainder, color: 'muted' },
-        ...(countAt >= 0 ? [{ text: remainder.slice(countAt), color: 'green' as const }] : []),
-      ] };
+      parts.push({ text: countAt >= 0 ? remainder.slice(0, countAt) : remainder, color: 'muted' });
+      if (countAt >= 0) parts.push({ text: remainder.slice(countAt), color: 'green' });
+      return { text: line, parts };
     }), headerSize.width);
     footer.content = styledLines(footerLines(state.footer, footerSize.width, footerSize.height).map(line => {
       const counterAt = line.indexOf('TOKENS ');

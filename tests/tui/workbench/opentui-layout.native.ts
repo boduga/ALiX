@@ -531,6 +531,11 @@ test('native header and footer render operator chrome', async () => {
     assert.match(frame, /ALiX WORKBENCH/);
     assert.match(frame, /PREVIEW/);
     assert.match(frame, /workspace: \/work\/project/);
+    const brand = content.header.chunks.find(chunk => chunk.text === 'ALiX WORKBENCH');
+    const workspace = content.header.chunks.find(chunk => chunk.text === '/work/project');
+    assert.ok(brand?.attributes, 'brand uses terminal bold');
+    assert.deepEqual(brand.fg?.toInts().slice(0, 3), [6, 201, 239]);
+    assert.deepEqual(workspace?.fg?.toInts().slice(0, 3), [6, 201, 239]);
     assert.match(frame, /TOKENS 1,234/);
     assert.match(frame, /a approve/);
     assert.match(frame, /d deny/);
