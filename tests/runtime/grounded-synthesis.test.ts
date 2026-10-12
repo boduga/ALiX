@@ -303,6 +303,53 @@ describe("grounded_chat retrieval loop", () => {
       `retrieval must be bounded to ${GROUNDED_MAX_TOOL_ROUNDS} tool rounds`,
     );
   });
+
+  it("reuses a repeated fetch instead of spending a round on the same URL", async () => {
+    // Session 1791833097742 fetched one URL twice (maxLength 15000 then
+    // 20000), burning two of three rounds on a duplicate.
+    const executed: string[] = [];
+    const route = {
+      kind: "grounded_chat" as const,
+      prompt: "list all west african presidents",
+      allowedTools: ["web.search", "web.fetch"],
+      diagnostic: { classification: "external_retrieval" },
+    };
+    const urls = ["https://a.test/x", "https://a.test/x", "https://b.test/y"];
+    let round = 0;
+    const provider: ModelAdapter = {
+      id: "mock",
+      capabilities: {},
+      complete: async (request: RecordedRequest) => {
+        if (request.systemPrompt === GROUNDED_SYNTHESIS_PROMPT) {
+          return { text: "A complete answer from two distinct pages.", toolCalls: [] };
+        }
+        const url = urls[Math.min(round, urls.length - 1)]!;
+        round++;
+        return { text: "", toolCalls: [{ id: `f${round}`, name: "alix_web_fetch", args: { url } }] };
+      },
+    } as unknown as ModelAdapter;
+
+    const answer = await executeGroundedChatBehavior(
+      route as never,
+      { permissions: { allowNetworkDomains: [] } } as never,
+      {
+        cwd: process.cwd(),
+        eventLog: { append: async () => {} },
+        providerFactory: async () => provider,
+        toolExecutorFactory: async () => ({
+          execute: async (req: { name: string; args: { url?: string } }) => {
+            executed.push(String(req.args?.url));
+            return { kind: "success" as const, output: `content of ${req.args?.url}` };
+          },
+        }),
+        toolCandidateAliases: ALIASES,
+      } as never,
+    );
+
+    // The duplicate URL was served from cache, not re-fetched.
+    assert.deepEqual(executed, ["https://a.test/x", "https://b.test/y"]);
+    assert.match(answer, /complete answer/i);
+  });
 });
 
 describe("grounded_chat leaked-call recovery (end to end)", () => {

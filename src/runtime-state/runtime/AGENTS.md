@@ -78,10 +78,15 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
   a hardcoded single round, so the model could only ever `search` and every
   external answer came from titles/URLs/snippets — a "list all X" question could
   not read article bodies (sessions `1791824290404`, `1791828877329`,
-  `1791829878920` each called `web.search` and never `web.fetch`). The
+  `1791829878920` each called `web.search` and never `alix_web_fetch`). The
   `RETRIEVAL_SYSTEM_PROMPT` must therefore name BOTH tools and their distinct
   jobs: search FINDS pages, fetch READS them. Keep the round cap a hard bound;
   never widen the offered surface.
+- **A repeated fetch inside one turn is served from cache.** `alix_web_fetch` is
+  deduplicated by URL for the turn: a repeat reuses the first result instead of
+  spending a round of the bounded budget. Models routinely re-fetch one URL with
+  a different `maxLength`, which otherwise silently consumed the whole budget on
+  a single page (session `1791833097742` spent two of three rounds that way).
 - **Grounded synthesis never returns a non-answer.** A synthesis response is
   checked by `isNonSubstantiveSynthesis` (empty, plan-only, or leftover
   tool-call syntax) and replaced with an explicit insufficient-data sentence
