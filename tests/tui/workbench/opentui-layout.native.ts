@@ -540,6 +540,11 @@ test('native header and footer render operator chrome', async () => {
     assert.match(frame, /a approve/);
     assert.match(frame, /d deny/);
     assert.match(frame, /Esc cancel/);
+    // Header row 0 groups are workspace | mode | roster counts only; the run
+    // status never joins them (canonical ANSI row 0 and the preview target).
+    const headerRow = content.header.plainText.split('\n')[0] ?? '';
+    assert.match(headerRow, /workspace: \/work\/project\s+\|\s+ask\s+\|\s+4 agents • 2 running/);
+    assert.doesNotMatch(headerRow, /RUNNING|APPROVAL/);
     content.update({ ...state, header: chromeState({ workspace: '/漢\n\x1b[31mwork' }) });
     await setup.renderOnce();
     assert.doesNotMatch(content.header.plainText, /\n|\x1b/);

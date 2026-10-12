@@ -1,7 +1,7 @@
 import { BoxRenderable, StyledText, TextRenderable, bg, bold, fg, type CliRenderer } from '@opentui/core';
 import { getWorkbenchAgentPresentation, getWorkbenchPreviewTheme } from '../model/preview-theme.js';
 import { formatByteSize, formatCoordMeta, taskStateGlyph } from '../model/display-format.js';
-import type { OperatorShellSnapshot, OperatorShellStatus } from '../model/operator-shell.js';
+import type { OperatorShellSnapshot } from '../model/operator-shell.js';
 import { visibleArtifacts, visibleForRun } from '../model/selection.js';
 import { transcriptItemMatchesFilter } from '../model/transcript-filter.js';
 import type { ConversationSnapshot, TranscriptItem } from '../model/transcript-item.js';
@@ -349,10 +349,6 @@ function chromeCount(value: number | undefined): string {
   return value === undefined ? 'unavailable' : value.toLocaleString('en-US');
 }
 
-function statusLabel(status: OperatorShellStatus): string {
-  return status.kind === 'approval-wait' ? 'WAITING FOR APPROVAL' : `RUNNING · ${status.state}`;
-}
-
 function headerLines(model: OperatorShellSnapshot, width: number, height: number): string[] {
   if (height === 0 || width === 0) return [];
   const brand = width >= 20 ? 'ALiX WORKBENCH' : width >= 6 ? 'ALiX' : '';
@@ -360,7 +356,6 @@ function headerLines(model: OperatorShellSnapshot, width: number, height: number
   const left = `${brand}  ${badge}`;
   const facts = safeLine([
     `workspace: ${model.workspace}`, model.mode,
-    model.status ? statusLabel(model.status) : model.running ? 'RUNNING' : '',
     model.agents ? `${model.agents.total} agents • ${model.agents.running} running` : '',
   ].filter(Boolean).join('  |  '));
   if (width >= displayWidth(left) + displayWidth(facts) + 2) return [`${left}${' '.repeat(width - displayWidth(left) - displayWidth(facts))}${facts}`];
