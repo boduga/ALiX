@@ -143,7 +143,11 @@ test('native roster and transcript show selected run content and update in place
     assert.match(frame, /LIVE TRANSCRIPT/);
     assert.match(frame, /\[ALL\]  RESPONSE  TOOL  ACTIVITY  ERROR/);
     assert.match(frame, /Auto-follow: ON/);
-    assert.match(frame, /\[00:00:00\]/);
+    // Transcript row labels are LOCAL wall-clock; epoch+1ms is not 00:00:00
+    // outside UTC, so derive the expectation instead of hardcoding UTC.
+    const epochLocal = new Date(1);
+    const epPad = (n: number): string => String(n).padStart(2, '0');
+    assert.match(frame, new RegExp(`\\[${epPad(epochLocal.getHours())}:${epPad(epochLocal.getMinutes())}:`));
     assert.match(frame, /Researcher/);
     assert.match(frame, /RUN run-a/);
     assert.match(frame, /Find sources/);
@@ -499,6 +503,75 @@ test('native approval card paints above the drawer overlay', async () => {
     await setup.renderOnce();
     assert.equal(content.approval.visible, false);
     assert.doesNotMatch(setup.captureCharFrame(), /APPROVAL REQUIRED/);
+    content.dispose();
+    layout.dispose();
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
+test('native transcript renders markdown, local time, and a tight gutter', async () => {
+  const setup = await createTestRenderer({ width: 150, height: 34 });
+  try {
+    const shell = layoutState('closed');
+    const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shell);
+    const markdown = [
+      'Here is the list:',
+      '',
+      'This is **bold** and *italic*.',
+      '',
+      '| Country | President |',
+      '| --- | --- |',
+      '| **Benin** | Patrice Talon |',
+      '| Ghana | John Mahama |',
+    ].join('\n');
+    const state: ContentState = {
+      inspector: inspectorState(), composer: contentComposer(), approval: [],
+      header: chromeState(), footer: chromeState(),
+      roster: { agents: null, tasks: null, artifacts: null },
+      transcript: {
+        conversation: { items: [
+          { kind: 'assistant', text: markdown, startedAt: Date.now(), id: 'md-1' },
+          { kind: 'tool-group', tools: [{ id: 't-1', name: 'web.search', status: 'success', args: { query: 'x' } }], startedAt: Date.now(), id: 'tg-1' },
+        ] as never, hiddenDiagnostics: 0 },
+        mode: 'compact', filter: 'all', scope: 'all', followTail: true,
+      },
+      selection: {}, overlay: shell.overlay,
+    };
+    const content = mountOpenTuiWorkbenchContent(setup.renderer, layout, state);
+    await setup.renderOnce();
+    const frame = setup.captureCharFrame();
+
+    // 1. Markdown is rendered, not echoed: the table separator row and bold
+    //    markers in prose must not reach the transcript.
+    assert.match(frame, /Here is the list:/);
+    assert.doesNotMatch(frame, /\| --- \| --- \|/);
+    assert.match(frame, /Benin/);
+    assert.match(frame, /Patrice Talon/);
+    // Inline emphasis in ordinary prose is consumed.
+    assert.doesNotMatch(frame, /This is \*\*bold\*\*/);
+
+    // 2. Timestamps are LOCAL wall-clock, not UTC. Rendered from `Date.now()`
+    //    so the label must match the local clock, never toISOString()'s UTC.
+    const local = new Date();
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    const localLabel = `${pad(local.getHours())}:${pad(local.getMinutes())}`;
+    const utcLabel = new Date().toISOString().slice(11, 16);
+    assert.match(frame, new RegExp(`\\[${localLabel}`), 'row label uses local time');
+    if (localLabel !== utcLabel) assert.doesNotMatch(frame, new RegExp(`\\[${utcLabel}`), 'row label is not UTC');
+
+    // 3. The gutter is tight: prose starts near its responder, not ~40 columns in.
+    const proseRow = frame.split('\n').find(line => line.includes('Here is the list'))!;
+    const responderCol = proseRow.indexOf('ALiX');
+    const textCol = proseRow.indexOf('Here is the list');
+    assert.ok(textCol > responderCol, 'prose follows its responder');
+    assert.ok(textCol - responderCol <= 12, `gutter must stay tight (was ${textCol - responderCol})`);
+
+    // 4. No connector artifact in front of the tool card. The connector guide is
+    //    a vertical bar joined to a corner (`│├─`/`│└─`); the card's OWN border
+    //    also uses └─ and ┌─, so assert on the vertical-bar form only.
+    assert.doesNotMatch(frame, /│[├└]/, 'tool card carries no connector guide');
+
     content.dispose();
     layout.dispose();
   } finally {
