@@ -6,6 +6,7 @@ import { visibleArtifacts, visibleForRun } from '../model/selection.js';
 import { transcriptItemMatchesFilter } from '../model/transcript-filter.js';
 import type { ConversationSnapshot, TranscriptItem } from '../model/transcript-item.js';
 import { displayWidth, truncateDisplayText, wrapDisplayText } from '../render/terminal-text.js';
+import { renderResponse } from '../../blocks/render.js';
 import type { WorkbenchRegion } from '../layout/responsive-layout.js';
 import type { WorkbenchViewState } from '../view-state/types.js';
 import { buildAgentInspectorSections } from '../views/agent-inspector.js';
@@ -17,8 +18,6 @@ import { buildWorkbenchToolCardLines } from '../views/tool-card.js';
 import type { ComposerLayout } from '../views/composer-view.js';
 import type { OpenTuiWorkbenchLayout } from './workbench-layout.js';
 
-/** Maximum characters retained from one transcript item before wrapping. */
-const MAX_ITEM_CHARS = 4;
 const COLORS = {
   background: '#08151b', foreground: '#e6edf3', muted: '#9cb4ca',
   cyan: '#06c9ef', green: '#3df451', yellow: '#ffc63d',
@@ -223,31 +222,124 @@ function rosterLines(state: ContentState, width: number, height: number): { line
   return { lines: out.value(), targets: out.targets() };
 }
 
-function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number, width: number, actor: string): string[] {
-  const time = Number.isFinite(item.startedAt) && item.startedAt >= 0 && item.startedAt <= 8640000000000000
-    ? new Date(item.startedAt).toISOString().slice(11, 19) : '--:--:--';
-  const prefix = `[${time}]  ${actor.padEnd(16, ' ')} `;
+/**
+ * Markdown for transcript prose.
+ *
+ * The ANSI Workbench already renders assistant/user text through
+ * `renderResponse` (`src/interfaces/tui/blocks/render.ts`), which parses and
+ * lays out headings, quotes, rules, lists, code and TABLES into bounded rows.
+ * The native renderer used to print the raw source, so `**bold**` and the
+ * `| --- |` separator row leaked into the transcript. Reusing that renderer
+ * keeps ONE markdown implementation across both renderers instead of a second,
+ * divergent one.
+ *
+ * `renderResponse` emits ANSI SGR runs; this maps them onto the native palette
+ * so the rows carry colors without a second styling system. Text, color and
+ * bold all survive; anything unmapped degrades to plain foreground rather than
+ * being dropped.
+ */
+const ANSI_COLOR: Record<number, Color> = {
+  31: 'red', 32: 'green', 33: 'yellow', 34: 'cyan',
+  35: 'purple', 36: 'cyan', 90: 'muted',
+};
+
+/** Split an ANSI-styled row into native parts, stripping every SGR sequence. */
+export function ansiRowToNativeParts(row: string): NativePart[] {
+  const parts: NativePart[] = [];
+  let color: Color | undefined;
+  let bold = false;
+  let buffer = '';
+  const flush = (): void => {
+    if (buffer.length === 0) return;
+    parts.push({ text: buffer, ...(color ? { color } : {}), ...(bold ? { bold: true } : {}) });
+    buffer = '';
+  };
+  // eslint-disable-next-line no-control-regex
+  const sgr = /\x1b\[([0-9;]*)m/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = sgr.exec(row)) !== null) {
+    buffer += row.slice(last, match.index);
+    last = sgr.lastIndex;
+    for (const raw of match[1]!.split(';')) {
+      const code = Number(raw);
+      if (code === 0) { color = undefined; bold = false; }
+      else if (code === 1) bold = true;
+      else if (code === 2) color = 'muted';
+      else if (code === 22 || code === 39) { bold = false; color = undefined; }
+      else if (ANSI_COLOR[code]) color = ANSI_COLOR[code];
+    }
+    flush();
+  }
+  buffer += row.slice(last);
+  flush();
+  if (parts.length === 0) parts.push({ text: '' });
+  return parts;
+}
+
+/** Markdown-aware transcript rows for prose items. */
+function proseRows(text: string, width: number): NativeLine[] {
+  try {
+    const rows = renderResponse(text, Math.max(8, width));
+    if (rows.length === 0) return [{ text: '' }];
+    return rows.map(row => ({ text: row.text, parts: ansiRowToNativeParts(row.text) }));
+  } catch {
+    // Never let a markdown edge case blank the transcript.
+    return wrapDisplayText(safeLine(text), Math.max(1, width)).map(line => ({ text: line }));
+  }
+}
+
+/** Local wall-clock `HH:MM:SS`. `toISOString()` is UTC and read wrong next to the operator's clock. */
+function localTimeLabel(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0 || ms > 8640000000000000) return '--:--:--';
+  const date = new Date(ms);
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+/** Transcript gutter width. Kept tight so prose starts near its responder. */
+const ACTOR_COLUMN = 8;
+
+function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number, width: number, actor: string): NativeLine[] {
+  const time = localTimeLabel(item.startedAt);
+  const prefix = `[${time}] ${actor.padEnd(ACTOR_COLUMN, ' ')} `;
+  const gutter = ' '.repeat(prefix.length);
+  const plain = (text: string, color?: Color): NativeLine[] => wrapDisplayText(safeLine(text), Math.max(1, width)).map(line => ({ text: line, ...(color ? { color } : {}) }));
+  /** Prefix the first row, align the rest under it. */
+  const lead = (rows: NativeLine[]): NativeLine[] => {
+    if (rows.length === 0) return [];
+    const [first, ...rest] = rows as [NativeLine, ...NativeLine[]];
+    return [
+      { text: `${prefix}${first.text}`, parts: [{ text: prefix, color: 'muted' }, ...(first.parts ?? [{ text: first.text }])] },
+      ...rest.map(row => ({ text: `${gutter}${row.text}`, ...(row.parts ? { parts: [{ text: gutter, color: 'muted' as const }, ...row.parts] } : { color: row.color }) })),
+    ];
+  };
+
   switch (item.kind) {
-    case 'user': return [`${prefix}${item.text}`];
-    case 'assistant': return [`${prefix}${item.text}`];
-    case 'activity': return [`${prefix}${item.verifiedOutcome === 'success' ? '✓ ' : item.verifiedOutcome === 'failure' ? '✗ ' : ''}${item.status ? `${ACTIVITY_STATUS[item.status] ?? item.status.toUpperCase()}  ` : ''}${item.text}`];
-    case 'approval': return [`${prefix}APPROVAL  ${item.text}`];
-    case 'diagnostic': return [`${prefix}${item.severity.toUpperCase()}  ${item.text}`];
-    case 'phase': return [`${prefix}PHASE  ${item.phase}`];
+    case 'user': return lead(proseRows(item.text, Math.max(8, width - prefix.length)));
+    case 'assistant': return lead(proseRows(item.text, Math.max(8, width - prefix.length)));
+    case 'activity': return lead(plain(`${item.verifiedOutcome === 'success' ? '✓ ' : item.verifiedOutcome === 'failure' ? '✗ ' : ''}${item.status ? `${ACTIVITY_STATUS[item.status] ?? item.status.toUpperCase()}  ` : ''}${item.text}`));
+    case 'approval': return lead(plain(`APPROVAL  ${item.text}`, 'yellow'));
+    case 'diagnostic': return lead(plain(`${item.severity.toUpperCase()}  ${item.text}`, item.severity === 'error' ? 'red' : 'yellow'));
+    case 'phase': return lead(plain(`PHASE  ${item.phase}`, 'purple'));
     case 'plan': return [
-      ...(item.text ? [`${prefix}PLAN  ${item.text}`] : []),
-      ...item.tasks.slice(0, 20).map(task => `[${task.status}] ${task.index}. ${task.title}`),
+      ...(item.text ? lead(plain(`PLAN  ${item.text}`, 'purple')) : []),
+      ...item.tasks.slice(0, 20).flatMap(task => plain(`[${task.status}] ${task.index}. ${task.title}`)),
     ];
     case 'tool-group': return item.tools
       .filter(tool => !errorOnly || tool.status === 'failed')
       .slice(-height)
       .flatMap(tool => {
         const heading = `${prefix}TOOL  ${tool.name} · ${tool.status}`;
-        if (tool.status === 'running' && !detailed) return [heading];
+        if (tool.status === 'running' && !detailed) return [{ text: heading }];
+        // indent 0 drops the `│ ├─ └─` connector column (tool-card.ts only
+        // draws the guide at indent >= 2); the native transcript indents the
+        // card itself instead.
         const card = buildWorkbenchToolCardLines(tool, {
-          width: Math.max(8, width - Math.min(prefix.length, 24)), mode: detailed ? 'detailed' : 'compact', indent: 2,
+          width: Math.max(8, width - prefix.length - 2), mode: detailed ? 'detailed' : 'compact', indent: 0,
         });
-        return [heading, ...card.slice(0, Math.max(0, height - 1)).map(line => `  ${safeLine(line.text)}`)];
+        const headingLine: NativeLine = { text: heading, parts: [{ text: prefix, color: 'muted' }, { text: `TOOL  ${tool.name} · ${tool.status}`, color: 'cyan' }] };
+        return [headingLine, ...card.slice(0, Math.max(0, height - 1)).map(line => ({ text: `  ${safeLine(line.text)}`, parts: ansiRowToNativeParts(line.text).map(part => ({ ...part, text: `  ${part.text}` })) }))];
       });
   }
 }
@@ -273,12 +365,23 @@ function transcriptLines(state: ContentState, conversation: ConversationSnapshot
       : item.kind === 'activity' ? item.verifiedOutcome === 'failure' ? 'red' : item.verifiedOutcome === 'success' ? 'green' : 'muted'
         : item.kind === 'diagnostic' ? item.severity === 'error' ? 'red' : 'yellow'
           : item.kind === 'approval' ? 'yellow' : item.kind === 'plan' ? 'purple' : 'foreground';
+    // Rows arrive already wrapped and styled (markdown prose carries parts), so
+    // they are clipped and pushed directly instead of re-wrapped here.
     for (let contentIndex = itemContent.length - 1; contentIndex >= 0 && lines.length < neededRows; contentIndex--) {
-      const bounded = itemContent[contentIndex]!.slice(-Math.max(1, width * neededRows * MAX_ITEM_CHARS));
-      const parts = safe(bounded).split('\n');
-      for (let partIndex = parts.length - 1; partIndex >= 0 && lines.length < neededRows; partIndex--) {
-        const wrapped = wrapDisplayText(parts[partIndex]!, width);
-        for (let row = wrapped.length - 1; row >= 0 && lines.length < neededRows; row--) lines.push({ text: wrapped[row]!, color });
+      const row = itemContent[contentIndex]!;
+      const text = truncateDisplayText(row.text, width);
+      if (row.parts) {
+        let remaining = width;
+        const parts: NativePart[] = [];
+        for (const part of row.parts) {
+          if (remaining <= 0) break;
+          const clipped = truncateDisplayText(part.text, remaining);
+          remaining -= displayWidth(clipped);
+          parts.push({ ...part, text: clipped });
+        }
+        lines.push({ text, parts });
+      } else {
+        lines.push({ text, color });
       }
     }
     if (lines.length >= neededRows) break;
