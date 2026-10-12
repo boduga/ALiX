@@ -913,11 +913,16 @@ if (
 
 // A synthesis reply sometimes includes another `done` call even though a
 // completion tool already ran (or the runtime explicitly asked for prose).
-// `done` has no useful side effect at this point. Treat the non-empty text as
+// `done` has no useful side effect at that point. Treat the non-empty text as
 // the terminal synthesis and suppress the redundant dispatch so the event log
 // contains one real completion action, not an artificial done loop.
+//
+// Suppression requires PROOF a completion tool already ran this session.
+// Without that check, the first-ever `done` after a synthesis reprompt is
+// silently discarded and the loop ends on the narration as the summary.
 if (
   synthesisRequested &&
+  explicitDoneCalled &&
   text.trim().length > 0 &&
   toolCalls.length > 0 &&
   toolCalls.every((toolCall) => isCompletionTool(toolCall.name))

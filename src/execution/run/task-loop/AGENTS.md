@@ -131,6 +131,17 @@ barrel preserving public import paths.
 - Tool-result echoes are not synthesis. Re-prompt once, then terminate
   `completed_unverified` with a tool-result-echo rejection reason if the echo
   persists. A short quotation within substantive prose stays accepted.
+- **A synthesis reprompt never authorizes discarding a first completion.** The
+  redundant-done suppression exists to avoid an artificial done loop after a
+  completion tool already ran; it must additionally require that proof
+  (`explicitDoneCalled`). Without it, a model that researches, receives the
+  synthesis reprompt, and then emits its first real `done` has that completion
+  silently dropped and the session ends on its narration as the summary. The
+  regression is pinned by "honors the first done after a synthesis reprompt
+  instead of suppressing it" in `tests/run/task-loop-shed-tool.vitest.ts`.
+  Narration that reports work in progress ("I'm compiling the list") is a
+  separate, deliberately ungated concern: the claim predicates score it as
+  substantiated because the research tools really did run.
 - `onToolResult` passes full successful model-facing result text to an invocation-local observer before telemetry previews truncate it. Observer failures cannot change execution; verification consumers must not substitute preview events for retrieved evidence.
 - Tool-selection instrumentation records the frozen offered surface, chosen
   candidate, resolved executor, and separate novelty, execution, and evidence
