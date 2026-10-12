@@ -70,6 +70,18 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
   queries and must NOT invite the model to describe further retrieval it would
   need — that wording made models answer with a plan ("I'll fetch the page…")
   instead of an answer (session `1791828877329`).
+- **Grounded retrieval is a bounded loop, not a single tool round.** The model
+  chooses tools across at most `GROUNDED_MAX_TOOL_ROUNDS` rounds, one allowlisted
+  call per round (`#760`: fan-out extras are ignored), with each result appended
+  to the conversation so the next round can act on it. The synthesis call then
+  receives EVERY collected result. This exists because the route was previously
+  a hardcoded single round, so the model could only ever `search` and every
+  external answer came from titles/URLs/snippets — a "list all X" question could
+  not read article bodies (sessions `1791824290404`, `1791828877329`,
+  `1791829878920` each called `web.search` and never `web.fetch`). The
+  `RETRIEVAL_SYSTEM_PROMPT` must therefore name BOTH tools and their distinct
+  jobs: search FINDS pages, fetch READS them. Keep the round cap a hard bound;
+  never widen the offered surface.
 - **Grounded synthesis never returns a non-answer.** A synthesis response is
   checked by `isNonSubstantiveSynthesis` (empty, plan-only, or leftover
   tool-call syntax) and replaced with an explicit insufficient-data sentence

@@ -17,7 +17,7 @@ import { createModelResolver } from "../../operations/config/model-resolver.js";
 import { createContextBudget } from "../../operations/config/context-budget.js";
 import { ALIX_EXECUTOR_TO_MODEL_FACING } from "../../agents/tool-manifest.js";
 import { resolveExecutableToolName } from "../../agents/tool-name-resolver.js";
-import type { ModelAdapter, NormalizedResponse, ToolDef } from "../../models/providers/types.js";
+import type { ModelAdapter, NormalizedMessage, NormalizedResponse, ToolDef } from "../../models/providers/types.js";
 import type { ExecutionContext } from "../../operations/observability/execution-context.js";
 
 /**
@@ -332,6 +332,15 @@ export function renderToolResult(
 }
 
 /** Fresh daemon/local tool-call id with the shared `alix_` prefix. */
+/**
+ * Maximum retrieval rounds for one grounded turn.
+ *
+ * Enough for the real shape — `search` to find pages, then `fetch` to read one
+ * or two of them — while staying a hard bound so a model that keeps requesting
+ * tools cannot spin this route.
+ */
+export const GROUNDED_MAX_TOOL_ROUNDS = 3;
+
 async function newToolCallId(): Promise<string> {
   const { randomBytes } = await import("node:crypto");
   return `alix_${Date.now()}_${randomBytes(4).toString("hex")}`;
@@ -419,21 +428,34 @@ export async function executeGroundedChatBehavior(
   const offeredModelFacing = new Set(tools.map((tool) => tool.name));
   const selectionSignatures = new Map<string, number>();
 
-  // First call: model may issue a tool call for fresh information
-  const response = await provider.complete({
-    systemPrompt: retrievalPrompt.systemPrompt,
-    messages: [{ role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) }],
-    tools: tools.length > 0 ? tools : undefined,
-    ...tokenCap(deps),
-    ...(deps.context ? { context: deps.context } : {}),
-  }, { signal: deps.signal });
+  // Retrieval loop: the model chooses tools across bounded rounds so it can
+  // search to FIND pages and then fetch to READ them. Previously this was a
+  // single hardcoded round (first call only), so every external turn ended at
+  // search snippets and questions needing article bodies ("list all X") could
+  // not be answered completely.
+  const retrievalMessages: NormalizedMessage[] = [
+    { role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) },
+  ];
+  const callRetrieval = (): Promise<NormalizedResponse> =>
+    provider.complete({
+      systemPrompt: retrievalPrompt.systemPrompt,
+      messages: retrievalMessages,
+      tools: tools.length > 0 ? tools : undefined,
+      ...tokenCap(deps),
+      ...(deps.context ? { context: deps.context } : {}),
+    }, { signal: deps.signal });
 
-  if (response.toolCalls.length > 0) {
-    // #760: models sometimes fan out parallel calls (e.g. a typo variant +
-    // a corrected spelling of the same query). The grounded flow stays a
-    // single tool round — execute the first allowlisted call, ignore extras —
-    // instead of surfacing a governor error to natural-language users.
-    const tc = response.toolCalls[0];
+  const collected: string[] = [];
+  let response = await callRetrieval();
+  let rounds = 0;
+
+  // #760: models sometimes fan out parallel calls (e.g. a typo variant +
+  // a corrected spelling of the same query). Execute the first allowlisted
+  // call and ignore the rest rather than surfacing a governor error to
+  // natural-language users.
+  while (response.toolCalls.length > 0 && rounds < GROUNDED_MAX_TOOL_ROUNDS) {
+    rounds++;
+    const tc = response.toolCalls[0]!;
 
     // Enforce the allowlist against the OFFERED model-facing names, then resolve
     // through the shared resolver so the executor only ever receives an
@@ -509,22 +531,30 @@ export async function executeGroundedChatBehavior(
       : toolResult.kind === "error"
         ? `Error: ${toolResult.message}`
         : "Tool request denied by policy";
+    const labelled = `[Tool result from ${tc.name}]\n${toolContent}`;
+    collected.push(labelled);
+    retrievalMessages.push({ role: "assistant", content: response.text || "" });
+    retrievalMessages.push({ role: "user", content: labelled });
 
-    // Second call: model synthesizes answer from tool result
-    // Tool results are passed as user messages in the normalized format
-    const synthesize = async (toolName: string, resultContent: string, assistantText: string): Promise<NormalizedResponse> =>
+    response = await callRetrieval();
+  }
+
+  if (collected.length > 0) {
+    // Synthesize from every retrieved result, not just the first round's —
+    // this is what lets a `search` → `fetch` chain inform the answer.
+    const synthesize = async (assistantText: string): Promise<NormalizedResponse> =>
       provider.complete({
         systemPrompt: GROUNDED_SYNTHESIS_PROMPT,
         messages: [
           { role: "user" as const, content: retrievalPrompt.userPromptTemplate(route.prompt) },
           { role: "assistant" as const, content: assistantText },
-          { role: "user" as const, content: `[Tool result from ${toolName}]\n${resultContent}` },
+          { role: "user" as const, content: collected.join("\n\n") },
         ],
         ...(await groundedSynthesisTokenCap(deps, config)),
         ...(deps.context ? { context: deps.context } : {}),
       }, { signal: deps.signal });
 
-    let finalResponse = await synthesize(tc.name, toolContent, response.text || "");
+    let finalResponse = await synthesize(response.text || "");
 
     // A model that leaks a tool call as prose meant to fetch more, not answer.
     // Dispatch the single leaked call against the OFFERED surface and
@@ -551,7 +581,8 @@ export async function executeGroundedChatBehavior(
           : leakResult.kind === "error"
             ? `Error: ${leakResult.message}`
             : "Tool request denied by policy";
-        finalResponse = await synthesize(leaked.name, leakContent, finalResponse.text || "");
+        collected.push(`[Tool result from ${leaked.name}]\n${leakContent}`);
+        finalResponse = await synthesize(finalResponse.text || "");
       }
     }
 

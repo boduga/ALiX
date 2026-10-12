@@ -274,10 +274,14 @@ describe("previously-uncovered seams: plan-phase / classifier / grounded-chat mo
 
     try {
       const model = scriptedModel({
-        responseTexts: ["", "The latest is v2."],
+        // Grounded retrieval is a bounded loop: round 1 searches, round 2 ends
+        // the loop by making no tool call, then the synthesis call runs. The
+        // synthesis prompt differs from the retrieval prompt, so it needs its
+        // own scripted text.
+        responseTexts: ["", "", "The latest is v2."],
         // The grounded route offers the MANIFEST names, so a model that plays by the
         // rules emits `alix_web_search`; an executor id is rejected by design.
-        toolCallsSequence: [[{ id: "tc-g", name: "alix_web_search", args: { query: "latest" } }], []],
+        toolCallsSequence: [[{ id: "tc-g", name: "alix_web_search", args: { query: "latest" } }], [], []],
       });
       const wrapped = withProviderContracts(model);
       const result = await executeGroundedChatBehavior(route, config, {
@@ -288,22 +292,23 @@ describe("previously-uncovered seams: plan-phase / classifier / grounded-chat mo
       });
 
       expect(result).toContain("v2");
-      expect(model.invocations).toBe(2);
+      // Two retrieval generations + one synthesis generation.
+      expect(model.invocations).toBe(3);
     } finally {
       await client.endRun(run, { status: "success", endedAt: Date.now() });
     }
 
-    // Both provider calls (2 generations) + the executed (denied) web_search
-    // tool call (1 span-kind child) all resolve under the runId-threaded trace,
-    // each observation ended exactly once.
+    // All provider calls (3 generations: 2 retrieval + 1 synthesis) + the
+    // executed (denied) web_search tool call (1 span-kind child) resolve under
+    // the runId-threaded trace, each observation ended exactly once.
     const root = rootSpanOf(proc, "run-grounded")!;
     expect(root).toBeDefined();
     expect(alixOf(root)).toMatchObject({ kind: "run", runId: "run-grounded", status: "success" });
 
     const obs = observationsOf(proc, "run-grounded");
-    expect(obs).toHaveLength(4); // root + 2 generations + 1 tool span
+    expect(obs).toHaveLength(5); // root + 3 generations + 1 tool span
     const gens = obs.filter((s) => attrOf(s, "type") === "generation");
-    expect(gens).toHaveLength(2);
+    expect(gens).toHaveLength(3);
     for (const gen of gens) {
       expect(gen.traceId).toBe(root.traceId);
       expect(gen.parentSpanId).toBe(root.spanId);

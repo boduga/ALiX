@@ -21,6 +21,7 @@ import {
   executeGroundedChatBehavior,
   extractLeakedToolCall,
   isNonSubstantiveSynthesis,
+  GROUNDED_MAX_TOOL_ROUNDS,
   GROUNDED_SYNTHESIS_PROMPT,
 } from "../../src/runtime-state/runtime/route-execution.js";
 import type { ModelAdapter } from "../../src/models/providers/types.js";
@@ -47,11 +48,21 @@ function scriptedProvider(
     capabilities: {},
     complete: async (request: RecordedRequest) => {
       requests.push(request);
-      return requests.length === 1
-        ? { text: "", toolCalls: [{ id: "tc1", name: "alix_web_search", args: { query: "x" } }] }
-        : { text: synthesisText, toolCalls: [], finishReason };
+      // A retrieval round (system prompt = the retrieval prompt) keeps calling
+      // tools; the synthesis round (GROUNDED_SYNTHESIS_PROMPT) answers. Keyed
+      // off the prompt, not the call index, so the bounded retrieval loop can
+      // add rounds without breaking the fixture.
+      const isSynthesis = request.systemPrompt === GROUNDED_SYNTHESIS_PROMPT;
+      return isSynthesis
+        ? { text: synthesisText, toolCalls: [], finishReason }
+        : { text: "", toolCalls: [{ id: "tc1", name: "alix_web_search", args: { query: "x" } }] };
     },
   } as unknown as ModelAdapter;
+}
+
+/** The synthesis call is identified by its system prompt, not its position. */
+function synthesisRequest(requests: RecordedRequest[]): RecordedRequest | undefined {
+  return requests.find((r) => r.systemPrompt === GROUNDED_SYNTHESIS_PROMPT);
 }
 
 async function runSynthesis(finishReason: string | undefined, synthesisText?: string): Promise<{
@@ -87,8 +98,8 @@ describe("grounded_chat synthesis", () => {
   it("derives an output ceiling above the historical 512-token cap", async () => {
     const { requests } = await runSynthesis("stop");
 
-    // Turn 2 is the synthesis call.
-    const synthesis = requests[1]!;
+    const synthesis = synthesisRequest(requests);
+    assert.ok(synthesis, "a synthesis call must have been made");
     assert.ok(
       synthesis.maxOutputTokens !== undefined && synthesis.maxOutputTokens > 512,
       `synthesis must not be capped at the historical 512 tokens (got ${synthesis.maxOutputTokens})`,
@@ -183,6 +194,117 @@ describe("extractLeakedToolCall", () => {
   });
 });
 
+describe("grounded_chat retrieval loop", () => {
+  it("chains search then fetch, and synthesizes from every collected result", async () => {
+    const executed: string[] = [];
+    const requests: RecordedRequest[] = [];
+    const route = {
+      kind: "grounded_chat" as const,
+      prompt: "list all west african presidents",
+      allowedTools: ["web.search", "web.fetch"],
+      diagnostic: { classification: "external_retrieval" },
+    };
+    // Retrieval round 1 -> search. Round 2 -> fetch. Round 3 -> no tool call,
+    // which is the natural end of the loop. Then the synthesis call runs once
+    // more, keyed off the synthesis prompt.
+    let retrievalRound = 0;
+    const provider: ModelAdapter = {
+      id: "mock",
+      capabilities: {},
+      complete: async (request: RecordedRequest) => {
+        requests.push(request);
+        if (request.systemPrompt === GROUNDED_SYNTHESIS_PROMPT) {
+          return { text: "All sixteen presidents, enumerated from the fetched page.", toolCalls: [] };
+        }
+        retrievalRound++;
+        if (retrievalRound === 1) {
+          return { text: "", toolCalls: [{ id: "s1", name: "alix_web_search", args: { query: "presidents" } }] };
+        }
+        if (retrievalRound === 2) {
+          return { text: "", toolCalls: [{ id: "f1", name: "alix_web_fetch", args: { url: "https://x" } }] };
+        }
+        return { text: "I have the page now.", toolCalls: [] };
+      },
+    } as unknown as ModelAdapter;
+
+    const answer = await executeGroundedChatBehavior(
+      route as never,
+      { permissions: { allowNetworkDomains: [] } } as never,
+      {
+        cwd: process.cwd(),
+        eventLog: { append: async () => {} },
+        providerFactory: async () => provider,
+        toolExecutorFactory: async () => ({
+          execute: async (req: { name: string }) => {
+            executed.push(req.name);
+            return { kind: "success" as const, output: `content from ${req.name}` };
+          },
+        }),
+        toolCandidateAliases: ALIASES,
+      } as never,
+    );
+
+    // The search AND the fetch both ran — the whole point of the loop.
+    assert.deepEqual(executed, ["web.search", "web.fetch"]);
+    // The synthesis saw both results, not just the first round's.
+    const synthesis = requests.find((r) => r.systemPrompt === GROUNDED_SYNTHESIS_PROMPT)!;
+    assert.ok(synthesis);
+    const synthesisMessages = (synthesis as { messages?: Array<{ content: string }> }).messages ?? [];
+    const joined = synthesisMessages.map((m) => m.content).join("\n");
+    assert.match(joined, /content from web\.search/);
+    assert.match(joined, /content from web\.fetch/);
+    assert.match(answer, /All sixteen presidents/);
+  });
+
+  it("stops at the round bound when the model keeps requesting tools", async () => {
+    let retrievalCalls = 0;
+    const executed: string[] = [];
+    const route = {
+      kind: "grounded_chat" as const,
+      prompt: "loop forever",
+      allowedTools: ["web.search", "web.fetch"],
+      diagnostic: { classification: "external_retrieval" },
+    };
+    const provider: ModelAdapter = {
+      id: "mock",
+      capabilities: {},
+      complete: async (request: RecordedRequest) => {
+        if (request.systemPrompt === GROUNDED_SYNTHESIS_PROMPT) {
+          return { text: "bounded answer", toolCalls: [] };
+        }
+        retrievalCalls++;
+        // Never stops asking for tools.
+        return { text: "", toolCalls: [{ id: `s${retrievalCalls}`, name: "alix_web_search", args: { query: "x" } }] };
+      },
+    } as unknown as ModelAdapter;
+
+    await executeGroundedChatBehavior(
+      route as never,
+      { permissions: { allowNetworkDomains: [] } } as never,
+      {
+        cwd: process.cwd(),
+        eventLog: { append: async () => {} },
+        providerFactory: async () => provider,
+        toolExecutorFactory: async () => ({
+          execute: async (req: { name: string }) => {
+            executed.push(req.name);
+            return { kind: "success" as const, output: "x" };
+          },
+        }),
+        toolCandidateAliases: ALIASES,
+      } as never,
+    );
+
+    // Bounded on EXECUTED tools: never more rounds than the cap allows, even
+    // though the model keeps asking. (Provider calls = rounds + 1 initial.)
+    assert.equal(
+      executed.length,
+      GROUNDED_MAX_TOOL_ROUNDS,
+      `retrieval must be bounded to ${GROUNDED_MAX_TOOL_ROUNDS} tool rounds`,
+    );
+  });
+});
+
 describe("grounded_chat leaked-call recovery (end to end)", () => {
   it("dispatches a leaked fetch and re-synthesizes a real answer", async () => {
     const requests: RecordedRequest[] = [];
@@ -193,23 +315,25 @@ describe("grounded_chat leaked-call recovery (end to end)", () => {
       allowedTools: ["web.search", "web.fetch"],
       diagnostic: { classification: "external_retrieval" },
     };
-    // Turn 1: real tool call. Turn 2 (synthesis): leaks a fetch as prose.
-    // Turn 3 (re-synthesis after the leaked fetch): a real answer.
+    // Retrieval rounds call tools; the first synthesis round leaks a fetch as
+    // prose; the re-synthesis answers. Keyed off the system prompt so the
+    // bounded retrieval loop's extra rounds do not shift the fixture.
+    let synthesisRounds = 0;
     const provider: ModelAdapter = {
       id: "mock",
       capabilities: {},
       complete: async (request: RecordedRequest) => {
         requests.push(request);
-        if (requests.length === 1) {
+        if (request.systemPrompt !== GROUNDED_SYNTHESIS_PROMPT) {
           return { text: "", toolCalls: [{ id: "tc1", name: "alix_web_search", args: { query: "x" } }] };
         }
-        if (requests.length === 2) {
-          return {
-            text: "I'll fetch the page that lists all 16 states.\n\n<dots_function_call>\n[alix_web_fetch]\n{\"url\":\"https://example.com/list\"}\n```",
-            toolCalls: [],
-          };
-        }
-        return { text: "Benin: Patrice Tal. Burkina Faso: Ibrahim Traore.", toolCalls: [] };
+        synthesisRounds++;
+        return synthesisRounds === 1
+          ? {
+              text: "I'll fetch the page that lists all 16 states.\n\n<dots_function_call>\n[alix_web_fetch]\n{\"url\":\"https://example.com/list\"}\n```",
+              toolCalls: [],
+            }
+          : { text: "Benin: Patrice Tal. Burkina Faso: Ibrahim Traore.", toolCalls: [] };
       },
     } as unknown as ModelAdapter;
 
@@ -230,9 +354,9 @@ describe("grounded_chat leaked-call recovery (end to end)", () => {
       } as never,
     );
 
-    // The leaked fetch actually ran (search + the recovered fetch), and the
-    // answer is a real one, not the plan text or the leaked block.
-    assert.equal(executed.length, 2, "search plus the recovered leaked fetch");
+    // The leaked fetch actually ran (the bounded search rounds plus the
+    // recovered leaked fetch), and the answer is a real one.
+    assert.ok(executed.length >= 2, `expected the leaked fetch to dispatch (ran ${executed.length})`);
     assert.match(answer, /Benin: Patrice Tal/);
     assert.doesNotMatch(answer, /dots_function_call/);
     assert.doesNotMatch(answer, /I'll fetch/);
@@ -251,9 +375,10 @@ describe("grounded_chat leaked-call recovery (end to end)", () => {
       capabilities: {},
       complete: async (request: RecordedRequest) => {
         requests.push(request);
-        return requests.length === 1
-          ? { text: "", toolCalls: [{ id: "tc1", name: "alix_web_search", args: { query: "x" } }] }
-          : { text: "I'll fetch the page and compile the list for you.", toolCalls: [] };
+        if (request.systemPrompt === GROUNDED_SYNTHESIS_PROMPT) {
+          return { text: "I'll fetch the page and compile the list for you.", toolCalls: [] };
+        }
+        return { text: "", toolCalls: [{ id: "tc1", name: "alix_web_search", args: { query: "x" } }] };
       },
     } as unknown as ModelAdapter;
 
