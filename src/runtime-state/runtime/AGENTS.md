@@ -58,6 +58,19 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
 - Silent failure on unreadable/missing backends (never crashes).
 - Layer-3 route prompts: only the intents that actually reach a route carry dedicated text; misrouted intents (e.g. `workspace_mutation` on the chat/direct path) share one neutral read-only fallback and log a warning. Chat `workspace_*` intents are read-only because they route to `agent`, never `chat`.
 - The grounded route offers manifest names and resolves model calls through `resolveExecutableToolName` before dispatch. `route.allowedTools` holds internal executor IDs; `tests/runtime/grounded-selection-observation.test.ts` checks the resolved dispatch identity.
+- **The grounded synthesis step owns answer completeness.** The second
+  (synthesis) provider call writes the user-visible answer, so it takes its
+  output ceiling from `groundedSynthesisTokenCap`, which derives the budget from
+  the resolved model descriptor via `createContextBudget` — never a flat
+  constant. `LocalRuntimeExecutor` no longer passes a historical 512-token cap;
+  an adapter-supplied `maxOutputTokens` still wins and the daemon stays uncapped.
+  A `finishReason: "length"` stop is appended with an explicit truncation marker
+  rather than returned as a finished answer. The synthesis prompt
+  (`GROUNDED_SYNTHESIS_PROMPT`) requires enumerating every item for "list all"
+  queries and requires the model to say when the tool result is only search
+  metadata, because a first call satisfied from titles/URLs/snippets otherwise
+  returned a single leading item as if complete (session `1791824290404` returned
+  one president of sixteen). Pinned by `tests/runtime/grounded-synthesis.test.ts`.
 
 ## Work Guidance
 

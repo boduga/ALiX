@@ -14,6 +14,7 @@
 import type { TaskRoute } from "./task-router.js";
 import { buildExternalRetrievalPrompt } from "./route-prompts.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
+import { createContextBudget } from "../../operations/config/context-budget.js";
 import { ALIX_EXECUTOR_TO_MODEL_FACING } from "../../agents/tool-manifest.js";
 import { resolveExecutableToolName } from "../../agents/tool-name-resolver.js";
 import type { ModelAdapter, ToolDef } from "../../models/providers/types.js";
@@ -114,6 +115,52 @@ async function makeProvider(config: any, deps: ExecutionDeps): Promise<ModelAdap
 function tokenCap(deps: ExecutionDeps): { maxOutputTokens: number } | {} {
   return deps.maxOutputTokens !== undefined ? { maxOutputTokens: deps.maxOutputTokens } : {};
 }
+
+/**
+ * Output-token ceiling for the grounded synthesis call.
+ *
+ * The synthesis step is where a long enumerated answer is actually written
+ * ("list all ..." → one row per item plus notes), so a flat 512-token cap
+ * truncates exactly the answers this route exists to produce. Derive the
+ * ceiling from the resolved model's own context window through the shared
+ * `createContextBudget`, exactly as the agent and chat routes do, so it scales
+ * with the model instead of being a magic number. A caller-supplied
+ * `maxOutputTokens` still wins; the daemon's uncapped behavior is unchanged.
+ */
+export async function groundedSynthesisTokenCap(
+  deps: ExecutionDeps,
+  config: any,
+): Promise<{ maxOutputTokens: number } | {}> {
+  if (deps.maxOutputTokens !== undefined) return { maxOutputTokens: deps.maxOutputTokens };
+  try {
+    const model = createModelResolver(config).require();
+    const { resolveModelDescriptor } = await import("../../operations/config/context-limits.js");
+    const descriptor = await resolveModelDescriptor(model.provider, model.name ?? "", undefined);
+    return { maxOutputTokens: createContextBudget(descriptor).requestedMaxOutputTokens };
+  } catch {
+    // Unresolvable model config: fall through to the provider default rather
+    // than inventing a ceiling. A shorter floor still protects against the
+    // historical 512-token truncation.
+    return { maxOutputTokens: 2_048 };
+  }
+}
+
+/**
+ * Grounded synthesis system prompt. The first call may satisfy the query from
+ * search metadata alone (titles/URLs/snippets) instead of fetched page
+ * content, which is how a "list all X" question previously returned a single
+ * leading item with no error and no truncation. Demand a complete, enumerated
+ * answer so a partially-informative tool result cannot read as a finished one.
+ */
+export const GROUNDED_SYNTHESIS_PROMPT = [
+  "Answer the user's question using the tool result below.",
+  "",
+  "Rules:",
+  "- Answer the question that was actually asked. When it asks for ALL of something, enumerate every item you can support from the tool result; never answer with just the first one.",
+  "- If the tool result is only search metadata (titles, URLs, snippets) rather than page content, say what the result supports and state plainly what still needs fetching.",
+  "- Do not invent items to fill out a list.",
+  "- Reply with the answer only; no preamble about what you are about to do.",
+].join("\n");
 
 /**
  * One provider call with no tool loop — the shared shape behind the direct
@@ -403,16 +450,23 @@ export async function executeGroundedChatBehavior(
 
     // Second call: model synthesizes answer from tool result
     // Tool results are passed as user messages in the normalized format
+    const synthesisMessages = [
+      { role: "user" as const, content: retrievalPrompt.userPromptTemplate(route.prompt) },
+      { role: "assistant" as const, content: response.text || "" },
+      { role: "user" as const, content: `[Tool result from ${tc.name}]\n${toolContent}` },
+    ];
     const finalResponse = await provider.complete({
-      systemPrompt: "Answer the user's question based on the tool result.",
-      messages: [
-        { role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) },
-        { role: "assistant", content: response.text || "" },
-        { role: "user", content: `[Tool result from ${tc.name}]\n${toolContent}` },
-      ],
-      ...tokenCap(deps),
+      systemPrompt: GROUNDED_SYNTHESIS_PROMPT,
+      messages: synthesisMessages,
+      ...(await groundedSynthesisTokenCap(deps, config)),
       ...(deps.context ? { context: deps.context } : {}),
     }, { signal: deps.signal });
+    // A `length` stop means the answer was cut mid-sentence, not finished.
+    // Returning it verbatim is how a truncated list used to pass as a complete
+    // answer; mark it so the caller can see the answer is partial.
+    if (finalResponse.finishReason === "length") {
+      return `${finalResponse.text || "(no response)"}\n\n[response truncated at the model output limit]`;
+    }
     return finalResponse.text || "(no response)";
   }
 

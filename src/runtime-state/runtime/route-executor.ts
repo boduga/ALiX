@@ -154,8 +154,12 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
         : {}),
       toolCandidateAliases: Object.fromEntries(ALIX_EXECUTOR_TO_MODEL_FACING),
 
-      // Local passes its historical 512-token cap; the daemon omits it.
-      maxOutputTokens: 512,
+      // Local used to pass a flat historical 512-token cap here. That ceiling
+      // truncated exactly the enumerated answers grounded chat exists to
+      // produce, so the cap is now derived from the resolved model's context
+      // window (see `groundedSynthesisTokenCap`). The daemon omits
+      // maxOutputTokens to keep its historical uncapped behavior.
+      maxOutputTokens: undefined,
       context: ctx.context,
     });
   }
