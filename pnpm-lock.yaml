@@ -58,8 +58,8 @@ importers:
         version: 2.9.1
     devDependencies:
       '@langfuse/core':
-        specifier: 5.11.1
-        version: 5.11.1(@opentelemetry/api@1.9.1)
+        specifier: 5.13.1
+        version: 5.13.1(@opentelemetry/api@1.9.1)
       '@types/better-sqlite3':
         specifier: 9.6.0
         version: 9.6.0
@@ -282,11 +282,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
-
-  '@langfuse/core@5.11.1':
-    resolution: {integrity: sha512-Oor1z4BlgI5RaUrRYYKf3ijyCAx0tiGCWsABzfm6ZDAgbaaFuiwvJVtXGohiq5evcnjGGE5h4Mf4ZjH1yd5vjw==}
-    peerDependencies:
-      '@opentelemetry/api': ^1.9.0
 
   '@langfuse/core@5.13.1':
     resolution: {integrity: sha512-/p8wfWQVeD58O7EzlQ0FkXYBlE3Q64a3gaQPRRGrAUUzshKZFAh+682Yb4eIpCtsxyMj4ZGlvkQ+Ph8LVKMFDA==}
@@ -1772,10 +1767,6 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@langfuse/core@5.11.1(@opentelemetry/api@1.9.1)':
-    dependencies:
-      '@opentelemetry/api': 1.9.1
-
   '@langfuse/core@5.13.1(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
@@ -1791,7 +1782,7 @@ snapshots:
 
   '@langfuse/tracing@5.11.1(@opentelemetry/api@1.9.1)':
     dependencies:
-      '@langfuse/core': 5.11.1(@opentelemetry/api@1.9.1)
+      '@langfuse/core': 5.13.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/api': 1.9.1
 
   '@napi-rs/keyring-darwin-arm64@2.1.0':
