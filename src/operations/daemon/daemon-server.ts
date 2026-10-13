@@ -66,6 +66,8 @@ async function startCoordinationService(): Promise<void> {
   const { buildDefaultToolIndex } = await import("../../capabilities/tools/tool-registry.js");
   const { CoordinationSchedulerService } = await import("./coordination-scheduler-service.js");
   const { ApprovalWatcher } = await import("./approval-watcher.js");
+  const { MetricsStore } = await import("../observability/metrics-store.js");
+  const { createMetricsStoreSink } = await import("../observability/metrics-sink.js");
 
   const config = await loadConfig(defaultCwd);
   const store = new CoordinationStore(defaultCwd);
@@ -95,6 +97,8 @@ async function startCoordinationService(): Promise<void> {
     }),
     ownershipRegistry: new OwnershipRegistry(defaultCwd),
     executor,
+    // Scheduler telemetry → the metrics store (not the session EventLog).
+    metricsSink: createMetricsStoreSink(new MetricsStore(defaultCwd)),
   });
 
   coordinationService = new CoordinationSchedulerService(scheduler, store, { hostKind: "daemon" });

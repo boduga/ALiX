@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
 import { applyPatch } from "../../execution/patch/patch-engine.js";
+import { PatchRejectedError } from "../../execution/patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../../execution/patch/edit-format-policy.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
 import { extractPatchPaths } from "../../execution/patch/patch-paths.js";
@@ -582,7 +583,7 @@ export class PatchToolRouter implements ToolRouter {
           }
         }
       }
-      return { kind: "error", message: e instanceof Error ? e.message : String(e) };
+      return { kind: "error", message: e instanceof Error ? e.message : String(e), ...(e instanceof PatchRejectedError ? { retryable: e.retryable } : {}) };
     }
   }
 }
