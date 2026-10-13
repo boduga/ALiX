@@ -167,6 +167,29 @@ test("computeSubagentStatus: failed when a write was denied with no durable prog
   assert.equal(computeSubagentStatus(P([], ["file.create"]), ["foo.ts"], CWD), "failed");
 });
 
+// Session 1791853059081: a correctable patch rejection (retryable:true) must NOT
+// be recorded as a fatal write failure — a worker with iterations left can fix a
+// syntax slip in-turn. Only a non-retryable error sinks it.
+test("recordWriteOutcome: a retryable failure is not fatal; a non-retryable one is", () => {
+  const retryable = P();
+  recordWriteOutcome(retryable, "patch.apply", { kind: "error", message: "Patch rejected: malformed", retryable: true });
+  assert.deepEqual(retryable.fatalWriteFailures, []);
+  // With no owned objective (or a successful write elsewhere) the worker survives.
+  assert.equal(computeSubagentStatus(retryable, [], CWD), "success");
+
+  const fatal = P();
+  recordWriteOutcome(fatal, "patch.apply", { kind: "error", message: "No patch changes found" });
+  assert.deepEqual(fatal.fatalWriteFailures, ["patch.apply"]);
+  assert.equal(computeSubagentStatus(fatal, ["foo.ts"], CWD), "failed");
+});
+
+test("recordWriteOutcome: a successful write is still recorded as durable progress", () => {
+  const progress = P();
+  recordWriteOutcome(progress, "file.create", { kind: "success", createdPath: "a.txt" });
+  assert.deepEqual([...progress.successfulPaths], ["a.txt"]);
+  assert.deepEqual(progress.fatalWriteFailures, []);
+});
+
 // Spec 32.1 Test A — v3 regression: complete objective stays success despite later write noise
 test("matrix: complete objective stays success despite later write noise (v3)", () => {
   assert.equal(

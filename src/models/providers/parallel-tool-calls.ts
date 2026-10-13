@@ -172,6 +172,13 @@ export function resolveParallelToolCalls(input: ParallelToolCallsInput): boolean
     return isGenericOpenAICompatCapableModel(model);
   }
 
+  // intern — Intern InkStone's docs say only that `tools` availability "depends
+  // on the model" and never mention `parallel_tool_calls`. Unverified → fail
+  // closed (serial fallback), consistent with the fail-closed default.
+  if (provider === "intern") {
+    return false;
+  }
+
   // OpenAI — gpt-4, gpt-4o, gpt-3.5, o1, o3 families support parallel_tool_calls
   if (provider === "openai") {
     return isOpenAICapableModel(model);
