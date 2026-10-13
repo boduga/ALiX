@@ -464,7 +464,6 @@ export class EventLog {
     }
   }
 
-
   /** Full-file resync (rare fallback). */
   private async resyncFromFullRead(): Promise<void> {
     const text = await readFile(this.path, "utf8");

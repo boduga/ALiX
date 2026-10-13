@@ -20,18 +20,9 @@ import {
 import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
 import { persistGraph } from "../../src/coordination/kernel/graph-planner.js";
 import type { ExecutionAuthorization } from "../../src/runtime-state/runtime/execution-authorization.js";
+import { waitUntil } from "../helpers/wait-until.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
-
-async function waitUntil(cond: () => boolean | Promise<boolean>, timeoutMs = 5_000): Promise<void> {
-  const start = Date.now();
-  while (!(await cond()) && Date.now() - start < timeoutMs) {
-    await new Promise((r) => setTimeout(r, 10));
-  }
-  if (!(await cond())) {
-    throw new Error(`waitUntil: condition still false after ${timeoutMs}ms`);
-  }
-}
 
 function allowAllAuth(): ExecutionAuthorization {
   return { evaluate: async () => ({ status: "allowed" as const }) } as any;
@@ -886,7 +877,9 @@ describe("CoordinationScheduler — tick.completed emission gating", () => {
     await scheduler.shutdown();
   });
 
-  it("emits at most one terminal tick across repeated terminal polls", async () => {
+  // Workload: polls until the run settles (waitUntil budget 8s) plus reactive
+  // ticks. Timeout is the workload bound; the assertions are the contract.
+  it("emits exactly one terminal tick, whenever the transition is observed", { timeout: 30_000 }, async () => {
     const rec = recordingEventLog();
     const scheduler = build(immediateExecutor(), rec.log);
     const run = createCoordinationRun({ sessionId: "s1", rootGoal: "terminal", coordinatorAgentId: "alix" });
@@ -894,16 +887,24 @@ describe("CoordinationScheduler — tick.completed emission gating", () => {
     const w = createWorkerAssignment({ coordinationRunId: run.id, agentId: "a", taskLabel: "w", goalPrompt: "do", requiredCapabilities: ["task.do"], attempt: 0, maxAttempts: 3 });
     await store.addWorker(run.id, w);
 
-    // Immediate executor completes the worker; recompute flips the run terminal
-    // during the tick, so the terminal transition is observed in-tick.
+    // Dispatch the worker; its execution settles asynchronously, so the run's
+    // terminal status may appear after the dispatching tick. Keep ticking until
+    // it is observed, then assert a terminal tick exists and repeated terminal
+    // polls never add another.
     await scheduler.tick(run.id);
     await waitUntil(async () => (await store.load(run.id))?.status === "completed", 8_000);
-    const afterFirst = rec.ticks().length;
-    assert.ok(afterFirst >= 1, "terminal transition emitted");
+    // Poll until the terminal transition is OBSERVED (entry-guard or in-tick).
+    let guard = 0;
+    while (!rec.ticks().some((t) => t.payload.runStatus === "completed") && guard++ < 5) {
+      await scheduler.tick(run.id);
+    }
+    const terminalTicks = rec.ticks().filter((t) => t.payload.runStatus === "completed");
+    assert.equal(terminalTicks.length, 1, "exactly one terminal tick");
+    const afterTerminal = rec.ticks().length;
     // Repeated terminal polls return via the entry guard → no duplicate event.
     await scheduler.tick(run.id);
     await scheduler.tick(run.id);
-    assert.equal(rec.ticks().length, afterFirst);
+    assert.equal(rec.ticks().length, afterTerminal);
     await scheduler.shutdown();
   });
 

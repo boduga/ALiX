@@ -282,6 +282,11 @@ async function handleCoordinationRun(
     const { DefaultWorkerExecutor } = await import("./worker-executor.js");
     executor = new DefaultWorkerExecutor();
   }
+  // Scheduler telemetry → the metrics store (not the session EventLog): this is
+  // a full run, so it must emit tick/dispatch telemetry like the daemon/Inspector
+  // hosts. Fail-open; see CoordinationSchedulerDeps.metricsSink.
+  const { MetricsStore } = await import("../../operations/observability/metrics-store.js");
+  const { createMetricsStoreSink } = await import("../../operations/observability/metrics-sink.js");
   const scheduler = createCoordinationScheduler(
     {
       cwd: deps.cwd,
@@ -292,6 +297,7 @@ async function handleCoordinationRun(
       ownershipRegistry: registry,
       executor,
       eventLog: deps.eventLog,
+      metricsSink: createMetricsStoreSink(new MetricsStore(deps.cwd)),
     },
     { maxConcurrency },
   );

@@ -253,7 +253,10 @@ describe("EventLog", () => {
   // on every append. With a fixed 64KB window the tail straddled one huge line,
   // found no complete line, and re-read the entire growing file under the
   // append lock — holding it for seconds and timing out peer writers.
-  it("append stays cheap when the most recent event exceeds the tail window", async () => {
+  // Workload: 500 seed appends + 6 × 140KB appends. A slow CI runner may need
+  // well over the 60s suite default; the timeout is the workload bound, not a
+  // correctness assertion (the latency ceiling inside is that).
+  it("append stays cheap when the most recent event exceeds the tail window", { timeout: 60_000 }, async () => {
     const bigDir = await mkdtemp(join(tmpdir(), "alix-event-log-huge-"));
     try {
       // Seed a sizable log of SMALL events, then append consecutive >64KB

@@ -29,6 +29,24 @@ export type PatchApplyResult = {
   checkpointId?: string;
 };
 
+/**
+ * A rejected patch (malformed syntax, zero hunks, guard/format failure). Carries
+ * `retryable` so a caller that classifies write failures does not treat a
+ * correctable syntax error as terminal: a zero-hunk search_replace is fixable by
+ * the model in-turn (or by switching to alix_file_create), unlike a genuine
+ * write error. The worker boundary (`recordWriteOutcome`) must not sink a worker
+ * on a correctable rejection — session 1791853059081 lost a worker whose
+ * `patch.apply` reported a bare "No patch changes found" with no such signal.
+ */
+export class PatchRejectedError extends Error {
+  readonly retryable: boolean;
+  constructor(message: string, retryable = true) {
+    super(message);
+    this.name = "PatchRejectedError";
+    this.retryable = retryable;
+  }
+}
+
 export type PatchEngineOptions = {
   eventLog?: EventLog;
   sessionId?: string;
@@ -101,10 +119,7 @@ export async function applyPatch(
   // recovery guidance, keeps it retryable and stops `patch.parsed` from
   // claiming validity it never established.
   if (!validationFailed) {
-    const hunkCount = Array.isArray(parsedBlocks)
-      ? parsedBlocks.length
-      : (parsedBlocks as { files?: unknown[] }).files?.length ?? 0;
-    if (hunkCount === 0) {
+    if (parsedHunkCount(parsedBlocks) === 0) {
       validationFailed = true;
       validationErrors = [
         `No patch hunks were parsed from the ${format} payload — the patch syntax is malformed or empty. ` +
@@ -142,7 +157,7 @@ export async function applyPatch(
         } as PatchRejectedPayload,
       });
     }
-    throw new Error(`Patch rejected: ${validationErrors.join(", ")}`);
+    throw new PatchRejectedError(`Patch rejected: ${validationErrors.join(", ")}`);
   }
 
   // Create checkpoint
@@ -357,6 +372,18 @@ function extractPatchFiles(patchText: string, format: EditFormat): Array<{ path:
   }
   const patch = parseStructuredPatch(patchText);
   return patch.files.map((f) => ({ path: f.path, operation: f.operation }));
+}
+
+/**
+ * Hunk count for a parsed patch payload, owning the per-format shape so callers
+ * (the zero-hunk rejection) do not reach into foreign parse-result internals.
+ * search_replace/unified_diff parse to an array of blocks; structured_patch to
+ * an object with `files`.
+ */
+function parsedHunkCount(patchData: unknown): number {
+  if (Array.isArray(patchData)) return patchData.length;
+  const files = (patchData as { files?: unknown[] } | null)?.files;
+  return Array.isArray(files) ? files.length : 0;
 }
 
 function extractPatchFilePaths(patchData: unknown, format: EditFormat): string[] {

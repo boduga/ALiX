@@ -34,6 +34,7 @@ import { CoordinationAggregateStore } from "../../src/coordination/kernel/coordi
 import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
 import { persistGraph } from "../../src/coordination/kernel/graph-planner.js";
 import type { ExecutionAuthorization } from "../../src/runtime-state/runtime/execution-authorization.js";
+import { waitUntil } from "../helpers/wait-until.js";
 
 function allowAllAuth(): ExecutionAuthorization {
   return { evaluate: async () => ({ status: "allowed" as const }) } as any;
@@ -79,17 +80,8 @@ function minimalConfig() {
  * instrumentation that gap widened and the event count read 0 — reported as
  * `0 !== 1` in `coordination.aggregate.completed`, with the real cause being
  * a poll that gave up quietly. A silent timeout must never masquerade as a
- * product defect, so it throws.
+ * product defect, so it throws. (Shared implementation: tests/helpers/wait-until.)
  */
-async function waitUntil(cond: () => boolean | Promise<boolean>, timeoutMs = 5_000): Promise<void> {
-  const start = Date.now();
-  while (!(await cond()) && Date.now() - start < timeoutMs) {
-    await new Promise((r) => setTimeout(r, 10));
-  }
-  if (!(await cond())) {
-    throw new Error(`waitUntil: condition still false after ${timeoutMs}ms`);
-  }
-}
 
 /**
  * A run whose single worker is still pending, so a tick dispatches it and the

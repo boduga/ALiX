@@ -65,9 +65,11 @@ export function buildAgentInspectorModel(
   // foreground agent emits no `agent.spawned`, so no roster row describes it.
   // Read the live session activity the runtime already exposes rather than
   // leaving LIVE ACTIVITY on a dead "Select an agent for activity" row.
-  // Roster activity always wins; terminal/absent session activity stays empty.
-  const sessionActivity = !activity && selection === 'aggregate' && snapshot.session?.activity &&
-    !['completed', 'failed', 'cancelled'].includes(snapshot.session.activity.state)
+  // Roster activity always wins. The model carries the raw fact; the VIEW
+  // decides whether the state renders a live indicator, via the shared
+  // `activityStateLabel` predicate (terminal AND streaming states render
+  // nothing) — one classifier owns that call, not the model.
+  const sessionActivity = !activity && selection === 'aggregate' && snapshot.session?.activity
     ? {
         state: snapshot.session.activity.state,
         ...(snapshot.session.activity.operation ? { operation: snapshot.session.activity.operation } : {}),

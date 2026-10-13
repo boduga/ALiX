@@ -165,7 +165,7 @@ describe("taskRouter", async () => {
     }
   });
 
-    it("routes explicit subagent delegation to agent even with retrieval verbs", async () => {
+  it("routes explicit subagent delegation to agent even with retrieval verbs", async () => {
     // "look up"/"research" would otherwise route grounded_chat, whose
     // web-only manifest has no delegate tool.
     for (const prompt of [
@@ -194,14 +194,24 @@ describe("taskRouter", async () => {
       assert.notEqual(r.kind, "tool", prompt);
       assert.equal(r.kind, "agent", prompt);
     }
-    // Command-shaped wrappers (no prose tail) MUST stay on shell.run.
-    for (const prompt of ["run npm test", "execute the build", "exec ls -la"]) {
+    // Command-shaped wrappers (no prose tail) MUST stay on shell.run. Includes
+    // multi-token commands ("run npm run build") that a token-count heuristic
+    // would misclassify as prose — command-shapedness reuses SHELL_COMMAND_ANCHORS.
+    for (const prompt of [
+      "run npm test",
+      "execute the build",
+      "exec ls -la",
+      "run npm run build",
+      "execute docker compose up",
+      "run git rebase main",
+    ]) {
       const r = await taskRouter(prompt);
       assert.equal(r.kind, "tool", prompt);
     }
   });
-    // Bare research with no workspace anchor is an explicit ask to gather
-    // information — memory-only chat answers would be stale/hallucinated.
+
+  // Bare research with no workspace anchor is an explicit ask to gather
+  // information — memory-only chat answers would be stale/hallucinated.
   it("routes 'research quantum computing' to grounded_chat (#766)", async () => {
     const r = await taskRouter("research quantum computing");
     assert.equal(r.kind, "grounded_chat");

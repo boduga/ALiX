@@ -85,10 +85,14 @@ describe('selected-agent inspector snapshot joins', () => {
     expect(sections[1]?.rows.find((entry) => entry.label === 'Status')?.value).toBe('Running');
     expect(sections[4]?.rows.find((entry) => entry.label === 'Tokens')?.value).toBe('30,634');
     expect(sections[4]?.rows.find((entry) => entry.label === 'Context')?.value).toBe('unavailable');
-    // Terminal session activity and an absent metrics projection stay fallbacks/unavailable.
+    // Terminal (and streaming) session activity renders NO live row: the model
+    // carries the raw fact, the view's shared `activityStateLabel` predicate
+    // decides it is not a live indicator → the dead fallback shows instead.
     const terminal = buildAgentInspectorModel({ ...withSession, session: { ...withSession.session, activity: { ...withSession.session!.activity!, state: 'completed' as const } } });
-    expect(terminal.sessionActivity).toBeUndefined();
+    expect(terminal.sessionActivity?.state).toBe('completed');
     expect(buildAgentInspectorSections(terminal)[1]?.rows[0]?.value).toBe('Select an agent for activity');
+    const streaming = buildAgentInspectorModel({ ...withSession, session: { ...withSession.session, activity: { ...withSession.session!.activity!, state: 'streaming' as const } } });
+    expect(buildAgentInspectorSections(streaming)[1]?.rows[0]?.value).toBe('Select an agent for activity');
     expect(buildAgentInspectorModel({ ...base, session: { ...base.session!, activity: withSession.session!.activity } }).tokens).toBeUndefined();
     // A selected agent still wins over the session fallback.
     const selected = buildAgentInspectorModel({ ...withSession, runtime: { ...withSession.runtime, agents: { agents: [agent('a')], active: 1, totals: { agents: 1, running: 1, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 } } } }, { selectedAgentId: 'a' });

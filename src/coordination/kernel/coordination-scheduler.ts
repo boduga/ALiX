@@ -249,7 +249,15 @@ export class CoordinationScheduler {
     if (!run) {
       return emptyTick(runId, "failed");
     }
-    if (run.status === "completed" || run.status === "failed" || run.status === "cancelled" || run.status === "replanning") {
+    if (run.status === "completed" || run.status === "failed" || run.status === "cancelled") {
+      // A run that became terminal BETWEEN ticks (the normal case: workers
+      // settle asynchronously in runUntilIdle) is first OBSERVED here, not in
+      // the in-tick emission block below. Emit its one terminal tick now and
+      // return — otherwise the run completes with no terminal record at all.
+      await this.emitTerminalTick(runId, run);
+      return emptyTick(runId, run.status);
+    }
+    if (run.status === "replanning") {
       return emptyTick(runId, run.status);
     }
 
@@ -439,18 +447,12 @@ export class CoordinationScheduler {
       recResult.dependencyBlocked.length > 0 ||
       awaitingApproval.length > 0 ||
       denied.length > 0 ||
-      ownershipConflicts.length > 0 ||
-      terminalTransition;
+      ownershipConflicts.length > 0;
 
     if (meaningful) {
-      if (terminalTransition) {
-        // Bounded: a long-lived daemon must not grow this without limit. Run
-        // ids are UUIDs and terminal runs are not re-ticked (the entry guard
-        // returns early), so clearing at the cap can only re-admit a run that
-        // can no longer reach this branch.
-        if (this.terminalTicksEmitted.size >= 4096) this.terminalTicksEmitted.clear();
-        this.terminalTicksEmitted.add(runId);
-      }
+      // A meaningful tick emits once; when it ALSO crossed into terminal it
+      // carries that status itself, so no separate terminal tick follows.
+      if (terminalTransition) this.markTerminalEmitted(runId);
       this.emit("coordination.tick.completed", {
         coordinationRunId: runId,
         sessionId: run?.sessionId ?? "unknown",
@@ -466,13 +468,17 @@ export class CoordinationScheduler {
         progressMade,
         timestamp: new Date().toISOString(),
       });
+    } else if (terminalTransition) {
+      // An otherwise-idle tick that OBSERVED the terminal transition (workers
+      // settled asynchronously) emits the one minimal terminal tick.
+      await this.emitTerminalTick(runId, run!);
     }
 
     // Scheduler telemetry goes to the MetricsSink path (never the EventLog).
     // Recorded every executed tick — this is the cheap-cadence observability
     // that replaces the per-tick EventLog write removed in P1.
     this.observe("coordination_ticks_total", 1, "counter_delta");
-    this.observe(meaningful ? "coordination_ticks_useful_total" : "coordination_ticks_idle_total", 1, "counter_delta");
+    this.observe(meaningful || terminalTransition ? "coordination_ticks_useful_total" : "coordination_ticks_idle_total", 1, "counter_delta");
     if (dispatched.length > 0) this.observe("coordination_dispatches_total", dispatched.length, "counter_delta");
     this.observe("coordination_tick_duration_ms", performance.now() - tickStartedAt, "histogram_sample");
 
@@ -847,6 +853,43 @@ export class CoordinationScheduler {
   }
 
   // ── Event emission (observability, not correctness) ──────────────
+
+  /**
+   * Mark a run's terminal tick as emitted. Bounded: a long-lived daemon must not
+   * grow the set without limit. Run ids are UUIDs and terminal runs are not
+   * re-ticked, so clearing at the cap can only re-admit a run that can no longer
+   * reach the emission site.
+   */
+  private markTerminalEmitted(runId: string): void {
+    if (this.terminalTicksEmitted.size >= 4096) this.terminalTicksEmitted.clear();
+    this.terminalTicksEmitted.add(runId);
+  }
+
+  /**
+   * Emit the one minimal terminal `coordination.tick.completed` for a run
+   * OBSERVED terminal on an otherwise-idle tick (workers settled between ticks).
+   * Exactly once per run via `terminalTicksEmitted`; a meaningful in-tick
+   * terminal transition emits its own richer tick instead (see `tick`).
+   */
+  private async emitTerminalTick(runId: string, run: CoordinationRun): Promise<void> {
+    if (this.terminalTicksEmitted.has(runId)) return;
+    this.markTerminalEmitted(runId);
+    await this.emit("coordination.tick.completed", {
+      coordinationRunId: runId,
+      sessionId: run.sessionId ?? "unknown",
+      taskGraphId: run.taskGraphId,
+      examined: 0,
+      dispatched: [],
+      awaitingApproval: [],
+      denied: [],
+      ownershipConflicts: [],
+      activeRunning: run.workers.filter((w) => w.status === "running").length,
+      availableSlots: 0,
+      runStatus: run.status,
+      progressMade: false,
+      timestamp: new Date().toISOString(),
+    });
+  }
 
   private async emit(event: string, payload: Record<string, unknown>): Promise<void> {
     if (!this.deps.eventLog) return;

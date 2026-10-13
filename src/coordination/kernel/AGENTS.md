@@ -80,16 +80,20 @@
 - **`coordination.tick.completed` records a MEANINGFUL transition, not a poll
   cycle.** `tick` emits it only when a dispatch happened, reconciliation
   orphaned/blocked a worker, or a worker entered approval/denial/ownership
-  conflict — plus exactly one terminal tick per run (`terminalTicksEmitted`
-  makes terminal emission transition-based). An idle poll writes nothing.
-  Rationale: the event had no consumer and was emitted every cycle — 331 emit
-  events (98% no-ops, 26% of the session log) in session `1791853059081` — and
-  each write contended for the same `events.jsonl` append lock a worker's
-  correctness events need (a successful worker died on `Timed out acquiring
-  EventLog append lock`). Telemetry cadence must not sit on the authoritative
-  append path.   Pinned by `tests/kernel/coordination-scheduler.test.ts`
-  (`tick.completed emission gating`). Scheduler liveness, if ever needed,
-  belongs on a separate metrics/heartbeat path, not this event.
+  conflict. Terminal emission is transition-based and emits **exactly one**
+  terminal tick per run via `terminalTicksEmitted`: a meaningful tick that
+  itself crossed into terminal carries the terminal status, and an otherwise
+  idle tick that first OBSERVES a run already terminal (workers settle
+  asynchronously between ticks — the common case) emits the one minimal
+  terminal tick. An idle non-terminal poll writes nothing. Rationale: the event
+  had no consumer and was emitted every cycle — 331 emit events (98% no-ops,
+  26% of the session log) in session `1791853059081` — and each write contended
+  for the same `events.jsonl` append lock a worker's correctness events need (a
+  successful worker died on `Timed out acquiring EventLog append lock`).
+  Telemetry cadence must not sit on the authoritative append path. Pinned by
+  `tests/kernel/coordination-scheduler.test.ts` (`tick.completed emission
+  gating`). Scheduler liveness, if ever needed, belongs on a separate
+  metrics/heartbeat path, not this event.
 - **Scheduler telemetry goes to the `MetricsSink` path, never the EventLog.**
   `tick` records `coordination_ticks_total`/`_useful_total`/`_idle_total`,
   `coordination_dispatches_total`, `coordination_tick_duration_ms`, and

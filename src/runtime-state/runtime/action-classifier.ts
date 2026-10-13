@@ -665,10 +665,42 @@ const SHELL_WRAPPER_ANCHORS: readonly RegExp[] = [
   // Prefixed-command forms — "run npm test", "execute the build", "exec ls -la".
   // Word boundary `\b` after the command token prevents `\S+` from
   // backtracking through English-connective tails like "and fix failures".
-  // Guarded by `hasNaturalLanguageTail` (see the shell-execution branch) so a
-  // prose objective that merely opens with a wrapper verb reaches the agent.
+  // Command-shapedness is decided in the branch below (see `wrapperVerbObject`).
   /^\s*(?:run|execute|exec|invoke|fire|trigger|spawn)\s+(?:a|an|the|my|some)?\s*\S+\b(?!\s+(?:and|or|then|but|fix|failures?|errors?|so)\s+\S+)/i,
 ];
+
+/** Leading wrapper verb (+ optional article) of a prefixed-command prompt. */
+const WRAPPER_VERB_PREFIX = /^\s*(?:run|execute|exec|invoke|fire|trigger|spawn)\s+(?:a|an|the|my|some)?\s*/i;
+
+/**
+ * The object a wrapper verb wraps — the prompt with its leading wrapper verb
+ * (and optional article) removed: `"run npm test"` → `"npm test"`. Used to test
+ * whether the wrapper wraps a real command (`SHELL_COMMAND_ANCHORS`) or a prose
+ * objective.
+ */
+function wrapperVerbObject(prompt: string): string {
+  return prompt.trim().replace(WRAPPER_VERB_PREFIX, "");
+}
+
+/**
+ * True when a `SHELL_WRAPPER_ANCHORS` match wraps an actual command rather than
+ * a prose objective.
+ *
+ * A wrapper verb is command-shaped when the tail it wraps is itself a command
+ * (`run npm test`, `execute docker compose up`, `run git rebase main` — the
+ * wrapped object matches `SHELL_COMMAND_ANCHORS`), OR when it carries no
+ * natural-language tail at all (`execute the build`, `run the migration`).
+ * Only a wrapper whose object is prose (`run a parallel agent test`,
+ * `spawn a subagent to review the code`) is a delegated objective.
+ *
+ * This reuses `SHELL_COMMAND_ANCHORS` — the one definition of "what is a
+ * command" — instead of a token-count heuristic, which misclassified common
+ * multi-token commands (`run npm run build`) as prose.
+ */
+function wrapperWrapsCommand(prompt: string): boolean {
+  return hasAny(wrapperVerbObject(prompt), SHELL_COMMAND_ANCHORS) || !hasNaturalLanguageTail(prompt);
+}
+
 // `use bash to …` is prose BY DESIGN — the explicit shell-naming wrapper is
 // never a delegated objective, so it stays outside the prose-tail guard.
 const SHELL_BASH_WRAPPER_ANCHOR =
@@ -809,7 +841,7 @@ export function classifyAction(input: string): ActionClassification {
   //    prose by design and skips it.
   if (
     (hasAny(trimmed, SHELL_COMMAND_ANCHORS) && !hasNaturalLanguageTail(trimmed)) ||
-    (hasAny(trimmed, SHELL_WRAPPER_ANCHORS) && !hasNaturalLanguageTail(trimmed)) ||
+    (hasAny(trimmed, SHELL_WRAPPER_ANCHORS) && wrapperWrapsCommand(trimmed)) ||
     SHELL_BASH_WRAPPER_ANCHOR.test(trimmed)
   ) {
     return {
