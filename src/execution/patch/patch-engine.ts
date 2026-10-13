@@ -29,6 +29,24 @@ export type PatchApplyResult = {
   checkpointId?: string;
 };
 
+/**
+ * A rejected patch (malformed syntax, zero hunks, guard/format failure). Carries
+ * `retryable` so a caller that classifies write failures does not treat a
+ * correctable syntax error as terminal: a zero-hunk search_replace is fixable by
+ * the model in-turn (or by switching to alix_file_create), unlike a genuine
+ * write error. The worker boundary (`recordWriteOutcome`) must not sink a worker
+ * on a correctable rejection — session 1791853059081 lost a worker whose
+ * `patch.apply` reported a bare "No patch changes found" with no such signal.
+ */
+export class PatchRejectedError extends Error {
+  readonly retryable: boolean;
+  constructor(message: string, retryable = true) {
+    super(message);
+    this.name = "PatchRejectedError";
+    this.retryable = retryable;
+  }
+}
+
 export type PatchEngineOptions = {
   eventLog?: EventLog;
   sessionId?: string;
@@ -90,6 +108,28 @@ export async function applyPatch(
     validationErrors = [(err as Error).message];
   }
 
+  // A parse that yielded ZERO hunks is a rejection, not a valid empty patch.
+  // A malformed payload the parser skips without throwing (e.g. a
+  // search_replace block whose `path=` sits on the next line, so the block
+  // regex never matches) previously left `parsedBlocks` empty while the event
+  // below reported `validated: true` — then `applyPatchBody` threw a bare
+  // "No patch changes found", which the worker boundary classified as a
+  // NON-RETRYABLE write failure and failed the whole worker (session
+  // 1791853059081). Reporting the malformed-syntax rejection here, with
+  // recovery guidance, keeps it retryable and stops `patch.parsed` from
+  // claiming validity it never established.
+  if (!validationFailed) {
+    if (parsedHunkCount(parsedBlocks) === 0) {
+      validationFailed = true;
+      validationErrors = [
+        `No patch hunks were parsed from the ${format} payload — the patch syntax is malformed or empty. ` +
+        (format === "search_replace"
+          ? "Each search_replace block must be exactly `<<<<<<< SEARCH path=<file>` (the path on the SAME line as SEARCH), then the original text, then `=======`, then the replacement text, then `>>>>>>> REPLACE`. To create a NEW file, use alix_file_create instead of patch.apply."
+          : "Re-check the patch syntax and resubmit, or use alix_file_create / alix_file_write for a whole file."),
+      ];
+    }
+  }
+
   // Emit patch.parsed
   if (eventLog && sessionId) {
     await eventLog.append({
@@ -117,7 +157,7 @@ export async function applyPatch(
         } as PatchRejectedPayload,
       });
     }
-    throw new Error(`Patch rejected: ${validationErrors.join(", ")}`);
+    throw new PatchRejectedError(`Patch rejected: ${validationErrors.join(", ")}`);
   }
 
   // Create checkpoint
@@ -332,6 +372,18 @@ function extractPatchFiles(patchText: string, format: EditFormat): Array<{ path:
   }
   const patch = parseStructuredPatch(patchText);
   return patch.files.map((f) => ({ path: f.path, operation: f.operation }));
+}
+
+/**
+ * Hunk count for a parsed patch payload, owning the per-format shape so callers
+ * (the zero-hunk rejection) do not reach into foreign parse-result internals.
+ * search_replace/unified_diff parse to an array of blocks; structured_patch to
+ * an object with `files`.
+ */
+function parsedHunkCount(patchData: unknown): number {
+  if (Array.isArray(patchData)) return patchData.length;
+  const files = (patchData as { files?: unknown[] } | null)?.files;
+  return Array.isArray(files) ? files.length : 0;
 }
 
 function extractPatchFilePaths(patchData: unknown, format: EditFormat): string[] {

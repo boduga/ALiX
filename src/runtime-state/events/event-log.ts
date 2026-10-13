@@ -399,8 +399,9 @@ export class EventLog {
   /** Re-sync nextSeq from the durable file. Called by append() before every
    *  write to defend against multi-instance writers. Reads only a bounded
    *  tail window (the last line holds the max seq) so append cost stays flat
-   *  as the log grows; falls back to a full read only when the tail cannot
-   *  be parsed (e.g. a single line larger than the window). */
+   *  as the log grows; the window grows geometrically only when the last line
+   *  exceeds it (e.g. a large context bundle) and never degrades to a
+   *  whole-file read while any complete line is reachable in the tail. */
   private async resyncFromDisk(): Promise<void> {
     if (!existsSync(this.path)) return;
     const maxSeq = await this.readMaxSeqFromTail();
@@ -411,37 +412,56 @@ export class EventLog {
     if (maxSeq + 1 > this.nextSeq) this.nextSeq = maxSeq + 1;
   }
 
-  /** Max seq from the last complete line in the tail window, or null when
-   *  the tail is unparseable and a full read is required. */
+  /** Max seq from the last complete line in the tail, or null when the file
+   *  holds no parseable complete line at all (a single un-newlined fragment).
+   *
+   *  The window starts at `RESYNC_TAIL_BYTES` and DOUBLES until a complete
+   *  line fits or the whole file is covered. This matters because a single
+   *  event can exceed 64KB (context bundles reached 126KB/141KB in session
+   *  1791853059081): a fixed window then straddled one huge line, found no
+   *  complete line, and fell back to reading the ENTIRE growing file on every
+   *  append — turning each append into an O(file) read that held the shared
+   *  append lock for seconds and timed out peer writers. Geometric growth
+   *  costs O(last-line size) instead of O(file size), keeping the lock hold
+   *  bounded regardless of log length. */
   private async readMaxSeqFromTail(): Promise<number | null> {
     const st = await stat(this.path);
     if (st.size === 0) return 0;
-    const window = Math.min(st.size, RESYNC_TAIL_BYTES);
+    let window = Math.min(st.size, RESYNC_TAIL_BYTES);
+    for (;;) {
+      const text = await this.readTailBytes(st.size, window);
+      const lines = text.split("\n");
+      // When the window does not begin at byte 0, its first element is a
+      // partial-line fragment; start scanning from the first COMPLETE line.
+      const firstComplete = window < st.size ? 1 : 0;
+      for (let i = lines.length - 1; i >= firstComplete; i--) {
+        const line = lines[i]!.trim();
+        if (!line) continue;
+        try {
+          const e = JSON.parse(line) as { seq?: number };
+          if (typeof e.seq === "number") return e.seq;
+        } catch {
+          // Partial/truncated line — try the previous complete line.
+        }
+      }
+      // No complete line fit. Cover the whole file before giving up; the
+      // caller's full read cannot do better than a window that already spans
+      // every byte, so stopping here avoids a redundant whole-file pass.
+      if (window >= st.size) return null;
+      window = Math.min(st.size, window * 2);
+    }
+  }
+
+  /** Read the last `window` bytes of the file as UTF-8. */
+  private async readTailBytes(size: number, window: number): Promise<string> {
     const fd = await open(this.path, "r");
-    let text: string;
     try {
       const buf = Buffer.alloc(window);
-      await fd.read(buf, 0, window, st.size - window);
-      text = buf.toString("utf8");
+      await fd.read(buf, 0, window, size - window);
+      return buf.toString("utf8");
     } finally {
       await fd.close();
     }
-    const lines = text.split("\n");
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i]!.trim();
-      if (!line) continue;
-      try {
-        const e = JSON.parse(line) as { seq?: number };
-        if (typeof e.seq === "number") return e.seq;
-      } catch {
-        // Partial/truncated line — try the previous complete line.
-      }
-    }
-    // If the window did not start at byte 0, the leading fragment may be an
-    // incomplete line, but any complete line in the window would have parsed.
-    // A null here means no complete line existed (single huge line) — fall
-    // back to the full read.
-    return null;
   }
 
   /** Full-file resync (rare fallback). */

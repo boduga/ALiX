@@ -32,6 +32,7 @@ const PROVIDER_ENV_VARS: Record<string, string> = {
   zhipuai: "ZHIPUAI_API_KEY",
   grokai: "GROKAI_API_KEY",
   "xiaomi-mimo-token-plan": "XIAOMI_MIMO_TOKEN_PLAN_KEY",
+  intern: "INTERN_API_KEY",
 };
 
 export interface CliResult {

@@ -92,4 +92,33 @@ describe('verification requirement detection (T3 finding 1)', () => {
       assert.equal(required.coordination, coordination, `coordination: ${task}`);
     }
   });
+
+  it('does not require a coordination run for read-only coordination tools (issue #933)', () => {
+    // Naming a coordination READ tool asks to inspect run state, not to run a
+    // coordination. The name-normalized view made `alix_coordination_list` →
+    // `coordination list` match an action+subject pair, demanding run evidence
+    // (session 1791874959855: "Call alix_coordination_list…" ended
+    // completed_unverified with gap "a successful coordination run with worker
+    // outcomes").
+    for (const task of [
+      'Call alix_coordination_list and tell me each run id plus the goal, and say whether each was created in this session.',
+      'Use alix_coordination_results with runId "coord_x".',
+      'coordination status for run x',
+      'list my coordination runs',
+      'show coordination results',
+    ]) {
+      assert.equal(objectiveEvidenceRequirements(task, 'unknown').coordination, false, task);
+    }
+  });
+
+  it('still requires a coordination run for explicit worker-execution objectives', () => {
+    for (const task of [
+      'run a parallel agent test with 3 workers',
+      'start a coordination run',
+      'Use exactly four coordinated workers to create the requested files',
+      'launch parallel workers',
+    ]) {
+      assert.equal(objectiveEvidenceRequirements(task, 'feature').coordination, true, task);
+    }
+  });
 });

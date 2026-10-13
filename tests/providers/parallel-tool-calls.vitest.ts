@@ -203,6 +203,11 @@ describe("parallel-tool-calls catalog hardening (#642)", () => {
       expect(resolveParallelToolCalls({ provider: "xiaomi-mimo-token-plan", model: "" })).toBe(false);
       expect(resolveParallelToolCalls({ provider: "xiaomi-mimo-token-plan", model: "unknown" })).toBe(false);
     });
+    it("intern — unverified by vendor docs → fail-closed false", () => {
+      expect(resolveParallelToolCalls({ provider: "intern", model: "deepseek-v4-flash-0731" })).toBe(false);
+      expect(resolveParallelToolCalls({ provider: "intern", model: "intern-s2" })).toBe(false);
+      expect(resolveParallelToolCalls({ provider: "intern", model: "" })).toBe(false);
+    });
   });
 
   // ── fail-closed unknown → false ────────────────────────────────────────
