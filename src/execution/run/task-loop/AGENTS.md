@@ -128,6 +128,16 @@ barrel preserving public import paths.
 - Objective requirement detection normalizes model-facing tool names before
   matching action words. `alix_verify_claim` counts as verification after
   mutation, as does a shell command matching `VERIFICATION_COMMAND_RE`.
+- **Naming a coordination READ tool does not require a coordination run.**
+  `objectiveEvidenceRequirements` requires coordination only for an execution
+  subject (workers/agents/parallel/N-workers: "coordinate two workers") or a
+  bare `coordination` noun next to an execution verb (`run|launch|spawn|start|
+  delegate|coordinate`). `use`/`call`/`list` are not execution verbs, and a
+  `coordination list|status|results` read noun suppresses the requirement. The
+  name-normalized view turns `alix_coordination_list` into `coordination list`,
+  which an earlier action+subject pair matched — demanding `alix_coordination_run`
+  evidence for a pure read and failing it `completed_unverified` (session
+  `1791874959855`, issue #933). See `tests/run/verification-detection.test.ts`.
 - Tool-result echoes are not synthesis. Re-prompt once, then terminate
   `completed_unverified` with a tool-result-echo rejection reason if the echo
   persists. A short quotation within substantive prose stays accepted.
