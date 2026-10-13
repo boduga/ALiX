@@ -180,7 +180,22 @@ test("structured delete actually removes file", async () => {
 test("rejects no-op search replace patch", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
   try {
-    await assert.rejects(() => applyPatch(dir, "search_replace", ""), /No patch changes found/);
+    // An empty/malformed search_replace now rejects with explicit syntax
+    // guidance (a parse yielding zero hunks is a rejection, not a silent
+    // validated:true). Session 1791853059081: a malformed block whose `path=`
+    // sat on its own line parsed to zero hunks, reported validated:true, then
+    // failed non-retryably and killed the worker.
+    await assert.rejects(() => applyPatch(dir, "search_replace", ""), /No patch hunks were parsed/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("rejects a search_replace block whose path is not on the SEARCH line", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    const malformed = "<<<<<<< SEARCH\npath=file.txt\n=======\nnew\n>>>>>>> REPLACE";
+    await assert.rejects(() => applyPatch(dir, "search_replace", malformed), /No patch hunks were parsed/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
