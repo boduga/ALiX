@@ -77,6 +77,35 @@
   the run, and persisted TaskGraph cancelled and releases ownership leases.
   Set run status explicitly; do not re-derive an idle cancelled run as blocked.
   Scheduler `tick` and `runUntilIdle` treat cancelled runs as final.
+- **`coordination.tick.completed` records a MEANINGFUL transition, not a poll
+  cycle.** `tick` emits it only when a dispatch happened, reconciliation
+  orphaned/blocked a worker, or a worker entered approval/denial/ownership
+  conflict — plus exactly one terminal tick per run (`terminalTicksEmitted`
+  makes terminal emission transition-based). An idle poll writes nothing.
+  Rationale: the event had no consumer and was emitted every cycle — 331 emit
+  events (98% no-ops, 26% of the session log) in session `1791853059081` — and
+  each write contended for the same `events.jsonl` append lock a worker's
+  correctness events need (a successful worker died on `Timed out acquiring
+  EventLog append lock`). Telemetry cadence must not sit on the authoritative
+  append path.   Pinned by `tests/kernel/coordination-scheduler.test.ts`
+  (`tick.completed emission gating`). Scheduler liveness, if ever needed,
+  belongs on a separate metrics/heartbeat path, not this event.
+- **Scheduler telemetry goes to the `MetricsSink` path, never the EventLog.**
+  `tick` records `coordination_ticks_total`/`_useful_total`/`_idle_total`,
+  `coordination_dispatches_total`, `coordination_tick_duration_ms`, and
+  `coordination_reconciliation_duration_ms` through an optional injected
+  `metricsSink` (`CoordinationSchedulerDeps.metricsSink`), which hosts wire to
+  the append-only `MetricsStore` (`.alix/observability/metrics`) via
+  `createMetricsStoreSink`. This is the cheap-cadence observability that
+  replaces the per-tick EventLog write removed above: metrics land in a
+  DIFFERENT file with no shared append lock, so metric volume can never
+  contend with worker correctness events. Fail-open: a sink throw never
+  affects scheduling, and `type` is always supplied so a timer is never rolled
+  up as a counter. Names are registered in `PRODUCTION_METRIC_DEFINITIONS`
+  (parity pinned by `tests/observability/metric-parity.vitest.ts`). The daemon
+  and Inspector hosts wire the sink; short-lived reclaim schedulers may omit
+  it. Pinned by `tests/kernel/coordination-scheduler.test.ts`
+  (`records scheduler metrics on the MetricsSink path`).
 - **Worker liveness is ONE verdict (R3.3).** `shouldReclaimWorker` in
   `owner-liveness.ts` merges the two pre-R3 rules (heartbeat staleness in
   reconciliation, PID probe in resume) that disagreed: reconciliation used to

@@ -20,6 +20,7 @@ import { authorizeWorker } from "./coordination-authorization.js";
 import type { ExecutionAuthorization } from "../../runtime-state/runtime/execution-authorization.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
+import type { MetricsSink } from "../../runtime-state/contracts/metrics-sink.js";
 import type { AuditStore } from "../../governance/audit/audit-store.js";
 import type { AlixConfig } from "../../operations/config/schema.js";
 import { recomputeRunStatus, type CoordinationRun, type CoordinationRunStatus, type WorkerAssignment } from "./coordination-types.js";
@@ -100,6 +101,15 @@ export type CoordinationSchedulerDeps = {
   }>;
   completionService?: CoordinationCompletionService;
   eventLog?: EventLog;
+  /**
+   * Optional metric-observation sink. Scheduler telemetry (tick counts,
+   * useful/idle split, dispatch count, tick/reconciliation durations) goes
+   * HERE — the `.alix/observability/metrics` store path — never the session
+   * EventLog: a tick runs every poll, and per-tick EventLog appends contend
+   * for the same lock worker correctness events need (session 1791853059081).
+   * Fail-open: a sink throw never affects scheduling.
+   */
+  metricsSink?: MetricsSink;
   auditStore?: AuditStore;
   clock?: Clock;
   replanner?: CollaborativePlanner;
@@ -154,6 +164,16 @@ export class CoordinationScheduler {
   private readonly options: Required<SchedulerOptions>;
   private readonly resultStore: CoordinationResultStore;
   private readonly activeExecutions = new Map<string, { workerId: string; runId: string; controller: AbortController; promise: Promise<void>; startedAt: number }>();
+  /**
+   * Run ids whose terminal tick has already been emitted. `coordination.tick.completed`
+   * is an observability record of a MEANINGFUL transition, not a per-cycle
+   * heartbeat: emitting it every poll wrote ~331 events (98% no-ops, 26% of the
+   * session log) in session 1791853059081 and each write contended for the same
+   * `events.jsonl` append lock worker correctness events need. Terminal
+   * emission is transition-based so a run visible to the scheduler at terminal
+   * status emits exactly once.
+   */
+  private readonly terminalTicksEmitted = new Set<string>();
 
   constructor(deps: CoordinationSchedulerDeps, options: SchedulerOptions = {}) {
     this.deps = deps;
@@ -224,6 +244,7 @@ export class CoordinationScheduler {
   // ── Tick (core dispatch pipeline) ──────────────────────────────────
 
   async tick(runId: string): Promise<SchedulerTickResult> {
+    const tickStartedAt = performance.now();
     let run = await this.deps.store.load(runId);
     if (!run) {
       return emptyTick(runId, "failed");
@@ -238,7 +259,9 @@ export class CoordinationScheduler {
     await this.reapTimedOutWorkers(runId, this.options.workerTimeoutMs);
 
     // Step 1: Reconcile
+    const reconcileStartedAt = performance.now();
     const recResult = await this.reconcile(runId);
+    this.observe("coordination_reconciliation_duration_ms", performance.now() - reconcileStartedAt, "histogram_sample");
 
     if (recResult.dependencyBlocked.length > 0) {
       const reconciled = await this.deps.store.load(runId);
@@ -404,22 +427,54 @@ export class CoordinationScheduler {
     run = (await this.deps.store.load(runId))!;
     const progressMade = dispatched.length > 0 || recResult.orphaned.length > 0 || recResult.dependencyBlocked.length > 0;
 
-    // Emit tick completed
-    this.emit("coordination.tick.completed", {
-      coordinationRunId: runId,
-      sessionId: run?.sessionId ?? "unknown",
-      taskGraphId: run?.taskGraphId,
-      examined: readyWorkers.length,
-      dispatched,
-      awaitingApproval,
-      denied,
-      ownershipConflicts,
-      activeRunning,
-      availableSlots,
-      runStatus: run?.status ?? "failed",
-      progressMade,
-      timestamp: new Date().toISOString(),
-    });
+    // Emit tick completed only for a MEANINGFUL transition (see terminalTicksEmitted).
+    // An idle poll — nothing dispatched/reconciled, nobody awaiting approval or
+    // denied, no ownership conflict, run not newly terminal — records nothing.
+    // This keeps the authoritative append lock off the scheduler's hot path.
+    const terminal = run?.status === "completed" || run?.status === "failed" || run?.status === "cancelled";
+    const terminalTransition = terminal && !this.terminalTicksEmitted.has(runId);
+    const meaningful =
+      dispatched.length > 0 ||
+      recResult.orphaned.length > 0 ||
+      recResult.dependencyBlocked.length > 0 ||
+      awaitingApproval.length > 0 ||
+      denied.length > 0 ||
+      ownershipConflicts.length > 0 ||
+      terminalTransition;
+
+    if (meaningful) {
+      if (terminalTransition) {
+        // Bounded: a long-lived daemon must not grow this without limit. Run
+        // ids are UUIDs and terminal runs are not re-ticked (the entry guard
+        // returns early), so clearing at the cap can only re-admit a run that
+        // can no longer reach this branch.
+        if (this.terminalTicksEmitted.size >= 4096) this.terminalTicksEmitted.clear();
+        this.terminalTicksEmitted.add(runId);
+      }
+      this.emit("coordination.tick.completed", {
+        coordinationRunId: runId,
+        sessionId: run?.sessionId ?? "unknown",
+        taskGraphId: run?.taskGraphId,
+        examined: readyWorkers.length,
+        dispatched,
+        awaitingApproval,
+        denied,
+        ownershipConflicts,
+        activeRunning,
+        availableSlots,
+        runStatus: run?.status ?? "failed",
+        progressMade,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Scheduler telemetry goes to the MetricsSink path (never the EventLog).
+    // Recorded every executed tick — this is the cheap-cadence observability
+    // that replaces the per-tick EventLog write removed in P1.
+    this.observe("coordination_ticks_total", 1, "counter_delta");
+    this.observe(meaningful ? "coordination_ticks_useful_total" : "coordination_ticks_idle_total", 1, "counter_delta");
+    if (dispatched.length > 0) this.observe("coordination_dispatches_total", dispatched.length, "counter_delta");
+    this.observe("coordination_tick_duration_ms", performance.now() - tickStartedAt, "histogram_sample");
 
     // Finalize if run became terminal
     if (run?.status === "completed" || run?.status === "failed") {
@@ -803,6 +858,20 @@ export class CoordinationScheduler {
         payload,
       });
     } catch { /* events are observability, not correctness */ }
+  }
+
+  /**
+   * Record one scheduler metric observation on the MetricsSink path.
+   * Fail-open by construction: metric collection must never affect scheduling,
+   * so a sink throw is swallowed. `type` is always supplied so a timer/gauge is
+   * never rolled up as a counter.
+   */
+  private observe(name: string, value: number, type: "counter_delta" | "histogram_sample" | "gauge"): void {
+    if (!this.deps.metricsSink) return;
+    if (!Number.isFinite(value)) return;
+    try {
+      this.deps.metricsSink.observe({ name, value, type });
+    } catch { /* metrics never break the scheduler */ }
   }
 
   private async emitAgentState(

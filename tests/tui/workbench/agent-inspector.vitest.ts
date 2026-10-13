@@ -67,6 +67,33 @@ describe('selected-agent inspector snapshot joins', () => {
     expect(buildAgentInspectorModel(snap, { selectedAgentId: 'gone' }).selection).toBe('missing');
     expect(buildAgentInspectorModel({ ...snap, runtime: null }).selection).toBe('unavailable');
   });
+  it('falls back to session-scoped activity and metrics only for an empty roster', () => {
+    const base = snapshot([]);
+    const metrics = { eventsProcessed: 3, toolCalls: 0, toolFailures: 0, toolDuration: { count: 0, totalMs: 0, minMs: null, maxMs: null, averageMs: null }, capabilityInvocations: 0, tokensUsed: 30634, startedAt: 1, lastEventAt: 2, contextWindowTokens: 0, availableInputTokens: 0, budgetReservation: 0, admittedTokens: 0, droppedTokens: 0, contextUtilization: null };
+    const withSession = {
+      ...base,
+      session: { ...base.session!, activity: { state: 'tool_running' as const, toolName: 'alix_patch_apply', startedAt: 1000, lastProgressAt: 1000, lastEventAt: 1000, elapsedMs: 0, invocationId: 'inv1' } },
+      runtime: { ...base.runtime!, metrics },
+    };
+    // Empty roster: session activity + session tokens surface (no fabricated context/cost).
+    const model = buildAgentInspectorModel(withSession, {}, 19000);
+    expect(model.sessionActivity?.state).toBe('tool_running');
+    expect(model.sessionActivity?.elapsedMs).toBe(18000);
+    expect(model.tokens).toBe(30634);
+    const sections = buildAgentInspectorSections(model);
+    expect(sections[1]?.rows.find((entry) => entry.label === 'Tool')?.value).toBe('alix_patch_apply');
+    expect(sections[1]?.rows.find((entry) => entry.label === 'Status')?.value).toBe('Running');
+    expect(sections[4]?.rows.find((entry) => entry.label === 'Tokens')?.value).toBe('30,634');
+    expect(sections[4]?.rows.find((entry) => entry.label === 'Context')?.value).toBe('unavailable');
+    // Terminal session activity and an absent metrics projection stay fallbacks/unavailable.
+    const terminal = buildAgentInspectorModel({ ...withSession, session: { ...withSession.session, activity: { ...withSession.session!.activity!, state: 'completed' as const } } });
+    expect(terminal.sessionActivity).toBeUndefined();
+    expect(buildAgentInspectorSections(terminal)[1]?.rows[0]?.value).toBe('Select an agent for activity');
+    expect(buildAgentInspectorModel({ ...base, session: { ...base.session!, activity: withSession.session!.activity } }).tokens).toBeUndefined();
+    // A selected agent still wins over the session fallback.
+    const selected = buildAgentInspectorModel({ ...withSession, runtime: { ...withSession.runtime, agents: { agents: [agent('a')], active: 1, totals: { agents: 1, running: 1, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 } } } }, { selectedAgentId: 'a' });
+    expect(selected.sessionActivity).toBeUndefined();
+  });
 });
 describe('bounded inspector rendering', () => {
   it('renders reference sections, values, separators and clock in order', () => {

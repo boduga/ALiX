@@ -651,16 +651,28 @@ const SHELL_COMMAND_ANCHORS: readonly RegExp[] = [
 // must reach the agent (as `workspace_action`) instead of `shell.run` with a
 // 2-iteration cap. The connectors the per-anchor lookahead already rejects
 // are a subset of that check — the shape test catches the rest.
+//
+// The same prose-tail guard applies to SHELL_WRAPPER_ANCHORS: "run a parallel
+// agent test" is not a shell command, it is a delegated objective phrased with
+// the verb "run". Routing it to `shell.run` sets `turnShellTask`, which caps the
+// run at 2 iterations AND routes completion through `trackShellComplete` — the
+// loop then terminates on the first failed tool result with no verification or
+// repair (session `1791848832999`: a successful 3-worker coordination run was
+// discarded because the follow-up `cat` guessed wrong filenames). The wrapper
+// verb is only a command wrapper when its tail looks like a command
+// (`run npm test`), not when it is a prose objective.
 const SHELL_WRAPPER_ANCHORS: readonly RegExp[] = [
-  // Prefixed-command forms — natural-language wrappers around a command.
-  // "run npm test", "execute the build", "exec ls -la", "use bash to …".
-  // These are prose BY DESIGN, so they are intentionally kept outside
-  // SHELL_COMMAND_ANCHORS and never passed to hasNaturalLanguageTail.
+  // Prefixed-command forms — "run npm test", "execute the build", "exec ls -la".
   // Word boundary `\b` after the command token prevents `\S+` from
   // backtracking through English-connective tails like "and fix failures".
+  // Guarded by `hasNaturalLanguageTail` (see the shell-execution branch) so a
+  // prose objective that merely opens with a wrapper verb reaches the agent.
   /^\s*(?:run|execute|exec|invoke|fire|trigger|spawn)\s+(?:a|an|the|my|some)?\s*\S+\b(?!\s+(?:and|or|then|but|fix|failures?|errors?|so)\s+\S+)/i,
-  /^\s*(?:use|run|execute|exec)\s+(?:bash|shell|sh|zsh)\s+to\b(?!\s+(?:and|or|then|but|fix|failures?|errors?|so)\s+\S+)/i,
 ];
+// `use bash to …` is prose BY DESIGN — the explicit shell-naming wrapper is
+// never a delegated objective, so it stays outside the prose-tail guard.
+const SHELL_BASH_WRAPPER_ANCHOR =
+  /^\s*(?:use|run|execute|exec)\s+(?:bash|shell|sh|zsh)\s+to\b(?!\s+(?:and|or|then|but|fix|failures?|errors?|so)\s+\S+)/i;
 
 /**
  * Tokens / patterns that imply a direct, model-generated answer.
@@ -792,12 +804,13 @@ export function classifyAction(input: string): ActionClassification {
   //    deterministically so the closed-world invariant test can pin
   //    the (shell_execution, tool) chain at Layer 1 → Layer 3 without
   //    relying on the Layer-2 isShellTask lens inside the agent loop.
-  //    Only the command-anchored family carries the prose-tail check;
-  //    the wrapper family is natural language by design.
+  //    Both the command-anchored and the `run/execute/…` wrapper family carry
+  //    the prose-tail check; only the explicit `use bash to …` wrapper is
+  //    prose by design and skips it.
   if (
-    (hasAny(trimmed, SHELL_COMMAND_ANCHORS) &&
-      !hasNaturalLanguageTail(trimmed)) ||
-    hasAny(trimmed, SHELL_WRAPPER_ANCHORS)
+    (hasAny(trimmed, SHELL_COMMAND_ANCHORS) && !hasNaturalLanguageTail(trimmed)) ||
+    (hasAny(trimmed, SHELL_WRAPPER_ANCHORS) && !hasNaturalLanguageTail(trimmed)) ||
+    SHELL_BASH_WRAPPER_ANCHOR.test(trimmed)
   ) {
     return {
       intent: "shell_execution",

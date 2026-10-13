@@ -23,6 +23,16 @@ import type { ExecutionAuthorization } from "../../src/runtime-state/runtime/exe
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
+async function waitUntil(cond: () => boolean | Promise<boolean>, timeoutMs = 5_000): Promise<void> {
+  const start = Date.now();
+  while (!(await cond()) && Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  if (!(await cond())) {
+    throw new Error(`waitUntil: condition still false after ${timeoutMs}ms`);
+  }
+}
+
 function allowAllAuth(): ExecutionAuthorization {
   return { evaluate: async () => ({ status: "allowed" as const }) } as any;
 }
@@ -779,5 +789,159 @@ describe("CoordinationScheduler", () => {
     assert.equal(typeof result.availableSlots, "number");
     assert.equal(typeof result.runStatus, "string");
     assert.equal(typeof result.progressMade, "boolean");
+  });
+});
+
+// ── tick.completed emission gating ──────────────────────────────────────
+//
+// `coordination.tick.completed` records a MEANINGFUL transition, not a poll
+// heartbeat. Pinned because session 1791853059081 emitted 331 ticks (98%
+// no-ops, 26% of the session log) and each write contended for the
+// events.jsonl append lock a worker's correctness events needed.
+
+describe("CoordinationScheduler — tick.completed emission gating", () => {
+  let cwd: string;
+  let store: CoordinationStore;
+  let registry: OwnershipRegistry;
+
+  function recordingEventLog() {
+    const appended: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    return {
+      appended,
+      log: {
+        append: async (event: { type: string; payload: Record<string, unknown> }) => {
+          appended.push({ type: event.type, payload: event.payload });
+        },
+        readAll: async () => [],
+      } as any,
+      ticks: () => appended.filter(e => e.type === "coordination.tick.completed"),
+    };
+  }
+
+  function build(executor: any, log: any, authorization: ExecutionAuthorization = allowAllAuth()) {
+    return new CoordinationScheduler({
+      cwd,
+      daemonInstanceId: "daemon-tick",
+      configProvider: async () => minimalConfig(),
+      store,
+      authorization,
+      ownershipRegistry: registry,
+      executor,
+      eventLog: log,
+    }, { maxConcurrency: 4, orphanThresholdMs: 60000 });
+  }
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "coord-tick-"));
+    store = new CoordinationStore(cwd);
+    registry = new OwnershipRegistry(cwd, { sessionId: "tick-session" });
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("emits nothing for an idle tick (no dispatch, no change)", async () => {
+    const rec = recordingEventLog();
+    const scheduler = build(immediateExecutor(), rec.log);
+    // A run whose only worker is dependency-blocked cannot dispatch — an
+    // idle poll. It must record nothing.
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "idle", coordinatorAgentId: "alix" });
+    await store.save(run);
+    await scheduler.tick(run.id); // first tick: no ready workers, nothing changes
+    rec.appended.length = 0;
+    await scheduler.tick(run.id); // repeated idle poll
+    assert.equal(rec.ticks().length, 0);
+    await scheduler.shutdown();
+  });
+
+  it("emits exactly one event when a tick dispatches", async () => {
+    const rec = recordingEventLog();
+    const scheduler = build(immediateExecutor(), rec.log);
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "dispatch", coordinatorAgentId: "alix" });
+    await store.save(run);
+    const w = createWorkerAssignment({ coordinationRunId: run.id, agentId: "a", taskLabel: "w", goalPrompt: "do", requiredCapabilities: ["task.do"], attempt: 0, maxAttempts: 3 });
+    await store.addWorker(run.id, w);
+    const result = await scheduler.tick(run.id);
+    assert.equal(result.dispatched.length, 1);
+    assert.equal(rec.ticks().length, 1);
+    assert.deepEqual(rec.ticks()[0]!.payload.dispatched, [w.id]);
+    await scheduler.shutdown();
+  });
+
+  it("emits once for a denial and once for an approval wait, nothing when idle", async () => {
+    const rec = recordingEventLog();
+    const scheduler = build(immediateExecutor(), rec.log, denyAllAuth());
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "deny", coordinatorAgentId: "alix" });
+    await store.save(run);
+    const w = createWorkerAssignment({ coordinationRunId: run.id, agentId: "a", taskLabel: "w", goalPrompt: "do", requiredCapabilities: ["file.write"], attempt: 0, maxAttempts: 3 });
+    await store.addWorker(run.id, w);
+    await scheduler.tick(run.id);
+    const first = rec.ticks();
+    assert.equal(first.length, 1);
+    assert.deepEqual(first[0]!.payload.denied, [w.id]);
+    // The worker is now failed(denied); re-ticking is idle → no further event.
+    await scheduler.tick(run.id);
+    assert.equal(rec.ticks().length, 1);
+    await scheduler.shutdown();
+  });
+
+  it("emits at most one terminal tick across repeated terminal polls", async () => {
+    const rec = recordingEventLog();
+    const scheduler = build(immediateExecutor(), rec.log);
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "terminal", coordinatorAgentId: "alix" });
+    await store.save(run);
+    const w = createWorkerAssignment({ coordinationRunId: run.id, agentId: "a", taskLabel: "w", goalPrompt: "do", requiredCapabilities: ["task.do"], attempt: 0, maxAttempts: 3 });
+    await store.addWorker(run.id, w);
+
+    // Immediate executor completes the worker; recompute flips the run terminal
+    // during the tick, so the terminal transition is observed in-tick.
+    await scheduler.tick(run.id);
+    await waitUntil(async () => (await store.load(run.id))?.status === "completed", 8_000);
+    const afterFirst = rec.ticks().length;
+    assert.ok(afterFirst >= 1, "terminal transition emitted");
+    // Repeated terminal polls return via the entry guard → no duplicate event.
+    await scheduler.tick(run.id);
+    await scheduler.tick(run.id);
+    assert.equal(rec.ticks().length, afterFirst);
+    await scheduler.shutdown();
+  });
+
+  it("records scheduler metrics on the MetricsSink path (never the EventLog)", async () => {
+    const rec = recordingEventLog();
+    const observations: Array<{ name: string; value: number; type?: string }> = [];
+    const scheduler = new CoordinationScheduler({
+      cwd,
+      daemonInstanceId: "daemon-metrics",
+      configProvider: async () => minimalConfig(),
+      store,
+      authorization: allowAllAuth(),
+      ownershipRegistry: registry,
+      executor: immediateExecutor(),
+      eventLog: rec.log,
+      metricsSink: { observe: (o) => observations.push({ name: o.name, value: o.value, type: o.type }) },
+    }, { maxConcurrency: 4, orphanThresholdMs: 60000 });
+
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "metrics", coordinatorAgentId: "alix" });
+    await store.save(run);
+    const w = createWorkerAssignment({ coordinationRunId: run.id, agentId: "a", taskLabel: "w", goalPrompt: "do", requiredCapabilities: ["task.do"], attempt: 0, maxAttempts: 3 });
+    await store.addWorker(run.id, w);
+
+    await scheduler.tick(run.id); // a useful tick (dispatch)
+    await scheduler.tick(run.id); // idle tick (worker already running/completed)
+
+    const names = observations.map((o) => o.name);
+    const sum = (n: string) => observations.filter((o) => o.name === n).reduce((s, o) => s + o.value, 0);
+    assert.equal(sum("coordination_ticks_total"), 2);
+    assert.equal(sum("coordination_ticks_useful_total"), 1);
+    assert.equal(sum("coordination_dispatches_total"), 1);
+    assert.ok(names.includes("coordination_tick_duration_ms"));
+    assert.ok(names.includes("coordination_reconciliation_duration_ms"));
+    // Durations are timers, counters are deltas — the type is always supplied.
+    assert.equal(observations.find((o) => o.name === "coordination_tick_duration_ms")?.type, "histogram_sample");
+    assert.equal(observations.find((o) => o.name === "coordination_ticks_total")?.type, "counter_delta");
+    // No scheduler metric leaked into the authoritative EventLog.
+    assert.equal(rec.appended.some((e) => String(e.payload?.name ?? "").startsWith("coordination_")), false);
+    await scheduler.shutdown();
   });
 });

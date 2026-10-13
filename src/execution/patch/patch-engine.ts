@@ -90,6 +90,31 @@ export async function applyPatch(
     validationErrors = [(err as Error).message];
   }
 
+  // A parse that yielded ZERO hunks is a rejection, not a valid empty patch.
+  // A malformed payload the parser skips without throwing (e.g. a
+  // search_replace block whose `path=` sits on the next line, so the block
+  // regex never matches) previously left `parsedBlocks` empty while the event
+  // below reported `validated: true` — then `applyPatchBody` threw a bare
+  // "No patch changes found", which the worker boundary classified as a
+  // NON-RETRYABLE write failure and failed the whole worker (session
+  // 1791853059081). Reporting the malformed-syntax rejection here, with
+  // recovery guidance, keeps it retryable and stops `patch.parsed` from
+  // claiming validity it never established.
+  if (!validationFailed) {
+    const hunkCount = Array.isArray(parsedBlocks)
+      ? parsedBlocks.length
+      : (parsedBlocks as { files?: unknown[] }).files?.length ?? 0;
+    if (hunkCount === 0) {
+      validationFailed = true;
+      validationErrors = [
+        `No patch hunks were parsed from the ${format} payload — the patch syntax is malformed or empty. ` +
+        (format === "search_replace"
+          ? "Each search_replace block must be exactly `<<<<<<< SEARCH path=<file>` (the path on the SAME line as SEARCH), then the original text, then `=======`, then the replacement text, then `>>>>>>> REPLACE`. To create a NEW file, use alix_file_create instead of patch.apply."
+          : "Re-check the patch syntax and resubmit, or use alix_file_create / alix_file_write for a whole file."),
+      ];
+    }
+  }
+
   // Emit patch.parsed
   if (eventLog && sessionId) {
     await eventLog.append({

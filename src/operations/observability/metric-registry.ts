@@ -441,6 +441,48 @@ export const PRODUCTION_METRIC_DEFINITIONS: MetricDefinition[] = [
     description: "Agent invocations that reached a failed terminal state (thrown loop error or failure reason)",
     allowedLabelKeys: [],
   },
+  {
+    name: "coordination_ticks_total",
+    type: "counter_delta",
+    unit: "count",
+    description: "Coordination scheduler ticks executed (every poll cycle)",
+    allowedLabelKeys: [],
+  },
+  {
+    name: "coordination_ticks_useful_total",
+    type: "counter_delta",
+    unit: "count",
+    description: "Coordination scheduler ticks that made or observed a meaningful transition (dispatch, orphan/block recovery, approval/denial/ownership conflict, terminal transition)",
+    allowedLabelKeys: [],
+  },
+  {
+    name: "coordination_ticks_idle_total",
+    type: "counter_delta",
+    unit: "count",
+    description: "Coordination scheduler ticks that changed nothing (no dispatch, no progress)",
+    allowedLabelKeys: [],
+  },
+  {
+    name: "coordination_dispatches_total",
+    type: "counter_delta",
+    unit: "count",
+    description: "Coordination workers dispatched by the scheduler",
+    allowedLabelKeys: [],
+  },
+  {
+    name: "coordination_tick_duration_ms",
+    type: "histogram_sample",
+    unit: "ms",
+    description: "Coordination scheduler tick duration in milliseconds",
+    allowedLabelKeys: [],
+  },
+  {
+    name: "coordination_reconciliation_duration_ms",
+    type: "histogram_sample",
+    unit: "ms",
+    description: "Coordination scheduler reconciliation duration in milliseconds",
+    allowedLabelKeys: [],
+  },
 ];
 
 // ---------------------------------------------------------------------------

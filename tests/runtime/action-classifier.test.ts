@@ -770,6 +770,15 @@ describe("classifyAction — shell-execution recognition contract (T9 #385)", ()
         because:
           "opens with a real command word ('find') but the tail is English prose — Layer-2 prose-tail guard (was shell_execution, capped at 2 iterations)",
       },
+      {
+        prompt: "run a parallel agent test",
+        because:
+          "wrapper verb 'run' with a prose tail is a delegated objective, not a shell command — routing to shell.run caps at 2 iterations and terminates without repair (session 1791848832999)",
+      },
+      {
+        prompt: "spawn a subagent to review the code",
+        because: "wrapper verb 'spawn' with a prose tail is delegation, not a shell command",
+      },
     ];
 
     for (const { prompt, because } of NEGATIVE_CASES) {
