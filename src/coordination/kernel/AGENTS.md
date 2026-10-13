@@ -77,6 +77,39 @@
   the run, and persisted TaskGraph cancelled and releases ownership leases.
   Set run status explicitly; do not re-derive an idle cancelled run as blocked.
   Scheduler `tick` and `runUntilIdle` treat cancelled runs as final.
+- **`coordination.tick.completed` records a MEANINGFUL transition, not a poll
+  cycle.** `tick` emits it only when a dispatch happened, reconciliation
+  orphaned/blocked a worker, or a worker entered approval/denial/ownership
+  conflict. Terminal emission is transition-based and emits **exactly one**
+  terminal tick per run via `terminalTicksEmitted`: a meaningful tick that
+  itself crossed into terminal carries the terminal status, and an otherwise
+  idle tick that first OBSERVES a run already terminal (workers settle
+  asynchronously between ticks — the common case) emits the one minimal
+  terminal tick. An idle non-terminal poll writes nothing. Rationale: the event
+  had no consumer and was emitted every cycle — 331 emit events (98% no-ops,
+  26% of the session log) in session `1791853059081` — and each write contended
+  for the same `events.jsonl` append lock a worker's correctness events need (a
+  successful worker died on `Timed out acquiring EventLog append lock`).
+  Telemetry cadence must not sit on the authoritative append path. Pinned by
+  `tests/kernel/coordination-scheduler.test.ts` (`tick.completed emission
+  gating`). Scheduler liveness, if ever needed, belongs on a separate
+  metrics/heartbeat path, not this event.
+- **Scheduler telemetry goes to the `MetricsSink` path, never the EventLog.**
+  `tick` records `coordination_ticks_total`/`_useful_total`/`_idle_total`,
+  `coordination_dispatches_total`, `coordination_tick_duration_ms`, and
+  `coordination_reconciliation_duration_ms` through an optional injected
+  `metricsSink` (`CoordinationSchedulerDeps.metricsSink`), which hosts wire to
+  the append-only `MetricsStore` (`.alix/observability/metrics`) via
+  `createMetricsStoreSink`. This is the cheap-cadence observability that
+  replaces the per-tick EventLog write removed above: metrics land in a
+  DIFFERENT file with no shared append lock, so metric volume can never
+  contend with worker correctness events. Fail-open: a sink throw never
+  affects scheduling, and `type` is always supplied so a timer is never rolled
+  up as a counter. Names are registered in `PRODUCTION_METRIC_DEFINITIONS`
+  (parity pinned by `tests/observability/metric-parity.vitest.ts`). The daemon
+  and Inspector hosts wire the sink; short-lived reclaim schedulers may omit
+  it. Pinned by `tests/kernel/coordination-scheduler.test.ts`
+  (`records scheduler metrics on the MetricsSink path`).
 - **Worker liveness is ONE verdict (R3.3).** `shouldReclaimWorker` in
   `owner-liveness.ts` merges the two pre-R3 rules (heartbeat staleness in
   reconciliation, PID probe in resume) that disagreed: reconciliation used to
@@ -112,9 +145,10 @@
   unfinished cancellation cannot be recovered by dead-owner sweeps.
 - `alix_coordination_run` sweeps dead-owner `cli` runs before planning (`cancelDeadOwnerRuns` with the ownership registry), so a stranded run cannot leave leases that block the next run's claims.
 - Coordination planning preserves truthful ownership: parallel writers with explicit disjoint paths remain concurrent, while vague writers with overlapping inferred claims are deterministically ordered by dependency rather than assigned fabricated scopes.
-- Before dispatch, coordination planning checks stated worker counts, `own only`/`owns only`, `owned path only`, and `exclusive owned path` outputs, and dependencies against the model graph, including named and numbered worker lists. Only path-shaped captures are ownership claims: prose that happens to follow the clause ("each worker owns ONLY its one file") is ignored, while a path-shaped capture that cannot be resolved to a workspace path still blocks planning. Trailing sentence punctuation never becomes part of a path. Explicit outputs override inferred input paths and domain scopes; mismatches or unmappable dependencies block planning. Unstated constraints keep normal planning behavior.
+- Before dispatch, coordination planning checks stated worker counts, `own only`/`owns only`, `owned path only`, and `exclusive owned path` outputs, and dependencies against the model graph, including named and numbered worker lists. Only path-shaped captures are ownership claims: prose that happens to follow the clause ("each worker owns ONLY its one file") is ignored, while a path-shaped capture that cannot be resolved to a workspace path still blocks planning. Trailing sentence punctuation never becomes part of a path. **An ownership claim is a FILE, never a bare directory** (`isFileShapedPath`): a directory-only token (`src/`, `parallel-test/`) extracted from a negated or locational phrase ("do NOT prefix paths with src/", "under the parallel-test/ folder") must not become a declared path and reject the plan (session `1791871510037`, issue #931). Explicit outputs override inferred input paths and domain scopes; mismatches or unmappable dependencies block planning. Unstated constraints keep normal planning behavior.
 - A planned node goal names its output whether the path follows `to`/`into`/`at`/`as`/`in` or a write verb. A bare filename claim (`owns only project.md`) resolves to the single node goal naming that basename, so the worker is scoped to the directory the plan writes into instead of a same-named file at the workspace root; the same resolver maps worker sections to nodes, so named worker lists keep their declared dependencies verifiable.
 - `alix_coordination_status` answers the per-worker identity questions callers ask by name — worker id, task label, agent, status, attempt/maxAttempts, plan order, dependencies, owned scope, result reference — so run-state reads stay inside the tool. `.alix/coordination/**` remains a sensitive path that raw `alix_file_read`/`alix_shell_run` cannot open, and it is not made approvable.
+- **The model-facing coordination reads are session-scoped.** `alix_coordination_list` filters to `deps.sessionId`, and `alix_coordination_status`/`alix_coordination_results` reject a `runId` whose run belongs to a different session (non-retryable, before reading any aggregate). The workspace is shared, so an unscoped list surfaces unrelated sessions' runs whose files may no longer exist — session `1791869299834` anchored on an 8-hour-old foreign run and spent ~20 turns verifying a stale success (issue #929). The operator CLI (`alix coordination list`) stays deliberately workspace-wide; only the model tools scope. The same-session read path is unchanged. Pinned by `tests/kernel/coordination-tools.test.ts`.
 - Auxiliary nodes are not workers. When a goal declares owned paths, the stated worker count is satisfied by the 1:1 path→writer mapping, and a node that claims no declared path is allowed when it is read-only or a writer whose mentions are only declared files inside a declared directory (directory prep, verification). A writer that names an undeclared file, or references no declared location, still blocks planning. Auxiliary writers are scoped to the declared directory they touch, never to broad domain defaults.
 - A rejected coordination plan is retryable: the goal text is the caller's own input, so `alix_coordination_run` returns `retryable: true` with a recovery hint (one owned path per worker; auxiliary steps do not count as workers) instead of a fatal verdict.
 - Direct graph dependencies with explicit single-file outputs enter the consumer worker's `Input paths:` manifest and persisted `inputPaths` as full workspace-relative paths. The subagent receives this structured list and resolves only uniquely matching bare read filenames. Ordering-only dependencies and vague ownership scopes never fabricate input files.
