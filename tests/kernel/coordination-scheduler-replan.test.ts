@@ -29,6 +29,7 @@ import {
 import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
 import type { ExecutionAuthorization } from "../../src/runtime-state/runtime/execution-authorization.js";
 import type { ReplanResult, ReplanContext } from "../../src/coordination/kernel/collaborative-planner.js";
+import { waitUntil } from "../helpers/wait-until.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -121,20 +122,6 @@ function createMinimalScheduler(overrides: {
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────
-
-/**
- * Poll until `cond` is true or the budget elapses. Load-insensitive: a slow
- * CI runner waits as long as it needs, instead of losing a fixed 50ms race.
- */
-async function waitUntil(
-  cond: () => boolean | Promise<boolean>,
-  timeoutMs = 5_000,
-): Promise<void> {
-  const start = Date.now();
-  while (!(await cond()) && Date.now() - start < timeoutMs) {
-    await new Promise((r) => setTimeout(r, 10));
-  }
-}
 
 describe("CoordinationScheduler replanning integration", () => {
   let cwd: string;

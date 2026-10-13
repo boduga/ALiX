@@ -6,7 +6,7 @@ Purpose: the observability surface — persisted metrics, telemetry envelope, di
 
 | File | Responsibility |
 |------|----------------|
-| `metric-registry.ts` | Closed-set metric registry; registers every metric name/type/unit/labels; strict/compat validation — includes `STATE_METRIC_DEFINITIONS` + `CONTEXT_ASSEMBLY_METRIC_DEFINITIONS`. `PRODUCTION_METRIC_DEFINITIONS` also carries the live-response `agent_*` activity/liveness set — emitted on the session runtime path via `MinimalMetrics` (src/coordination/kernel/minimal-metrics.ts) |
+| `metric-registry.ts` | Closed-set metric registry; registers every metric name/type/unit/labels; strict/compat validation — includes `STATE_METRIC_DEFINITIONS` + `CONTEXT_ASSEMBLY_METRIC_DEFINITIONS`. `PRODUCTION_METRIC_DEFINITIONS` also carries the live-response `agent_*` activity/liveness set (emitted on the session runtime path via `MinimalMetrics`, src/coordination/kernel/minimal-metrics.ts) and the `coordination_*` scheduler set (`coordination_ticks_total`/`_useful_total`/`_idle_total`, `coordination_dispatches_total`, `coordination_tick_duration_ms`, `coordination_reconciliation_duration_ms`), emitted by the scheduler through the `MetricsSink` port — never the session EventLog |
 | `metrics-store.ts` | `MetricsStore` (append-only JSONL), `RollupStore` (hourly rollups), retention enforcement |
 | `metrics-sink.ts` | `createMetricsStoreSink` — canonical `MetricsSink` R1-port adapter over `MetricsStore` (R5.4) |
 | `telemetry-envelope.ts` | Unified `TelemetryEnvelope` + factory/validation; adapters for AlixEvent / TraceEvent / MetricRow; `TelemetryBuffer` / `TelemetrySink` — state_/context_tier_/context_assembly → observability category |

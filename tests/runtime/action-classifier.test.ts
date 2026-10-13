@@ -208,6 +208,29 @@ describe("classifyAction — workspace/action dominance", () => {
     assert.notEqual(classifyAction("ls sessions").intent, "workspace_action");
     assert.equal(classifyAction("Fix the user sessions table migration").intent, "ambiguous");
   });
+
+  it("routes runtime-tool and runId probes to workspace_action (issue #930)", () => {
+    // Regression: "Call alix_coordination_list and tell me each run id…"
+    // classified `ambiguous`, fell to the model classifier, was labelled
+    // external_retrieval → grounded_chat (web-only tools), and the model
+    // reported it had no such tool. Naming a runtime read tool or a bare run
+    // id must reach the agent deterministically.
+    for (const prompt of [
+      "Call alix_coordination_list and tell me each run id plus the goal, and say whether each was created in this session.",
+      "Use alix_coordination_results with runId \"coord_abc\".",
+      "use alix_coordination_status with runId \"coord_abc\".",
+      "Show me the runId for the last coordination run",
+    ]) {
+      assert.equal(classifyAction(prompt).intent, "workspace_action", prompt);
+    }
+  });
+
+  it("does not steal retrieval/generation for coordination run words", () => {
+    // The new anchors must not capture genuine web questions that merely
+    // mention coordination.
+    assert.equal(classifyAction("search the web for the latest coordination release notes").intent, "external_retrieval");
+    assert.equal(classifyAction("what is the latest kubernetes version").intent, "external_retrieval");
+  });
 });
 
 // ── Classification: external retrieval ───────────────────────────────
@@ -769,6 +792,15 @@ describe("classifyAction — shell-execution recognition contract (T9 #385)", ()
           'Find every file under src/ that mentions "RunOutcome", read the three most relevant, and tell me which modules consume it.',
         because:
           "opens with a real command word ('find') but the tail is English prose — Layer-2 prose-tail guard (was shell_execution, capped at 2 iterations)",
+      },
+      {
+        prompt: "run a parallel agent test",
+        because:
+          "wrapper verb 'run' with a prose tail is a delegated objective, not a shell command — routing to shell.run caps at 2 iterations and terminates without repair (session 1791848832999)",
+      },
+      {
+        prompt: "spawn a subagent to review the code",
+        because: "wrapper verb 'spawn' with a prose tail is delegation, not a shell command",
       },
     ];
 

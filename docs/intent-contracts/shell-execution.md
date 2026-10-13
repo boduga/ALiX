@@ -21,9 +21,11 @@ Distinct from adjacent intent families:
 
 ## Recognizer
 
-**Mechanism**: deterministic regex (`SHELL_EXECUTION_ANCHORS` family in `src/runtime-state/runtime/action-classifier.ts`).
+**Mechanism**: deterministic regex (`SHELL_COMMAND_ANCHORS` + `SHELL_WRAPPER_ANCHORS` families in `src/runtime-state/runtime/action-classifier.ts`).
 **Trigger precedence**: shell-execution fires AFTER workspace-mutation (so `rm foo.txt` is mutation, not shell) and AFTER workspace-state (so `ls` is shell, but `what's running` is state). When a bare command implies mutation (`rm`, `mv`, `mkdir`, etc.), workspace-mutation wins.
 **Confidence**: shell-execution matches return `confidence: 0.85` (≥ 0.7 Layer-1 floor).
+
+**Prose-tail guard (both command and wrapper anchors).** The command-anchored family and the `run/execute/exec/invoke/fire/trigger/spawn` wrapper family are each gated: a command-anchored match whose argument tail is English prose does not classify `shell_execution`. The wrapper family uses a stronger rule — a wrapper verb is command-shaped when the object it wraps is itself a command (the wrapped object matches `SHELL_COMMAND_ANCHORS`, e.g. a package-manager `run` subcommand, `execute docker compose up`, `run git rebase main`), or when it carries no natural-language tail (`execute the build`). Only a wrapper whose object is prose (`run a parallel agent test`) is a delegated objective. This reuses `SHELL_COMMAND_ANCHORS` — the one definition of "what is a command" — rather than a token-count heuristic, which misclassified common multi-token commands (a package-manager `run` subcommand) as prose. The guard exists because the `kind:"tool"` route sets the shell-task lens (`src/agents/agent/session/turn.ts`), capping the run at 2 iterations and terminating on the first failed tool result via `trackShellComplete` with no verification or repair (session `1791848832999` discarded a successful 3-worker coordination run when the follow-up `cat` guessed wrong filenames). Only the explicit `use bash to …` wrapper is prose by design and skips the guard.
 
 ### Pattern set (current)
 
@@ -33,8 +35,8 @@ Distinct from adjacent intent families:
 | `^\s*(?:npm\|pnpm\|yarn\|node\|npx\|bun)\s+\w` | Package manager / node commands |
 | `^\s*(?:git\|docker\|kubectl\|make\|cargo\|go)\s+\w` | Common dev tools |
 | `^\s*(?:rm\|mv\|cp\|mkdir\|touch\|chmod)\s+\S` | Mutation commands (note: routed to workspace-mutation instead when deterministic match wins) |
-| `\brun\s+(?:the\s+)?(?:npm\|pnpm\|yarn\|tests?\|build\|lint)\b` | "run npm test", "run the build" |
-| `\bexecute\s+` | "execute X" |
+| `^\s*(?:run\|execute\|exec\|…)\s+(?:a\|an\|the\|my\|some)?\s*\S+\b` (prose-tail-guarded) | "run npm test", "execute the build", "exec ls -la" |
+| `^\s*(?:use\|run\|execute\|exec)\s+(?:bash\|shell\|sh\|zsh)\s+to\b` | "use bash to check disk space" (prose by design — no guard) |
 
 ## Confidence boundary
 
@@ -56,7 +58,9 @@ Each test in `tests/runtime/action-classifier.test.ts → describe("positive cor
 | `git status` | `shell_execution` | 0.85 |
 | `find . -name '*.ts'` | `shell_execution` | 0.85 |
 | `run the build` | `shell_execution` | 0.85 |
-| `execute the migration` | `shell_execution` | 0.85 |
+| `run npm test` | `shell_execution` | 0.85 |
+| `execute the build` | `shell_execution` | 0.85 |
+| `exec ls -la` | `shell_execution` | 0.85 |
 
 ## Negative corpus (must NOT classify `shell_execution`)
 

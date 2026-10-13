@@ -82,6 +82,13 @@ export class MetricsStore {
       await new Promise<void>((resolve) => old.end(resolve));
     }
     const ws = createWriteStream(filePath, { flags: "a" });
+    // Metrics are best-effort telemetry: a stream 'error' (e.g. ENOENT when the
+    // workspace was torn down mid-write, or a transient FS fault) must never
+    // surface as an uncaughtException and crash the caller. The per-row
+    // `ws.write` callback reports the error to the awaiting `append`, which its
+    // consumer (the MetricsSink) already catches; this listener absorbs the
+    // secondary stream-level emission that would otherwise be unhandled.
+    ws.on("error", () => {});
     this.writeStream = ws;
     this.streamDay = day;
     return ws;
