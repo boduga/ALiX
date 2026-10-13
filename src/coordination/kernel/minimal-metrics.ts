@@ -45,6 +45,18 @@ export const MINIMAL_METRIC_NAMES = [
   "agent_stall_warning_total",
   "agent_invocation_cancelled_total",
   "agent_invocation_failed_total",
+  // Coordination scheduler telemetry (P2). Emitted to the MetricsSink/
+  // MetricsStore path (`.alix/observability/metrics`), NOT the session
+  // EventLog: the scheduler ticks every poll, and per-tick EventLog writes
+  // contend for the same append lock worker correctness events need (session
+  // 1791853059081). These counters answer "how many ticks were useful vs idle"
+  // and "how long did a tick / reconciliation take" without that contention.
+  "coordination_ticks_total",
+  "coordination_ticks_useful_total",
+  "coordination_ticks_idle_total",
+  "coordination_dispatches_total",
+  "coordination_tick_duration_ms",
+  "coordination_reconciliation_duration_ms",
 ] as const;
 
 export type MetricName = (typeof MINIMAL_METRIC_NAMES)[number];
@@ -59,6 +71,8 @@ export type DurationName = Extract<
   | "workflow_duration_ms"
   | "collaboration_conflict_detection_duration_ms"
   | "agent_activity_duration_ms"
+  | "coordination_tick_duration_ms"
+  | "coordination_reconciliation_duration_ms"
 >;
 
 export type CounterName = Exclude<MetricName, DurationName | GaugeName>;

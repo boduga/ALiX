@@ -397,12 +397,28 @@ export function objectiveEvidenceRequirements(task: string, taskType = "unknown"
   const verificationDeclined = verificationNegated && !verificationAffirmativeOverride;
   const verification = !verificationDeclined
     && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code|claim)\b/i.test(named);
-  const coordinationSubject = String.raw`(?:coordination|coordinated\s+(?:agents?|workers?)|multi[- ](?:agent|worker)|parallel\s+(?:agents?|workers?)|(?:two|three|four|five|six|seven|eight|nine|ten|\d+)[- ]workers?)`;
-  const coordinationAction = String.raw`(?:run|launch|spawn|start|use|delegate|coordinate|create|request)`;
-  const coordination = new RegExp(
-    String.raw`\b${coordinationAction}\b.{0,100}\b${coordinationSubject}\b|\b${coordinationSubject}\b.{0,100}\b${coordinationAction}\b`,
-    "i",
-  ).test(named);
+  // A coordination RUN is required only when the objective actually calls for
+  // executing workers. Naming a coordination READ tool
+  // (`alix_coordination_list`/`.status`/`.results`) or a bare read noun asks to
+  // INSPECT run state, not to run anything. The name-normalized view turns
+  // `alix_coordination_list` into `alix coordination list`, which an
+  // action+subject pair matched — demanding `alix_coordination_run` evidence
+  // for a pure read (session 1791874959855: "Call alix_coordination_list and
+  // tell me each run id…" ended completed_unverified with gap "a successful
+  // coordination run with worker outcomes").
+  //
+  // Two independent triggers, either sufficient:
+  //   - an EXECUTION SUBJECT (workers/agents/parallel/N-workers) — "coordinate
+  //     two workers", "use four coordinated workers" — needs no verb match; and
+  //   - a bare `coordination` noun NEXT TO an execution verb — "start a
+  //     coordination run" — but NOT when it names a read (`coordination list`).
+  // `use`/`call`/`list` are deliberately not execution verbs.
+  const executionSubject = String.raw`(?:coordinated\s+(?:agents?|workers?)|multi[- ](?:agent|worker)|parallel\s+(?:agents?|workers?)|(?:two|three|four|five|six|seven|eight|nine|ten|\d+)[- ]workers?)`;
+  const executionVerb = String.raw`(?:run|launch|spawn|start|delegate|coordinate)`;
+  const coordinationReadNoun = /\bcoordination\s+(?:list|status|results?)\b/i.test(named);
+  const coordination =
+    new RegExp(String.raw`\b${executionSubject}\b`, "i").test(named) ||
+    (/\bcoordination\b/i.test(named) && new RegExp(String.raw`\b${executionVerb}\b`, "i").test(named) && !coordinationReadNoun);
   return { mutation, verification, coordination };
 }
 

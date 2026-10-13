@@ -38,6 +38,7 @@ const PROVIDER_DEFAULTS: Record<string, ProviderDefault> = {
   minimax:    { contextWindowTokens: 64_000,   tokenizer: "cl100k_base" },
   "minimax-token-plan": { contextWindowTokens: 1_048_576, tokenizer: "cl100k_base" },
   "xiaomi-mimo-token-plan": { contextWindowTokens: 1_048_576, tokenizer: "cl100k_base" },
+  intern:     { contextWindowTokens: 262_144,  tokenizer: "cl100k_base" },
   google:     { contextWindowTokens: 1_000_000, tokenizer: "o200k_base" },
   deepseek:   { contextWindowTokens: 64_000,   tokenizer: "cl100k_base" },
   ollama:     { contextWindowTokens: 64_000,   tokenizer: "cl100k_base" },
@@ -58,6 +59,14 @@ const MODEL_OVERRIDES: Record<string, ProviderDefault> = {
   "gpt-4-turbo":       { contextWindowTokens: 128_000,  tokenizer: "o200k_base" },
   "deepseek-chat":     { contextWindowTokens: 64_000,   tokenizer: "cl100k_base" },
   "deepseek-v4-flash": { contextWindowTokens: 1_000_000, tokenizer: "cl100k_base" },
+  // Intern InkStone Token Plan — vendor table: these ids are 1M context; the
+  // 256K provider default covers intern-s2 / Atria / Agents-A1 / kimi-k2.6 /
+  // qwen3.8-27b.
+  "deepseek-v4-flash-0731":   { contextWindowTokens: 1_048_576, tokenizer: "cl100k_base" },
+  "deepseek-v4-flash-vision": { contextWindowTokens: 1_048_576, tokenizer: "cl100k_base" },
+  "deepseek-v4-pro-0813":     { contextWindowTokens: 1_048_576, tokenizer: "cl100k_base" },
+  "glm-5.3":                  { contextWindowTokens: 1_048_576, tokenizer: "cl100k_base" },
+  "minimax-m3":               { contextWindowTokens: 1_048_576, tokenizer: "cl100k_base" },
 };
 
 /** Process-wide cache: `provider:model` → resolved descriptor (E3: resolved

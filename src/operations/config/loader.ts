@@ -251,6 +251,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     grokai: "GROKAI_API_KEY",
     deepseek: "DEEPSEEK_API_KEY",
     "xiaomi-mimo-token-plan": "XIAOMI_MIMO_TOKEN_PLAN_KEY",
+    intern: "INTERN_API_KEY",
   };
   for (const [provider, key] of Object.entries(apiKeys)) {
     const envVar = PROVIDER_ENV_MAP[provider] ?? `${provider.toUpperCase()}_API_KEY`;
