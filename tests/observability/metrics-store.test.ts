@@ -235,4 +235,27 @@ describe("MetricsStore lazy init + stream reuse (#706)", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  // Telemetry is best-effort: a write torn down by workspace removal must not
+  // surface as an uncaughtException. Regression for a scheduler host wiring the
+  // metrics sink into a run whose tmp dir was removed during teardown.
+  it("absorbs a stream error instead of crashing the process", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "metrics-teardown-"));
+    const s = new MetricsStore(dir);
+    for await (const _ of s.append({
+      name: "m", type: "counter_delta", value: 1, timestamp: new Date().toISOString(),
+    })) { /* drain */ }
+    rmSync(dir, { recursive: true, force: true });
+    // The reused stream now targets a removed directory. A subsequent append
+    // must reject (per-row) or absorb (stream-level) — never emit an unhandled
+    // 'error' that crashes the process.
+    let caught: unknown;
+    try {
+      for await (const _ of s.append({
+        name: "m", type: "counter_delta", value: 2, timestamp: new Date().toISOString(),
+      })) { /* drain */ }
+    } catch (err) { caught = err; }
+    await s.close();
+    assert.ok(caught === undefined || caught instanceof Error);
+  });
 });

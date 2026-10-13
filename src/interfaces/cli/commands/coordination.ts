@@ -172,8 +172,13 @@ async function handleRun(args: string[]): Promise<void> {
   const registry = new OwnershipRegistry(cwd);
 
   const executor = new DefaultWorkerExecutor();
+  // Scheduler telemetry → the metrics store (never the session EventLog). This
+  // is a full foreground run, so it emits tick/dispatch telemetry like the
+  // daemon/Inspector hosts. Fail-open; see CoordinationSchedulerDeps.metricsSink.
+  const { MetricsStore } = await import("../../../operations/observability/metrics-store.js");
+  const { createMetricsStoreSink } = await import("../../../operations/observability/metrics-sink.js");
   const scheduler = createCoordinationScheduler(
-    { cwd, daemonInstanceId: `cli-${process.pid}`, configProvider: async () => config, store, authorization: auth, ownershipRegistry: registry, executor },
+    { cwd, daemonInstanceId: `cli-${process.pid}`, configProvider: async () => config, store, authorization: auth, ownershipRegistry: registry, executor, metricsSink: createMetricsStoreSink(new MetricsStore(cwd)) },
     { maxConcurrency },
   );
 

@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { DEFAULT_XIAOMI_MIMO_BASE_URL } from "./specs/xiaomi-mimo-token-plan-spec.js";
+import { DEFAULT_INTERN_BASE_URL, DEFAULT_INTERN_MODEL } from "./specs/intern-spec.js";
 
 /**
  * Provider catalog - shared definitions for provider selection and model listing.
@@ -34,6 +35,7 @@ export const PROVIDERS: ProviderInfo[] = [
   { id: "local-llama", name: "Local Llama.cpp", env: "ALIX_LLAMA_BASE_URL", hint: "(local, no API key)" },
   { id: "freellmapi", name: "FreeLLMAPI", env: "FREELLMAPI_API_KEY", hint: "freellmapi-..." },
   { id: "xiaomi-mimo-token-plan", name: "Xiaomi MiMo (Token Plan)", env: "XIAOMI_MIMO_TOKEN_PLAN_KEY", hint: "tp-..." },
+  { id: "intern", name: "Intern InkStone (Token Plan)", env: "INTERN_API_KEY", hint: "(token-plan key)" },
   { id: "perplexity", name: "Perplexity", env: "PERPLEXITY_API_KEY", hint: "pplx-..." },
   { id: "minimax", name: "MiniMax", env: "MINIMAX_API_KEY", hint: "..." },
   { id: "minimax-token-plan", name: "MiniMax (Token Plan)", env: "MINIMAX_TOKEN_PLAN_KEY", hint: "sk-cp-..." },
@@ -209,6 +211,15 @@ export async function listModels(providerId: string, apiKey: string): Promise<Mo
       const data = (await response.json()) as { data: Array<{ id: string; display_name?: string }> };
       return data.data.map((m) => ({ id: m.id, displayName: m.display_name ?? m.id }));
     }
+    case "intern": {
+      const response = await fetch(`${DEFAULT_INTERN_BASE_URL}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
+      const data = (await response.json()) as { data: Array<{ id: string; object?: string }> };
+      return data.data.map((m) => ({ id: m.id, displayName: m.id }));
+    }
     default:
       throw new Error(`Unknown provider: ${providerId}`);
   }
@@ -322,6 +333,7 @@ const DEFAULT_MODELS: Record<string, string> = {
   deepseek: "deepseek-chat",
   freellmapi: "nvidia/nemotron-3-super-120b-a12b:free",
   "xiaomi-mimo-token-plan": "mimo-v2.6-pro",
+  intern: DEFAULT_INTERN_MODEL,
 };
 
 /**

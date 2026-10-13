@@ -175,8 +175,43 @@ describe("taskRouter", async () => {
       const r = await taskRouter(prompt);
       assert.equal(r.kind, "agent", prompt);
     }
-  });    // Bare research with no workspace anchor is an explicit ask to gather
-    // information — memory-only chat answers would be stale/hallucinated.
+  });
+
+  it("routes prose objectives opening with a wrapper verb to agent, not shell.run", async () => {
+    // "run a parallel agent test" is a delegated objective phrased with the
+    // verb "run". Routing it to `shell.run` sets `turnShellTask`, which caps
+    // the run at 2 iterations AND routes completion through
+    // `trackShellComplete`, terminating on the first failed tool result with
+    // no verification or repair (session 1791848832999 discarded a successful
+    // 3-worker coordination run when the follow-up `cat` guessed wrong names).
+    // A prose tail after the wrapper verb must reach the agent.
+    for (const prompt of [
+      "run a parallel agent test",
+      "spawn a subagent to review the code",
+      "execute a multi-worker coordination run",
+    ]) {
+      const r = await taskRouter(prompt);
+      assert.notEqual(r.kind, "tool", prompt);
+      assert.equal(r.kind, "agent", prompt);
+    }
+    // Command-shaped wrappers (no prose tail) MUST stay on shell.run. Includes
+    // multi-token commands ("run npm run build") that a token-count heuristic
+    // would misclassify as prose — command-shapedness reuses SHELL_COMMAND_ANCHORS.
+    for (const prompt of [
+      "run npm test",
+      "execute the build",
+      "exec ls -la",
+      "run npm run build",
+      "execute docker compose up",
+      "run git rebase main",
+    ]) {
+      const r = await taskRouter(prompt);
+      assert.equal(r.kind, "tool", prompt);
+    }
+  });
+
+  // Bare research with no workspace anchor is an explicit ask to gather
+  // information — memory-only chat answers would be stale/hallucinated.
   it("routes 'research quantum computing' to grounded_chat (#766)", async () => {
     const r = await taskRouter("research quantum computing");
     assert.equal(r.kind, "grounded_chat");

@@ -79,6 +79,17 @@ export function isTransientActivityState(state: AgentActivityState): boolean {
 }
 
 /**
+ * The rendered label for an activity state, or `null` for the states that
+ * never show a live indicator (streaming / terminal). Exposes the shared
+ * `ACTIVITY_STATE_LABELS` map so consumers that render a status word without
+ * a spinner — e.g. the Workbench agent inspector's LIVE ACTIVITY section —
+ * read the same vocabulary `formatActivityLine` uses instead of restating it.
+ */
+export function activityStateLabel(state: AgentActivityState): string | null {
+  return ACTIVITY_STATE_LABELS[state];
+}
+
+/**
  * Format one transient activity indicator line from the runtime activity
  * record + wall clock, e.g.:
  *   `◐ Thinking… 18s`
