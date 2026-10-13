@@ -287,6 +287,8 @@ async function handleCoordinationRun(
   // hosts. Fail-open; see CoordinationSchedulerDeps.metricsSink.
   const { MetricsStore } = await import("../../operations/observability/metrics-store.js");
   const { createMetricsStoreSink } = await import("../../operations/observability/metrics-sink.js");
+  const metricsStore = new MetricsStore(deps.cwd);
+  const metricsSink = createMetricsStoreSink(metricsStore);
   const scheduler = createCoordinationScheduler(
     {
       cwd: deps.cwd,
@@ -297,7 +299,7 @@ async function handleCoordinationRun(
       ownershipRegistry: registry,
       executor,
       eventLog: deps.eventLog,
-      metricsSink: createMetricsStoreSink(new MetricsStore(deps.cwd)),
+      metricsSink,
     },
     { maxConcurrency },
   );
@@ -328,6 +330,14 @@ async function handleCoordinationRun(
     result = await scheduler.runUntilIdle(runId);
   } finally {
     signal?.removeEventListener("abort", guard.onAbort);
+    // Drain and close the metrics sink so no fire-and-forget write outlives this
+    // call. Without this a straggling append lands after the caller (or a test)
+    // removes the workspace, racing a directory teardown (ENOTEMPTY). Fail-open:
+    // telemetry must never turn into a thrown error.
+    try {
+      await metricsSink.flush();
+      await metricsStore.close();
+    } catch { /* metrics are best-effort */ }
   }
   if (signal?.aborted) {
     const inFlight = guard.cancellation();
