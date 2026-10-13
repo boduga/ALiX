@@ -295,10 +295,15 @@ export function extractSuccessfulPaths(
 export function recordWriteOutcome(
   progress: WriteProgress,
   execName: string,
-  execResult: { kind: string; changedFiles?: string[]; createdPath?: string; deletedPath?: string; output?: string; message?: string },
+  execResult: { kind: string; retryable?: boolean; changedFiles?: string[]; createdPath?: string; deletedPath?: string; output?: string; message?: string },
 ): void {
   if (!WRITE_EXEC_NAMES.has(execName)) return;
   if (execResult.kind !== "success") {
+    // A correctable rejection (`retryable: true` — e.g. a malformed patch the
+    // model can resubmit in-turn) is not a fatal write failure. Only a
+    // non-retryable write error sinks the worker; otherwise a syntax slip ends
+    // a worker that still has iterations left to fix it.
+    if (execResult.retryable === true) return;
     if (!progress.fatalWriteFailures.includes(execName)) progress.fatalWriteFailures.push(execName);
   } else {
     for (const p of extractSuccessfulPaths(execName, execResult)) progress.successfulPaths.add(p);

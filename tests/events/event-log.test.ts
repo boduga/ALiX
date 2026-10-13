@@ -248,6 +248,51 @@ describe("EventLog", () => {
     }
   });
 
+  // Regression (session 1791853059081): an event LARGER than RESYNC_TAIL_BYTES
+  // (context bundles reached 126KB/141KB) must not force a whole-file resync
+  // on every append. With a fixed 64KB window the tail straddled one huge line,
+  // found no complete line, and re-read the entire growing file under the
+  // append lock — holding it for seconds and timing out peer writers.
+  // Workload: 500 seed appends + 6 × 140KB appends. A slow CI runner may need
+  // well over the 60s suite default; the timeout is the workload bound, not a
+  // correctness assertion (the latency ceiling inside is that).
+  it("append stays cheap when the most recent event exceeds the tail window", { timeout: 60_000 }, async () => {
+    const bigDir = await mkdtemp(join(tmpdir(), "alix-event-log-huge-"));
+    try {
+      // Seed a sizable log of SMALL events, then append consecutive >64KB
+      // events (the shape that defeated the fixed window).
+      const smallLog = new EventLog(bigDir);
+      await smallLog.init();
+      for (let i = 0; i < 500; i++) {
+        await smallLog.append({ sessionId: "s", type: "test.event", actor: "system", payload: { i } });
+      }
+
+      const huge = "z".repeat(140_000);
+      const measure = async (): Promise<number> => {
+        const start = process.hrtime.bigint();
+        await smallLog.append({ sessionId: "s", type: "test.big", actor: "system", payload: { blob: huge } });
+        return Number(process.hrtime.bigint() - start) / 1e6;
+      };
+
+      // First huge append grows the file; subsequent ones must not be O(file).
+      await measure();
+      const times: number[] = [];
+      for (let i = 0; i < 5; i++) times.push(await measure());
+      const avg = times.reduce((a, b) => a + b, 0) / times.length;
+      // Whole-file re-read here would cost many tens of ms and scale with the
+      // log; geometric window growth keeps it a bounded tail read. Generous
+      // ceiling to absorb CI noise while still catching an O(file) regress.
+      assert.ok(avg < 40, `append after a >64KB event scaled with log size: avg=${avg.toFixed(1)}ms over ${times.length}`);
+      // Correctness: every append (small seed + 6 huge) allocated a unique seq.
+      const all = await smallLog.readAll();
+      const seqs = all.map((e) => e.seq ?? -1);
+      assert.equal(new Set(seqs).size, seqs.length, "duplicate seqs");
+      assert.equal(all.length, 506);
+    } finally {
+      await rm(bigDir, { recursive: true, force: true });
+    }
+  });
+
   // #700: readSince must be incremental — only events appended after the
   // returned cursor are returned, and retrying the same cursor is stable.
   it("readSince returns only newly appended events", async () => {
