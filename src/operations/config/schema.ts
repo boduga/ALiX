@@ -153,6 +153,13 @@ export type ModelConfig = {
    * `${xiaomiMimoBaseUrl}/chat/completions`.
    */
   xiaomiMimoBaseUrl?: string;
+  /**
+   * API root for the intern provider (default
+   * https://discovery-api.intern-ai.org.cn/v1). Intern InkStone Token Plan
+   * exposes a per-account root ending in `/v1`; the chat endpoint is
+   * `${internBaseUrl}/chat/completions`.
+   */
+  internBaseUrl?: string;
   routing?: {
     freeFallback?: boolean;
     fallbacks?: Array<{

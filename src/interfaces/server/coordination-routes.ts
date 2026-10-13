@@ -399,6 +399,8 @@ async function buildCoordinationRuntime(
   const { PolicyGate } = await import("../../governance/policy/policy-gate.js");
   const { buildDefaultToolIndex } = await import("../../capabilities/tools/tool-registry.js");
   const { ApprovalStore } = await import("../../governance/approvals/approval-store.js");
+  const { MetricsStore } = await import("../../operations/observability/metrics-store.js");
+  const { createMetricsStoreSink } = await import("../../operations/observability/metrics-sink.js");
 
   const store = new CoordinationStore(cwd);
   const toolRegistry = buildDefaultToolIndex().registry;
@@ -429,6 +431,7 @@ async function buildCoordinationRuntime(
       authorization: auth,
       ownershipRegistry: registry,
       executor,
+      metricsSink: createMetricsStoreSink(new MetricsStore(cwd)),
     },
     { maxConcurrency: opts.maxConcurrency },
   );

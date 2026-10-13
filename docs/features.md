@@ -30,7 +30,7 @@ alix models set-default   # then select DeepSeek and deepseek-chat
 alix models set-default   # then select Groq and llama-3.1-70b
 ```
 
-Plus: perplexity, minimax, zhipuai, grokai, openrouter, mock.
+Plus: perplexity, minimax, zhipuai, grokai, openrouter, freellmapi, xiaomi-mimo-token-plan, intern, mock.
 
 ## MCP (Model Context Protocol)
 

@@ -542,6 +542,46 @@ describe("CoordinationPlanner", () => {
     assert.match(result.errors.join("; "), /whatever it needs/);
   });
 
+  // Issue #931: a negated or locational directory phrase must not be read as a
+  // declared owned path. Session 1791871510037 rejected every plan with
+  // "invalid path: src/" / "invalid path: parallel-test/" because the loose
+  // ownership-clause tail captured "do NOT prefix paths with src/" and
+  // "under the parallel-test/ folder".
+  it("ignores a negated directory in an ownership clause (do NOT prefix with src/)", async () => {
+    const base = "parallel-test";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: `Create file \`${base}/a.txt\` with content A` }),
+    ]);
+    const goal = `Run a 1-worker file-creation test. The worker owns EXACTLY one repo-root-relative file (do NOT prefix paths with src/):\n- Worker A: create file \`${base}/a.txt\`.`;
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true, result.errors.join("; "));
+    assert.deepEqual(result.run!.workers.map(w => w.ownershipScopes), [[`${base}/a.txt`]]);
+  });
+
+  it("ignores a directory-only token in an ownership clause (under the parallel-test/ folder)", async () => {
+    const base = "parallel-test";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: `Create file \`${base}/a.txt\` with content A` }),
+      makeNode("n2", [], { goal: `Create file \`${base}/b.txt\` with content B` }),
+    ]);
+    const goal = [
+      `2 workers, each owns exactly one repo-root-relative file under the "${base}/" folder (top level repo root):`,
+      `- Worker A: owned path "${base}/a.txt"`,
+      `- Worker B: owned path "${base}/b.txt"`,
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true, result.errors.join("; "));
+    assert.deepEqual(result.run!.workers.map(w => w.ownershipScopes), [
+      [`${base}/a.txt`], [`${base}/b.txt`],
+    ]);
+  });
+
   it("plans directory prep and verification beside exactly four owned writers", async () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([

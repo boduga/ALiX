@@ -298,7 +298,7 @@ test("minimax provider returns correct capabilities", () => {
 import { createProvider, listProviders } from "../src/models/providers/registry.js";
 
 test("createProvider produces correct provider for all ids", async () => {
-  const ids = ["anthropic", "openai", "google", "openrouter", "groq", "ollama", "perplexity", "minimax", "minimax-token-plan", "zhipuai", "grokai", "deepseek", "xiaomi-mimo-token-plan", "mock"] as const;
+  const ids = ["anthropic", "openai", "google", "openrouter", "groq", "ollama", "perplexity", "minimax", "minimax-token-plan", "zhipuai", "grokai", "deepseek", "xiaomi-mimo-token-plan", "intern", "mock"] as const;
   for (const id of ids) {
     const p = await createProvider({ provider: id }, "fake-key");
     assert.equal(p.id, id);
