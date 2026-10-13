@@ -317,6 +317,9 @@ function pushLocalLlamaIssues(
   if (model.xiaomiMimoBaseUrl !== undefined && !isValidHttpUrl(model.xiaomiMimoBaseUrl)) {
     issues.push({ path: `${path}.xiaomiMimoBaseUrl`, level: "error", message: "xiaomiMimoBaseUrl must be a valid http(s) URL" });
   }
+  if (model.internBaseUrl !== undefined && !isValidHttpUrl(model.internBaseUrl)) {
+    issues.push({ path: `${path}.internBaseUrl`, level: "error", message: "internBaseUrl must be a valid http(s) URL" });
+  }
   if (!ll) return;
 
   for (const [knob, type, check] of [

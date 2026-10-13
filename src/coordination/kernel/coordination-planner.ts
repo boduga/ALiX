@@ -147,13 +147,15 @@ function trimOwnedToken(token: string): string {
 }
 
 /**
- * A captured token is an ownership claim only when it is shaped like a
- * workspace path — a slash or a file extension. Prose can follow the clause
- * ("each worker owns ONLY its one file"); reading that as a malformed
- * declaration would block a goal whose real paths are perfectly explicit.
+ * A single ownership claim is a FILE, never a bare directory.
+ * `extractGoalPaths` accepts any slash-bearing token, so `src/` and
+ * `parallel-test/` slipped through as claims — extracted from negated or
+ * locational prose ("do NOT prefix paths with src/", "under the parallel-test/
+ * folder") and rejecting the whole plan (session 1791871510037, issue #931). A
+ * directory names where a file lives, not the file a worker owns.
  */
-function isOwnedPathToken(token: string): boolean {
-  return token.includes("/") || /\.[a-z0-9]{1,5}$/i.test(token);
+function isFileShapedPath(token: string): boolean {
+  return /\.[a-z0-9]{1,5}$/i.test(token);
 }
 
 function clauseTailsFor(text: string, pattern: RegExp): string[] {
@@ -179,10 +181,14 @@ function ownershipClauseTails(text: string): string[] {
 function ownedPathsInClause(tail: string): string[] {
   const direct = extractGoalPaths(tail);
   // Prefer a file-shaped path: a clause often names its inputs in the same
-  // breath ("own only out/a.md — inspect src/tui").
-  if (direct.length > 0) return [direct.find(path => /\.[a-z0-9]{1,5}$/i.test(path)) ?? direct[0]];
+  // breath ("own only out/a.md — inspect src/tui"). A directory-only token is
+  // not an ownership claim (see isFileShapedPath).
+  if (direct.length > 0) {
+    const fileShaped = direct.find(path => isFileShapedPath(path));
+    return fileShaped ? [fileShaped] : [];
+  }
   const last = trimOwnedToken(tail.split(/\s+/).at(-1) ?? "");
-  return isOwnedPathToken(last) ? [last] : [];
+  return isFileShapedPath(last) ? [last] : [];
 }
 
 /** Declared ownership paths in `text`, in order, with prose clauses dropped. */

@@ -2,6 +2,7 @@ import type { DashboardSnapshot, ApprovalRecordSnapshot } from '../../snapshot.j
 import type { AgentSummary } from './agent-roster.js';
 import type { TaskSummary } from './task-roster.js';
 import type { WorkbenchInspectableItem } from './artifact-inspection.js';
+import type { AgentActivityState } from '../../../../agents/agent/agent-activity.js';
 import { visibleArtifacts, visibleForRun, approvalVisibleTo } from './selection.js';
 
 export interface AgentInspectorModel {
@@ -14,6 +15,14 @@ export interface AgentInspectorModel {
   readonly approvals: readonly ApprovalRecordSnapshot[] | null;
   readonly artifacts: readonly WorkbenchInspectableItem[] | null;
   readonly activity?: { readonly toolName: string; readonly toolCallId: string; readonly startedAt: number; readonly elapsedMs: number; readonly status: string };
+  /**
+   * Session-scoped LIVE ACTIVITY for the foreground agent when no roster row
+   * describes it (the empty-roster/single-agent case). Populated from
+   * `snap.session.activity`; never coexists with `activity` (roster wins when
+   * a selected agent exists). `elapsedMs` is recomputed from `now` at join
+   * time so a clock-only repaint advances it without moving progress marks.
+   */
+  readonly sessionActivity?: { readonly state: AgentActivityState; readonly operation?: string; readonly toolName?: string; readonly startedAt: number; readonly elapsedMs: number };
   readonly tokens?: number;
   readonly tokensPartial: boolean;
   readonly costUsd?: number;
@@ -52,14 +61,41 @@ export function buildAgentInspectorModel(
     elapsedMs: Number.isFinite(now) && Number.isFinite(active.startedAt) ? Math.max(0, now - active.startedAt) : active.elapsedMs,
     status: agent?.currentOperation ?? 'running tool',
   } : undefined;
+  // Session-scoped fallback (empty roster / single-agent session): the
+  // foreground agent emits no `agent.spawned`, so no roster row describes it.
+  // Read the live session activity the runtime already exposes rather than
+  // leaving LIVE ACTIVITY on a dead "Select an agent for activity" row.
+  // Roster activity always wins. The model carries the raw fact; the VIEW
+  // decides whether the state renders a live indicator, via the shared
+  // `activityStateLabel` predicate (terminal AND streaming states render
+  // nothing) — one classifier owns that call, not the model.
+  const sessionActivity = !activity && selection === 'aggregate' && snapshot.session?.activity
+    ? {
+        state: snapshot.session.activity.state,
+        ...(snapshot.session.activity.operation ? { operation: snapshot.session.activity.operation } : {}),
+        ...(snapshot.session.activity.toolName ? { toolName: snapshot.session.activity.toolName } : {}),
+        startedAt: snapshot.session.activity.startedAt,
+        elapsedMs: Number.isFinite(now) && Number.isFinite(snapshot.session.activity.startedAt)
+          ? Math.max(0, now - snapshot.session.activity.startedAt)
+          : snapshot.session.activity.elapsedMs,
+      }
+    : undefined;
   const usageAgents = agent ? [agent] : selection === 'aggregate' ? agents : [];
   const tokens = usageAgents.map((entry) => known(entry.usage.totalTokens) ? entry.usage.totalTokens : known(entry.usage.inputTokens) && known(entry.usage.outputTokens) && known(entry.usage.inputTokens + entry.usage.outputTokens) ? entry.usage.inputTokens + entry.usage.outputTokens : undefined).filter(known);
   const costs = usageAgents.map((entry) => entry.usage.costUsd).filter(known);
+  // Empty-roster aggregate: the session metrics projection owns the
+  // session-scoped token total the footer already prints (`TOKENS`). Surface
+  // the same authoritative number here instead of "unavailable". Never
+  // fabricate a value when the projection is absent — absence stays unavailable.
+  const sessionTokens = selection === 'aggregate' && usageAgents.length === 0 ? snapshot.runtime?.metrics?.tokensUsed : undefined;
+  const tokenTotal = tokens.length && known(tokens.reduce((sum, value) => sum + value, 0))
+    ? tokens.reduce((sum, value) => sum + value, 0)
+    : known(sessionTokens) ? sessionTokens : undefined;
   return {
     selection, agent, task, explicitTaskSelection: scope.selectedTaskId !== undefined, agentCount: roster ? agents.length : undefined,
     runningCount: roster ? agents.filter((entry) => ['starting', 'thinking', 'tool_running', 'verifying'].includes(entry.state)).length : undefined,
-    approvals, artifacts, activity,
-    tokens: tokens.length && known(tokens.reduce((sum, value) => sum + value, 0)) ? tokens.reduce((sum, value) => sum + value, 0) : undefined,
+    approvals, artifacts, activity, sessionActivity,
+    tokens: tokenTotal,
     tokensPartial: tokens.length > 0 && tokens.length < usageAgents.length,
     costUsd: costs.length && known(costs.reduce((sum, value) => sum + value, 0)) ? costs.reduce((sum, value) => sum + value, 0) : undefined,
     costPartial: costs.length > 0 && costs.length < usageAgents.length,

@@ -2,6 +2,7 @@ import type { TerminalCanvas } from '../../canvas.js';
 import type { AgentInspectorModel } from '../model/agent-inspector.js';
 import { getWorkbenchPreviewTheme, getWorkbenchAgentPresentation, type WorkbenchPreviewTheme } from '../model/preview-theme.js';
 import { truncateDisplayText, wrapDisplayText } from '../../terminal-text.js';
+import { activityStateLabel } from '../../views/activity-line.js';
 
 export interface InspectorSection { readonly title: string; readonly rows: readonly { readonly label?: string; readonly value: string; readonly color?: string }[] }
 const safe = (value: string): string => value.slice(0, 2048).replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '').replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(/[\x00-\x1f\x7f-\x9f]/g, ' ');
@@ -18,16 +19,28 @@ export function buildAgentInspectorSections(model: AgentInspectorModel, theme = 
     { label: 'Task', value: model.task?.title ?? (model.explicitTaskSelection ? undefined : agent.taskLabel) ?? 'unavailable' },
   ] : [{ label: 'Name', value: name }, { label: 'Agents', value: model.agentCount === undefined ? 'unavailable' : String(model.agentCount) }, { label: 'Running', value: model.runningCount === undefined ? 'unavailable' : String(model.runningCount) }];
   const activity = model.activity;
+  const sessionActivity = model.sessionActivity;
+  const sessionLabel = sessionActivity ? activityStateLabel(sessionActivity.state) : null;
   const approvalRows = model.approvals === null ? [{ value: 'Approvals unavailable' }] : model.approvals.length === 0 ? [{ value: 'No pending approvals' }] : model.approvals.slice(0, 3).map((entry) => ({ value: `${entry.agentId ? '' : 'Global: '}${entry.toolName}: ${entry.target}`, color: theme.palette.yellow }));
   if (model.approvals && model.approvals.length > 3) approvalRows.push({ value: `+${model.approvals.length - 3} pending`, color: theme.palette.yellow });
   const artifactRows = model.artifacts === null ? [{ value: 'Artifacts unavailable' }] : model.artifacts.length === 0 ? [{ value: 'No artifacts' }] : model.artifacts.slice(0, 3).map((entry) => ({ value: `${entry.title}${entry.status === 'available' ? '' : ` (${entry.status})`}` }));
   if (model.artifacts && model.artifacts.length > 3) artifactRows.push({ value: `+${model.artifacts.length - 3} more · Ctrl+R` });
+  // Roster activity wins; else the session-scoped foreground activity; else the
+  // distinct aggregate/missing/unavailable fallbacks. A session activity row
+  // renders the shared status word plus elapsed, and includes the live tool
+  // name when one is running — never a spinner glyph (chrome owns those).
+  const activityRows = activity ? [
+    { label: 'Tool', value: activity.toolName }, { label: 'Started', value: time(activity.startedAt) },
+    { label: 'Elapsed', value: elapsed(activity.elapsedMs) }, { label: 'Status', value: activity.status, color: theme.palette.yellow },
+  ] : sessionActivity && sessionLabel ? [
+    ...(sessionActivity.toolName ? [{ label: 'Tool', value: sessionActivity.toolName }] : []),
+    { label: 'Started', value: time(sessionActivity.startedAt) },
+    { label: 'Elapsed', value: elapsed(sessionActivity.elapsedMs) },
+    { label: 'Status', value: sessionLabel, color: theme.palette.yellow },
+  ] : [{ value: agent ? 'No active tool' : model.selection === 'aggregate' ? 'Select an agent for activity' : 'Activity unavailable' }];
   return [
     { title: 'AGENT DETAILS', rows: details },
-    { title: 'LIVE ACTIVITY', rows: activity ? [
-      { label: 'Tool', value: activity.toolName }, { label: 'Started', value: time(activity.startedAt) },
-      { label: 'Elapsed', value: elapsed(activity.elapsedMs) }, { label: 'Status', value: activity.status, color: theme.palette.yellow },
-    ] : [{ value: agent ? 'No active tool' : model.selection === 'aggregate' ? 'Select an agent for activity' : 'Activity unavailable' }] },
+    { title: 'LIVE ACTIVITY', rows: activityRows },
     { title: 'APPROVALS', rows: approvalRows },
     { title: 'ARTIFACTS', rows: artifactRows },
     { title: 'USAGE', rows: [
