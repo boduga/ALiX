@@ -464,6 +464,51 @@ describe("coordination chat tools", () => {
     assert.match(result.output ?? "", /newer goal/);
     assert.doesNotMatch(result.output ?? "", /older goal/);
   });
+
+  // Session scoping (issue #929): a model must not see or act on another
+  // session's runs. Session 1791869299834 anchored on an 8-hour-old run from a
+  // different session and spent ~20 turns verifying a stale success.
+  it("list excludes runs from other sessions", async () => {
+    const mine = createCoordinationRun({ sessionId: "session-a", rootGoal: "my goal", coordinatorAgentId: "alix" });
+    const foreign = createCoordinationRun({ sessionId: "session-b", rootGoal: "foreign goal", coordinatorAgentId: "alix" });
+    await store.save(mine);
+    await store.save(foreign);
+
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, sessionId: "session-a" });
+    const result = await handlers[COORDINATION_LIST_TOOL]({});
+    assert.equal(result.kind, "success");
+    assert.match(result.output ?? "", /my goal/);
+    assert.doesNotMatch(result.output ?? "", /foreign goal/);
+    assert.doesNotMatch(result.output ?? "", new RegExp(foreign.id));
+  });
+
+  it("status rejects a runId from another session", async () => {
+    const foreign = createCoordinationRun({ sessionId: "session-b", rootGoal: "foreign", coordinatorAgentId: "alix" });
+    await store.save(foreign);
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, sessionId: "session-a" });
+    const result = await handlers[COORDINATION_STATUS_TOOL]({ runId: foreign.id });
+    assert.equal(result.kind, "error");
+    assert.equal((result as { retryable?: boolean }).retryable, false);
+    assert.match(result.message ?? "", /different session/);
+  });
+
+  it("results rejects a runId from another session before reading its aggregate", async () => {
+    const foreign = createCoordinationRun({ sessionId: "session-b", rootGoal: "foreign", coordinatorAgentId: "alix" });
+    await store.save(foreign);
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, sessionId: "session-a" });
+    const result = await handlers[COORDINATION_RESULTS_TOOL]({ runId: foreign.id });
+    assert.equal(result.kind, "error");
+    assert.match(result.message ?? "", /different session/);
+  });
+
+  it("status and results still read a same-session run", async () => {
+    const mine = createCoordinationRun({ sessionId: "session-a", rootGoal: "mine", coordinatorAgentId: "alix" });
+    await store.save(mine);
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, sessionId: "session-a" });
+    const status = await handlers[COORDINATION_STATUS_TOOL]({ runId: mine.id });
+    assert.equal(status.kind, "success");
+    assert.match(status.output ?? "", new RegExp(mine.id));
+  });
 });
 
 /**

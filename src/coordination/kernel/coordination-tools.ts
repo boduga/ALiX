@@ -383,7 +383,14 @@ async function handleCoordinationList(
   const limit = Math.min(50, Math.max(1, Math.floor(rawLimit)));
   const store = deps.store ?? new CoordinationStore(deps.cwd);
   const runs = await store.list();
-  const recent = runs
+  // Session scope: a model must not see (or act on) another session's runs.
+  // The workspace is shared, so an unscoped list surfaces unrelated runs whose
+  // files may no longer exist — session 1791869299834 anchored on an 8-hour-old
+  // run from a different session and spent ~20 turns verifying a stale success.
+  // The operator CLI (`alix coordination list`) is deliberately workspace-wide;
+  // this is the model-facing read and stays scoped when a session is known.
+  const scoped = deps.sessionId ? runs.filter((run) => run.sessionId === deps.sessionId) : runs;
+  const recent = scoped
     .sort((a, b) => (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt))
     .slice(0, limit);
   if (recent.length === 0) {
@@ -393,6 +400,23 @@ async function handleCoordinationList(
     `${run.id}  ${run.status}  ${run.workers.length} worker(s)  ${(run.rootGoal ?? "").slice(0, 80)}`,
   );
   return { kind: "success", output: `Coordination runs (newest first):\n${lines.join("\n")}` };
+}
+
+/**
+ * Reject a runId that belongs to a different session. Returns an error result
+ * when the run is foreign, else undefined. A run with no recorded sessionId is
+ * treated as in-scope (legacy/zero-fact records) only when the caller has no
+ * session to scope by.
+ */
+function foreignRunError(deps: CoordinationToolDeps, run: { sessionId?: string; id: string }): ToolResult | undefined {
+  if (!deps.sessionId || !run.sessionId || run.sessionId === deps.sessionId) return undefined;
+  return {
+    kind: "error",
+    retryable: false,
+    message:
+      `Run ${run.id} belongs to a different session (${run.sessionId}), not the current one. ` +
+      `Use alix_coordination_list to see this session's runs.`,
+  };
 }
 
 /**
@@ -425,6 +449,8 @@ async function handleCoordinationStatus(
   if (!run) {
     return { kind: "error", message: `Run not found: ${runId}`, retryable: false };
   }
+  const foreign = foreignRunError(deps, run);
+  if (foreign) return foreign;
   const byStatus: Record<string, number> = {};
   for (const w of run.workers) byStatus[w.status] = (byStatus[w.status] ?? 0) + 1;
   const lines = [
@@ -482,13 +508,18 @@ async function handleCoordinationResults(
   const resultStore = new CoordinationResultStore(deps.cwd);
   const aggregateStore = new CoordinationAggregateStore(deps.cwd);
 
-  const existing = await aggregateStore.load(runId);
-  if (existing) {
-    return { kind: "success", output: summarizeAggregate(runId, existing) };
-  }
+  // Scope FIRST: never return a foreign run's aggregate. Load the run and
+  // reject a cross-session id before touching the aggregate store.
   const run = await store.load(runId);
   if (!run) {
     return { kind: "error", message: `Run not found: ${runId}`, retryable: false };
+  }
+  const foreign = foreignRunError(deps, run);
+  if (foreign) return foreign;
+
+  const existing = await aggregateStore.load(runId);
+  if (existing) {
+    return { kind: "success", output: summarizeAggregate(runId, existing) };
   }
   const completionService = createCompletionService(deps.cwd, { store, resultStore, aggregateStore });
   const summary = await completionService.finalize(runId);
