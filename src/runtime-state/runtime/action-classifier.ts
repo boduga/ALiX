@@ -377,6 +377,15 @@ const LOCAL_AGENT_STATE_ANCHORS: readonly RegExp[] = [
   /\bdaemon\s+tasks?\b/i,
   /\bscheduled\s+(?:jobs?|tasks?)\b/i,
   /\bcoordination\s+runs?\b/i,
+  // Explicit references to a runtime read tool by its model-facing name, and a
+  // bare run identifier. These name ALiX's own state read path, so they must
+  // reach the agent loop deterministically — never the model fallback, which
+  // once labelled "Call alix_coordination_list and tell me each run id…" as
+  // `external_retrieval` and routed it to the web-only grounded_chat, where the
+  // model correctly reported it had no such tool (session 1791871510037,
+  // turn 3; issue #930).
+  /\balix_coordination_(?:list|status|results?|run)\b/i,
+  /\brun\s*id\b/i,
 ];
 
 /**
