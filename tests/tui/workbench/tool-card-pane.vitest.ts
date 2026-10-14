@@ -25,7 +25,7 @@ it.each(['compact', 'detailed'] as const)('paints event-backed %s cards inside t
   expect(center).toContain('TOOL alix_patch_apply');
   expect(center).toContain('(142 lines)');
   expect(center).toContain('(287 lines)');
-  expect(center).toContain('requested lines:');
+  expect(center).toContain('lines:');
   for (const row of rows) {
     expect(row.slice(0, 41)).not.toContain('TOOL');
     expect(row.slice(159)).not.toContain('TOOL');

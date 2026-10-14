@@ -34,14 +34,19 @@ export function paintTranscriptToolbar(
     const full = filters.map((filter, index) => ({ filter, label: `${index + 1} ${filter.toUpperCase()}` }));
     const compact = filters.map((filter, index) => ({ filter, label: `${index + 1}${filter.slice(0, 1).toUpperCase()}` }));
     const labels = full.reduce((sum, entry) => sum + entry.label.length + 3, -1) <= width ? full : compact;
-    let x = 0;
+    const toolbarWidth = labels.reduce((sum, entry) => sum + entry.label.length + 3, -1);
+    const centeredX = Math.max(0, Math.floor((width - toolbarWidth) / 2));
+    const fitsHeadingRow = centeredX > displayWidth(title) + 1
+      && centeredX + toolbarWidth + 1 < width - displayWidth(follow);
+    const toolbarRow = fitsHeadingRow ? 0 : 1;
+    let x = centeredX;
     for (const { filter, label } of labels) {
       const chip = filter === selected ? `[${label}]` : `(${label})`;
       if (x + chip.length > width) break;
-      canvas.write(region.x + 1 + x, region.y + 1, `${filter === selected ? `${p.badgeFill}${p.badgeText}\x1b[1m` : p.muted}${chip}${reset}`);
+      canvas.write(region.x + 1 + x, region.y + toolbarRow, `${filter === selected ? `${p.badgeFill}${p.badgeText}\x1b[1m` : p.muted}${chip}${reset}`);
       x += chip.length + 1;
     }
-    if (labels.reduce((sum, entry) => sum + entry.label.length + 3, -1) > width) put(1, `[${selected.toUpperCase()}]`, p.cyan);
+    if (toolbarWidth > width) put(1, `[${selected.toUpperCase()}]`, p.cyan);
   }
   const scope = state?.transcriptScope === 'selected' && state.selectedAgentId ? `Selected: ${state.selectedAgentId}` : 'All agents';
   put(2, `${scope} ${theme.glyphs.separator} ${state?.transcriptMode === 'detailed' ? 'details' : 'compact'} ${theme.glyphs.separator} ${state?.focus === 'transcript' ? '1–5 filters · s scope · f follow · Esc composer' : 'Ctrl+F transcript'}`);

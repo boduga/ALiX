@@ -7,7 +7,12 @@ import { activityStateLabel } from '../../views/activity-line.js';
 export interface InspectorSection { readonly title: string; readonly rows: readonly { readonly label?: string; readonly value: string; readonly color?: string }[] }
 const safe = (value: string): string => value.slice(0, 2048).replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '').replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(/[\x00-\x1f\x7f-\x9f]/g, ' ');
 const elapsed = (ms: number): string => Number.isFinite(ms) && ms >= 0 ? `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}` : 'unavailable';
-const time = (ms: number): string => Number.isFinite(ms) && Math.abs(ms) <= 8640000000000000 ? new Date(ms).toISOString().slice(11, 19) : 'unavailable';
+const time = (ms: number): string => {
+  if (!Number.isFinite(ms) || Math.abs(ms) > 8640000000000000) return 'unavailable';
+  const date = new Date(ms);
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
 
 export function buildAgentInspectorSections(model: AgentInspectorModel, theme = getWorkbenchPreviewTheme()): readonly InspectorSection[] {
   const agent = model.agent;

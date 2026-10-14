@@ -104,11 +104,30 @@ export async function readinessTrace(bundle: any, planId: string) {
   const investigations = new Map<string, import("../../../../governance/investigation-types.js").InvestigationRecommendation>(
     (bundle.workbench.investigations ?? []).map((i: any) => [i.id, i]),
   );
+  // Report items are derived from the bundle's own lifecycle collections rather
+  // than read from a store: the bundle is the input contract, and its window
+  // must span every remediation it carries or the report hop reads as a gap.
+  const { buildExecutionReport } = await import(
+    "../../../../governance/execution-report.js"
+  );
+  const report = buildExecutionReport({
+    remediations: bundle.workbench.remediations ?? [],
+    executionPlans: bundle.workbench.executionPlans ?? [],
+    approvals: bundle.workbench.approvals ?? [],
+    attempts: bundle.workbench.attempts ?? [],
+    options: {
+      since: "1970-01-01T00:00:00.000Z",
+      until: new Date().toISOString(),
+    },
+  });
+  const reportItems = new Map<string, import("../../../../governance/execution-report.js").GovernanceExecutionReportItem>(
+    report.items.map((i: any) => [i.remediationId, i]),
+  );
   return buildLifecycleTrace(
     plan.remediationId,
     bundle.workbench.remediations ?? [],
     plans, approvals, attempts, signals, investigations,
-    new Map<string, import("../../../../governance/execution-report.js").GovernanceExecutionReportItem>(),
+    reportItems,
   );
 }
 

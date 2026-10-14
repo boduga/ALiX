@@ -108,6 +108,12 @@ describe('routeWorkbenchInput', () => {
     expect(routeWorkbenchInput(key, context())).toEqual({ type: 'composer.move', direction });
   });
 
+  it('routes vertical arrows to prompt history only from the composer', () => {
+    expect(routeWorkbenchInput('ArrowUp', context())).toEqual({ type: 'composer.history', direction: 'previous' });
+    expect(routeWorkbenchInput('ArrowDown', context())).toEqual({ type: 'composer.history', direction: 'next' });
+    expect(routeWorkbenchInput('ArrowUp', context({ focus: 'transcript' }))).toEqual({ type: 'unhandled' });
+  });
+
   it.each(['\u{1f469}\u200d\u{1f4bb}', `e\u0301`])('routes printable grapheme %s to the composer', (grapheme) => {
     expect(routeWorkbenchInput(grapheme, context())).toEqual({ type: 'composer.insert', text: grapheme });
   });

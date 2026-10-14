@@ -1,8 +1,8 @@
  [1mALiX WORKBENCH[0m  PREVIEW                                                                                    workspace: /workspace | auto | 5 agents . 3 running 
                                                                                                                                                                 
                                                                                                                                                                 
-+-[1m AGENTS & TASKS [0m-------------+  LIVE TRANSCRIPT                                                              Auto-follow: ON  +AGENT DETAILS-----------------+
-|                              |  [1m[1 ALL][0m (2 RESPONSE) (3 TOOL) (4 ACTIVITY) (5 ERROR)                                          |Name        frontend-agent    |
++-[1m AGENTS & TASKS [0m-------------+  LIVE TRANSCRIPT     [1m[1 ALL][0m (2 RESPONSE) (3 TOOL) (4 ACTIVITY) (5 ERROR)     Auto-follow: ON  +AGENT DETAILS-----------------+
+|                              |                                                                                                |Name        frontend-agent    |
 |  o All agents              / |  All agents . compact . Ctrl+F transcript                                                      |Model       fixture-coding-mo~|
 |   5 agents . 3 running       |                                                                                                |State       executing         |
 | ---------------------------- |                                                                                                |Task        Implement responsi|

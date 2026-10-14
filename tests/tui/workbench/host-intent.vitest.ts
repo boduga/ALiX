@@ -22,6 +22,8 @@ function harness(overrides: Partial<WorkbenchHostPorts> = {}) {
     anchorTranscriptBottom: vi.fn(),
     emitUserTimeline: vi.fn(),
     submitTurn: vi.fn(),
+    recordPrompt: vi.fn(),
+    navigatePromptHistory: vi.fn((): string | undefined => undefined),
     nextQueuedId: vi.fn(() => 'q1'),
     approvalTarget: vi.fn((): { id: string } | undefined => undefined),
     isApprovalDecisionPending: vi.fn(() => false),
@@ -51,6 +53,7 @@ describe('applyWorkbenchHostIntent', () => {
     assert.equal(store.snapshot().composer.text, '');
     assert.deepEqual(mocks.emitUserTimeline.mock.calls[0], ['hello']);
     assert.deepEqual(mocks.submitTurn.mock.calls[0], ['hello']);
+    assert.deepEqual(mocks.recordPrompt.mock.calls[0], ['hello']);
     assert.deepEqual(mocks.setCancelArmed.mock.calls[0], [false]);
     assert.deepEqual(mocks.setPinnedBottom.mock.calls[0], [true]);
   });
@@ -63,11 +66,23 @@ describe('applyWorkbenchHostIntent', () => {
   });
 
   it('queues a follow-up with the host id', () => {
-    const { store, ports } = harness();
+    const { store, mocks, ports } = harness();
     store.dispatch({ type: 'composer.insert', text: 'next' });
     applyWorkbenchHostIntent(store, { type: 'turn.queue' }, ports);
     assert.deepEqual(store.snapshot().queuedMessages.map((m) => m.id), ['q1']);
     assert.equal(store.snapshot().composer.text, '');
+    assert.deepEqual(mocks.recordPrompt.mock.calls[0], ['next']);
+  });
+
+  it('replaces and synchronizes the composer from prompt history', () => {
+    const navigatePromptHistory = vi.fn(() => 'previous prompt');
+    const { store, mocks, ports } = harness({ navigatePromptHistory });
+    store.dispatch({ type: 'composer.insert', text: 'draft' });
+    assert.equal(applyWorkbenchHostIntent(store, { type: 'composer.history', direction: 'previous' }, ports), true);
+    assert.deepEqual(navigatePromptHistory.mock.calls[0], ['previous', 'draft']);
+    assert.equal(store.snapshot().composer.text, 'previous prompt');
+    assert.equal(mocks.syncComposer.mock.calls.length, 1);
+    assert.equal(mocks.repaint.mock.calls.length, 1);
   });
 
   it('resolves an approval once, unmarking on failure', () => {

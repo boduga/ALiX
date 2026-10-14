@@ -17,6 +17,7 @@ export type WorkbenchInputIntent =
   | { readonly type: 'composer.backspace' }
   | { readonly type: 'composer.delete' }
   | { readonly type: 'composer.move'; readonly direction: 'left' | 'right' | 'start' | 'end' }
+  | { readonly type: 'composer.history'; readonly direction: 'previous' | 'next' }
   | { readonly type: 'turn.submit' }
   | { readonly type: 'turn.queue' }
   | { readonly type: 'slash.submit' }
@@ -107,6 +108,8 @@ export function routeWorkbenchInput(
   if (key === 'Delete') return { type: 'composer.delete' };
   if (key === 'ArrowLeft') return { type: 'composer.move', direction: 'left' };
   if (key === 'ArrowRight') return { type: 'composer.move', direction: 'right' };
+  if (key === 'ArrowUp') return { type: 'composer.history', direction: 'previous' };
+  if (key === 'ArrowDown') return { type: 'composer.history', direction: 'next' };
   if (key === 'Home') return { type: 'composer.move', direction: 'start' };
   if (key === 'End') return { type: 'composer.move', direction: 'end' };
   if (key === 'Escape') {

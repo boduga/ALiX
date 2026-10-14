@@ -546,6 +546,25 @@ describe('Workbench work surface integration', () => {
     expect(internal.getWorkbenchStateForTest().queuedMessages).toEqual([]);
   });
 
+  it('recalls prompt history with Up/Down and restores the current draft', async () => {
+    const processTurn = vi.fn(async () => ({ summary: 'done' }));
+    const { internal } = makeWorkbench(processTurn);
+    type(internal, 'first prompt'); internal.handleRaw(Buffer.from('\r'));
+    await vi.waitFor(() => expect(processTurn).toHaveBeenCalledTimes(1));
+    type(internal, 'second prompt'); internal.handleRaw(Buffer.from('\r'));
+    await vi.waitFor(() => expect(processTurn).toHaveBeenCalledTimes(2));
+    type(internal, 'current draft');
+
+    internal.handleRaw(Buffer.from('\x1b[A'));
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('second prompt');
+    internal.handleRaw(Buffer.from('\x1b[A'));
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('first prompt');
+    internal.handleRaw(Buffer.from('\x1b[B'));
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('second prompt');
+    internal.handleRaw(Buffer.from('\x1b[B'));
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('current draft');
+  });
+
   it('uses first Ctrl+C to cancel foreground work', async () => {
     const first = deferred<any>();
     const cancelActiveTurn = vi.fn(() => true);

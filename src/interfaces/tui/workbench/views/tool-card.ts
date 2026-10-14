@@ -80,33 +80,36 @@ export function buildWorkbenchToolCardLines(tool: ToolItem, options: WorkbenchTo
       row(` TOOL ${name}`, p.cyan);
       row(` ${outcome}`, statusColor);
     }
-    push(border(ascii ? '+' : '├', ascii ? '+' : '┤'));
-
     const path = tool.metadata?.path === undefined ? 'unavailable' : safeToolCardText(tool.metadata.path, MAX_FIELD_CHARACTERS).text;
     const range = tool.metadata?.requestedRange;
     const validRange = range && Number.isInteger(range.startLine) && Number.isInteger(range.endLine) && range.startLine > 0 && range.endLine >= range.startLine;
-    const rangeText = validRange ? `${range.startLine}${ascii ? '-' : '–'}${range.endLine}` : 'unavailable';
     const observed = tool.metadata?.observedLineCount;
     const validCount = observed !== undefined && Number.isSafeInteger(observed) && observed >= 0;
+    const fullFileRead = tool.status === 'completed' && validCount && (tool.name === 'file.read' || tool.name === 'alix_file_read');
+    const rangeText = validRange ? `${range.startLine}${ascii ? '-' : '–'}${range.endLine}` : fullFileRead ? 'all' : 'unavailable';
     const count = validCount ? `(${observed} lines)` : 'lines unavailable';
-    const countWidth = Math.min(20, Math.max(displayWidth(count), 10));
+    const duration = tool.durationMs !== undefined && Number.isFinite(tool.durationMs) && tool.durationMs >= 0
+      ? `duration: ${tool.durationMs}ms`
+      : undefined;
+    const countWidth = Math.min(20, Math.max(displayWidth(count), duration ? displayWidth(duration) : 0, 10));
     const splitColumns = inner >= countWidth + 24;
     const metadataWidth = splitColumns ? inner - countWidth - 4 : inner - 3;
     const metadata = [
       ...boundedRows(`path: ${path}`, Math.max(1, metadataWidth), MAX_METADATA_ROWS - 3, ascii),
-      ...boundedRows(`requested lines: ${rangeText}`, Math.max(1, metadataWidth), 3, ascii),
+      ...boundedRows(`lines: ${rangeText}`, Math.max(1, metadataWidth), 3, ascii),
     ];
     metadata.forEach((text, index) => {
       const label = truncateDisplayText(text, metadataWidth);
       const left = ` ${g.vertical} ${label}${' '.repeat(Math.max(0, metadataWidth - displayWidth(label)))}`;
       if (splitColumns) {
-        const right = index === 0 ? truncateDisplayText(count, countWidth).replace(/…/g, ascii ? '~' : '…') : '';
+        const rightText = index === 0 ? count : index === 1 ? duration ?? '' : '';
+        const right = truncateDisplayText(rightText, countWidth).replace(/…/g, ascii ? '~' : '…');
         push(`${p.divider}${g.vertical} ${g.vertical} ${reset}${p.muted}${label}${' '.repeat(Math.max(0, metadataWidth - displayWidth(label)))}${p.divider}${g.vertical}${reset}${p.muted}${' '.repeat(Math.max(0, countWidth - displayWidth(right)))}${right}${p.divider}${g.vertical}${reset}`);
       } else row(left, p.muted);
     });
     if (!splitColumns) row(`returned: ${count}`, p.muted);
+    if (!splitColumns && duration) row(`${' '.repeat(Math.max(0, inner - displayWidth(duration)))}${duration}`, p.muted);
     if (options.approvalPending && tool.status === 'running') row('approval required', p.yellow);
-    if (tool.durationMs !== undefined && Number.isFinite(tool.durationMs) && tool.durationMs >= 0) row(`duration: ${tool.durationMs}ms`, p.muted);
     if (options.mode === 'detailed' || tool.status === 'failed') {
       if (options.mode === 'detailed' || (options.displayLabel !== undefined && options.displayLabel !== tool.name)) {
         boundedRows(`tool: ${safeToolCardText(tool.name, MAX_FIELD_CHARACTERS).text}`, Math.max(1, inner - 2), 3, ascii).forEach((text) => row(` ${text}`, p.muted));

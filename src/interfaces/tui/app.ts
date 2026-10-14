@@ -116,6 +116,9 @@ export class TuiApp {
   /** Presentation-only Workbench state. Runtime truth remains in AgentSession/EventLog. */
   private readonly workbenchStore = new WorkbenchStore();
   private workbenchQueueSequence = 0;
+  private readonly workbenchPromptHistory: string[] = [];
+  private workbenchPromptHistoryIndex: number | undefined;
+  private workbenchPromptHistoryDraft = '';
   /** First Ctrl+C cancels foreground work; a second press keeps the legacy exit path. */
   private workbenchCancelArmed = false;
   /**
@@ -835,6 +838,8 @@ export class TuiApp {
       anchorTranscriptBottom: () => this.resetScrollOffsetToBottom('agent'),
       emitUserTimeline: (text) => this.timelineEmitter.emitTimelineLog('user', text, this.opts.agentSessionId),
       submitTurn: (text) => void this.submitAgentInput(text),
+      recordPrompt: (text) => this.recordWorkbenchPrompt(text),
+      navigatePromptHistory: (direction, draft) => this.navigateWorkbenchPromptHistory(direction, draft),
       nextQueuedId: () => `queued-${++this.workbenchQueueSequence}`,
       approvalTarget: () => {
         const direct = perTab.pendingApprovals[0];
@@ -856,6 +861,37 @@ export class TuiApp {
 
   private syncWorkbenchComposer(): void {
     this.state.views.agent.inputBuffer = this.workbenchStore.snapshot().composer.text;
+  }
+
+  private recordWorkbenchPrompt(text: string): void {
+    if (text.trim().length > 0 && this.workbenchPromptHistory.at(-1) !== text) {
+      this.workbenchPromptHistory.push(text);
+      if (this.workbenchPromptHistory.length > 100) this.workbenchPromptHistory.shift();
+    }
+    this.workbenchPromptHistoryIndex = undefined;
+    this.workbenchPromptHistoryDraft = '';
+  }
+
+  private navigateWorkbenchPromptHistory(direction: 'previous' | 'next', draft: string): string | undefined {
+    if (direction === 'previous') {
+      if (this.workbenchPromptHistory.length === 0) return undefined;
+      if (this.workbenchPromptHistoryIndex === undefined) {
+        this.workbenchPromptHistoryDraft = draft;
+        this.workbenchPromptHistoryIndex = this.workbenchPromptHistory.length - 1;
+      } else {
+        this.workbenchPromptHistoryIndex = Math.max(0, this.workbenchPromptHistoryIndex - 1);
+      }
+      return this.workbenchPromptHistory[this.workbenchPromptHistoryIndex];
+    }
+    if (this.workbenchPromptHistoryIndex === undefined) return undefined;
+    if (this.workbenchPromptHistoryIndex < this.workbenchPromptHistory.length - 1) {
+      this.workbenchPromptHistoryIndex++;
+      return this.workbenchPromptHistory[this.workbenchPromptHistoryIndex];
+    }
+    this.workbenchPromptHistoryIndex = undefined;
+    const restored = this.workbenchPromptHistoryDraft;
+    this.workbenchPromptHistoryDraft = '';
+    return restored;
   }
 
   /** Explicit launch reuses foreground dispatch, approvals, cancellation and FIFO draining. */

@@ -22,7 +22,8 @@ function makePorts() {
     repaint: () => {}, syncComposer: () => {}, overlayScrollLimit: () => 10, submitCoordination: () => {},
     openBuiltinSurface: () => false, clearSlashHint: () => {}, submitSlash: () => { calls.submitSlash++; }, hasSnapshot: () => true,
     reportSubmitUnavailable: () => {}, setCancelArmed: () => {}, setPinnedBottom: () => {}, setTranscriptMode: () => {},
-    anchorTranscriptBottom: () => {}, emitUserTimeline: () => {}, submitTurn: () => {}, nextQueuedId: () => { seq++; return `q${seq}`; },
+    anchorTranscriptBottom: () => {}, emitUserTimeline: () => {}, submitTurn: () => {}, recordPrompt: () => {},
+    navigatePromptHistory: () => undefined, nextQueuedId: () => { seq++; return `q${seq}`; },
     approvalTarget: () => ({ id: 'ap1' }), isApprovalDecisionPending: () => false, markApprovalDecision: () => {},
     unmarkApprovalDecision: () => {}, resolveApproval: (id, decision) => { calls.resolveApproval.push([id, decision]); },
     cyclePermission: () => {}, refresh: () => {}, cancelActiveTurn: () => { calls.cancelActiveTurn++; return true; },
@@ -240,8 +241,9 @@ test('OpenTUI clicks focus the transcript and composer and use toolbar controls'
     setup.resize(60, 24);
     await setup.renderOnce();
     const narrowToolbar = host.content.transcript.plainText.split('\n');
-    const narrowRow = narrowToolbar.findIndex(line => line.includes('RESPONSE') && line.includes('Auto-follow:'));
+    const narrowRow = narrowToolbar.findIndex(line => line.includes('RESPONSE'));
     assert.equal(narrowRow, 1);
+    assert.match(narrowToolbar[0]!, /Auto-follow:/);
     await mouse.click(host.content.transcript.screenX + narrowToolbar[narrowRow]!.indexOf('RESPONSE'), host.content.transcript.screenY + narrowRow);
     assert.equal(store.snapshot().transcriptFilter, 'response');
     host.dispose();

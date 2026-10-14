@@ -37,30 +37,47 @@ export const LENS_PROMPTS: Record<LensName, string> = {
     `You are a red-team reviewer. Given a recommendation and its context, identify ` +
     `concrete failure scenarios the deterministic model may have missed. ` +
     `Do not make a decision — only surface risks. Focus on: operational failures, ` +
-    `edge cases, human factors, adversarial misuse.`,
+    `edge cases, human factors, adversarial misuse. ` +
+    `Report each failure scenario the deterministic layer did not anticipate in the ` +
+    `blindSpots array, one short string per entry.`,
 
   historian:
     `You are a historian reviewer. Given a recommendation and historical context, ` +
     `identify relevant past analogs, their outcomes, and lessons learned. ` +
     `Look for: similar action types with poor outcomes, capability areas with ` +
-    `elevated revert rates, patterns that suggest repeating past mistakes.`,
+    `elevated revert rates, patterns that suggest repeating past mistakes. ` +
+    `Report each past analog and what happened to it in the historicalAnalogies ` +
+    `array, one short string per entry.`,
 
   policy_auditor:
     `You are a policy auditor. Given a recommendation and governance context, ` +
     `identify any policy violations. Be precise — cite the violated rule. ` +
     `Check: Recommend≠Decide invariant, human approval requirements, ` +
-    `capability routing constraints, constitutional rules.`,
+    `capability routing constraints, constitutional rules. ` +
+    `Report each rule or invariant that went unassessed in the blindSpots array, ` +
+    `one short string per entry.`,
 
   confidence_critic:
     `You are a confidence critic. Given a recommendation and its evidence base, ` +
     `identify what evidence is missing, weak, or stale. Focus on: context completeness, ` +
-    `sample sizes, data freshness, unwarranted confidence levels.`,
+    `sample sizes, data freshness, unwarranted confidence levels. ` +
+    `Report each missing, weak, or stale evidence gap in the blindSpots array, ` +
+    `one short string per entry.`,
 };
 
 /**
  * Centralized JSON-only suffix appended to every lens prompt.
  * Keeps sentinel testing simple and avoids duplicating text.
+ *
+ * States the response schema explicitly — the lens agent validates against it
+ * field by field, so a lens must not have to infer field names.
  */
 export const LENS_JSON_SUFFIX =
   "Return ONLY valid JSON. Do not include markdown, prose, or code fences.\n" +
+  'Schema: {"recommendedVerdict":"agree"|"agree_with_concerns"|"challenge"|' +
+  '"insufficient_information","confidence":<number between 0 and 1>,' +
+  '"rationale":"<string>","blindSpots":["<string>"],' +
+  '"historicalAnalogies":["<string>"]}\n' +
+  "Use an empty array for blindSpots and historicalAnalogies when you have " +
+  "nothing to report there.\n" +
   "Do not approve, reject, apply, execute, or make a final decision.";
