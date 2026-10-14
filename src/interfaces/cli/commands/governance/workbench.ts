@@ -36,7 +36,17 @@ import "../../../../runtime-state/events/event-log.js";
 import type { GovernanceRemediationProposal } from "../../../../governance/remediation-queue.js";
 import type { GovernanceExecutionPlan } from "../../../../governance/execution-plans.js";
 import type { GovernanceExecutionApproval } from "../../../../governance/execution-approval.js";
+import type { GovernanceExecutionReportItem } from "../../../../governance/execution-report.js";
+import type { GovernanceSignal } from "../../../../governance/governance-signal.js";
+import type { InvestigationRecommendation } from "../../../../governance/investigation-types.js";
 import { loadExecutionStores } from "./execution.js";
+
+/**
+ * Lower bound of the execution-report window used by `workbench trace`.
+ * A trace renders one remediation's complete history, so it must not inherit
+ * the report's rolling default window.
+ */
+const TRACE_WINDOW_START = "1970-01-01T00:00:00.000Z";
 
 // ---------------------------------------------------------------------------
 // P18 — Governance Workbench CLI handlers
@@ -148,7 +158,7 @@ export async function runWorkbenchTrace(args: string[], jsonMode: boolean): Prom
   const { buildWorkbenchSnapshot, buildLifecycleTrace }
     = await import("../../../../governance/governance-workbench.js");
 
-  const { remediations, executionPlans, approvals, attempts } =
+  const { remediations, executionPlans, approvals, attempts, signals, investigations } =
     await loadExecutionStores();
 
   // Load snapshot for summary context; build trace via the exported pure function
@@ -187,15 +197,45 @@ export async function runWorkbenchTrace(args: string[], jsonMode: boolean): Prom
     remediationsById.set(remediation.proposalId, remediation);
   }
 
+  // Signal and investigation hops are resolved by id, matching the lookup
+  // buildLifecycleTrace performs (investigation id comes from the remediation's
+  // sourceRecommendationIds; the signal id comes from investigation.sourceArtifactId).
+  const signalsById = new Map<string, GovernanceSignal>();
+  for (const signal of signals) {
+    signalsById.set(signal.signalId, signal);
+  }
+  const investigationsById = new Map<string, InvestigationRecommendation>();
+  for (const investigation of investigations) {
+    investigationsById.set(investigation.id, investigation);
+  }
+
+  // Report items are derived, not persisted. A trace shows one remediation's
+  // full history, so the report window spans everything on disk — the report's
+  // default 7-day window would drop older remediations and their attempts and
+  // render a false "not yet in execution report" gap.
+  const { buildExecutionReport } =
+    await import("../../../../governance/execution-report.js");
+  const report = buildExecutionReport({
+    remediations,
+    executionPlans,
+    approvals,
+    attempts,
+    options: { since: TRACE_WINDOW_START, until: new Date().toISOString() },
+  });
+  const reportItemsByRemediation = new Map<string, GovernanceExecutionReportItem>();
+  for (const item of report.items) {
+    reportItemsByRemediation.set(item.remediationId, item);
+  }
+
   const trace = buildLifecycleTrace(
     remediationId,
     remediations,
     plansByRemediation,
     approvalsByPlan,
     attemptsByPlan,
-    new Map(),                                       // signalsById — TODO
-    new Map(),                                       // investigationsById — TODO
-    new Map(),                                       // reportItemsByRemediation — TODO
+    signalsById,
+    investigationsById,
+    reportItemsByRemediation,
   );
 
   if (jsonMode) {

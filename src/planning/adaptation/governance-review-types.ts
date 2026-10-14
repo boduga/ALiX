@@ -44,6 +44,21 @@ export interface LensScore {
   recommendedVerdict: GovernanceVerdict;
   confidence: number;
   rationale: string;
+  /**
+   * Structured blind spots this lens identified — things the deterministic
+   * layer failed to assess. Merged into `GovernanceReview.blindSpots`.
+   *
+   * Optional and lens-authored: a lens that reports none omits the field
+   * entirely, which the council reads as "nothing to add".
+   */
+  blindSpots?: string[];
+  /**
+   * Structured past analogs this lens surfaced (typically the historian lens).
+   * Merged into `GovernanceReview.historicalAnalogies`.
+   *
+   * Optional under the same contract as `blindSpots`.
+   */
+  historicalAnalogies?: string[];
   /** Provider name used to generate this score (JSON output only). */
   provider?: string;
   /** Model name used to generate this score (JSON output only). */

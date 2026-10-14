@@ -236,21 +236,39 @@ export class GovernanceReviewCouncil {
   }
 
   /**
-   * Extract blind spots from lens rationales.
-   * Placeholder — enhanced extraction from real lens output.
+   * Merge blind spots reported by the lenses' structured `blindSpots` arrays.
+   * A lens that reports none simply contributes nothing.
    */
-  #mergeBlindSpots(_scores: LensScore[]): string[] {
-    // TODO — P6.5b: enhanced blind-spot extraction from real lens output
-    return [];
+  #mergeBlindSpots(scores: LensScore[]): string[] {
+    return this.#mergeFindings(scores.map((s) => s.blindSpots));
   }
 
   /**
-   * Extract historical analogies from lens rationales.
-   * Placeholder — enhanced passage from historian lens output.
+   * Merge historical analogs reported by the lenses' structured
+   * `historicalAnalogies` arrays (in practice, the historian lens).
    */
-  #mergeAnalogies(_scores: LensScore[]): string[] {
-    // TODO — P6.5b: enhanced passage from historian lens output
-    return [];
+  #mergeAnalogies(scores: LensScore[]): string[] {
+    return this.#mergeFindings(scores.map((s) => s.historicalAnalogies));
+  }
+
+  /**
+   * Merge optional per-lens finding lists into one ordered, deduplicated list.
+   * Deduplication is case-insensitive exact-text match, first occurrence wins —
+   * identical semantics to #mergeConcerns, so lens order drives output order.
+   */
+  #mergeFindings(lists: (string[] | undefined)[]): string[] {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const list of lists) {
+      if (!list) continue;
+      for (const finding of list) {
+        const key = finding.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(finding);
+      }
+    }
+    return result;
   }
 
   /**

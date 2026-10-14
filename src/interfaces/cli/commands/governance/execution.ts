@@ -38,6 +38,8 @@ import type { GovernanceRemediationProposal } from "../../../../governance/remed
 import type { GovernanceExecutionPlan } from "../../../../governance/execution-plans.js";
 import type { GovernanceExecutionApproval } from "../../../../governance/execution-approval.js";
 import type { GovernanceExecutionAttempt } from "../../../../governance/execution-recorder.js";
+import type { GovernanceSignal } from "../../../../governance/governance-signal.js";
+import type { InvestigationRecommendation } from "../../../../governance/investigation-types.js";
 import { parseInlineFlag } from "./shared.js";
 import { colorForState } from "./shared.js";
 
@@ -49,34 +51,56 @@ export const EXECUTION_STORE_SUBDIR = join(".alix", "governance");
 
 
 /**
- * Load all persisted P17 lifecycle collections from their JSONL stores.
- * Attempts live in the shared ExecutionStore under `.alix/governance/`.
+ * Load all persisted lifecycle collections from their JSONL stores.
+ *
+ * Covers the whole remediation chain — the originating signal and
+ * investigation, then remediations, plans, approvals and attempts — because
+ * `alix governance workbench trace` renders signal and investigation hops and
+ * must not report a phantom gap for data that is on disk. Attempts live in the
+ * shared ExecutionStore under `.alix/governance/`; signals live in the
+ * root-level signal file the other governance subcommands read and write.
  */
 export async function loadExecutionStores(): Promise<{
   remediations: GovernanceRemediationProposal[];
   executionPlans: GovernanceExecutionPlan[];
   approvals: GovernanceExecutionApproval[];
   attempts: GovernanceExecutionAttempt[];
+  signals: GovernanceSignal[];
+  investigations: InvestigationRecommendation[];
 }> {
   const cwd = process.cwd();
   const { ExecutionStore } = await import("../../../../governance/execution-store.js");
   const { RemediationStore } = await import("../../../../governance/remediation-store.js");
   const { ExecutionPlanStore } = await import("../../../../governance/execution-plan-store.js");
   const { ExecutionApprovalStore } = await import("../../../../governance/execution-approval-store.js");
+  const { FileSignalStore } = await import("../../../../governance/governance-signal.js");
+  const { InvestigationStore } = await import("../../../../governance/investigation-store.js");
 
   const remediationStore = new RemediationStore(cwd);
   const planStore = new ExecutionPlanStore(cwd);
   const approvalStore = new ExecutionApprovalStore(cwd);
   const attemptStore = new ExecutionStore(cwd, EXECUTION_STORE_SUBDIR);
+  const signalStore = new FileSignalStore(cwd);
+  const investigationStore = new InvestigationStore(join(cwd, EXECUTION_STORE_SUBDIR));
 
-  const [remediations, executionPlans, approvals, attempts] = await Promise.all([
-    remediationStore.list(),
-    planStore.list(),
-    approvalStore.list(),
-    attemptStore.list(),
-  ]);
+  const [remediations, executionPlans, approvals, attempts, signals, investigations] =
+    await Promise.all([
+      remediationStore.list(),
+      planStore.list(),
+      approvalStore.list(),
+      attemptStore.list(),
+      signalStore.list(),
+      investigationStore.list(),
+    ]);
 
-  return { remediations, executionPlans, approvals, attempts };
+  return {
+    remediations,
+    executionPlans,
+    approvals,
+    attempts,
+    signals,
+    investigations,
+  };
 }
 
 

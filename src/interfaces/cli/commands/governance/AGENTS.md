@@ -20,7 +20,9 @@
   FrictionAnalysis/Report` + renderers.
 - `inbox.ts` — `runInbox*`, `runReview*`, `runDecide*` + renderers.
 - `actions.ts` — `runActions*` + `transitionId`.
-- `execution.ts` — `runExecution*` + `loadExecutionStores`.
+- `execution.ts` — `runExecution*` + `loadExecutionStores` (remediations,
+  execution plans, approvals, attempts, signals, investigations — the whole
+  remediation chain the lifecycle trace renders).
 - `workbench.ts` — `runWorkbench*`, `loadWorkbenchSnapshot`.
 - `readiness.ts` — `runReadiness` + readiness compute/render helpers.
 - `handoff.ts` — `runHandoff`, `runHandoffClosureAction` + renderers.
@@ -40,6 +42,14 @@
   through audited store decorators from `src/governance/audit-decorators.ts`).
 - Relative imports: `../../../` → `src/`, `../` → `src/interfaces/cli/commands/`.
 - Dynamic imports use the same depth (`../../../governance/...`).
+- **Lifecycle traces show no phantom gaps.** `buildLifecycleTrace` resolves
+  signal/investigation hops from the signal and investigation stores, and the
+  report hop from `buildExecutionReport` over the four lifecycle collections.
+  A trace command must pass all three maps populated; passing `new Map()` renders
+  a gap for data that is on disk. Report items are derived, not persisted, so
+  pass a window spanning the whole chain (`workbench.ts` `TRACE_WINDOW_START`)
+  rather than the report's rolling default, which drops older remediations.
+  `readinessTrace` derives the same report from its input bundle.
 
 **Work Guidance:**
 - Source-scan sentinels read the barrel + all modules via
@@ -50,5 +60,7 @@
 - `tests/governance/governance-sentinels.vitest.ts` — P9 purity.
 - `tests/governance/audit-migration.test.ts` — no direct emitter usage.
 - `tests/cli/commands/governance-*.vitest.ts` + `tests/governance/*.test.ts`.
+- `tests/cli/commands/governance-workbench-trace-wiring.vitest.ts` — trace hops
+  resolve from the real stores, and still gap when those stores are empty.
 
 **Child DOX Index:** none.

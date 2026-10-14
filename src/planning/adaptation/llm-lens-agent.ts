@@ -48,6 +48,35 @@ const VALID_VERDICTS: readonly GovernanceVerdict[] = [
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+/**
+ * Per-lens bound on each enrichment array. A lens blurb is one short sentence;
+ * anything beyond this is a runaway generation, not signal.
+ */
+const MAX_FINDINGS_PER_LENS = 10;
+
+/** Per-entry character bound, so a review artifact cannot carry unbounded prose. */
+const MAX_FINDING_LENGTH = 300;
+
+/**
+ * Normalize an optional lens enrichment array into bounded, non-empty strings.
+ *
+ * Fail-soft by design: a malformed entry is dropped, not fatal. The verdict is
+ * the decision-relevant signal, so a broken blind-spot list must not convert a
+ * usable lens vote into `insufficient_information`.
+ */
+function normalizeFindings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const result: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    result.push(trimmed.slice(0, MAX_FINDING_LENGTH));
+    if (result.length >= MAX_FINDINGS_PER_LENS) break;
+  }
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // LLMLensAgent
 // ---------------------------------------------------------------------------
@@ -161,11 +190,18 @@ export class LLMLensAgent implements LensAgent {
       throw new Error("Missing or empty rationale in lens output");
     }
 
+    // Optional structured enrichment (blindSpots / historicalAnalogies).
+    // Normalized rather than validated — see normalizeFindings.
+    const blindSpots = normalizeFindings(parsed.blindSpots);
+    const historicalAnalogies = normalizeFindings(parsed.historicalAnalogies);
+
     return {
       lens: this.lens,
       recommendedVerdict: parsed.recommendedVerdict as GovernanceVerdict,
       confidence: parsed.confidence,
       rationale: parsed.rationale,
+      ...(blindSpots.length > 0 ? { blindSpots } : {}),
+      ...(historicalAnalogies.length > 0 ? { historicalAnalogies } : {}),
       provider,
       model,
     };
