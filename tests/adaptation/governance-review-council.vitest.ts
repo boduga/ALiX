@@ -247,7 +247,7 @@ describe("GovernanceReviewCouncil", () => {
     expect(r.concerns).toContain("Different concern");
   });
 
-  it("blindSpots returns empty array (P6.5b placeholder)", () => {
+  it("blindSpots is empty when no lens reports any", () => {
     const c = new GovernanceReviewCouncil();
     const r = c.aggregate("rev-1", "prop-1", "rec-1", defaultScores, mockInput(), {
       generatedAt: FROZEN_TIME,
@@ -255,12 +255,76 @@ describe("GovernanceReviewCouncil", () => {
     expect(r.blindSpots).toEqual([]);
   });
 
-  it("historicalAnalogies returns empty array (P6.5b placeholder)", () => {
+  it("blindSpots merges the structured arrays reported by lenses", () => {
+    const c = new GovernanceReviewCouncil();
+    const scores: LensScore[] = [
+      { ...score("agree", 0.9, "Good", 0), blindSpots: ["No downstream capability impact assessed"] },
+      { ...score("agree", 0.8, "Fine", 1), blindSpots: ["Rollback path untested"] },
+      score("agree", 0.7, "OK", 2), // no blindSpots field
+      { ...score("agree", 0.85, "Standard", 3), blindSpots: [] },
+    ];
+    const r = c.aggregate("rev-1", "prop-1", "rec-1", scores, mockInput(), {
+      generatedAt: FROZEN_TIME,
+    });
+    expect(r.blindSpots).toEqual([
+      "No downstream capability impact assessed",
+      "Rollback path untested",
+    ]);
+  });
+
+  it("blindSpots deduplication — case-insensitive exact match, first wins", () => {
+    const c = new GovernanceReviewCouncil();
+    const scores: LensScore[] = [
+      { ...score("agree", 0.9, "Good", 0), blindSpots: ["Rollback path untested", "Stale evidence"] },
+      { ...score("agree", 0.8, "Fine", 1), blindSpots: ["rollback path UNTESTED"] },
+    ];
+    const r = c.aggregate("rev-1", "prop-1", "rec-1", scores, mockInput(), {
+      generatedAt: FROZEN_TIME,
+    });
+    expect(r.blindSpots).toEqual(["Rollback path untested", "Stale evidence"]);
+  });
+
+  it("historicalAnalogies is empty when no lens reports any", () => {
     const c = new GovernanceReviewCouncil();
     const r = c.aggregate("rev-1", "prop-1", "rec-1", defaultScores, mockInput(), {
       generatedAt: FROZEN_TIME,
     });
     expect(r.historicalAnalogies).toEqual([]);
+  });
+
+  it("historicalAnalogies merges the historian lens analogs", () => {
+    const c = new GovernanceReviewCouncil();
+    const scores: LensScore[] = [
+      score("agree", 0.9, "Good", 0),
+      {
+        ...score("challenge", 0.8, "Bad history", 1),
+        historicalAnalogies: [
+          "prop-2026-06-15-008 (similar change, reverted)",
+          "capability-area revert rate 22%",
+        ],
+      },
+      score("agree", 0.7, "OK", 2),
+      score("agree", 0.85, "Standard", 3),
+    ];
+    const r = c.aggregate("rev-1", "prop-1", "rec-1", scores, mockInput(), {
+      generatedAt: FROZEN_TIME,
+    });
+    expect(r.historicalAnalogies).toEqual([
+      "prop-2026-06-15-008 (similar change, reverted)",
+      "capability-area revert rate 22%",
+    ]);
+  });
+
+  it("blindSpots and concerns stay distinct sources", () => {
+    const c = new GovernanceReviewCouncil();
+    const scores: LensScore[] = [
+      { ...score("agree_with_concerns", 0.8, "Security risk", 0), blindSpots: ["No policy audit performed"] },
+    ];
+    const r = c.aggregate("rev-1", "prop-1", "rec-1", scores, mockInput(), {
+      generatedAt: FROZEN_TIME,
+    });
+    expect(r.concerns).toEqual(["Security risk"]);
+    expect(r.blindSpots).toEqual(["No policy audit performed"]);
   });
 
   it("reasons include verdict string and confidence percentage", () => {
