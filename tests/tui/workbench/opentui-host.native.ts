@@ -241,8 +241,9 @@ test('OpenTUI clicks focus the transcript and composer and use toolbar controls'
     setup.resize(60, 24);
     await setup.renderOnce();
     const narrowToolbar = host.content.transcript.plainText.split('\n');
-    const narrowRow = narrowToolbar.findIndex(line => line.includes('RESPONSE') && line.includes('Auto-follow:'));
+    const narrowRow = narrowToolbar.findIndex(line => line.includes('RESPONSE'));
     assert.equal(narrowRow, 1);
+    assert.match(narrowToolbar[0]!, /Auto-follow:/);
     await mouse.click(host.content.transcript.screenX + narrowToolbar[narrowRow]!.indexOf('RESPONSE'), host.content.transcript.screenY + narrowRow);
     assert.equal(store.snapshot().transcriptFilter, 'response');
     host.dispose();
