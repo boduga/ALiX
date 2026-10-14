@@ -243,6 +243,7 @@ Single-context: read CONTEXT.md at the repo root and docs/adr/ when they exist; 
 | `src/interfaces/cli/commands/decision/AGENTS.md` | Decision CLI handlers — shared/context-risk/queue-brief/review/outcome/intent/main submodules |
 | `src/interfaces/cli/commands/jev/AGENTS.md` | `alix jev` — decision-subsystem operator surface (status, labels, calibration, profiles, replay, disagreements, label-pair) |
 | `src/planning/decision/AGENTS.md` | Bounded probabilistic decisions (Jev System One) — contracts, engine registry, config, four decisions, calibration, replay |
+| `src/planning/adaptation/AGENTS.md` | P6 governance pipeline (context → risk → recommendation → queue) + P6.5 governance-review council — lens JSON contract, enrichment semantics, no decision authority |
 | `src/models/providers/AGENTS.md` | Model adapters & routing — registry, specs, free-model resolver, capacity-aware routing, OpenRouter access classification |
 | `src/interfaces/tui/AGENTS.md` | Interactive terminal UI — projections, Workbench transcript, views, input, layout, rendering |
 | `src/models/tracing/AGENTS.md` | Langfuse tracing facade — TraceClient, noop client, capture policy, adapter |

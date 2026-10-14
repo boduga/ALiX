@@ -22,6 +22,16 @@
  * governance-review-types.ts, adaptation-types.ts, decision-types.ts,
  * learning-types.ts) remain byte-identical to the P8.5a.0 baseline.
  *
+ * `governance-review-types.ts` was re-baselined once, intentionally, when
+ * P6.5b wired real lens execution into the review council: `LensScore` gained
+ * the optional `blindSpots` and `historicalAnalogies` enrichment arrays so a
+ * lens can report structured findings instead of leaving the council to guess
+ * them out of prose. The delta is additive and optional — every pre-existing
+ * `LensScore` literal still typechecks and every persisted review still
+ * deserializes. The file is strict-protected again from that re-baseline
+ * onward; this comment is the record of the authorized change, since the
+ * baseline JSON itself is gitignored.
+ *
  * The post-change content of outcome-types.ts is captured at module-load
  * time — so the test is self-validating after the type change is
  * committed. If the file changes again (a future accidental

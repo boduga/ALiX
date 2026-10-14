@@ -420,4 +420,87 @@ describe("LLMLensAgent", () => {
 
     expect(result.recommendedVerdict).toBe("agree");
   });
+
+  it("parses structured blindSpots and historicalAnalogies", async () => {
+    const adapter = makeAdapter(JSON.stringify({
+      recommendedVerdict: "agree_with_concerns",
+      confidence: 0.7,
+      rationale: "Reverted analogs exist for this action type.",
+      blindSpots: ["No assessment of downstream capability impact"],
+      historicalAnalogies: ["prop-2026-06-15-008 (similar change, reverted)"],
+    }));
+    const agent = new LLMLensAgent(adapter, "historian");
+
+    const result = await agent.run(makeInput());
+
+    expect(result.blindSpots).toEqual(["No assessment of downstream capability impact"]);
+    expect(result.historicalAnalogies).toEqual(["prop-2026-06-15-008 (similar change, reverted)"]);
+  });
+
+  it("omits the enrichment fields when the lens reports none", async () => {
+    const adapter = makeAdapter(JSON.stringify({
+      recommendedVerdict: "agree",
+      confidence: 0.9,
+      rationale: "all clear",
+      blindSpots: [],
+      historicalAnalogies: [],
+    }));
+    const agent = new LLMLensAgent(adapter, "red_team");
+
+    const result = await agent.run(makeInput());
+
+    expect(result.blindSpots).toBeUndefined();
+    expect(result.historicalAnalogies).toBeUndefined();
+    expect(result.recommendedVerdict).toBe("agree");
+  });
+
+  it("drops malformed enrichment entries without losing the lens verdict", async () => {
+    const adapter = makeAdapter(JSON.stringify({
+      recommendedVerdict: "challenge",
+      confidence: 0.8,
+      rationale: "real verdict",
+      blindSpots: ["valid spot", 42, null, "   ", { nested: true }],
+      historicalAnalogies: "not-an-array",
+    }));
+    const agent = new LLMLensAgent(adapter, "confidence_critic");
+
+    const result = await agent.run(makeInput());
+
+    expect(result.recommendedVerdict).toBe("challenge");
+    expect(result.blindSpots).toEqual(["valid spot"]);
+    expect(result.historicalAnalogies).toBeUndefined();
+  });
+
+  it("bounds enrichment arrays and entry length", async () => {
+    const many = Array.from({ length: 25 }, (_, i) => `spot ${i}`);
+    const adapter = makeAdapter(JSON.stringify({
+      recommendedVerdict: "agree_with_concerns",
+      confidence: 0.6,
+      rationale: "many spots",
+      blindSpots: many,
+      historicalAnalogies: ["x".repeat(500)],
+    }));
+    const agent = new LLMLensAgent(adapter, "red_team");
+
+    const result = await agent.run(makeInput());
+
+    expect(result.blindSpots).toHaveLength(10);
+    expect(result.blindSpots?.[0]).toBe("spot 0");
+    expect(result.historicalAnalogies?.[0]).toHaveLength(300);
+  });
+
+  it("rejects authority language inside a blind spot entry", async () => {
+    const adapter = makeAdapter(JSON.stringify({
+      recommendedVerdict: "agree",
+      confidence: 0.9,
+      rationale: "looks fine",
+      blindSpots: ["I approve of this plan"],
+    }));
+    const agent = new LLMLensAgent(adapter, "red_team");
+
+    const result = await agent.run(makeInput());
+
+    expect(result.recommendedVerdict).toBe("insufficient_information");
+    expect(result.rationale).toContain("Authority language detected");
+  });
 });
