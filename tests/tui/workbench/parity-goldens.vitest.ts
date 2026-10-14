@@ -147,7 +147,7 @@ const cases: readonly GoldenCase[] = [
     mustContain: [
       'LIVE TRANSCRIPT', 'Auto-follow: OFF', '[10:14:21', 'Planning phase complete',
       '✓ 4 agents initialized', 'TOOL alix_file_read', '✓ success',
-      'path: src/components/sidebar.tsx', 'requested lines: 1–200', '(142 lines)',
+      'path: src/components/sidebar.tsx', 'lines: 1–200', '(142 lines)',
       '├─', 'variants for collapsed and expanded',
     ],
   },

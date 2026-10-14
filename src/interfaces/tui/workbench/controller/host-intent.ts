@@ -17,6 +17,8 @@ export interface WorkbenchHostPorts {
   anchorTranscriptBottom(): void;
   emitUserTimeline(text: string): void;
   submitTurn(text: string): void;
+  recordPrompt(text: string): void;
+  navigatePromptHistory(direction: 'previous' | 'next', draft: string): string | undefined;
   nextQueuedId(): string;
   approvalTarget(): { readonly id: string } | undefined;
   isApprovalDecisionPending(id: string): boolean;
@@ -60,6 +62,7 @@ export function applyWorkbenchHostIntent(store: WorkbenchStore, intent: Workbenc
         return true;
       }
       const text = store.snapshot().composer.text;
+      ports.recordPrompt(text);
       store.dispatch({ type: 'composer.clear' });
       ports.syncComposer();
       ports.setCancelArmed(false);
@@ -72,8 +75,17 @@ export function applyWorkbenchHostIntent(store: WorkbenchStore, intent: Workbenc
     }
     case 'turn.queue': {
       const text = store.snapshot().composer.text;
+      ports.recordPrompt(text);
       store.dispatch({ type: 'queue.add', message: { id: ports.nextQueuedId(), text, createdAt: Date.now() } });
       store.dispatch({ type: 'composer.clear' });
+      ports.syncComposer();
+      ports.repaint();
+      return true;
+    }
+    case 'composer.history': {
+      const text = ports.navigatePromptHistory(intent.direction, store.snapshot().composer.text);
+      if (text === undefined) return true;
+      store.dispatch({ type: 'composer.replace', text });
       ports.syncComposer();
       ports.repaint();
       return true;

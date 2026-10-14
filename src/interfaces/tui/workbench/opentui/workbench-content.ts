@@ -242,16 +242,24 @@ const ANSI_COLOR: Record<number, Color> = {
   31: 'red', 32: 'green', 33: 'yellow', 34: 'cyan',
   35: 'purple', 36: 'cyan', 90: 'muted',
 };
+const TRUECOLOR: Readonly<Record<string, Color>> = {
+  '230;237;243': 'foreground', '156;180;202': 'muted',
+  '6;201;239': 'cyan', '61;244;81': 'green',
+  '255;198;61': 'yellow', '177;105;238': 'purple',
+  '8;227;181': 'teal', '255;99;110': 'red',
+  '84;123;145': 'divider', '8;21;27': 'background',
+};
 
 /** Split an ANSI-styled row into native parts, stripping every SGR sequence. */
 export function ansiRowToNativeParts(row: string): NativePart[] {
   const parts: NativePart[] = [];
   let color: Color | undefined;
+  let background: Color | undefined;
   let bold = false;
   let buffer = '';
   const flush = (): void => {
     if (buffer.length === 0) return;
-    parts.push({ text: buffer, ...(color ? { color } : {}), ...(bold ? { bold: true } : {}) });
+    parts.push({ text: buffer, ...(color ? { color } : {}), ...(background ? { background } : {}), ...(bold ? { bold: true } : {}) });
     buffer = '';
   };
   // eslint-disable-next-line no-control-regex
@@ -261,15 +269,25 @@ export function ansiRowToNativeParts(row: string): NativePart[] {
   while ((match = sgr.exec(row)) !== null) {
     buffer += row.slice(last, match.index);
     last = sgr.lastIndex;
-    for (const raw of match[1]!.split(';')) {
-      const code = Number(raw);
-      if (code === 0) { color = undefined; bold = false; }
+    flush();
+    const codes = match[1]!.split(';').map(Number);
+    for (let index = 0; index < codes.length; index++) {
+      const code = codes[index]!;
+      if (code === 0) { color = undefined; background = undefined; bold = false; }
       else if (code === 1) bold = true;
       else if (code === 2) color = 'muted';
-      else if (code === 22 || code === 39) { bold = false; color = undefined; }
+      else if (code === 22) bold = false;
+      else if (code === 39) color = undefined;
+      else if (code === 49) background = undefined;
+      else if (code === 38 && codes[index + 1] === 2 && codes.length > index + 4) {
+        color = TRUECOLOR[`${codes[index + 2]};${codes[index + 3]};${codes[index + 4]}`];
+        index += 4;
+      } else if (code === 48 && codes[index + 1] === 2 && codes.length > index + 4) {
+        background = TRUECOLOR[`${codes[index + 2]};${codes[index + 3]};${codes[index + 4]}`];
+        index += 4;
+      }
       else if (ANSI_COLOR[code]) color = ANSI_COLOR[code];
     }
-    flush();
   }
   buffer += row.slice(last);
   flush();
@@ -330,24 +348,21 @@ function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, 
       .filter(tool => !errorOnly || tool.status === 'failed')
       .slice(-height)
       .flatMap(tool => {
-        const heading = `${prefix}TOOL  ${tool.name} · ${tool.status}`;
-        if (tool.status === 'running' && !detailed) return [{ text: heading }];
         // indent 0 drops the `│ ├─ └─` connector column (tool-card.ts only
-        // draws the guide at indent >= 2); the native transcript indents the
-        // card itself instead.
+        // draws the guide at indent >= 2). Native rows receive the same actor
+        // gutter as response prose, once per row.
         const card = buildWorkbenchToolCardLines(tool, {
-          width: Math.max(8, width - prefix.length - 2), mode: detailed ? 'detailed' : 'compact', indent: 0,
+          width: Math.max(8, width - prefix.length), mode: detailed ? 'detailed' : 'compact', indent: 0,
         });
-        const headingLine: NativeLine = { text: heading, parts: [{ text: prefix, color: 'muted' }, { text: `TOOL  ${tool.name} · ${tool.status}`, color: 'cyan' }] };
-        return [headingLine, ...card.slice(0, Math.max(0, height - 1)).map(line => {
+        return card.slice(0, height).map(line => {
           // Indent the card once. Prefixing EVERY styled run would insert
           // spaces inside the card and break its column alignment.
           const parts = ansiRowToNativeParts(line.text);
           const indented = parts.length > 0
-            ? [{ ...parts[0]!, text: `  ${parts[0]!.text}` }, ...parts.slice(1)]
-            : [{ text: '  ' }];
-          return { text: `  ${safeLine(line.text)}`, parts: indented };
-        })];
+            ? [{ ...parts[0]!, text: `${gutter}${parts[0]!.text}` }, ...parts.slice(1)]
+            : [{ text: gutter }];
+          return { text: `${gutter}${safeLine(line.text)}`, parts: indented };
+        });
       });
   }
 }
@@ -727,7 +742,7 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     const categories = ['ALL', 'RESPONSE', 'TOOL', 'ACTIVITY', 'ERROR'] as const;
     const toolbarSegments = categories.map((category, index) => {
       const active = category.toLowerCase() === state.transcript.filter;
-      return { label: active ? `[${category}]` : category, gap: index === categories.length - 1 ? '    ' : '  ', active, filter: category.toLowerCase() as ContentState['transcript']['filter'] };
+      return { label: active ? `[${category}]` : category, gap: index === categories.length - 1 ? '' : '  ', active, filter: category.toLowerCase() as ContentState['transcript']['filter'] };
     });
     const followValue = state.transcript.followTail ? 'ON' : 'OFF';
     const followParts: NativePart[] = [
@@ -739,28 +754,43 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
       { text: segment.label, color: segment.active ? 'background' : 'muted', ...(segment.active ? { background: 'cyan' as const } : {}) },
       { text: segment.gap, color: 'muted' },
     ]);
-    toolbarParts.push(...followParts);
     const toolbar = toolbarParts.map(part => part.text).join('');
     const heading = 'LIVE TRANSCRIPT';
-    const toolbarOnHeading = displayWidth(heading) + 3 + displayWidth(toolbar) <= transcriptSize.width;
+    const toolbarColumn = Math.max(0, Math.floor((transcriptSize.width - displayWidth(toolbar)) / 2));
+    const followColumn = Math.max(0, transcriptSize.width - displayWidth(followLabel));
+    const toolbarOnHeading = displayWidth(heading) + 2 <= toolbarColumn
+      && toolbarColumn + displayWidth(toolbar) + 2 <= followColumn;
     transcriptClickTargets = [];
-    let toolbarColumn = toolbarOnHeading ? displayWidth(heading) + 3 : 0;
+    let clickColumn = toolbarColumn;
     const toolbarRow = toolbarOnHeading ? 0 : 1;
     for (const segment of toolbarSegments) {
       transcriptClickTargets.push({
-        row: toolbarRow, start: toolbarColumn, end: toolbarColumn + displayWidth(segment.label),
+        row: toolbarRow, start: clickColumn, end: clickColumn + displayWidth(segment.label),
         action: { type: 'transcript.filter', filter: segment.filter },
       });
-      toolbarColumn += displayWidth(segment.label) + displayWidth(segment.gap);
+      clickColumn += displayWidth(segment.label) + displayWidth(segment.gap);
     }
     transcriptClickTargets.push({
-      row: toolbarRow, start: toolbarColumn,
-      end: toolbarColumn + displayWidth(followLabel),
+      row: 0, start: followColumn,
+      end: followColumn + displayWidth(followLabel),
       action: { type: 'transcript.follow.toggle' },
     });
+    const headingGap = toolbarOnHeading ? toolbarColumn - displayWidth(heading) : followColumn - displayWidth(heading);
+    const rowZeroParts: NativePart[] = [{ text: heading, color: 'cyan' }];
+    if (headingGap > 0) rowZeroParts.push({ text: ' '.repeat(headingGap) });
+    if (toolbarOnHeading) {
+      rowZeroParts.push(...toolbarParts);
+      const followGap = followColumn - toolbarColumn - displayWidth(toolbar);
+      if (followGap > 0) rowZeroParts.push({ text: ' '.repeat(followGap) });
+    }
+    rowZeroParts.push(...followParts);
+    const rowZero = rowZeroParts.map(part => part.text).join('');
     const transcriptChrome: NativeLine[] = toolbarOnHeading
-      ? [{ text: `${heading}   ${toolbar}`, parts: [{ text: heading, color: 'cyan' }, { text: '   ' }, ...toolbarParts] }, { text: '' }]
-      : [{ text: heading, color: 'cyan' }, { text: toolbar, parts: toolbarParts }, { text: '' }];
+      ? [{ text: rowZero, parts: rowZeroParts }, { text: '' }]
+      : [{ text: rowZero, parts: rowZeroParts }, {
+        text: `${' '.repeat(toolbarColumn)}${toolbar}`,
+        parts: [{ text: ' '.repeat(toolbarColumn) }, ...toolbarParts],
+      }, { text: '' }];
     const transcriptWindow = transcriptLines(
       state, pausedConversation ?? state.transcript.conversation, transcriptSize.width, Math.max(0, transcriptSize.height - transcriptChrome.length),
     );

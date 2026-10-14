@@ -14,7 +14,7 @@ import type { AgentInspectorModel } from '../../../src/interfaces/tui/workbench/
 import type { OperatorShellSnapshot } from '../../../src/interfaces/tui/workbench/model/operator-shell.js';
 import type { WorkbenchDrawer } from '../../../src/interfaces/tui/workbench/model/ui-state.js';
 import type { WorkbenchViewComposer, WorkbenchViewState } from '../../../src/interfaces/tui/workbench/view-state/types.js';
-import { mountOpenTuiWorkbenchContent, type ContentState } from '../../../src/interfaces/tui/workbench/opentui/workbench-content.js';
+import { ansiRowToNativeParts, mountOpenTuiWorkbenchContent, type ContentState } from '../../../src/interfaces/tui/workbench/opentui/workbench-content.js';
 import { mountOpenTuiWorkbenchLayout } from '../../../src/interfaces/tui/workbench/opentui/workbench-layout.js';
 
 function chromeState(overrides: Partial<OperatorShellSnapshot> = {}): OperatorShellSnapshot {
@@ -157,8 +157,8 @@ test('native roster and transcript show selected run content and update in place
     assert.equal(prose?.fg?.toInts().slice(0, 3).join(','), '230,237,243');
     assert.match(frame, /Sources ready/);
     assert.doesNotMatch(frame, /Other run response/);
-    assert.match(frame, /TOOL  search/);
-    assert.match(frame, /requested lines: unavailable/);
+    assert.match(frame, /TOOL search/);
+    assert.match(frame, /lines: unavailable/);
     assert.ok(content.roster.chunks.filter(chunk => chunk.bg?.toInts().slice(0, 3).join(',') === '6,49,61').length >= 2);
 
     const rosterNode = content.roster;
@@ -166,13 +166,13 @@ test('native roster and transcript show selected run content and update in place
     await setup.renderOnce();
     frame = setup.captureCharFrame();
     assert.strictEqual(content.roster, rosterNode);
-    assert.doesNotMatch(frame, /TOOL  search/);
+    assert.doesNotMatch(frame, /TOOL search/);
     assert.match(frame, /Sources ready/);
     content.update({ ...state, transcript: { ...state.transcript, filter: 'error' } });
     await setup.renderOnce();
     frame = setup.captureCharFrame();
-    assert.match(frame, /TOOL  fetch/);
-    assert.doesNotMatch(frame, /TOOL  search/);
+    assert.match(frame, /TOOL fetch/);
+    assert.doesNotMatch(frame, /TOOL search/);
     content.update({ ...state, transcript: { ...state.transcript, mode: 'detailed', filter: 'error' } });
     await setup.renderOnce();
     assert.match(setup.captureCharFrame(), /HTTP 503/);
@@ -532,7 +532,7 @@ test('native transcript renders markdown, local time, and a tight gutter', async
       transcript: {
         conversation: { items: [
           { kind: 'assistant', text: markdown, startedAt: Date.now(), id: 'md-1' },
-          { kind: 'tool-group', tools: [{ id: 't-1', name: 'web.search', status: 'success', args: { query: 'x' } }], startedAt: Date.now(), id: 'tg-1' },
+          { kind: 'tool-group', tools: [{ id: 't-1', name: 'web.search', status: 'completed', args: { query: 'x' } }], startedAt: Date.now(), id: 'tg-1' },
         ] as never, hiddenDiagnostics: 0 },
         mode: 'compact', filter: 'all', scope: 'all', followTail: true,
       },
@@ -567,6 +567,15 @@ test('native transcript renders markdown, local time, and a tight gutter', async
     assert.ok(textCol > responderCol, 'prose follows its responder');
     assert.ok(textCol - responderCol <= 12, `gutter must stay tight (was ${textCol - responderCol})`);
 
+    const cardRow = frame.split('\n').find(line => line.includes('╭'))!;
+    assert.equal(cardRow.indexOf('╭'), textCol, 'tool card aligns with response prose');
+    const success = content.transcript.chunks.find(chunk => chunk.text.includes('✓ success'));
+    assert.deepEqual(success?.fg?.toInts().slice(0, 3), [61, 244, 81], 'success label and tick are green');
+    const toolBadge = content.transcript.chunks.find(chunk =>
+      chunk.text === 'TOOL' && chunk.bg?.toInts().slice(0, 3).join(',') === '6,201,239');
+    assert.deepEqual(toolBadge?.bg?.toInts().slice(0, 3), [6, 201, 239], 'TOOL badge has cyan background');
+    assert.equal(frame.match(/TOOL\s+web\.search/g)?.length, 1, 'tool label appears only inside card');
+
     // 4. No connector artifact in front of the tool card. The connector guide is
     //    a vertical bar joined to a corner (`│├─`/`│└─`); the card's OWN border
     //    also uses └─ and ┌─, so assert on the vertical-bar form only.
@@ -577,6 +586,18 @@ test('native transcript renders markdown, local time, and a tight gutter', async
   } finally {
     await disposeTestRenderer(setup);
   }
+});
+
+test('native ANSI mapper consumes truecolor tuples atomically', () => {
+  assert.deepEqual(ansiRowToNativeParts('\x1b[38;2;61;244;81m✓ success\x1b[0m'), [
+    { text: '✓ success', color: 'green' },
+  ]);
+  assert.deepEqual(ansiRowToNativeParts('\x1b[38;2;255;99;110m✗ failed\x1b[0m'), [
+    { text: '✗ failed', color: 'red' },
+  ]);
+  assert.deepEqual(ansiRowToNativeParts('\x1b[48;2;6;201;239m\x1b[38;2;8;21;27mTOOL\x1b[0m'), [
+    { text: 'TOOL', color: 'background', background: 'cyan' },
+  ]);
 });
 
 test('native header and footer render operator chrome', async () => {

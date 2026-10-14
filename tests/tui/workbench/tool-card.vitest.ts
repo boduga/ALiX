@@ -19,13 +19,15 @@ const plain = (rows: ReturnType<typeof buildWorkbenchToolCardLines>): string[] =
 
 describe('bounded Workbench tool cards', () => {
   it('renders requested and observed facts in distinct columns inside a complete outline', () => {
-    const rows = buildWorkbenchToolCardLines(tool(), { width: 116, indent: 41 });
+    const rows = buildWorkbenchToolCardLines(tool({ durationMs: 1250 }), { width: 116, indent: 41 });
     const text = plain(rows).join('\n');
     expect(text).toContain('TOOL file.read');
     expect(text).toContain('✓ success');
     expect(text).toContain('path: src/components/sidebar.tsx');
-    expect(text).toContain('requested lines: 1–200');
+    expect(text).toContain('lines: 1–200');
     expect(text).toContain('(142 lines)');
+    expect(text).toContain('duration: 1250ms');
+    expect(plain(rows).find(line => line.includes('lines: 1–200'))).toContain('duration: 1250ms');
     expect(text).toContain('│ │');
     expect(rows[0]?.text).toContain('├─');
     expect(rows[0]?.text).toContain('╭');
@@ -34,6 +36,12 @@ describe('bounded Workbench tool cards', () => {
     expect(plain(rows).every((line) => displayWidth(line) === 116)).toBe(true);
     expect(new Set(rows.map((row) => row.itemId))).toEqual(new Set(['tool:call-row']));
     expect(rows.map((row) => row.wrappedOffset)).toEqual(rows.map((_, index) => index));
+  });
+  it('places metadata directly below the header without an internal horizontal rule', () => {
+    const rows = plain(buildWorkbenchToolCardLines(tool({ durationMs: 25 }), { width: 90 }));
+    expect(rows[1]).toContain('TOOL file.read');
+    expect(rows[2]).toContain('path: src/components/sidebar.tsx');
+    expect(rows.some(line => line.includes('├') || line.includes('┤'))).toBe(false);
   });
   it.each([
     ['running', '→ running'], ['completed', '✓ success'], ['failed', '✗ failed'], ['cancelled', '○ cancelled'],
@@ -46,9 +54,13 @@ describe('bounded Workbench tool cards', () => {
     const unknown = tool({ metadata: { toolCallId: 'call-1', requestedRange: { startLine: 1, endLine: 200 } }, detail: 'first\nsecond\nthird' });
     const text = plain(buildWorkbenchToolCardLines(unknown, { width: 90, mode: 'detailed' })).join('\n');
     expect(text).toContain('lines unavailable');
-    expect(text).toContain('requested lines: 1–200');
+    expect(text).toContain('lines: 1–200');
     expect(text).not.toContain('(3 lines)');
-    expect(plain(buildWorkbenchToolCardLines(tool({ metadata: { toolCallId: 'call-1', observedLineCount: 0 } }), { width: 90 })).join('\n')).toContain('(0 lines)');
+    const fullRead = plain(buildWorkbenchToolCardLines(tool({ metadata: { toolCallId: 'call-1', observedLineCount: 0 } }), { width: 90 })).join('\n');
+    expect(fullRead).toContain('(0 lines)');
+    expect(fullRead).toContain('lines: all');
+    expect(plain(buildWorkbenchToolCardLines(tool({ name: 'alix_file_read', metadata: { toolCallId: 'call-2', observedLineCount: 142 } }), { width: 90 })).join('\n')).toContain('lines: all');
+    expect(plain(buildWorkbenchToolCardLines(tool({ status: 'failed', metadata: { toolCallId: 'call-3' } }), { width: 90 })).join('\n')).toContain('lines: unavailable');
   });
   it('expands within the same invocation identity with bounded detail', () => {
     const item = tool({ detail: 'output\n'.repeat(100000) });
@@ -102,6 +114,6 @@ it('renders both event-backed reference cards with explicit concept display labe
 it('keeps requested metadata visible after long path clipping and bounds very large known counts', () => {
   const item = tool({ metadata: { toolCallId: 'large', path: 'very-long-path/'.repeat(10000), requestedRange: { startLine: 1, endLine: 200 }, observedLineCount: Number.MAX_SAFE_INTEGER } });
   const rows = buildWorkbenchToolCardLines(item, { width: 116, indent: 41 });
-  expect(plain(rows).join('\n')).toContain('requested lines: 1–200');
+  expect(plain(rows).join('\n')).toContain('lines: 1–200');
   expect(plain(rows).every((row) => displayWidth(row) === 116)).toBe(true);
 });

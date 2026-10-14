@@ -100,6 +100,20 @@ describe('selected-agent inspector snapshot joins', () => {
   });
 });
 describe('bounded inspector rendering', () => {
+  it('formats live activity start time in the operator local timezone', () => {
+    const previousTimeZone = process.env.TZ;
+    process.env.TZ = 'America/Edmonton';
+    try {
+      const startedAt = Date.parse('2026-10-13T18:30:45.000Z');
+      const model = buildAgentInspectorModel(snapshot([agent('a', { activeTool: { toolCallId: 'call1', toolName: 'alix_file_read', startedAt, elapsedMs: 0, lastProgressAt: startedAt } })]), { selectedAgentId: 'a' }, startedAt + 1000);
+      const started = buildAgentInspectorSections(model)[1]?.rows.find((entry) => entry.label === 'Started')?.value;
+      expect(started).toBe('12:30:45');
+      expect(started).not.toBe('18:30:45');
+    } finally {
+      if (previousTimeZone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimeZone;
+    }
+  });
   it('renders reference sections, values, separators and clock in order', () => {
     const model = buildAgentInspectorModel(snapshot([agent('a', { model: 'coding model', usage: { totalTokens: 7352 }, currentOperation: 'writing file...' })]), { selectedAgentId: 'a' });
     const canvas = new TerminalCanvas(50, 40); paintAgentInspector(canvas, { x: 2, y: 2, width: 40, height: 36 }, model);
