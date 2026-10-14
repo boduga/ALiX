@@ -96,36 +96,59 @@ export interface FullFrameScenario {
  * return the cell/ANSI frame string (the same `renderFrame()` text the
  * painter diffs against the previous frame).
  */
-export function renderFullFrame(scenario: FullFrameScenario): string {
-  // Pin the wall clock to the fixture clock: painted chrome can sample
-  // Date.now() (approval-wait/liveness status lines), so a future fixture
-  // with liveness or pending approvals must not time-stamp goldens with the
-  // run time — the same fixed `previewNow` the snapshot projection uses.
+/**
+ * Run `render` with the wall clock pinned to the fixture clock and the
+ * timezone pinned to UTC.
+ *
+ * Clock: painted chrome can sample Date.now() (approval-wait/liveness status
+ * lines), so a future fixture with liveness or pending approvals must not
+ * time-stamp goldens with the run time — the same fixed `previewNow` the
+ * snapshot projection uses.
+ *
+ * Timezone: the inspector renders live-activity start times in the operator's
+ * LOCAL wall clock (agent-inspector.ts), so without a fixed zone the golden
+ * text would depend on the runner's system TZ and pass only on the machine
+ * that generated it. UTC matches the fixture's own clock and the CI runners.
+ */
+function withPinnedRenderEnv<T>(render: () => T): T {
   const realNow = Date.now;
+  const realTz = process.env.TZ;
   Date.now = () => previewNow;
+  process.env.TZ = 'UTC';
   try {
-    setTerminalDimensions(scenario.columns, scenario.rows);
-    const { app, state, paint } = createWorkbenchRenderHarness();
-    if (scenario.content !== 'shell') injectPreviewContent(app, state);
-    const store = (app as unknown as { workbenchStore: WorkbenchStore }).workbenchStore;
-    if (scenario.selectAgent) {
-      store.dispatch({ type: 'agent.select', agentId: fixture.selectedAgentId, scrollOffset: 0 });
-    }
-    if (scenario.drawer) store.dispatch({ type: 'drawer.toggle', drawer: scenario.drawer });
-    if (scenario.overlay) store.dispatch({ type: 'overlay.toggle', overlay: scenario.overlay });
-    if (scenario.scrollOffset !== undefined) {
-      store.dispatch({ type: 'transcript.follow', followTail: false });
-      state.views.agent.scrollOffset = scenario.scrollOffset;
-    }
-    paint();
-    const frame = (app as unknown as { framePainter: { previousWorkbenchFrame: string | null } })
-      .framePainter.previousWorkbenchFrame;
-    if (typeof frame !== 'string') throw new Error('workbench frame was not painted');
-    return frame;
+    return render();
   } finally {
-    restoreTerminalDimensions();
     Date.now = realNow;
+    if (realTz === undefined) delete process.env.TZ;
+    else process.env.TZ = realTz;
   }
+}
+
+export function renderFullFrame(scenario: FullFrameScenario): string {
+  return withPinnedRenderEnv(() => {
+    setTerminalDimensions(scenario.columns, scenario.rows);
+    try {
+      const { app, state, paint } = createWorkbenchRenderHarness();
+      if (scenario.content !== 'shell') injectPreviewContent(app, state);
+      const store = (app as unknown as { workbenchStore: WorkbenchStore }).workbenchStore;
+      if (scenario.selectAgent) {
+        store.dispatch({ type: 'agent.select', agentId: fixture.selectedAgentId, scrollOffset: 0 });
+      }
+      if (scenario.drawer) store.dispatch({ type: 'drawer.toggle', drawer: scenario.drawer });
+      if (scenario.overlay) store.dispatch({ type: 'overlay.toggle', overlay: scenario.overlay });
+      if (scenario.scrollOffset !== undefined) {
+        store.dispatch({ type: 'transcript.follow', followTail: false });
+        state.views.agent.scrollOffset = scenario.scrollOffset;
+      }
+      paint();
+      const frame = (app as unknown as { framePainter: { previousWorkbenchFrame: string | null } })
+        .framePainter.previousWorkbenchFrame;
+      if (typeof frame !== 'string') throw new Error('workbench frame was not painted');
+      return frame;
+    } finally {
+      restoreTerminalDimensions();
+    }
+  });
 }
 
 /**
@@ -136,55 +159,57 @@ export function renderFullFrame(scenario: FullFrameScenario): string {
  * `monochrome`/`ascii` theme — the seam the parity plan documents.
  */
 export function renderAsciiPreviewFrame(columns = 160, rows = 36): string {
-  setTerminalDimensions(columns, rows);
-  try {
-    const { app, state } = createWorkbenchRenderHarness();
-    injectPreviewContent(app, state);
-    const snapshot = state.lastSnapshot!;
-    const theme = getWorkbenchPreviewTheme('monochrome', 'ascii');
-    const geometry = resolveWorkbenchSurfaceGeometry(columns, rows, 'closed');
-    const canvas = new TerminalCanvas(columns, rows);
-    const ui = createInitialWorkbenchUiState({ columns, rows });
-    const roster: WorkbenchRegion | null = geometry.regions.roster;
-    if (roster) {
-      paintRosterDrawer({
+  return withPinnedRenderEnv(() => {
+    setTerminalDimensions(columns, rows);
+    try {
+      const { app, state } = createWorkbenchRenderHarness();
+      injectPreviewContent(app, state);
+      const snapshot = state.lastSnapshot!;
+      const theme = getWorkbenchPreviewTheme('monochrome', 'ascii');
+      const geometry = resolveWorkbenchSurfaceGeometry(columns, rows, 'closed');
+      const canvas = new TerminalCanvas(columns, rows);
+      const ui = createInitialWorkbenchUiState({ columns, rows });
+      const roster: WorkbenchRegion | null = geometry.regions.roster;
+      if (roster) {
+        paintRosterDrawer({
+          canvas,
+          left: roster.x,
+          terminalColumns: columns,
+          top: roster.y,
+          bottom: roster.y + roster.height - 1,
+          layout: geometry.layout,
+          agents: snapshot.runtime?.agents ?? null,
+          tasks: snapshot.runtime?.tasks ?? null,
+          artifacts: snapshot.runtime?.artifacts ?? null,
+          selectedAgentId: fixture.selectedAgentId,
+          theme,
+        });
+      }
+      paintTranscriptToolbar(canvas, geometry.regions.transcriptToolbar, ui, 0, theme);
+      if (geometry.regions.inspector) {
+        paintAgentInspector(
+          canvas,
+          geometry.regions.inspector,
+          buildAgentInspectorModel(snapshot, { selectedAgentId: fixture.selectedAgentId }),
+          theme,
+        );
+      }
+      paintOperatorShell({
         canvas,
-        left: roster.x,
-        terminalColumns: columns,
-        top: roster.y,
-        bottom: roster.y + roster.height - 1,
-        layout: geometry.layout,
-        agents: snapshot.runtime?.agents ?? null,
-        tasks: snapshot.runtime?.tasks ?? null,
-        artifacts: snapshot.runtime?.artifacts ?? null,
-        selectedAgentId: fixture.selectedAgentId,
+        width: columns,
+        height: rows,
+        model: projectOperatorShell(snapshot, createInitialPerTabState(), undefined, 0, {
+          closeSurface: false,
+          focus: 'composer',
+          drawer: geometry.layout.drawer,
+        }),
         theme,
       });
+      return canvas.renderFrame();
+    } finally {
+      restoreTerminalDimensions();
     }
-    paintTranscriptToolbar(canvas, geometry.regions.transcriptToolbar, ui, 0, theme);
-    if (geometry.regions.inspector) {
-      paintAgentInspector(
-        canvas,
-        geometry.regions.inspector,
-        buildAgentInspectorModel(snapshot, { selectedAgentId: fixture.selectedAgentId }),
-        theme,
-      );
-    }
-    paintOperatorShell({
-      canvas,
-      width: columns,
-      height: rows,
-      model: projectOperatorShell(snapshot, createInitialPerTabState(), undefined, 0, {
-        closeSurface: false,
-        focus: 'composer',
-        drawer: geometry.layout.drawer,
-      }),
-      theme,
-    });
-    return canvas.renderFrame();
-  } finally {
-    restoreTerminalDimensions();
-  }
+  });
 }
 
 const GOLDEN_DIR = fileURLToPath(new URL('./__goldens__/', import.meta.url));
