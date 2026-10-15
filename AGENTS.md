@@ -222,6 +222,7 @@ Single-context: read CONTEXT.md at the repo root and docs/adr/ when they exist; 
 | `src/governance/approvals/AGENTS.md` | Approval queue, ApprovalStore |
 | `src/runtime-state/events/AGENTS.md` | Session event log — append authority, cross-process lock, bounded tail resync, seq allocation |
 | `src/governance/audit/AGENTS.md` | Audit trail — JSONL append-only store |
+| `src/governance/security/credentials/AGENTS.md` | Credential Store — protected secret storage and the versioned `srap-evidence` HMAC-key namespace |
 | `src/runtime-state/storage/AGENTS.md` | Storage primitives — shared JSONL store/parser/stream, atomic JSON files, R2 transactional runtime ledger |
 | `src/interfaces/server/AGENTS.md` | Inspector HTTP server, session reader, API routes |
 | `src/interfaces/ui/AGENTS.md` | Inspector web UI — HTML, JS, CSS, projection |

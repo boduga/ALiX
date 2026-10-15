@@ -13,7 +13,36 @@ File-backed approval queue management — create, resolve, list, and lookup pend
 
 ## Local Contracts
 
-- Approvals are CLI-first. No browser POST endpoints for write actions.
+- Approvals are CLI-first. Sole browser write exception: default-off
+  `POST /api/approvals/:id/decision` for SRAP-1 (not yet implemented; no route
+  code exists — this is a forward contract). It is bearer-only and may only
+  resolve through `ApprovalStore`; require `approvals:decide`, active persistent
+  operator principal, explicit workspace match, approval scope derived from
+  existing binding/run/session/worker/ownership facts, trusted transport, and
+  idempotency evidence. It must attempt and support repair of the recoverable
+  audit projection; JSONL projection success is not approval authority. No other
+  browser approval write is allowed, and this exception grants no execution authority.
+- **Remote-approval workspace eligibility is canonical and fail-closed.** The
+  canonical workspace identity and how the server derives it are owned by
+  `src/interfaces/server/AGENTS.md` (server-derived from the resolved project
+  root; never a request-supplied value). This store requires that a token
+  explicitly list that identity in `workspaceIds`; a token with missing or empty
+  scope is denied for remote decision even where other Inspector routes accept an
+  unscoped token. Eligibility is `authenticated ∧ approvals:decide ∧
+  activePrincipal ∧ canonicalWorkspace ∈ token.workspaceIds ∧ approval pending ∧
+  unexpired`. Exact idempotent retries re-run the same authorization and scope
+  checks before returning `200`; a conflicting retry is `409` without state
+  disclosure. No per-approval principal grant and no per-agent/per-run operator
+  ownership is introduced.
+  - **Parity requirement (binds the implementation).** When the route is built it
+    MUST ship an authorization parity table broader than the implementation —
+    role × workspace scope × approval state × exact-retry identity — covering
+    allow (active operator/admin with scope), and fail-closed deny for anonymous,
+    `readonly`, missing `approvals:decide`, revoked/disabled principal,
+    cross-workspace, missing/empty scope, cross-record, expired/decided,
+    conflicting retry, loopback-dev without token, and cookie session. Pattern:
+    `tests/ownership/path-scope.test.ts`. No parity test exists today because no
+    route code exists; this contract is the requirement, not a implemented claim.
 - Approval records are durable JSON — full history preserved.
 - **The approval ledger is authoritative (R2.5); JSON/journal is a
   compatibility projection.** `mutate()` appends its classified diff to the
