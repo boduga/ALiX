@@ -45,6 +45,14 @@ reason about.
 - **The policy gate runs first, and it is not optional.** `ToolExecutor`
   authorizes through `PolicyGate` before any router sees a call. A router's own
   checks are a SECOND, narrower safety net — never the authorization.
+- **Tool telemetry is fail-open (P0).** `ToolExecutor.logEvent`, the artifact-created
+  notification, the `observability.metric` emissions, `measurePhase`, and every
+  router telemetry write (`File/Patch/McpToolRouter.emitTelemetry`) swallow
+  EventLog append failures. Under cross-process lock contention an append can
+  throw at the 5s acquisition deadline — that must never turn a successful tool
+  into a failure. ToolResults (and artifact files) are authoritative; events are
+  best-effort. Pinned by `tests/tools/executor-events.test.ts` ("tool execution
+  survives EventLog append failure").
 - **Owned-write authorization is not decided here.** `isOwnedWriteTarget` in
   `tool-router.ts` calls `isWithinOwnedScope`, the single matcher also used by
   the gate. Both points MUST call that one function; neither may re-normalize,

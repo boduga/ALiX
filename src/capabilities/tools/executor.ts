@@ -220,7 +220,14 @@ export class ToolExecutor {
   }
 
   private async logEvent(type: string, payload: Record<string, unknown>): Promise<void> {
-    await this.log.append({ sessionId: this.sessionId(), actor: "system", type, payload });
+    // Fail-open: a telemetry write must never fail the tool it describes.
+    // Under cross-process lock contention (e.g. N subagent children sharing
+    // one events.jsonl), an append throw here would turn an observability
+    // failure into a tool failure. The event is best-effort; the ToolResult
+    // is authoritative.
+    try {
+      await this.log.append({ sessionId: this.sessionId(), actor: "system", type, payload });
+    } catch { /* tool telemetry is observability, not correctness */ }
   }
 
   /**
@@ -639,10 +646,10 @@ export class ToolExecutor {
       ...agentPayload,
       ...(request.replayId ? { replayId: request.replayId } : {}),
     });
-    // Emit observability metric for tool call
-    await this.log.append({
-      sessionId: this.sessionId(), actor: "system", type: "observability.metric",
-      payload: { name: "tool_calls_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...(request.replayId ? { replayId: request.replayId } : {}) },
+    // Emit observability metric for tool call (via fail-open logEvent: a
+    // contended append must not fail the tool).
+    await this.logEvent("observability.metric", {
+      name: "tool_calls_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...(request.replayId ? { replayId: request.replayId } : {}),
     });
 
     // Verify argument hash match before execution (M0.9 permissive placeholder)
@@ -806,10 +813,9 @@ export class ToolExecutor {
         ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
-      // Emit observability metric for tool failure
-      await this.log.append({
-        sessionId: this.sessionId(), actor: "system", type: "observability.metric",
-        payload: { name: "tool_failures_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...(request.replayId ? { replayId: request.replayId } : {}) },
+      // Emit observability metric for tool failure (fail-open via logEvent).
+      await this.logEvent("observability.metric", {
+        name: "tool_failures_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...(request.replayId ? { replayId: request.replayId } : {}),
       });
     }
 
@@ -908,24 +914,27 @@ async function writeOutputToFile(
   const mimeType = typeof output === "string" ? "text/plain" : "application/json";
   const size = Buffer.byteLength(content, "utf8");
 
-  // Emit artifact.created event
+  // Emit artifact.created event (best-effort: the artifact file above is the
+  // authoritative record; a contended EventLog append must not fail the tool).
   const sessionId = sessionDir.split("sessions/").length > 1 ? sessionDir.split("sessions/")[1] : "unknown";
-  await log.append({
-    sessionId,
-    actor: "system",
-    type: ARTIFACT_EVENT_TYPES.CREATED,
-    payload: {
-      artifactId,
-      toolCallId,
-      path: filePath,
-      mimeType,
-      size,
-      retention: "session",
-      ...(correlation.coordinationRunId ? { coordinationRunId: correlation.coordinationRunId } : {}),
-      ...(correlation.agentId ? { agentId: correlation.agentId } : {}),
-      ...(correlation.taskId ? { taskId: correlation.taskId } : {}),
-    } satisfies ArtifactCreatedPayload,
-  });
+  try {
+    await log.append({
+      sessionId,
+      actor: "system",
+      type: ARTIFACT_EVENT_TYPES.CREATED,
+      payload: {
+        artifactId,
+        toolCallId,
+        path: filePath,
+        mimeType,
+        size,
+        retention: "session",
+        ...(correlation.coordinationRunId ? { coordinationRunId: correlation.coordinationRunId } : {}),
+        ...(correlation.agentId ? { agentId: correlation.agentId } : {}),
+        ...(correlation.taskId ? { taskId: correlation.taskId } : {}),
+      } satisfies ArtifactCreatedPayload,
+    });
+  } catch { /* artifact notification is observability, not correctness */ }
 
   return filePath;
 }

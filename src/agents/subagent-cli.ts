@@ -520,13 +520,16 @@ export class SubagentCLI {
     const contextCompiler = new ContextCompiler({ root: projectRoot });
     await contextCompiler.warm();
 
-    // Log subagent start
-    await eventLog.append({
-      actor: "subagent",
-      type: "subagent.started",
-      sessionId,
-      payload: { subagentId: taskId, role, mode, ownedPaths },
-    });
+    // Log subagent start (best-effort: stdout result is authoritative; a
+    // contended EventLog append must not fail the worker before it runs).
+    try {
+      await eventLog.append({
+        actor: "subagent",
+        type: "subagent.started",
+        sessionId,
+        payload: { subagentId: taskId, role, mode, ownedPaths },
+      });
+    } catch { /* lifecycle telemetry is observability, not correctness */ }
 
     // Initialize MCP and tools
     let mcpManager: McpManager | null = null;
@@ -836,13 +839,15 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
       const result = await finalizeResult();
       await mcpManager?.closeAll().catch(() => {});
 
-      // Log completion
-      await eventLog.append({
-        actor: "subagent",
-        type: SUBAGENT_EVENT_TYPES.COMPLETED,
-        sessionId,
-        payload: { subagentId: taskId, role, iterations, textLength: text.length },
-      });
+      // Log completion (best-effort: the stdout result below is authoritative).
+      try {
+        await eventLog.append({
+          actor: "subagent",
+          type: SUBAGENT_EVENT_TYPES.COMPLETED,
+          sessionId,
+          payload: { subagentId: taskId, role, iterations, textLength: text.length },
+        });
+      } catch { /* lifecycle telemetry is observability, not correctness */ }
 
       console.error(`[ledger] tools=${formatToolLedger(toolLedger) || "(none)"} successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
       console.log(formatSubagentResult(result, outputFormat));
@@ -851,12 +856,15 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
 
-      await eventLog.append({
-        actor: "subagent",
-        type: SUBAGENT_EVENT_TYPES.FAILED,
-        sessionId,
-        payload: { subagentId: taskId, role, error: errorMsg },
-      });
+      // Best-effort: the failed result on stdout is authoritative.
+      try {
+        await eventLog.append({
+          actor: "subagent",
+          type: SUBAGENT_EVENT_TYPES.FAILED,
+          sessionId,
+          payload: { subagentId: taskId, role, error: errorMsg },
+        });
+      } catch { /* lifecycle telemetry is observability, not correctness */ }
 
       await mcpManager?.closeAll().catch(() => {});
 

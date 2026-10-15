@@ -137,6 +137,16 @@ export class EventLogCursorError extends Error {
 export class EventLog {
   readonly path: string;
   private nextSeq = 1;
+  /**
+   * Size-gated resync fast path (P3): the byte size of the log the last time
+   * this instance held the append lock. Under the lock, an unchanged size
+   * means no peer appended since our last write, so `nextSeq` is already
+   * correct and the tail read can be skipped — saving two file opens + a read
+   * on every uncontended burst append. `undefined` until primed by `init()`
+   * or the first locked resync; any size change falls through to the tail
+   * read, so multi-writer correctness is unchanged.
+   */
+  private lastKnownSize: number | undefined;
   private watchers: EventListener[] = [];
   private readonly owner = Symbol('EventLogCursorOwner');
 
@@ -148,6 +158,11 @@ export class EventLog {
     await mkdir(dirname(this.path), { recursive: true });
     const events = await this.readAll();
     this.nextSeq = events.reduce((max, e) => Math.max(max, e.seq ?? 0), 0) + 1;
+    try {
+      this.lastKnownSize = existsSync(this.path) ? (await stat(this.path)).size : 0;
+    } catch {
+      this.lastKnownSize = undefined;
+    }
   }
 
   /** The position before the first event — the start for full replay. */
@@ -371,7 +386,12 @@ export class EventLog {
         version: 1,
         timestamp: new Date().toISOString()
       };
+      const lineBytes = Buffer.byteLength(`${JSON.stringify(fullEvent)}\n`, "utf8");
       await appendFile(this.path, `${JSON.stringify(fullEvent)}\n`, "utf8");
+      // Prime the size gate from the observed pre-write size + our own bytes,
+      // so a following uncontended append skips its tail read. A peer write
+      // changes the on-disk size and re-arms the full resync path.
+      if (this.lastKnownSize !== undefined) this.lastKnownSize += lineBytes;
     } finally {
       stopHeartbeat();
       if (lock) {
@@ -403,7 +423,17 @@ export class EventLog {
    *  exceeds it (e.g. a large context bundle) and never degrades to a
    *  whole-file read while any complete line is reachable in the tail. */
   private async resyncFromDisk(): Promise<void> {
-    if (!existsSync(this.path)) return;
+    if (!existsSync(this.path)) {
+      this.lastKnownSize = 0;
+      return;
+    }
+    const size = (await stat(this.path)).size;
+    // Fast path: the file is exactly the size we left it, so no peer wrote
+    // since our last locked resync — nextSeq is already correct. Always
+    // re-prime the gate from the observed size so a stale cache can never
+    // pin us to a skip after an external truncate/replace.
+    if (this.lastKnownSize !== undefined && size === this.lastKnownSize) return;
+    this.lastKnownSize = size;
     const maxSeq = await this.readMaxSeqFromTail();
     if (maxSeq === null) {
       await this.resyncFromFullRead();

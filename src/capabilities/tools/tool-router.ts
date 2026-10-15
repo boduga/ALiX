@@ -113,6 +113,22 @@ export class FileToolRouter implements ToolRouter {
     this.pathResolver = pathResolver ?? new WorkspacePathResolver(this.root);
   }
 
+  /**
+   * Best-effort tool telemetry: a contended EventLog append must never fail
+   * the tool it describes (P0 — the ToolResult is authoritative).
+   */
+  private async emitTelemetry(type: string, payload: Record<string, unknown>): Promise<void> {
+    if (!this.eventLog) return;
+    try {
+      await this.eventLog.append({
+        sessionId: this.sessionId ?? "unknown",
+        actor: "system",
+        type,
+        payload,
+      });
+    } catch { /* tool telemetry is observability, not correctness */ }
+  }
+
   /** Validate a file path through the path resolver. Returns error result if blocked. */
   private checkPath(rawPath: string): ToolResult | null {
     const result = this.pathResolver.check(rawPath);
@@ -247,12 +263,7 @@ export class FileToolRouter implements ToolRouter {
           }
         }
         if (this.eventLog) {
-          await this.eventLog.append({
-            sessionId: this.sessionId ?? "unknown",
-            actor: "system",
-            type: FILE_EVENT_TYPES.CREATED,
-            payload: { path, resolvedPath, root: this.root },
-          });
+          await this.emitTelemetry(FILE_EVENT_TYPES.CREATED, { path, resolvedPath, root: this.root });
         }
         return {
           kind: "success",
@@ -289,12 +300,7 @@ export class FileToolRouter implements ToolRouter {
         try {
           await rm(resolvedPath);
           if (this.eventLog) {
-            await this.eventLog.append({
-              sessionId: this.sessionId ?? "unknown",
-              actor: "system",
-              type: FILE_EVENT_TYPES.DELETED,
-              payload: { path },
-            });
+            await this.emitTelemetry(FILE_EVENT_TYPES.DELETED, { path });
           }
         } catch (e) {
           return { kind: "error", message: `Delete failed: ${e instanceof Error ? e.message : String(e)}` };
@@ -461,6 +467,22 @@ export class PatchToolRouter implements ToolRouter {
     private sessionId?: string
   ) {}
 
+  /**
+   * Best-effort tool telemetry: a contended EventLog append must never fail
+   * the patch it describes (P0 — the ToolResult is authoritative).
+   */
+  private async emitTelemetry(type: string, payload: Record<string, unknown>): Promise<void> {
+    if (!this.eventLog) return;
+    try {
+      await this.eventLog.append({
+        sessionId: this.sessionId ?? "unknown",
+        actor: "system",
+        type,
+        payload,
+      });
+    } catch { /* tool telemetry is observability, not correctness */ }
+  }
+
   canHandle(name: string): boolean {
     return name === "patch.apply";
   }
@@ -497,24 +519,19 @@ export class PatchToolRouter implements ToolRouter {
         : requestedFormat;
     const allowed = policy.allowed.includes(effectiveFormat);
 
-    // Log edit format policy telemetry
+    // Log edit format policy telemetry (best-effort).
     if (this.eventLog) {
-      await this.eventLog.append({
-        sessionId: this.sessionId ?? "unknown",
-        actor: "system",
-        type: "patch.edit_format_policy",
-        payload: {
-          toolCallId: request.toolCallId,
-          provider: policy.provider,
-          requestedFormat: format,
-          effectiveFormat,
-          formatAutoDetected: effectiveFormat !== requestedFormat,
-          preferredFormat: policy.preferred,
-          allowedFormats: policy.allowed,
-          matchesPreference: effectiveFormat === policy.preferred,
-          allowed,
-          fullFileRewrite: policy.fullFileRewrite,
-        },
+      await this.emitTelemetry("patch.edit_format_policy", {
+        toolCallId: request.toolCallId,
+        provider: policy.provider,
+        requestedFormat: format,
+        effectiveFormat,
+        formatAutoDetected: effectiveFormat !== requestedFormat,
+        preferredFormat: policy.preferred,
+        allowedFormats: policy.allowed,
+        matchesPreference: effectiveFormat === policy.preferred,
+        allowed,
+        fullFileRewrite: policy.fullFileRewrite,
       });
     }
 
@@ -540,7 +557,7 @@ export class PatchToolRouter implements ToolRouter {
         const cp = await checkpointManager.create("patch", changedFiles.map((f) => resolve(patchRoot, f)));
         checkpointId = cp.id;
         if (this.eventLog) {
-          await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.checkpoint_created", payload: { toolCallId, checkpointId: cp.id, files: changedFiles } });
+          await this.emitTelemetry("patch.checkpoint_created", { toolCallId, checkpointId: cp.id, files: changedFiles });
         }
       } catch {
         // Continue without checkpoint
@@ -556,12 +573,7 @@ export class PatchToolRouter implements ToolRouter {
 
       if (patchResult.status === "applied") {
         if (this.eventLog) {
-          await this.eventLog.append({
-            sessionId: this.sessionId ?? "unknown",
-            actor: "system",
-            type: PATCH_EVENT_TYPES.CHANGED_FILES,
-            payload: { changedFiles: patchResult.changedFiles },
-          });
+          await this.emitTelemetry(PATCH_EVENT_TYPES.CHANGED_FILES, { changedFiles: patchResult.changedFiles });
         }
         return { kind: "success", changedFiles: patchResult.changedFiles };
       }
@@ -570,16 +582,16 @@ export class PatchToolRouter implements ToolRouter {
       // Rollback on failure
       if (checkpointId) {
         if (this.eventLog) {
-          await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_started", payload: { toolCallId, checkpointId, files: changedFiles } });
+          await this.emitTelemetry("patch.rollback_started", { toolCallId, checkpointId, files: changedFiles });
         }
         try {
           await checkpointManager.restore(checkpointId);
           if (this.eventLog) {
-            await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_completed", payload: { toolCallId, checkpointId, files: changedFiles } });
+            await this.emitTelemetry("patch.rollback_completed", { toolCallId, checkpointId, files: changedFiles });
           }
         } catch (rollbackError: unknown) {
           if (this.eventLog) {
-            await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_failed", payload: { toolCallId, checkpointId, error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError) } });
+            await this.emitTelemetry("patch.rollback_failed", { toolCallId, checkpointId, error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError) });
           }
         }
       }
@@ -594,6 +606,22 @@ export class McpToolRouter implements ToolRouter {
     private eventLog?: EventLog,
     private sessionId?: string
   ) {}
+
+  /**
+   * Best-effort tool telemetry: a contended EventLog append must never fail
+   * the tool it describes (P0 — the ToolResult is authoritative).
+   */
+  private async emitTelemetry(type: string, payload: Record<string, unknown>): Promise<void> {
+    if (!this.eventLog) return;
+    try {
+      await this.eventLog.append({
+        sessionId: this.sessionId ?? "unknown",
+        actor: "system",
+        type,
+        payload,
+      });
+    } catch { /* tool telemetry is observability, not correctness */ }
+  }
 
   canHandle(name: string): boolean {
     return name.startsWith("mcp.") && this.mcpManager !== null;
@@ -619,12 +647,7 @@ export class McpToolRouter implements ToolRouter {
       const result = await this.mcpManager.callTool(fullName, request.args);
       const durationMs = Date.now() - startTime;
       if (this.eventLog) {
-        await this.eventLog.append({
-          sessionId: this.sessionId ?? "unknown",
-          actor: "system",
-          type: MCP_EVENT_TYPES.TOOL_INVOKED,
-          payload: { serverName, toolName: fullName, durationMs },
-        });
+        await this.emitTelemetry(MCP_EVENT_TYPES.TOOL_INVOKED, { serverName, toolName: fullName, durationMs });
       }
       return result;
     } catch (e: unknown) {

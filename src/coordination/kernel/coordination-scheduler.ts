@@ -51,6 +51,12 @@ export { DEFAULT_ORPHAN_THRESHOLD_MS };
 export const DEFAULT_MAX_DISPATCH_PER_TICK = 5;
 export const DEFAULT_RUN_POLL_INTERVAL_MS = 1_000;
 export const DEFAULT_MAX_IDLE_TICKS = 5;
+/**
+ * Watchdog ceiling for the event-driven `runUntilIdle` loop (P4): while
+ * workers are active, full ticks run on worker settlement or at least this
+ * often — never every poll. Per-run override via `RunUntilIdleOptions`.
+ */
+export const DEFAULT_ACTIVE_WATCHDOG_INTERVAL_MS = 5_000;
 export const DEFAULT_RUN_TIMEOUT_MS = 30 * 60_000;
 /** Per-worker execution ceiling: a worker that starts but never settles
  * within this budget is aborted and failed (was: silent stall until the
@@ -155,6 +161,12 @@ export type RunUntilIdleOptions = {
   maxIdleTicks?: number;
   /** Per-worker execution ceiling (ms), overrides the scheduler default. */
   workerTimeoutMs?: number;
+  /**
+   * Full-tick watchdog while workers are active (ms). Defaults to
+   * `min(max(pollIntervalMs * 5, 1000), 5000)`: ticks run on worker
+   * settlement or at least this often — never every poll.
+   */
+  watchdogIntervalMs?: number;
 };
 
 // ─── CoordinationScheduler ──────────────────────────────────────────────
@@ -733,16 +745,51 @@ export class CoordinationScheduler {
     const timeoutMs = options.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS;
     const maxIdleTicks = options.maxIdleTicks ?? DEFAULT_MAX_IDLE_TICKS;
     const workerTimeoutMs = options.workerTimeoutMs ?? this.options.workerTimeoutMs;
+    const watchdogIntervalMs = options.watchdogIntervalMs ??
+      Math.min(Math.max(pollIntervalMs * 5, 1_000), DEFAULT_ACTIVE_WATCHDOG_INTERVAL_MS);
     const clock = this.deps.clock ?? systemClock;
 
     let cycles = 0;
     let totalDispatched = 0;
     let totalFailed = 0;
     let idleTicks = 0;
+    // Event-driven cadence (P4): while workers are active, the loop waits on
+    // settlement instead of ticking every poll. A full tick runs only when a
+    // worker settled since the last tick, the watchdog elapsed, a timeout
+    // reap fired, or no workers are active (dispatch/idle detection still
+    // needs its poll). Frequency-of-check (cheap waits + reaps) is separated
+    // from what each cycle records (the tick's reconcile/dispatch/observe).
+    let lastFullTickAt = 0;
+    let lastTickActiveCount = -1;
 
     while (performance.now() - start < timeoutMs) {
+      // Cheap watchdog first: reap hung workers at the per-worker ceiling so
+      // a parked future surfaces as a timeout without waiting for a tick.
+      // Idempotent with tick()'s own reap — the second call is a no-op.
+      const reapedEarly = await this.reapTimedOutWorkers(runId, workerTimeoutMs);
+      totalFailed += reapedEarly;
+      const activeForRun =
+        [...this.activeExecutions.values()].filter(e => e.runId === runId);
+      const now = performance.now();
+      const watchdogDue =
+        lastFullTickAt === 0 || (now - lastFullTickAt) >= watchdogIntervalMs;
+      if (
+        activeForRun.length > 0 &&
+        !watchdogDue &&
+        activeForRun.length === lastTickActiveCount &&
+        reapedEarly === 0
+      ) {
+        // Workers active, none settled, watchdog not due, no reap: wait for
+        // a settlement or the poll slice — no full tick, no idle counting.
+        await Promise.race([...activeForRun.map(e => e.promise), clock.sleep(pollIntervalMs)]);
+        continue;
+      }
+
       const result = await this.tick(runId);
       cycles++;
+      lastFullTickAt = performance.now();
+      lastTickActiveCount =
+        [...this.activeExecutions.values()].filter(e => e.runId === runId).length;
       totalDispatched += result.dispatched.length;
 
       if (result.runStatus === "completed") {
@@ -757,18 +804,11 @@ export class CoordinationScheduler {
         return { runId, finalStatus: "cancelled", stopReason: "cancelled", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
       }
 
-      // Don't idle while active executions exist
-      let activeForRun = [...this.activeExecutions.values()].filter(e => e.runId === runId);
-      // Watchdog: reap workers whose execution outlives the per-worker
-      // ceiling. Without this a parked runTask future stalls the loop
-      // until the whole-run budget (default 30 min) expires with no
-      // signal. The dangling promise is left to settle; the abort tells
-      // cooperative executors to stop.
-      totalFailed += await this.reapTimedOutWorkers(runId, workerTimeoutMs);
-      activeForRun = [...this.activeExecutions.values()].filter(e => e.runId === runId);
-      if (activeForRun.length > 0) {
+      // While workers are active the run cannot idle out and an approval wait
+      // on one worker must not stop the others: keep waiting on settlement
+      // (the loop head does the event-driven wait) instead of counting idle.
+      if (lastTickActiveCount > 0) {
         idleTicks = 0;
-        await Promise.race([...activeForRun.map(e => e.promise), clock.sleep(pollIntervalMs)]);
         continue;
       }
 

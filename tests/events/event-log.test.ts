@@ -132,6 +132,27 @@ describe("EventLog", () => {
   });
 
   // #688: a lock whose owner is demonstrably dead is reclaimed promptly.
+  it("size-gated resync still observes a peer append (no stale seq)", async () => {
+    // P3 fast-path regression: instance A's second append must not reuse a
+    // cached seq when a peer wrote between its appends.
+    const logA = new EventLog(dir);
+    await logA.init();
+    const a1 = await logA.append({ sessionId: "sA", type: "session.started", actor: "system", payload: {} });
+    assert.equal(a1.seq, 1);
+
+    const logB = new EventLog(dir);
+    await logB.init();
+    const b1 = await logB.append({ sessionId: "sB", type: "agent.response", actor: "agent", payload: {} });
+    assert.equal(b1.seq, 2);
+
+    // A's cache still reflects its own first append; the peer write changed
+    // the on-disk size, so A must resync and allocate 3 — never 2.
+    const a2 = await logA.append({ sessionId: "sA", type: "user.message", actor: "user", payload: {} });
+    assert.equal(a2.seq, 3);
+    const seqs = (await logA.readAll()).map(e => e.seq ?? -1);
+    assert.equal(new Set(seqs).size, seqs.length, `duplicate seqs: ${seqs.join(',')}`);
+  });
+
   it("reclaims a stale lock left by a dead process", async () => {
     const log = new EventLog(dir);
     await log.init();
