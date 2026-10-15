@@ -40,23 +40,29 @@ export async function measurePhase<T>(
   if (!log) return work();
 
   const timingId = randomUUID();
-  await log.append({
-    sessionId,
-    actor: "system",
-    type: "runtime.phase.started",
-    payload: { timingId, operation, metadata } as TimingEventPayload,
-  });
+  // Fail-open: timing events are observability — the wrapped work is
+  // authoritative, and a contended EventLog append must never fail it.
+  try {
+    await log.append({
+      sessionId,
+      actor: "system",
+      type: "runtime.phase.started",
+      payload: { timingId, operation, metadata } as TimingEventPayload,
+    });
+  } catch { /* timing telemetry is observability, not correctness */ }
 
   const startTime = performance.now();
   try {
     const result = await work();
     const durationMs = Math.round((performance.now() - startTime) * 100) / 100;
-    await log.append({
-      sessionId,
-      actor: "system",
-      type: "runtime.phase.completed",
-      payload: { timingId, operation, durationMs, outcome: "success", metadata } as TimingEventPayload,
-    });
+    try {
+      await log.append({
+        sessionId,
+        actor: "system",
+        type: "runtime.phase.completed",
+        payload: { timingId, operation, durationMs, outcome: "success", metadata } as TimingEventPayload,
+      });
+    } catch { /* timing telemetry is observability, not correctness */ }
     return result;
   } catch (e: any) {
     const durationMs = Math.round((performance.now() - startTime) * 100) / 100;

@@ -9,7 +9,9 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 - `tool-manifest.ts` maps canonical `alix_*` names to internal executor IDs.
 - `tool-name-resolver.ts` resolves ONLY the exact names offered in the current turn. Executor IDs are never accepted from a caller.
 - `tool-policy.ts` applies role-based tool access.
-- `subagent-cli.ts` builds and runs worker turns.
+- `subagent-cli.ts` builds and runs worker turns. Its lifecycle appends
+  (`subagent.started/completed/failed`) are best-effort: the stdout result is
+  authoritative, so a contended EventLog append must never fail the worker.
 - `subagent-manager.ts` — subagent lifecycle (spawn/cancel/shutdown) and the
   chat-path ownership lease point: write tasks with `ownedPaths` acquire
   durable `src/coordination/ownership/ownership-registry.ts` leases at spawn (workspace root

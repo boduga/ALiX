@@ -110,6 +110,16 @@
   and Inspector hosts wire the sink; short-lived reclaim schedulers may omit
   it. Pinned by `tests/kernel/coordination-scheduler.test.ts`
   (`records scheduler metrics on the MetricsSink path`).
+- **`runUntilIdle` is event-driven while workers are active (P4).** The loop
+  waits on worker settlement instead of ticking every poll: a full tick runs
+  only when a worker settled since the last tick, the watchdog elapsed
+  (`watchdogIntervalMs`, default `min(max(pollIntervalMs * 5, 1000), 5000)`),
+  a timeout reap fired, or no workers are active (dispatch/idle detection keeps
+  its poll). The cheap timeout reap still runs every iteration so hung workers
+  surface at `workerTimeoutMs`, and an active run never idles out or returns
+  `awaiting_approval` while its workers run. Pinned by
+  `tests/kernel/coordination-scheduler.test.ts`
+  (`runUntilIdle event-driven cadence`).
 - **Worker liveness is ONE verdict (R3.3).** `shouldReclaimWorker` in
   `owner-liveness.ts` merges the two pre-R3 rules (heartbeat staleness in
   reconciliation, PID probe in resume) that disagreed: reconciliation used to

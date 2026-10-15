@@ -161,22 +161,6 @@ function untraced(req: ReturnType<typeof toolCallReq>): ReturnType<typeof toolCa
   return copy;
 }
 
-/**
- * Minimal EventLog-shaped stub with a deliberate append failure so a throw (or
- * cancellation) can be forced deterministically out of dispatch — the executor
- * awaits log.append for tool.requested BEFORE any router work (the same lighter
- * seam tests/tools/tool-span-wiring.vitest.ts uses).
- */
-function failLog(append: (event: { type: string }) => void): EventLog {
-  return {
-    sessionDir: join(tmpdir(), "sessions", "t18-fail"),
-    append: async (event: { type: string }) => {
-      append(event);
-    },
-    readAll: async () => [],
-  } as unknown as EventLog;
-}
-
 interface Harness {
   dir: string;
   executor: ToolExecutor;
@@ -410,14 +394,19 @@ describe("T18 tool exactly-once at the shared recorder surface", () => {
     // A REAL cancellation token produces the error (an operator cancel before
     // the awaited step completes): token.cancel() then throwIfCancelled() throw
     // the genuine ExecutionCancelledError the executor maps to "cancelled".
+    // It is thrown out of dispatch itself — a failing log stub can no longer
+    // stand in, because tool telemetry is fail-open.
     const token = new CancellationToken();
     token.cancel("operator cancelled tool");
 
-    const h = await makeHarness({
-      log: failLog((event) => {
-        if (event.type === "tool.requested") token.throwIfCancelled();
-      }),
-    });
+    const h = await makeHarness();
+    const dispatch = h.executor as unknown as { dispatch: (r: unknown) => Promise<unknown> };
+    const dispatchSpy = vi
+      .spyOn(dispatch, "dispatch")
+      .mockImplementation((): Promise<unknown> => {
+        token.throwIfCancelled();
+        throw new Error("unreachable: token is pre-cancelled");
+      });
     const req = toolCallReq({ runId });
 
     let tracedErr: unknown;

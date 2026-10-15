@@ -946,3 +946,94 @@ describe("CoordinationScheduler — tick.completed emission gating", () => {
     await scheduler.shutdown();
   });
 });
+
+// ── runUntilIdle event-driven cadence (P4) ──────────────────────────────
+//
+// While workers are active the loop waits on settlement instead of ticking
+// every poll: a full tick runs only on settlement, watchdog expiry, reap, or
+// idle dispatch. Pinned because the old tick-every-poll loop ran ~240 cycles
+// for a 241s run, each tick doing reconcile + store loads for no new
+// information.
+
+describe("CoordinationScheduler — runUntilIdle event-driven cadence", () => {
+  let cwd: string;
+  let store: CoordinationStore;
+  let registry: OwnershipRegistry;
+
+  function build(executor: any) {
+    return new CoordinationScheduler({
+      cwd,
+      daemonInstanceId: "daemon-cadence",
+      configProvider: async () => minimalConfig(),
+      store,
+      authorization: allowAllAuth(),
+      ownershipRegistry: registry,
+      executor,
+    }, { maxConcurrency: 4, orphanThresholdMs: 60000 });
+  }
+
+  async function seedOneWorker(runGoal = "cadence") {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: runGoal, coordinatorAgentId: "alix" });
+    await store.save(run);
+    const w = createWorkerAssignment({ coordinationRunId: run.id, agentId: "a", taskLabel: "w", goalPrompt: "do", requiredCapabilities: ["task.do"], attempt: 0, maxAttempts: 3 });
+    await store.addWorker(run.id, w);
+    return { run, worker: w };
+  }
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "coord-cadence-"));
+    store = new CoordinationStore(cwd);
+    registry = new OwnershipRegistry(cwd, { sessionId: "cadence-session" });
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  // Workload: one 300ms run budget bounds a worker that never settles; the
+  // timeout below is the workload bound, not a tight assertion (slow runners
+  // must not flake: the loop exits on timeoutMs, never on tick count).
+  it("ticks once while a worker runs past the timeout (no per-poll ticks)", { timeout: 30_000 }, async () => {
+    const { executor } = createDeferredExecutor(); // never settles
+    const scheduler = build(executor);
+    const { run } = await seedOneWorker("cadence-timeout");
+    // Watchdog (1000ms default at poll 10) exceeds the run timeout, and the
+    // worker never settles: exactly the dispatch tick, then event-driven
+    // waits until the timeout — the old loop would tick ~30 times here.
+    const result = await scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 300, workerTimeoutMs: 60_000 });
+    assert.equal(result.stopReason, "timeout");
+    assert.ok(result.cycles <= 2, `expected ~1 tick, got ${result.cycles}`);
+    assert.ok(result.cycles >= 1);
+    await scheduler.shutdown();
+  });
+
+  // Workload: same never-settling worker with a 50ms watchdog over a 300ms
+  // budget; generous timeout so loaded CI never flakes on the wall clock.
+  it("watchdog ticks bound idle polling while workers hang", { timeout: 30_000 }, async () => {
+    const { executor } = createDeferredExecutor(); // never settles
+    const scheduler = build(executor);
+    const { run } = await seedOneWorker("cadence-watchdog");
+    // A 50ms watchdog over 300ms: a handful of ticks — far below per-poll (~30).
+    const result = await scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 300, workerTimeoutMs: 60_000, watchdogIntervalMs: 50 });
+    assert.equal(result.stopReason, "timeout");
+    assert.ok(result.cycles >= 2, `watchdog should tick more than once, got ${result.cycles}`);
+    assert.ok(result.cycles <= 12, `watchdog must bound ticks, got ${result.cycles}`);
+    await scheduler.shutdown();
+  });
+
+  // Workload: worker resolves at ~50ms; the 5s budget leaves wide margin for
+  // slow runners — assertions are on completion/dispatch, never exact timing.
+  it("a settling worker wakes the loop promptly and completes", { timeout: 30_000 }, async () => {
+    const { executor, pending } = createDeferredExecutor();
+    const scheduler = build(executor);
+    const { run, worker } = await seedOneWorker("cadence-settle");
+    setTimeout(() => {
+      pending.get(worker.id)?.resolve({ outcome: "success" });
+    }, 50);
+    const result = await scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 5000 });
+    assert.equal(result.finalStatus, "completed");
+    assert.equal(result.dispatched, 1);
+    assert.ok(result.cycles <= 8, `settlement should complete in a few ticks, got ${result.cycles}`);
+    await scheduler.shutdown();
+  });
+});

@@ -328,4 +328,21 @@ describe("Tool Executor Events", () => {
     // Should proceed past intent filter — may fail on disk I/O, but not on intent
     assert.notEqual(afterClear.message, "Tool \"file.create\" is not available for the current task intent", "after clearIntent, file.create should not be blocked");
   });
+
+  it("tool execution survives EventLog append failure (telemetry is fail-open)", async () => {
+    // P0: under cross-process lock contention an append can throw (5s
+    // acquisition deadline). That must never turn a successful tool into a
+    // failure — the ToolResult is authoritative, the event is best-effort.
+    const throwingLog = {
+      sessionDir: testDir,
+      append: async () => { throw new Error("Timed out acquiring EventLog append lock"); },
+    };
+    const executor = new ToolExecutor(config, throwingLog as any, testDir);
+    const result = await executor.execute({
+      toolCallId: `read_failopen_${Date.now()}`,
+      name: "file.read",
+      args: { path: "test.txt" },
+    }) as any;
+    assert.equal(result.kind, "success", "tool must succeed even when telemetry appends throw");
+  });
 });

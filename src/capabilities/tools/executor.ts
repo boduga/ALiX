@@ -2,6 +2,7 @@ import "node:fs";
 import "node:fs/promises";
 import { resolve } from "node:path";
 import { hashArgs } from "./hash-args.js";
+import { emitToolTelemetry } from "./telemetry.js";
 import type { AlixConfig } from "../../operations/config/schema.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
@@ -220,7 +221,7 @@ export class ToolExecutor {
   }
 
   private async logEvent(type: string, payload: Record<string, unknown>): Promise<void> {
-    await this.log.append({ sessionId: this.sessionId(), actor: "system", type, payload });
+    await emitToolTelemetry(this.log, this.sessionId(), type, payload);
   }
 
   /**
@@ -639,10 +640,10 @@ export class ToolExecutor {
       ...agentPayload,
       ...(request.replayId ? { replayId: request.replayId } : {}),
     });
-    // Emit observability metric for tool call
-    await this.log.append({
-      sessionId: this.sessionId(), actor: "system", type: "observability.metric",
-      payload: { name: "tool_calls_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...(request.replayId ? { replayId: request.replayId } : {}) },
+    // Emit observability metric for tool call (via fail-open logEvent: a
+    // contended append must not fail the tool).
+    await this.logEvent("observability.metric", {
+      name: "tool_calls_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...(request.replayId ? { replayId: request.replayId } : {}),
     });
 
     // Verify argument hash match before execution (M0.9 permissive placeholder)
@@ -806,10 +807,9 @@ export class ToolExecutor {
         ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
-      // Emit observability metric for tool failure
-      await this.log.append({
-        sessionId: this.sessionId(), actor: "system", type: "observability.metric",
-        payload: { name: "tool_failures_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...(request.replayId ? { replayId: request.replayId } : {}) },
+      // Emit observability metric for tool failure (fail-open via logEvent).
+      await this.logEvent("observability.metric", {
+        name: "tool_failures_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...(request.replayId ? { replayId: request.replayId } : {}),
       });
     }
 
@@ -908,24 +908,20 @@ async function writeOutputToFile(
   const mimeType = typeof output === "string" ? "text/plain" : "application/json";
   const size = Buffer.byteLength(content, "utf8");
 
-  // Emit artifact.created event
+  // Emit artifact.created event (best-effort via emitToolTelemetry: the
+  // artifact file above is the authoritative record).
   const sessionId = sessionDir.split("sessions/").length > 1 ? sessionDir.split("sessions/")[1] : "unknown";
-  await log.append({
-    sessionId,
-    actor: "system",
-    type: ARTIFACT_EVENT_TYPES.CREATED,
-    payload: {
-      artifactId,
-      toolCallId,
-      path: filePath,
-      mimeType,
-      size,
-      retention: "session",
-      ...(correlation.coordinationRunId ? { coordinationRunId: correlation.coordinationRunId } : {}),
-      ...(correlation.agentId ? { agentId: correlation.agentId } : {}),
-      ...(correlation.taskId ? { taskId: correlation.taskId } : {}),
-    } satisfies ArtifactCreatedPayload,
-  });
+  await emitToolTelemetry(log, sessionId, ARTIFACT_EVENT_TYPES.CREATED, {
+    artifactId,
+    toolCallId,
+    path: filePath,
+    mimeType,
+    size,
+    retention: "session",
+    ...(correlation.coordinationRunId ? { coordinationRunId: correlation.coordinationRunId } : {}),
+    ...(correlation.agentId ? { agentId: correlation.agentId } : {}),
+    ...(correlation.taskId ? { taskId: correlation.taskId } : {}),
+  } satisfies ArtifactCreatedPayload);
 
   return filePath;
 }
