@@ -23,8 +23,10 @@ The CSV heuristic missed these because it keyed on implementation grep, not refe
 | 4 | `docs/agents/triage-labels.md` | Root `AGENTS.md:205` | `implemented` |
 | 5 | `docs/superpowers/AGENTS.md` | DOX child doc; indexed by `docs/AGENTS.md` and root `AGENTS.md` | `implemented` |
 | 6 | `docs/dox-executor-id-baseline.txt` | Consumed by `scripts/check-dox-claims.mjs` (`BASELINE_PATH`); CI gate input | `implemented` |
-| 7 | `docs/governance/governance-model.md` | "Part of: P5.7e Documentation Freeze" header; invariant table (Generate≠Approve, Approve≠Apply, …) matches the R1.5 fail-closed contract; linked from `docs/README.md` Governance Model row | `implemented` |
-| 8 | `docs/governance/adaptation-lifecycle.md` | "Part of: P5.7e Documentation Freeze" header; proposal status flow; cross-linked to governance-model and operational-runbook; linked from `docs/README.md` Integrator row | `implemented` |
+| 7 | `docs/governance/governance-model.md` | P5.7e header (`:4-5`) **plus** invariant rows Generate≠Approve / Approve≠Apply (`:17-18`) enforced by `src/runtime-state/runtime/execution-authorization.ts:41 evaluate()` and pinned by `tests/architecture/r15-authorization.test.ts`; linked from `docs/README.md` Governance Model row | `implemented` |
+| 8 | `docs/governance/adaptation-lifecycle.md` | P5.7e header (`:4-5`), Proposal Status Flow (`:12`), cross-links to governance-model and operational-runbook (`:5`); linked from `docs/README.md` Integrator row | `implemented` |
+
+No circularity: row 1 rests on inbound refs from `tests/` + architecture plans, not on rows 7–8; rows 7–8 rest on code-enforced invariants plus the README link, not on each other. The held docs fail this bar the other way: self-banner with archive-only inbound and no code-enforced counterpart.
 
 **Disposition for all eight:** `docs/current/ (keep in place; load-bearing - do not relocate).`
 Confidence raised Low → High with per-row evidence above. Counts now
@@ -53,13 +55,14 @@ expanding the 841-row inventory scope would corrupt the audit's fixed baseline.
 
 ## Validation (B0)
 
-1. `python3 csv` parse: 841 rows, 12 cols, header intact, unique paths, classification domain clean; counts 443/335/63 match `document-inventory.md`.
-2. Reference re-checks for all 8 promoted paths re-run; each resolves.
-3. `pnpm check:dox` exit 0; `git diff --check` clean.
+1. `python3 csv` parse: 841 rows, 12 cols, header intact, unique paths, classification domain clean; counts 443/335/63 match `document-inventory.md`. (Command + assertions recorded in the B0 work log; re-runnable.)
+2. Reference re-checks for all 8 promoted paths re-run on this branch: 8 files exist; root `AGENTS.md:201/205/209` cite the three agent guides; `BASELINE_PATH` read in `scripts/check-dox-claims.mjs`; P5.7e headers at `governance-model.md:4-5` / `adaptation-lifecycle.md:4-5`.
+3. `pnpm check:dox` exit 0. `git diff --check` reports 8 trailing-whitespace notes — exclusively the files' uniform CRLF endings (842/842 lines), i.e. convention parity, not introduced errors.
 4. Rollback: revert this commit — no filesystem change to undo.
 
 ## Still blocked / not approved
 
 - Any `git mv` (B1 archive moves, B2 handoffs, B3 MVP specs, B4 subtree moves) — **not approved.**
-- SRAP-1 implementation — design reconciliation delivered; implementation stays gated
-  on explicit approval. The design document remains untracked by separate decision.
+
+> Note: this manifest supersedes its own working-tree draft — the draft was read
+> during B0 execution and finalized here, since it could not pre-exist on `main`.
