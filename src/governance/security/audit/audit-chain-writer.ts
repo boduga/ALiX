@@ -88,6 +88,23 @@ function isAuditAction(action: string): boolean {
   return action.startsWith("audit.");
 }
 
+/**
+ * A fail-closed head-reconciliation outcome. Only this error class is reported
+ * through `audit.recovery`; any other throw from reconciliation is a defect and
+ * must not be mislabeled as a recovery failure.
+ */
+class AuditRecoveryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuditRecoveryError";
+  }
+}
+
+/** Build a fail-closed recovery error with the canonical prefix. */
+function recoveryError(detail: string): AuditRecoveryError {
+  return new AuditRecoveryError(`Audit chain recovery failed: ${detail}`);
+}
+
 // ---------------------------------------------------------------------------
 // Redacting adapter
 // ---------------------------------------------------------------------------
@@ -305,18 +322,55 @@ function parseTipLine(line: string): TipParse {
 // Chain Writer
 // ---------------------------------------------------------------------------
 
+/**
+ * Out-of-band recovery telemetry. Head reconciliation restores the sidecar to
+ * match evidence that is already committed to the JSONL chain; it is an
+ * internal maintenance operation, not a new audit fact. These events are
+ * therefore reported through an optional callback and are NEVER written into
+ * the hash chain (no sequence is consumed, no JSONL is modified).
+ *
+ * A successful repair and a fail-closed recovery are distinct events with
+ * distinct payloads.
+ */
+export interface AuditSidecarRecoveredEvent {
+  action: "audit.stale_sidecar_recovered";
+  /** The stale sidecar's seq, or 0 when the sidecar was missing. */
+  previousSeq: number;
+  /** The verified persisted tip the sidecar was advanced to. */
+  recoveredSeq: number;
+  timestamp: string;
+}
+
+/** Emitted when recovery fails closed. Never asserts that a repair happened. */
+export interface AuditRecoveryFailedEvent {
+  action: "audit.recovery";
+  outcome: "failed";
+  reason: string;
+  timestamp: string;
+}
+
+export type AuditRecoveryEvent = AuditSidecarRecoveredEvent | AuditRecoveryFailedEvent;
+
 export interface AuditChainWriterConfig {
   /** Directory for the audit log, head sidecar, and lock file. */
   auditDir: string;
 
   /** Lock options forwarded to the lock module. */
   lock?: LockOptions;
+
+  /**
+   * Optional out-of-band recovery telemetry sink. Called only after a sidecar
+   * repair succeeds, or when a recovery attempt fails closed. Throwing from
+   * this callback NEVER affects audit-chain integrity or the append outcome.
+   */
+  onRecovery?: (event: AuditRecoveryEvent) => void;
 }
 
 export class AuditChainWriter {
   private auditDir: string;
   private lockPath: string;
   private lockOptions: LockOptions;
+  private onRecovery?: (event: AuditRecoveryEvent) => void;
   /** Per-instance guard against recursive audit emission. */
   private auditGuard = false;
 
@@ -324,6 +378,20 @@ export class AuditChainWriter {
     this.auditDir = config.auditDir;
     this.lockPath = join(config.auditDir, LOCK_FILENAME);
     this.lockOptions = config.lock ?? {};
+    this.onRecovery = config.onRecovery;
+  }
+
+  /**
+   * Emit out-of-band recovery telemetry. Never throws: a telemetry sink
+   * failure must not affect chain integrity or the append outcome.
+   */
+  private emitRecovery(event: AuditRecoveryEvent): void {
+    if (!this.onRecovery) return;
+    try {
+      this.onRecovery(event);
+    } catch {
+      // Telemetry is best-effort; swallow so recovery/append is unaffected.
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -477,15 +545,33 @@ export class AuditChainWriter {
    * Recovery NEVER truncates, rewrites, or discards committed records.
    */
   private async reconcileHead(): Promise<AuditHead | null> {
+    try {
+      return await this.reconcileHeadInner();
+    } catch (error) {
+      // Fail-closed recovery: report the failure out-of-band without asserting
+      // any repair. Only a genuine recovery verdict emits telemetry; any other
+      // throw is a defect and must not be mislabeled as a recovery failure.
+      if (error instanceof AuditRecoveryError) {
+        this.emitRecovery({
+          action: "audit.recovery",
+          outcome: "failed",
+          reason: error.message,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      throw error;
+    }
+  }
+
+  private async reconcileHeadInner(): Promise<AuditHead | null> {
     const sidecar = readHead(this.headPath);
     const tip = readPersistedTip(this.auditPath);
 
     // A final record larger than the bounded tail window cannot be parsed
     // safely — fail closed rather than misread a partial line.
     if (tip.truncated) {
-      throw new Error(
-        "Audit chain recovery failed: the last audit record exceeds the bounded tail " +
-          "read window; refusing to allocate a sequence.",
+      throw recoveryError(
+        "the last audit record exceeds the bounded tail read window; refusing to allocate a sequence.",
       );
     }
 
@@ -494,9 +580,9 @@ export class AuditChainWriter {
       // A sidecar with no persisted record means the log was emptied or lost
       // after the chain was written — conflicting, not genesis. Fail closed.
       if (sidecar !== null) {
-        throw new Error(
-          "Audit chain recovery failed: a head sidecar exists but the audit log has no " +
-            "records; refusing to allocate a sequence over lost committed evidence.",
+        throw recoveryError(
+          "a head sidecar exists but the audit log has no records; refusing to allocate " +
+            "a sequence over lost committed evidence.",
         );
       }
       return null;
@@ -509,15 +595,15 @@ export class AuditChainWriter {
       // never activated. Once a sidecar records an activation, the persisted v2
       // chain must exist; a legacy tip then means the v2 records were lost.
       if (sidecar === null) return null;
-      throw new Error(
-        "Audit chain recovery failed: activation was recorded but the audit log has no " +
-          "verified v2 chain (legacy tail); refusing to allocate a sequence.",
+      throw recoveryError(
+        "activation was recorded but the audit log has no verified v2 chain (legacy " +
+          "tail); refusing to allocate a sequence.",
       );
     }
     if (parsed.kind === "malformed") {
-      throw new Error(
-        "Audit chain recovery failed: the last audit record is malformed; " +
-          "refusing to allocate a sequence and refusing to rewrite committed evidence.",
+      throw recoveryError(
+        "the last audit record is malformed; refusing to allocate a sequence and " +
+          "refusing to rewrite committed evidence.",
       );
     }
 
@@ -542,8 +628,8 @@ export class AuditChainWriter {
     });
     const structural = verified.findings.filter((f) => f.type !== "head_mismatch");
     if (structural.length > 0) {
-      throw new Error(
-        `Audit chain recovery failed: persisted chain is not verifiable (${structural
+      throw recoveryError(
+        `persisted chain is not verifiable (${structural
           .map((f) => f.type)
           .join(", ")}); refusing to allocate a sequence.`,
       );
@@ -552,9 +638,9 @@ export class AuditChainWriter {
     const last = verified.tip;
     if (last === null) {
       // The persisted tip parsed as a v2 record, so a verified chain must exist.
-      throw new Error(
-        "Audit chain recovery failed: persisted tip is a v2 record but the verified " +
-          "chain has no records; refusing to allocate a sequence.",
+      throw recoveryError(
+        "persisted tip is a v2 record but the verified chain has no records; " +
+          "refusing to allocate a sequence.",
       );
     }
 
@@ -568,8 +654,8 @@ export class AuditChainWriter {
         verified.requestedRecord.recordHash === sidecar.recordHash);
 
     if (!sidecarIsAncestor) {
-      throw new Error(
-        `Audit chain recovery failed: head sidecar (seq ${sidecar?.seq ?? "none"}, hash ${
+      throw recoveryError(
+        `head sidecar (seq ${sidecar?.seq ?? "none"}, hash ${
           sidecar?.recordHash ?? "none"
         }) is not a verified ancestor of the persisted tip (seq ${last.seq}); refusing to reconcile.`,
       );
@@ -587,6 +673,16 @@ export class AuditChainWriter {
 
     // Heal the sidecar for future appends. Never touches the JSONL.
     writeHeadAtomic(this.headPath, recovered);
+
+    // Out-of-band telemetry: the sidecar was repaired to match committed
+    // evidence. No chained record is written and no sequence is consumed.
+    this.emitRecovery({
+      action: "audit.stale_sidecar_recovered",
+      previousSeq: sidecar?.seq ?? 0,
+      recoveredSeq: recovered.seq,
+      timestamp: new Date().toISOString(),
+    });
+
     return recovered;
   }
 

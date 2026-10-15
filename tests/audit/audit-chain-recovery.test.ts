@@ -13,11 +13,11 @@
 
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, appendFileSync, existsSync, unlinkSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, appendFileSync, existsSync, unlinkSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { AuditStore } from "../../src/governance/audit/audit-store.js";
-import { AuditChainWriter } from "../../src/governance/security/audit/audit-chain-writer.js";
+import { AuditChainWriter, type AuditRecoveryEvent, type AuditRecoveryFailedEvent } from "../../src/governance/security/audit/audit-chain-writer.js";
 import { verifyAuditLog } from "../../src/governance/security/audit/audit-verifier.js";
 import { isAuditRecordV2 } from "../../src/governance/audit/audit-types.js";
 
@@ -308,5 +308,163 @@ describe("audit-chain crash recovery (P1)", () => {
     assert.deepEqual(seqs, Array.from({ length: 12 }, (_, i) => i + 2));
     const v = await new AuditStore(cwd).verifyIntegrity();
     assert.ok(v.ok, `expected ok: ${JSON.stringify(v.findings)}`);
+  });
+});
+
+describe("audit-chain recovery telemetry (out-of-band, no chained record)", () => {
+  let cwd: string;
+  let paths: ReturnType<typeof auditPaths>;
+  let events: AuditRecoveryEvent[];
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "audit-recovery-telemetry-"));
+    paths = auditPaths(cwd);
+    events = [];
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  function writer(lock = { timeoutMs: 30_000 }): AuditChainWriter {
+    return new AuditChainWriter({ auditDir: paths.dir, lock, onRecovery: (e) => events.push(e) });
+  }
+
+  it("normal append (fast path) emits no recovery event", async () => {
+    const w = writer();
+    await w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() });
+    events = [];
+    await w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() });
+    assert.equal(events.length, 0);
+  });
+
+  it("successful stale-head repair emits exactly one event and consumes no sequence", async () => {
+    const store = new AuditStore(cwd);
+    await store.activateIntegrity();
+    await store.append({ action: "policy.allowed", details: {} });
+    const headAfterA2 = readFileSync(paths.headPath, "utf-8");
+    const a3 = await store.append({ action: "policy.allowed", details: {} });
+    // Crash window: JSONL holds a3, head still points at a2.
+    writeFileSync(paths.headPath, headAfterA2, "utf-8");
+
+    const w = writer();
+    const a4 = await w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() });
+    // Sequence semantics preserved: no extra chained record was inserted.
+    assert.equal(a4.seq, (a3 as { seq: number }).seq + 1);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].action, "audit.stale_sidecar_recovered");
+    if (events[0].action === "audit.stale_sidecar_recovered") {
+      // previousSeq is the stale sidecar's seq (a2); recoveredSeq is the tip (a3).
+      assert.equal(events[0].previousSeq, (a3 as { seq: number }).seq - 1);
+      assert.equal(events[0].recoveredSeq, (a3 as { seq: number }).seq);
+    }
+    assert.ok((await new AuditStore(cwd).verifyIntegrity()).ok);
+  });
+
+  it("recovery followed by a separate append keeps the caller's sequence unchanged", async () => {
+    const store = new AuditStore(cwd);
+    await store.activateIntegrity();
+    await store.append({ action: "policy.allowed", details: {} });
+    const headAfterA2 = readFileSync(paths.headPath, "utf-8");
+    const a3 = await store.append({ action: "policy.allowed", details: {} });
+    writeFileSync(paths.headPath, headAfterA2, "utf-8"); // crash before head write
+
+    const w = writer();
+    // First append performs the repair and emits one event.
+    const repairAppend = await w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() });
+    assert.equal(repairAppend.seq, (a3 as { seq: number }).seq + 1);
+    assert.equal(events.length, 1);
+
+    // A subsequent append runs the fast path: no extra event, contiguous seq.
+    const nextAppend = await w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() });
+    assert.equal(nextAppend.seq, repairAppend.seq + 1);
+    assert.equal(events.length, 1, "the follow-up append must not re-emit recovery");
+    assert.ok((await store.verifyIntegrity()).ok);
+  });
+
+  it("missing (not stale) sidecar emits one recovery event with previousSeq 0", async () => {
+    const store = new AuditStore(cwd);
+    await store.activateIntegrity();
+    await store.append({ action: "policy.allowed", details: {} });
+    unlinkSync(paths.headPath); // absent, not stale
+
+    const w = writer();
+    const next = await w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() });
+    assert.equal(next.seq, 3); // seq 1 = activation, seq 2 = store append
+    assert.equal(events.length, 1, "re-deriving from the chain is a recovery");
+    assert.equal(events[0].action, "audit.stale_sidecar_recovered");
+    if (events[0].action === "audit.stale_sidecar_recovered") {
+      assert.equal(events[0].previousSeq, 0, "a missing sidecar reports previousSeq 0");
+      assert.equal(events[0].recoveredSeq, 2);
+    }
+  });
+
+  it("telemetry sink presence does not change sequence allocation", async () => {
+    const store = new AuditStore(cwd);
+    await store.activateIntegrity();
+    await store.append({ action: "policy.allowed", details: {} });
+    // No stale head — a plain append with a telemetry sink installed.
+    const w = writer();
+    const next = await w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() });
+    // seq 1 = activation record, seq 2 = the store append above; no extra seq consumed.
+    assert.equal(next.seq, 3);
+    assert.equal(events.length, 0);
+  });
+
+  it("corrupt chain fails closed and reports failure telemetry, no success event", async () => {
+    const store = new AuditStore(cwd);
+    await store.activateIntegrity();
+    await store.append({ action: "policy.allowed", details: {} });
+    appendFileSync(paths.logPath, '{"version":2,"seq":99,"prevHash":', "utf-8");
+
+    const w = writer();
+    await assert.rejects(
+      () => w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() }),
+      /recovery failed|malformed/i,
+    );
+    const failed = events.filter((e): e is AuditRecoveryFailedEvent => e.action === "audit.recovery");
+    const recovered = events.filter((e) => e.action === "audit.stale_sidecar_recovered");
+    assert.equal(failed.length, 1, "exactly one failure event");
+    assert.equal(failed[0].outcome, "failed");
+    assert.equal(recovered.length, 0, "no success event on a failed recovery");
+  });
+
+  it("a non-recovery error is not mislabeled as a recovery failure", async () => {
+    // readPersistedTip calls statSync on the log path; a directory there throws
+    // EISDIR — a genuine defect, not a fail-closed recovery verdict. It must
+    // propagate without emitting audit.recovery.
+    const store = new AuditStore(cwd);
+    await store.activateIntegrity();
+    await store.append({ action: "policy.allowed", details: {} });
+    // Replace the log file with a directory so statSync/readSync throws.
+    rmSync(paths.logPath);
+    mkdirSync(paths.logPath);
+
+    const w = writer();
+    await assert.rejects(() => w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() }));
+    assert.equal(
+      events.filter((e) => e.action === "audit.recovery").length,
+      0,
+      "a non-recovery error must not be reported as audit.recovery",
+    );
+    assert.equal(events.filter((e) => e.action === "audit.stale_sidecar_recovered").length, 0);
+  });
+
+  it("throwing telemetry sink never affects a successful repair or the append", async () => {
+    const store = new AuditStore(cwd);
+    await store.activateIntegrity();
+    await store.append({ action: "policy.allowed", details: {} });
+    const headAfterA2 = readFileSync(paths.headPath, "utf-8");
+    const a3 = await store.append({ action: "policy.allowed", details: {} });
+    writeFileSync(paths.headPath, headAfterA2, "utf-8");
+
+    const throwing = new AuditChainWriter({
+      auditDir: paths.dir,
+      lock: { timeoutMs: 30_000 },
+      onRecovery: () => { throw new Error("telemetry sink down"); },
+    });
+    const a4 = await throwing.append({ action: "policy.allowed", details: {}, timestamp: Date.now() });
+    assert.equal(a4.seq, (a3 as { seq: number }).seq + 1);
+    assert.ok((await new AuditStore(cwd).verifyIntegrity()).ok);
   });
 });

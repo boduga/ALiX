@@ -129,6 +129,17 @@ export type MetricsFn = (
 // AuthService
 // ---------------------------------------------------------------------------
 
+/**
+ * Encode a token's workspace scope for an audit-details payload.
+ *
+ * The tri-state is deliberate and must stay distinguishable: `null` means the
+ * credential carries no scope (legacy unscoped access); `[]` means an explicit
+ * deny-all; a nonempty list is the granted scope.
+ */
+function scopeForAudit(workspaceIds: string[] | undefined): string[] | null {
+  return workspaceIds === undefined ? null : workspaceIds;
+}
+
 export class AuthService {
   private readonly store: AuthStore;
   private readonly audit: AuditFn;
@@ -188,7 +199,12 @@ export class AuthService {
       await this.audit({
         action: "token.created",
         tokenId: generated.id,
-        details: { name, role },
+        details: {
+          name,
+          role,
+          // Record the granted workspace scope so the enrollment is auditable.
+          workspaceIds: scopeForAudit(workspaceIds),
+        },
       });
     } catch {
       this.metrics("token.created", { role: role as SecurityMetricLabelValue, status: "failed" });
@@ -288,7 +304,7 @@ export class AuthService {
       await this.audit({
         action: "token.rotated",
         tokenId: generated.id,
-        details: { previousId: id, graceMs },
+        details: { previousId: id, graceMs, workspaceIds: scopeForAudit(existing.workspaceIds) },
       });
     } catch {
       this.metrics("token.rotated", { role: existing.role as SecurityMetricLabelValue, status: "failed" });

@@ -43,11 +43,11 @@ const noopAudit: AuditFn = () => {};
 const noopMetrics: MetricsFn = () => {};
 
 // Collecting audit for assertions
-function collectingAudit(): { audit: AuditFn; events: Array<{ action: string; tokenId: string }> } {
-  const events: Array<{ action: string; tokenId: string }> = [];
+function collectingAudit(): { audit: AuditFn; events: Array<{ action: string; tokenId: string; details?: Record<string, unknown> }> } {
+  const events: Array<{ action: string; tokenId: string; details?: Record<string, unknown> }> = [];
   return {
     events,
-    audit: (event) => { events.push({ action: event.action, tokenId: event.tokenId }); },
+    audit: (event) => { events.push({ action: event.action, tokenId: event.tokenId, details: event.details }); },
   };
 }
 
@@ -102,6 +102,39 @@ describe("AuthService", () => {
 
       // Metrics should have been called
       assert.ok(metrics.calls.includes("token.created"));
+    });
+
+    it("records the granted workspace scope in token.created (absent vs empty distinct)", async () => {
+      const audit = collectingAudit();
+      const svc = new AuthService(store, audit.audit, noopMetrics);
+
+      await svc.createToken({ name: "unscoped", role: "readonly" });
+      await svc.createToken({ name: "empty", role: "operator", workspaceIds: [] });
+      await svc.createToken({ name: "scoped", role: "admin", workspaceIds: ["/ws/a", "/ws/b"] });
+
+      const created = audit.events.filter((e) => e.action === "token.created");
+      assert.equal(created.length, 3);
+      // Undefined legacy scope is recorded as null (distinct from an explicit []).
+      assert.equal(created[0].details?.workspaceIds, null);
+      // Explicit empty scope is recorded as [] (deny-all), not null.
+      assert.deepEqual(created[1].details?.workspaceIds, []);
+      assert.deepEqual(created[2].details?.workspaceIds, ["/ws/a", "/ws/b"]);
+    });
+
+    it("records the preserved scope in token.rotated", async () => {
+      const setup = new AuthService(store, noopAudit, noopMetrics);
+      const created = await setup.createToken({ name: "rot", role: "operator", workspaceIds: ["/ws/a"] });
+      assert.ok(created.ok);
+      if (!created.ok) return;
+
+      const audit = collectingAudit();
+      const svc = new AuthService(store, audit.audit, noopMetrics);
+      const rotated = await svc.rotateToken(created.value.id, 3600000);
+      assert.ok(rotated.ok);
+
+      const rotatedEvent = audit.events.find((e) => e.action === "token.rotated");
+      assert.ok(rotatedEvent, "token.rotated must be audited");
+      assert.deepEqual(rotatedEvent!.details?.workspaceIds, ["/ws/a"]);
     });
 
     it("lists tokens without hashes", async () => {

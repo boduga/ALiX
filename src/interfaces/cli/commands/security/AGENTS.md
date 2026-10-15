@@ -26,7 +26,10 @@
   credential, deduplicates equivalent paths, and rejects missing/unresolvable
   values. Unsupported equals-form workspace options are rejected before any
   credential or audit mutation; they never become unscoped enrollment.
-  Omitting the option retains undefined legacy scope. Paths are host-local
+  Omitting the option retains undefined legacy scope. `AuthService.createToken`
+  records the granted scope in its `token.created` audit details (`workspaceIds`,
+  with `null` for undefined legacy scope and `[]` for explicit deny-all); rotation
+  carries the preserved scope into `token.rotated`. Paths are host-local
   identities; enrollment on another host requires that host's canonical paths.
 - Audit writes remain fail-closed; follow `src/governance/audit/AGENTS.md`.
 - `alix audit verify --all` verifies both chains in one command: the runtime v2

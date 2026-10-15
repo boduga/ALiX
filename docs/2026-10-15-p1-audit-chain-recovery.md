@@ -100,8 +100,14 @@ Clean build (`rm -rf dist && pnpm build`), single `pnpm test:node` run:
 
 ## Remaining risks
 
-- `audit.stale_sidecar_recovered` / `audit.recovery` remain declared vocabulary
-  with no emitter; recovery is silent. An emitter is optional follow-up.
+- ~~`audit.stale_sidecar_recovered` / `audit.recovery` remain declared vocabulary
+  with no emitter; recovery is silent. An emitter is optional follow-up.~~
+  **Closed (2026-10-15 P5 follow-up):** recovery now emits out-of-band telemetry
+  through `AuditChainWriterConfig.onRecovery` (`audit.stale_sidecar_recovered`
+  after a repair, `audit.recovery` `outcome: "failed"` on fail-closed), forwarded
+  by `AuditStore` (default: stderr). No chained record and no sequence is
+  consumed, so the frozen P1 sequence semantics are unchanged. Regression:
+  `tests/audit/audit-chain-recovery.test.ts` telemetry suite.
 - Host power-loss durability of the JSONL/head pair is not proven here (process
   crash only), as before.
 - `synchronous`/write-ordering is unchanged; this fix changes only sequence
