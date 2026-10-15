@@ -419,7 +419,10 @@ describe("T18 tool exactly-once at the shared recorder surface", () => {
     const dispatch = h.executor as unknown as { dispatch: (r: unknown) => Promise<unknown> };
     const dispatchSpy = vi
       .spyOn(dispatch, "dispatch")
-      .mockImplementation(() => token.throwIfCancelled());
+      .mockImplementation((): Promise<unknown> => {
+        token.throwIfCancelled();
+        throw new Error("unreachable: token is pre-cancelled");
+      });
     const req = toolCallReq({ runId });
 
     let tracedErr: unknown;
