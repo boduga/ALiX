@@ -1654,7 +1654,7 @@ no hits
 Historical references under:
 
 ```text
-docs/archive/
+docs/superseded/archive/
 ```
 
 may remain.

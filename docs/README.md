@@ -31,6 +31,6 @@ ALiX uses a three-roadmap architecture:
 | Operations Runbook | [`docs/operations/operational-runbook.md`](operations/operational-runbook.md) |
 | Governance Model | [`docs/governance/governance-model.md`](governance/governance-model.md) |
 | Adaptation Lifecycle | [`docs/governance/adaptation-lifecycle.md`](governance/adaptation-lifecycle.md) |
-| Historical Specs | [`docs/archive/superpowers/specs/`](archive/superpowers/specs/) |
-| Historical Plans | [`docs/archive/superpowers/plans/`](archive/superpowers/plans/) |
-| Legacy PRD Bundle | [`docs/archive/legacy-nexus-os-v1.6/`](archive/legacy-nexus-os-v1.6/) |
+| Historical Specs | [`docs/superseded/archive/superpowers/specs/`](superseded/archive/superpowers/specs/) |
+| Historical Plans | [`docs/superseded/archive/superpowers/plans/`](superseded/archive/superpowers/plans/) |
+| Legacy PRD Bundle | [`docs/superseded/archive/legacy-nexus-os-v1.6/`](superseded/archive/legacy-nexus-os-v1.6/) |
