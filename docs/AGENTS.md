@@ -14,7 +14,7 @@ subtrees below.
 | `docs/agents/` | Agent workflow guides (issue tracker, triage labels, domain) |
 | `docs/architecture/` | Architecture plans, specs, checkpoints, reports |
 | `docs/audits/` | Durable architecture evidence — evidence-graded audits, document inventory/classification, phase registry, SRAP readiness |
-| `docs/superseded/` | Relocated superseded material, subtree-intact (`archive/` re-parented B1) |
+| `docs/superseded/` | Relocated superseded material, subtree-intact |
 | `docs/jev/` | Jev / System One integration docs |
 | `docs/superpowers/` | Implementation specs and plans |
 
