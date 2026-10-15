@@ -4,7 +4,7 @@
 > 3410 commits, 2026-05-12 → 2026-10-14. Primary refs: source, `docs/roadmap/*`,
 > `docs/architecture/*`, `docs/refactors/*`, `CHANGELOG.md`, tags.
 > Confidence: High where commit + doc + code agree; Medium where doc-only; Low where inferred.
-> `ALiX_OPTION_B_SRAP_DESIGN.md`: **not present** — SRAP assessment is readiness-only.
+> `2026-10-14-srap-option-b-design.md`: **not present** — SRAP assessment is readiness-only.
 
 ## Timeline
 

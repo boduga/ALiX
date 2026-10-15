@@ -28,6 +28,20 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
   create approvals through the server-side ApprovalStore, visible in the
   approvals panel. Authentication session exchange/logout are the other
   POST routes; no other HTTP route may execute agent actions.
+- Sole non-execution governance mutation exception: default-off
+  `POST /api/approvals/:id/decision`. It is bearer-only; requires
+  `approvals:decide`, active persistent operator identity, explicit workspace and
+  approval eligibility, trusted-proxy TLS validation, bounded idempotency
+  evidence, and resolution through existing `ApprovalStore`. It cannot execute
+  agent actions, create approvals, or broaden any other browser write surface.
+- **Canonical workspace identity for remote approval is server-derived.** The
+  server computes one canonical workspace from its resolved project root
+  (`realpathSync.native(resolve(root))`) and compares it against the token's
+  `workspaceIds`; the raw `process.cwd()` string is not the identity, and no
+  request header/body/query may establish or override it. Missing or empty token
+  scope is denied for remote decision. `SecurityContext` must carry the
+  principal's `workspaceIds` (currently dropped by the middleware) before the
+  route can enforce this.
 - `startServer` receives the configured Inspector authentication mode and must
   pass an explicit `enforceAuth` value to `createSecurityMiddleware`.
 - With authentication required, every registered data and SSE route requires

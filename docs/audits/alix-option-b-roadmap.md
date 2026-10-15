@@ -72,4 +72,4 @@
 
 ## Recommended next milestone
 
-Land this audit, approve migration manifest, request `ALiX_OPTION_B_SRAP_DESIGN.md`, then implement **SRAP-1** (smallest disruption, proves async phone path on current state machine).
+Land this audit, approve migration manifest, request `2026-10-14-srap-option-b-design.md`, then implement **SRAP-1** (smallest disruption, proves async phone path on current state machine).

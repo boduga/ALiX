@@ -1,7 +1,7 @@
 # ALiX — SRAP & Option B Integration Assessment
 
-> **Limitation:** `ALiX_OPTION_B_SRAP_DESIGN.md` is **not present** in the repo
-> (`glob **/ALiX_OPTION_B_SRAP_DESIGN.md` → no files; `grep -rE "SRAP|AUT-[0-9]|VOICE-|EDGE-"` → zero hits).
+> **Limitation:** `2026-10-14-srap-option-b-design.md` is **not present** in the repo
+> (`glob **/2026-10-14-srap-option-b-design.md` → no files; `grep -rE "SRAP|AUT-[0-9]|VOICE-|EDGE-"` → zero hits).
 > This is therefore a **readiness assessment against the verified implementation**, not a
 > compatibility review of the proposal. Request the design doc before detailed sign-off.
 > Rule: no second approval authority; no mobile/agent direct-authorize outside governance lifecycle.
@@ -71,7 +71,7 @@
 
 ## What to request before implementation
 
-`ALiX_OPTION_B_SRAP_DESIGN.md` + answers: key custody (phone keystore vs server),
+`2026-10-14-srap-option-b-design.md` + answers: key custody (phone keystore vs server),
 enrollment ceremony, revocation propagation time, offline-approve policy (recommend: deny),
 replay window, signature algorithm, push transport, AFK triggers, M9/EDGE overlap,
 Rust scope (recommend: none for SRAP v1 — TS + existing SQLite/HTTP suffice).

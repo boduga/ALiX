@@ -51,6 +51,11 @@ export interface RuntimeLedgerOptions {
   dbPath: string;
 }
 
+/** SQLite `synchronous` pragma value for FULL durability (read back as 2). */
+const SYNCHRONOUS_FULL = 2;
+/** `journal_mode` read-back value for WAL. */
+const JOURNAL_MODE_WAL = "wal";
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS runtime_events (
   ledger_seq    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,11 +108,29 @@ export class RuntimeLedger {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     this.db = new Database(opts.dbPath);
     this.db.pragma("journal_mode = WAL");
+    // Runtime events are authoritative across every migrated subsystem. Pin
+    // FULL explicitly because SQLite's WAL default may reopen as NORMAL.
+    this.db.pragma("synchronous = FULL");
     this.db.pragma("foreign_keys = ON");
     // Multi-process writers (scheduler + CLI + Inspector hosts) share the
     // project ledger file; wait instead of failing on a locked database.
     this.db.pragma("busy_timeout = 5000");
+    const settings = this.durabilitySettings();
+    if (settings.journalMode !== JOURNAL_MODE_WAL || settings.synchronous !== SYNCHRONOUS_FULL) {
+      this.db.close();
+      throw new Error(
+        `Runtime ledger durability unavailable: journal_mode=${settings.journalMode}, synchronous=${settings.synchronous}`,
+      );
+    }
     this.db.exec(SCHEMA);
+  }
+
+  /** Active connection durability settings; synchronous is connection-local. */
+  durabilitySettings(): { journalMode: string; synchronous: number } {
+    return {
+      journalMode: String(this.db.pragma("journal_mode", { simple: true })).toLowerCase(),
+      synchronous: Number(this.db.pragma("synchronous", { simple: true })),
+    };
   }
 
   /**
