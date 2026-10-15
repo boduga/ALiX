@@ -20,11 +20,11 @@ benchmark → P5 independent G2-C re-review.
 | P1 — audit-chain stale-head recovery | **MERGED** — PR #946, merge `a0d8fda0` |
 | P2 — ledger `BEGIN IMMEDIATE` (+ open-retry, contention retry) | **MERGED** — PR #947, merge `52c0ea87` |
 | G2-D/E durability + contract reconciliation | **MERGED** — PR #948, merge `68978fe8` |
-| P3 — workspace authorization plumbing | **implemented, publication authorized** — branch `srap/p3-workspace-authorization`; PR review pending |
-| P4 — physical SSD benchmark | pending on current SSD-equipped host; measure the actual ledger volume |
+| P3 — workspace authorization plumbing | **MERGED** — PR #950, merge `7103ec56` |
+| P4 — physical SSD benchmark | **measurements complete, review pending** — SSD thresholds met; tail latency remains a P5 review item |
 | P5 — independent G2-C re-review | not started |
 
-Baseline: `main` == `origin/main` == `4440e48c` (P1 + G2-D/E + P2 and #949 handoff merged).
+Baseline: `main` == `origin/main` == `7103ec56` (P1 + G2-D/E + P2 + P3 merged).
 
 ## P2 (merged) — what landed
 
@@ -77,7 +77,7 @@ approvals/server/audit/storage contract rules, and the new
 remains on `main`.
 
 Previous-device unrelated untracked artifacts were deliberately excluded from
-SRAP work. Current main checkout is clean; P3 changes are isolated in its worktree.
+SRAP work. Current main checkout is clean; P4 evidence is isolated in its review worktree.
 
 ## Key facts a new session needs
 
@@ -91,31 +91,22 @@ SRAP work. Current main checkout is clean; P3 changes are isolated in its worktr
   `pnpm test:node` (node:test over `dist/tests`). **Always `rm -rf dist` before a
   clean build**: a stale git-ignored `dist/tests/tests/` duplicate tree inflates
   the test count and creates fake path failures.
-- Local full `pnpm test:node` had 3 pre-existing timing flakes
+- Previous-device full `pnpm test:node` had 3 pre-existing timing flakes
   (`coordination-scheduler` ×2, `observability-stream` ×1); sources byte-identical
   to baseline — environmental, not code.
-- Current P3 worktree: `/tmp/alix-srap-p3`, branch
-  `srap/p3-workspace-authorization`. Locked dependencies installed locally;
+- Current P4 evidence worktree: `/home/babasola/Projects/Monolith/.worktrees/srap-p4`, branch
+  `srap/p4-ssd-benchmark`. Locked dependencies installed locally on Node 26.11.0;
   pnpm 12 rejects the earlier handoff's node_modules symlink setup.
 
 
 ## Next steps
 
-1. ~~P2 merge~~ — **done** (#947 merged `52c0ea87`).
-2. **P3 — Inspector workspace authorization** (approved for bounded implementation):
-   - derive one canonical workspace identity at `startServer` —
-     `realpathSync.native(resolve(root))` (today it uses raw `process.cwd()`);
-   - carry the principal's `workspaceIds` through `SecurityContext`
-     (`security-context.ts` — currently dropped in `security-middleware.ts`);
-   - wire the existing-but-unused `AuthService.verifyTokenForRequest`; add a
-     `--workspace` enrollment surface for `alix inspector auth create`;
-   - fail-closed: missing/empty scope denies; request input never sets scope.
-   The predicate + binding parity requirement now live (merged) in
-   `src/governance/approvals/AGENTS.md`; the case matrix is in
-   `docs/2026-10-14-srap-g2-e-operational-verification.md` §B.3.
-3. **P4:** run `scripts/benchmark-runtime-ledger-workloads.mjs` on a physical SSD;
-   confirm the G2-E acceptance thresholds (§A.7 of the G2-E report).
-4. **P5:** independent G2-C re-review of the merged fixes + contracts.
+1. P1, P2 and P3 are merged (#946, #947, #950).
+2. Review P4 SSD evidence in `docs/2026-10-15-srap-p4-ssd-benchmark.md` and
+   `docs/audits/2026-10-15-srap-p4-ssd-results.json`. Proposed p95/read/error
+   thresholds pass; saturated append maxima reach 5.02 s and remain a review risk.
+3. P5: independent G2-C re-review of merged fixes, amended contracts and P4
+   evidence. G3 remains closed pending that review and explicit authorization.
 
 Do not implement the SRAP remote approval endpoint or any new approval authority,
 scheduler, state machine, or ledger until G3 is explicitly opened.
@@ -129,12 +120,14 @@ scheduler, state machine, or ledger until G3 is explicitly opened.
 4. `docs/2026-10-14-srap-g2-c-independent-review.md` — original BLOCKED review.
 5. Root `AGENTS.md`, `docs/AGENTS.md`, and the owning subsystem AGENTS.md files.
 
-## P3 current execution
+## P3 and P4 status
 
 Approved design and conditions:
 `docs/superpowers/specs/2026-10-15-srap-p3-workspace-authorization-design.md`.
 Plan: `docs/superpowers/plans/2026-10-15-srap-p3-workspace-authorization.md`.
 Undefined scope preserves ordinary legacy access; explicit empty scope denies;
 nonempty scope requires canonical membership. Cookies revalidate source tokens.
-P3 worktree: `/tmp/alix-srap-p3`; commit/push/PR authorized on 2026-10-15; merge remains gated.
-G3 remains closed. Current device is SSD-equipped; P4 is still pending.
+P3 merged as `7103ec56`; its worktree and feature branch are removed.
+P4 evidence worktree: `/home/babasola/Projects/Monolith/.worktrees/srap-p4`, branch `srap/p4-ssd-benchmark`.
+Nine workload runs and three complete-snapshot crash probes passed. Current
+device is SSD-equipped. P5 independent review is next; G3 remains closed.
