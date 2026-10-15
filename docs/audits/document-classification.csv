@@ -1,8 +1,8 @@
 path,title,date,purpose,phase,classification,confidence,evidence,superseded_by,implementation,lifecycle,disposition
-docs/2026-10-09-node26-opentui-handoff.md,2026 10 09 node26 opentui handoff,2026-10-09,,,used:superseded,Medium,dated handoff per docs/AGENTS.md: history not live contract; was used as handoff,,,retired,docs/superseded/
-docs/2026-10-10-opentui-content-handoff.md,2026 10 10 opentui content handoff,2026-10-10,,,used:superseded,Medium,dated handoff per docs/AGENTS.md: history not live contract; was used as handoff,,,retired,docs/superseded/
+docs/superseded/handoffs/2026-10-09-node26-opentui-handoff.md,2026 10 09 node26 opentui handoff,2026-10-09,,,used:superseded,Medium,dated handoff per docs/AGENTS.md: history not live contract; was used as handoff,,,retired,docs/superseded/handoffs/
+docs/superseded/handoffs/2026-10-10-opentui-content-handoff.md,2026 10 10 opentui content handoff,2026-10-10,,,used:superseded,Medium,dated handoff per docs/AGENTS.md: history not live contract; was used as handoff,,,retired,docs/superseded/handoffs/
 docs/2026-10-11-opentui-workbench-mockup-handoff.md,2026 10 11 opentui workbench mockup handoff,2026-10-11,,,used:superseded,Medium,dated handoff per docs/AGENTS.md: history not live contract; was used as handoff,,,retired,docs/superseded/
-docs/2026-10-12-opentui-mouse-clicks-handoff.md,2026 10 12 opentui mouse clicks handoff,2026-10-12,,,used:superseded,Medium,dated handoff per docs/AGENTS.md: history not live contract; was used as handoff,,,retired,docs/superseded/
+docs/superseded/handoffs/2026-10-12-opentui-mouse-clicks-handoff.md,2026 10 12 opentui mouse clicks handoff,2026-10-12,,,used:superseded,Medium,dated handoff per docs/AGENTS.md: history not live contract; was used as handoff,,,retired,docs/superseded/handoffs/
 docs/2026-10-13-workbench-governance-pr-handoff.md,2026 10 13 workbench governance pr handoff,2026-10-13,,,used:superseded,Medium,dated handoff per docs/AGENTS.md: history not live contract; was used as handoff,,,retired,docs/superseded/
 docs/AGENTS.md,AGENTS,,,,used:current,High,live contract / verified present per roadmap+overview+AGENTS,,,implemented,docs/current/
 docs/ALiX-ExecutionState-Architecture.md,ALiX ExecutionState Architecture,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
@@ -10,9 +10,9 @@ docs/ALiX-full-flow.drawio,ALiX full flow,,,,not-used,Low,no reliable adoption e
 docs/ALiX-full-flow.drawio.png,ALiX full flow.drawio,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
 docs/ALiX-full-flow.png,ALiX full flow,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
 docs/ALiX_End_Product_NonCode_Artifacts/11_P7_IMPLEMENTATION_PLAN.md,11 P7 IMPLEMENTATION PLAN,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
-docs/PRD.md,PRD,,,,used:superseded,High,explicit supersession banner or retired header,,,retired,docs/superseded/
+docs/superseded/PRD.md,PRD,,,,used:superseded,High,explicit supersession banner or retired header,,,retired,docs/superseded/
 docs/README.md,README,,,,used:current,High,docs index; referenced by docs/architecture/plans/2026-07-04-p12-2-risk-scoring.md and tests/verifier/change-classifier.test.ts and tests/governance/risk-scoring.test.ts,,,implemented,docs/current/ (keep in place; load-bearing - do not relocate)
-docs/STATUS.md,STATUS,,,,used:superseded,High,explicit supersession banner or retired header,,,retired,docs/superseded/
+docs/superseded/STATUS.md,STATUS,,,,used:superseded,High,explicit supersession banner or retired header,,,retired,docs/superseded/
 docs/agentic-harness-research.md,agentic harness research,,,,not-used,Low,proposal/assessment without verified implementation link; needs evidence to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
 docs/agents/domain.md,domain,,,,used:current,High,referenced by root AGENTS.md:209 as domain guide,,,implemented,docs/current/ (keep in place; load-bearing - do not relocate)
 docs/agents/issue-tracker.md,issue tracker,,,,used:current,High,referenced by root AGENTS.md:201 as issue tracker workflow,,,implemented,docs/current/ (keep in place; load-bearing - do not relocate)
@@ -599,7 +599,7 @@ docs/governance/adaptation-lifecycle.md,adaptation lifecycle,,,,used:current,Hig
 docs/governance/capability-evolution-lifecycle.md,capability evolution lifecycle,,,CAP,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
 docs/governance/governance-model.md,governance model,,,,used:current,High,P5.7e freeze header lines 4-5; invariant rows Generate-not-Approve lines 17-18 enforced by execution-authorization.ts evaluate and pinned by r15-authorization.test.ts; linked from docs/README.md,,,implemented,docs/current/ (keep in place; load-bearing - do not relocate)
 docs/governance/mutation-path-audit.md,mutation path audit,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
-docs/implementation-plan.md,implementation plan,,,,used:superseded,High,explicit supersession banner or retired header,,,retired,docs/superseded/
+docs/superseded/implementation-plan.md,implementation plan,,,,used:superseded,High,explicit supersession banner or retired header,,,retired,docs/superseded/
 docs/intent-contracts/agent-loop-mode.md,agent loop mode,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
 docs/intent-contracts/canonical-taxonomy.md,canonical taxonomy,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
 docs/intent-contracts/generation.md,generation,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
@@ -643,13 +643,13 @@ docs/local-llama-setup.md,local llama setup,,,,not-used,Low,no reliable adoption
 docs/manual-tests/local-llama-live.md,local llama live,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
 docs/manual-tests/local-llama-live.sh,local llama live,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
 docs/manual-tests/tui-manual-test.md,tui manual test,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
-docs/mvp-product-spec.md,mvp product spec,,,,used:superseded,High,explicit supersession banner or retired header,,,retired,docs/superseded/
+docs/superseded/mvp-product-spec.md,mvp product spec,,,,used:superseded,High,explicit supersession banner or retired header,,,retired,docs/superseded/
 docs/observability/diagnostics-query-examples.md,diagnostics query examples,,,,used:current,Medium,active domain contract/runbook; no supersession banner found,,,implemented,docs/current/
 docs/observability/metric-registry.md,metric registry,,,,used:current,Medium,active domain contract/runbook; no supersession banner found,,,implemented,docs/current/
 docs/observability-runbook.md,observability runbook,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
 docs/operations/adaptation-scaling.md,adaptation scaling,,,,used:current,Medium,active domain contract/runbook; no supersession banner found,,,implemented,docs/current/
 docs/operations/operational-runbook.md,operational runbook,,,,used:current,Medium,active domain contract/runbook; no supersession banner found,,,implemented,docs/current/
-docs/post-mvp-backlog.md,post mvp backlog,,,,used:superseded,High,explicit supersession banner or retired header,,,retired,docs/superseded/
+docs/superseded/post-mvp-backlog.md,post mvp backlog,,,,used:superseded,High,explicit supersession banner or retired header,,,retired,docs/superseded/
 docs/quickstart.md,quickstart,,,,not-used,Low,no reliable adoption evidence found; provisional - requires implementation grep to resolve,,,proposed-or-unknown,docs/not-used/ (review: confirm proposed-vs-abandoned before move)
 docs/refactors/717-megafile-split-plan.md,717 megafile split plan,,,,used:current,Medium,active domain contract/runbook; no supersession banner found,,,implemented,docs/current/
 docs/refactors/r0-findings-r3-plan.md,r0 findings r3 plan,,,R0,used:current,High,live contract / verified present per roadmap+overview+AGENTS,,,implemented,docs/current/
