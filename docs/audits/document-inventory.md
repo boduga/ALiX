@@ -10,13 +10,18 @@
 
 | Classification | Rows | Share |
 |---|---|---|
-| `used:current` | 435 | 52% |
+| `used:current` | 443 | 53% |
 | `used:superseded` | 335 | 40% |
-| `not-used` | 71 | 8% |
+| `not-used` | 63 | 7% |
 
-Confidence mix: High ~120 rows (explicit banners, live contracts, archive tree);
+Confidence mix: High ~128 rows (explicit banners, live contracts, archive tree, plus 8 B0 direct-evidence promotions);
 Medium ~650 rows (shipped-slice specs/plans/checkpoints, domain runbooks — spot-check vs code required);
-Low ~71 rows (`not-used` provisional — requires implementation grep to resolve).
+Low ~63 rows (`not-used` provisional — requires implementation grep to resolve).
+
+> B0 (2026-10-15): 8 rows reclassified `not-used` → `used:current` with direct evidence
+> (6 load-bearing references + 2 P5.7e governance docs); 63 `not-used` remain provisional.
+> See `document-migration-manifest-B0-corrections.md`. Row count stays 841; audit
+> artifacts are registered in the B0 manifest, not added as CSV rows.
 
 Full per-file fields in CSV: path, title, date, purpose, phase, classification,
 confidence, evidence, superseded_by, implementation, lifecycle, disposition.
