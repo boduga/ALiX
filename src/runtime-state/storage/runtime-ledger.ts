@@ -100,29 +100,59 @@ CREATE INDEX IF NOT EXISTS idx_runtime_outbox_undelivered
   ON runtime_outbox(delivered_at);
 `;
 
+/**
+ * Open the authoritative ledger connection with the durability contract:
+ * busy handler first, then WAL, then `synchronous=FULL`, verified by read-back.
+ *
+ * Converting a database to WAL needs a write lock. On a shared project file
+ * opened concurrently by multiple processes, that conversion can return
+ * `SQLITE_BUSY` even with `busy_timeout` set (the WAL switch does not honor it
+ * on every platform). Retry the whole open a bounded number of times so a
+ * transient lock during startup does not fail the append before it can begin.
+ */
+function openDurableLedger(dbPath: string): Database.Database {
+  const MAX_ATTEMPTS = 10;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    const db = new Database(dbPath);
+    try {
+      db.pragma("busy_timeout = 5000");
+      db.pragma("journal_mode = WAL");
+      db.pragma("synchronous = FULL");
+      db.pragma("foreign_keys = ON");
+      const journalMode = String(db.pragma("journal_mode", { simple: true })).toLowerCase();
+      const synchronous = Number(db.pragma("synchronous", { simple: true }));
+      if (journalMode !== JOURNAL_MODE_WAL || synchronous !== SYNCHRONOUS_FULL) {
+        throw new Error(
+          `Runtime ledger durability unavailable: journal_mode=${journalMode}, synchronous=${synchronous}`,
+        );
+      }
+      db.exec(SCHEMA);
+      return db;
+    } catch (err) {
+      db.close();
+      lastError = err;
+      const msg = err instanceof Error ? `${(err as NodeJS.ErrnoException).code ?? ""}:${err.message}` : String(err);
+      // Only contention is retryable; a genuine durability mismatch must fail.
+      if (!/BUSY|locked/i.test(msg) || attempt === MAX_ATTEMPTS) throw err;
+      sleepSync(25 * attempt);
+    }
+  }
+  throw lastError;
+}
+
+/** Small synchronous backoff between open attempts (constructor is sync). */
+function sleepSync(ms: number): void {
+  const sab = new Int32Array(new SharedArrayBuffer(4));
+  Atomics.wait(sab, 0, 0, ms);
+}
+
 export class RuntimeLedger {
   private readonly db: Database.Database;
-
   constructor(opts: RuntimeLedgerOptions) {
     const dir = dirname(opts.dbPath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    this.db = new Database(opts.dbPath);
-    this.db.pragma("journal_mode = WAL");
-    // Runtime events are authoritative across every migrated subsystem. Pin
-    // FULL explicitly because SQLite's WAL default may reopen as NORMAL.
-    this.db.pragma("synchronous = FULL");
-    this.db.pragma("foreign_keys = ON");
-    // Multi-process writers (scheduler + CLI + Inspector hosts) share the
-    // project ledger file; wait instead of failing on a locked database.
-    this.db.pragma("busy_timeout = 5000");
-    const settings = this.durabilitySettings();
-    if (settings.journalMode !== JOURNAL_MODE_WAL || settings.synchronous !== SYNCHRONOUS_FULL) {
-      this.db.close();
-      throw new Error(
-        `Runtime ledger durability unavailable: journal_mode=${settings.journalMode}, synchronous=${settings.synchronous}`,
-      );
-    }
-    this.db.exec(SCHEMA);
+    this.db = openDurableLedger(opts.dbPath);
   }
 
   /** Active connection durability settings; synchronous is connection-local. */
@@ -145,6 +175,12 @@ export class RuntimeLedger {
       return { ok: false, reason: "invalid_precondition", detail: `expectedVersion must be a non-negative integer, got ${expectedVersion}` };
     }
 
+    // BEGIN IMMEDIATE: acquire the write lock up front. The deferred default
+    // takes a read snapshot on the first SELECT and must upgrade to a write
+    // transaction on the later INSERT; if another process commits in between,
+    // SQLite returns SQLITE_BUSY_SNAPSHOT, which `busy_timeout` cannot resolve
+    // (it is not a lock wait). Taking the write lock first avoids the upgrade
+    // and its snapshot-conflict storm under concurrent multi-process writers.
     const tx = this.db.transaction((): LedgerAppendResult => {
       const current = this.db
         .prepare("SELECT version FROM runtime_entities WHERE entity_id = ?")
@@ -214,7 +250,19 @@ export class RuntimeLedger {
       return { ok: true, entityVersion: nextVersion, ledgerSeq };
     });
 
-    return tx();
+    // BEGIN IMMEDIATE removes the read→write snapshot upgrade, but a shared
+    // file under concurrent writers can still surface a transient lock. Retry
+    // only genuine contention; a version precondition is returned, not retried.
+    const MAX_ATTEMPTS = 10;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return tx.immediate();
+      } catch (err) {
+        const msg = err instanceof Error ? `${(err as NodeJS.ErrnoException).code ?? ""}:${err.message}` : String(err);
+        if (!/BUSY|locked/i.test(msg) || attempt >= MAX_ATTEMPTS) throw err;
+        sleepSync(10 * attempt);
+      }
+    }
   }
 
   /** Current committed version for an entity (0 when unknown). */
