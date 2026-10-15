@@ -24,7 +24,9 @@
   `handleInspectorAuthCreate` canonicalizes every supplied path through
   `canonicalWorkspaceId` before constructing the auth service or creating a
   credential, deduplicates equivalent paths, and rejects missing/unresolvable
-  values. Omitting the option retains undefined legacy scope. Paths are host-local
+  values. Unsupported equals-form workspace options are rejected before any
+  credential or audit mutation; they never become unscoped enrollment.
+  Omitting the option retains undefined legacy scope. Paths are host-local
   identities; enrollment on another host requires that host's canonical paths.
 - Audit writes remain fail-closed; follow `src/governance/audit/AGENTS.md`.
 - `alix audit verify --all` verifies both chains in one command: the runtime v2

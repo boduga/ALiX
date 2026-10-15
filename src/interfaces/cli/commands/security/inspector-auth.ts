@@ -132,6 +132,9 @@ export async function handleInspectorAuthCreate(args: string[]): Promise<void> {
   let workspaceIds: string[] | undefined;
   try {
     for (let i = 0; i < args.length; i++) {
+      if (args[i].startsWith("--workspace=")) {
+        throw new Error("Use --workspace <path>; --workspace=<path> is not supported");
+      }
       if (args[i] !== "--workspace") continue;
       const path = args[++i];
       if (!path || path.startsWith("--")) {
