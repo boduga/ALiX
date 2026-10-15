@@ -51,6 +51,28 @@ export interface VerificationResult {
   findings: VerificationFinding[];
   recordCount: { legacy: number; v2: number };
   headSidecar: AuditHead | null;
+  /**
+   * Identity of the last chain-valid v2 record (the persisted tip), or null
+   * when the log has no readable v2 chain. O(1): captured during the single
+   * streaming pass — the full record set is never retained.
+   */
+  tip: VerifiedRecordIdentity | null;
+  /**
+   * Identity of the chain-valid v2 record whose `seq` equals
+   * `VerifyOptions.requestedSeq`, when that option is supplied and the seq is
+   * present in the chain. Lets recovery prove that a head sidecar is a verified
+   * ancestor of the tip in O(1). Null otherwise.
+   */
+  requestedRecord: VerifiedRecordIdentity | null;
+}
+
+/** Identity of a single verified v2 record. */
+export interface VerifiedRecordIdentity {
+  seq: number;
+  recordHash: string;
+  prevHash: string | null;
+  /** The record's own Unix-ms timestamp. */
+  timestamp: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,7 +136,14 @@ async function streamVerify(
   auditPath: string,
   head: AuditHead | null,
   findings: VerificationFinding[],
-): Promise<{ legacyCount: number; legacyBytes: number; v2Count: number }> {
+  requestedSeq?: number,
+): Promise<{
+  legacyCount: number;
+  legacyBytes: number;
+  v2Count: number;
+  tip: VerifiedRecordIdentity | null;
+  requestedRecord: VerifiedRecordIdentity | null;
+}> {
   let legacyCount = 0;
   let legacyBytes = 0;
   let legacyRaw = "";
@@ -127,6 +156,8 @@ async function streamVerify(
   const seenSeqs = new Set<number>();
   let lastLineWasMalformed = false;
   let lastMalformedLine = 0;
+  let tip: VerifiedRecordIdentity | null = null;
+  let requestedRecord: VerifiedRecordIdentity | null = null;
 
   // Open the file as a stream (shared primitive — O(1) memory,
   // physical line numbers preserved for corruption accounting).
@@ -186,7 +217,8 @@ async function streamVerify(
     v2Count++;
 
     // Check for duplicate sequence.
-    if (seenSeqs.has(record.seq)) {
+    const duplicateSeq = seenSeqs.has(record.seq);
+    if (duplicateSeq) {
       findings.push({
         type: "duplicate_sequence",
         line: totalLines,
@@ -256,6 +288,28 @@ async function streamVerify(
         seq: record.seq,
         detail: `Record hash mismatch at seq ${record.seq} line ${totalLines}: expected ${record.recordHash}, computed ${computedHash}`,
       });
+    }
+
+    // Capture bounded identities for recovery — only for records that are
+    // themselves chain-valid (correct sequence, prevHash link, and hash), so
+    // `tip`/`requestedRecord` always describe verified chain members and never
+    // a record that triggered a finding.
+    const recordIsChainValid =
+      !duplicateSeq &&
+      record.seq === prevSeq + 1 &&
+      (lastValidRecordHash === null || record.prevHash === lastValidRecordHash) &&
+      computedHash === record.recordHash;
+    if (recordIsChainValid) {
+      const identity: VerifiedRecordIdentity = {
+        seq: record.seq,
+        recordHash: record.recordHash,
+        prevHash: record.prevHash,
+        timestamp: record.timestamp,
+      };
+      tip = identity;
+      if (requestedSeq !== undefined && record.seq === requestedSeq) {
+        requestedRecord = identity;
+      }
     }
 
     // Update tracking state.
@@ -349,7 +403,7 @@ async function streamVerify(
     });
   }
 
-  return { legacyCount, legacyBytes, v2Count };
+  return { legacyCount, legacyBytes, v2Count, tip, requestedRecord };
 }
 
 // ---------------------------------------------------------------------------
@@ -359,6 +413,12 @@ async function streamVerify(
 export interface VerifyOptions {
   /** Directory containing the audit log and head sidecar. */
   auditDir: string;
+  /**
+   * Optional: capture the chain-valid record at this `seq` in
+   * `VerificationResult.requestedRecord` (bounded, O(1)). Used by head
+   * reconciliation to prove a stale sidecar is a verified ancestor.
+   */
+  requestedSeq?: number;
 }
 
 /**
@@ -383,6 +443,8 @@ export async function verifyAuditLog(options: VerifyOptions): Promise<Verificati
       findings: [{ type: "malformed_line", detail: `Audit log not found: ${auditPath}` }],
       recordCount: { legacy: 0, v2: 0 },
       headSidecar: null,
+      tip: null,
+      requestedRecord: null,
     };
   }
 
@@ -392,7 +454,12 @@ export async function verifyAuditLog(options: VerifyOptions): Promise<Verificati
   const head = readHeadSidecar(options.auditDir);
 
   // 2. Stream-verify the entire log in a single pass.
-  const { legacyCount, v2Count } = await streamVerify(auditPath, head, findings);
+  const { legacyCount, v2Count, tip, requestedRecord } = await streamVerify(
+    auditPath,
+    head,
+    findings,
+    options.requestedSeq,
+  );
 
   // 3. A log with zero chained records has no tamper-evidence at all: legacy
   // records carry no hashes, so "no findings" would be a lie. Report the
@@ -415,5 +482,7 @@ export async function verifyAuditLog(options: VerifyOptions): Promise<Verificati
     findings,
     recordCount: { legacy: legacyCount, v2: v2Count },
     headSidecar: head,
+    tip,
+    requestedRecord,
   };
 }

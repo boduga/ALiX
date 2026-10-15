@@ -8,27 +8,41 @@
  * ## Transaction flow (per append)
  *
  * 1. Acquire cross-process lock
- * 2. Read / validate head sidecar file
- * 3. If sidecar missing or stale → confirm tail (read last record from JSONL)
- * 4. Determine next sequence (head.seq + 1, or 1 for genesis)
- * 5. Determine prevHash from head
- * 6. Redact `details` via the built-in redacting adapter
- * 7. Canonicalize the record body
- * 8. Hash: sha256(domainPrefix + canonicalBody + seq + prevHash)
- * 9. Append one JSONL line to the audit file
- * 10. fsync the append (durability)
- * 11. Atomically update the head sidecar (temp file + rename)
- * 12. Release the lock
- * 13. Return the complete v2 record
+ * 2. Reconcile the head sidecar against the persisted JSONL chain
+ *    (`reconcileHead`): if the sidecar is missing, stale, or conflicting,
+ *    VERIFY the hash chain before allocating a sequence; corrupt history
+ *    fails closed.
+ * 3. Determine next sequence (reconciledHead.seq + 1, or 1 for genesis)
+ * 4. Determine prevHash from reconciledHead
+ * 5. Redact `details` via the built-in redacting adapter
+ * 6. Canonicalize the record body
+ * 7. Hash: sha256(domainPrefix + canonicalBody + seq + prevHash)
+ * 8. Append one JSONL line to the audit file
+ * 9. fsync the append (durability)
+ * 10. Atomically update the head sidecar (temp file + rename)
+ * 11. Release the lock
+ * 12. Return the complete v2 record
+ *
+ * ## Stale-head recovery
+ *
+ * A crash after step 9 (JSONL fsynced) but before step 10 (head written)
+ * leaves a stale-but-valid sidecar. Trusting it would reallocate a committed
+ * sequence. `reconcileHead` therefore treats the **persisted JSONL chain** as
+ * authoritative: when the sidecar does not exactly match the persisted tip it
+ * verifies the chain from genesis, advances a stale sidecar only when its
+ * record is a verified ancestor of the tip, and fails closed on malformed,
+ * gapped, duplicated, hash-broken, or conflicting history. It never truncates,
+ * rewrites, or discards committed records.
  *
  * @module
  */
 
-import { appendFileSync, readFileSync, writeFileSync, mkdirSync, renameSync, existsSync, openSync, closeSync, fsyncSync, statSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync, mkdirSync, renameSync, existsSync, openSync, closeSync, fsyncSync, statSync, readSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { canonicalStringify } from "../../../operations/utils/canonical-json.js";
 import { acquire, type LockHandle, type LockOptions } from "./audit-lock.js";
+import { verifyAuditLog } from "./audit-verifier.js";
 import type { AuditRecordV2, AuditHead, ActivationResult, LegacyAuditRecord, AnyAuditAction } from "../../audit/audit-types.js";
 import { isAuditRecordV2, isLegacyAuditRecord } from "../../audit/audit-types.js";
 
@@ -166,6 +180,21 @@ function computeRecordHash(
   return hash.digest("hex");
 }
 
+/**
+ * The canonical record body that a v2 hash is computed over. Kept in one place
+ * so append, recovery validation, and any future verifier reuse the exact shape.
+ */
+function buildHashBody(
+  action: string,
+  details: unknown,
+  timestamp: number,
+  actor?: string,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { action, details, timestamp };
+  if (actor !== undefined) body.actor = actor;
+  return body;
+}
+
 function readHead(headPath: string): AuditHead | null {
   try {
     if (!existsSync(headPath)) return null;
@@ -191,6 +220,85 @@ function writeHeadAtomic(headPath: string, head: AuditHead): void {
   fsyncSync(fd);
   closeSync(fd);
   renameSync(tmpPath, headPath);
+}
+
+// ---------------------------------------------------------------------------
+// Persisted-tip helpers (bounded tail reads)
+// ---------------------------------------------------------------------------
+
+/** Maximum bytes read from the file tail to locate the last record. */
+const TAIL_READ_MAX_BYTES = 256 * 1024;
+
+interface PersistedTip {
+  /** Last non-empty physical line, or null when the file is missing/empty. */
+  lastLine: string | null;
+  /**
+   * True when the tail read was truncated because the final line exceeds
+   * `TAIL_READ_MAX_BYTES`. Callers must fail closed rather than treat the
+   * partial line as the persisted tip.
+   */
+  truncated: boolean;
+}
+
+/**
+ * Read the last non-empty line of a JSONL file without loading the whole file.
+ * Bounded to `TAIL_READ_MAX_BYTES`. A final record line larger than the bound
+ * sets `truncated` so callers fail closed rather than parse a partial record.
+ */
+function readPersistedTip(auditPath: string): PersistedTip {
+  if (!existsSync(auditPath)) return { lastLine: null, truncated: false };
+  const size = statSync(auditPath).size;
+  if (size === 0) return { lastLine: null, truncated: false };
+
+  const start = Math.max(0, size - TAIL_READ_MAX_BYTES);
+  const length = size - start;
+  const fd = openSync(auditPath, "r");
+  let text: string;
+  try {
+    const buf = Buffer.allocUnsafe(length);
+    let read = 0;
+    while (read < length) {
+      const n = readSync(fd, buf, read, length - read, start + read);
+      if (n <= 0) break;
+      read += n;
+    }
+    text = buf.subarray(0, read).toString("utf-8");
+  } finally {
+    closeSync(fd);
+  }
+
+  const lines = text.split("\n");
+  // When reading from mid-file the first element is a partial line. If that
+  // window contains no newline at all, the final record exceeds the bound.
+  let firstIsPartial = false;
+  if (start > 0) {
+    firstIsPartial = true;
+    lines.shift();
+  }
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].trim().length > 0) {
+      return { lastLine: lines[i], truncated: false };
+    }
+  }
+  // No complete non-empty line found in the window.
+  return { lastLine: null, truncated: firstIsPartial };
+}
+
+type TipParse =
+  | { kind: "v2"; record: AuditRecordV2 }
+  | { kind: "legacy" }
+  | { kind: "malformed" };
+
+function parseTipLine(line: string): TipParse {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return { kind: "malformed" };
+  }
+  if (isAuditRecordV2(parsed)) return { kind: "v2", record: parsed };
+  if (isLegacyAuditRecord(parsed)) return { kind: "legacy" };
+  return { kind: "malformed" };
 }
 
 // ---------------------------------------------------------------------------
@@ -284,13 +392,10 @@ export class AuditChainWriter {
         this.auditGuard = true;
       }
 
-      // 2. Read / validate head sidecar.
-      let head = readHead(this.headPath);
-
-      // 3. If sidecar missing or stale → confirm tail from JSONL.
-      if (head === null) {
-        head = this.recoverHeadFromLog();
-      }
+      // 2-3. Reconcile the head sidecar against the persisted chain. The
+      // persisted JSONL chain is authoritative; a missing, stale, or
+      // conflicting sidecar is verified before any sequence is allocated.
+      const head = await this.reconcileHead();
 
       // 4. Determine next sequence.
       const seq = head !== null ? head.seq + 1 : 1;
@@ -302,14 +407,7 @@ export class AuditChainWriter {
       const redactedDetails = redactAuditDetails(record.details);
 
       // 7. Canonicalize body.
-      const body: Record<string, unknown> = {
-        action: record.action,
-        details: redactedDetails,
-        timestamp: record.timestamp,
-      };
-      if (record.actor !== undefined) {
-        body.actor = record.actor;
-      }
+      const body = buildHashBody(record.action, redactedDetails, record.timestamp, record.actor);
 
       // 8. Hash: domainPrefix + canonicalBody + seq + prevHash.
       const recordHash = computeRecordHash(body, seq, prevHash);
@@ -360,44 +458,142 @@ export class AuditChainWriter {
   }
 
   // -----------------------------------------------------------------------
-  // Head recovery
+  // Head reconciliation (crash recovery)
   // -----------------------------------------------------------------------
 
   /**
-   * Reconstruct the head from the last valid v2 record in the audit log.
-   * Returns `null` if no v2 records exist (genesis case).
+   * Reconcile the on-disk head sidecar against the persisted JSONL chain and
+   * return the verified head to extend from.
+   *
+   * The persisted chain is authoritative:
+   * - no chained records → genesis; a sidecar is unexpected and ignored;
+   * - sidecar matches the persisted tip exactly → fast path (no full verify);
+   * - otherwise the chain is verified from genesis under the caller's lock;
+   *   a stale-but-valid sidecar that is a verified ancestor of the tip is
+   *   advanced to the tip; a conflicting/unknown sidecar id is dropped.
+   *
+   * Any chain defect (malformed line, sequence gap, duplicate sequence, hash
+   * mismatch, or a sidecar that does not appear at its stated seq) throws.
+   * Recovery NEVER truncates, rewrites, or discards committed records.
    */
-  private recoverHeadFromLog(): AuditHead | null {
-    const lastV2 = this.readLastV2Record();
-    if (lastV2 === null) return null;
+  private async reconcileHead(): Promise<AuditHead | null> {
+    const sidecar = readHead(this.headPath);
+    const tip = readPersistedTip(this.auditPath);
 
-    return {
-      seq: lastV2.seq,
-      recordHash: lastV2.recordHash,
-      prevHash: lastV2.prevHash,
-      timestamp: lastV2.timestamp,
+    // A final record larger than the bounded tail window cannot be parsed
+    // safely — fail closed rather than misread a partial line.
+    if (tip.truncated) {
+      throw new Error(
+        "Audit chain recovery failed: the last audit record exceeds the bounded tail " +
+          "read window; refusing to allocate a sequence.",
+      );
+    }
+
+    // Genesis: no v2 record persisted.
+    if (tip.lastLine === null) {
+      // A sidecar with no persisted record means the log was emptied or lost
+      // after the chain was written — conflicting, not genesis. Fail closed.
+      if (sidecar !== null) {
+        throw new Error(
+          "Audit chain recovery failed: a head sidecar exists but the audit log has no " +
+            "records; refusing to allocate a sequence over lost committed evidence.",
+        );
+      }
+      return null;
+    }
+
+    const parsed = parseTipLine(tip.lastLine);
+
+    if (parsed.kind === "legacy") {
+      // A legacy tip is the normal pre-activation state only when the chain was
+      // never activated. Once a sidecar records an activation, the persisted v2
+      // chain must exist; a legacy tip then means the v2 records were lost.
+      if (sidecar === null) return null;
+      throw new Error(
+        "Audit chain recovery failed: activation was recorded but the audit log has no " +
+          "verified v2 chain (legacy tail); refusing to allocate a sequence.",
+      );
+    }
+    if (parsed.kind === "malformed") {
+      throw new Error(
+        "Audit chain recovery failed: the last audit record is malformed; " +
+          "refusing to allocate a sequence and refusing to rewrite committed evidence.",
+      );
+    }
+
+    const tipRecord = parsed.record;
+
+    // Fast path: a sidecar that exactly matches the persisted, hash-valid tip.
+    if (
+      sidecar !== null &&
+      sidecar.seq === tipRecord.seq &&
+      sidecar.recordHash === tipRecord.recordHash &&
+      this.isRecordHashValid(tipRecord)
+    ) {
+      return sidecar;
+    }
+
+    // Otherwise verify the whole chain before trusting or advancing anything.
+    // O(1): the verifier captures only the tip and the single record at the
+    // sidecar's seq during its streaming pass — never the full record set.
+    const verified = await verifyAuditLog({
+      auditDir: this.auditDir,
+      ...(sidecar !== null && sidecar.seq > 0 ? { requestedSeq: sidecar.seq } : {}),
+    });
+    const structural = verified.findings.filter((f) => f.type !== "head_mismatch");
+    if (structural.length > 0) {
+      throw new Error(
+        `Audit chain recovery failed: persisted chain is not verifiable (${structural
+          .map((f) => f.type)
+          .join(", ")}); refusing to allocate a sequence.`,
+      );
+    }
+
+    const last = verified.tip;
+    if (last === null) {
+      // The persisted tip parsed as a v2 record, so a verified chain must exist.
+      throw new Error(
+        "Audit chain recovery failed: persisted tip is a v2 record but the verified " +
+          "chain has no records; refusing to allocate a sequence.",
+      );
+    }
+
+    // The sidecar (if any) must be genesis or a record that the verified chain
+    // actually contains at that seq with the same hash.
+    const sidecarIsAncestor =
+      sidecar === null ||
+      (sidecar.seq === 0) ||
+      (verified.requestedRecord !== null &&
+        verified.requestedRecord.seq === sidecar.seq &&
+        verified.requestedRecord.recordHash === sidecar.recordHash);
+
+    if (!sidecarIsAncestor) {
+      throw new Error(
+        `Audit chain recovery failed: head sidecar (seq ${sidecar?.seq ?? "none"}, hash ${
+          sidecar?.recordHash ?? "none"
+        }) is not a verified ancestor of the persisted tip (seq ${last.seq}); refusing to reconcile.`,
+      );
+    }
+
+    const recovered: AuditHead = {
+      seq: last.seq,
+      recordHash: last.recordHash,
+      prevHash: last.prevHash,
+      // The verified tip carries its own timestamp; never synthesize one.
+      timestamp: last.timestamp,
       updatedAt: new Date().toISOString(),
     };
+    if (sidecar?.legacy) recovered.legacy = sidecar.legacy;
+
+    // Heal the sidecar for future appends. Never touches the JSONL.
+    writeHeadAtomic(this.headPath, recovered);
+    return recovered;
   }
 
-  /** Read the last v2 record from the JSONL file. */
-  private readLastV2Record(): AuditRecordV2 | null {
-    if (!existsSync(this.auditPath)) return null;
-
-    const raw = readFileSync(this.auditPath, "utf-8");
-    const lines = raw.trim().split("\n").filter(Boolean);
-    if (lines.length === 0) return null;
-
-    // Scan from the end for the first v2 record.
-    for (let i = lines.length - 1; i >= 0; i--) {
-      try {
-        const parsed = JSON.parse(lines[i]);
-        if (isAuditRecordV2(parsed)) return parsed;
-      } catch {
-        // Skip malformed lines.
-      }
-    }
-    return null;
+  /** Recompute and compare a single record's own hash. */
+  private isRecordHashValid(record: AuditRecordV2): boolean {
+    const body = buildHashBody(record.action, record.details, record.timestamp, record.actor);
+    return computeRecordHash(body, record.seq, record.prevHash) === record.recordHash;
   }
 
   // -----------------------------------------------------------------------
@@ -434,9 +630,11 @@ export class AuditChainWriter {
         return { activated: false, reason: "Already activated" };
       }
 
-      // Check if any v2 records already exist in the log.
-      const lastV2 = this.readLastV2Record();
-      if (lastV2 !== null) {
+      // Check if any v2 records already exist in the log. `recordCount.v2`
+      // counts every parseable v2 record (chain-valid or not), faithfully
+      // matching the previous `readLastV2Record() !== null` guard.
+      const preActivation = await verifyAuditLog({ auditDir: this.auditDir });
+      if (preActivation.recordCount.v2 > 0) {
         return { activated: false, reason: "v2 records already exist in audit log" };
       }
 
