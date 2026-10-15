@@ -20,6 +20,14 @@
 - `../security.ts` re-exports the public handler surface; do not add logic there.
 - `jsonMode` is shared module-level state (`shared.ts`); handlers read the live
   binding and call `setJsonMode`. One CLI invocation runs exactly one handler.
+- Inspector token enrollment accepts repeatable `--workspace <path>` arguments.
+  `handleInspectorAuthCreate` canonicalizes every supplied path through
+  `canonicalWorkspaceId` before constructing the auth service or creating a
+  credential, deduplicates equivalent paths, and rejects missing/unresolvable
+  values. Unsupported equals-form workspace options are rejected before any
+  credential or audit mutation; they never become unscoped enrollment.
+  Omitting the option retains undefined legacy scope. Paths are host-local
+  identities; enrollment on another host requires that host's canonical paths.
 - Audit writes remain fail-closed; follow `src/governance/audit/AGENTS.md`.
 - `alix audit verify --all` verifies both chains in one command: the runtime v2
   chain (`AuditStore.verifyIntegrity`) and the governance per-record chain
@@ -34,6 +42,8 @@
 **Verification:**
 - `tests/security/audit/*` — verifier, activate, checkpoint, chain writer.
 - `tests/cli/audit-cli-polish.test.ts` — format helpers imported from the barrel.
+- `tests/cli/inspector-workspace.test.ts` — canonical enrollment, multiple paths,
+  omitted scope, and invalid input with no credential/audit side effects.
 - `tests/cli/inspector-auth.test.ts`, `tests/security/inspector/*` — auth surface.
 
 **Child DOX Index:** none.

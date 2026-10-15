@@ -14,6 +14,7 @@
  * @module
  */
 
+import { allowsWorkspace } from "./workspace-scope.js";
 import {
   generateToken,
   verifyTokenHash,
@@ -533,12 +534,9 @@ export class AuthService {
   /**
    * Verify a bearer token and check workspace scope.
    *
-   * Calls verifyToken() and then checks the principal's workspaceIds
-   * against the target workspace. If the token has workspaceIds defined
-   * but does not include the target workspace, returns workspace_mismatch.
-   *
-   * If targetWorkspace is undefined or the token has no workspaceIds,
-   * workspace scope is not enforced (token is accepted for any workspace).
+   * Undefined scope preserves legacy ordinary Inspector access. Empty scope
+   * denies access; nonempty scope requires a matching server-derived target.
+   * Remote decisions must separately require explicit nonempty scope.
    */
   async verifyTokenForRequest(
     raw: string,
@@ -554,13 +552,9 @@ export class AuthService {
 
     const principal = result.value;
 
-    // If a target workspace is specified and the token has workspace scopes,
-    // verify the token includes the target workspace
-    if (targetWorkspace && principal.workspaceIds && principal.workspaceIds.length > 0) {
-      if (!principal.workspaceIds.includes(targetWorkspace)) {
-        this.metrics("token.verification_failed", { status: "failed" });
-        return { ok: false, error: "workspace_mismatch" };
-      }
+    if (!allowsWorkspace(principal.workspaceIds, targetWorkspace)) {
+      this.metrics("token.verification_failed", { status: "failed" });
+      return { ok: false, error: "workspace_mismatch" };
     }
 
     return result;

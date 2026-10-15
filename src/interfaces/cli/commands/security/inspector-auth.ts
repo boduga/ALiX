@@ -13,6 +13,7 @@
  * - `alix audit checkpoint-verify <path>` — verify checkpoint (Sd2)
  */
 
+import { canonicalWorkspaceId } from "../../../../governance/security/inspector/workspace-scope.js";
 import { loadConfig } from "../../../../operations/config/loader.js";
 import { isLoopbackHost } from "../../../../operations/config/validator.js";
 import "../../../../governance/security/inspector/auth-store.js";
@@ -118,7 +119,7 @@ export async function handleInspectorAuthCreate(args: string[]): Promise<void> {
   const role = roleIdx >= 0 ? args[roleIdx + 1] : null;
 
   if (!name || !role) {
-    console.error("Usage: alix inspector auth create --name <name> --role <role> [--json]");
+    console.error("Usage: alix inspector auth create --name <name> --role <role> [--workspace <path>]... [--json]");
     process.exit(1);
   }
 
@@ -127,10 +128,32 @@ export async function handleInspectorAuthCreate(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  // Validate all paths before constructing the service or creating credentials.
+  let workspaceIds: string[] | undefined;
+  try {
+    for (let i = 0; i < args.length; i++) {
+      if (args[i].startsWith("--workspace=")) {
+        throw new Error("Use --workspace <path>; --workspace=<path> is not supported");
+      }
+      if (args[i] !== "--workspace") continue;
+      const path = args[++i];
+      if (!path || path.startsWith("--")) {
+        throw new Error("--workspace requires a path");
+      }
+      const canonical = canonicalWorkspaceId(path);
+      workspaceIds ??= [];
+      if (!workspaceIds.includes(canonical)) workspaceIds.push(canonical);
+    }
+  } catch (error) {
+    console.error(`Invalid workspace: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+
   const service = await createAuthService();
   const result = await service.createToken({
     name,
     role: role as AuthTokenRole,
+    workspaceIds,
   });
 
   if (!result.ok) {

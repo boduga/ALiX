@@ -18,9 +18,7 @@ import type { RouteDescriptor } from "./route-policy.js";
  * Request-scoped security context.
  *
  * Created by the security middleware at the start of every request and
- * forwarded to route handlers.  The `authenticated` and `permissions`
- * fields are currently stubs (always false / empty) — real auth arrives
- * in Sb2.
+ * forwarded to route handlers with current credential permissions and scope.
  */
 export interface SecurityContext {
   /** Unique request identifier (UUID v4). */
@@ -31,6 +29,9 @@ export interface SecurityContext {
 
   /** Authentication token identifier (set when authenticated). */
   tokenId?: string;
+
+  /** Current credential scope: undefined is legacy; [] grants no workspace. */
+  workspaceIds?: string[];
 
   /** Granted permissions (set when authenticated). */
   permissions: string[];
@@ -57,12 +58,14 @@ export function createSecurityContext(opts?: {
   authenticated?: boolean;
   tokenId?: string;
   permissions?: string[];
+  workspaceIds?: string[];
   route?: RouteDescriptor | null;
 }): SecurityContext {
   return {
     requestId: generateRequestId(),
     authenticated: opts?.authenticated ?? false,
     tokenId: opts?.tokenId,
+    workspaceIds: opts?.workspaceIds === undefined ? undefined : [...opts.workspaceIds],
     permissions: opts?.permissions ?? [],
     route: opts?.route ?? null,
     startTime: performance.now(),

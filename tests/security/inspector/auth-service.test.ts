@@ -401,6 +401,14 @@ describe("AuthService", () => {
       assert.ok(result.ok, "unscoped token should work for any workspace");
     });
 
+    it("rejects explicitly empty workspace scope", async () => {
+      const svc = new AuthService(store, noopAudit, noopMetrics);
+      const created = await svc.createToken({ name: "empty", role: "operator", workspaceIds: [] });
+      assert.ok(created.ok);
+      const result = await svc.verifyTokenForRequest(created.value.token, "workspace-a");
+      assert.deepEqual(result, { ok: false, error: "workspace_mismatch" });
+    });
+
     it("accepts token with matching workspace scope", async () => {
       const svc = new AuthService(store, noopAudit, noopMetrics);
       const created = await svc.createToken({
@@ -435,7 +443,7 @@ describe("AuthService", () => {
       }
     });
 
-    it("accepts token when no target workspace is specified", async () => {
+    it("rejects scoped token when no target workspace is specified", async () => {
       const svc = new AuthService(store, noopAudit, noopMetrics);
       const created = await svc.createToken({
         name: "scoped-a",
@@ -446,7 +454,7 @@ describe("AuthService", () => {
       if (!created.ok) return;
 
       const result = await svc.verifyTokenForRequest(created.value.token);
-      assert.ok(result.ok, "token should verify when no target workspace is specified");
+      assert.ok(!result.ok, "scoped token needs a target workspace");
     });
 
     it("forwards invalid_token errors from verifyToken", async () => {

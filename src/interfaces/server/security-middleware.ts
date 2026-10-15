@@ -19,6 +19,7 @@
  * @module
  */
 
+import { allowsWorkspace } from "../../governance/security/inspector/workspace-scope.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   type SecurityContext,
@@ -69,6 +70,8 @@ export interface SecurityMiddlewareConfig {
    * set `authenticated: true` on the SecurityContext for valid tokens.
    */
   authService?: AuthService;
+  /** Server-derived canonical root; never obtained from request input. */
+  targetWorkspace?: string;
   /**
    * Browser session store for cookie-based authentication (Sb3).
    * When provided, the middleware will parse the ALiX session cookie
@@ -186,6 +189,7 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
     detector,
     enforceAuth,
     authService,
+    targetWorkspace,
     sessionStore,
     preAuthLimiter,
     postAuthLimiter,
@@ -339,23 +343,31 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
       const sessionId = parseSessionCookie(req);
       if (sessionId) {
         const session = sessionStore.getSession(sessionId);
-        if (session) {
-          // Session state is only a credential transport. Re-read the source
-          // token record so cross-process revoke/expiry/role changes apply
-          // without waiting for this server process to restart.
-          const currentPrincipal = authService
-            ? await authService.verifyPrincipalStatus(session.principal.id)
-            : { ok: true as const, value: session.principal };
+        // A cookie is only a transport. Never authorize from its cached snapshot.
+        const currentPrincipal = session && authService
+          ? await authService.verifyPrincipalStatus(session.principal.id)
+          : { ok: false as const, error: "invalid_session" };
+        const eligible = currentPrincipal.ok &&
+          allowsWorkspace(currentPrincipal.value.workspaceIds, targetWorkspace);
 
-          if (currentPrincipal.ok) {
-            ctx = createSecurityContext({
-              authenticated: true,
-              tokenId: currentPrincipal.value.id,
-              permissions: derivePermissions(currentPrincipal.value.role),
-              route,
+        if (currentPrincipal.ok && eligible) {
+          ctx = createSecurityContext({
+            authenticated: true,
+            tokenId: currentPrincipal.value.id,
+            permissions: derivePermissions(currentPrincipal.value.role),
+            workspaceIds: currentPrincipal.value.workspaceIds,
+            route,
+          });
+        } else {
+          sessionStore.removeSession(sessionId);
+          // Explicit invalid credentials must not downgrade to anonymous dev access.
+          // Public auth/logout routes remain available to clear invalid cookies.
+          if (route && !registry.isPublic(route)) {
+            const responder = createSecureResponder(res, registry, detector, {
+              requestId: ctx.requestId,
             });
-          } else {
-            sessionStore.removeSession(sessionId);
+            responder.error(currentPrincipal.ok ? "workspace_mismatch" : "authentication_required", 401);
+            return null;
           }
         }
       }
@@ -374,18 +386,19 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
       }
 
       if (bearerResult.token) {
-        const verifyResult = await authService.verifyToken(bearerResult.token);
+        const verifyResult = await authService.verifyTokenForRequest(bearerResult.token, targetWorkspace);
 
         if (verifyResult.ok) {
           const principal = verifyResult.value;
           ctx = createSecurityContext({
             authenticated: true,
             tokenId: principal.id,
+            workspaceIds: principal.workspaceIds,
             permissions: derivePermissions(principal.role),
             route,
           });
         } else {
-          if (enforceAuth && route && !registry.isPublic(route)) {
+          if (route && !registry.isPublic(route)) {
             const responder = createSecureResponder(res, registry, detector, {
               requestId: ctx.requestId,
             });
