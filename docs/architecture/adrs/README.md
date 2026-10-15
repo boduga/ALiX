@@ -46,4 +46,4 @@ Proposed / Accepted / Superseded
 
 ## Historical Decision Records
 
-Earlier decision records are preserved at [`docs/archive/decision-records.md`](../../archive/decision-records.md) for historical reference.
+Earlier decision records are preserved at [`docs/superseded/archive/decision-records.md`](../../superseded/archive/decision-records.md) for historical reference.

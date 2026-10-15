@@ -25,6 +25,9 @@ SEARCH_PATHS=(.github/workflows scripts docs package.json)
 # lockfile and is never published, so its workflow commands and hand-off notes
 # are exempt; no root or published dependency uses npm.
 
+# Relocated history is exempt wherever it lives: B1 re-parented docs/archive/
+# under docs/superseded/, and later batches land there too. Superseded docs
+# are evidence, not live instructions.
 if grep -Rnw "${SEARCH_PATHS[@]}" \
   -e "npm ci" \
   -e "npm install" \
@@ -43,7 +46,7 @@ if grep -Rnw "${SEARCH_PATHS[@]}" \
   | grep -v "check-supply-chain.sh" \
   | grep -v "experiments/opentui" \
   | grep -v "docs/2026-10-09-node26-opentui-handoff.md" \
-  | grep -v "docs/archive/" \
+  | grep -v "docs/superseded/" \
   | grep -v "docs/superpowers/plans/" \
   | grep -v "docs/architecture/" \
   | grep -v "docs/stories/" \

@@ -1651,12 +1651,7 @@ Expected:
 no hits
 ```
 
-Historical references under:
-
-```text
-docs/archive/
-```
-
+Historical references under the archive path (now `docs/superseded/archive/`)
 may remain.
 
 ---
