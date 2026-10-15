@@ -18,13 +18,34 @@ benchmark → P5 independent G2-C re-review.
 | Piece | State |
 | --- | --- |
 | P1 — audit-chain stale-head recovery | **MERGED** — PR #946, merge `a0d8fda0` |
-| P2 — ledger `BEGIN IMMEDIATE` | **PR #947 open**, mergeable; commit `eb2a553a` |
-| P3 — workspace authorization plumbing | not started |
+| P2 — ledger `BEGIN IMMEDIATE` (+ open-retry, contention retry) | **MERGED** — PR #947, merge `52c0ea87` |
+| G2-D/E durability + contract reconciliation | **MERGED** — PR #948, merge `68978fe8` |
+| P3 — workspace authorization plumbing | **next** — not started |
 | P4 — physical SSD benchmark | not started (no SSD on this host) |
 | P5 — independent G2-C re-review | not started |
-| G2-D/E contract work (uncommitted) | preserved in main worktree (see below) |
 
-Baseline: `main` == `origin/main` == `a0d8fda0` (P1 merged).
+Baseline: `main` == `origin/main` == `52c0ea87` (P1 + G2-D/E + P2 all merged).
+
+## P2 (merged) — what landed
+
+PR #947, merge `52c0ea87`. Two commits' worth of work squashed/rebased onto the
+G2-D/E base:
+
+- `src/runtime-state/storage/runtime-ledger.ts` — `append()` opens its
+  transaction with `BEGIN IMMEDIATE` (`tx.immediate()`), so the write lock is
+  taken up front instead of deferring a read→write snapshot upgrade (which
+  produced `SQLITE_BUSY_SNAPSHOT`, unresolvable by `busy_timeout`). New
+  `openDurableLedger()` sets `busy_timeout` before the WAL switch and retries the
+  open a bounded number of times on `SQLITE_BUSY` (a fresh shared file can return
+  BUSY during the WAL conversion even with `busy_timeout` set). `append()` retries
+  a transient `SQLITE_BUSY` but still returns typed
+  `version_conflict`/`invalid_precondition`/`duplicate_event`.
+- `src/runtime-state/storage/AGENTS.md` — the BEGIN IMMEDIATE + open/append-retry
+  contract.
+- `tests/storage/runtime-ledger-contention.test.ts` — real multi-process (`fork`)
+  tests; captured-stderr child failures, guarded construction, workload-rationale
+  timeouts.
+- Red→green: deferred ≈18,800 `SQLITE_BUSY`/7s → 0, stable across repeated runs.
 
 ## P1 (merged) — what landed
 
@@ -62,27 +83,21 @@ commit `eb2a553a`, branch `srap/p2-ledger-immediate-txn`.
 P2 is independent of the uncommitted G2-B `synchronous=FULL` change (different
 lines), so it is a clean standalone PR against `main`.
 
-## Uncommitted G2-D/E work — PRESERVE, do not lose
+## G2-D/E work — now MERGED (#948)
 
-The **main worktree** (`/home/babasola/Projects/ALiX`) still holds the uncommitted
-G2-D/E line (6 files), kept out of P1/P2 intentionally:
+The former uncommitted G2-D/E line (durability pin + contract reconciliation) is
+now committed and merged on `main` via PR #948 (`68978fe8`): the `synchronous=FULL`
+pin + `durabilitySettings()` in `runtime-ledger.ts`, the Child DOX Index row, the
+approvals/server/audit/storage contract rules, and the new
+`src/governance/security/credentials/AGENTS.md`. No uncommitted tracked work
+remains on `main`.
 
-- `AGENTS.md` (Child DOX Index row for the new credentials contract)
-- `src/governance/approvals/AGENTS.md` (ApprovalScope predicate + workspace rule)
-- `src/governance/audit/AGENTS.md` (the G2-E projection + HMAC bullets;
-  P1 merged the recovery bullets, these three remain uncommitted)
-- `src/interfaces/server/AGENTS.md` (canonical workspace identity)
-- `src/runtime-state/storage/AGENTS.md` (WAL+FULL repository-wide note)
-- `src/runtime-state/storage/runtime-ledger.ts` (the G2-B **uncommitted**
-  `synchronous=FULL` pin + `durabilitySettings()` — NOT in `main`)
+Remaining untracked, deliberately NOT committed (unrelated to SRAP): the
+screenshots/`alix-header.png`/`no-render-md*.png` images, the two workbench
+handoffs, and `tests/cli/commands/governance-workbench-trace-wiring.vitest.ts`.
 
-Untracked G2-D/E artifacts are also present (G2-A/C/D/E reports, contract/plan,
-ADR-0015, `credentials/AGENTS.md`, `srap-approval-durability.test.ts`,
-`benchmark-runtime-ledger*.mjs`). **These are not committed.** A safety backup of
-the pre-sync state is at `/tmp/opencode/pre-sync-backup/`.
-
-Do NOT `git add .` in the main worktree — it mixes G2-D/E with unrelated
-untracked images/workbench files.
+Do NOT `git add .` in the main worktree — it sweeps those unrelated untracked
+files in.
 
 ## Key facts a new session needs
 
@@ -104,9 +119,7 @@ untracked images/workbench files.
 
 ## Next steps
 
-1. **P2:** wait for PR #947 CI green → merge → sync `main`. (P1 pattern: all 13
-   checks passed; merge with `gh pr merge 947 --merge`; the local `main` worktree
-   checkout blocks `--delete-branch`, so delete the branch separately if desired.)
+1. ~~P2 merge~~ — **done** (#947 merged `52c0ea87`).
 2. **P3 — Inspector workspace authorization** (from G2-E §B):
    - derive one canonical workspace identity at `startServer` —
      `realpathSync.native(resolve(root))` (today it uses raw `process.cwd()`);
@@ -115,8 +128,9 @@ untracked images/workbench files.
    - wire the existing-but-unused `AuthService.verifyTokenForRequest`; add a
      `--workspace` enrollment surface for `alix inspector auth create`;
    - fail-closed: missing/empty scope denies; request input never sets scope.
-   Existing predicate + parity table are in the uncommitted
-   `src/governance/approvals/AGENTS.md` / `docs/2026-10-14-srap-g2-e-operational-verification.md`.
+   The predicate + binding parity requirement now live (merged) in
+   `src/governance/approvals/AGENTS.md`; the case matrix is in
+   `docs/2026-10-14-srap-g2-e-operational-verification.md` §B.3.
 3. **P4:** run `scripts/benchmark-runtime-ledger-workloads.mjs` on a physical SSD;
    confirm the G2-E acceptance thresholds (§A.7 of the G2-E report).
 4. **P5:** independent G2-C re-review of the merged fixes + contracts.
