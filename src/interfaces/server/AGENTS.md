@@ -34,14 +34,27 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
   approval eligibility, trusted-proxy TLS validation, bounded idempotency
   evidence, and resolution through existing `ApprovalStore`. It cannot execute
   agent actions, create approvals, or broaden any other browser write surface.
-- **Canonical workspace identity for remote approval is server-derived.** The
-  server computes one canonical workspace from its resolved project root
-  (`realpathSync.native(resolve(root))`) and compares it against the token's
-  `workspaceIds`; the raw `process.cwd()` string is not the identity, and no
-  request header/body/query may establish or override it. Missing or empty token
-  scope is denied for remote decision. `SecurityContext` must carry the
-  principal's `workspaceIds` (currently dropped by the middleware) before the
-  route can enforce this.
+- **Workspace identity is server-derived and host-local.** `startServer`
+  canonicalizes its project root once through `canonicalWorkspaceId`
+  (`src/governance/security/inspector/workspace-scope.ts`), using native realpath
+  of the resolved path. Failure rejects startup before stores initialize. Project
+  stores and middleware use that same root; request headers, body, and query
+  cannot establish or override it. Absolute canonical paths are local filesystem
+  identities, not portable workspace IDs across hosts.
+- **Credential scope constrains ordinary Inspector access.** `allowsWorkspace`
+  preserves undefined legacy scope, denies non-array or explicitly empty scope,
+  and requires canonical membership for nonempty scope. Bearer validation uses
+  `verifyTokenForRequest`; cookie requests re-read current source credentials
+  through `verifyPrincipalStatus` and apply the same predicate. Missing source
+  validation, revocation, expiry, and scope loss deny protected routes even in
+  development mode; an invalid credential cannot downgrade to anonymous access.
+  Public authentication/logout routes remain available for credential recovery.
+  Anonymous ordinary development access and existing role permissions are
+  unchanged. `SecurityContext.workspaceIds` preserves absent versus empty scope.
+- **Future remote decisions require explicit nonempty scope.** Legacy unscoped
+  access, cookie authentication, and anonymous development access grant no remote
+  decision authority. The future route must enforce the owning approval contract;
+  P3 adds no remote decision endpoint.
 - `startServer` receives the configured Inspector authentication mode and must
   pass an explicit `enforceAuth` value to `createSecurityMiddleware`.
 - With authentication required, every registered data and SSE route requires
@@ -70,6 +83,9 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
 ## Verification
 
 - `tests/server/server.test.ts` — HTTP smoke tests for registry, graph list, policy, approvals, audit endpoints.
+- `tests/server/workspace-authorization.test.ts` — bearer/cookie × role × scope ×
+  auth-mode parity, current-credential revalidation, request spoofing, canonical
+  server roots, and failed startup.
 - `tests/server/auth-routes.test.ts` — session exchange/logout plus required-mode
   Bearer, cookie, permission, SSE, route-registration, and revocation behavior.
 - `tests/security/inspector/authorization.test.ts` and

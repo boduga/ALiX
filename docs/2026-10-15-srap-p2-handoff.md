@@ -20,11 +20,11 @@ benchmark → P5 independent G2-C re-review.
 | P1 — audit-chain stale-head recovery | **MERGED** — PR #946, merge `a0d8fda0` |
 | P2 — ledger `BEGIN IMMEDIATE` (+ open-retry, contention retry) | **MERGED** — PR #947, merge `52c0ea87` |
 | G2-D/E durability + contract reconciliation | **MERGED** — PR #948, merge `68978fe8` |
-| P3 — workspace authorization plumbing | **next** — not started |
-| P4 — physical SSD benchmark | not started (no SSD on this host) |
+| P3 — workspace authorization plumbing | **implemented, publication authorized** — branch `srap/p3-workspace-authorization`; PR review pending |
+| P4 — physical SSD benchmark | pending on current SSD-equipped host; measure the actual ledger volume |
 | P5 — independent G2-C re-review | not started |
 
-Baseline: `main` == `origin/main` == `52c0ea87` (P1 + G2-D/E + P2 all merged).
+Baseline: `main` == `origin/main` == `4440e48c` (P1 + G2-D/E + P2 and #949 handoff merged).
 
 ## P2 (merged) — what landed
 
@@ -67,22 +67,6 @@ G2-D/E base:
 
 Note: P1's `audit/AGENTS.md` change deliberately contains **only** the P1 lines.
 
-## P2 (PR #947) — what is proposed
-
-`fix(storage): open the ledger append transaction with BEGIN IMMEDIATE`,
-commit `eb2a553a`, branch `srap/p2-ledger-immediate-txn`.
-
-- `src/runtime-state/storage/runtime-ledger.ts` — `append()` now calls
-  `tx.immediate()` (was `tx()`); comment explains the deferred read→write upgrade
-  that yields `SQLITE_BUSY_SNAPSHOT` (not resolvable by `busy_timeout`).
-- `src/runtime-state/storage/AGENTS.md` — the BEGIN IMMEDIATE contract note.
-- `tests/storage/runtime-ledger-contention.test.ts` — real multi-process `fork`
-  tests: independent-entity throughput (0 `SQLITE_BUSY`) and same-entity
-  optimistic conflicts. **Red on deferred (~18,800 busy), green on immediate (0).**
-
-P2 is independent of the uncommitted G2-B `synchronous=FULL` change (different
-lines), so it is a clean standalone PR against `main`.
-
 ## G2-D/E work — now MERGED (#948)
 
 The former uncommitted G2-D/E line (durability pin + contract reconciliation) is
@@ -92,20 +76,17 @@ approvals/server/audit/storage contract rules, and the new
 `src/governance/security/credentials/AGENTS.md`. No uncommitted tracked work
 remains on `main`.
 
-Remaining untracked, deliberately NOT committed (unrelated to SRAP): the
-screenshots/`alix-header.png`/`no-render-md*.png` images, the two workbench
-handoffs, and `tests/cli/commands/governance-workbench-trace-wiring.vitest.ts`.
-
-Do NOT `git add .` in the main worktree — it sweeps those unrelated untracked
-files in.
+Previous-device unrelated untracked artifacts were deliberately excluded from
+SRAP work. Current main checkout is clean; P3 changes are isolated in its worktree.
 
 ## Key facts a new session needs
 
-- **Repo:** `/home/babasola/Projects/ALiX` (git remote `boduga/ALiX`). `gh` auth
+- **Current repo:** `/home/babasola/Projects/Monolith` (git remote `boduga/ALiX`). `gh` auth
   works as `boduga`; GitHub network is intermittently flaky — retry pushes/queries.
-- **This host's disk is a rotational HDD** (`WDC WD10SPZX`, `rotational=1`).
-  `synchronous=FULL` single-append ≈ 14 writes/s here; **no physical SSD present**
-  — P4 needs real SSD hardware.
+- **Previous device's disk was a rotational HDD** (`WDC WD10SPZX`, `rotational=1`).
+  `synchronous=FULL` single-append ≈ 14 writes/s there; **no physical SSD present**
+  on that previous device. The current device has SSD (operator confirmed); P4
+  must measure the actual volume containing `.alix/runtime-ledger.db`, not tmpfs.
 - **Build/test:** `pnpm build` (= `tsc -p tsconfig.json` + `copy-build-artifacts`),
   `pnpm test:node` (node:test over `dist/tests`). **Always `rm -rf dist` before a
   clean build**: a stale git-ignored `dist/tests/tests/` duplicate tree inflates
@@ -113,14 +94,15 @@ files in.
 - Local full `pnpm test:node` had 3 pre-existing timing flakes
   (`coordination-scheduler` ×2, `observability-stream` ×1); sources byte-identical
   to baseline — environmental, not code.
-- Worktree helper: `tools.opencode.worktree_create` + `git switch -c`. In a fresh
-  worktree, symlink `node_modules` → main worktree (`ln -sfn …/node_modules`),
-  build with `node node_modules/typescript/bin/tsc -p tsconfig.json`.
+- Current P3 worktree: `/tmp/alix-srap-p3`, branch
+  `srap/p3-workspace-authorization`. Locked dependencies installed locally;
+  pnpm 12 rejects the earlier handoff's node_modules symlink setup.
+
 
 ## Next steps
 
 1. ~~P2 merge~~ — **done** (#947 merged `52c0ea87`).
-2. **P3 — Inspector workspace authorization** (from G2-E §B):
+2. **P3 — Inspector workspace authorization** (approved for bounded implementation):
    - derive one canonical workspace identity at `startServer` —
      `realpathSync.native(resolve(root))` (today it uses raw `process.cwd()`);
    - carry the principal's `workspaceIds` through `SecurityContext`
@@ -146,3 +128,13 @@ scheduler, state machine, or ledger until G3 is explicitly opened.
 3. `docs/architecture/adrs/ADR-0015-srap-one-ledger-decision-evidence.md`.
 4. `docs/2026-10-14-srap-g2-c-independent-review.md` — original BLOCKED review.
 5. Root `AGENTS.md`, `docs/AGENTS.md`, and the owning subsystem AGENTS.md files.
+
+## P3 current execution
+
+Approved design and conditions:
+`docs/superpowers/specs/2026-10-15-srap-p3-workspace-authorization-design.md`.
+Plan: `docs/superpowers/plans/2026-10-15-srap-p3-workspace-authorization.md`.
+Undefined scope preserves ordinary legacy access; explicit empty scope denies;
+nonempty scope requires canonical membership. Cookies revalidate source tokens.
+P3 worktree: `/tmp/alix-srap-p3`; commit/push/PR authorized on 2026-10-15; merge remains gated.
+G3 remains closed. Current device is SSD-equipped; P4 is still pending.

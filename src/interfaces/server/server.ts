@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { canonicalWorkspaceId } from "../../governance/security/inspector/workspace-scope.js";
 import { readFile } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -108,6 +109,11 @@ export function startServer(
   trustedProxyCidrs?: string[],
   authentication: "required" | "disabled-loopback-development" = "disabled-loopback-development",
 ): Promise<{ close: () => Promise<void>; url: string }> {
+  try {
+    root = canonicalWorkspaceId(root);
+  } catch (error) {
+    return Promise.reject(error);
+  }
   if (
     authentication !== "required" &&
     authentication !== "disabled-loopback-development"
@@ -189,6 +195,7 @@ export function startServer(
     registry: routeRegistry,
     detector,
     enforceAuth: authentication === "required",
+    targetWorkspace: root,
     authService,
     sessionStore,
     preAuthLimiter,
