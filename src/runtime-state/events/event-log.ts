@@ -142,9 +142,13 @@ export class EventLog {
    * this instance held the append lock. Under the lock, an unchanged size
    * means no peer appended since our last write, so `nextSeq` is already
    * correct and the tail read can be skipped — saving two file opens + a read
-   * on every uncontended burst append. `undefined` until primed by `init()`
-   * or the first locked resync; any size change falls through to the tail
-   * read, so multi-writer correctness is unchanged.
+   * on every uncontended burst append. `undefined` (including right after
+   * `init()`, which runs unlocked and must never prime the gate) falls
+   * through to the tail read, so multi-writer correctness is unchanged.
+   * Assumption: the log file is append-only in normal operation — an
+   * out-of-band truncate-and-rewrite to an identical byte length would fool
+   * the pure-size comparison. Nothing in the runtime truncates or rewrites
+   * events.jsonl; rotation would need a generation check added here.
    */
   private lastKnownSize: number | undefined;
   private watchers: EventListener[] = [];
@@ -158,11 +162,11 @@ export class EventLog {
     await mkdir(dirname(this.path), { recursive: true });
     const events = await this.readAll();
     this.nextSeq = events.reduce((max, e) => Math.max(max, e.seq ?? 0), 0) + 1;
-    try {
-      this.lastKnownSize = existsSync(this.path) ? (await stat(this.path)).size : 0;
-    } catch {
-      this.lastKnownSize = undefined;
-    }
+    // Deliberately NOT priming lastKnownSize here: init() runs unlocked, so a
+    // peer append between readAll() and stat() would prime the gate with a
+    // fresh size over a stale nextSeq, and the first append would skip its
+    // resync and duplicate a seq. The gate primes only under the append lock
+    // (resyncFromDisk) or arithmetically after our own locked write.
   }
 
   /** The position before the first event — the start for full replay. */

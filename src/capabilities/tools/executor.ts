@@ -2,6 +2,7 @@ import "node:fs";
 import "node:fs/promises";
 import { resolve } from "node:path";
 import { hashArgs } from "./hash-args.js";
+import { emitToolTelemetry } from "./telemetry.js";
 import type { AlixConfig } from "../../operations/config/schema.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
@@ -220,14 +221,7 @@ export class ToolExecutor {
   }
 
   private async logEvent(type: string, payload: Record<string, unknown>): Promise<void> {
-    // Fail-open: a telemetry write must never fail the tool it describes.
-    // Under cross-process lock contention (e.g. N subagent children sharing
-    // one events.jsonl), an append throw here would turn an observability
-    // failure into a tool failure. The event is best-effort; the ToolResult
-    // is authoritative.
-    try {
-      await this.log.append({ sessionId: this.sessionId(), actor: "system", type, payload });
-    } catch { /* tool telemetry is observability, not correctness */ }
+    await emitToolTelemetry(this.log, this.sessionId(), type, payload);
   }
 
   /**
@@ -914,27 +908,20 @@ async function writeOutputToFile(
   const mimeType = typeof output === "string" ? "text/plain" : "application/json";
   const size = Buffer.byteLength(content, "utf8");
 
-  // Emit artifact.created event (best-effort: the artifact file above is the
-  // authoritative record; a contended EventLog append must not fail the tool).
+  // Emit artifact.created event (best-effort via emitToolTelemetry: the
+  // artifact file above is the authoritative record).
   const sessionId = sessionDir.split("sessions/").length > 1 ? sessionDir.split("sessions/")[1] : "unknown";
-  try {
-    await log.append({
-      sessionId,
-      actor: "system",
-      type: ARTIFACT_EVENT_TYPES.CREATED,
-      payload: {
-        artifactId,
-        toolCallId,
-        path: filePath,
-        mimeType,
-        size,
-        retention: "session",
-        ...(correlation.coordinationRunId ? { coordinationRunId: correlation.coordinationRunId } : {}),
-        ...(correlation.agentId ? { agentId: correlation.agentId } : {}),
-        ...(correlation.taskId ? { taskId: correlation.taskId } : {}),
-      } satisfies ArtifactCreatedPayload,
-    });
-  } catch { /* artifact notification is observability, not correctness */ }
+  await emitToolTelemetry(log, sessionId, ARTIFACT_EVENT_TYPES.CREATED, {
+    artifactId,
+    toolCallId,
+    path: filePath,
+    mimeType,
+    size,
+    retention: "session",
+    ...(correlation.coordinationRunId ? { coordinationRunId: correlation.coordinationRunId } : {}),
+    ...(correlation.agentId ? { agentId: correlation.agentId } : {}),
+    ...(correlation.taskId ? { taskId: correlation.taskId } : {}),
+  } satisfies ArtifactCreatedPayload);
 
   return filePath;
 }

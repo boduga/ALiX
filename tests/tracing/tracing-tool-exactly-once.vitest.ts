@@ -161,22 +161,6 @@ function untraced(req: ReturnType<typeof toolCallReq>): ReturnType<typeof toolCa
   return copy;
 }
 
-/**
- * EventLog-shaped stub. Note: failing appends can no longer force a throw out
- * of dispatch — tool telemetry is fail-open, so append failures are swallowed.
- * Tests needing a dispatch throw must reject `dispatch` itself (see the
- * cancel case below); this helper remains for log-shape stubbing only.
- */
-function failLog(append: (event: { type: string }) => void): EventLog {
-  return {
-    sessionDir: join(tmpdir(), "sessions", "t18-fail"),
-    append: async (event: { type: string }) => {
-      append(event);
-    },
-    readAll: async () => [],
-  } as unknown as EventLog;
-}
-
 interface Harness {
   dir: string;
   executor: ToolExecutor;

@@ -137,20 +137,14 @@ const config: AlixConfig = {
 };
 
 /**
- * Minimal EventLog-shaped stub. The `failOnType` seam only fails telemetry
- * writes, which the executor treats as best-effort (fail-open): it can no
- * longer force a throw out of dispatch. Tests needing a dispatch throw must
- * reject `dispatch` itself (see the throw/cancel/timeout cases below).
+ * Minimal EventLog-shaped stub (never fails: tool telemetry is fail-open, so
+ * a failing stub could not fail the tool under test anyway).
  */
-function stubLog(opts?: { failOnType?: string; error?: unknown }): EventLog {
+function stubLog(): EventLog {
   const sessionDir = join(tmpdir(), "sessions", "tool-span-test");
   return {
     sessionDir,
-    append: async (event: { type: string }) => {
-      if (opts?.failOnType && event.type === opts.failOnType) {
-        throw opts.error ?? new Error("stub append boom");
-      }
-    },
+    append: async () => {},
     readAll: async () => [],
   } as unknown as EventLog;
 }

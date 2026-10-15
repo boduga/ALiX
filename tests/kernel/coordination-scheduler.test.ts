@@ -990,7 +990,10 @@ describe("CoordinationScheduler — runUntilIdle event-driven cadence", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("ticks once while a worker runs past the timeout (no per-poll ticks)", async () => {
+  // Workload: one 300ms run budget bounds a worker that never settles; the
+  // timeout below is the workload bound, not a tight assertion (slow runners
+  // must not flake: the loop exits on timeoutMs, never on tick count).
+  it("ticks once while a worker runs past the timeout (no per-poll ticks)", { timeout: 30_000 }, async () => {
     const { executor } = createDeferredExecutor(); // never settles
     const scheduler = build(executor);
     const { run } = await seedOneWorker("cadence-timeout");
@@ -1004,7 +1007,9 @@ describe("CoordinationScheduler — runUntilIdle event-driven cadence", () => {
     await scheduler.shutdown();
   });
 
-  it("watchdog ticks bound idle polling while workers hang", async () => {
+  // Workload: same never-settling worker with a 50ms watchdog over a 300ms
+  // budget; generous timeout so loaded CI never flakes on the wall clock.
+  it("watchdog ticks bound idle polling while workers hang", { timeout: 30_000 }, async () => {
     const { executor } = createDeferredExecutor(); // never settles
     const scheduler = build(executor);
     const { run } = await seedOneWorker("cadence-watchdog");
@@ -1016,7 +1021,9 @@ describe("CoordinationScheduler — runUntilIdle event-driven cadence", () => {
     await scheduler.shutdown();
   });
 
-  it("a settling worker wakes the loop promptly and completes", async () => {
+  // Workload: worker resolves at ~50ms; the 5s budget leaves wide margin for
+  // slow runners — assertions are on completion/dispatch, never exact timing.
+  it("a settling worker wakes the loop promptly and completes", { timeout: 30_000 }, async () => {
     const { executor, pending } = createDeferredExecutor();
     const scheduler = build(executor);
     const { run, worker } = await seedOneWorker("cadence-settle");
