@@ -15,7 +15,7 @@ The goal of ALiX is not to create a router or wrapper around those tools. The go
 
 Focused specs created from this research:
 
-- [MVP Product Spec](./mvp-product-spec.md)
+- [MVP Product Spec](superseded/mvp-product-spec.md)
 - [Event Kernel Schema](./architecture/event-kernel-schema.md)
 - [Patch Engine Protocol](./architecture/patch-engine-protocol.md)
 - [Configuration Format](./architecture/config-format.md)
