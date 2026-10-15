@@ -1,0 +1,1143 @@
+{
+  "schemaVersion": 1,
+  "baseline": "7103ec566b27a22f460d2ce8dad9c51d64214f71",
+  "gate": "SRAP P4",
+  "status": "proposed operational thresholds met; P5 independent review pending; G3 closed",
+  "hardware": {
+    "baseline": "7103ec566b27a22f460d2ce8dad9c51d64214f71",
+    "workspace": "/home/babasola/Projects/Monolith",
+    "ledgerPath": "/home/babasola/Projects/Monolith/.alix/runtime-ledger.db",
+    "benchmarkRoot": "/home/babasola/Projects/Monolith/.tmp/p4-ssd-2026-10-15-r7loybdc",
+    "stDev": 66306,
+    "findmnt": "TARGET                           SOURCE                                           FSTYPE OPTIONS\n/home/babasola/Projects/Monolith /dev/nvme0n1p2[/home/babasola/Projects/Monolith] ext4   rw,nosuid,nodev,relatime\n",
+    "blockDevice": [
+      {
+        "name": "nvme0n1",
+        "type": "disk",
+        "rota": false,
+        "size": "953.9G",
+        "model": "INTEL SSDPEKNW010T8",
+        "mountpoints": [],
+        "children": [
+          {
+            "name": "nvme0n1p1",
+            "type": "part",
+            "rota": false,
+            "size": "1G",
+            "model": null,
+            "mountpoints": [
+              "/boot/efi"
+            ]
+          },
+          {
+            "name": "nvme0n1p2",
+            "type": "part",
+            "rota": false,
+            "size": "952.8G",
+            "model": null,
+            "mountpoints": [
+              "/home/babasola/Projects/Monolith/.agents",
+              "/home/babasola/Projects/Monolith/.git",
+              "/home/babasola/Projects/Monolith",
+              "/"
+            ]
+          }
+        ]
+      }
+    ],
+    "kernel": "Linux 7.0.0-34-generic x86_64 GNU/Linux",
+    "nodeVersion": "v26.11.0",
+    "nodeArchiveSha256": "db6342d36ebdb3cbd72103d0ce5ccc528620f6c9df72a11f4ccb384bf1bef678"
+  },
+  "runtime": {
+    "node": "v26.11.0",
+    "betterSqlite3": "13.0.3",
+    "sqlite": "3.53.4"
+  },
+  "thresholds": {
+    "source": "docs/2026-10-14-srap-g2-e-operational-verification.md section A.7",
+    "appendP95MsMax": 20,
+    "readerP95MsMax": 5,
+    "surfacedBusyErrorsMax": 0,
+    "sustainedThroughput": "several hundred writes/s (no exact numeric floor defined in source)"
+  },
+  "sourceSha256": {
+    "scripts/benchmark-runtime-ledger-workloads.mjs": "9d492b081a7a78f7a421111f129f229c0d22a28785d37288d55bb3b0c8be0dd5",
+    "scripts/benchmark-runtime-ledger.mjs": "88703e5901f20e587156a8bd8e674376b22b7404bd210d97f625190a93c64765",
+    "src/runtime-state/storage/runtime-ledger.ts": "c45896befbe05be30b1debaf285c39d5fc68784ac9d3cec6d1c212ae55b978ee",
+    "pnpm-lock.yaml": "842f34936077a0d35471dc6f74350e0151eff5cfd2d8d71c7a5ba256a05fcb68"
+  },
+  "runs": [
+    {
+      "id": "sustained-1",
+      "startedAtUtc": null,
+      "command": [
+        "/tmp/alix-p4-runtime/node-v26.11.0-linux-x64/bin/node",
+        "scripts/benchmark-runtime-ledger-workloads.mjs",
+        "--writers",
+        "4",
+        "--seconds",
+        "20",
+        "--mode",
+        "sustained",
+        "--out",
+        "/home/babasola/Projects/Monolith/.tmp/p4-ssd-2026-10-15-r7loybdc/sustained-1"
+      ],
+      "measurement": {
+        "config": {
+          "writers": 4,
+          "mode": "sustained",
+          "seconds": 20,
+          "burst": 25,
+          "bursts": 40,
+          "sessionK": 6
+        },
+        "elapsedMs": 20197.8,
+        "totalAppends": 8043,
+        "aggregateWritesPerSec": 398.2,
+        "appendLatency": {
+          "count": 8043,
+          "p50": 2.181,
+          "p95": 5.293,
+          "p99": 83.698,
+          "max": 3838.31,
+          "mean": 9.8
+        },
+        "readerLatencyMs": {
+          "count": 100,
+          "p50": 0.523,
+          "p95": 0.701,
+          "p99": 0.938,
+          "max": 1.757,
+          "mean": 0.55
+        },
+        "readerSamples": 100,
+        "wal": {
+          "growthMaxBytes": 7560232,
+          "beforeCheckpointBytes": 7560232,
+          "afterCheckpointBytes": 0,
+          "checkpointMs": 0.29
+        },
+        "errorCount": 0,
+        "errorSamples": [],
+        "workerFailures": [],
+        "storage": "physical-nvme-ssd-ext4-INTEL-SSDPEKNW010T8"
+      },
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 8043,
+          "uniqueEvents": 8043,
+          "minSeq": 1,
+          "maxSeq": 8043
+        },
+        "entities": 4,
+        "outbox": 8043,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      },
+      "readerErrors": 0
+    },
+    {
+      "id": "sustained-2",
+      "startedAtUtc": "2026-10-15T21:50:09Z",
+      "command": [
+        "/tmp/alix-p4-runtime/node-v26.11.0-linux-x64/bin/node",
+        "scripts/benchmark-runtime-ledger-workloads.mjs",
+        "--writers",
+        "4",
+        "--seconds",
+        "20",
+        "--mode",
+        "sustained",
+        "--out",
+        "/home/babasola/Projects/Monolith/.tmp/p4-ssd-2026-10-15-r7loybdc/sustained-2"
+      ],
+      "measurement": {
+        "config": {
+          "writers": 4,
+          "mode": "sustained",
+          "seconds": 20,
+          "burst": 25,
+          "bursts": 40,
+          "sessionK": 6
+        },
+        "elapsedMs": 20192.7,
+        "totalAppends": 7939,
+        "aggregateWritesPerSec": 393.2,
+        "appendLatency": {
+          "count": 7939,
+          "p50": 2.211,
+          "p95": 5.359,
+          "p99": 81.745,
+          "max": 5024.784,
+          "mean": 9.93
+        },
+        "readerLatencyMs": {
+          "count": 100,
+          "p50": 0.512,
+          "p95": 0.764,
+          "p99": 0.959,
+          "max": 1.298,
+          "mean": 0.55
+        },
+        "readerSamples": 100,
+        "wal": {
+          "growthMaxBytes": 7008152,
+          "beforeCheckpointBytes": 7008152,
+          "afterCheckpointBytes": 0,
+          "checkpointMs": 0.31
+        },
+        "errorCount": 0,
+        "errorSamples": [],
+        "workerFailures": [],
+        "storage": "physical-nvme-ssd-ext4-INTEL-SSDPEKNW010T8"
+      },
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 7939,
+          "uniqueEvents": 7939,
+          "minSeq": 1,
+          "maxSeq": 7939
+        },
+        "entities": 4,
+        "outbox": 7939,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      },
+      "readerErrors": 0
+    },
+    {
+      "id": "sustained-3",
+      "startedAtUtc": "2026-10-15T21:50:30Z",
+      "command": [
+        "/tmp/alix-p4-runtime/node-v26.11.0-linux-x64/bin/node",
+        "scripts/benchmark-runtime-ledger-workloads.mjs",
+        "--writers",
+        "4",
+        "--seconds",
+        "20",
+        "--mode",
+        "sustained",
+        "--out",
+        "/home/babasola/Projects/Monolith/.tmp/p4-ssd-2026-10-15-r7loybdc/sustained-3"
+      ],
+      "measurement": {
+        "config": {
+          "writers": 4,
+          "mode": "sustained",
+          "seconds": 20,
+          "burst": 25,
+          "bursts": 40,
+          "sessionK": 6
+        },
+        "elapsedMs": 20180,
+        "totalAppends": 7827,
+        "aggregateWritesPerSec": 387.9,
+        "appendLatency": {
+          "count": 7827,
+          "p50": 2.222,
+          "p95": 6.93,
+          "p99": 56.604,
+          "max": 4740.529,
+          "mean": 10.06
+        },
+        "readerLatencyMs": {
+          "count": 100,
+          "p50": 0.525,
+          "p95": 0.715,
+          "p99": 0.772,
+          "max": 1.499,
+          "mean": 0.55
+        },
+        "readerSamples": 100,
+        "wal": {
+          "growthMaxBytes": 13937992,
+          "beforeCheckpointBytes": 13937992,
+          "afterCheckpointBytes": 0,
+          "checkpointMs": 0.29
+        },
+        "errorCount": 0,
+        "errorSamples": [],
+        "workerFailures": [],
+        "storage": "physical-nvme-ssd-ext4-INTEL-SSDPEKNW010T8"
+      },
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 7827,
+          "uniqueEvents": 7827,
+          "minSeq": 1,
+          "maxSeq": 7827
+        },
+        "entities": 4,
+        "outbox": 7827,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      },
+      "readerErrors": 0
+    },
+    {
+      "id": "burst-1",
+      "startedAtUtc": "2026-10-15T21:50:50Z",
+      "command": [
+        "/tmp/alix-p4-runtime/node-v26.11.0-linux-x64/bin/node",
+        "scripts/benchmark-runtime-ledger-workloads.mjs",
+        "--writers",
+        "4",
+        "--seconds",
+        "20",
+        "--mode",
+        "burst",
+        "--out",
+        "/home/babasola/Projects/Monolith/.tmp/p4-ssd-2026-10-15-r7loybdc/burst-1",
+        "--burst",
+        "25",
+        "--bursts",
+        "40"
+      ],
+      "measurement": {
+        "config": {
+          "writers": 4,
+          "mode": "burst",
+          "seconds": 20,
+          "burst": 25,
+          "bursts": 40,
+          "sessionK": 6
+        },
+        "elapsedMs": 10406.3,
+        "totalAppends": 4000,
+        "aggregateWritesPerSec": 384.4,
+        "appendLatency": {
+          "count": 4000,
+          "p50": 2.238,
+          "p95": 7.782,
+          "p99": 57.908,
+          "max": 2643.538,
+          "mean": 9.14
+        },
+        "readerLatencyMs": {
+          "count": 51,
+          "p50": 0.541,
+          "p95": 0.899,
+          "p99": 1.435,
+          "max": 1.435,
+          "mean": 0.57
+        },
+        "readerSamples": 51,
+        "wal": {
+          "growthMaxBytes": 9628472,
+          "beforeCheckpointBytes": 9628472,
+          "afterCheckpointBytes": 0,
+          "checkpointMs": 0.3
+        },
+        "errorCount": 0,
+        "errorSamples": [],
+        "workerFailures": [],
+        "storage": "physical-nvme-ssd-ext4-INTEL-SSDPEKNW010T8"
+      },
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 4000,
+          "uniqueEvents": 4000,
+          "minSeq": 1,
+          "maxSeq": 4000
+        },
+        "entities": 4,
+        "outbox": 4000,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      },
+      "readerErrors": 0
+    },
+    {
+      "id": "burst-2",
+      "startedAtUtc": "2026-10-15T21:51:01Z",
+      "command": [
+        "/tmp/alix-p4-runtime/node-v26.11.0-linux-x64/bin/node",
+        "scripts/benchmark-runtime-ledger-workloads.mjs",
+        "--writers",
+        "4",
+        "--seconds",
+        "20",
+        "--mode",
+        "burst",
+        "--out",
+        "/home/babasola/Projects/Monolith/.tmp/p4-ssd-2026-10-15-r7loybdc/burst-2",
+        "--burst",
+        "25",
+        "--bursts",
+        "40"
+      ],
+      "measurement": {
+        "config": {
+          "writers": 4,
+          "mode": "burst",
+          "seconds": 20,
+          "burst": 25,
+          "bursts": 40,
+          "sessionK": 6
+        },
+        "elapsedMs": 10023,
+        "totalAppends": 4000,
+        "aggregateWritesPerSec": 399.1,
+        "appendLatency": {
+          "count": 4000,
+          "p50": 2.2,
+          "p95": 3.085,
+          "p99": 20.766,
+          "max": 3337.203,
+          "mean": 8.52
+        },
+        "readerLatencyMs": {
+          "count": 50,
+          "p50": 0.53,
+          "p95": 0.914,
+          "p99": 1.202,
+          "max": 1.202,
+          "mean": 0.57
+        },
+        "readerSamples": 50,
+        "wal": {
+          "growthMaxBytes": 4206552,
+          "beforeCheckpointBytes": 4206552,
+          "afterCheckpointBytes": 0,
+          "checkpointMs": 0.26
+        },
+        "errorCount": 0,
+        "errorSamples": [],
+        "workerFailures": [],
+        "storage": "physical-nvme-ssd-ext4-INTEL-SSDPEKNW010T8"
+      },
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 4000,
+          "uniqueEvents": 4000,
+          "minSeq": 1,
+          "maxSeq": 4000
+        },
+        "entities": 4,
+        "outbox": 4000,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      },
+      "readerErrors": 0
+    },
+    {
+      "id": "burst-3",
+      "startedAtUtc": "2026-10-15T21:51:11Z",
+      "command": [
+        "/tmp/alix-p4-runtime/node-v26.11.0-linux-x64/bin/node",
+        "scripts/benchmark-runtime-ledger-workloads.mjs",
+        "--writers",
+        "4",
+        "--seconds",
+        "20",
+        "--mode",
+        "burst",
+        "--out",
+        "/home/babasola/Projects/Monolith/.tmp/p4-ssd-2026-10-15-r7loybdc/burst-3",
+        "--burst",
+        "25",
+        "--bursts",
+        "40"
+      ],
+      "measurement": {
+        "config": {
+          "writers": 4,
+          "mode": "burst",
+          "seconds": 20,
+          "burst": 25,
+          "bursts": 40,
+          "sessionK": 6
+        },
+        "elapsedMs": 10091.8,
+        "totalAppends": 4000,
+        "aggregateWritesPerSec": 396.4,
+        "appendLatency": {
+          "count": 4000,
+          "p50": 2.203,
+          "p95": 3.299,
+          "p99": 36.403,
+          "max": 2336.048,
+          "mean": 7.83
+        },
+        "readerLatencyMs": {
+          "count": 50,
+          "p50": 0.515,
+          "p95": 0.682,
+          "p99": 1.491,
+          "max": 1.491,
+          "mean": 0.56
+        },
+        "readerSamples": 50,
+        "wal": {
+          "growthMaxBytes": 5240672,
+          "beforeCheckpointBytes": 5240672,
+          "afterCheckpointBytes": 0,
+          "checkpointMs": 0.28
+        },
+        "errorCount": 0,
+        "errorSamples": [],
+        "workerFailures": [],
+        "storage": "physical-nvme-ssd-ext4-INTEL-SSDPEKNW010T8"
+      },
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 4000,
+          "uniqueEvents": 4000,
+          "minSeq": 1,
+          "maxSeq": 4000
+        },
+        "entities": 4,
+        "outbox": 4000,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      },
+      "readerErrors": 0
+    },
+    {
+      "id": "session-1",
+      "startedAtUtc": "2026-10-15T21:51:21Z",
+      "command": [
+        "/tmp/alix-p4-runtime/node-v26.11.0-linux-x64/bin/node",
+        "scripts/benchmark-runtime-ledger-workloads.mjs",
+        "--writers",
+        "4",
+        "--seconds",
+        "20",
+        "--mode",
+        "session",
+        "--out",
+        "/home/babasola/Projects/Monolith/.tmp/p4-ssd-2026-10-15-r7loybdc/session-1",
+        "--session-k",
+        "6",
+        "--think-ms",
+        "1500"
+      ],
+      "measurement": {
+        "config": {
+          "writers": 4,
+          "mode": "session",
+          "seconds": 20,
+          "burst": 25,
+          "bursts": 40,
+          "sessionK": 6
+        },
+        "elapsedMs": 21488.8,
+        "totalAppends": 336,
+        "aggregateWritesPerSec": 15.6,
+        "appendLatency": {
+          "count": 336,
+          "p50": 2.533,
+          "p95": 12.261,
+          "p99": 36.655,
+          "max": 83.654,
+          "mean": 4.54
+        },
+        "readerLatencyMs": {
+          "count": 107,
+          "p50": 0.701,
+          "p95": 1.094,
+          "p99": 1.572,
+          "max": 2.558,
+          "mean": 0.75
+        },
+        "readerSamples": 107,
+        "wal": {
+          "growthMaxBytes": 4161232,
+          "beforeCheckpointBytes": 4161232,
+          "afterCheckpointBytes": 0,
+          "checkpointMs": 0.36
+        },
+        "errorCount": 0,
+        "errorSamples": [],
+        "workerFailures": [],
+        "storage": "physical-nvme-ssd-ext4-INTEL-SSDPEKNW010T8"
+      },
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 336,
+          "uniqueEvents": 336,
+          "minSeq": 1,
+          "maxSeq": 336
+        },
+        "entities": 4,
+        "outbox": 336,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      },
+      "readerErrors": 0
+    },
+    {
+      "id": "session-2",
+      "startedAtUtc": "2026-10-15T21:51:43Z",
+      "command": [
+        "/tmp/alix-p4-runtime/node-v26.11.0-linux-x64/bin/node",
+        "scripts/benchmark-runtime-ledger-workloads.mjs",
+        "--writers",
+        "4",
+        "--seconds",
+        "20",
+        "--mode",
+        "session",
+        "--out",
+        "/home/babasola/Projects/Monolith/.tmp/p4-ssd-2026-10-15-r7loybdc/session-2",
+        "--session-k",
+        "6",
+        "--think-ms",
+        "1500"
+      ],
+      "measurement": {
+        "config": {
+          "writers": 4,
+          "mode": "session",
+          "seconds": 20,
+          "burst": 25,
+          "bursts": 40,
+          "sessionK": 6
+        },
+        "elapsedMs": 21459.1,
+        "totalAppends": 336,
+        "aggregateWritesPerSec": 15.7,
+        "appendLatency": {
+          "count": 336,
+          "p50": 2.411,
+          "p95": 10.629,
+          "p99": 36.455,
+          "max": 58.626,
+          "mean": 3.93
+        },
+        "readerLatencyMs": {
+          "count": 106,
+          "p50": 0.688,
+          "p95": 0.991,
+          "p99": 1.158,
+          "max": 2.025,
+          "mean": 0.73
+        },
+        "readerSamples": 106,
+        "wal": {
+          "growthMaxBytes": 4144752,
+          "beforeCheckpointBytes": 4144752,
+          "afterCheckpointBytes": 0,
+          "checkpointMs": 0.29
+        },
+        "errorCount": 0,
+        "errorSamples": [],
+        "workerFailures": [],
+        "storage": "physical-nvme-ssd-ext4-INTEL-SSDPEKNW010T8"
+      },
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 336,
+          "uniqueEvents": 336,
+          "minSeq": 1,
+          "maxSeq": 336
+        },
+        "entities": 4,
+        "outbox": 336,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      },
+      "readerErrors": 0
+    },
+    {
+      "id": "session-3",
+      "startedAtUtc": "2026-10-15T21:52:05Z",
+      "command": [
+        "/tmp/alix-p4-runtime/node-v26.11.0-linux-x64/bin/node",
+        "scripts/benchmark-runtime-ledger-workloads.mjs",
+        "--writers",
+        "4",
+        "--seconds",
+        "20",
+        "--mode",
+        "session",
+        "--out",
+        "/home/babasola/Projects/Monolith/.tmp/p4-ssd-2026-10-15-r7loybdc/session-3",
+        "--session-k",
+        "6",
+        "--think-ms",
+        "1500"
+      ],
+      "measurement": {
+        "config": {
+          "writers": 4,
+          "mode": "session",
+          "seconds": 20,
+          "burst": 25,
+          "bursts": 40,
+          "sessionK": 6
+        },
+        "elapsedMs": 21471,
+        "totalAppends": 336,
+        "aggregateWritesPerSec": 15.6,
+        "appendLatency": {
+          "count": 336,
+          "p50": 2.429,
+          "p95": 11.841,
+          "p99": 38.765,
+          "max": 82.817,
+          "mean": 4.23
+        },
+        "readerLatencyMs": {
+          "count": 106,
+          "p50": 0.691,
+          "p95": 0.954,
+          "p99": 1.027,
+          "max": 2.436,
+          "mean": 0.72
+        },
+        "readerSamples": 106,
+        "wal": {
+          "growthMaxBytes": 4144752,
+          "beforeCheckpointBytes": 4144752,
+          "afterCheckpointBytes": 0,
+          "checkpointMs": 0.35
+        },
+        "errorCount": 0,
+        "errorSamples": [],
+        "workerFailures": [],
+        "storage": "physical-nvme-ssd-ext4-INTEL-SSDPEKNW010T8"
+      },
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 336,
+          "uniqueEvents": 336,
+          "minSeq": 1,
+          "maxSeq": 336
+        },
+        "entities": 4,
+        "outbox": 336,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      },
+      "readerErrors": 0
+    }
+  ],
+  "thresholdChecks": [
+    {
+      "run": "sustained-1",
+      "appendP95Pass": true,
+      "readerP95Pass": true,
+      "noSurfacedErrors": true,
+      "durabilitySettingsPass": true,
+      "integrityPass": true
+    },
+    {
+      "run": "sustained-2",
+      "appendP95Pass": true,
+      "readerP95Pass": true,
+      "noSurfacedErrors": true,
+      "durabilitySettingsPass": true,
+      "integrityPass": true
+    },
+    {
+      "run": "sustained-3",
+      "appendP95Pass": true,
+      "readerP95Pass": true,
+      "noSurfacedErrors": true,
+      "durabilitySettingsPass": true,
+      "integrityPass": true
+    },
+    {
+      "run": "burst-1",
+      "appendP95Pass": true,
+      "readerP95Pass": true,
+      "noSurfacedErrors": true,
+      "durabilitySettingsPass": true,
+      "integrityPass": true
+    },
+    {
+      "run": "burst-2",
+      "appendP95Pass": true,
+      "readerP95Pass": true,
+      "noSurfacedErrors": true,
+      "durabilitySettingsPass": true,
+      "integrityPass": true
+    },
+    {
+      "run": "burst-3",
+      "appendP95Pass": true,
+      "readerP95Pass": true,
+      "noSurfacedErrors": true,
+      "durabilitySettingsPass": true,
+      "integrityPass": true
+    },
+    {
+      "run": "session-1",
+      "appendP95Pass": true,
+      "readerP95Pass": true,
+      "noSurfacedErrors": true,
+      "durabilitySettingsPass": true,
+      "integrityPass": true
+    },
+    {
+      "run": "session-2",
+      "appendP95Pass": true,
+      "readerP95Pass": true,
+      "noSurfacedErrors": true,
+      "durabilitySettingsPass": true,
+      "integrityPass": true
+    },
+    {
+      "run": "session-3",
+      "appendP95Pass": true,
+      "readerP95Pass": true,
+      "noSurfacedErrors": true,
+      "durabilitySettingsPass": true,
+      "integrityPass": true
+    }
+  ],
+  "crashRecoveryFullSnapshots": [
+    {
+      "repeat": 1,
+      "writerProcesses": 4,
+      "signal": "SIGKILL",
+      "countBefore": 360,
+      "countAfter": 565,
+      "observedEventsPreserved": 360,
+      "settings": {
+        "journalMode": "wal",
+        "synchronous": 2
+      },
+      "integrity": [
+        {
+          "integrity_check": "ok"
+        }
+      ],
+      "workerStderr": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 565,
+          "uniqueEvents": 565,
+          "minSeq": 1,
+          "maxSeq": 565
+        },
+        "entities": 4,
+        "outbox": 565,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      }
+    },
+    {
+      "repeat": 2,
+      "writerProcesses": 4,
+      "signal": "SIGKILL",
+      "countBefore": 350,
+      "countAfter": 559,
+      "observedEventsPreserved": 350,
+      "settings": {
+        "journalMode": "wal",
+        "synchronous": 2
+      },
+      "integrity": [
+        {
+          "integrity_check": "ok"
+        }
+      ],
+      "workerStderr": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 559,
+          "uniqueEvents": 559,
+          "minSeq": 1,
+          "maxSeq": 559
+        },
+        "entities": 3,
+        "outbox": 559,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      }
+    },
+    {
+      "repeat": 3,
+      "writerProcesses": 4,
+      "signal": "SIGKILL",
+      "countBefore": 357,
+      "countAfter": 563,
+      "observedEventsPreserved": 357,
+      "settings": {
+        "journalMode": "wal",
+        "synchronous": 2
+      },
+      "integrity": [
+        {
+          "integrity_check": "ok"
+        }
+      ],
+      "workerStderr": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "verification": {
+        "settings": {
+          "journalMode": "wal",
+          "synchronous": 2
+        },
+        "sqliteVersion": "3.53.4",
+        "integrity": [
+          {
+            "integrity_check": "ok"
+          }
+        ],
+        "foreignKeyErrors": [],
+        "events": {
+          "count": 563,
+          "uniqueEvents": 563,
+          "minSeq": 1,
+          "maxSeq": 563
+        },
+        "entities": 4,
+        "outbox": 563,
+        "entityMismatches": [],
+        "orphanEvents": 0,
+        "orphanOutbox": 0
+      }
+    }
+  ],
+  "preliminaryCrashRecoverySamples": [
+    {
+      "repeat": 1,
+      "writerProcesses": 4,
+      "signal": "SIGKILL",
+      "countBefore": 352,
+      "countAfter": 556,
+      "observedEventsPreserved": 100,
+      "settings": {
+        "journalMode": "wal",
+        "synchronous": 2
+      },
+      "integrity": [
+        {
+          "integrity_check": "ok"
+        }
+      ],
+      "workerStderr": [
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "repeat": 2,
+      "writerProcesses": 4,
+      "signal": "SIGKILL",
+      "countBefore": 363,
+      "countAfter": 565,
+      "observedEventsPreserved": 100,
+      "settings": {
+        "journalMode": "wal",
+        "synchronous": 2
+      },
+      "integrity": [
+        {
+          "integrity_check": "ok"
+        }
+      ],
+      "workerStderr": [
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "repeat": 3,
+      "writerProcesses": 4,
+      "signal": "SIGKILL",
+      "countBefore": 350,
+      "countAfter": 558,
+      "observedEventsPreserved": 100,
+      "settings": {
+        "journalMode": "wal",
+        "synchronous": 2
+      },
+      "integrity": [
+        {
+          "integrity_check": "ok"
+        }
+      ],
+      "workerStderr": [
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  ],
+  "storageTestSummary": {
+    "node": "v26.11.0",
+    "passed": 17,
+    "failed": 0,
+    "files": [
+      "tests/storage/runtime-ledger.test.ts",
+      "tests/storage/runtime-ledger-contention.test.ts",
+      "tests/storage/srap-approval-durability.test.ts"
+    ]
+  },
+  "limits": [
+    "Absolute paths identify this host and worktree; raw databases remain in ignored workspace scratch on the measured SSD.",
+    "Harness records at most 50 surfaced errors per worker. Zero is unambiguous; nonzero values would not be exact total failure counts.",
+    "Harness ignores typed version_conflict; private per-worker entities avoid intentional version competition. Row and version consistency checked independently.",
+    "Reader failure count is derived from readerSamples minus successful latency sample count, because harness omits failed read latencies from percentiles.",
+    "Reported checkpointMs times a second checkpoint after an earlier untimed reader.db.pragma(TRUNCATE); it is not a trustworthy first-checkpoint duration and is not used for acceptance.",
+    "SQLITE_BUSY absence means none surfaced to the harness; internal production retry counts are not instrumented.",
+    "Observed WAL peaks over short runs and zero post-checkpoint bytes are not a long-duration WAL-growth proof.",
+    "Crash probes test process death, not host power loss or SSD/controller power-loss protection.",
+    "Existing benchmark modes do not implement every caller payload or concurrency pattern. Sustained loops and the unchanged no-delay burst loop are both saturated append streams; session mode supplies pacing.",
+    "First sustained result was preserved while fixing an external verifier import. Its exact start timestamp was not retained; latency/throughput output is unchanged.",
+    "Session mode uses six total synthetic appends per iteration, not six message facts plus additional scope/state facts; no model/tool latency or end-to-end agent behavior is measured."
+  ],
+  "verificationPrograms": {
+    "p4-run-workloads.py": "import json,os,subprocess,time,hashlib\nfrom pathlib import Path\nroot=Path(Path('/tmp/p4-output-path.txt').read_text());cwd=Path('/tmp/alix-srap-p4')\nnode='/tmp/alix-p4-runtime/node-v26.11.0-linux-x64/bin/node'\nenv={**os.environ,'BENCH_STORAGE_LABEL':'physical-nvme-ssd-ext4-INTEL-SSDPEKNW010T8'}\nall_runs=[]\nfor mode in ['sustained','burst','session']:\n for repeat in range(1,4):\n  name=f'{mode}-{repeat}';out=root/name\n  args=[node,'scripts/benchmark-runtime-ledger-workloads.mjs','--writers','4','--seconds','20','--mode',mode,'--out',str(out)]\n  if mode=='burst': args+=['--burst','25','--bursts','40']\n  if mode=='session': args+=['--session-k','6','--think-ms','1500']\n  if (root/f'{name}.json').exists():\n   started=None\n   data=json.loads((root/f'{name}.json').read_text())\n  else:\n   started=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())\n   run=subprocess.run(args,cwd=cwd,env=env,capture_output=True,text=True)\n   (root/f'{name}.stderr.log').write_text(run.stderr)\n   if run.returncode: raise RuntimeError(f'{name} failed {run.returncode}: {run.stderr[-1500:]}')\n   data=json.loads(run.stdout);(root/f'{name}.json').write_text(json.dumps(data,indent=2)+'\\n')\n  verify=subprocess.run([node,'/tmp/p4-verify-ledger.mjs',str(out/'runtime.db')],cwd=cwd,capture_output=True,text=True,check=True)\n  integrity=json.loads(verify.stdout);(root/f'{name}.integrity.json').write_text(verify.stdout)\n  assert integrity['events']['count']==data['totalAppends']==integrity['events']['uniqueEvents']==integrity['outbox']\n  assert integrity['events']['minSeq']==1 and integrity['events']['maxSeq']==data['totalAppends']\n  assert integrity['entities']==4 and not integrity['entityMismatches'] and not integrity['foreignKeyErrors'] and not integrity['orphanEvents'] and not integrity['orphanOutbox']\n  assert integrity['integrity']==[{'integrity_check':'ok'}]\n  reader_errors=data['readerSamples']-data['readerLatencyMs']['count']\n  entry={'id':name,'startedAtUtc':started,'command':args,'measurement':data,'verification':integrity,'readerErrors':reader_errors}\n  all_runs.append(entry)\n  (root/'results.json').write_text(json.dumps(all_runs,indent=2)+'\\n')\n  print(json.dumps({'run':name,'writesPerSec':data['aggregateWritesPerSec'],'appends':data['totalAppends'],'appendP95Ms':data['appendLatency']['p95'],'readerP95Ms':data['readerLatencyMs']['p95'],'errors':data['errorCount'],'readerErrors':reader_errors,'workerFailures':data['workerFailures'],'integrity':'ok'}),flush=True)\nprint('ALL NINE RUNS COMPLETED',flush=True)\n",
+    "p4-verify-ledger.mjs": "import Database from '/tmp/alix-srap-p4/node_modules/better-sqlite3/lib/index.js';\nimport {RuntimeLedger} from '/tmp/alix-srap-p4/dist/src/runtime-state/storage/runtime-ledger.js';\nconst dbPath=process.argv[2];\nconst ledger=new RuntimeLedger({dbPath});\nconst settings=ledger.durabilitySettings();\nledger.close();\nconst db=new Database(dbPath,{readonly:true,fileMustExist:true});\nconst result={settings,sqliteVersion:db.prepare('select sqlite_version() as v').get().v,\n integrity:db.pragma('integrity_check'),foreignKeyErrors:db.pragma('foreign_key_check'),\n events:db.prepare('SELECT COUNT(*) AS count,COUNT(DISTINCT event_id) AS uniqueEvents,MIN(ledger_seq) AS minSeq,MAX(ledger_seq) AS maxSeq FROM runtime_events').get(),\n entities:db.prepare('SELECT COUNT(*) AS count FROM runtime_entities').get().count,\n outbox:db.prepare('SELECT COUNT(*) AS count FROM runtime_outbox').get().count,\n entityMismatches:db.prepare(`SELECT e.entity_id FROM runtime_entities e LEFT JOIN runtime_events r ON r.entity_id=e.entity_id GROUP BY e.entity_id HAVING e.version<>MAX(r.entity_version) OR e.version<>COUNT(*) OR MIN(r.entity_version)<>1 OR COUNT(DISTINCT r.entity_version)<>COUNT(*)`).all(),\n orphanEvents:db.prepare('SELECT COUNT(*) AS count FROM runtime_events r LEFT JOIN runtime_entities e ON r.entity_id=e.entity_id WHERE e.entity_id IS NULL').get().count,\n orphanOutbox:db.prepare('SELECT COUNT(*) AS count FROM runtime_outbox o LEFT JOIN runtime_events e ON o.event_id=e.event_id WHERE e.event_id IS NULL').get().count};\ndb.close();console.log(JSON.stringify(result,null,2));\n",
+    "p4-concurrent-crash.mjs": "import {spawn} from 'node:child_process';\nimport {once} from 'node:events';\nimport {mkdirSync,writeFileSync} from 'node:fs';\nimport {join} from 'node:path';\nimport assert from 'node:assert/strict';\nimport Database from '/tmp/alix-srap-p4/node_modules/better-sqlite3/lib/index.js';\nimport {RuntimeLedger} from '/tmp/alix-srap-p4/dist/src/runtime-state/storage/runtime-ledger.js';\nconst root=process.argv[2];\nconst sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));\nconst results=[];\nfor(let repeat=1;repeat<=3;repeat++){\n const dir=join(root,`crash-full-${repeat}`);mkdirSync(dir);\n const dbPath=join(dir,'runtime.db');\n const children=[];let ledger;\n try{\n  for(let workerId=0;workerId<4;workerId++){\n   const cfg={workerId,runId:`crash-full-${repeat}`,dbPath,mode:'sustained',seconds:30,burst:25,bursts:40,sessionK:6,thinkMs:0};\n   const child=spawn(process.execPath,['scripts/benchmark-runtime-ledger-workloads.mjs','--worker',JSON.stringify(cfg)],{cwd:'/tmp/alix-srap-p4',stdio:['ignore','ignore','pipe']});\n   let stderr='';child.stderr.on('data',b=>stderr+=b.toString());\n   const exited=once(child,'exit');children.push({child,exited,getStderr:()=>stderr});\n  }\n  await sleep(1000);\n  ledger=new RuntimeLedger({dbPath});\n  const observed=ledger.readEvents({sinceSeq:0,limit:10000});assert.ok(observed.length>0 && observed.length<10000);\n  const countBefore=observed.length;\n  await sleep(500);\n  for(const {child} of children) assert.equal(child.kill('SIGKILL'),true);\n  const exits=await Promise.all(children.map(x=>x.exited));\n  for(const [code,signal] of exits) assert.equal(signal,'SIGKILL');\n  ledger.close();ledger=undefined;\n  const reopened=new RuntimeLedger({dbPath});\n  assert.deepEqual(reopened.readEvents({sinceSeq:0,limit:observed.length}),observed);\n  const settings=reopened.durabilitySettings();reopened.close();\n  const db=new Database(dbPath,{readonly:true});const countAfter=db.prepare('SELECT COUNT(*) AS n FROM runtime_events').get().n;const integrity=db.pragma('integrity_check');db.close();\n  assert.ok(countAfter>=countBefore);assert.deepEqual(integrity,[{integrity_check:'ok'}]);\n  const result={repeat,writerProcesses:4,signal:'SIGKILL',countBefore,countAfter,observedEventsPreserved:observed.length,settings,integrity,workerStderr:children.map(x=>x.getStderr())};\n  results.push(result);writeFileSync(join(root,'crash-full-results.json'),JSON.stringify(results,null,2)+'\\n');console.log(JSON.stringify(result));\n }finally{\n  for(const {child} of children) if(child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');\n  await Promise.allSettled(children.map(x=>x.exited));ledger?.close();\n }\n}\n",
+    "p4-concurrent-crash-sampled.mjs": "import {spawn} from 'node:child_process';\nimport {once} from 'node:events';\nimport {mkdirSync,writeFileSync} from 'node:fs';\nimport {join} from 'node:path';\nimport assert from 'node:assert/strict';\nimport Database from '/tmp/alix-srap-p4/node_modules/better-sqlite3/lib/index.js';\nimport {RuntimeLedger} from '/tmp/alix-srap-p4/dist/src/runtime-state/storage/runtime-ledger.js';\nconst root=process.argv[2];\nconst sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));\nconst results=[];\nfor(let repeat=1;repeat<=3;repeat++){\n const dir=join(root,`crash-${repeat}`);mkdirSync(dir);\n const dbPath=join(dir,'runtime.db');\n const children=[];let ledger;\n try{\n  for(let workerId=0;workerId<4;workerId++){\n   const cfg={workerId,runId:`crash-${repeat}`,dbPath,mode:'sustained',seconds:30,burst:25,bursts:40,sessionK:6,thinkMs:0};\n   const child=spawn(process.execPath,['scripts/benchmark-runtime-ledger-workloads.mjs','--worker',JSON.stringify(cfg)],{cwd:'/tmp/alix-srap-p4',stdio:['ignore','ignore','pipe']});\n   let stderr='';child.stderr.on('data',b=>stderr+=b.toString());\n   const exited=once(child,'exit');children.push({child,exited,getStderr:()=>stderr});\n  }\n  await sleep(1000);\n  ledger=new RuntimeLedger({dbPath});\n  const observed=ledger.readEvents({sinceSeq:0,limit:100});assert.ok(observed.length>0);\n  const snapshot=new Database(dbPath,{readonly:true});const countBefore=snapshot.prepare('SELECT COUNT(*) AS n FROM runtime_events').get().n;snapshot.close();\n  await sleep(500);\n  for(const {child} of children) assert.equal(child.kill('SIGKILL'),true);\n  const exits=await Promise.all(children.map(x=>x.exited));\n  for(const [code,signal] of exits) assert.equal(signal,'SIGKILL');\n  ledger.close();ledger=undefined;\n  const reopened=new RuntimeLedger({dbPath});\n  assert.deepEqual(reopened.readEvents({sinceSeq:0,limit:observed.length}),observed);\n  const settings=reopened.durabilitySettings();reopened.close();\n  const db=new Database(dbPath,{readonly:true});const countAfter=db.prepare('SELECT COUNT(*) AS n FROM runtime_events').get().n;const integrity=db.pragma('integrity_check');db.close();\n  assert.ok(countAfter>=countBefore);assert.deepEqual(integrity,[{integrity_check:'ok'}]);\n  const result={repeat,writerProcesses:4,signal:'SIGKILL',countBefore,countAfter,observedEventsPreserved:observed.length,settings,integrity,workerStderr:children.map(x=>x.getStderr())};\n  results.push(result);writeFileSync(join(root,'crash-results.json'),JSON.stringify(results,null,2)+'\\n');console.log(JSON.stringify(result));\n }finally{\n  for(const {child} of children) if(child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');\n  await Promise.allSettled(children.map(x=>x.exited));ledger?.close();\n }\n}\n"
+  },
+  "storageTestOutput": "\u2714 concurrent multi-process writes do not produce SQLITE_BUSY and serialize cleanly (6303.896903ms)\n\u2714 concurrent writers on ONE entity surface optimistic conflicts, never busy errors (4227.72863ms)\n\u2714 append creates event + bumped entity version + outbox row atomically (24.536962ms)\n\u2714 version progression: entity version advances one per append (7.10328ms)\n\u2714 version conflict commits nothing \u2014 event, entity, outbox all absent (4.89204ms)\n\u2714 duplicate event id rolls back without touching the entity (5.642336ms)\n\u2714 event.entityVersion must equal expectedVersion + 1 (4.904096ms)\n\u2714 negative expectedVersion rejected before any write (4.339172ms)\n\u2714 replay is global-sequence ordered, cursor and entity filters work (6.196596ms)\n\u2714 outbox delivery marking removes rows from the claim queue (6.916481ms)\n\u2714 drainLedgerEvents advances past non-matching pages without false truncation (6.097691ms)\n\u2714 runtimeLedgerPath is workspace-rooted under .alix (0.631837ms)\n\u2714 ledger file is created on construction (3.700167ms)\n\u2714 transition and remote decision evidence survive authoritative read-back (20.399024ms)\n\u2714 failure after event and entity writes rolls back transition, evidence, and outbox (6.67459ms)\n\u2714 commit-before-ack survives process termination and restart (98.108982ms)\n\u2714 reopened WAL ledger uses FULL synchronous durability (4.902375ms)\n\u2139 tests 17\n\u2139 suites 0\n\u2139 pass 17\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 10631.915288\n"
+}
