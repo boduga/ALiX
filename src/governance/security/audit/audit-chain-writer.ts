@@ -329,8 +329,7 @@ function parseTipLine(line: string): TipParse {
  * therefore reported through an optional callback and are NEVER written into
  * the hash chain (no sequence is consumed, no JSONL is modified).
  *
- * A successful repair and a fail-closed recovery are distinct events with
- * distinct payloads.
+ * A successful repair and a non-repair outcome are distinct events.
  */
 export interface AuditSidecarRecoveredEvent {
   action: "audit.stale_sidecar_recovered";
@@ -341,15 +340,24 @@ export interface AuditSidecarRecoveredEvent {
   timestamp: string;
 }
 
-/** Emitted when recovery fails closed. Never asserts that a repair happened. */
-export interface AuditRecoveryFailedEvent {
+/**
+ * Emitted when reconciliation does not repair the sidecar. Never asserts that a
+ * repair happened. `outcome` distinguishes a fail-closed recovery verdict
+ * (`"failed"`, a chain defect that reconciliation refused to resolve) from a
+ * reconciliation defect (`"error"`, an unexpected throw such as EISDIR) — so the
+ * telemetry channel never goes dark exactly when a genuine bug is hardest to
+ * diagnose. Consumers discriminate on `action` *and* `outcome`.
+ */
+export interface AuditRecoveryFailureEvent {
   action: "audit.recovery";
-  outcome: "failed";
+  outcome: "failed" | "error";
   reason: string;
   timestamp: string;
 }
 
-export type AuditRecoveryEvent = AuditSidecarRecoveredEvent | AuditRecoveryFailedEvent;
+export type AuditRecoveryEvent =
+  | AuditSidecarRecoveredEvent
+  | AuditRecoveryFailureEvent;
 
 export interface AuditChainWriterConfig {
   /** Directory for the audit log, head sidecar, and lock file. */
@@ -549,16 +557,15 @@ export class AuditChainWriter {
       return await this.reconcileHeadInner();
     } catch (error) {
       // Fail-closed recovery: report the failure out-of-band without asserting
-      // any repair. Only a genuine recovery verdict emits telemetry; any other
-      // throw is a defect and must not be mislabeled as a recovery failure.
-      if (error instanceof AuditRecoveryError) {
-        this.emitRecovery({
-          action: "audit.recovery",
-          outcome: "failed",
-          reason: error.message,
-          timestamp: new Date().toISOString(),
-        });
-      }
+      // any repair. A genuine recovery verdict reports `failed`; any other
+      // throw is a reconciliation defect and is reported as `error` so the
+      // telemetry channel never goes silent on an unexpected failure.
+      this.emitRecovery({
+        action: "audit.recovery",
+        outcome: error instanceof AuditRecoveryError ? "failed" : "error",
+        reason: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      });
       throw error;
     }
   }

@@ -17,7 +17,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync, appendFileSync, exist
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { AuditStore } from "../../src/governance/audit/audit-store.js";
-import { AuditChainWriter, type AuditRecoveryEvent, type AuditRecoveryFailedEvent } from "../../src/governance/security/audit/audit-chain-writer.js";
+import { AuditChainWriter, type AuditRecoveryEvent, type AuditRecoveryFailureEvent } from "../../src/governance/security/audit/audit-chain-writer.js";
 import { verifyAuditLog } from "../../src/governance/security/audit/audit-verifier.js";
 import { isAuditRecordV2 } from "../../src/governance/audit/audit-types.js";
 
@@ -422,17 +422,18 @@ describe("audit-chain recovery telemetry (out-of-band, no chained record)", () =
       () => w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() }),
       /recovery failed|malformed/i,
     );
-    const failed = events.filter((e): e is AuditRecoveryFailedEvent => e.action === "audit.recovery");
+    const failed = events.filter((e): e is AuditRecoveryFailureEvent => e.action === "audit.recovery");
     const recovered = events.filter((e) => e.action === "audit.stale_sidecar_recovered");
     assert.equal(failed.length, 1, "exactly one failure event");
     assert.equal(failed[0].outcome, "failed");
     assert.equal(recovered.length, 0, "no success event on a failed recovery");
   });
 
-  it("a non-recovery error is not mislabeled as a recovery failure", async () => {
+  it("a non-recovery error is reported as outcome \"error\", not mislabeled as a fail-closed failure", async () => {
     // readPersistedTip calls statSync on the log path; a directory there throws
-    // EISDIR — a genuine defect, not a fail-closed recovery verdict. It must
-    // propagate without emitting audit.recovery.
+    // EISDIR — a genuine reconciliation defect, not a fail-closed recovery
+    // verdict. It must propagate with the original error AND emit an `error`
+    // telemetry event (never a success, never outcome:"failed").
     const store = new AuditStore(cwd);
     await store.activateIntegrity();
     await store.append({ action: "policy.allowed", details: {} });
@@ -442,11 +443,10 @@ describe("audit-chain recovery telemetry (out-of-band, no chained record)", () =
 
     const w = writer();
     await assert.rejects(() => w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() }));
-    assert.equal(
-      events.filter((e) => e.action === "audit.recovery").length,
-      0,
-      "a non-recovery error must not be reported as audit.recovery",
-    );
+
+    const recovery = events.filter((e): e is AuditRecoveryFailureEvent => e.action === "audit.recovery");
+    assert.equal(recovery.length, 1, "reconciliation defects must not go silent");
+    assert.equal(recovery[0].outcome, "error", "a defect is outcome:\"error\", not outcome:\"failed\"");
     assert.equal(events.filter((e) => e.action === "audit.stale_sidecar_recovered").length, 0);
   });
 

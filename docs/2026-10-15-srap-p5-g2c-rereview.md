@@ -207,6 +207,12 @@ remote endpoint ships:
    (b) `audit.stale_sidecar_recovered` / `audit.recovery` now emit out-of-band
    recovery telemetry via `AuditChainWriterConfig.onRecovery` (forwarded by
    `AuditStore`, default stderr); no chained record and no sequence consumed.
+   Type names (aligned to the implementation): `AuditRecoveryEvent` is the
+   discriminated union of `AuditSidecarRecoveredEvent`
+   (`action: "audit.stale_sidecar_recovered"`) and `AuditRecoveryFailureEvent`
+   (`action: "audit.recovery"`, `outcome: "failed" | "error"`). Consumers
+   discriminate on `action` and, for `audit.recovery`, on `outcome`
+   (`"failed"` = fail-closed verdict, `"error"` = reconciliation defect).
 
 **G3 remains closed.** Opening it is an explicit operator decision that this
 review does not make; this record only returns the independent re-review result.
