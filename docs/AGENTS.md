@@ -13,7 +13,7 @@ subtrees below.
 | `docs/YYYY-MM-DD-<topic>.md` | Dated hand-off / status records that span subsystems |
 | `docs/agents/` | Agent workflow guides (issue tracker, triage labels, domain) |
 | `docs/architecture/` | Architecture plans, specs, checkpoints, reports |
-| `docs/audits/` | Durable architecture evidence — verified audits, document inventory/classification, phase registry, SRAP readiness |
+| `docs/audits/` | Durable architecture evidence — evidence-graded audits, document inventory/classification, phase registry, SRAP readiness |
 | `docs/jev/` | Jev / System One integration docs |
 | `docs/superpowers/` | Implementation specs and plans |
 
@@ -39,4 +39,4 @@ Docs-only; no typecheck or test applies. Run `pnpm check:dox` when `AGENTS.md` c
 | `superpowers/AGENTS.md` | Implementation specs and plans |
 | `jev/AGENTS.md` | Jev / System One integration docs |
 
-`agents/`, `architecture/`, and `audits/` are indexed from `agents/domain.md`, the architecture tree, and the audit artifacts respectively; none carries a child `AGENTS.md` today. `audits/` is a durable evidence and reconciliation directory: verified, source-cited audits and inventories that later architecture migrations reference back to. Treat it as history, not a live contract.
+`agents/`, `architecture/`, and `audits/` are indexed from `agents/domain.md`, the architecture tree, and the audit artifacts respectively; none carries a child `AGENTS.md` today. `audits/` is a durable evidence and reconciliation directory: evidence-graded audits and inventories (verified claims plus explicitly provisional rows, resolved in follow-up work) that later architecture migrations reference back to. Roadmap and readiness content inside is proposal pending its own approval gates, not an approved plan. Treat it as history, not a live contract.
