@@ -137,9 +137,10 @@ const config: AlixConfig = {
 };
 
 /**
- * Minimal EventLog-shaped stub. Supports a deliberate append failure so a
- * throw (or cancellation) can be forced deterministically out of dispatch —
- * the executor awaits log.append for tool.requested BEFORE any router work.
+ * Minimal EventLog-shaped stub. The `failOnType` seam only fails telemetry
+ * writes, which the executor treats as best-effort (fail-open): it can no
+ * longer force a throw out of dispatch. Tests needing a dispatch throw must
+ * reject `dispatch` itself (see the throw/cancel/timeout cases below).
  */
 function stubLog(opts?: { failOnType?: string; error?: unknown }): EventLog {
   const sessionDir = join(tmpdir(), "sessions", "tool-span-test");
@@ -338,32 +339,48 @@ describe("ToolExecutor.execute tool spans — enabled", () => {
 
 describe("ToolExecutor.execute tool spans — throw / cancel / timeout", () => {
   it("emits one error span and rethrows the original error when dispatch throws", async () => {
-    const log = stubLog({ failOnType: "tool.requested", error: new Error("dispatch boom") });
-    const s = track(setup({ log }));
+    // The throw comes out of dispatch itself (a failing log can no longer
+    // fail the tool: telemetry is fail-open, so a log stub can no longer
+    // simulate a dispatch throw).
+    const s = track(setup());
+    const executorDispatch = s.executor as unknown as { dispatch: (r: unknown) => Promise<ExecuteResult> };
+    const dispatchSpy = vi
+      .spyOn(executorDispatch, "dispatch")
+      .mockRejectedValue(new Error("dispatch boom"));
 
-    await expect(s.executor.execute(toolCall())).rejects.toThrow("dispatch boom");
-    expect(s.recorder.started).toHaveLength(1);
-    expect(s.recorder.ended).toHaveLength(1);
-    expect(s.recorder.ended[0]!.outcome).toMatchObject({
-      status: "error",
-      error: "dispatch boom",
-    });
+    try {
+      await expect(s.executor.execute(toolCall())).rejects.toThrow("dispatch boom");
+      expect(s.recorder.started).toHaveLength(1);
+      expect(s.recorder.ended).toHaveLength(1);
+      expect(s.recorder.ended[0]!.outcome).toMatchObject({
+        status: "error",
+        error: "dispatch boom",
+      });
+    } finally {
+      dispatchSpy.mockRestore();
+    }
   });
 
   it("maps an ExecutionCancelledError to a cancelled span and rethrows", async () => {
-    const log = stubLog({
-      failOnType: "tool.requested",
-      error: new ExecutionCancelledError("operator cancel"),
-    });
-    const s = track(setup({ log }));
+    // Genuine cancellation out of dispatch (see above: a failing log stub no
+    // longer propagates, so it cannot stand in for dispatch here).
+    const s = track(setup());
+    const executorDispatch = s.executor as unknown as { dispatch: (r: unknown) => Promise<ExecuteResult> };
+    const dispatchSpy = vi
+      .spyOn(executorDispatch, "dispatch")
+      .mockRejectedValue(new ExecutionCancelledError("operator cancel"));
 
-    await expect(s.executor.execute(toolCall())).rejects.toBeInstanceOf(ExecutionCancelledError);
-    expect(s.recorder.started).toHaveLength(1);
-    expect(s.recorder.ended).toHaveLength(1);
-    expect(s.recorder.ended[0]!.outcome).toMatchObject({
-      status: "cancelled",
-      error: "Execution cancelled: operator cancel",
-    });
+    try {
+      await expect(s.executor.execute(toolCall())).rejects.toBeInstanceOf(ExecutionCancelledError);
+      expect(s.recorder.started).toHaveLength(1);
+      expect(s.recorder.ended).toHaveLength(1);
+      expect(s.recorder.ended[0]!.outcome).toMatchObject({
+        status: "cancelled",
+        error: "Execution cancelled: operator cancel",
+      });
+    } finally {
+      dispatchSpy.mockRestore();
+    }
   });
 
   it("ends a shell.run timeout as one error span", async () => {
