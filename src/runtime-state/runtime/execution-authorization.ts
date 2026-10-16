@@ -82,7 +82,7 @@ export class ExecutionAuthorization {
       const finalDecision = decisionApprovalRequired(
         policyDecision.approvalId ?? "unknown",
         policyDecision.reason,
-        { policyRuleId: policyDecision.matchedRuleId },
+        { policyRuleId: policyDecision.matchedRuleId, bindingKey: policyDecision.bindingKey, requestFingerprint: policyDecision.requestFingerprint },
       );
       await this.emitAudit(auditStore, eventLog, request, finalDecision, { policyDecision });
       return finalDecision;

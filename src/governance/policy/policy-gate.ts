@@ -28,6 +28,10 @@ export type PolicyGateDecision = {
   matchedRuleId?: string;
   approvalId?: string;
   policyRevision?: string;
+  /** Exact binding key the approval was created/bound with (coordination path). */
+  bindingKey?: string;
+  /** The request fingerprint that key was computed from. */
+  requestFingerprint?: string;
 };
 
 export type ToolPolicyRequest = {
@@ -523,7 +527,7 @@ export class PolicyGate {
       // Check for existing pending
       const pending = store.findPendingByBindingKey(bindingKey);
       if (pending) {
-        return { requestId, capability, decision: "ask", reason: `Pending approval: ${pending.id}`, approvalId: pending.id, matchedRuleId: "pending-approval", policyRevision };
+        return { requestId, capability, decision: "ask", reason: `Pending approval: ${pending.id}`, approvalId: pending.id, matchedRuleId: "pending-approval", policyRevision, bindingKey, requestFingerprint: coordinationContext.requestFingerprint ?? capability };
       }
 
       // Create new pending with binding key
@@ -536,7 +540,7 @@ export class PolicyGate {
       approval.workerId = coordinationContext.workerId;
       approval.workerAttempt = coordinationContext.workerAttempt;
       approval.ownershipClaims = coordinationContext.ownershipClaims ?? [];
-      return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
+      return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision, bindingKey, requestFingerprint: coordinationContext.requestFingerprint ?? capability };
     }
 
     // Fallback to legacy behavior for non-coordination requests

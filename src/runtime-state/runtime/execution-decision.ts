@@ -18,6 +18,8 @@ export type ExecutionDecision =
   | {
       status: "approval_required";
       approvalId: string;
+        bindingKey?: string;
+        requestFingerprint?: string;
       reason: string;
       policyRuleId?: string;
       policyRevision?: string;
@@ -52,6 +54,6 @@ export function decisionDenied(reason: string, overrides?: { policyRuleId?: stri
   return { status: "denied", reason, ...overrides };
 }
 
-export function decisionApprovalRequired(approvalId: string, reason: string, overrides?: { policyRuleId?: string; policyRevision?: string }): ExecutionDecision {
+export function decisionApprovalRequired(approvalId: string, reason: string, overrides?: { policyRuleId?: string; policyRevision?: string; bindingKey?: string; requestFingerprint?: string }): ExecutionDecision {
   return { status: "approval_required", approvalId, reason, ...overrides };
 }

@@ -140,6 +140,14 @@ export type WorkerAuthorizationEvidence = {
   evaluatedAt: string;
   policyRevision?: number;
   decisions: WorkerCapabilityDecision[];
+  /**
+   * Exact binding key the approval was created with (SRAP approval-binding
+   * continuity). Authoritative for reconciliation — never reconstructed from
+   * partial worker evidence. Absent on legacy evidence ⇒ fail closed.
+   */
+  bindingKey?: string;
+  /** The request fingerprint that `bindingKey` was computed from. */
+  requestFingerprint?: string;
 };
 
 export interface WorkerAssignment {
