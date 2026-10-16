@@ -566,4 +566,89 @@ describe("SRAP coordination approval-binding continuity", () => {
     const reloaded = await cliStore(h.cwd);
     assert.equal(reloaded.findExact(bindingKey)!.status, "consumed");
   });
+
+  // ── Review verification #2: refresh-failure classification ──────────
+  //
+  // A failed ledger read must never authorize (fail closed) AND must not be
+  // silent: the worker outcome and its evidence must carry a distinct,
+  // inspectable cause so an operator can tell a store outage from a policy
+  // denial. This drives the whole scheduler path, not just the gate.
+
+  it("classifies a store refresh failure at the worker level without consuming", async () => {
+    h = await buildHarness();
+    const { run, worker } = await seedWorker(h);
+    await h.scheduler.tick(run.id);
+    const bindingKey = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!
+      .authorizationEvidence?.bindingKey as string;
+
+    // A valid cross-process approval exists, so a stale-but-successful read
+    // would authorize. Make the authoritative read fail instead.
+    const cli = await cliStore(h.cwd);
+    await cli.resolve(cli.findExact(bindingKey)!.id, "approved", "operator");
+
+    const original = h.approvals.load.bind(h.approvals);
+    (h.approvals as any).load = async () => { throw new Error("ledger unavailable"); };
+    try {
+      const tickResult = await h.scheduler.tick(run.id);
+      assert.ok(tickResult.denied.includes(worker.id), "the dispatch attempt must be denied");
+    } finally {
+      (h.approvals as any).load = original;
+    }
+
+    // Fail closed: no execution, no consumption of the approved record.
+    const w = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!;
+    assert.equal(w.status, "failed", "a failed refresh must not run the worker");
+    assert.equal(w.blockReason, "authorization_denied");
+    assert.equal(w.failureKind, "authorization_denied");
+
+    // Observable + distinctly classified: the evidence names the refresh
+    // failure rule and the underlying cause — never a silent failure.
+    const decisions = w.authorizationEvidence?.decisions ?? [];
+    const refreshFailure = decisions.find((d) => d.policyRuleId === "approval-refresh-failed");
+    assert.ok(refreshFailure, "evidence must carry the distinct approval-refresh-failed rule id");
+    assert.match(String(refreshFailure!.reason ?? ""), /refresh failed/i,
+      "evidence must record the underlying refresh cause");
+
+    const reloaded = await cliStore(h.cwd);
+    assert.equal(reloaded.findExact(bindingKey)!.status, "approved",
+      "a failed refresh must not consume the approval");
+  });
+
+  // ── Review verification #3: refresh is bounded by authorization ─────
+  //
+  // The added authoritative read must cost one read per REAL authorization
+  // attempt, never one per scheduler tick. A blocked worker is not a dispatch
+  // candidate, so idle ticks never reach the gate.
+
+  it("reloads the approval store on real authorization attempts only, never on idle ticks", async () => {
+    h = await buildHarness();
+    const { run, worker } = await seedWorker(h);
+
+    // First tick blocks the worker (approval_required) and creates the approval.
+    await h.scheduler.tick(run.id);
+
+    let loads = 0;
+    const original = h.approvals.load.bind(h.approvals);
+    (h.approvals as any).load = async () => { loads += 1; return original(); };
+    try {
+      // The worker is `blocked`, not `pending` → not a dispatch candidate →
+      // the gate is never invoked. Idle ticks must cost ZERO reads of the
+      // gate's authoritative store.
+      for (let i = 0; i < 5; i += 1) await h.scheduler.tick(run.id);
+      assert.equal(loads, 0, "idle ticks must not reload the gate's approval store");
+
+      // A real authorization attempt (a cross-process approval made the worker
+      // dispatchable) costs the boundary read plus at most the atomic
+      // consume's own reload — bounded per attempt, not per tick.
+      const bindingKey = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!
+        .authorizationEvidence?.bindingKey as string;
+      const cli = await cliStore(h.cwd);
+      await cli.resolve(cli.findExact(bindingKey)!.id, "approved", "operator");
+      await h.scheduler.tick(run.id);
+      assert.ok(loads >= 1, "an authorization attempt must read fresh persisted state");
+      assert.ok(loads <= 2, "the refresh is bounded to the attempt, not the tick");
+    } finally {
+      (h.approvals as any).load = original;
+    }
+  });
 });

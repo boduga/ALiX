@@ -226,4 +226,47 @@ describe("ApprovalStore", () => {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  // SRAP #969 concurrency review: the authorization boundary reloads persisted
+  // state with an UNLOCKED `load()` before deciding. That read must never
+  // clobber or lose a mutation committed through the locked `mutate()` path,
+  // and single-use consumption must stay exactly-once under interleaving.
+  it("interleaved unlocked load() never loses a committed create or consume", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "approval-interleave-test-"));
+    try {
+      const store = new ApprovalStore(tmpDir);
+      await store.load();
+
+      // One committed, approved, single-use record to consume concurrently.
+      const consumeMe = await store.requestBound({
+        reason: "consume target", bindingKey: "bk-consume", requestFingerprint: "fp-1",
+        policyRevision: "rev-1", capabilities: ["filesystem.write"],
+      });
+      await store.resolve(consumeMe.id, "approved", "ok");
+
+      // Interleave many unlocked loads with a concurrent create and two
+      // concurrent attempts to consume the SAME single-use record.
+      const loads = Array.from({ length: 40 }, () => store.load());
+      const create = store.requestBound({
+        reason: "concurrent create", bindingKey: "bk-create", requestFingerprint: "fp-2",
+        policyRevision: "rev-1", capabilities: ["filesystem.write"],
+      });
+      const c1 = store.consumeApproved(consumeMe.id, "bk-consume", {});
+      const c2 = store.consumeApproved(consumeMe.id, "bk-consume", {});
+      const [, created, r1, r2] = await Promise.all([Promise.all(loads), create, c1, c2]);
+
+      assert.equal([r1, r2].filter((r) => r.consumed).length, 1,
+        "exactly one consume may succeed while unlocked loads interleave");
+      assert.equal(r1.consumed && r2.consumed, false);
+
+      // The authoritative ledger (a fresh store) must hold BOTH committed facts.
+      const fresh = new ApprovalStore(tmpDir);
+      await fresh.load();
+      assert.equal(fresh.get(consumeMe.id)?.status, "consumed",
+        "the committed consume survives interleaved loads");
+      assert.ok(fresh.get(created.id), "the committed create survives interleaved loads");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
