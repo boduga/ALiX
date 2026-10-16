@@ -64,6 +64,7 @@ export const DEFAULT_CONFIG: AlixConfig = {
       allowedOrigins: [],
       trustedProxyCidrs: [],
       requireTlsForRemote: true,
+      remoteDecisions: { enabled: false },
     }
   },
   mcpServers: [

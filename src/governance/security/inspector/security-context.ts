@@ -39,6 +39,13 @@ export interface SecurityContext {
   /** Current credential scope: undefined is legacy; [] grants no workspace. */
   workspaceIds?: string[];
 
+  /**
+   * How the request authenticated. `bearer` = Authorization header; `cookie` =
+   * browser session. The remote-decision endpoint is bearer-only, so it denies
+   * cookie-authenticated requests.
+   */
+  authTransport?: "bearer" | "cookie";
+
   /** Granted permissions (set when authenticated). */
   permissions: string[];
 
@@ -66,6 +73,7 @@ export function createSecurityContext(opts?: {
   principalId?: string;
   permissions?: string[];
   workspaceIds?: string[];
+  authTransport?: "bearer" | "cookie";
   route?: RouteDescriptor | null;
 }): SecurityContext {
   return {
@@ -74,6 +82,7 @@ export function createSecurityContext(opts?: {
     tokenId: opts?.tokenId,
     principalId: opts?.principalId,
     workspaceIds: opts?.workspaceIds === undefined ? undefined : [...opts.workspaceIds],
+    authTransport: opts?.authTransport,
     permissions: opts?.permissions ?? [],
     route: opts?.route ?? null,
     startTime: performance.now(),

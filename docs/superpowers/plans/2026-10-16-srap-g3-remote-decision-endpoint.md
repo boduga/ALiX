@@ -1,8 +1,8 @@
 # SRAP-1 G3 — remote approval decision endpoint (implementation plan)
 
-Status: **G3 OPEN (2026-10-16).** Workstreams **A and B are implemented**; **C is
-BLOCKED** on a missing principal-identity subsystem (see "Execution status"
-below). Remote decisions remain disabled. No route exists yet.
+Status: **G3 COMPLETE (A, B, A′, C implemented).** Remote decisions remain
+**default-off** (`ui.security.remoteDecisions.enabled = false`). C composes A
+(HMAC evidence) + B (audit projection) + A′ (operator principal).
 
 **Owning contracts (normative; this plan implements them, never overrides):**
 - `src/governance/approvals/AGENTS.md` — eligibility predicate + parity requirement
@@ -23,13 +23,11 @@ below). Remote decisions remain disabled. No route exists yet.
   C:** the inline attempt after commit, the bounded startup/operator repair
   trigger, and alert wiring. They are only reachable once the route commits a
   decision, so B lands as the callable projector and C adds the triggers.
-- **C — the route:** BLOCKED. The eligibility predicate and evidence require a
-  stable `principalId` separate from credential identity (G2-C review §3;
-  approvals/credentials contracts). **No persistent operator/principal store
-  exists** — `StoredToken` is credential-only and `SecurityContext` carries no
-  `principalId`. Using `tokenId` as `principalId` is rejected (breaks identity
-  continuity across rotation). C waits on a dedicated **A′ principal-identity**
-  workstream (design + plan, separate PR); do not start C until A′ is reviewed.
+- **C — the route:** DONE. `src/interfaces/server/remote-decision-route.ts`
+  (`POST /api/approvals/:id/decision`, default-off via
+  `ui.security.remoteDecisions.enabled`); `approvals:decide` grant; the
+  authorization parity table; inline + startup + `alix approval project`
+  projection repair. Composes A/B/A′.
 
 
 ## Goal

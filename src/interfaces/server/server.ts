@@ -11,6 +11,7 @@ import {
   readSessionSnapshot
 } from "../inspector/session-reader.js";
 import { registerCoordinationRoutes } from "./coordination-routes.js";
+import { registerRemoteDecisionRoutes } from "./remote-decision-route.js";
 import { handleObservabilityRoute } from "../../operations/observability/observability-routes.js";
 import { handleEvidenceRoute } from "./evidence-routes.js";
 import { validateHost } from "../../governance/security/inspector/host-policy.js";
@@ -108,6 +109,7 @@ export function startServer(
   allowedOrigins?: string[],
   trustedProxyCidrs?: string[],
   authentication: "required" | "disabled-loopback-development" = "disabled-loopback-development",
+  remoteDecisions?: { enabled: boolean },
 ): Promise<{ close: () => Promise<void>; url: string }> {
   try {
     root = canonicalWorkspaceId(root);
@@ -619,6 +621,31 @@ export function startServer(
         return;
       }
 
+      if (registerRemoteDecisionRoutes(
+        root,
+        req.method ?? "GET",
+        url.pathname,
+        res,
+        ctx,
+        secure,
+        req,
+        {
+          enabled: remoteDecisions?.enabled ?? false,
+          canonicalWorkspace: root,
+          trustedProxyCidrs: effectiveProxyCidrs,
+          // Composition-root ownership of the protected approval-store import
+          // (R1 boundary freeze); the route module only holds the type.
+          loadApprovalStore: async () => {
+            const { ApprovalStore } = await import("../../governance/approvals/approval-store.js");
+            const store = new ApprovalStore(root);
+            await store.load();
+            return store;
+          },
+        },
+      )) {
+        return;
+      }
+
       if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res, ctx, secure, req)) {
         return;
       }
@@ -638,6 +665,16 @@ export function startServer(
     server.listen(port, host, () => {
       // P4.3-Sc2: Start SSE hubs after server is listening
       observabilityHub.start();
+
+      // G3-C: bounded startup repair trigger for the remote-decision audit
+      // projection. One attempt at boot; a failure never blocks startup (the
+      // inline attempt and the operator command retry later).
+      void import("../../governance/audit/remote-decision-projection.js")
+        .then(({ projectRemoteDecisions }) => projectRemoteDecisions(root))
+        .then((result) => {
+          if (!result.ok) console.error(`[srap] remote-decision projection not run at startup: ${result.refused ?? "unknown"}`);
+        })
+        .catch(() => { /* best-effort; never blocks startup */ });
 
       // Resume Inspector-hosted coordination runs whose previous server
       // process died, so a restart does not strand in-flight work.

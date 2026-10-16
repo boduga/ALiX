@@ -54,6 +54,8 @@ const IMPLEMENTED_ROUTES: ImplementedRoute[] = [
 
   // -- Approvals ----------------------------------------------------------
   { pathname: "/api/approvals", method: "GET", source: "server.ts" },
+  // G3-C: default-off remote approval decision (bearer-only, approvals:decide).
+  { pathname: "/api/approvals/apr-001/decision", method: "POST", source: "remote-decision-route.ts" },
 
   // -- Runtime events -----------------------------------------------------
   { pathname: "/api/runtime/events", method: "GET", source: "server.ts" },
@@ -193,13 +195,17 @@ describe("Route coverage (Sb1.3)", () => {
     // (authenticated routes); loopback development passes through per the
     // global auth posture like every other authenticated route.
     const allowedExecutionPosts = new Set(["api.coordination.run", "api.coordination.runId.cancel"]);
+    // G3-C: the sole non-execution governance mutation, gated by
+    // approvals:decide and default-off (ADR-0015 / the approvals contract).
+    const allowedGovernancePosts = new Set(["api.approvals.decision"]);
 
     for (const d of all) {
       if (
         d.method !== "GET" &&
         d.routeClass !== "auth" &&
         !allowedReadOnlyPosts.has(d.id) &&
-        !allowedExecutionPosts.has(d.id)
+        !allowedExecutionPosts.has(d.id) &&
+        !allowedGovernancePosts.has(d.id)
       ) {
         nonGet.push(`${d.id} (${d.method} ${d.pathPattern})`);
       }
@@ -212,12 +218,12 @@ describe("Route coverage (Sb1.3)", () => {
     );
   });
 
-  it("registry has exactly 47 routes", () => {
+  it("registry has exactly 48 routes", () => {
     const all = routeRegistry.getAll();
-    assert.equal(all.length, 47, `expected 47 routes, got ${all.length}`);
+    assert.equal(all.length, 48, `expected 48 routes, got ${all.length}`);
   });
 
-  it("all 47 routes have distinct ids", () => {
+  it("all 48 routes have distinct ids", () => {
     const all = routeRegistry.getAll();
     const ids = all.map((d) => d.id);
     const unique = new Set(ids);

@@ -40,6 +40,7 @@ export async function handleServe(_args: string[]): Promise<void> {
     sec?.allowedOrigins,
     sec?.trustedProxyCidrs,
     sec?.authentication,
+    sec?.remoteDecisions,
   );
   console.log(`ALiX inspector running at ${server.url}`);
   // Graceful shutdown: close the server (which aborts in-flight
@@ -85,6 +86,7 @@ export async function handleInspectorOpen(_args: string[]): Promise<void> {
     sec?.allowedOrigins,
     sec?.trustedProxyCidrs,
     sec?.authentication,
+    sec?.remoteDecisions,
   );
   const url = server.url;
 

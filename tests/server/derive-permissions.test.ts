@@ -21,3 +21,26 @@ describe("derivePermissions", () => {
     assert.deepEqual(derivePermissions("nobody"), ["health:read"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// G3-C: approvals:decide (remote decision endpoint)
+// ---------------------------------------------------------------------------
+
+describe("derivePermissions — approvals:decide (G3-C)", () => {
+  it("grants approvals:decide to admin and operator", () => {
+    for (const role of ["admin", "operator"]) {
+      assert.ok(
+        derivePermissions(role).includes("approvals:decide"),
+        `${role} must hold approvals:decide`,
+      );
+    }
+  });
+
+  it("does not grant approvals:decide to readonly", () => {
+    assert.ok(!derivePermissions("readonly").includes("approvals:decide"));
+  });
+
+  it("does not grant approvals:decide to an unknown role", () => {
+    assert.ok(!derivePermissions("nobody").includes("approvals:decide"));
+  });
+});
