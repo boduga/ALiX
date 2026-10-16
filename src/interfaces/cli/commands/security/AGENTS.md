@@ -32,6 +32,17 @@
   carries the preserved scope into `token.rotated`. Paths are host-local
   identities; enrollment on another host requires that host's canonical paths.
 - Audit writes remain fail-closed; follow `src/governance/audit/AGENTS.md`.
+- **Forward contract — operator-principal CLI (SRAP-1 G3-A′; not yet
+  implemented).** `alix inspector auth` will gain `migrate [--principal <id>]`,
+  `principal {disable|enable|remove}`, and `reconcile`. Every enrollment,
+  rotation, revocation, migration, and status change is **write-ahead audited**
+  (audit intent first; failure persists nothing) and runs its read-modify-write
+  under the shared cross-process lock (`principal` lock before `auth-store` lock;
+  a held or stale lock fails closed with no write). `migrate` binds only unbound,
+  non-revoked, non-expired tokens — it never resurrects a revoked credential and
+  never overwrites an existing binding. `reconcile` reports incomplete enrollments
+  (a principal with zero bound credentials) and dangling bindings; it never
+  silently deletes evidence (removal is explicit via `principal remove`).
 - `alix audit verify --all` verifies both chains in one command: the runtime v2
   chain (`AuditStore.verifyIntegrity`) and the governance per-record chain
   (`governance/audit-chain.ts` `verifyChain`). JSON mode returns

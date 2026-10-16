@@ -66,6 +66,17 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
 - Inspector auth mutations are fail-closed on audit: token create/rotate/revoke
   return `audit_write_failed` and persist nothing when the audit append fails;
   the server counts such failures and alerts on stderr.
+- **Forward contract — operator principals (SRAP-1 G3-A′; not yet implemented).**
+  Authentication will revalidate the credential's current operator principal on
+  every request. A **bound** credential (one carrying a `principalId`) whose
+  principal is disabled, missing, or unreadable is denied **all** authentication —
+  ordinary routes and cookies alike. Only a **genuinely unbound legacy** credential
+  receives ordinary role/workspace access, and it may never stand in for an
+  operator principal (no token→principal substitution). Principal and credential
+  read-modify-writes will be serialized by a shared cross-process lock
+  (`principal` before `token`); a held or stale lock fails the mutation closed
+  with no write, and auth mutations stay write-ahead audited. Remote decisions
+  remain blocked until this lands.
 - SSE streams require authentication in required mode and serve session events
   with `Last-Event-ID` resume support.
 - `VISIBLE_EVENTS` filter controls which event types stream to the browser; it delivers the canonical vocabulary (including `agent.*` lifecycle and `approval.*`) so the Inspector sees the same reality as the TUI (R4/V10).
