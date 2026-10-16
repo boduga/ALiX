@@ -265,9 +265,13 @@ async function handleDecision(
           },
         });
       });
-    } catch {
+    } catch (err) {
       // No key material, or the key read could not be durably audited →
-      // commit no decision (fail closed).
+      // commit no decision (fail closed). A bounded operator diagnostic only —
+      // never key material or the credential record id.
+      console.error(
+        `[srap] remote-decision evidence unavailable: ${err instanceof Error ? err.name : "unknown"}`,
+      );
       secure.error("evidence_unavailable", 503);
       return;
     }

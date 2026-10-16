@@ -30,7 +30,6 @@ export type AuditAction =
   | "conflict.under_review"
   | "conflict.resolved"
   | "conflict.accepted_divergence"
-  | "credential.key_read"
   | "conflict.dismissed"
   | "conflict.candidate_generation"
   | "replan.failed"
@@ -41,7 +40,8 @@ export type AuditAction =
   | "agent.permission_checked"
   | "memory.access_checked"
   | "model.routing_decision"
-  | "security.boundary_checked";
+  | "security.boundary_checked"
+  | "credential.key_read";
 
 /** v1+ action type — any action string allowed (v1 or v2). */
 export type AnyAuditAction = AuditAction | SecurityAction;
@@ -72,8 +72,9 @@ export interface AuditDetails {
   keyVersion?: number;
   /** `credential.key_read`: the operation performed. */
   keyOperation?: "sign" | "verify";
-  /** `credential.key_read`: outcome of the access. */
-  keyOutcome?: string;
+  /** `credential.key_read`: outcome of the access (always "ok" — a failed
+   *  access produces no record, so only success is representable). */
+  keyOutcome?: "ok";
 }
 
 /**

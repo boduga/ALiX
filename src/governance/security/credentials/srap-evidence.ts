@@ -232,11 +232,13 @@ export async function signCredentialRef(
     throw new SrapKeyUnavailableError("No active srap-evidence key; cannot sign decision evidence.");
   }
   const key = loadKeyBytes(store, version);
+  // Durable audit of the attempted key access BEFORE the reference is released
+  // (fail closed). An unreadable key is still a reported access — symmetric with
+  // `verifyCredentialRef`.
+  await audit({ operation: "sign", keyVersion: version });
   if (key === null) {
     throw new SrapKeyUnavailableError(`Active srap-evidence key v${version} is unreadable.`);
   }
-  // Durable audit BEFORE the reference is released (fail closed).
-  await audit({ operation: "sign", keyVersion: version });
   const digest = createHmac("sha256", key).update(credentialRecordId, "utf8").digest("base64url");
   return `${SRAP_HMAC_ALGORITHM}:v${version}:${digest}`;
 }
