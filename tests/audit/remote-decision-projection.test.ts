@@ -1,8 +1,9 @@
 /**
  * SRAP-1 audit-owned idempotent remote-decision projection.
  *
- * Covers idempotent re-run, duplicate drop, crash-before-checkpoint overlap,
- * fail-closed on an unverifiable chain, and the lag counter.
+ * Covers idempotent re-run, duplicate drop, crash-before-checkpoint overlap
+ * (absent and stale state), malformed-evidence refusal, fail-closed on an
+ * unverifiable chain, and the lag counter.
  */
 
 import { describe, it, beforeEach, afterEach } from "node:test";
@@ -85,14 +86,16 @@ describe("remote-decision projection", () => {
     assert.equal(r.counters.skipped_duplicate, 1);
   });
 
-  it("advances the cursor and reports zero lag once fully projected", async () => {
+  it("reports positive lag while backlog is unprojected, zero after projecting", async () => {
     await new AuditStore(cwd).activateIntegrity();
     await storeWithDecision(cwd, evidence());
-    const r = await projectRemoteDecisions(cwd);
-    // After a full run the cursor is at the high-water mark.
+
+    const first = await projectRemoteDecisions(cwd);
+    assert.ok(first.counters.lag > 0, "unprojected ledger events → positive lag");
+    assert.ok(first.ok);
+
     const again = await projectRemoteDecisions(cwd);
-    assert.equal(again.counters.lag, 0);
-    assert.ok(r.ok);
+    assert.equal(again.counters.lag, 0, "fully projected → zero lag");
   });
 
   it("refuses an unactivated (unverified) audit log", async () => {
@@ -104,12 +107,12 @@ describe("remote-decision projection", () => {
     assert.equal(r.counters.projected, 0);
   });
 
-  it("absorbed crash-before-checkpoint: overlap window re-sees a decision, dedup drops it", async () => {
+  it("absorbed crash-before-checkpoint: no state file → full re-scan, dedup drops it", async () => {
     await new AuditStore(cwd).activateIntegrity();
     await storeWithDecision(cwd, evidence({ decisionId: "dec-crash" }));
 
-    // Simulate a crash before the projection state was persisted: project once,
-    // then delete the advisory state so the next run re-scans from zero.
+    // Simulate a crash before the projection state was ever persisted: project
+    // once, then remove the advisory state so the next run re-scans from zero.
     const first = await projectRemoteDecisions(cwd);
     assert.equal(first.counters.projected, 1);
     rmSync(join(cwd, ".alix", "audit", "projection-state.json"), { force: true });
@@ -122,6 +125,53 @@ describe("remote-decision projection", () => {
     assert.equal(second.counters.projected, 0, "no re-append after state loss");
     assert.equal(second.counters.skipped_duplicate, 1);
     assert.equal(after, before, "audit record count is unchanged");
+  });
+
+  it("a stale pre-crash cursor re-scans via the overlap window and dedups", async () => {
+    await new AuditStore(cwd).activateIntegrity();
+    await storeWithDecision(cwd, evidence({ decisionId: "dec-stale" }));
+    const first = await projectRemoteDecisions(cwd);
+    assert.equal(first.counters.projected, 1);
+
+    // Crash AFTER the decision was projected but BEFORE the checkpoint persisted:
+    // the advisory cursor is still 0 (non-zero-but-stale is the case the
+    // bounded overlap window exists to absorb).
+    writeFileSync(
+      join(cwd, ".alix", "audit", "projection-state.json"),
+      JSON.stringify({ cursor: 0, decisionIds: [] }),
+      "utf-8",
+    );
+
+    const before = (await new AuditStore(cwd).list(1000)).length;
+    const second = await projectRemoteDecisions(cwd);
+    const after = (await new AuditStore(cwd).list(1000)).length;
+    assert.equal(second.counters.projected, 0, "chain-seeded dedup drops the re-seen decision");
+    assert.equal(second.counters.skipped_duplicate, 1);
+    assert.equal(after, before, "no duplicate audit record");
+  });
+
+  it("counts malformed evidence as a projection failure and holds the cursor", async () => {
+    await new AuditStore(cwd).activateIntegrity();
+    const store = new ApprovalStore(cwd);
+    await store.load();
+    const rec = await store.requestBound({
+      reason: "test", bindingKey: "bk-bad", requestFingerprint: "fp",
+      policyRevision: "legacy", capabilities: ["shell.run"],
+    });
+    // A broken producer writes an `approval.updated` whose evidence is missing
+    // a required field. It must NOT be silently skipped.
+    const broken = { ...evidence(), nonce: undefined } as unknown as RemoteDecisionEvidence;
+    await store.resolveWithEvidence(rec.id, "approved", broken);
+
+    const first = await projectRemoteDecisions(cwd);
+    assert.equal(first.ok, false);
+    assert.equal(first.counters.projection_failed, 1);
+    assert.equal(first.counters.projected, 0);
+
+    // The cursor did not advance past the malformed event: re-running re-attempts
+    // it (evidence is never durably acknowledged without being projected).
+    const second = await projectRemoteDecisions(cwd);
+    assert.equal(second.counters.projection_failed, 1, "cursor held; evidence re-attempted");
   });
 
   it("fails closed when the audit chain is not verifiable", async () => {

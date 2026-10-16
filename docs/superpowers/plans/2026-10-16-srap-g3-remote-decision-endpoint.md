@@ -16,9 +16,9 @@ below). Remote decisions remain disabled. No route exists yet.
 ## Execution status (2026-10-16)
 
 - **A — HMAC `srap-evidence` lifecycle:** DONE (`feat(credentials): add
-  srap-evidence versioned HMAC key lifecycle`; 9 tests).
+  srap-evidence versioned HMAC key lifecycle`; 12 tests).
 - **B — audit-owned idempotent projection:** DONE (library) — `feat(audit): project
-  remote approval decisions into the audit chain`; 6 tests; plus
+  remote approval decisions into the audit chain`; 10 tests; plus
   `RemoteDecisionEvidence` + `ApprovalStore.resolveWithEvidence`. **Deferred to
   C:** the inline attempt after commit, the bounded startup/operator repair
   trigger, and alert wiring. They are only reachable once the route commits a
@@ -63,13 +63,18 @@ Three separable pieces. Each is independently reviewable; the route composes the
 - New module: generate/activate/rotate/retire versioned keys in the CredentialStore
   namespace `srap-evidence`, label `hmac-key:v<N>` (32 random bytes).
 - `credentialRef = hmac-sha256:v<N>:<base64url(HMAC(key_vN, credentialRecordId))>`.
-- Sign only with the active version; keep old versions resolvable through the
-  approval-retention window; retire only after it.
+- Sign only with the active version; keep old versions resolvable while retained
+  approval evidence may reference them. Retirement has **two gates**: eligibility
+  (inactive + no retained reference; retention is count-based, so the caller
+  supplies the retained-reference count) and explicit operator execution —
+  never automatic.
 - **Fail-closed:** active key unavailable → no decision committed.
   Retired-version ref → reported unverifiable, never accepted, never a reversal.
-- No second secret authority; HMAC computed in the owning subsystem, not the store.
-- Tests: generation/rotation overlap/retirement/fail-closed/unverifiable-old-ref.
-  (Currently listed as "G3 work, not implemented" in the credentials contract.)
+- Key material is reachable only through audited `sign`/`verify` accessors whose
+  `audit` sink is **mandatory**; no second secret authority; HMAC computed in the
+  owning subsystem, not the store.
+- Tests: generation/rotation overlap/retirement gates/fail-closed/mandatory audit/
+  unverifiable-old-ref.
 
 ### B. Audit-owned idempotent projection (`src/governance/audit/`)
 
@@ -80,6 +85,8 @@ Three separable pieces. Each is independently reviewable; the route composes the
 - Crash consistency: the cursor MUST NOT advance past evidence provably present
   in the **verified** chain (P1's `reconcileHead` makes the chain a sound anchor);
   missing/duplicate `decisionId` re-derived by `verifyIntegrity()` + bounded scan.
+  An `approval.updated` presenting evidence that fails validation is a
+  **projection failure** (counted, cursor held) — never a silent skip.
 - Inline: one attempt after the authoritative commit (failure never changes the
   approval outcome). Repair: bounded startup trigger + operator command; retry on
   next trigger; no new scheduler.
@@ -87,8 +94,9 @@ Three separable pieces. Each is independently reviewable; the route composes the
   ledger high-water `ledger_seq` − cursor; alert on lag growth / duplicate /
   chain-verify failure.
 - **Never** mark the generic `runtime_outbox.delivered_at` as projection state.
-- Tests: idempotent re-run, crash-before-checkpoint overlap, duplicate drop,
-  corrupt-chain refuse, lag counter.
+- Tests: idempotent re-run, crash-before-checkpoint overlap (absent AND stale
+  cursor), duplicate drop, malformed-evidence refusal, corrupt-chain refuse, lag
+  before/after.
 
 ### C. The route + evidence plumbing
 
@@ -149,10 +157,10 @@ build + focused tests; owning-contract updates in the same change.
 - Widening any other browser write surface.
 - A per-approval principal grant or per-agent/per-run operator ownership.
 
-## Open questions for the operator (resolve before G3 opens)
+## Open questions — RESOLVED before G3 opened
 
-1. Config flag name + default for enabling the route.
-2. Approval-retention window (bounds HMAC-key retirement).
+1. Config flag name + default for enabling the route → `inspector.remoteDecisions.enabled`, **default false**.
+2. Approval-retention window (bounds HMAC-key retirement) → retention is **count-based** (`maxTerminalRecords`, default 1000); there is no wall-clock window, so key retirement is an explicit operator action behind the two gates above.
 3. Whether exact-retry identity includes request body bytes or only
-   `{principalId, nonce, decision}`.
-4. Startup repair trigger timing (server boot vs first request).
+   `{principalId, nonce, decision}` → **only `{principalId, nonce, decision}`** (`remoteDecisionRetryKey`).
+4. Startup repair trigger timing (server boot vs first request) → **server boot**, plus an explicit operator command (both land with C).

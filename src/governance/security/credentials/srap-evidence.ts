@@ -11,15 +11,20 @@
  * and old versions coexist as ordinary entries.
  *
  * Contract (src/governance/security/credentials/AGENTS.md):
- * - generate → random 32-byte key `hmac-key:v<N+1>`;
- * - activate → sign only with the current (highest) version;
- * - rotate → the new version becomes active; old versions stay resolvable;
- * - retire → delete `hmac-key:v<old>` only explicitly, once nothing retained
- *   references it (approval retention is count-based; there is no wall-clock
- *   window, so retirement is an operator action, never automatic);
+ * - generate → random 32-byte key `hmac-key:v<N+1>`; the new version is active
+ *   immediately (no staged activation);
+ * - rotate → the new version becomes active; old versions stay resolvable while
+ *   retained approval evidence may reference them;
+ * - retire → TWO gates. Eligibility: the version is inactive and no retained
+ *   approval evidence references it (`retireEligibility`; retention is
+ *   count-based, so the caller supplies the retained-reference count — there is
+ *   no wall-clock window). Execution: an explicit operator `retireKey` call —
+ *   eligibility never retires on its own and nothing is automatic;
  * - unavailable active key → fail closed (no decision committed);
  * - a ref whose key version is retired is reported unverifiable, never silently
- *   accepted and never an authority reversal.
+ *   accepted and never an authority reversal;
+ * - every key read is audited: raw key material is only reachable through the
+ *   audited `sign`/`verify` accessors, whose `audit` sink is mandatory.
  *
  * This module owns key lifecycle only. HMAC is computed here; the store is used
  * as a dumb secret holder (get/set/list/delete). No second secret authority.
@@ -118,14 +123,55 @@ export async function rotateKey(store: CredentialStore): Promise<number> {
 }
 
 /**
- * Retire a specific key version (explicit operator action). Idempotent.
- * Refuses to remove the active version — retiring the active key would leave
- * no key to sign with; rotate first.
+ * Retirement eligibility (gate 1 of 2). A version may be retired only when it
+ * is neither the active version nor still referenced by retained approval
+ * evidence. Retention is count-based (`maxTerminalRecords`), so this module
+ * cannot see approvals — the caller (operator command / approval subsystem)
+ * supplies `retainedReferences`. Eligibility never retires anything by itself;
+ * it is a precondition for the explicit `retireKey` execution (gate 2).
  */
-export async function retireKey(store: CredentialStore, version: number): Promise<boolean> {
-  if (version === activeKeyVersion(store)) {
+export interface RetireEligibility {
+  eligible: boolean;
+  /** Why not, when `eligible` is false. */
+  reason?: "active" | "absent" | "retained-references";
+}
+
+/** Whether a key version may be retired (gate 1). See {@link retireEligibility}. */
+export function retireEligibility(
+  store: CredentialStore,
+  version: number,
+  retainedReferences: number,
+): RetireEligibility {
+  if (!listKeyVersions(store).includes(version)) return { eligible: false, reason: "absent" };
+  if (activeKeyVersion(store) === version) return { eligible: false, reason: "active" };
+  if (retainedReferences > 0) return { eligible: false, reason: "retained-references" };
+  return { eligible: true };
+}
+
+/**
+ * Retire a specific key version (gate 2: explicit operator execution).
+ *
+ * Refuses the active version, and refuses any version still referenced by
+ * retained approval evidence (retention must lapse first). Idempotent: retiring
+ * an absent version returns false. Never automatic — there is no timer; the
+ * operator (or the CLI) calls this deliberately, supplying the retained-
+ * reference count from the approval subsystem.
+ */
+export async function retireKey(
+  store: CredentialStore,
+  version: number,
+  retainedReferences: number,
+): Promise<boolean> {
+  const verdict = retireEligibility(store, version, retainedReferences);
+  if (!verdict.eligible) {
+    if (verdict.reason === "absent") return false;
+    if (verdict.reason === "active") {
+      throw new SrapKeyUnavailableError(
+        `Refusing to retire active key v${version}; rotate to a new version first.`,
+      );
+    }
     throw new SrapKeyUnavailableError(
-      `Refusing to retire active key v${version}; rotate to a new version first.`,
+      `Refusing to retire key v${version}: ${retainedReferences} retained approval record(s) still reference it.`,
     );
   }
   return store.delete(SRAP_EVIDENCE_PROVIDER, keyLabel(version));
@@ -148,32 +194,37 @@ function loadKeyBytes(store: CredentialStore, version: number): Buffer | null {
 }
 
 /**
- * Optional key-read sink. The contract requires `srap-evidence` key reads to be
- * logged ("only trusted approval/audit code resolves `srap-evidence`; key reads
- * are logged"). Callers that hold a logger pass it here; default is no-op.
+ * Mandatory key-read audit sink.
+ *
+ * The contract requires every `srap-evidence` key access to be logged ("only
+ * trusted approval/audit code resolves `srap-evidence`; key reads are logged").
+ * Key material is only reachable through {@link signCredentialRef} /
+ * {@link verifyCredentialRef}, and both REQUIRE this sink — there is no default,
+ * so a caller cannot read keys while silently skipping the audit.
  */
-export type KeyReadLogger = (event: { operation: "sign" | "verify"; keyVersion: number }) => void;
+export type KeyReadAudit = (event: { operation: "sign" | "verify"; keyVersion: number }) => void;
 
 /**
  * Sign a credential record id with the active key version.
  *
  * Fail-closed: when there is no active key (or it is unreadable), throws
- * {@link SrapKeyUnavailableError} and the caller must commit no decision.
+ * {@link SrapKeyUnavailableError} and the caller must commit no decision. The
+ * key access is always reported through `audit`.
  */
 export function signCredentialRef(
   store: CredentialStore,
   credentialRecordId: string,
-  logKeyRead?: KeyReadLogger,
+  audit: KeyReadAudit,
 ): string {
   const version = activeKeyVersion(store);
   if (version === null) {
     throw new SrapKeyUnavailableError("No active srap-evidence key; cannot sign decision evidence.");
   }
   const key = loadKeyBytes(store, version);
+  audit({ operation: "sign", keyVersion: version });
   if (key === null) {
     throw new SrapKeyUnavailableError(`Active srap-evidence key v${version} is unreadable.`);
   }
-  logKeyRead?.({ operation: "sign", keyVersion: version });
   const digest = createHmac("sha256", key).update(credentialRecordId, "utf8").digest("base64url");
   return `${SRAP_HMAC_ALGORITHM}:v${version}:${digest}`;
 }
@@ -205,13 +256,13 @@ export function verifyCredentialRef(
   store: CredentialStore,
   credentialRecordId: string,
   ref: string,
-  logKeyRead?: KeyReadLogger,
+  audit: KeyReadAudit,
 ): "valid" | "invalid" | "unverifiable" {
   const parsed = parseCredentialRef(ref);
   if (!parsed) return "unverifiable";
   const key = loadKeyBytes(store, parsed.keyVersion);
+  audit({ operation: "verify", keyVersion: parsed.keyVersion });
   if (key === null) return "unverifiable";
-  logKeyRead?.({ operation: "verify", keyVersion: parsed.keyVersion });
   const expected = createHmac("sha256", key).update(credentialRecordId, "utf8").digest();
   // `Buffer.from` never throws for a base64url string; a malformed digest simply
   // decodes to a different length and is classified `invalid` below.

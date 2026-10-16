@@ -15,7 +15,10 @@
  *   chain. Before trusting the cursor we verify the chain; on any structural
  *   finding we refuse (fail closed) rather than project from an unverified log;
  * - a missing/duplicate `decisionId` is re-derived by verifying the chain plus a
- *   bounded scan, never trusted from the cursor alone.
+ *   bounded scan, never trusted from the cursor alone;
+ * - an `approval.updated` that PRESENTS an evidence field failing validation is
+ *   a projection failure: it is counted and holds the cursor, never silently
+ *   skipped (a silent skip would durably acknowledge evidence never projected).
  *
  * The generic `runtime_outbox.delivered_at` is NOT projection state and is
  * never marked here.
@@ -99,12 +102,27 @@ function writeState(auditDir: string, state: ProjectionState): void {
 // ---------------------------------------------------------------------------
 
 /** Pull bounded remote evidence out of an `approval.updated` ledger event. */
-function evidenceFromEvent(event: RuntimeEvent): RemoteDecisionEvidence | null {
-  if (event.entityType !== APPROVAL_ENTITY_TYPE) return null;
-  if (event.eventType !== "approval.updated" && event.eventType !== "approval.created") return null;
+type EvidenceExtraction =
+  | { kind: "none" }
+  | { kind: "malformed" }
+  | { kind: "ok"; evidence: RemoteDecisionEvidence };
+
+/**
+ * Extract bounded remote evidence from a committed approval ledger event.
+ *
+ * Only `approval.updated` carries evidence (ADR-0015); `approval.created`,
+ * `approval.removed`, and non-approval events are `none`. An `approval.updated`
+ * that PRESENTS an evidence field which then fails validation is `malformed`:
+ * the caller must not silently skip it, or the durable cursor would advance
+ * past evidence that was never projected.
+ */
+function evidenceFromEvent(event: RuntimeEvent): EvidenceExtraction {
+  if (event.entityType !== APPROVAL_ENTITY_TYPE) return { kind: "none" };
+  if (event.eventType !== "approval.updated") return { kind: "none" };
   const payload = event.payload as { approval?: { remoteDecisionEvidence?: unknown } } | null;
   const raw = payload?.approval?.remoteDecisionEvidence;
-  if (!raw || typeof raw !== "object") return null;
+  if (raw === undefined || raw === null) return { kind: "none" };
+  if (typeof raw !== "object") return { kind: "malformed" };
   const e = raw as Record<string, unknown>;
   if (
     typeof e.decisionId !== "string" ||
@@ -115,16 +133,19 @@ function evidenceFromEvent(event: RuntimeEvent): RemoteDecisionEvidence | null {
     typeof e.decidedAt !== "string" ||
     (e.transport !== "direct-tls" && e.transport !== "proxy-tls")
   ) {
-    return null;
+    return { kind: "malformed" };
   }
   return {
-    decisionId: e.decisionId,
-    principalId: e.principalId,
-    credentialRef: e.credentialRef,
-    decision: e.decision,
-    nonce: e.nonce,
-    decidedAt: e.decidedAt,
-    transport: e.transport,
+    kind: "ok",
+    evidence: {
+      decisionId: e.decisionId,
+      principalId: e.principalId,
+      credentialRef: e.credentialRef,
+      decision: e.decision,
+      nonce: e.nonce,
+      decidedAt: e.decidedAt,
+      transport: e.transport,
+    },
   };
 }
 
@@ -173,15 +194,24 @@ export async function projectRemoteDecisions(cwd: string): Promise<ProjectionRes
   // checkpoint cannot cause a duplicate append.
   const existing = await auditStore.list(10_000);
   for (const rec of existing) {
-    const did = rec.details?.decisionId;
+    const did = rec.details?.remoteDecision?.decisionId;
     if (typeof did === "string") known.add(did);
   }
 
   let cursor = state.cursor;
 
   for (const event of events) {
-    const evidence = evidenceFromEvent(event);
-    if (evidence !== null) {
+    const extracted = evidenceFromEvent(event);
+    if (extracted.kind === "malformed") {
+      // An `approval.updated` that presents evidence but fails validation must
+      // NOT be silently acknowledged. Count it and stop before the cursor moves
+      // past it, so a later run re-attempts (the evidence is not durably
+      // dropped by an advanced cursor).
+      counters.projection_failed += 1;
+      break;
+    }
+    if (extracted.kind === "ok") {
+      const evidence = extracted.evidence;
       if (known.has(evidence.decisionId)) {
         counters.skipped_duplicate += 1;
       } else {
@@ -192,11 +222,13 @@ export async function projectRemoteDecisions(cwd: string): Promise<ProjectionRes
             details: {
               approvalId: event.entityId,
               // Bounded evidence only — no raw token/cookie/credential id.
-              decisionId: evidence.decisionId,
-              principalId: evidence.principalId,
-              credentialRef: evidence.credentialRef,
-              transport: evidence.transport,
-              decidedAt: evidence.decidedAt,
+              remoteDecision: {
+                decisionId: evidence.decisionId,
+                principalId: evidence.principalId,
+                credentialRef: evidence.credentialRef,
+                transport: evidence.transport,
+                decidedAt: evidence.decidedAt,
+              },
               source: "srap-remote-projection",
             },
           });
