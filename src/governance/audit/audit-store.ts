@@ -22,7 +22,7 @@ import type {
 import { isAuditRecordV2 } from "./audit-types.js";
 import type { AuditEventStore } from "./audit-contract.js";
 import { JsonlStore, streamJsonlLines } from "../../runtime-state/storage/jsonl-store.js";
-import { AuditChainWriter } from "../security/audit/audit-chain-writer.js";
+import { AuditChainWriter, type AuditRecoveryEvent } from "../security/audit/audit-chain-writer.js";
 import { verifyAuditLog, type VerificationResult } from "../security/audit/audit-verifier.js";
 
 /** Input accepted by `AuditStore.append`. */
@@ -194,6 +194,13 @@ async function streamQuery(
 export interface AuditStoreOptions {
   /** Override the audit directory (defaults to `<cwd>/.alix/audit`). */
   auditDir?: string;
+  /**
+   * Optional sink for out-of-band chain-recovery telemetry. Recovery restores
+   * the head sidecar to already-committed evidence and writes no chained
+   * record; when omitted, recovery is reported on stderr. The sink never
+   * affects chain integrity or the append outcome.
+   */
+  onRecovery?: (event: AuditRecoveryEvent) => void;
 }
 
 export class AuditStore
@@ -202,11 +209,16 @@ export class AuditStore
   private auditDir: string;
   private store: JsonlStore;
   private chainWriter: AuditChainWriter | null = null;
+  private onRecovery: (event: AuditRecoveryEvent) => void;
 
   constructor(cwd: string, options: AuditStoreOptions = {}) {
     this.auditDir = options.auditDir ?? join(cwd, ".alix", "audit");
     this.filePath = join(this.auditDir, "audit.jsonl");
     this.store = new JsonlStore(this.filePath);
+    this.onRecovery = options.onRecovery ?? ((event) => {
+      // Default observability: recovery is out-of-band (no chained record).
+      process.stderr.write(`[audit] ${JSON.stringify(event)}\n`);
+    });
   }
 
   /** True once the v2 integrity chain has been activated (head sidecar present). */
@@ -215,7 +227,10 @@ export class AuditStore
   }
 
   private chain(): AuditChainWriter {
-    this.chainWriter ??= new AuditChainWriter({ auditDir: this.auditDir });
+    this.chainWriter ??= new AuditChainWriter({
+      auditDir: this.auditDir,
+      onRecovery: this.onRecovery,
+    });
     return this.chainWriter;
   }
 
