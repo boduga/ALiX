@@ -192,7 +192,9 @@ remote endpoint ships:
    saturation. Human-rate approval/session/daemon callers tolerate this;
    coordination-scale sustained bursts need an explicit caller-budget decision
    (or group commit, which ADR-0015 keeps a separate milestone). No numeric
-   p99/max ceiling was ever defined.
+   p99/max ceiling was ever defined. **Closed 2026-10-16 by ADR-0016** (accepted
+   append-latency budget p95 ≤ 20 ms, p99 ≤ 150 ms, max ≤ 6 s; group commit
+   remains a separate decision).
 2. **Power-loss durability remains a storage-controller claim.** All probes are
    process-crash; `synchronous=FULL` asserts but does not prove power-loss
    behavior. Unchanged from G2-C.
