@@ -153,7 +153,11 @@
   execution. Consuming in reconcile resumes the worker to `pending`, and the
   re-dispatch then re-authorizes against the already-consumed approval, mints a
   fresh pending, and blocks forever (double consumption). Absent/legacy
-  evidence without a `bindingKey` fails closed.
+  evidence without a `bindingKey` fails closed. Dispatch reads refreshed
+  persisted state: `PolicyGate.handleAskDecision` calls `await store.load()`
+  before its authorization read, so a CLI-resolved approval written by another
+  process is observed without a daemon restart; the watcher stays a
+  notification-only accelerator, never the correctness path.
 - `alix_coordination_run` threads operator abort into cancellation and awaits
   finalization before throwing `ExecutionCancelledError`. `createCancelGuard`
   and `createCancelFailureRecorder` own this path. Bind recorder inputs before

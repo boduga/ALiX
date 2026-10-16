@@ -400,4 +400,170 @@ describe("SRAP coordination approval-binding continuity", () => {
     assert.equal(decision.status, "allowed", "allowed capability still allowed without coordination context");
     assert.equal(h.approvals.list().length, 0, "no approval created for an allowed capability");
   });
+
+  // ── Cross-process (long-running daemon) approval freshness ──────────
+  //
+  // The daemon constructs ONE ApprovalStore for its lifetime; the operator
+  // resolves approvals from a SEPARATE `alix approvals` process that writes
+  // the authoritative ledger. The daemon's in-memory projection must reflect
+  // that decision WITHOUT a restart or a watcher notification. Regression for
+  // the SRAP D2 operational defect: a blocked worker re-blocked forever
+  // because the authorization read only saw the startup-era projection.
+
+  /** A separate store instance, standing in for the CLI resolver process. */
+  async function cliStore(cwd: string): Promise<ApprovalStore> {
+    const s = new ApprovalStore(cwd);
+    await s.load();
+    return s;
+  }
+
+  it("resumes and completes when a separate process approves (no restart, no watcher tick)", async () => {
+    h = await buildHarness(minimalConfig(), async () => ({ outcome: "success" }));
+    const { run, worker } = await seedWorker(h);
+
+    await h.scheduler.tick(run.id);
+    const blocked = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!;
+    assert.equal(blocked.blockReason, "approval_required");
+    const bindingKey = blocked.authorizationEvidence?.bindingKey as string;
+
+    // Operator resolves from a separate process/store; the daemon's shared
+    // store never observed the write.
+    const cli = await cliStore(h.cwd);
+    await cli.resolve(cli.findExact(bindingKey)!.id, "approved", "operator");
+
+    // No watcher tick is delivered — correctness must not depend on one.
+    const tick2 = await h.scheduler.tick(run.id);
+    assert.ok(tick2.dispatched.includes(worker.id), "worker must dispatch after a cross-process approval");
+    assert.ok(!tick2.awaitingApproval.includes(worker.id), "must not re-block against stale in-memory state");
+
+    const result = await h.scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 5000 });
+    assert.equal(result.finalStatus, "completed", "run must reach terminal completion");
+
+    const reloaded = await cliStore(h.cwd);
+    assert.equal(reloaded.findExact(bindingKey)!.status, "consumed", "the single-use approval is consumed");
+    assert.equal(reloaded.listPending().length, 0, "no stray new pending minted by the re-dispatch");
+  });
+
+  it("keeps the worker blocked while a separate process leaves the approval pending", async () => {
+    h = await buildHarness();
+    const { run, worker } = await seedWorker(h);
+    await h.scheduler.tick(run.id);
+
+    // A separate process saw the persisted pending approval but did not decide.
+    const cli = await cliStore(h.cwd);
+    assert.equal(cli.listPending().length, 1, "the pending approval is persisted and visible cross-process");
+
+    const result = await h.scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 300 });
+    assert.notEqual(result.finalStatus, "completed", "an unresolved approval must not dispatch");
+    const w = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!;
+    assert.equal(w.status, "blocked");
+    assert.equal(w.blockReason, "approval_required");
+  });
+
+  it("does not dispatch when a separate process denies the approval", async () => {
+    h = await buildHarness();
+    const { run, worker } = await seedWorker(h);
+    await h.scheduler.tick(run.id);
+    const bindingKey = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!
+      .authorizationEvidence?.bindingKey as string;
+
+    const cli = await cliStore(h.cwd);
+    await cli.resolve(cli.findExact(bindingKey)!.id, "denied", "operator");
+
+    const result = await h.scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 300 });
+    assert.notEqual(result.finalStatus, "completed", "a denied approval must not dispatch");
+    const reloaded = await cliStore(h.cwd);
+    assert.equal(reloaded.findExact(bindingKey)!.status, "denied");
+    assert.equal(reloaded.listPending().length, 0, "a denial must not mint a fresh pending approval");
+  });
+
+  it("does not consume or dispatch an approval revoked by a separate process", async () => {
+    h = await buildHarness();
+    const { run, worker } = await seedWorker(h);
+    await h.scheduler.tick(run.id);
+    const bindingKey = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!
+      .authorizationEvidence?.bindingKey as string;
+
+    const cli = await cliStore(h.cwd);
+    const rec = cli.findExact(bindingKey)!;
+    await cli.resolve(rec.id, "approved", "operator");
+    await cli.revoke(rec.id, { actor: "operator", reason: "changed mind" });
+
+    const result = await h.scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 300 });
+    assert.notEqual(result.finalStatus, "completed", "a revoked approval must not authorize execution");
+    const reloaded = await cliStore(h.cwd);
+    const after = reloaded.findExact(bindingKey)!;
+    assert.equal(after.status, "revoked");
+    assert.notEqual(after.status, "consumed", "a revoked approval is never consumed");
+  });
+
+  it("fails closed (no authorization bypass) when the store refresh fails", async () => {
+    h = await buildHarness();
+    const { run, worker } = await seedWorker(h);
+    await h.scheduler.tick(run.id);
+    const bindingKey = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!
+      .authorizationEvidence?.bindingKey as string;
+
+    // A valid approval exists cross-process, so a stale-but-successful read
+    // would authorize. Make the authoritative read fail instead.
+    const cli = await cliStore(h.cwd);
+    await cli.resolve(cli.findExact(bindingKey)!.id, "approved", "operator");
+
+    const original = h.approvals.load.bind(h.approvals);
+    (h.approvals as any).load = async () => { throw new Error("ledger unavailable"); };
+    try {
+      const decision = await h.gate.evaluateCapability({
+        requestId: "r-refresh-fail",
+        capability: "filesystem.write",
+        cwd: h.cwd,
+        sessionMode: "ask",
+        sessionId: "s1",
+        coordinationRunId: run.id,
+        workerId: worker.id,
+        workerAttempt: worker.attempt,
+        ownershipClaims: worker.ownershipClaims,
+      } as any);
+      assert.equal(decision.decision, "deny", "a failed refresh must fail closed");
+      assert.equal(decision.matchedRuleId, "approval-refresh-failed");
+    } finally {
+      (h.approvals as any).load = original;
+    }
+
+    // The approval was NOT consumed: no refresh-failure bypass.
+    const reloaded = await cliStore(h.cwd);
+    assert.equal(reloaded.findExact(bindingKey)!.status, "approved", "no consumption on a failed refresh");
+  });
+
+  it("consumes the approval exactly once across two simultaneous authorization attempts", async () => {
+    h = await buildHarness();
+    const { run, worker } = await seedWorker(h);
+    await h.scheduler.tick(run.id);
+    const bindingKey = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!
+      .authorizationEvidence?.bindingKey as string;
+
+    const cli = await cliStore(h.cwd);
+    await cli.resolve(cli.findExact(bindingKey)!.id, "approved", "operator");
+
+    const request = (requestId: string) => ({
+      requestId,
+      capability: "filesystem.write",
+      cwd: h.cwd,
+      sessionMode: "ask",
+      sessionId: "s1",
+      coordinationRunId: run.id,
+      workerId: worker.id,
+      workerAttempt: worker.attempt,
+      ownershipClaims: worker.ownershipClaims,
+    } as any);
+
+    const [d1, d2] = await Promise.all([
+      h.gate.evaluateCapability(request("r-1")),
+      h.gate.evaluateCapability(request("r-2")),
+    ]);
+    const allows = [d1, d2].filter((d) => d.decision === "allow").length;
+    assert.equal(allows, 1, "exactly one attempt may consume the single-use approval");
+
+    const reloaded = await cliStore(h.cwd);
+    assert.equal(reloaded.findExact(bindingKey)!.status, "consumed");
+  });
 });
