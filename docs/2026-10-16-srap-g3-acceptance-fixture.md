@@ -292,25 +292,94 @@ For E-2, the audit failure must be deterministic against the **real audit append
 
 Every artifact must record source, timestamp, row ID, expected result, observed result, redaction status, and reviewer verdict. Stop on the first failing row, file a defect and re-enter review before any rerun.
 
-## 9. Production-integrity proof
+## 9. Production-integrity proof (hybrid model — amended after D1-F1)
 
-The preflight captures the *real* paths before overriding environment variables. After all fixture processes and workers terminate, regenerate the same snapshot against those same captured paths and compare **exactly**. Detect added/deleted files and content/metadata changes; do not silently ignore unreadable roots. A mismatch means **STOP and investigate**, not cleanup success.
+> **Amendment (2026-10-16, D1-F1).** D1 executed the preflight and the exact-`cmp`
+> guard **failed** — not from fixture activity, but from the **live agent session
+> writing its own projection checkpoints** under the repository's
+> `.alix/sessions/<id>/**`. All 12 changed baseline lines were in that subtree;
+> **zero** changed paths mentioned the fixture root, and the production config dir
+> and platform state dir were unchanged. An exact `cmp` over the repository
+> `.alix/` therefore cannot serve as an "untouched" proof while a session is live
+> in that repository, and would mask a real violation in the noise.
+>
+> **What changed.** §9 is replaced by the hybrid model below. The old
+> exact-`cmp`-only procedure is superseded; it is recorded here rather than
+> silently rewritten. **No runtime code changed.**
 
-Generate a machine-readable integrity result *only from the successful exact comparison*:
+**Defensible claim.** *Protected production configuration and platform state
+remained unchanged, and every observed repository mutation was classified under a
+reviewed, explicit exception policy.* This document does **not** claim the entire
+production repository was untouched.
 
-```bash
-snapshot "$ROOT/private/baseline-after.txt" || exit 1
-if cmp -s "$ROOT/private/baseline-before.txt" "$ROOT/private/baseline-after.txt"; then
-  printf '{"productionIntegrity":"unchanged","verified":true}\n' \
-    > "$RUN_DIR/env/production-integrity.json"
-  printf 'verified\n' > "$ROOT/private/integrity.ok"
-else
-  echo 'Production baseline changed; preserve all evidence and investigate' >&2
-  exit 1
-fi
+### 9.1 Hybrid integrity model
+
+1. **Dedicated, clean worktree, pinned to a commit.** The acceptance environment
+   runs from a separate `git worktree` pinned to a recorded commit SHA. Record the
+   SHA and verify that **no unrelated ALiX session is running in that worktree**
+   before the run.
+2. **Exact comparison for production configuration and platform state.** The
+   production config dir and the platform state dir are compared **exactly**; **any**
+   difference is a failure. No allowlist applies to these.
+3. **Separate the active development repository from the acceptance workspace.**
+   Changes under the live session's projection subtree are an **explicitly
+   identified exception**, never evidence of an untouched repository.
+4. **Allowlist for known session-generated files only.** The allowlist may name
+   only `<repo>/.alix/sessions/<recorded-session-id>/{events.jsonl,projections/**}`.
+   Any change **outside** those paths is a failure. Every excluded path is
+   recorded with its justification. **Preferred state: an empty allowlist** (a
+   clean worktree with no active session yields zero repository mutations).
+5. **Fail closed.** A failed comparison, an ambiguous allowlist, or any unexpected
+   path yields **no** successful verdict — preserve evidence and stop.
+6. **Record raw *and* filtered evidence.** The complete before/after manifests and
+   the full diff stay **private**; a **sanitized** report carries the exception
+   count, allowed paths, unexpected-change count, and the verdict.
+
+### 9.2 Classification and evidence format
+
+```text
+baseline-before/after = (A) production config dir  +  (B) platform state dir  +  (C) repository .alix/
+exact compare A and B                     -> any diff = FAIL
+classify C's diff:
+  every changed path matches the reviewed allowlist  -> allowed (recorded)
+  any changed path outside the allowlist             -> FAIL (unexpected)
 ```
 
-This proof depends on the snapshot helper being validated for the host's filename and permission conditions. The private raw before/after manifests remain outside the shared archive; the redacted summary is included in the evidence. Never treat an arbitrary grep match as a successful guard.
+Machine-readable result (written **only** on success):
+
+```json
+{
+  "model": "hybrid-allowlist-v1",
+  "worktreeCommit": "<sha>",
+  "productionConfig": "unchanged",
+  "productionState": "unchanged",
+  "allowedChangeCount": 0,
+  "allowedPaths": [],
+  "unexpectedChangeCount": 0,
+  "verdict": "pass"
+}
+```
+
+Private (never archived): `private/baseline-before.txt`, `baseline-after.txt`,
+`baseline.diff` (complete). Archived: `runs/<ts>/env/production-integrity.json` +
+a sanitized `runs/<ts>/env/production-integrity.txt` (counts and allowed paths
+only; no production absolute paths).
+
+### 9.3 D1-F1 acceptance criteria
+
+| Check | Required |
+| --- | --- |
+| Production config/state exact comparison | PASS |
+| Dedicated worktree pinned to commit | PASS |
+| Known session changes classified | PASS |
+| Unexpected changes | **0** |
+| Exclusion rules | Explicit, narrow, auditable |
+| Integrity verdict | Machine-readable and reproducible |
+| D1-F1 finding | Closed **only after** verification |
+
+The snapshot helper validation caveat from the pre-amendment text still applies
+(host filename/permission conditions); a missing or unreadable root is a failure,
+never silently ignored.
 
 ## 10. Cleanup, archival and deletion safety
 
