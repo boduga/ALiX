@@ -107,6 +107,20 @@ describe("store lock + CAS", () => {
     if (!stale.ok) assert.equal(stale.error, "revision_conflict");
   });
 
+  it("token-store revision CAS refuses a stale writer", async () => {
+    const store = new AuthStore({ filePath: join(dir, "auth-store.json") });
+    const gen = generateToken();
+    assert.ok((await store.add(createTokenRecord({ id: gen.id, hash: gen.hash, name: "t", role: "operator" }))).ok);
+
+    // Bump revision 1 → 2.
+    assert.ok((await store.update(gen.id, { name: "t2" }, 1)).ok);
+
+    // A writer asserting the stale revision 1 is refused.
+    const stale = await store.update(gen.id, { name: "t3" }, 1);
+    assert.equal(stale.ok, false);
+    if (!stale.ok) assert.equal(stale.error, "revision_conflict");
+  });
+
   it("lock order is canonical and a partial acquisition releases cleanly", { timeout: 10_000 }, async () => {
     assert.deepEqual([...STORE_LOCK_ORDER], ["principals", "auth-store"]);
 
@@ -143,5 +157,32 @@ describe("store lock + CAS", () => {
     const all = await principals.list();
     assert.ok(all.ok);
     assert.equal(all.value.length, 1, "exactly one principal was created");
+  });
+
+  // CONTRIBUTING: explicit timeout + rationale. Interleaves enrollment,
+  // migration, and disablement from three instances; the canonical lock order
+  // must let all three complete without deadlock and without lock timeouts.
+  it("interleaved enrollment + migration + disablement do not deadlock", { timeout: 15_000 }, async () => {
+    const store = new AuthStore({ filePath: join(dir, "auth-store.json") });
+    const principals = new PrincipalStore({ filePath: join(dir, "principals.json") });
+    const a = new AuthService(store, noopAudit, noMetrics, { principalStore: principals });
+    const b = new AuthService(store, noopAudit, noMetrics, { principalStore: principals });
+
+    // A legacy token for migration to find.
+    const { createTokenRecord: mk } = await import("../../../src/governance/security/inspector/auth-store.js");
+    const gen = generateToken();
+    assert.ok((await store.add(mk({ id: gen.id, hash: gen.hash, name: "legacy", role: "operator" }))).ok);
+
+    // Run enrollment, migration, and disablement concurrently. Whichever wins,
+    // all must complete (no deadlock, no partial-acquisition stall).
+    const enrolled = await a.createToken({ name: "ops", role: "operator" });
+    assert.ok(enrolled.ok);
+
+    const results = await Promise.all([
+      a.migrate(),
+      b.disablePrincipal(enrolled.value.principalId, "race"),
+      b.createToken({ name: "ops2", role: "admin" }),
+    ]);
+    for (const r of results) assert.ok(r.ok, "every interleaved operation completes");
   });
 });

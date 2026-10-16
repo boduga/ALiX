@@ -188,6 +188,48 @@ describe("operator principal identity", () => {
     assert.equal(principals.value.length, 0, "no principal written");
   });
 
+  it("write-ahead audit failure persists nothing (migration auto-creates no orphan)", async () => {
+    const fixture = makeFixture(dir, failingAudit());
+    const { generateToken } = await import("../../../src/governance/security/inspector/token-format.js");
+    const { createTokenRecord } = await import("../../../src/governance/security/inspector/auth-store.js");
+    const gen = generateToken();
+    assert.ok((await fixture.store.add(createTokenRecord({ id: gen.id, hash: gen.hash, name: "legacy", role: "operator" }))).ok);
+
+    const result = await fixture.service.migrate();
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error, "audit_write_failed");
+
+    // The audit precedes the principal write, so no orphan principal exists.
+    const principals = await fixture.principals.load();
+    assert.ok(principals.ok);
+    assert.equal(principals.value.length, 0, "no unaudited orphan principal");
+    const bound = await fixture.store.get(gen.id);
+    assert.ok(bound.ok && bound.value);
+    assert.equal(bound.value.principalId, undefined, "no binding written");
+  });
+
+  it("bound + unreadable principal store denies all authentication", async () => {
+    const { service, store } = makeFixture(dir);
+    const created = await service.createToken({ name: "ops", role: "operator" });
+    assert.ok(created.ok);
+    // Corrupt the principal store so a read fails (not merely missing).
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(join(dir, "principals.json"), "{ not json", "utf-8");
+
+    const bearer = await service.verifyToken(created.value.token);
+    assert.equal(bearer.ok, false);
+    if (!bearer.ok) assert.equal(bearer.error, "principal_unavailable");
+
+    const cookie = await service.verifyPrincipalStatus(created.value.id);
+    assert.equal(cookie.ok, false);
+    if (!cookie.ok) assert.equal(cookie.error, "principal_unavailable");
+
+    // Nothing changed silently.
+    const stillBound = await store.get(created.value.id);
+    assert.ok(stillBound.ok && stillBound.value);
+    assert.ok(stillBound.value.revocation === undefined);
+  });
+
   it("migration binds unbound tokens and is idempotent", async () => {
     const { service, store } = makeFixture(dir);
     const { generateToken } = await import("../../../src/governance/security/inspector/token-format.js");

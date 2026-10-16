@@ -199,11 +199,6 @@ export class AuthService {
       new PrincipalStore({ filePath: join(store.getStoreDir(), "principals.json") });
   }
 
-  /** The operator-identity store (identity/status only; not the binding authority). */
-  getPrincipalStore(): PrincipalStore {
-    return this.principalStore;
-  }
-
   // -----------------------------------------------------------------------
   // Create
   // -----------------------------------------------------------------------
@@ -418,9 +413,12 @@ export class AuthService {
       if (!addResult.ok) return addResult;
 
       // Set grace expiry on old token (doesn't delete — just sets expiry)
-      const updateResult = await this.store.updateUnder(locks, id, {
-        expiresAt: graceExpiry,
-      });
+      const updateResult = await this.store.updateUnder(
+        locks,
+        id,
+        { expiresAt: graceExpiry },
+        existing.revision,
+      );
       if (!updateResult.ok) {
         // Roll back the new token if the old token update fails, preventing both
         // tokens remaining active indefinitely.
@@ -494,7 +492,7 @@ export class AuthService {
       // Revocation removes authentication eligibility but PRESERVES principalId
       // for historical attribution (G3-A′). `update` merges, so the binding
       // survives; the revoked state already denies access.
-      const updateResult = await this.store.updateUnder(locks, id, { revocation });
+      const updateResult = await this.store.updateUnder(locks, id, { revocation }, existing.revision);
       if (!updateResult.ok) return updateResult;
 
       this.metrics("token.revoked", { status: "ok" });
@@ -508,16 +506,6 @@ export class AuthService {
   // -----------------------------------------------------------------------
   // Principal lifecycle (G3-A′)
   // -----------------------------------------------------------------------
-
-  /** List operator principals (safe metadata). */
-  async listPrincipals(): Promise<ServiceResult<PrincipalRecord[]>> {
-    return this.principalStore.list();
-  }
-
-  /** Look up a single operator principal. */
-  async getPrincipal(id: string): Promise<ServiceResult<PrincipalRecord | null>> {
-    return this.principalStore.get(id);
-  }
 
   /** Disable a principal: every bound credential is denied ALL authentication. */
   async disablePrincipal(id: string, reason: string): Promise<ServiceResult<void>> {
@@ -552,7 +540,7 @@ export class AuthService {
         return { ok: false as const, error: "audit_write_failed" };
       }
 
-      return this.principalStore.setStatusUnder(locks, id, { status, reason });
+      return this.principalStore.setStatusUnder(locks, id, { status, reason }, existing.value.revision);
     });
 
     if (!work.ok) return { ok: false, error: work.error };
@@ -601,16 +589,16 @@ export class AuthService {
         }
 
         let targetId: string;
+        let createdPrincipal: PrincipalRecord | null = null;
         if (opts?.principalId !== undefined) {
           targetId = opts.principalId;
         } else {
-          const created = createPrincipalRecord({ name: token.name });
-          const createResult = await this.principalStore.createUnder(locks, created);
-          if (!createResult.ok) return createResult;
-          targetId = created.id;
+          createdPrincipal = createPrincipalRecord({ name: token.name });
+          targetId = createdPrincipal.id;
         }
 
-        // Write-ahead audit intent, then the binding write.
+        // Write-ahead audit intent BEFORE any store write (including the
+        // principal), so an audit failure leaves nothing persisted.
         try {
           await this.audit({
             action: "token.migrated",
@@ -619,6 +607,11 @@ export class AuthService {
           });
         } catch {
           return { ok: false as const, error: "audit_write_failed" };
+        }
+
+        if (createdPrincipal) {
+          const createResult = await this.principalStore.createUnder(locks, createdPrincipal);
+          if (!createResult.ok) return createResult;
         }
 
         const updateResult = await this.store.updateUnder(locks, token.id, {

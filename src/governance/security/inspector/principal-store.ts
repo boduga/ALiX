@@ -18,12 +18,11 @@
  * @module
  */
 
-import { randomBytes, randomUUID } from "node:crypto";
-import { writeFileSync, renameSync, unlinkSync, lstatSync, mkdirSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { randomBytes } from "node:crypto";
+import { dirname } from "node:path";
 import { StoreLocks, withStoreLocksResult } from "./store-lock.js";
-import type { StoreResult } from "./auth-store.js";
+import { readStoreFile, writeStoreFileAtomic } from "./store-file.js";
+import type { StoreResult } from "./store-file.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -95,29 +94,17 @@ export class PrincipalStore {
 
   /** Load all principals (empty when the file does not exist yet). */
   async load(): Promise<StoreResult<PrincipalRecord[]>> {
-    let raw: string;
-    try {
-      raw = await readFile(this.filePath, "utf-8");
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        return { ok: true, value: [] };
-      }
-      return { ok: false, error: "store_read_failed" };
+    const parsed = await readStoreFile<PrincipalStoreData>(this.filePath);
+    if (!parsed.ok) return parsed;
+    if (parsed.value === null) return { ok: true, value: [] };
+    const data = parsed.value;
+    if (typeof data.version !== "number" || data.version < 1) {
+      return { ok: false, error: "invalid_store_schema" };
     }
-
-    try {
-      const data = JSON.parse(raw) as PrincipalStoreData;
-      if (typeof data.version !== "number" || data.version < 1) {
-        return { ok: false, error: "invalid_store_schema" };
-      }
-      if (!Array.isArray(data.principals)) {
-        return { ok: false, error: "invalid_store_format" };
-      }
-      return { ok: true, value: data.principals.map(normalizeRecord) };
-    } catch (err) {
-      if (err instanceof SyntaxError) return { ok: false, error: "corrupt_store_file" };
-      return { ok: false, error: "store_read_failed" };
+    if (!Array.isArray(data.principals)) {
+      return { ok: false, error: "invalid_store_format" };
     }
+    return { ok: true, value: data.principals.map(normalizeRecord) };
   }
 
   /** Look up a single principal by id. */
@@ -199,11 +186,6 @@ export class PrincipalStore {
    * have verified the principal has no bound credentials; this store does not
    * check token state.
    */
-  async remove(id: string): Promise<StoreResult<void>> {
-    return withStoreLocksResult(this.getStoreDir(), ["principals"], (l) => this.removeUnder(l, id));
-  }
-
-  /** Remove a principal while the caller holds the principal lock. */
   async removeUnder(locks: StoreLocks, id: string): Promise<StoreResult<void>> {
     locks.assertHolds("principals");
     return this.mutatePrimitive((principals) => {
@@ -237,36 +219,7 @@ export class PrincipalStore {
 
   private async writeAll(principals: PrincipalRecord[]): Promise<StoreResult<void>> {
     const data: PrincipalStoreData = { version: PRINCIPAL_STORE_SCHEMA_VERSION, principals };
-    const dir = dirname(this.filePath);
-
-    try {
-      mkdirSync(dir, { recursive: true, mode: 0o700 });
-    } catch {
-      return { ok: false, error: "store_dir_create_failed" };
-    }
-
-    // Symlink rejection (the shared JSON primitive does not do this; the auth
-    // store does, and this store must match that discipline).
-    try {
-      if (lstatSync(dir).isSymbolicLink()) return { ok: false, error: "store_path_is_symlink" };
-    } catch {
-      // Directory was just created — fine.
-    }
-    try {
-      if (lstatSync(this.filePath).isSymbolicLink()) return { ok: false, error: "store_path_is_symlink" };
-    } catch {
-      // File does not exist yet — fine.
-    }
-
-    const tmpPath = join(dir, `.principals-${randomUUID()}.tmp`);
-    try {
-      writeFileSync(tmpPath, JSON.stringify(data, null, 2) + "\n", { mode: 0o600, flag: "wx" });
-      renameSync(tmpPath, this.filePath);
-    } catch (err) {
-      try { unlinkSync(tmpPath); } catch { /* best effort */ }
-      return { ok: false, error: `write_failed: ${err instanceof Error ? err.message : String(err)}` };
-    }
-    return { ok: true, value: undefined };
+    return writeStoreFileAtomic(this.filePath, data);
   }
 }
 
@@ -280,7 +233,7 @@ function normalizeRecord(record: PrincipalRecord): PrincipalRecord {
 }
 
 /** Generate a stable server-side operator id: `prin_<12 base64url>`. */
-export function generatePrincipalId(): string {
+function generatePrincipalId(): string {
   return `prin_${randomBytes(9).toString("base64url")}`;
 }
 

@@ -78,10 +78,11 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
   ordinary access. Revocation removes authentication eligibility but **preserves
   `principalId`** for historical attribution. Principal and credential
   read-modify-writes are serialized by a shared cross-process lock
-  (`principal` before `token`, re-reading authoritative state **after** acquiring
-  the lock, revision CAS); a held or stale lock fails the mutation closed with no
-  write, and auth mutations stay write-ahead audited (a failed audit write is
-  never reported as a successful mutation). Owner: `src/governance/security/inspector/AGENTS.md`.
+  (`principals` before `auth-store`, re-reading authoritative state **after**
+  acquiring the lock, revision CAS); a held or stale lock fails the mutation
+  closed with no write, and auth mutations stay write-ahead audited (a failed
+  audit write is never reported as a successful mutation). Owner:
+  `src/governance/security/inspector/AGENTS.md`.
 - SSE streams require authentication in required mode and serve session events
   with `Last-Event-ID` resume support.
 - `VISIBLE_EVENTS` filter controls which event types stream to the browser; it delivers the canonical vocabulary (including `agent.*` lifecycle and `approval.*`) so the Inspector sees the same reality as the TUI (R4/V10).

@@ -16,11 +16,13 @@
  * @module
  */
 
-import { randomUUID } from "node:crypto";
-import { writeFileSync, renameSync, unlinkSync, lstatSync, mkdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { dirname } from "node:path";
 import { StoreLocks, withStoreLocksResult } from "./store-lock.js";
+import { readStoreFile, writeStoreFileAtomic } from "./store-file.js";
+import type { StoreResult } from "./store-file.js";
+
+export type { StoreResult } from "./store-file.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -100,12 +102,10 @@ export interface AuthStoreOptions {
 }
 
 // ---------------------------------------------------------------------------
-// Result types (discriminated unions)
+// Result types
 // ---------------------------------------------------------------------------
 
-export type StoreResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: string };
+// `StoreResult` is the shared store result shape (see `store-file.ts`).
 
 // ---------------------------------------------------------------------------
 // AuthStore
@@ -130,38 +130,24 @@ export class AuthStore {
    * Returns an empty list if the file does not exist yet.
    */
   async load(): Promise<StoreResult<StoredToken[]>> {
-    let raw: string;
-    try {
-      raw = await readFile(this.filePath, "utf-8");
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") {
-        // File doesn't exist yet — return empty list
-        return { ok: true, value: [] };
-      }
-      // Permission error, etc. — fail closed
-      return { ok: false, error: "store_read_failed" };
+    const parsed = await readStoreFile<AuthStoreData>(this.filePath);
+    if (!parsed.ok) return parsed;
+    if (parsed.value === null) {
+      // File doesn't exist yet — return empty list
+      return { ok: true, value: [] };
+    }
+    const data = parsed.value;
+
+    // Validate schema version
+    if (typeof data.version !== "number" || data.version < 1) {
+      return { ok: false, error: "invalid_store_schema" };
     }
 
-    try {
-      const data = JSON.parse(raw) as AuthStoreData;
-
-      // Validate schema version
-      if (typeof data.version !== "number" || data.version < 1) {
-        return { ok: false, error: "invalid_store_schema" };
-      }
-
-      if (!Array.isArray(data.tokens)) {
-        return { ok: false, error: "invalid_store_format" };
-      }
-
-      return { ok: true, value: data.tokens.map(normalizeToken) };
-    } catch (err) {
-      if (err instanceof SyntaxError) {
-        return { ok: false, error: "corrupt_store_file" };
-      }
-      return { ok: false, error: "store_read_failed" };
+    if (!Array.isArray(data.tokens)) {
+      return { ok: false, error: "invalid_store_format" };
     }
+
+    return { ok: true, value: data.tokens.map(normalizeToken) };
   }
 
   /**
@@ -199,25 +185,43 @@ export class AuthStore {
 
   /**
    * Replace an existing token record (e.g., for revocation or rotation).
-   * Re-reads under the lock and bumps `revision` (CAS). `principalId` is
-   * preserved unless explicitly changed — revocation must not delete the binding.
+   * Re-reads under the lock and bumps `revision`. Pass `expectedRevision` for a
+   * compare-and-set that refuses a stale overwrite. `principalId` is preserved
+   * unless explicitly changed — revocation must not delete the binding.
    */
-  async update(id: string, updates: Partial<StoredToken>): Promise<StoreResult<void>> {
-    return withStoreLocksResult(this.getStoreDir(), ["auth-store"], (l) => this.updateUnder(l, id, updates));
+  async update(
+    id: string,
+    updates: Partial<StoredToken>,
+    expectedRevision?: number,
+  ): Promise<StoreResult<void>> {
+    return withStoreLocksResult(this.getStoreDir(), ["auth-store"], (l) =>
+      this.updateUnder(l, id, updates, expectedRevision),
+    );
   }
 
   /** Update a token while the caller holds the `auth-store` lock. */
-  async updateUnder(locks: StoreLocks, id: string, updates: Partial<StoredToken>): Promise<StoreResult<void>> {
+  async updateUnder(
+    locks: StoreLocks,
+    id: string,
+    updates: Partial<StoredToken>,
+    expectedRevision?: number,
+  ): Promise<StoreResult<void>> {
     locks.assertHolds("auth-store");
     return this.mutate((tokens) => {
       const idx = tokens.findIndex((t) => t.id === id);
       if (idx === -1) return { error: "token_not_found" };
       const current = tokens[idx];
+      const currentRevision = current.revision ?? 1;
+      // Compare-and-set: refuse to overwrite a record that changed since the
+      // caller read it (defence in depth alongside the lock).
+      if (expectedRevision !== undefined && currentRevision !== expectedRevision) {
+        return { error: "revision_conflict" };
+      }
       tokens[idx] = {
         ...current,
         ...updates,
         id,
-        revision: (current.revision ?? 1) + 1,
+        revision: currentRevision + 1,
       };
       return { result: undefined };
     });
@@ -308,68 +312,15 @@ export class AuthStore {
   }
 
   /**
-   * Atomically write all tokens to the store file.
-   *
-   * Uses temp-file write followed by same-filesystem rename.
-   * Validates symlink safety before writing.
+   * Atomically write all tokens to the store file (shared `store-file.ts`
+   * discipline: 0o700 dir, 0o600 temp+rename, symlink rejection).
    */
   private async writeAll(tokens: StoredToken[]): Promise<StoreResult<void>> {
     const data: AuthStoreData = {
       version: AUTH_STORE_SCHEMA_VERSION,
       tokens,
     };
-
-    const dir = dirname(this.filePath);
-
-    // Ensure directory exists with restrictive permissions
-    try {
-      mkdirSync(dir, { recursive: true, mode: 0o700 });
-    } catch {
-      return { ok: false, error: "store_dir_create_failed" };
-    }
-
-    // Symlink check: detect leaf-path symlinks on the store file and its
-    // parent directory using lstatSync. This prevents the most common
-    // symlink replacement attacks. Full ancestor-path symlink resolution
-    // (traversing each path component) is not implemented for this threat
-    // model — a determined attacker with filesystem access could bypass
-    // this check by symlinking an intermediate directory. The existing
-    // directory creation with restrictive permissions (0o700) mitigates
-    // the practical attack surface.
-
-    // Detect symlinked store file or directory
-    try {
-      const dirStat = lstatSync(dir);
-      if (dirStat.isSymbolicLink()) {
-        return { ok: false, error: "store_path_is_symlink" };
-      }
-    } catch {
-      // dir doesn't exist yet — that's fine, we created it above
-    }
-
-    try {
-      const fileStat = lstatSync(this.filePath);
-      if (fileStat.isSymbolicLink()) {
-        return { ok: false, error: "store_path_is_symlink" };
-      }
-    } catch {
-      // file doesn't exist yet — that's fine
-    }
-
-    // Atomic write: temp file + rename
-    const tmpPath = join(dir, `.auth-store-${randomUUID()}.tmp`);
-    try {
-      const json = JSON.stringify(data, null, 2) + "\n";
-      writeFileSync(tmpPath, json, { mode: 0o600, flag: "wx" });
-      renameSync(tmpPath, this.filePath);
-    } catch (err) {
-      // Clean up temp file on failure
-      try { unlinkSync(tmpPath); } catch { /* best effort */ }
-      const message = err instanceof Error ? err.message : String(err);
-      return { ok: false, error: `write_failed: ${message}` };
-    }
-
-    return { ok: true, value: undefined };
+    return writeStoreFileAtomic(this.filePath, data);
   }
 }
 

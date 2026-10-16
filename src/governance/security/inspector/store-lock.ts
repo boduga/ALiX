@@ -25,6 +25,7 @@
 import { join } from "node:path";
 import { acquire, release } from "../audit/audit-lock.js";
 import type { AcquireError, AcquireResult, LockHandle, LockOptions } from "../audit/audit-lock.js";
+import type { StoreResult } from "./store-file.js";
 
 /** The Inspector auth stores that participate in cross-process locking. */
 export type StoreLockName = "principals" | "auth-store";
@@ -95,7 +96,7 @@ export class StoreLocks {
 
   /** Throw when the named lock is not held — a programming error, not a runtime one. */
   assertHolds(name: StoreLockName): void {
-    if (!this.held.has(name)) {
+    if (!this.holds(name)) {
       throw new Error(`store lock "${name}" is required but not held`);
     }
   }
@@ -132,8 +133,8 @@ export async function withStoreLocks<T>(
   }
 }
 
-/** Minimal result shape shared with the stores (`StoreResult`). */
-type ResultLike<T> = { ok: true; value: T } | { ok: false; error: string };
+/** Discriminated result shared with the stores (`StoreResult`, `store-file.ts`). */
+type ResultLike<T> = StoreResult<T>;
 
 /**
  * Like {@link withStoreLocks} but unwraps an inner `{ ok, value/error }` result,
