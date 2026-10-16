@@ -65,6 +65,29 @@ export interface AuditDetails {
   workerId?: string;
   errors?: string[];
   error?: string;
+  /** SRAP-1 remote-decision evidence (bounded; no raw secrets). */
+  remoteDecision?: AuditRemoteDecision;
+}
+
+/**
+ * Bounded SRAP-1 remote-decision evidence as projected into the audit chain.
+ *
+ * A projection of `RemoteDecisionEvidence` (approvals), carrying only the
+ * fields the audit record needs — no decision reversal, no nonce, no secret.
+ * One nested object instead of loose sibling fields so the projection, the
+ * dedup scan, and this contract cannot drift apart.
+ */
+export interface AuditRemoteDecision {
+  /** Idempotency key of the projected decision. */
+  decisionId: string;
+  /** Persistent operator principal that decided. */
+  principalId: string;
+  /** Versioned HMAC over the credential record id (never a raw credential id). */
+  credentialRef: string;
+  /** Connection security the decision arrived over. */
+  transport: "direct-tls" | "proxy-tls";
+  /** When the decision was made (ISO-8601). */
+  decidedAt: string;
 }
 
 export interface AuditRecord {

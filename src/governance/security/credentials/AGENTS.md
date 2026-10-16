@@ -24,9 +24,10 @@ No other subsystem owns a secret store.
 - **Store-only resolution.** Secrets resolve from `~/.config/alix/config.json` `apiKeys` (literals or `cred://` refs) and this store; environment variables are never a fallback at any resolution site.
 - **No secret values leave the store** except through `get` to trusted code. `list()` returns metadata only.
 - **Atomic, restrictive writes.** Temp-file + rename; `0o600`; symlink-rejected.
-- **`srap-evidence` namespace for versioned HMAC keys (SRAP-1).** Approval decision evidence uses `credentialRef = hmac-sha256:<keyVersion>:<base64url(HMAC(key, credentialRecordId))>`. Keys live under provider namespace `srap-evidence` with the version encoded in the label (`hmac-key:v<N>`), because the store has no native per-entry version field; old versions coexist as ordinary entries.
-  - Generation: new random 32-byte key as `hmac-key:v<N+1>`. Activation: decision code signs only with the current version. Rotation: old versions stay resolvable through the approval-retention window. Retirement: delete `hmac-key:v<old>` only after that window. Unavailable active key = fail-closed (no decision committed). An old-version ref whose key is retired is reported unverifiable, never silently accepted and never an authority reversal.
-  - Access: only trusted approval/audit code resolves `srap-evidence`; key reads are logged. HMAC is computed in the owning subsystem, not the store.
+- **`srap-evidence` namespace for versioned HMAC keys (SRAP-1).** Approval decision evidence uses the canonical serialization `credentialRef = hmac-sha256:v<N>:<base64url(HMAC(key_vN, credentialRecordId))>` — the key version is always an explicit `v<N>` marker, never a bare number. Keys live under provider namespace `srap-evidence` with the version encoded in the label (`hmac-key:v<N>`), because the store has no native per-entry version field; old versions coexist as ordinary entries.
+  - Generation: new random 32-byte key as `hmac-key:v<N+1>`. Activation: decision code signs only with the current (highest) version; `generateKey`/`rotateKey` make the new version active immediately (no staged activation). Rotation: old versions stay resolvable while retained approval evidence may reference them.
+  - **Retirement has two independent gates.** *Eligibility* (`retireEligibility`): the version is inactive and **no retained approval evidence references it** — retention is count-based (`maxTerminalRecords`), so the operator/approval subsystem supplies the retained-reference count; there is no wall-clock window. *Execution* (`retireKey`, an explicit operator action): eligibility never retires anything on its own, and retirement is never automatic. Unavailable active key = fail-closed (no decision committed). An old-version ref whose key is retired is reported unverifiable, never silently accepted and never an authority reversal.
+  - Access: only trusted approval/audit code resolves `srap-evidence`. Key material is reachable **only** through the audited accessors `signCredentialRef`/`verifyCredentialRef`, whose `audit` sink is **mandatory** (not an optional callback) so every key access is reported. HMAC is computed in the owning subsystem, not the store.
 - **Rejected:** a second secret/key authority; putting HMAC keys in the Inspector auth store (hash-only, owns no secret keys); reusing Ed25519 `ConfigSigner`/audit-checkpoint keypairs (signature keys, single current `keyId`, no overlap/retire lifecycle).
 
 ## Work Guidance
@@ -38,7 +39,7 @@ No other subsystem owns a secret store.
 ## Verification
 
 - Credential store tests under `tests/security/` (store CRUD, backend selection, reference resolution, migration).
-- SRAP HMAC lifecycle tests are G3 work (not implemented).
+- `tests/security/credentials/srap-evidence.test.ts` — SRAP HMAC key lifecycle: generate/increasing versions, rotation overlap, fail-closed signing, `valid`/`invalid`/`unverifiable` verification, retired-version unverifiability, refuses to retire the active key.
 
 ## Child DOX Index
 

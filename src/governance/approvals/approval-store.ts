@@ -12,7 +12,7 @@ import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
-import type { ApprovalRecord, ApprovalGroup, ConsumeResult } from "./approval-types.js";
+import type { ApprovalRecord, ApprovalGroup, ConsumeResult, RemoteDecisionEvidence } from "./approval-types.js";
 import type { WorkerOwnershipClaim } from "../../coordination/kernel/coordination-types.js";
 import { normalizeApprovalRecord } from "./approval-binding.js";
 import { ApprovalStoreLock } from "./approval-store-lock.js";
@@ -625,12 +625,39 @@ export class ApprovalStore {
     status: "approved" | "denied",
     decisionReason?: string,
   ): Promise<ApprovalRecord | null> {
+    return this.resolveInternal(id, status, decisionReason, undefined);
+  }
+
+  /**
+   * Resolve a pending approval carrying authenticated remote-decision evidence.
+   *
+   * The evidence is written onto the record INSIDE the same `mutate()` that
+   * commits the transition, so it lands in the one authoritative
+   * `approval.updated` ledger payload (ADR-0015). Passing evidence here never
+   * bypasses the store's transition rules.
+   */
+  async resolveWithEvidence(
+    id: string,
+    status: "approved" | "denied",
+    evidence: RemoteDecisionEvidence,
+    decisionReason?: string,
+  ): Promise<ApprovalRecord | null> {
+    return this.resolveInternal(id, status, decisionReason, evidence);
+  }
+
+  private async resolveInternal(
+    id: string,
+    status: "approved" | "denied",
+    decisionReason: string | undefined,
+    evidence: RemoteDecisionEvidence | undefined,
+  ): Promise<ApprovalRecord | null> {
     const resolved = await this.mutate((approvals) => {
       const record = approvals.find(a => a.id === id);
       if (!record || record.status !== "pending") { return record ?? null; }
       record.status = status;
       record.decidedAt = new Date().toISOString();
       record.decisionReason = decisionReason;
+      if (evidence !== undefined) record.remoteDecisionEvidence = evidence;
       return { ...record } as ApprovalRecord;
     });
 

@@ -59,6 +59,12 @@ export interface ApprovalRecord {
   revocationReason?: string;
   invalidatedAt?: string;
   invalidationReason?: string;
+  /**
+   * SRAP-1 authenticated remote-decision evidence, when this record was decided
+   * through the remote endpoint. Persisted inside the authoritative
+   * `approval.updated` ledger payload (ADR-0015). Absent for CLI/local decisions.
+   */
+  remoteDecisionEvidence?: RemoteDecisionEvidence;
   metadata?: Record<string, unknown>;
 }
 
@@ -81,6 +87,40 @@ export type ApprovalGroup = {
 export type ConsumeResult =
   | { consumed: true; record: ApprovalRecord }
   | { consumed: false; reason: string };
+
+/**
+ * SRAP-1 authenticated remote-decision evidence.
+ *
+ * Bounded, minimal, and safe to persist in the authoritative `approval.updated`
+ * ledger payload (see ADR-0015). Never carries a raw bearer token, cookie, or
+ * raw credential id — `credentialRef` is a versioned HMAC over the credential
+ * record id (`src/governance/security/credentials/srap-evidence.ts`).
+ */
+export interface RemoteDecisionEvidence {
+  /** Stable decision identity; the idempotency key for audit projection. */
+  decisionId: string;
+  /** Persistent operator principal that decided. */
+  principalId: string;
+  /** `hmac-sha256:v<N>:<base64url>` over the credential record id. */
+  credentialRef: string;
+  /** The decision taken. */
+  decision: "approved" | "denied";
+  /** Bounded client nonce, used with principalId+decision for exact retry. */
+  nonce: string;
+  /** When the decision was made (ISO-8601). */
+  decidedAt: string;
+  /** Connection security the decision arrived over. */
+  transport: "direct-tls" | "proxy-tls";
+}
+
+/**
+ * The bounded identity an exact retry is compared against. Per the operator
+ * decision, retry identity is `{ principalId, nonce, decision }` — not request
+ * body bytes.
+ */
+export function remoteDecisionRetryKey(e: Pick<RemoteDecisionEvidence, "principalId" | "nonce" | "decision">): string {
+  return `${e.principalId}\u0000${e.nonce}\u0000${e.decision}`;
+}
 
 /** Ledger event vocabulary for the approvals domain (R2.4). */
 export const APPROVAL_LEDGER_EVENT_TYPES = [
