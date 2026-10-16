@@ -110,7 +110,7 @@ function firstHeader(value: string | string[] | undefined): string | undefined {
  * request is neither directly TLS-terminated nor forwarded HTTPS from a
  * configured trusted proxy with one unambiguous `x-forwarded-proto`.
  */
-export function deriveRemoteTransport(
+function deriveRemoteTransport(
   req: IncomingMessage,
   trustedProxyCidrs: string[],
 ): "direct-tls" | "proxy-tls" | null {
@@ -182,12 +182,17 @@ async function handleDecision(
       return;
     }
     if (!ctx.permissions.includes("approvals:decide")) {
-      secure.error("forbidden", 403);
+      secure.error("insufficient_permissions", 403);
       return;
     }
     if (ctx.principalId === undefined) {
       // A principal is required; unbound legacy credentials are not eligible.
       secure.error("principal_required", 403);
+      return;
+    }
+    if (ctx.tokenId === undefined || ctx.tokenId.length === 0) {
+      // Evidence signs over the credential record id; without one, fail closed.
+      secure.error("authentication_required", 401);
       return;
     }
     const workspaceIds = ctx.workspaceIds;
@@ -229,6 +234,8 @@ async function handleDecision(
 
     if (record.status !== "pending") {
       // Exact retry → idempotent 200; anything else → 409 with NO state disclosure.
+      // The `unexpired` leg is not re-applied here: an already-decided approval is
+      // being *replayed*, not newly decided, so expiry is moot for the exact retry.
       const stored = record.remoteDecisionEvidence;
       if (stored !== undefined && remoteDecisionRetryKey(stored) === retryKey) {
         secure.ok({ id: approvalId, decision: stored.decision, idempotent: true });
@@ -247,7 +254,7 @@ async function handleDecision(
     const credentialStore = opts.credentialStore ?? (await openCredentialStore());
     let credentialRef: string;
     try {
-      credentialRef = signCredentialRef(credentialStore, ctx.tokenId ?? "", () => {});
+      credentialRef = signCredentialRef(credentialStore, ctx.tokenId, logKeyRead);
     } catch {
       // No key material → commit no decision (fail closed).
       secure.error("evidence_unavailable", 503);
@@ -272,7 +279,16 @@ async function handleDecision(
       evidence,
       body.reason,
     );
-    if (!resolved) {
+    // `resolveWithEvidence` is a no-op if another writer already decided this
+    // approval between our read and the commit. Only OUR evidence landing in the
+    // committed record counts as success; anything else is a conflicting retry.
+    const applied = resolved?.remoteDecisionEvidence;
+    if (
+      !resolved ||
+      resolved.status !== body.decision ||
+      applied === undefined ||
+      remoteDecisionRetryKey(applied) !== retryKey
+    ) {
       secure.error("conflict", 409);
       return;
     }
@@ -292,7 +308,16 @@ async function handleDecision(
 }
 
 /** Open the credential store (no interactive prompt — fail closed instead). */
-async function openCredentialStore(): Promise<Awaited<ReturnType<typeof loadCredentialStoreWithKeychainFallback>>> {
+async function openCredentialStore(): Promise<CredentialStore> {
   const backend = await chooseBackend();
   return loadCredentialStoreWithKeychainFallback(backend);
+}
+
+/**
+ * Key-read audit sink for `srap-evidence`. The credentials contract requires
+ * every key access to be reported; the route has no audit-store handle, so it
+ * logs a bounded line to stderr (the store itself never logs).
+ */
+function logKeyRead(event: { operation: "sign" | "verify"; keyVersion: number }): void {
+  console.error(`[srap] srap-evidence key read: ${JSON.stringify(event)}`);
 }

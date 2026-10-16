@@ -125,6 +125,11 @@ async function invoke(
 // Fixture
 // ---------------------------------------------------------------------------
 
+// CONTRIBUTING: this suite drives real timers — `fakeReq` emits its body on
+// `setImmediate` and `invoke` polls until the async handler responds — so every
+// case declares an explicit timeout with that rationale.
+const CASE_TIMEOUT = { timeout: 10_000 } as const;
+
 describe("remote-decision parity", () => {
   let root: string;
   let creds: CredentialStore;
@@ -172,35 +177,35 @@ describe("remote-decision parity", () => {
   }
 
   // -- Authentication / transport ----------------------------------------
-  it("anonymous (no context) → 401", async () => {
+  it("anonymous (no context) → 401", CASE_TIMEOUT, async () => {
     const c = await invoke(root, null, { credentialStore: creds }, fakeReq({ body: { decision: "approved", nonce: "n1" }, encrypted: true }));
     assert.equal(c.status, 401);
   });
 
-  it("unauthenticated context → 401", async () => {
+  it("unauthenticated context → 401", CASE_TIMEOUT, async () => {
     const c = await invoke(root, ctxWith({ authenticated: false }), { credentialStore: creds }, fakeReq({ body: { decision: "approved", nonce: "n1" }, encrypted: true }));
     assert.equal(c.status, 401);
   });
 
-  it("cookie session → 403 (bearer-only)", async () => {
+  it("cookie session → 403 (bearer-only)", CASE_TIMEOUT, async () => {
     const c = await invoke(root, ctxWith({ authTransport: "cookie" }), { credentialStore: creds }, fakeReq({ body: { decision: "approved", nonce: "n1" }, encrypted: true }));
     assert.equal(c.status, 403);
     assert.deepEqual(c.body, { error: "bearer_required" });
   });
 
-  it("unbound legacy credential (no principalId) → 403", async () => {
+  it("unbound legacy credential (no principalId) → 403", CASE_TIMEOUT, async () => {
     const c = await invoke(root, ctxWith({ principalId: undefined }), { credentialStore: creds }, fakeReq({ body: { decision: "approved", nonce: "n1" }, encrypted: true }));
     assert.equal(c.status, 403);
     assert.deepEqual(c.body, { error: "principal_required" });
   });
 
-  it("non-TLS, no trusted proxy → 403 (fail closed)", async () => {
+  it("non-TLS, no trusted proxy → 403 (fail closed)", CASE_TIMEOUT, async () => {
     const c = await invoke(root, ctxWith({}), { credentialStore: creds }, fakeReq({ body: { decision: "approved", nonce: "n1" }, encrypted: false }));
     assert.equal(c.status, 403);
     assert.deepEqual(c.body, { error: "insecure_transport" });
   });
 
-  it("forwarded https from an untrusted peer → 403 (fail closed)", async () => {
+  it("forwarded https from an untrusted peer → 403 (fail closed)", CASE_TIMEOUT, async () => {
     const c = await invoke(
       root,
       ctxWith({}),
@@ -226,35 +231,35 @@ describe("remote-decision parity", () => {
   }
 
   // -- Default-off --------------------------------------------------------
-  it("default-off: disabled endpoint refuses with 404 and no disclosure", async () => {
+  it("default-off: disabled endpoint refuses with 404 and no disclosure", CASE_TIMEOUT, async () => {
     const c = await invoke(root, ctxWith({}), { credentialStore: creds, enabled: false }, fakeReq({ body: { decision: "approved", nonce: "n1" }, encrypted: true }));
     assert.equal(c.status, 404);
   });
 
   // -- Body validation ----------------------------------------------------
-  it("missing decision → 400", async () => {
+  it("missing decision → 400", CASE_TIMEOUT, async () => {
     const c = await invoke(root, ctxWith({}), { credentialStore: creds }, fakeReq({ body: { nonce: "n1" }, encrypted: true }));
     assert.equal(c.status, 400);
   });
 
-  it("missing nonce → 400", async () => {
+  it("missing nonce → 400", CASE_TIMEOUT, async () => {
     const c = await invoke(root, ctxWith({}), { credentialStore: creds }, fakeReq({ body: { decision: "denied" }, encrypted: true }));
     assert.equal(c.status, 400);
   });
 
   // -- Approval state -----------------------------------------------------
-  it("unknown approval id → 404", async () => {
+  it("unknown approval id → 404", CASE_TIMEOUT, async () => {
     const c = await invoke(root, ctxWith({}), { credentialStore: creds }, fakeReq({ body: { decision: "approved", nonce: "n1" }, encrypted: true }), "apr-missing");
     assert.equal(c.status, 404);
   });
 
-  it("pending approval + full eligibility → 200", async () => {
+  it("pending approval + full eligibility → 200", CASE_TIMEOUT, async () => {
     const c = await invoke(root, ctxWith({}), { credentialStore: creds }, fakeReq({ body: { decision: "approved", nonce: "n1" }, encrypted: true }), approvalId);
     assert.equal(c.status, 200);
     assert.deepEqual(c.body, { id: approvalId, decision: "approved" });
   });
 
-  it("exact retry → 200 idempotent; conflicting retry → 409 with no disclosure", async () => {
+  it("exact retry → 200 idempotent; conflicting retry → 409 with no disclosure", CASE_TIMEOUT, async () => {
     const first = await invoke(root, ctxWith({}), { credentialStore: creds }, fakeReq({ body: { decision: "approved", nonce: "retry-1" }, encrypted: true }), approvalId);
     assert.equal(first.status, 200);
 
@@ -273,7 +278,20 @@ describe("remote-decision parity", () => {
     assert.equal(conflict2.status, 409);
   });
 
-  it("expired pending approval → 409", async () => {
+  it("cross-record: an unknown approval id → 404, seeded approvals untouched", CASE_TIMEOUT, async () => {
+    const otherId = await seedApproval();
+    const c = await invoke(root, ctxWith({}), { credentialStore: creds }, fakeReq({ body: { decision: "approved", nonce: "n1" }, encrypted: true }), "apr-does-not-exist");
+    assert.equal(c.status, 404);
+
+    const store = new ApprovalStore(root);
+    await store.load();
+    const other = await store.get(otherId);
+    assert.ok(other);
+    assert.equal(other.status, "pending", "the seeded approval is unaffected");
+    void approvalId;
+  });
+
+  it("expired pending approval → 409", CASE_TIMEOUT, async () => {
     const expiredId = await seedApproval({ expiresAt: "2000-01-01T00:00:00.000Z" });
     const c = await invoke(root, ctxWith({}), { credentialStore: creds }, fakeReq({ body: { decision: "approved", nonce: "n1" }, encrypted: true }), expiredId);
     assert.equal(c.status, 409);

@@ -8,6 +8,7 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
 
 - `server.ts` — Route dispatch + handlers: sessions (SSE, snapshot, comparison), graphs (list, projection), registry (agents, tools), policy (rules, eval), approvals, audit.
 - `coordination-routes.ts` — Coordination API: read-only GET views plus the gated execution POSTs (run/cancel, background dispatch).
+- `remote-decision-route.ts` — SRAP-1 G3-C: the default-off `POST /api/approvals/:id/decision` handler (bearer-only, `approvals:decide`, trusted TLS transport, idempotent evidence via `ApprovalStore.resolveWithEvidence`). Holds `ApprovalStore` type-only; `server.ts` supplies the store loader so the protected value import stays on the allowlisted composition root.
 
 ## Local Contracts
 
@@ -51,10 +52,14 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
   Public authentication/logout routes remain available for credential recovery.
   Anonymous ordinary development access and existing role permissions are
   unchanged. `SecurityContext.workspaceIds` preserves absent versus empty scope.
-- **Future remote decisions require explicit nonempty scope.** Legacy unscoped
+- **Remote decisions require explicit nonempty scope.** The default-off
+  `POST /api/approvals/:id/decision` (`remote-decision-route.ts`) enforces the
+  owning approval contract (`src/governance/approvals/AGENTS.md`): bearer-only,
+  `approvals:decide`, active operator principal, explicit nonempty
+  `workspaceIds` containing the canonical server workspace, trusted TLS
+  transport, unexpired pending approval, and idempotent evidence. Legacy unscoped
   access, cookie authentication, and anonymous development access grant no remote
-  decision authority. The future route must enforce the owning approval contract;
-  P3 adds no remote decision endpoint.
+  decision authority.
 - `startServer` receives the configured Inspector authentication mode and must
   pass an explicit `enforceAuth` value to `createSecurityMiddleware`.
 - With authentication required, every registered data and SSE route requires
@@ -93,7 +98,7 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
 
 ## Work Guidance
 
-- Adding a new API route means adding a new `if (url.pathname === ...)` block in `server.ts`, or a branch in `registerCoordinationRoutes()` for `/api/coordination/*` paths (plus a `route-policy.ts` descriptor — the coverage test enforces it).
+- Adding a new API route means adding a new `if (url.pathname === ...)` block in `server.ts`, a branch in `registerCoordinationRoutes()` for `/api/coordination/*` paths, or a `register*Routes()` module for a self-contained surface (e.g. `remote-decision-route.ts`); every route also needs a `route-policy.ts` descriptor — the coverage test enforces it.
 - New read-only endpoints are preferred over write endpoints; new execution POSTs need the `coordination:execute`-style permission gate, not just a descriptor.
 - Error responses use consistent JSON shape: `{ error: string }`.
 

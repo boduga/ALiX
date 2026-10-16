@@ -121,6 +121,14 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
       if (!Array.isArray(sec.trustedProxyCidrs)) {
         issues.push({ path: "ui.security.trustedProxyCidrs", level: "error", message: "trustedProxyCidrs must be an array of strings" });
       }
+
+      // Validate remoteDecisions (SRAP-1 G3-C; optional, default off)
+      if (sec.remoteDecisions !== undefined) {
+        if (typeof sec.remoteDecisions !== "object" || sec.remoteDecisions === null ||
+            typeof (sec.remoteDecisions as { enabled?: unknown }).enabled !== "boolean") {
+          issues.push({ path: "ui.security.remoteDecisions", level: "error", message: "remoteDecisions must be { enabled: boolean }" });
+        }
+      }
     }
   }
 

@@ -40,10 +40,12 @@ File-backed approval queue management — create, resolve, list, and lookup pend
     handler — role × workspace scope × transport × principal × approval state ×
     exact-retry identity — covering allow (active operator/admin with scope), and
     fail-closed deny for anonymous, `readonly`, missing `approvals:decide`, cookie
-    session, unbound legacy credential, non-TLS/untrusted transport), missing/empty
-    scope, cross-workspace, unknown/expired/decided approval, and conflicting
-    retry. `tests/server/derive-permissions.test.ts` pins the `approvals:decide`
-    grant (admin + operator, never `readonly`).
+    session, unbound legacy credential, non-TLS/untrusted transport, missing/empty
+    scope, cross-workspace, cross-record, unknown/expired/decided approval, and
+    conflicting retry. A bound credential whose principal is disabled or revoked is
+    already denied at authentication (A′), so it never reaches this route.
+    `tests/server/derive-permissions.test.ts` pins the `approvals:decide` grant
+    (admin + operator, never `readonly`).
 - Approval records are durable JSON — full history preserved.
 - **The approval ledger is authoritative (R2.5); JSON/journal is a
   compatibility projection.** `mutate()` appends its classified diff to the
