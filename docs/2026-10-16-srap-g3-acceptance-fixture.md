@@ -1,8 +1,17 @@
-# SRAP-G3-ACCEPT — acceptance environment & coordination fixture (rev 2)
+# SRAP-G3-ACCEPT — acceptance environment & coordination fixture (rev 2.1)
 
-Status: **PROPOSED (rev 2) — design + verified commands only. Nothing executed.**
+Status: **PROPOSED (rev 2.1) — design + verified commands only. Nothing executed.**
 Fixture setup, process startup, coordination execution and the acceptance matrix
 remain **unauthorized** until this revision is reviewed.
+
+**Rev 2.1 is a safety-and-reproducibility correction** (no SRAP runtime change, no
+change to the approved acceptance matrix): operator token never written to the
+shareable tree; archive verification performed in the directory actually hashed,
+with deletion blocked on failure; F-4 read-boundary tightened with authoritative
+instrumentation and the residual labelled observational; isolation/cleanup guards
+fail closed; `seed-key.mjs` de-placeholdered and its signatures verified; the
+negative proxy constrained to loopback; and the default-off row now requires a
+config reload, not just a file swap.
 
 Companion: `docs/2026-10-15-srap-g3-acceptance-plan.md` (matrix, rev 2 +
 amendment). Milestone: `SRAP-G3-ACCEPT`.
@@ -73,20 +82,28 @@ REAL_CONFIG_DIR="$REAL_HOME/.config/alix"
 REAL_STATE_DIR="$REAL_XDG_STATE/alix-inspector"
 REPO_ROOT="$(pwd)"                       # the dev repo containing .alix/
 
+umask 077                                     # nothing group/world readable
 mkdir -p "$ROOT"/{home,state,cache,workspace,tls,bin,private,qualification}
+chmod 700 "$ROOT/private"
 BASELINE_BEFORE="$ROOT/private/baseline-before.txt"
 
 # Manifest = path + size + mtime + sha256 (metadata AND content), sorted, so
 # created/deleted files are detected by a plain diff — not only changed hashes.
+# FAIL CLOSED: a collection error aborts the run (never a silently partial list).
 snapshot() {
-  { find "$REAL_CONFIG_DIR" "$REAL_STATE_DIR" "$REPO_ROOT/.alix" -type f 2>/dev/null -print0 \
-      | sort -z \
-      | xargs -0 -r stat -c '%n %s %Y' 2>/dev/null
-    find "$REAL_CONFIG_DIR" "$REAL_STATE_DIR" "$REPO_ROOT/.alix" -type f 2>/dev/null -print0 \
-      | sort -z | xargs -0 -r sha256sum 2>/dev/null
-  } | sort
+  local out rc=0
+  out="$(
+    { find "$REAL_CONFIG_DIR" "$REAL_STATE_DIR" "$REPO_ROOT/.alix" -type f -print0 2>&1 1>&3 | tee -a /dev/stderr >/dev/null
+      find "$REAL_CONFIG_DIR" "$REAL_STATE_DIR" "$REPO_ROOT/.alix" -type f -print0 | sort -z | xargs -0 -r stat -c '%n %s %Y'
+      find "$REAL_CONFIG_DIR" "$REAL_STATE_DIR" "$REPO_ROOT/.alix" -type f -print0 | sort -z | xargs -0 -r sha256sum
+    } 3>&2 | sort
+  )" || rc=$?
+  [ "$rc" -eq 0 ] || { echo "BASELINE COLLECTION FAILED (rc=$rc) — abort" >&2; return 1; }
+  [ -n "$out" ] || { echo "BASELINE EMPTY — abort (paths wrong?)" >&2; return 1; }
+  printf '%s\n' "$out"
 }
-snapshot > "$BASELINE_BEFORE"
+snapshot > "$BASELINE_BEFORE" || exit 1
+[ -s "$BASELINE_BEFORE" ] || { echo "no baseline — abort"; exit 1; }
 ```
 
 The guard therefore covers **content + metadata**, includes the repo's real
@@ -137,7 +154,10 @@ cat > "$ROOT/workspace/.alix/config.remote-on.json" <<JSON
   }
 }
 JSON
-# H-2 variant: identical with remoteDecisions.enabled=false
+# H-2 variant: identical with remoteDecisions.enabled=false. Replacing the file is
+# NOT sufficient — the Inspector caches config at startup, so H-2 swaps the file
+# AND restarts the Inspector, then asserts 404 (proving the running process
+# applied the value, not merely that the file changed).
 sed 's/"enabled": true }/"enabled": false }/' \
   "$ROOT/workspace/.alix/config.remote-on.json" \
   > "$ROOT/workspace/.alix/config.remote-off.json"
@@ -150,9 +170,16 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
 
 # 3.4 Enroll the operator (principal + credential; token displayed once)
 cd "$ROOT/workspace"
+# The raw token is a ONE-TIME secret: it must never enter the shareable tree.
+umask 077
 alix inspector auth create --name srap-acceptance-operator --role operator \
-  --workspace "$ROOT/workspace" | tee -a "$RUN_DIR/env/enroll.txt"
-# Operator moves the token into $ROOT/private/token and runs: chmod 600 "$ROOT/private/token"
+  --workspace "$ROOT/workspace" > "$ROOT/private/enroll.raw" 2>&1
+chmod 600 "$ROOT/private/enroll.raw"
+# Operator moves the bearer value to $ROOT/private/token (0600).
+# Evidence gets only a REDACTED receipt (no token, no hash):
+{ echo "principalId: $(jq -r .principalId "$ROOT/private/enroll.json" 2>/dev/null)";
+  echo "createdAt:   $(date -u +%FT%TZ)";
+  echo "token:       [redacted — see private/]"; } > "$RUN_DIR/env/enroll.receipt.txt"
 
 # 3.5 Seed the active srap-evidence key WITHOUT argv exposure (P1-5)
 #     `alix credential set` takes the value in argv, so we do NOT use it.
@@ -161,18 +188,27 @@ alix inspector auth create --name srap-acceptance-operator --role operator \
 node "$ROOT/bin/seed-key.mjs"
 ```
 
-`bin/seed-key.mjs` (no argv secret):
+`bin/seed-key.mjs` — no argv secret, no placeholder. The repo root is passed by
+environment (`ALIX_REPO_ROOT`); the named exports and signatures are **verified**
+against the built module: `chooseBackend()` / `loadCredentialStoreWithKeychainFallback(backend)`
+(`backend-selection.ts`) and `generateKey(store): Promise<number>` /
+`activeKeyVersion(store): number | null` (`srap-evidence.ts`).
 
 ```js
-// Runs against the fixture store resolved by backend selection.
-import { chooseBackend, loadCredentialStoreWithKeychainFallback }
-  from "<REPO>/dist/src/governance/security/credentials/backend-selection.js";
-import { generateKey, activeKeyVersion }
-  from "<REPO>/dist/src/governance/security/credentials/srap-evidence.js";
+const REPO = process.env.ALIX_REPO_ROOT;
+if (!REPO) throw new Error("ALIX_REPO_ROOT is required");
+const { chooseBackend, loadCredentialStoreWithKeychainFallback } =
+  await import(`${REPO}/dist/src/governance/security/credentials/backend-selection.js`);
+const { generateKey, activeKeyVersion } =
+  await import(`${REPO}/dist/src/governance/security/credentials/srap-evidence.js`);
 const store = await loadCredentialStoreWithKeychainFallback(await chooseBackend());
-const v = await generateKey(store);
-console.log(JSON.stringify({ seededKeyVersion: v, active: activeKeyVersion(store) }));
+const seededKeyVersion = await generateKey(store);          // verified signature
+const active = activeKeyVersion(store);                      // verified signature
+console.log(JSON.stringify({ seededKeyVersion, active }));
 ```
+
+Run: `ALIX_REPO_ROOT="$(pwd)" node "$ROOT/bin/seed-key.mjs"` (invoked from the repo
+root, before the `$ROOT/workspace` `cd`).
 
 ## 4. TLS: production-mode proxy and a separate negative-test proxy (P0-2)
 
@@ -186,9 +222,13 @@ rows can be exercised at all.
 | Production-mode | `bin/proxy.mjs` | TLS terminate; forward to `127.0.0.1:4139` adding exactly one `X-Forwarded-Proto: https` and `X-Forwarded-For: <client>`; **deletes** any client-supplied forwarded headers | allow rows (A-1, B-1, C-1, D-1/D-2, F-*, H-1) |
 | Negative-test | `bin/negative-proxy.mjs` | TLS terminate; forward the client's `X-Forwarded-Proto` **verbatim**; peer is still `127.0.0.1` (inside `trustedProxyCidrs`) | the ambiguous/mismatch deny rows (`X-Forwarded-Proto: "https, http"`, `"http"`) |
 
-Both listen on `127.0.0.1:4143` (run one at a time) so the Inspector sees the same
-trusted peer. The negative proxy exists **only** to present a malformed forwarded
-value to the real server; it is instrumentation, not a code change.
+Both bind **`127.0.0.1` only** and listen on `127.0.0.1:4143` (run one at a
+time), so the Inspector always sees the same trusted peer. The negative proxy is
+started **only** for the malformed-proto deny rows and stopped immediately after;
+it must never run alongside the production-mode proxy, and neither proxy may bind
+a non-loopback interface. The negative proxy exists **only** to present a
+malformed forwarded value to the real server; it is instrumentation, not a code
+change.
 
 Untrusted-peer denial is exercised by pointing the client directly at the
 Inspector's plain-HTTP port (`127.0.0.1:4139`) — no proxy — which must fail closed.
@@ -199,29 +239,49 @@ Dispatch/response timestamps **bound** the authorization read; they do **not**
 establish when the principal was actually read. The acceptance therefore claims
 only what the bracket supports.
 
+Request/response timestamps alone only **bound** the read; they cannot establish
+its observed state in an overlapping race. Rev 2.1 therefore (a) tightens the
+bracket with **existing authoritative instrumentation** and (b) labels the
+residual band **observational**, never proof.
+
+**Authoritative witness (existing, no runtime change).** On the commit path the
+order is: authorization read → `signCredentialRef` → the `credential.key_read`
+audit append → the `resolveWithEvidence` ledger commit. So for any **committed**
+decision the authoritative key-read record timestamp `tK` satisfies
+`read r ≤ tK ≤ commit`. This narrows the read window from `(tA_recv, tA_resp]` to
+`(tA_recv, tK]`.
+
 Per trial, record in `$RUN_DIR/timing/f-4.jsonl`:
 
-| Quantity | Source |
+| Quantity | Source (authoritative unless noted) |
 | --- | --- |
-| `tD_recv` | instant the **disable** request reached the server (proxy request log, ms) |
-| `tD_done` | instant the principal write became durable — bounded by the first read that observes `status: disabled` |
-| `tA_recv` | instant the **decision** request reached the server (proxy request log) |
-| `tA_resp` | instant the decision response was sent (proxy response log) |
-| `authorized` | whether the decision committed (from the ledger) |
-| `post_read` | the principal re-read *after* the trial (state + `disabledAt`) |
+| `tD_recv` | disable request received (proxy log; harness) |
+| `tD_done` | first read observing `status: disabled` after the write (upper bound on write durability) |
+| `tA_recv` | decision request received (proxy log) |
+| `tK` | **`credential.key_read` audit record** for this decision (authoritative; absent when denied) |
+| `authorized` | whether the decision committed (ledger) |
+| `post_read` | principal re-read after the trial (state + `disabledAt`) |
 
-The authorization read `r` lies in `(tA_recv, tA_resp]`. Criterion:
+Criterion:
 
 | Bracket | Inference | Required outcome |
 | --- | --- | --- |
 | `tA_recv ≥ tD_done` | read necessarily observed `disabled` | **must deny**; a commit is a FAIL |
-| `tA_resp ≤ tD_recv` | read necessarily observed `active` | **must commit**; a deny is a FAIL |
-| otherwise (overlap) | read could have observed either | **both outcomes valid** — a commit authorized while `active` may legitimately commit after the disable write |
+| `tK ≤ tD_recv` | read `≤ tK ≤ tD_recv < tD_done` → necessarily observed `active` | **must commit**; a deny is a FAIL |
+| overlap (`tD_recv < tK` and `tA_recv < tD_done`) | read may have observed either state | **observational only**; both outcomes accepted, and NO claim is made about the read instant |
 | always | consistency | `post_read` is `active`, or `disabled` with `disabledAt` ≥ `tA_recv` |
 
-This replaces rev 1's dispatch-based phrasing and enforces the **authorization-read
-contract**, not commit ordering — so a legitimate "authorized while active,
-committed after disable" outcome is accepted, not rejected.
+**Conclusive vs observational.** The two **deterministic sequential orders** (§
+plan, Linearization boundary) are the conclusive evidence for the contract. The
+overlap band is **observational**: it records what happened without asserting the
+read instant. Conclusive proof inside the overlap band would require a narrowly
+scoped test witness (an env-gated authorization-read recorder in the A′ layer);
+that would be a runtime change and is **not** proposed here — it is deferred
+unless the operator judges the contract gap real.
+
+This enforces the **authorization-read contract**, not commit ordering, so a
+legitimate "authorized while active, committed after disable" outcome is accepted,
+not rejected.
 
 ## 6. Coordination fixture — qualification vs execution (P0-3)
 
@@ -272,12 +332,17 @@ if grep -rIlE 'Bearer [A-Za-z0-9._-]{20,}|"value"\s*:|hmac-key:v[0-9]+' "$RUN_DI
   echo "REDACTION FAILURE — do not archive"; exit 1
 fi
 
-# 7.2 Copy the evidence (private/ is NOT included) and VERIFY the copy
-cp -a "$RUN_DIR" "$ARCHIVE/$RUN_TS/"
-( cd "$RUN_DIR" && find . -type f -exec sha256sum {} + | sort ) > "$ARCHIVE/$RUN_TS.sha256"
-( cd "$ARCHIVE/$RUN_TS" && sha256sum -c "$ARCHIVE/$RUN_TS.sha256" ) || { echo "ARCHIVE MISMATCH"; exit 1; }
+# 7.2 Copy the CONTENTS into the archive root (not run-dir inside run-dir),
+#     then hash and verify IN THE SAME directory that was written.
+ARCH="$ARCHIVE/$RUN_TS"
+mkdir -p "$ARCH"
+cp -a "$RUN_DIR/." "$ARCH/"
+( cd "$ARCH" && find . -type f ! -name 'SHA256SUMS' -exec sha256sum {} + | sort ) > "$ARCH/SHA256SUMS"
+( cd "$ARCH" && sha256sum -c SHA256SUMS --quiet ) || { echo "ARCHIVE MISMATCH — do not delete"; exit 1; }
 
-# 7.3 Only now may the disposable root be removed
+# 7.3 Deletion is BLOCKED unless every guard above passed
+[ -s "$ARCH/SHA256SUMS" ] || { echo "empty archive — do not delete"; exit 1; }
+grep -q "PRODUCTION UNTOUCHED" "$ROOT/private/baseline.diff" || { echo "production integrity unverified — do not delete"; exit 1; }
 rm -rf "$ROOT"
 ```
 
@@ -299,10 +364,15 @@ done
 kill "$(cat "$ROOT/private/inspector.pid")" 2>/dev/null || true
 kill "$(cat "$ROOT/private/proxy.pid")"     2>/dev/null || true
 
-# 8.4 Production-state guard (content + metadata + created/deleted)
-snapshot > "$ROOT/private/baseline-after.txt"
-diff "$BASELINE_BEFORE" "$ROOT/private/baseline-after.txt" \
-  && echo "PRODUCTION UNTOUCHED" || echo "PRODUCTION STATE CHANGED — STOP, INVESTIGATE"
+# 8.4 Production-state guard (content + metadata + created/deleted).
+#     FAIL CLOSED: an uncollectable "after" snapshot blocks everything downstream.
+snapshot > "$ROOT/private/baseline-after.txt" || { echo "AFTER SNAPSHOT FAILED — do not delete"; exit 1; }
+[ -s "$ROOT/private/baseline-after.txt" ] || { echo "empty after-snapshot — do not delete"; exit 1; }
+if diff -u "$BASELINE_BEFORE" "$ROOT/private/baseline-after.txt" > "$ROOT/private/baseline.diff" ; then
+  echo "PRODUCTION UNTOUCHED" | tee "$ROOT/private/baseline.diff"
+else
+  echo "PRODUCTION STATE CHANGED — STOP, INVESTIGATE (see private/baseline.diff)"
+fi
 
 # 8.5 Finalize (archive + verify + delete) per §7
 ```
@@ -322,6 +392,8 @@ diff "$BASELINE_BEFORE" "$ROOT/private/baseline-after.txt" \
 2. The run host mode (`--daemon` vs foreground).
 3. Ports `4139`/`4143` free on the acceptance host.
 4. The archive destination and manifest signer.
+5. Whether the F-4 overlap band needs the deferred narrow test witness, or the
+   observational treatment plus the two deterministic orders suffice.
 
 ## 11. Explicitly out of scope
 
