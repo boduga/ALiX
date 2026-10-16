@@ -54,6 +54,7 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
   never be read as an operator decision. `verificationPassed` on governor
   evidence remains an outcome claim, never authorization.
 - `ExecutionAuthorization` preserves an execution request's canonical `agentId` when delegating tool or capability decisions to `PolicyGate`; approval correlation must not substitute `workerId`.
+- **Coordination identity is a typed, validated request field — never the `metadata` bag.** `ExecutionDecisionRequest.coordination` (`CoordinationExecutionContext`) carries the trusted `{ coordinationRunId, workerId, workerAttempt, ownershipClaims?, requestFingerprint? }` minted by the coordination runtime. `evaluate` classifies it: `absent` keeps the legacy path, `valid` forwards it into `evaluateCapability`/`evaluateToolCall`, and `invalid` (present but malformed/partial/conflicting) returns `denied` with `policyRuleId: "coordination-identity-invalid"` and no store side effect — it must never degrade to legacy authorization. The prior metadata-only transport silently dropped the identity (session D2, SRAP approval-binding continuity), so the coordination binding branch never ran.
 - Sorted newest-first by default; `order=asc` reverses.
 - Session events use an allowlist to filter out noisy event types.
 - Silent failure on unreadable/missing backends (never crashes).

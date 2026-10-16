@@ -240,15 +240,25 @@ export class CoordinationScheduler {
           const haveCaps = [...(record.capabilities ?? [])].sort().join(",");
           if (wantCaps !== haveCaps) return false;
 
-          // If single-use, consume atomically
-          if (record.usePolicy === "single_use") {
-            const consumed = await store.consumeApproved(record.id, evidence.bindingKey, {
-              workerId: worker.id,
-              workerAttempt: worker.attempt,
-            });
-            return consumed.consumed;
-          }
+          // Ownership claims are part of the canonical binding: a grant for
+          // different declared scopes must never authorize this worker.
+          const { computeOwnershipClaimsHash } = await import("../../governance/approvals/approval-binding.js");
+          const wantClaimsHash = computeOwnershipClaimsHash(worker.ownershipClaims ?? []);
+          const haveClaimsHash = computeOwnershipClaimsHash(record.ownershipClaims ?? []);
+          if (wantClaimsHash !== haveClaimsHash) return false;
 
+          // Policy revision: an approval bound to a superseded policy must not
+          // authorize (the store also invalidates these, this is defence in depth).
+          const { computePolicyRevision } = await import("../../governance/policy/policy-revision.js");
+          const currentPolicyRevision = computePolicyRevision(await this.deps.configProvider());
+          if (record.policyRevision !== currentPolicyRevision) return false;
+
+          // VERIFY ONLY — do NOT consume here. Consumption is owned by the
+          // dispatch path (PolicyGate's `exact-binding-approved` branch), which
+          // is the single place an approval authorizes execution. Consuming
+          // here as a probe made reconcile resume the worker and then the
+          // re-dispatch re-authorize against an already-consumed approval,
+          // creating a fresh pending and blocking forever (double consumption).
           return true;
         } catch {
           return false;

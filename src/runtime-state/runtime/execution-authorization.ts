@@ -18,6 +18,34 @@ import { checkOwnershipGate } from "../../coordination/ownership/ownership-gate.
 import type { ExecutionDecision, ExecutionDecisionRequest } from "./execution-decision.js";
 import { decisionAllowed, decisionDenied, decisionApprovalRequired } from "./execution-decision.js";
 
+/**
+ * Validate a coordination execution identity (SRAP approval-binding
+ * continuity). The identity is minted by the trusted coordination runtime and
+ * is never model-authored, but the boundary still validates shape so a
+ * malformed or partial identity can never be silently degraded to the legacy
+ * (non-coordination) approval path.
+ *
+ * Returns `"valid"`, `"absent"` (no identity at all — legacy path), or
+ * `"invalid"` (present but malformed/partial/conflicting → deny, fail closed).
+ */
+function classifyCoordinationIdentity(
+  coordination: ExecutionDecisionRequest["coordination"],
+): "valid" | "absent" | "invalid" {
+  if (coordination === undefined) return "absent";
+  if (coordination === null || typeof coordination !== "object") return "invalid";
+  const { coordinationRunId, workerId, workerAttempt } = coordination as Record<string, unknown>;
+  if (typeof coordinationRunId !== "string" || coordinationRunId.length === 0) return "invalid";
+  if (typeof workerId !== "string" || workerId.length === 0) return "invalid";
+  if (
+    typeof workerAttempt !== "number" ||
+    !Number.isInteger(workerAttempt) ||
+    workerAttempt < 0
+  ) {
+    return "invalid";
+  }
+  return "valid";
+}
+
 export type AuthorizationDeps = {
   policyGate: PolicyGate;
   ownershipGateConfig?: OwnershipGateConfig;
@@ -42,6 +70,21 @@ export class ExecutionAuthorization {
     const { policyGate, ownershipGateConfig, auditStore, eventLog } = this.deps;
     const agentId = request.agentId ?? "alix";
 
+    // ── Step 1: Trusted coordination identity ───────────────────
+    // A coordination worker's identity is minted by the scheduler. A malformed
+    // or partial identity is denied here so it can never degrade to the legacy
+    // (non-coordination) approval path and produce an unmatchable binding.
+    const coordinationClass = classifyCoordinationIdentity(request.coordination);
+    if (coordinationClass === "invalid") {
+      const finalDecision = decisionDenied(
+        "Malformed coordination execution identity",
+        { policyRuleId: "coordination-identity-invalid" },
+      );
+      await this.emitAudit(auditStore, eventLog, request, finalDecision, {});
+      return finalDecision;
+    }
+    const coordination = coordinationClass === "valid" ? request.coordination : undefined;
+
     // ── Step 2: Policy evaluation ───────────────────────────────
     const policyDecision = request.toolName
       ? await policyGate.evaluateToolCall({
@@ -55,6 +98,13 @@ export class ExecutionAuthorization {
           sessionId: request.sessionId,
           agentId: request.agentId,
           source: request.source === "agent" ? "tool" : request.source,
+          ...(coordination ? {
+            coordinationRunId: coordination.coordinationRunId,
+            workerId: coordination.workerId,
+            workerAttempt: coordination.workerAttempt,
+            ownershipClaims: coordination.ownershipClaims,
+            requestFingerprint: coordination.requestFingerprint,
+          } : {}),
         })
       : await policyGate.evaluateCapability({
           requestId: request.requestId,
@@ -65,6 +115,13 @@ export class ExecutionAuthorization {
           sessionId: request.sessionId,
           agentId: request.agentId,
           source: request.source === "agent" ? "tool" : request.source,
+          ...(coordination ? {
+            coordinationRunId: coordination.coordinationRunId,
+            workerId: coordination.workerId,
+            workerAttempt: coordination.workerAttempt,
+            ownershipClaims: coordination.ownershipClaims,
+            requestFingerprint: coordination.requestFingerprint,
+          } : {}),
         });
 
     // Short-circuit deny

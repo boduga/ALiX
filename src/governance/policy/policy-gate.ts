@@ -530,17 +530,30 @@ export class PolicyGate {
         return { requestId, capability, decision: "ask", reason: `Pending approval: ${pending.id}`, approvalId: pending.id, matchedRuleId: "pending-approval", policyRevision, bindingKey, requestFingerprint: coordinationContext.requestFingerprint ?? capability };
       }
 
-      // Create new pending with binding key
-      const approval = await store.request({ reason, capability, sessionId, agentId });
-      // Update the approval with binding key via store's internal state
-      approval.bindingKey = bindingKey;
-      approval.policyRevision = policyRevision;
-      approval.requestFingerprint = coordinationContext.requestFingerprint ?? capability;
-      approval.coordinationRunId = coordinationContext.coordinationRunId;
-      approval.workerId = coordinationContext.workerId;
-      approval.workerAttempt = coordinationContext.workerAttempt;
-      approval.ownershipClaims = coordinationContext.ownershipClaims ?? [];
-      return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision, bindingKey, requestFingerprint: coordinationContext.requestFingerprint ?? capability };
+      // Create the pending approval with the COMPLETE canonical coordination
+      // binding, committed atomically inside the store's lock. The previous
+      // implementation created the record through the legacy `store.request()`
+      // (its own legacy binding) and then patched the returned object AFTER the
+      // commit, so the authoritative ledger/projection and the in-memory
+      // binding index never carried the coordination binding — reconciliation
+      // could never match. requestOrReusePending commits the coordination
+      // binding and de-dups in the same locked mutate (no check-then-create
+      // race between the findPendingByBindingKey above and this create).
+      const approval = await store.requestOrReusePending({
+        reason,
+        bindingKey,
+        requestFingerprint: coordinationContext.requestFingerprint ?? capability,
+        policyRevision,
+        capabilities: [capability],
+        ownershipClaims: coordinationContext.ownershipClaims ?? [],
+        coordinationRunId: coordinationContext.coordinationRunId,
+        workerId: coordinationContext.workerId,
+        workerAttempt: coordinationContext.workerAttempt,
+        sessionId,
+        agentId,
+        requestId,
+      });
+      return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision, bindingKey: approval.bindingKey, requestFingerprint: approval.requestFingerprint };
     }
 
     // Fallback to legacy behavior for non-coordination requests

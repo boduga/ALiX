@@ -68,6 +68,16 @@ export async function authorizeWorker(options: AuthorizeWorkerOptions): Promise<
       nodeId: worker.sourceNodeId,
       graphId: run.taskGraphId,
       metadata: { coordinationRunId: run.id, workerId: worker.id, attempt: worker.attempt },
+      // Typed, trusted identity (SRAP approval-binding continuity). The
+      // boundary validates this and routes the request through the
+      // coordination-aware approval path — the metadata bag above is kept for
+      // observability only and is never the authorization input.
+      coordination: {
+        coordinationRunId: run.id,
+        workerId: worker.id,
+        workerAttempt: worker.attempt,
+        ownershipClaims: worker.ownershipClaims,
+      },
     });
 
     const capDecision: WorkerCapabilityDecision = {
