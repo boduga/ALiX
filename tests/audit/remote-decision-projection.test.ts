@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
 import type { ApprovalRequestInput } from "../../src/governance/approvals/approval-store.js";
+import { remoteDecisionRetryKey } from "../../src/governance/approvals/approval-types.js";
 import type { RemoteDecisionEvidence } from "../../src/governance/approvals/approval-types.js";
 import { AuditStore } from "../../src/governance/audit/audit-store.js";
 import { projectRemoteDecisions } from "../../src/governance/audit/remote-decision-projection.js";
@@ -64,12 +65,12 @@ describe("remote-decision projection", () => {
     const first = await projectRemoteDecisions(cwd);
     assert.ok(first.ok);
     assert.equal(first.counters.projected, 1);
-    assert.equal(first.counters.skippedDuplicate, 0);
+    assert.equal(first.counters.skipped_duplicate, 0);
 
     const second = await projectRemoteDecisions(cwd);
     assert.ok(second.ok);
     assert.equal(second.counters.projected, 0, "re-run projects nothing new");
-    assert.equal(second.counters.skippedDuplicate, 1, "the decision is seen as a duplicate");
+    assert.equal(second.counters.skipped_duplicate, 1, "the decision is seen as a duplicate");
   });
 
   it("drops duplicates by decisionId across two approvals", async () => {
@@ -81,7 +82,7 @@ describe("remote-decision projection", () => {
     const r = await projectRemoteDecisions(cwd);
     assert.ok(r.ok);
     assert.equal(r.counters.projected, 1, "only the first decisionId is projected");
-    assert.equal(r.counters.skippedDuplicate, 1);
+    assert.equal(r.counters.skipped_duplicate, 1);
   });
 
   it("advances the cursor and reports zero lag once fully projected", async () => {
@@ -92,6 +93,15 @@ describe("remote-decision projection", () => {
     const again = await projectRemoteDecisions(cwd);
     assert.equal(again.counters.lag, 0);
     assert.ok(r.ok);
+  });
+
+  it("refuses an unactivated (unverified) audit log", async () => {
+    // A decision exists but integrity was never activated → no tamper-evidence.
+    await storeWithDecision(cwd, evidence());
+    const r = await projectRemoteDecisions(cwd);
+    assert.equal(r.ok, false);
+    assert.ok(r.refused);
+    assert.equal(r.counters.projected, 0);
   });
 
   it("absorbed crash-before-checkpoint: overlap window re-sees a decision, dedup drops it", async () => {
@@ -110,7 +120,7 @@ describe("remote-decision projection", () => {
     const second = await projectRemoteDecisions(cwd);
     const after = (await new AuditStore(cwd).list(1000)).length;
     assert.equal(second.counters.projected, 0, "no re-append after state loss");
-    assert.equal(second.counters.skippedDuplicate, 1);
+    assert.equal(second.counters.skipped_duplicate, 1);
     assert.equal(after, before, "audit record count is unchanged");
   });
 
@@ -124,6 +134,23 @@ describe("remote-decision projection", () => {
     assert.equal(r.ok, false);
     assert.ok(r.refused);
     assert.equal(r.counters.projected, 0, "nothing projected from an unverified chain");
+  });
+
+  it("exact-retry identity is principalId + nonce + decision (order-independent of other fields)", () => {
+    const base = evidence({ principalId: "p1", nonce: "n1", decision: "approved" });
+    assert.equal(
+      remoteDecisionRetryKey(base),
+      remoteDecisionRetryKey(evidence({ principalId: "p1", nonce: "n1", decision: "approved", decidedAt: "1999-01-01T00:00:00Z", transport: "proxy-tls" })),
+      "non-identity fields must not affect the retry key",
+    );
+    assert.notEqual(
+      remoteDecisionRetryKey(base),
+      remoteDecisionRetryKey(evidence({ principalId: "p1", nonce: "n2", decision: "approved" })),
+    );
+    assert.notEqual(
+      remoteDecisionRetryKey(base),
+      remoteDecisionRetryKey(evidence({ principalId: "p1", nonce: "n1", decision: "denied" })),
+    );
   });
 
   it("no remote evidence → no projection, still ok", async () => {

@@ -23,12 +23,12 @@
  * @module
  */
 
-import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { AuditStore } from "./audit-store.js";
 import { verifyAuditLog } from "../security/audit/audit-verifier.js";
 import { getSharedLedger } from "../../runtime-state/storage/runtime-ledger.js";
+import { readJsonFileSync, writeJsonFileAtomicSync } from "../../runtime-state/storage/jsonl-store.js";
 import type { RuntimeEvent } from "../../runtime-state/contracts/runtime-event.js";
 import type { RemoteDecisionEvidence } from "../approvals/approval-types.js";
 
@@ -38,14 +38,22 @@ const APPROVAL_ENTITY_TYPE = "approval";
 /** Bounded re-scan overlap so a crash-just-before-checkpoint is absorbed. */
 const RESCAN_OVERLAP_WINDOW = 100;
 
+/**
+ * Cap on retained decisionIds in the advisory dedup index. The authoritative
+ * dedup source is the verified audit chain (seeded below); this bound only keeps
+ * the advisory file small. Loss of old ids here is safe: the chain re-supplies
+ * them.
+ */
+const MAX_RETAINED_DECISION_IDS = 5_000;
+
 /** Projection state file (advisory) beside the audit log. */
 const PROJECTION_STATE_FILENAME = "projection-state.json";
 
-/** Counters surfaced for observability. */
+/** Counters surfaced for observability (snake_case, matching the contract). */
 export interface ProjectionCounters {
   projected: number;
-  skippedDuplicate: number;
-  projectionFailed: number;
+  skipped_duplicate: number;
+  projection_failed: number;
   /** ledger high-water `ledger_seq` − cursor. */
   lag: number;
 }
@@ -74,24 +82,16 @@ function statePath(auditDir: string): string {
 }
 
 function readState(auditDir: string): ProjectionState {
-  const p = statePath(auditDir);
-  if (!existsSync(p)) return { cursor: 0, decisionIds: [] };
-  try {
-    const parsed = JSON.parse(readFileSync(p, "utf-8")) as ProjectionState;
-    return {
-      cursor: typeof parsed.cursor === "number" ? parsed.cursor : 0,
-      decisionIds: Array.isArray(parsed.decisionIds) ? parsed.decisionIds : [],
-    };
-  } catch {
-    return { cursor: 0, decisionIds: [] };
-  }
+  const parsed = readJsonFileSync<ProjectionState>(statePath(auditDir));
+  if (parsed === null) return { cursor: 0, decisionIds: [] };
+  return {
+    cursor: typeof parsed.cursor === "number" ? parsed.cursor : 0,
+    decisionIds: Array.isArray(parsed.decisionIds) ? parsed.decisionIds : [],
+  };
 }
 
 function writeState(auditDir: string, state: ProjectionState): void {
-  mkdirSync(dirname(statePath(auditDir)), { recursive: true });
-  const tmp = `${statePath(auditDir)}.${randomUUID()}.tmp`;
-  writeFileSync(tmp, JSON.stringify(state), { encoding: "utf-8", flag: "wx" });
-  renameSync(tmp, statePath(auditDir));
+  writeJsonFileAtomicSync(statePath(auditDir), state);
 }
 
 // ---------------------------------------------------------------------------
@@ -140,18 +140,23 @@ function evidenceFromEvent(event: RuntimeEvent): RemoteDecisionEvidence | null {
  */
 export async function projectRemoteDecisions(cwd: string): Promise<ProjectionResult> {
   const auditDir = join(cwd, ".alix", "audit");
-  const counters: ProjectionCounters = { projected: 0, skippedDuplicate: 0, projectionFailed: 0, lag: 0 };
+  const counters: ProjectionCounters = { projected: 0, skipped_duplicate: 0, projection_failed: 0, lag: 0 };
 
   // 1. Fail closed unless the audit chain verifies. The cursor must never pass
   //    unverified evidence.
   const auditStore = new AuditStore(cwd);
-  const active = existsSync(join(auditDir, "head.json"));
-  if (active) {
-    const verified = await verifyAuditLog({ auditDir });
-    const structural = verified.findings.filter((f) => f.type !== "head_mismatch");
-    if (structural.length > 0) {
-      return { ok: false, counters, refused: `audit chain not verifiable: ${structural.map((f) => f.type).join(", ")}` };
-    }
+  // Fail closed unless the chain verifies. If the chain was never activated
+  // (no head sidecar) the log carries no tamper-evidence at all, so we refuse
+  // rather than project into an unverified log.
+  if (!existsSync(join(auditDir, "head.json"))) {
+    return { ok: false, counters, refused: "audit chain not activated (no head sidecar); refusing to project" };
+  }
+  const verified = await verifyAuditLog({ auditDir });
+  // `head_mismatch` here means the sidecar and the persisted tip disagree — a
+  // stale/conflicting head, i.e. exactly the recovery window. That is not safe
+  // to project past, so it refuses like any other structural finding.
+  if (verified.findings.length > 0) {
+    return { ok: false, counters, refused: `audit chain not verifiable: ${verified.findings.map((f) => f.type).join(", ")}` };
   }
 
   // 2. Read advisory state and the ledger events since (cursor − overlap).
@@ -178,7 +183,7 @@ export async function projectRemoteDecisions(cwd: string): Promise<ProjectionRes
     const evidence = evidenceFromEvent(event);
     if (evidence !== null) {
       if (known.has(evidence.decisionId)) {
-        counters.skippedDuplicate += 1;
+        counters.skipped_duplicate += 1;
       } else {
         try {
           await auditStore.append({
@@ -198,17 +203,18 @@ export async function projectRemoteDecisions(cwd: string): Promise<ProjectionRes
           known.add(evidence.decisionId);
           counters.projected += 1;
         } catch {
-          counters.projectionFailed += 1;
+          counters.projection_failed += 1;
           // Do NOT advance the cursor past a failed projection; retry next run.
           break;
         }
       }
     }
-    // Advance the cursor only to events we have fully considered.
-    cursor = event.ledgerSeq;
+    // Monotonic: advance only forward, only to events fully considered.
+    if (event.ledgerSeq > cursor) cursor = event.ledgerSeq;
   }
 
-  // 3. Persist advisory state atomically (cursor + dedup index).
-  writeState(auditDir, { cursor, decisionIds: [...known] });
-  return { ok: counters.projectionFailed === 0, counters };
+  // 3. Persist advisory state atomically (cursor + bounded dedup index).
+  const retained = [...known].slice(-MAX_RETAINED_DECISION_IDS);
+  writeState(auditDir, { cursor, decisionIds: retained });
+  return { ok: counters.projection_failed === 0, counters };
 }

@@ -38,7 +38,7 @@ No other subsystem owns a secret store.
 ## Verification
 
 - Credential store tests under `tests/security/` (store CRUD, backend selection, reference resolution, migration).
-- SRAP HMAC lifecycle tests are G3 work (not implemented).
+- `tests/security/credentials/srap-evidence.test.ts` — SRAP HMAC key lifecycle: generate/increasing versions, rotation overlap, fail-closed signing, `valid`/`invalid`/`unverifiable` verification, retired-version unverifiability, refuses to retire the active key.
 
 ## Child DOX Index
 

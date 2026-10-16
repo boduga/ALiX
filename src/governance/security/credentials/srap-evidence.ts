@@ -148,12 +148,23 @@ function loadKeyBytes(store: CredentialStore, version: number): Buffer | null {
 }
 
 /**
+ * Optional key-read sink. The contract requires `srap-evidence` key reads to be
+ * logged ("only trusted approval/audit code resolves `srap-evidence`; key reads
+ * are logged"). Callers that hold a logger pass it here; default is no-op.
+ */
+export type KeyReadLogger = (event: { operation: "sign" | "verify"; keyVersion: number }) => void;
+
+/**
  * Sign a credential record id with the active key version.
  *
  * Fail-closed: when there is no active key (or it is unreadable), throws
  * {@link SrapKeyUnavailableError} and the caller must commit no decision.
  */
-export function signCredentialRef(store: CredentialStore, credentialRecordId: string): string {
+export function signCredentialRef(
+  store: CredentialStore,
+  credentialRecordId: string,
+  logKeyRead?: KeyReadLogger,
+): string {
   const version = activeKeyVersion(store);
   if (version === null) {
     throw new SrapKeyUnavailableError("No active srap-evidence key; cannot sign decision evidence.");
@@ -162,6 +173,7 @@ export function signCredentialRef(store: CredentialStore, credentialRecordId: st
   if (key === null) {
     throw new SrapKeyUnavailableError(`Active srap-evidence key v${version} is unreadable.`);
   }
+  logKeyRead?.({ operation: "sign", keyVersion: version });
   const digest = createHmac("sha256", key).update(credentialRecordId, "utf8").digest("base64url");
   return `${SRAP_HMAC_ALGORITHM}:v${version}:${digest}`;
 }
@@ -193,18 +205,17 @@ export function verifyCredentialRef(
   store: CredentialStore,
   credentialRecordId: string,
   ref: string,
+  logKeyRead?: KeyReadLogger,
 ): "valid" | "invalid" | "unverifiable" {
   const parsed = parseCredentialRef(ref);
   if (!parsed) return "unverifiable";
   const key = loadKeyBytes(store, parsed.keyVersion);
   if (key === null) return "unverifiable";
+  logKeyRead?.({ operation: "verify", keyVersion: parsed.keyVersion });
   const expected = createHmac("sha256", key).update(credentialRecordId, "utf8").digest();
-  let provided: Buffer;
-  try {
-    provided = Buffer.from(parsed.digest, "base64url");
-  } catch {
-    return "unverifiable";
-  }
+  // `Buffer.from` never throws for a base64url string; a malformed digest simply
+  // decodes to a different length and is classified `invalid` below.
+  const provided = Buffer.from(parsed.digest, "base64url");
   if (provided.length !== expected.length) return "invalid";
   return timingSafeEqual(provided, expected) ? "valid" : "invalid";
 }

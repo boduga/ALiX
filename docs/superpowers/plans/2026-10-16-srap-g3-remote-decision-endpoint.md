@@ -17,9 +17,12 @@ below). Remote decisions remain disabled. No route exists yet.
 
 - **A — HMAC `srap-evidence` lifecycle:** DONE (`feat(credentials): add
   srap-evidence versioned HMAC key lifecycle`; 9 tests).
-- **B — audit-owned idempotent projection:** DONE (`feat(audit): project remote
-  approval decisions into the audit chain`; 6 tests; plus `RemoteDecisionEvidence`
-  + `ApprovalStore.resolveWithEvidence`).
+- **B — audit-owned idempotent projection:** DONE (library) — `feat(audit): project
+  remote approval decisions into the audit chain`; 6 tests; plus
+  `RemoteDecisionEvidence` + `ApprovalStore.resolveWithEvidence`. **Deferred to
+  C:** the inline attempt after commit, the bounded startup/operator repair
+  trigger, and alert wiring. They are only reachable once the route commits a
+  decision, so B lands as the callable projector and C adds the triggers.
 - **C — the route:** BLOCKED. The eligibility predicate and evidence require a
   stable `principalId` separate from credential identity (G2-C review §3;
   approvals/credentials contracts). **No persistent operator/principal store
