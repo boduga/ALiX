@@ -5,9 +5,10 @@ Updated: 2026-10-15
 ## Mission and current gate
 
 Continue the SRAP-1 remediation ordered after the G2-C BLOCKED review. **G3 is
-closed.** The current work is the **P-series of standalone infrastructure fixes**
-that G2-E proved are prerequisites, before SRAP-1 endpoint implementation and the
-final independent G2-C re-review.
+closed.** The P-series of standalone infrastructure fixes that G2-E proved are
+prerequisites is **complete through P5**; the independent G2-C re-review returned
+**READY (with carried caveats)**. SRAP-1 endpoint implementation (G3) remains
+unauthorized and waits on an explicit operator decision.
 
 Order (from the operator): P1 audit-chain recovery → P2 RuntimeLedger immediate
 transactions → P3 Inspector workspace authorization plumbing → P4 physical-SSD
@@ -21,10 +22,12 @@ benchmark → P5 independent G2-C re-review.
 | P2 — ledger `BEGIN IMMEDIATE` (+ open-retry, contention retry) | **MERGED** — PR #947, merge `52c0ea87` |
 | G2-D/E durability + contract reconciliation | **MERGED** — PR #948, merge `68978fe8` |
 | P3 — workspace authorization plumbing | **MERGED** — PR #950, merge `7103ec56` |
-| P4 — physical SSD benchmark | **measurements complete, review pending** — SSD thresholds met; tail latency remains a P5 review item |
-| P5 — independent G2-C re-review | not started |
+| P4 — physical SSD benchmark | **MERGED** — PR #951, merge `919c1ab0`; SSD thresholds met, tail latency recorded as a P5 caveat |
+| P5 — independent G2-C re-review | **COMPLETE** — PR #952, merge `2da7e928`; verdict **READY (with carried caveats)** |
+| P5 follow-ups (audit telemetry + scope audit) | **MERGED** — PR #952; review fixes + #953/#954 in PR #955, merge `924d2248` |
 
-Baseline: `main` == `origin/main` == `7103ec56` (P1 + G2-D/E + P2 + P3 merged).
+Baseline: `main` == `origin/main` == `924d2248` (P1 + G2-D/E + P2 + P3 + P4 + P5
+and its follow-ups all merged).
 
 ## P2 (merged) — what landed
 
@@ -67,6 +70,25 @@ G2-D/E base:
 
 Note: P1's `audit/AGENTS.md` change deliberately contains **only** the P1 lines.
 
+## P5 (merged) — independent G2-C re-review
+
+PR #952, merge `2da7e928`; follow-up PR #955, merge `924d2248`.
+
+- `docs/2026-10-15-srap-p5-g2c-rereview.md` — the independent re-review of the
+  merged P1/P2/P3 fixes, the amended owning contracts, and the P4 evidence.
+  **Verdict: READY (with carried caveats);** no new architectural blocker.
+- Two completeness items closed: `AuthService.createToken`/`rotateToken` now
+  record granted `workspaceIds` in the `token.created`/`token.rotated` audit
+  details; audit-chain head recovery emits out-of-band telemetry
+  (`AuditRecoveryEvent` = `AuditSidecarRecoveredEvent` | `AuditRecoveryFailureEvent`
+  with `outcome: "failed" | "error"`) via `AuditChainWriterConfig.onRecovery`,
+  forwarded by `AuditStore`. No chained record and no sequence consumed.
+- Issues #953 (error telemetry for non-recovery throws) and #954 (event naming)
+  filed and closed against these PRs.
+- Carried caveats (non-blocking): sustained SSD append tail (max ≈5 s / p99 ≈84 ms),
+  process-crash-only durability (not power loss), and G3 items remain contracts
+  not code.
+
 ## G2-D/E work — now MERGED (#948)
 
 The former uncommitted G2-D/E line (durability pin + contract reconciliation) is
@@ -81,7 +103,7 @@ SRAP work. Current main checkout is clean; P4 evidence is isolated in its review
 
 ## Key facts a new session needs
 
-- **Current repo:** `/home/babasola/Projects/Monolith` (git remote `boduga/ALiX`). `gh` auth
+- **Current repo:** `/home/babasola/Projects/ALiX` (git remote `boduga/ALiX`). `gh` auth
   works as `boduga`; GitHub network is intermittently flaky — retry pushes/queries.
 - **Previous device's disk was a rotational HDD** (`WDC WD10SPZX`, `rotational=1`).
   `synchronous=FULL` single-append ≈ 14 writes/s there; **no physical SSD present**
@@ -101,24 +123,29 @@ SRAP work. Current main checkout is clean; P4 evidence is isolated in its review
 
 ## Next steps
 
-1. P1, P2 and P3 are merged (#946, #947, #950).
-2. Review P4 SSD evidence in `docs/2026-10-15-srap-p4-ssd-benchmark.md` and
-   `docs/audits/2026-10-15-srap-p4-ssd-results.json`. Proposed p95/read/error
-   thresholds pass; saturated append maxima reach 5.02 s and remain a review risk.
-3. P5: independent G2-C re-review of merged fixes, amended contracts and P4
-   evidence. G3 remains closed pending that review and explicit authorization.
+1. P1–P5 and their follow-ups are merged (#946, #947, #950, #951, #952, #955).
+2. **P5 returned READY (with carried caveats)** —
+   `docs/2026-10-15-srap-p5-g2c-rereview.md`. No new architectural blocker. The
+   carried caveats (sustained SSD tail latency, process-crash-only durability,
+   G3 items are contracts not code) are recorded there; none blocks opening G3.
+3. **G3 opening is the operator's call.** This handoff does not open it. When G3
+   opens it implements the remote approval decision endpoint against the owned
+   contracts (approvals eligibility + parity table, credential `srap-evidence`
+   HMAC lifecycle, audit-owned idempotent projection).
 
 Do not implement the SRAP remote approval endpoint or any new approval authority,
 scheduler, state machine, or ledger until G3 is explicitly opened.
 
 ## Read these first
 
-1. `docs/2026-10-14-srap-g2-e-operational-verification.md` — the P-series rationale,
+1. `docs/2026-10-15-srap-p5-g2c-rereview.md` — the independent re-review result
+   (current status).
+2. `docs/2026-10-14-srap-g2-e-operational-verification.md` — the P-series rationale,
    the two defects (audit stale-head, ledger contention), and the contract details.
-2. `docs/2026-10-15-p1-audit-chain-recovery.md` — P1 delivery record.
-3. `docs/architecture/adrs/ADR-0015-srap-one-ledger-decision-evidence.md`.
-4. `docs/2026-10-14-srap-g2-c-independent-review.md` — original BLOCKED review.
-5. Root `AGENTS.md`, `docs/AGENTS.md`, and the owning subsystem AGENTS.md files.
+3. `docs/2026-10-15-p1-audit-chain-recovery.md` — P1 delivery record.
+4. `docs/architecture/adrs/ADR-0015-srap-one-ledger-decision-evidence.md`.
+5. `docs/2026-10-14-srap-g2-c-independent-review.md` — original BLOCKED review.
+6. Root `AGENTS.md`, `docs/AGENTS.md`, and the owning subsystem AGENTS.md files.
 
 ## P3 and P4 status
 
@@ -129,5 +156,6 @@ Undefined scope preserves ordinary legacy access; explicit empty scope denies;
 nonempty scope requires canonical membership. Cookies revalidate source tokens.
 P3 merged as `7103ec56`; its worktree and feature branch are removed.
 P4 evidence worktree: `/home/babasola/Projects/Monolith/.worktrees/srap-p4`, branch `srap/p4-ssd-benchmark`.
-Nine workload runs and three complete-snapshot crash probes passed. Current
-device is SSD-equipped. P5 independent review is next; G3 remains closed.
+Nine workload runs and three complete-snapshot crash probes passed. SSD-equipped
+device confirmed. P4 merged as `919c1ab0` (PR #951); P5 independent review is
+complete (`docs/2026-10-15-srap-p5-g2c-rereview.md`, PR #952). G3 remains closed.
