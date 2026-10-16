@@ -1,6 +1,6 @@
 # SRAP-G3-ACCEPT — D1 report (isolated fixture setup + offline validation)
 
-Status: **D1 executed — conditionally passed; D1-F1 OPEN.** D2 qualification, D3
+Status: **D1 PASSED — D1-F1 CLOSED (verified 2026-10-16).** D2 qualification, D3
 acceptance execution and D4 closure remain **unauthorized**. No Inspector or
 coordination process was started, no credential was enrolled, no HMAC key was
 generated, and no remote decision was issued.
@@ -55,9 +55,40 @@ host's own session traffic.
 **Guard behaviour was correct.** `production-integrity.json` was **not** written
 because the comparison failed — fail-closed, exactly as designed.
 
-**Disposition.** Closed only after the corrected check is re-run successfully.
-The hybrid integrity model (below) is now normative in
-`docs/2026-10-16-srap-g3-acceptance-fixture.md` §9.
+**Disposition — CLOSED (verified).** The corrected hybrid preflight was re-run
+from a **dedicated, clean worktree pinned to the merged commit** and produced a
+passing machine-readable verdict (below). The hybrid integrity model is now
+normative in `docs/2026-10-16-srap-g3-acceptance-fixture.md` §9.
+
+### D1-F1 closure verification
+
+| Check | Required | Result |
+| --- | --- | --- |
+| Production config/state exact comparison | PASS | **PASS** — 0 violations |
+| Dedicated worktree pinned to commit | PASS | **PASS** — `d195eb39011196ddad7066c38fdcabee85025b30` |
+| Known session changes classified | PASS | **PASS** — 0 observed in the clean worktree; classifier verified by 3/3 controls |
+| Unexpected changes | 0 | **0** |
+| Exclusion rules | Explicit, narrow, auditable | **PASS** — empty allowlist (preferred state) |
+| Integrity verdict | Machine-readable and reproducible | **PASS** — `hybrid-allowlist-v1` |
+
+Verdict (`runs/<ts>/env/production-integrity.json`):
+
+```json
+{"model":"hybrid-allowlist-v1","worktreeCommit":"d195eb39011196ddad7066c38fdcabee85025b30",
+ "productionConfig":"unchanged","productionState":"unchanged","allowedChangeCount":0,
+ "allowedPaths":[],"unexpectedChangeCount":0,"classifierSelfTest":"3/3","changedLines":0,"verdict":"pass"}
+```
+
+Reproduction: pin a clean worktree to the commit, build it (`node_modules` shared
+by symlink), capture the baseline over production config + production platform
+state + `<worktree>/.alix`, perform the offline fixture work, re-capture, then
+classify every changed path. Zero changed lines is the expected clean-worktree
+outcome; the classifier's positive/negative controls (production path → fail;
+unclassified worktree path → unexpected; source-file leak → unexpected) guard
+against a vacuous pass.
+
+**Note on the first run.** The original failure is preserved as evidence in the
+first fixture root, not deleted.
 
 ## D1-F1 correction — hybrid integrity model
 
