@@ -53,6 +53,7 @@ Durable append-only audit trail for policy decisions, approval lifecycle, and ru
 - `tests/audit/audit-store.test.ts` — append, list, filter by action/graph/approval, limits.
 - `tests/audit/audit-contract.test.ts` — runtime + governance stores conform to `AuditEventStore`.
 - `tests/audit/audit-integrity.test.ts` — activation, chained appends, v1+v2 query normalization, honest verify.
+- `tests/audit/remote-decision-projection.test.ts` — `projectRemoteDecisions` (SRAP): chain-anchored idempotent projection of committed remote-decision evidence keyed by `decisionId`, advisory cursor/dedup state, fail-closed on an unverifiable chain.
 
 ## Child DOX Index
 

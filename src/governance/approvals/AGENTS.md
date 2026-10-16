@@ -74,6 +74,7 @@ File-backed approval queue management — create, resolve, list, and lookup pend
 
 - `tests/approvals/approval-store.test.ts` — all CRUD, persistence, lookup methods.
 - `tests/approvals/approval-ledger-dualwrite.test.ts` — ledger authority (create/resolve/journal path/prune tombstone), append-failure fail-closed, projection-failure tolerance, tampered-projection ignored, reconciliation drift (legacy/mismatch/tamper).
+- `tests/audit/remote-decision-projection.test.ts` — SRAP remote-decision projection: idempotent re-run, duplicate drop, chain-anchored dedup after checkpoint loss, fail-closed on unverifiable chain, lag counter.
 
 ## Child DOX Index
 

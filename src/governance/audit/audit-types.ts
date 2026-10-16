@@ -65,6 +65,12 @@ export interface AuditDetails {
   workerId?: string;
   errors?: string[];
   error?: string;
+  /** SRAP-1 remote-decision evidence (bounded; no raw secrets). */
+  decisionId?: string;
+  principalId?: string;
+  credentialRef?: string;
+  transport?: string;
+  decidedAt?: string;
 }
 
 export interface AuditRecord {
