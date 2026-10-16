@@ -131,7 +131,9 @@ SRAP work. Current main checkout is clean; P4 evidence is isolated in its review
 3. **G3 opening is the operator's call.** This handoff does not open it. When G3
    opens it implements the remote approval decision endpoint against the owned
    contracts (approvals eligibility + parity table, credential `srap-evidence`
-   HMAC lifecycle, audit-owned idempotent projection).
+   HMAC lifecycle, audit-owned idempotent projection). A **proposed** plan
+   (authorizes nothing) is at
+   `docs/superpowers/plans/2026-10-16-srap-g3-remote-decision-endpoint.md`.
 
 Do not implement the SRAP remote approval endpoint or any new approval authority,
 scheduler, state machine, or ledger until G3 is explicitly opened.
