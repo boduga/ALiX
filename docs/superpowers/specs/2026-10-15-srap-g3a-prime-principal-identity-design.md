@@ -1,12 +1,13 @@
 # SRAP-1 G3-A′ — persistent operator principal identity
 
-Status: **PROPOSED design (rev 2) — for operator review before any code.** G3-C
+Status: **PROPOSED design (rev 3) — for final approval before any code.** G3-C
 (remote decision route) stays blocked until this lands and passes its own gate.
 
-**Rev 2 resolves the conditional-approval findings:** cross-process
-serialization, disablement-denies-all-authentication, mutation/audit durability,
-and migration races. The approved identity model, ownership split, and
-legacy-token policy are unchanged.
+**Rev 2 resolved** cross-process serialization, disablement-denies-all, mutation/
+audit durability, and migration races. **Rev 3 adds item 4:** revocation
+**preserves `StoredToken.principalId`** for historical attribution, and adds
+concurrent-migration to the race contract. The approved identity model, ownership
+split, and legacy-token policy are unchanged.
 
 **Context:** G3 Workstreams A (HMAC `srap-evidence` lifecycle) and B (audit
 projection) are merged (PR #959). C is blocked because the eligibility predicate
@@ -52,7 +53,7 @@ binding. No second secret authority; no token-hashing change.
 | Credential binding | A credential record carries `principalId`; ≥1 credential per principal |
 | Enrollment | Creates a principal **and** its first credential, ordered, under the store locks (see Durability) |
 | Rotation | New credential inherits the **same** `principalId` |
-| Credential revocation | Revokes only that credential; terminal (never resurrected); principal stays usable via others |
+| Credential revocation | Revokes only that credential; terminal (never resurrected); **preserves `principalId` for historical attribution** — revocation removes authentication eligibility, never the identity binding; principal stays usable via others |
 | Principal disablement | **Denies all authentication** for every bound credential — ordinary routes and cookies alike |
 | Authorization | role + permissions + workspace + **current principal status** |
 | Audit attribution | Durable `principalId`, with `credentialRef` where appropriate |
@@ -162,19 +163,36 @@ token → principal.
   refused (stale snapshot). The lock makes lost updates impossible in practice;
   the revision makes one detectable and refused if a lock is ever bypassed.
 
-## Disablement semantics (rev 2, item 2)
+## Authentication decision matrix (rev 3 revises item 2)
 
-| Credential | Principal state | Outcome |
+The critical distinction is between **no principal binding** and **a binding whose
+principal cannot be verified**:
+
+| Credential | Ordinary Inspector | Principal-required operation |
 | --- | --- | --- |
-| bound | active | ordinary role/permission/workspace checks; `SecurityContext.principalId` set |
-| bound | disabled | **deny all authentication** (401), ordinary routes and cookies |
-| bound | missing / store unavailable | **deny all authentication** (fail closed) |
-| unbound (legacy) | n/a | ordinary Inspector access; no principal asserted; principal-required capabilities deny |
+| unbound legacy credential | existing access policy | **deny** |
+| bound to active principal | existing access policy; `SecurityContext.principalId` set | eligible |
+| bound to disabled principal | **deny** | **deny** |
+| bound to missing principal | **deny** | **deny** |
+| bound, principal store unavailable | **deny** | **deny** |
+| revoked credential | **deny** | **deny** |
 
-The principal record is read **fresh on every authentication** (bearer via
+A **bound** credential never falls back to ordinary access — a disabled operator
+cannot keep ordinary Inspector access (routes or cookies) through a bound token.
+Only a **genuinely unbound legacy credential** receives ordinary access. The
+principal record is read **fresh on every authentication** (bearer via
 `verifyTokenForRequest`, cookie via `verifyPrincipalStatus`), so a disable takes
-effect on the next request across processes — extending the existing "revalidate
-the source token every request" rule.
+effect on the next request across processes.
+
+### Revocation preserves identity (rev 3, item 4)
+
+`revokeToken` records the revocation (`revokedAt`/reason) and **keeps
+`StoredToken.principalId`**. Revocation removes *authentication eligibility*, not
+the *historical identity relationship*: the revoked credential still resolves to
+its operator principal for audit attribution. The revoked state already denies
+access, so there is no reason to delete the binding. A principal whose credentials
+are all revoked is reported by `reconcile` as **no active credentials** (distinct
+from an incomplete enrollment, which has zero credentials ever bound).
 
 ## Mutation / audit durability contract (rev 2, item 3)
 
@@ -211,7 +229,7 @@ serialized, not atomic as a pair.
   inert orphan (no credential resolves to it). The reverse order — a credential
   pointing at a nonexistent principal — is unreachable.
 
-## Migration races (rev 2, item 4)
+## Migration races (rev 2, item 4; rev 3 adds concurrent migration)
 
 Migration acquires **principal → token** locks for the batch, so it serializes
 against rotation, revocation, and disablement (which take those same locks).
@@ -230,6 +248,7 @@ The binding write asserts the token's `revision` (CAS). Deterministic outcomes:
 | Migration vs disablement | serialized on the principal lock; a disable does not let migration bind to a now-disabled principal (re-check under lock) |
 | Migration vs rotation | serialized on the token lock; only token ids present at lock time are considered; a superseded/expired token is never bound |
 | Migration vs revocation | a revoked token is skipped; migration never un-revokes or re-binds a terminal credential |
+| Migration vs concurrent migration | serialized on the principal → token locks; the second batch re-reads and skips already-bound, revoked, or expired tokens — idempotent, no double-bind |
 
 Migration never un-disables a principal, un-revokes a credential, or overwrites
 an existing `principalId`.
@@ -240,11 +259,11 @@ an existing `principalId`.
 | --- | --- |
 | Identity / enrollment | creates principal + first credential; ordered; principal-only partial write is inert and reported as incomplete |
 | Rotation | inherits `principalId`; grace window; unbound token stays unbound |
-| Revocation | only that credential dies; terminal; principal usable via others |
+| Revocation | only that credential dies; terminal; **`principalId` preserved (historical attribution)**; revoked credential denied ordinary + principal-required; principal usable via others |
 | Disablement | bound + disabled → **all** authentication denied (bearer + cookie); missing/unavailable principal denied; re-enable restores; unbound legacy token unaffected |
 | Status freshness | disable from a **separate store instance** takes effect next request |
 | Legacy tokens | ordinary access continues; principal-required denied; no implicit principal |
-| Migration | binds unbound; `--principal` adoption idempotent; not-found/disabled/unavailable fail with no change; partial batch resumable; **revoked/expired skipped (no resurrection)** |
+| Migration | binds unbound; `--principal` adoption idempotent; not-found/disabled/unavailable fail with no change; partial batch resumable; **revoked/expired skipped (no resurrection)**; **concurrent migration idempotent** |
 | **Concurrency** | two writers → no lost update (lock); CAS revision mismatch refused; **lock order principal→token, no deadlock** under interleaved enrollment+migration+disable; stale lock fails closed with no write |
 | Durability | audit-intent failure → nothing written (`audit_write_failed`); crash between principal and credential → inert orphan + reconcile report; reconcile never deletes |
 | Fail-closed | principal store unavailable → bound credentials denied everywhere; unbound legacy still ordinary |
