@@ -1,8 +1,8 @@
 # SRAP-1 G3 — remote approval decision endpoint (implementation plan)
 
-Status: **PROPOSED — G3 is closed. This plan authorizes nothing.** No code may
-start until the operator explicitly opens G3. It exists so that, when G3 opens,
-implementation begins from verified surfaces instead of re-investigation.
+Status: **G3 OPEN (2026-10-16).** Workstreams **A and B are implemented**; **C is
+BLOCKED** on a missing principal-identity subsystem (see "Execution status"
+below). Remote decisions remain disabled. No route exists yet.
 
 **Owning contracts (normative; this plan implements them, never overrides):**
 - `src/governance/approvals/AGENTS.md` — eligibility predicate + parity requirement
@@ -12,6 +12,22 @@ implementation begins from verified surfaces instead of re-investigation.
 - `src/governance/security/credentials/AGENTS.md` — `srap-evidence` HMAC lifecycle
 - `docs/architecture/adrs/ADR-0015-*.md` — one-ledger decision evidence
 - `docs/2026-10-15-srap-p5-g2c-rereview.md` §7 caveat 3 — the forward items
+
+## Execution status (2026-10-16)
+
+- **A — HMAC `srap-evidence` lifecycle:** DONE (`feat(credentials): add
+  srap-evidence versioned HMAC key lifecycle`; 9 tests).
+- **B — audit-owned idempotent projection:** DONE (`feat(audit): project remote
+  approval decisions into the audit chain`; 6 tests; plus `RemoteDecisionEvidence`
+  + `ApprovalStore.resolveWithEvidence`).
+- **C — the route:** BLOCKED. The eligibility predicate and evidence require a
+  stable `principalId` separate from credential identity (G2-C review §3;
+  approvals/credentials contracts). **No persistent operator/principal store
+  exists** — `StoredToken` is credential-only and `SecurityContext` carries no
+  `principalId`. Using `tokenId` as `principalId` is rejected (breaks identity
+  continuity across rotation). C waits on a dedicated **A′ principal-identity**
+  workstream (design + plan, separate PR); do not start C until A′ is reviewed.
+
 
 ## Goal
 
