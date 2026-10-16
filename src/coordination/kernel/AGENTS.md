@@ -142,6 +142,18 @@
   into the shared `shouldReclaimWorker` verdict; callers pass locally-active
   executions when known (default: none). Never reclaim a locally-active
   worker on PID evidence alone.
+- **Approval reconciliation VERIFIES; dispatch CONSUMES.** `CoordinationScheduler.reconcile`'s
+  `isApproved` matches a blocked `approval_required` worker to its approval by
+  the binding key the approval was **created** with (`worker.authorizationEvidence.bindingKey`,
+  never reconstructed), then independently verifies the stored record still
+  describes THIS run / worker / attempt / capability set / ownership-claim hash /
+  current policy revision. It is a **read-only verdict**: it must NOT consume
+  the approval. Consumption is owned by the dispatch path (`PolicyGate`'s
+  `exact-binding-approved` branch) as the single place an approval authorizes
+  execution. Consuming in reconcile resumes the worker to `pending`, and the
+  re-dispatch then re-authorizes against the already-consumed approval, mints a
+  fresh pending, and blocks forever (double consumption). Absent/legacy
+  evidence without a `bindingKey` fails closed.
 - `alix_coordination_run` threads operator abort into cancellation and awaits
   finalization before throwing `ExecutionCancelledError`. `createCancelGuard`
   and `createCancelFailureRecorder` own this path. Bind recorder inputs before
@@ -269,6 +281,7 @@
 - `tests/kernel/collaboration-ledger-dualwrite.test.ts` — authority reads over tampered files, append-fail fail-closed, projection-failure tolerance, namespaced entity id, reconciliation drift (legacy/tamper)
 - `tests/kernel/coordination-planner.test.ts` — workers, scopes, agentPool labels
 - `tests/kernel/coordination-scheduler.test.ts` — dispatch, watchdog, heartbeats
+- `tests/kernel/coordination-approval-binding.test.ts` — SRAP approval-binding continuity end to end (authorizeWorker → ExecutionAuthorization → PolicyGate → ApprovalStore → reconcile → resumption) plus security negatives (malformed identity, wrong run/worker/attempt/ownership, expired, legacy no-binding) and single-consumption
 - `tests/kernel/coordination-tools.test.ts` — chat handlers
 - `tests/kernel/subagent-worker-executor.test.ts` — role map, parallel, cancel
 - `tests/kernel/coordination-scheduler-replan.test.ts` — mid-execution replanning; waits on settled state (`waitUntil`), never a fixed sleep

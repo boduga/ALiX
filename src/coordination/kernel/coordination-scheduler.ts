@@ -212,37 +212,53 @@ export class CoordinationScheduler {
       clock: this.deps.clock,
       isApproved: async (worker: WorkerAssignment, run: CoordinationRun) => {
         try {
-          if (!worker.authorizationEvidence?.decisions?.length) return false;
+          const evidence = worker.authorizationEvidence;
+          if (!evidence?.decisions?.length) return false;
+          // Approval-binding continuity (SRAP): reconcile on the binding key the
+          // approval was CREATED with. Reconstructing it from partial worker
+          // evidence produced a different request fingerprint and an unmatched key.
+          if (typeof evidence.bindingKey !== "string" || evidence.bindingKey.length === 0) {
+            // Legacy evidence without a persisted binding → fail closed.
+            return false;
+          }
           const { ApprovalStore } = await import("../../governance/approvals/approval-store.js");
-          const { computeBindingKey } = await import("../../governance/approvals/approval-binding.js");
           const store = new ApprovalStore(this.deps.cwd);
           await store.load();
 
-          // Compute the binding key from worker evidence + run
-          const bindingKey = computeBindingKey({
-            coordinationRunId: run.id,
-            workerId: worker.id,
-            workerAttempt: worker.attempt,
-            capabilities: worker.requiredCapabilities ?? [],
-            ownershipClaims: worker.ownershipClaims,
-            requestFingerprint: worker.authorizationEvidence.decisions.map(d => d.capability).join(","),
-            policyRevision: String(worker.authorizationEvidence.policyRevision ?? "legacy"),
-          });
-
-          const record = store.findExact(bindingKey);
+          const record = store.findExact(evidence.bindingKey);
           if (!record) return false;
           if (record.status !== "approved") return false;
           if (new Date(record.expiresAt) <= new Date()) return false;
 
-          // If single-use, consume atomically
-          if (record.usePolicy === "single_use") {
-            const consumed = await store.consumeApproved(record.id, bindingKey, {
-              workerId: worker.id,
-              workerAttempt: worker.attempt,
-            });
-            return consumed.consumed;
-          }
+          // Independent context verification: the persisted binding must still
+          // describe THIS run / worker / attempt / capability set. A stale key must
+          // never authorize a different execution attempt.
+          if (record.coordinationRunId !== run.id) return false;
+          if (record.workerId !== worker.id) return false;
+          if ((record.workerAttempt ?? 0) !== (worker.attempt ?? 0)) return false;
+          const wantCaps = [...(worker.requiredCapabilities ?? [])].sort().join(",");
+          const haveCaps = [...(record.capabilities ?? [])].sort().join(",");
+          if (wantCaps !== haveCaps) return false;
 
+          // Ownership claims are part of the canonical binding: a grant for
+          // different declared scopes must never authorize this worker.
+          const { computeOwnershipClaimsHash } = await import("../../governance/approvals/approval-binding.js");
+          const wantClaimsHash = computeOwnershipClaimsHash(worker.ownershipClaims ?? []);
+          const haveClaimsHash = computeOwnershipClaimsHash(record.ownershipClaims ?? []);
+          if (wantClaimsHash !== haveClaimsHash) return false;
+
+          // Policy revision: an approval bound to a superseded policy must not
+          // authorize (the store also invalidates these, this is defence in depth).
+          const { computePolicyRevision } = await import("../../governance/policy/policy-revision.js");
+          const currentPolicyRevision = computePolicyRevision(await this.deps.configProvider());
+          if (record.policyRevision !== currentPolicyRevision) return false;
+
+          // VERIFY ONLY — do NOT consume here. Consumption is owned by the
+          // dispatch path (PolicyGate's `exact-binding-approved` branch), which
+          // is the single place an approval authorizes execution. Consuming
+          // here as a probe made reconcile resume the worker and then the
+          // re-dispatch re-authorize against an already-consumed approval,
+          // creating a fresh pending and blocking forever (double consumption).
           return true;
         } catch {
           return false;

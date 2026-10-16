@@ -52,6 +52,8 @@ export async function authorizeWorker(options: AuthorizeWorkerOptions): Promise<
   let hasApproval = false;
   let approvalId: string | undefined;
   let approvalReason: string | undefined;
+  let bindingKey: string | undefined;
+  let requestFingerprint: string | undefined;
 
   for (const cap of caps) {
     const requestId = `${run.id}:${worker.id}:${cap}:${worker.attempt}`;
@@ -66,6 +68,16 @@ export async function authorizeWorker(options: AuthorizeWorkerOptions): Promise<
       nodeId: worker.sourceNodeId,
       graphId: run.taskGraphId,
       metadata: { coordinationRunId: run.id, workerId: worker.id, attempt: worker.attempt },
+      // Typed, trusted identity (SRAP approval-binding continuity). The
+      // boundary validates this and routes the request through the
+      // coordination-aware approval path — the metadata bag above is kept for
+      // observability only and is never the authorization input.
+      coordination: {
+        coordinationRunId: run.id,
+        workerId: worker.id,
+        workerAttempt: worker.attempt,
+        ownershipClaims: worker.ownershipClaims,
+      },
     });
 
     const capDecision: WorkerCapabilityDecision = {
@@ -82,12 +94,18 @@ export async function authorizeWorker(options: AuthorizeWorkerOptions): Promise<
       hasApproval = true;
       approvalId = (decision as any).approvalId;
       approvalReason = (decision as any).reason;
+      // Persist the binding the approval was actually created with; the
+      // scheduler reconciles on THIS key, never a reconstructed one.
+      bindingKey = (decision as any).bindingKey ?? bindingKey;
+      requestFingerprint = (decision as any).requestFingerprint ?? requestFingerprint;
     }
   }
 
   const evidence: WorkerAuthorizationEvidence = {
     evaluatedAt: new Date().toISOString(),
     decisions,
+    ...(bindingKey !== undefined ? { bindingKey } : {}),
+    ...(requestFingerprint !== undefined ? { requestFingerprint } : {}),
   };
 
   if (hasDenied) {

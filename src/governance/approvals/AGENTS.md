@@ -63,6 +63,7 @@ File-backed approval queue management — create, resolve, list, and lookup pend
   `APPROVAL_LEDGER_EVENT_TYPES` lives in `approval-types.ts` (the store is a
   protected import under the R1 freeze).
 - Approval records preserve optional canonical `agentId` correlation from execution authorization through created/resolved lifecycle events; never derive it from `workerId` or display labels.
+- **Coordination approvals are created with the canonical binding atomically.** `PolicyGate.handleAskDecision` commits them through `requestOrReusePending` (see `src/governance/policy/AGENTS.md`); the store persists `bindingKey`, `requestFingerprint`, `policyRevision`, `capabilities`, `ownershipClaims`, and `coordinationRunId`/`workerId`/`workerAttempt` in the one authoritative `approval.created` ledger payload. `findExact`/`findPendingByBindingKey` are indexed from that committed record, so a freshly reloaded store sees the coordination binding. A post-commit field patch on a `request()` result is NOT a valid way to set these — the legacy `request()` binding would be the committed truth.
 - **Remote-decision evidence is bounded and lives in the ledger payload.** `RemoteDecisionEvidence` (`approval-types.ts`) is persisted on the `ApprovalRecord` inside the authoritative `approval.updated` ledger event via `ApprovalStore.resolveWithEvidence`; `resolve` (no evidence) is unchanged for CLI/local decisions. Fields: `decisionId` (idempotency key for audit projection), `principalId`, `credentialRef` (versioned HMAC over the credential record id — never a raw token/credential id), `decision`, `nonce`, `decidedAt`, `transport`. `remoteDecisionRetryKey` is the bounded exact-retry identity (`principalId`+`nonce`+`decision`).
   - **A′ landed (SRAP-1 G3-A′).** `principalId` resolves to a `PrincipalRecord`
     (`src/governance/security/inspector/principal-store.ts`) bound via
@@ -82,6 +83,7 @@ File-backed approval queue management — create, resolve, list, and lookup pend
 ## Verification
 
 - `tests/approvals/approval-store.test.ts` — all CRUD, persistence, lookup methods.
+- `tests/kernel/coordination-approval-binding.test.ts` — coordination binding persisted and matched through the real chain (see `src/coordination/kernel/AGENTS.md`).
 - `tests/approvals/approval-ledger-dualwrite.test.ts` — ledger authority (create/resolve/journal path/prune tombstone), append-failure fail-closed, projection-failure tolerance, tampered-projection ignored, reconciliation drift (legacy/mismatch/tamper).
 - `tests/audit/remote-decision-projection.test.ts` — SRAP remote-decision projection: idempotent re-run, duplicate drop, chain-anchored dedup after checkpoint loss, fail-closed on unverifiable chain, lag counter.
 
