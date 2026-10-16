@@ -30,6 +30,7 @@ export type AuditAction =
   | "conflict.under_review"
   | "conflict.resolved"
   | "conflict.accepted_divergence"
+  | "credential.key_read"
   | "conflict.dismissed"
   | "conflict.candidate_generation"
   | "replan.failed"
@@ -67,6 +68,12 @@ export interface AuditDetails {
   error?: string;
   /** SRAP-1 remote-decision evidence (bounded; no raw secrets). */
   remoteDecision?: AuditRemoteDecision;
+  /** `credential.key_read`: `srap-evidence` key version accessed (never material). */
+  keyVersion?: number;
+  /** `credential.key_read`: the operation performed. */
+  keyOperation?: "sign" | "verify";
+  /** `credential.key_read`: outcome of the access. */
+  keyOutcome?: string;
 }
 
 /**

@@ -21,7 +21,7 @@ secrets live here (see `../credentials/AGENTS.md`).
 - `auth-service.ts` — `AuthService`: enrollment, rotation, revocation, disable/
   enable/remove/migrate/reconcile, and the verification path (`verifyToken`,
   `verifyPrincipalStatus`, `verifyTokenForRequest`).
-- `security-context.ts` — `SecurityContext` (`tokenId`, `principalId`, scope).
+- `security-context.ts` — `SecurityContext` (`tokenId`, `principalId`, `authTransport`, scope).
 - `browser-session-store.ts`, `token-format.ts`, `workspace-scope.ts`,
   `rate-limiter.ts`, `connection-limiter.ts`, `route-policy.ts`,
   `client-address.ts`, `host-policy.ts`, `origin-policy.ts`,
