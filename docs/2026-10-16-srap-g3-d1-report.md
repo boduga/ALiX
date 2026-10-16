@@ -14,7 +14,7 @@ Evidence: `<root>/runs/20261016T065211Z/` (`env/d1-results.txt`,
 | Requirement | Expected | Result |
 | --- | --- | --- |
 | Production state | Unmodified | **Conditionally true — see D1-F1.** Production config dir and platform state dir **unchanged**; the repository `.alix/` changed only via the live session's own projection checkpoints |
-| Fixture workspace | Fully isolated | **PASS** — 0 of 12 changed baseline paths mention the fixture root |
+| Fixture workspace | Fully isolated | **PASS by combination** — see "Isolation evidence" below; a fixture-root mention check alone is **not** proof |
 | Configuration validation | Pass | **PASS** — remote-on / remote-off differ only in `ui.security.remoteDecisions.enabled` |
 | Credential backend containment | Verified without generating credentials | **PASS** — `credentialsDir` / `plainStorePath` resolve inside `$ROOT/state/alix-inspector/…` |
 | TLS proxy configuration | Validated offline | **PASS** — cert valid and unexpired, SAN `DNS:localhost`, key mode `600`, listener `127.0.0.1:4143` |
@@ -23,6 +23,21 @@ Evidence: `<root>/runs/20261016T065211Z/` (`env/d1-results.txt`,
 | Live credentials / remote decisions | None | **PASS** — fixture `state/` empty |
 
 No tracked repository changes were made by D1.
+
+### Isolation evidence (why the root-mention check alone is insufficient)
+
+"Zero changed paths mention `$ROOT`" does **not** by itself prove isolation: a
+leaked write could affect an unrelated production path without ever naming the
+fixture root. Isolation is established only by the **combination**:
+
+1. production **config** and **platform state** compared **exactly** and unchanged;
+2. the **full** repository mutation set classified (not merely searched for `$ROOT`);
+3. session-generated exceptions **explicitly bounded** by a narrow allowlist;
+4. **zero** unexpected changes;
+5. a machine-readable integrity verdict produced **only** after checks 1–4 pass.
+
+D1 satisfied 1–4; check 5 will be produced by the corrected preflight re-run
+(§ "Next steps"). The root-mention count is retained only as a diagnostic.
 
 ## Finding D1-F1 — the exact-`cmp` production proof is invalid under a live session
 
@@ -78,6 +93,17 @@ module present; 8/8 evidence dirs; fixture/source/private perms as specified.
 - `bin/proxy.mjs`, `bin/negative-proxy.mjs`, `bin/seed-key.mjs` are not authored.
 - Fixture goal, host mode, status-JSON schema; archive destination; signatory.
 - A genuinely untrusted-peer topology (still **NOT EXERCISED**).
+
+## Next steps (per the approved sequence)
+
+1. Merge this documentation correction (PR) after `pnpm check:dox` and CI pass.
+2. Re-run the corrected preflight from a **dedicated, clean worktree pinned to a
+   commit SHA**, with no unrelated ALiX session in it.
+3. Record the resulting `hybrid-allowlist-v1` machine-readable verdict.
+4. **Close D1-F1 only if** the protected-state comparison and the full mutation
+   classification both pass with **zero unexpected changes**.
+
+Documentation being corrected does **not** by itself close D1-F1 or authorize D2.
 
 ## Authorization
 
