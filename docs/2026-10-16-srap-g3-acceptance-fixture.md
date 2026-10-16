@@ -1,10 +1,23 @@
-# SRAP-G3-ACCEPT — acceptance environment & coordination fixture (rev 2.1)
+# SRAP-G3-ACCEPT — acceptance environment & coordination fixture (rev 2.2)
 
-Status: **PROPOSED (rev 2.1) — design + verified commands only. Nothing executed.**
-Fixture setup, process startup, coordination execution and the acceptance matrix
-remain **unauthorized** until this revision is reviewed.
+Status: **PROPOSED (rev 2.2) — design + verified commands only. Nothing executed.**
+**Approved: non-executing fixture preparation.** Still **not authorized**: starting
+the Inspector, enrolling live credentials, running coordination qualification,
+issuing remote decisions, or executing the acceptance matrix.
 
-**Rev 2.1 is a safety-and-reproducibility correction** (no SRAP runtime change, no
+**Rev 2.2 corrects the executable shell procedures** (1) baseline snapshot is now
+strictly fail-closed under `set -euo pipefail` with explicit directories and
+separately checked generation commands; (2) the enrollment receipt is derived from
+the authoritative principal store, never from the raw response; (3) key seeding
+pins an absolute repo root captured before any `cd` and forces the plain-file
+backend so a production keychain cannot be selected; (4) F-4 drops the invalid
+"denied ⇒ must commit" inference (`tK` exists only on the commit path); the two
+sequential orders stay conclusive and the overlap band stays observational; (5) a
+sanitized production-integrity verdict is folded into the evidence tree before
+archival; (6) cleanup requires a confirmed terminal run state before stopping
+processes or deleting anything.
+
+**Rev 2.1 was a safety-and-reproducibility correction** (no SRAP runtime change, no
 change to the approved acceptance matrix): operator token never written to the
 shareable tree; archive verification performed in the directory actually hashed,
 with deletion blocked on failure; F-4 read-boundary tightened with authoritative
@@ -82,27 +95,33 @@ REAL_CONFIG_DIR="$REAL_HOME/.config/alix"
 REAL_STATE_DIR="$REAL_XDG_STATE/alix-inspector"
 REPO_ROOT="$(pwd)"                       # the dev repo containing .alix/
 
+set -euo pipefail                             # any failing step aborts the procedure
 umask 077                                     # nothing group/world readable
 mkdir -p "$ROOT"/{home,state,cache,workspace,tls,bin,private,qualification}
 chmod 700 "$ROOT/private"
 BASELINE_BEFORE="$ROOT/private/baseline-before.txt"
 
+# Explicit directory list; a missing dir is skipped, never silently swallowed.
+SCAN_DIRS=()
+for d in "$REAL_CONFIG_DIR" "$REAL_STATE_DIR" "$REPO_ROOT/.alix"; do
+  [ -e "$d" ] && SCAN_DIRS+=("$d")
+done
+[ "${#SCAN_DIRS[@]}" -gt 0 ] || { echo "no production directories to baseline — abort"; exit 1; }
+
 # Manifest = path + size + mtime + sha256 (metadata AND content), sorted, so
 # created/deleted files are detected by a plain diff — not only changed hashes.
-# FAIL CLOSED: a collection error aborts the run (never a silently partial list).
+# FAIL CLOSED: each generation command is checked; a scan error aborts.
 snapshot() {
-  local out rc=0
-  out="$(
-    { find "$REAL_CONFIG_DIR" "$REAL_STATE_DIR" "$REPO_ROOT/.alix" -type f -print0 2>&1 1>&3 | tee -a /dev/stderr >/dev/null
-      find "$REAL_CONFIG_DIR" "$REAL_STATE_DIR" "$REPO_ROOT/.alix" -type f -print0 | sort -z | xargs -0 -r stat -c '%n %s %Y'
-      find "$REAL_CONFIG_DIR" "$REAL_STATE_DIR" "$REPO_ROOT/.alix" -type f -print0 | sort -z | xargs -0 -r sha256sum
-    } 3>&2 | sort
-  )" || rc=$?
-  [ "$rc" -eq 0 ] || { echo "BASELINE COLLECTION FAILED (rc=$rc) — abort" >&2; return 1; }
-  [ -n "$out" ] || { echo "BASELINE EMPTY — abort (paths wrong?)" >&2; return 1; }
-  printf '%s\n' "$out"
+  local list rc=0
+  list="$(mktemp)" || return 1
+  if ! find "${SCAN_DIRS[@]}" -type f -print > "$list"; then rm -f "$list"; return 1; fi
+  if ! sort -o "$list" "$list"; then rm -f "$list"; return 1; fi
+  xargs -r stat -c '%n %s %Y' < "$list" || rc=1
+  xargs -r sha256sum          < "$list" || rc=1
+  rm -f "$list"
+  return "$rc"
 }
-snapshot > "$BASELINE_BEFORE" || exit 1
+snapshot > "$BASELINE_BEFORE" || { echo "BASELINE COLLECTION FAILED — abort"; exit 1; }
 [ -s "$BASELINE_BEFORE" ] || { echo "no baseline — abort"; exit 1; }
 ```
 
@@ -170,16 +189,24 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
 
 # 3.4 Enroll the operator (principal + credential; token displayed once)
 cd "$ROOT/workspace"
-# The raw token is a ONE-TIME secret: it must never enter the shareable tree.
+# The raw token is a ONE-TIME secret: capture it ONLY under private/ (0600).
 umask 077
 alix inspector auth create --name srap-acceptance-operator --role operator \
   --workspace "$ROOT/workspace" > "$ROOT/private/enroll.raw" 2>&1
 chmod 600 "$ROOT/private/enroll.raw"
-# Operator moves the bearer value to $ROOT/private/token (0600).
-# Evidence gets only a REDACTED receipt (no token, no hash):
-{ echo "principalId: $(jq -r .principalId "$ROOT/private/enroll.json" 2>/dev/null)";
-  echo "createdAt:   $(date -u +%FT%TZ)";
-  echo "token:       [redacted — see private/]"; } > "$RUN_DIR/env/enroll.receipt.txt"
+# The operator copies the bearer value into $ROOT/private/token (0600). The token
+# format is not parsed here (no assumption about the CLI's exact output).
+printf 'paste the bearer token here, then chmod 600\n' > "$ROOT/private/token"
+
+# Evidence receipt is derived from the AUTHORITATIVE principal store, never from
+# the raw enrollment response (which is never copied into evidence).
+PRINCIPALS="$ROOT/state/alix-inspector/auth/principals.json"
+[ -s "$PRINCIPALS" ] || { echo "principal store missing — enrollment did not complete"; exit 1; }
+{ echo "principalId: $(jq -r '.principals[-1].id' "$PRINCIPALS")";
+  echo "name:        $(jq -r '.principals[-1].name' "$PRINCIPALS")";
+  echo "status:      $(jq -r '.principals[-1].status' "$PRINCIPALS")";
+  echo "createdAt:   $(jq -r '.principals[-1].createdAt' "$PRINCIPALS")";
+  echo "token:       [redacted — see private/token]"; } > "$RUN_DIR/env/enroll.receipt.txt"
 
 # 3.5 Seed the active srap-evidence key WITHOUT argv exposure (P1-5)
 #     `alix credential set` takes the value in argv, so we do NOT use it.
@@ -201,14 +228,20 @@ const { chooseBackend, loadCredentialStoreWithKeychainFallback } =
   await import(`${REPO}/dist/src/governance/security/credentials/backend-selection.js`);
 const { generateKey, activeKeyVersion } =
   await import(`${REPO}/dist/src/governance/security/credentials/srap-evidence.js`);
-const store = await loadCredentialStoreWithKeychainFallback(await chooseBackend());
-const seededKeyVersion = await generateKey(store);          // verified signature
+const { writeStoredBackend } = await import(`${REPO}/dist/src/governance/security/credentials/backend-selection.js`);
+await writeStoredBackend("plain-file");                      // pin the selector; never probe a keychain
+const backend = await chooseBackend();
+if (backend !== "plain-file") throw new Error(`backend isolation failed: ${backend}`);
+const store = await loadCredentialStoreWithKeychainFallback(backend);
+const seededKeyVersion = await generateKey(store);           // verified signature
 const active = activeKeyVersion(store);                      // verified signature
-console.log(JSON.stringify({ seededKeyVersion, active }));
+console.log(JSON.stringify({ backend, seededKeyVersion, active }));
 ```
 
-Run: `ALIX_REPO_ROOT="$(pwd)" node "$ROOT/bin/seed-key.mjs"` (invoked from the repo
-root, before the `$ROOT/workspace` `cd`).
+Run: `ALIX_REPO_ROOT="$ALIX_REPO_ROOT_ABS" node "$ROOT/bin/seed-key.mjs"`, where
+`ALIX_REPO_ROOT_ABS` is captured as an **absolute** path (`cd <repo> && pwd -P`)
+**before** any `cd` into the fixture workspace. The script forces the plain-file
+backend so a production keychain can never be selected.
 
 ## 4. TLS: production-mode proxy and a separate negative-test proxy (P0-2)
 
@@ -264,20 +297,22 @@ Per trial, record in `$RUN_DIR/timing/f-4.jsonl`:
 
 Criterion:
 
-| Bracket | Inference | Required outcome |
+| Case | Inference | Required outcome |
 | --- | --- | --- |
-| `tA_recv ≥ tD_done` | read necessarily observed `disabled` | **must deny**; a commit is a FAIL |
-| `tK ≤ tD_recv` | read `≤ tK ≤ tD_recv < tD_done` → necessarily observed `active` | **must commit**; a deny is a FAIL |
-| overlap (`tD_recv < tK` and `tA_recv < tD_done`) | read may have observed either state | **observational only**; both outcomes accepted, and NO claim is made about the read instant |
+| `tA_recv ≥ tD_done` and **denied** | read necessarily observed `disabled` | **correct** |
+| `tA_recv ≥ tD_done` and **committed** | read necessarily observed `disabled` | **FAIL** (commit after a disabled read) |
+| **committed** and `tK ≤ tD_recv` | read `≤ tK ≤ tD_recv < tD_done` → observed `active` | **legitimate**; no failure |
+| **denied** | `tK` does not exist (the key-read path was never reached) | nothing follows — absence of `tK` proves nothing |
+| overlap (`tD_recv < tK` for a commit, or `tA_recv < tD_done`) | read may have observed either state | **observational only**; both outcomes accepted, no claim about the read instant |
 | always | consistency | `post_read` is `active`, or `disabled` with `disabledAt` ≥ `tA_recv` |
 
-**Conclusive vs observational.** The two **deterministic sequential orders** (§
-plan, Linearization boundary) are the conclusive evidence for the contract. The
-overlap band is **observational**: it records what happened without asserting the
-read instant. Conclusive proof inside the overlap band would require a narrowly
-scoped test witness (an env-gated authorization-read recorder in the A′ layer);
-that would be a runtime change and is **not** proposed here — it is deferred
-unless the operator judges the contract gap real.
+**Conclusive vs observational.** Only the **two deterministic sequential orders**
+are conclusive evidence for the contract. The 20 overlapping trials are
+**observational**: they record outcomes and flag anything unexpected for
+investigation, without reconstructing an internal read instant. Conclusive proof
+inside the overlap band would require a narrowly scoped authorization-read
+witness; per the operator decision that runtime change is **not** introduced now
+and would be authorized separately if these trials show suspicious behaviour.
 
 This enforces the **authorization-read contract**, not commit ordering, so a
 legitimate "authorized while active, committed after disable" outcome is accepted,
@@ -327,6 +362,16 @@ The fixture root is the **only** copy until it is archived. Order is mandatory:
 ARCHIVE="${SRAP_ACCEPT_ARCHIVE:?set an archive destination outside the disposable root}"
 mkdir -p "$ARCHIVE/$RUN_TS"
 
+# 7.0 Fold a SANITIZED production-integrity verdict into the evidence tree
+#     (the raw manifest under private/ is never archived).
+{
+  echo "verdict: $(tail -1 "$ROOT/private/baseline.diff" | tr -d '\n')"
+  echo "baseline_entries: $(wc -l < "$ROOT/private/baseline-before.txt")"
+  echo "after_entries:    $(wc -l < "$ROOT/private/baseline-after.txt")"
+  echo "diff_bytes:       $(wc -c < "$ROOT/private/baseline.diff")"
+  echo "scan_dirs:        <REDACTED: production paths omitted>"
+} > "$RUN_DIR/env/production-integrity.txt"
+
 # 7.1 Redaction scan — refuse to archive anything containing a secret shape
 if grep -rIlE 'Bearer [A-Za-z0-9._-]{20,}|"value"\s*:|hmac-key:v[0-9]+' "$RUN_DIR" ; then
   echo "REDACTION FAILURE — do not archive"; exit 1
@@ -355,10 +400,12 @@ Quiesce first, drain second, stop processes last:
 # 8.2 Cancel/drain the run and wait for workers to reach terminal state
 cd "$ROOT/workspace"
 alix coordination cancel <run-id> || true
+TERMINAL=0
 for i in $(seq 1 30); do
-  alix coordination status <run-id> | grep -qi 'terminal\|cancelled' && break
+  if alix coordination status <run-id> | grep -qi 'terminal\|cancelled'; then TERMINAL=1; break; fi
   sleep 2
 done
+[ "$TERMINAL" -eq 1 ] || { echo "RUN NOT TERMINAL after drain window — do not stop processes or delete"; exit 1; }
 
 # 8.3 Stop the Inspector, then the proxy
 kill "$(cat "$ROOT/private/inspector.pid")" 2>/dev/null || true
