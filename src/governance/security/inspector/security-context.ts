@@ -30,6 +30,12 @@ export interface SecurityContext {
   /** Authentication token identifier (set when authenticated). */
   tokenId?: string;
 
+  /**
+   * Operator principal bound to this credential, when bound (G3-A′). Absent for
+   * a genuinely unbound legacy credential. Read fresh per request.
+   */
+  principalId?: string;
+
   /** Current credential scope: undefined is legacy; [] grants no workspace. */
   workspaceIds?: string[];
 
@@ -57,6 +63,7 @@ let seq = 0;
 export function createSecurityContext(opts?: {
   authenticated?: boolean;
   tokenId?: string;
+  principalId?: string;
   permissions?: string[];
   workspaceIds?: string[];
   route?: RouteDescriptor | null;
@@ -65,6 +72,7 @@ export function createSecurityContext(opts?: {
     requestId: generateRequestId(),
     authenticated: opts?.authenticated ?? false,
     tokenId: opts?.tokenId,
+    principalId: opts?.principalId,
     workspaceIds: opts?.workspaceIds === undefined ? undefined : [...opts.workspaceIds],
     permissions: opts?.permissions ?? [],
     route: opts?.route ?? null,

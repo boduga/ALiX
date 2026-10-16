@@ -354,6 +354,7 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
           ctx = createSecurityContext({
             authenticated: true,
             tokenId: currentPrincipal.value.id,
+            principalId: currentPrincipal.value.principalId,
             permissions: derivePermissions(currentPrincipal.value.role),
             workspaceIds: currentPrincipal.value.workspaceIds,
             route,
@@ -393,6 +394,7 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
           ctx = createSecurityContext({
             authenticated: true,
             tokenId: principal.id,
+            principalId: principal.principalId,
             workspaceIds: principal.workspaceIds,
             permissions: derivePermissions(principal.role),
             route,
