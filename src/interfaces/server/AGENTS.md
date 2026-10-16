@@ -57,7 +57,10 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
   owning approval contract (`src/governance/approvals/AGENTS.md`): bearer-only,
   `approvals:decide`, active operator principal, explicit nonempty
   `workspaceIds` containing the canonical server workspace, trusted TLS
-  transport, unexpired pending approval, and idempotent evidence. Legacy unscoped
+  transport, unexpired pending approval, and idempotent evidence. Each signing
+  key access is durably audited (`credential.key_read`) before the evidence is
+  released, so an unauditable key read fails the decision closed rather than
+  producing unlogged evidence. Legacy unscoped
   access, cookie authentication, and anonymous development access grant no remote
   decision authority.
 - `startServer` receives the configured Inspector authentication mode and must

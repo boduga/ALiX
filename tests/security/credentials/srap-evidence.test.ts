@@ -3,7 +3,8 @@
  *
  * Covers generation, activation, rotation overlap, the two retirement gates
  * (eligibility vs explicit execution), fail-closed signing, the mandatory
- * key-read audit sink, and unverifiable-vs-invalid verification.
+ * key-read audit sink (awaited; a rejected sink fails the operation closed), and
+ * unverifiable-vs-invalid verification.
  */
 
 import { describe, it, beforeEach, afterEach } from "node:test";
@@ -69,51 +70,54 @@ describe("srap-evidence key lifecycle", () => {
     const v1 = await generateKey(store);
     const v1Store = store.get(SRAP_EVIDENCE_PROVIDER, keyLabel(v1));
     assert.ok(v1Store);
-    const ref1 = signCredentialRef(store, "cred-A", noAudit);
+    const ref1 = await signCredentialRef(store, "cred-A", noAudit);
 
     const v2 = await rotateKey(store);
     assert.equal(v2, v1 + 1);
     // Old key bytes survive the rotation.
     assert.equal(store.get(SRAP_EVIDENCE_PROVIDER, keyLabel(v1)), v1Store);
     // The old ref still verifies under its own version.
-    assert.equal(verifyCredentialRef(store, "cred-A", ref1, noAudit), "valid");
+    assert.equal(await verifyCredentialRef(store, "cred-A", ref1, noAudit), "valid");
     // New signing uses v2.
-    const ref2 = signCredentialRef(store, "cred-B", noAudit);
+    const ref2 = await signCredentialRef(store, "cred-B", noAudit);
     assert.equal(parseCredentialRef(ref2)?.keyVersion, v2);
     // The canonical serialization carries the explicit version marker.
     assert.ok(ref2.startsWith("hmac-sha256:v2:"));
   });
 
   it("fail-closed: signing without an active key throws and commits nothing", async () => {
-    assert.throws(() => signCredentialRef(store, "cred-A", noAudit), SrapKeyUnavailableError);
+    await assert.rejects(
+      () => signCredentialRef(store, "cred-A", noAudit),
+      SrapKeyUnavailableError,
+    );
     assert.equal(store.list().length, 0);
   });
 
   it("verify distinguishes valid / invalid / unverifiable", async () => {
     await generateKey(store);
-    const good = signCredentialRef(store, "cred-A", noAudit);
-    assert.equal(verifyCredentialRef(store, "cred-A", good, noAudit), "valid");
+    const good = await signCredentialRef(store, "cred-A", noAudit);
+    assert.equal(await verifyCredentialRef(store, "cred-A", good, noAudit), "valid");
     // Same ref, different record id → invalid (not unverifiable).
-    assert.equal(verifyCredentialRef(store, "cred-B", good, noAudit), "invalid");
+    assert.equal(await verifyCredentialRef(store, "cred-B", good, noAudit), "invalid");
     // Malformed ref → unverifiable.
-    assert.equal(verifyCredentialRef(store, "cred-A", "not-a-ref", noAudit), "unverifiable");
-    assert.equal(verifyCredentialRef(store, "cred-A", "hmac-sha256:vX:abc", noAudit), "unverifiable");
+    assert.equal(await verifyCredentialRef(store, "cred-A", "not-a-ref", noAudit), "unverifiable");
+    assert.equal(await verifyCredentialRef(store, "cred-A", "hmac-sha256:vX:abc", noAudit), "unverifiable");
     // Well-formed ref to a version that was never generated → unverifiable.
-    assert.equal(verifyCredentialRef(store, "cred-A", "hmac-sha256:v9:AAAA", noAudit), "unverifiable");
+    assert.equal(await verifyCredentialRef(store, "cred-A", "hmac-sha256:v9:AAAA", noAudit), "unverifiable");
   });
 
   it("reports every key access through the mandatory audit sink", async () => {
     const reads: Array<{ operation: string; keyVersion: number }> = [];
-    const audit: KeyReadAudit = (e) => reads.push(e);
+    const audit: KeyReadAudit = (e) => { reads.push(e); };
 
     await generateKey(store); // v1 active
-    const ref = signCredentialRef(store, "cred-A", audit);
+    const ref = await signCredentialRef(store, "cred-A", audit);
     // A verify that reads the key reports it, and a well-formed ref to an
     // absent version still reports the attempted access.
-    assert.equal(verifyCredentialRef(store, "cred-A", ref, audit), "valid");
-    assert.equal(verifyCredentialRef(store, "cred-A", "hmac-sha256:v9:AAAA", audit), "unverifiable");
+    assert.equal(await verifyCredentialRef(store, "cred-A", ref, audit), "valid");
+    assert.equal(await verifyCredentialRef(store, "cred-A", "hmac-sha256:v9:AAAA", audit), "unverifiable");
     // A malformed ref short-circuits before any key access, so it is not logged.
-    assert.equal(verifyCredentialRef(store, "cred-A", "not-a-ref", audit), "unverifiable");
+    assert.equal(await verifyCredentialRef(store, "cred-A", "not-a-ref", audit), "unverifiable");
 
     assert.deepEqual(reads, [
       { operation: "sign", keyVersion: 1 },
@@ -122,16 +126,34 @@ describe("srap-evidence key lifecycle", () => {
     ]);
   });
 
+  it("a rejected audit sink fails signing closed — no reference is produced", async () => {
+    await generateKey(store);
+    const failing: KeyReadAudit = () => {
+      throw new Error("audit backend down");
+    };
+    await assert.rejects(
+      () => signCredentialRef(store, "cred-A", failing),
+      /audit backend down/,
+    );
+  });
+
+  it("a rejected audit sink fails verification closed — no verdict is returned", async () => {
+    await generateKey(store);
+    const good = await signCredentialRef(store, "cred-A", noAudit);
+    const failing: KeyReadAudit = () => Promise.reject(new Error("audit backend down"));
+    await assert.rejects(() => verifyCredentialRef(store, "cred-A", good, failing));
+  });
+
   it("a retired key version makes its refs unverifiable, never valid, never a reversal", async () => {
     const v1 = await generateKey(store);
-    const ref1 = signCredentialRef(store, "cred-A", noAudit);
-    assert.equal(verifyCredentialRef(store, "cred-A", ref1, noAudit), "valid");
+    const ref1 = await signCredentialRef(store, "cred-A", noAudit);
+    assert.equal(await verifyCredentialRef(store, "cred-A", ref1, noAudit), "valid");
 
     await rotateKey(store); // v2 active; v1 still present
     assert.equal(await retireKey(store, v1, 0), true);
     assert.equal(store.get(SRAP_EVIDENCE_PROVIDER, keyLabel(v1)), null);
     // The ref no longer resolves: unverifiable, NOT valid, NOT invalid.
-    assert.equal(verifyCredentialRef(store, "cred-A", ref1, noAudit), "unverifiable");
+    assert.equal(await verifyCredentialRef(store, "cred-A", ref1, noAudit), "unverifiable");
   });
 
   it("retirement eligibility: absent, active, retained-references, eligible", async () => {

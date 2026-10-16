@@ -40,7 +40,8 @@ export type AuditAction =
   | "agent.permission_checked"
   | "memory.access_checked"
   | "model.routing_decision"
-  | "security.boundary_checked";
+  | "security.boundary_checked"
+  | "credential.key_read";
 
 /** v1+ action type — any action string allowed (v1 or v2). */
 export type AnyAuditAction = AuditAction | SecurityAction;
@@ -67,6 +68,13 @@ export interface AuditDetails {
   error?: string;
   /** SRAP-1 remote-decision evidence (bounded; no raw secrets). */
   remoteDecision?: AuditRemoteDecision;
+  /** `credential.key_read`: `srap-evidence` key version accessed (never material). */
+  keyVersion?: number;
+  /** `credential.key_read`: the operation performed. */
+  keyOperation?: "sign" | "verify";
+  /** `credential.key_read`: outcome of the access (always "ok" — a failed
+   *  access produces no record, so only success is representable). */
+  keyOutcome?: "ok";
 }
 
 /**

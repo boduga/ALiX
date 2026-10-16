@@ -24,7 +24,9 @@
  * - a ref whose key version is retired is reported unverifiable, never silently
  *   accepted and never an authority reversal;
  * - every key read is audited: raw key material is only reachable through the
- *   audited `sign`/`verify` accessors, whose `audit` sink is mandatory.
+ *   audited `sign`/`verify` accessors, whose `audit` sink is mandatory and
+ *   awaited — a key read that cannot be durably audited fails the operation
+ *   closed (no reference, no verdict).
  *
  * This module owns key lifecycle only. HMAC is computed here; the store is used
  * as a dumb secret holder (get/set/list/delete). No second secret authority.
@@ -201,27 +203,39 @@ function loadKeyBytes(store: CredentialStore, version: number): Buffer | null {
  * Key material is only reachable through {@link signCredentialRef} /
  * {@link verifyCredentialRef}, and both REQUIRE this sink — there is no default,
  * so a caller cannot read keys while silently skipping the audit.
+ *
+ * The sink is awaited BEFORE the accessor returns, and a rejected sink fails the
+ * whole operation closed: a key read that cannot be durably audited must not
+ * produce a signed reference or a verification verdict.
  */
-export type KeyReadAudit = (event: { operation: "sign" | "verify"; keyVersion: number }) => void;
+export type KeyReadAudit = (event: {
+  operation: "sign" | "verify";
+  keyVersion: number;
+}) => void | Promise<void>;
 
 /**
  * Sign a credential record id with the active key version.
  *
  * Fail-closed: when there is no active key (or it is unreadable), throws
- * {@link SrapKeyUnavailableError} and the caller must commit no decision. The
- * key access is always reported through `audit`.
+ * {@link SrapKeyUnavailableError} and the caller must commit no decision; when
+ * the mandatory key-read audit rejects, the error propagates and no reference is
+ * produced. The key access is always reported through `audit` before the
+ * reference is released.
  */
-export function signCredentialRef(
+export async function signCredentialRef(
   store: CredentialStore,
   credentialRecordId: string,
   audit: KeyReadAudit,
-): string {
+): Promise<string> {
   const version = activeKeyVersion(store);
   if (version === null) {
     throw new SrapKeyUnavailableError("No active srap-evidence key; cannot sign decision evidence.");
   }
   const key = loadKeyBytes(store, version);
-  audit({ operation: "sign", keyVersion: version });
+  // Durable audit of the attempted key access BEFORE the reference is released
+  // (fail closed). An unreadable key is still a reported access — symmetric with
+  // `verifyCredentialRef`.
+  await audit({ operation: "sign", keyVersion: version });
   if (key === null) {
     throw new SrapKeyUnavailableError(`Active srap-evidence key v${version} is unreadable.`);
   }
@@ -252,16 +266,18 @@ export function parseCredentialRef(ref: string): ParsedCredentialRef | null {
  * - `"unverifiable"` — the ref is malformed or its key version is absent
  *   (never generated or retired). NEVER treated as valid.
  */
-export function verifyCredentialRef(
+export async function verifyCredentialRef(
   store: CredentialStore,
   credentialRecordId: string,
   ref: string,
   audit: KeyReadAudit,
-): "valid" | "invalid" | "unverifiable" {
+): Promise<"valid" | "invalid" | "unverifiable"> {
   const parsed = parseCredentialRef(ref);
   if (!parsed) return "unverifiable";
   const key = loadKeyBytes(store, parsed.keyVersion);
-  audit({ operation: "verify", keyVersion: parsed.keyVersion });
+  // Durable audit of the key access; a rejected sink fails the verification
+  // closed (the error propagates) rather than returning a verdict.
+  await audit({ operation: "verify", keyVersion: parsed.keyVersion });
   if (key === null) return "unverifiable";
   const expected = createHmac("sha256", key).update(credentialRecordId, "utf8").digest();
   // `Buffer.from` never throws for a base64url string; a malformed digest simply

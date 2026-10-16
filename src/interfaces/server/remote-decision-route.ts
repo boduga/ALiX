@@ -24,6 +24,7 @@ import type { ApprovalStore } from "../../governance/approvals/approval-store.js
 import { remoteDecisionRetryKey } from "../../governance/approvals/approval-types.js";
 import type { RemoteDecisionEvidence } from "../../governance/approvals/approval-types.js";
 import { projectRemoteDecisions } from "../../governance/audit/remote-decision-projection.js";
+import { AuditStore } from "../../governance/audit/audit-store.js";
 import { signCredentialRef } from "../../governance/security/credentials/srap-evidence.js";
 import {
   chooseBackend,
@@ -42,12 +43,6 @@ export interface RemoteDecisionOptions {
   canonicalWorkspace: string;
   /** Configured immediate-peer proxy CIDRs. */
   trustedProxyCidrs: string[];
-  /**
-   * Credential store used to sign decision evidence. Server startup leaves this
-   * unset (the handler opens the configured store); tests/embeddings may inject
-   * a seeded store.
-   */
-  credentialStore?: CredentialStore;
   /**
    * Loader for the approval store. `server.ts` supplies it so the protected
    * `approval-store` import stays on the allowlisted composition root
@@ -250,13 +245,33 @@ async function handleDecision(
       return;
     }
 
-    // 4. Evidence. Fail closed when the active HMAC key is unavailable.
-    const credentialStore = opts.credentialStore ?? (await openCredentialStore());
+    // 4. Evidence. Fail closed when the active HMAC key is unavailable OR when
+    //    the mandatory key-read audit cannot be durably written.
+    const credentialStore = await openCredentialStore();
+    const auditStore = new AuditStore(root);
     let credentialRef: string;
     try {
-      credentialRef = signCredentialRef(credentialStore, ctx.tokenId, logKeyRead);
-    } catch {
-      // No key material → commit no decision (fail closed).
+      credentialRef = await signCredentialRef(credentialStore, ctx.tokenId, async (event) => {
+        // Durable, non-secret key-read evidence in the authoritative audit chain.
+        // Never the key material, credential record id, or request payload.
+        await auditStore.append({
+          action: "credential.key_read",
+          actor: ctx.principalId,
+          details: {
+            keyVersion: event.keyVersion,
+            keyOperation: event.operation,
+            keyOutcome: "ok",
+            reason: "remote_decision_evidence",
+          },
+        });
+      });
+    } catch (err) {
+      // No key material, or the key read could not be durably audited →
+      // commit no decision (fail closed). A bounded operator diagnostic only —
+      // never key material or the credential record id.
+      console.error(
+        `[srap] remote-decision evidence unavailable: ${err instanceof Error ? err.name : "unknown"}`,
+      );
       secure.error("evidence_unavailable", 503);
       return;
     }
@@ -313,11 +328,3 @@ async function openCredentialStore(): Promise<CredentialStore> {
   return loadCredentialStoreWithKeychainFallback(backend);
 }
 
-/**
- * Key-read audit sink for `srap-evidence`. The credentials contract requires
- * every key access to be reported; the route has no audit-store handle, so it
- * logs a bounded line to stderr (the store itself never logs).
- */
-function logKeyRead(event: { operation: "sign" | "verify"; keyVersion: number }): void {
-  console.error(`[srap] srap-evidence key read: ${JSON.stringify(event)}`);
-}
