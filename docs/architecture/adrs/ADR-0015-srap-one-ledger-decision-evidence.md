@@ -100,3 +100,14 @@ cost is acceptable on supported storage; durability will not be weakened.
   audit chain; the stale-head duplicate-seq window in `AuditChainWriter` must be
   repaired (detect stale head by comparing with the JSONL tail; recover from the
   tail before allocating the next seq) before the projection relies on the chain.
+
+## Post-merge reconciliation (2026-10-16)
+
+- **P5 independent G2-C re-review returned READY (with carried caveats)** —
+  `docs/2026-10-15-srap-p5-g2c-rereview.md`. The P1 audit stale-head fix, P2
+  `BEGIN IMMEDIATE`, P3 workspace authorization, and the P4 SSD evidence are all
+  merged; the owning contracts are reconciled.
+- **The FULL latency tail is now owned by ADR-0016.** P5 §7 caveat 1 (append max
+  ≈5 s / p99 ≈84 ms under saturation, no defined ceiling) is closed by a recorded
+  caller-visible budget rather than a code change; group commit remains a
+  separate, unmade decision. This does not weaken the WAL + FULL requirement above.
