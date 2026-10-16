@@ -315,6 +315,12 @@ export type UiSecurityConfig = {
   allowedOrigins: string[];
   trustedProxyCidrs: string[];
   requireTlsForRemote: boolean;
+  /**
+   * SRAP-1 G3-C: the default-off remote approval decision endpoint
+   * (`POST /api/approvals/:id/decision`). Absent/false = the route is
+   * registered but refuses every request.
+   */
+  remoteDecisions?: { enabled: boolean };
 };
 
 export type McpTransportType = "stdio" | "http" | "websocket";

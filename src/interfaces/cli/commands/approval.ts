@@ -17,8 +17,31 @@ import { openApprovalStores } from "../helpers/approval-stores.js";
 export async function handleApproval(args: string[]): Promise<void> {
   const subcommand = args[0];
   if (!subcommand) {
-    console.error("Usage: alix approval <list|show|approve|deny|revoke|expire> [...]");
+    console.error("Usage: alix approval <list|show|approve|deny|revoke|expire|project> [...]");
     process.exit(1);
+  }
+
+  // Operator trigger for the SRAP remote-decision audit projection (G3-C).
+  // Runs before opening the one-inbox stores; it needs only the project root.
+  if (subcommand === "project") {
+    const { projectRemoteDecisions } = await import(
+      "../../../governance/audit/remote-decision-projection.js"
+    );
+    const jsonMode = args.includes("--json");
+    const result = await projectRemoteDecisions(process.cwd());
+    if (jsonMode) {
+      console.log(JSON.stringify(result));
+    } else if (result.ok) {
+      const c = result.counters;
+      console.log(
+        `Remote-decision projection: ${c.projected} projected, ${c.skipped_duplicate} duplicate, ` +
+          `${c.projection_failed} failed, lag ${c.lag}.`,
+      );
+    } else {
+      console.error(`Remote-decision projection refused: ${result.refused ?? "unknown"}`);
+      process.exit(1);
+    }
+    process.exit(0);
   }
 
   // One inbox: schedule proposals (global) + tool approvals (project).

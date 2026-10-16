@@ -377,6 +377,18 @@ routeRegistry.register({
 });
 
 routeRegistry.register({
+  id: "api.approvals.decision",
+  method: "POST",
+  pathPattern: "/api/approvals/:id/decision",
+  pathType: "pattern",
+  auth: "authenticated",
+  permission: "approvals:decide",
+  routeClass: "data",
+  redactionProfile: "operational",
+  streaming: false,
+});
+
+routeRegistry.register({
   id: "api.runtime.events",
   method: "GET",
   pathPattern: "/api/runtime/events",

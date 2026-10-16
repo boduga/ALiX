@@ -357,6 +357,7 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
             principalId: currentPrincipal.value.principalId,
             permissions: derivePermissions(currentPrincipal.value.role),
             workspaceIds: currentPrincipal.value.workspaceIds,
+            authTransport: "cookie",
             route,
           });
         } else {
@@ -396,6 +397,7 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
             tokenId: principal.id,
             principalId: principal.principalId,
             workspaceIds: principal.workspaceIds,
+            authTransport: "bearer",
             permissions: derivePermissions(principal.role),
             route,
           });
@@ -491,6 +493,7 @@ export function derivePermissions(role: string): string[] {
         "observability:read",
         "coordination:read",
         "coordination:execute",
+        "approvals:decide",
       );
       break;
     case "operator":
@@ -504,6 +507,7 @@ export function derivePermissions(role: string): string[] {
         "observability:read",
         "coordination:read",
         "coordination:execute",
+        "approvals:decide",
       );
       break;
     case "readonly":
