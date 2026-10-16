@@ -61,7 +61,11 @@ File-backed approval queue management — create, resolve, list, and lookup pend
   protected import under the R1 freeze).
 - Approval records preserve optional canonical `agentId` correlation from execution authorization through created/resolved lifecycle events; never derive it from `workerId` or display labels.
 - **Remote-decision evidence is bounded and lives in the ledger payload.** `RemoteDecisionEvidence` (`approval-types.ts`) is persisted on the `ApprovalRecord` inside the authoritative `approval.updated` ledger event via `ApprovalStore.resolveWithEvidence`; `resolve` (no evidence) is unchanged for CLI/local decisions. Fields: `decisionId` (idempotency key for audit projection), `principalId`, `credentialRef` (versioned HMAC over the credential record id — never a raw token/credential id), `decision`, `nonce`, `decidedAt`, `transport`. `remoteDecisionRetryKey` is the bounded exact-retry identity (`principalId`+`nonce`+`decision`).
-  - **Pending A′.** `principalId` here is a forward field: the persistent operator-principal store (G3 workstream A′) is not yet implemented, so no production producer exists. `principalId` MUST resolve to a stable server-generated principal once A′ lands; it must never be the token id / credential id. Until then the remote route stays unbuilt.
+  - **A′ landed (SRAP-1 G3-A′).** `principalId` resolves to a `PrincipalRecord`
+    (`src/governance/security/inspector/principal-store.ts`) bound via
+    `StoredToken.principalId` (the single binding authority); it is never the
+    token/credential id. The remote decision route (G3-C) remains unbuilt and
+    blocked behind its own review.
 - `findPending` returns first match (expect at most one pending per graph/node/capability key).
 - `findResolved` returns most recent resolved record for a key.
 - `--enforce-capabilities` in graph run/sop run triggers approval creation via RuntimeGate.

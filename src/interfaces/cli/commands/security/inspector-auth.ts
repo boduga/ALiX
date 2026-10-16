@@ -117,9 +117,12 @@ export async function handleInspectorAuthCreate(args: string[]): Promise<void> {
   const roleIdx = args.indexOf("--role");
   const name = nameIdx >= 0 ? args[nameIdx + 1] : null;
   const role = roleIdx >= 0 ? args[roleIdx + 1] : null;
+  // Adopt an existing operator principal instead of creating a new one.
+  const principalIdx = args.indexOf("--principal");
+  const principalId = principalIdx >= 0 ? args[principalIdx + 1] : undefined;
 
   if (!name || !role) {
-    console.error("Usage: alix inspector auth create --name <name> --role <role> [--workspace <path>]... [--json]");
+    console.error("Usage: alix inspector auth create --name <name> --role <role> [--workspace <path>]... [--principal <id>] [--json]");
     process.exit(1);
   }
 
@@ -154,6 +157,7 @@ export async function handleInspectorAuthCreate(args: string[]): Promise<void> {
     name,
     role: role as AuthTokenRole,
     workspaceIds,
+    principalId,
   });
 
   if (!result.ok) {
@@ -165,12 +169,13 @@ export async function handleInspectorAuthCreate(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const { id, token } = result.value;
+  const { id, token, principalId: boundPrincipal } = result.value;
 
   if (jsonMode) {
-    console.log(JSON.stringify({ id, token, name, role, createdAt: result.value.createdAt }));
+    console.log(JSON.stringify({ id, token, name, role, createdAt: result.value.createdAt, principalId: boundPrincipal }));
   } else {
     console.log(`Token created: ${id}`);
+    console.log(`Principal:     ${boundPrincipal}`);
     console.log();
     console.log(token);
     console.log();
@@ -362,5 +367,153 @@ export async function handleInspectorAuthDoctor(args: string[]): Promise<void> {
     } else {
       console.log("✓ Auth state is healthy.");
     }
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Inspector auth migrate (G3-A′)
+// ---------------------------------------------------------------------------
+
+export async function handleInspectorAuthMigrate(args: string[]): Promise<void> {
+  setJsonMode(args.includes("--json"));
+
+  const principalIdx = args.indexOf("--principal");
+  const principalId = principalIdx >= 0 ? args[principalIdx + 1] : undefined;
+  if (principalIdx >= 0 && (!principalId || principalId.startsWith("--"))) {
+    console.error("Missing value for --principal. Example: --principal prin_ab12cd34ef56");
+    process.exit(1);
+  }
+
+  const service = await createAuthService();
+  const result = await service.migrate(principalId !== undefined ? { principalId } : undefined);
+
+  if (!result.ok) {
+    if (jsonMode) {
+      console.log(JSON.stringify({ error: result.error }));
+    } else {
+      console.error(`Error: ${result.error}`);
+    }
+    process.exit(1);
+  }
+
+  const { bound, skipped } = result.value;
+
+  if (jsonMode) {
+    console.log(JSON.stringify(result.value));
+  } else {
+    console.log(`Migration complete: ${bound.length} bound, ${skipped.length} skipped.`);
+    for (const b of bound) {
+      console.log(`  bound   ${b.tokenId} → ${b.principalId}`);
+    }
+    for (const s of skipped) {
+      console.log(`  skipped ${s.tokenId} (${s.reason})`);
+    }
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Inspector auth principal {disable|enable|remove} (G3-A′)
+// ---------------------------------------------------------------------------
+
+export async function handleInspectorAuthPrincipal(args: string[]): Promise<void> {
+  setJsonMode(args.includes("--json"));
+
+  const sub = args[0];
+  const principalId = args[1];
+  if (!sub || !principalId) {
+    console.error("Usage: alix inspector auth principal {disable|enable|remove} <principal-id> [--reason <text>] [--yes] [--json]");
+    process.exit(1);
+  }
+
+  const service = await createAuthService();
+
+  if (sub === "disable") {
+    const reasonIdx = args.indexOf("--reason");
+    const reason = reasonIdx >= 0 ? args[reasonIdx + 1] : "manual_disable";
+    const result = await service.disablePrincipal(principalId, reason);
+    if (!result.ok) {
+      if (jsonMode) console.log(JSON.stringify({ error: result.error }));
+      else console.error(`Error: ${result.error}`);
+      process.exit(1);
+    }
+    console.log(jsonMode ? JSON.stringify({ principalId, status: "disabled" }) : `Principal disabled: ${principalId}`);
+    return;
+  }
+
+  if (sub === "enable") {
+    const result = await service.enablePrincipal(principalId);
+    if (!result.ok) {
+      if (jsonMode) console.log(JSON.stringify({ error: result.error }));
+      else console.error(`Error: ${result.error}`);
+      process.exit(1);
+    }
+    console.log(jsonMode ? JSON.stringify({ principalId, status: "active" }) : `Principal enabled: ${principalId}`);
+    return;
+  }
+
+  if (sub === "remove") {
+    if (!args.includes("--yes")) {
+      const { prompt } = await import("../../../../operations/utils/prompt.js");
+      const confirm = await prompt(`Remove principal ${principalId}? This cannot be undone. [y/N]: `);
+      if (confirm.toLowerCase() !== "y") {
+        console.log("Cancelled.");
+        process.exit(0);
+      }
+    }
+    const result = await service.removePrincipal(principalId);
+    if (!result.ok) {
+      if (jsonMode) console.log(JSON.stringify({ error: result.error }));
+      else console.error(`Error: ${result.error}`);
+      process.exit(1);
+    }
+    console.log(jsonMode ? JSON.stringify({ principalId, removed: true }) : `Principal removed: ${principalId}`);
+    return;
+  }
+
+  console.error(`Unknown principal subcommand: ${sub}. Use disable|enable|remove.`);
+  process.exit(1);
+}
+
+
+// ---------------------------------------------------------------------------
+// Inspector auth reconcile (G3-A′)
+// ---------------------------------------------------------------------------
+
+export async function handleInspectorAuthReconcile(args: string[]): Promise<void> {
+  setJsonMode(args.includes("--json"));
+
+  const service = await createAuthService();
+  const result = await service.reconcile();
+
+  if (!result.ok) {
+    if (jsonMode) {
+      console.log(JSON.stringify({ error: result.error }));
+    } else {
+      console.error(`Error: ${result.error}`);
+    }
+    process.exit(1);
+  }
+
+  const { incompleteEnrollments, noActiveCredentials, danglingBindings } = result.value;
+
+  if (jsonMode) {
+    console.log(JSON.stringify(result.value));
+  } else {
+    console.log("Inspector Auth Reconcile\n");
+    console.log(`Incomplete enrollments (no bound credentials): ${incompleteEnrollments.length}`);
+    for (const p of incompleteEnrollments) {
+      console.log(`  ${p.id}  ${p.name}  (use 'principal remove' to discard explicitly)`);
+    }
+    console.log(`\nNo active credentials: ${noActiveCredentials.length}`);
+    for (const p of noActiveCredentials) {
+      console.log(`  ${p.id}  ${p.name}`);
+    }
+    console.log(`\nDangling bindings: ${danglingBindings.length}`);
+    for (const d of danglingBindings) {
+      console.log(`  ${d.tokenId} → ${d.principalId} (${d.reason})`);
+    }
+    console.log("\nReconcile reports only; nothing was deleted.");
   }
 }

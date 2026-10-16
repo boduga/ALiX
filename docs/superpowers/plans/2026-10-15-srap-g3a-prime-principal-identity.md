@@ -1,7 +1,8 @@
 # SRAP-1 G3-A′ — principal identity implementation plan
 
-Status: **PROPOSED (rev 3) — for final approval before coding.** Ships as its own
-PR(s). G3-C blocked until this is implemented and reviewed.
+Status: **SHIPPED (as-built record).** Implemented per rev 3; see
+`src/governance/security/inspector/AGENTS.md`. G3-C (remote decision route)
+remains blocked.
 
 **Spec:** `../specs/2026-10-15-srap-g3a-prime-principal-identity-design.md`
 

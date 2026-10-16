@@ -20,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import { writeFileSync, renameSync, unlinkSync, lstatSync, mkdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
+import { StoreLocks, withStoreLocksResult } from "./store-lock.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,6 +56,14 @@ export interface StoredToken {
   role: string;
   /** Optional workspace IDs this token is scoped to. */
   workspaceIds?: string[];
+  /**
+   * Operator principal this credential is bound to (G3-A′). Absent = a
+   * genuinely unbound legacy credential: valid for ordinary Inspector access but
+   * invalid for any principal-required capability. This is the SINGLE authority
+   * for the credential→principal binding. Preserved across revocation for
+   * historical attribution.
+   */
+  principalId?: string;
   /** ISO 8601 timestamp when the token was created. */
   createdAt: string;
   /** ISO 8601 timestamp when the token expires (optional). */
@@ -63,6 +72,8 @@ export interface StoredToken {
   rotatedFrom?: string;
   /** Revocation record if this token has been revoked. */
   revocation?: TokenRevocation;
+  /** Monotonic revision for compare-and-set writes (G3-A′). */
+  revision?: number;
   /** Schema version at the time this record was created. */
   schemaVersion: number;
 }
@@ -144,7 +155,7 @@ export class AuthStore {
         return { ok: false, error: "invalid_store_format" };
       }
 
-      return { ok: true, value: data.tokens };
+      return { ok: true, value: data.tokens.map(normalizeToken) };
     } catch (err) {
       if (err instanceof SyntaxError) {
         return { ok: false, error: "corrupt_store_file" };
@@ -167,40 +178,49 @@ export class AuthStore {
   /**
    * Add a new token to the store.
    *
-   * Fails if the token count is at the maximum bound.
+   * Fails if the token count is at the maximum bound. Serialized under the
+   * token store's cross-process lock; `addUnder` is for callers already holding
+   * it (enrollment/migration).
    */
   async add(token: StoredToken): Promise<StoreResult<void>> {
-    const result = await this.load();
-    if (!result.ok) return result;
+    return withStoreLocksResult(this.getStoreDir(), ["auth-store"], (l) => this.addUnder(l, token));
+  }
 
-    // Check duplicate ID
-    if (result.value.some((t) => t.id === token.id)) {
-      return { ok: false, error: "duplicate_token_id" };
-    }
-
-    // Check count bound
-    if (result.value.length >= this.maxTokens) {
-      return { ok: false, error: "token_count_exceeded" };
-    }
-
-    result.value.push(token);
-    return this.writeAll(result.value);
+  /** Add a token while the caller holds the `auth-store` lock. */
+  async addUnder(locks: StoreLocks, token: StoredToken): Promise<StoreResult<void>> {
+    locks.assertHolds("auth-store");
+    return this.mutate((tokens) => {
+      if (tokens.some((t) => t.id === token.id)) return { error: "duplicate_token_id" };
+      if (tokens.length >= this.maxTokens) return { error: "token_count_exceeded" };
+      tokens.push({ ...token, revision: token.revision ?? 1 });
+      return { result: undefined };
+    });
   }
 
   /**
    * Replace an existing token record (e.g., for revocation or rotation).
+   * Re-reads under the lock and bumps `revision` (CAS). `principalId` is
+   * preserved unless explicitly changed — revocation must not delete the binding.
    */
   async update(id: string, updates: Partial<StoredToken>): Promise<StoreResult<void>> {
-    const result = await this.load();
-    if (!result.ok) return result;
+    return withStoreLocksResult(this.getStoreDir(), ["auth-store"], (l) => this.updateUnder(l, id, updates));
+  }
 
-    const idx = result.value.findIndex((t) => t.id === id);
-    if (idx === -1) {
-      return { ok: false, error: "token_not_found" };
-    }
-
-    result.value[idx] = { ...result.value[idx], ...updates, id }; // id is immutable
-    return this.writeAll(result.value);
+  /** Update a token while the caller holds the `auth-store` lock. */
+  async updateUnder(locks: StoreLocks, id: string, updates: Partial<StoredToken>): Promise<StoreResult<void>> {
+    locks.assertHolds("auth-store");
+    return this.mutate((tokens) => {
+      const idx = tokens.findIndex((t) => t.id === id);
+      if (idx === -1) return { error: "token_not_found" };
+      const current = tokens[idx];
+      tokens[idx] = {
+        ...current,
+        ...updates,
+        id,
+        revision: (current.revision ?? 1) + 1,
+      };
+      return { result: undefined };
+    });
   }
 
   /**
@@ -209,24 +229,28 @@ export class AuthStore {
    * Returns the number of tokens removed.
    */
   async cleanup(): Promise<StoreResult<number>> {
-    const result = await this.load();
-    if (!result.ok) return result;
+    return withStoreLocksResult(this.getStoreDir(), ["auth-store"], (l) => this.cleanupUnder(l));
+  }
+
+  /** Cleanup while the caller holds the `auth-store` lock. */
+  async cleanupUnder(locks: StoreLocks): Promise<StoreResult<number>> {
+    locks.assertHolds("auth-store");
+    const loaded = await this.load();
+    if (!loaded.ok) return loaded;
 
     const now = new Date().toISOString();
-    const before = result.value.length;
-    const kept = result.value.filter((t) => {
+    const kept = loaded.value.filter((t) => {
       // Keep if not expired and not revoked
       if (t.revocation) return false;
       if (t.expiresAt && t.expiresAt < now) return false;
       return true;
     });
 
-    const removed = before - kept.length;
-    if (removed > 0) {
-      const writeResult = await this.writeAll(kept);
-      if (!writeResult.ok) return writeResult;
-    }
+    const removed = loaded.value.length - kept.length;
+    if (removed === 0) return { ok: true, value: 0 };
 
+    const writeResult = await this.writeAll(kept);
+    if (!writeResult.ok) return writeResult;
     return { ok: true, value: removed };
   }
 
@@ -246,6 +270,11 @@ export class AuthStore {
     return this.maxTokens;
   }
 
+  /** Directory holding the store file (also the lock-file directory). */
+  getStoreDir(): string {
+    return dirname(this.filePath);
+  }
+
   /**
    * Check if the store file exists.
    */
@@ -261,6 +290,22 @@ export class AuthStore {
   // -----------------------------------------------------------------------
   // Private helpers
   // -----------------------------------------------------------------------
+
+  /**
+   * Read-modify-write the store file under an already-held lock. Re-reads the
+   * authoritative state (never mutates a pre-lock snapshot) and applies `fn`.
+   */
+  private async mutate<R>(
+    fn: (tokens: StoredToken[]) => { result: R } | { error: string },
+  ): Promise<StoreResult<R>> {
+    const loaded = await this.load();
+    if (!loaded.ok) return loaded;
+    const tokens = loaded.value;
+    const outcome = fn(tokens);
+    if ("error" in outcome) return { ok: false, error: outcome.error };
+    const writeResult = await this.writeAll(tokens);
+    return writeResult.ok ? { ok: true, value: outcome.result } : writeResult;
+  }
 
   /**
    * Atomically write all tokens to the store file.
@@ -332,6 +377,11 @@ export class AuthStore {
 // Factory helpers
 // ---------------------------------------------------------------------------
 
+/** Default the revision for legacy records written before G3-A′. */
+function normalizeToken(token: StoredToken): StoredToken {
+  return { ...token, revision: typeof token.revision === "number" ? token.revision : 1 };
+}
+
 /**
  * Create a new token record (does NOT persist — use store.add()).
  */
@@ -343,6 +393,7 @@ export function createTokenRecord(opts: {
   workspaceIds?: string[];
   expiresAt?: string;
   rotatedFrom?: string;
+  principalId?: string;
 }): StoredToken {
   return {
     id: opts.id,
@@ -350,9 +401,11 @@ export function createTokenRecord(opts: {
     name: opts.name,
     role: opts.role,
     workspaceIds: opts.workspaceIds,
+    principalId: opts.principalId,
     createdAt: new Date().toISOString(),
     expiresAt: opts.expiresAt,
     rotatedFrom: opts.rotatedFrom,
+    revision: 1,
     schemaVersion: AUTH_STORE_SCHEMA_VERSION,
   };
 }

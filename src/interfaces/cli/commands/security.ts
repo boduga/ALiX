@@ -19,6 +19,9 @@ export {
   handleInspectorAuthRotate,
   handleInspectorAuthRevoke,
   handleInspectorAuthDoctor,
+  handleInspectorAuthMigrate,
+  handleInspectorAuthPrincipal,
+  handleInspectorAuthReconcile,
 } from "./security/inspector-auth.js";
 
 export {

@@ -32,23 +32,24 @@
   carries the preserved scope into `token.rotated`. Paths are host-local
   identities; enrollment on another host requires that host's canonical paths.
 - Audit writes remain fail-closed; follow `src/governance/audit/AGENTS.md`.
-- **Forward contract — operator-principal CLI (SRAP-1 G3-A′; not yet
-  implemented).** `alix inspector auth` will gain `migrate [--principal <id>]`,
-  `principal {disable|enable|remove}`, and `reconcile`. Every enrollment,
-  rotation, revocation, migration, and status change is **write-ahead audited**
-  (audit intent first; failure persists nothing and is never reported as a
-  successful mutation) and runs its read-modify-write under the shared
-  cross-process lock (`principal` lock before `auth-store` lock; authoritative
-  state is re-read after acquiring the lock; a held or stale lock fails closed
-  with no write). `migrate` holds both locks for the batch and binds only unbound,
-  non-revoked, non-expired tokens, re-checking an adopted `--principal`'s active
-  status under the lock at commit time; it is idempotent under concurrent
-  migration, never resurrects a revoked credential, and never overwrites an
-  existing binding. **Revocation preserves `principalId`** for historical
-  attribution. `reconcile` reports incomplete enrollments (a principal with zero
-  bound credentials), principals with no active credentials, and dangling
-  bindings; it never silently deletes evidence (removal is explicit via
-  `principal remove`).
+- **Operator-principal CLI (SRAP-1 G3-A′).** `alix inspector auth` gains
+  `migrate [--principal <id>]`, `principal {disable|enable|remove}`, and
+  `reconcile`; `create` accepts `--principal <id>` to adopt an existing
+  principal. Every enrollment, rotation, revocation, migration, and status change
+  is **write-ahead audited** (audit intent first; failure persists nothing and is
+  never reported as a successful mutation) and runs its read-modify-write under
+  the shared cross-process lock (`principal` lock before `auth-store` lock;
+  authoritative state is re-read after acquiring the lock; a held or stale lock
+  fails closed with no write). `migrate` holds both locks for the batch and binds
+  only unbound, non-revoked, non-expired tokens, re-checking an adopted
+  `--principal`'s active status under the lock at commit time; it is idempotent
+  under concurrent migration, never resurrects a revoked credential, and never
+  overwrites an existing binding. **Revocation preserves `principalId`** for
+  historical attribution. `reconcile` reports incomplete enrollments (a principal
+  with zero bound credentials), principals with no active credentials, and
+  dangling bindings; it never silently deletes evidence (removal is explicit via
+  `principal remove`, which refuses while credentials remain bound). Owner:
+  `src/governance/security/inspector/AGENTS.md`.
 - `alix audit verify --all` verifies both chains in one command: the runtime v2
   chain (`AuditStore.verifyIntegrity`) and the governance per-record chain
   (`governance/audit-chain.ts` `verifyChain`). JSON mode returns

@@ -66,23 +66,22 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
 - Inspector auth mutations are fail-closed on audit: token create/rotate/revoke
   return `audit_write_failed` and persist nothing when the audit append fails;
   the server counts such failures and alerts on stderr.
-- **Forward contract — operator principals (SRAP-1 G3-A′; not yet implemented).**
-  Authentication will revalidate the credential's current operator principal on
-  every request and apply this matrix: an **unbound legacy** credential keeps
-  ordinary role/workspace access (and may never stand in for an operator
-  principal); a **bound** credential whose principal is **active** behaves
-  normally with `SecurityContext.principalId` set; a bound credential whose
-  principal is **disabled, missing, or unreadable**, and any **revoked**
-  credential, are denied **all** authentication — ordinary routes and cookies
-  alike. This is the critical distinction between *no binding* and *a binding
-  that cannot be verified*: a bound credential never falls back to ordinary
-  access. Revocation removes authentication eligibility but **preserves
+- **Operator principals (SRAP-1 G3-A′).** Authentication revalidates the
+  credential's current operator principal on every request and applies this
+  matrix: an **unbound legacy** credential keeps ordinary role/workspace access
+  (and may never stand in for an operator principal); a **bound** credential
+  whose principal is **active** behaves normally with `SecurityContext.principalId`
+  set; a bound credential whose principal is **disabled, missing, or unreadable**,
+  and any **revoked** credential, are denied **all** authentication — ordinary
+  routes and cookies alike. This is the critical distinction between *no binding*
+  and *a binding that cannot be verified*: a bound credential never falls back to
+  ordinary access. Revocation removes authentication eligibility but **preserves
   `principalId`** for historical attribution. Principal and credential
-  read-modify-writes will be serialized by a shared cross-process lock
+  read-modify-writes are serialized by a shared cross-process lock
   (`principal` before `token`, re-reading authoritative state **after** acquiring
-  the lock); a held or stale lock fails the mutation closed with no write, and
-  auth mutations stay write-ahead audited (a failed audit write is never reported
-  as a successful mutation). Remote decisions remain blocked until this lands.
+  the lock, revision CAS); a held or stale lock fails the mutation closed with no
+  write, and auth mutations stay write-ahead audited (a failed audit write is
+  never reported as a successful mutation). Owner: `src/governance/security/inspector/AGENTS.md`.
 - SSE streams require authentication in required mode and serve session events
   with `Last-Event-ID` resume support.
 - `VISIBLE_EVENTS` filter controls which event types stream to the browser; it delivers the canonical vocabulary (including `agent.*` lifecycle and `approval.*`) so the Inspector sees the same reality as the TUI (R4/V10).

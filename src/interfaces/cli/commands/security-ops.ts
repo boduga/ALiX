@@ -321,6 +321,9 @@ export async function handleInspectorAuth(args: string[]): Promise<void> {
     handleInspectorAuthRotate,
     handleInspectorAuthRevoke,
     handleInspectorAuthDoctor,
+    handleInspectorAuthMigrate,
+    handleInspectorAuthPrincipal,
+    handleInspectorAuthReconcile,
   } = await import("./security.js");
 
   if (sub === "create") {
@@ -333,13 +336,22 @@ export async function handleInspectorAuth(args: string[]): Promise<void> {
     await handleInspectorAuthRevoke(subArgs);
   } else if (sub === "doctor") {
     await handleInspectorAuthDoctor(subArgs);
+  } else if (sub === "migrate") {
+    await handleInspectorAuthMigrate(subArgs);
+  } else if (sub === "principal") {
+    await handleInspectorAuthPrincipal(subArgs);
+  } else if (sub === "reconcile") {
+    await handleInspectorAuthReconcile(subArgs);
   } else {
-    console.error("Usage: alix inspector auth {create|list|rotate|revoke|doctor}");
-    console.error("  create --name <name> --role <role> [--json]");
+    console.error("Usage: alix inspector auth {create|list|rotate|revoke|doctor|migrate|principal|reconcile}");
+    console.error("  create --name <name> --role <role> [--principal <id>] [--json]");
     console.error("  list [--json]");
     console.error("  rotate <token-id> --grace <duration> [--json]");
     console.error("  revoke <token-id> [--yes] [--json]");
     console.error("  doctor [--json]");
+    console.error("  migrate [--principal <id>] [--json]");
+    console.error("  principal {disable|enable|remove} <principal-id> [--reason <text>] [--yes] [--json]");
+    console.error("  reconcile [--json]");
     process.exit(1);
   }
   process.exit(0);
