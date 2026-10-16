@@ -1,0 +1,139 @@
+# SRAP-1 G3 — remote approval decision endpoint (implementation plan)
+
+Status: **PROPOSED — G3 is closed. This plan authorizes nothing.** No code may
+start until the operator explicitly opens G3. It exists so that, when G3 opens,
+implementation begins from verified surfaces instead of re-investigation.
+
+**Owning contracts (normative; this plan implements them, never overrides):**
+- `src/governance/approvals/AGENTS.md` — eligibility predicate + parity requirement
+- `src/interfaces/server/AGENTS.md` — canonical workspace identity, the sole
+  browser write exception
+- `src/governance/audit/AGENTS.md` — projection crash-consistency + mechanics
+- `src/governance/security/credentials/AGENTS.md` — `srap-evidence` HMAC lifecycle
+- `docs/architecture/adrs/ADR-0015-*.md` — one-ledger decision evidence
+- `docs/2026-10-15-srap-p5-g2c-rereview.md` §7 caveat 3 — the forward items
+
+## Goal
+
+Add exactly one default-off, non-executing browser route — `POST
+/api/approvals/:id/decision` — that resolves a pending approval through the
+existing `ApprovalStore`, carrying authenticated remote-decision evidence into
+the authoritative `approval.updated` ledger event. No new approval authority,
+ledger, scheduler, state machine, or execution path.
+
+## Verified current surfaces (checked at `faac184d`)
+
+| Surface | State |
+| --- | --- |
+| `ApprovalStore.resolve(id, status, reason)` (`approval-store.ts:623`) | ledger-authoritative; resolves only a `pending` record; emits `approval.resolved`. **No evidence param today** — must be extended. |
+| `ApprovalStore.mutate()` (`:269/:286`) | appends the classified diff to `runtime-ledger.db` inside the lock; append failure throws. |
+| `routeRegistry` (`route-policy.ts:194`) | a module-level `RoutePolicyRegistry`; descriptors registered top-to-bottom. |
+| server route dispatch (`server.ts:475`) | `if (url.pathname === "/api/approvals")` — approval reads exist; **no decision POST**. |
+| `approvals:decide` permission | **does not exist**; `derivePermissions` grants only `approvals:read` today. |
+| `SecurityContext.workspaceIds` | present (P3); `verifyTokenForRequest` wired. |
+| HMAC `srap-evidence` keys | **no code** — contract only. |
+| audit projection (`decisionId` dedup + checkpoint) | **no code** — contract only; `runtime_outbox` exists but has no production consumer. |
+| trusted-proxy CIDRs / client-address | `client-address.ts`, `remote-access-policy.ts` exist. |
+
+## Workstreams
+
+Three separable pieces. Each is independently reviewable; the route composes them.
+
+### A. HMAC `srap-evidence` lifecycle (`src/governance/security/credentials/`)
+
+- New module: generate/activate/rotate/retire versioned keys in the CredentialStore
+  namespace `srap-evidence`, label `hmac-key:v<N>` (32 random bytes).
+- `credentialRef = hmac-sha256:v<N>:<base64url(HMAC(key_vN, credentialRecordId))>`.
+- Sign only with the active version; keep old versions resolvable through the
+  approval-retention window; retire only after it.
+- **Fail-closed:** active key unavailable → no decision committed.
+  Retired-version ref → reported unverifiable, never accepted, never a reversal.
+- No second secret authority; HMAC computed in the owning subsystem, not the store.
+- Tests: generation/rotation overlap/retirement/fail-closed/unverifiable-old-ref.
+  (Currently listed as "G3 work, not implemented" in the credentials contract.)
+
+### B. Audit-owned idempotent projection (`src/governance/audit/`)
+
+- Read committed `approval.updated` remote evidence; project one-way into the
+  audit chain, keyed idempotently by `decisionId`.
+- Dedup index + projection cursor (last projected `ledger_seq`), written
+  atomically together; re-scan overlaps by a bounded window.
+- Crash consistency: the cursor MUST NOT advance past evidence provably present
+  in the **verified** chain (P1's `reconcileHead` makes the chain a sound anchor);
+  missing/duplicate `decisionId` re-derived by `verifyIntegrity()` + bounded scan.
+- Inline: one attempt after the authoritative commit (failure never changes the
+  approval outcome). Repair: bounded startup trigger + operator command; retry on
+  next trigger; no new scheduler.
+- Counters: `projected` / `skipped_duplicate` / `projection_failed`; lag =
+  ledger high-water `ledger_seq` − cursor; alert on lag growth / duplicate /
+  chain-verify failure.
+- **Never** mark the generic `runtime_outbox.delivered_at` as projection state.
+- Tests: idempotent re-run, crash-before-checkpoint overlap, duplicate drop,
+  corrupt-chain refuse, lag counter.
+
+### C. The route + evidence plumbing
+
+1. **Permission.** Add `approvals:decide` and grant it to `admin` + `operator`
+   only (not `readonly`) in `derivePermissions` (`security-middleware.ts:474`).
+   Contract + `tests/server/derive-permissions.test.ts` parity.
+2. **Route descriptor.** Register `POST /api/approvals/:id/decision`, `auth:
+   "authenticated"`, `permission: "approvals:decide"`, `routeClass: "data"`.
+   `tests/server/route-coverage.test.ts` enforces registration.
+3. **Eligibility predicate** (verbatim from the contract):
+   `authenticated ∧ token.permissions ∋ approvals:decide ∧ principal active ∧
+   canonicalWorkspace(server) ∈ token.workspaceIds (explicit, nonempty) ∧
+   approval.status == "pending" ∧ approval.expiresAt > now`. Scope read from
+   `SecurityContext.workspaceIds`; a request never sets it.
+4. **Evidence + resolve.** Build `remoteDecisionEvidence {decisionId, principalId,
+   credentialRef, decision, nonce, decidedAt, transport}`; extend
+   `ApprovalStore.resolve` (or a sibling `resolveWithEvidence`) to write it into
+   the same ledger commit as the transition. Raw bearer tokens/cookies/credential
+   IDs are forbidden in evidence.
+5. **Idempotency.** Exact retry (same principal/nonce/decision/content) re-runs
+   auth + scope + eligibility, then returns `200`; conflicting retry → `409`
+   with no state disclosure. Authorize **before** any state disclosure.
+6. **Ordering.** Attempt the audit projection inline after commit; a projection
+   failure never changes the outcome. Acknowledge success only after the
+   authoritative append returns.
+7. **Trust transport.** Trust forwarded TLS/client address only from configured
+   immediate-peer proxy CIDRs; parse one unambiguous HTTPS scheme + validated
+   address chain; fail closed. Direct TLS remains valid.
+8. **Default-off.** The route is registered but disabled unless an explicit
+   config flag enables it.
+
+## The parity table (non-negotiable; blocks the PR)
+
+Ship `tests/approvals/remote-decision-parity.test.ts` broader than the handler —
+**role × workspace scope × approval state × exact-retry identity** — with, at
+minimum: allow (active operator/admin with scope); deny anonymous, `readonly`,
+missing `approvals:decide`, revoked/disabled principal, cross-workspace,
+missing/empty scope, cross-record, expired/decided, conflicting retry,
+loopback-dev without token, cookie session. Model on
+`tests/ownership/path-scope.test.ts`. The contract states this is a requirement,
+not an implemented claim.
+
+## Sequencing and gates
+
+1. A (HMAC lifecycle) — standalone, testable, no route.
+2. B (audit projection) — standalone, testable, no route.
+3. C (route) — composes A + B; not mergeable without the parity table.
+4. Independent review of the composed route before merge (same discipline as P5).
+
+Each step: impact-analyze before edits; `detect-changes` before commit; clean
+build + focused tests; owning-contract updates in the same change.
+
+## Explicitly out of scope
+
+- Any execution route or execution authority.
+- Group commit / latency work (ADR-0016 keeps it separate).
+- Power-loss durability testing (P5 §7 caveat 2; hardware).
+- Widening any other browser write surface.
+- A per-approval principal grant or per-agent/per-run operator ownership.
+
+## Open questions for the operator (resolve before G3 opens)
+
+1. Config flag name + default for enabling the route.
+2. Approval-retention window (bounds HMAC-key retirement).
+3. Whether exact-retry identity includes request body bytes or only
+   `{principalId, nonce, decision}`.
+4. Startup repair trigger timing (server boot vs first request).
