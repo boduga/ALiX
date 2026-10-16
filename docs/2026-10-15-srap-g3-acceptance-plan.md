@@ -20,7 +20,8 @@ renumbered; a future collision is disambiguated, not renumbered.
 **Rev 2 closes the five review findings** (F-4 linearization boundary, E-2
 deterministic failure fixture, G-4/H-1 exact run lifecycle, E-3 field placement,
 F-1 concurrency parameters) and **resolves the four environment questions** with
-the operator's chosen configuration.
+the operator's chosen configuration. A dated **amendment** (below) clarifies F-4's
+authorization-read vs commit-order distinction; it is an amendment, not a rewrite.
 
 ## Why this gate exists — CI is not acceptance evidence
 
@@ -85,10 +86,23 @@ Precisely:
   `disabled`/missing/unreadable.
 - Disablement is **authoritative** once its principal write completes.
 
+**Authorization-read ordering ≠ commit ordering.** A decision whose authorization
+read observed `active` may legitimately **commit after** a concurrent
+disablement — the route authorizes at the read and the authoritative append
+happens later. Acceptance enforces the *read* contract, never the commit order,
+and must **not** reject a commit that was authorized while the principal was
+active.
+
 Acceptance must demonstrate the two sequential orders deterministically, and show
 a concurrent run always resolves to one of them — **never** a commit whose
-decision evidence is attributed to a principal disabled before that request's
-authorization read.
+authorization read observed a principal disabled **before** that read.
+
+### Sequential orders (deterministic)
+
+| Order | Construction | Expected |
+| --- | --- | --- |
+| Order 1 | Disable **completes**, then dispatch the decision | Denied; no commit; no key read |
+| Order 2 | Decision **commits**, then disable | Commit retained (terminal); a later request denied |
 
 ## Acceptance matrix
 
@@ -162,7 +176,7 @@ partial commit.
 | F-1 | N=8 identical decisions, one barrier | A-1 setup | **exactly one** `approval.updated` transition; **all** 8 → **200** (the winner plus 7 idempotent `{idempotent:true}`); **no** 409; **no** request times out; key-read records = the number of requests that actually performed a key read (1 ≤ k ≤ N, each a pre-commit retry that committed nothing) | HTTP responses ×8 + ledger count + `credential.key_read` count | pass iff exactly one transition, eight 200s, zero 409s/timeouts, and no additional committed evidence |
 | F-2 | Cross-principal conflict | principal A decides; principal B replays the same `nonce`+`decision` | B → **409**; A's decision intact | HTTP response + ledger record | pass iff 409 and the committed evidence is A's |
 | F-3 | Racing decisions | two **different** decisions race the same approval | exactly one wins (**200**); the loser → **409** and commits **no** evidence of its own | HTTP responses + ledger evidence retry identity | pass iff one transition and the committed evidence matches the winner |
-| F-4 | Disablement vs decision | run the two sequential orders, then T = 20 barrier-raced trials of {disable, decision} | Order 1 (disable first) → denied, no commit, no key read. Order 2 (decision first) → commit retained; a subsequent request denied. Every raced trial resolves to exactly one order | HTTP responses + `principal.disabled` record + decision `decidedAt` + harness-recorded disable-completion time | pass iff no commit's `decidedAt` is later than the disable-completion time of its trial, and a post-commit re-read shows the principal still `active` **or** `disabled` with `disabledAt ≥ decidedAt` (see Linearization boundary) |
+| F-4 | Disablement vs decision | run the two sequential orders, then T = 20 barrier-raced trials of {disable, decision} | Order 1 → denied, no commit, no key read. Order 2 → commit retained; a later request denied. Every raced trial resolves to exactly one order: denied, **or** committed from an authorization read that observed `active` (a commit after the disable write is **valid**) | HTTP responses + `principal.disabled` record + harness-recorded **request-dispatch** and **disable-completion** times + a post-commit principal re-read | pass iff, per trial: (i) a request dispatched **after** the disable completed is **denied** (a commit there is a FAIL); (ii) a request dispatched **before** the disable completed may deny **or** commit — both valid; (iii) no commit is attributed to a principal whose `disabledAt` precedes that request's dispatch; (iv) the post-commit re-read shows `active`, or `disabled` with `disabledAt` ≥ the request's dispatch time. Commit order is **not** a criterion (see Linearization boundary) |
 
 ### 7. Restart recovery
 
@@ -214,3 +228,26 @@ after the fix is merged.
 - Running acceptance (this document authorizes nothing until approved).
 - Any change to G3 runtime behaviour, approval authority, ledger, or execution.
 - New approval/audit mechanisms; the key-read audit reuses the existing chain.
+
+## Amendment — 2026-10-15 (F-4 authorization-read vs commit ordering)
+
+**What changed.** The Linearization boundary section and the F-4 pass/fail
+criterion. The previous F-4 text required a commit's `decidedAt` to precede the
+disable-completion time, which would have **rejected a valid outcome**.
+
+**New value.** A decision whose authorization read observed `active` may
+legitimately **commit after** a concurrent disablement — the route authorizes at
+the per-request read and the authoritative append happens later. F-4 now
+distinguishes:
+
+- **authorization-read ordering** — the contract acceptance enforces; and
+- **commit ordering** — *not* a criterion.
+
+**Rationale.** Decisions are terminal; a disablement gates future requests only.
+Conflating commit order with read order would fail on a race that is genuinely
+correct, producing a false negative and inviting a "fix" to working code. The
+criterion now keys on the request-dispatch / disable-completion times the harness
+records, plus a post-commit principal re-read.
+
+**Unchanged.** Everything else in rev 2 — the other four findings, the
+environment decisions, and the execution boundaries.
