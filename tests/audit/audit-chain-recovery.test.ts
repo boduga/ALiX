@@ -442,7 +442,16 @@ describe("audit-chain recovery telemetry (out-of-band, no chained record)", () =
     mkdirSync(paths.logPath);
 
     const w = writer();
-    await assert.rejects(() => w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() }));
+    // The original error must propagate unchanged (fail loud), not be swallowed
+    // or replaced by the telemetry path.
+    await assert.rejects(
+      () => w.append({ action: "policy.allowed", details: {}, timestamp: Date.now() }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error, "original error must propagate");
+        assert.equal((err as NodeJS.ErrnoException).code, "EISDIR", "the original EISDIR must survive");
+        return true;
+      },
+    );
 
     const recovery = events.filter((e): e is AuditRecoveryFailureEvent => e.action === "audit.recovery");
     assert.equal(recovery.length, 1, "reconciliation defects must not go silent");
