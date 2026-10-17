@@ -159,10 +159,10 @@
   process is observed without a daemon restart; the watcher stays a
   notification-only accelerator, never the correctness path.
 - **Approval-required requires a durable approval id (SRAP PR B).** `authorizeWorker`
-  fails closed (`denied`) when a capability returns `approval_required` without a
-  durable `approvalId`; it never fabricates `"unknown"`, which would surface a
-  non-existent approval as a legitimate pending block the scheduler reconciles
-  forever. The CLI hosts coordination on the same durable authority as the daemon
+  fails closed (`denied`) when a capability returns `approval_required` with no
+  durable `approvalId` OR with the `ExecutionAuthorization` legacy sentinel
+  `"unknown"`; either surface would present a non-existent approval as a legitimate
+  pending block the scheduler reconciles forever. The CLI hosts coordination on the same durable authority as the daemon
   (`buildCoordinationPolicyGate` in `src/interfaces/cli/commands/coordination.ts`);
   host parity is a decision+binding equality, not identical scheduling.
 - `alix_coordination_run` threads operator abort into cancellation and awaits

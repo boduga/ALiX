@@ -114,11 +114,13 @@ export async function authorizeWorker(options: AuthorizeWorkerOptions): Promise<
 
   if (hasApproval) {
     // Fail closed: an approval-required verdict MUST carry the durable approval
-    // id the authority actually created (SRAP PR B). Fabricating "unknown" would
-    // surface a non-existent approval as a legitimate pending block that the
-    // scheduler reconciles forever. The gate only returns `ask` with a real
-    // persisted id; a missing id means no durable approval exists.
-    if (!approvalId) {
+    // id the authority actually created (SRAP PR B). A missing id — OR the
+    // boundary's legacy `"unknown"` sentinel (ExecutionAuthorization coerces an
+    // id-less `ask` to `"unknown"` for the graph reuse path) — is NOT a
+    // legitimate pending approval and must never become a blocked coordination
+    // worker. The gate returns `ask` only with a real persisted id, so either
+    // shape means no durable approval exists.
+    if (!approvalId || approvalId === "unknown") {
       return {
         status: "denied",
         evidence,

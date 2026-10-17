@@ -34,13 +34,15 @@
 
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildCoordinationPolicyGate } from "../../../src/interfaces/cli/commands/coordination.js";
 import { PolicyGate } from "../../../src/governance/policy/policy-gate.js";
 import { ExecutionAuthorization } from "../../../src/runtime-state/runtime/execution-authorization.js";
 import { ApprovalStore } from "../../../src/governance/approvals/approval-store.js";
+import { closeSharedLedger } from "../../../src/runtime-state/storage/runtime-ledger.js";
+import { removeTempDirSync } from "../../helpers/temp.js";
 import { CoordinationStore } from "../../../src/coordination/kernel/coordination-store.js";
 import { createCoordinationScheduler } from "../../../src/coordination/kernel/coordination-scheduler.js";
 import { OwnershipRegistry } from "../../../src/coordination/ownership/ownership-registry.js";
@@ -196,12 +198,20 @@ describe("SRAP PR B CLI coordination approval-store wiring", () => {
   let h: Harness;
 
   afterEach(async () => {
+    // Close each workspace's shared ledger BEFORE removing it: on Windows an
+    // open SQLite connection makes the unlink fail with EBUSY (see
+    // runtime-ledger.ts and tests/helpers/temp.ts).
     while (activeHarnesses.length) {
       const a = activeHarnesses.pop()!;
       await a.scheduler.shutdown();
-      rmSync(a.cwd, { recursive: true, force: true });
+      closeSharedLedger(a.cwd);
+      removeTempDirSync(a.cwd);
     }
-    while (tmpDirs.length) rmSync(tmpDirs.pop()!, { recursive: true, force: true });
+    while (tmpDirs.length) {
+      const d = tmpDirs.pop()!;
+      closeSharedLedger(d);
+      removeTempDirSync(d);
+    }
   });
 
   // ── 1. Allowed capability ───────────────────────────────────────────
@@ -250,12 +260,13 @@ describe("SRAP PR B CLI coordination approval-store wiring", () => {
   // ── 3. Missing store fails closed ───────────────────────────────────
 
   it("CLI: a missing approval store fails closed — never approvalId 'unknown'", async () => {
-    // This is exactly what the CLI wiring yields when loadApprovalStore returns
-    // undefined (the store is unreadable): PolicyGate with no approvalStore.
+    // Force the helper's REAL failure path: make `.alix` a FILE so the
+    // project ledger cannot be opened; `loadApprovalStore` returns undefined
+    // and `buildCoordinationPolicyGate` must yield a store-less gate.
     const cwd = mkdtempSync(join(tmpdir(), "coord-cli-nostore-"));
     tmpDirs.push(cwd);
-    const config = minimalConfig();
-    const gate = new PolicyGate(config, { eventLog: undefined });
+    writeFileSync(join(cwd, ".alix"), "not a directory");
+    const gate = await buildCoordinationPolicyGate(cwd, minimalConfig());
 
     const decision = await gate.evaluateCapability({
       requestId: "r-nostore",
@@ -269,9 +280,9 @@ describe("SRAP PR B CLI coordination approval-store wiring", () => {
     } as never);
     assert.equal(decision.decision, "deny", "a store-less ask must fail closed");
     assert.equal(decision.matchedRuleId, "approval-store-missing");
-    assert.equal((decision as any).approvalId, undefined, "no fabricated approval id on denial");
 
-    // And the aggregation boundary must not fabricate a pending approval either.
+    // Full chain: real ExecutionAuthorization → real authorizeWorker must deny
+    // and must never surface a pending "unknown".
     const auth = new ExecutionAuthorization({ policyGate: gate });
     const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
     const worker = createWorkerAssignment({

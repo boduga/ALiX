@@ -78,6 +78,28 @@ describe("authorizeWorker", () => {
     assert.match((result as any).reason, /missing approval id/i);
   });
 
+  it("denies a REAL approval_required verdict whose only id is the 'unknown' sentinel", async () => {
+    const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
+    const { ExecutionAuthorization } = await import("../../src/runtime-state/runtime/execution-authorization.js");
+    const worker = createWorkerAssignment({
+      coordinationRunId: run.id, agentId: "w1", taskLabel: "T", goalPrompt: "do it",
+      requiredCapabilities: ["file.delete"],
+      attempt: 0,
+    });
+    // Drive the REAL boundary: a PolicyGate that returns an id-less `ask`.
+    // ExecutionAuthorization coerces the missing id to its legacy graph
+    // sentinel "unknown"; the coordination aggregation must reject that too
+    // (SRAP PR B requirement 3), not surface it as a pending approval.
+    const gate = new PolicyGate({} as never, {});
+    (gate as unknown as { evaluateCapability: unknown }).evaluateCapability = async () => ({
+      requestId: "r-real", capability: "file.delete", decision: "ask", reason: "needs ok", matchedRuleId: "test-ask",
+    });
+    const auth = new ExecutionAuthorization({ policyGate: gate } as never);
+    const result = await authorizeWorker({ authorization: auth, worker, run, cwd: "/test", sessionMode: "ask" });
+    assert.equal(result.status, "denied");
+    assert.notEqual((result as any).approvalId, "unknown");
+  });
+
   it("evidence includes every evaluated capability", async () => {
     const worker = createWorkerAssignment({
       coordinationRunId: run.id, agentId: "w1", taskLabel: "T", goalPrompt: "do it",
