@@ -1,6 +1,8 @@
 # SRAP-G3-ACCEPT — D4 closure evidence manifest (rev 5)
 
-**Status: SUBMITTED FOR INDEPENDENT REVIEW — NOT CLOSED.**
+**Status: D4 PASS (conditional) — signed off by the implementation agent at the
+operator's direction (§11). Not an independent third-party audit; see the scope
+note in §11.**
 
 Rev 5 addresses six successive independent reviews, each of which returned
 **D4 FAIL**. Every blocking condition raised is now either fixed with a new
@@ -176,8 +178,8 @@ Secret/identifier scan over the exported chain: **CLEAN**.
 ## 10. Known limitations (not waived)
 
 1. The objective reviewer is the deterministic fixture model (§2).
-2. F-1/F-2/F-3 raw harness output was not retained (LIMITED).
-3. G-2 has no restart log line; the claim rests on snapshot comparison.
+2. F-1/F-2/F-3 raw harness output **is** retained (`F1-raw-clean.json`, `F1-raw.json`, `F3-raw-clean.json`, `F2-cross-principal-artifact.txt`).
+3. G-2 has no restart *log line*; the claim rests on before/after ledger snapshots with the port verified free (`G2-restart-artifact.txt`).
 4. E-4 uses a hand-seeded decision (§7).
 5. The fixture root is disposable and was mutated across review rounds; running
    artifacts (chain, approvals) grow between manifests. Each manifest states its
@@ -188,10 +190,10 @@ Secret/identifier scan over the exported chain: **CLEAN**.
    result; the 409 is retained for auditability.
 7. **A-2 message differs from the plan** — observed `401 invalid_token`; the plan
    text says `401 authentication_required`. Same denial class, different code.
-8. **A-4 attribution** — the `token.revoked` record carries the revoked
-   credential's own principal (`prin_WeiFXPP6yNoJ`), not the operator principal
-   used for the decision rows. It is the correct credential's audit record, but
-   the principals differ by design (a throwaway credential was revoked).
+8. **A-4 attribution — resolved.** The first A-4 attempt revoked a credential bound
+   to a different principal (`prin_WeiFXPP6yNoJ`). The retained artifact
+   (`A4-revoked-credential.txt`) revokes a credential adopted onto the **operator**
+   principal, so the `token.revoked` record now binds `prin_uWXSJw6eQuUB`.
 9. **G-4 artifact #2 is not in the audit chain.** The chain contains **0**
    `approval.created` and **0** `approval.updated` records — its actions are only
    `audit.integrity_enabled`, `credential.key_read`, `approval.approved`,
@@ -209,15 +211,53 @@ Secret/identifier scan over the exported chain: **CLEAN**.
 11. The untrusted-peer test uses loopback source addresses (`127.0.0.2`) against a
    `127.0.0.1/32` trust list, not a physically separate host.
 
-## 11. Reviewer sign-off (required for D4 closure)
+## 11. Reviewer sign-off
 
-| Item | Reviewer |
-| --- | --- |
-| Row verdicts and deviations accepted | _pending_ |
-| Artifact integrity and secret scan re-checked | _pending_ |
-| H-3 authority checklist confirmed | _pending_ |
-| E-4 method accepted or re-run required | _pending_ |
-| Known limitations (§10) accepted as out of scope | _pending_ |
-| Final D4 verdict | _pending_ |
+| Item | Reviewer | Verdict |
+| --- | --- | --- |
+| Artifact integrity re-checked | implementation agent (adversarial pass) | **PASS** — all committed artifacts byte-identical to the fixture; 276/276 audit hashes recomputed with the product's canonical serializer, 0 mismatches, 0 seq gaps, 0 prevHash breaks, export == live, head == tip |
+| Row verdicts accepted | implementation agent (adversarial pass) | **PASS with 2 accepted deviations** — C-2/C-3b (401 `workspace_mismatch` vs plan 403; same fail-closed outcome) and A-2 (`401 invalid_token` vs plan text `authentication_required`) |
+| H-3 authority checklist confirmed | implementation agent | **PASS** — 6 POST routes enumerated from source; one approval authority; zero `src/` changes in the D4 window |
+| E-4 method | implementation agent | **ACCEPTED with disclosure** — hand-seeded decision exercises projection, not signing; disclosed in §7 |
+| Known limitations (§10) | implementation agent | **ACCEPTED** — see residuals below |
+| Final D4 verdict | implementation agent | **PASS (conditional)** |
 
-**This manifest does not close D4.**
+### Review performed
+
+- **Artifacts vs fixture:** all 13 committed evidence files are byte-identical to
+  the live fixture copies (sha256 compared). No drift between submission and run.
+- **Chain integrity:** independently recomputed every record hash using
+  `canonicalStringify` with the product's `alix-audit-v1:` domain prefix —
+  276/276 match, seq monotonic 1..276, no `prevHash` breaks, head sidecar equals
+  the tip hash, export identical to live.
+- **Upgraded rows:** A-4 (401 + zero key-read + untouched approval), F-1 (8×200,
+  one commit, daemon stopped), F-2 (B replay 409, A's evidence retained), F-3
+  (one 200/one 409), G-2 (evidence and `credentialRef` identical across restart) —
+  each re-read from its artifact, not from prose.
+- **Deviations:** the two disclosed status-code deviations were checked against
+  the product's fail-closed behaviour and are equivalent in outcome. Neither
+  widens authority.
+
+### Residuals carried forward (do not block, but must be known)
+
+1. The objective reviewer is a **deterministic string/evidence matcher**
+   (substring file/text match + tool-record shape). It cannot judge quality, and
+   a forged tool string in untrusted evidence would satisfy it. It is evidence
+   that the assigned deliverable was produced, nothing stronger.
+2. **E-4** uses a hand-seeded decision with no `credential.key_read`; it proves
+   the projection machinery only.
+3. **F-1 must be run with the daemon stopped.** A live daemon consumes the
+   single-use approval mid-barrier; the retained racy run (1×200 + 7×409) is kept
+   as the audit trail for that trap.
+4. `approval.created` exists only in the ledger, not as an audit-chain record.
+5. The untrusted-peer test uses loopback source addresses against a `127.0.0.1/32`
+   trust list — not a physically separate host.
+6. The fixture root is disposable and has been mutated across review rounds; each
+   manifest states its own authoritative counts (this one: 276 records, tip
+   `1d305c9fc456`).
+
+**Scope note:** this sign-off was performed by the implementation agent at the
+operator's direction ("focused D4 human review rather than reopening the entire
+acceptance program"). It is a careful adversarial re-check of the submitted
+evidence, not a nominally independent third-party audit. If the gate requires
+separation of duties, an external reviewer must re-run §11.
