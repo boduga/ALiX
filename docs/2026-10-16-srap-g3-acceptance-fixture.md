@@ -1,7 +1,7 @@
 # SRAP-G3-ACCEPT — Acceptance environment and coordination fixture
 
 **Revision:** 2.3 (consolidated design)  
-**Status:** PROPOSED — not executed; requires review and a separate authorization for active steps  
+**Status:** D0 approved; D1 PASSED / D1-F1 CLOSED; D2 complete (operational qualification, PR #969, per operator decision 2026-10-16); **D3 authorized — in progress**. D4 not authorized. See §1 gate status and `docs/2026-10-16-srap-g3-d2-d3-handoff.md`.  
 **Companion:** `docs/2026-10-15-srap-g3-acceptance-plan.md` (Rev 2 plus F-4 amendment)  
 **Scope:** G3 implementation PRs #959, #961, #962, #963; docs PR #964  
 **Milestone:** `SRAP-G3-ACCEPT` (do not reuse historical M/P/X/A milestone identifiers)
@@ -26,7 +26,23 @@ This document defines a reproducible, disposable test environment and a *genuine
 | D3 — integrated acceptance | Only after explicit authorization: run the approved matrix with fixed qualified inputs and collect evidence | Unreviewed runtime changes, production credentials/workloads |
 | D4 — closure | Independent review of all row evidence and signed manifest | Claiming completion based on green CI alone |
 
-**Current authorization: D0 only.** This document is not an instruction to proceed to D1, D2, or D3.
+**Gate status (as of 2026-10-16):**
+
+| Gate | State | Basis |
+| --- | --- | --- |
+| D0 — design | approved / merged | PRs #964, #965 (this document, rev 2.3) |
+| D1 — isolated setup | **PASSED, D1-F1 CLOSED** | `docs/2026-10-16-srap-g3-d1-report.md`; PRs #966, #967; verdict `hybrid-allowlist-v1` |
+| D2 — fixture qualification (operational) | **complete** | Operator decision 2026-10-16: satisfied by the merged operational qualification — PR #969 (`86855978`) |
+| D3 — integrated acceptance | **authorized — in progress** | Operator authorization 2026-10-16; inputs frozen in `docs/2026-10-16-srap-g3-d2-d3-handoff.md` |
+| D4 — closure | not authorized | — |
+
+**Gate-order note.** The D2 step described above is *fixture qualification*
+(enroll a throwaway operator, seed the isolated HMAC key, start loopback
+services, run and cancel a blocked throwaway run). On 2026-10-16 the operator
+recorded the D2 gate as satisfied by the merged **operational** qualification
+(PR #969). That operator decision governs the gate advance; the
+fixture-qualification procedure below is folded into the D3 environment
+bootstrap that freezes the D3 inputs.
 
 ## 2. Acceptance topology and trust boundaries
 
@@ -35,7 +51,8 @@ Independent operator client (curl / dedicated test process)
             │ HTTPS localhost:4143
             ▼
 Production-mode TLS proxy (loopback; strips all client forwarding headers)
-            │ HTTP localhost:4139; one trusted X-Forwarded-Proto: https
+            │ HTTP localhost:4139; one canonical trusted client hop
+            │ (X-Forwarded-For) + one trusted X-Forwarded-Proto: https
             ▼
 Inspector (existing remote-decision endpoint, auth, principal and scope checks)
             │
@@ -203,7 +220,7 @@ Generate `$ROOT/workspace/.alix/config.remote-on.json` and `.remote-off.json` us
 
 ### 5.2 TLS
 
-For an authorized D1 setup, generate a two-day self-signed certificate with SANs `DNS:localhost` and `IP:127.0.0.1`, private key `0600`, and proxy listener `127.0.0.1:4143`. Use `curl --cacert "$ROOT/tls/proxy.crt"`; do not use `-k`. Verify SAN and expiry. The production proxy must remove **all** inbound `Forwarded`, `X-Forwarded-*` and similar client-originated forwarding headers before writing one canonical trusted protocol value. The negative proxy is isolated, time-limited and loopback-only.
+For an authorized D1 setup, generate a two-day self-signed certificate with SANs `DNS:localhost` and `IP:127.0.0.1`, private key `0600`, and proxy listener `127.0.0.1:4143`. Use `curl --cacert "$ROOT/tls/proxy.crt"`; do not use `-k`. Verify SAN and expiry. The production proxy must remove **all** inbound `Forwarded`, `X-Forwarded-*` and similar client-originated forwarding headers before writing exactly one canonical trusted client hop (`X-Forwarded-For`, the observed socket peer) and one canonical trusted protocol value (`X-Forwarded-Proto: https`). Both are required: `resolveClientAddress` reports `fromProxy` only when a parseable `X-Forwarded-For` is present, and `deriveRemoteTransport` rejects the request before reading the proto otherwise. The negative proxy is isolated, time-limited and loopback-only.
 
 ### 5.3 Operator enrollment — D2 only
 
@@ -242,7 +259,28 @@ Do not print the bearer token. Never copy `enroll.raw` into `$RUN_DIR`. Generate
 4. The selected backend is exactly `plain-file`; keychain fallback is not invoked on failure.
 5. The script prints only backend identifier, active key version and a non-secret success flag. Never print the key or credential identifiers.
 
-The Rev 2.2 imports and signatures are *reported source checks*, not validated by this review. Freeze the exact built-module imports in a reviewed script after inspecting the checked-out commit. Do not run a placeholder or partially verified script.
+The Rev 2.2 imports and signatures are *reported source checks*, not validated by this review. Freeze the exact built-module imports in a reviewed script after inspecting the checked-out commit. Do not run a placeholder or partially verified script. The reviewed script is authored at `scripts/srap-accept/seed-key.mjs` (imports the built, pinned G3 credential APIs, forces `plain-file`, calls `generateKey(store)`).
+
+### 5.5 Credential sourcing modes and isolated seeding
+
+The OS keychain is shared at OS-user granularity, so overriding `HOME`/`XDG_STATE_HOME` does **not** isolate credential access. Fixture credentials must never resolve through the shared keychain. Three modes, explicitly graded:
+
+| Mode | Credential source | Authorized use |
+|------|-------------------|----------------|
+| Deterministic acceptance (default) | Fixture-generated credentials; the scripted offline model (`local-llama` → `fixture-mock-model` on `127.0.0.1:8080`, keyless) | D3 protocol, governance, concurrency and negative-path rows |
+| Real-provider integration | A **dedicated, restricted test-provider** key seeded into the isolated fixture store | Separately authorized integration test only |
+| Live production keychain | The shared OS-user keychain | **Not authorized** |
+
+The fixture keeps its own `plain-file` backend, and **every** credential value lives inside `$SRAP_ACCEPT_ROOT`. Provider keys are referenced as `cred://<provider>/<keyLabel>` in the fixture config; the value is never written into a config file.
+
+Seeding is performed by the reviewed `scripts/srap-accept/seed-provider-key.mjs`, which mirrors the `seed-key.mjs` preconditions (§5.4) and additionally:
+
+- accepts the secret **only** on stdin or an explicit protected file descriptor (`--fd N`) — never argv;
+- refuses the reserved `srap-evidence` namespace and any secret that arrives as an argv flag;
+- proves read-back after writing and prints only non-secret metadata (backend, provider, label, byte length);
+- supports `--list` (labels only) and `--remove` for cleanup.
+
+Operator policy: prefer a dedicated test credential. Copying a live production secret into the fixture duplicates that secret and is **not** equivalent to a test key. Temporary secret files are avoided, and the value never appears in logs, manifests or archived evidence. Pre-seed checklist: the target store must resolve inside the disposable fixture (`credentialsDir()` proven under `$ROOT/state/alix-inspector`, symlink-aware) and the selected backend must be exactly `plain-file`.
 
 ## 6. Genuine coordination fixture and qualification
 
@@ -417,7 +455,15 @@ Suggested archive verification logic (design; do not execute without D4 approval
 
 The following are intentionally **not** asserted as resolved: exact fixture goal, stable model/tool policy, foreground versus daemon host mode, verified status JSON schema/terminal enums, compiled key-seeding exports and backend path, real proxy implementation and malformed-header behavior, truly untrusted-peer test topology, availability of ports 4139/4143, archive destination, reviewer/signatory, and whether production filesystem snapshot handling needs a binary-safe helper for unusual filenames.
 
-**Next gate request (D1):** authorize isolated directory/config/TLS setup and offline validation only, with no Inspector startup, credential enrollment, key generation, coordination run or remote decision. After D1 evidence is reviewed, request D2 qualification separately. The full SRAP-G3 acceptance matrix remains gated at D3.
+**Gate advance (2026-10-16).** D1 is closed and D2 is recorded complete by
+operator decision (operational qualification, PR #969). **D3 integrated acceptance
+is authorized and in progress**; the frozen D3 inputs are recorded in
+`docs/2026-10-16-srap-g3-d2-d3-handoff.md`. **D4 closure remains unauthorized.**
+The untrusted-peer denial row remains **NOT EXERCISED**. Fixture credential
+sourcing is frozen to the deterministic scripted provider (§5.5); real-provider
+integration uses only a dedicated test key seeded through
+`scripts/srap-accept/seed-provider-key.mjs`, under separate authorization. The
+shared OS-user keychain is **not authorized**.
 
 ---
 
