@@ -60,19 +60,21 @@ All values below are verified against the checked-out integrated commit
 | Fixture goal (exact prompt + tool policy) | *pin at D3 bootstrap* — must force exactly one capability-gated worker under `--session-mode=ask --max-concurrency=1` | fixture §6.2 |
 
 **Open items carried from the fixture design §12 that remain unresolved and are
-explicitly not asserted:** real proxy implementation and malformed-header
-behavior (authored during the D3 bootstrap), truly untrusted-peer topology
+explicitly not asserted:** the malformed-header *security* verdict (the proxy and
+negative proxy are authored and transport-validated during the D3 bootstrap, but
+the acceptance verdict is a held matrix row), truly untrusted-peer topology
 (**NOT EXERCISED**), archive destination, and reviewer/signatory.
 
 ## 3. D3 execution state
 
 D3 is authorized. The D3 environment bootstrap (fixture root, TLS material,
 config variants, operator enrollment, HMAC key seeding, loopback Inspector +
-proxy) and row execution are **in progress**. Evidence is collected under
-`$ROOT/runs/<ts>/` and summarized into `$RUN_DIR/manifest/manifest.md` with a
-final **PASS / FAIL / INCOMPLETE** verdict. No row is marked passing without
-independently reviewable evidence; the untrusted-peer row is reported **NOT
-EXERCISED**.
+proxy, and audit-chain activation) is **complete through transport validation**
+(§4.3); execution of the acceptance matrix rows has **not started**. Evidence is
+collected under `$ROOT/runs/<ts>/` and summarized into
+`$RUN_DIR/manifest/manifest.md` with a final **PASS / FAIL / INCOMPLETE** verdict.
+No row is marked passing without independently reviewable evidence; the
+untrusted-peer row is reported **NOT EXERCISED**.
 
 ## 4. Credential sourcing decision (2026-10-16)
 
@@ -123,7 +125,7 @@ was removed.
   `HOME`/`XDG_STATE_HOME`/`XDG_CACHE_HOME`/`TMPDIR`; cwd `$ROOT/workspace`.
 - Services: Inspector `127.0.0.1:4139`; offline scripted model `127.0.0.1:8080`
   (`fixture-mock-model`, keyless, one deterministic tool call); TLS proxy
-  `127.0.0.1:4143` not yet started.
+  `127.0.0.1:4143` → Inspector (started and transport-validated, §4.3).
 - The mock model server (`scripts/srap-accept/mock-model-server.mjs`) answers
   the `local-llama` grammar protocol: when the request carries the
   `agent_response` `response_format` it returns the JSON envelope
@@ -132,6 +134,29 @@ was removed.
   Verified: `getApiKey("local-llama")` → `""` and a probe returns exactly one
   `alix_file_create` tool call.
 - Credentials: fixture `plain-file` store holds only `srap-evidence/hmac-key:v1`.
-- Blocking item for the evidence rows (E/F/H): the audit chain is not activated
-  at Inspector startup (`no head sidecar`), so remote-decision projection is
-  refused.
+- Audit chain: **activated** in `$ROOT/workspace` via the supported CLI
+  `alix audit activate` — genesis `audit.integrity_enabled` record (seq 1), the
+  `head.json` sidecar written by the chain writer, `alix audit verify` clean, and
+  re-activation idempotent (`alreadyActive`, still exactly one genesis record).
+  Remote-decision projection at Inspector startup no longer refuses; a direct
+  `projectRemoteDecisions` call returns `{ok:true, counters:{projected:0,...}}`.
+  The sidecar was produced by the product path, never hand-edited, and no
+  verification was weakened.
+
+### 4.3 Bootstrap validation evidence (2026-10-16)
+
+Transport/bootstrap checks only — the D3 acceptance matrix rows remain
+unexecuted and the untrusted-peer row remains **NOT EXERCISED**.
+
+| TLS-proxy check (`scripts/srap-accept/proxy.mjs`, `negative-proxy.mjs`) | Result |
+| --- | --- |
+| Listener binding | `127.0.0.1:4143` only, never `0.0.0.0` |
+| Trust with the fixture CA (`$ROOT/tls/proxy.crt`) | `ssl_verify_result=0` for `localhost` and `127.0.0.1` |
+| Trust without the CA | handshake rejected (`curl` exit 60) |
+| Authentication through the proxy | `GET /api/doctor` → 401 without token / 200 with; `/healthz` → 200 |
+| Forwarding canonicalization | spoofed `X-Forwarded-*` / `X-Real-IP` / `Via` / `Forwarded` stripped; exactly one `X-Forwarded-Proto: https`; `host` rewritten to the upstream |
+| Upstream unavailable | 502 |
+| Negative proxy | refuses port 4143 (exit 1); forwards malformed `https,http`; auto-shuts down after its TTL |
+
+Bootstrap commit: branch `srap/d3-fixture-bootstrap` (PR #971) — commit
+`95821fe4` plus the typecheck fix `2d7582a1`.
