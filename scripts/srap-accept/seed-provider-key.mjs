@@ -89,6 +89,9 @@ if (process.platform === "linux" && !XDG_STATE_HOME) {
 }
 
 const realRoot = realpathSync(ROOT);
+function isContained(p, root) {
+  return p === root || p.startsWith(root + sep);
+}
 function assertUnderRoot(p, label) {
   let real;
   try {
@@ -96,7 +99,7 @@ function assertUnderRoot(p, label) {
   } catch {
     fail(`${label} does not resolve: ${p}`);
   }
-  if (!(real === realRoot || real.startsWith(realRoot + sep))) {
+  if (!isContained(real, realRoot)) {
     fail(`${label} escapes the fixture root: ${real}`);
   }
   return real;
@@ -128,25 +131,27 @@ if (process.platform === "linux") {
     );
   }
   requiredBase = realpathSync(stateDir);
+  if (!isContained(requiredBase, realRoot)) {
+    fail(`fixture state dir escapes the fixture root: ${requiredBase}`);
+  }
 } else {
   requiredBase = realRoot;
 }
-if (!(requiredBase === realRoot || requiredBase.startsWith(realRoot + sep))) {
-  fail(`fixture state dir escapes the fixture root: ${requiredBase}`);
-}
 
-// (3) canonicalise the resolved credential dir and prove containment BEFORE
-// any write.
+// (3) prove containment BEFORE creating the credential dir, so a symlinked
+// escape never materialises a directory outside the root.
 const credDir = bs.credentialsDir();
+let ancestor = credDir;
+while (!existsSync(ancestor) && ancestor !== dirname(ancestor)) {
+  ancestor = dirname(ancestor);
+}
+const realAncestor = realpathSync(ancestor);
+if (!isContained(realAncestor, requiredBase) || !isContained(realAncestor, realRoot)) {
+  fail(`credential store dir escapes the fixture root: ${realAncestor}`);
+}
 mkdirSync(credDir, { recursive: true, mode: 0o700 });
 const realCredDir = realpathSync(credDir);
-if (!(realCredDir === requiredBase || realCredDir.startsWith(requiredBase + sep))) {
-  fail(
-    `resolved credential store dir escapes the fixture root: ${realCredDir} ` +
-      `(expected under ${requiredBase})`,
-  );
-}
-if (!(realCredDir === realRoot || realCredDir.startsWith(realRoot + sep))) {
+if (!isContained(realCredDir, requiredBase) || !isContained(realCredDir, realRoot)) {
   fail(`resolved credential store dir escapes the fixture root: ${realCredDir}`);
 }
 const storePath = bs.plainStorePath();

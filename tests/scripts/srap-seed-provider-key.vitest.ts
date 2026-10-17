@@ -272,6 +272,30 @@ describe.skipIf(process.platform === "win32")("srap seed-provider-key", () => {
     },
   );
 
+  // A symlink BELOW the state dir (e.g. `.../data` -> outside) must also be
+  // refused, and must not create any directory in the target before failing.
+  it.skipIf(process.platform !== "linux")(
+    "refuses a credential dir that escapes via a deeper symlink (no write)",
+    async () => {
+      const root = makeRoot();
+      const outside = mkdtempSync(join(tmpdir(), "srap-deep-"));
+      // Replace `$ROOT/state/alix-inspector/data` with a symlink to `outside`.
+      symlinkSync(outside, join(root, "state", "alix-inspector", "data"));
+      try {
+        const res = await run(root, ["--provider", "openrouter", "--label", "apiKey"], {
+          stdin: "x",
+        });
+
+        expect(res.code).not.toBe(0);
+        expect(res.stderr).toContain("escapes the fixture root");
+        // Nothing may be materialised in the escape target.
+        expect(existsSync(join(outside, "credentials"))).toBe(false);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("removes a seeded entry and lists labels only", async () => {
     const root = makeRoot();
     const secret = "to-remove-1";
