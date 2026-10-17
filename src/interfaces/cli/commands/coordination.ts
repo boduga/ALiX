@@ -5,8 +5,9 @@
  * alix coordination run "<goal>" --daemon        — plan and persist (daemon hosts ticking)
  * alix coordination run "<goal>" --max-concurrency 2
  * alix coordination run "<goal>" --session-mode bypass
- *   (write goals need bypass/auto: foreground runs have no approval
- *   store, so ask-gated capabilities fail closed without it)
+ *   (ask-gated writes otherwise block on a durable approval that an operator
+ *   resolves from another process; CLI and daemon share the one project-scoped
+ *   ApprovalStore, so `bypass`/`auto` are only for unattended runs)
  * alix coordination tick <run-id>               — one dispatch cycle (admin/debug)
  * alix coordination resume <run-id>             — reconcile + tick (recovery)
  * alix coordination status <run-id>             — print run state
@@ -28,6 +29,24 @@ import { DefaultWorkerExecutor } from "../../../coordination/kernel/worker-execu
 import { buildDefaultToolIndex } from "../../../capabilities/tools/tool-registry.js";
 import { ConflictRepository } from "../../../coordination/kernel/collaboration-conflict-repository.js";
 import { CollaborationStore } from "../../../coordination/kernel/collaboration-store.js";
+
+/**
+ * Build the coordination PolicyGate on the SAME durable approval authority the
+ * daemon uses (SRAP PR B — host parity). `loadApprovalStore` resolves the
+ * project-scoped store and returns `undefined` when it cannot be read; the gate
+ * then fails closed (`approval-store-missing`) instead of authorizing, or
+ * exposing an approval that does not exist. Never construct the coordination
+ * gate without a store: an ask-gated capability would have no durable approval
+ * to reconcile.
+ */
+export async function buildCoordinationPolicyGate(
+  cwd: string,
+  config: Awaited<ReturnType<typeof loadConfig>>,
+): Promise<PolicyGate> {
+  const { loadApprovalStore } = await import("../../../governance/approvals/approval-store.js");
+  const approvalStore = await loadApprovalStore(cwd);
+  return new PolicyGate(config, { eventLog: undefined, approvalStore });
+}
 
 export function readFlag(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
@@ -167,7 +186,7 @@ async function handleRun(args: string[]): Promise<void> {
   }
 
   // Foreground mode — run until idle
-  const policyGate = new PolicyGate(config, { eventLog: undefined });
+  const policyGate = await buildCoordinationPolicyGate(cwd, config);
   const auth = new ExecutionAuthorization({ policyGate, toolRegistry });
   const registry = new OwnershipRegistry(cwd);
 
@@ -222,7 +241,7 @@ async function handleTick(args: string[]): Promise<void> {
   const config = await loadConfig(cwd);
   const store = new CoordinationStore(cwd);
   const toolRegistry = buildDefaultToolIndex().registry;
-  const policyGate = new PolicyGate(config, { eventLog: undefined });
+  const policyGate = await buildCoordinationPolicyGate(cwd, config);
   const auth = new ExecutionAuthorization({ policyGate, toolRegistry });
   const registry = new OwnershipRegistry(cwd);
   const executor = new DefaultWorkerExecutor();
@@ -250,7 +269,7 @@ async function handleResume(args: string[]): Promise<void> {
   const config = await loadConfig(cwd);
   const store = new CoordinationStore(cwd);
   const toolRegistry = buildDefaultToolIndex().registry;
-  const policyGate = new PolicyGate(config, { eventLog: undefined });
+  const policyGate = await buildCoordinationPolicyGate(cwd, config);
   const auth = new ExecutionAuthorization({ policyGate, toolRegistry });
   const registry = new OwnershipRegistry(cwd);
   const executor = new DefaultWorkerExecutor();
@@ -345,7 +364,7 @@ async function handleCancel(args: string[]): Promise<void> {
   const config = await loadConfig(cwd);
   const store = new CoordinationStore(cwd);
   const toolRegistry = buildDefaultToolIndex().registry;
-  const policyGate = new PolicyGate(config, { eventLog: undefined });
+  const policyGate = await buildCoordinationPolicyGate(cwd, config);
   const auth = new ExecutionAuthorization({ policyGate, toolRegistry });
   const registry = new OwnershipRegistry(cwd);
   const executor = new DefaultWorkerExecutor();

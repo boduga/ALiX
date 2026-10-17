@@ -113,7 +113,21 @@ export async function authorizeWorker(options: AuthorizeWorkerOptions): Promise<
   }
 
   if (hasApproval) {
-    return { status: "approval_required", evidence, approvalId: approvalId ?? "unknown", reason: approvalReason ?? "Approval required" };
+    // Fail closed: an approval-required verdict MUST carry the durable approval
+    // id the authority actually created (SRAP PR B). A missing id — OR the
+    // boundary's legacy `"unknown"` sentinel (ExecutionAuthorization coerces an
+    // id-less `ask` to `"unknown"` for the graph reuse path) — is NOT a
+    // legitimate pending approval and must never become a blocked coordination
+    // worker. The gate returns `ask` only with a real persisted id, so either
+    // shape means no durable approval exists.
+    if (!approvalId || approvalId === "unknown") {
+      return {
+        status: "denied",
+        evidence,
+        reason: "Approval required but no durable approval was created (missing approval id)",
+      };
+    }
+    return { status: "approval_required", evidence, approvalId, reason: approvalReason ?? "Approval required" };
   }
 
   return { status: "allowed", evidence };

@@ -158,6 +158,13 @@
   before its authorization read, so a CLI-resolved approval written by another
   process is observed without a daemon restart; the watcher stays a
   notification-only accelerator, never the correctness path.
+- **Approval-required requires a durable approval id (SRAP PR B).** `authorizeWorker`
+  fails closed (`denied`) when a capability returns `approval_required` with no
+  durable `approvalId` OR with the `ExecutionAuthorization` legacy sentinel
+  `"unknown"`; either surface would present a non-existent approval as a legitimate
+  pending block the scheduler reconciles forever. The CLI hosts coordination on the same durable authority as the daemon
+  (`buildCoordinationPolicyGate` in `src/interfaces/cli/commands/coordination.ts`);
+  host parity is a decision+binding equality, not identical scheduling.
 - `alix_coordination_run` threads operator abort into cancellation and awaits
   finalization before throwing `ExecutionCancelledError`. `createCancelGuard`
   and `createCancelFailureRecorder` own this path. Bind recorder inputs before
@@ -286,6 +293,8 @@
 - `tests/kernel/coordination-planner.test.ts` — workers, scopes, agentPool labels
 - `tests/kernel/coordination-scheduler.test.ts` — dispatch, watchdog, heartbeats
 - `tests/kernel/coordination-approval-binding.test.ts` — SRAP approval-binding continuity end to end (authorizeWorker → ExecutionAuthorization → PolicyGate → ApprovalStore → reconcile → resumption) plus security negatives (malformed identity, wrong run/worker/attempt/ownership, expired, legacy no-binding), worker-level refresh-failure classification/observability without consumption, bounded per-attempt refresh (idle ticks never reload), and single-consumption
+- `tests/cli/commands/coordination-approval-wiring.test.ts` — SRAP PR B CLI host parity (real `buildCoordinationPolicyGate` + real store/scheduler): allowed/ask, cross-process approve→resume→consume-once, binding mismatch (worker/run/attempt/capability-set/policy-revision), expiry, restart survival, missing-store fail-closed, and daemon/CLI decision+binding parity
+- `tests/kernel/coordination-authorization.test.ts` — per-capability aggregation, including fail-closed on an approval-required verdict with no durable approval id (never `"unknown"`)
 - `tests/kernel/coordination-tools.test.ts` — chat handlers
 - `tests/kernel/subagent-worker-executor.test.ts` — role map, parallel, cancel
 - `tests/kernel/coordination-scheduler-replan.test.ts` — mid-execution replanning; waits on settled state (`waitUntil`), never a fixed sleep
