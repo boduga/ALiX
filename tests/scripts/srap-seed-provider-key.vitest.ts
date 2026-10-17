@@ -45,6 +45,16 @@ function makeRoot(): string {
   return root;
 }
 
+function makeBareRoot(): string {
+  const root = mkdtempSync(join(tmpdir(), "srap-bare-"));
+  mkdirSync(join(root, "home"), { recursive: true });
+  // `$ROOT/state` exists (XDG_STATE_HOME is resolvable) but the Inspector has
+  // never bootstrapped, so `$ROOT/state/alix-inspector` is absent.
+  mkdirSync(join(root, "state"), { recursive: true });
+  roots.push(root);
+  return root;
+}
+
 function envFor(root: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   return {
     ...process.env,
@@ -220,6 +230,14 @@ describe.skipIf(process.platform === "win32")("srap seed-provider-key", () => {
     } finally {
       rmSync(outside, { recursive: true, force: true });
     }
+  });
+
+  it("refuses to seed when the fixture state dir is not bootstrapped", async () => {
+    const root = makeBareRoot();
+    const res = await run(root, ["--provider", "openrouter", "--label", "apiKey"], { stdin: "x" });
+
+    expect(res.code).not.toBe(0);
+    expect(res.stderr).toContain("fixture state dir not found");
   });
 
   it("removes a seeded entry and lists labels only", async () => {

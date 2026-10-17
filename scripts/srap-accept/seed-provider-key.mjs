@@ -116,13 +116,8 @@ const bs = await import(
 // resolver and must itself be proven under the root before any state is written.
 if (process.platform === "win32") assertUnderRoot(process.env.LOCALAPPDATA, "LOCALAPPDATA");
 
-// (3) canonicalise the resolved credential dir and prove containment BEFORE
-// any write. `writeStoredBackend` must never touch a directory that has not
-// been proven inside the disposable fixture.
-const credDir = bs.credentialsDir();
-mkdirSync(credDir, { recursive: true, mode: 0o700 });
-const realCredDir = realpathSync(credDir);
-
+// Prove the fixture state root exists BEFORE creating anything under it, so the
+// "bootstrap the fixture first" precondition keeps its bite.
 let requiredBase;
 if (process.platform === "linux") {
   const stateDir = join(ROOT, "state", "alix-inspector");
@@ -137,6 +132,11 @@ if (process.platform === "linux") {
   requiredBase = realRoot;
 }
 
+// (3) canonicalise the resolved credential dir and prove containment BEFORE
+// any write.
+const credDir = bs.credentialsDir();
+mkdirSync(credDir, { recursive: true, mode: 0o700 });
+const realCredDir = realpathSync(credDir);
 if (!(realCredDir === requiredBase || realCredDir.startsWith(requiredBase + sep))) {
   fail(
     `resolved credential store dir escapes the fixture root: ${realCredDir} ` +
