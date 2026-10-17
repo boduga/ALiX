@@ -55,7 +55,7 @@ All values below are verified against the checked-out integrated commit
 | Run command | `alix coordination run "<goal>" --session-mode=ask --max-concurrency=1 [--daemon]` | `src/interfaces/cli/commands/coordination.ts` |
 | Key-seed backend | `plain-file`, resolved store path proven inside `$ROOT/state/alix-inspector` | fixture §5.4 |
 | Host mode | **foreground** (default) — retrievability-while-blocked established in D3; `--daemon` only if required | fixture §6.3 |
-| Untrusted-peer row | **NOT EXERCISED** — loopback is not proof of untrusted-peer rejection | fixture §2 |
+| Untrusted-peer row | **NOT EXERCISED at D3 bootstrap time** — loopback is not proof of untrusted-peer rejection; later **EXERCISED and DENIED** in §4.9 (source outside `127.0.0.1/32`) | fixture §2 |
 | Provider for the coordination fixture | **Pinned at D3 bootstrap:** `local-llama` → the fixture mock model server (`fixture-mock-model`, keyless, OpenAI-compatible on `127.0.0.1:8080`), which emits one deterministic tool call (`alix_file_create`) and answers the `ensureLlamaServer` `/v1/models` probe so llama.cpp is never spawned. Rationale: must emit exactly one approval-gated tool call deterministically and offline. Rejected: `scripted-mock` (`src/operations/evals/providers/scripted-mock-provider.ts`) is eval-scoped; `mock` (`src/models/providers/mock-provider.ts`) emits no tool calls and cannot reach an approval gate. | source |
 | Fixture goal (exact prompt + tool policy) | *pin at D3 bootstrap* — must force exactly one capability-gated worker under `--session-mode=ask --max-concurrency=1` | fixture §6.2 |
 
@@ -267,11 +267,36 @@ on a non-conforming value). Re-run on a **fresh fixture pinned to merged `main`
   `completed`/`success`, `executionOwnerId daemon-312222` (no new execution
   surface), deliverable `src/srap-g4-output.txt` persisted.
 - **H-2**: ON control 200; OFF 404; no side effects.
-- Untrusted-peer row remains **NOT EXERCISED**; **D4 not started**.
+- **F-4** (disablement/decision race, T=20) and the **untrusted-peer topology**
+  were completed separately — see §4.9.
+- **D4 not started.**
 
-F-4 (the disablement/decision race, T=20) was not re-run in this session. The
-offline fixture mock was extended **in the fixture copy only** (planner graph,
+The offline fixture mock was extended **in the fixture copy only** (planner graph,
 reviewer verdict, stop-after-first-tool) to drive a keyless model through a real
 approval-gated run to terminal; no product code changed.
 
 Evidence: `$ROOT/runs/20261017T164036Z/d3-execution-report-rev2.md`.
+
+### 4.9 F-4 race and untrusted-peer topology (2026-10-17)
+
+**F-4 — disablement vs decision race, T = 20: PASS (20/20, 0 failures).**
+Per trial: active principal → fresh approval-gated run → one barrier releasing
+{`principal disable`} and {`POST decision`}; half the trials delayed dispatch past
+the disable. 10 committed (all dispatched **before** the disable completed), 10
+denied (all dispatched **after**, 401 `principal_disabled`); zero commits
+attributed to a principal disabled before dispatch. Commit order is not a
+criterion (plan amendment). Order 1 verified explicitly: disable-then-dispatch →
+401, approval still `pending`, key-read count unchanged (70 → 70).
+
+**Untrusted-peer topology — EXERCISED and DENIED** (previously NOT EXERCISED).
+With `trustedProxyCidrs: ["127.0.0.1/32"]` and loopback-only listeners, a peer at
+`127.0.0.2` (outside the /32) spoofing `X-Forwarded-Proto: https` +
+`X-Forwarded-For: 127.0.0.1` was **403 `insecure_transport`**. Ambiguous proto
+(`https,http`), missing proto, proto `http`, and no `X-Forwarded-For` all 403. The
+same source could reach `/healthz` (200), so the denial is the trust check, not
+connectivity. Direct to the host LAN IP → `000` (no non-loopback listener), and a
+userns-isolated process cannot reach the host at all. The same approval then
+succeeded (200, `transport: proxy-tls`) through the trusted TLS proxy, proving the
+denials left state untouched.
+
+Evidence: `$ROOT/runs/20261017T164036Z/d3-f4-untrusted-peer.md`.
