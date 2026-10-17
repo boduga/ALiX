@@ -161,6 +161,13 @@
     "rule": "status-store-writes"
   },
   {
+    "imported": "src/governance/approvals/approval-store.ts",
+    "importer": "src/interfaces/cli/commands/coordination.ts",
+    "reason": "SRAP PR B host parity — CLI coordination resolves the same project-scoped approval authority as the daemon (R0 B4 approval queue is store-read); reuses loadApprovalStore, no new authority",
+    "removalPhase": "R2",
+    "rule": "status-store-writes"
+  },
+  {
     "imported": "src/coordination/kernel/collaboration-store.ts",
     "importer": "src/interfaces/cli/commands/coordination.ts",
     "reason": "R0 B9 — collaboration snapshot bypasses EventLog",

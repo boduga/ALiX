@@ -62,6 +62,22 @@ describe("authorizeWorker", () => {
     assert.equal((result as any).approvalId, "apr-1");
   });
 
+  it("fails closed when approval_required carries no durable approval id (never 'unknown')", async () => {
+    const worker = createWorkerAssignment({
+      coordinationRunId: run.id, agentId: "w1", taskLabel: "T", goalPrompt: "do it",
+      requiredCapabilities: ["file.delete"],
+      attempt: 0,
+    });
+    // A verdict claiming approval is required but naming NO durable approval:
+    // fabricating "unknown" would surface a non-existent approval as a
+    // legitimate pending block (SRAP PR B).
+    const auth = { evaluate: async () => ({ status: "approval_required" as const, reason: "needs ok" }) } as any;
+    const result = await authorizeWorker({ authorization: auth, worker, run, cwd: "/test", sessionMode: "ask" });
+    assert.equal(result.status, "denied");
+    assert.notEqual((result as any).approvalId, "unknown");
+    assert.match((result as any).reason, /missing approval id/i);
+  });
+
   it("evidence includes every evaluated capability", async () => {
     const worker = createWorkerAssignment({
       coordinationRunId: run.id, agentId: "w1", taskLabel: "T", goalPrompt: "do it",

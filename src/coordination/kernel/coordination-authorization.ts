@@ -113,7 +113,19 @@ export async function authorizeWorker(options: AuthorizeWorkerOptions): Promise<
   }
 
   if (hasApproval) {
-    return { status: "approval_required", evidence, approvalId: approvalId ?? "unknown", reason: approvalReason ?? "Approval required" };
+    // Fail closed: an approval-required verdict MUST carry the durable approval
+    // id the authority actually created (SRAP PR B). Fabricating "unknown" would
+    // surface a non-existent approval as a legitimate pending block that the
+    // scheduler reconciles forever. The gate only returns `ask` with a real
+    // persisted id; a missing id means no durable approval exists.
+    if (!approvalId) {
+      return {
+        status: "denied",
+        evidence,
+        reason: "Approval required but no durable approval was created (missing approval id)",
+      };
+    }
+    return { status: "approval_required", evidence, approvalId, reason: approvalReason ?? "Approval required" };
   }
 
   return { status: "allowed", evidence };
