@@ -1,0 +1,13 @@
+=== G-2: persisted decision + evidence survive an Inspector restart (daemon stopped) ===
+approval: approval_1792272388940_u4sfu
+decision HTTP: 200
+BEFORE: {"status":"approved","evidence":true,"nonce":"g2b","decision":"approved","ref":"hmac-sha256:v1:Zd797GjEHdnWrbZbatLLNHDR2EylJmv3hV8qPCpVrHw"}
+BEFORE keyread=208 chain=274
+killed Inspector pid=361637
+port free after kill: 0
+restarted; healthz=200
+AFTER : {"status":"approved","evidence":true,"nonce":"g2b","decision":"approved","ref":"hmac-sha256:v1:Zd797GjEHdnWrbZbatLLNHDR2EylJmv3hV8qPCpVrHw"}
+AFTER  keyread=208 chain=274
+IDENTICAL: YES
+chain grew by 0 during restart (startup projection may add records)
+verify: Result: OK — no integrity issues detected.

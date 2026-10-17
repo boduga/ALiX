@@ -1,0 +1,12 @@
+=== F-2: cross-principal replay (daemon stopped) ===
+approval: approval_1792272407956_4dhy2
+-- principal A (operator) decides with nonce f2b --
+HTTP/1.1 200 OK
+{"id":"approval_1792272407956_4dhy2","decision":"approved"}
+-- committed evidence: {"status":"approved","principal":"prin_uWXSJw6eQuUB","nonce":"f2b"} --
+-- principal B (separate, scoped) replays the SAME nonce+decision --
+B principal: prin_Iu41vg6Gca69
+HTTP/1.1 409 Conflict
+{"error":"conflict","requestId":"alx-mvcwpve3-7-nam1p7"}
+-- evidence after B replay (must still be A's): {"status":"approved","principal":"prin_uWXSJw6eQuUB","nonce":"f2b"} --
+-- approval.* audit rows: 1 (must be 1) --

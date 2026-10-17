@@ -16,12 +16,12 @@ below is limited to what an artifact in this directory shows.
   inferred from the empty diff, not attested by an artifact.
 - **Fixture root:** `/tmp/opencode/alix-srap-accept/20261017T164036Z-309922`
 - **Run dir:** `$ROOT/runs/20261017T164036Z/`
-- **Audit chain (authoritative):** **248** records, tip seq 248 `b9dc1459643b…`,
+- **Audit chain (authoritative):** **276** records, tip seq 276 `1d305c9fc456…`,
   `alix audit verify` → **OK, 0 findings**; export **byte-identical** to live.
   (Counts embedded in the earlier sweep files are historical — see
   `SUPERSEDED-note.md`.)
-- **Actions:** `integrity_enabled` 1, `credential.key_read` 185,
-  `approval.approved` 61, `approval.denied` 1.
+- **Actions:** `integrity_enabled` 1, `credential.key_read` 209,
+  `approval.approved` 65, `approval.denied` 1.
 - **Projection:** 172 evidence-carrying approvals, 62 distinct projected
   decisionIds, 0 unprojected (see §3 for the granularity caveat).
 
@@ -146,17 +146,17 @@ operator decision.
 | Group | Rows | Status |
 | --- | --- | --- |
 | Auth | A-1, A-2, A-3 | SUPPORTED |
-| Auth | A-4 | **LIMITED** — `token.revoked` exists in the auth audit and no key-read occurs, but no HTTP artifact was retained for the 401 |
+| Auth | A-4 | SUPPORTED (`A4-revoked-credential.txt`: 401 `token_revoked`, `token.revoked` bound to `prin_uWXSJw6eQuUB`, key-read delta 0, approval still `pending` in the ledger) |
 | Principal | B-1, B-2, B-3 | SUPPORTED |
 | Workspace | C-1, C-3a | SUPPORTED |
 | Workspace | C-2, C-3b | SUPPORTED\* — **deviation needing explicit acceptance**: plan requires 403, product returns 401 `workspace_mismatch`; same fail-closed outcome, `[]` never means all |
 | Decisions | D-1, D-2, D-3, D-4 | SUPPORTED |
 | Evidence | E-1, E-2, E-3 | SUPPORTED (`E1-key-read.txt` (scoped to key-read records); `state-proofs.txt`) |
 | Evidence | E-4 | SUPPORTED with §7 disclosure |
-| Concurrency | F-1, F-2, F-3 | **LIMITED** — narrative only; raw harness output not retained in the run dir |
+| Concurrency | F-1, F-2, F-3 | SUPPORTED (`F1-raw-clean.json` 8×200 / one commit; `F2-cross-principal-artifact.txt` 409 + A's evidence retained; `F3-raw-clean.json` one 200 / one 409) |
 | Concurrency | F-4 | SUPPORTED (incl. criterion (iv)) |
 | Restart | G-1, G-3, G-4 | SUPPORTED |
-| Restart | G-2 | **LIMITED** — key-read count compared across snapshots; no restart log line |
+| Restart | G-2 | SUPPORTED (`G2-restart-artifact.txt`: evidence + `credentialRef` byte-identical across a restart with the port verified free; key-read and chain unchanged) |
 | Lifecycle | H-1, H-2, H-3 | SUPPORTED (`H1-client-transcript.txt`: nonce, headers, body, 200, terminal `completed`/`success`, rootGoal == goalPrompt == deliverable; `h3-routes.txt`) |
 | Untrusted-peer | — | SUPPORTED (403 from a source outside `127.0.0.1/32`; trusted control 200) |
 
@@ -199,7 +199,14 @@ Secret/identifier scan over the exported chain: **CLEAN**.
    ledger** (`createdAt` / `remoteDecisionEvidence`), not in the exported chain.
    The plan's G-4 item 2 asks for both; they are evidenced via the ledger and the
    projected `approval.approved` record, not as `approval.created`/`updated` rows.
-10. The untrusted-peer test uses loopback source addresses (`127.0.0.2`) against a
+10. **Harness interference (important).** An early F-1 run produced 1×200 +
+    7×409. The cause was **my own harness**: the long-lived daemon ticks and
+    *consumes* the single-use approval mid-barrier, so later requests see a
+    consumed approval. With the daemon stopped, F-1 is 8×200 and one commit. This
+    is a test-methodology trap, not a product defect — but it also means an F-1
+    run against a live daemon is invalid. The retained `F1-raw.json` (7×409) and
+    `F1-raw-clean.json` (8×200) are both kept so the discrepancy is auditable.
+11. The untrusted-peer test uses loopback source addresses (`127.0.0.2`) against a
    `127.0.0.1/32` trust list, not a physically separate host.
 
 ## 11. Reviewer sign-off (required for D4 closure)

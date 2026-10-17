@@ -1,0 +1,40 @@
+{
+ "results": [
+  {
+   "status": 200,
+   "body": "{\"id\":\"approval_1792272305521_c6kab\",\"decision\":\"approved\"}"
+  },
+  {
+   "status": 409,
+   "body": "{\"error\":\"conflict\",\"requestId\":\"alx-mvcwnnaj-89-vxoqco\"}"
+  },
+  {
+   "status": 409,
+   "body": "{\"error\":\"conflict\",\"requestId\":\"alx-mvcwnnap-8d-f91cb9\"}"
+  },
+  {
+   "status": 409,
+   "body": "{\"error\":\"conflict\",\"requestId\":\"alx-mvcwnna9-87-5ipwsz\"}"
+  },
+  {
+   "status": 409,
+   "body": "{\"error\":\"conflict\",\"requestId\":\"alx-mvcwnnb0-8f-41d8ci\"}"
+  },
+  {
+   "status": 409,
+   "body": "{\"error\":\"conflict\",\"requestId\":\"alx-mvcwnnb5-90-ds29s6\"}"
+  },
+  {
+   "status": 409,
+   "body": "{\"error\":\"conflict\",\"requestId\":\"alx-mvcwnnb9-91-w8yixj\"}"
+  },
+  {
+   "status": 409,
+   "body": "{\"error\":\"conflict\",\"requestId\":\"alx-mvcwnnbl-92-grrrpr\"}"
+  }
+ ],
+ "counts": {
+  "200 normal": 1,
+  "409 normal": 7
+ }
+}

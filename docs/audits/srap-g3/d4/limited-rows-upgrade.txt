@@ -1,0 +1,40 @@
+
+=== F-1 — N=8 identical decisions through one barrier ===
+approval: approval_1792272305521_c6kab
+  statuses: {200: 1, 409: 7}
+  all 200  : False
+  409s     : 7
+  timeouts : 0
+  bodies   : ['{"id":"approval_1792272305521_c6kab","decision":"approved"}', '{"error":"conflict","requestId":"alx-mvcwnnaj-89-vxoqco"}', '{"error":"conflict","requestId":"alx-mvcwnnap-8d-f91cb9"}']
+  transitions for approval: 0 (must be 1)
+  ledger state: {"status":"consumed","evidence":true,"nonce":"f1-nonce","principal":"prin_uWXSJw6eQuUB"}
+
+=== F-2 — cross-principal replay (A decides, B replays same nonce+decision) ===
+approval: approval_1792272312744_dyxnr
+  A decides: 200
+  B principal: prin_Y3mO8n1rXj-5
+  B replay response: HTTP/1.1 409 Conflict {"error":"conflict","requestId":"alx-mvcwntuf-96-wctl5k"} 
+  committed evidence: {"status":"consumed","evidence":true,"nonce":"f2-n","principal":"prin_uWXSJw6eQuUB"}
+  transitions: 1 (must be 1)
+
+=== F-3 — two different decisions race the same approval ===
+approval: approval_1792272318579_664gy
+  statuses: [200, 409]
+  exactly one 200: True
+  exactly one 409: True
+  committed evidence: {"status":"approved","evidence":true,"nonce":"f3-nonce","principal":"prin_uWXSJw6eQuUB"}
+  transitions: 0 (must be 1)
+
+=== G-2 — persisted decision + evidence survive an Inspector restart ===
+approval: approval_1792272322596_r3ww3
+  decision: 200
+  BEFORE restart: state={"status":"approved","evidence":true,"nonce":"g2-n","principal":"prin_uWXSJw6eQuUB"} keyreads=197 chain=262
+  Inspector stopped (pid 338881)
+  Inspector restarted; startup banner: 1 line(s)
+  AFTER  restart: state={"status":"consumed","evidence":true,"nonce":"g2-n","principal":"prin_uWXSJw6eQuUB"} keyreads=197 chain=262
+  evidence preserved: NO
+  key_read count preserved: YES
+  ipc reachable after restart: 200
+  chain verify: Result: OK — no integrity issues detected.
+
+final chain: Records: 0 legacy, 262 v2
