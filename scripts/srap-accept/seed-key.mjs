@@ -101,7 +101,11 @@ const realAncestor = realpathSync(ancestor);
 if (!isContained(realAncestor, requiredBase) || !isContained(realAncestor, realRoot)) {
   fail(`credential store dir escapes the fixture root: ${realAncestor}`);
 }
-mkdirSync(credDir, { recursive: true, mode: 0o700 });
+try {
+  mkdirSync(credDir, { recursive: true, mode: 0o700 });
+} catch (err) {
+  fail(`could not create credential store dir: ${err.code ?? "error"}`);
+}
 const realCredDir = realpathSync(credDir);
 if (!isContained(realCredDir, requiredBase) || !isContained(realCredDir, realRoot)) {
   fail(`resolved credential store dir escapes the fixture root: ${realCredDir}`);
