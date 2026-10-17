@@ -42,6 +42,9 @@ if (process.platform === "linux" && !XDG_STATE_HOME) {
 }
 
 const realRoot = realpathSync(ROOT);
+function isContained(p, root) {
+  return p === root || p.startsWith(root + sep);
+}
 function assertUnderRoot(p, label) {
   let real;
   try {
@@ -49,7 +52,7 @@ function assertUnderRoot(p, label) {
   } catch {
     fail(`${label} does not resolve: ${p}`);
   }
-  if (!(real === realRoot || real.startsWith(realRoot + sep))) {
+  if (!isContained(real, realRoot)) {
     fail(`${label} escapes the fixture root: ${real}`);
   }
   return real;
@@ -68,7 +71,8 @@ const srap = await import(
 // before any state is written.
 if (process.platform === "win32") assertUnderRoot(process.env.LOCALAPPDATA, "LOCALAPPDATA");
 
-// Prove the fixture state root exists before creating anything under it.
+// Prove the fixture state root exists before creating anything under it, and
+// that it does not escape the disposable root via a symlink.
 let requiredBase;
 if (process.platform === "linux") {
   const stateDir = join(ROOT, "state", "alix-inspector");
@@ -79,20 +83,32 @@ if (process.platform === "linux") {
     );
   }
   requiredBase = realpathSync(stateDir);
+  if (!isContained(requiredBase, realRoot)) {
+    fail(`fixture state dir escapes the fixture root: ${requiredBase}`);
+  }
 } else {
   requiredBase = realRoot;
 }
 
-// (3) canonicalise the resolved credential dir and prove containment BEFORE
-// any write.
+// (3) prove containment BEFORE creating the credential dir, so a symlinked
+// escape never materialises a directory outside the root.
 const credDir = bs.credentialsDir();
-mkdirSync(credDir, { recursive: true, mode: 0o700 });
+let ancestor = credDir;
+while (!existsSync(ancestor) && ancestor !== dirname(ancestor)) {
+  ancestor = dirname(ancestor);
+}
+const realAncestor = realpathSync(ancestor);
+if (!isContained(realAncestor, requiredBase) || !isContained(realAncestor, realRoot)) {
+  fail(`credential store dir escapes the fixture root: ${realAncestor}`);
+}
+try {
+  mkdirSync(credDir, { recursive: true, mode: 0o700 });
+} catch (err) {
+  fail(`could not create credential store dir: ${err.code ?? "error"}`);
+}
 const realCredDir = realpathSync(credDir);
-if (!(realCredDir === requiredBase || realCredDir.startsWith(requiredBase + sep))) {
-  fail(
-    `resolved credential store dir escapes the fixture root: ${realCredDir} ` +
-      `(expected under ${requiredBase})`,
-  );
+if (!isContained(realCredDir, requiredBase) || !isContained(realCredDir, realRoot)) {
+  fail(`resolved credential store dir escapes the fixture root: ${realCredDir}`);
 }
 const storePath = bs.plainStorePath();
 // Canonicalize the store's directory before comparing (macOS `/var` symlink).

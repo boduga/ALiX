@@ -17,7 +17,7 @@
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { spawn } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Writable } from "node:stream";
@@ -244,6 +244,55 @@ describe.skipIf(process.platform === "win32")("srap seed-provider-key", () => {
 
       expect(res.code).not.toBe(0);
       expect(res.stderr).toContain("fixture state dir not found");
+    },
+  );
+
+  // A symlinked state dir that points outside the disposable root must be
+  // rejected: containment is measured against the root, not the symlink target.
+  it.skipIf(process.platform !== "linux")(
+    "refuses to seed when the state dir escapes the root via a symlink",
+    async () => {
+      const root = makeRoot();
+      const outside = mkdtempSync(join(tmpdir(), "srap-escape-"));
+      const stateDir = join(root, "state", "alix-inspector");
+      rmSync(stateDir, { recursive: true, force: true });
+      try {
+        symlinkSync(outside, stateDir);
+        const res = await run(root, ["--provider", "openrouter", "--label", "apiKey"], {
+          stdin: "x",
+        });
+
+        expect(res.code).not.toBe(0);
+        expect(res.stderr).toContain("escapes the fixture root");
+        // Nothing may be written into the escape target.
+        expect(existsSync(join(outside, "data"))).toBe(false);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
+      }
+    },
+  );
+
+  // A symlink BELOW the state dir (e.g. `.../data` -> outside) must also be
+  // refused, and must not create any directory in the target before failing.
+  it.skipIf(process.platform !== "linux")(
+    "refuses a credential dir that escapes via a deeper symlink (no write)",
+    async () => {
+      const root = makeRoot();
+      const outside = mkdtempSync(join(tmpdir(), "srap-deep-"));
+      // Replace `$ROOT/state/alix-inspector/data` with a symlink to `outside`.
+      symlinkSync(outside, join(root, "state", "alix-inspector", "data"));
+      try {
+        const res = await run(root, ["--provider", "openrouter", "--label", "apiKey"], {
+          stdin: "x",
+        });
+
+        expect(res.code).not.toBe(0);
+        expect(res.stderr).toContain("escapes the fixture root");
+        // Nothing may be materialised in the escape target.
+        expect(existsSync(join(outside, "credentials"))).toBe(false);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
+      }
     },
   );
 
