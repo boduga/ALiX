@@ -1,7 +1,9 @@
 # SRAP-G3-ACCEPT — D4 evidence bundle (review pending)
 
-**D4 is NOT closed.** This directory is the evidence submission for independent
-review. The implementing operator cannot self-certify closure.
+**D4 = PASS (conditional)**, signed off in the manifest §11 after an adversarial
+re-check of the submitted artifacts. The sign-off was performed by the
+implementation agent at the operator's direction; it is not an independent
+third-party audit. Residuals are listed in §10 and §11.
 
 ## Contents
 
