@@ -132,6 +132,24 @@ describe("remote-decision projection", () => {
     assert.equal(r.counters.projected, 0);
   });
 
+  it("treats a non-conforming credentialRef as malformed (fail closed)", async () => {
+    // `credentialRef` is stored verbatim (redaction allowlists it), so a value
+    // that is not the documented HMAC shape must be rejected, not projected.
+    await new AuditStore(cwd).activateIntegrity();
+    await storeWithDecision(cwd, evidence({ decisionId: "dec-bad-ref", credentialRef: "raw-secret-value" }));
+
+    const r = await projectRemoteDecisions(cwd);
+    assert.equal(r.ok, false);
+    assert.equal(r.counters.projected, 0);
+    assert.equal(r.counters.projection_failed, 1);
+    const rows = await new AuditStore(cwd).list(1000);
+    assert.ok(
+      !rows.some((row) => (row.details as { remoteDecision?: { decisionId?: string } })
+        ?.remoteDecision?.decisionId === "dec-bad-ref"),
+      "a malformed credentialRef must not be written to the chain",
+    );
+  });
+
   it("absorbed crash-before-checkpoint: no state file → full re-scan, dedup drops it", async () => {
     await new AuditStore(cwd).activateIntegrity();
     await storeWithDecision(cwd, evidence({ decisionId: "dec-crash" }));

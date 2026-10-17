@@ -135,6 +135,13 @@ function evidenceFromEvent(event: RuntimeEvent): EvidenceExtraction {
   ) {
     return { kind: "malformed" };
   }
+  // `credentialRef` is stored verbatim in the audit chain (the chain redactor
+  // allowlists it as non-secret). Enforce the documented shape here so a
+  // non-conforming value (e.g. a raw secret wrongly placed under this key)
+  // fails closed as `malformed` rather than being written verbatim.
+  if (!/^hmac-sha256:v\d+:[A-Za-z0-9_-]+$/.test(e.credentialRef)) {
+    return { kind: "malformed" };
+  }
   return {
     kind: "ok",
     evidence: {
