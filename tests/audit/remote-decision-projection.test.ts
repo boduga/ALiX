@@ -86,6 +86,31 @@ describe("remote-decision projection", () => {
     assert.equal(r.counters.skipped_duplicate, 1);
   });
 
+  it("stores the non-secret evidence fields verbatim on the projected record", async () => {
+    await new AuditStore(cwd).activateIntegrity();
+    await storeWithDecision(cwd, evidence({
+      decisionId: "dec-fields",
+      principalId: "prin_ABCDEF",
+      credentialRef: "hmac-sha256:v1:XYZ",
+    }));
+
+    const r = await projectRemoteDecisions(cwd);
+    assert.ok(r.ok);
+    assert.equal(r.counters.projected, 1);
+
+    const rows = await new AuditStore(cwd).list(1000);
+    const projected = rows.find(
+      (row) => (row.details as { remoteDecision?: { decisionId?: string } })
+        ?.remoteDecision?.decisionId === "dec-fields",
+    );
+    assert.ok(projected, "the decision is projected into the audit chain");
+    const remote = (projected.details as { remoteDecision: { principalId: string; credentialRef: string; transport: string } }).remoteDecision;
+    // SRAP-G3 E-3: the record must carry these, not [REDACTED].
+    assert.equal(remote.principalId, "prin_ABCDEF");
+    assert.equal(remote.credentialRef, "hmac-sha256:v1:XYZ");
+    assert.equal(remote.transport, "direct-tls");
+  });
+
   it("reports positive lag while backlog is unprojected, zero after projecting", async () => {
     await new AuditStore(cwd).activateIntegrity();
     await storeWithDecision(cwd, evidence());
@@ -105,6 +130,24 @@ describe("remote-decision projection", () => {
     assert.equal(r.ok, false);
     assert.ok(r.refused);
     assert.equal(r.counters.projected, 0);
+  });
+
+  it("treats a non-conforming credentialRef as malformed (fail closed)", async () => {
+    // `credentialRef` is stored verbatim (redaction allowlists it), so a value
+    // that is not the documented HMAC shape must be rejected, not projected.
+    await new AuditStore(cwd).activateIntegrity();
+    await storeWithDecision(cwd, evidence({ decisionId: "dec-bad-ref", credentialRef: "raw-secret-value" }));
+
+    const r = await projectRemoteDecisions(cwd);
+    assert.equal(r.ok, false);
+    assert.equal(r.counters.projected, 0);
+    assert.equal(r.counters.projection_failed, 1);
+    const rows = await new AuditStore(cwd).list(1000);
+    assert.ok(
+      !rows.some((row) => (row.details as { remoteDecision?: { decisionId?: string } })
+        ?.remoteDecision?.decisionId === "dec-bad-ref"),
+      "a malformed credentialRef must not be written to the chain",
+    );
   });
 
   it("absorbed crash-before-checkpoint: no state file → full re-scan, dedup drops it", async () => {

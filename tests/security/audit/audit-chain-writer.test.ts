@@ -205,6 +205,37 @@ describe("AuditChainWriter", () => {
     assert.equal(details.origin, "[REDACTED]");
   });
 
+  it("preserves the non-secret remote-decision evidence fields (SRAP-G3 E-3)", async () => {
+    // `principalId` and `credentialRef` are documented non-secret evidence the
+    // projection MUST carry. The generic substring patterns (/ip/i,
+    // /credential/i) previously redacted them; the exact-match allowlist wins.
+    const record = await writer.append(makeFakeRecord({
+      details: {
+        approvalId: "ap-1",
+        remoteDecision: {
+          decisionId: "d1",
+          principalId: "prin_TEST123",
+          credentialRef: "hmac-sha256:v1:ABCDEF",
+          transport: "proxy-tls",
+          decidedAt: "2026-01-01T00:00:00Z",
+        },
+      },
+    }));
+
+    const details = record.details as Record<string, unknown>;
+    const remote = details.remoteDecision as Record<string, unknown>;
+    assert.equal(remote.principalId, "prin_TEST123");
+    assert.equal(remote.credentialRef, "hmac-sha256:v1:ABCDEF");
+    assert.equal(remote.transport, "proxy-tls");
+    // Real secrets under these prefixes are still redacted.
+    const secret = await writer.append(makeFakeRecord({
+      details: { credential: "raw-secret", ip: "10.0.0.1" },
+    }));
+    const sd = secret.details as Record<string, unknown>;
+    assert.equal(sd.credential, "[REDACTED]");
+    assert.equal(sd.ip, "[REDACTED]");
+  });
+
   it("redaction affects record hash — unredacted would differ", async () => {
     const withToken = await writer.append(makeFakeRecord({
       details: { token: "secret", data: "hello" },

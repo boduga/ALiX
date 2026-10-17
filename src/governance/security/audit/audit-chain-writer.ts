@@ -84,6 +84,20 @@ const SENSITIVE_KEY_PATTERNS = [
 const SENTINEL_REDACTED = "[REDACTED]";
 const SENTINEL_REDACTION_FAILED = "[REDACTION_FAILED]";
 
+/**
+ * Keys that are documented non-secret evidence and MUST be stored verbatim.
+ *
+ * The substring patterns above false-positive on these SRAP-1 remote-decision
+ * evidence fields: `/ip/i` matches the "ip" inside `principalId`, and
+ * `/credential/i` matches `credentialRef`. Both are non-secret by contract —
+ * `principalId` is the stable `prin_<id>` identity already stored verbatim as
+ * the record `actor`, and `credentialRef` is a versioned HMAC, never a raw
+ * token or credential id. The audit projection is required to carry both
+ * (`src/governance/audit/AGENTS.md`), so an exact-match allowlist wins over the
+ * substring patterns.
+ */
+const NON_SENSITIVE_KEY_ALLOWLIST = new Set(["principalid", "credentialref"]);
+
 function isAuditAction(action: string): boolean {
   return action.startsWith("audit.");
 }
@@ -123,6 +137,8 @@ function redactAuditDetails(details: unknown, _maxDepth: number = 20): unknown {
 }
 
 function isSensitiveKey(key: string): boolean {
+  const lower = key.toLowerCase();
+  if (NON_SENSITIVE_KEY_ALLOWLIST.has(lower)) return false;
   return SENSITIVE_KEY_PATTERNS.some((re) => re.test(key));
 }
 
