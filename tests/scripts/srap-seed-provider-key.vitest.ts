@@ -20,6 +20,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Writable } from "node:stream";
 
 const REPO = process.cwd();
 const SCRIPT = join(REPO, "scripts/srap-accept/seed-provider-key.mjs");
@@ -67,7 +68,7 @@ function run(
       opts.fd3 !== undefined ? ["pipe", "pipe", "pipe", "pipe"] : ["pipe", "pipe", "pipe"];
     const child = spawn(process.execPath, [SCRIPT, ...args], {
       env: envFor(root, opts.env),
-      stdio: stdio as never,
+      stdio,
     });
     let stdout = "";
     let stderr = "";
@@ -78,7 +79,7 @@ function run(
     child.stdin?.on("error", () => {});
     child.stdin?.end(opts.stdin ?? "");
     if (opts.fd3 !== undefined) {
-      const s3 = child.stdio[3];
+      const s3 = child.stdio[3] as Writable | null | undefined;
       if (s3) {
         s3.on("error", () => {});
         s3.end(opts.fd3);
