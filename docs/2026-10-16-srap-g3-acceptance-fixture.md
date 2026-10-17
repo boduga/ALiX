@@ -459,7 +459,8 @@ The following are intentionally **not** asserted as resolved: exact fixture goal
 operator decision (operational qualification, PR #969). **D3 integrated acceptance
 is authorized and in progress**; the frozen D3 inputs are recorded in
 `docs/2026-10-16-srap-g3-d2-d3-handoff.md`. **D4 closure remains unauthorized.**
-The untrusted-peer denial row remains **NOT EXERCISED**. Fixture credential
+The untrusted-peer denial row remains **NOT EXERCISED at bootstrap**; it is
+**EXERCISED and DENIED** in §4.9. Fixture credential
 sourcing is frozen to the deterministic scripted provider (§5.5); real-provider
 integration uses only a dedicated test key seeded through
 `scripts/srap-accept/seed-provider-key.mjs`, under separate authorization. The
