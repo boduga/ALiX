@@ -86,6 +86,31 @@ describe("remote-decision projection", () => {
     assert.equal(r.counters.skipped_duplicate, 1);
   });
 
+  it("stores the non-secret evidence fields verbatim on the projected record", async () => {
+    await new AuditStore(cwd).activateIntegrity();
+    await storeWithDecision(cwd, evidence({
+      decisionId: "dec-fields",
+      principalId: "prin_ABCDEF",
+      credentialRef: "hmac-sha256:v1:XYZ",
+    }));
+
+    const r = await projectRemoteDecisions(cwd);
+    assert.ok(r.ok);
+    assert.equal(r.counters.projected, 1);
+
+    const rows = await new AuditStore(cwd).list(1000);
+    const projected = rows.find(
+      (row) => (row.details as { remoteDecision?: { decisionId?: string } })
+        ?.remoteDecision?.decisionId === "dec-fields",
+    );
+    assert.ok(projected, "the decision is projected into the audit chain");
+    const remote = (projected.details as { remoteDecision: { principalId: string; credentialRef: string; transport: string } }).remoteDecision;
+    // SRAP-G3 E-3: the record must carry these, not [REDACTED].
+    assert.equal(remote.principalId, "prin_ABCDEF");
+    assert.equal(remote.credentialRef, "hmac-sha256:v1:XYZ");
+    assert.equal(remote.transport, "direct-tls");
+  });
+
   it("reports positive lag while backlog is unprojected, zero after projecting", async () => {
     await new AuditStore(cwd).activateIntegrity();
     await storeWithDecision(cwd, evidence());
