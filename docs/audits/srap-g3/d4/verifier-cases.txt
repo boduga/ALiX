@@ -1,0 +1,22 @@
+VERIFIER CASES (assigned objective = src/srap-g7-output.txt / srap-g7-verified)
+
+CASE 1 empty
+  evidence: ''
+  verdict : {"satisfied":false,"summary":"Deliverable missing required evidence (assigned objective: Create the file src/srap-g7-output.txt containing the text srap-g7-verified).","gaps":["required file src/srap-g7-output.txt not evidenced","required content \"srap-g7-verified\" not evidenced","no executed tool evidence"]}
+
+CASE 2 prose only
+  evidence: 'I created src/srap-g7-output.txt with srap-g7-verified'
+  verdict : {"satisfied":false,"summary":"Deliverable missing required evidence (assigned objective: Create the file src/srap-g7-output.txt containing the text srap-g7-verified).","gaps":["no executed tool evidence"]}
+
+CASE 3 prose containing the word 'tool'
+  evidence: 'I ran the tool and it created src/srap-g7-output.txt containing srap-g7-verified'
+  verdict : {"satisfied":false,"summary":"Deliverable missing required evidence (assigned objective: Create the file src/srap-g7-output.txt containing the text srap-g7-verified).","gaps":["no executed tool evidence"]}
+
+CASE 4 wrong file + real tool result
+  evidence: 'Tool alix_file_create, call abc-1:\ncreated src/other.txt with srap-g7-verified'
+  verdict : {"satisfied":false,"summary":"Deliverable missing required evidence (assigned objective: Create the file src/srap-g7-output.txt containing the text srap-g7-verified).","gaps":["required file src/srap-g7-output.txt not evidenced"]}
+
+CASE 5 assigned file + real tool result
+  evidence: 'Tool alix_file_create, call abc-2:\ncreated src/srap-g7-output.txt with srap-g7-verified'
+  verdict : {"satisfied":true,"summary":"Deliverable src/srap-g7-output.txt present with required content \"srap-g7-verified\".","gaps":[]}
+

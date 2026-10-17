@@ -1,0 +1,7 @@
+=== NEGATIVE CONTROL: root goal vs plan goal disagree on required CONTENT ===
+rootGoal : Create the file src/srap-neg.txt containing the text NEG-EXPECTED
+planGoal : Create the file src/srap-neg.txt containing the text WRONG-CONTENT  (worker assigned this)
+status   : failed  outcome: failure
+deliverable content: NEG-EXPECTED
+worker summary:
+null

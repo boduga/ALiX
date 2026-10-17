@@ -1,0 +1,29 @@
+=== H-3: complete POST route surface (route-policy.ts tuples + handlers) ===
+--- route-policy.ts POST entries (line numbers) ---
+381:  method: "POST",
+652:  method: "POST",
+664:  method: "POST",
+737:  method: "POST",
+748:  method: "POST",
+--- the path for each POST entry (context) ---
+--- handler guards (all files) ---
+coordination-routes.ts:138:  if (method === "POST" && pathname === "/api/coordination/run") {
+coordination-routes.ts:145:  if (method === "POST" && cancelMatch) {
+evidence-routes.ts:175:    if (req.method !== "GET" && req.method !== "POST") {
+evidence-routes.ts:181:    if (pathname === "/api/security/evidence/verify" && req.method === "POST") {
+remote-decision-route.ts:148:  if (method !== "POST" || !match) return false;
+server.ts:318:      if (url.pathname === "/api/auth/session" && req.method === "POST") {
+server.ts:322:      if (url.pathname === "/api/auth/logout" && req.method === "POST") {
+
+--- decision route path constant ---
+2: * G3-C — remote approval decision endpoint (`POST /api/approvals/:id/decision`).
+57:const DECISION_PATH = /^\/api\/approvals\/([^/]+)\/decision$/;
+147:  const match = pathname.match(DECISION_PATH);
+
+COUNT: 6 POST routes expected:
+  1 POST /api/auth/session
+  2 POST /api/auth/logout
+  3 POST /api/coordination/run
+  4 POST /api/coordination/:runId/cancel
+  5 POST /api/security/evidence/verify
+  6 POST /api/approvals/:id/decision

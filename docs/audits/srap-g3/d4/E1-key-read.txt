@@ -1,0 +1,24 @@
+E-1 artifact — regenerated from the FINAL chain (248 records)
+credential.key_read records: 185
+records with fields outside {keyVersion,keyOperation,keyOutcome,reason}: 0 []
+contains credentialRef: False
+contains hmac-sha256: False
+contains Bearer: False
+contains alix_i_: False
+
+sample (last):
+{
+ "version": 2,
+ "seq": 247,
+ "prevHash": "503ce8e274c98900f5048ba9967230aa110744a22aceb77c017c2454c51429e4",
+ "recordHash": "d39fcbd565a4eef8c824ba984212d365b98dc7d844168c4ba984b8410a1f9e83",
+ "timestamp": 1792270131509,
+ "action": "credential.key_read",
+ "actor": "prin_uWXSJw6eQuUB",
+ "details": {
+  "keyVersion": 1,
+  "keyOperation": "sign",
+  "keyOutcome": "ok",
+  "reason": "remote_decision_evidence"
+ }
+}
