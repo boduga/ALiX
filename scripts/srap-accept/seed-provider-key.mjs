@@ -116,8 +116,8 @@ const bs = await import(
 // resolver and must itself be proven under the root before any state is written.
 if (process.platform === "win32") assertUnderRoot(process.env.LOCALAPPDATA, "LOCALAPPDATA");
 
-// Prove the fixture state root exists BEFORE creating anything under it, so the
-// "bootstrap the fixture first" precondition keeps its bite.
+// Prove the fixture state root exists BEFORE creating anything under it, and
+// that it does not escape the disposable root via a symlink.
 let requiredBase;
 if (process.platform === "linux") {
   const stateDir = join(ROOT, "state", "alix-inspector");
@@ -131,6 +131,9 @@ if (process.platform === "linux") {
 } else {
   requiredBase = realRoot;
 }
+if (!(requiredBase === realRoot || requiredBase.startsWith(realRoot + sep))) {
+  fail(`fixture state dir escapes the fixture root: ${requiredBase}`);
+}
 
 // (3) canonicalise the resolved credential dir and prove containment BEFORE
 // any write.
@@ -142,6 +145,9 @@ if (!(realCredDir === requiredBase || realCredDir.startsWith(requiredBase + sep)
     `resolved credential store dir escapes the fixture root: ${realCredDir} ` +
       `(expected under ${requiredBase})`,
   );
+}
+if (!(realCredDir === realRoot || realCredDir.startsWith(realRoot + sep))) {
+  fail(`resolved credential store dir escapes the fixture root: ${realCredDir}`);
 }
 const storePath = bs.plainStorePath();
 // Canonicalize the store's directory before comparing: on macOS `/var` is a
