@@ -220,3 +220,30 @@ outside the fixture, and the tool still reported `credentialsDirWithinRoot: true
 credential dir are contained against `realRoot` itself, so a symlinked escape is
 refused with no write. Covered by a regression test (PR #973); fixture
 infrastructure only, no product change.
+
+### 4.7 D3 execution — STOPPED on a failing row (2026-10-17)
+
+D3 was executed on a fresh fixture pinned to merged `main` **`9f81e511`** and
+**stopped at the first hard failure**, per the acceptance plan's binding
+boundary (file the defect, do not patch inside the run).
+
+- Environment re-validation on `9f81e511`: isolation, audit activation/
+  integrity/idempotency, projection init, corrected seeder, and TLS — all PASS.
+- Genuine coordination fixture reached: run
+  `coord_937fae02-b23b-4f5d-b202-19cd7f947955`, worker blocked
+  (`approval_required`), approval `approval_1792249853783_qzy6p`.
+- Rows **PASS**: A-1, A-2, A-3, C-2, C-3a, D-1, D-2, D-3, D-4.
+- Row **FAIL: E-3** — the projected decision record stores `principalId` and
+  `credentialRef` as `[REDACTED]` while the authoritative ledger holds the real
+  values. Root cause: `audit-chain-writer.ts` redaction patterns `/ip/i` and
+  `/credential/i` false-positive on those benign fields, violating the audit
+  DOX requirement that the projected record carry them. CI-blind (the projection
+  test asserts counts only). Filed as **issue #974**.
+- B-1 is blocked by E-3; E-1/E-2/E-4, F-1/F-3/F-4, G-*, H-*, A-4, B-2/B-3, C-1
+  and the untrusted-peer row were **not run**. D4 not started.
+
+`alix audit verify` stayed OK/0 findings throughout — the failure is a
+field-placement/redaction defect, not chain corruption.
+
+Evidence: `$ROOT/runs/20261017T150703Z/d3-execution-report.md`.
+Re-run the affected rows only after #974 is fixed and merged.
