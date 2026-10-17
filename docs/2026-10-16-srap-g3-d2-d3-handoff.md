@@ -154,7 +154,7 @@ unexecuted and the untrusted-peer row remains **NOT EXERCISED**.
 | Trust with the fixture CA (`$ROOT/tls/proxy.crt`) | `ssl_verify_result=0` for `localhost` and `127.0.0.1` |
 | Trust without the CA | handshake rejected (`curl` exit 60) |
 | Authentication through the proxy | `GET /api/doctor` → 401 without token / 200 with; `/healthz` → 200 |
-| Forwarding canonicalization | spoofed `X-Forwarded-*` / `X-Real-IP` / `Via` / `Forwarded` stripped; exactly one `X-Forwarded-Proto: https`; `host` rewritten to the upstream |
+| Forwarding canonicalization | spoofed `X-Forwarded-*` / `X-Real-IP` / `Via` / `Forwarded` stripped; exactly one canonical client hop (`X-Forwarded-For`) and one `X-Forwarded-Proto: https`; `host` rewritten to the upstream |
 | Upstream unavailable | 502 |
 | Negative proxy | refuses port 4143 (exit 1); forwards malformed `https,http`; auto-shuts down after its TTL |
 
@@ -162,3 +162,25 @@ Bootstrap PR: **#971** on branch `srap/d3-fixture-bootstrap` (all checks green).
 Commits: `95821fe4` (fixture credentials + mock protocol), `2d7582a1`
 (typecheck), `d87d897b` (this record), `e188d91a` (cross-platform seeder
 guards), `4c713d70` (store-dir canonicalization). Not merged.
+
+### 4.4 Independent security review (2026-10-17)
+
+Two independent security-oriented reviews of the PR #971 fixture scripts were
+performed before merge. Both found real defects; each was reproduced and fixed,
+and the fixes are covered by the seeder test suite.
+
+| Finding | Severity | Fix |
+| --- | --- | --- |
+| `readSecretFromFd` returned a `subarray` view and then `fill(0)`-ed the parent buffer, so every seeded secret was stored as NUL bytes while reporting `verified:true` | CRITICAL | copy the trimmed bytes out before scrubbing; read-back now compares the **stored** value against the supplied secret (`timingSafeEqual`) |
+| read-back compared the stored value with a second read of itself (a tautology that could not catch the above) | HIGH | compare against the original secret |
+| backend selector written before the resolved credential dir was proven contained; `LOCALAPPDATA` never validated on win32 | MEDIUM | prove containment before `writeStoredBackend`; `assertUnderRoot(LOCALAPPDATA)` |
+| vitest asserted only length/absence, never the stored value, so it passed vacuously | HIGH (test) | assert the stored value equals the supplied secret |
+| proxy wrote `X-Forwarded-Proto` but stripped `X-Forwarded-For`; `resolveClientAddress` then reports `fromProxy:false` and `deriveRemoteTransport` rejects a proxied decision before reading the proto | HIGH | the proxy now writes exactly one canonical `X-Forwarded-For` (observed socket peer) alongside `X-Forwarded-Proto: https` |
+| negative proxy omitted `X-Forwarded-For`, so it denied at the proxy-trust gate instead of exercising the malformed-proto branch | MEDIUM | same canonical `X-Forwarded-For`, so the malformed proto is what gets evaluated |
+| `--fd 0` bypassed the TTY refusal; oversize read buffered before the bound | LOW | TTY detection now inspects the resolved fd; the read stops and fails at the bound |
+| mock model body read was unbounded and had no error/close handler | LOW | bound the body and resolve on error/close |
+
+No finding allowed the fixture to fabricate an approval outcome, an audit record,
+or an acceptance verdict: the mock influences model output only, and the proxies
+carry transport only. The trusted-proxy CIDR is loopback, so the untrusted-peer
+row remains **NOT EXERCISED**.

@@ -64,6 +64,16 @@ const srap = await import(
   pathToFileURL(join(REPO, "dist/src/governance/security/credentials/srap-evidence.js")).href
 );
 
+// On win32 the platform resolver reads LOCALAPPDATA; prove it inside the root
+// before any state is written.
+if (process.platform === "win32") assertUnderRoot(process.env.LOCALAPPDATA, "LOCALAPPDATA");
+
+// (3) canonicalise the resolved credential dir and prove containment BEFORE
+// any write.
+const credDir = bs.credentialsDir();
+mkdirSync(credDir, { recursive: true, mode: 0o700 });
+const realCredDir = realpathSync(credDir);
+
 let requiredBase;
 if (process.platform === "linux") {
   const stateDir = join(ROOT, "state", "alix-inspector");
@@ -78,13 +88,6 @@ if (process.platform === "linux") {
   requiredBase = realRoot;
 }
 
-// (4) force the fixture backend before any store is constructed.
-await bs.writeStoredBackend("plain-file");
-
-// (3) canonicalise the resolved credential dir and prove containment.
-const credDir = bs.credentialsDir();
-mkdirSync(credDir, { recursive: true, mode: 0o700 });
-const realCredDir = realpathSync(credDir);
 if (!(realCredDir === requiredBase || realCredDir.startsWith(requiredBase + sep))) {
   fail(
     `resolved credential store dir escapes the fixture root: ${realCredDir} ` +
@@ -96,6 +99,9 @@ const storePath = bs.plainStorePath();
 if (realpathSync(dirname(storePath)) !== realCredDir) {
   fail(`resolved plain store path is outside the credential dir: ${storePath}`);
 }
+
+// (4) force the fixture backend only AFTER containment is proven.
+await bs.writeStoredBackend("plain-file");
 
 const store = await bs.createCredentialStoreForBackend("plain-file");
 await store.load();

@@ -8,8 +8,9 @@
  *
  *   - binds ONLY to 127.0.0.1;
  *   - removes ALL client-originated `Forwarded` / `X-Forwarded-*` / `X-Real-IP`
- *     / `Via` headers, then writes exactly ONE canonical trusted value,
- *     `X-Forwarded-Proto: https`;
+ *     / `Via` headers, then writes exactly ONE canonical client address
+ *     (`X-Forwarded-For`, the observed socket peer) and exactly ONE canonical
+ *     trusted protocol value (`X-Forwarded-Proto: https`);
  *   - never sets `-k`/skip-verify behaviour on the client side (the client uses
  *     `--cacert` against the fixture CA).
  *
@@ -41,7 +42,7 @@ const UPSTREAM_PORT = Number(process.env.SRAP_UPSTREAM_PORT ?? 4139);
 const STRIP_EXACT = new Set(["forwarded", "x-real-ip", "via"]);
 const STRIP_PREFIX = ["x-forwarded-"];
 
-function canonicalizeForwarding(headers) {
+function canonicalizeForwarding(headers, peer) {
   const out = {};
   for (const [key, value] of Object.entries(headers)) {
     const lower = key.toLowerCase();
@@ -49,8 +50,12 @@ function canonicalizeForwarding(headers) {
     if (STRIP_PREFIX.some((p) => lower.startsWith(p))) continue;
     out[lower] = value;
   }
-  // Exactly one canonical trusted protocol value — the proxy observed TLS.
+  // Exactly one canonical trusted value for each: the proxy observed TLS and
+  // one client hop. `resolveClientAddress` requires a parseable
+  // `X-Forwarded-For` to report `fromProxy`, which `deriveRemoteTransport`
+  // requires before it will accept a proxied remote decision.
   out["x-forwarded-proto"] = "https";
+  out["x-forwarded-for"] = peer;
   return out;
 }
 
@@ -60,7 +65,8 @@ const tls = {
 };
 
 const server = createServer(tls, (req, res) => {
-  const headers = canonicalizeForwarding(req.headers);
+  const peer = req.socket.remoteAddress ?? "127.0.0.1";
+  const headers = canonicalizeForwarding(req.headers, peer);
   headers.host = `${UPSTREAM_HOST}:${UPSTREAM_PORT}`;
 
   const upstream = httpRequest(

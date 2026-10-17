@@ -113,6 +113,14 @@ function entries(root: string): string[] {
   };
   return (j.credentials ?? []).map((c) => `${c.entry.provider}/${c.entry.keyLabel}`);
 }
+function storedValue(root: string, provider: string, keyLabel: string): string | undefined {
+  const j = JSON.parse(readFileSync(storePath(root), "utf8")) as {
+    credentials?: Array<{ entry: { provider: string; keyLabel: string }; value?: string }>;
+  };
+  return (j.credentials ?? []).find(
+    (c) => c.entry.provider === provider && c.entry.keyLabel === keyLabel,
+  )?.value;
+}
 
 afterEach(() => {
   while (roots.length > 0) rmSync(roots.pop() as string, { recursive: true, force: true });
@@ -149,6 +157,9 @@ describe.skipIf(process.platform === "win32")("srap seed-provider-key", () => {
 
     expect(res.stdout + res.stderr).not.toContain(secret);
     expect(entries(root)).toContain("openrouter/apiKey");
+    // The stored value must equal the supplied secret (guards the subarray/
+    // fill(0) aliasing regression that would otherwise store all-NUL bytes).
+    expect(storedValue(root, "openrouter", "apiKey")).toBe(secret);
 
     // backend forced to plain-file; no keychain-metadata mirror created
     expect(readFileSync(join(credentialsDir(root), ".backend"), "utf8").trim()).toBe("plain-file");
@@ -166,6 +177,7 @@ describe.skipIf(process.platform === "win32")("srap seed-provider-key", () => {
     expect(JSON.parse(res.stdout.trim()).valueLength).toBe(secret.length);
     expect(res.stdout + res.stderr).not.toContain(secret);
     expect(entries(root)).toContain("openrouter/apiKey");
+    expect(storedValue(root, "openrouter", "apiKey")).toBe(secret);
   });
 
   it("rejects a secret supplied as an argv flag", async () => {

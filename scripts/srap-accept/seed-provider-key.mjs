@@ -46,7 +46,7 @@
  * This is inert fixture infrastructure: no product logic, never imported by
  * `src/**`.
  */
-import { existsSync, mkdirSync, readSync, realpathSync } from "node:fs";
+import { existsSync, fstatSync, mkdirSync, readSync, realpathSync } from "node:fs";
 import { isAbsolute, dirname, join, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { timingSafeEqual } from "node:crypto";
@@ -112,9 +112,17 @@ const bs = await import(
 //   linux  -> $ROOT/state/alix-inspector  (XDG_STATE_HOME lives under $ROOT)
 //   darwin -> $ROOT/home/Library/Application Support/alix-inspector
 //   win32  -> $ROOT/home/AppData/Local/alix-inspector (LOCALAPPDATA under $ROOT)
-// Linux keeps the exact reviewed predicate; elsewhere the invariant is that the
-// resolved credential dir stays inside the disposable root, never the shared
-// OS-user location.
+// Linux keeps the exact reviewed predicate; on win32 LOCALAPPDATA is the
+// resolver and must itself be proven under the root before any state is written.
+if (process.platform === "win32") assertUnderRoot(process.env.LOCALAPPDATA, "LOCALAPPDATA");
+
+// (3) canonicalise the resolved credential dir and prove containment BEFORE
+// any write. `writeStoredBackend` must never touch a directory that has not
+// been proven inside the disposable fixture.
+const credDir = bs.credentialsDir();
+mkdirSync(credDir, { recursive: true, mode: 0o700 });
+const realCredDir = realpathSync(credDir);
+
 let requiredBase;
 if (process.platform === "linux") {
   const stateDir = join(ROOT, "state", "alix-inspector");
@@ -129,13 +137,6 @@ if (process.platform === "linux") {
   requiredBase = realRoot;
 }
 
-// (4) force the fixture backend BEFORE any store is constructed.
-await bs.writeStoredBackend("plain-file");
-
-// (3) canonicalise the resolved credential dir and prove containment.
-const credDir = bs.credentialsDir();
-mkdirSync(credDir, { recursive: true, mode: 0o700 });
-const realCredDir = realpathSync(credDir);
 if (!(realCredDir === requiredBase || realCredDir.startsWith(requiredBase + sep))) {
   fail(
     `resolved credential store dir escapes the fixture root: ${realCredDir} ` +
@@ -150,6 +151,9 @@ if (realpathSync(dirname(storePath)) !== realCredDir) {
   fail(`resolved plain store path is outside the credential dir: ${storePath}`);
 }
 
+// (4) force the fixture backend only AFTER containment is proven.
+await bs.writeStoredBackend("plain-file");
+
 const store = await bs.createCredentialStoreForBackend("plain-file");
 await store.load();
 if (store.backend !== "plain-file") {
@@ -157,9 +161,11 @@ if (store.backend !== "plain-file") {
 }
 
 // --- read the secret (never from argv) --------------------------------------
+const MAX_SECRET_BYTES = 4096;
 function readSecretFromFd(fd) {
   const chunks = [];
-  const buf = Buffer.alloc(4096);
+  const buf = Buffer.alloc(MAX_SECRET_BYTES + 1);
+  let total = 0;
   for (;;) {
     let n;
     try {
@@ -170,14 +176,23 @@ function readSecretFromFd(fd) {
       fail(`failed reading secret from fd ${fd}: ${err.code ?? "error"}`);
     }
     if (n === 0) break;
+    total += n;
+    if (total > MAX_SECRET_BYTES) {
+      buf.fill(0);
+      fail(`secret exceeds ${MAX_SECRET_BYTES} bytes; refusing`);
+    }
     chunks.push(Buffer.from(buf.subarray(0, n)));
   }
+  buf.fill(0);
   const all = Buffer.concat(chunks);
+  for (const c of chunks) c.fill(0);
   // strip a single trailing newline (echo/heredoc artifact); keep the rest.
   let end = all.length;
   if (end > 0 && all[end - 1] === 0x0a) end--;
   if (end > 0 && all[end - 1] === 0x0d) end--;
-  const trimmed = all.subarray(0, end);
+  // Copy out, then scrub the concatenation: `subarray` shares memory, so an
+  // independent copy is required or `all.fill(0)` would zero the secret.
+  const trimmed = Buffer.from(all.subarray(0, end));
   all.fill(0);
   return trimmed;
 }
@@ -188,24 +203,28 @@ if (args.mode === "seed") {
     fail(`provider '${RESERVED_PROVIDER}' is reserved for SRAP-1 evidence keys`);
   }
   const fd = args.fd ?? 0;
-  if (args.fd === undefined && process.stdin.isTTY) {
+  let isTty = false;
+  try {
+    isTty = fstatSync(fd).isCharacterDevice();
+  } catch {
+    /* an invalid fd is reported by the read below */
+  }
+  if (isTty) {
     fail("refusing to read a secret from a TTY; pipe stdin or pass a protected --fd");
   }
   const secret = readSecretFromFd(fd);
   if (secret.length === 0) fail("empty secret; nothing written");
-  if (secret.length > 4096) fail("secret exceeds 4096 bytes; refusing");
+  const secretLength = secret.length;
 
   await store.set(args.provider, args.label, secret.toString("utf8"));
-  secret.fill(0);
 
-  // prove it resolves back, without ever emitting the value.
-  const readBack = store.get(args.provider, args.label);
-  const a = Buffer.from(readBack ?? "", "utf8");
-  const b = Buffer.from(store.get(args.provider, args.label) ?? "", "utf8");
-  const verified = a.length > 0 && a.length === b.length && timingSafeEqual(a, b);
-  if (!verified) fail("read-back verification failed; credential not confirmed");
+  // Prove the STORED value equals what we supplied, without emitting it.
+  const a = Buffer.from(store.get(args.provider, args.label) ?? "", "utf8");
+  const verified =
+    a.length === secret.length && a.length > 0 && timingSafeEqual(a, secret);
   a.fill(0);
-  b.fill(0);
+  secret.fill(0);
+  if (!verified) fail("read-back verification failed; credential not confirmed");
 
   console.log(
     JSON.stringify({
@@ -214,7 +233,7 @@ if (args.mode === "seed") {
       backend: store.backend,
       provider: args.provider,
       keyLabel: args.label,
-      valueLength: readBack.length,
+      valueLength: secretLength,
       verified: true,
       credentialsDirWithinRoot: true,
     }),

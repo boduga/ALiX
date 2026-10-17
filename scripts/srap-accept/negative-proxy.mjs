@@ -3,7 +3,8 @@
  * SRAP-G3-ACCEPT fixture — negative-test proxy (denial exercise only).
  *
  * Loopback-only, time-limited, and NEVER bound to the production proxy port
- * (4143). It intentionally forwards a MALFORMED `X-Forwarded-Proto` value so the
+ * (4143). It intentionally forwards a MALFORMED `X-Forwarded-Proto` value (with
+ * a canonical `X-Forwarded-For`, so the request reaches the proto check) so the
  * Inspector's trusted-proxy handling can be observed to deny it. It is not a
  * production proxy configuration and proves nothing about untrusted peers.
  *
@@ -35,7 +36,7 @@ if (LISTEN_PORT === 4143) {
 const STRIP_EXACT = new Set(["forwarded", "x-real-ip", "via"]);
 const STRIP_PREFIX = ["x-forwarded-"];
 
-function malform(headers) {
+function malform(headers, peer) {
   const out = {};
   for (const [key, value] of Object.entries(headers)) {
     const lower = key.toLowerCase();
@@ -43,12 +44,16 @@ function malform(headers) {
     if (STRIP_PREFIX.some((p) => lower.startsWith(p))) continue;
     out[lower] = value;
   }
+  // A canonical client hop, so the request reaches the proto check in
+  // `deriveRemoteTransport` (the malformed proto is what must be denied).
+  out["x-forwarded-for"] = peer;
   out["x-forwarded-proto"] = MALFORMED_XFP;
   return out;
 }
 
 const server = createServer((req, res) => {
-  const headers = malform(req.headers);
+  const peer = req.socket.remoteAddress ?? "127.0.0.1";
+  const headers = malform(req.headers, peer);
   headers.host = `${UPSTREAM_HOST}:${UPSTREAM_PORT}`;
   const upstream = httpRequest(
     { host: UPSTREAM_HOST, port: UPSTREAM_PORT, method: req.method, path: req.url, headers },

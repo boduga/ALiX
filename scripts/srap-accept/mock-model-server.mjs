@@ -44,11 +44,30 @@ const TOOL_ARGS = process.env.SRAP_MOCK_TOOL_ARGS ?? '{"path":"srap-fixture-outp
 const PLAN_TEXT =
   "Plan:\n1. Produce exactly one capability-gated action for the fixture goal.\n";
 
+const MAX_BODY_BYTES = 1024 * 1024;
+
 function readBody(req) {
   return new Promise((resolve) => {
     let data = "";
-    req.on("data", (c) => (data += c));
-    req.on("end", () => resolve(data));
+    let bytes = 0;
+    let done = false;
+    const finish = () => {
+      if (!done) {
+        done = true;
+        resolve(data);
+      }
+    };
+    req.on("data", (c) => {
+      bytes += c.length;
+      if (bytes > MAX_BODY_BYTES) {
+        finish();
+        return;
+      }
+      data += c;
+    });
+    req.on("end", finish);
+    req.on("close", finish);
+    req.on("error", finish);
   });
 }
 

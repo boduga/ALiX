@@ -51,7 +51,8 @@ Independent operator client (curl / dedicated test process)
             │ HTTPS localhost:4143
             ▼
 Production-mode TLS proxy (loopback; strips all client forwarding headers)
-            │ HTTP localhost:4139; one trusted X-Forwarded-Proto: https
+            │ HTTP localhost:4139; one canonical trusted client hop
+            │ (X-Forwarded-For) + one trusted X-Forwarded-Proto: https
             ▼
 Inspector (existing remote-decision endpoint, auth, principal and scope checks)
             │
@@ -219,7 +220,7 @@ Generate `$ROOT/workspace/.alix/config.remote-on.json` and `.remote-off.json` us
 
 ### 5.2 TLS
 
-For an authorized D1 setup, generate a two-day self-signed certificate with SANs `DNS:localhost` and `IP:127.0.0.1`, private key `0600`, and proxy listener `127.0.0.1:4143`. Use `curl --cacert "$ROOT/tls/proxy.crt"`; do not use `-k`. Verify SAN and expiry. The production proxy must remove **all** inbound `Forwarded`, `X-Forwarded-*` and similar client-originated forwarding headers before writing one canonical trusted protocol value. The negative proxy is isolated, time-limited and loopback-only.
+For an authorized D1 setup, generate a two-day self-signed certificate with SANs `DNS:localhost` and `IP:127.0.0.1`, private key `0600`, and proxy listener `127.0.0.1:4143`. Use `curl --cacert "$ROOT/tls/proxy.crt"`; do not use `-k`. Verify SAN and expiry. The production proxy must remove **all** inbound `Forwarded`, `X-Forwarded-*` and similar client-originated forwarding headers before writing exactly one canonical trusted client hop (`X-Forwarded-For`, the observed socket peer) and one canonical trusted protocol value (`X-Forwarded-Proto: https`). Both are required: `resolveClientAddress` reports `fromProxy` only when a parseable `X-Forwarded-For` is present, and `deriveRemoteTransport` rejects the request before reading the proto otherwise. The negative proxy is isolated, time-limited and loopback-only.
 
 ### 5.3 Operator enrollment — D2 only
 
