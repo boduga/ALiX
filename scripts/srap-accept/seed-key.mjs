@@ -21,7 +21,7 @@
  * as "not authored".
  */
 import { existsSync, mkdirSync, realpathSync } from "node:fs";
-import { isAbsolute, join, sep } from "node:path";
+import { isAbsolute, dirname, join, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const ROOT = process.env.SRAP_ACCEPT_ROOT;
@@ -92,7 +92,8 @@ if (!(realCredDir === requiredBase || realCredDir.startsWith(requiredBase + sep)
   );
 }
 const storePath = bs.plainStorePath();
-if (!storePath.startsWith(realCredDir + sep)) {
+// Canonicalize the store's directory before comparing (macOS `/var` symlink).
+if (realpathSync(dirname(storePath)) !== realCredDir) {
   fail(`resolved plain store path is outside the credential dir: ${storePath}`);
 }
 

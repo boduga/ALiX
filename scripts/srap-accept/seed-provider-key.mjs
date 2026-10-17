@@ -47,7 +47,7 @@
  * `src/**`.
  */
 import { existsSync, mkdirSync, readSync, realpathSync } from "node:fs";
-import { isAbsolute, join, sep } from "node:path";
+import { isAbsolute, dirname, join, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { timingSafeEqual } from "node:crypto";
 
@@ -143,7 +143,10 @@ if (!(realCredDir === requiredBase || realCredDir.startsWith(requiredBase + sep)
   );
 }
 const storePath = bs.plainStorePath();
-if (!storePath.startsWith(realCredDir + sep)) {
+// Canonicalize the store's directory before comparing: on macOS `/var` is a
+// symlink to `/private/var`, so the raw path and the realpath of the credential
+// dir disagree even though they are the same location.
+if (realpathSync(dirname(storePath)) !== realCredDir) {
   fail(`resolved plain store path is outside the credential dir: ${storePath}`);
 }
 
