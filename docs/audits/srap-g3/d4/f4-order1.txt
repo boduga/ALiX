@@ -1,0 +1,8 @@
+=== F-4 Order 1 (disable COMPLETES, then dispatch) ===
+approval=approval_1792267294526_32d81  (run coord_f0893373-20be-42ae-bd54-5256940c1d54)
+{"principalId":"prin_uWXSJw6eQuUB","status":"disabled"}
+disable COMPLETED before dispatch
+{"error":"principal_disabled","requestId":"alx-mvcto93q-2f-s6gcbz"}
+HTTP=401
+key_read delta=0 (must be 0)
+{"principalId":"prin_uWXSJw6eQuUB","status":"active"}

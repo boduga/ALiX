@@ -1,0 +1,38 @@
+=== C-2 unauthorized workspace: approval state proof ===
+approval-id: approval_1792268282359_0feb1
+BEFORE: {"id": "approval_1792268282359_0feb1", "status": "pending", "hasEvidence": false, "decision": null}
+HTTP: 401
+AFTER : {"id": "approval_1792268282359_0feb1", "status": "pending", "hasEvidence": false, "decision": null}
+
+=== E-2 deterministic audit failure: approval state proof ===
+approval-id: approval_1792268285353_jijm6
+BEFORE: NOT FOUND
+HTTP: 503
+AFTER : NOT FOUND
+diagnostic: [srap] remote-decision evidence unavailable: Error
+
+=== H-1 transcript with nonce (reproducible request) ===
+approval-id: approval_1792268288383_togsy
+POST https://localhost:4143/api/approvals/approval_1792268288383_togsy/decision
+content-type: application/json
+authorization: Bearer <redacted>
+body {"decision":"approved","nonce":"h1c"}
+{"id":"approval_1792268288383_togsy","decision":"approved"}
+HTTP=200
+AFTER : {"id": "approval_1792268288383_togsy", "status": "approved", "hasEvidence": true, "decision": "approved"}
+
+=== E-2 (retry): approval state proof ===
+approval-id: approval_1792268298377_x7wcp
+HTTP: 503
+E-2 approval approval_1792268298377_x7wcp final state:
+NOT FOUND
+diagnostic line: [srap] remote-decision evidence unavailable: Error
+
+=== E-2 (final): authoritative CLI read, before/after ===
+approval-id: approval_1792268320403_x386p
+BEFORE:
+approval_1792268320403_x386p pending      filesystem.write     expires 2026-10-17T20:48:40
+HTTP: 503
+AFTER:
+approval_1792268320403_x386p pending      filesystem.write     expires 2026-10-17T20:48:40
+diagnostic: [srap] remote-decision evidence unavailable: Error
