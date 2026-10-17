@@ -247,3 +247,31 @@ field-placement/redaction defect, not chain corruption.
 
 Evidence: `$ROOT/runs/20261017T150703Z/d3-execution-report.md`.
 Re-run the affected rows only after #974 is fixed and merged.
+
+### 4.8 D3 execution — PASS (2026-10-17)
+
+The E-3 defect was fixed in **#976** (merge `68f4520d`): the audit chain writer no
+longer redacts the non-secret evidence fields `principalId`/`credentialRef`, and
+the projection boundary now enforces the `credentialRef` HMAC shape (fail-closed
+on a non-conforming value). Re-run on a **fresh fixture pinned to merged `main`
+`93437e6f`**:
+
+- All executed rows **PASS**: A-1, A-2, A-3, A-4, B-1, B-2 (bearer **and**
+  cookie), B-3, C-1, C-2, C-3a, D-1, D-2, D-3, D-4, E-1, E-2, E-3, E-4, F-1,
+  F-2, F-3, G-1, G-2, G-3, G-4, H-1, H-2, H-3.
+- **E-3** now holds: the projected decision record's `principalId`/`credentialRef`
+  match the authoritative ledger; `alix audit verify` OK/0 findings.
+- **G-4 / H-1**: run `coord_5d288a9f-21a0-40b8-bb74-2bc0ca777ce6`
+  (`hostKind daemon`, `sessionMode ask`) resumed through the existing path after
+  the remote decision — worker `blocked → running → completed`, terminal
+  `completed`/`success`, `executionOwnerId daemon-312222` (no new execution
+  surface), deliverable `src/srap-g4-output.txt` persisted.
+- **H-2**: ON control 200; OFF 404; no side effects.
+- Untrusted-peer row remains **NOT EXERCISED**; **D4 not started**.
+
+F-4 (the disablement/decision race, T=20) was not re-run in this session. The
+offline fixture mock was extended **in the fixture copy only** (planner graph,
+reviewer verdict, stop-after-first-tool) to drive a keyless model through a real
+approval-gated run to terminal; no product code changed.
+
+Evidence: `$ROOT/runs/20261017T164036Z/d3-execution-report-rev2.md`.
