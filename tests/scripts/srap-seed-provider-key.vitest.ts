@@ -232,13 +232,20 @@ describe.skipIf(process.platform === "win32")("srap seed-provider-key", () => {
     }
   });
 
-  it("refuses to seed when the fixture state dir is not bootstrapped", async () => {
-    const root = makeBareRoot();
-    const res = await run(root, ["--provider", "openrouter", "--label", "apiKey"], { stdin: "x" });
+  // The "bootstrap the fixture first" state-dir precondition is Linux-specific
+  // (the reviewed fixture layout is `$ROOT/state/alix-inspector`). On
+  // macOS/Windows the platform state dir sits under `HOME` and is created on
+  // demand, so there is no equivalent pre-existing directory to require.
+  it.skipIf(process.platform !== "linux")(
+    "refuses to seed when the fixture state dir is not bootstrapped",
+    async () => {
+      const root = makeBareRoot();
+      const res = await run(root, ["--provider", "openrouter", "--label", "apiKey"], { stdin: "x" });
 
-    expect(res.code).not.toBe(0);
-    expect(res.stderr).toContain("fixture state dir not found");
-  });
+      expect(res.code).not.toBe(0);
+      expect(res.stderr).toContain("fixture state dir not found");
+    },
+  );
 
   it("removes a seeded entry and lists labels only", async () => {
     const root = makeRoot();
