@@ -54,6 +54,9 @@ function envFor(root: string, extra: Record<string, string> = {}): NodeJS.Proces
     XDG_STATE_HOME: join(root, "state"),
     XDG_CACHE_HOME: join(root, "cache"),
     TMPDIR: join(root, "tmp"),
+    // Windows resolves the platform state dir from %LOCALAPPDATA%; keep it
+    // inside the disposable root so the fixture stays isolated.
+    LOCALAPPDATA: join(root, "home", "AppData", "Local"),
     ...extra,
   };
 }
@@ -89,7 +92,17 @@ function run(
 }
 
 function credentialsDir(root: string): string {
-  return join(root, "state/alix-inspector/data/credentials");
+  // Mirror `user-state-paths.ts` platform resolution (the fixture keeps HOME —
+  // and on Windows LOCALAPPDATA — inside the disposable root).
+  const home = join(root, "home");
+  switch (process.platform) {
+    case "darwin":
+      return join(home, "Library", "Application Support", "alix-inspector", "data", "credentials");
+    case "win32":
+      return join(home, "AppData", "Local", "alix-inspector", "data", "credentials");
+    default:
+      return join(root, "state", "alix-inspector", "data", "credentials");
+  }
 }
 function storePath(root: string): string {
   return join(credentialsDir(root), "credential-store.json");
@@ -112,7 +125,10 @@ if (!built) {
   );
 }
 
-describe("srap seed-provider-key", () => {
+// The SRAP acceptance fixture is a POSIX target: `HOME` (and `XDG_STATE_HOME`)
+// isolation plus protected-FD/stdin secret delivery rely on POSIX pipe
+// semantics. Windows is covered by other suites, not this fixture contract.
+describe.skipIf(process.platform === "win32")("srap seed-provider-key", () => {
   it("seeds via stdin into the isolated plain-file store without printing the secret", async () => {
     const root = makeRoot();
     const secret = "fixture-dummy-secret-abc1234567890";
@@ -128,7 +144,7 @@ describe("srap seed-provider-key", () => {
       keyLabel: "apiKey",
       valueLength: secret.length,
       verified: true,
-      credentialsDirWithinState: true,
+      credentialsDirWithinRoot: true,
     });
 
     expect(res.stdout + res.stderr).not.toContain(secret);

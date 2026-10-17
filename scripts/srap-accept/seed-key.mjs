@@ -7,9 +7,12 @@
  * preconditions (fixture §5.4):
  *
  *   1. `ALIX_REPO_ROOT_ABS` is an absolute pinned checkout.
- *   2. `HOME` and `XDG_STATE_HOME` resolve inside the disposable root.
+ *   2. `HOME` resolves inside the disposable root (`XDG_STATE_HOME` too, on
+ *      Linux), so the platform state dir lands under the fixture.
  *   3. the resolved credential-store path is canonicalised and proven INSIDE
- *      `$ROOT/state/alix-inspector` (symlink-aware) — never assumed.
+ *      the disposable fixture root (symlink-aware) — never assumed. On Linux
+ *      that is the exact `$ROOT/state/alix-inspector` fixture layout; on
+ *      macOS/Windows the platform state dir sits under `$ROOT/home`.
  *   4. the selected backend is exactly `plain-file`; no keychain fallback.
  *   5. only backend id, active key version and a non-secret success flag print.
  *
@@ -17,8 +20,8 @@
  * `src/**`. It is the reviewed authoring of the seed step the D1 report listed
  * as "not authored".
  */
-import { mkdirSync, realpathSync } from "node:fs";
-import { join, sep } from "node:path";
+import { existsSync, mkdirSync, realpathSync } from "node:fs";
+import { isAbsolute, join, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const ROOT = process.env.SRAP_ACCEPT_ROOT;
@@ -31,9 +34,12 @@ function fail(msg) {
   process.exit(1);
 }
 
-if (!ROOT || !ROOT.startsWith("/")) fail("SRAP_ACCEPT_ROOT must be an absolute path");
-if (!REPO || !REPO.startsWith("/")) fail("ALIX_REPO_ROOT_ABS must be an absolute pinned checkout");
-if (!HOME || !XDG_STATE_HOME) fail("HOME and XDG_STATE_HOME must be set to the fixture root");
+if (!ROOT || !isAbsolute(ROOT)) fail("SRAP_ACCEPT_ROOT must be an absolute path");
+if (!REPO || !isAbsolute(REPO)) fail("ALIX_REPO_ROOT_ABS must be an absolute pinned checkout");
+if (!HOME) fail("HOME must be set to the fixture home");
+if (process.platform === "linux" && !XDG_STATE_HOME) {
+  fail("XDG_STATE_HOME must be set to the fixture state root");
+}
 
 const realRoot = realpathSync(ROOT);
 function assertUnderRoot(p, label) {
@@ -49,7 +55,7 @@ function assertUnderRoot(p, label) {
   return real;
 }
 assertUnderRoot(HOME, "HOME");
-assertUnderRoot(XDG_STATE_HOME, "XDG_STATE_HOME");
+if (XDG_STATE_HOME) assertUnderRoot(XDG_STATE_HOME, "XDG_STATE_HOME");
 
 const bs = await import(
   pathToFileURL(join(REPO, "dist/src/governance/security/credentials/backend-selection.js")).href
@@ -58,14 +64,18 @@ const srap = await import(
   pathToFileURL(join(REPO, "dist/src/governance/security/credentials/srap-evidence.js")).href
 );
 
-let expectedState;
-try {
-  expectedState = realpathSync(join(ROOT, "state", "alix-inspector"));
-} catch {
-  fail(
-    `fixture state dir not found: ${join(ROOT, "state", "alix-inspector")} ` +
-      `(bootstrap the fixture before seeding the evidence key)`,
-  );
+let requiredBase;
+if (process.platform === "linux") {
+  const stateDir = join(ROOT, "state", "alix-inspector");
+  if (!existsSync(stateDir)) {
+    fail(
+      `fixture state dir not found: ${stateDir} ` +
+        `(bootstrap the fixture before seeding the evidence key)`,
+    );
+  }
+  requiredBase = realpathSync(stateDir);
+} else {
+  requiredBase = realRoot;
 }
 
 // (4) force the fixture backend before any store is constructed.
@@ -75,8 +85,11 @@ await bs.writeStoredBackend("plain-file");
 const credDir = bs.credentialsDir();
 mkdirSync(credDir, { recursive: true, mode: 0o700 });
 const realCredDir = realpathSync(credDir);
-if (!(realCredDir === expectedState || realCredDir.startsWith(expectedState + sep))) {
-  fail(`resolved credential store dir escapes fixture state: ${realCredDir} (expected under ${expectedState})`);
+if (!(realCredDir === requiredBase || realCredDir.startsWith(requiredBase + sep))) {
+  fail(
+    `resolved credential store dir escapes the fixture root: ${realCredDir} ` +
+      `(expected under ${requiredBase})`,
+  );
 }
 const storePath = bs.plainStorePath();
 if (!storePath.startsWith(realCredDir + sep)) {
@@ -101,6 +114,6 @@ console.log(
     ok: true,
     backend: store.backend,
     activeKeyVersion: active,
-    credentialsDirWithinState: true,
+    credentialsDirWithinRoot: true,
   }),
 );
