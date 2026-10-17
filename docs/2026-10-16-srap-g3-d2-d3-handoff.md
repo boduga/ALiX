@@ -158,5 +158,7 @@ unexecuted and the untrusted-peer row remains **NOT EXERCISED**.
 | Upstream unavailable | 502 |
 | Negative proxy | refuses port 4143 (exit 1); forwards malformed `https,http`; auto-shuts down after its TTL |
 
-Bootstrap commit: branch `srap/d3-fixture-bootstrap` (PR #971) — commit
-`95821fe4` plus the typecheck fix `2d7582a1`.
+Bootstrap PR: **#971** on branch `srap/d3-fixture-bootstrap` (all checks green).
+Commits: `95821fe4` (fixture credentials + mock protocol), `2d7582a1`
+(typecheck), `d87d897b` (this record), `e188d91a` (cross-platform seeder
+guards), `4c713d70` (store-dir canonicalization). Not merged.
