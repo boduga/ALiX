@@ -208,3 +208,15 @@ isolation, audit, and TLS bootstrap checks were repeated and **passed**:
 
 Evidence: `$ROOT/runs/20261017T065950Z/merged-main-bootstrap-evidence.md`.
 D3 matrix **NOT STARTED**; untrusted-peer **NOT EXERCISED**; D4 **not authorized**.
+
+### 4.6 Post-merge finding — symlinked state dir escaped the root (2026-10-17)
+
+A post-merge review of `seed-key.mjs` found that `requiredBase` was
+`realpathSync($ROOT/state/alix-inspector)`, and containment was measured against
+*that* value, not against the root. A state dir symlinked to a target outside
+`$SRAP_ACCEPT_ROOT` was therefore accepted, the credential store was written
+outside the fixture, and the tool still reported `credentialsDirWithinRoot: true`
+(reproduced). Both seeders now prove `requiredBase` **and** the resolved
+credential dir are contained against `realRoot` itself, so a symlinked escape is
+refused with no write. Covered by a regression test (PR #973); fixture
+infrastructure only, no product change.

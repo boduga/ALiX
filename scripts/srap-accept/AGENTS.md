@@ -20,7 +20,8 @@ logic** and is never imported by `src/**`.
 - **Fixture-local, store-only credentials.** Every value stays inside
   `$SRAP_ACCEPT_ROOT`; the shared OS-user keychain is never selected, read, or
   written. The backend is forced to `plain-file` **after** the resolved
-  credential dir is proven (symlink-aware) to stay inside the disposable root.
+  credential dir is proven (symlink-aware, measured against the root itself, not
+  a symlink target) to stay inside the disposable root.
 - **No argv secrets.** A secret is accepted only on stdin or a protected FD;
   the reserved `srap-evidence` namespace is refused; the value is never logged,
   echoed, or printed; the stored value is verified against the supplied secret.
