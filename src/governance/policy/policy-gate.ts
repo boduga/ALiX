@@ -503,6 +503,40 @@ export class PolicyGate {
 
     // When coordination context is provided, use exact binding key
     if (coordinationContext?.coordinationRunId) {
+      // Cross-process approval-visibility boundary (SRAP D2 remediation).
+      //
+      // This gate is a long-running authorization authority: the daemon
+      // constructs ONE ApprovalStore for its lifetime and this method is the
+      // only place the authorization path reads it. The operator resolves
+      // approvals from a SEPARATE `alix approvals approve` process, which
+      // writes the authoritative ledger (R2.5). Reading only the in-memory
+      // projection would never observe that decision without a daemon
+      // restart — a blocked worker stayed blocked forever (the D2 operational
+      // defect). Refresh from the authoritative store BEFORE any
+      // authorization read so the persisted decision is visible.
+      //
+      // This is NOT a second authority and NOT an independent cache: it reuses
+      // `ApprovalStore.load()`, which rebuilds in-memory state from the
+      // authoritative ledger. Consumption stays atomic and single-use —
+      // `consumeApproved` reloads and re-validates status/expiry/binding
+      // UNDER THE STORE LOCK, so a stale-then-fresh read introduces no
+      // time-of-check/time-of-use gap.
+      //
+      // Fail closed: a broken authoritative store denies rather than
+      // authorizing, re-blocking, or minting an approval against stale state.
+      try {
+        await store.load();
+      } catch (err) {
+        return {
+          requestId,
+          capability,
+          decision: "deny",
+          reason: `Approval store refresh failed: ${err instanceof Error ? err.message : String(err)}`,
+          matchedRuleId: "approval-refresh-failed",
+          policyRevision,
+        };
+      }
+
       const { computeBindingKey } = await import("../approvals/approval-binding.js");
       const bindingKey = computeBindingKey({
         coordinationRunId: coordinationContext.coordinationRunId,

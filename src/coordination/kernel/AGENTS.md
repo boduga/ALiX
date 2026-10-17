@@ -153,7 +153,11 @@
   execution. Consuming in reconcile resumes the worker to `pending`, and the
   re-dispatch then re-authorizes against the already-consumed approval, mints a
   fresh pending, and blocks forever (double consumption). Absent/legacy
-  evidence without a `bindingKey` fails closed.
+  evidence without a `bindingKey` fails closed. Dispatch reads refreshed
+  persisted state: `PolicyGate.handleAskDecision` calls `await store.load()`
+  before its authorization read, so a CLI-resolved approval written by another
+  process is observed without a daemon restart; the watcher stays a
+  notification-only accelerator, never the correctness path.
 - `alix_coordination_run` threads operator abort into cancellation and awaits
   finalization before throwing `ExecutionCancelledError`. `createCancelGuard`
   and `createCancelFailureRecorder` own this path. Bind recorder inputs before
@@ -281,7 +285,7 @@
 - `tests/kernel/collaboration-ledger-dualwrite.test.ts` — authority reads over tampered files, append-fail fail-closed, projection-failure tolerance, namespaced entity id, reconciliation drift (legacy/tamper)
 - `tests/kernel/coordination-planner.test.ts` — workers, scopes, agentPool labels
 - `tests/kernel/coordination-scheduler.test.ts` — dispatch, watchdog, heartbeats
-- `tests/kernel/coordination-approval-binding.test.ts` — SRAP approval-binding continuity end to end (authorizeWorker → ExecutionAuthorization → PolicyGate → ApprovalStore → reconcile → resumption) plus security negatives (malformed identity, wrong run/worker/attempt/ownership, expired, legacy no-binding) and single-consumption
+- `tests/kernel/coordination-approval-binding.test.ts` — SRAP approval-binding continuity end to end (authorizeWorker → ExecutionAuthorization → PolicyGate → ApprovalStore → reconcile → resumption) plus security negatives (malformed identity, wrong run/worker/attempt/ownership, expired, legacy no-binding), worker-level refresh-failure classification/observability without consumption, bounded per-attempt refresh (idle ticks never reload), and single-consumption
 - `tests/kernel/coordination-tools.test.ts` — chat handlers
 - `tests/kernel/subagent-worker-executor.test.ts` — role map, parallel, cancel
 - `tests/kernel/coordination-scheduler-replan.test.ts` — mid-execution replanning; waits on settled state (`waitUntil`), never a fixed sleep

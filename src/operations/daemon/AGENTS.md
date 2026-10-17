@@ -39,7 +39,7 @@ Persistent background daemon for task execution, lifecycle management, and local
 ## Work Guidance
 
 - The daemon is a standalone script spawned by DaemonManager. It uses dynamic imports for ALiX runtime modules.
-- The daemon hosts `daemon`-hosted coordination runs (`alix coordination run --daemon`): on listen it starts a `CoordinationSchedulerService` (hostKind `daemon`) plus an `ApprovalWatcher`, and stops both on SIGTERM. Inspector-hosted runs are left to the Inspector so the two hosts never double-dispatch the same run.
+- The daemon hosts `daemon`-hosted coordination runs (`alix coordination run --daemon`): on listen it starts a `CoordinationSchedulerService` (hostKind `daemon`) plus an `ApprovalWatcher`, and stops both on SIGTERM. Inspector-hosted runs are left to the Inspector so the two hosts never double-dispatch the same run. The daemon's single long-lived ApprovalStore is refreshed by the authorization path (`PolicyGate.handleAskDecision` calls `store.load()` before its coordination read), so an approval resolved by a separate `alix approvals approve` process is observed WITHOUT a restart; the `ApprovalWatcher` stays a notification-only accelerator, never the correctness path.
 - Adding a new command means: add type to `DaemonCommand`, add handler in `handleCommand()`, add client handler in the CLI `submit` or `daemon` handler.
 - Protocol changes must stay backward-compatible for the socket protocol.
 
