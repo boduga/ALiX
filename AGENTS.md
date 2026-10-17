@@ -256,3 +256,4 @@ Single-context: read CONTEXT.md at the repo root and docs/adr/ when they exist; 
 | `docs/superpowers/AGENTS.md` | Implementation specs and plans |
 | `docs/jev/AGENTS.md` | Jev / System One integration docs — design spec, delivery plan, current status |
 | `experiments/opentui/AGENTS.md` | Isolated OpenTUI runtime spike — pinned fixture, in-memory tests, PTY checks, diagnostic benchmark |
+| `scripts/srap-accept/AGENTS.md` | SRAP-G3-ACCEPT acceptance fixture — isolated credential seeders, loopback TLS/denial proxies, offline mock model server |

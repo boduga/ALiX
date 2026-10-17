@@ -158,10 +158,10 @@ unexecuted and the untrusted-peer row remains **NOT EXERCISED**.
 | Upstream unavailable | 502 |
 | Negative proxy | refuses port 4143 (exit 1); forwards malformed `https,http`; auto-shuts down after its TTL |
 
-Bootstrap PR: **#971** on branch `srap/d3-fixture-bootstrap` (all checks green).
-Commits: `95821fe4` (fixture credentials + mock protocol), `2d7582a1`
-(typecheck), `d87d897b` (this record), `e188d91a` (cross-platform seeder
-guards), `4c713d70` (store-dir canonicalization). Not merged.
+Bootstrap PR: **#971** on branch `srap/d3-fixture-bootstrap` — **merged** to `main`
+as merge commit `16abd42d` (reviewed head `ef570e97`; all 13 CI checks green).
+Commits: `95821fe4`, `2d7582a1`, `d87d897b`, `e188d91a`, `4c713d70`, `62768b11`
+(review fixes), `6d281c52`, `ef570e97`.
 
 ### 4.4 Independent security review (2026-10-17)
 
@@ -184,3 +184,27 @@ No finding allowed the fixture to fabricate an approval outcome, an audit record
 or an acceptance verdict: the mock influences model output only, and the proxies
 carry transport only. The trusted-proxy CIDR is loopback, so the untrusted-peer
 row remains **NOT EXERCISED**.
+
+### 4.5 Merged-main bootstrap re-validation (2026-10-17)
+
+After merge, `main` was synchronized and a **fresh fixture root**
+(`/tmp/opencode/alix-srap-accept/20261017T065950Z-284101`) was built from the
+pinned merge commit `16abd42d` (`pnpm build` → `dist/src/cli.js`). The essential
+isolation, audit, and TLS bootstrap checks were repeated and **passed**:
+
+- Isolation: cwd/`HOME`/`XDG_STATE_HOME` inside `$ROOT`; backend `plain-file`;
+  production repo `.alix/` unchanged (no `.alix/audit`).
+- Audit: genesis seq 1, `alix audit verify` → OK/0 findings, re-activation
+  idempotent (1 genesis), startup projection no longer refuses
+  (`{ok:true, counters:{projected:0,...}}`).
+- Seeder on the merged build: the stored value matched the supplied secret
+  exactly (the CRITICAL NUL-byte regression is fixed), then cleaned up.
+- TLS: loopback-only binding; CA trust verified (`ssl_verify_result=0`) and
+  rejection without CA; auth 401/200; canonical `X-Forwarded-For` +
+  `X-Forwarded-Proto: https` with spoofed headers stripped; the proxied decision
+  path now reaches the authorization layer (403 `workspace_scope_required`)
+  rather than failing `insecure_transport`; negative proxy refuses 4143 and
+  forwards the malformed proto with canonical XFF; TTL shutdown.
+
+Evidence: `$ROOT/runs/20261017T065950Z/merged-main-bootstrap-evidence.md`.
+D3 matrix **NOT STARTED**; untrusted-peer **NOT EXERCISED**; D4 **not authorized**.
