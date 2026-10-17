@@ -1,0 +1,16 @@
+{
+ "results": [
+  {
+   "status": 200,
+   "body": "{\"id\":\"approval_1792272379118_krw9q\",\"decision\":\"approved\"}"
+  },
+  {
+   "status": 409,
+   "body": "{\"error\":\"conflict\",\"requestId\":\"alx-mvcwp7yn-17-581pyn\"}"
+  }
+ ],
+ "counts": {
+  "200 normal": 1,
+  "409 normal": 1
+ }
+}

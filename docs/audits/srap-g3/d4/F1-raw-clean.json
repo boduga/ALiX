@@ -1,0 +1,39 @@
+{
+ "results": [
+  {
+   "status": 200,
+   "body": "{\"id\":\"approval_1792272358216_677fv\",\"decision\":\"approved\"}"
+  },
+  {
+   "status": 200,
+   "body": "{\"id\":\"approval_1792272358216_677fv\",\"decision\":\"approved\"}"
+  },
+  {
+   "status": 200,
+   "body": "{\"id\":\"approval_1792272358216_677fv\",\"decision\":\"approved\"}"
+  },
+  {
+   "status": 200,
+   "body": "{\"id\":\"approval_1792272358216_677fv\",\"decision\":\"approved\"}"
+  },
+  {
+   "status": 200,
+   "body": "{\"id\":\"approval_1792272358216_677fv\",\"decision\":\"approved\"}"
+  },
+  {
+   "status": 200,
+   "body": "{\"id\":\"approval_1792272358216_677fv\",\"decision\":\"approved\"}"
+  },
+  {
+   "status": 200,
+   "body": "{\"id\":\"approval_1792272358216_677fv\",\"decision\":\"approved\"}"
+  },
+  {
+   "status": 200,
+   "body": "{\"id\":\"approval_1792272358216_677fv\",\"decision\":\"approved\"}"
+  }
+ ],
+ "counts": {
+  "200 normal": 8
+ }
+}
