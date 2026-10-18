@@ -1,0 +1,8 @@
+SRAP-G3 A-2 invalid bearer requalification
+approval-id: approval_1792284761498_8mvpw
+before: {"id":"approval_1792284761498_8mvpw","status":"pending","hasEvidence":false,"decision":null}
+request: POST /api/approvals/approval_1792284761498_8mvpw/decision via separate HTTPS client through 127.0.0.1:4143
+credential: A-1 fixture bearer token with final character mutated (value omitted)
+response: HTTP 401 {"error":"invalid_token","requestId":"alx-mvd42kwf-3-9zdcig"}
+after: {"id":"approval_1792284761498_8mvpw","status":"pending","hasEvidence":false,"decision":null}
+criterion: PASS

@@ -1,5 +1,5 @@
-E-1 artifact — regenerated from the FINAL chain (248 records)
-credential.key_read records: 185
+E-1 artifact — regenerated from the authoritative chain (278 records)
+credential.key_read records: 210
 records with fields outside {keyVersion,keyOperation,keyOutcome,reason}: 0 []
 contains credentialRef: False
 contains hmac-sha256: False
@@ -9,10 +9,10 @@ contains alix_i_: False
 sample (last):
 {
  "version": 2,
- "seq": 247,
- "prevHash": "503ce8e274c98900f5048ba9967230aa110744a22aceb77c017c2454c51429e4",
- "recordHash": "d39fcbd565a4eef8c824ba984212d365b98dc7d844168c4ba984b8410a1f9e83",
- "timestamp": 1792270131509,
+ "seq": 277,
+ "prevHash": "1d305c9fc456b1be10543dbe4ae6d358e83f6e2ddfc0d5a611c9609f7c7d6b24",
+ "recordHash": "a05a05cb8a74d3a7f649a6da0e5041a7741b058b7043a738a7ce67e5529b5267",
+ "timestamp": 1792280199947,
  "action": "credential.key_read",
  "actor": "prin_uWXSJw6eQuUB",
  "details": {

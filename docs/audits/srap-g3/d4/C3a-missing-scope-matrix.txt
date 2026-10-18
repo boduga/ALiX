@@ -1,0 +1,21 @@
+SRAP-G3 C-3a missing-scope parity regression
+
+Build: local rebuilt workspace source after the route-specific workspace denial fix.
+Command: node --test --test-name-pattern='remote decision maps undefined' dist/tests/server/workspace-authorization.test.js
+
+Each case asserts HTTP 403 with error workspace_scope_required and zero remote
+decision handler calls (no approval-state read):
+PASS remote decision maps undefined workspace denial to 403 (required, bearer, admin) (44.230868ms)
+PASS remote decision maps undefined workspace denial to 403 (required, bearer, operator) (12.692467ms)
+PASS remote decision maps undefined workspace denial to 403 (required, bearer, readonly) (5.517073ms)
+PASS remote decision maps undefined workspace denial to 403 (required, cookie, admin) (6.908804ms)
+PASS remote decision maps undefined workspace denial to 403 (required, cookie, operator) (6.834493ms)
+PASS remote decision maps undefined workspace denial to 403 (required, cookie, readonly) (5.43451ms)
+PASS remote decision maps undefined workspace denial to 403 (development, bearer, admin) (9.483941ms)
+PASS remote decision maps undefined workspace denial to 403 (development, bearer, operator) (5.320094ms)
+PASS remote decision maps undefined workspace denial to 403 (development, bearer, readonly) (9.045864ms)
+PASS remote decision maps undefined workspace denial to 403 (development, cookie, admin) (6.786615ms)
+PASS remote decision maps undefined workspace denial to 403 (development, cookie, operator) (10.349879ms)
+PASS remote decision maps undefined workspace denial to 403 (development, cookie, readonly) (11.792769ms)
+
+Summary: 12 tests, 12 pass, 0 fail. Coverage: bearer/cookie × admin/operator/readonly × required/development auth.

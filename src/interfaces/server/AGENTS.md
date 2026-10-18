@@ -60,9 +60,12 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
   transport, unexpired pending approval, and idempotent evidence. Each signing
   key access is durably audited (`credential.key_read`) before the evidence is
   released, so an unauditable key read fails the decision closed rather than
-  producing unlogged evidence. Legacy unscoped
-  access, cookie authentication, and anonymous development access grant no remote
-  decision authority.
+  producing unlogged evidence. Legacy unscoped access, cookie authentication,
+  and anonymous development access grant no remote decision authority.
+- **Decision-route workspace denial.** `POST /api/approvals/:id/decision` denies
+  missing, empty, and mismatched workspace scopes with HTTP `403` and error
+  `workspace_scope_required`. Ordinary Inspector routes retain HTTP `401` and
+  error `workspace_mismatch` for workspace mismatch.
 - `startServer` receives the configured Inspector authentication mode and must
   pass an explicit `enforceAuth` value to `createSecurityMiddleware`.
 - With authentication required, every registered data and SSE route requires

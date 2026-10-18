@@ -1,10 +1,8 @@
-chain records: 248
-evidence-carrying approvals: 172
-distinct decisionIds: 62
-distinct decisionIds projected: 62
-unprojected decisionIds: 0
-decisionIds shared by >1 approval: 19
-max approvals per decisionId: 34
+chain records: 278
+evidence-carrying approvals: 181
+distinct decisionIds: 67, projected: 67, unprojected: 0
+decisionIds shared by more than one approval: 20 (max 34)
+extra projected decisionIds without a current evidence-carrying approval: 0
 
 NOTE: projection is keyed by decisionId, so a shared decisionId yields ONE
 audit row covering several approvals. 'Projected' is proven at decisionId

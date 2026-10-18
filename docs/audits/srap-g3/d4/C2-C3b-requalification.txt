@@ -1,0 +1,27 @@
+SRAP-G3 C-2 / C-3b requalification after workspace-status fix
+
+Tested: 2026-10-18T00:43Z against the fixture Inspector rebuilt from the current
+workspace source. Client: separate Node HTTPS process through the fixture TLS
+proxy at 127.0.0.1:4143. Inspector listener: 127.0.0.1:4139.
+
+The route-specific middleware mapping returns the acceptance-plan denial for a
+valid credential that lacks the canonical workspace. Other Inspector routes
+retain their existing 401 workspace_mismatch behavior.
+
+C-2 — credential scoped to another workspace
+Approval: approval_1792284207166_5frsh
+Before: pending, no evidence
+Request: POST /api/approvals/approval_1792284207166_5frsh/decision
+Response: HTTP 403 {"error":"workspace_scope_required"}
+After: pending, no evidence
+
+C-3b — credential with explicitly empty workspace scope
+Approval: approval_1792284207314_rqfxe
+Before: pending, no evidence
+Request: POST /api/approvals/approval_1792284207314_rqfxe/decision
+Response: HTTP 403 {"error":"workspace_scope_required"}
+After: pending, no evidence
+
+Signing-key audit delta across both requests: 0 credential.key_read records.
+Both criteria pass: exact planned status/error; approval state unchanged; no
+signing-key access or evidence persisted.

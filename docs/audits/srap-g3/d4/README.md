@@ -1,9 +1,8 @@
-# SRAP-G3-ACCEPT — D4 evidence bundle (review pending)
+# SRAP-G3-ACCEPT — D4 evidence bundle
 
-**D4 = PASS (conditional)**, signed off in the manifest §11 after an adversarial
-re-check of the submitted artifacts. The sign-off was performed by the
-implementation agent at the operator's direction; it is not an independent
-third-party audit. Residuals are listed in §10 and §11.
+**D4 = INCOMPLETE**. Row evidence passes against local fix commit `8ab6e414`,
+but acceptance plan requires merge before final requalification. Independent
+review and issue #983 are recorded in manifest §11.
 
 ## Contents
 
@@ -16,9 +15,15 @@ third-party audit. Residuals are listed in §10 and §11.
 | `h3-routes.txt` | Enumerated POST route surface (6 routes) |
 | `projection-granularity.txt` | Projection at decisionId granularity, shared-decisionId caveat |
 | `E1-key-read.txt` | `credential.key_read` field discipline, regenerated from the final chain |
+| `E4-full-coverage.txt` | Real signed decision, skipped inline projection, operator repair, idempotent rerun |
+| `E4-projection-skip-loader.txt` | Exact fixture-only ESM hook used to skip the route's inline projection |
+| `C2-C3b-requalification.txt` | Post-fix authenticated requests: exact 403 responses, unchanged approvals, zero key reads |
+| `A2-invalid-bearer-requalification.txt` | Mutated bearer token: HTTP 401, same approval pending with no evidence before/after |
+| `C3a-missing-scope-matrix.txt` | 12 regression cases: legacy/missing scope denied before decision handler across roles and auth modes |
 | `f4-order1.txt` | F-4 Order 1: 401 + key-read delta 0 |
 | `SUPERSEDED-note.md` | Which earlier records are superseded, and which counts are historical |
 | `raw-artifact-inventory.txt` | Identity (size + sha256 prefix) of raw artifacts left in the fixture root |
+| `raw-artifact-sha256.txt` | Full SHA-256 digests for the same raw artifacts; detects drift but does not preserve raw bytes |
 | `A4-revoked-credential.txt` | A-4: 401 `token_revoked`, key-read delta 0, approval untouched |
 | `F1-raw-clean.json` / `F1-raw.json` | F-1: 8×200 clean vs 1×200+7×409 under a live daemon (harness interference, both retained) |
 | `F2-cross-principal-artifact.txt` | F-2: principal B replay → 409, A's evidence retained |
@@ -33,12 +38,13 @@ disposable fixture. Their identity (size + sha256) is recorded so a reviewer wit
 access to the fixture root can confirm they are the reviewed bytes. The fixture
 root is `/tmp/opencode/alix-srap-accept/20261017T164036Z-309922`.
 
-## What the reviewer must decide
+## Review disposition
 
-1. Accept or reject the row verdicts and the disclosed deviations (manifest §8, §10).
-2. Accept or reject the E-4 hand-seeded method (manifest §7).
-3. Accept or reject the known limitations (manifest §10), notably that the
-   objective reviewer is the deterministic fixture model, and the F-1
-   harness-interference trap (§10.10) — a live daemon consumes the single-use
-   approval mid-barrier, so F-1 must run with the daemon stopped.
-4. Certify closure — or return the specific rows that need re-running.
+The first independent review found A-2 state evidence missing; the row was
+re-run with a fresh identified approval and authoritative before/after reads.
+Final independent re-review found no remaining row-evidence failure; it requires
+the fix merged before D4 closure. Fix is tracked in issue #983.
+E-4 full coverage is recorded in `E4-full-coverage.txt`; C-2/C-3b were re-run
+after the workspace-status fix and are recorded in `C2-C3b-requalification.txt`.
+F-1 evidence is valid only with the daemon stopped; the deterministic reviewer
+remains a string/evidence matcher, not a semantic judge.
