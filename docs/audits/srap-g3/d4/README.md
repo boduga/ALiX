@@ -1,8 +1,9 @@
 # SRAP-G3-ACCEPT — D4 evidence bundle
 
-**D4 = INCOMPLETE**. Row evidence passes against local fix commit `8ab6e414`,
-but acceptance plan requires merge before final requalification. Independent
-review and issue #983 are recorded in manifest §11.
+**D4 = UNCONDITIONAL PASS**. Fix merged as `aae59c26` (PR #984); C-2/C-3a/C-3b
+requalification passes against the merged build. Independent review verified
+all D4 rows, bundle hashes, and audit-chain integrity. Final disposition is in
+the manifest.
 
 ## Contents
 
@@ -17,9 +18,9 @@ review and issue #983 are recorded in manifest §11.
 | `E1-key-read.txt` | `credential.key_read` field discipline, regenerated from the final chain |
 | `E4-full-coverage.txt` | Real signed decision, skipped inline projection, operator repair, idempotent rerun |
 | `E4-projection-skip-loader.txt` | Exact fixture-only ESM hook used to skip the route's inline projection |
-| `C2-C3b-requalification.txt` | Post-fix authenticated requests: exact 403 responses, unchanged approvals, zero key reads |
+| `C2-C3b-requalification.txt` | Pre-merge and merged-build authenticated requests: 403 responses, unchanged approvals, zero key reads |
 | `A2-invalid-bearer-requalification.txt` | Mutated bearer token: HTTP 401, same approval pending with no evidence before/after |
-| `C3a-missing-scope-matrix.txt` | 12 regression cases: legacy/missing scope denied before decision handler across roles and auth modes |
+| `C3a-missing-scope-matrix.txt` | 12 regression cases rerun against merged build: missing scope denied before handler across roles and auth modes |
 | `f4-order1.txt` | F-4 Order 1: 401 + key-read delta 0 |
 | `SUPERSEDED-note.md` | Which earlier records are superseded, and which counts are historical |
 | `raw-artifact-inventory.txt` | Identity (size + sha256 prefix) of raw artifacts left in the fixture root |
@@ -42,9 +43,11 @@ root is `/tmp/opencode/alix-srap-accept/20261017T164036Z-309922`.
 
 The first independent review found A-2 state evidence missing; the row was
 re-run with a fresh identified approval and authoritative before/after reads.
-Final independent re-review found no remaining row-evidence failure; it requires
-the fix merged before D4 closure. Fix is tracked in issue #983.
-E-4 full coverage is recorded in `E4-full-coverage.txt`; C-2/C-3b were re-run
-after the workspace-status fix and are recorded in `C2-C3b-requalification.txt`.
+Final independent re-review found no row-evidence failure and required merged
+build requalification. That condition is met by PR #984 (`aae59c26`); re-run
+evidence and unconditional D4 PASS are recorded in the manifest. Fix tracked in
+issue #983.
+E-4 full coverage is recorded in `E4-full-coverage.txt`; C-2/C-3a/C-3b were
+re-run against merged PR #984 and are recorded in the corresponding artifacts.
 F-1 evidence is valid only with the daemon stopped; the deterministic reviewer
 remains a string/evidence matcher, not a semantic judge.

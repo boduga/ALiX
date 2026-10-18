@@ -25,3 +25,25 @@ After: pending, no evidence
 Signing-key audit delta across both requests: 0 credential.key_read records.
 Both criteria pass: exact planned status/error; approval state unchanged; no
 signing-key access or evidence persisted.
+
+Merged-build requalification — 2026-10-18T01:27Z
+
+Build: `pnpm build` from merged main commit
+`aae59c26c5f7cb938748f6dcb72ae58d0d722345` (PR #984). Inspector restarted
+from that build; requests ran in separate Node HTTPS client through the existing
+fixture TLS proxy at 127.0.0.1:4143.
+
+C-2 — credential scoped to another workspace
+Approval: approval_1792286861496_etjmu
+Before: pending, no evidence
+Response: HTTP 403 {"error":"workspace_scope_required","requestId":"alx-mvd5blan-3-p4db2u"}
+After: pending, no evidence
+
+C-3b — credential with explicitly empty workspace scope
+Approval: approval_1792286861594_zk6mj
+Before: pending, no evidence
+Response: HTTP 403 {"error":"workspace_scope_required","requestId":"alx-mvd5blb9-4-mlifak"}
+After: pending, no evidence
+
+Signing-key audit count before/after: 210 / 210; delta 0. Both fresh approvals
+remained pending and acquired no remote-decision evidence.

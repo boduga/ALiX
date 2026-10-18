@@ -1,8 +1,10 @@
-# SRAP-G3-ACCEPT — D4 closure evidence manifest (rev 5)
+# SRAP-G3-ACCEPT — D4 closure evidence manifest (rev 6)
 
-**Status: D4 INCOMPLETE. Row evidence passes against commit `8ab6e414`, but the
-independent reviewer requires the fix merged before acceptance requalification.
-The integration request is awaiting operator authorization.**
+**Status: UNCONDITIONAL D4 PASS.** Scope-denial fix merged in PR #984 as
+`aae59c26c5f7cb938748f6dcb72ae58d0d722345`; affected rows were requalified on a
+build of that commit. All CI checks passed before merge. Independent final
+review verified row evidence, synchronized artifacts, hashes, and chain
+integrity. No required D4 row remains blocked.
 
 Rev 5 addresses six successive independent reviews, each of which returned
 **D4 FAIL**. Every blocking condition raised is now either fixed with a new
@@ -11,11 +13,13 @@ making false claims about the fixture verifier; the verifier section below state
 its real limits rather than a capability claim. I have been wrong about the fixture verifier three times; every claim
 below is limited to what an artifact in this directory shows.
 
-- **Pinned commit:** merged `main` `f3259004` (documentation HEAD). The
+- **Original acceptance baseline:** merged `main` `f3259004` (documentation HEAD). The
   **binary that produced the runs** is the build at `93437e6f`; `git log
   93437e6f..f3259004 -- src/` is empty, so the two are identical in product code.
   No build stamp was recorded in the fixture logs, so the binary identity is
   inferred from the empty diff, not attested by an artifact.
+- **Merged fix requalification build:** `aae59c26c5f7cb938748f6dcb72ae58d0d722345`;
+  produced by `pnpm build` on `main` after PR #984 merged.
 - **Fixture root:** `/tmp/opencode/alix-srap-accept/20261017T164036Z-309922`
 - **Run dir:** `$ROOT/runs/20261017T164036Z/`
 - **Audit chain (authoritative):** **278** records, tip seq 278 `ba24cd445d11…`,
@@ -157,8 +161,8 @@ decision or audit record was used for this supplemental run.
 | Auth | A-1, A-2, A-3 | SUPPORTED (`A2-invalid-bearer-requalification.txt` records HTTP 401 and the identified approval pending with no evidence before/after) |
 | Auth | A-4 | SUPPORTED (`A4-revoked-credential.txt`: 401 `token_revoked`, `token.revoked` bound to `prin_uWXSJw6eQuUB`, key-read delta 0, approval still `pending` in the ledger) |
 | Principal | B-1, B-2, B-3 | SUPPORTED |
-| Workspace | C-1, C-3a | SUPPORTED (`C3a-missing-scope-matrix.txt`: 12/12 missing-scope cases return 403 before the decision handler) |
-| Workspace | C-2, C-3b | SUPPORTED — requalified after the route-specific fix; both return **403 `workspace_scope_required`**, approvals remain pending, key-read delta 0 (`C2-C3b-requalification.txt`) |
+| Workspace | C-1, C-3a | SUPPORTED (`C3a-missing-scope-matrix.txt`: 12/12 missing-scope cases return 403 before the decision handler; matrix rerun on merged commit) |
+| Workspace | C-2, C-3b | SUPPORTED — fresh approvals requalified on merged commit; both return **403 `workspace_scope_required`**, remain pending without evidence, key-read delta 0 (`C2-C3b-requalification.txt`) |
 | Decisions | D-1, D-2, D-3, D-4 | SUPPORTED |
 | Evidence | E-1, E-2, E-3 | SUPPORTED (`E1-key-read.txt` (scoped to key-read records); `state-proofs.txt`) |
 | Evidence | E-4 | **FULL COVERAGE** — real signed decision, key-read audit, operator projection repair and idempotent rerun (`E4-full-coverage.txt`) |
@@ -315,7 +319,7 @@ in the disposable fixture run directory.
 | Test-hook transparency | Codex | **PASS** — fixture-only loader source preserved in `E4-projection-skip-loader.txt`; production projector ran in a separate unhooked CLI process |
 | C-2/C-3b requalification | Codex | **PASS** — wrong-workspace and empty-scope bearer requests through the fixture TLS proxy returned HTTP 403 `workspace_scope_required`; approvals remained pending, no evidence was written, key-read delta 0 (`C2-C3b-requalification.txt`) |
 
-### Final independent re-review — 2026-10-18
+### Pre-merge final independent re-review — 2026-10-18 (superseded)
 
 | Item | Reviewer | Verdict |
 | --- | --- | --- |
@@ -324,6 +328,25 @@ in the disposable fixture run directory.
 | Artifact and audit-chain integrity | Codex (independent reviewer) | **PASS** — 24/24 bundle copies and raw digests match; 278 audit records independently recomputed with no hash, sequence, or link failures; export/live/head agree |
 | Final D4 verdict | Codex (independent reviewer) | **INCOMPLETE** — acceptance plan requires merged product fix before affected-row requalification; current fix commit `8ab6e414` is local to `codex/srap-g3-d4-scope-denial` |
 
-Defect filed as GitHub issue [#983](https://github.com/boduga/ALiX/issues/983).
-Fix branch is ready for PR publication; no PR merge or fixture cleanup has
-occurred.
+### Merged-build requalification — 2026-10-18
+
+| Item | Evidence | Result |
+| --- | --- | --- |
+| Fix merge | [PR #984](https://github.com/boduga/ALiX/pull/984), merge `aae59c26c5f7cb938748f6dcb72ae58d0d722345` | **PASS** — merged to `main`; all required CI checks, including coverage, succeeded before merge |
+| C-2 wrong-workspace | `C2-C3b-requalification.txt` | **PASS** — fresh approval remained pending with no evidence; HTTPS response 403 `workspace_scope_required`; key-read count unchanged |
+| C-3b empty scope | `C2-C3b-requalification.txt` | **PASS** — fresh approval remained pending with no evidence; HTTPS response 403 `workspace_scope_required`; key-read count unchanged |
+| C-3a missing scope parity | `C3a-missing-scope-matrix.txt` | **PASS** — 12/12 bearer/cookie × role × auth-mode cases; handler call count zero |
+| Final D4 verdict | Codex (independent reviewer) | **UNCONDITIONAL PASS** — no failed row, missing required evidence, or blocking deviation |
+
+### Final independent review — merged build — 2026-10-18
+
+| Item | Reviewer | Verdict |
+| --- | --- | --- |
+| Merge identity | Codex (independent reviewer) | **PASS** — workspace and `origin/main` at `aae59c26c5f7cb938748f6dcb72ae58d0d722345`; PR #984 contains the reviewed fix |
+| Compiled source and test | Codex (independent reviewer) | **PASS** — compiled middleware contains the missing/empty/mismatched-scope 403 guard; compiled regression asserts zero decision-handler calls |
+| A-2/C-2/C-3a/C-3b requalification | Codex (independent reviewer) | **PASS** — fresh A-2 and C-2/C-3b state evidence; merged C-3a matrix 12/12, zero handler calls; all acceptance criteria met |
+| Bundle and raw evidence | Codex (independent reviewer) | **PASS** — 24/24 bundle files match run copies; all raw inventory sizes and full SHA-256 digests match |
+| Audit chain | Codex (independent reviewer) | **PASS** — 278 records independently rehashed; no sequence/hash/link errors; export, live log, and head agree |
+| Final D4 verdict | Codex (independent reviewer) | **UNCONDITIONAL PASS** — remaining documented limitations are scope limits, not acceptance blockers |
+
+Defect tracked in GitHub issue [#983](https://github.com/boduga/ALiX/issues/983).
