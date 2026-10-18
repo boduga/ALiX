@@ -1,0 +1,44 @@
+E-4 fixture-only inline-projection suppression
+
+The Inspector test process loaded this ESM hook. It intercepts only the
+`remote-decision-projection.js` import made by `remote-decision-route.js` and
+throws; that route catches projection failure and still returns the committed
+decision result. The separate `alix approval project` CLI runs in a new process
+without this hook and loads the production projector.
+
+Bootstrap module:
+
+```js
+import { register } from 'node:module';
+register('./e4-loader.mjs', import.meta.url);
+```
+
+`e4-loader.mjs`:
+
+```js
+export async function resolve(specifier, context, nextResolve) {
+  if (
+    specifier.endsWith('/governance/audit/remote-decision-projection.js') &&
+    context.parentURL?.endsWith('/interfaces/server/remote-decision-route.js')
+  ) {
+    return {
+      url: new URL('./e4-no-inline-projection.mjs', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+  return nextResolve(specifier, context);
+}
+```
+
+`e4-no-inline-projection.mjs`:
+
+```js
+export async function projectRemoteDecisions() {
+  throw new Error('E-4 harness: inline projection intentionally skipped');
+}
+```
+
+The hook does not create or alter approval evidence. `E4-full-coverage.txt`
+records the pending approval, real authenticated TLS decision, absence of its
+audit projection before repair, matching ledger/audit fields after repair, and
+both projector counter sets.

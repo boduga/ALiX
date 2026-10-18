@@ -1,28 +1,30 @@
-# D4 raw artifact inventory (not committed)
+# D4 raw artifact inventory (raw evidence retained in fixture run directory)
 
-Raw artifacts remain in the disposable fixture root. Size + sha256 recorded
-so a reviewer with fixture access can confirm the reviewed bytes.
+Raw artifacts remain in the isolated fixture run directory and are synchronized into this bundle. Size + SHA-256 recorded for reviewer verification.
 
-audit-chain.jsonl                      117129 bytes  sha256=fdc311b0aa4b1ba3
-decisions.json                          60260 bytes  sha256=34a620ea06ed1dd7
-f4-final-v2.json                         8262 bytes  sha256=26082fb34a6c8c3a
-G4-before.json                           1308 bytes  sha256=fdc9a17a66c117a8
-G4-after.json                            1998 bytes  sha256=b5ba48b160c6a064
-H1-after.json                            1975 bytes  sha256=866982789293b7cc
-NEG-after.json                           3023 bytes  sha256=c79378a8277a94bb
-H1-client-transcript.txt                 1290 bytes  sha256=b7e448a6decae5ad
-row-evidence.txt                         1661 bytes  sha256=ace3d5bcbcf09d1d
-missing-row-artifacts.txt                1891 bytes  sha256=631f097026cc9632
-remaining-artifacts.txt                  2047 bytes  sha256=ccf7ab5d2903baa6
-G1-pre.txt                                 91 bytes  sha256=73ca7dba4cb04aa2
-G1-post.txt                                91 bytes  sha256=73ca7dba4cb04aa2
-G3-projection.txt                          72 bytes  sha256=b1d262a26fec0da4
-audit-verify.txt                          163 bytes  sha256=f0ff411eb87f680b
-F1-raw.json                               924 bytes  sha256=13e628a8514427b1
-F1-raw-clean.json                         919 bytes  sha256=087f0aef0669fd9a
-F3-raw-clean.json                         288 bytes  sha256=7f34fa9c7485f44c
-A4-revoked-credential.txt                 929 bytes  sha256=c17f19d8537fddb1
-F2-cross-principal-artifact.txt           657 bytes  sha256=488e95594c16ea52
-G2-restart-artifact.txt                   714 bytes  sha256=f27e27feae1a77b4
+A2-invalid-bearer-requalification.txt        581 bytes  sha256=38859f7aa503bf4f
+A4-revoked-credential.txt                    929 bytes  sha256=c17f19d8537fddb1
+C2-C3b-requalification.txt                  1236 bytes  sha256=246cf6dccf88d13c
+C3a-missing-scope-matrix.txt                1735 bytes  sha256=91426385be7bf43a
+F1-raw-clean.json                            919 bytes  sha256=087f0aef0669fd9a
+F1-raw.json                                  924 bytes  sha256=13e628a8514427b1
+F2-cross-principal-artifact.txt              657 bytes  sha256=488e95594c16ea52
+F3-raw-clean.json                            288 bytes  sha256=7f34fa9c7485f44c
+G1-post.txt                                   91 bytes  sha256=73ca7dba4cb04aa2
+G1-pre.txt                                    91 bytes  sha256=73ca7dba4cb04aa2
+G2-restart-artifact.txt                      714 bytes  sha256=f27e27feae1a77b4
+G3-projection.txt                             72 bytes  sha256=b1d262a26fec0da4
+G4-after.json                               1998 bytes  sha256=b5ba48b160c6a064
+G4-before.json                              1308 bytes  sha256=fdc9a17a66c117a8
+H1-after.json                               1975 bytes  sha256=866982789293b7cc
+H1-client-transcript.txt                    1290 bytes  sha256=b7e448a6decae5ad
+NEG-after.json                              3023 bytes  sha256=c79378a8277a94bb
+audit-chain.jsonl                         118100 bytes  sha256=30390a6fad94dd9e
+audit-verify.txt                              82 bytes  sha256=f236418702c3b233
+decisions.json                            313370 bytes  sha256=e13de2de541033bf
+f4-final-v2.json                            8262 bytes  sha256=26082fb34a6c8c3a
+missing-row-artifacts.txt                   1891 bytes  sha256=631f097026cc9632
+remaining-artifacts.txt                     2047 bytes  sha256=ccf7ab5d2903baa6
+row-evidence.txt                            1661 bytes  sha256=ace3d5bcbcf09d1d
 
 fixture root: /tmp/opencode/alix-srap-accept/20261017T164036Z-309922

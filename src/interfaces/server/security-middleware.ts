@@ -44,6 +44,22 @@ import {
 } from "../../governance/security/inspector/remote-access-policy.js";
 import { resolveClientAddress } from "../../governance/security/inspector/client-address.js";
 
+function mapAuthenticationFailure(routeId: string | undefined, error: string) {
+  if (routeId === "api.approvals.decision" && error === "workspace_mismatch") {
+    return { error: "workspace_scope_required", statusCode: 403 } as const;
+  }
+  return { error, statusCode: 401 } as const;
+}
+
+function hasDecisionWorkspaceScope(
+  routeId: string | undefined,
+  workspaceIds: readonly string[] | undefined,
+  targetWorkspace: string | undefined,
+): boolean {
+  return routeId !== "api.approvals.decision" ||
+    (workspaceIds !== undefined && allowsWorkspace(workspaceIds, targetWorkspace));
+}
+
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
@@ -349,8 +365,10 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
           : { ok: false as const, error: "invalid_session" };
         const eligible = currentPrincipal.ok &&
           allowsWorkspace(currentPrincipal.value.workspaceIds, targetWorkspace);
+        const decisionScopeEligible = currentPrincipal.ok &&
+          hasDecisionWorkspaceScope(route?.id, currentPrincipal.value.workspaceIds, targetWorkspace);
 
-        if (currentPrincipal.ok && eligible) {
+        if (currentPrincipal.ok && eligible && decisionScopeEligible) {
           ctx = createSecurityContext({
             authenticated: true,
             tokenId: currentPrincipal.value.id,
@@ -368,7 +386,14 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
             const responder = createSecureResponder(res, registry, detector, {
               requestId: ctx.requestId,
             });
-            responder.error(currentPrincipal.ok ? "workspace_mismatch" : "authentication_required", 401);
+            const decisionScopeDenied = currentPrincipal.ok && !decisionScopeEligible &&
+              route.id === "api.approvals.decision";
+            const failure = decisionScopeDenied
+              ? { error: "workspace_scope_required", statusCode: 403 } as const
+              : currentPrincipal.ok
+                ? mapAuthenticationFailure(route.id, "workspace_mismatch")
+                : { error: "authentication_required", statusCode: 401 } as const;
+            responder.error(failure.error, failure.statusCode);
             return null;
           }
         }
@@ -392,6 +417,13 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
 
         if (verifyResult.ok) {
           const principal = verifyResult.value;
+          if (!hasDecisionWorkspaceScope(route?.id, principal.workspaceIds, targetWorkspace)) {
+            const responder = createSecureResponder(res, registry, detector, {
+              requestId: ctx.requestId,
+            });
+            responder.error("workspace_scope_required", 403);
+            return null;
+          }
           ctx = createSecurityContext({
             authenticated: true,
             tokenId: principal.id,
@@ -406,7 +438,8 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
             const responder = createSecureResponder(res, registry, detector, {
               requestId: ctx.requestId,
             });
-            responder.error(verifyResult.error, 401);
+            const failure = mapAuthenticationFailure(route.id, verifyResult.error);
+            responder.error(failure.error, failure.statusCode);
             return null;
           }
         }

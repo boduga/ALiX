@@ -1,0 +1,15 @@
+SRAP-G3 E-4 full-coverage supplemental run
+
+Fixture workspace: /tmp/opencode/alix-srap-accept/20261017T164036Z-309922/workspace
+Approval setup: pending request created through the production ApprovalStore API; id=approval_1792280175698_wccjj; initial status=pending; capability=filesystem.write; tool=alix_file_create
+
+Decision: authenticated POST /api/approvals/approval_1792280175698_wccjj/decision over fixture TLS proxy; HTTP 200; response={"id":"approval_1792280175698_wccjj","decision":"approved"}
+Inline projection: intentionally skipped by a fixture-only ESM loader hook for the Inspector route. Hook throws; route preserves its normal successful decision result. Separate CLI repair uses unmodified production projector.
+
+Authoritative approval ledger: id=approval_1792280175698_wccjj; status=approved; decision=approved; principalId=prin_uWXSJw6eQuUB; decisionId=srap-3c6366faae2f68f69c1a403c14cb1105; credentialRef=hmac-sha256:v1:13SNhBpaoo0Qh21OCQ14cuIikJSWMFW_XMmch_6g5Po; transport=proxy-tls; nonce=srap-e4-full-1792280175698-wccjj; decidedAt=2026-10-17T23:36:40.169Z
+Key-read audit: seq=277; action=credential.key_read; actor=prin_uWXSJw6eQuUB; details={"keyVersion":1,"keyOperation":"sign","keyOutcome":"ok","reason":"remote_decision_evidence"}; credentialRef present=false
+Before repair: alix audit by-approval returned: No records for approval.
+First alix approval project: projected=1; skipped_duplicate=18; projection_failed=0; lag=10
+Second alix approval project: projected=0; skipped_duplicate=17; projection_failed=0; lag=0
+Projected audit record: seq=278; action=approval.approved; decisionId/principalId/credentialRef/transport/decidedAt match ledger and action matches decision=true
+Final audit verify: ok=true; v2 records=278; findings=0; tip seq=278

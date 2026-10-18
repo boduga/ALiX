@@ -45,12 +45,20 @@ describe("Inspector workspace authorization parity", () => {
     }
     registry.register({ id: "post-read", method: "POST", pathPattern: "/read", pathType: "exact",
       auth: "authenticated", permission: "graphs:read", routeClass: "data", redactionProfile: "operational", streaming: false });
+    registry.register({ id: "api.approvals.decision", method: "POST", pathPattern: "/api/approvals/:id/decision", pathType: "pattern",
+      auth: "authenticated", permission: "approvals:decide", routeClass: "data", redactionProfile: "operational", streaming: false });
     const middleware = createSecurityMiddleware({ host: "127.0.0.1", registry,
       detector: new SecretDetector(), enforceAuth, authService: withService ? service : undefined,
       sessionStore: sessions, targetWorkspace: "/workspace" });
+    let remoteDecisionHandlerCalls = 0;
     const server = createServer(async (req, res) => {
       const ctx = await middleware(req, res);
-      if (ctx) { res.setHeader("content-type", "application/json"); res.end(JSON.stringify(ctx)); }
+      if (ctx) {
+        if (req.url?.startsWith("/api/approvals/") && req.url.endsWith("/decision")) {
+          remoteDecisionHandlerCalls++;
+        }
+        res.setHeader("content-type", "application/json"); res.end(JSON.stringify(ctx));
+      }
     });
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
@@ -64,7 +72,9 @@ describe("Inspector workspace authorization parity", () => {
       const headers = transport === "bearer" ? { authorization: `Bearer ${generated.token}` } : { cookie: `alix-session=${session.id}` };
       return { id: generated.id, headers, session };
     }
-    return { url, writer, credential, sessions, close: () => new Promise<void>((resolve, reject) => { server.closeAllConnections(); server.close(err => err ? reject(err) : resolve()); }) };
+    return { url, writer, credential, sessions,
+      get remoteDecisionHandlerCalls() { return remoteDecisionHandlerCalls; },
+      close: () => new Promise<void>((resolve, reject) => { server.closeAllConnections(); server.close(err => err ? reject(err) : resolve()); }) };
   }
 
   for (const enforceAuth of [true, false]) {
@@ -108,6 +118,28 @@ describe("Inspector workspace authorization parity", () => {
           assert.equal((await fetch(`${h.url}/read`, { headers: c.headers })).status, 401, "removed session must not fall back to dev anonymous access");
         } finally { await h.close(); }
       });
+    }
+  }
+
+  for (const enforceAuth of [true, false]) {
+    for (const transport of transports) for (const role of roles) {
+      for (const scope of [undefined, [], ["/other"]] as const) {
+        it(`remote decision maps ${JSON.stringify(scope)} workspace denial to 403 (${enforceAuth ? "required" : "development"}, ${transport}, ${role})`, async () => {
+          const h = await harness(enforceAuth);
+          try {
+            const c = await h.credential(scope === undefined ? undefined : [...scope], role, transport);
+            const response = await fetch(`${h.url}/api/approvals/apr-1/decision`, {
+              method: "POST",
+              headers: { ...c.headers, "content-type": "application/json" },
+              body: JSON.stringify({ decision: "approved", nonce: "scope-parity" }),
+            });
+            assert.equal(response.status, 403);
+            const body = await response.json() as { error?: string };
+            assert.equal(body.error, "workspace_scope_required");
+            assert.equal(h.remoteDecisionHandlerCalls, 0, "denial must happen before the route handler can read approval state");
+          } finally { await h.close(); }
+        });
+      }
     }
   }
 
