@@ -4,8 +4,8 @@ Raw artifacts remain in the isolated fixture run directory and are synchronized 
 
 A2-invalid-bearer-requalification.txt        581 bytes  sha256=38859f7aa503bf4f
 A4-revoked-credential.txt                    929 bytes  sha256=c17f19d8537fddb1
-C2-C3b-requalification.txt                  1236 bytes  sha256=246cf6dccf88d13c
-C3a-missing-scope-matrix.txt                1735 bytes  sha256=91426385be7bf43a
+C2-C3b-requalification.txt                  2147 bytes  sha256=2617d29ec121f647
+C3a-missing-scope-matrix.txt                2146 bytes  sha256=a8a9bb17f6a0eeca
 F1-raw-clean.json                            919 bytes  sha256=087f0aef0669fd9a
 F1-raw.json                                  924 bytes  sha256=13e628a8514427b1
 F2-cross-principal-artifact.txt              657 bytes  sha256=488e95594c16ea52

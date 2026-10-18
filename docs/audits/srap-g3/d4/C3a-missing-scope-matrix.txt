@@ -19,3 +19,11 @@ PASS remote decision maps undefined workspace denial to 403 (development, cookie
 PASS remote decision maps undefined workspace denial to 403 (development, cookie, readonly) (11.792769ms)
 
 Summary: 12 tests, 12 pass, 0 fail. Coverage: bearer/cookie × admin/operator/readonly × required/development auth.
+
+Merged-build rerun — 2026-10-18T01:28Z
+
+Build commit: `aae59c26c5f7cb938748f6dcb72ae58d0d722345` (merged PR #984).
+Command: `node --test --test-reporter=spec --test-name-pattern='remote decision maps undefined' dist/tests/server/workspace-authorization.test.js`
+
+Result: 12 tests, 12 pass, 0 fail. The same matrix returned HTTP 403
+`workspace_scope_required` and asserted zero remote-decision handler calls.
