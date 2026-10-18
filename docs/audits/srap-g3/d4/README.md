@@ -1,8 +1,8 @@
 # SRAP-G3-ACCEPT — D4 evidence bundle
 
-**D4 = PASS (pending final independent re-review)**. All acceptance-row gaps
-found in review are being closed with fresh evidence; scope limits are listed in
-manifest §10 and are not row-failure conditions.
+**D4 = INCOMPLETE**. Row evidence passes against local fix commit `8ab6e414`,
+but acceptance plan requires merge before final requalification. Independent
+review and issue #983 are recorded in manifest §11.
 
 ## Contents
 
@@ -42,7 +42,8 @@ root is `/tmp/opencode/alix-srap-accept/20261017T164036Z-309922`.
 
 The first independent review found A-2 state evidence missing; the row was
 re-run with a fresh identified approval and authoritative before/after reads.
-Final independent re-review is recorded in manifest §11.
+Final independent re-review found no remaining row-evidence failure; it requires
+the fix merged before D4 closure. Fix is tracked in issue #983.
 E-4 full coverage is recorded in `E4-full-coverage.txt`; C-2/C-3b were re-run
 after the workspace-status fix and are recorded in `C2-C3b-requalification.txt`.
 F-1 evidence is valid only with the daemon stopped; the deterministic reviewer

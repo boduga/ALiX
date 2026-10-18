@@ -1,7 +1,8 @@
 # SRAP-G3-ACCEPT — D4 closure evidence manifest (rev 5)
 
-**Status: all normative D4 rows now have passing evidence; final independent
-re-review is pending. Scope limits remain disclosed; none is a row failure.**
+**Status: D4 INCOMPLETE. Row evidence passes against commit `8ab6e414`, but the
+independent reviewer requires the fix merged before acceptance requalification.
+The integration request is awaiting operator authorization.**
 
 Rev 5 addresses six successive independent reviews, each of which returned
 **D4 FAIL**. Every blocking condition raised is now either fixed with a new
@@ -313,3 +314,16 @@ in the disposable fixture run directory.
 | E-4 full coverage | Codex | **PASS** — real authenticated TLS decision, one signing key-read, no pre-repair projection, one repaired projection, then idempotent no-op with lag 0; token revoked after the run |
 | Test-hook transparency | Codex | **PASS** — fixture-only loader source preserved in `E4-projection-skip-loader.txt`; production projector ran in a separate unhooked CLI process |
 | C-2/C-3b requalification | Codex | **PASS** — wrong-workspace and empty-scope bearer requests through the fixture TLS proxy returned HTTP 403 `workspace_scope_required`; approvals remained pending, no evidence was written, key-read delta 0 (`C2-C3b-requalification.txt`) |
+
+### Final independent re-review — 2026-10-18
+
+| Item | Reviewer | Verdict |
+| --- | --- | --- |
+| A-2 requalification | Codex (independent reviewer) | **PASS** — mutated A-1 token returned 401; same identified approval remained pending without evidence before and after (`A2-invalid-bearer-requalification.txt`) |
+| C-2/C-3a/C-3b scope parity | Codex (independent reviewer) | **PASS on fixed build** — exact 403 denials; missing-scope matrix asserts no decision-handler call (`C2-C3b-requalification.txt`, `C3a-missing-scope-matrix.txt`) |
+| Artifact and audit-chain integrity | Codex (independent reviewer) | **PASS** — 24/24 bundle copies and raw digests match; 278 audit records independently recomputed with no hash, sequence, or link failures; export/live/head agree |
+| Final D4 verdict | Codex (independent reviewer) | **INCOMPLETE** — acceptance plan requires merged product fix before affected-row requalification; current fix commit `8ab6e414` is local to `codex/srap-g3-d4-scope-denial` |
+
+Defect filed as GitHub issue [#983](https://github.com/boduga/ALiX/issues/983).
+Fix branch is ready for PR publication; no PR merge or fixture cleanup has
+occurred.
