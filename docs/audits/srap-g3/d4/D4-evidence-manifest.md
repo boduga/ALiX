@@ -1,10 +1,31 @@
-# SRAP-G3-ACCEPT — D4 closure evidence manifest (rev 6)
+# SRAP-G3-ACCEPT — D4 closure evidence manifest (rev 7)
 
-**Status: UNCONDITIONAL D4 PASS.** Scope-denial fix merged in PR #984 as
+**Status: CLOSED — PASS (technical and governance).** D4 technical verdict remains
+**UNCONDITIONAL PASS**. On 2026-10-17, the operator explicitly approved this
+sign-off, authorizing Codex's independent review to satisfy the acceptance
+plan's reviewer-sign-off requirement. This disposition applies to the rev 6
+evidence and review recorded below; it does not change or waive any evidence
+criterion. Scope-denial fix merged in PR #984 as
 `aae59c26c5f7cb938748f6dcb72ae58d0d722345`; affected rows were requalified on a
 build of that commit. All CI checks passed before merge. Independent final
 review verified row evidence, synchronized artifacts, hashes, and chain
-integrity. No required D4 row remains blocked.
+integrity. Every residual in §10 has an explicit scope/closure disposition and
+was accepted for this D4 decision. No required D4 row remains blocked.
+
+## Governance sign-off — 2026-10-17
+
+| Item | Authority / evidence | Disposition |
+| --- | --- | --- |
+| Reviewer authority | Operator's explicit approval in this session: “sign-off approved” | **APPROVED** — Codex's independent review is accepted as the required D4 reviewer sign-off |
+| Reviewed evidence revision | This manifest, rev 6, at repository commit `03eacda8720af5ff3f6cc08f333b2d462c91fea3`; final merged-build review dated 2026-10-18 | **CONFIRMED** — evidence and verdict are those recorded in rev 6; rev 7 records governance disposition only |
+| Previously recorded limitations | Rev 6 §10 and final independent review table | **DISPOSED** — accepted scope limits; none blocks an approved matrix row or D4 closure |
+| Final acceptance | Acceptance plan §11; rev 6 merged-build evidence | **CLOSED — PASS** |
+
+**Nature of this closure authority.** The operator decision recorded above is an
+**advisory governance acceptance**, not an independently authenticated human
+security signature. It accepts Codex's independent review as the D4 reviewer
+sign-off and closes the gate on that basis. It does not assert that a separate
+security signatory examined the evidence, and it must not be cited as one.
 
 Rev 5 addresses six successive independent reviews, each of which returned
 **D4 FAIL**. Every blocking condition raised is now either fixed with a new
