@@ -14,6 +14,9 @@ import {
 } from "../../src/coordination/kernel/coordination-tools.js";
 import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
 import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
+import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import { ApprovalManager } from "../../src/interfaces/tui/approval-manager.js";
+import { createApprovalResolver } from "../../src/interfaces/tui/approval-resolver.js";
 import { buildErrorMessage } from "../../src/run.js";
 import type { AlixConfig } from "../../src/operations/config/schema.js";
 
@@ -82,6 +85,86 @@ describe("coordination chat tools", () => {
     assert.equal(result.kind, "success");
     assert.equal(plannedSessionId, "tui-session-1");
     assert.equal((await store.list())[0]?.sessionId, "tui-session-1");
+  });
+
+  it("automatically reconciles a worker after its durable approval is approved", async () => {
+    const approvalStore = new ApprovalStore(cwd);
+    await approvalStore.load();
+    let executionCount = 0;
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        run.sessionMode = "ask";
+        await store.save(run);
+        const workers = Array.from({ length: 2 }, (_, index) => createWorkerAssignment({
+          coordinationRunId: run.id,
+          agentId: `alix#${index + 1}`,
+          taskLabel: `approved writer ${index + 1}`,
+          goalPrompt: "write the owned artifact",
+          requiredCapabilities: ["filesystem.write"],
+          ownershipScopes: [`approved-output-${index + 1}.txt`],
+        }));
+        for (const worker of workers) await store.addWorker(run.id, worker);
+        return { valid: true, errors: [], run: { ...run, workers } };
+      },
+    } as any;
+    const handlers = createCoordinationHandlers({
+      cwd,
+      config: testConfig(),
+      store,
+      planner,
+      approvalStore,
+      executor: {
+        execute: async () => {
+          executionCount++;
+          return { outcome: "success" };
+        },
+      },
+    });
+    const approvalManager = new ApprovalManager({
+      listPendingApprovals: async () => approvalStore.listPending().map(record => ({
+        id: record.id, capabilities: record.capabilities, reason: record.reason, createdAt: record.createdAt,
+      })),
+      resolveApproval: async (id, status) => {
+        const record = await approvalStore.resolve(id, status, "TUI approval regression");
+        return { success: record?.status === status, message: record ? `Approval ${id} ${status}.` : `Approval ${id} missing.` };
+      },
+    });
+    const approvalResolver = createApprovalResolver({
+      views: () => ({} as any), activeTab: () => "agent", syncTabs: ["agent"], approvalManager,
+      emit: () => {}, refresh: async () => {},
+    });
+
+    const runArgs = { goal: "write approved artifact", sessionMode: "ask" };
+    const controller = new AbortController();
+    const pendingRun = handlers[COORDINATION_RUN_TOOL](runArgs, {
+      toolCallId: "tui-approval-reconciliation", name: COORDINATION_RUN_TOOL,
+      args: runArgs, signal: controller.signal,
+    } as any);
+    try {
+      let approvals = approvalStore.listPending();
+      for (let attempt = 0; approvals.length < 2 && attempt < 100; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+        approvals = approvalStore.listPending();
+      }
+      assert.equal(approvals.length, 2, "both workers must persist durable pending approvals");
+      assert.equal(await approvalResolver.resolve(approvals[0]!.id, "approved"), true);
+      for (let attempt = 0; executionCount < 1 && attempt < 100; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      assert.equal(executionCount, 1, "one approval must reconcile its worker while the other remains pending");
+      assert.equal(await approvalResolver.resolve(approvals[1]!.id, "approved"), true);
+
+      const result = await pendingRun;
+      assert.equal(result.kind, "success");
+      assert.equal(executionCount, 2, "approved workers must execute once without a CLI tick");
+      assert.match(result.output ?? "", /completed/i);
+      assert.deepEqual(await Promise.all(approvals.map(async approval => (await approvalStore.loadFresh(approval.id))?.status)), ["consumed", "consumed"]);
+    } finally {
+      controller.abort();
+      await pendingRun.catch(() => {});
+    }
   });
 
   it("cancels the run when the operator aborts the turn", async () => {

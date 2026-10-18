@@ -48,6 +48,19 @@ export async function buildCoordinationPolicyGate(
   return new PolicyGate(config, { eventLog: undefined, approvalStore });
 }
 
+/** Reconcile a persisted run, then retain foreground ownership until workers settle. */
+export async function resumeCoordinationExecution(
+  scheduler: Pick<import("../../../coordination/kernel/coordination-scheduler.js").CoordinationScheduler, "reconcile" | "runUntilIdle">,
+  runId: string,
+): Promise<{
+  reconciliation: Awaited<ReturnType<typeof scheduler.reconcile>>;
+  execution: Awaited<ReturnType<typeof scheduler.runUntilIdle>>;
+}> {
+  const reconciliation = await scheduler.reconcile(runId);
+  const execution = await scheduler.runUntilIdle(runId);
+  return { reconciliation, execution };
+}
+
 export function readFlag(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
   if (idx !== -1 && idx + 1 < args.length) return args[idx + 1];
@@ -278,16 +291,35 @@ async function handleResume(args: string[]): Promise<void> {
     { cwd, daemonInstanceId: `cli-${process.pid}`, configProvider: async () => config, store, authorization: auth, ownershipRegistry: registry, executor },
   );
 
-  const recResult = await scheduler.reconcile(runId);
+  let cancelling = false;
+  const onSignal = (signal: NodeJS.Signals): void => {
+    if (cancelling) return;
+    cancelling = true;
+    console.log(`\nReceived ${signal} — cancelling resumed run ${runId}…`);
+    void scheduler.cancelRun(runId)
+      .catch(() => {})
+      .finally(() => process.exit(130));
+  };
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
+  let recResult: Awaited<ReturnType<typeof scheduler.reconcile>>;
+  let execution: Awaited<ReturnType<typeof scheduler.runUntilIdle>>;
+  try {
+    ({ reconciliation: recResult, execution } = await resumeCoordinationExecution(scheduler, runId));
+  } finally {
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
+  }
   console.log(`Reconciliation for ${runId}:`);
   console.log(`  Orphans recovered: ${recResult.orphaned.length}`);
   console.log(`  Dependency blocks: ${recResult.dependencyBlocked.length}`);
   console.log(`  Approvals resumed: ${recResult.approvalResumed.length}`);
 
-  const tickResult = await scheduler.tick(runId);
-  console.log(`\nPost-resume tick:`);
-  console.log(`  Dispatched: ${tickResult.dispatched.length}`);
-  console.log(`  Run status: ${tickResult.runStatus}`);
+  console.log(`\nPost-resume execution:`);
+  console.log(`  Dispatched: ${execution.dispatched}`);
+  console.log(`  Cycles: ${execution.cycles}`);
+  console.log(`  Stop reason: ${execution.stopReason}`);
+  console.log(`  Run status: ${execution.finalStatus}`);
 }
 
 async function handleStatus(args: string[]): Promise<void> {

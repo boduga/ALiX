@@ -30,11 +30,14 @@ import type { AlixConfig } from '../../../src/operations/config/schema.js';
 import type { AggregateCompletedEventLike } from '../../../src/coordination/kernel/coordination-types.js';
 import type { CoordinationPlanner } from '../../../src/coordination/kernel/coordination-planner.js';
 import type { CoordinationWorkerExecutor } from '../../../src/coordination/kernel/worker-executor.js';
+import { DefaultWorkerExecutor } from '../../../src/coordination/kernel/worker-executor.js';
 import type { ModelAdapter } from '../../../src/models/providers/types.js';
+import { clearScriptedScenario, scriptedMockCarrier, setScriptedScenario } from '../../../src/operations/evals/providers/scripted-mock-carrier.js';
+import { installEvalConfig } from '../../../src/operations/evals/evals-runner.js';
 import { closeAllSharedLedgers } from '../../../src/runtime-state/storage/runtime-ledger.js';
 
 const roots: string[] = [];
-afterEach(() => { vi.restoreAllMocks(); closeAllSharedLedgers(); for (const cwd of roots.splice(0)) rmSync(cwd, { recursive: true, force: true }); });
+afterEach(() => { clearScriptedScenario(); vi.unstubAllEnvs(); vi.restoreAllMocks(); closeAllSharedLedgers(); for (const cwd of roots.splice(0)) rmSync(cwd, { recursive: true, force: true }); });
 
 async function fixture(executor: CoordinationWorkerExecutor, count = 4) {
   const cwd = mkdtempSync(join(tmpdir(), 'workbench-phase9-')); roots.push(cwd);
@@ -91,6 +94,39 @@ async function fixture(executor: CoordinationWorkerExecutor, count = 4) {
 }
 
 describe('Phase9 public coordination port with real handlers and scheduler', () => {
+  it('dispatches through the configured scripted provider and verifies the worker-owned artifact', async () => {
+    const f = await fixture(new DefaultWorkerExecutor(), 1);
+    f.config.models!.default = { provider: 'scripted-mock', name: 'scripted-worker', streaming: false } as any;
+    f.config.model = { provider: 'scripted-mock', name: 'scripted-worker' } as any;
+    installEvalConfig(f.cwd, 'scripted-mock');
+    const isolatedHome = join(f.cwd, 'isolated-home');
+    vi.stubEnv('HOME', isolatedHome);
+    const isolatedConfigDir = join(isolatedHome, '.config', 'alix');
+    await mkdir(isolatedConfigDir, { recursive: true });
+    await writeFile(join(isolatedConfigDir, 'config.json'), JSON.stringify({ apiKeys: {} }));
+    setScriptedScenario({ steps: [
+      { kind: 'tool', tool: 'file.create', args: {
+        path: 'reports/0.md', content: '# Scripted worker output\nprovider=scripted-mock\n',
+      } },
+      ...Array.from({ length: 8 }, () => ({
+        kind: 'text' as const,
+        text: '{"satisfied":true,"summary":"Created the requested report.","gaps":[]}',
+      })),
+    ] });
+
+    const result = await f.session.runCoordination!({ goal: 'Create one report', maxConcurrency: 1 });
+    const run = (await f.store.list())[0]!;
+    const events = await f.log.readAll();
+
+    expect(run.status).toBe('completed');
+    expect(scriptedMockCarrier.calls).toBeGreaterThan(0);
+    const artifact = await readFile(join(f.cwd, 'reports/0.md'), 'utf8');
+    expect(artifact).toContain('provider=scripted-mock');
+    expect(run.workers[0]).toMatchObject({ status: 'completed' });
+    expect(events.some(event => event.type === 'tool.completed' && (event.payload as any)?.toolName === 'file.create')).toBe(true);
+    expect(result.reason).toBe('completed');
+  });
+
   it('runs four dependent workers, retries identity safely, and verifies the actual aggregate', async () => {
     const attempts: string[] = [];
     const f = await fixture({ execute: async (worker, ctx) => {
