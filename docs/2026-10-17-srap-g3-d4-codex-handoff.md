@@ -9,8 +9,9 @@ Baseline: `main` == `origin/main` == **`7b54e781`**
 acceptance work. This document exists so a future session can pick up the fixture
 or audit the gate without re-deriving what was learned.
 
-Do **not** re-open the acceptance program. If you find a defect, file it and enter
-the normal review path — do not patch inside acceptance evidence.
+The gate is closed. Reopening it is an operator decision, not a default. If you
+find a defect, file it and enter the normal review path — do not patch inside
+acceptance evidence.
 
 ## 1. Gate status (final)
 
@@ -20,10 +21,15 @@ the normal review path — do not patch inside acceptance evidence.
 | D1 isolated setup | **PASSED**, D1-F1 closed | PRs #966, #967; `docs/2026-10-16-srap-g3-d1-report.md` |
 | D2 qualification | **complete** | PR #969 (`86855978`), operator decision 2026-10-16 |
 | D3 integrated acceptance | **all rows artifact-backed** | §3 |
-| D4 closure | **UNCONDITIONAL PASS** | `docs/audits/srap-g3/d4/D4-evidence-manifest.md` (rev 6) |
-| Independent D4 sign-off | **DONE** (Codex) | manifest §11, "Final independent review — merged build" |
+| D4 closure | **CLOSED — PASS** | `docs/audits/srap-g3/d4/D4-evidence-manifest.md` (rev 7) |
+| Independent D4 sign-off | **APPROVED** by operator | manifest governance sign-off; Codex final independent review of rev 6 evidence |
 
 Issue **#983** (decision-route workspace denial parity) is **CLOSED**.
+
+**Closure authority:** the operator decision recorded in rev 7 is an **advisory
+governance acceptance**, not an independently authenticated human security
+signature. It accepts Codex's independent review as the D4 reviewer sign-off. Do
+not cite it as a separate security signatory.
 
 ## 2. What landed (acceptance series)
 
@@ -141,8 +147,8 @@ resolved:
 3. The untrusted-peer test uses loopback source addresses (`127.0.0.2`) against a
    `127.0.0.1/32` trust list — **not** a physically separate host. Do not claim
    separate-host isolation.
-4. The fixture root is disposable and was mutated across review rounds; each
-   manifest revision states its own authoritative counts (rev 6: 278 records).
+4. The fixture root is disposable and was mutated across review rounds; rev 6
+   records authoritative counts (278 records); rev 7 records governance sign-off.
 5. E-4 originally used a hand-seeded decision; the rev-6 supplemental run
    (`E4-full-coverage.txt`) replaced it with a real signed decision through the
    route, so this limitation is effectively closed — but the earlier hand-seeded
@@ -156,7 +162,7 @@ resolved:
 | `docs/2026-10-16-srap-g3-acceptance-fixture.md` | fixture design (rev 2.3) |
 | `docs/2026-10-16-srap-g3-d2-d3-handoff.md` | frozen D3 inputs, bootstrap, D3 execution record |
 | `docs/2026-10-16-srap-g3-d1-report.md` | D1 verdict |
-| `docs/audits/srap-g3/d4/` | **D4 manifest rev 6 + committed evidence artifacts** (authoritative) |
+| `docs/audits/srap-g3/d4/` | **D4 manifest rev 7 + committed evidence artifacts** (authoritative) |
 | `scripts/srap-accept/` | fixture seeders, proxies, mock model (**inert, never imported by `src/`**) |
 | `scripts/srap-accept/AGENTS.md` | fixture DOX contract |
 | `src/governance/audit/remote-decision-projection.ts` | ledger → audit projection |
@@ -184,7 +190,7 @@ Nothing is required — the gate is closed. If you are here for something specif
 
 1. `git pull` on `main`; confirm `7b54e781`.
 2. To audit the gate: read `docs/audits/srap-g3/d4/D4-evidence-manifest.md`
-   (rev 6) and §10/§11.
+   (rev 7; rev 6 contains reviewed evidence) and §§10–11.
 3. To re-run a row: start the Inspector (`private/start-inspector.sh`), remember
    §5.3 for F-1, and query the ledger (not `approvals.json`) for state.
 4. To clean up: cancel stale runs, stop the daemon/proxy/mock, and delete the
