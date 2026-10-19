@@ -37,6 +37,34 @@ export class ContinuationManager {
       return { resumed: false, error: `Approval not found: ${approvalId}` };
     }
     if (approval.status !== "approved") {
+      // A consumed record is a spent single-use claim. If its outcome is still
+      // `pending`, the process that held it never reported back (crash). Make
+      // that explicit and terminal rather than reporting a bland status error.
+      if (approval.status === "consumed") {
+        let outcome = approval.executionOutcome;
+        if (outcome === "pending") {
+          try {
+            const verdict = await (this.deps.approvalStore as { markExecutionUnverified?: (id: string) => Promise<string> })
+              .markExecutionUnverified?.(approvalId);
+            if (verdict === "unverified") outcome = "unverified";
+          } catch {
+            // Classification is observability; the denial below stands regardless.
+          }
+        }
+        const detail = outcome === "unverified" || outcome === "pending"
+          ? "execution outcome is UNVERIFIED (the process holding the claim did not report back)"
+          : outcome === "succeeded"
+            ? "it already executed successfully"
+            : outcome === "failed"
+              ? "its execution already failed"
+              : outcome === "cancelled"
+                ? "its execution was cancelled"
+                : "it was already consumed";
+        return {
+          resumed: false,
+          error: `Approval ${approvalId} is single-use: ${detail}. A fresh approval is required; this continuation will not be retried automatically.`,
+        };
+      }
       return { resumed: false, error: `Approval ${approvalId} status is '${approval.status}', not 'approved'` };
     }
     // R1.5: authorization must still be valid — an expired approval never

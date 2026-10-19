@@ -117,31 +117,52 @@ describe("R1.5 authorization containment", () => {
       const { ToolExecutor } = await import("../../src/capabilities/tools/executor.js");
       const { DEFAULT_CONFIG } = await import("../../src/operations/config/defaults.js");
       const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
-      const log = new EventLog(dir);
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+      const { hashArgs } = await import("../../src/capabilities/tools/hash-args.js");
+      const { resolve: resolvePath } = await import("node:path");
+      // A real store, not a fake: the executor now CLAIMS the approval, which
+      // fails closed against a store that cannot atomically consume.
+      const log = new EventLog(join(dir, ".alix", "sessions", "s1"));
       await log.init();
-      const fakeStore = {
-        get: (id: string) => (id === "apr-ok"
-          ? { id, status: "approved", expiresAt: new Date(Date.now() + 60_000).toISOString() }
-          : undefined),
+      const store = new ApprovalStore(dir, { eventLog: log });
+      await store.load();
+
+      const invocation = {
+        capability: "file.read",
+        toolName: "file.read",
+        workspace: resolvePath(dir),
+        argsHash: hashArgs({ path: "ok.txt" }),
+        sessionId: "s1",
+        agentId: "alix",
       };
-      const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir, undefined, undefined, undefined, undefined, fakeStore);
+      const ok = await store.request({ reason: "r15", capability: "file.read", sessionId: "s1", agentId: "alix", invocation });
+      await store.resolve(ok.id, "approved", "r15");
+
+      const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir, undefined, undefined, undefined, undefined, store);
       const result = await executor.execute({
         toolCallId: "c3", name: "file.read", args: { path: "ok.txt" },
-        source: "continuation-resume", approvalId: "apr-ok",
+        source: "continuation-resume", approvalId: ok.id,
         executionId: "e", invocationId: "i",
       });
       assert.equal(result.kind, "success");
 
       // Expired approval → denied even though status says approved.
-      const fakeExpired = {
-        get: (id: string) => (id === "apr-old"
-          ? { id, status: "approved", expiresAt: new Date(Date.now() - 1000).toISOString() }
-          : undefined),
-      };
-      const executor2 = new ToolExecutor(DEFAULT_CONFIG, log, dir, undefined, undefined, undefined, undefined, fakeExpired);
+      const old = await store.requestBound({
+        reason: "r15-exp",
+        bindingKey: "r15-exp-binding",
+        requestFingerprint: "r15-exp",
+        policyRevision: "legacy",
+        capabilities: ["file.read"],
+        sessionId: "s1",
+        agentId: "alix",
+        expiresAt: new Date(Date.now() - 1000).toISOString(),
+        invocation,
+      });
+      await store.resolve(old.id, "approved", "r15-exp");
+      const executor2 = new ToolExecutor(DEFAULT_CONFIG, log, dir, undefined, undefined, undefined, undefined, store);
       const expired = await executor2.execute({
         toolCallId: "c4", name: "file.read", args: { path: "ok.txt" },
-        source: "continuation-resume", approvalId: "apr-old",
+        source: "continuation-resume", approvalId: old.id,
         executionId: "e", invocationId: "i",
       });
       assert.equal(expired.kind, "denied");

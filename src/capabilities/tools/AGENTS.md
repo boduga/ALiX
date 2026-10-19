@@ -71,6 +71,7 @@ reason about.
   (same PolicyGate pipeline as dispatch) before the handler runs: `allow` →
   run, `ask` → durable approval wait, `deny`/unbacked-ask → `Access denied`.
   The handler never runs ungoverned.
+- **A cited approval is claimed exactly once, in `dispatch`, before any router runs.** `ToolExecutor.dispatch` calls `claimApproval` on an allowed decision that cites a durable approval (`decision.approvalId && !decision.approvalConsumed`) and on the continuation branch after the ownership gate. That claim is the single consumed-once seam for both execution routes: a concurrent or fresh-process replay loses the race and is denied, never executed. `claimApproval` fails closed when no store can atomically consume, and the post-claim outcome (`succeeded`/`failed`/`cancelled`) is reported so a crash between claim and execution stays `pending` and is later classified `unverified` rather than reissued. The coordination exact-binding branch already consumed in-gate and reports `approvalConsumed: true`, so dispatch skips its claim. Owner: `src/governance/approvals/AGENTS.md`.
 - **Continuation resumes re-validate authorization (R1.5).** A request with
   `source: "continuation-resume"` must carry `approvalId`, and the executor
   independently checks the durable record (present, `approved`, not expired)
@@ -124,6 +125,10 @@ reason about.
 - `tests/unit/safe-shell.test.ts` — shell admission grammar.
 - `tests/policy/policy-gate.test.ts` — the authorization decision that runs
   before any of this.
+- `tests/security/legacy-approval-single-use.test.ts` — the dispatch claim on
+  the ordinary retry and continuation routes (one real effect, replay denied).
+- `tests/security/approval-crash-recovery.test.ts` — post-claim outcome
+  reporting and crash classification.
 
 ## Child DOX Index
 

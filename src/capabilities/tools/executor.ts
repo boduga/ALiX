@@ -393,6 +393,10 @@ export class ToolExecutor {
     // === END TOOL REPAIR ===
 
     const argumentHash = hashArgs(args);
+    // Track the claim across execution so the crash-recovery state is honest:
+    // a claimed approval that never reports an outcome stays `pending` and a
+    // later replay classifies it `unverified` instead of reissuing authority.
+    let claimedApprovalId: string | undefined;
     // T5 hierarchy: executionId → invocationId → toolCallId — typed via CorrelationContext, no loose Record
     // For T5 parallel path, correlation is required (asserted in tool-correlation); for serial/back-compat allow fallback to empty.
     const correlation: CorrelationContext = {
@@ -457,6 +461,20 @@ export class ToolExecutor {
       }
       const contGateResult = await this.checkOwnershipGate(request, name, args);
       if (contGateResult) return contGateResult;
+      // R1.5: the continuation tombstone is NOT authorization — claim the
+      // backing approval atomically so two parallel resumes cannot both run.
+      if (request.approvalId) {
+        const claimed = await this.claimApproval(request.approvalId, {
+          capability,
+          toolName: name,
+          workspace: resolve(this.root),
+          argsHash: argumentHash,
+          sessionId: this.sessionId(),
+          agentId: request.agentId ?? "alix",
+        });
+        if (claimed) return claimed;
+        claimedApprovalId = request.approvalId;
+      }
       await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
         toolCallId,
         toolName: name,
@@ -466,7 +484,11 @@ export class ToolExecutor {
         ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
-      return await this.toolAwareRouter.downstream.execute(request);
+      const resumed = await this.toolAwareRouter.downstream.execute(request);
+      if (claimedApprovalId) {
+        await this.recordApprovalOutcome(claimedApprovalId, resumed.kind === "success" ? "succeeded" : "failed");
+      }
+      return resumed;
     }
 
     // Safe shell bypass for ask mode: read-only commands skip policy gate
@@ -631,6 +653,26 @@ export class ToolExecutor {
       return { kind: "denied", reason: msg };
     }
 
+    // R1.5: an allowed decision that cites a durable approval must CLAIM it
+    // before any router runs. This is the single seam both execution routes
+    // pass through, so the claim happens exactly once per execution and a
+    // concurrent or fresh-process replay loses the race and cannot execute.
+    // The coordination exact-binding branch already consumed inside the gate
+    // (`approvalConsumed`), so claiming again here would deny a legitimate
+    // worker — skip it.
+    if (decision.status === "allowed" && decision.approvalId && !decision.approvalConsumed) {
+      const claimed = await this.claimApproval(decision.approvalId, {
+        capability,
+        toolName: name,
+        workspace: resolve(this.root),
+        argsHash: argumentHash,
+        sessionId: this.sessionId(),
+        agentId: request.agentId ?? "alix",
+      });
+      if (claimed) return claimed;
+      claimedApprovalId = decision.approvalId;
+    }
+
     await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
       toolCallId,
       toolName: name,
@@ -670,6 +712,9 @@ export class ToolExecutor {
         } catch {
           // Telemetry cannot reclassify an operator cancellation as failure.
         }
+        if (claimedApprovalId) await this.recordApprovalOutcome(claimedApprovalId, "cancelled");
+      } else if (claimedApprovalId) {
+        await this.recordApprovalOutcome(claimedApprovalId, "failed");
       }
       throw error;
     }
@@ -813,7 +858,79 @@ export class ToolExecutor {
       });
     }
 
+    if (claimedApprovalId) {
+      await this.recordApprovalOutcome(
+        claimedApprovalId,
+        result.kind === "success" ? "succeeded" : "failed",
+      );
+    }
+
     return result;
+  }
+
+  /**
+   * Claim (consume) a durable approval for THIS exact invocation.
+   *
+   * Returns a denial result if the claim loses — the approval is already
+   * consumed, expired, mismatched, or absent — so the caller never executes.
+   * Returns null exactly once, when this caller won the atomic claim.
+   */
+  private async claimApproval(
+    approvalId: string,
+    identity: {
+      capability: string;
+      toolName: string;
+      workspace: string;
+      argsHash: string;
+      sessionId?: string;
+      agentId?: string;
+    },
+  ): Promise<ExecuteResult | null> {
+    const store = this.approvalStore;
+    if (!store?.consumeApproved) {
+      // A durable approval was cited but the store cannot atomically claim it.
+      // Executing anyway would break single-use, so fail closed.
+      return {
+        kind: "denied",
+        reason: `No approval store able to claim ${approvalId}; refusing to execute a single-use authorization`,
+      };
+    }
+    try {
+      const record = store.get?.(approvalId);
+      if (!record?.bindingKey) {
+        return { kind: "denied", reason: `Approval ${approvalId} not found; cannot authorize this execution` };
+      }
+      const result = await store.consumeApproved(approvalId, record.bindingKey, {}, { ...identity });
+      if (!result?.consumed) {
+        return {
+          kind: "denied",
+          reason: `Approval ${approvalId} could not be claimed (${result?.reason ?? "unknown"}); a fresh approval is required`,
+        };
+      }
+      return null;
+    } catch (err) {
+      return {
+        kind: "denied",
+        reason: `Approval claim failed for ${approvalId}: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+  }
+
+  /**
+   * Report the post-claim execution outcome. Best-effort by contract: a
+   * persistence failure must never reclassify the tool result the model sees.
+   * The store only accepts the transition from `pending`, so a duplicated
+   * report cannot rewrite an already-resolved claim.
+   */
+  private async recordApprovalOutcome(
+    approvalId: string,
+    outcome: "succeeded" | "failed" | "cancelled",
+  ): Promise<void> {
+    try {
+      await this.approvalStore?.recordExecutionOutcome?.(approvalId, outcome);
+    } catch {
+      // Observable via the durable `pending` state; never fatal to the call.
+    }
   }
 
   // ─── Ownership Gate ───────────────────────────────────────────

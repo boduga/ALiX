@@ -14,7 +14,7 @@ import type { WorkerOwnershipClaim } from "../../coordination/kernel/coordinatio
 // ─── Decision contract ──────────────────────────────────────────────
 
 export type ExecutionDecision =
-  | { status: "allowed"; policyRuleId?: string; approvalId?: string; policyRevision?: string }
+  | { status: "allowed"; policyRuleId?: string; approvalId?: string; policyRevision?: string; approvalConsumed?: boolean }
   | { status: "denied"; reason: string; policyRuleId?: string; approvalId?: string; policyRevision?: string }
   | {
       status: "approval_required";
@@ -73,7 +73,7 @@ export interface ExecutionDecisionRequest {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-export function decisionAllowed(overrides?: { policyRuleId?: string; approvalId?: string; policyRevision?: string }): ExecutionDecision {
+export function decisionAllowed(overrides?: { policyRuleId?: string; approvalId?: string; policyRevision?: string; approvalConsumed?: boolean }): ExecutionDecision {
   return { status: "allowed", ...overrides };
 }
 

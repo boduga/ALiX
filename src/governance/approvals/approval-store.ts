@@ -14,7 +14,8 @@ import type { AuditStore } from "../audit/audit-store.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
 import type { ApprovalRecord, ApprovalGroup, ConsumeResult, RemoteDecisionEvidence } from "./approval-types.js";
 import type { WorkerOwnershipClaim } from "../../coordination/kernel/coordination-types.js";
-import { normalizeApprovalRecord } from "./approval-binding.js";
+import { normalizeApprovalRecord, computeInvocationFingerprint, invocationMatches } from "./approval-binding.js";
+import type { InvocationIdentity } from "./approval-binding.js";
 import { ApprovalStoreLock } from "./approval-store-lock.js";
 import { APPROVAL_EVENT_TYPES } from "../../runtime-state/events/types.js";
 import { getSharedLedger, appendFact, currentEntityVersion, type LedgerFactCounters } from "../../runtime-state/storage/runtime-ledger.js";
@@ -38,6 +39,13 @@ export type ApprovalRequestInput = {
   agentId?: string;
   toolId?: string;
   riskLevel?: "low" | "medium" | "high" | "critical";
+  /**
+   * Exact invocation this approval authorizes. Persisted with a deterministic
+   * fingerprint so authorization cannot drift to a changed argument set,
+   * capability, tool, workspace, session, or agent. Absent on legacy records,
+   * which fail closed rather than authorize on a request-id match alone.
+   */
+  invocation?: InvocationIdentity;
   groupId?: string;
   expiresAt?: string;
   /** Stable request id (typically the toolCallId) used for retry de-dup. */
@@ -421,6 +429,8 @@ export class ApprovalStore {
         agentId: input.agentId,
         toolId: input.toolId,
         riskLevel: input.riskLevel,
+        invocation: input.invocation,
+        invocationFingerprint: input.invocation ? computeInvocationFingerprint(input.invocation) : undefined,
         groupId: input.groupId,
         requestId: input.requestId,
         metadata: input.metadata,
@@ -497,6 +507,8 @@ export class ApprovalStore {
         agentId: input.agentId,
         toolId: input.toolId,
         riskLevel: input.riskLevel,
+        invocation: input.invocation,
+        invocationFingerprint: input.invocation ? computeInvocationFingerprint(input.invocation) : undefined,
         groupId: input.groupId,
         requestId: input.requestId,
         metadata: input.metadata,
@@ -548,6 +560,8 @@ export class ApprovalStore {
         agentId: input.agentId,
         toolId: input.toolId,
         riskLevel: input.riskLevel,
+        invocation: input.invocation,
+        invocationFingerprint: input.invocation ? computeInvocationFingerprint(input.invocation) : undefined,
         groupId: input.groupId,
         requestId: input.requestId,
         metadata: input.metadata,
@@ -584,6 +598,8 @@ export class ApprovalStore {
     capability?: string;
     toolId?: string;
     riskLevel?: "low" | "medium" | "high" | "critical";
+    /** Exact invocation this approval authorizes; see `ApprovalRequestInput`. */
+    invocation?: InvocationIdentity;
     /**
      * Stable request id (typically the toolCallId) that lets the policy
      * gate recognise a re-execution of the SAME tool call. When the gate
@@ -615,6 +631,7 @@ export class ApprovalStore {
       agentId: opts.agentId,
       toolId: opts.toolId,
       riskLevel: opts.riskLevel,
+      invocation: opts.invocation,
       requestId: opts.requestId,
     });
   }
@@ -722,6 +739,85 @@ export class ApprovalStore {
     return this.byBindingKey.get(bindingKey)?.[0];
   }
 
+  /**
+   * Record what happened after a claim (`succeeded` | `failed` | `cancelled`).
+   *
+   * Best-effort by contract: the tool result must never be reclassified because
+   * outcome persistence failed, so callers ignore the boolean. Only the first
+   * terminal transition wins — a stale or duplicated report cannot rewrite a
+   * claim that another execution already resolved.
+   */
+  async recordExecutionOutcome(
+    id: string,
+    outcome: "succeeded" | "failed" | "cancelled",
+  ): Promise<boolean> {
+    let recorded = false;
+    let sessionId: string | undefined;
+    await this.mutate((approvals) => {
+      const r = approvals.find(a => a.id === id);
+      if (!r) return;
+      if (r.status !== "consumed") return;
+      if (r.executionOutcome !== "pending") return;
+      r.executionOutcome = outcome;
+      r.executionOutcomeAt = new Date().toISOString();
+      sessionId = r.sessionId;
+      recorded = true;
+    });
+    if (recorded) {
+      const type = outcome === "succeeded"
+        ? APPROVAL_EVENT_TYPES.EXECUTION_SUCCEEDED
+        : outcome === "cancelled"
+          ? APPROVAL_EVENT_TYPES.EXECUTION_CANCELLED
+          : APPROVAL_EVENT_TYPES.EXECUTION_FAILED;
+      this.emit(type, { approvalId: id, outcome }, sessionId);
+    }
+    return recorded;
+  }
+
+  /**
+   * Classify a `pending` claim as `unverified`: the process that held it is
+   * gone, so the side effect is unknown. Terminal and fail-closed — the
+   * approval is never reissued by this transition.
+   *
+   * Returns the record's current state so a caller can name the exact reason.
+   */
+  async markExecutionUnverified(id: string): Promise<"unverified" | "pending" | "terminal" | "missing"> {
+    let verdict: "unverified" | "pending" | "terminal" | "missing" = "missing";
+    let sessionId: string | undefined;
+    await this.mutate((approvals) => {
+      const r = approvals.find(a => a.id === id);
+      if (!r) { verdict = "missing"; return; }
+      if (r.status !== "consumed") { verdict = "terminal"; return; }
+      if (r.executionOutcome === "unverified") { verdict = "unverified"; return; }
+      if (r.executionOutcome !== "pending") { verdict = "terminal"; return; }
+      r.executionOutcome = "unverified";
+      r.executionOutcomeAt = new Date().toISOString();
+      sessionId = r.sessionId;
+      verdict = "unverified";
+    });
+    // `verdict` is assigned inside the mutate() closure, so TS narrows it to the
+    // initial literal here. Re-assert the declared union before comparing.
+    const finalVerdict = verdict as "unverified" | "pending" | "terminal" | "missing";
+    if (finalVerdict === "unverified") {
+      this.emit(APPROVAL_EVENT_TYPES.EXECUTION_UNVERIFIED, { approvalId: id }, sessionId);
+    }
+    return finalVerdict;
+  }
+
+  /**
+   * Consumed approvals whose execution outcome is not a proven terminal result.
+   *
+   * `unverified` means a replay already observed a dead claim. `pending` may
+   * still be in flight, or may be a crash that nothing has replayed yet — both
+   * are reported so an operator can inspect them without a wall-clock sweep.
+   */
+  listUncertainConsumptions(): ApprovalRecord[] {
+    return this.list().filter(
+      a => a.status === "consumed"
+        && (a.executionOutcome === "pending" || a.executionOutcome === "unverified"),
+    );
+  }
+
   /** Find a pending approval by binding key — O(1) bucket lookup (#703). */
   findPendingByBindingKey(bindingKey: string): ApprovalRecord | undefined {
     return this.byBindingKey.get(bindingKey)?.find(a => a.status === "pending");
@@ -819,6 +915,7 @@ export class ApprovalStore {
     id: string,
     expectedBindingKey: string,
     consumer: { workerId?: string; workerAttempt?: number; now?: Date },
+    expectedInvocation?: InvocationIdentity,
   ): Promise<ConsumeResult> {
     let result: ConsumeResult = { consumed: false, reason: "not found" };
     await this.mutate((approvals) => {
@@ -829,10 +926,21 @@ export class ApprovalStore {
       if (new Date(r.expiresAt) <= now) { result = { consumed: false, reason: "expired" }; return; }
       if (r.bindingKey !== expectedBindingKey) { result = { consumed: false, reason: "binding key mismatch" }; return; }
       if (r.workerId && consumer.workerId && r.workerId !== consumer.workerId) { result = { consumed: false, reason: "worker mismatch" }; return; }
+      // Exact-invocation binding: a caller that supplies the identity must match
+      // the persisted fingerprint. A legacy record with no fingerprint fails
+      // closed — it is never reinterpreted as reusable.
+      if (expectedInvocation && !invocationMatches(r, expectedInvocation)) {
+        result = { consumed: false, reason: "invocation mismatch" }; return;
+      }
       r.status = "consumed";
       r.consumedAt = (consumer.now ?? new Date()).toISOString();
       r.consumedByWorkerId = consumer.workerId;
       r.consumedAttempt = consumer.workerAttempt;
+      // The claim is durable; execution follows and reports its own outcome.
+      // A crash in between leaves this `pending`, which a later replay
+      // classifies as `unverified` rather than silently reissuing authority.
+      r.executionOutcome = "pending";
+      r.executionOutcomeAt = r.consumedAt;
       result = { consumed: true, record: { ...r } };
     });
     // `result` is assigned inside the mutate() closure, so TS narrows it to the

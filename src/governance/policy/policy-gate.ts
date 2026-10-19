@@ -14,6 +14,8 @@ import type { PolicySnapshot, PolicyRuleSnapshot } from "../../interfaces/tui/sn
 import { computePolicyRevision } from "./policy-revision.js";
 import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
 import { inferCapability } from "../../capabilities/tools/capability-map.js";
+import type { InvocationIdentity } from "../approvals/approval-binding.js";
+import { invocationMatches } from "../approvals/approval-binding.js";
 import { extractPatchPaths } from "../../execution/patch/patch-paths.js";
 import { resolve } from "node:path";
 import { isWithinOwnedScope } from "../../coordination/ownership/path-scope.js";
@@ -32,6 +34,11 @@ export type PolicyGateDecision = {
   bindingKey?: string;
   /** The request fingerprint that key was computed from. */
   requestFingerprint?: string;
+  /**
+   * Set only by the coordination exact-binding branch, which consumes the
+   * approval inside the gate. The executor must NOT claim it again.
+   */
+  approvalConsumed?: boolean;
 };
 
 export type ToolPolicyRequest = {
@@ -352,6 +359,17 @@ export class PolicyGate {
         ownershipClaims: request.ownershipClaims,
         requestFingerprint: request.requestFingerprint,
       } : undefined,
+      // Exact invocation identity for the tool path. Persisted at creation and
+      // re-derived at authorization so authority cannot drift to a changed
+      // capability/tool/workspace/args/session/agent.
+      {
+        capability,
+        toolName: request.toolName,
+        workspace: resolve(request.cwd),
+        argsHash: (await import("../../capabilities/tools/hash-args.js")).hashArgs(args),
+        sessionId: request.sessionId,
+        agentId: request.agentId,
+      },
     );
 
     // Emit approval lifecycle event (created or reused)
@@ -482,6 +500,7 @@ export class PolicyGate {
       ownershipClaims?: WorkerOwnershipClaim[];
       requestFingerprint?: string;
     },
+    invocation?: InvocationIdentity,
   ): Promise<PolicyGateDecision> {
     const store = this.deps.approvalStore;
     const policyRevision = computePolicyRevision(this.config);
@@ -554,7 +573,7 @@ export class PolicyGate {
         // Try to consume it
         const consumed = await store.consumeApproved(approved.id, bindingKey, {});
         if (consumed.consumed) {
-          return { requestId, capability, decision: "allow", reason: "Approved by prior exact binding", approvalId: approved.id, matchedRuleId: "exact-binding-approved", policyRevision };
+          return { requestId, capability, decision: "allow", reason: "Approved by prior exact binding", approvalId: approved.id, matchedRuleId: "exact-binding-approved", policyRevision, approvalConsumed: true };
         }
       }
 
@@ -602,18 +621,58 @@ export class PolicyGate {
       const prior = requestId ? store.findByRequestId?.(requestId) : undefined;
       if (prior) {
         if (prior.status === "approved") {
-          return { requestId, capability, decision: "allow", reason: `Already approved: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-approved", policyRevision };
-        }
-        if (prior.status === "denied") {
+          // Single-use by exact invocation. When the caller supplies an
+          // invocation identity, a mismatch — including a legacy record with NO
+          // fingerprint — must NOT authorize. Fall through and ask again so a
+          // fresh, exactly-bound approval is created. The capability-level path
+          // (no tool invocation) keeps its prior reuse behavior.
+          const unexpired = !prior.expiresAt || new Date(prior.expiresAt).getTime() > Date.now();
+          const bindingOk = invocation ? invocationMatches(prior, invocation) : true;
+          if (unexpired && bindingOk) {
+            return { requestId, capability, decision: "allow", reason: `Already approved: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-approved", policyRevision };
+          }
+          // else: fall through to create a fresh approval
+        } else if (prior.status === "denied") {
           return { requestId, capability, decision: "deny", reason: `Already denied: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-denied", policyRevision };
-        }
-        // pending → reuse the existing pending approval
-        if (prior.status === "pending") {
+        } else if (prior.status === "consumed") {
+          // A spent single-use approval. Distinguish a proven outcome from a
+          // crashed claim: `pending` means the process holding the claim never
+          // reported back, so classify it `unverified` and deny with an exact
+          // reason. Never re-authorize.
+          let outcome = prior.executionOutcome;
+          if (outcome === "pending") {
+            try {
+              const verdict = await (store as { markExecutionUnverified?: (id: string) => Promise<string> })
+                .markExecutionUnverified?.(prior.id);
+              if (verdict === "unverified") outcome = "unverified";
+            } catch {
+              // Classification is observability; the denial below stands either way.
+            }
+          }
+          const detail = outcome === "unverified" || outcome === "pending"
+            ? "its execution outcome is UNVERIFIED (the process holding the claim did not report back); the side effect is unknown"
+            : outcome === "succeeded"
+              ? "it already executed successfully"
+              : outcome === "failed"
+                ? "its execution already failed"
+                : outcome === "cancelled"
+                  ? "its execution was cancelled"
+                  : "it was already consumed";
+          return {
+            requestId,
+            capability,
+            decision: "deny",
+            reason: `Approval ${prior.id} is single-use and already consumed — ${detail}. Request a fresh approval for a new attempt.`,
+            approvalId: prior.id,
+            matchedRuleId: "prior-approval-consumed",
+            policyRevision,
+          };
+        } else if (prior.status === "pending") {
           return { requestId, capability, decision: "ask", reason: `Pending approval: ${prior.id}`, approvalId: prior.id, matchedRuleId: "pending-approval", policyRevision };
         }
       }
-      // Create new pending approval
-      const approval = await store.request({ reason, capability, sessionId, agentId, requestId });
+      // Create new pending approval, persisting the exact invocation binding
+      const approval = await store.request({ reason, capability, sessionId, agentId, requestId, invocation });
       return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
     }
 
