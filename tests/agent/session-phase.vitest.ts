@@ -161,6 +161,19 @@ describe("SessionPhase (contract)", () => {
     );
   });
 
+  it("ordinary session initialization does not receive coordination ownership", async () => {
+    const session = createAgentSession({
+      cwd: phaseTestCwd,
+      task: "",
+      planMode: false,
+    });
+
+    await session.processTurn("exercise ordinary session initialization");
+
+    expect(mocks.initAgent).toHaveBeenCalledTimes(1);
+    expect(mocks.initAgent.mock.calls[0]?.[1]).not.toHaveProperty("ownedPaths");
+  });
+
   it("keeps prior public conversation as data while each task loop retains its current objective", async () => {
     mocks.runTaskLoop
       .mockResolvedValueOnce({ summary: "first task complete", streamed: false, reason: "completed" })
