@@ -121,6 +121,18 @@ test('OpenTUI host routes typing and Ctrl+e into the store', async () => {
   }
 });
 
+test('OpenTUI host ignores frame updates after disposal', async () => {
+  const setup = await createTestRenderer({ width: 120, height: 30 });
+  try {
+    const { host } = mount(setup);
+    await setup.renderOnce();
+    host.dispose();
+    assert.doesNotThrow(() => host.update());
+  } finally {
+    await disposeTestRenderer(setup);
+  }
+});
+
 test('OpenTUI host normalizes paste and routes Unicode keys', async () => {
   const setup = await createTestRenderer({ width: 120, height: 30 });
   try {
