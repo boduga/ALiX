@@ -39,3 +39,18 @@ export function roleForWorker(worker: CapabilityBearing): SubagentRole {
 export function isWriteWorker(worker: CapabilityBearing): boolean {
   return roleForWorker(worker) === "worker";
 }
+
+/** Trusted scheduler claims for a write worker, shared by both executors. */
+export function ownedPathsForWorker(
+  worker: { ownershipScopes?: string[]; ownershipClaims?: Array<{ path: string }> },
+): string[] {
+  const scopes: unknown = worker.ownershipScopes;
+  const claims: unknown = worker.ownershipClaims;
+  if (scopes !== undefined && (!Array.isArray(scopes) || scopes.some(path => typeof path !== "string" || path.trim().length === 0))) return [];
+  if (claims !== undefined && (!Array.isArray(claims) || claims.some(claim => !claim || typeof claim.path !== "string" || claim.path.trim().length === 0))) return [];
+  const paths = [
+    ...(worker.ownershipClaims ?? []).map(claim => claim.path),
+    ...(worker.ownershipScopes ?? []),
+  ];
+  return [...new Set(paths)];
+}

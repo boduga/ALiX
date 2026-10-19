@@ -74,6 +74,8 @@ export type ContextPressure = {
 };
 
 export type RunOpts = {
+  /** Trusted coordination-worker write scopes; never derived from model input. */
+  ownedPaths?: readonly string[];
   streaming?: boolean;
   sessionMode?: "auto" | "ask" | "bypass";
   /**

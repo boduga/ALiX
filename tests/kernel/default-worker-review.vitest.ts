@@ -17,7 +17,7 @@ afterEach(()=>vi.clearAllMocks());
 async function fixture(){
  const cwd=await mkdtemp(join(tmpdir(),'alix-default-review-'));const log=new EventLog(join(cwd,'.alix','sessions','session'));await log.init();
  const run=createCoordinationRun({sessionId:'session',rootGoal:'Write report about president of Nigeria.',coordinatorAgentId:'parent'});
- const worker=createWorkerAssignment({coordinationRunId:run.id,agentId:'writer',taskLabel:'Report',goalPrompt:'Write president report',requiredCapabilities:['file.create']});run.workers=[worker];
+ const worker=createWorkerAssignment({coordinationRunId:run.id,agentId:'writer',taskLabel:'Report',goalPrompt:'Write president report',requiredCapabilities:['file.create'],ownershipScopes:['reports/']});run.workers=[worker];
  const config={...DEFAULT_CONFIG,models:{default:{provider:'mock',name:'mock'}},permissions:{...DEFAULT_CONFIG.permissions,sessionMode:'bypass' as const}};
  return {cwd,log,run,worker,context:{cwd,run,sessionId:run.sessionId,config}};
 }
@@ -37,6 +37,34 @@ describe('default worker review',()=>{
    });
    const result=await new DefaultWorkerExecutor().execute(worker,context,new AbortController().signal);
    expect(result.outcome).toBe('success');expect(result.summary).toContain('Bola Ahmed Tinubu');
+  }finally{closeAllSharedLedgers();await rm(cwd,{recursive:true,force:true});}
+ });
+ it('passes scheduler-owned write paths to the in-process runTask boundary',async()=>{
+  const {cwd,worker,context}=await fixture();try{
+   worker.ownershipClaims=[{path:'reports/president.md',recursive:false}];
+   worker.ownershipScopes=['reports/'];
+   mocks.runTask.mockResolvedValue({sessionId:'session',summary:'Done',reason:'completed'});
+   mocks.complete.mockResolvedValue({text:JSON.stringify({satisfied:true,summary:'Done',gaps:[]}),toolCalls:[]});
+   await new DefaultWorkerExecutor().execute(worker,context,new AbortController().signal);
+   expect(mocks.runTask.mock.calls[0][2].ownedPaths).toEqual(['reports/president.md','reports/']);
+  }finally{closeAllSharedLedgers();await rm(cwd,{recursive:true,force:true});}
+ });
+ it('does not add ownership context to read-only workers',async()=>{
+  const {cwd,worker,context}=await fixture();try{
+   worker.requiredCapabilities=['web.search'];
+   worker.ownershipScopes=['reports/'];
+   mocks.runTask.mockResolvedValue({sessionId:'session',summary:'Done',reason:'completed'});
+   mocks.complete.mockResolvedValue({text:JSON.stringify({satisfied:true,summary:'Done',gaps:[]}),toolCalls:[]});
+   await new DefaultWorkerExecutor().execute(worker,context,new AbortController().signal);
+   expect(mocks.runTask.mock.calls[0][2]).not.toHaveProperty('ownedPaths');
+  }finally{closeAllSharedLedgers();await rm(cwd,{recursive:true,force:true});}
+ });
+ it('fails closed before runTask when write ownership is missing or malformed',async()=>{
+  const {cwd,worker,context}=await fixture();try{
+   worker.ownershipScopes=[''];
+   const result=await new DefaultWorkerExecutor().execute(worker,context,new AbortController().signal);
+   expect(result.outcome).toBe('failure');expect(result.failureKind).toBe('authorization_denied');
+   expect(mocks.runTask).not.toHaveBeenCalled();
   }finally{closeAllSharedLedgers();await rm(cwd,{recursive:true,force:true});}
  });
  it('captures each worker appends separately with one durable shared log',async()=>{
