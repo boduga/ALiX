@@ -58,8 +58,8 @@ importers:
         version: 2.9.1
     devDependencies:
       '@langfuse/core':
-        specifier: 5.13.1
-        version: 5.13.1(@opentelemetry/api@1.9.1)
+        specifier: 6.0.0
+        version: 6.0.0(@opentelemetry/api@1.9.1)
       '@types/better-sqlite3':
         specifier: 9.6.0
         version: 9.6.0
@@ -285,6 +285,12 @@ packages:
 
   '@langfuse/core@5.13.1':
     resolution: {integrity: sha512-/p8wfWQVeD58O7EzlQ0FkXYBlE3Q64a3gaQPRRGrAUUzshKZFAh+682Yb4eIpCtsxyMj4ZGlvkQ+Ph8LVKMFDA==}
+    peerDependencies:
+      '@opentelemetry/api': ^1.9.0
+
+  '@langfuse/core@6.0.0':
+    resolution: {integrity: sha512-9ygSP66M64CQrmBEicR3Xxb3RBMdRyHThzp6lREQbVlDRbpALB3dV1SBmpItDOR9XMRzg50pltt54MKWlOY/kQ==}
+    engines: {node: '>=22'}
     peerDependencies:
       '@opentelemetry/api': ^1.9.0
 
@@ -1789,6 +1795,10 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.6.0
 
   '@langfuse/core@5.13.1(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+
+  '@langfuse/core@6.0.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
 
