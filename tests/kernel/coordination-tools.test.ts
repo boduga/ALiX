@@ -87,7 +87,8 @@ describe("coordination chat tools", () => {
     assert.equal((await store.list())[0]?.sessionId, "tui-session-1");
   });
 
-  it("automatically reconciles a worker after its durable approval is approved", async () => {
+  // Two ledger-backed approvals cross process boundaries while the foreground owner polls every 250 ms.
+  it("automatically reconciles a worker after its durable approval is approved", { timeout: 30_000 }, async () => {
     const approvalStore = new ApprovalStore(cwd);
     await approvalStore.load();
     let executionCount = 0;

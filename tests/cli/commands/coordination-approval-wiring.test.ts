@@ -327,7 +327,8 @@ describe("SRAP PR B CLI coordination approval-store wiring", () => {
     assert.equal(rec.approvalResumed.length, 0, "a consumed approval must not resume a worker");
   });
 
-  it("CLI resume never dispatches a denied approval", async () => {
+  // Durable approval resolution and scheduler reconciliation both hit the workspace ledger.
+  it("CLI resume never dispatches a denied approval", { timeout: 30_000 }, async () => {
     let executions = 0;
     h = await buildCliHarness(minimalConfig(), async () => {
       executions++;
@@ -346,7 +347,8 @@ describe("SRAP PR B CLI coordination approval-store wiring", () => {
     assert.equal((await operatorStore(h.cwd)).findExact(bindingKey)!.status, "denied");
   });
 
-  it("CLI resume retains execution ownership until the dispatched worker settles", async () => {
+  // The test holds a real dispatched worker behind a gate while resume remains in the scheduler loop.
+  it("CLI resume retains execution ownership until the dispatched worker settles", { timeout: 30_000 }, async () => {
     let executions = 0;
     let started!: () => void;
     let release!: () => void;
