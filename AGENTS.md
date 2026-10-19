@@ -126,6 +126,7 @@ Default section order:
 - Use CLI-first workflows for approvals and audit.
 - Commit early, push often; tag baseline milestones.
 - Provider secrets (incl. Langfuse keys) live in the credential store (`~/.config/alix/config.json` `apiKeys`), never in env files or the repo. Rotation = update store entries; no code or config-file changes needed.
+- Real-model tests and harnesses resolve the operator's CURRENT default model (`models.default` in `~/.config/alix/config.json`); never hardcode a provider/model in a test, driver, or fixture. An explicit override is allowed only for a deliberate one-off, not as a checked-in default.
 
 ## Runtime Contracts
 
