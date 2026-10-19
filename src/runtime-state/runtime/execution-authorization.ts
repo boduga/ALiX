@@ -175,6 +175,7 @@ export class ExecutionAuthorization {
     const finalDecision = decisionAllowed({
       policyRuleId: policyDecision.matchedRuleId,
       approvalId: policyDecision.approvalId,
+      approvalConsumed: policyDecision.approvalConsumed,
     });
     await this.emitAudit(auditStore, eventLog, request, finalDecision, { policyDecision });
     return finalDecision;

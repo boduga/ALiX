@@ -6,6 +6,7 @@
  */
 
 import type { WorkerOwnershipClaim } from "../../coordination/kernel/coordination-types.js";
+import type { InvocationIdentity } from "./approval-binding.js";
 
 export type ApprovalStatus =
   | "pending" | "approved" | "denied"
@@ -13,6 +14,26 @@ export type ApprovalStatus =
 
 export type ApprovalUsePolicy =
   | "single_use" | "worker_attempt" | "coordination_run" | "session";
+
+/**
+ * Post-consumption execution state for a spent approval.
+ *
+ * Consumption and execution cannot be one atomic transaction across a process
+ * boundary, so a crash between them is a real state. The contract is explicit:
+ *
+ *  - `pending`     — claimed, execution started or about to start.
+ *  - `succeeded`   — the tool reported success.
+ *  - `failed`      — the tool reported an error, or threw.
+ *  - `cancelled`   — operator cancellation aborted the execution.
+ *  - `unverified`  — a replay observed a `pending` claim, so the process that
+ *                    held it is gone (or stalled). The side effect is unknown.
+ *
+ * `unverified` is a terminal, fail-closed state: the approval is never reissued
+ * and the invocation is never retried automatically. A status update cannot
+ * guarantee exactly-once shell side effects, so silence is never success.
+ */
+export type ApprovalExecutionOutcome =
+  | "pending" | "succeeded" | "failed" | "cancelled" | "unverified";
 
 export interface ApprovalRecord {
   id: string;
@@ -39,6 +60,14 @@ export interface ApprovalRecord {
   capabilities: string[];
   toolId?: string;
   riskLevel?: "low" | "medium" | "high" | "critical";
+  /**
+   * Deterministic fingerprint of the exact invocation this approval authorizes
+   * (`computeInvocationFingerprint`). Absent on legacy records, which fail
+   * closed rather than authorize on a request-id match alone.
+   */
+  invocationFingerprint?: string;
+  /** The invocation the fingerprint was computed over, for operator display. */
+  invocation?: InvocationIdentity;
 
   ownershipClaims: WorkerOwnershipClaim[];
   ownershipClaimsHash?: string;
@@ -54,6 +83,10 @@ export interface ApprovalRecord {
   consumedAt?: string;
   consumedByWorkerId?: string;
   consumedAttempt?: number;
+  /** Post-claim execution state; see `ApprovalExecutionOutcome`. */
+  executionOutcome?: ApprovalExecutionOutcome;
+  /** When `executionOutcome` last changed. */
+  executionOutcomeAt?: string;
   revokedAt?: string;
   revokedBy?: string;
   revocationReason?: string;

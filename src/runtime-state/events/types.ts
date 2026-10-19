@@ -673,6 +673,11 @@ export const APPROVAL_EVENT_TYPES = {
 
   // Lifecycle event types
   CONSUMED: "approval.consumed",
+  /** Post-claim execution state transitions (crash-recovery contract). */
+  EXECUTION_SUCCEEDED: "approval.execution.succeeded",
+  EXECUTION_FAILED: "approval.execution.failed",
+  EXECUTION_CANCELLED: "approval.execution.cancelled",
+  EXECUTION_UNVERIFIED: "approval.execution.unverified",
   EXPIRED: "approval.expired",
   REVOKED: "approval.revoked",
   INVALIDATED: "approval.invalidated",
