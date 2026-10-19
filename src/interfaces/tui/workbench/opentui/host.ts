@@ -74,7 +74,9 @@ export function mountOpenTuiWorkbenchHost(renderer: CliRenderer, deps: OpenTuiHo
     deps.onClick(resolved);
     event.preventDefault();
   };
+  let disposed = false;
   const update = (): void => {
+    if (disposed) return;
     layout.update(deps.layoutState());
     content.update(deps.contentState());
     renderer.requestRender();
@@ -93,7 +95,6 @@ export function mountOpenTuiWorkbenchHost(renderer: CliRenderer, deps: OpenTuiHo
   renderer.keyInput.on('paste', onPaste);
   renderer.on('resize', onResize);
   update();
-  let disposed = false;
   return {
     layout,
     content,
