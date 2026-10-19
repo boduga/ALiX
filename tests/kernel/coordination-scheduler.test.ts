@@ -1021,16 +1021,29 @@ describe("CoordinationScheduler — runUntilIdle event-driven cadence", () => {
     await scheduler.shutdown();
   });
 
-  // Workload: worker resolves at ~50ms; the 5s budget leaves wide margin for
-  // slow runners — assertions are on completion/dispatch, never exact timing.
+  // Workload: resolve after executor registration; assertions cover completion
+  // and dispatch without depending on scheduler or store latency.
   it("a settling worker wakes the loop promptly and completes", { timeout: 30_000 }, async () => {
     const { executor, pending } = createDeferredExecutor();
-    const scheduler = build(executor);
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const observedExecutor = {
+      execute: (worker: any, context: any, signal: AbortSignal) => {
+        const execution = executor.execute(worker, context, signal);
+        markStarted();
+        return execution;
+      },
+    };
+    const scheduler = build(observedExecutor);
     const { run, worker } = await seedOneWorker("cadence-settle");
-    setTimeout(() => {
-      pending.get(worker.id)?.resolve({ outcome: "success" });
-    }, 50);
-    const result = await scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 5000 });
+    const runPromise = scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 5000 });
+    await started;
+    const deferred = pending.get(worker.id);
+    assert.ok(deferred, `executor should register worker ${worker.id} before settlement`);
+    deferred.resolve({ outcome: "success" });
+    const result = await runPromise;
     assert.equal(result.finalStatus, "completed");
     assert.equal(result.dispatched, 1);
     assert.ok(result.cycles <= 8, `settlement should complete in a few ticks, got ${result.cycles}`);
