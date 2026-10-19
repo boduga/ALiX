@@ -33,6 +33,7 @@ import { buildDefaultToolIndex } from "../../capabilities/tools/tool-registry.js
 import type { ToolCallRequest } from "../../capabilities/tools/types.js";
 import { ExecutionCancelledError } from "../../runtime-state/runtime/cancellation-token.js";
 import { cancelDeadOwnerRuns } from "./coordination-resume.js";
+import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
 
 export const COORDINATION_RUN_TOOL = "coordination.run";
 export const COORDINATION_STATUS_TOOL = "coordination.status";
@@ -57,7 +58,7 @@ export type CoordinationToolDeps = {
   config: AlixConfig;
   /** Active parent session used by session-scoped runtime projections. */
   sessionId?: string;
-  approvalStore?: any;
+  approvalStore?: ApprovalStore;
   eventLog?: EventLog;
   /** Injectable for tests (defaults to a live store/planner). */
   store?: CoordinationStore;
@@ -328,6 +329,36 @@ async function handleCoordinationRun(
   let result;
   try {
     result = await scheduler.runUntilIdle(runId);
+    // The CLI-hosted TUI run owns this scheduler for the duration of the tool
+    // call. Keep it alive while its durable approvals are pending; the daemon
+    // intentionally does not tick CLI-hosted runs. Poll the authoritative
+    // store so cross-process TUI decisions wake this owner without a CLI tick.
+    let lastReconciledApprovalState = "";
+    while (result.stopReason === "awaiting_approval" && !signal?.aborted) {
+      const current = await store.load(runId);
+      const approvalIds = [...new Set((current?.workers ?? [])
+        .filter(worker => worker.status === "blocked" && worker.blockReason === "approval_required")
+        .map(worker => worker.approvalId)
+        .filter((id): id is string => Boolean(id)))].sort();
+      if (approvalIds.length === 0 || !deps.approvalStore) break;
+      const approvals = await Promise.all(approvalIds.map(id => deps.approvalStore!.loadFresh(id)));
+      if (approvals.some(approval => !approval)) break; // missing evidence fails closed
+      const hasPending = approvals.some(approval => approval?.status === "pending");
+      if (approvals.every(approval => approval?.status === "pending")) {
+        await new Promise<void>(resolve => setTimeout(resolve, 250));
+        continue;
+      }
+      const approvalState = approvals.map(approval => `${approval!.id}:${approval!.status}`).join("\n");
+      if (lastReconciledApprovalState === approvalState) {
+        if (hasPending) {
+          await new Promise<void>(resolve => setTimeout(resolve, 250));
+          continue;
+        }
+        break;
+      }
+      lastReconciledApprovalState = approvalState;
+      result = await scheduler.runUntilIdle(runId);
+    }
   } finally {
     signal?.removeEventListener("abort", guard.onAbort);
     // Drain and close the metrics sink so no fire-and-forget write outlives this

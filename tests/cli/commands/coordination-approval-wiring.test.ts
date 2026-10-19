@@ -37,7 +37,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildCoordinationPolicyGate } from "../../../src/interfaces/cli/commands/coordination.js";
+import { buildCoordinationPolicyGate, resumeCoordinationExecution } from "../../../src/interfaces/cli/commands/coordination.js";
 import { PolicyGate } from "../../../src/governance/policy/policy-gate.js";
 import { ExecutionAuthorization } from "../../../src/runtime-state/runtime/execution-authorization.js";
 import { ApprovalStore } from "../../../src/governance/approvals/approval-store.js";
@@ -325,6 +325,64 @@ describe("SRAP PR B CLI coordination approval-store wiring", () => {
     // A consumed approval cannot authorize again.
     const rec = await h.scheduler.reconcile(run.id);
     assert.equal(rec.approvalResumed.length, 0, "a consumed approval must not resume a worker");
+  });
+
+  // Durable approval resolution and scheduler reconciliation both hit the workspace ledger.
+  it("CLI resume never dispatches a denied approval", { timeout: 30_000 }, async () => {
+    let executions = 0;
+    h = await buildCliHarness(minimalConfig(), async () => {
+      executions++;
+      return { outcome: "success" };
+    });
+    const { run, worker } = await seedWorker(h);
+    await h.scheduler.tick(run.id);
+    const bindingKey = await blockedBindingKey(h, run.id, worker.id);
+    const op = await operatorStore(h.cwd);
+    const record = op.findExact(bindingKey)!;
+    await op.resolve(record.id, "denied", "operator");
+
+    const { execution } = await resumeCoordinationExecution(h.scheduler, run.id);
+    assert.equal(execution.dispatched, 0);
+    assert.equal(executions, 0);
+    assert.equal((await operatorStore(h.cwd)).findExact(bindingKey)!.status, "denied");
+  });
+
+  // The test holds a real dispatched worker behind a gate while resume remains in the scheduler loop.
+  it("CLI resume retains execution ownership until the dispatched worker settles", { timeout: 30_000 }, async () => {
+    let executions = 0;
+    let started!: () => void;
+    let release!: () => void;
+    const workerStarted = new Promise<void>(resolve => { started = resolve; });
+    const workerGate = new Promise<void>(resolve => { release = resolve; });
+    h = await buildCliHarness(minimalConfig(), async () => {
+      executions++;
+      started();
+      await workerGate;
+      return { outcome: "success" };
+    });
+    const { run, worker } = await seedWorker(h);
+    await h.scheduler.tick(run.id);
+    const bindingKey = await blockedBindingKey(h, run.id, worker.id);
+    const op = await operatorStore(h.cwd);
+    await op.resolve(op.findExact(bindingKey)!.id, "approved", "operator");
+
+    const resume = resumeCoordinationExecution(h.scheduler, run.id);
+    await workerStarted;
+    let resumeSettled = false;
+    void resume.then(() => { resumeSettled = true; });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(resumeSettled, false, "resume must await the execution owner, not stop at running state");
+    assert.equal((await h.store.load(run.id))!.workers.find(item => item.id === worker.id)!.status, "running");
+    release();
+
+    const { execution } = await resume;
+    assert.equal(execution.finalStatus, "completed");
+    assert.equal((await h.store.load(run.id))!.workers.find(item => item.id === worker.id)!.status, "completed");
+    assert.equal((await operatorStore(h.cwd)).findExact(bindingKey)!.status, "consumed");
+
+    const duplicateResume = await resumeCoordinationExecution(h.scheduler, run.id);
+    assert.equal(duplicateResume.execution.dispatched, 0, "resuming a completed run must not dispatch twice");
+    assert.equal(executions, 1);
   });
 
   it("CLI: keeps the worker blocked while the approval stays pending cross-process", async () => {

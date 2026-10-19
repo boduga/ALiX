@@ -14,9 +14,11 @@
 - `graph-planner.ts` — Model-based graph generation from goals (v2 prompt, capability catalog, deterministic normalize, one repair retry)
 - `coordination-planner.ts` — Graph → CoordinationRun/workers (registry-sourced cap normalize, goal-path ownership scopes, agentPool labels)
 - `coordination-scheduler.ts` — Bounded parallel dispatch (maxConcurrency 8, per-worker timeout watchdog, heartbeats/leases, cancel)
-- `coordination-tools.ts` — Run/status/list/results handlers. Inject the worker
-  executor through `CoordinationToolDeps.executor` for end-to-end cancellation
-  coverage of an in-flight worker and the handler's awaited finalization.
+- `coordination-tools.ts` — Run/status/list/results handlers. Foreground CLI-hosted
+  runs retain their scheduler while durable approvals are pending, polling the
+  authoritative ApprovalStore and resuming through `runUntilIdle`; the daemon
+  does not own or tick these runs. Inject the worker executor through
+  `CoordinationToolDeps.executor` for end-to-end lifecycle coverage.
 - `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
 - `worker-role.ts` — Capability → role classification shared by planner (ownership) and executor (mode)
 - `owner-liveness.ts` — the ONE worker-liveness module (R3.3): `<kind>-<pid>`

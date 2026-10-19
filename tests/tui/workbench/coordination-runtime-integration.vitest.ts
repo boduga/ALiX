@@ -9,7 +9,7 @@ import * as sessionState from '../../../src/agents/agent/session/state.js';
 import { AgentSessionBuilder } from '../../../src/agents/agent/session/main.js';
 import { EventLog } from '../../../src/runtime-state/events/event-log.js';
 import { CoordinationStore } from '../../../src/coordination/kernel/coordination-store.js';
-import { createCoordinationHandlers } from '../../../src/coordination/kernel/coordination-tools.js';
+import { createCoordinationHandlers, COORDINATION_RUN_TOOL } from '../../../src/coordination/kernel/coordination-tools.js';
 import { createCoordinationRun, createWorkerAssignment, deriveCoordinationCompletion, matchesAttachedAggregateEvent } from '../../../src/coordination/kernel/coordination-types.js';
 import { computeAggregationSourceFingerprint } from '../../../src/coordination/kernel/coordination-aggregation-fingerprint.js';
 import { reclaimDeadOwnerWorkers } from '../../../src/coordination/kernel/coordination-resume.js';
@@ -30,11 +30,17 @@ import type { AlixConfig } from '../../../src/operations/config/schema.js';
 import type { AggregateCompletedEventLike } from '../../../src/coordination/kernel/coordination-types.js';
 import type { CoordinationPlanner } from '../../../src/coordination/kernel/coordination-planner.js';
 import type { CoordinationWorkerExecutor } from '../../../src/coordination/kernel/worker-executor.js';
+import { DefaultWorkerExecutor } from '../../../src/coordination/kernel/worker-executor.js';
 import type { ModelAdapter } from '../../../src/models/providers/types.js';
+import { clearScriptedScenario, scriptedMockCarrier, setScriptedScenario } from '../../../src/operations/evals/providers/scripted-mock-carrier.js';
+import { installEvalConfig } from '../../../src/operations/evals/evals-runner.js';
 import { closeAllSharedLedgers } from '../../../src/runtime-state/storage/runtime-ledger.js';
+import { ApprovalStore } from '../../../src/governance/approvals/approval-store.js';
+import { ApprovalManager } from '../../../src/interfaces/tui/approval-manager.js';
+import { createApprovalResolver } from '../../../src/interfaces/tui/approval-resolver.js';
 
 const roots: string[] = [];
-afterEach(() => { vi.restoreAllMocks(); closeAllSharedLedgers(); for (const cwd of roots.splice(0)) rmSync(cwd, { recursive: true, force: true }); });
+afterEach(() => { clearScriptedScenario(); vi.unstubAllEnvs(); vi.restoreAllMocks(); closeAllSharedLedgers(); for (const cwd of roots.splice(0)) rmSync(cwd, { recursive: true, force: true }); });
 
 async function fixture(executor: CoordinationWorkerExecutor, count = 4) {
   const cwd = mkdtempSync(join(tmpdir(), 'workbench-phase9-')); roots.push(cwd);
@@ -43,6 +49,7 @@ async function fixture(executor: CoordinationWorkerExecutor, count = 4) {
   await mkdir(join(cwd, 'reports'));
   const log = new EventLog(sessionDir); await log.init();
   const store = new CoordinationStore(cwd);
+  const approvalStore = new ApprovalStore(cwd, { eventLog: log }); await approvalStore.load();
   const config = { version: 1,
     model: { provider: 'mock', name: 'mock' }, models: { default: { provider: 'mock', name: 'mock', streaming: false } },
     permissions: { default: 'allow', tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [], sessionMode: 'bypass' },
@@ -65,7 +72,7 @@ async function fixture(executor: CoordinationWorkerExecutor, count = 4) {
     for (const worker of workers) await store.addWorker(run.id, worker);
     return { valid: true, errors: [], run: { ...run, workers } };
   });
-  const handlers = createCoordinationHandlers({ cwd, config, store, eventLog: log, sessionId: id,
+  const handlers = createCoordinationHandlers({ cwd, config, store, eventLog: log, approvalStore, sessionId: id,
     planner: { plan } as unknown as CoordinationPlanner, executor });
   const toolExecutor = new ToolExecutor(config, log, cwd, undefined, undefined, handlers);
   const memoryStore = new MemoryStore(join(cwd, 'memory')); await memoryStore.init();
@@ -87,10 +94,112 @@ async function fixture(executor: CoordinationWorkerExecutor, count = 4) {
     type: 'object', properties: { goal: { type: 'string' }, maxConcurrency: { type: 'number' } }, required: ['goal'] } }];
   vi.spyOn(sessionState, 'createSessionState').mockReturnValueOnce(state);
   const session = new AgentSessionBuilder(state.config).build();
-  return { cwd, id, log, store, session, state, plan, config, executor };
+  return { cwd, id, log, store, approvalStore, session, state, plan, config, executor, handlers };
 }
 
 describe('Phase9 public coordination port with real handlers and scheduler', () => {
+  // Covers two durable approval waits, scripted model turns, worker tool dispatch, and review; allow for slow CI ledgers.
+  it('resumes an approved worker through the configured provider and verifies its owned artifact', async () => {
+    const f = await fixture(new DefaultWorkerExecutor(), 1);
+    f.config.models!.default = { provider: 'scripted-mock', name: 'scripted-worker', streaming: false } as any;
+    f.config.model = { provider: 'scripted-mock', name: 'scripted-worker' } as any;
+    f.config.permissions.default = 'ask';
+    f.config.permissions.tools = { 'filesystem.write': 'ask' };
+    installEvalConfig(f.cwd, 'scripted-mock');
+    const evalConfigPath = join(f.cwd, '.alix', 'config.json');
+    const evalConfig = JSON.parse(await readFile(evalConfigPath, 'utf8'));
+    evalConfig.permissions.tools = { 'filesystem.write': 'ask' };
+    await writeFile(evalConfigPath, JSON.stringify(evalConfig));
+    const isolatedHome = join(f.cwd, 'isolated-home');
+    vi.stubEnv('HOME', isolatedHome);
+    const isolatedConfigDir = join(isolatedHome, '.config', 'alix');
+    await mkdir(isolatedConfigDir, { recursive: true });
+    await writeFile(join(isolatedConfigDir, 'config.json'), JSON.stringify({ apiKeys: {} }));
+    setScriptedScenario({ steps: [
+      { kind: 'tool', tool: 'file.create', args: {
+        path: 'reports/0.md', content: '# Scripted worker output\nprovider=scripted-mock\n',
+      } },
+      ...Array.from({ length: 8 }, () => ({
+        kind: 'text' as const,
+        text: '{"satisfied":true,"summary":"Created the requested report.","gaps":[]}',
+      })),
+    ] });
+
+    const approvalManager = new ApprovalManager({
+      listPendingApprovals: async () => {
+        await f.approvalStore.load();
+        return f.approvalStore.listPending().map(record => ({
+          id: record.id, workerId: record.workerId, capabilities: record.capabilities, reason: record.reason, createdAt: record.createdAt,
+        }));
+      },
+      resolveApproval: async (id, status) => {
+        const record = await f.approvalStore.resolve(id, status, 'TUI provider integration');
+        return { success: record?.status === status, message: record ? `Approval ${id} ${status}.` : `Approval ${id} missing.` };
+      },
+    });
+    const approvalResolver = createApprovalResolver({
+      views: () => ({} as any), activeTab: () => 'agent', syncTabs: ['agent'], approvalManager,
+      emit: () => {}, refresh: async () => {},
+    });
+    const approvedIds = new Set<string>();
+    const waitForPendingApproval = async () => {
+      const deadline = Date.now() + 20_000;
+      while (Date.now() < deadline) {
+        const pending = f.approvalStore.listPending().find(record => !approvedIds.has(record.id));
+        if (pending) return pending;
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      const runs = await f.store.list();
+      const events = await f.log.readAll();
+      throw new Error(`Timed out waiting for the next durable approval (planner=${f.plan.mock.calls.length}, run=${runs.map(run => `${run.status}:${run.workers.map(worker => `${worker.id}:${worker.status}:${worker.blockReason ?? '-'}`).join(',')}`).join(';')}, pending=${f.approvalStore.listPending().length}, events=${events.map(event => event.type).join(',')})`);
+    };
+
+    let runSettled = false;
+    const controller = new AbortController();
+    const runArgs = { goal: 'Create one report', maxConcurrency: 1, sessionMode: 'ask' };
+    const pendingRun = f.handlers[COORDINATION_RUN_TOOL](runArgs, {
+      toolCallId: 'tui-approval-provider-integration', name: COORDINATION_RUN_TOOL,
+      args: runArgs, signal: controller.signal,
+    } as any);
+    void pendingRun.then(() => { runSettled = true; }, () => { runSettled = true; });
+    try {
+      const dispatchApproval = await waitForPendingApproval();
+      expect(dispatchApproval.workerId).toBe('phase9-worker-0');
+      expect(await approvalResolver.resolve(dispatchApproval.id, 'approved')).toBe(true);
+      approvedIds.add(dispatchApproval.id);
+      await expect(f.approvalStore.loadFresh(dispatchApproval.id)).resolves.toMatchObject({ status: 'approved' });
+
+      // The real worker then requests its owned file mutation; resolve that TUI-visible request too.
+      const fileApproval = await waitForPendingApproval();
+      expect(scriptedMockCarrier.calls).toBeGreaterThan(0);
+      expect(fileApproval.id).not.toBe(dispatchApproval.id);
+      expect(await approvalResolver.resolve(fileApproval.id, 'approved')).toBe(true);
+      approvedIds.add(fileApproval.id);
+
+      const result = await pendingRun;
+      const run = (await f.store.list())[0]!;
+      const events = await f.log.readAll();
+
+      expect(run.status).toBe('completed');
+      expect(scriptedMockCarrier.calls).toBeGreaterThan(0);
+      const artifact = await readFile(join(f.cwd, 'reports/0.md'), 'utf8');
+      expect(artifact).toContain('provider=scripted-mock');
+      expect(run.workers[0]).toMatchObject({ status: 'completed' });
+      expect(events.some(event => event.type === 'tool.completed' && (event.payload as any)?.toolName === 'file.create')).toBe(true);
+      expect(result.kind).toBe('success');
+      if (result.kind !== 'success') throw new Error(result.message);
+      expect(result.output).toContain('Status: completed');
+      await f.approvalStore.load();
+      expect(f.approvalStore.get(dispatchApproval.id)?.status).toBe('consumed');
+      expect(f.approvalStore.get(fileApproval.id)?.status).toBe('consumed');
+    } finally {
+      if (!runSettled) {
+        controller.abort();
+        await Promise.race([pendingRun.catch(() => {}), new Promise(resolve => setTimeout(resolve, 2_000))]);
+      }
+    }
+  }, 60_000);
+
   it('runs four dependent workers, retries identity safely, and verifies the actual aggregate', async () => {
     const attempts: string[] = [];
     const f = await fixture({ execute: async (worker, ctx) => {
