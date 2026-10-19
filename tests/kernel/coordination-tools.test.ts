@@ -13,12 +13,18 @@ import {
   COORDINATION_RESULTS_TOOL,
 } from "../../src/coordination/kernel/coordination-tools.js";
 import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { createCoordinationScheduler } from "../../src/coordination/kernel/coordination-scheduler.js";
 import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import { PolicyGate } from "../../src/governance/policy/policy-gate.js";
+import { ExecutionAuthorization } from "../../src/runtime-state/runtime/execution-authorization.js";
+import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
+import { buildDefaultToolIndex } from "../../src/capabilities/tools/tool-registry.js";
 import { ApprovalManager } from "../../src/interfaces/tui/approval-manager.js";
 import { createApprovalResolver } from "../../src/interfaces/tui/approval-resolver.js";
 import { buildErrorMessage } from "../../src/run.js";
-import type { AlixConfig } from "../../src/operations/config/schema.js";
+import type { CoordinationPlanner } from "../../src/coordination/kernel/coordination-planner.js";
+import type { AlixConfig, SessionMode } from "../../src/operations/config/schema.js";
 
 function testConfig(): AlixConfig {
   return {
@@ -594,6 +600,249 @@ describe("coordination chat tools", () => {
     assert.match(status.output ?? "", new RegExp(mine.id));
   });
 });
+
+/**
+ * The session-mode clamp (`effectiveSessionMode`).
+ *
+ * `args.sessionMode` on `alix_coordination_run` is the MODEL's own argument, so
+ * it is untrusted: it may tighten the host mode, never loosen it. The defect
+ * this pins: the handler returned the argument verbatim, so an `ask` session ran
+ * its workers under `bypass`, `PolicyGate.applySessionMode` turned every `ask`
+ * capability decision into `allow`, and no worker approval was ever requested
+ * (session `run-real`: `{"sessionMode":"bypass"}` in the model's own tool args).
+ *
+ * The clamp must hold across the whole lifecycle, not only at the handler:
+ * the effective mode is what the planner PERSISTS as `run.sessionMode`, and the
+ * scheduler authorizes workers under `run.sessionMode` (re-applied over the
+ * host config on every tick and after a reload). So the matrix asserts the
+ * persisted mode, and the approval tests assert the real PolicyGate verdict —
+ * a persisted-but-ignored mode would still be a downgrade.
+ */
+describe("coordination.run session-mode clamp", () => {
+  let cwd: string;
+  let store: CoordinationStore;
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "coord-clamp-"));
+    store = new CoordinationStore(cwd);
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  function modeConfig(sessionMode: SessionMode, decision: "ask" | "allow" = "ask"): AlixConfig {
+    const base = testConfig();
+    return {
+      ...base,
+      permissions: { ...base.permissions, sessionMode, default: decision },
+    } as AlixConfig;
+  }
+
+  /**
+   * Mirrors `CoordinationPlanner.plan`: the run persists `metadata.sessionMode`
+   * before it is saved (pinned directly by
+   * `tests/kernel/coordination-planner.test.ts`, "persists host metadata and
+   * concurrency before the run is saved"). Captures what the handler passed, so
+   * a missing clamp shows up both in the captured argument and in the store.
+   */
+  function persistingPlanner(captured: Array<{ runId: string; sessionMode?: string }>): CoordinationPlanner {
+    return {
+      plan: async (
+        goal: string,
+        _coordinatorId: string,
+        sessionId: string,
+        metadata?: { sessionMode?: SessionMode },
+      ) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        if (metadata?.sessionMode) run.sessionMode = metadata.sessionMode;
+        await store.save(run);
+        const worker = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "write",
+          goalPrompt: "Write docs/a.md", status: "pending",
+          ownershipScopes: ["docs/a.md"], ownershipClaims: [{ path: "docs/a.md", recursive: false }],
+          requiredCapabilities: ["filesystem.write"], maxAttempts: 2, planOrder: 0,
+        });
+        await store.addWorker(run.id, worker);
+        captured.push({ runId: run.id, sessionMode: metadata?.sessionMode });
+        return { valid: true, errors: [], run: { ...run, workers: [worker] } };
+      },
+    } as unknown as CoordinationPlanner;
+  }
+
+  // `ask` is the only enforcing mode: PolicyGate.applySessionMode turns an
+  // `ask` decision into `allow` under `auto` AND `bypass`, so the two are one
+  // class for model-originated loosening. The table is deliberately broader
+  // than the implementation (invalid and absent arguments included).
+  const MATRIX: Array<{ host: SessionMode; arg: SessionMode | "yes" | undefined; expected: SessionMode }> = [
+    { host: "ask", arg: "bypass", expected: "ask" },
+    { host: "ask", arg: "auto", expected: "ask" },
+    { host: "ask", arg: "ask", expected: "ask" },
+    { host: "ask", arg: undefined, expected: "ask" },
+    { host: "ask", arg: "yes", expected: "ask" },
+    { host: "auto", arg: "bypass", expected: "auto" },
+    { host: "auto", arg: "auto", expected: "auto" },
+    { host: "auto", arg: undefined, expected: "auto" },
+    { host: "auto", arg: "ask", expected: "ask" },
+    { host: "bypass", arg: "ask", expected: "ask" },
+    { host: "bypass", arg: "bypass", expected: "bypass" },
+    { host: "bypass", arg: undefined, expected: "bypass" },
+  ];
+
+  for (const { host, arg, expected } of MATRIX) {
+    it(`host ${host} + request ${String(arg)} persists ${expected}`, async () => {
+      const captured: Array<{ runId: string; sessionMode?: string }> = [];
+      const handlers = createCoordinationHandlers({
+        cwd, config: modeConfig(host, "allow"), store,
+        planner: persistingPlanner(captured),
+        executor: { execute: async () => ({ outcome: "success" as const, summary: "done" }) },
+        sessionId: "s-clamp",
+      });
+
+      const result = await handlers[COORDINATION_RUN_TOOL](
+        { goal: "Write docs/a.md", ...(arg === undefined ? {} : { sessionMode: arg }) },
+        { toolCallId: `clamp-${host}-${String(arg)}`, name: COORDINATION_RUN_TOOL, args: {}, signal: new AbortController().signal } as never,
+      );
+
+      assert.equal(result.kind, "success");
+      assert.equal(captured.length, 1);
+      assert.equal(captured[0].sessionMode, expected);
+      const persisted = await store.load(captured[0].runId);
+      assert.equal(persisted?.sessionMode, expected);
+    });
+  }
+
+  it("host ask + request bypass: worker requires approval, and still does after a scheduler reload", async () => {
+    const approvalStore = new ApprovalStore(cwd);
+    await approvalStore.load();
+    const captured: Array<{ runId: string; sessionMode?: string }> = [];
+    let executorCalls = 0;
+    const executor = {
+      execute: async () => { executorCalls++; return { outcome: "success" as const, summary: "done" }; },
+    };
+    const config = modeConfig("ask", "ask");
+    const handlers = createCoordinationHandlers({
+      cwd, config, store, planner: persistingPlanner(captured), executor, approvalStore, sessionId: "s-clamp",
+    });
+    const controller = new AbortController();
+    const pendingRun = handlers[COORDINATION_RUN_TOOL](
+      { goal: "Write docs/a.md", sessionMode: "bypass" },
+      { toolCallId: "clamp-ask", name: COORDINATION_RUN_TOOL, args: {}, signal: controller.signal } as never,
+    );
+
+    let failed = false;
+    try {
+      // The handler stays alive polling its durable approvals (CLI-hosted run), so
+      // wait for the block instead of awaiting the call.
+      const blocked = await waitFor(async () => {
+        const runId = captured[0]?.runId;
+        if (!runId) return undefined;
+        const run = await store.load(runId);
+        const worker = run?.workers.find(w => w.status === "blocked" && w.blockReason === "approval_required");
+        return run && worker ? { run, worker } : undefined;
+      });
+
+      // Clamp: the model asked for `bypass`, the run executes as `ask`.
+      assert.equal(captured[0].sessionMode, "ask");
+      assert.equal(blocked.run.sessionMode, "ask");
+      assert.ok(blocked.worker.approvalId);
+      // Durable approval was actually created for the capability — this is the
+      // real PolicyGate verdict, not just a persisted string.
+      const approval = approvalStore.listPending().find(a => a.id === blocked.worker.approvalId);
+      assert.ok(approval, "expected a pending durable approval for the worker");
+      assert.deepEqual(approval.capabilities, ["filesystem.write"]);
+      assert.equal(executorCalls, 0);
+
+      // Restart: a fresh scheduler over the same store re-authorizes a
+      // dispatchable worker under the PERSISTED mode. The worker is made pending
+      // again (its approval id kept), so the reload path — not the first handler
+      // call — is what has to refuse the downgrade.
+      await store.patchWorker(blocked.run.id, blocked.worker.id, { status: "pending", blockReason: undefined });
+      const restartScheduler = createCoordinationScheduler({
+        cwd,
+        daemonInstanceId: "clamp-restart",
+        configProvider: async () => config,
+        store,
+        authorization: new ExecutionAuthorization({
+          policyGate: new PolicyGate(config, { approvalStore }),
+          toolRegistry: buildDefaultToolIndex().registry,
+        }),
+        ownershipRegistry: new OwnershipRegistry(cwd),
+        executor,
+      }, { maxConcurrency: 2 });
+
+      const outcome = await restartScheduler.runUntilIdle(blocked.run.id);
+      assert.equal(outcome.dispatched, 0);
+      const reloaded = await store.load(blocked.run.id);
+      assert.equal(reloaded?.sessionMode, "ask");
+      assert.equal(reloaded?.workers[0].status, "blocked");
+      assert.equal(reloaded?.workers[0].blockReason, "approval_required");
+      assert.equal(reloaded?.workers[0].approvalId, blocked.worker.approvalId);
+      assert.equal(executorCalls, 0);
+      // Re-authorization is not allowed to mint a second approval for the same
+      // worker (dispatch consumes; reconcile only verifies).
+      assert.equal(approvalStore.listPending().length, 1);
+    } catch (error) {
+      failed = true;
+      throw error;
+    } finally {
+      controller.abort();
+      const settled = await pendingRun.then(() => undefined, (error: unknown) => error as Error);
+      if (!failed) assert.equal(settled?.name, "ExecutionCancelledError");
+    }
+  });
+
+  it("host bypass + request ask: tightening still requires approval", async () => {
+    const approvalStore = new ApprovalStore(cwd);
+    await approvalStore.load();
+    const captured: Array<{ runId: string; sessionMode?: string }> = [];
+    let executorCalls = 0;
+    const handlers = createCoordinationHandlers({
+      cwd, config: modeConfig("bypass", "ask"), store,
+      planner: persistingPlanner(captured),
+      executor: { execute: async () => { executorCalls++; return { outcome: "success" as const, summary: "done" }; } },
+      approvalStore, sessionId: "s-clamp",
+    });
+    const controller = new AbortController();
+    const pendingRun = handlers[COORDINATION_RUN_TOOL](
+      { goal: "Write docs/a.md", sessionMode: "ask" },
+      { toolCallId: "clamp-tighten", name: COORDINATION_RUN_TOOL, args: {}, signal: controller.signal } as never,
+    );
+
+    let failed = false;
+    try {
+      const blocked = await waitFor(async () => {
+        const runId = captured[0]?.runId;
+        if (!runId) return undefined;
+        const run = await store.load(runId);
+        const worker = run?.workers.find(w => w.status === "blocked" && w.blockReason === "approval_required");
+        return run && worker ? { run, worker } : undefined;
+      });
+
+      assert.equal(blocked.run.sessionMode, "ask");
+      assert.ok(blocked.worker.approvalId);
+      assert.equal(executorCalls, 0);
+    } catch (error) {
+      failed = true;
+      throw error;
+    } finally {
+      controller.abort();
+      const settled = await pendingRun.then(() => undefined, (error: unknown) => error as Error);
+      if (!failed) assert.equal(settled?.name, "ExecutionCancelledError");
+    }
+  });
+});
+
+async function waitFor<T>(probe: () => Promise<T | undefined>, timeoutMs = 5000): Promise<T> {
+  const startedAt = Date.now();
+  for (;;) {
+    const value = await probe();
+    if (value !== undefined) return value;
+    if (Date.now() - startedAt > timeoutMs) throw new Error("timed out waiting for the expected coordination state");
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+}
 
 /**
  * The recorder is the ONLY record that a cancel failed to finalize its run, and
