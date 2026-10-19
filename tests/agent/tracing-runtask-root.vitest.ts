@@ -233,5 +233,15 @@ describe("runTask/runTaskCore root trace (Task 10, R1)", () => {
     // Noop client never records anything: nothing escaped as a real trace.
     expect(mocks.createTraceClient).toHaveBeenCalled();
     expect(mocks.runTaskLoop).toHaveBeenCalledTimes(1);
+    expect(mocks.initAgent.mock.calls[0]?.[1]?.ownedPaths).toBeUndefined();
+  });
+
+  it("passes trusted owned paths through runTask to agent initialization", async () => {
+    mocks.initAgent.mockResolvedValue(runCtx());
+    const ownedPaths = ["reports/output.md", "reports/"];
+
+    await runTask(testCwd, "Write report", { ...RUN_OPTS, ownedPaths });
+
+    expect(mocks.initAgent.mock.calls[0]?.[1]).toMatchObject({ ownedPaths });
   });
 });

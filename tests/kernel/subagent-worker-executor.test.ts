@@ -69,6 +69,10 @@ describe("ownedPathsForWorker", () => {
       [".tmp/a.txt"],
     );
   });
+  it("rejects malformed ownership containers instead of extracting a broader scope", () => {
+    assert.deepEqual(ownedPathsForWorker({ ownershipScopes: "reports/" } as any), []);
+    assert.deepEqual(ownedPathsForWorker({ ownershipClaims: [{ path: "reports/a.md" }, null] } as any), []);
+  });
 });
 
 describe("taskForWorker", () => {
@@ -101,6 +105,18 @@ describe("taskForWorker", () => {
 });
 
 describe("SubagentWorkerExecutor", () => {
+  it("fails closed without valid write ownership before spawning a child", async () => {
+    const executor = new SubagentWorkerExecutor({ manager: managerWith(successChild("missing-scope")) });
+    const result = await executor.execute(
+      worker({ id: "missing-scope", requiredCapabilities: ["filesystem.write"], ownershipScopes: [""] }),
+      { run: {} as any, sessionId: "sess-1", cwd: "/tmp", config: {} as AlixConfig },
+      new AbortController().signal,
+    );
+    assert.equal(result.outcome, "failure");
+    assert.equal(result.failureKind, "authorization_denied");
+    assert.equal((executor.subagentManager as unknown as { running: Map<string, unknown> }).running.size, 0);
+  });
+
   it("maps a successful child to success with findings summary", async () => {
     const executor = new SubagentWorkerExecutor({ manager: managerWith(successChild("w1")) });
     const result = await executor.execute(
