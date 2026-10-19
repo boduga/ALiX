@@ -131,6 +131,23 @@ export type SchedulerTickResult = {
   ready: number;
   dispatched: string[];
   awaitingApproval: string[];
+  /**
+   * Workers blocked on `approval_required` in the CURRENT post-reconciliation
+   * run state — whether the block was created by this tick or by an earlier
+   * one.
+   *
+   * `awaitingApproval` only reports approval blocks encountered while
+   * dispatching candidates, and candidates come from `readyWorkers`
+   * (`status === "pending"`). A worker already blocked on approval is
+   * therefore invisible to it from the next tick on, which made
+   * `runUntilIdle` misread "waiting for an operator" as "nothing to do" and
+   * exit `idle` with the run still non-terminal (Gate 6 F5).
+   *
+   * This field is accounting only: it never authorizes, dispatches, or mutates
+   * anything. It also does not count as progress — an approval wait is not
+   * work.
+   */
+  approvalBlocked: string[];
   denied: string[];
   ownershipConflicts: string[];
   dependencyBlocked: string[];
@@ -463,6 +480,24 @@ export class CoordinationScheduler {
     run = (await this.deps.store.load(runId))!;
     const progressMade = dispatched.length > 0 || recResult.orphaned.length > 0 || recResult.dependencyBlocked.length > 0;
 
+    // Approval-blocked workers from the CURRENT post-reconciliation state.
+    //
+    // Derived from the reloaded run — never an earlier snapshot — so a worker
+    // that reconciliation just resumed to `pending` cannot linger here, and a
+    // block created by this tick's dispatch is included. Terminal runs report
+    // none: terminal precedence means a terminal run is never "awaiting
+    // approval" because of a leftover worker record.
+    //
+    // Accounting only: this deliberately does NOT feed `progressMade`. Waiting
+    // for an operator is not work, and treating it as progress would keep a
+    // genuinely idle run alive.
+    const runIsTerminal = run?.status === "completed" || run?.status === "failed" || run?.status === "cancelled";
+    const approvalBlocked = runIsTerminal
+      ? []
+      : (run?.workers ?? [])
+          .filter(w => w.status === "blocked" && w.blockReason === "approval_required")
+          .map(w => w.id);
+
     // Emit tick completed only for a MEANINGFUL transition (see terminalTicksEmitted).
     // An idle poll — nothing dispatched/reconciled, nobody awaiting approval or
     // denied, no ownership conflict, run not newly terminal — records nothing.
@@ -488,6 +523,7 @@ export class CoordinationScheduler {
         examined: readyWorkers.length,
         dispatched,
         awaitingApproval,
+        approvalBlocked,
         denied,
         ownershipConflicts,
         activeRunning,
@@ -518,7 +554,7 @@ export class CoordinationScheduler {
 
     return {
       runId, examined: readyWorkers.length, ready: readyWorkers.length,
-      dispatched, awaitingApproval, denied, ownershipConflicts,
+      dispatched, awaitingApproval, approvalBlocked, denied, ownershipConflicts,
       dependencyBlocked: [...recResult.dependencyBlocked],
       recoveredOrphans: [...recResult.orphaned],
       activeRunning, availableSlots,
@@ -829,6 +865,17 @@ export class CoordinationScheduler {
       }
 
       if (result.awaitingApproval.length > 0) {
+        return { runId, finalStatus: "blocked", stopReason: "awaiting_approval", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
+      }
+
+      // Approval-blocked from an EARLIER tick is still waiting for an operator,
+      // never idle. `awaitingApproval` above only reports blocks created while
+      // dispatching this tick's candidates, so without this a worker blocked at
+      // attempt N and approved later was invisible on the following tick: the
+      // loop counted idle and exited with the run still non-terminal (F5).
+      // Returning here hands control back to the handler's bounded approval
+      // poll — no busy loop, and the terminal branches above still win.
+      if (result.approvalBlocked.length > 0) {
         return { runId, finalStatus: "blocked", stopReason: "awaiting_approval", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
       }
 
@@ -1251,7 +1298,7 @@ export function createCoordinationScheduler(
 
 function emptyTick(runId: string, status: CoordinationRunStatus): SchedulerTickResult {
   return {
-    runId, examined: 0, ready: 0, dispatched: [], awaitingApproval: [], denied: [],
+    runId, examined: 0, ready: 0, dispatched: [], awaitingApproval: [], approvalBlocked: [], denied: [],
     ownershipConflicts: [], dependencyBlocked: [], recoveredOrphans: [], activeRunning: 0, availableSlots: 0,
     runStatus: status, progressMade: false,
   };

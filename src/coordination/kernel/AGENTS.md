@@ -158,6 +158,22 @@
   `POST /api/coordination/run` body and the CLI `--session-mode` are host input, not model
   output. Pinned by `tests/kernel/coordination-tools.test.ts` ("coordination.run session-mode
   clamp", full host×request matrix plus durable-approval and post-reload re-authorization).
+- **Approval-blocked is not idle (F5).** `SchedulerTickResult.approvalBlocked`
+  lists workers blocked on `approval_required` in the CURRENT
+  post-reconciliation run state, and `runUntilIdle` treats a non-empty list as
+  `stopReason: "awaiting_approval"`. Without it, `awaitingApproval` (which only
+  reports blocks created while dispatching THIS tick's candidates, and
+  candidates require `status === "pending"`) stopped reporting a worker from the
+  tick after it blocked, so the loop counted idle and exited with the run still
+  non-terminal — a later operator approval then had nothing left ticking the run
+  (Gate 6 F5). The field is accounting only: it never authorizes or dispatches,
+  it is derived from the reloaded post-reconcile run (never an earlier snapshot)
+  so a resumed worker cannot linger in it, terminal runs report it empty, and it
+  deliberately does NOT feed `progressMade` — waiting for an operator is not
+  work, and counting it as progress would keep genuinely idle runs alive. The
+  handler already polls `stopReason: "awaiting_approval"`, so no tool change was
+  needed. Pinned by `tests/kernel/coordination-scheduler.test.ts` ("F5 —
+  approval-blocked visibility").
 - **Approval reconciliation VERIFIES; dispatch CONSUMES.** `CoordinationScheduler.reconcile`'s
   `isApproved` matches a blocked `approval_required` worker to its approval by
   the binding key the approval was **created** with (`worker.authorizationEvidence.bindingKey`,
