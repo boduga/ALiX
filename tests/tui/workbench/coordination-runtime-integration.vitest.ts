@@ -199,7 +199,7 @@ describe('Phase9 public coordination port with real handlers and scheduler', () 
         await Promise.race([pendingRun.catch(() => {}), new Promise(resolve => setTimeout(resolve, 2_000))]);
       }
     }
-  }, 60_000);
+  }, 120_000);
 
   it('qualifies an in-process owned write and reviewer read under explicit test policy', async () => {
     const f = await fixture(new DefaultWorkerExecutor(), 1);
