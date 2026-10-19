@@ -174,6 +174,23 @@
   before its authorization read, so a CLI-resolved approval written by another
   process is observed without a daemon restart; the watcher stays a
   notification-only accelerator, never the correctness path.
+- **`alix_coordination_run` NEVER reports success for a non-terminal run (F3).**
+  The handler derives completion from authoritative run state via
+  `deriveCoordinationCompletion` (`coordination-types.ts`), never from the
+  scheduler's stop reason. Success requires `execution === "completed"` AND
+  `verification === "verified"`, where verification needs an attached aggregate
+  ref AND a matching durable `coordination.aggregate.completed` event
+  (`matchesAttachedAggregateEvent`). `stopReason: "idle"` is explicitly NOT
+  completion evidence: an interleaved retry/approval cycle can exhaust
+  `maxIdleTicks` while the run is still `running`, which previously produced a
+  successful tool result and an `executionOutcome: "succeeded"` outer approval
+  for unfinished work. Every non-success path preserves durable run/worker
+  state (never synthesizing `failed`), leaves the consumed claim non-reusable,
+  and sets `outcomeUnknown` so `ToolExecutor` writes no execution receipt (the
+  claim stays `pending`, replay-classified `unverified`, fail-closed). Pinned
+  by `tests/kernel/coordination-tools.test.ts` ("coordination.run
+  incomplete-execution receipt (F3)") which drives the real `ToolExecutor`, plus
+  its positive control for a verified completion.
 - **Approval-required requires a durable approval id (SRAP PR B).** `authorizeWorker`
   fails closed (`denied`) when a capability returns `approval_required` with no
   durable `approvalId` OR with the `ExecutionAuthorization` legacy sentinel
