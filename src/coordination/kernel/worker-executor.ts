@@ -13,6 +13,7 @@ import { createCollaborationTools } from "../../capabilities/tools/collaboration
 import type { BoundTool } from "../../capabilities/tools/collaboration-tools.js";
 import { renderWorkerExecutionPrompt, type WorkerDependencyResult } from "./coordination-worker-context.js";
 import { captureWorkerEventLog, reviewDefaultWorkerResult } from "./default-worker-review.js";
+import { isWriteWorker, ownedPathsForWorker } from "./worker-role.js";
 
 export type WorkerExecutionContext = {
   run: CoordinationRun;
@@ -85,6 +86,14 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
     context: WorkerExecutionContext,
     signal: AbortSignal,
   ): Promise<WorkerExecutionResult> {
+    const ownedPaths = isWriteWorker(worker) ? ownedPathsForWorker(worker) : undefined;
+    if (isWriteWorker(worker) && !ownedPaths?.length) {
+      return {
+        outcome: "failure",
+        failureKind: "authorization_denied",
+        error: "Write worker has no valid owned paths",
+      };
+    }
     try {
       const { runTask } = await import("../../run.js");
 
@@ -116,6 +125,7 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
             }
           : undefined,
         boundTools,
+        ...(ownedPaths ? { ownedPaths } : {}),
       });
 
       if (signal.aborted) {

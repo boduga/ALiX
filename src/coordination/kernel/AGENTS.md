@@ -20,7 +20,8 @@
   does not own or tick these runs. Inject the worker executor through
   `CoordinationToolDeps.executor` for end-to-end lifecycle coverage.
 - `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
-- `worker-role.ts` — Capability → role classification shared by planner (ownership) and executor (mode)
+- `worker-role.ts` — Capability → role classification and canonical owned-path extraction shared by both worker executors; write workers with missing or malformed ownership fail closed before execution
+- `worker-executor.ts` — In-process worker execution via `runTask`; write-worker ownership claims flow as trusted execution options to the policy gate
 - `owner-liveness.ts` — the ONE worker-liveness module (R3.3): `<kind>-<pid>`
   execution-owner liveness probe (unknown owners read alive), heartbeat
   staleness (`heartbeatStale`; missing/unparseable = no evidence), and the

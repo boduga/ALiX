@@ -54,6 +54,8 @@ export type InitAgentOpts = {
   };
   sessionMode?: "auto" | "ask" | "bypass";
   approvalStore?: ApprovalStore;
+  /** Trusted coordination-worker write scopes passed to the policy gate. */
+  ownedPaths?: readonly string[];
   /** Suppress config warnings when a presentation layer owns the terminal. */
   suppressConfigWarnings?: boolean;
 };
@@ -203,6 +205,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     },
     checkpointManager,
     approvalStore: opts.approvalStore,
+    ...(opts.ownedPaths ? { ownedPaths: [...opts.ownedPaths] } : {}),
   });
 
   // Scope tracking: derive initial scope from task string
