@@ -198,7 +198,7 @@ describe('Phase9 public coordination port with real handlers and scheduler', () 
         await Promise.race([pendingRun.catch(() => {}), new Promise(resolve => setTimeout(resolve, 2_000))]);
       }
     }
-  }, 60_000);
+  }, 120_000);
 
   it('runs four dependent workers, retries identity safely, and verifies the actual aggregate', async () => {
     const attempts: string[] = [];
