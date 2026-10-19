@@ -38,6 +38,7 @@ import { closeAllSharedLedgers } from '../../../src/runtime-state/storage/runtim
 import { ApprovalStore } from '../../../src/governance/approvals/approval-store.js';
 import { ApprovalManager } from '../../../src/interfaces/tui/approval-manager.js';
 import { createApprovalResolver } from '../../../src/interfaces/tui/approval-resolver.js';
+import { PolicyGate } from '../../../src/governance/policy/policy-gate.js';
 
 const roots: string[] = [];
 afterEach(() => { clearScriptedScenario(); vi.unstubAllEnvs(); vi.restoreAllMocks(); closeAllSharedLedgers(); for (const cwd of roots.splice(0)) rmSync(cwd, { recursive: true, force: true }); });
@@ -199,6 +200,94 @@ describe('Phase9 public coordination port with real handlers and scheduler', () 
       }
     }
   }, 60_000);
+
+  it('qualifies an in-process owned write and reviewer read under explicit test policy', async () => {
+    const f = await fixture(new DefaultWorkerExecutor(), 1);
+    const policyGateSpy = vi.spyOn(PolicyGate.prototype, 'evaluateToolCall');
+    f.config.permissions.default = 'ask';
+    f.config.permissions.tools = {
+      'filesystem.write': 'allow',
+      'file.write': 'allow',
+      'file.read': 'allow',
+    };
+    f.config.permissions.protectedPaths = ['.git/**', '.env', '.env.*', 'secrets/**'];
+    f.config.models!.default = { provider: 'scripted-mock', name: 'scripted-worker', streaming: false } as any;
+    f.config.model = { provider: 'scripted-mock', name: 'scripted-worker' } as any;
+    installEvalConfig(f.cwd, 'scripted-mock');
+    const evalConfigPath = join(f.cwd, '.alix', 'config.json');
+    const evalConfig = JSON.parse(await readFile(evalConfigPath, 'utf8'));
+    evalConfig.permissions.default = 'ask';
+    evalConfig.permissions.tools = { ...f.config.permissions.tools };
+    evalConfig.permissions.protectedPaths = [...f.config.permissions.protectedPaths];
+    await writeFile(evalConfigPath, JSON.stringify(evalConfig));
+    const isolatedHome = join(f.cwd, 'isolated-home');
+    vi.stubEnv('HOME', isolatedHome);
+    const isolatedConfigDir = join(isolatedHome, '.config', 'alix');
+    await mkdir(isolatedConfigDir, { recursive: true });
+    await writeFile(join(isolatedConfigDir, 'config.json'), JSON.stringify({ apiKeys: {} }));
+    setScriptedScenario({ steps: [
+      { kind: 'tool', tool: 'file.create', args: {
+        path: 'reports/0.md', content: '# Scripted worker output\nprovider=scripted-mock\n',
+      } },
+      ...Array.from({ length: 8 }, () => ({
+        kind: 'text' as const,
+        text: '{"satisfied":true,"summary":"Created the requested report.","gaps":[]}',
+      })),
+    ] });
+
+    const runArgs = { goal: 'Create one report', maxConcurrency: 1, sessionMode: 'ask' };
+    const result = await f.handlers[COORDINATION_RUN_TOOL](runArgs, {
+      toolCallId: 'inprocess-owned-path-qualification', name: COORDINATION_RUN_TOOL,
+      args: runArgs,
+    } as any);
+    const run = (await f.store.list())[0]!;
+    const events = await f.log.readAll();
+
+    expect(result.kind).toBe('success');
+    expect(scriptedMockCarrier.calls).toBeGreaterThan(0);
+    expect(run).toMatchObject({ status: 'completed' });
+    expect(run.workers[0]).toMatchObject({ status: 'completed' });
+    expect(run.workers[0]?.resultRef).toBeTruthy();
+    expect(run.aggregateResultRef).toBeTruthy();
+    expect(matchesAttachedAggregateEvent(run, events as AggregateCompletedEventLike[])).toBe(true);
+    expect(deriveCoordinationCompletion(run, {
+      aggregateEventMatches: true,
+      currentFingerprint: computeAggregationSourceFingerprint(run),
+    })).toMatchObject({ execution: 'completed', aggregation: 'generated', verification: 'verified' });
+
+    const artifact = await readFile(join(f.cwd, 'reports/0.md'), 'utf8');
+    expect(artifact).toContain('provider=scripted-mock');
+    expect(events.some(event => event.type === 'tool.completed'
+      && (event.payload as any)?.toolName === 'file.create')).toBe(true);
+    expect(events.some(event => event.type === 'file.created'
+      && (event.payload as any)?.path === 'reports/0.md')).toBe(true);
+
+    const reviewReadIndex = policyGateSpy.mock.calls.findIndex(([request]) =>
+      request.toolName === 'file.read' && request.args.path === 'reports/0.md');
+    expect(reviewReadIndex).toBeGreaterThanOrEqual(0);
+    const reviewReadRequest = policyGateSpy.mock.calls[reviewReadIndex]?.[0];
+    const reviewReadDecision = await policyGateSpy.mock.results[reviewReadIndex]?.value;
+    expect(reviewReadRequest).toMatchObject({
+      toolName: 'file.read',
+      capability: 'file.read',
+      source: 'tool',
+      cwd: f.cwd,
+      sessionMode: 'ask',
+    });
+    expect(reviewReadDecision).toMatchObject({
+      capability: 'file.read',
+      decision: 'allow',
+      matchedRuleId: 'tool-policy-file.read',
+      reason: 'Allowed by tool policy (mode: ask)',
+    });
+
+    const protectedRead = await new ToolExecutor(
+      f.config, f.log, f.cwd, undefined, undefined, undefined, undefined, f.approvalStore,
+    ).execute({ toolCallId: 'protected-read-check', name: 'file.read', args: { path: '.env' } } as any);
+    expect(protectedRead).toMatchObject({ kind: 'error', message: expect.stringMatching(/path is protected/i) });
+    await f.approvalStore.load();
+    expect(f.approvalStore.listPending()).toHaveLength(0);
+  }, 120_000);
 
   it('runs four dependent workers, retries identity safely, and verifies the actual aggregate', async () => {
     const attempts: string[] = [];
