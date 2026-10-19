@@ -87,7 +87,20 @@ export interface MonitorEvent {
 
 export type ToolResult =
   | { kind: "success"; /** Actual LF-delimited lines returned by the tool, not a preview/request estimate. */ observedLineCount?: number; content?: string; output?: string; value?: string; matches?: FileMatch[]; changedFiles?: string[]; /** Structured identity of a coordination run this call started, so the completion gate can resolve the run's own evidence instead of inferring it from prose. */ coordinationRunId?: string; exitCode?: number; createdPath?: string; deletedPath?: string; exists?: boolean; completed?: boolean; reports?: FindingReport[]; events?: MonitorEvent[]; outcome?: string; changed?: boolean }
-  | { kind: "error"; message: string; retryable?: boolean; hint?: string };
+  | {
+      kind: "error";
+      message: string;
+      retryable?: boolean;
+      hint?: string;
+      /**
+       * The call was authorized and executed but reached no provable terminal
+       * outcome. A consuming caller must NOT record either a success or a
+       * failure execution receipt for it: the evidence supports neither. The
+       * consumed claim stays `pending` (classified `unverified` on replay,
+       * fail-closed) instead of being promoted to `succeeded`.
+       */
+      outcomeUnknown?: boolean;
+    };
 // retryable: true = safe to retry. false/undefined = fatal (don't spin).
 // hint: short instruction for the model on how to recover.
 
