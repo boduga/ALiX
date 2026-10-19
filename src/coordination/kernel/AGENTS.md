@@ -145,6 +145,19 @@
   into the shared `shouldReclaimWorker` verdict; callers pass locally-active
   executions when known (default: none). Never reclaim a locally-active
   worker on PID evidence alone.
+- **Model-originated `sessionMode` may tighten, never loosen.** `alix_coordination_run`'s
+  `sessionMode` argument is model output, so `effectiveSessionMode` (`coordination-tools.ts`)
+  returns the host mode unless the request is stricter: `ask` is the only enforcing mode
+  (`PolicyGate.applySessionMode` turns an `ask` decision into `allow` under BOTH `auto` and
+  `bypass`), so `auto` and `bypass` form one loosening class. `ask` host → always `ask`;
+  otherwise a requested `ask` wins, everything else (including an absent or invalid value)
+  keeps the host mode. Clamp BEFORE persistence: the planner stores the effective mode on
+  `run.sessionMode`, and the scheduler re-applies that persisted value over the host config on
+  every tick and after restart, so a looser persisted value would re-open the boundary for the
+  whole lifecycle. Operator-supplied modes are unaffected — Inspector's
+  `POST /api/coordination/run` body and the CLI `--session-mode` are host input, not model
+  output. Pinned by `tests/kernel/coordination-tools.test.ts` ("coordination.run session-mode
+  clamp", full host×request matrix plus durable-approval and post-reload re-authorization).
 - **Approval reconciliation VERIFIES; dispatch CONSUMES.** `CoordinationScheduler.reconcile`'s
   `isApproved` matches a blocked `approval_required` worker to its approval by
   the binding key the approval was **created** with (`worker.authorizationEvidence.bindingKey`,

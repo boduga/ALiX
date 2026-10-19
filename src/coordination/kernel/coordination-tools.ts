@@ -15,7 +15,7 @@
  * come from the registry entries in tool-registry.ts.
  */
 
-import type { AlixConfig } from "../../operations/config/schema.js";
+import type { AlixConfig, SessionMode } from "../../operations/config/schema.js";
 import { parseSessionMode } from "../../operations/config/schema.js";
 import { isSubagentsEnabled } from "../../operations/config/subagent-config.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
@@ -90,12 +90,31 @@ export function createCoordinationHandlers(
   };
 }
 
+/**
+ * Resolve the approval mode for a model-originated coordination run.
+ *
+ * `args.sessionMode` is model output, so it is untrusted: it may TIGHTEN the
+ * host's session mode but never loosen it. `ask` is the only enforcing mode —
+ * `PolicyGate.applySessionMode` turns an `ask` decision into `allow` under
+ * `auto`/`bypass` — so accepting a looser argument would let the model
+ * downgrade the operator's approval posture for every worker capability
+ * (session `run-real`: an `ask` session was downgraded by a
+ * `{"sessionMode":"bypass"}` tool argument, and no worker approval was ever
+ * requested).
+ *
+ * Invalid or absent arguments fall back to the host mode, never to a looser
+ * one. The value returned here is what the planner persists as
+ * `run.sessionMode` and what the scheduler authorizes workers under, including
+ * after a reload — so clamping before persistence closes the boundary for the
+ * whole lifecycle.
+ */
 function effectiveSessionMode(
   config: AlixConfig,
   arg: unknown,
-): "auto" | "ask" | "bypass" {
-  if (arg === "auto" || arg === "ask" || arg === "bypass") return arg;
-  return parseSessionMode(config.permissions.sessionMode);
+): SessionMode {
+  const configured = parseSessionMode(config.permissions.sessionMode);
+  const requested = parseSessionMode(arg, configured);
+  return configured === "ask" || requested === "ask" ? "ask" : configured;
 }
 
 /**
