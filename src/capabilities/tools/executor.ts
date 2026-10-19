@@ -859,10 +859,19 @@ export class ToolExecutor {
     }
 
     if (claimedApprovalId) {
-      await this.recordApprovalOutcome(
-        claimedApprovalId,
-        result.kind === "success" ? "succeeded" : "failed",
-      );
+      // A result that reached no provable terminal outcome must not write a
+      // success OR failure receipt: the claimed authorization is real, but what
+      // it produced is unknown. Leaving the claim `pending` is the fail-closed
+      // state (a later replay classifies it `unverified` and denies), and is
+      // what stops an incomplete coordination run from recording `succeeded`
+      // (Gate 6 F3). A plain error still records `failed`.
+      const outcomeUnknown = result.kind === "error" && result.outcomeUnknown === true;
+      if (!outcomeUnknown) {
+        await this.recordApprovalOutcome(
+          claimedApprovalId,
+          result.kind === "success" ? "succeeded" : "failed",
+        );
+      }
     }
 
     return result;

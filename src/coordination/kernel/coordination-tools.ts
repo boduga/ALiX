@@ -406,8 +406,66 @@ async function handleCoordinationRun(
     }
     if (run.aggregateResultRef) lines.push(`Aggregate: ${run.aggregateResultRef}`);
   }
-  if (result.finalStatus === "failed") {
+
+  // ── Completion is derived from AUTHORITATIVE run state, never inferred ──
+  // `result.finalStatus`/`stopReason` describe why the SCHEDULER loop returned,
+  // not whether the run reached a terminal successful outcome. `stopReason:
+  // "idle"` in particular is not evidence of completion: an interleaved
+  // retry/approval cycle can exhaust the idle budget while the run is still
+  // `running` (Gate 6 F3). Treating every non-`failed` status as success made
+  // such a run return a successful tool result and, through the executor,
+  // record its single-use outer approval as `executionOutcome: "succeeded"` —
+  // a false success receipt for work that never finished.
+  //
+  // `deriveCoordinationCompletion` owns the four dimensions (execution /
+  // aggregation / outcome / verification). Success requires BOTH a terminal
+  // `completed` execution AND a `verified` completion, so a run whose results
+  // were never aggregated can no longer read as success.
+  const completion = run
+    ? await (await import("./coordination-view.js")).deriveRunCompletion(deps.cwd, run)
+    : undefined;
+  if (completion) lines.push(...await completionLines(run!, deps.cwd));
+
+  // Missing/unreadable state fails closed. `outcomeUnknown` tells the executor
+  // this call was authorized but reached no provable terminal outcome, so it
+  // must NOT write a success OR failure receipt: the consumed claim stays
+  // `pending`/`unverified` (fail-closed for replay) rather than being
+  // reclassified as something the evidence does not support.
+  if (!completion) {
+    lines.push("Incomplete: the coordination run could not be read back, so its outcome is unknown.");
+    return { kind: "error", message: lines.join("\n"), retryable: false, outcomeUnknown: true };
+  }
+
+  const { execution, verification } = completion.completion;
+
+  if (execution === "failed") {
     return { kind: "error", message: lines.join("\n"), retryable: false };
+  }
+  if (execution === "cancelled") {
+    // Explicit cancellation is handled by the signal path above; a cancelled
+    // run observed here is still a non-success.
+    return { kind: "error", message: lines.join("\n"), retryable: false };
+  }
+  if (execution !== "completed") {
+    // running | planning | replanning | blocked. The run is NOT terminal; do
+    // not synthesize a failure (its durable state stays as persisted and it
+    // remains resumable) and do not claim success.
+    lines.push(
+      `Incomplete: the scheduler returned while the run was still ${execution}. ` +
+      "The run is not terminal; re-running this tool would start a SECOND run. " +
+      "Inspect it with alix_coordination_status and resume/complete it before treating the work as done.",
+    );
+    return { kind: "error", message: lines.join("\n"), retryable: false, outcomeUnknown: true };
+  }
+  if (verification !== "verified") {
+    // Terminal execution, but the aggregate/verification evidence does not
+    // support a success claim (e.g. workers finished but results were never
+    // aggregated). Fail closed instead of promoting it to success.
+    lines.push(
+      `Incomplete: workers finished but completion is unverified (outcome=${completion.completion.outcome}, ` +
+      `aggregation=${completion.completion.aggregation}, verification=${verification}).`,
+    );
+    return { kind: "error", message: lines.join("\n"), retryable: false, outcomeUnknown: true };
   }
   // Report what the run's workers actually wrote, from explicit mutation
   // records — never from worker status or ownership scopes. A completed worker
