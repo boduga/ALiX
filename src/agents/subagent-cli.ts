@@ -623,11 +623,8 @@ export class SubagentCLI {
     // approval store must never become implicit permission.
     let approvalPort: WorkerApprovalPort | undefined;
     try {
-      const { ApprovalStore } = await import("../governance/approvals/approval-store.js");
-      const { createWorkerApprovalPort } = await import("../governance/approvals/worker-approval-port.js");
-      const store = new ApprovalStore(projectRoot, { eventLog });
-      await store.load();
-      approvalPort = createWorkerApprovalPort(store);
+      const { openWorkerApprovalPort } = await import("../governance/approvals/worker-approval-port.js");
+      approvalPort = await openWorkerApprovalPort(projectRoot, { eventLog });
     } catch (err) {
       // Readable, actionable evidence — never a silent downgrade.
       try {

@@ -80,6 +80,11 @@ const IMPORT_RULE_TARGETS: Record<string, string[]> = {
 const IMPORT_RULE_EXEMPT: Record<string, string[]> = {
   // R5.3b — the ONE sanctioned ToolExecutor construction seam.
   "direct-tool-dispatch": ["src/capabilities/tools/tool-executor-factory.ts"],
+  // The ONE sanctioned ApprovalStore construction seam for isolated worker
+  // processes. A child cannot receive the parent's in-memory store, so it
+  // opens its own against the same authoritative workspace — but only here,
+  // never in a caller, and never exposing a decision method.
+  "status-store-writes": ["src/governance/approvals/worker-approval-port.ts"],
 };
 
 const UI_DIRS = ["src/interfaces/tui/", "src/interfaces/ui/", "src/interfaces/inspector/"];

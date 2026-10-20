@@ -32,7 +32,6 @@
 
 import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
 import type { ApprovalRecord } from "../../governance/approvals/approval-types.js";
-
 /** The operations a worker process may perform against the ledger. */
 export interface WorkerApprovalPort {
   /** Current durable record, or undefined when it does not exist. */
@@ -66,6 +65,32 @@ export interface WorkerApprovalPort {
   recordExecutionOutcome: ApprovalStore["recordExecutionOutcome"];
   /** Re-read the ledger so cross-process decisions become visible. */
   load(): Promise<void>;
+}
+
+/**
+ * Open the restricted worker view for an isolated process.
+ *
+ * This is the ONE sanctioned ApprovalStore construction seam for worker
+ * processes (pinned by the R1 boundary freeze): a child cannot receive the
+ * parent's in-memory store, so it opens its own instance on the SAME
+ * authoritative workspace. Callers pass the workspace they were spawned in —
+ * never a config-derived or guessed path — so a worker can never accidentally
+ * read a different `.alix` directory.
+ *
+ * Throws when the ledger cannot be opened or loaded; callers must treat that
+ * as "no approval authority" and keep gated operations denied.
+ */
+export async function openWorkerApprovalPort(
+  workspace: string,
+  options: { eventLog?: unknown } = {},
+): Promise<WorkerApprovalPort> {
+  const { ApprovalStore } = await import("../../governance/approvals/approval-store.js");
+  const store = new ApprovalStore(
+    workspace,
+    options.eventLog ? { eventLog: options.eventLog as never } : {},
+  );
+  await store.load();
+  return createWorkerApprovalPort(store);
 }
 
 /** Methods that would let a worker authorize its own operations. */
