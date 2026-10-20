@@ -35,7 +35,7 @@ export type WorkerBlockReason =
 
 export type WorkerFailureKind =
   | "transient_provider" | "timeout" | "authorization_denied"
-  | "approval_required" | "ownership_conflict" | "execution_error"
+  | "approval_required" | "approval_denied" | "ownership_conflict" | "execution_error"
   | "orphaned" | "dependency_failed" | "lease_lost" | "cancelled";
 
 export type WorkerOwnershipClaim = {

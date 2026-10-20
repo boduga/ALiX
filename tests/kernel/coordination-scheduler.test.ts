@@ -659,6 +659,300 @@ describe("CoordinationScheduler", () => {
       });
     });
 
+    // ── F7: an operator DENIAL is terminal for the worker ────────────
+    //
+    // A denial is a definitive authorization outcome, not a pending approval.
+    // Before this, reconciliation only ever resumed on `isApproved === true`,
+    // so a denied worker stayed `blocked`/`approval_required` forever: it never
+    // failed, dependents were never attributed, and the run could not reach a
+    // terminal state. Denial now fails the worker with
+    // `failureKind: "approval_denied"`, preserving the denied approval identity
+    // and capability, and lets ordinary dependency propagation do the rest.
+    describe("F7 — operator denial is terminal", () => {
+      async function realSchedulerF7(tools: Record<string, "allow" | "ask" | "deny">) {
+        const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+        const { ExecutionAuthorization } = await import("../../src/runtime-state/runtime/execution-authorization.js");
+        const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
+        const { buildDefaultToolIndex } = await import("../../src/capabilities/tools/tool-registry.js");
+        const approvalStore = new ApprovalStore(cwd);
+        await approvalStore.load();
+        const config = minimalConfig() as any;
+        config.permissions.default = "ask";
+        config.permissions.sessionMode = "ask";
+        config.permissions.tools = tools;
+        const executed: string[] = [];
+        const sched = new CoordinationScheduler({
+          cwd, daemonInstanceId: "daemon-f7", configProvider: async () => config,
+          store, authorization: new ExecutionAuthorization({
+            policyGate: new PolicyGate(config, { approvalStore }),
+            toolRegistry: buildDefaultToolIndex().registry,
+          }),
+          ownershipRegistry: registry,
+          executor: { execute: async (w: any) => { executed.push(w.id); return { outcome: "success" }; } } as any,
+        }, { maxConcurrency: 3, orphanThresholdMs: 60_000 });
+        return { sched, approvalStore, executed, config };
+      }
+
+      async function seedRun(workers: Array<{ caps: string[]; scopes?: string[]; depsOf?: number; attempt?: number }>) {
+        const run = createCoordinationRun({ sessionId: "s1", rootGoal: "f7", coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        run.sessionMode = "ask";
+        await store.save(run);
+        const created = [];
+        for (const spec of workers) {
+          const w = createWorkerAssignment({
+            coordinationRunId: run.id, agentId: `alix#${created.length + 1}`,
+            taskLabel: `w${created.length + 1}`, goalPrompt: "do", status: "pending",
+            requiredCapabilities: spec.caps, attempt: spec.attempt ?? 0, maxAttempts: 3,
+            ownershipScopes: spec.scopes ?? [],
+            ownershipClaims: (spec.scopes ?? []).map(p => ({ path: p, recursive: false })),
+          });
+          await store.addWorker(run.id, w);
+          created.push(w);
+        }
+        // Wire dependencies after ids exist.
+        for (let i = 0; i < workers.length; i++) {
+          const spec = workers[i]!;
+          if (spec.depsOf === undefined) continue;
+          await store.patchWorker(run.id, created[i]!.id, { dependencies: [created[spec.depsOf]!.id] });
+        }
+        const fresh = await store.load(run.id);
+        return { run: fresh!, workers: fresh!.workers };
+      }
+
+      it("(1) single worker, one denied approval -> worker fails with approval_denied", async () => {
+        const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([{ caps: ["cap.a"] }]);
+        await sched.tick(run.id);
+
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        assert.equal(pending.length, 1);
+        await approvalStore.resolve(pending[0]!.id, "denied", "f7-test");
+
+        const tick = await sched.tick(run.id);
+        const loaded = await store.load(run.id);
+        const w = loaded!.workers.find(x => x.id === workers[0]!.id)!;
+
+        assert.equal(w.status, "failed");
+        assert.equal(w.failureKind, "approval_denied");
+        assert.match(w.error ?? "", /denied/i);
+        // The denial evidence is preserved on the record.
+        assert.equal((w as any).approvalId, pending[0]!.id);
+        assert.equal((w as any).approvalDeniedCapability, "cap.a");
+        assert.deepEqual(tick.dispatched, [], "a denied attempt never dispatches");
+        assert.equal(executed.length, 0);
+        await sched.shutdown();
+      });
+
+      it("(2) mixed allow/deny capability decisions: denied worker fails, no execution", async () => {
+        const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.allow": "allow", "cap.ask": "ask" });
+        const { run, workers } = await seedRun([{ caps: ["cap.allow", "cap.ask"] }]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        await approvalStore.resolve(pending[0]!.id, "denied", "f7-test");
+
+        await sched.tick(run.id);
+        const w = (await store.load(run.id))!.workers.find(x => x.id === workers[0]!.id)!;
+        assert.equal(w.status, "failed");
+        assert.equal(w.failureKind, "approval_denied");
+        assert.equal(executed.length, 0);
+        await sched.shutdown();
+      });
+
+      it("(3) two gated capabilities, one approved and one denied -> fails on the denial", async () => {
+        const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.a": "ask", "cap.b": "ask" });
+        const { run, workers } = await seedRun([{ caps: ["cap.a", "cap.b"] }]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        assert.equal(pending.length, 2, "each gated capability has its own approval");
+        const byCap = new Map(pending.map(p => [p.capabilities![0]!, p]));
+        await approvalStore.resolve(byCap.get("cap.a")!.id, "approved", "f7-test");
+        await approvalStore.resolve(byCap.get("cap.b")!.id, "denied", "f7-test");
+
+        await sched.tick(run.id);
+        const w = (await store.load(run.id))!.workers.find(x => x.id === workers[0]!.id)!;
+        assert.equal(w.status, "failed", "one denial is enough to refuse the attempt");
+        assert.equal(w.failureKind, "approval_denied");
+        assert.equal((w as any).approvalDeniedCapability, "cap.b");
+        assert.equal(executed.length, 0);
+        await sched.shutdown();
+      });
+
+      it("(4) denied worker with dependents: dependents are attributed via propagation", async () => {
+        const { sched, approvalStore } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([
+          { caps: ["cap.a"], scopes: ["a.md"] },
+          { caps: ["cap.a"], scopes: ["b.md"], depsOf: 0 },
+        ]);
+        await sched.tick(run.id);
+        // Deny every pending approval so the producer is refused.
+        for (const p of approvalStore.listPending().filter(a => a.coordinationRunId === run.id)) {
+          await approvalStore.resolve(p.id, "denied", "f7-test");
+        }
+        await sched.tick(run.id);
+
+        const loaded = await store.load(run.id);
+        const producer = loaded!.workers.find(x => x.id === workers[0]!.id)!;
+        const dependent = loaded!.workers.find(x => x.id === workers[1]!.id)!;
+        assert.equal(producer.status, "failed");
+        assert.equal(producer.failureKind, "approval_denied");
+        assert.equal(dependent.status, "blocked");
+        assert.equal(dependent.blockReason, "dependency_failed");
+        assert.ok(
+          (dependent.failureProvenance?.rootCauseWorkerIds ?? []).includes(producer.id),
+          "the dependent's failure provenance names the denied worker",
+        );
+        await sched.shutdown();
+      });
+
+      it("(5) denied worker with an independent worker: the independent one keeps its outcome", async () => {
+        const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([
+          { caps: ["cap.a"], scopes: ["a.md"] },
+          { caps: ["cap.a"], scopes: ["b.md"] },
+        ]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        const byWorker = new Map(pending.map(p => [p.workerId!, p]));
+        // Deny the first worker, approve the second.
+        await approvalStore.resolve(byWorker.get(workers[0]!.id)!.id, "denied", "f7-test");
+        await approvalStore.resolve(byWorker.get(workers[1]!.id)!.id, "approved", "f7-test");
+
+        await sched.tick(run.id);
+        for (let i = 0; i < 200 && executed.length < 1; i++) await new Promise(r => setTimeout(r, 10));
+
+        const loaded = await store.load(run.id);
+        const denied = loaded!.workers.find(x => x.id === workers[0]!.id)!;
+        const independent = loaded!.workers.find(x => x.id === workers[1]!.id)!;
+        assert.equal(denied.status, "failed");
+        assert.equal(denied.failureKind, "approval_denied");
+        assert.notEqual(independent.status, "failed", "an independent worker is not failed by another's denial");
+        assert.deepEqual(executed, [workers[1]!.id], "only the approved worker executes");
+        await sched.shutdown();
+      });
+
+      it("(6) repeated reconciliation after denial is idempotent", async () => {
+        const { sched, approvalStore } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([{ caps: ["cap.a"] }]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        await approvalStore.resolve(pending[0]!.id, "denied", "f7-test");
+        await sched.tick(run.id);
+        const first = (await store.load(run.id))!.workers.find(x => x.id === workers[0]!.id)!;
+        const firstError = first.error;
+        const firstCompletedAt = first.completedAt;
+
+        // Further ticks must not rewrite or revive it.
+        await sched.tick(run.id);
+        await sched.tick(run.id);
+        const later = (await store.load(run.id))!.workers.find(x => x.id === workers[0]!.id)!;
+        assert.equal(later.status, "failed");
+        assert.equal(later.failureKind, "approval_denied");
+        assert.equal(later.error, firstError);
+        assert.equal(later.completedAt, firstCompletedAt);
+        assert.equal(approvalStore.list().filter(a => a.capabilities?.includes("cap.a")).length, 1, "no new approval");
+        await sched.shutdown();
+      });
+
+      it("(7) daemon restart after denial stays terminal", async () => {
+        const { sched, approvalStore, config } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([{ caps: ["cap.a"] }]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        await approvalStore.resolve(pending[0]!.id, "denied", "f7-test");
+        await sched.tick(run.id);
+        await sched.shutdown();
+
+        const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+        const { ExecutionAuthorization } = await import("../../src/runtime-state/runtime/execution-authorization.js");
+        const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
+        const { buildDefaultToolIndex } = await import("../../src/capabilities/tools/tool-registry.js");
+        const store2 = new ApprovalStore(cwd);
+        await store2.load();
+        const restart = new CoordinationScheduler({
+          cwd, daemonInstanceId: "daemon-f7-restart", configProvider: async () => config,
+          store, authorization: new ExecutionAuthorization({
+            policyGate: new PolicyGate(config, { approvalStore: store2 }),
+            toolRegistry: buildDefaultToolIndex().registry,
+          }),
+          ownershipRegistry: registry,
+          executor: immediateExecutor(),
+        }, { maxConcurrency: 2, orphanThresholdMs: 60_000 });
+
+        const tick = await restart.tick(run.id);
+        const reloaded = (await store.load(run.id))!.workers.find(x => x.id === workers[0]!.id)!;
+        assert.equal(reloaded.status, "failed", "a restart must never revive a denied attempt");
+        assert.equal(reloaded.failureKind, "approval_denied");
+        assert.deepEqual(tick.dispatched, []);
+        await restart.shutdown();
+      });
+
+      it("(8) a denial bound to another worker/attempt cannot terminate this worker", async () => {
+        const { sched, approvalStore } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([
+          { caps: ["cap.a"], scopes: ["a.md"] },
+          { caps: ["cap.a"], scopes: ["b.md"] },
+        ]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        const byWorker = new Map(pending.map(p => [p.workerId!, p]));
+        // Deny worker 1 only; worker 2 stays pending.
+        await approvalStore.resolve(byWorker.get(workers[0]!.id)!.id, "denied", "f7-test");
+
+        await sched.tick(run.id);
+        const loaded = await store.load(run.id);
+        const other = loaded!.workers.find(x => x.id === workers[1]!.id)!;
+        assert.equal(
+          other.status, "blocked",
+          "another worker's denial must not terminate this one",
+        );
+        assert.equal(other.failureKind, undefined);
+        await sched.shutdown();
+      });
+
+      it("(9) denial produces no successful consumption and no verified-success receipt", async () => {
+        const { sched, approvalStore } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run } = await seedRun([{ caps: ["cap.a"] }]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        await approvalStore.resolve(pending[0]!.id, "denied", "f7-test");
+        await sched.tick(run.id);
+
+        await approvalStore.load();
+        const record = approvalStore.list().find(a => a.id === pending[0]!.id)!;
+        assert.equal(record.status, "denied", "the denial is preserved, never converted to approval");
+        assert.notEqual(record.executionOutcome, "succeeded");
+        const loaded = await store.load(run.id);
+        assert.notEqual(loaded!.status, "completed", "a denied run is never completed");
+        assert.equal(loaded!.aggregateResultRef, undefined, "no aggregate success is invented");
+        await sched.shutdown();
+      });
+
+      it("(10) approved and pending flows are unchanged", async () => {
+        const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([
+          { caps: ["cap.a"], scopes: ["a.md"] },
+          { caps: ["cap.a"], scopes: ["b.md"] },
+        ]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        const byWorker = new Map(pending.map(p => [p.workerId!, p]));
+        await approvalStore.resolve(byWorker.get(workers[0]!.id)!.id, "approved", "f7-test");
+        // worker 2 stays pending
+
+        await sched.tick(run.id);
+        for (let i = 0; i < 200 && executed.length < 1; i++) await new Promise(r => setTimeout(r, 10));
+        const loaded = await store.load(run.id);
+        const approvedWorker = loaded!.workers.find(x => x.id === workers[0]!.id)!;
+        const stillPending = loaded!.workers.find(x => x.id === workers[1]!.id)!;
+        assert.equal(approvedWorker.status, "completed", "approval still resumes and completes");
+        assert.equal(stillPending.status, "blocked", "a pending approval still keeps waiting");
+        assert.equal(stillPending.blockReason, "approval_required");
+        assert.deepEqual(executed, [workers[0]!.id]);
+        await sched.shutdown();
+      });
+    });
+
     it("a genuinely idle run still exits idle", async () => {
       // No workers at all: nothing actionable and no approval block.
       const run = createCoordinationRun({ sessionId: "s1", rootGoal: "nothing", coordinatorAgentId: "alix" });

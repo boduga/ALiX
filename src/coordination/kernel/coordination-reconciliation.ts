@@ -28,7 +28,24 @@ export type ReconciliationResult = {
   orphaned: string[];
   dependencyBlocked: string[];
   approvalResumed: string[];
+  /** Workers failed because an operator explicitly DENIED their approval. */
+  approvalDenied: string[];
   status: string;
+};
+
+/**
+ * Durable evidence that a worker's execution was refused by an operator denial.
+ *
+ * The denied attempt must never resume: the worker is terminal `failed`, and
+ * dependents are attributed through the ordinary dependency-failure path.
+ */
+export type WorkerApprovalDenial = {
+  approvalId: string;
+  capability: string;
+  /** When the operator's denial was recorded. */
+  deniedAt?: string;
+  /** The status observed on the bound record. Always `denied` for this path. */
+  status: "denied";
 };
 
 export type ReconciliationDeps = {
@@ -37,6 +54,15 @@ export type ReconciliationDeps = {
   orphanThresholdMs: number;
   clock?: Clock;
   isApproved?: (worker: WorkerAssignment, run: CoordinationRun) => Promise<boolean>;
+  /**
+   * Returns evidence when a currently-bound approval for this worker was
+   * explicitly DENIED by an operator, otherwise null.
+   *
+   * Deliberately separate from `isApproved`: `pending`, `expired`, `revoked`,
+   * `invalidated` and stale/mismatched records are NOT denials and must keep
+   * their own semantics (keep waiting, or fail closed with their own reason).
+   */
+  approvalDenial?: (worker: WorkerAssignment, run: CoordinationRun) => Promise<WorkerApprovalDenial | null>;
   activeExecutionIds?: Set<string>;
 };
 
@@ -52,6 +78,7 @@ export async function reconcileCoordinationRun(
     orphaned: [],
     dependencyBlocked: [],
     approvalResumed: [],
+    approvalDenied: [],
     status: "unknown",
   };
 
@@ -86,6 +113,50 @@ export async function reconcileCoordinationRun(
         ? `Worker orphaned — host ${worker.executionOwnerId} is dead`
         : `Worker orphaned — heartbeat ${worker.lastHeartbeatAt} exceeded threshold`,
     });
+  }
+
+  // Approval resolution
+  if (deps.isApproved || deps.approvalDenial) {
+    const renewedRun = await deps.store.load(runId);
+    if (renewedRun) {
+      for (const worker of renewedRun.workers) {
+        if (worker.status === "blocked" && worker.blockReason === "approval_required" && worker.approvalId) {
+          // An operator DENIAL is terminal and takes precedence over resumption:
+          // a definitive refusal must never be re-read as an approval on a later
+          // tick, and the denied attempt must never redispatch.
+          const denial = deps.approvalDenial ? await deps.approvalDenial(worker, renewedRun) : null;
+          if (denial) {
+            await deps.store.patchWorker(runId, worker.id, {
+              status: "failed",
+              blockReason: "execution_failed",
+              failureKind: "approval_denied",
+              // Preserve the exact authorization evidence the decision was made
+              // against: which approval, which capability, and the observed
+              // denial. This is the durable record a later reader reconstructs
+              // the refusal from.
+              approvalId: denial.approvalId,
+              error: `Approval ${denial.approvalId} denied for capability ${denial.capability}`,
+              completedAt: new Date().toISOString(),
+              approvalDeniedAt: denial.deniedAt,
+              approvalDeniedCapability: denial.capability,
+            } as any);
+            result.approvalDenied.push(worker.id);
+            continue;
+          }
+
+          if (deps.isApproved && await deps.isApproved(worker, renewedRun)) {
+            await deps.store.patchWorker(runId, worker.id, {
+              status: "pending",
+              blockReason: undefined,
+              approvalId: undefined,
+              authorizationEvidence: undefined,
+              error: undefined,
+            } as any);
+            result.approvalResumed.push(worker.id);
+          }
+        }
+      }
+    }
   }
 
   // Transitive dependency failure propagation — fixpoint loop
@@ -130,27 +201,6 @@ export async function reconcileCoordinationRun(
         });
         result.dependencyBlocked.push(worker.id);
         changed = true;
-      }
-    }
-  }
-
-  // Approval resolution
-  if (deps.isApproved) {
-    const renewedRun = await deps.store.load(runId);
-    if (renewedRun) {
-      for (const worker of renewedRun.workers) {
-        if (worker.status === "blocked" && worker.blockReason === "approval_required" && worker.approvalId) {
-          if (await deps.isApproved(worker, renewedRun)) {
-            await deps.store.patchWorker(runId, worker.id, {
-              status: "pending",
-              blockReason: undefined,
-              approvalId: undefined,
-              authorizationEvidence: undefined,
-              error: undefined,
-            } as any);
-            result.approvalResumed.push(worker.id);
-          }
-        }
       }
     }
   }

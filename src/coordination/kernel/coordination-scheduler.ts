@@ -15,7 +15,7 @@ import { acquireWorkerOwnership, releaseWorkerOwnership, releaseWorkerLeases, re
 import { DEFAULT_ORPHAN_THRESHOLD_MS } from "./owner-liveness.js";
 import { markRunGraphCancelled } from "./coordination-resume.js";
 import { reconcileCoordinationRun } from "./coordination-reconciliation.js";
-import type { ReconciliationResult as ReconcileResult } from "./coordination-reconciliation.js";
+import type { ReconciliationResult as ReconcileResult, WorkerApprovalDenial } from "./coordination-reconciliation.js";
 import { authorizeWorker } from "./coordination-authorization.js";
 import type { ExecutionAuthorization } from "../../runtime-state/runtime/execution-authorization.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
@@ -251,20 +251,31 @@ export class CoordinationScheduler {
    *      (PolicyGate `exact-binding-approved`), so a legitimate approval is never
    *      spent by a probe and two dispatches cannot both claim it.
    */
-  private async isWorkerApprovalSatisfied(
+  /**
+   * Resolve, for every gated capability of this worker, the currently-bound
+   * approval record and whether that capability is satisfied.
+   *
+   * One implementation for BOTH reconciliation outcomes, so an approval and a
+   * denial are validated against exactly the same authority. Returns null when
+   * the worker has no usable evidence.
+   */
+  private async resolveWorkerApprovals(
     worker: WorkerAssignment,
     run: CoordinationRun,
-  ): Promise<boolean> {
+  ): Promise<{
+    satisfied: boolean;
+    denial: WorkerApprovalDenial | null;
+  } | null> {
     const evidence = worker.authorizationEvidence;
-    if (!evidence?.decisions?.length) return false;
+    if (!evidence?.decisions?.length) return null;
 
     const required = [...new Set(worker.requiredCapabilities ?? [])];
-    if (required.length === 0) return false;
+    if (required.length === 0) return null;
 
     // Every required capability must have been evaluated. A capability with no
     // decision is missing authorization evidence, not an allow.
     const decided = new Map(evidence.decisions.map(d => [d.capability, d]));
-    if (required.some(cap => !decided.has(cap))) return false;
+    if (required.some(cap => !decided.has(cap))) return null;
 
     const { ApprovalStore } = await import("../../governance/approvals/approval-store.js");
     const store = new ApprovalStore(this.deps.cwd);
@@ -294,35 +305,65 @@ export class CoordinationScheduler {
       // must never create or spend one.
       const verdict = capabilityPolicyVerdict(config, capability, sessionMode);
 
-      if (verdict === "deny") return false;
+      if (verdict === "deny") return { satisfied: false, denial: null };
       if (verdict === "allow") continue; // no approval needed under current policy
 
       // (2/3) Policy requires approval: this capability needs its OWN valid,
-      // currently-bound approved record.
-      if (recorded.status !== "approval_required") return false;
+      // currently-bound record.
+      if (recorded.status !== "approval_required") return { satisfied: false, denial: null };
       const approvalId = recorded.approvalId;
-      if (!approvalId) return false;
+      if (!approvalId) return { satisfied: false, denial: null };
 
       const record = await store.loadFresh(approvalId);
-      if (!record) return false;
-      if (record.status !== "approved") return false;
-      if (new Date(record.expiresAt) <= new Date()) return false;
+      if (!record) return { satisfied: false, denial: null };
+      if (new Date(record.expiresAt) <= new Date()) return { satisfied: false, denial: null };
 
       // (4) Exact scope: this record authorizes THIS capability and nothing
       // else. Two gated capabilities therefore need two approvals, and one
       // record can never satisfy a sibling.
       const recordCaps = record.capabilities ?? [];
-      if (recordCaps.length !== 1 || recordCaps[0] !== capability) return false;
+      if (recordCaps.length !== 1 || recordCaps[0] !== capability) {
+        return { satisfied: false, denial: null };
+      }
 
-      // Exact identity binding.
-      if (record.coordinationRunId !== run.id) return false;
-      if (record.workerId !== worker.id) return false;
-      if ((record.workerAttempt ?? 0) !== (worker.attempt ?? 0)) return false;
-      if (computeOwnershipClaimsHash(record.ownershipClaims ?? []) !== wantClaimsHash) return false;
-      if (record.policyRevision !== currentPolicyRevision) return false;
+      // Exact identity binding — shared by the approve and deny paths.
+      if (record.coordinationRunId !== run.id) return { satisfied: false, denial: null };
+      if (record.workerId !== worker.id) return { satisfied: false, denial: null };
+      if ((record.workerAttempt ?? 0) !== (worker.attempt ?? 0)) return { satisfied: false, denial: null };
+      if (computeOwnershipClaimsHash(record.ownershipClaims ?? []) !== wantClaimsHash) {
+        return { satisfied: false, denial: null };
+      }
+      if (record.policyRevision !== currentPolicyRevision) return { satisfied: false, denial: null };
+
+      // (5) An EXPLICIT operator denial is a definitive refusal for this exact
+      // capability — terminal for the worker, never resumable. Only `denied`
+      // qualifies: `pending` keeps waiting, and `expired`/`revoked`/
+      // `invalidated`/`consumed` keep their own fail-closed semantics rather
+      // than being reinterpreted as a denial.
+      if (record.status === "denied") {
+        return {
+          satisfied: false,
+          denial: {
+            approvalId: record.id,
+            capability,
+            status: "denied",
+            ...(record.decidedAt ? { deniedAt: record.decidedAt } : {}),
+          },
+        };
+      }
+
+      if (record.status !== "approved") return { satisfied: false, denial: null };
     }
 
-    return true;
+    return { satisfied: true, denial: null };
+  }
+
+  private async isWorkerApprovalSatisfied(
+    worker: WorkerAssignment,
+    run: CoordinationRun,
+  ): Promise<boolean> {
+    const resolved = await this.resolveWorkerApprovals(worker, run);
+    return resolved?.satisfied ?? false;
   }
 
   async reconcile(runId: string): Promise<ReconciliationResult> {
@@ -336,6 +377,14 @@ export class CoordinationScheduler {
           return await this.isWorkerApprovalSatisfied(worker, run);
         } catch {
           return false;
+        }
+      },
+      approvalDenial: async (worker: WorkerAssignment, run: CoordinationRun) => {
+        try {
+          const resolved = await this.resolveWorkerApprovals(worker, run);
+          return resolved?.denial ?? null;
+        } catch {
+          return null;
         }
       },
       activeExecutionIds: new Set(this.activeExecutions.keys()),
