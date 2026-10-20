@@ -908,7 +908,10 @@ describe("coordination.run session-mode clamp", () => {
     } finally {
       controller.abort();
       const settled = await pendingRun.then(() => undefined, (error: unknown) => error as Error);
-      if (!failed) assert.equal(settled?.name, "ExecutionCancelledError");
+      // The handler can now settle before the abort lands (an approved worker
+      // resumes, so the call may return its own incomplete/terminal result
+      // first). Either way it must never surface as an unhandled rejection.
+      if (settled) assert.equal(settled.name, "ExecutionCancelledError");
     }
   });
 

@@ -36,7 +36,11 @@ export type AuthorizeWorkerOptions = {
  */
 export async function authorizeWorker(options: AuthorizeWorkerOptions): Promise<WorkerAuthorizationResult> {
   const { authorization, worker, run, cwd, sessionMode } = options;
-  const caps = worker.requiredCapabilities ?? [];
+  // Deduplicate: a repeated capability is ONE authorization requirement, not
+  // two. Evaluating it twice made the second pass re-ask against an approval the
+  // first pass had already consumed, so a planner that listed a capability
+  // twice produced a worker that could never resume (F6, test 8).
+  const caps = [...new Set(worker.requiredCapabilities ?? [])];
 
   // Empty capabilities fail closed
   if (caps.length === 0) {

@@ -126,6 +126,7 @@ describe("CoordinationScheduler", () => {
   function createScheduler(overrides: {
     executor?: any;
     authorization?: ExecutionAuthorization;
+    config?: any;
     maxConcurrency?: number;
     maxDispatchPerTick?: number;
     workerTimeoutMs?: number;
@@ -133,7 +134,7 @@ describe("CoordinationScheduler", () => {
     return new CoordinationScheduler({
       cwd,
       daemonInstanceId: "daemon-1",
-      configProvider: async () => minimalConfig(),
+      configProvider: async () => overrides.config ?? minimalConfig(),
       store,
       authorization: overrides.authorization ?? allowAllAuth(),
       ownershipRegistry: registry,
@@ -321,7 +322,13 @@ describe("CoordinationScheduler", () => {
     }
 
     it("an already-blocked approval worker stays visible on later ticks", async () => {
-      const sched = createScheduler({ authorization: switchableAuth().auth });
+      // The stub asks for approval AND the config must agree: reconciliation
+      // now recomputes the policy verdict, so an allow-by-default config would
+      // correctly resume the worker instead of leaving it blocked.
+      const sched = createScheduler({
+        authorization: switchableAuth().auth,
+        config: (() => { const c = minimalConfig() as any; c.permissions.default = "ask"; c.permissions.sessionMode = "ask"; c.permissions.tools = { "risky.cap": "ask" }; return c; })(),
+      });
       const { run, worker } = await seedBlockedWorker();
 
       // Tick 1 creates the block; it is reported as a fresh approval wait.
@@ -340,7 +347,13 @@ describe("CoordinationScheduler", () => {
     });
 
     it("runUntilIdle returns awaiting_approval, not idle, for a pre-existing block", async () => {
-      const sched = createScheduler({ authorization: switchableAuth().auth });
+      // The stub asks for approval AND the config must agree: reconciliation
+      // now recomputes the policy verdict, so an allow-by-default config would
+      // correctly resume the worker instead of leaving it blocked.
+      const sched = createScheduler({
+        authorization: switchableAuth().auth,
+        config: (() => { const c = minimalConfig() as any; c.permissions.default = "ask"; c.permissions.sessionMode = "ask"; c.permissions.tools = { "risky.cap": "ask" }; return c; })(),
+      });
       const { run, worker } = await seedBlockedWorker();
       // Create the block first, so it is pre-existing when the loop starts.
       await sched.tick(run.id);
@@ -429,6 +442,223 @@ describe("CoordinationScheduler", () => {
       await sched.shutdown();
     });
 
+    // ── F6: mixed-capability approval reconciliation ──────────────────
+    //
+    // `requiredCapabilities` is everything a worker needs; each approval record
+    // authorizes exactly ONE gated capability. Comparing a record's capabilities
+    // against the worker's whole set made any mixed allow/ask worker permanently
+    // unresumable. These pin the corrected per-gated-capability contract.
+    describe("F6 — mixed-capability approval reconciliation", () => {
+      /** A scheduler wired to a real PolicyGate + ApprovalStore. */
+      async function realScheduler(tools: Record<string, "allow" | "ask" | "deny">, exec?: any) {
+        const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+        const { ExecutionAuthorization } = await import("../../src/runtime-state/runtime/execution-authorization.js");
+        const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
+        const { buildDefaultToolIndex } = await import("../../src/capabilities/tools/tool-registry.js");
+        const approvalStore = new ApprovalStore(cwd);
+        await approvalStore.load();
+        const config = minimalConfig() as any;
+        config.permissions.default = "ask";
+        config.permissions.tools = tools;
+        const auth = new ExecutionAuthorization({
+          policyGate: new PolicyGate(config, { approvalStore }),
+          toolRegistry: buildDefaultToolIndex().registry,
+        });
+        const executed: string[] = [];
+        const sched = new CoordinationScheduler({
+          cwd, daemonInstanceId: "daemon-f6", configProvider: async () => config,
+          store, authorization: auth, ownershipRegistry: registry,
+          executor: exec ?? { execute: async (w: any) => { executed.push(w.id); return { outcome: "success" }; } } as any,
+        }, { maxConcurrency: 2, orphanThresholdMs: 60_000 });
+        return { sched, approvalStore, executed, config };
+      }
+
+      async function seed(caps: string[], attempt = 0) {
+        const run = createCoordinationRun({ sessionId: "s1", rootGoal: "f6", coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        run.sessionMode = "ask";
+        await store.save(run);
+        const worker = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "mixed", goalPrompt: "do",
+          requiredCapabilities: caps, attempt, maxAttempts: 3,
+          ownershipScopes: ["x.md"], ownershipClaims: [{ path: "x.md", recursive: false }],
+        });
+        await store.addWorker(run.id, worker);
+        return { run, worker };
+      }
+
+      async function approveAll(approvalStore: any, runId: string) {
+        const pending = approvalStore.listPending().filter((a: any) => a.coordinationRunId === runId);
+        for (const a of pending) await approvalStore.resolve(a.id, "approved", "f6-test");
+        return pending;
+      }
+
+      it("(1) mixed allow/ask: one approval resumes the worker", async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "file.read": "allow", "file.exists": "ask" });
+        const { run, worker } = await seed(["file.exists", "file.read"]);
+
+        await sched.tick(run.id);
+        assert.equal(executed.length, 0, "nothing runs while gated");
+        const pending = await approveAll(approvalStore, run.id);
+        assert.equal(pending.length, 1, "only the ask capability needs an approval");
+        assert.deepEqual(pending[0].capabilities, ["file.exists"]);
+
+        const resumed = await sched.tick(run.id);
+        assert.ok(resumed.dispatched.includes(worker.id), "the worker resumes");
+        for (let i = 0; i < 200 && executed.length === 0; i++) await new Promise(r => setTimeout(r, 10));
+        assert.equal(executed.length, 1, "exactly one execution");
+        await sched.shutdown();
+      });
+
+      it("(2) two ask capabilities: BOTH approvals are required", async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "cap.a": "ask", "cap.b": "ask" });
+        const { run, worker } = await seed(["cap.a", "cap.b"]);
+
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter((a: any) => a.coordinationRunId === run.id);
+        assert.equal(pending.length, 2, "each gated capability gets its own approval");
+
+        // Approve only ONE: the worker must stay blocked.
+        await approvalStore.resolve(pending[0].id, "approved", "f6-test");
+        await sched.tick(run.id);
+        assert.equal(executed.length, 0, "one approval cannot satisfy two gated capabilities");
+
+        // Approve the second: now it resumes.
+        await approvalStore.resolve(pending[1].id, "approved", "f6-test");
+        const resumed = await sched.tick(run.id);
+        assert.ok(resumed.dispatched.includes(worker.id));
+        await sched.shutdown();
+      });
+
+      it("(3) allow/allow: no approval is required", async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "file.read": "allow", "file.search": "allow" });
+        const { run, worker } = await seed(["file.read", "file.search"]);
+
+        const tick = await sched.tick(run.id);
+        assert.ok(tick.dispatched.includes(worker.id));
+        assert.equal(approvalStore.list().length, 0, "no approval is minted");
+        for (let i = 0; i < 200 && executed.length === 0; i++) await new Promise(r => setTimeout(r, 10));
+        await sched.shutdown();
+      });
+
+      it("(4) ask/deny: denied, no execution", async () => {
+        const { sched, executed } = await realScheduler({ "cap.a": "ask", "cap.b": "deny" });
+        const { run } = await seed(["cap.a", "cap.b"]);
+
+        const tick = await sched.tick(run.id);
+        assert.deepEqual(tick.dispatched, []);
+        const loaded = await store.load(run.id);
+        const w = loaded!.workers[0];
+        assert.equal(w.status, "failed");
+        assert.equal(w.blockReason, "authorization_denied");
+        assert.equal(executed.length, 0, "a denial can never be overridden by an ask");
+        await sched.shutdown();
+      });
+
+      it("(5) missing authorization decision: fails closed", async () => {
+        const { sched, executed } = await realScheduler({ "cap.a": "ask" });
+        const { run, worker } = await seed(["cap.a"]);
+        await sched.tick(run.id);
+        // Drop the decision for a required capability: evidence is incomplete.
+        await store.patchWorker(run.id, worker.id, { authorizationEvidence: { evaluatedAt: new Date().toISOString(), decisions: [] } });
+        const tick = await sched.tick(run.id);
+        assert.deepEqual(tick.dispatched, [], "missing evidence must not resume");
+        assert.equal(executed.length, 0);
+        await sched.shutdown();
+      });
+
+      it("(6) stale policy revision: no resume", async () => {
+        const { sched, approvalStore, executed, config } = await realScheduler({ "cap.a": "ask" });
+        const { run } = await seed(["cap.a"]);
+        await sched.tick(run.id);
+        const pending = await approveAll(approvalStore, run.id);
+        assert.equal(pending.length, 1);
+
+        // Change a policy-relevant field: the approval is now bound to a stale revision.
+        (config.permissions.tools as any)["cap.other"] = "allow";
+        const tick = await sched.tick(run.id);
+        assert.deepEqual(tick.dispatched, [], "an approval from a superseded policy must not authorize");
+        assert.equal(executed.length, 0);
+        await sched.shutdown();
+      });
+
+      it("(7) wrong worker or attempt: no resume", async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "cap.a": "ask" });
+        const { run, worker } = await seed(["cap.a"]);
+        await sched.tick(run.id);
+        const pending = await approveAll(approvalStore, run.id);
+
+        // Bump the attempt: the approval was issued for attempt 0.
+        await store.patchWorker(run.id, worker.id, { attempt: 1 });
+        const tick = await sched.tick(run.id);
+        assert.deepEqual(tick.dispatched, [], "an approval bound to another attempt must not resume");
+        assert.equal(executed.length, 0);
+        assert.equal(pending.length, 1);
+        await sched.shutdown();
+      });
+
+      it("(8) duplicate capability entries: no duplicate approval or consumption", async () => {
+        const { sched, approvalStore } = await realScheduler({ "cap.a": "ask", "cap.b": "allow" });
+        const { run, worker } = await seed(["cap.a", "cap.a", "cap.b"]);
+
+        await sched.tick(run.id);
+        const created = approvalStore.list().filter((a: any) => a.coordinationRunId === run.id);
+        assert.equal(created.length, 1, "a duplicated capability must not mint two approvals");
+
+        await approveAll(approvalStore, run.id);
+        const resumed = await sched.tick(run.id);
+        assert.ok(resumed.dispatched.includes(worker.id));
+        const after = approvalStore.list().filter((a: any) => a.coordinationRunId === run.id);
+        assert.equal(after.length, 1, "resumption must not create a second approval");
+        await sched.shutdown();
+      });
+
+      it("(9) restart recovery with mixed-capability approvals", async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "file.read": "allow", "file.exists": "ask" });
+        const { run, worker } = await seed(["file.exists", "file.read"]);
+        await sched.tick(run.id);
+        await approveAll(approvalStore, run.id);
+        await sched.shutdown();
+
+        // A FRESH scheduler over the same durable state must resume it.
+        const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+        const { ExecutionAuthorization } = await import("../../src/runtime-state/runtime/execution-authorization.js");
+        const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
+        const { buildDefaultToolIndex } = await import("../../src/capabilities/tools/tool-registry.js");
+        const store2 = new ApprovalStore(cwd);
+        await store2.load();
+        const config = minimalConfig() as any;
+        config.permissions.default = "ask";
+        config.permissions.tools = { "file.read": "allow", "file.exists": "ask" };
+        const restart = new CoordinationScheduler({
+          cwd, daemonInstanceId: "daemon-f6-restart", configProvider: async () => config,
+          store,
+          authorization: new ExecutionAuthorization({
+            policyGate: new PolicyGate(config, { approvalStore: store2 }),
+            toolRegistry: buildDefaultToolIndex().registry,
+          }),
+          ownershipRegistry: registry,
+          executor: { execute: async (w: any) => { executed.push(w.id); return { outcome: "success" }; } } as any,
+        }, { maxConcurrency: 2, orphanThresholdMs: 60_000 });
+        const tick = await restart.tick(run.id);
+        assert.ok(tick.dispatched.includes(worker.id), "a fresh scheduler resumes the mixed-capability worker");
+        await restart.shutdown();
+      });
+
+      it("(10) single-capability approval behavior is unchanged", async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "cap.a": "ask" });
+        const { run, worker } = await seed(["cap.a"]);
+        await sched.tick(run.id);
+        const pending = await approveAll(approvalStore, run.id);
+        assert.equal(pending.length, 1);
+        const resumed = await sched.tick(run.id);
+        assert.ok(resumed.dispatched.includes(worker.id));
+        for (let i = 0; i < 200 && executed.length === 0; i++) await new Promise(r => setTimeout(r, 10));
+        assert.equal(executed.length, 1);
+        await sched.shutdown();
+      });
+    });
+
     it("a genuinely idle run still exits idle", async () => {
       // No workers at all: nothing actionable and no approval block.
       const run = createCoordinationRun({ sessionId: "s1", rootGoal: "nothing", coordinatorAgentId: "alix" });
@@ -457,7 +687,13 @@ describe("CoordinationScheduler", () => {
       forced!.status = "failed";
       await store.save(forced!);
 
-      const sched = createScheduler({ authorization: switchableAuth().auth });
+      // The stub asks for approval AND the config must agree: reconciliation
+      // now recomputes the policy verdict, so an allow-by-default config would
+      // correctly resume the worker instead of leaving it blocked.
+      const sched = createScheduler({
+        authorization: switchableAuth().auth,
+        config: (() => { const c = minimalConfig() as any; c.permissions.default = "ask"; c.permissions.sessionMode = "ask"; c.permissions.tools = { "risky.cap": "ask" }; return c; })(),
+      });
       const result = await sched.tick(run.id);
 
       assert.equal(result.runStatus, "failed");
