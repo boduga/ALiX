@@ -36,12 +36,33 @@ export class PricingCatalog {
   }
 
   /**
-   * Look up the latest pricing for a (provider, model) combination.
-   * Returns undefined if no pricing exists.
+   * Look up the pricing that applies at a given time.
+   *
+   * HISTORICAL CORRECTNESS (F1-D): an invocation must be costed at the rate in
+   * effect WHEN IT RAN, not whichever rate happens to be current. The previous
+   * behaviour always returned the latest entry, so replaying a run from before a
+   * price change applied the new price — in a two-tier test that is a 10x error.
+   *
+   * `at` is an ISO timestamp or date. Entries effective AFTER `at` are excluded;
+   * among those that apply, the newest wins. When no entry applies yet (the
+   * invocation predates the earliest known price) this returns `undefined`, which
+   * correctly surfaces as unknown cost rather than borrowing a later price.
+   *
+   * Omitting `at` keeps the previous "latest known price" behaviour, which is
+   * only appropriate for a forward-looking estimate — never for attribution of a
+   * past invocation.
    */
-  lookup(provider: string, model: string): PricingEntry | undefined {
+  lookup(provider: string, model: string, at?: string): PricingEntry | undefined {
+    const cutoff = at ? Date.parse(at) : null;
     const matches = this.entries
       .filter(e => e.provider === provider && e.model === model)
+      .filter(e => {
+        if (cutoff === null || !Number.isFinite(cutoff)) return true;
+        const from = Date.parse(e.effectiveFrom);
+        // An unparseable effectiveFrom cannot be shown to apply; exclude it
+        // rather than treating it as always-valid.
+        return Number.isFinite(from) && from <= cutoff;
+      })
       .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
     return matches[0];
   }
@@ -192,7 +213,7 @@ export class CostAttribution {
           const cachedInputTokens = Number(p.cachedInputTokens ?? 0);
           const reasoningTokens = Number(p.reasoningTokens ?? 0);
           const tokens = inputTokens + outputTokens;
-          const price = this.catalog.lookup(provider, model);
+          const price = this.catalog.lookup(provider, model, event.timestamp);
           const cost = computeCost(inputTokens, outputTokens, price);
           const billable = !isNonBillableProvider(provider);
 

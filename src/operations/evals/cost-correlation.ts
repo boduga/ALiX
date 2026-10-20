@@ -33,6 +33,11 @@ export type RunInvocation = {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  /**
+   * When this invocation ran. Required for effective-dated pricing: costing a
+   * past invocation at the current rate silently rewrites history.
+   */
+  timestamp: string;
   /** True when the invocation came from a scripted/mock provider. */
   nonBillable: boolean;
 };
@@ -104,6 +109,7 @@ export function invocationsForRun(events: readonly UsageEvent[], runId: string):
       invocations.push({
         eventId: event.id, provider, model,
         inputTokens: Number.NaN, outputTokens: Number.NaN,
+        timestamp: event.timestamp,
         nonBillable: isNonBillableProvider(provider),
       });
       continue;
@@ -111,15 +117,22 @@ export function invocationsForRun(events: readonly UsageEvent[], runId: string):
 
     invocations.push({
       eventId: event.id, provider, model, inputTokens, outputTokens,
+      timestamp: event.timestamp,
       nonBillable: isNonBillableProvider(provider),
     });
   }
   return invocations;
 }
 
-/** Minimal catalog port; matches `PricingCatalog.lookup`. */
+/**
+ * Minimal catalog port; matches `PricingCatalog.lookup`.
+ *
+ * `at` is the invocation timestamp. An implementation that cannot resolve
+ * effective-dated pricing SHOULD use it, or return `undefined` rather than a
+ * current rate — costing history at today's price is a silent correctness bug.
+ */
 export type PricingLookup = {
-  lookup(provider: string, model: string): PricingEntry | undefined;
+  lookup(provider: string, model: string, at?: string): PricingEntry | undefined;
 };
 
 function computeFromPricing(inv: RunInvocation, price: PricingEntry): number {
@@ -197,7 +210,8 @@ export function correlateRunCost(
   const unpriced: string[] = [];
   let total = 0;
   for (const inv of invocations) {
-    const price = catalog.lookup(inv.provider, inv.model);
+    // Effective-dated: cost this invocation at the rate in force when it ran.
+    const price = catalog.lookup(inv.provider, inv.model, inv.timestamp);
     if (!price) {
       unpriced.push(`${inv.provider}/${inv.model}`);
       continue;
