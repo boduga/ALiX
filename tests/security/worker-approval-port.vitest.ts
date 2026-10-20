@@ -55,11 +55,28 @@ describe('worker approval port (F8b)', () => {
     const port = createWorkerApprovalPort(store);
     for (const method of [
       'get', 'loadFresh', 'findExact', 'findPendingByBindingKey', 'findPending',
-      'findResolved', 'request', 'requestOrReusePending', 'consumeApproved',
-      'recordExecutionOutcome', 'load',
+      'findResolved', 'findByRequestId', 'request', 'requestOrReusePending',
+      'consumeApproved', 'recordExecutionOutcome', 'load', 'markExecutionUnverified',
     ]) {
       expect(typeof (port as unknown as Record<string, unknown>)[method]).toBe('function');
     }
+  });
+
+  it('reuses a prior approved resolution for the same request id (legacy de-dup)', async () => {
+    // PolicyGate's legacy branch looks up the prior record by requestId after the
+    // agent loop re-evaluates the same tool call. With the method omitted, that
+    // lookup silently returns undefined and a SECOND approval is minted for the
+    // same call — the pending-approval pile-up failure.
+    const { store } = await workspace();
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
+
+    const created = await port.request({
+      reason: 'legacy ask', capability: 'shell.exec',
+      sessionId: 's1', agentId: 'worker-a', requestId: 'call-1',
+    });
+    expect(port.findByRequestId('call-1')?.id).toBe(created.id);
+    // A different request id must not collide.
+    expect(port.findByRequestId('call-2')).toBeUndefined();
   });
 
   it('CANNOT approve or deny: no decision method is reachable', async () => {
@@ -149,17 +166,51 @@ describe('worker approval port (F8b)', () => {
     expect(port.findExact('binding-abc')).toBeUndefined();
   });
 
-  it('reports the execution outcome of its own consumed approval', async () => {
+  it('reports the execution outcome of its OWN consumed approval', async () => {
     const { cwd, store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
     const created = await port.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
     await port.consumeApproved(created.id, REQUEST.bindingKey, {});
 
-    await port.recordExecutionOutcome(created.id, 'succeeded');
+    expect(await port.recordExecutionOutcome(created.id, 'succeeded')).toBe(true);
     const after = await port.loadFresh(created.id);
     expect(after?.executionOutcome).toBe('succeeded');
+  });
+
+  it('REFUSES to report an outcome for another worker\u2019s claim', async () => {
+    // The store validates only status/outcome-transition, not reporter identity,
+    // so the port must refuse a cross-worker write or one worker could falsify
+    // another's execution receipt.
+    const { cwd, store } = await workspace();
+    const ownerPort = createWorkerApprovalPort(store, { workerId: 'worker-a' });
+    const otherPort = createWorkerApprovalPort(store, { workerId: 'worker-b' });
+
+    const created = await ownerPort.requestOrReusePending(REQUEST);
+    const operator = await otherProcess(cwd);
+    await operator.resolve(created.id, 'approved', 'operator');
+    await ownerPort.consumeApproved(created.id, REQUEST.bindingKey, {});
+
+    expect(await otherPort.recordExecutionOutcome(created.id, 'succeeded')).toBe(false);
+    expect((await otherPort.loadFresh(created.id))?.executionOutcome).toBe('pending');
+
+    // The rightful owner can still report.
+    expect(await ownerPort.recordExecutionOutcome(created.id, 'failed')).toBe(true);
+  });
+
+  it('a port with no bound worker id cannot report on a worker-bound claim', async () => {
+    const { cwd, store } = await workspace();
+    const unbound = createWorkerApprovalPort(store);
+    const bound = createWorkerApprovalPort(store, { workerId: 'worker-a' });
+
+    const created = await bound.requestOrReusePending(REQUEST);
+    const operator = await otherProcess(cwd);
+    await operator.resolve(created.id, 'approved', 'operator');
+    await bound.consumeApproved(created.id, REQUEST.bindingKey, {});
+
+    expect(await unbound.recordExecutionOutcome(created.id, 'succeeded')).toBe(false);
+    expect(await bound.recordExecutionOutcome(created.id, 'succeeded')).toBe(true);
   });
 
   it('refuses to construct a port that would expose a decision method', async () => {
@@ -169,5 +220,43 @@ describe('worker approval port (F8b)', () => {
     const port = createWorkerApprovalPort(store) as unknown as Record<string, unknown>;
     expect('resolve' in port).toBe(false);
     expect('revoke' in port).toBe(false);
+  });
+
+  it('PolicyGate reuses an approved request through the port instead of asking again', async () => {
+    // End-to-end form of the de-dup regression: the legacy gate branch must see
+    // the prior approval via findByRequestId. Without it, the agent loop's
+    // re-evaluation mints a second pending approval and the tool never runs.
+    const { PolicyGate } = await import('../../src/governance/policy/policy-gate.js');
+    const { store } = await workspace();
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
+
+    const config = {
+      version: 1,
+      model: { provider: 't', name: 't' },
+      permissions: {
+        default: 'ask', tools: { 'shell.run': 'ask' }, protectedPaths: [],
+        allowNetworkDomains: [], denyCommands: [], sessionMode: 'ask' as const,
+      },
+      context: { repoMap: false, repoMapMode: 'lite', maxRepoMapTokens: 0, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] },
+      runtime: { provider: 'process', shell: 'bash', commandTimeoutMs: 1000, envAllowlist: [] },
+      ui: { enabled: false, host: '127.0.0.1', port: 0, transport: 'sse' },
+    } as never;
+
+    const gate = new PolicyGate(config as never, { approvalStore: port as never });
+    const request = {
+      requestId: 'call-1', toolName: 'shell.run', capability: 'shell.exec',
+      args: { command: 'ls' }, cwd: '/tmp', sessionMode: 'ask' as const,
+      sessionId: 's1', agentId: 'worker-a', source: 'tool' as const,
+    };
+
+    const first = await gate.evaluateToolCall(request as never);
+    expect(first.decision).toBe('ask');
+    expect(first.approvalId).toBeTruthy();
+
+    await store.resolve(first.approvalId!, 'approved', 'operator');
+
+    const second = await gate.evaluateToolCall(request as never);
+    expect(second.decision).toBe('allow');
+    expect(second.approvalId).toBe(first.approvalId);
   });
 });

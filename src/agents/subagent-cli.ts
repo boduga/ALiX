@@ -624,7 +624,7 @@ export class SubagentCLI {
     let approvalPort: WorkerApprovalPort | undefined;
     try {
       const { openWorkerApprovalPort } = await import("../governance/approvals/worker-approval-port.js");
-      approvalPort = await openWorkerApprovalPort(projectRoot, { eventLog });
+      approvalPort = await openWorkerApprovalPort(projectRoot, { eventLog, workerId: taskId });
     } catch (err) {
       // Readable, actionable evidence — never a silent downgrade.
       try {

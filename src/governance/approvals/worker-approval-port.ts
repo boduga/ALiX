@@ -26,8 +26,11 @@
  * single-use approval. The port is a narrowing layer, never a second authority:
  * it always delegates to a store instance opened on the SAME workspace.
  *
- * Decisions stay operator-controlled because there is simply no reachable
- * method that records one.
+ * Decisions stay operator-controlled: `resolve`, `resolveWithEvidence`,
+ * `resolveGroup`, `revoke` and `invalidate` are not reachable, so no method on
+ * this port can move a request to `approved`. A worker CAN report the outcome of
+ * an execution it performed, but only for a record it owns — see
+ * `recordExecutionOutcome` below.
  */
 
 import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
@@ -50,6 +53,16 @@ export interface WorkerApprovalPort {
    */
   findResolved(opts: { graphId?: string; nodeId?: string; capability?: string }): ApprovalRecord | undefined;
   /**
+   * Most recent record for a stable request id (typically the toolCallId).
+   *
+   * Required by `PolicyGate`'s legacy de-dup branch: after the operator approves,
+   * the agent loop re-evaluates the SAME tool call, and without this lookup it
+   * mints a second approval instead of honouring the first — the
+   * "many pending approvals pile up" failure. Optional chaining at the call site
+   * means omitting it here fails SILENTLY, so it must be exposed.
+   */
+  findByRequestId(requestId: string): ApprovalRecord | undefined;
+  /**
    * Create a fresh PENDING approval (legacy capability path).
    *
    * Safe for a worker: it can only ever mint `pending`. Reconciliation of that
@@ -61,10 +74,29 @@ export interface WorkerApprovalPort {
   requestOrReusePending(input: Parameters<ApprovalStore["requestOrReusePending"]>[0]): Promise<ApprovalRecord>;
   /** Atomically claim an approved record. Single-use across processes. */
   consumeApproved: ApprovalStore["consumeApproved"];
-  /** Report the outcome of an execution this worker performed. */
-  recordExecutionOutcome: ApprovalStore["recordExecutionOutcome"];
+  /**
+   * Report the outcome of an execution THIS worker performed.
+   *
+   * Scope-limited by the `workerId` bound at construction: the record must
+   * belong to this worker, or carry no worker binding at all (legacy
+   * non-coordination records). Without this, any worker holding a consumed id
+   * could falsify another worker's execution receipt — the store itself
+   * validates only status/outcome transition, not reporter identity.
+   *
+   * Returns the store's own boolean: `true` only when the transition landed.
+   */
+  recordExecutionOutcome(
+    id: string,
+    outcome: "succeeded" | "failed" | "cancelled",
+  ): Promise<boolean>;
   /** Re-read the ledger so cross-process decisions become visible. */
   load(): Promise<void>;
+  /**
+   * Classify a still-`pending` consumed claim as `unverified` (terminal,
+   * fail-closed). Exposed so `PolicyGate`'s consumed-replay branch can report an
+   * exact reason instead of silently degrading to "already consumed".
+   */
+  markExecutionUnverified?(id: string): Promise<"unverified" | "pending" | "terminal" | "missing">;
 }
 
 /**
@@ -82,7 +114,7 @@ export interface WorkerApprovalPort {
  */
 export async function openWorkerApprovalPort(
   workspace: string,
-  options: { eventLog?: unknown } = {},
+  options: { eventLog?: unknown; workerId?: string } = {},
 ): Promise<WorkerApprovalPort> {
   const { ApprovalStore } = await import("../../governance/approvals/approval-store.js");
   const store = new ApprovalStore(
@@ -90,7 +122,7 @@ export async function openWorkerApprovalPort(
     options.eventLog ? { eventLog: options.eventLog as never } : {},
   );
   await store.load();
-  return createWorkerApprovalPort(store);
+  return createWorkerApprovalPort(store, { ...(options.workerId ? { workerId: options.workerId } : {}) });
 }
 
 /** Methods that would let a worker authorize its own operations. */
@@ -112,7 +144,11 @@ const FORBIDDEN = [
  * worker's tool executor and PolicyGate behave exactly as they do in the parent
  * without ever holding a decision-recording handle.
  */
-export function createWorkerApprovalPort(store: ApprovalStore): WorkerApprovalPort {
+export function createWorkerApprovalPort(
+  store: ApprovalStore,
+  options: { workerId?: string } = {},
+): WorkerApprovalPort {
+  const boundWorkerId = options.workerId;
   const port: WorkerApprovalPort = {
     get: (id) => store.get(id),
     loadFresh: (id) => store.loadFresh(id),
@@ -120,11 +156,22 @@ export function createWorkerApprovalPort(store: ApprovalStore): WorkerApprovalPo
     findPendingByBindingKey: (bindingKey) => store.findPendingByBindingKey(bindingKey),
     findPending: (query) => store.findPending(query),
     findResolved: (opts) => store.findResolved(opts),
+    findByRequestId: (requestId) => store.findByRequestId(requestId),
     request: (opts) => store.request(opts),
     requestOrReusePending: (input) => store.requestOrReusePending(input),
     consumeApproved: store.consumeApproved.bind(store),
-    recordExecutionOutcome: store.recordExecutionOutcome.bind(store),
+    recordExecutionOutcome: async (id, outcome) => {
+      // Ownership check FIRST: a worker may only report on a record it owns, or
+      // on a legacy record with no worker binding. A port constructed without a
+      // workerId therefore refuses to report on worker-bound records at all
+      // (fail closed) while still serving legacy records.
+      const record = store.get(id) ?? await store.loadFresh(id);
+      if (!record) return false;
+      if (record.workerId && record.workerId !== boundWorkerId) return false;
+      return store.recordExecutionOutcome(id, outcome);
+    },
     load: () => store.load(),
+    markExecutionUnverified: (id) => store.markExecutionUnverified(id),
   };
 
   // Structural guarantee, not a convention: no forbidden method is reachable
