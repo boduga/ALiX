@@ -909,7 +909,22 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         events: [],
         error: errorMsg,
       };
-      console.error(formatSubagentResult(result, outputFormat));
+      // JSON is the MACHINE contract: the parent (SubagentManager.spawn) parses
+      // ONLY stdout for the final result. A failed JSON result written to stderr
+      // is never seen, so the parent falls back to the raw exit code and
+      // rejects with a bare error string — losing the structured `status`,
+      // `findings` and `error` the child actually produced, and misreporting a
+      // clean structured failure as a crash. Emit JSON on stdout, like the
+      // success paths do.
+      //
+      // Text is the HUMAN format: its failure rendering stays on stderr so a
+      // `--output text` invocation does not put an error message where a
+      // caller may be capturing a report.
+      if (outputFormat === "json") {
+        console.log(formatSubagentResult(result, outputFormat));
+      } else {
+        console.error(formatSubagentResult(result, outputFormat));
+      }
       process.exitCode = 1;
       return;
     }

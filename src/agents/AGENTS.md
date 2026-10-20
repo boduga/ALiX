@@ -12,6 +12,13 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 - `subagent-cli.ts` builds and runs worker turns. Its lifecycle appends
   (`subagent.started/completed/failed`) are best-effort: the stdout result is
   authoritative, so a contended EventLog append must never fail the worker.
+  That includes the FAILURE path: in `--output json` the structured failed
+  `SubagentResult` is written to **stdout**, because `SubagentManager.spawn`
+  parses stdout only. Writing it to stderr makes the parent fall back to the raw
+  exit code and reject with a bare error string, discarding `status`, `findings`
+  and `error` and misreporting a clean structured failure as a crash (D8-01).
+  `--output text` keeps its human failure rendering on stderr so it cannot
+  pollute a captured report.
 - `subagent-manager.ts` — subagent lifecycle (spawn/cancel/shutdown) and the
   chat-path ownership lease point: write tasks with `ownedPaths` acquire
   durable `src/coordination/ownership/ownership-registry.ts` leases at spawn (workspace root
