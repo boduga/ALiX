@@ -39,6 +39,7 @@ export function resolveEffectiveModel(
 import { EventLog } from "../runtime-state/events/event-log.js";
 import { createProvider } from "../models/providers/registry.js";
 import { createToolExecutor } from "../capabilities/tools/tool-executor-factory.js";
+import type { WorkerApprovalPort } from "../governance/approvals/worker-approval-port.js";
 import type { ToolDef, ToolCall, NormalizedMessage } from "../models/providers/types.js";
 import { buildToolsForProvider } from "../run.js";
 import { McpManager } from "../capabilities/mcp/manager.js";
@@ -606,6 +607,40 @@ export class SubagentCLI {
     const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy)
       .filter(t => !nestedRunBlocklist.has(t.name));
 
+    // Tool-level authorization boundary for an ISOLATED worker process.
+    //
+    // A subagent runs as its own OS process, so it cannot receive the parent's
+    // in-memory ApprovalStore. It therefore opens its own instance against the
+    // SAME authoritative workspace (`projectRoot` is the cwd the parent spawned
+    // us in — never a guessed or config-derived path), and recognises itself
+    // through a RESTRICTED port that can request, observe and consume approvals
+    // but cannot record a decision. That is deliberate: without the port a
+    // worker could call `resolve()` on its own request and grant itself any
+    // capability.
+    //
+    // Fail closed: if the ledger cannot be opened or loaded, no port is wired
+    // and gated tool calls stay denied exactly as before — an inaccessible
+    // approval store must never become implicit permission.
+    let approvalPort: WorkerApprovalPort | undefined;
+    try {
+      const { ApprovalStore } = await import("../governance/approvals/approval-store.js");
+      const { createWorkerApprovalPort } = await import("../governance/approvals/worker-approval-port.js");
+      const store = new ApprovalStore(projectRoot, { eventLog });
+      await store.load();
+      approvalPort = createWorkerApprovalPort(store);
+    } catch (err) {
+      // Readable, actionable evidence — never a silent downgrade.
+      try {
+        await eventLog.append({
+          actor: "subagent",
+          type: "subagent.approval_store_unavailable",
+          sessionId,
+          payload: { error: err instanceof Error ? err.message : String(err) },
+        });
+      } catch { /* telemetry is best-effort; the denial below is the contract */ }
+      approvalPort = undefined;
+    }
+
     const executor = createToolExecutor({
       config,
       log: eventLog,
@@ -613,6 +648,7 @@ export class SubagentCLI {
       mcpManager: mcpManager ?? undefined,
       editFormatPolicy: buildEditFormatPolicy({ provider: effectiveProvider, preferred: provider.editFormatPreference }),
       ownedPaths: mode === "write" ? ownedPaths : undefined,
+      ...(approvalPort ? { approvalStore: approvalPort as never } : {}),
     });
 
     // Build system prompt with role instructions and context
