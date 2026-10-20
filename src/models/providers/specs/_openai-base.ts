@@ -65,7 +65,15 @@ export const openaiBaseSpec: ProviderSpec = {
     }
     if (req.temperature !== undefined) body.temperature = req.temperature;
     if (req.maxOutputTokens !== undefined) body.max_tokens = req.maxOutputTokens;
-    if (req.stream) body.stream = true;
+    if (req.stream) {
+      body.stream = true;
+      // Ask for usage on the terminal chunk. Without this, a streaming response
+      // carries NO usage at all (`obj.usage` is absent, so `fromStreamChunk`
+      // never yields a usage event), and every cost figure derived from a
+      // streaming run — the default for most models — would be unmeasurable.
+      // This is why real-model runs produced no `model.usage` events.
+      body.stream_options = { include_usage: true };
+    }
     return body;
   },
 
