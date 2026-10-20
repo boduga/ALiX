@@ -88,8 +88,14 @@ describe("CostAttribution", () => {
 
   it("attributes known pricing correctly", () => {
     assert.equal(summary.totalTokens, 2300);
+    // F1-C: this session mixes a PRICED model (openai/gpt-4) with a
+    // NON-BILLABLE local one (ollama/llama3). Local execution is legitimately
+    // not billable, so the priced subtotal IS the correct complete total — a
+    // non-billable provider must not be confused with missing pricing.
     // input: 500 * 30/1M = 0.015, output: 300 * 60/1M = 0.018 => total 0.033
     assert.ok(Math.abs(summary.totalCost - 0.033) < 0.001);
+    assert.equal(summary.costCompleteness, "complete");
+    assert.equal(summary.knownCostSubtotal, null);
   });
 
   it("reports cost unknown for models without pricing", () => {

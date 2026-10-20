@@ -24,6 +24,7 @@
  */
 
 import type { PricingEntry } from "../../operations/observability/cost-attribution.js";
+import { isNonBillableProvider } from "../../operations/observability/cost-attribution.js";
 
 /** One model invocation observed in the event stream. */
 export type RunInvocation = {
@@ -61,14 +62,12 @@ export type RunCostCorrelation = {
   evidence: string[];
 };
 
-/** Providers that execute locally or by script and are never billable. */
-const NON_BILLABLE_PROVIDERS = new Set([
-  "scripted-mock", "mock", "local-llama", "ollama", "test",
-]);
-
-export function isNonBillableProvider(provider: string): boolean {
-  return NON_BILLABLE_PROVIDERS.has(provider.toLowerCase());
-}
+/**
+ * Re-exported from the pricing authority so there is ONE definition of
+ * "non-billable". Importing from here keeps the evaluator and the cost summary
+ * from drifting apart.
+ */
+export { isNonBillableProvider };
 
 /** Structural shape of the usage-bearing event this module reads. */
 export type UsageEvent = {
