@@ -14,7 +14,10 @@ Purpose: an independent behavioral-evaluation harness that runs scripted task ca
 | `drivers/delegate-driver.ts` | Matrix-G delegate driver over real `SubagentManager.spawn`; `normalizeSubagentResult`, `runDelegateCase`, `createSubagentExecutor` |
 | `drivers/main-loop-driver.ts` | Full agent-loop driver over `runTask`; `normalizeRunResult`, `runMainLoopCase` |
 | `cases/behavioral.ts` | EVAL-001..007 case definitions |
-| `cases/index.ts` | `BEHAVIORAL_CASES` (live) + `SYNTHETIC_CASES` (honesty fixtures) |
+| `cases/strata-2-4.ts` | Strata 2 (navigation) + 4 (multi-file) — 3 cases, incl. the composite negative |
+| `cases/strata-5-10.ts` | Strata 5 (verification/repair) + 10 (tool failure) — 4 cases |
+| `cases/stratum-9-local.ts` | CPU-only **labelling guard** (`isLocalProvider`, `canLabelCpuOnly`), not a case |
+| `cases/index.ts` | `BEHAVIORAL_CASES` (live, all strata) + `SYNTHETIC_CASES` (honesty fixtures) |
 | `evals-runner.ts` | `runEvalCase`, `runEvalSuite`, `installEvalConfig`, `installSeed`, `saveRun`, `loadPreviousRuns`; isolated cwd + `.alix/evals/<runId>.json` persistence |
 | `dataset-eval.ts` | P4 model-running loop over corpus incidents: candidate prompt per task, LLM-judge 0..1 scores (`eval:<name>`), fail-open per incident. Judge is a direction check, not a verified fix — the gate decides. Feeds score.mjs batch + eval-gate.mjs. |
 
@@ -30,19 +33,24 @@ CLI: `src/interfaces/cli/commands/evals.ts` (`alix evals run [--suite behavioral
 - **Status source:** delegate driver surfaces `SubagentResult.status` (Matrix-G); main-loop driver surfaces `RunResult.reason`. Both normalize into the same `EvalExecutionResult`.
 - **Verdict:** `pass` only when `objectiveCorrect` (observed landing == expected) AND `honest` (objectiveCorrect AND reported status ∈ expected.statuses). A case may be `NOT LANDED` yet `PASS` when that is the expected contract.
 - **Isolation:** every case runs in its own `tmpdir()/eval-task-*` cwd, removed in a `finally`. Synthetic fixtures (`syntheticStatus`) skip driver execution entirely.
+- **Composite `files` objective:** a stratum-4 multi-file contract is `kind: "files"`, which delegates EACH entry to the same `evaluateObjective` and ANDs the results. There is still one scoring engine — never add a second. Composite mismatches are prefixed with the failing file's path, because a bare mismatch cannot identify which of N files failed.
+- **Strata 2/4/5/10 are deterministic only.** They pin runtime and evaluator behaviour. They emit no `model.usage` (no billable call), so their cost is `null` — unmeasured, NOT zero. Never present them as real-model cost evidence.
+- **Stratum 9 is an environment axis, not a case.** `canLabelCpuOnly` refuses the label unless every provider that executed was local (`ollama`, `local-llama`). No local provider is available in CI, so the stratum is guarded but unclaimed.
 - **CI stance:** opt-in only. `pnpm test:evals` runs `tests/evals/*`; the full suite is `alix evals run --suite behavioral`. Not wired into the default `pnpm test` gate.
 
 ## Work Guidance
 
 - Add cases to `cases/behavioral.ts` (or `cases/index.ts` for synthetic fixtures) with a **stable kebab-case id** prefixed `behavioral.`.
 - A new runtime case must ship a deterministic `scenario`, an evaluator-owned `objective`, and an explicit `expected` status/target contract. Verify against the live suite before marking honest.
-- To reproduce a forbidden/partial status, control `ownedPaths` (multiple paths → `partial` when only some are covered; `["."]` covers any in-cwd write).
+- To reproduce a forbidden/partial status, control `ownedPaths` (multiple paths → `partial` when only some are covered; `["."]` covers any in-cwd write). A multi-file objective MUST declare `ownedPaths` for both files — with the default `["."]` a single write satisfies the contract and `success` is the CORRECT verdict, so a partial assertion would be testing a contract the runtime was never given.
 - Patch scenarios use the `search_replace` format (`<<<<<<< SEARCH path=... / ======= / >>>>>>> REPLACE`) — all executable formats are allowed since the scripted provider declares `structured_patch` preferred.
 
 ## Verification
 
 ```bash
 pnpm test:evals                     # unit tests for evaluators/providers/drivers/runner
+# regression for the delegate failure contract (spawns the real child CLI):
+./node_modules/.bin/vitest run tests/evals/subagent-failed-result-stdout.vitest.ts --config vitest.config.mts
 pnpm build                          # typecheck + build (must be green)
 # live behavioral run:
 alix evals run --suite behavioral            # execute behavioral cases

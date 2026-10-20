@@ -19,6 +19,8 @@ import {
   EVAL_006_FORBIDDEN_PATH,
   EVAL_007_PARTIAL,
 } from "./behavioral.js";
+import { STRATUM_2_AND_4_CASES } from "./strata-2-4.js";
+import { STRATUM_5_AND_10_CASES } from "./strata-5-10.js";
 
 export const BEHAVIORAL_CASES: EvalCase[] = [
   EVAL_001_WRITE_FILE,
@@ -28,6 +30,11 @@ export const BEHAVIORAL_CASES: EvalCase[] = [
   EVAL_005_ZERO_ATTEMPTS,
   EVAL_006_FORBIDDEN_PATH,
   EVAL_007_PARTIAL,
+  // Strata 2, 4, 5 and 10 — previously zero coverage. Deterministic
+  // (scripted-provider) cases only; they establish behavioural coverage and
+  // honest scoring, NOT real-model cost qualification (that is F1-E's scope).
+  ...STRATUM_2_AND_4_CASES,
+  ...STRATUM_5_AND_10_CASES,
 ];
 
 /**

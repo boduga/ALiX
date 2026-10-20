@@ -134,5 +134,35 @@ export function evaluateObjective(cwd: string, objective: EvalObjective): Object
         evidence: { path: objective.path, exists: true, changed: false },
       };
     }
+    case "files": {
+      // Composite: delegate each entry to the SAME single-file evaluation and
+      // AND the results. No second scoring engine, no independent truth.
+      const outcomes = objective.files.map(entry => ({
+        entry,
+        outcome: evaluateObjective(cwd, {
+          kind: "file",
+          path: entry.path,
+          exists: entry.exists ?? true,
+          ...(entry.contentEquals !== undefined ? { contentEquals: entry.contentEquals } : {}),
+          ...(entry.contentIncludes !== undefined ? { contentIncludes: entry.contentIncludes } : {}),
+        }),
+      }));
+      // A single-file outcome reports its own path in evidence, but a composite
+      // has several — so every mismatch must name the file it came from or the
+      // operator cannot tell which of N files failed.
+      const mismatches = outcomes.flatMap(({ entry, outcome }) =>
+        (outcome.evidence.mismatches ?? []).map(m => `${entry.path}: ${m}`),
+      );
+      return {
+        landed: outcomes.every(({ outcome }) => outcome.landed),
+        evidence: {
+          // No single path: the composite covers several.
+          path: objective.files.map(f => f.path).join(", "),
+          exists: outcomes.every(({ outcome }) => outcome.evidence.exists),
+          changed: true,
+          mismatches,
+        },
+      };
+    }
   }
 }

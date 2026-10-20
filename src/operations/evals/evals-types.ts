@@ -44,6 +44,23 @@ export type EvalObjective =
   | {
       kind: "unchanged";
       path: string;
+    }
+  | {
+      /**
+       * Composite objective: EVERY listed file must satisfy its own contract.
+       *
+       * Additive (stratum 4). It does not introduce a second scoring engine —
+       * each entry is evaluated by the same `evaluateObjective` and the results
+       * are ANDed, so a multi-file case is exactly "all of these single-file
+       * objectives hold".
+       */
+      kind: "files";
+      files: Array<{
+        path: string;
+        contentEquals?: string;
+        contentIncludes?: string[];
+        exists?: boolean;
+      }>;
     };
 
 /** Expected outcome contract for a single eval case. */
