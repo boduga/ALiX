@@ -372,26 +372,44 @@ export class PolicyGate {
       },
     );
 
-    // Emit approval lifecycle event (created or reused)
+    // Emit approval lifecycle event for the REUSE path only.
+    //
+    // DEDUPLICATION (F1-B): on a NEW approval the store already emits
+    // `approval.created` from its committed creation transition, with a payload
+    // that is a superset of this one (approvalId, requestId, agentId,
+    // capabilities, bindingKey, policyRevision, reason, status, toolId).
+    // Emitting again here produced two creation events per logical request, which
+    // inflates approval-volume counters.
+    //
+    // The `toolName`/`cwd` fields this site used to add are not lost:
+    // `approval-projection.ts` resolves a display tool name as
+    // `toolName ?? capabilities[0] ?? toolId`, and the store payload carries
+    // `capabilities` and `toolId`. Verified before removing this emission.
+    //
+    // On REUSE the store emits nothing (`requestOrReusePending` returns the
+    // existing record without an event), so this remains the only record that a
+    // pending approval was observed and reused.
     if (this.deps.eventLog && askDecision.approvalId && askDecision.decision === "ask") {
       const isReused = askDecision.matchedRuleId === "pending-approval";
-      await this.deps.eventLog.append({
-        sessionId: request.sessionId ?? "unknown",
-        actor: "policy",
-        type: isReused ? "approval.reused" : "approval.created",
-        payload: {
-          approvalId: askDecision.approvalId,
-          requestId: request.requestId,
-          sessionId: request.sessionId,
-          agentId: request.agentId,
-          capability,
-          toolName: (request as ToolPolicyRequest).toolName,
-          status: isReused ? ("reused" as const) : ("pending" as const),
-          reason: askDecision.reason,
-          cwd: (request as ToolPolicyRequest).cwd,
-          previousApprovalId: isReused ? askDecision.approvalId : undefined,
-        },
-      }).catch(() => {});
+      if (isReused) {
+        await this.deps.eventLog.append({
+          sessionId: request.sessionId ?? "unknown",
+          actor: "policy",
+          type: "approval.reused",
+          payload: {
+            approvalId: askDecision.approvalId,
+            requestId: request.requestId,
+            sessionId: request.sessionId,
+            agentId: request.agentId,
+            capability,
+            toolName: (request as ToolPolicyRequest).toolName,
+            status: "reused" as const,
+            reason: askDecision.reason,
+            cwd: (request as ToolPolicyRequest).cwd,
+            previousApprovalId: askDecision.approvalId,
+          },
+        }).catch(() => {});
+      }
     }
 
     return askDecision;
@@ -462,24 +480,43 @@ export class PolicyGate {
       );
     }
 
-    // Emit approval lifecycle event (created or reused)
+    // Emit approval lifecycle event.
+    //
+    // DEDUPLICATION (F1-B): the store already emits `approval.created` from its
+    // committed creation transition (`createApprovalRecord`), and that payload is
+    // a SUPERSET of what this site would emit — it carries approvalId,
+    // requestId, agentId, capabilities, bindingKey, policyRevision, reason and
+    // status. Emitting `created` again here produced two creation events for one
+    // logical request (26 events across 13 approvals in a real session), which
+    // inflates any consumer counting approval volume.
+    //
+    // Only the REUSE path is emitted here. On reuse the store emits nothing —
+    // `requestOrReusePending` returns the existing record without an event — so
+    // this is the only record that a pending approval was observed and reused
+    // rather than newly created. Suppressing the duplicate must therefore be
+    // precise: `created` is silenced, `reused` is preserved.
+    //
+    // Historical logs may still contain duplicate `created` events; consumers
+    // deduplicate on `approvalId`, and those records remain valid evidence.
     if (this.deps.eventLog && capAskDecision.approvalId && capAskDecision.decision === "ask") {
       const isReused = capAskDecision.matchedRuleId === "pending-approval";
-      await this.deps.eventLog.append({
-        sessionId: request.sessionId ?? "unknown",
-        actor: "policy",
-        type: isReused ? "approval.reused" : "approval.created",
-        payload: {
-          approvalId: capAskDecision.approvalId,
-          requestId: request.requestId,
-          sessionId: request.sessionId,
-          agentId: request.agentId,
-          capability: request.capability,
-          status: isReused ? ("reused" as const) : ("pending" as const),
-          reason: capAskDecision.reason,
-          previousApprovalId: isReused ? capAskDecision.approvalId : undefined,
-        },
-      }).catch(() => {});
+      if (isReused) {
+        await this.deps.eventLog.append({
+          sessionId: request.sessionId ?? "unknown",
+          actor: "policy",
+          type: "approval.reused",
+          payload: {
+            approvalId: capAskDecision.approvalId,
+            requestId: request.requestId,
+            sessionId: request.sessionId,
+            agentId: request.agentId,
+            capability: request.capability,
+            status: "reused" as const,
+            reason: capAskDecision.reason,
+            previousApprovalId: capAskDecision.approvalId,
+          },
+        }).catch(() => {});
+      }
     }
 
     return capAskDecision;
