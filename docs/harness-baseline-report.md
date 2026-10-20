@@ -64,25 +64,43 @@ evidence and refuses to count a stratum with no evidence.
 | # | Stratum | Verified runs | Measured cost | Blocking |
 |---|---|---|---|---|
 | 1 | Read-only factual inspection | 1/1 | **not measured** | cost unmeasured |
-| 2 | Unfamiliar-code navigation | **none** | not measured | **no case coverage** |
+| 2 | Unfamiliar-code navigation | **1/1 (deterministic)** | not measured | cost unmeasured |
 | 3 | Single-file edit | 3/3 | **not measured** | cost unmeasured |
-| 4 | Multi-file bug fix | **none** | not measured | **no case coverage** |
-| 5 | Verification / repair | **none** | not measured | **no case coverage** |
+| 4 | Multi-file bug fix | **2/2 (deterministic)** | not measured | cost unmeasured |
+| 5 | Verification / repair | **2/2 (deterministic)** | not measured | cost unmeasured |
 | 6 | Four-worker coordination | 4/4 | **not measured** | cost unmeasured |
 | 7 | Allow/ask/deny mixes | 5/5 | **not measured** | cost unmeasured |
 | 8 | Crash / restart, outcome unknown | 1/1 | **not measured** | cost unmeasured |
-| 9 | Local CPU-only | **none** | not measured | **no case coverage** |
-| 10 | Tool failure / malformed calls | **none** | not measured | **no case coverage** |
+| 9 | Local CPU-only | **0/0 — guard only** | n/a (non-billable) | no local provider available |
+| 10 | Tool failure / malformed calls | **2/2 (deterministic)** | not measured | cost unmeasured |
 
-**Verified: 5/10 strata. Measured cost: 0/10 strata. Blocked: 5/10.**
+**Verified: 9/10 strata. Measured cost: 1/10 strata (stratum 3, via F1-E run
+`run-79feb4e0`). Blocked: stratum 9 (no local provider available).**
+
+Stratum 9 remains the one uncovered stratum. Its case module
+(`cases/stratum-9-local.ts`) provides the **labelling guard** — a run may only be
+recorded as CPU-only when every provider that executed was local — but no
+`ollama`/`local-llama` backend is present in this environment, so no run can be
+observed. The guard is tested; the stratum is not claimed.
 
 ### Evidence per verified stratum
 
 - **1** — `behavioral.read-only` (deterministic)
-- **3** — `write-file`, `patch-application`, `block-replacement` (deterministic)
+- **2** — `behavioral.code-navigation` (deterministic, read-only; success = tree untouched)
+- **3** — `write-file`, `patch-application`, `block-replacement` (deterministic);
+  **cost measured** — F1-E `run-79feb4e0`, `$0.108968`, completeness=complete
+- **4** — `behavioral.multi-file-fix` (both files), `behavioral.multi-file-fix-partial` (composite must NOT land)
+- **5** — `behavioral.verification-repair`, `behavioral.verification-repair-not-applied` (claims must not land)
 - **6** — Gate 7 `run-fanout`, `run-deps`, `run-conflict`, `run-failure` (real-model)
 - **7** — Gate 7 `q7-deny5`, `f8b-final`; evals `unmet-write-zero-attempts`, `forbidden-path-write`, `partial-objective`
 - **8** — Gate 7 `restart-final`
+- **10** — `behavioral.tool-failure-recovery` (failure then recovery), `behavioral.malformed-tool-call` (hard error, no recovery)
+
+**Cost caveat.** Only stratum 3 has a measured real-model cost, from a single
+3-invocation run. The other verified strata are deterministic scripted-provider
+runs that emit no `model.usage` (there is no billable call), so their cost is
+`null` — unmeasured, not zero. Do **not** read the 1/10 as "9 strata cost
+nothing".
 
 ---
 
@@ -99,43 +117,48 @@ evidence and refuses to count a stratum with no evidence.
 This is a **data and correlation gap**, not a missing feature. Per the approved
 rule, `null` stays `null`; nothing is reported as zero.
 
-**What would unblock it:** correlate `cost-attribution` rate-card data to a run
-id at projection time, then either backfill the recorded sessions or accept that
-only future runs carry cost. That is a small, well-scoped piece of work — and it
-is the highest-value next step for Gate B, ahead of adding more strata.
+**What unblocked it (F1-E, since completed):** two provider defects meant no
+streaming run ever carried usage at all — `stream_options.include_usage` was
+never sent, and o-series models rejected `max_tokens`. With those fixed, a real
+run reproduced its cost three ways ($0.108968). See
+`harness-f1e-qualified.md`. Cost correlation is now proven **mechanically**; what
+remains is running it across the remaining strata, which requires real-model
+runs rather than deterministic ones.
 
 ---
 
 ## 4. Harness readiness verdict
 
-**NOT ready for ablation comparisons.**
+**NOT ready for ablation comparisons — but the two original blockers are gone.**
 
-To run a defensible HC-01/HC-03/HC-05 ablation, the harness needs enough strata
-for the task mix under test plus measured cost per verified success. Currently:
+The coverage blocker is closed: strata 2, 4, 5 and 10 now have deterministic case
+coverage, so an ablation is no longer measuring "the easiest third of the work".
+The cost-mechanics blocker is closed by F1-E.
 
-- M2 candidates (HC-01 prompt scaffolding, HC-03 format map) affect
-  navigation, multi-file repair and verification — **strata 2, 4, 5 all have
-  zero coverage**. An ablation on today's corpus would measure the easiest
-  third of the work.
-- Cost per verified success is the PRD's primary measure and is currently
-  **unmeasurable in every stratum**.
+What still blocks a defensible ablation:
 
-Running an ablation now would produce a confident number that answers the wrong
-question — exactly the failure mode the PRD's §7 validity rules exist to prevent.
+- **Cost is measured in 1 of 10 strata.** One 3-invocation run proves the
+  mechanism, not a baseline. The other strata are deterministic runs with no
+  billable call, so their cost is genuinely `null`.
+- **Stratum 9 has no observable run.** No local provider is available here.
+- **D4-04 (delegate transport flake) remains open.** It is a real
+  nondeterminism in the delegate path; it must be resolved or excluded before
+  any run is used as a comparison baseline.
+
+Running an ablation now would still produce a confident number that answers a
+narrower question than the PRD asks — exactly the failure mode §7 validity rules
+exist to prevent.
 
 ---
 
 ## 5. Recommended next actions, in value order
 
-1. **Cost correlation** (unblocks all 10 strata at once). Highest leverage.
-2. **Stratum 5 (verification/repair)** — closest to the M2 candidates' target
-   behaviour, and currently uncovered.
-3. **Stratum 10 (tool failure)** — cheap to add deterministically; exercises
-   recovery paths the PRD cares about.
-4. **Stratum 2 (navigation) / 4 (multi-file)** — needed before any prompt
-   ablation is meaningful.
-5. **Stratum 9 (CPU-only)** — environment axis on existing cases, low effort.
-6. **Provider-backed re-run** once quota returns; pin model/provider versions.
+1. **Real-model cost runs across the newly covered strata** — the coverage exists;
+   what is missing is billable evidence per stratum. Highest leverage.
+2. **Resolve or formally exclude D4-04** before any baseline is reused.
+3. **Stratum 9** — needs a local provider (ollama or local-llama) in the
+   environment. The labelling guard is already in place and tested.
+4. **Provider-backed re-run** once quota returns; pin model/provider versions.
 
 ---
 
@@ -156,9 +179,9 @@ question — exactly the failure mode the PRD's §7 validity rules exist to prev
 | File | Change |
 |---|---|
 | `tui-e2e/baseline-coverage-matrix.mjs` (evidence repo) | new — reads recorded evidence, refuses to count absent strata |
-| this document | new baseline report |
+| this document | baseline report |
 
-No production code changed in P0-D3. No new tests were needed: the executed suite
-is the existing behavioral evaluator.
+P0-D3 changed no production code; it executed the existing behavioral evaluator.
+The strata cases added later are listed in `harness-strata-coverage.md`.
 
 Simplification HOLD. Publication HOLD (Q13).

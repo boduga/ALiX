@@ -94,8 +94,12 @@ as covered.
 | F-03 | Tool-level operator denial not exercised through the full TUI scenario | Denial proven at port and dispatch level only | F8b limitation, accepted |
 | F-04 | Ownership **hard-conflict rejection** not demonstrated | Prior evidence shows dependency *serialization*, not rejection of an unsynchronized conflict | Core release (GAP-09) |
 | F-05 | `config.model` / `config.subagents` projection readers not inventoried | Blocks safe retirement of the projections | P0-F (PRE-R010) |
-| F-06 | Prompt assembly spans ≥6 sites with no ownership map | Cannot classify HC-01 safely until mapped | P0-B (PRE-R004) |
+| F-06 | ~~Prompt assembly spans ≥6 sites with no ownership map~~ **CLOSED by P0-B** — assembly has ONE owner (`buildEffectiveSystemPrompt`, one caller at `task-loop/main.ts:664`) | Was believed to block HC-01 classification; disproven, HC-01 is safe to classify | P0-B — closed |
 | F-07 | Transient clamp-reload test observation unresolved | Possible timing fragility in an approval test | P0-D (recurrence check) |
+| F-08 | Delegate failure result was written to stderr and never parsed by the parent (fixed: D8-01) | Every structured subagent failure surfaced to the parent as a bare crash, losing `status`/`findings`/`error`. Found by running a case, not by reading code | F1/strata — **fixed + regression test** |
+| F-09 | Stratum 9 (local CPU-only) has no observable run | No `ollama`/`local-llama` provider in this environment. The labelling guard exists and is tested, but coverage cannot be claimed | Gate B — open, environment |
+| F-10 | Only 1 of 10 strata has a measured cost | F1-E proved the mechanism on one 3-invocation run; the rest are deterministic runs with no billable call, so their cost is `null`, not zero | Gate B — open, needs real-model runs |
+| F-11 | D4-04 delegate transport flake unresolved | Nondeterminism in the delegate path; must be resolved or formally excluded before any baseline is reused for comparison | separately tracked — open |
 
 ---
 
