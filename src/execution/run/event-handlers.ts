@@ -657,7 +657,18 @@ async function waitForApproval(
   const deadline = Date.now() + TIMEOUT_MS;
 
   while (Date.now() < deadline) {
-    const record = deps.executor.getApproval?.(approvalId);
+    // Authoritative cross-process read: the operator may resolve from another
+    // process (TUI/CLI), so an in-memory-only check would never observe the
+    // decision and the wait would run to timeout. `null` means a transient read
+    // error — keep waiting rather than treating it as a denial.
+    const record = deps.executor.loadApprovalForWait
+      ? await deps.executor.loadApprovalForWait(approvalId)
+      : deps.executor.getApproval?.(approvalId);
+    if (record === null) {
+      deps.onProgress?.("approval_pending");
+      await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+      continue;
+    }
     if (!record) {
       // Approval record was removed (e.g. cleared on shutdown) — treat as denied
       return "denied";

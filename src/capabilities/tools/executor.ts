@@ -172,6 +172,29 @@ export class ToolExecutor {
   }
 
   /**
+   * Authoritative approval read for a call that is WAITING on a decision.
+   *
+   * The in-memory `get` above reflects only decisions this process made. In a
+   * coordination run the operator resolves from the TUI while the worker is a
+   * separate execution context, so a wait built solely on `get` would never
+   * observe the decision — the worker would sit until its 5-minute timeout and
+   * then treat a granted approval as expired.
+   *
+   * `loadFresh` re-poll reads the authoritative ledger: it returns the current
+   * record, `undefined` when the record is gone, and a throw on a transient read
+   * error which this maps to `null` so the caller can keep waiting instead of
+   * mistaking a broken read for a denial.
+   */
+  async loadApprovalForWait(id: string): Promise<{ status?: string } | undefined | null> {
+    if (!this.approvalStore?.loadFresh) return this.getApproval(id);
+    try {
+      return await this.approvalStore.loadFresh(id);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Authorize a bound (non-routed) tool through the SAME PolicyGate pipeline
    * dispatch uses (R1.5): bound collaboration tools previously executed inline
    * with no policy decision at all. This returns the gate decision only — the

@@ -300,7 +300,10 @@ async function handleCoordinationRun(
     });
   } else {
     const { DefaultWorkerExecutor } = await import("./worker-executor.js");
-    executor = new DefaultWorkerExecutor();
+    // The scheduler's approval store is the host's authoritative one; the
+    // worker executor needs it for TOOL-level approvals (a separate boundary
+    // from dispatch authorization). Absent a store, gated tools fail closed.
+    executor = new DefaultWorkerExecutor(deps.approvalStore);
   }
   // Scheduler telemetry → the metrics store (not the session EventLog): this is
   // a full run, so it must emit tick/dispatch telemetry like the daemon/Inspector
