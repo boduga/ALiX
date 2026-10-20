@@ -193,6 +193,20 @@ context?: {
   budget?: {
     tierOrdering?: TierOrderingConfig;
   };
+  /**
+   * Authoritative run identity for this execution.
+   *
+   * Supplied by the caller from the execution authority (`runTaskCoreImpl`'s
+   * `runId`), never inferred from a global active session. It exists so
+   * run-scoped telemetry — currently `model.usage` — can be correlated back to
+   * the run that produced it; without it, cost attribution cannot join usage to
+   * a run and must report the figure as unmeasured.
+   *
+   * Two concurrent workers receive DIFFERENT values here because each call site
+   * passes its own run identity; this field is never read from shared mutable
+   * state.
+   */
+  runId?: string;
 };
   };
   provider: ModelAdapter;
@@ -948,7 +962,18 @@ await log.append({
 });
 
 if (usage) {
-  await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(model.provider, model.name, usage, resolvedModel) });
+  // Run identity is attached at the emission boundary so cost attribution can
+  // join usage → run. `deps.context.runId` is the caller-supplied authoritative
+  // identity; when a caller has none (legacy/embedded use) the field is omitted
+  // rather than guessed, and correlation correctly reports `no-run-id`.
+  const runId = deps.context?.runId;
+  await log.append({
+    ...session,
+    ...(runId ? { runId } : {}),
+    actor: "agent",
+    type: "model.usage",
+    payload: buildModelUsageEventPayload(model.provider, model.name, usage, resolvedModel),
+  });
   // §1 — compare our estimated raw+padded against the provider's actual input
   // tokens. Keyed by the same invocationId as context.snapshot.created.
   await log.append({
