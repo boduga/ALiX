@@ -66,6 +66,17 @@ describe("executor asymmetry (the actual risk)", () => {
     expect(src).toContain("reviewDefaultWorkerResult");
   });
 
+  it("the unreviewed path is the DEFAULT, not an opt-in", async () => {
+    // This is the assertion whose absence let me mis-rate the finding as Medium.
+    // Reading `config?.subagents?.enabled ?? false` shows only the absent-config
+    // fallback; the SHIPPED default is what decides whether the unreviewed path
+    // is live. Assert the effective value, not the expression.
+    const { DEFAULT_CONFIG } = await import("../../src/operations/config/defaults.js");
+    const { isSubagentsEnabled } = await import("../../src/operations/config/subagent-config.js");
+    expect(DEFAULT_CONFIG.subagents?.enabled).toBe(true);
+    expect(isSubagentsEnabled(DEFAULT_CONFIG)).toBe(true);
+  });
+
   it("the subagent executor does NOT — recording the gap rather than hiding it", async () => {
     const { readFileSync } = await import("node:fs");
     const { dirname } = await import("node:path");

@@ -43,9 +43,10 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
   owned scope?", which is why `ownedPaths: ["."]` treats any in-cwd change as
   covering ownership. Consumers must not read it as goal achievement. The
   in-process coordination executor applies `reviewDefaultWorkerResult` before
-  accepting success; `subagent-worker-executor.ts` does **not**, so enabling
-  `subagents.enabled` (default false) silently drops that independent check. Owner
-  of the remaining gap: `docs/harness-subagent-status-semantics.md`.
+  accepting success; `subagent-worker-executor.ts` does **not**. **`subagents.enabled`
+  defaults to `true`** (`DEFAULT_CONFIG`, `defaults.ts:108`), so the unreviewed
+  path is the DEFAULT — `isSubagentsEnabled`'s `?? false` is only the absent-config
+  fallback. Owner of the remaining gap: `docs/harness-subagent-status-semantics.md`.
 
 
 - Built-in callable names come from `ALIX_BUILTIN_EXECUTORS`; capability and

@@ -1,8 +1,15 @@
 # FINDING — subagent status certifies ownership, not achievement; the reviewed path is not the subagent path
 
-**Status:** OPEN — real asymmetry, narrower than an initial reading suggested.
-**Recorded:** 2026-10-20
-**Severity:** Medium (opt-in path), **not** a default-on false-success hole.
+**Status:** OPEN — real asymmetry on the **DEFAULT** path.
+**Recorded:** 2026-10-20 (severity corrected upward the same day)
+**Severity:** **High** — `subagents.enabled` defaults to `true`.
+
+> **Correction.** An earlier revision of this note said the unreviewed path was
+> opt-in because `isSubagentsEnabled` returns `config?.subagents?.enabled ?? false`.
+> That reads the *fallback*, not the shipped default. `DEFAULT_CONFIG.subagents.enabled`
+> is **`true`** (`defaults.ts:108`, verified at runtime), and the loader fills the
+> default before `isSubagentsEnabled` sees it. **The unreviewed path is the
+> default path**, not an opt-in one. The earlier Medium rating was wrong.
 
 ---
 
@@ -35,13 +42,15 @@ verdict**. The two coordination executors differ here:
 | `worker-executor.ts` (in-process) | **Yes** — `reviewDefaultWorkerResult` (`worker-executor.ts:166`) | `subagents.enabled` is false |
 | `subagent-worker-executor.ts` | **No** — `if (result.status === "success")` accepts directly (`:130`) | `subagents.enabled` is **true** |
 
-`isSubagentsEnabled` defaults to **false** (`subagent-config.ts:14`,
-`config?.subagents?.enabled ?? false`).
+`isSubagentsEnabled` reads `config?.subagents?.enabled ?? false`, but that `false`
+is only the *absent-config* fallback. `DEFAULT_CONFIG.subagents.enabled` is **true**
+(`defaults.ts:108`), and the config loader materialises the defaults before this
+reader runs — verified: `isSubagentsEnabled(DEFAULT_CONFIG) === true`.
 
-So the unreviewed path is **opt-in**. That materially limits exposure and is the
-reason this is Medium rather than High. It is still a real gap: a team that
-enables subagents — a supported, documented configuration — silently loses the
-independent review that the in-process path performs.
+So **the unreviewed path is the default path.** Every coordination run on a
+stock configuration accepts `result.status === "success"` from a subagent worker
+without the independent review that `worker-executor.ts` performs. Enabling
+`subagents` does not "lose" a check the user had; the check was never on that path.
 
 ## 3. What is NOT wrong
 
@@ -61,6 +70,13 @@ one success authority instead of two divergent ones.
 
 Not done here: it changes coordination semantics, needs a failing-first test, and
 a decision about whether review cost is acceptable on every subagent worker.
+
+## 4a. A second, related gap
+
+`subagent-cli.ts` likewise never emitted `model.usage` until this session, so the
+default coordination path was **also** invisible to cost accounting. Both gaps sit
+on the same path: the default worker executor neither reviewed its result nor
+reported its spend. That is worth treating as one area, not two coincidences.
 
 ## 5. Effect on the benchmark
 
