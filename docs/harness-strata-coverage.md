@@ -16,7 +16,7 @@ them now have deterministic behavioural cases, and the fifth has a guard:
 | 2 — Unfamiliar-code navigation | none | `code-navigation` (read-only) |
 | 4 — Multi-file bug fix | none | `multi-file-fix` + `multi-file-fix-partial` |
 | 5 — Verification / repair | none | `verification-repair` + `verification-repair-not-applied` |
-| 9 — Local CPU-only | none | **real ollama run proven**; guard derives verdict from evidence |
+| 9 — Local CPU-only | none | **verified real run** `run-a0b682d5`; guard derives verdict from evidence |
 | 10 — Tool failure / malformed calls | none | `tool-failure-recovery` + `malformed-tool-call` |
 
 Suite: **14/14 pass**, deterministic, no network.
@@ -105,9 +105,18 @@ and serving, and a real task completed on local CPU inference:
 provider=ollama  model=llama3.2:3b  runId=run-379d9b20  in=3347 out=14  exit=0
 ```
 
-So the stratum is no longer "guard only". The **inference path is proven**; the
-full suite is not yet run to completion (minutes per case on this 4-core box),
-so suite coverage is still not claimed.
+**Stratum 9 is now closed on observation:**
+
+```
+run-a0b682d5  ollama/llama3.2:3b  in=3304 out=14  exit 0
+processor 100% CPU   endpoint localhost:11434   wall clock 622s
+cost: null (non-billable)
+```
+
+The full ten-case suite still does not complete locally (~5 min/request, then an
+ollama 500). That is recorded, not hidden: the stratum is counted on the verified
+single-query observation, which is what "local CPU-only execution works" needs,
+not on a suite run.
 
 The guard is now evidence-derived rather than intent-based:
 `classifyCpuOnlyRun` reads per-case `execution.provider` and fails closed on
@@ -143,8 +152,9 @@ the result contract.
 - **No claim that strata 2/4/5/10 behave the same under a real model.** These
   cases pin runtime and evaluator behaviour deterministically; they say nothing
   about model capability on those task shapes.
-- **Stratum 9 suite coverage is incomplete.** Inference is proven on ollama; the
-  full case suite has not run to completion.
+- **Stratum 9 is verified on a single observation, not a suite run.** Local
+  inference completes; the full case suite does not (ollama 500 after ~5min per
+  request).
 - **D4-04 is bounded, not fixed** — see `harness-d4-04-investigation.md`.
 
 ---

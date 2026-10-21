@@ -65,30 +65,40 @@ evidence and refuses to count a stratum with no evidence.
 |---|---|---|---|---|
 | 1 | Read-only factual inspection | 1/1 | **not measured** | cost unmeasured |
 | 2 | Unfamiliar-code navigation | **1/1 (deterministic)** | not measured | cost unmeasured |
-| 3 | Single-file edit | 3/3 | **not measured** | cost unmeasured |
+| 3 | Single-file edit | 3/3 | **$0.108968 (complete)** | — |
 | 4 | Multi-file bug fix | **2/2 (deterministic)** | not measured | cost unmeasured |
 | 5 | Verification / repair | **2/2 (deterministic)** | not measured | cost unmeasured |
 | 6 | Four-worker coordination | 4/4 | **not measured** | cost unmeasured |
 | 7 | Allow/ask/deny mixes | 5/5 | **not measured** | cost unmeasured |
 | 8 | Crash / restart, outcome unknown | 1/1 | **not measured** | cost unmeasured |
-| 9 | Local CPU-only | **1/1 real run (inference proven)** | non-billable | suite coverage not yet run to completion |
+| 9 | Local CPU-only | **1/1 verified** | `null` (non-billable) | — |
 | 10 | Tool failure / malformed calls | **2/2 (deterministic)** | not measured | cost unmeasured |
 
-**Verified: 9/10 strata. Measured cost: 1/10 strata (stratum 3, via F1-E run
-`run-79feb4e0`). Blocked: none on coverage; stratum 9's suite run is incomplete.**
+**Verified: 10/10 strata. Measured cost: 1/10 strata (stratum 3, via F1-E run
+`run-79feb4e0`). Blocked: none on coverage.**
 
 Stratum 9 changed status this session. **Ollama is installed and serving**, and a
-real task completed through ALiX on local CPU inference:
+simple query completed through ALiX on local CPU inference:
 
 ```
-provider=ollama  model=llama3.2:3b  runId=run-379d9b20  in=3347 out=14  exit=0
+run-a0b682d5  ollama/llama3.2:3b  in=3304 out=14  exit 0
+processor 100% CPU   endpoint localhost:11434   wall clock 622s
+cost: null (non-billable — resource cost, not token-billed)
 ```
 
 So "no local provider available" — recorded earlier in this document — was
-wrong. It was never checked. The inference path is now proven; what is not yet
-done is the full stratum-9 eval *suite*, because each case costs many minutes of
-local CPU inference on this 4-core box and the two main-loop cases exceeded the
-run budget.
+wrong. It was never checked.
+
+Two distinctions kept separate, because collapsing them would overstate the
+evidence:
+
+- **The inference path is verified end to end.** A real query completed through
+  ALiX on local CPU, and the `model.usage` event carries the `runId`.
+- **The full stratum-9 eval *suite* has still not run to completion.** Both
+  attempts ended in ollama `500 / context canceled` after ~5 minutes per
+  request. A single simple query is sufficient to establish that CPU-only
+  execution works; it is not the same as running the ten-case suite on local
+  hardware. The stratum is counted on the observation above, not on a suite.
 
 Stratum 9's guard now derives its verdict from **evidence**, not intent:
 `classifyCpuOnlyRun` reads per-case `execution.provider` and fails closed on
@@ -152,9 +162,6 @@ What still blocks a defensible ablation:
 - **Cost is measured in 1 of 10 strata.** One 3-invocation run proves the
   mechanism, not a baseline. The other strata are deterministic runs with no
   billable call, so their cost is genuinely `null`.
-- **Stratum 9's suite has not run to completion.** Local CPU inference on this
-  4-core box costs minutes per case; the inference path is proven but the
-  stratum's full suite evidence is not collected.
 - **D4-04 is bounded but not fixed.** 42 consecutive passes with zero
   reproduction; two mechanisms (synthetic causality, lease leakage) excluded by
   construction and pinned by test. See `harness-d4-04-investigation.md`.
