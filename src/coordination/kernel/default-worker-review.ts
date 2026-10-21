@@ -12,6 +12,9 @@ import { createToolExecutor } from "../../capabilities/tools/tool-executor-facto
 import { loadApprovalStore } from "../../governance/approvals/approval-store.js";
 import { toolResultText } from "../../capabilities/tools/result-text.js";
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
+import { isWithinOwnedScope } from "../ownership/path-scope.js";
+import { ownedPathsForWorker } from "./worker-role.js";
 
 /** Capture only appends made through this invocation, while sharing durable storage. */
 export function captureWorkerEventLog(log: EventLog): { log: EventLog; events: AlixEvent[] } {
@@ -42,15 +45,9 @@ export async function reviewDefaultWorkerResult(
       ? { paths: (event.payload as { changedFiles?: unknown }).changedFiles }
       : event.payload as { path?: unknown; paths?: unknown; files?: unknown },
   }));
-  // KNOWN OPEN BUG (documented, not fixed): workers share one session event
-  // log, so this capture also sees a SIBLING's `file.created`. A worker owning
-  // docs/b.md can be reviewed against evidence that includes docs/a.md and
-  // docs/c.md. Scoping the set to the worker's owned paths fixes that, but it
-  // also suppressed the worker's file-mutation approval in
-  // `tests/tui/workbench/coordination-runtime-integration.vitest.ts`, and the
-  // mechanism was not understood well enough to ship. See
-  // docs/harness-objective-review-sibling-evidence.md.
-  const mutatedPaths = deriveCoordinationChangedFiles({ events: mutationEvents }, { cwd: context.cwd });
+  const ownedPaths = ownedPathsForWorker(worker);
+  const mutatedPaths = deriveCoordinationChangedFiles({ events: mutationEvents }, { cwd: context.cwd })
+    .filter(path => isWithinOwnedScope(resolve(context.cwd, path), ownedPaths, context.cwd));
 
   let provider;
   try {
@@ -62,29 +59,16 @@ export async function reviewDefaultWorkerResult(
       error: `Objective review unavailable: ${error instanceof Error ? error.message : String(error)}${mutatedPaths.length ? `\nChanged: ${mutatedPaths.join(", ")}` : ""}`,
     };
   }
-  // R1.5: wire the project approval store (fail-open) so this executor is
-  // governed like the other three construction sites. The review's own
-  // `file.read` therefore goes through PolicyGate, which the Phase9 integration
-  // test asserts on purpose.
-  //
-  // The read must be ALLOWED by policy rather than gated: a verification read is
-  // internal evidence gathering, and an approval prompt there made the reviewer
-  // reject a correct worker with "Cannot verify persisted output … Pending
-  // approval". `approvalStore` is passed so the gate can authorise it, and the
-  // read is retried as an allowed source when the gate returns approval_required.
   const approvalStore = await loadApprovalStore(context.cwd);
-  // The review's own `file.read` must be ALLOWED, not gated.
-  //
-  // Reads still go through PolicyGate (the Phase9 integration test asserts that
-  // deliberately), but the review is internal evidence gathering: prompting an
-  // operator for it made the reviewer reject a correct worker with "Cannot
-  // verify persisted output … Pending approval" whenever `file.read` was not
-  // explicitly allow-listed and `permissions.default` was `ask`.
-  //
-  // This narrows exactly one capability on the review's own executor. Every
-  // other gate — protected paths, workspace containment, tool identity — still
-  // applies, because the executor and the gate are unchanged.
-  const executor = createToolExecutor({ config: context.config, log, root: context.cwd, approvalStore });
+  // Internal verification reads only the owned mutation set above. Keep hard
+  // read denials and all path checks; an ask policy must not mint an orphaned
+  // approval and turn a correct worker into a retry.
+  const permissions = context.config.permissions;
+  const config = { ...context.config, permissions: { ...permissions, tools: {
+    ...permissions.tools,
+    "file.read": (permissions.tools["file.read"] ?? permissions.default) === "deny" ? "deny" as const : "allow" as const,
+  } } };
+  const executor = createToolExecutor({ config, log, root: context.cwd, approvalStore });
   const readForReview = async (path: string): Promise<Awaited<ReturnType<typeof executor.execute>>> =>
     executor.execute({
       toolCallId: randomUUID(),

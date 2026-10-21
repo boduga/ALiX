@@ -1,72 +1,62 @@
-# OPEN BUG — objective review can see a sibling worker's evidence
+# Worker objective review — evidence isolation and approval diagnosis
 
-**Status:** OPEN — scoping fix built and reverted; not shipped.
-**Recorded:** 2026-10-21
-**Severity:** Medium. It falsely **fails** correct workers, never falsely passes one.
+**Status:** Local regressions pass; real-model validation blocked by provider quota.
+**Updated:** 2026-10-21
 
----
+## Evidence isolation
 
-## 1. The bug
+`reviewDefaultWorkerResult` now restricts persisted mutation evidence to the
+worker's owned paths through `ownedPathsForWorker` and `isWithinOwnedScope`.
+A regression supplies mixed sibling mutation events and requires only the owned
+artifact to reach the reviewer. It failed before the change.
 
-`reviewDefaultWorkerResult` derives the evidence set from
-`deriveCoordinationChangedFiles(events)`. Workers in one coordination run **share a
-single session event log**, so that capture includes every sibling's
-`file.created` too.
+`captureWorkerEventLog` already captures invocation-local appends; its concurrent
+capture regression passes. A shared durable session log alone does not prove that
+this capture leaks sibling events. Ownership filtering adds a defensive boundary
+at review entry; an end-to-end capture leak has not been reproduced here.
 
-Observed on real gpt-4o runs: a worker owning `docs/b.md` was reviewed with
-evidence containing `docs/a.md`, `docs/b.md` and `docs/c.md`, and was then
-rejected for *"Missing docs/a.md"* — a file it was never assigned.
+## Approval failure: confirmed mechanism
 
-Consequence: correct workers fail 3 attempts and the run reports
-`failed`/`incomplete` with every artifact correct on disk.
+Instrumented the previously passing integration test with spies on
+`ApprovalStore.consumeApproved` and `PolicyGate.evaluateToolCall`:
 
-## 2. Why it is not fixed
+1. Scheduler dispatch approval was consumed for worker attempt 0.
+2. `file.create` was allowed by `owned-path-rule`; no write approval existed.
+3. Review's `file.read` requested a separate approval and failed immediately.
+4. Scheduler retried the worker. The test approved that retry's dispatch approval,
+   incorrectly calling it a file-mutation approval.
+5. The retry completed without a new write; review had no persisted mutation paths.
 
-Scoping the evidence set to the worker's owned paths fixes the bug, and was
-implemented and validated on stratum 8 (3/3 workers completed). It **also**
-broke `tests/tui/workbench/coordination-runtime-integration.vitest.ts`
-("resumes an approved worker…"):
+Both consumed approval IDs belonged to dispatch (attempts 0 and 1). The read
+approval stayed pending. **The reviewer did not consume a write approval.**
+The previous approval-theft hypothesis is disproved for this reproducer.
 
-```
-run=completed:phase9-worker-0:completed:-
-pending=0
-events: ... approval.created, approval.resolved, approval.consumed,
-         coordination.worker.dispatched, ...
-```
+## Fix and regression coverage
 
-The worker completes and **no second (file-mutation) approval is ever created**,
-so the test's `waitForPendingApproval()` times out. Four variants were tried
-(scoped + existence fallback, scoped + owned-path fallback, scoped with a
-`file.read` allowance on the review executor, unscoped). Only **unscoped** passes.
+- Internal persisted-output reads use a cloned config that permits ask reads.
+  Explicit/default read denials, protected paths, and workspace containment still
+  apply. Host permissions stay unchanged.
+- Read-policy parity covers default ask, explicit ask, explicit allow over default
+  deny, explicit deny, default deny, and protected output paths; no review approval
+  may remain pending.
+- Integration uses the host approval store, expects only dispatch consumption,
+  asserts owned-write authorization, requires success on the first execution
+  attempt, and rejects orphaned approval records.
+- Review still uses `worker.goalPrompt`; malformed contradictory verdicts retain
+  their existing retry behavior.
 
-The mechanism connecting evidence scoping to suppression of the write approval is
-**not understood**. Shipping a fix whose effect is unexplained would be worse than
-a documented bug.
+## Verification
 
-## 3. Most likely cause, unverified
+- Worker-review suite: 15/15 pass. Coordination runtime integration: 6/6 pass.
+- Build, unused check, architecture layer/boundary tests, and DOX audit pass.
+- Real restart harness used current default `intern/deepseek-v4-flash-0731`.
+  The six-second startup kill created no resumable run; a 30-second window did.
+  Run `coord_3e140d34-4531-4281-b4ac-687d07926c49` was running at kill, with zero
+  falsely completed workers. Resume recovered one orphan, then ended failed:
+  worker A exhausted attempts; workers B/C reported `API error 429: quota exceeded`.
+  No usage records were observed; cost remains unknown. This is not successful
+  stratum-8 evidence. Record:
+  `benchmark/evidence/coordination/restart-review-quota-blocked.json`.
 
-`approval.consumed` appears once. The hypothesis is that the review's own
-`file.read` claims the worker's pending write approval when the review runs
-against a narrower path set. That would make the gate believe the write was
-authorised. **Not confirmed** — confirming it is the first step for whoever picks
-this up.
-
-## 4. What to do next
-
-1. Instrument `ApprovalStore.consumeApproved` during that test and log which
-   approval id each caller claims (the review's `file.read` vs the worker's
-   `file.create`).
-2. If the review is claiming it: make the review read strictly non-claiming.
-   A verification read must never consume an approval — that is a correctness
-   rule independent of this bug.
-3. Re-run stratum 8 to confirm 3/3 **and** the integration test together.
-
-## 5. What is NOT affected
-
-- The objective now correctly uses `worker.goalPrompt` (not the rendered prompt
-  with the root goal).
-- A self-contradictory `satisfied: true` + non-empty `gaps` verdict is retryable
-  instead of a hard rejection.
-- Empty evidence no longer produces a bare "not verified".
-
-Those three are shipped and tested. The bug is isolated to evidence **scoping**.
+Gate B remains HOLD. Retry the real harness after provider quota is restored;
+do not substitute another model silently or promote this failed run.

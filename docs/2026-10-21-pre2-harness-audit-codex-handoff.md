@@ -4,6 +4,14 @@ Updated: 2026-10-21
 Baseline: `main` @ **`cd029a27`**, tree clean, **79 commits ahead of `origin/main`** (nothing pushed; Q13 publication HOLD stands)
 Tag: `pre-2.0-consolidated` (local only)
 
+Follow-up: objective-review scoping and reviewer-read fixes now pass both coupled
+suites (21 tests total). Instrumentation disproved approval theft: the old test
+approved a retry dispatch after review's pending read failed, not a file write.
+Real restart validation is blocked by the current default provider's quota
+(`API error 429: quota exceeded`); no cost evidence promoted. Gate B stays HOLD.
+See `docs/harness-objective-review-sibling-evidence.md` for current diagnosis and
+`benchmark/evidence/coordination/restart-review-quota-blocked.json` for the failed run.
+
 ## Mission
 
 The pre-2.0 harness audit is **substantially complete as an audit**, and **Gate B

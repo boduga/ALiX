@@ -47,6 +47,7 @@
 
 ## Local Contracts
 
+- Worker objective review reads persisted mutation paths only within the worker's owned scope, using the shared ownership matcher. Internal review reads turn ask into allow on a cloned executor config; explicit/default read denials, protected paths, and workspace containment remain enforced. Review reads must not request or consume worker approvals. Owned writes may pass the owned-path rule without a second approval; integration tests must distinguish dispatch approvals from exact tool invocations and retry dispatches.
 - GraphExecutor runs nodes sequentially, stops on first failure. It is the
   sequential graph-CLI adapter (R3.7), not a second scheduler: scheduling is
   `CoordinationScheduler` alone, and graph-node authorization flows through the
