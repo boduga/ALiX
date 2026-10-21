@@ -74,7 +74,7 @@ evidence and refuses to count a stratum with no evidence.
 | 9 | Local CPU-only | **1/1 verified** | `null` (non-billable) | — |
 | 10 | Tool failure / malformed calls | **2/2 (deterministic)** | **$0.041967 (complete)** | — |
 
-**Verified: 10/10 strata. Measured cost: 5/10 strata** — 1 (read-only,
+**Verified: 10/10 strata. Measured cost: 6/10 strata** — 1 (read-only,
 `$0.041675`), 2 (code-navigation, `$0.044698`) and 3 (F1-E `run-79feb4e0`,
 `$0.108968`). Blocked: none on coverage; 7 strata remain cost-unmeasured, half
 for a structural reason (see below).
@@ -120,6 +120,17 @@ local+remote run is refused.
 - **8** — Gate 7 `restart-final`
 - **10** — `behavioral.tool-failure-recovery` (failure then recovery), `behavioral.malformed-tool-call` (hard error, no recovery)
 
+**Coverage caveat — "verified runs" counts scripted cases that expect failure.**
+Stratum 7's "5/5" includes `unmet-write-zero-attempts`, `forbidden-path-write` and
+`partial-objective`, whose *expected* outcome is a non-success status. Passing
+them proves the evaluator detects a bad outcome; it does **not** add a verified
+success. On a real model two of that family (`patch-application`,
+`forbidden-path-write`) were recorded `dishonest` in
+`benchmark/evidence/cost/delegate-metered-sweep.json` — the model reported success
+while the objective did not land. So stratum 7 has cost evidence and **zero**
+usable cost-per-success, which is why the matrix marks it unmeasured despite a
+dollar figure.
+
 **Cost caveat.** Three strata now have a measured real-model cost on `gpt-4o`
 ($2.50/$10 per Mtok, effective 2025-01-01), each independently recomputed against
 the production pricing catalog:
@@ -144,12 +155,16 @@ pure spend decision — most of them need code first.
 
 ## 3. The dominant Gate B blocker is cost, not code
 
-**Every stratum lacks measured cost.** Two independent reasons:
+**Cost is the remaining blocker, but it is no longer universal.** Measured cost
+now exists for 6 of 10 strata (1, 2, 3, 5, 6, 10). The four that remain are
+`null` for two different reasons:
 
-1. Recorded Gate 7 summaries carry no usage or pricing data — they predate the
-   P0-D2 projection. Tokens are now derivable from `model.usage` events
-   (proven: 46 982 / 1 585 in `f8b-final`), but **no pricing record is
-   correlated to a run id**, so `observedCostUsd` must remain `null`.
+1. **Strata 4 and 7 have recorded cost but ZERO verified successes**, so
+   cost-per-success — the PRD's primary measure — is undefined for them. That is
+   a case-design gap, not a spend gap: the cases need to be ones a real model can
+   legitimately pass.
+2. **Stratum 8 has cost but the run ended failed** on a non-deterministic
+   objective reviewer; stratum 9 is non-billable by definition (local CPU).
 2. Scripted-provider evals have no billable usage at all.
 
 This is a **data and correlation gap**, not a missing feature. Per the approved
@@ -175,9 +190,10 @@ The cost-mechanics blocker is closed by F1-E.
 
 What still blocks a defensible ablation:
 
-- **Cost is measured in 1 of 10 strata.** One 3-invocation run proves the
-  mechanism, not a baseline. The other strata are deterministic runs with no
-  billable call, so their cost is genuinely `null`.
+- **Cost is measured in 6 of 10 strata, but cost-per-success exists for only 4.**
+  Strata 4 and 7 have cost and zero verified successes (undefined quotient);
+  stratum 8's run failed on a flaky reviewer; stratum 9 is non-billable. Six
+  measured strata is a mechanism, not yet a baseline.
 - **D4-04 is bounded but not fixed.** 42 consecutive passes with zero
   reproduction; two mechanisms (synthetic causality, lease leakage) excluded by
   construction and pinned by test. See `harness-d4-04-investigation.md`.

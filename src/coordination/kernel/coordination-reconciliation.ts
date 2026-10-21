@@ -162,7 +162,9 @@ export async function reconcileCoordinationRun(
               approvalId: denial.approvalId,
               error: `Approval ${denial.approvalId} denied for capability ${denial.capability}`,
               completedAt: new Date().toISOString(),
-              approvalDeniedAt: denial.deniedAt,
+              // Durable record of which gated capability the operator refused.
+              // `approvalDeniedAt` was also written here but never read anywhere;
+              // dropped rather than left as an untyped clump behind `as any`.
               approvalDeniedCapability: denial.capability,
             } as any);
             result.approvalDenied.push(worker.id);

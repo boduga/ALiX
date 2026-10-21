@@ -230,8 +230,9 @@ measure — total measured cost per independently verified success — is observ
 **1 of 10** strata (stratum 3, F1-E `run-79feb4e0`, $0.108968, completeness
 `complete`). Everywhere else it is `null`, not zero. One three-invocation run
 qualifies the measurement mechanism; it is not a baseline. Gate B also requires a
-reproducible environment, and the Gate 7 evidence drivers remain outside the
-repository (benchmark-spec finding C-03).
+reproducible environment; the matrix and its recorded summaries are now in-repo
+(C-03 partially closed), but the scenario drivers that generated them are not, so
+the runs cannot be re-executed without real billable calls.
 
 **Decision:** proceed with documentation and read-only audit. **Not authorized:** production edits, merge, push, deployment, release or waiver of Gate 7 publication HOLD.
 

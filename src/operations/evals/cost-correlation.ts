@@ -171,7 +171,7 @@ export function correlateRunCost(
     return {
       runId, observedCostUsd: null, inputTokens: null, outputTokens: null,
       invocationCount: 0, unpricedModels: [],
-      gap: anyUsage ? "no-invocations" : "no-invocations",
+      gap: "no-invocations",
       evidence: [
         ...evidence,
         anyUsage

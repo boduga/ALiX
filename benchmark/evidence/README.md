@@ -11,7 +11,9 @@ node benchmark/evidence/gate7/baseline-coverage-matrix.mjs
 ```
 
 No arguments, no network, no credentials. It reads recorded files only and never
-re-runs a model. Expected output: **10/10 strata verified, 1/10 measured cost.**
+re-runs a model. Expected output: **10/10 strata verified, 6/10 measured cost.**
+(regenerate rather than trusting this line — it is a snapshot, and the
+strata-with-cost count moves as evidence is added.)
 
 ## Contents
 

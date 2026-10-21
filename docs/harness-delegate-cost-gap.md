@@ -1,6 +1,6 @@
 # FINDING — the subagent loop never records model usage
 
-**Status:** OPEN — real production gap, not an eval-only defect.
+**Status:** FIXED for emission (`75af1361`); the "plain delegate skips review" half remains OPEN and is Low severity. See §4.
 **Recorded:** 2026-10-20. Replaces two earlier, wrong versions of this note.
 **Affects:** every `delegate`/subagent run — benchmark strata 4, 5, 7, 10 **and** production coordination workers.
 
@@ -56,7 +56,7 @@ Recorded so the error is not repeated:
 Both were written before being verified. The probe that settled it was cheap; it
 should have come first.
 
-## 4. The fix, not attempted here
+## 4. The fix — LANDED for emission; review asymmetry still open
 
 `subagent-cli.ts` must emit `model.usage` from `resp.usage` on every completion,
 carrying the child's run identity when it has one. The shape already exists and is
@@ -67,12 +67,12 @@ either the parent's run id passed down or a per-worker identity. That is the sam
 question F1-A answered for the main loop, and it must be answered before the
 emitted usage is joinable.
 
-**Do not estimate subagent cost before this lands.** There is no data to estimate
-from, and a number derived from main-loop rates would be fabricated.
+**Landed.** `subagent-cli.ts` now emits `model.usage` on every completion. Do not
+estimate subagent cost from main-loop rates: measure it, which is now possible.
 
 ## 5. Gate B effect
 
-Measured cost stays at **3/10** (strata 1, 2, 3 — all main-loop or direct runs).
+Measured cost has since moved from 3/10 to **6/10** (strata 1, 2, 3, 5, 6, 10).
 
 Strata 4, 5, 7, 10 **cannot be measured** until the child loop emits usage. This is
 a code change, not a budget line — and it is worth doing regardless of the audit,

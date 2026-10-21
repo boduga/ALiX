@@ -493,7 +493,9 @@ describe("CoordinationScheduler", () => {
         return pending;
       }
 
-      it("(1) mixed allow/ask: one approval resumes the worker", async () => {
+      // Busy-polls the scheduler up to ~2s (200 x 10ms) waiting for dispatch;
+      // declared timeout gives headroom on a loaded CI box.
+      it("(1) mixed allow/ask: one approval resumes the worker", { timeout: 30_000 }, async () => {
         const { sched, approvalStore, executed } = await realScheduler({ "file.read": "allow", "file.exists": "ask" });
         const { run, worker } = await seed(["file.exists", "file.read"]);
 
@@ -530,7 +532,9 @@ describe("CoordinationScheduler", () => {
         await sched.shutdown();
       });
 
-      it("(3) allow/allow: no approval is required", async () => {
+      // Busy-polls the scheduler up to ~2s (200 x 10ms) waiting for dispatch;
+      // declared timeout gives headroom on a loaded CI box.
+      it("(3) allow/allow: no approval is required", { timeout: 30_000 }, async () => {
         const { sched, approvalStore, executed } = await realScheduler({ "file.read": "allow", "file.search": "allow" });
         const { run, worker } = await seed(["file.read", "file.search"]);
 
@@ -645,7 +649,9 @@ describe("CoordinationScheduler", () => {
         await restart.shutdown();
       });
 
-      it("(10) single-capability approval behavior is unchanged", async () => {
+      // Busy-polls the scheduler up to ~2s (200 x 10ms) waiting for dispatch;
+      // declared timeout gives headroom on a loaded CI box.
+      it("(10) single-capability approval behavior is unchanged", { timeout: 30_000 }, async () => {
         const { sched, approvalStore, executed } = await realScheduler({ "cap.a": "ask" });
         const { run, worker } = await seed(["cap.a"]);
         await sched.tick(run.id);
@@ -805,7 +811,9 @@ describe("CoordinationScheduler", () => {
         await sched.shutdown();
       });
 
-      it("(5) denied worker with an independent worker: the independent one keeps its outcome", async () => {
+      // Busy-polls the scheduler up to ~2s (200 x 10ms) waiting for dispatch;
+      // declared timeout gives headroom on a loaded CI box.
+      it("(5) denied worker with an independent worker: the independent one keeps its outcome", { timeout: 30_000 }, async () => {
         const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.a": "ask" });
         const { run, workers } = await seedRun([
           { caps: ["cap.a"], scopes: ["a.md"] },
@@ -928,7 +936,9 @@ describe("CoordinationScheduler", () => {
         await sched.shutdown();
       });
 
-      it("(10) approved and pending flows are unchanged", async () => {
+      // Busy-polls the scheduler up to ~2s (200 x 10ms) waiting for dispatch;
+      // declared timeout gives headroom on a loaded CI box.
+      it("(10) approved and pending flows are unchanged", { timeout: 30_000 }, async () => {
         const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.a": "ask" });
         const { run, workers } = await seedRun([
           { caps: ["cap.a"], scopes: ["a.md"] },

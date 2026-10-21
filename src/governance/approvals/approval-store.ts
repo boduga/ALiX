@@ -54,6 +54,24 @@ export type ApprovalRequestInput = {
   metadata?: Record<string, unknown>;
 };
 
+/**
+ * The invocation identity + its fingerprint, as one spreadable pair.
+ *
+ * One builder so the identity can never be persisted without its fingerprint, or
+ * vice versa. This pair was inlined identically at three creation sites
+ * (request / requestOrReusePending / pending-reuse); a future change to the
+ * fingerprint rule would otherwise have had to find all three.
+ */
+function invocationFields(invocation: InvocationIdentity | undefined): {
+  invocation?: InvocationIdentity;
+  invocationFingerprint?: string;
+} {
+  return {
+    invocation,
+    invocationFingerprint: invocation ? computeInvocationFingerprint(invocation) : undefined,
+  };
+}
+
 export class ApprovalStore {
   private approvals: ApprovalRecord[] = [];
   private groups: ApprovalGroup[] = [];
@@ -429,8 +447,7 @@ export class ApprovalStore {
         agentId: input.agentId,
         toolId: input.toolId,
         riskLevel: input.riskLevel,
-        invocation: input.invocation,
-        invocationFingerprint: input.invocation ? computeInvocationFingerprint(input.invocation) : undefined,
+        ...invocationFields(input.invocation),
         groupId: input.groupId,
         requestId: input.requestId,
         metadata: input.metadata,
@@ -507,8 +524,7 @@ export class ApprovalStore {
         agentId: input.agentId,
         toolId: input.toolId,
         riskLevel: input.riskLevel,
-        invocation: input.invocation,
-        invocationFingerprint: input.invocation ? computeInvocationFingerprint(input.invocation) : undefined,
+        ...invocationFields(input.invocation),
         groupId: input.groupId,
         requestId: input.requestId,
         metadata: input.metadata,
@@ -560,8 +576,7 @@ export class ApprovalStore {
         agentId: input.agentId,
         toolId: input.toolId,
         riskLevel: input.riskLevel,
-        invocation: input.invocation,
-        invocationFingerprint: input.invocation ? computeInvocationFingerprint(input.invocation) : undefined,
+        ...invocationFields(input.invocation),
         groupId: input.groupId,
         requestId: input.requestId,
         metadata: input.metadata,
@@ -781,8 +796,8 @@ export class ApprovalStore {
    *
    * Returns the record's current state so a caller can name the exact reason.
    */
-  async markExecutionUnverified(id: string): Promise<"unverified" | "pending" | "terminal" | "missing"> {
-    let verdict: "unverified" | "pending" | "terminal" | "missing" = "missing";
+  async markExecutionUnverified(id: string): Promise<"unverified" | "terminal" | "missing"> {
+    let verdict: "unverified" | "terminal" | "missing" = "missing";
     let sessionId: string | undefined;
     await this.mutate((approvals) => {
       const r = approvals.find(a => a.id === id);
@@ -797,7 +812,7 @@ export class ApprovalStore {
     });
     // `verdict` is assigned inside the mutate() closure, so TS narrows it to the
     // initial literal here. Re-assert the declared union before comparing.
-    const finalVerdict = verdict as "unverified" | "pending" | "terminal" | "missing";
+    const finalVerdict = verdict as "unverified" | "terminal" | "missing";
     if (finalVerdict === "unverified") {
       this.emit(APPROVAL_EVENT_TYPES.EXECUTION_UNVERIFIED, { approvalId: id }, sessionId);
     }

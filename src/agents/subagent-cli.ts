@@ -650,7 +650,12 @@ export class SubagentCLI {
       mcpManager: mcpManager ?? undefined,
       editFormatPolicy: buildEditFormatPolicy({ provider: effectiveProvider, preferred: provider.editFormatPreference }),
       ownedPaths: mode === "write" ? ownedPaths : undefined,
-      ...(approvalPort ? { approvalStore: approvalPort as never } : {}),
+      // The port is passed as-is: `createToolExecutor` takes `approvalStore:
+      // unknown` and the facade enforces the narrowing at runtime by throwing if
+      // a decision method ever becomes reachable. The earlier `as never` cast
+      // suppressed type checking for no benefit and implied the port needed
+      // widening, which is the opposite of its purpose.
+      ...(approvalPort ? { approvalStore: approvalPort } : {}),
     });
 
     // Build system prompt with role instructions and context

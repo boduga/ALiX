@@ -1,3 +1,4 @@
+import type { InvocationIdentity } from "../../governance/approvals/approval-binding.js";
 import "node:fs";
 import "node:fs/promises";
 import { resolve } from "node:path";
@@ -488,13 +489,8 @@ export class ToolExecutor {
       // backing approval atomically so two parallel resumes cannot both run.
       if (request.approvalId) {
         const claimed = await this.claimApproval(request.approvalId, {
-          capability,
-          toolName: name,
-          workspace: resolve(this.root),
-          argsHash: argumentHash,
-          sessionId: this.sessionId(),
-          agentId: request.agentId ?? "alix",
-        });
+          ...this.invocationIdentity(capability, name, argumentHash, request.agentId),
+          });
         if (claimed) return claimed;
         claimedApprovalId = request.approvalId;
       }
@@ -685,12 +681,7 @@ export class ToolExecutor {
     // worker — skip it.
     if (decision.status === "allowed" && decision.approvalId && !decision.approvalConsumed) {
       const claimed = await this.claimApproval(decision.approvalId, {
-        capability,
-        toolName: name,
-        workspace: resolve(this.root),
-        argsHash: argumentHash,
-        sessionId: this.sessionId(),
-        agentId: request.agentId ?? "alix",
+        ...this.invocationIdentity(capability, name, argumentHash, request.agentId),
       });
       if (claimed) return claimed;
       claimedApprovalId = decision.approvalId;
@@ -907,16 +898,35 @@ export class ToolExecutor {
    * consumed, expired, mismatched, or absent — so the caller never executes.
    * Returns null exactly once, when this caller won the atomic claim.
    */
+/**
+ * The invocation identity for a claim, derived in one place.
+ *
+ * Both claim sites (continuation resume and the policy-gate approval branch)
+ * previously built this object literal verbatim; a change to what identifies an
+ * invocation would have had to find both.
+ */
+  /** Identity of the exact invocation being authorised. */
+  private invocationIdentity(
+    capability: string,
+    toolName: string,
+    argsHash: string,
+    agentId?: string,
+  ): InvocationIdentity {
+    return {
+      capability,
+      toolName,
+      workspace: resolve(this.root),
+      argsHash,
+      sessionId: this.sessionId(),
+      agentId: agentId ?? "alix",
+    };
+  }
+
   private async claimApproval(
     approvalId: string,
-    identity: {
-      capability: string;
-      toolName: string;
-      workspace: string;
-      argsHash: string;
-      sessionId?: string;
-      agentId?: string;
-    },
+    // `InvocationIdentity` already owns this shape. Restating it inline had
+    // already drifted from the copy in policy-gate.ts; one type means one rule.
+    identity: InvocationIdentity,
   ): Promise<ExecuteResult | null> {
     const store = this.approvalStore;
     if (!store?.consumeApproved) {

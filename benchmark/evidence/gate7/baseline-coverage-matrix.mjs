@@ -60,7 +60,11 @@ const STRATA = [
   { id: "single-file-edit", label: "3. Single-file edit" },
   { id: "multi-file-fix", label: "4. Multi-file bug fix" },
   { id: "verification-repair", label: "5. Verification / repair" },
-  { id: "coordination-ownership", label: "6. Four-worker coordination with ownership" },
+  // Label states what the evidence actually exercises. The PRD stratum text says
+  // "four-worker"; every recorded run here tops out at 3 workers (run-fanout 3,
+  // run-deps 3, f8b-final 2, the metered run concurrency=3). Labelling it "four"
+  // overstated the coverage.
+  { id: "coordination-ownership", label: "6. Coordination with ownership (3 workers exercised)" },
   { id: "capability-mix", label: "7. Allow/ask/deny capability mixes" },
   { id: "crash-outcome-unknown", label: "8. Crash / restart, outcome unknown" },
   { id: "local-cpu-only", label: "9. Local CPU-only execution" },

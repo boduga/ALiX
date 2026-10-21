@@ -20,6 +20,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -29,8 +30,39 @@ function flag(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 }
-const provider = flag("provider", "openai");
-const model = flag("model", "gpt-4o");
+
+/**
+ * Resolve the operator's CURRENT default model.
+ *
+ * AGENTS.md: "Real-model tests and harnesses resolve the operator's CURRENT
+ * default model (`models.default` in ~/.config/alix/config.json); never hardcode
+ * a provider/model in a test, driver, or fixture." A committed `flag(...,
+ * "openai")` fallback IS a checked-in default, so there is none: an explicit
+ * --provider/--model override is honoured, otherwise the operator's default is
+ * read, and absence fails loudly.
+ */
+function resolveModel() {
+  const explicitProvider = flag("provider", null);
+  const explicitModel = flag("model", null);
+  if (explicitProvider && explicitModel) return { provider: explicitProvider, model: explicitModel };
+  const configPath = join(homedir(), ".config", "alix", "config.json");
+  let config;
+  try {
+    config = JSON.parse(readFileSync(configPath, "utf-8"));
+  } catch (err) {
+    console.error(`No --provider/--model given and cannot read ${configPath}: ${err.message}`);
+    console.error("Set models.default or pass explicit --provider and --model.");
+    process.exit(2);
+  }
+  const d = config?.models?.default;
+  if (!d?.provider || !d?.name) {
+    console.error(`No --provider/--model given and ${configPath} has no models.default.`);
+    console.error("Set models.default or pass explicit --provider and --model.");
+    process.exit(2);
+  }
+  return { provider: d.provider, model: d.name };
+}
+const { provider, model } = resolveModel();
 const killAfterMs = Number(flag("kill-after-ms", "6000"));
 const outPath = flag("out", join(here, "restart-metered.json"));
 
