@@ -72,6 +72,31 @@ total measured cost / independently verified successful task
 | retry count | scheduler/worker attempts |
 | operator interventions | approval records |
 
+### Operator-attention metrics (PRD v1.1 §12, PRE-R015–R019) — NOT IMPLEMENTED
+
+If the §12 amendment is adopted, P0-C/P0-D additionally owe:
+
+| Metric | Status | Rule |
+|---|---|---|
+| `operatorActiveReviewMinutes / independentlyVerifiedSuccesses` | **not measured** | Report `null` + coverage unless BOTH terms are observed. Never a guessed dollar conversion. |
+| Interruptions, approval touches | **not measured** | Separate from active review and from elapsed time. |
+| Missed-evidence / reversal events | **not measured** | Observed only where observable. |
+| Presentation-format comparison (text / diagram / HTML) | **not started** | Paired or randomized review tasks; no invented thresholds. |
+
+Active review must be reported **separately** from waiting, interruptions and
+total elapsed time. Faster approval is **not** better if the reviewer missed a
+security, correctness or governance issue (§12.3).
+
+Nothing in this audit implements PRE-R015–R019, and §12.4 states the amendment
+does **not** clear Gate B.
+
+### Harness² research (PRD v1.1 §13, PRE-R020–R026) — NOT STARTED
+
+No upstream reproduction, contract map or experiment spec exists. Recorded here
+so the requirement is not silently absent; see
+`harness-prd-divergence-finding.md` — the §13 requirements are only in the root
+copy of the PRD, not the audit copy.
+
 For local models report **resource-time** alongside any monetary estimate, and
 label which is which — the PRD is explicit, and a local run with a fabricated
 dollar figure would be worse than no number.
