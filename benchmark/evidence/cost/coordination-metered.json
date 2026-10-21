@@ -1,0 +1,36 @@
+{
+  "source": "headless coordination run on a real model (stratum 6), AFTER the pending-worker fix",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "concurrency": 3,
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER",
+  "inputTokens": 74392,
+  "outputTokens": 876,
+  "usageRecords": 12,
+  "costUsd": 0.19474,
+  "completeness": "complete",
+  "rate": {
+    "inputPerMillion": 2.5,
+    "outputPerMillion": 10.0,
+    "effectiveFrom": "2025-01-01"
+  },
+  "verifiedSuccesses": 1,
+  "costPerVerifiedSuccessUsd": 0.19474,
+  "artifactsLanded": "3/3",
+  "runOutcome": {
+    "exitCode": 0,
+    "status": "completed",
+    "outcome": "success",
+    "workersCompleted": "3/3"
+  },
+  "fixedFinding": "Before the recomputeRunStatus fix, this identical scenario produced exit=1, run failed/incomplete, with one worker left `pending` and never dispatched, despite 3/3 correct artifacts. Root cause: hasRunning counted only running/ready, so a failed worker plus a not-yet-dispatched pending worker recomputed to terminal `failed`.",
+  "perStratum": {
+    "coordination-ownership": {
+      "inputTokens": 74392,
+      "outputTokens": 876,
+      "costUsd": 0.19474,
+      "verifiedSuccesses": 1
+    }
+  },
+  "recordedAt": "2026-10-20"
+}

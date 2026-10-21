@@ -445,8 +445,20 @@ export function recomputeRunStatus(run: CoordinationRun): CoordinationRunStatus 
   if (allCompleted && run.workers.length > 0) return "completed";
 
   const hasFailed = run.workers.some(w => w.status === "failed");
-  const hasRunning = run.workers.some(w => w.status === "running" || w.status === "ready");
-  if (hasFailed && !hasRunning) return "failed";
+  // A worker still `pending` has NOT been dispatched yet: it is not "running",
+  // but it is unquestionably outstanding work. Treating only running/ready as
+  // live let a run with one failed worker and one never-dispatched worker
+  // recompute to terminal `failed`, abandoning that worker. Observed on a real
+  // gpt-4o coordination run: three independent workers, one completed, one
+  // failed objective review, one left `pending` with no execution owner, and the
+  // run reported failed while all three artifacts were correct on disk.
+  //
+  // `ready` and `pending` both mean "not finished and not blocked" here; only
+  // terminal or explicitly-blocked states should allow a failed verdict.
+  const hasOutstanding = run.workers.some(
+    w => w.status === "running" || w.status === "ready" || w.status === "pending",
+  );
+  if (hasFailed && !hasOutstanding) return "failed";
 
   const allIdle = run.workers.every(w =>
     w.status === "pending" || w.status === "blocked" || w.status === "cancelled"

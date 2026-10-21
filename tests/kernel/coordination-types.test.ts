@@ -341,6 +341,52 @@ describe("createCoordinationRun", () => {
 
 // ─── recomputeRunStatus: replanning guard ────────────────────────────────
 
+describe("recomputeRunStatus: pending work is not terminal", () => {
+  // Observed on a real gpt-4o coordination run: 3 independent workers, one
+  // completed, one failed objective review, one left `pending` with no execution
+  // owner. The run recomputed to terminal `failed` and abandoned the pending
+  // worker — while all three artifacts were correct on disk.
+  it("a failed worker plus a PENDING worker is not terminal", () => {
+    const run = createCoordinationRun({
+      sessionId: "s1", rootGoal: "Test", coordinatorAgentId: "alix",
+    });
+    const mk = (label: string) => createWorkerAssignment({
+      coordinationRunId: run.id, agentId: label, taskLabel: label, goalPrompt: "do it",
+    });
+    run.workers = [
+      transitionWorkerStatus(mk("w1"), "completed"),
+      transitionWorkerStatus(mk("w2"), "failed"),
+      mk("w3"), // still pending: never dispatched
+    ];
+    assert.notEqual(recomputeRunStatus(run), "failed");
+  });
+
+  it("a failed worker with nothing outstanding IS terminal", () => {
+    const run = createCoordinationRun({
+      sessionId: "s1", rootGoal: "Test", coordinatorAgentId: "alix",
+    });
+    const mk = (label: string) => createWorkerAssignment({
+      coordinationRunId: run.id, agentId: label, taskLabel: label, goalPrompt: "do it",
+    });
+    run.workers = [
+      transitionWorkerStatus(mk("w1"), "completed"),
+      transitionWorkerStatus(mk("w2"), "failed"),
+    ];
+    assert.equal(recomputeRunStatus(run), "failed");
+  });
+
+  it("all completed still wins over a lingering pending check", () => {
+    const run = createCoordinationRun({
+      sessionId: "s1", rootGoal: "Test", coordinatorAgentId: "alix",
+    });
+    const w1 = createWorkerAssignment({
+      coordinationRunId: run.id, agentId: "w1", taskLabel: "T", goalPrompt: "do it",
+    });
+    run.workers = [transitionWorkerStatus(w1, "completed")];
+    assert.equal(recomputeRunStatus(run), "completed");
+  });
+});
+
 describe("recomputeRunStatus replanning guard", () => {
   it("returns 'replanning' when run.status is 'replanning'", () => {
     const run = createCoordinationRun({
