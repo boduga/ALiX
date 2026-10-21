@@ -39,6 +39,7 @@ const explicitCostPaths = process.argv.slice(4);
 const DEFAULT_COST_PATHS = [
   join(repoEvidenceDir, "cost", "cost-record.json"),
   join(repoEvidenceDir, "cost", "eval-mainloop-metered.json"),
+  join(repoEvidenceDir, "cost", "delegate-metered-sweep.json"),
 ].filter(existsSync);
 const costEvidencePaths = explicitCostPaths.length > 0 ? explicitCostPaths : DEFAULT_COST_PATHS;
 /** Default to the recorded deterministic eval run, so no args reproduces all ten strata. */
@@ -191,6 +192,8 @@ if (existsSync(S9_PATH)) {
 
 // Cost evidence. Only complete, numeric, stratum-attributed records count.
 const costByStratum = new Map();
+/** Strata with a recorded cost but ZERO verified successes: not a usable baseline. */
+const zeroSuccessCost = new Map();
 for (const path of costEvidencePaths) {
   if (!existsSync(path)) {
     console.error(`warning: cost evidence not found at ${path}; ignoring`);
@@ -221,6 +224,15 @@ for (const path of costEvidencePaths) {
       const perCost = entry?.costUsd;
       if (typeof perCost !== "number" || !Number.isFinite(perCost) || perCost < 0) {
         console.error(`warning: ${path} perStratum["${id}"] has no finite cost; ignored`);
+        continue;
+      }
+      // The PRD's primary measure is cost per INDEPENDENTLY VERIFIED SUCCESS.
+      // Cost recorded on a stratum with zero verified successes is a real
+      // observation but it is NOT a usable cost-per-success baseline, so it must
+      // not be counted as "measured". Absent `verifiedSuccesses` keeps the old
+      // behaviour for records that do not carry it.
+      if (typeof entry.verifiedSuccesses === "number" && entry.verifiedSuccesses === 0) {
+        zeroSuccessCost.set(id, { costUsd: perCost, note: entry.costPerSuccessNote });
         continue;
       }
       costByStratum.set(id, { runId: entry.runId ?? record.runId, costUsd: perCost });
@@ -272,7 +284,9 @@ for (const stratum of STRATA) {
     blocking = "evidence exists but no verified run";
     unmeasured.push(stratum.id);
   } else if (!costAny) {
-    blocking = "verified, but cost unmeasured (no usage↔pricing correlation)";
+    blocking = zeroSuccessCost.has(stratum.id)
+      ? `cost recorded ($${zeroSuccessCost.get(stratum.id).costUsd.toFixed(6)}) but ZERO verified successes — cost-per-success undefined`
+      : "verified, but cost unmeasured (no usage↔pricing correlation)";
     unmeasured.push(stratum.id);
   } else {
     blocking = "—";

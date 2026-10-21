@@ -1,0 +1,85 @@
+{
+  "source": "delegate eval sweep on a real priced model, after subagent usage emission was fixed",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "completeness": "complete",
+  "rate": {
+    "inputPerMillion": 2.5,
+    "outputPerMillion": 10.0,
+    "effectiveFrom": "2025-01-01"
+  },
+  "perStratum": {
+    "multi-file-fix": {
+      "inputTokens": 41532,
+      "outputTokens": 847,
+      "costUsd": 0.1123,
+      "cases": 2,
+      "verifiedSuccesses": 0,
+      "costPerVerifiedSuccessUsd": null,
+      "costPerSuccessNote": "0 verified successes: cost-per-success is undefined, not infinite and not zero"
+    },
+    "verification-repair": {
+      "inputTokens": 42779,
+      "outputTokens": 533,
+      "costUsd": 0.112278,
+      "cases": 2,
+      "verifiedSuccesses": 1,
+      "costPerVerifiedSuccessUsd": 0.112278,
+      "costPerSuccessNote": null
+    },
+    "capability-mix": {
+      "inputTokens": 28948,
+      "outputTokens": 404,
+      "costUsd": 0.07641,
+      "cases": 3,
+      "verifiedSuccesses": 0,
+      "costPerVerifiedSuccessUsd": null,
+      "costPerSuccessNote": "0 verified successes: cost-per-success is undefined, not infinite and not zero"
+    },
+    "tool-failure-recovery": {
+      "inputTokens": 16347,
+      "outputTokens": 110,
+      "costUsd": 0.041967,
+      "cases": 2,
+      "verifiedSuccesses": 1,
+      "costPerVerifiedSuccessUsd": 0.041967,
+      "costPerSuccessNote": null
+    }
+  },
+  "totals": {
+    "inputTokens": 129606,
+    "outputTokens": 1894,
+    "costUsd": 0.342955
+  },
+  "runIdAttribution": {
+    "present": false,
+    "reason": "subagent children have no authoritative caller run identity; field omitted rather than guessed. Case id identifies the run for eval purposes."
+  },
+  "caseOutcomes": {
+    "dishonest": {
+      "cases": [
+        "behavioral.patch-application",
+        "behavioral.forbidden-path-write"
+      ],
+      "meaning": "Model reported success while the objective did NOT land. Reproduces the long-standing Matrix-G limitation: computeSubagentStatus is ownership-based and certifies writes to owned paths, not goal achievement. With the default ownedPaths ['.'] any write satisfies it."
+    },
+    "scriptedNegative": {
+      "cases": [
+        "behavioral.unmet-write-zero-attempts",
+        "behavioral.partial-objective",
+        "behavioral.multi-file-fix-partial",
+        "behavioral.verification-repair-not-applied",
+        "behavioral.malformed-tool-call"
+      ],
+      "meaning": "The real model honestly succeeded; the scripted provider was authored to fail. The case contract is scripted-specific, so a fail here is expected divergence, NOT a product defect. It DOES mean these cases cannot serve as real-model evidence."
+    },
+    "partialVsExpected": {
+      "cases": [
+        "behavioral.multi-file-fix"
+      ],
+      "meaning": "Reported partial, expected success."
+    }
+  },
+  "verifiedBy": "usage captured before case-cwd cleanup; arithmetic reproduced against the production pricing catalog",
+  "recordedAt": "2026-10-20"
+}

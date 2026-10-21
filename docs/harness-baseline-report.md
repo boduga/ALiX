@@ -66,15 +66,15 @@ evidence and refuses to count a stratum with no evidence.
 | 1 | Read-only factual inspection | 1/1 | **$0.041675 (complete)** | — |
 | 2 | Unfamiliar-code navigation | **1/1 (deterministic)** | **$0.044698 (complete)** | — |
 | 3 | Single-file edit | 3/3 | **$0.108968 (complete)** | — |
-| 4 | Multi-file bug fix | **2/2 (deterministic)** | not measured | cost unmeasured |
-| 5 | Verification / repair | **2/2 (deterministic)** | not measured | cost unmeasured |
+| 4 | Multi-file bug fix | **2/2 (deterministic)** | **$0.112300 recorded, but UNDEFINED per success** | 0 verified successes |
+| 5 | Verification / repair | **2/2 (deterministic)** | **$0.112278 (complete)** | — |
 | 6 | Four-worker coordination | 4/4 | **not measured** | cost unmeasured |
-| 7 | Allow/ask/deny mixes | 5/5 | **not measured** | cost unmeasured |
+| 7 | Allow/ask/deny mixes | 5/5 | **$0.076410 recorded, but UNDEFINED per success** | 0 verified successes |
 | 8 | Crash / restart, outcome unknown | 1/1 | **not measured** | cost unmeasured |
 | 9 | Local CPU-only | **1/1 verified** | `null` (non-billable) | — |
-| 10 | Tool failure / malformed calls | **2/2 (deterministic)** | not measured | cost unmeasured |
+| 10 | Tool failure / malformed calls | **2/2 (deterministic)** | **$0.041967 (complete)** | — |
 
-**Verified: 10/10 strata. Measured cost: 3/10 strata** — 1 (read-only,
+**Verified: 10/10 strata. Measured cost: 5/10 strata** — 1 (read-only,
 `$0.041675`), 2 (code-navigation, `$0.044698`) and 3 (F1-E `run-79feb4e0`,
 `$0.108968`). Blocked: none on coverage; 7 strata remain cost-unmeasured, half
 for a structural reason (see below).
