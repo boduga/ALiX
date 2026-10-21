@@ -13,6 +13,7 @@ import { ALIX_BUILTIN_EXECUTORS } from "./tool-manifest.js";
 import { createModelResolver } from "../operations/config/model-resolver.js";
 import { getSubagentRole } from "../operations/config/subagent-config.js";
 import { SUBAGENT_EVENT_TYPES } from "../runtime-state/events/types.js";
+import { buildModelUsageEventPayload } from "./agent/messages.js";
 
 /**
  * §10.3: resolve the effective model for a subagent invocation with
@@ -763,6 +764,37 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           messages,
           tools: iterationTools as ToolDef[],
         });
+
+        // Record provider-reported usage for EVERY child completion.
+        //
+        // This loop previously consumed only `resp.text` and `resp.toolCalls`, so
+        // a subagent's tokens never reached the event log — on a real billable
+        // call it emitted `observability.metric` and nothing else. The effect was
+        // silent undercount: delegated work, the work most likely to be
+        // expensive, was absent from every cost figure rather than reported.
+        //
+        // Mirrors task-loop/main.ts. The child has no authoritative caller
+        // `runId`, so the field is omitted rather than guessed — the same honest
+        // posture as the main loop, and cost correlation reports `no-run-id`
+        // instead of inventing one.
+        if (resp.usage) {
+          try {
+            await eventLog.append({
+              sessionId,
+              actor: "agent",
+              type: "model.usage",
+              payload: buildModelUsageEventPayload(
+                provider.id ?? "unknown",
+                effectiveName,
+                resp.usage,
+                resp.resolvedModel,
+              ),
+            });
+          } catch {
+            // Usage telemetry must never fail a worker whose work has already
+            // been done; the tool ledger and result remain authoritative.
+          }
+        }
 
         text = appendSubagentResponseText(text, resp.text);
         const toolCalls: ToolCall[] = resp.toolCalls ?? [];

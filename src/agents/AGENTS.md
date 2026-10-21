@@ -12,6 +12,13 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 - `subagent-cli.ts` builds and runs worker turns. Its lifecycle appends
   (`subagent.started/completed/failed`) are best-effort: the stdout result is
   authoritative, so a contended EventLog append must never fail the worker.
+  **Every child completion appends `model.usage`** from `resp.usage`, via the same
+  `buildModelUsageEventPayload` the main loop uses. It did not before: the loop
+  consumed only `resp.text`/`resp.toolCalls`, so subagent tokens never entered the
+  event log — a silent undercount that excluded delegated (and usually most
+  expensive) work from every cost figure. The child has no authoritative caller
+  `runId`, so the field is omitted rather than guessed, and the append is
+  best-effort: usage telemetry must never fail a worker whose work is done.
   That includes the FAILURE path: in `--output json` the structured failed
   `SubagentResult` is written to **stdout**, because `SubagentManager.spawn`
   parses stdout only. Writing it to stderr makes the parent fall back to the raw

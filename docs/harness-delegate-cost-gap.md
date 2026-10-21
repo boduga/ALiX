@@ -1,66 +1,79 @@
-# FINDING — delegate-driver cost: reachable, unproven (corrects an earlier claim)
+# FINDING — the subagent loop never records model usage
 
-**Status:** OPEN — reachable but **not yet measured**.
-**Recorded:** 2026-10-20. Supersedes the pessimism in the first version of this file.
-**Affects:** strata 4, 5, 7, 10 (all `delegate`-driver cases)
+**Status:** OPEN — real production gap, not an eval-only defect.
+**Recorded:** 2026-10-20. Replaces two earlier, wrong versions of this note.
+**Affects:** every `delegate`/subagent run — benchmark strata 4, 5, 7, 10 **and** production coordination workers.
 
 ---
 
-## 1. Correction first
+## 1. The finding
 
-An earlier revision of this note claimed delegate usage was **unreachable** because
-the child wrote to "its own session, outside the captured directory". **That was
-wrong and was never verified before being written down.**
+`src/agents/subagent-cli.ts` calls `provider.complete(...)` and consumes
+`resp.text` / `resp.toolCalls`. It **never reads `resp.usage`** and never appends a
+`model.usage` event.
 
-A free probe (scripted provider, persistent cwd) shows the opposite:
+Verified with a persistent-cwd probe against real `gpt-4o`:
 
 ```
-session dirs under case cwd: [ 'eval:probe' ]
-  eval:probe: 10 events, 0 model.usage
+session dirs: [ 'eval:probe2' ]
+  eval:probe2: {
+    "subagent.started":1, "tool.requested":1, "tool.started":1,
+    "observability.metric":1, "runtime.phase.started":1, "file.created":1,
+    "runtime.phase.completed":1, "tool.output":1, "tool.completed":1,
+    "subagent.completed":1
+  }
 ```
 
-The child's session directory **is inside the case cwd**
-(`<cwd>/.alix/sessions/eval:<caseId>`), because `SubagentManager.spawn` passes
-`cwd: task.cwd` and the delegate driver sets `task.cwd = cwd`. `captureEvalUsage`
-scans every session directory under that root, so it would read the child's log.
+Ten events, **zero `model.usage`** — on a real billable gpt-4o call.
 
-`0 model.usage` above is the **scripted provider**, which emits no usage at all.
-It says nothing about a real provider.
+`grep model.usage src/agents/subagent-cli.ts src/agents/subagent-manager.ts` →
+no matches in either file.
 
-## 2. What is actually still open
+## 2. Why this matters beyond benchmarks
 
-| Question | State |
-|---|---|
-| Is the child's session log inside the captured cwd? | **Yes** — verified |
-| Does the child emit `model.usage` for a real provider? | **Unverified** |
-| Does the child's usage carry a `runId`? | **Unverified** — the child may have no authoritative run identity to attach |
-| Does `captureEvalUsage` see it before cleanup? | Structurally yes; unverified end-to-end |
+This is **not** an eval-harness problem. Every subagent turn in production —
+coordination workers, delegated chat workers — spends tokens that never appear in
+the event log. Consequences:
 
-The open risk is now narrow and specific: **`runId` attribution on the child
-path.** `model.usage` is emitted with `...(runId ? { runId } : {})` from
-`deps.context.runId`; a child subagent may have no runId, in which case usage is
-captured but **unattributable** — the F1-A class of gap.
+- A coordination run's cost is **unmeasurable** even though every worker called a
+  real model and was billed.
+- `cost-attribution` cannot see worker spend at all.
+- Any per-run or per-session cost figure silently excludes delegated work, which
+  is exactly the work most likely to be expensive (parallel workers).
 
-## 3. How to settle it for free-ish
+That is a **silent undercount**, the failure mode the whole audit has been
+guarding against: not a wrong number, but a missing one presented as if complete.
 
-One delegate case on a priced model (`gpt-4o`, ~$0.03) answers all three open
-rows at once. The probe above already shows the plumbing works; only the
-real-provider emission is unknown.
+## 3. Two earlier wrong claims in this file
 
-**Do not run all four delegate strata first.** Run one, inspect whether
-`execution.usage.records[].runId` is present, and only then decide whether the
-cost is attributable or needs an identity fix.
+Recorded so the error is not repeated:
 
-## 4. What is NOT done
+1. *"Child writes to its own session outside the captured directory"* — **wrong**;
+   the child's session IS inside the case cwd (`eval:<caseId>`).
+2. *"Reachable, just needs one priced probe"* — **wrong**; the probe showed the
+   usage event is never emitted at all, so there is nothing to capture.
 
-- No production change for this finding.
-- No priced delegate run yet.
-- The gap doc's original "unattributable" conclusion is retracted above rather
-  than left standing.
+Both were written before being verified. The probe that settled it was cheap; it
+should have come first.
+
+## 4. The fix, not attempted here
+
+`subagent-cli.ts` must emit `model.usage` from `resp.usage` on every completion,
+carrying the child's run identity when it has one. The shape already exists and is
+proven in `task-loop/main.ts:965` — the child loop simply never adopted it.
+
+Open sub-question: the child has no `deps.context.runId`. Attribution would need
+either the parent's run id passed down or a per-worker identity. That is the same
+question F1-A answered for the main loop, and it must be answered before the
+emitted usage is joinable.
+
+**Do not estimate subagent cost before this lands.** There is no data to estimate
+from, and a number derived from main-loop rates would be fabricated.
 
 ## 5. Gate B effect
 
-Measured cost stands at **3/10** (strata 1, 2, 3 — all main-loop or direct run).
-Delegate strata are **plausibly measurable at ~$0.03 each**, which would take
-coverage to 7/10. That is a small, bounded spend rather than a code project — a
-materially better position than the first version of this note implied.
+Measured cost stays at **3/10** (strata 1, 2, 3 — all main-loop or direct runs).
+
+Strata 4, 5, 7, 10 **cannot be measured** until the child loop emits usage. This is
+a code change, not a budget line — and it is worth doing regardless of the audit,
+because production subagent spend is currently invisible.
