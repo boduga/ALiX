@@ -91,7 +91,25 @@ export async function createProvider(config: ProviderConfig, apiKey?: string): P
     }
   }
 
-  const key = `${config.provider}:${model ?? ""}:${apiKey ?? ""}:${config.freellmapiBaseUrl ?? ""}:${config.ollamaBaseUrl ?? ""}:${config.localLlamaBaseUrl ?? ""}:${config.xiaomiMimoBaseUrl ?? ""}:${config.internBaseUrl ?? ""}`;
+  // Every field that shapes the constructed adapter must be in the cache key.
+  // `timeoutMs` / `streamIdleTimeoutMs` were omitted, so a provider first built
+  // with the 300s default (or any other timeout) was silently reused for a
+  // config that asked for a different bound — the requested timeout never took
+  // effect. That is a correctness bug, not a tuning detail: it makes a config
+  // value unenforceable.
+  const key = [
+    config.provider,
+    model ?? "",
+    apiKey ?? "",
+    config.freellmapiBaseUrl ?? "",
+    config.ollamaBaseUrl ?? "",
+    config.localLlamaBaseUrl ?? "",
+    config.xiaomiMimoBaseUrl ?? "",
+    config.internBaseUrl ?? "",
+    config.timeoutMs ?? "",
+    config.streamIdleTimeoutMs ?? "",
+    config.localModelPath ?? "",
+  ].join(":");
 
   if (providerCache.has(key)) {
     return providerCache.get(key)!;
