@@ -182,4 +182,56 @@ Minimum content: decision requested; why human authority is needed; impacted com
 
 **ALiX 2.0:** the Master PRD v2.8 governs any later Workbench/decision-artifact implementation. It depends on canonical evidence projections, stable approval APIs, UI threat review, independent verification and operator-accuracy benchmarks. Existing F8b/R1 boundaries remain S0 safeguards.
 
-**Reported audit state (not independently revalidated from this copy):** P0-D3 verified 5/10 strata and measured cost in 0/10; F1-A/B/C and effective-dated pricing F1-D were reported complete; F1-E remained blocked on credentials in a non-interactive shell. These are historical progress notes, not a Gate B PASS or authorization to publish. Q13 publication HOLD, simplification HOLD and dirty-root preservation remain unchanged.
+**Reported audit state (not independently revalidated from this copy):** coverage is 10/10 strata verified and measured cost is 1/10 (stratum 3, F1-E run-79feb4e0, $0.108968, completeness=complete). F1-A/B/C/D reported complete; F1-E qualified 8/8 after fixing two provider defects (streaming never requested usage; o-series rejected `max_tokens`). Cost remains `null` where no billable call occurred — never zero. These are progress notes, not a Gate B PASS or authorization to publish. Q13 publication HOLD, simplification HOLD and dirty-root preservation remain unchanged.
+
+## 13. Harness² research qualification (pre-2.0 amendment; proposed)
+
+**Research input:** [Google Research Harness²](https://github.com/google-research/harness2) ([experiment guide](https://github.com/google-research/harness2/blob/main/docs/EXPERIMENTS.md), [paper](https://arxiv.org/abs/2610.14224)), reviewed 2026-10-20. The upstream *Propose–Probe–Compose* approach and reported benchmark results are hypotheses to evaluate, not ALiX evidence or authorization. This section implements Master PRD v2.8 §31 at the **documentation/read-only research** level only.
+
+### 13.1 Stage 0 research requirements
+
+| ID | Proposed requirement |
+|---|---|
+| PRE-R020 | Reproduce the upstream **credential-free deterministic demo** in a disposable isolated environment; pin commit, Python/dependencies, command, inputs and outputs. Record inability to reproduce rather than infer success. |
+| PRE-R021 | Map upstream harness snapshots, editor/proposer, probes, composer and reflection outputs to ALiX A-series governed evolution, evidence, outcome ledger and learning owners; flag duplicate authority or incompatible contracts. |
+| PRE-R022 | Define a read-only **candidate manifest and probe evidence contract**: base version/hash, scoped diff, domain, model/executor, tools, permissions, fixture, scorer, budgets, seed, environment, provenance, observed outcomes and failure states. |
+| PRE-R023 | Specify a paired baseline-versus-candidate benchmark with fixed task selection, independent correctness/security scoring, full cost accounting, uncertainty and measured operator attention where available; use `null` for missing measures. |
+| PRE-R024 | Qualify isolation before any ALiX model-backed probe: sandbox and filesystem boundary, restricted egress, no hidden rubrics, secret controls, prompt-injection defenses, side-effect policy, replay and negative tests. |
+| PRE-R025 | Document parallel and sequential recursion budgets, deterministic task ordering, incomplete-run accounting, provenance of domain-specific lessons, holdout validation and rollback criteria. |
+| PRE-R026 | Produce a recommendation **without** modifying production harnesses, automatically promoting candidates, relaxing approvals, or declaring Gate B/F1-E/Q13 cleared. |
+
+### 13.2 Minimal research deliverables and acceptance
+
+- `harness2-source-review.md`: pinned upstream commit, licenses/third-party notices, eight editable components, executor/sandbox assumptions and contract map to ALiX.
+- `harness-optimization-experiment-spec.md`: paired task fixtures, baseline, candidate scopes, independent judge, contamination/egress restrictions, recursion budget, cost ceiling, stop rules and uncertainty.
+- `harness-optimization-readiness.md`: evidence links, gaps, explicit keep/defer/reject recommendation and authority/security review.
+
+**Pass for the Stage 0 research spike** means reproducible demo evidence (or explicitly documented failure), complete contract mapping, a testable safe experiment design, and an independently reviewable recommendation. It **does not** mean ALiX harness optimization is implemented, superior, safe for production or approved for adoption. Do not convert external benchmark gains into ALiX performance claims.
+
+### 13.3 Dependencies, hazards and governance
+
+Research may proceed after inventory and environment isolation are documented. Model-backed experiments depend on qualified sandbox/egress, independent grading and baseline coverage; production changes depend on separate A-series governance decisions. Upstream Harness² explicitly reports unrestricted executor network access and disabled Codex sandboxing, with benchmark rubric exposure risk: reject those settings for ALiX and block any uncontained probe. Domain/task lessons cannot alter global guardrails or tool authority without explicit scoped approval. Preserve dirty-root changes, use isolated worktrees, and do not merge/push/deploy as part of this documentation amendment.
+
+**Unchanged holds:** Gate B HOLD (measured cost 1/10 strata, not coverage); F1-E QUALIFIED (8/8, run-79feb4e0); Q13 publication HOLD; production simplification HOLD.
+
+
+## 14. Progressive supervision and autonomy qualification research (pre-2.0; proposed)
+
+**Source:** Evan Kormos, *How to Know When an AI Agent Can Work Unsupervised* (AI Engineer, 2026-10-19; https://www.youtube.com/watch?v=_4Ph2dhmUFI), user-provided transcript. Its conceptual stages—fully supervised, sampled, exception-based—are **not** independently established numerical certification criteria. This section scopes Master PRD v2.8 §32 to read-only Stage 0 research and benchmark design.
+
+### 14.1 Proposed requirements
+
+| ID | Proposed requirement |
+|---|---|
+| PRE-R027 | Inventory current ALiX governance, approvals, calibration, outcome, traces and coordination contracts for supervision modes, workflow-node checks, exception routing, escalation and revocation. Identify gaps before proposing new components. |
+| PRE-R028 | Define a **node-level eligibility schema** scoped to task class, capability, environment, model configuration, risk, policy revision, review mode, evidence references, expiry and responsible authority. Treat unmeasured confidence and failure rates as unknown. |
+| PRE-R029 | Design independent evaluation for full-to-sampled and sampled-to-exception promotion: representative repeated tasks, risk-weighted failure categories, sample-size/uncertainty rationale, blinded seeded-risk checks, holdouts and trace completeness. Thresholds require explicit policy-owner approval; do not invent default numbers. |
+| PRE-R030 | Define automatic downgrade/suspension triggers for material failure, changed policy/model/tools, distribution shift, missing traces, stale evidence and expired qualification; specify human fallback and auditable exception handling. |
+| PRE-R031 | Benchmark reviewer active time, sampling quality, missed-risk rates, exception volume, queue bottlenecks, verified outcomes, cost and latency as distinct measures. A faster workflow with worse safety fails. |
+| PRE-R032 | Demonstrate that supervision policy never bypasses existing authorization, approval binding, denial, security controls or Q08 bounded autonomy. Harness² optimization cannot promote itself into higher privilege. |
+
+### 14.2 Research outputs and stop conditions
+
+Produce a read-only authority map, qualification/evidence schema proposal, independent evaluation plan, downgrade/exception test matrix and explicit **reuse/defer/reject** recommendation. Keep this within the existing P0-C/P0-D baseline and candidate register; record coverage and unknowns rather than inventing data. Do not implement a new autonomy engine, relax human approval rules, promote any task to sampled/exception-only review or assert production readiness. Real-provider experiments require separate isolation, qualification and authorization.
+
+**Unchanged holds:** Gate B HOLD; F1-E QUALIFIED; Q13 publication HOLD; production simplification HOLD. Q01–Q15, existing approval authority and dirty-root preservation remain unchanged.

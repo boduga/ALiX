@@ -45,6 +45,11 @@ reason about.
 - **The policy gate runs first, and it is not optional.** `ToolExecutor`
   authorizes through `PolicyGate` before any router sees a call. A router's own
   checks are a SECOND, narrower safety net — never the authorization.
+- **Approval-required dispatch is a nonterminal pause.** Persist the
+  continuation and return the structured approval id without emitting
+  `tool.failed`; `handleToolCall` waits up to five minutes for the durable
+  decision and re-dispatches the same tool call after approval. Only a real
+  denial, expiry, cancellation, or execution error terminalizes the tool card.
 - **Tool telemetry is fail-open (P0).** All EventLog writes on the tool path go
   through `telemetry.ts:emitToolTelemetry` (`ToolExecutor.logEvent`, the
   artifact-created notification, the `observability.metric` emissions, and the

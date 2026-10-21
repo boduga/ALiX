@@ -1001,4 +1001,80 @@ As ALiX coordinates more parallel and unattended work, the operator must be able
 | GAP-20 | Interactive artifact security and existing-approval API integration not qualified | Threat model, sandbox/CSP or equivalent isolation, identity/binding/replay/denial negative tests |
 | GAP-21 | Value of richer formats versus concise text is unmeasured | Controlled comparative review, including safety and attention outcomes; retain simplest effective format |
 
-**Release and scope:** This amendment neither changes Q01–Q15 nor clears Gate B, F1-E or Q13. The reported F1-E operator-assisted real-provider run remained blocked by credentials in a non-interactive shell; historical results are not independently verified in this document. Production simplification and publication remain on HOLD. No code change, merge, push, PR or deployment is authorized by this document revision.
+**Release and scope:** This amendment neither changes Q01–Q15 nor clears Gate B or Q13. F1-E is no longer blocked: an operator-assisted real-provider run qualified 8/8 (`run-79feb4e0`), independently recomputing $0.108968 and matching the production summary. Qualifying the measurement mechanism is not a Gate B PASS — measured cost remains 1/10 strata. Production simplification and publication remain on HOLD. No code change, merge, push, PR or deployment is authorized by this document revision.
+
+## 31. Governed recursive harness optimization (Harness² research amendment; proposed)
+
+**Source and evidence boundary:** [Google Research Harness²](https://github.com/google-research/harness2), README and experiment guide reviewed 2026-10-20; [paper](https://arxiv.org/abs/2610.14224). Harness² proposes *Propose–Probe–Compose* task-level refinement and persistent harnessing-level reflection, with parallel/sequential modes and editable prompts, guardrails, memory, tool guidance, subagents, skills, scripts and plugins. Its published benchmark gains are external research claims, **not ALiX validation**. This is an additive proposal, not an adoption decision.
+
+### 31.1 Product direction and requirements
+
+| ID | Proposed requirement |
+|---|---|
+| PRD-R102 | Support a pluggable **harness optimization strategy** within existing governed evolution; never establish a second policy, approval, or adoption authority. |
+| PRD-R103 | Implement a bounded **Propose–Probe–Compose** experiment path: produce versioned candidate diffs, run comparable isolated probes, and compose a proposal from behavioral contrasts. Composition must not directly activate a harness. |
+| PRD-R104 | Distinguish **general/invariant** from **domain/task-specific** harness edits with explicit scope, ownership, permissions, and promotion boundaries. A local success cannot silently become global policy. |
+| PRD-R105 | Persist reproducible harness snapshots, immutable candidate and experiment manifests, model/executor identity, tool permissions, task fixtures, budgets, seed, environment, provenance, failures and evidence references. |
+| PRD-R106 | Compare baseline and candidates using independently verified correctness, safety, cost per verified success, latency, operator attention when measured, and uncertainty; prevent benchmark answer/rubric leakage and unsupported causal claims. |
+| PRD-R107 | Route any proposed adoption, rollback or generalization through existing ALiX verification, governance, approval, audit and recovery lifecycles; changes to guardrails, tool authority, network access or plugins require explicit authorization. |
+| PRD-R108 | Store evidence-linked lessons and adopted harness versions through existing learning/memory authorities, with domain boundaries, invalidation, provenance, retention and rollback; never treat reflections as authoritative facts. |
+| PRD-R109 | Permit **parallel** candidate exploration and **sequential** refinement under explicit recursion, token, time, spend, concurrency and side-effect limits; failures and incomplete probes remain visible and unscored rather than silently successful. |
+
+### 31.2 Security and architectural boundaries
+
+Candidate execution must occur in an isolated, least-privilege sandbox with controlled network egress, secret redaction, constrained filesystem and tools, and no access to hidden grading rubrics. The upstream project documents unrestricted executor networking and disabled Codex sandboxing; **those settings must not be imported as ALiX defaults**. Generated prompts, skills, scripts and plugin edits are untrusted until reviewed and verified. Existing Q01–Q15, single-owner authority, policy/approval binding, audit, and fail-closed semantics remain intact.
+
+### 31.3 Staged rollout and qualification
+
+1. **Pre-2.0 research only:** reproduce Harness²'s credential-free deterministic demo in isolation; map its contracts to ALiX A-series/evidence authorities, and record gaps without runtime changes.
+2. **Baseline and bounded spike:** specify a fixed task corpus, unchanged baseline, controlled candidate runs, independent scorer, contamination controls and a cost ceiling; do not claim improvement before results.
+3. **Design review:** consider a `HarnessOptimizationStrategy` adapter only if it reuses existing governance and improves verified outcomes without unacceptable safety, cost or operator-attention regression.
+4. **Separate authorization:** any implementation, production experiment, rollout, adoption or release requires its own approval and existing gates.
+
+### 31.4 Open evidence gaps
+
+| ID | Gap | Required evidence |
+|---|---|---|
+| GAP-22 | Harness² candidate and experiment contracts not mapped to ALiX | Commit-pinned source review and A-series authority/interface mapping |
+| GAP-23 | No reproducible ALiX Propose–Probe–Compose advantage demonstrated | Fixed-corpus baseline/candidate study with independent grading and uncertainty |
+| GAP-24 | Candidate sandbox, egress, rubric isolation and side-effect controls unqualified | Threat model, isolation design, negative tests and contamination checks |
+| GAP-25 | Long-term reflection quality, domain transfer and rollback not measured | Versioned lesson provenance, cross-task holdout tests and regression/rollback evidence |
+
+**Release status:** Proposed research direction only. Gate B HOLD (measured cost 1/10 strata), F1-E QUALIFIED (8/8, run-79feb4e0), Q13 publication HOLD and production simplification HOLD are unchanged. No merge, push, implementation, deployment or release is authorized by this amendment.
+
+
+## 32. Governed autonomy qualification and progressive supervision (proposed)
+
+**Research input:** Evan Kormos, *How to Know When an AI Agent Can Work Unsupervised* (AI Engineer, 2026-10-19; https://www.youtube.com/watch?v=_4Ph2dhmUFI), supplied transcript. The presentation describes policy-bounded workflow DAGs, bounded adaptive loops, checks supported by repeated evaluations and traces, and a progression from fully supervised to sampled to exception-oriented human review. It does **not** prescribe numerical confidence thresholds or establish ALiX readiness. This section proposes an ALiX-specific qualification design, not an implementation claim.
+
+### 32.1 Requirements
+
+| ID | Proposed requirement |
+|---|---|
+| PRD-R110 | Define **supervision eligibility per task class, capability, environment, model configuration, risk class and policy revision**, not as a global agent trust score. |
+| PRD-R111 | Distinguish **full**, **sampled** and **exception-based** review of eligible outputs. Mandatory approvals and policy gates remain independently enforced in every mode; review mode cannot grant execution authority. |
+| PRD-R112 | Require representative, independently scored evaluations, runtime traces, measured failure/exception rates, coverage, uncertainty and explicit policy thresholds before any supervision reduction. Self-assessment alone is insufficient. |
+| PRD-R113 | Specify a versioned qualification record with scoped permissions, evidence references, sample coverage, threshold provenance, evaluator independence, expiry, revocation reason and responsible governance owner. Missing measurements remain unknown, not zero. |
+| PRD-R114 | Require **downgrade, suspension or expiry** on material failures, policy/model/tool changes, evidence staleness, distribution shift or evaluation integrity failures; preserve fail-closed behavior and human fallback. |
+| PRD-R115 | Keep outer workflow dependencies and required gates deterministic while permitting bounded, observable agent loops within nodes. Define retry/iteration budgets, check criteria and exception escalation. |
+| PRD-R116 | Measure workflow bottlenecks, reviewer effort, sampled-review quality, exception burden and missed-risk rates; reduced approval volume alone is not a success criterion. |
+| PRD-R117 | Reuse existing governance, calibration, observability, coordination and approval authorities. A new independent autonomy engine or self-granting promotion path is out of scope without explicit architectural review. |
+
+### 32.2 Qualification lifecycle and guardrails
+
+A candidate workflow node starts with full review and an independently defined acceptance check. Sampling may be considered only after representative, repeated evaluations satisfy risk-specific policy thresholds, including lower confidence bounds where appropriate. Exception-based review is a separate, higher-evidence decision, not an automatic result of high average accuracy. Maintain ongoing sampled audits even in exception-based operation. A policy owner must authorize every mode transition; changes are logged, time-bounded, reversible and scoped to the evaluated operating conditions. High-impact decisions, regulated approvals, security-sensitive actions and irreversible side effects retain their required human authorization regardless of qualification mode.
+
+### 32.3 Relationship to Harness² and rollout
+
+Harness²-inspired optimization (§31) may propose improved harness configurations, but **cannot award its own supervision privileges**. Independent verification establishes candidate performance; governance determines eligible supervision and execution permissions. Pre-2.0 work is read-only inventory, measurement specification and gap assessment (§13–14 of companion PRD). Later implementation requires separately approved contract, threat model, evaluator independence, trace quality, calibrated thresholds, negative tests and rollback drills.
+
+### 32.4 Evidence gaps
+
+| ID | Gap | Required evidence |
+|---|---|---|
+| GAP-26 | Existing supervision and qualification authorities not mapped | Read-only ownership/contract inventory and duplication analysis |
+| GAP-27 | No independently validated per-node promotion criteria | Representative task corpus, policy thresholds, sample-size rationale, uncertainty and holdouts |
+| GAP-28 | Downgrade, exception routing and fallback not qualified | Failure injection, policy-drift, stale-evidence, escalation and recovery tests |
+| GAP-29 | Operator review savings and missed-risk tradeoffs not measured | Active review effort, sampled audit quality, exception burden and independent risk detection |
+
+**Unchanged authority and release status:** Q01–Q15 remain authoritative; Gate B HOLD, F1-E QUALIFIED, Q13 publication HOLD and production simplification HOLD remain. This amendment authorizes no change to supervision, approvals, production behavior, merge, push or release.

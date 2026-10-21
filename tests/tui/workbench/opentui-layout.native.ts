@@ -471,19 +471,18 @@ test('native drawers render task and artifact bodies by drawer selection', async
   }
 });
 
-test('native approval card paints above the drawer overlay', async () => {
+test('native approval card renders inline in the transcript', async () => {
   const setup = await createTestRenderer({ width: 80, height: 24 });
   try {
-    const shell = layoutState('agents');
+    const shell = layoutState('closed');
     const layout = mountOpenTuiWorkbenchLayout(setup.renderer, shell);
     const state: ContentState = {
       inspector: inspectorState(), composer: contentComposer(), approval: [
         { id: 'ap-1', toolName: 'write_file', target: 'src/x.ts', args: {}, requestedAt: 1, requestedBy: 'worker-1', agentId: 'worker-1' },
-        { id: 'ap-2', toolName: 'run_shell', target: 'npm test', args: {}, requestedAt: 2, requestedBy: 'worker-1', agentId: 'worker-1' },
       ],
       header: chromeState(), footer: chromeState(),
       roster: { agents: null, tasks: null, artifacts: null },
-      transcript: { conversation: { items: [], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
+      transcript: { conversation: { items: [{ id: 'approval-1', kind: 'approval', text: 'Approval required', startedAt: 1, sourceEvents: { firstSequence: 1, lastSequence: 1 } }], hiddenDiagnostics: 0 }, mode: 'compact', filter: 'all', scope: 'all', followTail: true },
       selection: {}, overlay: shell.overlay,
     };
     const content = mountOpenTuiWorkbenchContent(setup.renderer, layout, state);
@@ -491,13 +490,11 @@ test('native approval card paints above the drawer overlay', async () => {
     const frame = setup.captureCharFrame();
     assert.match(frame, /APPROVAL REQUIRED/);
     assert.match(frame, /write_file/);
-    assert.match(frame, /npm test/);
-    assert.match(frame, /1 OF 2/);
+    assert.match(frame, /src\/x\.ts/);
     assert.match(frame, /a approve · d deny/);
-    assert.equal(content.approval.visible, true);
-    assert.ok(content.approval.screenY < layout.regions.overlay.screenY + layout.regions.overlay.height);
-    const rows = frame.split('\n');
-    assert.match(rows[content.approval.screenY] ?? '', /APPROVAL REQUIRED/);
+    assert.equal(content.approval.visible, false);
+    const transcriptRows = frame.split('\n').slice(layout.regions.transcript.screenY, layout.regions.transcript.screenY + layout.regions.transcript.height);
+    assert.match(transcriptRows.join('\n'), /APPROVAL REQUIRED/);
 
     content.update({ ...state, approval: [] });
     await setup.renderOnce();

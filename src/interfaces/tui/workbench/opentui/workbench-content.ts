@@ -10,9 +10,7 @@ import { renderResponse } from '../../blocks/render.js';
 import type { WorkbenchRegion } from '../layout/responsive-layout.js';
 import type { WorkbenchViewState } from '../view-state/types.js';
 import { buildAgentInspectorSections } from '../views/agent-inspector.js';
-import {
-  WORKBENCH_APPROVAL_DECISION_ROW, buildWorkbenchApprovalCardLines, workbenchApprovalDecisionSpans,
-} from '../views/approval-dialog.js';
+import { buildWorkbenchApprovalCardLines } from '../views/approval-dialog.js';
 import { buildOperatorStatusSegments } from '../views/operator-shell.js';
 import { buildWorkbenchToolCardLines } from '../views/tool-card.js';
 import type { ComposerLayout } from '../views/composer-view.js';
@@ -318,7 +316,7 @@ function localTimeLabel(ms: number): string {
 /** Transcript gutter width. Kept tight so prose starts near its responder. */
 const ACTOR_COLUMN = 8;
 
-function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number, width: number, actor: string): NativeLine[] {
+function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number, width: number, actor: string, approval?: ContentState['approval'][number], totalPending = 0): NativeLine[] {
   const time = localTimeLabel(item.startedAt);
   const prefix = `[${time}] ${actor.padEnd(ACTOR_COLUMN, ' ')} `;
   const gutter = ' '.repeat(prefix.length);
@@ -337,7 +335,9 @@ function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, 
     case 'user': return lead(proseRows(item.text, Math.max(8, width - prefix.length)));
     case 'assistant': return lead(proseRows(item.text, Math.max(8, width - prefix.length)));
     case 'activity': return lead(plain(`${item.verifiedOutcome === 'success' ? '✓ ' : item.verifiedOutcome === 'failure' ? '✗ ' : ''}${item.status ? `${ACTIVITY_STATUS[item.status] ?? item.status.toUpperCase()}  ` : ''}${item.text}`));
-    case 'approval': return lead(plain(`APPROVAL  ${item.text}`, 'yellow'));
+    case 'approval': return approval
+      ? lead(buildWorkbenchApprovalCardLines(approval, totalPending, Math.max(12, width - prefix.length)).map(text => ({ text, color: 'yellow' })))
+      : lead(plain(`APPROVAL  ${item.text}`, 'yellow'));
     case 'diagnostic': return lead(plain(`${item.severity.toUpperCase()}  ${item.text}`, item.severity === 'error' ? 'red' : 'yellow'));
     case 'phase': return lead(plain(`PHASE  ${item.phase}`, 'purple'));
     case 'plan': return [
@@ -378,12 +378,15 @@ function transcriptLines(state: ContentState, conversation: ConversationSnapshot
   const lines: NativeLine[] = [];
   const roster = state.roster.agents?.agents ?? [];
   const items = conversation.items;
+  let inlineApprovalRendered = false;
   for (let index = items.length - 1; index >= 0; index--) {
     const item = items[index]!;
     if (!visible(item)) continue;
     const agent = roster.find(entry => entry.agentId === item.agentId);
     const actor = item.kind === 'user' ? 'YOU' : agent?.assignedAgentId ?? agent?.role ?? item.agentId ?? 'ALiX';
-    const itemContent = itemLines(item, transcript.filter === 'error', transcript.mode === 'detailed', neededRows, width, actor);
+    const pendingApproval = item.kind === 'approval' ? state.approval[0] : undefined;
+    const itemContent = itemLines(item, transcript.filter === 'error', transcript.mode === 'detailed', neededRows, width, actor, pendingApproval, state.approval.length);
+    if (pendingApproval) inlineApprovalRendered = true;
     const color: Color = item.kind === 'tool-group' ? item.tools.some(tool => tool.status === 'failed') ? 'red' : 'cyan'
       : item.kind === 'activity' ? item.verifiedOutcome === 'failure' ? 'red' : item.verifiedOutcome === 'success' ? 'green' : 'muted'
         : item.kind === 'diagnostic' ? item.severity === 'error' ? 'red' : 'yellow'
@@ -408,6 +411,19 @@ function transcriptLines(state: ContentState, conversation: ConversationSnapshot
       }
     }
     if (lines.length >= neededRows) break;
+  }
+  if (lines.length === 0 && !state.approval[0]) return { lines: [{ text: 'No conversation yet', color: 'muted' }], resolvedScrollRows: 0 };
+  if (state.approval[0] && !inlineApprovalRendered) {
+    const pending = state.approval[0];
+    const prefix = `[${localTimeLabel(pending.requestedAt)}] ${'ALiX'.padEnd(ACTOR_COLUMN, ' ')} `;
+    const gutter = ' '.repeat(prefix.length);
+    const card = buildWorkbenchApprovalCardLines(pending, state.approval.length, Math.max(12, width - prefix.length))
+      .map((text, index): NativeLine => ({ text: `${index === 0 ? prefix : gutter}${text}`, color: 'yellow' }));
+    // `lines` is newest-first while collecting. Reserve room for this newest
+    // response card, then prepend it in reverse row order before final layout.
+    const reserve = Math.min(neededRows, card.length);
+    if (lines.length > neededRows - reserve) lines.splice(neededRows - reserve);
+    lines.unshift(...card.reverse());
   }
   if (lines.length === 0) return { lines: [{ text: 'No conversation yet', color: 'muted' }], resolvedScrollRows: 0 };
   return {
@@ -807,31 +823,11 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     const overlayBody = state.overlay.drawer !== 'closed' ? drawerLines(state, overlaySize.width, overlaySize.height) : undefined;
     overlayClickTargets = overlayBody?.targets ?? [];
     overlay.content = overlayBody ? styledLines(overlayBody.lines.map(line => ({ text: line })), overlaySize.width) : '';
-    const approvalLines: string[] = [];
+    // Agent approvals are rendered inline with their response in the
+    // transcript; a floating card here detached the decision from its call.
     approvalClickTargets = [];
-    for (const entry of state.approval) {
-      const card = buildWorkbenchApprovalCardLines(entry, state.approval.length, renderer.width);
-      const base = approvalLines.length;
-      approvalLines.push(...card.slice(0, Math.max(0, Math.max(1, renderer.height - 3) - base)));
-      if (base + WORKBENCH_APPROVAL_DECISION_ROW >= approvalLines.length) continue;
-      for (const span of workbenchApprovalDecisionSpans()) {
-        approvalClickTargets.push({
-          row: base + WORKBENCH_APPROVAL_DECISION_ROW, start: span.start, end: span.end,
-          action: { type: 'approval.resolve', approvalId: entry.id, decision: span.decision },
-        });
-      }
-    }
-    approval.visible = approvalLines.length > 0;
-    if (approvalLines.length > 0) {
-      const cardWidth = approvalLines[0]!.length;
-      approvalText.content = approvalLines.join('\n');
-      approval.width = Math.max(1, cardWidth);
-      approval.height = approvalLines.length;
-      approval.left = Math.max(0, Math.floor((renderer.width - cardWidth) / 2));
-      approval.top = Math.min(Math.max(0, renderer.height - approvalLines.length), 3);
-    } else {
-      approvalText.content = '';
-    }
+    approval.visible = false;
+    approvalText.content = '';
   };
   update(initial);
   let disposed = false;
