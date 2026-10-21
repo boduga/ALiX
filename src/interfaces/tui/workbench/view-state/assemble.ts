@@ -30,6 +30,11 @@ export function buildWorkbenchFrameViewState(input: WorkbenchFrameViewInput): Wo
     snapshot,
     ui,
     chrome,
+    approval: agentTab.pendingApprovals.map((approval) => ({
+      ...approval,
+      args: {},
+      requestedBy: 'system',
+    })),
     transcriptSource: { timeline: agentTimeline ?? [], trace: snapshot.runtime?.trace ?? [] },
     transcriptScrollRowsFromTail: agentTab.nativeTranscriptScrollRows ?? 0,
   });
@@ -42,6 +47,8 @@ export interface WorkbenchViewStateInput {
   readonly ui: WorkbenchUiState;
   /** Operator-shell projection; needs legacy/live inputs, so it is supplied. */
   readonly chrome: OperatorShellSnapshot;
+  /** Stable pending list mirrored by TuiApp across temporarily unavailable snapshots. */
+  readonly approval?: WorkbenchViewState['approval'];
   /** Agent-session transcript sources (the per-tab runtime snapshot). */
   readonly transcriptSource: {
     readonly timeline: readonly TimelineEntry[];
@@ -94,7 +101,7 @@ export function assembleWorkbenchViewState(input: WorkbenchViewStateInput): Work
       coordination: ui.coordination,
       queuedMessages: ui.queuedMessages,
     },
-    approval: snapshot.approvals?.pending ?? [],
+    approval: input.approval ?? snapshot.approvals?.pending ?? [],
     selection: {
       selectedRunId: ui.selectedRunId,
       selectedAgentId: ui.selectedAgentId,

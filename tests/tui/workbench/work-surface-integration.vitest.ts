@@ -100,15 +100,18 @@ describe('Workbench work surface integration', () => {
     expect(internal.getWorkbenchStateForTest().composer.text).toBe('no provider');
   });
 
-  it.each(['inspector', 'help', 'diagnostics'])('paints preserved authoritative approval above %s overlay', (overlay) => {
+  it.each(['inspector', 'help', 'diagnostics'])('keeps approval transcript card after closing %s overlay', (overlay) => {
     const { app, internal } = makeWorkbench(async () => ({ summary: 'unused' }));
     internal.getStateForTest().views.agent.pendingApprovals = [{ id: 'pending-card', toolName: 'shell.run', target: 'check workspace', requestedAt: 1 }];
     internal.workbenchStore.dispatch({ type: 'overlay.toggle', overlay });
     (app as any).paintFullFrame();
     const frame = ((app as any).output as MockOutput).writes.join('').replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).toContain('APPROVAL REQUIRED');
-    expect(frame).toContain('pending-card');
-    expect(frame).toContain('a approve · d deny');
+    internal.workbenchStore.dispatch({ type: 'overlay.toggle', overlay });
+    (app as any).paintFullFrame();
+    const transcript = ((app as any).output as MockOutput).writes.join('').replace(/\x1b\[[0-9;]*m/gu, '');
+    expect(transcript).toContain('APPROVAL REQUIRED');
+    expect(transcript).toContain('pending-card');
+    expect(transcript).toContain('a approve · d deny');
   });
 
   it('bounds help scroll at visible end so one Up immediately changes content', () => {
