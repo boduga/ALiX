@@ -8,48 +8,50 @@
     "runStatusAtKill": "running",
     "workersAtKill": [
       {
-        "id": "worker_34c32ab8-df8b-482e-b369-c8864c4c9357",
+        "id": "worker_467f1895-2e85-4fb2-b616-55dd9f9c7075",
         "status": "running",
         "attempt": 1
       },
       {
-        "id": "worker_2cf70492-2c32-42b6-8635-f99facd0aea9",
+        "id": "worker_4dc79267-930a-45f8-a787-1d43220cb7de",
         "status": "pending",
         "attempt": 0
       },
       {
-        "id": "worker_b56338f3-3ae3-46de-b1fa-9e23765144d4",
+        "id": "worker_80b9ccf5-4d74-4ce7-b775-0df7c5679e6e",
         "status": "pending",
         "attempt": 0
       }
     ],
     "falselyCompletedAtKill": 0,
-    "verdict": "PASS - SIGKILL mid-flight; run non-terminal, 0 falsely completed, resume reclaimed and completed all three"
+    "verdict": "PASS - SIGKILL mid-flight; run non-terminal at kill, 0 workers falsely completed, resume reclaimed the orphans"
   },
-  "inputTokens": 69146,
-  "outputTokens": 972,
-  "usageRecords": 11,
-  "costUsd": 0.182585,
+  "inputTokens": 85794,
+  "outputTokens": 1365,
+  "usageRecords": 14,
+  "costUsd": 0.228135,
   "completeness": "complete",
   "rate": {
     "inputPerMillion": 2.5,
     "outputPerMillion": 10.0,
     "effectiveFrom": "2025-01-01"
   },
-  "verifiedSuccesses": 1,
-  "costPerVerifiedSuccessUsd": 0.182585,
-  "artifactsLanded": "3/3",
+  "verifiedSuccesses": 0,
+  "costPerVerifiedSuccessUsd": null,
+  "costPerSuccessNote": "crash integrity PASSES but the run reported failed/partial_success: one worker was rejected by the objective review seeing a SIBLING's evidence (open bug, docs/harness-objective-review-sibling-evidence.md). Cost is real; cost-per-success is UNDEFINED.",
+  "artifactsLanded": "3/3 (all markers correct on disk)",
   "runOutcome": {
-    "status": "completed",
-    "outcome": "success",
-    "workersCompleted": "3/3"
+    "status": "failed",
+    "outcome": "partial_success",
+    "workersCompleted": "2/3"
   },
   "perStratum": {
     "crash-outcome-unknown": {
-      "inputTokens": 69146,
-      "outputTokens": 972,
-      "costUsd": 0.182585,
-      "verifiedSuccesses": 1
+      "inputTokens": 85794,
+      "outputTokens": 1365,
+      "costUsd": 0.228135,
+      "verifiedSuccesses": 0,
+      "costPerSuccessNote": "crash integrity passes; run outcome blocked by the sibling-evidence review bug"
     }
   },
   "recordedAt": "2026-10-21"

@@ -11,17 +11,17 @@
       "runStatus": "running",
       "workers": [
         {
-          "id": "worker_34c32ab8-df8b-482e-b369-c8864c4c9357",
+          "id": "worker_467f1895-2e85-4fb2-b616-55dd9f9c7075",
           "status": "running",
           "attempt": 1
         },
         {
-          "id": "worker_2cf70492-2c32-42b6-8635-f99facd0aea9",
+          "id": "worker_4dc79267-930a-45f8-a787-1d43220cb7de",
           "status": "pending",
           "attempt": 0
         },
         {
-          "id": "worker_b56338f3-3ae3-46de-b1fa-9e23765144d4",
+          "id": "worker_80b9ccf5-4d74-4ce7-b775-0df7c5679e6e",
           "status": "pending",
           "attempt": 0
         }
@@ -30,91 +30,109 @@
     }
   },
   "phase2": {
-    "resumedRunId": "coord_b87ce032-3d8b-4ecc-b205-58610b6c79e0",
+    "resumedRunId": "coord_479a926f-f9e0-4fdd-9777-59a016e3ce94",
     "exitCode": 0,
-    "usageRecords": 11
+    "usageRecords": 14
   },
   "usage": {
     "observed": true,
-    "inputTokens": 69146,
-    "outputTokens": 972,
+    "inputTokens": 85794,
+    "outputTokens": 1365,
     "records": [
       {
-        "sessionId": "coord_1792596920514",
-        "runId": "run-45679cdc",
+        "sessionId": "coord_1792603649826",
+        "runId": "run-7c43b64f",
         "inputTokens": 5990,
         "outputTokens": 33
       },
       {
-        "sessionId": "coord_1792596920514",
-        "runId": "run-45679cdc",
-        "inputTokens": 6157,
-        "outputTokens": 35
+        "sessionId": "coord_1792603649826",
+        "runId": "run-7c43b64f",
+        "inputTokens": 6154,
+        "outputTokens": 186
       },
       {
-        "sessionId": "coord_1792596920514",
-        "runId": "run-45679cdc",
-        "inputTokens": 6306,
-        "outputTokens": 25
-      },
-      {
-        "sessionId": "coord_1792596920514",
-        "runId": "run-45679cdc",
-        "inputTokens": 6458,
-        "outputTokens": 142
-      },
-      {
-        "sessionId": "coord_1792596920514",
-        "runId": "run-96e039f0",
+        "sessionId": "coord_1792603649826",
+        "runId": "run-a12f8fa2",
         "inputTokens": 5990,
         "outputTokens": 37
       },
       {
-        "sessionId": "coord_1792596920514",
-        "runId": "run-96e039f0",
-        "inputTokens": 6165,
-        "outputTokens": 27
+        "sessionId": "coord_1792603649826",
+        "runId": "run-a12f8fa2",
+        "inputTokens": 6155,
+        "outputTokens": 104
       },
       {
-        "sessionId": "coord_1792596920514",
-        "runId": "run-96e039f0",
-        "inputTokens": 6315,
-        "outputTokens": 289
-      },
-      {
-        "sessionId": "coord_1792596920514",
-        "runId": "run-96e039f0",
-        "inputTokens": 6789,
-        "outputTokens": 16
-      },
-      {
-        "sessionId": "coord_1792596920514",
-        "runId": "run-96e039f0",
-        "inputTokens": 6829,
-        "outputTokens": 140
-      },
-      {
-        "sessionId": "coord_1792596920514",
-        "runId": "run-e8e748de",
+        "sessionId": "coord_1792603649826",
+        "runId": "run-39b425f1",
         "inputTokens": 5990,
-        "outputTokens": 32
+        "outputTokens": 37
       },
       {
-        "sessionId": "coord_1792596920514",
-        "runId": "run-e8e748de",
+        "sessionId": "coord_1792603649826",
+        "runId": "run-39b425f1",
+        "inputTokens": 6153,
+        "outputTokens": 161
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-31ae0042",
+        "inputTokens": 5990,
+        "outputTokens": 34
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-31ae0042",
+        "inputTokens": 6163,
+        "outputTokens": 175
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-3d23289b",
+        "inputTokens": 5990,
+        "outputTokens": 34
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-3d23289b",
+        "inputTokens": 6160,
+        "outputTokens": 234
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-34fc5335",
+        "inputTokens": 5990,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-34fc5335",
         "inputTokens": 6157,
-        "outputTokens": 196
+        "outputTokens": 211
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-34fc5335",
+        "inputTokens": 6436,
+        "outputTokens": 19
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-34fc5335",
+        "inputTokens": 6476,
+        "outputTokens": 63
       }
     ]
   },
   "costUsd": null,
   "costNote": "token totals observed across both halves; pricing applied by cost-attribution",
   "finalRun": {
-    "status": "completed",
-    "outcome": "success",
+    "status": "failed",
+    "outcome": "partial_success",
     "workers": [
       "completed",
-      "completed",
+      "failed",
       "completed"
     ]
   },
@@ -135,5 +153,5 @@
       "content": "C-MARKER"
     }
   ],
-  "recordedAt": "2026-10-21T15:36:11.965Z"
+  "recordedAt": "2026-10-21T17:28:35.309Z"
 }
