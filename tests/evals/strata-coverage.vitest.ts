@@ -18,7 +18,12 @@ import { evaluateObjective } from "../../src/operations/evals/evaluators/objecti
 import type { EvalObjective } from "../../src/operations/evals/evals-types.js";
 import { STRATUM_2_AND_4_CASES } from "../../src/operations/evals/cases/strata-2-4.js";
 import { STRATUM_5_AND_10_CASES } from "../../src/operations/evals/cases/strata-5-10.js";
-import { canLabelCpuOnly, isLocalProvider } from "../../src/operations/evals/cases/stratum-9-local.js";
+import {
+  canLabelCpuOnly,
+  isLocalProvider,
+  observedProviders,
+  classifyCpuOnlyRun,
+} from "../../src/operations/evals/cases/stratum-9-local.js";
 
 function makeCwd(): string {
   return mkdtempSync(join(tmpdir(), "eval-strata-"));
@@ -128,5 +133,38 @@ describe("stratum 9 — CPU-only labelling guard", () => {
 
   it("allows the label only for an all-local run", () => {
     expect(canLabelCpuOnly(["ollama", "local-llama"]).ok).toBe(true);
+  });
+
+  it("derives observed providers from per-case execution evidence", () => {
+    const providers = observedProviders({
+      results: [
+        { execution: { provider: "ollama" } },
+        { execution: { provider: "ollama" } },
+      ],
+    });
+    expect(providers).toEqual(["ollama"]);
+  });
+
+  it("fails closed when a case records no provider", () => {
+    // An unattributable case must never support a CPU-only claim.
+    const verdict = classifyCpuOnlyRun({ results: [{ execution: {} }] });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.providers).toContain("unknown");
+    expect(verdict.reason).toContain("unknown");
+  });
+
+  it("refuses a run that mixed local and remote execution", () => {
+    const verdict = classifyCpuOnlyRun({
+      results: [{ execution: { provider: "ollama" } }, { execution: { provider: "openai" } }],
+    });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toContain("openai");
+  });
+
+  it("allows a run whose every case ran on a local provider", () => {
+    const verdict = classifyCpuOnlyRun({
+      results: [{ execution: { provider: "ollama" } }, { execution: { provider: "ollama" } }],
+    });
+    expect(verdict).toEqual({ ok: true, providers: ["ollama"] });
   });
 });

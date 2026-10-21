@@ -16,7 +16,7 @@ Purpose: an independent behavioral-evaluation harness that runs scripted task ca
 | `cases/behavioral.ts` | EVAL-001..007 case definitions |
 | `cases/strata-2-4.ts` | Strata 2 (navigation) + 4 (multi-file) — 3 cases, incl. the composite negative |
 | `cases/strata-5-10.ts` | Strata 5 (verification/repair) + 10 (tool failure) — 4 cases |
-| `cases/stratum-9-local.ts` | CPU-only **labelling guard** (`isLocalProvider`, `canLabelCpuOnly`), not a case |
+| `cases/stratum-9-local.ts` | CPU-only **labelling guard** (`isLocalProvider`, `canLabelCpuOnly`, `classifyCpuOnlyRun`), not a case |
 | `cases/index.ts` | `BEHAVIORAL_CASES` (live, all strata) + `SYNTHETIC_CASES` (honesty fixtures) |
 | `evals-runner.ts` | `runEvalCase`, `runEvalSuite`, `installEvalConfig`, `installSeed`, `saveRun`, `loadPreviousRuns`; isolated cwd + `.alix/evals/<runId>.json` persistence |
 | `dataset-eval.ts` | P4 model-running loop over corpus incidents: candidate prompt per task, LLM-judge 0..1 scores (`eval:<name>`), fail-open per incident. Judge is a direction check, not a verified fix — the gate decides. Feeds score.mjs batch + eval-gate.mjs. |
@@ -35,7 +35,11 @@ CLI: `src/interfaces/cli/commands/evals.ts` (`alix evals run [--suite behavioral
 - **Isolation:** every case runs in its own `tmpdir()/eval-task-*` cwd, removed in a `finally`. Synthetic fixtures (`syntheticStatus`) skip driver execution entirely.
 - **Composite `files` objective:** a stratum-4 multi-file contract is `kind: "files"`, which delegates EACH entry to the same `evaluateObjective` and ANDs the results. There is still one scoring engine — never add a second. Composite mismatches are prefixed with the failing file's path, because a bare mismatch cannot identify which of N files failed.
 - **Strata 2/4/5/10 are deterministic only.** They pin runtime and evaluator behaviour. They emit no `model.usage` (no billable call), so their cost is `null` — unmeasured, NOT zero. Never present them as real-model cost evidence.
-- **Stratum 9 is an environment axis, not a case.** `canLabelCpuOnly` refuses the label unless every provider that executed was local (`ollama`, `local-llama`). No local provider is available in CI, so the stratum is guarded but unclaimed.
+- **Stratum 9 is an environment axis, not a case.** `canLabelCpuOnly` refuses the label unless every provider that executed was local (`ollama`, `local-llama`). `classifyCpuOnlyRun` derives the claim from per-case `execution.provider` evidence, so an unattributable case fails closed as `unknown` rather than being assumed local.
+- **Real-provider runs.** `alix evals run --provider <id> --model <name> [--timeout-ms N]` runs the same cases on real inference. Two rules follow:
+  - A case's scripted `scenario` is a DETERMINISTIC STAND-IN, never a prompt. When a real provider runs the case the scenario is NOT fed to the model (`execution.scriptedScenarioIgnored` records this), otherwise a "real" run would silently replay scripted steps and the evidence would be fictitious.
+  - Local CPU inference is slow: a ~3.5K-token agent prompt on a 3B model can exceed the default 300s provider timeout by minutes. A stratum-9 observation must pass `--timeout-ms` sized for the hardware, or it aborts on transport timeout and measures nothing about the model.
+- **Provider cache key covers every adapter-shaping field.** `createProvider`'s cache key includes `timeoutMs`, `streamIdleTimeoutMs` and `localModelPath` in addition to provider/model/base URLs. Omitting a field makes that config value unenforceable — a provider built earlier with a different value is silently reused. Pinned by `tests/models/provider-cache-key.vitest.ts`.
 - **CI stance:** opt-in only. `pnpm test:evals` runs `tests/evals/*`; the full suite is `alix evals run --suite behavioral`. Not wired into the default `pnpm test` gate.
 
 ## Work Guidance

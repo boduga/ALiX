@@ -150,6 +150,20 @@ export type EvalExecutionResult = {
   summary?: string;
   findings?: unknown;
   error?: string;
+  /**
+   * Provider that actually executed this case, when known.
+   *
+   * Recorded so the stratum-9 CPU-only guard can decide from observed evidence
+   * rather than from what the operator intended to configure. A run that
+   * silently fell back to a remote provider must not be labelable CPU-only.
+   */
+  provider?: string;
+  /**
+   * True when the case carried a scripted scenario but a real provider ran it.
+   * The scenario was deliberately NOT fed to the model (it is a deterministic
+   * stand-in, not a prompt), so the resulting behaviour is the model's own.
+   */
+  scriptedScenarioIgnored?: boolean;
 };
 
 /** Final per-case result, separating objective outcome from status outcome. */
@@ -168,6 +182,11 @@ export type EvalRun = {
   finishedAt: string;
   suite: EvalSuite;
   driver: EvalDriverKind | "both";
+  /**
+   * Provider the run was configured to use. `scripted-mock` by default; `ollama`
+   * for a local CPU-only (stratum 9) observation.
+   */
+  provider?: string;
   results: EvalResult[];
   summary: {
     total: number;

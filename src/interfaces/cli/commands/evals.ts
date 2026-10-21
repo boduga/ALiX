@@ -82,8 +82,24 @@ export async function handleEvalsRun(args: string[]): Promise<void> {
   let suite: string | undefined;
   let driver: EvalDriverKind | "both" = "both";
   let asJson = false;
+  // Default: the deterministic scripted provider. `--provider ollama --model ...`
+  // runs the same cases on local inference (stratum 9, CPU-only).
+  let provider = "scripted-mock";
+  let model = "mock";
+  let timeoutMs: number | undefined;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--suite" && args[i + 1]) suite = args[++i];
+    else if (args[i] === "--provider" && args[i + 1]) provider = args[++i];
+    else if (args[i] === "--model" && args[i + 1]) model = args[++i];
+    else if (args[i] === "--timeout-ms" && args[i + 1]) {
+      const raw = args[++i];
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        console.error(`--timeout-ms must be a positive number of milliseconds, got "${raw}"`);
+        process.exit(1);
+      }
+      timeoutMs = parsed;
+    }
     else if (args[i] === "--driver" && args[i + 1]) {
       const d = args[++i] as EvalDriverKind | "both";
       if (!(VALID_DRIVERS as readonly string[]).includes(d)) {
@@ -92,6 +108,10 @@ export async function handleEvalsRun(args: string[]): Promise<void> {
       }
       driver = d;
     } else if (args[i] === "--json") asJson = true;
+  }
+  if (provider !== "scripted-mock" && model === "mock") {
+    console.error(`--provider ${provider} requires --model <name> (e.g. --model llama3.2:3b)`);
+    process.exit(1);
   }
   if (suite !== undefined && !(VALID_SUITES as readonly string[]).includes(suite)) {
     console.error(`Unknown suite "${suite}". Valid suites: ${VALID_SUITES.join(", ")}`);
@@ -105,7 +125,13 @@ export async function handleEvalsRun(args: string[]): Promise<void> {
   await loadConfig(cwd);
 
   performance.now();
-  const run = await runEvalSuite(cases, { suite: "behavioral", driver });
+  const run = await runEvalSuite(cases, {
+    suite: "behavioral",
+    driver,
+    provider,
+    model,
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+  });
   const file = saveRun(cwd, run);
 
   if (asJson) {

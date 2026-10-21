@@ -60,3 +60,37 @@ export function canLabelCpuOnly(providersUsed: readonly string[]): CpuOnlyLabelC
   }
   return { ok: true };
 }
+
+/**
+ * Derive the providers that actually executed from a recorded `EvalRun`.
+ *
+ * Reads `execution.provider` per case — the provider recorded when the case ran,
+ * not what the operator intended. A case whose provider is unknown is returned
+ * as the literal `unknown`, which the guard treats as non-local and therefore
+ * refuses. Fail closed: an unattributable run cannot support a CPU-only claim.
+ */
+export function observedProviders(run: {
+  provider?: string;
+  results: Array<{ execution?: { provider?: string } }>;
+}): string[] {
+  const seen = new Set<string>();
+  for (const result of run.results) {
+    seen.add(result.execution?.provider ?? "unknown");
+  }
+  if (seen.size === 0 && run.provider) seen.add(run.provider);
+  return [...seen];
+}
+
+/**
+ * Decide whether a recorded run may be counted as stratum 9 (local CPU-only).
+ *
+ * Returns the guard verdict plus the evidence that produced it, so the claim can
+ * be audited later without re-deriving which providers ran.
+ */
+export function classifyCpuOnlyRun(run: {
+  provider?: string;
+  results: Array<{ execution?: { provider?: string } }>;
+}): CpuOnlyLabelCheck & { providers: string[] } {
+  const providers = observedProviders(run);
+  return { ...canLabelCpuOnly(providers), providers };
+}

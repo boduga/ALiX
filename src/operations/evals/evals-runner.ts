@@ -39,14 +39,41 @@ import type {
   EvalSuite,
 } from "./evals-types.js";
 
-/** Install a minimal scripted-mock test configuration in an eval cwd. */
-export function installEvalConfig(cwd: string, provider = "scripted-mock"): void {
+/**
+ * Install a minimal test configuration in an eval cwd.
+ *
+ * Defaults to the deterministic `scripted-mock` provider. A local CPU-only
+ * (stratum 9) run passes `provider: "ollama"` with the real model name, because
+ * the scripted provider is not a local-inference backend — labelling it CPU-only
+ * would be a false claim.
+ */
+export function installEvalConfig(
+  cwd: string,
+  provider = "scripted-mock",
+  model = "mock",
+  /**
+   * Total provider-call timeout for a REAL provider.
+   *
+   * Local CPU inference is slow: a ~3.5K-token agent prompt on a 3B model can
+   * take many minutes, well past the 300s default. Without this the case aborts
+   * with a transport timeout that says nothing about model capability, which
+   * would make a stratum-9 observation meaningless. The scripted provider never
+   * needs it (no network, no inference).
+   */
+  timeoutMs?: number,
+): void {
   mkdirSync(join(cwd, ".alix"), { recursive: true });
   writeFileSync(
     join(cwd, ".alix", "config.json"),
     JSON.stringify(
       {
-        models: { default: { provider, name: "mock" } },
+        models: {
+          default: {
+            provider,
+            name: model,
+            ...(timeoutMs !== undefined && provider !== "scripted-mock" ? { timeoutMs } : {}),
+          },
+        },
         permissions: {
           default: "allow",
           tools: {},
@@ -94,11 +121,28 @@ function evalCaseCwd(): string {
 /** Run a single case in an isolated cwd and produce its EvalResult. */
 export async function runEvalCase(
   evalCase: EvalCase,
-  _opts: { driver?: EvalDriverKind } = {},
+  opts: {
+    driver?: EvalDriverKind;
+    provider?: string;
+    model?: string;
+    timeoutMs?: number;
+  } = {},
 ): Promise<EvalResult> {
+  const provider = opts.provider ?? "scripted-mock";
+  const model = opts.model ?? "mock";
+  // A scripted scenario is the DETERMINISTIC STAND-IN for model behaviour. When a
+  // real provider runs the case, the model decides for itself and the scenario
+  // must NOT be fed to it — otherwise a real run would silently replay scripted
+  // steps and the evidence would be fictitious. The case's `task` prompt is what
+  // the model receives; the objective is then evaluated against real behaviour.
+  //
+  // This is recorded on the result rather than applied silently, so a stratum-9
+  // observation is never mistaken for a deterministic scripted run.
+  const usesScripted = provider === "scripted-mock";
+  const scriptedScenarioIgnored = !usesScripted && evalCase.scenario !== undefined;
   const cwd = evalCaseCwd();
   try {
-    installEvalConfig(cwd);
+    installEvalConfig(cwd, provider, model, opts.timeoutMs);
     installSeed(cwd, evalCase.seed);
 
     let execution: EvalExecutionResult;
@@ -116,15 +160,20 @@ export async function runEvalCase(
       const executor = createSubagentExecutor(config, { sessionId: `eval-${evalCase.id}` });
       execution = await runDelegateCase(evalCase, cwd, executor);
     } else {
-      // Main-loop: the registry provider reads the scenario from the in-process
-      // carrier, so set it before the loop and clear it afterwards.
-      if (evalCase.scenario) setScriptedScenario(evalCase.scenario);
+      // Main-loop: a scripted provider reads its scenario from the in-process
+      // carrier, so set it before the loop and clear it afterwards. A real local
+      // provider has no scenario.
+      if (usesScripted && evalCase.scenario) setScriptedScenario(evalCase.scenario);
       try {
         execution = await runMainLoopCase(evalCase, cwd, (c, t, o) => runTask(c, t, o));
       } finally {
-        clearScriptedScenario();
+        if (usesScripted) clearScriptedScenario();
       }
     }
+    // Record the provider that actually ran, so the CPU-only guard can decide
+    // from observed evidence rather than from intent.
+    execution.provider = provider;
+    if (scriptedScenarioIgnored) execution.scriptedScenarioIgnored = true;
 
     const objective = evaluateObjective(cwd, evalCase.objective);
     const objectiveCorrect = objective.landed === evalCase.expected.objectiveLanded;
@@ -154,10 +203,14 @@ export async function runEvalSuite(
   opts: {
     suite?: EvalSuite;
     driver?: EvalDriverKind | "both";
+    provider?: string;
+    model?: string;
+    timeoutMs?: number;
   } = {},
 ): Promise<EvalRun> {
   const driver = opts.driver ?? "both";
   const suite = opts.suite ?? "behavioral";
+  const provider = opts.provider ?? "scripted-mock";
   const filter = CASE_BY_DRIVER[driver];
   const selected = cases.filter(filter);
 
@@ -166,7 +219,12 @@ export async function runEvalSuite(
   const results: EvalResult[] = [];
   for (const evalCase of selected) {
     try {
-      results.push(await runEvalCase(evalCase, { driver: evalCase.driver }));
+      results.push(await runEvalCase(evalCase, {
+        driver: evalCase.driver,
+        provider,
+        ...(opts.model !== undefined ? { model: opts.model } : {}),
+        ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+      }));
     } catch (err) {
       // A case that throws yields an explicit failed result rather than aborting
       // the whole run.
@@ -175,7 +233,15 @@ export async function runEvalSuite(
         objective: { landed: false, evidence: {} },
         status: { actual: undefined, expected: evalCase.expected.statuses, honest: false },
         verdict: "fail",
-        execution: { driver: evalCase.driver, cwd: "<isolated>", error: String(err) },
+        // Attribute the provider even on failure. Without it a failed real run
+        // is indistinguishable from a failed scripted one, and the CPU-only
+        // guard would be reasoning about "unknown" when the answer is known.
+        execution: {
+          driver: evalCase.driver,
+          cwd: "<isolated>",
+          provider,
+          error: String(err),
+        },
       });
     }
   }
@@ -187,6 +253,7 @@ export async function runEvalSuite(
     finishedAt: new Date().toISOString(),
     suite,
     driver,
+    provider,
     results,
     summary: {
       total: results.length,
