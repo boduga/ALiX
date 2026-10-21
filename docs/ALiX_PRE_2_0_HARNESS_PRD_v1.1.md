@@ -1,10 +1,19 @@
 # ALiX — Pre-2.0 Harness Rationalization PRD
 
-**Version:** 1.1 (proposed; operator-attention amendment)  
+**Version:** 1.1 (proposed; three amendments: §12 operator-attention, §13 Harness², §14 progressive supervision)  
 **Date:** 2026-10-20  
 **Status:** DRAFT — implementation not authorized by this document  
 **Parent:** ALiX Master PRD v2.8, Stage 0; Q01–Q15 unchanged  
-**Program:** Pre-2.0 harness complexity audit, measured simplification, and legacy cutover readiness
+**Program:** Pre-2.0 harness complexity audit, measured simplification, and legacy cutover readiness  
+**Source baseline:** audit work performed against `4ac6df14` (tree `8bf5ac2b6dfaeccaa69567410e32e6f7a768a305`), the Gate 7 release candidate fast-forwarded onto `main`. PRE-R001 requires a pinned commit; this is that pin.
+
+> **Open version-identification decision.** This document and an earlier
+> audit-branch copy both carried the string "v1.1" while containing different
+> sections. The duplicate was deleted and its unique content (the `4ac6df14` pin,
+> the twelve-path re-verification, the HC-07 barrel correction) was preserved in
+> `docs/harness-component-inventory.md`. Whether to mint a distinct version
+> number is a change-control decision under Q01–Q15 and is **not** made
+> unilaterally here. See `docs/harness-prd-divergence-finding.md`.
 
 ## 1. Executive summary
 
@@ -83,6 +92,37 @@ The source references below were inspected from GitHub `main` snapshot `e948e356
 | PRE-R013 | Enforce separation between audit, design, experimental branch, and production change | P0 | No production code changes without explicit operator authorization |
 | PRE-R014 | Publish final readiness verdict with blockers and evidence links | P0 | PASS/HOLD per requirement; unknown remains unknown |
 
+### 5.1 v1.1 amendment requirements (PRE-R015–R032)
+
+These are defined in full in their own sections and are **not** repeated here, so
+each requirement has exactly one authoritative statement — an amendment may change
+its own row without desynchronising this table.
+
+| ID | Requirement | Priority | Defined in |
+|---|---|---|---|
+| PRE-R015 | Define operator-attention measurements for decision-bearing runs | P1 | §12.1 |
+| PRE-R016 | Define an evidence-linked decision brief contract | P1 | §12.1 |
+| PRE-R017 | Compare text, diagram and optional interactive presentations of the same evidence | P2 | §12.1 |
+| PRE-R018 | Preserve governance across representations | P0 | §12.1 |
+| PRE-R019 | Preserve evidence provenance and safety of generated views | P0 | §12.1 |
+| PRE-R020 | Reproduce the upstream credential-free deterministic demo, or record the inability | P1 | §13.1 |
+| PRE-R021 | Map upstream components to ALiX owners; flag duplicate authority | P1 | §13.1 |
+| PRE-R022 | Define a read-only candidate manifest and probe evidence contract | P1 | §13.1 |
+| PRE-R023 | Specify a paired baseline-versus-candidate benchmark | P1 | §13.1 |
+| PRE-R024 | Qualify isolation before any model-backed probe | P0 | §13.1 |
+| PRE-R025 | Document recursion budgets, task ordering, holdouts and rollback criteria | P1 | §13.1 |
+| PRE-R026 | Produce a recommendation without modifying production harnesses | P0 | §13.1 |
+| PRE-R027 | Inventory current governance, approval and trace contracts for supervision gaps | P1 | §14.1 |
+| PRE-R028 | Define a node-level eligibility schema; treat unmeasured rates as unknown | P1 | §14.1 |
+| PRE-R029 | Design independent evaluation for promotion; thresholds require policy-owner approval | P0 | §14.1 |
+| PRE-R030 | Define automatic downgrade and suspension triggers | P0 | §14.1 |
+| PRE-R031 | Benchmark reviewer time, sampling quality and missed-risk rates as distinct measures | P1 | §14.1 |
+| PRE-R032 | Demonstrate supervision policy never bypasses existing authorization | P0 | §14.1 |
+
+**All eighteen are `not started`.** None is implemented, instrumented or
+measured. They do not clear Gate B (§12.4), and R026/R032 explicitly forbid
+promoting themselves into privilege or production readiness.
+
 ## 6. Nonfunctional and safety requirements
 
 - Zero accepted unauthorized execution or approval bypasses in the required negative corpus.
@@ -100,6 +140,19 @@ Task strata: (1) read-only factual inspection, (2) unfamiliar-code navigation, (
 
 Primary measure: `total measured cost / independently verified successful tasks`. Report total tasks, verified successes, mean/median cost, p50/p95 latency, tokens, tool calls, repeated calls, retry count, and operator interventions. Count unsuccessful task cost in numerator. For local models report resource-time as well as monetary estimates, clearly labeled.
 
+**Operator attention is a separate measured dimension** (§12.3). Report
+`operatorActiveReviewMinutes / independentlyVerifiedSuccesses` **only when both
+terms are observed**; otherwise report `null` and the coverage. Never convert
+operator time into a guessed dollar figure. Keep active review distinct from
+waiting, interruptions and total elapsed time. A faster approval is **not**
+better if the reviewer missed a security, correctness or governance issue.
+
+**Unmeasured is not zero.** Cost and attention are `null` wherever no billable
+call or no observation occurred. A scripted-provider run emits no `model.usage`
+because no billable call exists; a local CPU run is non-billable resource time.
+Neither is a measured zero. Coverage must be reported alongside every aggregate
+so a reader cannot mistake "not measured" for "measured, and it was nothing".
+
 Each ablation uses the same task set, model/version, provider policy, environment and test oracle, with randomized ordering or repetitions to limit drift. Run S0 negative tests independently; never score a policy bypass as a success. Compare per-task outcomes and identify regressions before declaring a winner.
 
 ## 8. Workstreams and dependencies
@@ -114,8 +167,16 @@ Each ablation uses the same task set, model/version, provider policy, environmen
 | P0-F | Consolidation and legacy migration design | P0-A/E | PRE-R010–011 |
 | P0-G | Gate 7/F8b qualification | Separate security track | Required for default governed worker release |
 | P0-H | Approved cutover and qualification | P0-F, P0-G, separate approval | Q04/Q05 and Stage 0 release evidence |
+| P0-I | Operator-attention measurement and decision-brief contract (§12) | P0-C/P0-D | PRE-R015–019; definitions versioned, measurements `not measured` until instrumented |
+| P0-J | Harness² research qualification (§13) | P0-A, environment isolation | PRE-R020–026; reproducible demo or documented failure, contract map, safe experiment design |
+| P0-K | Progressive-supervision research (§14) | P0-C/P0-D, P0-I | PRE-R027–032; authority map, eligibility schema, evaluation plan, defer/reject recommendation |
 
 Read-only P0-A/B/C may proceed during Gate 7 HOLD. Experiments must use isolated fixtures and policy-approved providers; they do not clear security holds. Production cutover is explicitly outside this PRD's authorization.
+
+**P0-I/J/K are read-only research and design stages.** Their exits are documents
+and definitions, never production behaviour. None of them may clear Gate B, relax
+an approval rule, promote a task to less-supervised review, or authorise a
+model-backed probe without the isolation qualification in PRE-R024.
 
 ## 9. Acceptance gates and stop conditions
 
@@ -137,11 +198,35 @@ Stop on unauthorized execution, missing authoritative evidence, non-idempotent a
 5. `harness-cutover-plan.md` — dependency order, migration, tests, rollback and risk.
 6. `harness-readiness-report.md` — exact commit, status and gate verdicts.
 
-These are expected future outputs; none is represented as already completed.
+### 10.1 v1.1 amendment deliverables
+
+7. `harness-operator-attention-metrics.md` — versioned definitions for active review minutes per independently verified success, interruptions, approval touches and missed-evidence/reversal events (§12, PRE-R015).
+8. `harness-decision-brief-contract.md` — read-only projection fields, provenance rules and governance binding, including the untrusted-content posture for any generated view (§12, PRE-R016–R019).
+9. `harness2-source-review.md` — pinned upstream commit, licences, component inventory and contract map to ALiX (§13, PRE-R020–R021).
+10. `harness-optimization-experiment-spec.md` — paired fixtures, independent judge, contamination and egress restrictions, recursion budget, stop rules and uncertainty (§13, PRE-R022–R025).
+11. `harness-optimization-readiness.md` — evidence links, gaps and an explicit keep/defer/reject recommendation with authority review (§13, PRE-R026).
+12. `harness-supervision-authority-map.md` and `harness-supervision-eligibility-schema.md` — current governance/trace inventory, node-level eligibility contract, downgrade and exception test matrix, and an explicit reuse/defer/reject recommendation (§14, PRE-R027–R032).
+
+**Status of all twelve: not produced.** Deliverables 1–3 exist as audit artifacts on
+`main`; 4–6 and 7–12 do not exist yet. None is represented as completed, and the
+existence of a document is not evidence that a gate is satisfied.
 
 ## 11. Traceability and governance
 
-Parent Master PRD: v2.8 Stage 0, §§5–8, 10, 14, 18–19, 22, 28, and retained v2.7 §29. Preserve approved Q01–Q15 verbatim. Feature statuses distinguish proposed, designed, implemented-unverified, verified-on-candidate, verified-on-main and released.
+Parent Master PRD: v2.8 Stage 0, §§5–8, 10, 14, 18–19, 22, 28, 31–32, and retained v2.7 §29. Preserve approved Q01–Q15 verbatim. Feature statuses distinguish proposed, designed, implemented-unverified, verified-on-candidate, verified-on-main and released.
+
+**Requirement status at this revision.** PRE-R001–R014 are defined; the
+P0-A/P0-B/P0-C/P0-D artifacts they name exist on `main`. PRE-R015–R032 are
+defined in §12–§14 and **none is started**. Defining a requirement is not
+satisfying it.
+
+**Gate B status: HOLD.** Coverage is 10/10 strata verified, but the primary
+measure — total measured cost per independently verified success — is observed in
+**1 of 10** strata (stratum 3, F1-E `run-79feb4e0`, $0.108968, completeness
+`complete`). Everywhere else it is `null`, not zero. One three-invocation run
+qualifies the measurement mechanism; it is not a baseline. Gate B also requires a
+reproducible environment, and the Gate 7 evidence drivers remain outside the
+repository (benchmark-spec finding C-03).
 
 **Decision:** proceed with documentation and read-only audit. **Not authorized:** production edits, merge, push, deployment, release or waiver of Gate 7 publication HOLD.
 
