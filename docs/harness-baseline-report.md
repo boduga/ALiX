@@ -71,17 +71,29 @@ evidence and refuses to count a stratum with no evidence.
 | 6 | Four-worker coordination | 4/4 | **not measured** | cost unmeasured |
 | 7 | Allow/ask/deny mixes | 5/5 | **not measured** | cost unmeasured |
 | 8 | Crash / restart, outcome unknown | 1/1 | **not measured** | cost unmeasured |
-| 9 | Local CPU-only | **0/0 — guard only** | n/a (non-billable) | no local provider available |
+| 9 | Local CPU-only | **1/1 real run (inference proven)** | non-billable | suite coverage not yet run to completion |
 | 10 | Tool failure / malformed calls | **2/2 (deterministic)** | not measured | cost unmeasured |
 
 **Verified: 9/10 strata. Measured cost: 1/10 strata (stratum 3, via F1-E run
-`run-79feb4e0`). Blocked: stratum 9 (no local provider available).**
+`run-79feb4e0`). Blocked: none on coverage; stratum 9's suite run is incomplete.**
 
-Stratum 9 remains the one uncovered stratum. Its case module
-(`cases/stratum-9-local.ts`) provides the **labelling guard** — a run may only be
-recorded as CPU-only when every provider that executed was local — but no
-`ollama`/`local-llama` backend is present in this environment, so no run can be
-observed. The guard is tested; the stratum is not claimed.
+Stratum 9 changed status this session. **Ollama is installed and serving**, and a
+real task completed through ALiX on local CPU inference:
+
+```
+provider=ollama  model=llama3.2:3b  runId=run-379d9b20  in=3347 out=14  exit=0
+```
+
+So "no local provider available" — recorded earlier in this document — was
+wrong. It was never checked. The inference path is now proven; what is not yet
+done is the full stratum-9 eval *suite*, because each case costs many minutes of
+local CPU inference on this 4-core box and the two main-loop cases exceeded the
+run budget.
+
+Stratum 9's guard now derives its verdict from **evidence**, not intent:
+`classifyCpuOnlyRun` reads per-case `execution.provider` and fails closed on
+`unknown`, so an unattributable run cannot support a CPU-only claim and a mixed
+local+remote run is refused.
 
 ### Evidence per verified stratum
 
@@ -140,10 +152,12 @@ What still blocks a defensible ablation:
 - **Cost is measured in 1 of 10 strata.** One 3-invocation run proves the
   mechanism, not a baseline. The other strata are deterministic runs with no
   billable call, so their cost is genuinely `null`.
-- **Stratum 9 has no observable run.** No local provider is available here.
-- **D4-04 (delegate transport flake) remains open.** It is a real
-  nondeterminism in the delegate path; it must be resolved or excluded before
-  any run is used as a comparison baseline.
+- **Stratum 9's suite has not run to completion.** Local CPU inference on this
+  4-core box costs minutes per case; the inference path is proven but the
+  stratum's full suite evidence is not collected.
+- **D4-04 is bounded but not fixed.** 42 consecutive passes with zero
+  reproduction; two mechanisms (synthetic causality, lease leakage) excluded by
+  construction and pinned by test. See `harness-d4-04-investigation.md`.
 
 Running an ablation now would still produce a confident number that answers a
 narrower question than the PRD asks — exactly the failure mode §7 validity rules
@@ -155,9 +169,10 @@ exist to prevent.
 
 1. **Real-model cost runs across the newly covered strata** — the coverage exists;
    what is missing is billable evidence per stratum. Highest leverage.
-2. **Resolve or formally exclude D4-04** before any baseline is reused.
-3. **Stratum 9** — needs a local provider (ollama or local-llama) in the
-   environment. The labelling guard is already in place and tested.
+2. **Complete the stratum-9 suite** on ollama, with `--timeout-ms` sized for
+   the hardware. Inference is proven; the suite evidence is not.
+3. **D4-04** — bounded and excluded from baseline use until it reproduces or the
+   transport is hardened with a failing-first test.
 4. **Provider-backed re-run** once quota returns; pin model/provider versions.
 
 ---

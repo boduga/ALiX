@@ -16,7 +16,7 @@ them now have deterministic behavioural cases, and the fifth has a guard:
 | 2 — Unfamiliar-code navigation | none | `code-navigation` (read-only) |
 | 4 — Multi-file bug fix | none | `multi-file-fix` + `multi-file-fix-partial` |
 | 5 — Verification / repair | none | `verification-repair` + `verification-repair-not-applied` |
-| 9 — Local CPU-only | none | **guard only** — no local provider available |
+| 9 — Local CPU-only | none | **real ollama run proven**; guard derives verdict from evidence |
 | 10 — Tool failure / malformed calls | none | `tool-failure-recovery` + `malformed-tool-call` |
 
 Suite: **14/14 pass**, deterministic, no network.
@@ -97,7 +97,21 @@ additional behavioural coverage. `cases/stratum-9-local.ts` instead provides the
 labelling guard — a run may be recorded as CPU-only **only** when every provider
 that executed was local (`ollama`, `local-llama`). A mixed run is refused.
 
-No local provider exists in this environment, so **stratum 9 is not claimed**.
+**Correction (same session):** an earlier version of this document claimed no
+local provider exists. That was wrong — it was never checked. Ollama is installed
+and serving, and a real task completed on local CPU inference:
+
+```
+provider=ollama  model=llama3.2:3b  runId=run-379d9b20  in=3347 out=14  exit=0
+```
+
+So the stratum is no longer "guard only". The **inference path is proven**; the
+full suite is not yet run to completion (minutes per case on this 4-core box),
+so suite coverage is still not claimed.
+
+The guard is now evidence-derived rather than intent-based:
+`classifyCpuOnlyRun` reads per-case `execution.provider` and fails closed on
+`unknown`.
 
 ---
 
@@ -110,7 +124,8 @@ No local provider exists in this environment, so **stratum 9 is not claimed**.
 | New tests (`strata-coverage`, `subagent-failed-result-stdout`) | 13/13 pass |
 | Regression (`tests/evals`, `tests/agents`, evals CLI) | **212/212 across 20 files** |
 | Behavioural suite | **14/14 pass** |
-| Coverage matrix generator | 9/10 verified, 1/10 cost, stratum 9 flagged |
+| Coverage matrix generator | 9/10 verified, 1/10 cost |
+| Real ollama run (stratum 9) | `run-379d9b20`, exit 0, in=3347 out=14 |
 
 The stdout regression test spawns the **real** child process through the real
 CLI entry point with a scripted provider. It failed before the fix and passes
@@ -128,9 +143,9 @@ the result contract.
 - **No claim that strata 2/4/5/10 behave the same under a real model.** These
   cases pin runtime and evaluator behaviour deterministically; they say nothing
   about model capability on those task shapes.
-- **Stratum 9 remains uncovered** (no local provider available).
-- **D4-04 (delegate transport flake) is still open.** It is unrelated to these
-  cases but must be resolved or formally excluded before any baseline reuse.
+- **Stratum 9 suite coverage is incomplete.** Inference is proven on ollama; the
+  full case suite has not run to completion.
+- **D4-04 is bounded, not fixed** — see `harness-d4-04-investigation.md`.
 
 ---
 
