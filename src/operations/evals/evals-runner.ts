@@ -26,6 +26,7 @@ import { evaluateObjective } from "./evaluators/objective-evaluator.js";
 import { evaluateStatus } from "./evaluators/status-evaluator.js";
 import { createSubagentExecutor, runDelegateCase } from "./drivers/delegate-driver.js";
 import { runMainLoopCase } from "./drivers/main-loop-driver.js";
+import { captureEvalUsage } from "./eval-usage.js";
 import {
   setScriptedScenario,
   clearScriptedScenario,
@@ -174,6 +175,22 @@ export async function runEvalCase(
     // from observed evidence rather than from intent.
     execution.provider = provider;
     if (scriptedScenarioIgnored) execution.scriptedScenarioIgnored = true;
+
+    // Capture provider-reported tokens NOW, while the session log still exists.
+    // The case cwd is removed in the finally below, which takes
+    // `<cwd>/.alix/sessions/**.jsonl` with it — the only authoritative record of
+    // what the model actually consumed. Reading it after cleanup is impossible,
+    // which is precisely how a real gpt-4o run passed 2/2 and produced no cost
+    // evidence.
+    const usage = captureEvalUsage(cwd);
+    if (usage.observed) {
+      execution.usage = {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        observed: usage.observed,
+        records: usage.records,
+      };
+    }
 
     const objective = evaluateObjective(cwd, evalCase.objective);
     const objectiveCorrect = objective.landed === evalCase.expected.objectiveLanded;

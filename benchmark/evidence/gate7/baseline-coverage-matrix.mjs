@@ -38,6 +38,7 @@ const explicitCostPaths = process.argv.slice(4);
 /** In-repo defaults, used only when the caller supplies none. */
 const DEFAULT_COST_PATHS = [
   join(repoEvidenceDir, "cost", "cost-record.json"),
+  join(repoEvidenceDir, "cost", "eval-mainloop-metered.json"),
 ].filter(existsSync);
 const costEvidencePaths = explicitCostPaths.length > 0 ? explicitCostPaths : DEFAULT_COST_PATHS;
 /** Default to the recorded deterministic eval run, so no args reproduces all ten strata. */
@@ -204,6 +205,29 @@ for (const path of costEvidencePaths) {
   }
   const stratum = record.stratum;
   const cost = record.costUsd ?? record.observedCostUsd;
+
+  // Completeness is checked first: an incomplete total is not a measured cost,
+  // whatever shape the record has.
+  if (record.completeness !== undefined && record.completeness !== "complete") {
+    console.error(`warning: cost evidence ${path} completeness is "${record.completeness}", not complete; ignoring`);
+    continue;
+  }
+
+  // A record may attribute several strata at once (a multi-case eval run). It
+  // carries no top-level `stratum`, so this branch must be evaluated BEFORE the
+  // single-stratum guard below would reject it for lacking one.
+  if (record.perStratum && typeof record.perStratum === "object") {
+    for (const [id, entry] of Object.entries(record.perStratum)) {
+      const perCost = entry?.costUsd;
+      if (typeof perCost !== "number" || !Number.isFinite(perCost) || perCost < 0) {
+        console.error(`warning: ${path} perStratum["${id}"] has no finite cost; ignored`);
+        continue;
+      }
+      costByStratum.set(id, { runId: entry.runId ?? record.runId, costUsd: perCost });
+    }
+    continue;
+  }
+
   if (!stratum) {
     console.error(`warning: cost evidence ${path} does not name a stratum; ignoring`);
     continue;
@@ -216,6 +240,8 @@ for (const path of costEvidencePaths) {
     console.error(`warning: cost evidence ${path} completeness is "${record.completeness}", not complete; ignoring`);
     continue;
   }
+  // A record may attribute several strata at once (a multi-case eval run).
+  // Each per-stratum figure is validated by the same rules as the total.
   costByStratum.set(stratum, { runId: record.runId, costUsd: cost });
 }
 

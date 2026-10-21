@@ -164,6 +164,26 @@ export type EvalExecutionResult = {
    * stand-in, not a prompt), so the resulting behaviour is the model's own.
    */
   scriptedScenarioIgnored?: boolean;
+  /**
+   * Provider-reported usage captured BEFORE the case cwd (and with it the
+   * session log) is deleted.
+   *
+   * `null` means no `model.usage` event was observed — a deterministic case makes
+   * no billable call — and must be read as unknown, never as a measured zero.
+   * Pricing is applied elsewhere; this is tokens only.
+   */
+  usage?: {
+    inputTokens: number | null;
+    outputTokens: number | null;
+    observed: boolean;
+    records: Array<{
+      runId?: string;
+      provider?: string;
+      model?: string;
+      inputTokens?: number;
+      outputTokens?: number;
+    }>;
+  };
 };
 
 /** Final per-case result, separating objective outcome from status outcome. */

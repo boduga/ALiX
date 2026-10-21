@@ -63,8 +63,8 @@ evidence and refuses to count a stratum with no evidence.
 
 | # | Stratum | Verified runs | Measured cost | Blocking |
 |---|---|---|---|---|
-| 1 | Read-only factual inspection | 1/1 | **not measured** | cost unmeasured |
-| 2 | Unfamiliar-code navigation | **1/1 (deterministic)** | not measured | cost unmeasured |
+| 1 | Read-only factual inspection | 1/1 | **$0.041675 (complete)** | — |
+| 2 | Unfamiliar-code navigation | **1/1 (deterministic)** | **$0.044698 (complete)** | — |
 | 3 | Single-file edit | 3/3 | **$0.108968 (complete)** | — |
 | 4 | Multi-file bug fix | **2/2 (deterministic)** | not measured | cost unmeasured |
 | 5 | Verification / repair | **2/2 (deterministic)** | not measured | cost unmeasured |
@@ -74,8 +74,10 @@ evidence and refuses to count a stratum with no evidence.
 | 9 | Local CPU-only | **1/1 verified** | `null` (non-billable) | — |
 | 10 | Tool failure / malformed calls | **2/2 (deterministic)** | not measured | cost unmeasured |
 
-**Verified: 10/10 strata. Measured cost: 1/10 strata (stratum 3, via F1-E run
-`run-79feb4e0`). Blocked: none on coverage.**
+**Verified: 10/10 strata. Measured cost: 3/10 strata** — 1 (read-only,
+`$0.041675`), 2 (code-navigation, `$0.044698`) and 3 (F1-E `run-79feb4e0`,
+`$0.108968`). Blocked: none on coverage; 7 strata remain cost-unmeasured, half
+for a structural reason (see below).
 
 Stratum 9 changed status this session. **Ollama is installed and serving**, and a
 simple query completed through ALiX on local CPU inference:
@@ -118,11 +120,25 @@ local+remote run is refused.
 - **8** — Gate 7 `restart-final`
 - **10** — `behavioral.tool-failure-recovery` (failure then recovery), `behavioral.malformed-tool-call` (hard error, no recovery)
 
-**Cost caveat.** Only stratum 3 has a measured real-model cost, from a single
-3-invocation run. The other verified strata are deterministic scripted-provider
-runs that emit no `model.usage` (there is no billable call), so their cost is
-`null` — unmeasured, not zero. Do **not** read the 1/10 as "9 strata cost
-nothing".
+**Cost caveat.** Three strata now have a measured real-model cost on `gpt-4o`
+($2.50/$10 per Mtok, effective 2025-01-01), each independently recomputed against
+the production pricing catalog:
+
+| Stratum | Run | Tokens (in/out) | Cost |
+|---|---|---|---|
+| 1 read-only | `run-fa199aef` | 16,418 / 63 | $0.041675 |
+| 2 code-navigation | `run-bc589c94` | 17,471 / 102 | $0.044698 |
+| 3 single-file edit | `run-79feb4e0` | 42,971 / 154 | $0.108968 |
+
+The other seven are `null` — unmeasured, not zero. Do **not** read 3/10 as "7
+strata cost nothing".
+
+**Five of those seven cannot be measured yet, and not for budget reasons.**
+Strata 4, 5, 7 and 10 use the `delegate` driver; its child process writes usage to
+its own session under the per-case temp cwd, which the runner deletes
+(`harness-delegate-cost-gap.md`). Strata 6 and 8 have real-model Gate 7 evidence
+that predates cost correlation. So "run the rest on a priced model" is **not** a
+pure spend decision — most of them need code first.
 
 ---
 
