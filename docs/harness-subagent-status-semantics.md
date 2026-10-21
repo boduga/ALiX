@@ -62,14 +62,44 @@ without the independent review that `worker-executor.ts` performs. Enabling
 
 The gap is specifically the **missing review on the subagent worker path**.
 
-## 4. The fix, not implemented
+## 4. The fix: attempted, and why a naive port is wrong
 
-Port `reviewDefaultWorkerResult` to `subagent-worker-executor.ts` so both executors
-apply the same independent check before reporting `outcome: "success"`. That keeps
-one success authority instead of two divergent ones.
+Started the port and stopped. Three blockers, each verified:
 
-Not done here: it changes coordination semantics, needs a failing-first test, and
-a decision about whether review cost is acceptable on every subagent worker.
+**(a) The review signature does not fit the subagent executor.**
+`reviewDefaultWorkerResult(worker, context, result: RunResult, events, log, signal)`
+needs `RunResult` and the worker's event stream. The subagent executor has
+`SubagentResult` and no child events in the parent process.
+
+**(b) `SubagentResult.events` is a dead field.**
+Declared `events: string[]  // serialized session events` but the child hardcodes
+`events: []` and `subagent-manager.ts` passes `parsed?.events ?? []`. So the review
+cannot derive mutated paths from it — it would have to read the filesystem instead.
+
+**(c) The review FAILS CLOSED on a missing `critic` model.**
+
+```
+DEFAULT_CONFIG, bare:   critic -> UNAVAILABLE  ("No model configured")
+operator config:        critic -> openai/gpt-4-0613   (falls back to default)
+```
+
+The in-process executor already behaves this way, so (c) is existing behaviour
+there. But on the **default subagent path**, porting it unchanged would convert
+every coordinating worker from "succeeds without review" to "fails because no
+critic is configured" for any user on bare defaults. That is a worse outcome than
+the gap being closed, and it would be a silent regression in worker throughput.
+
+### What a correct fix needs, in order
+
+1. Give the child a way to report its mutation events (fix the dead `events`
+   field) — otherwise the reviewer has nothing to check but the filesystem.
+2. Decide the missing-critic posture on this path explicitly: fail the worker
+   (parity with in-process), or record `reviewed: false` and let the run's own
+   verification catch it. Parity is defensible but changes default behaviour.
+3. Then port, with a failing-first test.
+
+Doing (1)+(2) inside this pass would be a coordination-semantics change smuggled
+in behind a bug fix. Recorded instead.
 
 ## 4a. A second, related gap
 
