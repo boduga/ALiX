@@ -1,118 +1,73 @@
-# FINDING — subagent status certifies ownership, not achievement; the reviewed path is not the subagent path
+# FINDING — subagent status is an ownership verdict; coordination reviews it, plain delegate does not
 
-**Status:** OPEN — real asymmetry on the **DEFAULT** path.
-**Recorded:** 2026-10-20 (severity corrected upward the same day)
-**Severity:** **High** — `subagents.enabled` defaults to `true`.
+**Status:** OPEN — narrow, correctly scoped on the third attempt.
+**Recorded:** 2026-10-20. **Severity corrected downward: High → Low.**
 
-> **Correction.** An earlier revision of this note said the unreviewed path was
-> opt-in because `isSubagentsEnabled` returns `config?.subagents?.enabled ?? false`.
-> That reads the *fallback*, not the shipped default. `DEFAULT_CONFIG.subagents.enabled`
-> is **`true`** (`defaults.ts:108`, verified at runtime), and the loader fills the
-> default before `isSubagentsEnabled` sees it. **The unreviewed path is the
-> default path**, not an opt-in one. The earlier Medium rating was wrong.
+> ## Two corrections in this file's history — read this first
+>
+> **v1 (wrong):** "the subagent executor skips the review." I had read
+> `subagent-worker-executor.ts` and stopped there.
+>
+> **v2 (wrong, worse):** I rated it **High** because `DEFAULT_CONFIG.subagents.enabled`
+> is `true`, concluding the unreviewed path was the default.
+>
+> **v3 (this one):** `src/agents/subagent-cli.ts:704` **does** call
+> `reviewCoordinationResult`, gated on `coordinationRunId` — which is exactly what a
+> coordination worker has. So **production coordination workers ARE reviewed.** The
+> reachable gap is narrower: a plain delegate (eval/chat) with no
+> `coordinationRunId` returns at line 703 before any review.
+>
+> I wrote v2 with the same confidence I wrote v1. Both were wrong because I read one
+> call site and generalised to the path. Verified this time by grepping
+> `coordinationRunId` through the CLI and checking which callers set it.
 
 ---
 
-## 1. The mechanism, reproduced
+## 1. What is actually true
 
-`computeSubagentStatus` is an **ownership** contract. Verified directly:
+`computeSubagentStatus` is an **ownership** verdict. Reproduced:
 
 ```
-ownedPaths=["."], wrote some-other-file.txt (NOT the objective):
-  status = success
-ownedPaths=["report.md"], same write:
-  status = partial
+ownedPaths=["."], wrote some-other-file.txt (NOT the objective) -> success
+ownedPaths=["report.md"], same write                             -> partial
 ```
 
-With `ownedPaths: ["."]` — the delegate driver's default — a worker writing *any*
-file reports `success` even when the objective file is untouched.
+With `["."]` — the delegate driver default — any in-cwd change covers ownership.
+Documented and intentional.
 
-This is **documented and intentional**, not a defect in the function:
-`evals-types.ts` states the default means *"any in-cwd change counts as covering
-ownership."* Matrix-G answers *"did the worker stay inside and deliver to its
-scope?"*, which is a legitimate question.
+## 2. What the review actually covers
 
-## 2. Where it becomes a false-success risk
-
-The status is an ownership verdict, but downstream consumers read it as a **task
-verdict**. The two coordination executors differ here:
-
-| Executor | Independent review before accepting success | Used when |
+| Path | `coordinationRunId` | Objective review |
 |---|---|---|
-| `worker-executor.ts` (in-process) | **Yes** — `reviewDefaultWorkerResult` (`worker-executor.ts:166`) | `subagents.enabled` is false |
-| `subagent-worker-executor.ts` | **No** — `if (result.status === "success")` accepts directly (`:130`) | `subagents.enabled` is **true** |
+| Coordination worker (default, subagents enabled) | **set** | **YES** — `reviewCoordinationResult`, `subagent-cli.ts:704` |
+| Plain delegate (eval driver, chat delegate) | absent | **NO** — returns at `:703` |
+| In-process coordination worker | n/a | YES — `reviewDefaultWorkerResult` |
 
-`isSubagentsEnabled` reads `config?.subagents?.enabled ?? false`, but that `false`
-is only the *absent-config* fallback. `DEFAULT_CONFIG.subagents.enabled` is **true**
-(`defaults.ts:108`), and the config loader materialises the defaults before this
-reader runs — verified: `isSubagentsEnabled(DEFAULT_CONFIG) === true`.
+So the gap is **plain delegate only**. Coordination — the multi-worker path where a
+false success would matter most — is reviewed on both executors.
 
-So **the unreviewed path is the default path.** Every coordination run on a
-stock configuration accepts `result.status === "success"` from a subagent worker
-without the independent review that `worker-executor.ts` performs. Enabling
-`subagents` does not "lose" a check the user had; the check was never on that path.
+## 3. Severity: Low
 
-## 3. What is NOT wrong
+- Production coordination workers are reviewed.
+- The unreviewed path is a single delegated worker whose result the **parent**
+  consumes; the parent's own loop still evaluates the objective.
+- The reachable consequence is a misleading `status: "success"` on a delegate
+  result, not a false run completion (`deriveCoordinationCompletion` still demands a
+  verified aggregate).
 
-- `computeSubagentStatus` itself: correct for the ownership question it answers.
-- The `["."]` default: documented, and appropriate for "any in-scope change".
-- Coordination's completion derivation: `deriveCoordinationCompletion` still
-  requires a verified aggregate and a durable verification event, so a run cannot
-  complete on worker status alone.
+## 4. Observed consequence in the benchmark
 
-The gap is specifically the **missing review on the subagent worker path**.
+Two gpt-4o delegate cases (`patch-application`, `forbidden-path-write`) reported
+`success` while the objective did not land. That is this mechanism, on the plain
+delegate path. It is a **real observation** and the reason those cases failed
+honestly — the evaluator caught what the status claimed.
 
-## 4. The fix: attempted, and why a naive port is wrong
+## 5. Fix, not implemented
 
-Started the port and stopped. Three blockers, each verified:
+Either (a) run `reviewCoordinationResult` for plain delegates too, or (b) stop
+presenting `SubagentResult.status` as achievement — rename/document it as an
+ownership verdict and let callers evaluate objectives. (b) is cheaper and matches
+what the field actually means.
 
-**(a) The review signature does not fit the subagent executor.**
-`reviewDefaultWorkerResult(worker, context, result: RunResult, events, log, signal)`
-needs `RunResult` and the worker's event stream. The subagent executor has
-`SubagentResult` and no child events in the parent process.
-
-**(b) `SubagentResult.events` is a dead field.**
-Declared `events: string[]  // serialized session events` but the child hardcodes
-`events: []` and `subagent-manager.ts` passes `parsed?.events ?? []`. So the review
-cannot derive mutated paths from it — it would have to read the filesystem instead.
-
-**(c) The review FAILS CLOSED on a missing `critic` model.**
-
-```
-DEFAULT_CONFIG, bare:   critic -> UNAVAILABLE  ("No model configured")
-operator config:        critic -> openai/gpt-4-0613   (falls back to default)
-```
-
-The in-process executor already behaves this way, so (c) is existing behaviour
-there. But on the **default subagent path**, porting it unchanged would convert
-every coordinating worker from "succeeds without review" to "fails because no
-critic is configured" for any user on bare defaults. That is a worse outcome than
-the gap being closed, and it would be a silent regression in worker throughput.
-
-### What a correct fix needs, in order
-
-1. Give the child a way to report its mutation events (fix the dead `events`
-   field) — otherwise the reviewer has nothing to check but the filesystem.
-2. Decide the missing-critic posture on this path explicitly: fail the worker
-   (parity with in-process), or record `reviewed: false` and let the run's own
-   verification catch it. Parity is defensible but changes default behaviour.
-3. Then port, with a failing-first test.
-
-Doing (1)+(2) inside this pass would be a coordination-semantics change smuggled
-in behind a bug fix. Recorded instead.
-
-## 4a. A second, related gap
-
-`subagent-cli.ts` likewise never emitted `model.usage` until this session, so the
-default coordination path was **also** invisible to cost accounting. Both gaps sit
-on the same path: the default worker executor neither reviewed its result nor
-reported its spend. That is worth treating as one area, not two coincidences.
-
-## 5. Effect on the benchmark
-
-Strata 4 and 7 recorded cost but **zero verified successes**, partly because
-scripted-negative cases diverge on a real model and partly because two cases
-(`patch-application`, `forbidden-path-write`) reported success without achieving
-the objective — the mechanism above, observed on gpt-4o.
-
-Those two cases are honest evidence of the gap, not defects in gpt-4o.
+Not done: it changes the delegate contract and needs a decision on review cost per
+delegated task.

@@ -56,8 +56,19 @@ describe("computeSubagentStatus is an OWNERSHIP verdict", () => {
   });
 });
 
-describe("executor asymmetry (the actual risk)", () => {
-  it("the in-process executor runs an independent review before accepting success", async () => {
+describe("review coverage (corrected scope)", () => {
+  it("coordination workers ARE reviewed: reviewCoordinationResult gated on coordinationRunId", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const cli = readFileSync(join(root, "src/agents/subagent-cli.ts"), "utf-8");
+    // The review exists and returns early without a coordination run id.
+    expect(cli).toContain("reviewCoordinationResult(");
+    expect(cli).toMatch(/if \(!coordinationRunId\) return result;/);
+  });
+
+  it("the in-process coordination executor also reviews", async () => {
     const { readFileSync } = await import("node:fs");
     const { dirname } = await import("node:path");
     const { fileURLToPath } = await import("node:url");
@@ -66,29 +77,16 @@ describe("executor asymmetry (the actual risk)", () => {
     expect(src).toContain("reviewDefaultWorkerResult");
   });
 
-  it("the unreviewed path is the DEFAULT, not an opt-in", async () => {
-    // This is the assertion whose absence let me mis-rate the finding as Medium.
-    // Reading `config?.subagents?.enabled ?? false` shows only the absent-config
-    // fallback; the SHIPPED default is what decides whether the unreviewed path
-    // is live. Assert the effective value, not the expression.
-    const { DEFAULT_CONFIG } = await import("../../src/operations/config/defaults.js");
-    const { isSubagentsEnabled } = await import("../../src/operations/config/subagent-config.js");
-    expect(DEFAULT_CONFIG.subagents?.enabled).toBe(true);
-    expect(isSubagentsEnabled(DEFAULT_CONFIG)).toBe(true);
-  });
-
-  it("the subagent executor does NOT — recording the gap rather than hiding it", async () => {
+  it("plain delegate has NO coordinationRunId, so it skips the review", async () => {
     const { readFileSync } = await import("node:fs");
     const { dirname } = await import("node:path");
     const { fileURLToPath } = await import("node:url");
     const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-    const src = readFileSync(
-      join(root, "src/coordination/kernel/subagent-worker-executor.ts"),
+    const driver = readFileSync(
+      join(root, "src/operations/evals/drivers/delegate-driver.ts"),
       "utf-8",
     );
-    // This assertion flips to `toContain` when the review is ported. It exists so
-    // the gap cannot be silently forgotten, and so closing it is a visible change.
-    expect(src).not.toContain("reviewDefaultWorkerResult");
-    expect(src).toContain('result.status === "success"');
+    // This is the actual reachable gap, and it is deliberately narrow.
+    expect(driver).not.toContain("coordinationRunId");
   });
 });

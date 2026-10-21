@@ -41,12 +41,12 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 - **`SubagentResult.status` is an OWNERSHIP verdict, not a task verdict.**
   `computeSubagentStatus` answers "did the worker stay inside and deliver to its
   owned scope?", which is why `ownedPaths: ["."]` treats any in-cwd change as
-  covering ownership. Consumers must not read it as goal achievement. The
-  in-process coordination executor applies `reviewDefaultWorkerResult` before
-  accepting success; `subagent-worker-executor.ts` does **not**. **`subagents.enabled`
-  defaults to `true`** (`DEFAULT_CONFIG`, `defaults.ts:108`), so the unreviewed
-  path is the DEFAULT — `isSubagentsEnabled`'s `?? false` is only the absent-config
-  fallback. Owner of the remaining gap: `docs/harness-subagent-status-semantics.md`.
+  covering ownership. **Coordination workers are still reviewed**: `subagent-cli.ts`
+  calls `reviewCoordinationResult` whenever `coordinationRunId` is set, and the
+  in-process executor calls `reviewDefaultWorkerResult`. The reachable gap is
+  **plain delegate** (eval/chat), which has no `coordinationRunId` and returns
+  before the review. Low severity: the parent loop still evaluates the objective.
+  Owner: `docs/harness-subagent-status-semantics.md`.
 
 
 - Built-in callable names come from `ALIX_BUILTIN_EXECUTORS`; capability and
