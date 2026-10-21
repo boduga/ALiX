@@ -13,7 +13,7 @@ Two files claim to be the Pre-2.0 Harness PRD at **version 1.1**:
 | File | Version string | Contents |
 |---|---|---|
 | `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (root, commit `7ea5ea43`) | `1.1 (proposed; operator-attention amendment)` | §1–§11 **plus §12 operator-attention (PRE-R015–R019) and §13 Harness² (PRE-R020–R026)**; parent **Master PRD v2.8** |
-| `docs/ALiX_PRE_2_0_HARNESS_PRD.md` (audit branch) | `1.1 (baseline pinned)` | §1–§11 only; parent **Master PRD v2.7**; carries the **P0-A baseline pin** |
+| `docs/ALiX_PRE_2_0_HARNESS_PRD.md` (audit branch) — **DELETED on operator instruction** | `1.1 (baseline pinned)` | §1–§11 only; parent **Master PRD v2.7**; carried the **P0-A baseline pin** (now preserved in `harness-component-inventory.md`) |
 
 **Neither is a superset of the other.** Diff: 78 lines unique to the root copy,
 83 lines unique to the audit copy.
@@ -60,6 +60,20 @@ reproducibility requirement exist to prevent.
 - **Did not edit the root copy** (Q13 / dirty-root preservation).
 
 ---
+
+## 3a. Resolution taken
+
+The audit-branch copy was **deleted on operator instruction**. Before deletion its
+unique operative content was confirmed preserved elsewhere:
+
+- the `4ac6df14` baseline pin and tree hash → `harness-component-inventory.md` §1–2
+- the twelve-path re-verification → `harness-component-inventory.md` §2
+- the HC-07 barrel correction (`task-loop.ts` is a 26-line barrel; orchestration
+  lives in `task-loop/main.ts`) → `harness-component-inventory.md` HC-07 row
+
+All inbound references were repointed to `ALiX_PRE_2_0_HARNESS_PRD_v1.1.md`.
+The remaining unresolved part is narrower than before: the root v1.1 still does
+not name the pinned baseline commit, so it cannot by itself satisfy PRE-R001.
 
 ## 4. Recommended resolution (operator decision)
 

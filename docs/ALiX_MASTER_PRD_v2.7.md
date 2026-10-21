@@ -509,7 +509,7 @@ Roadmap order expresses dependencies, **not** historical milestone identity. New
 
 **Q05 release compatibility policy:** ALiX 2.0 is a deliberate breaking release. Ship standalone/offline migration utilities and a versioned breaking-change guide before removing obsolete CLI flags, API contracts, configuration aliases and plugin interfaces. Validate migration on representative existing configurations and integrations. The runtime must not silently translate old interfaces; unsupported usage receives an actionable error identifying the replacement. Preserve immutable migration evidence and safe rollback/export procedures.
 
-**v2.7 integration:** Stage 0 additionally includes the read-only harness rationalization inventory, invariant register, benchmark specification and evidence-based model-scaffolding disposition defined by `ALiX_PRE_2_0_HARNESS_PRD.md`. Experimental ablations may be isolated; no production behavioral removal precedes evidence, migration, and separate authorization. Software-factory feature delivery remains post-Stage 0.
+**v2.7 integration:** Stage 0 additionally includes the read-only harness rationalization inventory, invariant register, benchmark specification and evidence-based model-scaffolding disposition defined by the Pre-2.0 Harness PRD (`ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` in the root worktree). Experimental ablations may be isolated; no production behavioral removal precedes evidence, migration, and separate authorization. Software-factory feature delivery remains post-Stage 0.
 
 ### Stage 0 — Canonical baseline, Gate 7 qualification and complete legacy elimination (mandatory)
 
@@ -880,7 +880,7 @@ These are questions for the product owner, not hidden assumptions. Recommended d
 
 ## 29. Harness efficiency and governed software-factory architecture (v2.7 amendment)
 
-**Status:** Proposed requirements, not a claim of implementation. This section adds product direction from the harness-efficiency and software-factory discussions. It does not reopen Q01–Q15, alter Gate 7/F8b qualification, waive Stage 0, or authorize production changes. The companion `ALiX_PRE_2_0_HARNESS_PRD.md` governs preparatory audit and design.
+**Status:** Proposed requirements, not a claim of implementation. This section adds product direction from the harness-efficiency and software-factory discussions. It does not reopen Q01–Q15, alter Gate 7/F8b qualification, waive Stage 0, or authorize production changes. The companion Pre-2.0 Harness PRD (`ALiX_PRE_2_0_HARNESS_PRD_v1.1.md`) governs preparatory audit and design.
 
 ### 29.1 Architectural principle and boundaries
 

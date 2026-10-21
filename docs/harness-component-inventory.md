@@ -3,7 +3,7 @@
 **Status:** DRAFT — read-only audit. No production change authorized.
 **Baseline:** `release/gate7-main-e948e356` @ **`4ac6df14`** (tree `8bf5ac2b6dfaeccaa69567410e32e6f7a768a305`), fast-forwarded onto local `main`.
 **Branch:** `docs/pre-2.0-harness-audit` @ `49bd055a`.
-**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD.md` §5 (PRE-R002), §9 Gate A.
+**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (root worktree; see `harness-prd-divergence-finding.md`) §5 (PRE-R002), §9 Gate A.
 
 Every row below was verified against the pinned commit, not the PRD's earlier
 `e948e356` snapshot. Where a claim could not be verified it stays explicitly

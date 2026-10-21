@@ -2,7 +2,7 @@
 
 **Status:** DRAFT — design only. No benchmark has been run. No production change authorized.
 **Baseline:** `4ac6df14`. Branch `docs/pre-2.0-harness-audit`.
-**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD.md` §5 (PRE-R005/R006), §7.
+**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (root worktree; see `harness-prd-divergence-finding.md`) §5 (PRE-R005/R006), §7.
 **Resolves:** the "is there even a harness to measure with?" question before P0-D.
 
 ---

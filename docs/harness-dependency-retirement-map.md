@@ -2,7 +2,7 @@
 
 **Status:** DRAFT — read-only. No retirement approved.
 **Baseline:** `4ac6df14`. Branch `docs/pre-2.0-harness-audit`.
-**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD.md` §5 (PRE-R010/PRE-R011), §8–9.
+**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (root worktree; see `harness-prd-divergence-finding.md`) §5 (PRE-R010/PRE-R011), §8–9.
 
 Nothing here authorizes removal. A disposition is a *proposal* with prerequisites,
 tests and rollback; the only decision recorded is "do not touch without evidence".

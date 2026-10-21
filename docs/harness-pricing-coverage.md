@@ -2,7 +2,7 @@
 
 **Status:** PARTIAL — effective-dated pricing implemented; `intern` pricing BLOCKED on an external authority.
 **Branch:** `docs/pre-2.0-harness-audit`.
-**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD.md` §7, §9 Gate B.
+**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (root worktree; see `harness-prd-divergence-finding.md`) §7, §9 Gate B.
 **Gate B: HOLD.**
 
 ---

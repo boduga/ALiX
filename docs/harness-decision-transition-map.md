@@ -2,7 +2,7 @@
 
 **Status:** DRAFT — read-only audit. No production change authorized.
 **Baseline:** `4ac6df14`. Branch `docs/pre-2.0-harness-audit`.
-**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD.md` §5 (PRE-R004), §9 Gate A.
+**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (root worktree; see `harness-prd-divergence-finding.md`) §5 (PRE-R004), §9 Gate A.
 **Resolves:** inventory F-06 (prompt assembly ownership) and A-02 (agent-loop layering).
 
 ---

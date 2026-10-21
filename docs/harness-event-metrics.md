@@ -2,7 +2,7 @@
 
 **Status:** IMPLEMENTED — additive measurement layer. No production runtime change.
 **Baseline:** `4ac6df14` + P0-D integration. Branch `docs/pre-2.0-harness-audit`.
-**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD.md` §5 (PRE-R006), §9 Gate B.
+**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (root worktree; see `harness-prd-divergence-finding.md`) §5 (PRE-R006), §9 Gate B.
 **Decision context:** operator-approved P0-D2 scope — additive event-derived
 measurement only.
 

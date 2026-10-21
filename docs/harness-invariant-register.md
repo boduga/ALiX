@@ -2,7 +2,7 @@
 
 **Status:** DRAFT — read-only audit. No production change authorized.
 **Baseline:** `4ac6df14` (tree `8bf5ac2b`), branch `docs/pre-2.0-harness-audit`.
-**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD.md` §5 (PRE-R003, PRE-R012), §9 Gate A/B.
+**Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (root worktree; see `harness-prd-divergence-finding.md`) §5 (PRE-R003, PRE-R012), §9 Gate A/B.
 
 Purpose: name the single owner for each authority, and attach the evidence that
 would catch a regression. A control with no negative test is listed as a gap, not
