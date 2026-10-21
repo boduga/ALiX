@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { EventLog } from '../../src/runtime-state/events/event-log.js';
@@ -76,8 +76,13 @@ describe('default worker review',()=>{
  });
  it('rejects completed writer with persisted wrong-country artifact',async()=>{
   const {cwd,log,worker,context}=await fixture();try{
-   await writeFile(join(cwd,'report.md'),'Donald Trump is US president.');const capture=captureWorkerEventLog(log);
-   await capture.log.append({sessionId:'session',actor:'tool',type:'file.created',payload:{path:'report.md'}});
+   // Write INSIDE the worker's owned scope. The fixture assigns
+   // ownershipScopes ['reports/'], and the review is now scoped to owned paths —
+   // a write at cwd root would be an ownership violation and correctly excluded
+   // from the deliverable set, so the old path no longer exercised this case.
+   await mkdir(join(cwd,'reports'),{recursive:true});
+   await writeFile(join(cwd,'reports','report.md'),'Donald Trump is US president.');const capture=captureWorkerEventLog(log);
+   await capture.log.append({sessionId:'session',actor:'tool',type:'file.created',payload:{path:'reports/report.md'}});
    mocks.complete.mockResolvedValue({text:JSON.stringify({satisfied:false,summary:'Wrong country',gaps:['Nigeria report required']}),toolCalls:[]});
    const result=await reviewDefaultWorkerResult(worker,context,{sessionId:'session',summary:'Done',reason:'completed'},capture.events,capture.log,new AbortController().signal);
    expect(result.outcome).toBe('failure');expect(result.error).toContain('Nigeria report required');expect(JSON.stringify(mocks.complete.mock.calls)).toContain('Donald Trump');expect(result.error).toContain('report.md');

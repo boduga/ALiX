@@ -74,6 +74,19 @@ Return ONLY JSON: {"satisfied":boolean,"summary":"substantive findings or mismat
         || !Array.isArray(review.gaps) || !review.gaps.every(gap => typeof gap === "string" && gap.trim().length > 0)) {
         return { kind: "invalid" };
       }
+      // A verdict that claims satisfaction while listing gaps is SELF-
+      // CONTRADICTORY: the prompt requires `satisfied: true` to have
+      // `gaps: []`. Treat it as malformed so it takes the retry path.
+      //
+      // Previously it passed validation as `valid` and was then hard-rejected by
+      // the `!satisfied || gaps.length > 0` check with no retry — so a correct
+      // worker could fail on a single inconsistent verdict. Observed on real
+      // gpt-4o runs: the rejection text was a gap string that read like a task
+      // ("Confirmation that docs/b.md contains exactly 'B-MARKER'") rather than
+      // a mismatch, which is what a satisfied-but-gapped verdict looks like.
+      if (review.satisfied === true && (review.gaps as string[]).length > 0) {
+        return { kind: "invalid" };
+      }
       return { kind: "valid", satisfied: review.satisfied, summary: review.summary, gaps: review.gaps as string[] };
     };
 
@@ -89,7 +102,10 @@ Return ONLY JSON: {"satisfied":boolean,"summary":"substantive findings or mismat
     if (verdict.kind === "cancelled") return reject("Review cancelled");
     if (verdict.kind === "tools") return reject("Reviewer requested tools instead of returning a verdict");
     if (verdict.kind === "invalid") return reject("Missing or invalid structured verdict");
-    if (!verdict.satisfied || verdict.gaps.length > 0) return reject(verdict.gaps.join("; ") || verdict.summary);
+    // `satisfied` is authoritative; gaps only elaborate a false verdict. The
+    // contradictory combination was already rejected as invalid above, so this
+    // branch cannot fire on satisfied:true.
+    if (!verdict.satisfied) return reject(verdict.gaps.join("; ") || verdict.summary);
     return {
       ...result,
       // Keep substantive findings ahead of raw evidence so a consumer's budget

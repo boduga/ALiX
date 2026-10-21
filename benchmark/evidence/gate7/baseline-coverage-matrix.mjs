@@ -41,6 +41,7 @@ const DEFAULT_COST_PATHS = [
   join(repoEvidenceDir, "cost", "eval-mainloop-metered.json"),
   join(repoEvidenceDir, "cost", "delegate-metered-sweep.json"),
   join(repoEvidenceDir, "cost", "coordination-metered.json"),
+  join(repoEvidenceDir, "cost", "stratum8-restart.json"),
 ].filter(existsSync);
 const costEvidencePaths = explicitCostPaths.length > 0 ? explicitCostPaths : DEFAULT_COST_PATHS;
 /** Default to the recorded deterministic eval run, so no args reproduces all ten strata. */

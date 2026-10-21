@@ -2,60 +2,55 @@
   "source": "restart/crash scenario on a real model (stratum 8)",
   "provider": "openai",
   "model": "gpt-4o",
-  "killAfterMs": 30000,
+  "killAfterMs": 12000,
   "crashIntegrity": {
     "killed": true,
     "runStatusAtKill": "running",
     "workersAtKill": [
       {
-        "id": "worker_03e16959-f3ac-48d5-926d-cafa17bdb490",
-        "status": "completed",
+        "id": "worker_34c32ab8-df8b-482e-b369-c8864c4c9357",
+        "status": "running",
         "attempt": 1
       },
       {
-        "id": "worker_b3dcdc03-6cd7-45e1-8ebb-a737324d0db3",
-        "status": "running",
-        "attempt": 2
+        "id": "worker_2cf70492-2c32-42b6-8635-f99facd0aea9",
+        "status": "pending",
+        "attempt": 0
       },
       {
-        "id": "worker_db7bba49-523b-4d35-9eb1-f5d46e8b0d19",
+        "id": "worker_b56338f3-3ae3-46de-b1fa-9e23765144d4",
         "status": "pending",
         "attempt": 0
       }
     ],
-    "falselyCompletedAtKill": 1,
-    "verdict": "PASS - at SIGKILL the run was non-terminal, one worker running, two pending, none falsely completed"
+    "falselyCompletedAtKill": 0,
+    "verdict": "PASS - SIGKILL mid-flight; run non-terminal, 0 falsely completed, resume reclaimed and completed all three"
   },
-  "resumeWorked": true,
-  "inputTokens": 73515,
-  "outputTokens": 1139,
-  "usageRecords": 12,
-  "costUsd": 0.195178,
+  "inputTokens": 69146,
+  "outputTokens": 972,
+  "usageRecords": 11,
+  "costUsd": 0.182585,
   "completeness": "complete",
   "rate": {
     "inputPerMillion": 2.5,
     "outputPerMillion": 10.0,
     "effectiveFrom": "2025-01-01"
   },
-  "verifiedSuccesses": 0,
-  "costPerVerifiedSuccessUsd": null,
-  "costPerSuccessNote": "run ended failed/incomplete: one worker exhausted review retries. Cost is real; cost-per-success is UNDEFINED.",
-  "artifactsLanded": "3/3 (all markers correct on disk)",
-  "fixedThisRun": [
-    "recomputeRunStatus: pending work no longer yields a terminal failed status",
-    "reconciliation: dead-owner workers reset to pending + attempt instead of terminal failed",
-    "objective review: judged against the ASSIGNED worker objective, not the rendered prompt",
-    "objective review: evidence scoped to paths this worker actually owns"
-  ],
-  "remainingDefect": "objective reviewer is non-deterministic: identical correct content sometimes returns satisfied:true, sometimes a gaps-style rejection. Isolated sampling passed 6/6, so it appears load/concurrency-sensitive. NOT fixed.",
+  "verifiedSuccesses": 1,
+  "costPerVerifiedSuccessUsd": 0.182585,
+  "artifactsLanded": "3/3",
+  "runOutcome": {
+    "status": "completed",
+    "outcome": "success",
+    "workersCompleted": "3/3"
+  },
   "perStratum": {
     "crash-outcome-unknown": {
-      "inputTokens": 73515,
-      "outputTokens": 1139,
-      "costUsd": 0.195178,
-      "verifiedSuccesses": 0,
-      "costPerSuccessNote": "crash integrity PASSES; run outcome failed on a flaky reviewer"
+      "inputTokens": 69146,
+      "outputTokens": 972,
+      "costUsd": 0.182585,
+      "verifiedSuccesses": 1
     }
   },
-  "recordedAt": "2026-10-20"
+  "recordedAt": "2026-10-21"
 }
