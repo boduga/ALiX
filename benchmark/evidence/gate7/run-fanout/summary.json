@@ -1,0 +1,150 @@
+{
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers",
+  "plan_approved": false,
+  "keyboard_approvals": [
+    {
+      "id": "approval_1792424935767_66ylt",
+      "toolId": null,
+      "capabilities": [
+        "coordination.run"
+      ],
+      "coordinationRunId": null,
+      "action": "approved",
+      "at": 16.935855865478516
+    },
+    {
+      "id": "approval_1792424938744_eq6rp",
+      "toolId": null,
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "coordinationRunId": "coord_852ae2a3-56af-49f9-9e59-853ae8485737",
+      "action": "approved",
+      "at": 18.49190092086792
+    },
+    {
+      "id": "approval_1792424938976_tt0tx",
+      "toolId": null,
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "coordinationRunId": "coord_852ae2a3-56af-49f9-9e59-853ae8485737",
+      "action": "approved",
+      "at": 30.099672317504883
+    },
+    {
+      "id": "approval_1792424939167_c517f",
+      "toolId": null,
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "coordinationRunId": "coord_852ae2a3-56af-49f9-9e59-853ae8485737",
+      "action": "approved",
+      "at": 32.56378674507141
+    }
+  ],
+  "artifacts": {
+    "docs/a.md": "FANOUT_A_OK\n",
+    "docs/b.md": "FANOUT_B_OK\n",
+    "docs/c.md": "FANOUT_C_OK\n"
+  },
+  "run": {
+    "id": "coord_852ae2a3-56af-49f9-9e59-853ae8485737",
+    "status": "completed",
+    "maxConcurrency": 3,
+    "workers": [
+      {
+        "id": "worker_9cbb2119-0ccb-44bb-9ef3-7fd9773b85d1",
+        "status": "completed",
+        "scopes": [
+          "docs/a.md"
+        ]
+      },
+      {
+        "id": "worker_4238ac29-c895-4a69-b36b-b1946955d3a4",
+        "status": "completed",
+        "scopes": [
+          "docs/b.md"
+        ]
+      },
+      {
+        "id": "worker_7408e081-0a9d-4645-ac4f-5a5dd1e85e1a",
+        "status": "completed",
+        "scopes": [
+          "docs/c.md"
+        ]
+      }
+    ]
+  },
+  "aggregate": {
+    "runId": "coord_852ae2a3-56af-49f9-9e59-853ae8485737",
+    "status": "completed",
+    "outcome": "success",
+    "complete": true,
+    "counts": {
+      "workers": 3,
+      "completed": 3,
+      "failed": 0,
+      "blocked": 0,
+      "cancelled": 0,
+      "pending": 0,
+      "running": 0,
+      "successfulResults": 3,
+      "failedResults": 0,
+      "missingResults": 0
+    },
+    "sourceFingerprint": "0d5604ac2981ab3c5a187d0d4096927fcf332b2f0adcf2ffdf4848170d35b470",
+    "aggregateRef": ".alix/coordination/results/runs/coord_852ae2a3-56af-49f9-9e59-853ae8485737.json"
+  },
+  "approvals": [
+    {
+      "id": "approval_1792424939167_c517f",
+      "status": "consumed",
+      "usePolicy": "single_use",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "toolId": null,
+      "executionOutcome": "pending",
+      "reason": "Requires approval for capability: filesystem.write",
+      "coordinationRunId": "coord_852ae2a3-56af-49f9-9e59-853ae8485737"
+    },
+    {
+      "id": "approval_1792424938976_tt0tx",
+      "status": "consumed",
+      "usePolicy": "single_use",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "toolId": null,
+      "executionOutcome": "pending",
+      "reason": "Requires approval for capability: filesystem.write",
+      "coordinationRunId": "coord_852ae2a3-56af-49f9-9e59-853ae8485737"
+    },
+    {
+      "id": "approval_1792424938744_eq6rp",
+      "status": "consumed",
+      "usePolicy": "single_use",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "toolId": null,
+      "executionOutcome": "pending",
+      "reason": "Requires approval for capability: filesystem.write",
+      "coordinationRunId": "coord_852ae2a3-56af-49f9-9e59-853ae8485737"
+    },
+    {
+      "id": "approval_1792424935767_66ylt",
+      "status": "consumed",
+      "usePolicy": "single_use",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "toolId": null,
+      "executionOutcome": "succeeded",
+      "reason": "Requires approval for capability: coordination.run",
+      "coordinationRunId": null
+    }
+  ],
+  "pending_left": []
+}

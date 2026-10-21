@@ -1,0 +1,108 @@
+{
+  "scenario": "conflict",
+  "objective": "Create docs/shared.md with the agreed content using coordinated workers",
+  "run": {
+    "id": "coord_adc75a17-0add-434c-98f2-390fa24fa686",
+    "status": "completed",
+    "workers": [
+      {
+        "id": "worker_30bd3c04-32ea-43d0-a595-2aa534d5e1d4",
+        "status": "completed",
+        "scopes": [
+          "docs/shared.md"
+        ],
+        "dependencies": [],
+        "blockReason": null,
+        "attempt": 1,
+        "startedAt": "2026-10-19T16:06:49.634Z",
+        "completedAt": "2026-10-19T16:06:53.182Z"
+      },
+      {
+        "id": "worker_5b7f448f-c045-4603-bcca-03b53b652eea",
+        "status": "completed",
+        "scopes": [
+          "docs/shared.md"
+        ],
+        "dependencies": [
+          "worker_30bd3c04-32ea-43d0-a595-2aa534d5e1d4"
+        ],
+        "blockReason": null,
+        "attempt": 1,
+        "startedAt": "2026-10-19T16:06:55.647Z",
+        "completedAt": "2026-10-19T16:06:59.381Z"
+      }
+    ]
+  },
+  "aggregate": {
+    "status": "completed",
+    "outcome": "success",
+    "complete": true,
+    "counts": {
+      "workers": 2,
+      "completed": 2,
+      "failed": 0,
+      "blocked": 0,
+      "cancelled": 0,
+      "pending": 0,
+      "running": 0,
+      "successfulResults": 2,
+      "failedResults": 0,
+      "missingResults": 0
+    },
+    "failureChains": [],
+    "sourceFingerprint": "6318093a1494a84c8a878ac268f5101a348a8c72d7bf4764beb9044ae21df106"
+  },
+  "artifacts": {
+    "docs/shared.md": "CONFLICT_TWO_OK\n"
+  },
+  "approvals": [
+    {
+      "id": "approval_1792426013453_y61al",
+      "status": "consumed",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": "pending"
+    },
+    {
+      "id": "approval_1792426003871_kt2ng",
+      "status": "consumed",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": "pending"
+    },
+    {
+      "id": "approval_1792425998425_8epqi",
+      "status": "consumed",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "executionOutcome": "succeeded"
+    }
+  ],
+  "keyboard_approvals": [
+    {
+      "id": "approval_1792425998425_8epqi",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "at": 20.568869829177856
+    },
+    {
+      "id": "approval_1792426003871_kt2ng",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "at": 22.11865496635437
+    },
+    {
+      "id": "approval_1792426013453_y61al",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "at": 31.414644479751587
+    }
+  ],
+  "pending_left": []
+}

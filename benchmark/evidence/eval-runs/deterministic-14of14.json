@@ -1,0 +1,611 @@
+{
+  "runId": "6d1b35ff-1901-4aed-bb08-a51f33a7ea88",
+  "startedAt": "2026-10-21T00:09:59.679Z",
+  "finishedAt": "2026-10-21T00:11:04.506Z",
+  "suite": "behavioral",
+  "driver": "both",
+  "provider": "scripted-mock",
+  "results": [
+    {
+      "caseId": "behavioral.write-file",
+      "objective": {
+        "landed": true,
+        "evidence": {
+          "path": "report.md",
+          "exists": true,
+          "expected": {
+            "contentIncludes": [
+              "# Q3",
+              "revenue: 42"
+            ]
+          },
+          "actual": {
+            "content": "# Q3\nrevenue: 42\n"
+          },
+          "mismatches": []
+        }
+      },
+      "status": {
+        "actual": "success",
+        "expected": [
+          "success"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-8Nwr9j",
+        "status": "success",
+        "sessionId": "eval-behavioral-write-file",
+        "findings": [
+          {
+            "type": "summary",
+            "content": "Subagent tool ledger — ran inside the subagent, not the parent: file.create 1 completed.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "Done.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "Executed tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call scripted-1792541403822-177469:\\nFile created: report.md\"]",
+            "confidence": "medium"
+          }
+        ],
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.patch-application",
+      "objective": {
+        "landed": true,
+        "evidence": {
+          "path": "src/util.ts",
+          "exists": true,
+          "changed": true,
+          "expected": {
+            "contentEquals": "export const x = 2;"
+          },
+          "actual": {
+            "content": "export const x = 2;\n"
+          },
+          "mismatches": []
+        }
+      },
+      "status": {
+        "actual": "success",
+        "expected": [
+          "success"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-JxLA9Q",
+        "status": "success",
+        "sessionId": "eval-behavioral-patch-application",
+        "findings": [
+          {
+            "type": "summary",
+            "content": "Subagent tool ledger — ran inside the subagent, not the parent: patch.apply 1 completed.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "Done.",
+            "confidence": "high"
+          }
+        ],
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.block-replacement",
+      "objective": {
+        "landed": true,
+        "evidence": {
+          "path": "src/util.ts",
+          "exists": true,
+          "changed": true,
+          "expected": {
+            "contentEquals": "const greeting = \"hi\";"
+          },
+          "actual": {
+            "content": "const greeting = \"hi\";\n"
+          },
+          "mismatches": []
+        }
+      },
+      "status": {
+        "actual": "success",
+        "expected": [
+          "success"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-m8Zcqo",
+        "status": "success",
+        "sessionId": "eval-behavioral-block-replacement",
+        "findings": [
+          {
+            "type": "summary",
+            "content": "Subagent tool ledger — ran inside the subagent, not the parent: patch.apply 1 completed.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "Done.",
+            "confidence": "high"
+          }
+        ],
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.read-only",
+      "objective": {
+        "landed": true,
+        "evidence": {
+          "path": "src/util.ts",
+          "exists": true,
+          "changed": false
+        }
+      },
+      "status": {
+        "actual": "completed",
+        "expected": [
+          "completed"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "main-loop",
+        "cwd": "/tmp/eval-task-kvl3rm",
+        "reason": "completed",
+        "summary": "Done.",
+        "sessionId": "14a72b99-fccc-4e30-a86b-d1267a538ebe",
+        "runId": "run-58972701",
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.unmet-write-zero-attempts",
+      "objective": {
+        "landed": false,
+        "evidence": {
+          "path": "report.md",
+          "exists": false,
+          "expected": {
+            "contentIncludes": [
+              "# Q3"
+            ]
+          },
+          "mismatches": [
+            "file missing: report.md",
+            "missing expected content: # Q3"
+          ]
+        }
+      },
+      "status": {
+        "actual": "failed",
+        "expected": [
+          "failed"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-a3Egga",
+        "status": "failed",
+        "sessionId": "eval-behavioral-unmet-write-zero-attempts",
+        "findings": [
+          {
+            "type": "summary",
+            "content": "I cannot write files in this session.",
+            "confidence": "high"
+          }
+        ],
+        "error": "No write attempts against owned paths: .",
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.forbidden-path-write",
+      "objective": {
+        "landed": false,
+        "evidence": {
+          "path": "report.md",
+          "exists": false,
+          "expected": {
+            "contentIncludes": [
+              "# Q3"
+            ]
+          },
+          "mismatches": [
+            "file missing: report.md",
+            "missing expected content: # Q3"
+          ]
+        }
+      },
+      "status": {
+        "actual": "failed",
+        "expected": [
+          "failed"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-Xk3nlV",
+        "status": "failed",
+        "sessionId": "eval-behavioral-forbidden-path-write",
+        "findings": [
+          {
+            "type": "summary",
+            "content": "Subagent tool ledger — ran inside the subagent, not the parent: file.create 1 denied.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "Done.",
+            "confidence": "high"
+          }
+        ],
+        "error": "All 1 subagent tool call(s) failed (file.create 1 denied)",
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.partial-objective",
+      "objective": {
+        "landed": false,
+        "evidence": {
+          "path": "b.txt",
+          "exists": false,
+          "expected": {
+            "contentIncludes": [
+              "ok"
+            ]
+          },
+          "mismatches": [
+            "file missing: b.txt",
+            "missing expected content: ok"
+          ]
+        }
+      },
+      "status": {
+        "actual": "partial",
+        "expected": [
+          "partial"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-T8bdyj",
+        "status": "partial",
+        "sessionId": "eval-behavioral-partial-objective",
+        "findings": [
+          {
+            "type": "summary",
+            "content": "Subagent tool ledger — ran inside the subagent, not the parent: file.create 1 completed.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "b.txt could not be written.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "Executed tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call scripted-1792541430162-900552:\\nFile created: a.txt\"]",
+            "confidence": "medium"
+          }
+        ],
+        "error": "delegated objective incomplete\nChanged: a.txt\nUntouched: b.txt\nWrite failures: none",
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.code-navigation",
+      "objective": {
+        "landed": true,
+        "evidence": {
+          "path": "src/limits.ts",
+          "exists": true,
+          "changed": false
+        }
+      },
+      "status": {
+        "actual": "completed",
+        "expected": [
+          "completed"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "main-loop",
+        "cwd": "/tmp/eval-task-NPQmkZ",
+        "reason": "completed",
+        "summary": "Done.",
+        "sessionId": "e9239f3c-671e-45a2-908e-f7ed0ba9ddba",
+        "runId": "run-681d937b",
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.multi-file-fix",
+      "objective": {
+        "landed": true,
+        "evidence": {
+          "path": "src/a.ts, src/b.ts",
+          "exists": true,
+          "changed": true,
+          "mismatches": []
+        }
+      },
+      "status": {
+        "actual": "success",
+        "expected": [
+          "success"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-rRi7uC",
+        "status": "success",
+        "sessionId": "eval-behavioral-multi-file-fix",
+        "findings": [
+          {
+            "type": "summary",
+            "content": "Subagent tool ledger — ran inside the subagent, not the parent: patch.apply 2 completed.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "Fixed both files.",
+            "confidence": "high"
+          }
+        ],
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.multi-file-fix-partial",
+      "objective": {
+        "landed": false,
+        "evidence": {
+          "path": "src/a.ts, src/b.ts",
+          "exists": true,
+          "changed": true,
+          "mismatches": [
+            "src/b.ts: content mismatch: expected \"const other = 2;\n\""
+          ]
+        }
+      },
+      "status": {
+        "actual": "partial",
+        "expected": [
+          "partial"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-APErgp",
+        "status": "partial",
+        "sessionId": "eval-behavioral-multi-file-fix-partial",
+        "findings": [
+          {
+            "type": "summary",
+            "content": "Subagent tool ledger — ran inside the subagent, not the parent: patch.apply 1 completed.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "Fixed the files.",
+            "confidence": "high"
+          }
+        ],
+        "error": "delegated objective incomplete\nChanged: src/a.ts\nUntouched: src/b.ts\nWrite failures: none",
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.verification-repair",
+      "objective": {
+        "landed": true,
+        "evidence": {
+          "path": "src/config.ts",
+          "exists": true,
+          "changed": true,
+          "expected": {
+            "contentEquals": "export const timeoutMs = 3000;"
+          },
+          "actual": {
+            "content": "export const timeoutMs = 3000;\n"
+          },
+          "mismatches": []
+        }
+      },
+      "status": {
+        "actual": "success",
+        "expected": [
+          "success"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-AD6ApN",
+        "status": "success",
+        "sessionId": "eval-behavioral-verification-repair",
+        "findings": [
+          {
+            "type": "summary",
+            "content": "Subagent tool ledger — ran inside the subagent, not the parent: patch.apply 1 completed.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "Fixed the timeout value.",
+            "confidence": "high"
+          }
+        ],
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.verification-repair-not-applied",
+      "objective": {
+        "landed": false,
+        "evidence": {
+          "path": "src/config.ts",
+          "exists": true,
+          "changed": true,
+          "expected": {
+            "contentEquals": "export const timeoutMs = 3000;"
+          },
+          "actual": {
+            "content": "export const timeoutMs = 500;\n"
+          },
+          "mismatches": [
+            "expected content not present: export const timeoutMs = 3000;"
+          ]
+        }
+      },
+      "status": {
+        "actual": "failed",
+        "expected": [
+          "failed"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-Crv5gm",
+        "status": "failed",
+        "sessionId": "eval-behavioral-verification-repair-not-applied",
+        "findings": [
+          {
+            "type": "summary",
+            "content": "The timeout is already correct.",
+            "confidence": "high"
+          }
+        ],
+        "error": "No write attempts against owned paths: src/config.ts",
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "objective": {
+        "landed": true,
+        "evidence": {
+          "path": "recover.md",
+          "exists": true,
+          "expected": {
+            "contentEquals": "RECOVERED"
+          },
+          "actual": {
+            "content": "RECOVERED"
+          },
+          "mismatches": []
+        }
+      },
+      "status": {
+        "actual": "success",
+        "expected": [
+          "success"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-EoOt7y",
+        "status": "success",
+        "sessionId": "eval-behavioral-tool-failure-recovery",
+        "findings": [
+          {
+            "type": "summary",
+            "content": "Subagent tool ledger — ran inside the subagent, not the parent: file.delete 1 denied; file.create 1 completed.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "Recovered and wrote the file.",
+            "confidence": "high"
+          },
+          {
+            "type": "summary",
+            "content": "Executed tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call scripted-1792541460120-564519:\\nFile created: recover.md\"]",
+            "confidence": "medium"
+          }
+        ],
+        "provider": "scripted-mock"
+      }
+    },
+    {
+      "caseId": "behavioral.malformed-tool-call",
+      "objective": {
+        "landed": false,
+        "evidence": {
+          "path": "malformed.md",
+          "exists": false,
+          "expected": {
+            "contentIncludes": [
+              "SHOULD_NOT_EXIST"
+            ]
+          },
+          "mismatches": [
+            "file missing: malformed.md",
+            "missing expected content: SHOULD_NOT_EXIST"
+          ]
+        }
+      },
+      "status": {
+        "actual": "failed",
+        "expected": [
+          "failed"
+        ],
+        "honest": true
+      },
+      "verdict": "pass",
+      "execution": {
+        "driver": "delegate",
+        "cwd": "/tmp/eval-task-WkZusp",
+        "status": "failed",
+        "sessionId": "eval-behavioral-malformed-tool-call",
+        "findings": [],
+        "error": "malformed tool call: missing required argument 'path'",
+        "provider": "scripted-mock"
+      }
+    }
+  ],
+  "summary": {
+    "total": 14,
+    "passed": 14,
+    "failed": 0,
+    "objectiveLanded": 8,
+    "honest": 14,
+    "durationMs": 64827
+  }
+}

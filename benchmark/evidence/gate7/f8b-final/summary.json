@@ -1,0 +1,283 @@
+{
+  "objective": "Using coordinated workers, create docs/real-a.md containing exactly REAL_A_OK and docs/real-b.md containing exactly REAL_B_OK",
+  "provider": "intern",
+  "model": "deepseek-v4-flash-0731",
+  "run": {
+    "id": "coord_f3d119b0-b69a-4c0f-a315-ef1c58964482",
+    "status": "completed",
+    "maxConcurrency": 2,
+    "workers": [
+      {
+        "id": "worker_07f3f6d7-f67c-4c5d-b27d-6c01bcf2eceb",
+        "status": "completed",
+        "scopes": [
+          "docs/real-a.md"
+        ],
+        "attempt": 1,
+        "blockReason": null,
+        "error": ""
+      },
+      {
+        "id": "worker_621b0be6-e78c-46e6-94c4-695ed63f3991",
+        "status": "completed",
+        "scopes": [
+          "docs/real-b.md"
+        ],
+        "attempt": 1,
+        "blockReason": null,
+        "error": ""
+      }
+    ]
+  },
+  "aggregate": {
+    "status": "completed",
+    "outcome": "success",
+    "complete": true,
+    "counts": {
+      "workers": 2,
+      "completed": 2,
+      "failed": 0,
+      "blocked": 0,
+      "cancelled": 0,
+      "pending": 0,
+      "running": 0,
+      "successfulResults": 2,
+      "failedResults": 0,
+      "missingResults": 0
+    },
+    "failureChains": []
+  },
+  "artifacts": {
+    "docs/real-a.md": "REAL_A_OK",
+    "docs/real-b.md": "REAL_B_OK"
+  },
+  "approvals": [
+    {
+      "id": "approval_1792476357819_xzjss",
+      "status": "approved",
+      "capabilities": [
+        "task.complete"
+      ],
+      "executionOutcome": null,
+      "reason": "Requires approval for capability: task.complete"
+    },
+    {
+      "id": "approval_1792476330201_x35wk",
+      "status": "denied",
+      "capabilities": [
+        "shell.run"
+      ],
+      "executionOutcome": null,
+      "reason": "Requires approval to run command: cd /home/babasola/Projects/alix-legacy-approval-evidence/tui-e2e/f8b-final/cwd && ls -la docs/ && echo \"---real-a---\" && cat docs/real-a.md && echo \"\" && echo \"---real-b---\" && cat docs/real-b.md && echo \"\" && echo \"---sizes---\" && wc -c docs/real-a.md docs/real-b.md"
+    },
+    {
+      "id": "approval_1792476304607_q60xe",
+      "status": "approved",
+      "capabilities": [
+        "shell.run"
+      ],
+      "executionOutcome": null,
+      "reason": "Requires approval to run command: wc -c docs/real-b.md && od -An -tx1 -c docs/real-b.md"
+    },
+    {
+      "id": "approval_1792476173466_bny0m",
+      "status": "approved",
+      "capabilities": [
+        "shell.run"
+      ],
+      "executionOutcome": null,
+      "reason": "Requires approval to run command: wc -c docs/real-b.md && echo \"---\" && cat docs/real-b.md && echo \"---END---\" && od -c docs/real-b.md"
+    },
+    {
+      "id": "approval_1792476146428_wpnnm",
+      "status": "approved",
+      "capabilities": [
+        "shell.run"
+      ],
+      "executionOutcome": null,
+      "reason": "Requires approval to run command: wc -c docs/real-a.md && od -c docs/real-a.md"
+    },
+    {
+      "id": "approval_1792476128574_qskvs",
+      "status": "approved",
+      "capabilities": [
+        "shell.run"
+      ],
+      "executionOutcome": null,
+      "reason": "Requires approval to run command: ls -la docs/real-b.md && echo \"---hexdump---\" && xxd docs/real-b.md && echo \"---wc---\" && wc -c docs/real-b.md"
+    },
+    {
+      "id": "approval_1792476127762_xc9xr",
+      "status": "approved",
+      "capabilities": [
+        "shell.run"
+      ],
+      "executionOutcome": null,
+      "reason": "Requires approval to run command: wc -c docs/real-a.md && od -c docs/real-a.md"
+    },
+    {
+      "id": "approval_1792476111199_irzvf",
+      "status": "approved",
+      "capabilities": [
+        "shell.run"
+      ],
+      "executionOutcome": null,
+      "reason": "Requires approval to run command: xxd docs/real-b.md && wc -c docs/real-b.md"
+    },
+    {
+      "id": "approval_1792476107021_ztpet",
+      "status": "approved",
+      "capabilities": [
+        "shell.run"
+      ],
+      "executionOutcome": null,
+      "reason": "Requires approval to run command: ls -la docs && wc -c docs/real-a.md && od -c docs/real-a.md"
+    },
+    {
+      "id": "approval_1792476098815_l053l",
+      "status": "approved",
+      "capabilities": [
+        "shell.run"
+      ],
+      "executionOutcome": null,
+      "reason": "Requires approval to run command: wc -c docs/real-a.md && od -c docs/real-a.md"
+    },
+    {
+      "id": "approval_1792476078420_wg31u",
+      "status": "consumed",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": "pending",
+      "reason": "Requires approval for capability: filesystem.write"
+    },
+    {
+      "id": "approval_1792476077975_7umqu",
+      "status": "consumed",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": "pending",
+      "reason": "Requires approval for capability: filesystem.write"
+    },
+    {
+      "id": "approval_1792476063022_fnvm2",
+      "status": "consumed",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "executionOutcome": "succeeded",
+      "reason": "Requires approval for capability: coordination.run"
+    }
+  ],
+  "operator_decisions": [
+    {
+      "id": "approval_1792476063022_fnvm2",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "decision": "approved",
+      "at": 75.7
+    },
+    {
+      "id": "approval_1792476077975_7umqu",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "decision": "approved",
+      "at": 89.2
+    },
+    {
+      "id": "approval_1792476078420_wg31u",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "decision": "approved",
+      "at": 92.7
+    },
+    {
+      "id": "approval_1792476098815_l053l",
+      "capabilities": [
+        "shell.run"
+      ],
+      "decision": "approved",
+      "at": 110.1
+    },
+    {
+      "id": "approval_1792476107021_ztpet",
+      "capabilities": [
+        "shell.run"
+      ],
+      "decision": "approved",
+      "at": 118.4
+    },
+    {
+      "id": "approval_1792476111199_irzvf",
+      "capabilities": [
+        "shell.run"
+      ],
+      "decision": "approved",
+      "at": 125.6
+    },
+    {
+      "id": "approval_1792476127762_xc9xr",
+      "capabilities": [
+        "shell.run"
+      ],
+      "decision": "approved",
+      "at": 139.0
+    },
+    {
+      "id": "approval_1792476128574_qskvs",
+      "capabilities": [
+        "shell.run"
+      ],
+      "decision": "approved",
+      "at": 142.5
+    },
+    {
+      "id": "approval_1792476146428_wpnnm",
+      "capabilities": [
+        "shell.run"
+      ],
+      "decision": "approved",
+      "at": 157.5
+    },
+    {
+      "id": "approval_1792476173466_bny0m",
+      "capabilities": [
+        "shell.run"
+      ],
+      "decision": "approved",
+      "at": 184.9
+    },
+    {
+      "id": "approval_1792476304607_q60xe",
+      "capabilities": [
+        "shell.run"
+      ],
+      "decision": "approved",
+      "at": 316.0
+    },
+    {
+      "id": "approval_1792476330201_x35wk",
+      "capabilities": [
+        "shell.run"
+      ],
+      "decision": "denied",
+      "post_run": true,
+      "at": 341.5
+    },
+    {
+      "id": "approval_1792476357819_xzjss",
+      "capabilities": [
+        "task.complete"
+      ],
+      "decision": "approved",
+      "post_run": true,
+      "at": 369.1
+    }
+  ],
+  "pending_left": [],
+  "plan_approved": false
+}

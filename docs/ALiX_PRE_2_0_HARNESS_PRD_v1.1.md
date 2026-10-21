@@ -1,19 +1,24 @@
 # ALiX — Pre-2.0 Harness Rationalization PRD
 
-**Version:** 1.1 (proposed; three amendments: §12 operator-attention, §13 Harness², §14 progressive supervision)  
+**Version:** 1.2 (supersedes v1.1; three amendments: §12 operator-attention, §13 Harness², §14 progressive supervision)  
 **Date:** 2026-10-20  
 **Status:** DRAFT — implementation not authorized by this document  
 **Parent:** ALiX Master PRD v2.8, Stage 0; Q01–Q15 unchanged  
 **Program:** Pre-2.0 harness complexity audit, measured simplification, and legacy cutover readiness  
 **Source baseline:** audit work performed against `4ac6df14` (tree `8bf5ac2b6dfaeccaa69567410e32e6f7a768a305`), the Gate 7 release candidate fast-forwarded onto `main`. PRE-R001 requires a pinned commit; this is that pin.
 
-> **Open version-identification decision.** This document and an earlier
-> audit-branch copy both carried the string "v1.1" while containing different
-> sections. The duplicate was deleted and its unique content (the `4ac6df14` pin,
-> the twelve-path re-verification, the HC-07 barrel correction) was preserved in
-> `docs/harness-component-inventory.md`. Whether to mint a distinct version
-> number is a change-control decision under Q01–Q15 and is **not** made
-> unilaterally here. See `docs/harness-prd-divergence-finding.md`.
+> **Version-identification record (resolved).** Two different documents previously
+> carried the string "v1.1" — this one (§1–§11 + §12–§14) and an audit-branch copy
+> (§1–§11 only, with the `4ac6df14` pin). The audit copy was deleted on operator
+> instruction and its unique content preserved in
+> `docs/harness-component-inventory.md`. This revision is numbered **1.2** so the
+> version string identifies exactly one content set. The bump changes no
+> requirement and does not touch Q01–Q15; it exists only to remove the ambiguity.
+> History: `docs/harness-prd-divergence-finding.md`.
+
+> **Filename note.** The file is still named `ALiX_PRE_2_0_HARNESS_PRD_v1.1.md`.
+> Renaming would break 12+ inbound references across `docs/`; the version string
+> above is authoritative. Rename can be done as a separate mechanical change.
 
 ## 1. Executive summary
 

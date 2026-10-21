@@ -1,8 +1,22 @@
 # F1-E — End-to-end cost qualification: BLOCKED
 
-**Status:** BLOCKED ON ENVIRONMENT — no reachable priced provider in this session.
+> ## SUPERSEDED — do not treat this as current status
+>
+> F1-E was subsequently **QUALIFIED 8/8** in an operator-assisted session. See
+> **`docs/harness-f1e-qualified.md`** for the result and
+> `benchmark/evidence/cost/cost-record.json` for the evidence (`run-79feb4e0`,
+> $0.108968, completeness `complete`).
+>
+> This file is retained as history: it records the blocker, the unblock options
+> considered, and why an offline mock could not substitute for a real billable
+> call. Two real provider defects were found and fixed on the path to
+> qualification.
+>
+> **Gate B is still HOLD** — but for cost *coverage* (1/10 strata), not because
+> F1-E is blocked.
+
+**Status (historical):** BLOCKED ON ENVIRONMENT — no reachable priced provider in this session.
 **Branch:** `docs/pre-2.0-harness-audit`.
-**Gate B: HOLD.**
 
 ---
 

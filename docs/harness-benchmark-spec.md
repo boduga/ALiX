@@ -170,7 +170,7 @@ settle.
 |---|---|---|
 | C-01 | No measured harness covers strata 6/7/8. Security behaviour is proven by tests but its **cost** is unmeasured, so the approval boundary's overhead cannot be compared or quoted | **Medium** |
 | C-02 | Strata 2/4/5/10 have no scored cases at all | Medium |
-| C-03 | Gate 7 evidence drivers are outside the repo (unpromoted), so their rows are not reproducible from a clean checkout | Medium |
+| C-03 | ~~Gate 7 evidence drivers are outside the repo~~ **CLOSED** — evidence promoted to `benchmark/evidence/` (88 KB: drivers + 7 `summary.json`); `node benchmark/evidence/gate7/baseline-coverage-matrix.mjs` reproduces 10/10 verified, 1/10 cost from a clean checkout with **no arguments** | ~~Medium~~ closed |
 | C-04 | `p50Ms`/`p95Ms` types and `cost-attribution` exist but are not wired into a task-level benchmark | Low |
 | C-05 | Local CPU-only (stratum 9) has no defined environment axis | Low |
 
