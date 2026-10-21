@@ -55,6 +55,7 @@ export function taskForWorker(
     ownedPaths,
     inputPaths: worker.inputPaths,
     contextBundle: sessionId,
+    assignedObjective: worker.goalPrompt,
     eventSessionId: sessionId,
     cwd,
     coordinationRunId: worker.coordinationRunId,

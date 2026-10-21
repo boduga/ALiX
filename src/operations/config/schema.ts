@@ -429,6 +429,16 @@ export type SubagentTask = {
   cwd?: string; // working directory for the spawned subagent process
   scriptedScenarioJson?: string; // scripted provider scenario for the eval harness
   coordinationRunId?: string; // optional operator-facing correlation metadata
+  /**
+   * The worker's OWN assigned objective, distinct from `prompt`.
+   *
+   * `prompt` is the rendered execution prompt: it embeds the root coordination
+   * objective, ownership limits and dependency evidence. Judging a worker's
+   * result against the root objective rejects correct work — a worker that owns
+   * `docs/b.md` is not responsible for `docs/a.md` or `docs/c.md`. The objective
+   * review must score against this field, not against `prompt`.
+   */
+  assignedObjective?: string;
   assignedAgentId?: string; // planner-assigned agent label; not the execution identity
   taskLabel?: string; // concise operator-facing task title
   /** Coordination retries are terminal only when the scheduler exhausts them. */

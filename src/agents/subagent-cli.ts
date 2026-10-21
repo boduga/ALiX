@@ -455,6 +455,7 @@ export class SubagentCLI {
         output: { type: "string" },
         "coordination-run-id": { type: "string" },
         "credential-fd": { type: "string" },
+        "assigned-objective": { type: "string" },
       },
       allowPositionals: false,
     });
@@ -462,6 +463,9 @@ export class SubagentCLI {
     const role: SubagentRole = (args.values.subagent ?? "explorer") as SubagentRole;
     const taskId = args.values["task-id"];
     const prompt = args.values.prompt ?? "";
+    // The objective the worker was actually assigned. Falls back to the rendered
+    // prompt for non-coordination callers, which have no separate objective.
+    const assignedObjective = args.values["assigned-objective"];
     const mode = (args.values.mode ?? "read_only") as "read_only" | "write";
     const sessionId = args.values["session-id"];
     const sessionMode = args.values["session-mode"] as "auto" | "ask" | "bypass" | undefined;
@@ -701,13 +705,30 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths, toolLedger,
           { ownershipOnly: Boolean(coordinationRunId) });
         if (!coordinationRunId) return result;
+        // Review only the paths this worker OWNS and actually wrote.
+        //
+        // `progress.successfulPaths` accumulates every successful write with no
+        // ownership filter, so a sibling worker's file could enter this worker's
+        // evidence. Observed on a real gpt-4o restart run: a worker owning
+        // docs/b.md was rejected because the review saw A-MARKER and C-MARKER in
+        // its evidence — its siblings' artifacts, not its own. The reviewer was
+        // right about what it was shown; it was shown the wrong set.
+        const reviewPaths = [...progress.successfulPaths].filter(path =>
+          ownedPaths.length === 0
+            ? true
+            : ownedPaths.some(owned => pathIsCovered(owned, [path], process.cwd())),
+        );
         return reviewCoordinationResult({
           result,
-          objective: prompt,
-          mutatedPaths: [...progress.successfulPaths],
+          // Judge against the ASSIGNED objective, not the rendered prompt. The
+          // prompt embeds the root coordination goal ("create a.md, b.md AND
+          // c.md"), so reviewing against it rejected workers that correctly
+          // produced only their own single deliverable.
+          objective: assignedObjective ?? prompt,
+          mutatedPaths: reviewPaths,
           evidence: toolOutputs,
           provider,
-          readArtifacts: async () => Promise.all([...progress.successfulPaths].map(async path => {
+          readArtifacts: async () => Promise.all(reviewPaths.map(async path => {
             const read = await executor.execute({
               toolCallId: `objective-review-${randomUUID()}`,
               name: "file.read",

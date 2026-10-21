@@ -103,16 +103,41 @@ export async function reconcileCoordinationRun(
     })) continue;
 
     result.orphaned.push(worker.id);
-    await releaseWorkerLeases(deps.ownershipRegistry, worker);
-    await deps.store.patchWorker(runId, worker.id, {
-      status: "failed",
-      blockReason: "orphaned" as any,
-      failureKind: "orphaned" as any,
-      leaseIds: [],
-      error: worker.executionOwnerId
-        ? `Worker orphaned — host ${worker.executionOwnerId} is dead`
-        : `Worker orphaned — heartbeat ${worker.lastHeartbeatAt} exceeded threshold`,
-    });
+    const release = await releaseWorkerLeases(deps.ownershipRegistry, worker);
+    // RESET FOR A BOUNDED RETRY, do not terminate.
+    //
+    // The root AGENTS contract is explicit: reclaim "reset workers to pending
+    // and increment attempts within their limit". This path marked them
+    // `failed`, which is terminal — so a host crash permanently destroyed the
+    // worker's work instead of retrying it, and the run then reported `failed`
+    // even when every artifact landed on disk. Observed on a real gpt-4o restart
+    // scenario: worker failed with "host cli-107336 is dead" at attempt 1 of 3,
+    // while its artifact was already correct.
+    //
+    // `coordination-resume.ts` already does this correctly (pending + attempt+1,
+    // failed lease releases retained). This mirrors it so the two reclaim paths
+    // cannot diverge. Attempts stay bounded by `maxAttempts` in the scheduler.
+    const nextAttempt = (worker.attempt ?? 0) + 1;
+    const exhausted = nextAttempt > (worker.maxAttempts ?? 3);
+    await deps.store.patchWorker(runId, worker.id, exhausted
+      ? {
+          status: "failed",
+          blockReason: "orphaned",
+          failureKind: "orphaned",
+          leaseIds: release.failed,
+          error: `Worker orphaned and out of attempts (${nextAttempt - 1}/${worker.maxAttempts ?? 3}) — host ${worker.executionOwnerId ?? "unknown"} is dead`,
+        }
+      : {
+          status: "pending",
+          executionOwnerId: undefined,
+          leaseIds: release.failed,
+          blockReason: undefined,
+          failureKind: undefined,
+          attempt: nextAttempt,
+          error: worker.executionOwnerId
+            ? `Reclaimed after host ${worker.executionOwnerId} stopped`
+            : `Reclaimed after heartbeat ${worker.lastHeartbeatAt} exceeded threshold`,
+        });
   }
 
   // Approval resolution
