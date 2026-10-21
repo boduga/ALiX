@@ -84,6 +84,11 @@ barrel preserving public import paths.
   `buildOfferedExecutableTools(wireTools, mcpToolIndex)`, never the
   relevance-truncated `selectedTools` list. The call site is pinned by
   `tests/run/task-loop-shed-tool.vitest.ts` with an empty selector list.
+- **Approval waits stay nonterminal.** `handleToolCall` marks the activity as
+  awaiting approval, polls the durable approval for up to five minutes, and
+  re-dispatches the same call after approval. The executor's initial
+  approval-required result must not emit `tool.failed`; only denial, expiry,
+  cancellation, or a real execution failure closes the tool lifecycle.
 - **Keep callable and dispatch identities separate.** `toolCall.name` and
   `usedTools` hold exact model-facing names. `isCompletionToolName` checks that
   vocabulary; runtime trace consumers use `isCompletionExecName`. Resolution
