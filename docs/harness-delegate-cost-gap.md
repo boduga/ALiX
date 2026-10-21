@@ -1,76 +1,66 @@
-# FINDING — delegate-driver cost is unattributable (blocks metered cost for 5 strata)
+# FINDING — delegate-driver cost: reachable, unproven (corrects an earlier claim)
 
-**Status:** OPEN — structural. Found before spending money, not after.
-**Recorded:** 2026-10-20
+**Status:** OPEN — reachable but **not yet measured**.
+**Recorded:** 2026-10-20. Supersedes the pessimism in the first version of this file.
 **Affects:** strata 4, 5, 7, 10 (all `delegate`-driver cases)
 
 ---
 
-## 1. The finding
+## 1. Correction first
 
-A `delegate` eval case makes a **real billable call** but its usage cannot be
-attributed to the run and its evidence is then **deleted**. Running delegate
-cases on a priced model would spend money and produce nothing measurable.
+An earlier revision of this note claimed delegate usage was **unreachable** because
+the child wrote to "its own session, outside the captured directory". **That was
+wrong and was never verified before being written down.**
 
-## 2. The chain, verified in source
+A free probe (scripted provider, persistent cwd) shows the opposite:
 
-| Step | Source | What happens |
-|---|---|---|
-| 1 | `drivers/delegate-driver.ts` | `contextBundle: \`eval:${evalCase.id}\`` |
-| 2 | `agents/subagent-manager.ts` | `"--session-id", task.contextBundle ?? …` — the child's session id is the *context bundle string*, not the parent session |
-| 3 | `agents/subagent-cli.ts` | child writes `model.usage` into its **own** cwd's session dir |
-| 4 | `evals-runner.ts` | `rmSync(cwd, { recursive: true, force: true })` in `finally` — the child's session dir is removed |
+```
+session dirs under case cwd: [ 'eval:probe' ]
+  eval:probe: 10 events, 0 model.usage
+```
 
-**Step 4 was fixed for the main-loop path** (`eval-usage.ts` captures usage before
-cleanup). The delegate path still needs steps 1–2 fixed: even with capture in
-place, the child writes to a different session with no parent `runId`, so its
-usage is not in the directory the parent captures.
+The child's session directory **is inside the case cwd**
+(`<cwd>/.alix/sessions/eval:<caseId>`), because `SubagentManager.spawn` passes
+`cwd: task.cwd` and the delegate driver sets `task.cwd = cwd`. `captureEvalUsage`
+scans every session directory under that root, so it would read the child's log.
 
-`runId` is additionally absent: `deps.context.runId` is populated on the
-main-loop path; the delegate path never sets it. So even if the events survived,
-correlation would report `no-run-id`.
+`0 model.usage` above is the **scripted provider**, which emits no usage at all.
+It says nothing about a real provider.
 
-## 3. Why this matters
+## 2. What is actually still open
 
-Strata 4, 5, 7 and 10 have **deterministic coverage but no way to measure cost**.
-The coverage work was real; the measurement path was never wired for the delegate
-driver.
+| Question | State |
+|---|---|
+| Is the child's session log inside the captured cwd? | **Yes** — verified |
+| Does the child emit `model.usage` for a real provider? | **Unverified** |
+| Does the child's usage carry a `runId`? | **Unverified** — the child may have no authoritative run identity to attach |
+| Does `captureEvalUsage` see it before cleanup? | Structurally yes; unverified end-to-end |
 
-This is the same class as F1-A (`runId` declared but unattached): the identity
-exists in principle but is not threaded where it is needed.
+The open risk is now narrow and specific: **`runId` attribution on the child
+path.** `model.usage` is emitted with `...(runId ? { runId } : {})` from
+`deps.context.runId`; a child subagent may have no runId, in which case usage is
+captured but **unattributable** — the F1-A class of gap.
 
-## 4. What would fix it
+## 3. How to settle it for free-ish
 
-The child's usage must reach the parent's authoritative session and carry the
-parent's `runId`. Options, none implemented:
+One delegate case on a priced model (`gpt-4o`, ~$0.03) answers all three open
+rows at once. The probe above already shows the plumbing works; only the
+real-provider emission is unknown.
 
-1. **Pass the parent session + runId to the child** via env, so it appends usage
-   to the parent's event log. Requires deciding whether a child may write to the
-   parent's log (currently it does not — a deliberate boundary).
-2. **Have the child report usage in its structured result** and let the parent
-   append it. Keeps the write boundary intact; needs a result-field contract.
-3. **Capture the child's session dir before cleanup** and correlate post-hoc.
-   Cheapest, but leaves two logs to join and still lacks `runId` unless (1)/(2)
-   also lands.
+**Do not run all four delegate strata first.** Run one, inspect whether
+`execution.usage.records[].runId` is present, and only then decide whether the
+cost is attributable or needs an identity fix.
 
-Option 2 is the least invasive and is the one to evaluate first, since
-`SubagentResult` already crosses the boundary.
+## 4. What is NOT done
 
-## 5. What was NOT done
+- No production change for this finding.
+- No priced delegate run yet.
+- The gap doc's original "unattributable" conclusion is retracted above rather
+  than left standing.
 
-- No production change. This is a recorded finding, not a fix.
-- No delegate case was run on a priced model. **No money was spent** discovering
-  this; it was found by reading the spawn and cleanup paths.
-- The 2 main-loop cases were measured instead (`read-only`, `code-navigation`).
-  That path was wired *during this investigation*, not before it: the first
-  attempt captured nothing because `rmSync` ran before any read. Usage capture
-  (`src/operations/evals/eval-usage.ts`) now runs ahead of cleanup, and the
-  measured result is `benchmark/evidence/cost/eval-mainloop-metered.json`.
+## 5. Gate B effect
 
-## 6. Gate B effect
-
-Unchanged verdict (HOLD), but the blocker is now precisely scoped: measured cost
-is possible for main-loop strata today and structurally impossible for delegate
-strata until one of the options above is implemented. "Run the remaining strata
-on a priced model" is therefore **not** a pure budget decision — five of them need
-code first.
+Measured cost stands at **3/10** (strata 1, 2, 3 — all main-loop or direct run).
+Delegate strata are **plausibly measurable at ~$0.03 each**, which would take
+coverage to 7/10. That is a small, bounded spend rather than a code project — a
+materially better position than the first version of this note implied.
