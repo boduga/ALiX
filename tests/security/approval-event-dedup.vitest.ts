@@ -51,6 +51,23 @@ async function workspace() {
   return { cwd, log, store, gate };
 }
 
+/**
+ * A composition root where the STORE gets no EventLog but the gate does —
+ * exactly what headless `alix run` builds (`run.ts` constructs the store
+ * without one; the executor's gate receives the session log). `emit()` is a
+ * no-op there, so the gate must supply the creation record itself.
+ */
+async function workspaceWithoutStoreLog() {
+  const cwd = await mkdtemp(join(tmpdir(), '.alix-f1b-nolog-'));
+  cwds.push(cwd);
+  const log = new EventLog(join(cwd, '.alix', 'sessions', 's1'));
+  await log.init();
+  const store = new ApprovalStore(cwd);
+  await store.load();
+  const gate = new PolicyGate(config, { eventLog: log, approvalStore: store });
+  return { cwd, log, store, gate };
+}
+
 async function readEvents(log: EventLog) {
   const path = join(log.sessionDir, 'events.jsonl');
   if (!existsSync(path)) return [];
@@ -161,5 +178,53 @@ describe('approval event deduplication (F1-B)', () => {
     const resolved = events.filter(e => e.type === 'approval.resolved');
     expect(resolved).toHaveLength(1);
     expect(resolved[0].payload.status).toBe('denied');
+  });
+
+  /**
+   * The other direction of F1-B. Silencing the gate's creation event is only
+   * correct while the store emits one; `emit()` is a no-op when the store has
+   * no EventLog, and headless `alix run` builds it that way. Suppressing
+   * unconditionally did not deduplicate there — it deleted the approval
+   * lifecycle from the event stream entirely, leaving `approval.created` at
+   * zero and every wait/correlation consumer blind.
+   */
+  it('emits exactly ONE approval.created when the store has no EventLog (headless run)', async () => {
+    const { log, store, gate } = await workspaceWithoutStoreLog();
+
+    const decision = await gate.evaluateToolCall(toolRequest() as never);
+    expect(decision.decision).toBe('ask');
+    await store.flushEvents();
+
+    const created = (await readEvents(log)).filter(e => e.type === 'approval.created');
+    expect(created).toHaveLength(1);
+    expect(created[0].payload.approvalId).toBe(decision.approvalId);
+    expect(created[0].payload.status).toBe('pending');
+    expect(created[0].payload.toolName).toBe('shell.run');
+  });
+
+  it('a DISTINCT approval pairs with its own creation event when the store has no EventLog', async () => {
+    const { log, store, gate } = await workspaceWithoutStoreLog();
+
+    await gate.evaluateToolCall(toolRequest('call-a') as never);
+    await gate.evaluateToolCall(toolRequest('call-b') as never);
+    await store.flushEvents();
+
+    const created = (await readEvents(log)).filter(e => e.type === 'approval.created');
+    expect(created).toHaveLength(2);
+    expect(new Set(created.map(e => e.payload.approvalId)).size).toBe(2);
+    expect(new Set(created.map(e => e.payload.requestId)).size).toBe(2);
+  });
+
+  it('a reuse on the no-store-log path emits approval.reused and no second creation', async () => {
+    const { log, store, gate } = await workspaceWithoutStoreLog();
+
+    await gate.evaluateToolCall(toolRequest('call-1') as never);
+    await store.flushEvents();
+    await gate.evaluateToolCall(toolRequest('call-1') as never);
+    await store.flushEvents();
+
+    const events = await readEvents(log);
+    expect(events.filter(e => e.type === 'approval.created')).toHaveLength(1);
+    expect(events.filter(e => e.type === 'approval.reused').length).toBeGreaterThanOrEqual(1);
   });
 });

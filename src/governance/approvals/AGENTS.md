@@ -46,6 +46,17 @@ File-backed approval queue management — create, resolve, list, and lookup pend
     already denied at authentication (A′), so it never reaches this route.
     `tests/server/derive-permissions.test.ts` pins the `approvals:decide` grant
     (admin + operator, never `readonly`).
+- **`approval.created` has exactly one producer per composition root, chosen by
+  capability.** The store emits it from its committed creation transition, but
+  only when the store itself was constructed with an `EventLog`
+  (`ApprovalStore.emit()` is a no-op otherwise); `ApprovalStore.emitsLifecycleEvents`
+  reports that construction state. `PolicyGate` emits `approval.created` itself
+  **only** when the store positively reports it has no log, and never on top of a
+  store that emits — duplicate creation events inflate approval-volume counters
+  (F1-B), while silence on both paths erases the approval lifecycle entirely
+  (headless `alix run` built the store without a log, so the gate must supply it).
+  `approval.reused` is always the gate's: the store emits nothing on reuse.
+  Pinned in both directions by `tests/security/approval-event-dedup.vitest.ts`.
 - Approval records are durable JSON — full history preserved.
 - **The approval ledger is authoritative (R2.5); JSON/journal is a
   compatibility projection.** `mutate()` appends its classified diff to the

@@ -388,23 +388,31 @@ export class PolicyGate {
       },
     );
 
-    // Emit approval lifecycle event for the REUSE path only.
+    // Emit approval lifecycle events.
     //
-    // DEDUPLICATION (F1-B): on a NEW approval the store already emits
-    // `approval.created` from its committed creation transition, with a payload
-    // that is a superset of this one (approvalId, requestId, agentId,
-    // capabilities, bindingKey, policyRevision, reason, status, toolId).
-    // Emitting again here produced two creation events per logical request, which
-    // inflates approval-volume counters.
+    // DEDUPLICATION (F1-B): on a NEW approval the store emits `approval.created`
+    // from its committed creation transition, with a payload that is a superset
+    // of this one (approvalId, requestId, agentId, capabilities, bindingKey,
+    // policyRevision, reason, status, toolId). Emitting again here produced two
+    // creation events per logical request, which inflates approval-volume
+    // counters.
     //
-    // The `toolName`/`cwd` fields this site used to add are not lost:
+    // ...but the store only emits when IT was constructed with an EventLog.
+    // `ApprovalStore.emit()` is a no-op otherwise, and a production caller does
+    // exactly that: headless `alix run` builds the store WITHOUT one
+    // (`run.ts`) while the executor's gate has one. Suppressing this site
+    // unconditionally therefore produced ZERO creation events on that path —
+    // the opposite failure, and a silent one. Exactly one emitter must fire:
+    // the store when it can, this gate when it cannot.
+    //
+    // The `toolName`/`cwd` fields this site adds are not lost on the store path:
     // `approval-projection.ts` resolves a display tool name as
     // `toolName ?? capabilities[0] ?? toolId`, and the store payload carries
-    // `capabilities` and `toolId`. Verified before removing this emission.
+    // `capabilities` and `toolId`.
     //
     // On REUSE the store emits nothing (`requestOrReusePending` returns the
-    // existing record without an event), so this remains the only record that a
-    // pending approval was observed and reused.
+    // existing record without an event), so `approval.reused` here remains the
+    // only record that a pending approval was observed and reused.
     if (this.deps.eventLog && askDecision.approvalId && askDecision.decision === "ask") {
       const isReused = askDecision.matchedRuleId === "pending-approval";
       if (isReused) {
@@ -425,10 +433,49 @@ export class PolicyGate {
             previousApprovalId: askDecision.approvalId,
           },
         }).catch(() => {});
+      } else if (this.storeEmitsCreationEvents() === false) {
+        // The store has no EventLog, so this is the ONLY creation record.
+        await this.deps.eventLog.append({
+          sessionId: request.sessionId ?? "unknown",
+          actor: "policy",
+          type: "approval.created",
+          payload: {
+            approvalId: askDecision.approvalId,
+            requestId: request.requestId,
+            sessionId: request.sessionId,
+            agentId: request.agentId,
+            capability,
+            toolName: (request as ToolPolicyRequest).toolName,
+            status: "pending" as const,
+            reason: askDecision.reason,
+            cwd: (request as ToolPolicyRequest).cwd,
+          },
+        }).catch(() => {});
       }
     }
 
     return askDecision;
+  }
+
+  /**
+   * Whether the approval store supplies its own `approval.created` event.
+   *
+   * The store emits from its committed creation transition only when it was
+   * constructed with an EventLog (`ApprovalStore.emit()` is a no-op otherwise).
+   * This gate must therefore emit the creation record itself on exactly the
+   * paths where the store cannot, or the approval lifecycle disappears from the
+   * event stream — headless `alix run` is one such composition root.
+   *
+   * Fail toward "the store emits": a late/absent capability must never cause a
+   * second creation event, because duplicate records inflate approval-volume
+   * counters (F1-B). Only a store that positively reports it has no EventLog
+   * moves the emission here.
+   */
+  private storeEmitsCreationEvents(): boolean {
+    const store = this.deps.approvalStore as
+      | { emitsLifecycleEvents?: boolean }
+      | undefined;
+    return store?.emitsLifecycleEvents !== false;
   }
 
   /**
@@ -498,19 +545,23 @@ export class PolicyGate {
 
     // Emit approval lifecycle event.
     //
-    // DEDUPLICATION (F1-B): the store already emits `approval.created` from its
-    // committed creation transition (`createApprovalRecord`), and that payload is
-    // a SUPERSET of what this site would emit — it carries approvalId,
-    // requestId, agentId, capabilities, bindingKey, policyRevision, reason and
-    // status. Emitting `created` again here produced two creation events for one
-    // logical request (26 events across 13 approvals in a real session), which
-    // inflates any consumer counting approval volume.
+    // DEDUPLICATION (F1-B): the store emits `approval.created` from its
+    // committed creation transition (`createApprovalRecord`) when it was
+    // constructed with an EventLog, and that payload is a SUPERSET of what this
+    // site would emit — it carries approvalId, requestId, agentId, capabilities,
+    // bindingKey, policyRevision, reason and status. Emitting `created` again
+    // here produced two creation events for one logical request (26 events
+    // across 13 approvals in a real session), which inflates any consumer
+    // counting approval volume.
     //
-    // Only the REUSE path is emitted here. On reuse the store emits nothing —
-    // `requestOrReusePending` returns the existing record without an event — so
-    // this is the only record that a pending approval was observed and reused
-    // rather than newly created. Suppressing the duplicate must therefore be
-    // precise: `created` is silenced, `reused` is preserved.
+    // The store's emission is conditional on its own EventLog, so this site
+    // supplies `created` exactly when the store cannot (see
+    // `storeEmitsCreationEvents`). Silence on both paths would erase the
+    // approval lifecycle from the stream.
+    //
+    // On reuse the store emits nothing — `requestOrReusePending` returns the
+    // existing record without an event — so `approval.reused` here is always
+    // the only record of that observation.
     //
     // Historical logs may still contain duplicate `created` events; consumers
     // deduplicate on `approvalId`, and those records remain valid evidence.
@@ -530,6 +581,21 @@ export class PolicyGate {
             status: "reused" as const,
             reason: capAskDecision.reason,
             previousApprovalId: capAskDecision.approvalId,
+          },
+        }).catch(() => {});
+      } else if (this.storeEmitsCreationEvents() === false) {
+        await this.deps.eventLog.append({
+          sessionId: request.sessionId ?? "unknown",
+          actor: "policy",
+          type: "approval.created",
+          payload: {
+            approvalId: capAskDecision.approvalId,
+            requestId: request.requestId,
+            sessionId: request.sessionId,
+            agentId: request.agentId,
+            capability: request.capability,
+            status: "pending" as const,
+            reason: capAskDecision.reason,
           },
         }).catch(() => {});
       }

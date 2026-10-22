@@ -85,6 +85,20 @@ export class ApprovalStore {
   /** In-flight fire-and-forget appends, for a deterministic test barrier. */
   private pendingAppends: Promise<unknown>[] = [];
 
+  /**
+   * Whether this store emits lifecycle events itself.
+   *
+   * `emit()` is a no-op without an EventLog, so a caller that constructs the
+   * store WITHOUT one (e.g. headless `alix run`, `run.ts`) gets no
+   * `approval.created` from the committed creation transition. The policy gate
+   * uses this to decide whether it must supply the creation record itself —
+   * exactly one emitter either way. Read-only projection of construction state;
+   * it grants no authority.
+   */
+  get emitsLifecycleEvents(): boolean {
+    return this.eventLog !== undefined;
+  }
+
   /** O(1) lookup indexes (#703), rebuilt on load and after each mutation. */
   private byId = new Map<string, ApprovalRecord>();
   private byBindingKey = new Map<string, ApprovalRecord[]>();

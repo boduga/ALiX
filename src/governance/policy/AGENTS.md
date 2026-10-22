@@ -35,6 +35,18 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
 - **Coordination approval authority is host-parity (SRAP PR B).** Every host that can return an approval-required coordination decision must hold the SAME durable authority. The daemon wires `loadApprovalStore(cwd)` at startup (`daemon-server.ts`); the CLI resolves it per command through `buildCoordinationPolicyGate` (`src/interfaces/cli/commands/coordination.ts`) and injects the same project-scoped store into its `PolicyGate`. A `PolicyGate` constructed with NO approval store still fails closed on an ask (`approval-store-missing`) — `loadApprovalStore` returning `undefined` (unreadable store) therefore produces an explicit authorization failure, never an `approvalId` of `"unknown"`. The aggregation boundary (`authorizeWorker`) likewise fails closed when an approval-required verdict names no durable approval id — including the `ExecutionAuthorization` legacy sentinel `"unknown"` (it coerces an id-less `ask` to `"unknown"` for the graph reuse path) — rather than exposing it as a pending approval. One authority; no second store, resolver, or cache. Pinned by `tests/cli/commands/coordination-approval-wiring.test.ts` (real-component CLI path: allowed/ask, cross-process resolve, binding-mismatch capability/policy-revision/expiry rejection, restart survival, missing-store fail-closed, daemon/CLI decision+binding parity) and `tests/kernel/coordination-authorization.test.ts`.
 - Policy evaluation forwards the execution request's optional canonical `agentId` into durable approval records and lifecycle events without changing the allow/ask/deny decision.
 - **Prior-approval reuse binds to the exact invocation; a consumed approval is denied, never reused.** In the legacy (non-coordination) ask path, `handleAskDecision` authorizes a prior `approved` record only when it is unexpired AND its persisted invocation matches the current request (`invocationMatches`); a record with no invocation fingerprint (legacy) falls through and a fresh, exactly-bound approval is created. A `consumed` prior approval is denied with `prior-approval-consumed` and an exact reason (naming `unverified` when the claim's holder never reported an outcome). The capability-level path (no tool invocation) keeps its prior reuse behavior. `PolicyGateDecision.approvalConsumed` is set only by the coordination exact-binding branch, which consumed inside the gate; the executor must not claim it again.
+- **Approval lifecycle emission is a capability of the store, not an assumption.**
+  The store emits `approval.created` only when constructed with an `EventLog`;
+  `PolicyGate` consults `storeEmitsCreationEvents()` and supplies the creation
+  event itself on exactly the paths where the store cannot. Never suppress the
+  gate's emission unconditionally — headless `alix run` wires the store without a
+  log, so that deletes the approval lifecycle from the stream instead of
+  deduplicating it. The fallback fails toward "the store emits": only a store
+  that positively reports no log moves the emission into the gate, because a
+  duplicate creation event is a counter-inflating regression (F1-B) while a
+  missing one is a silent blind spot. Pinned by
+  `tests/security/approval-event-dedup.vitest.ts` (both directions) and
+  `tests/runtime/approval-observability.test.ts`.
 - Default deny when no rule matches ("deny by default" closure).
 - Headless exception: with no approval store (delegate subagent child),
   `alix_web_search`/`alix_web_fetch` and the zero-side-effect `alix_done`
