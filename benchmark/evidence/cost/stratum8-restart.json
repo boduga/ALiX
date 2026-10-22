@@ -66,6 +66,16 @@
           "completed",
           "completed"
         ]
+      },
+      "ownedScopeEnforcement": {
+        "deniedWrites": 2,
+        "paths": [
+          "docs/a.md",
+          "docs/c.md"
+        ],
+        "deniedBy": "PolicyGate owned-path rule",
+        "source": "benchmark/evidence/coordination/restart-workspace/.alix/sessions/coord_1792641258337/events.jsonl (tool.failed)",
+        "note": "Worker B (owned docs/b.md) attempted to write two sibling files and was denied both times. These are the run's only tool failures, so the owned-scope rule decided and no worker wrote outside its declared scope."
       }
     }
   },

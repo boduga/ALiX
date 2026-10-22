@@ -86,6 +86,10 @@ completed at kill, resume recovered one orphan, final run `completed` /
 its marker. Evidence `benchmark/evidence/coordination/stratum8-gpt4o.json`, cost
 `benchmark/evidence/cost/stratum8-restart.json` ($0.211623).
 
+The owned-scope rule demonstrably decided: worker B (owned `docs/b.md`) tried to
+write `docs/a.md` and `docs/c.md` and was denied both times — the run's only
+two tool failures, and the reason its siblings' deliverables stayed intact.
+
 ## Remaining gap (not fixed)
 
 The review's mutation evidence is scoped to the CURRENT attempt. A retry whose
