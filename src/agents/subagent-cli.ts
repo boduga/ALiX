@@ -616,9 +616,18 @@ export class SubagentCLI {
       console.error(`[SubagentCLI] MCP init failed: ${(err as Error).message}. Continuing without MCP tools.`);
     }
 
+    // Carry the configured call budget for the model we actually run. The CLI
+    // flags name provider/model; the timeout lives on that model's config
+    // entry. Without this a child worker always gets the provider default
+    // (300s for local CPU), so a sized timeout never reaches it.
+    const modelEntry = Object.values(config.models ?? {}).find(
+      entry => entry?.provider === effectiveProvider && entry?.name === effectiveName,
+    );
     const provider = await createProvider({
       provider: effectiveProvider,
       name: effectiveName,
+      ...(modelEntry?.timeoutMs !== undefined ? { timeoutMs: modelEntry.timeoutMs } : {}),
+      ...(modelEntry?.streamIdleTimeoutMs !== undefined ? { streamIdleTimeoutMs: modelEntry.streamIdleTimeoutMs } : {}),
       ...(effectiveSelection !== undefined ? { selection: effectiveSelection } : {}),
     });
     const providerTools = buildToolsForProvider(provider);

@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { NormalizedRequest } from "../../src/models/providers/types.js";
 
-const harness = vi.hoisted(() => ({ complete: vi.fn(), execute: vi.fn(), durable: [] as { type: string; payload?: unknown }[] }));
-vi.mock("../../src/models/providers/registry.js", () => ({ createProvider: async () => ({ complete: harness.complete }) }));
+const harness = vi.hoisted(() => ({ complete: vi.fn(), execute: vi.fn(), durable: [] as { type: string; payload?: unknown }[], providerConfig: null as { timeoutMs?: number; streamIdleTimeoutMs?: number } | null }));
+vi.mock("../../src/models/providers/registry.js", () => ({ createProvider: async (config: { timeoutMs?: number; streamIdleTimeoutMs?: number }) => { harness.providerConfig = config; return { complete: harness.complete }; } }));
 vi.mock("../../src/operations/config/loader.js", async () => {
   const { DEFAULT_CONFIG } = await import("../../src/operations/config/defaults.js");
-  return { loadConfig: async () => ({ ...structuredClone(DEFAULT_CONFIG), models: { default: { provider: "fixture", name: "fixture" } } }) };
+  return { loadConfig: async () => ({ ...structuredClone(DEFAULT_CONFIG), models: { default: { provider: "fixture", name: "fixture", timeoutMs: 1_800_000, streamIdleTimeoutMs: 900_000 } } }) };
 });
 vi.mock("../../src/runtime-state/events/event-log.js", () => ({ EventLog: class { async init() {} async append() {} async readAll() { return harness.durable; } } }));
 vi.mock("../../src/context/repomap/context-compiler.js", () => ({ ContextCompiler: class {
@@ -25,7 +25,32 @@ vi.mock("../../src/run.js", () => ({ buildToolsForProvider: () => ["alix_grep_se
 
 import { SubagentCLI } from "../../src/agents/subagent-cli.js";
 
-afterEach(() => { vi.restoreAllMocks(); harness.complete.mockReset(); harness.execute.mockReset(); harness.durable.length = 0; });
+afterEach(() => { vi.restoreAllMocks(); harness.complete.mockReset(); harness.execute.mockReset(); harness.durable.length = 0; harness.providerConfig = null; });
+
+describe("child provider call budget", () => {
+  it("carries the configured model timeout into the provider", async () => {
+    const root = await mkdtemp(join(tmpdir(), "alix-timeout-"));
+    const cwd = process.cwd();
+    const oldExit = process.exitCode;
+    const tty = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
+    const output = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: true });
+    harness.complete.mockImplementation(async () => ({ text: "", toolCalls: [{ id: "done", name: "alix_done", args: {} }] }));
+    harness.execute.mockImplementation(async () => ({ kind: "success", output: "Task completed." }));
+    try {
+      process.chdir(root);
+      await SubagentCLI.main(["--subagent", "worker", "--mode", "write", "--task-id", "writer", "--session-id", "fixture", "--prompt", "Write the file"]);
+      expect(harness.providerConfig?.timeoutMs).toBe(1_800_000);
+      expect(harness.providerConfig?.streamIdleTimeoutMs).toBe(900_000);
+    } finally {
+      process.chdir(cwd);
+      process.exitCode = oldExit;
+      if (tty) Object.defineProperty(process.stdin, "isTTY", tty); else Reflect.deleteProperty(process.stdin, "isTTY");
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("coordination worker completion boundary", () => {
   it.each(["done", "no_calls", "budget"])("reviews %s exit and retains retrieved evidence", async exit => {
