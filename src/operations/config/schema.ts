@@ -160,6 +160,13 @@ export type ModelConfig = {
    * `${internBaseUrl}/chat/completions`.
    */
   internBaseUrl?: string;
+  /**
+   * Inference API root for the hive provider (default
+   * https://api-cdn.thehive.ai/api/v3). The root already carries its version
+   * segment, so the chat endpoint is `${hiveBaseUrl}/chat/completions` — not
+   * the `/v1` convention other OpenAI-compatible vendors use.
+   */
+  hiveBaseUrl?: string;
   routing?: {
     freeFallback?: boolean;
     fallbacks?: Array<{

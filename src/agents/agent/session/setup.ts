@@ -321,13 +321,26 @@ export async function resolveDirectOutputCeiling(
       chatModel.model ?? "",
       chatApiKey ? { [chatModel.provider]: chatApiKey } : undefined,
     );
-    // DeepSeek and Xiaomi MiMo accept output budgets far above the generic
+    // DeepSeek, Xiaomi MiMo and Hive accept output budgets far above the generic
     // 32,768 cap (DeepSeek: 100k–300k `max_tokens` honored; MiMo: 128K max
-    // output). Both stream reasoning + content inside a single budget, so a
-    // long answer cut at 32k is silently truncated mid-part. Keep the generic
-    // cap for other providers, whose APIs often reject `max_tokens` above
-    // their own much smaller ceiling (e.g. gpt-4o).
-    if (chatModel.provider === "deepseek" || chatModel.provider === "xiaomi-mimo-token-plan") {
+    // output; Hive: 32,768 declared, and its reasoning trace draws on the SAME
+    // budget as the answer). All three stream reasoning + content inside a single
+    // budget, so a long answer cut at 32k is silently truncated mid-part. Keep
+    // the generic cap for other providers, whose APIs often reject `max_tokens`
+    // above their own much smaller ceiling (e.g. gpt-4o).
+    //
+    // Hive is elevated for a stronger reason than headroom: verified live
+    // (2026-10-22), a request whose reasoning consumed the budget returned an
+    // EMPTY `content` while still reporting `finish_reason: "stop"`. Because that
+    // provider never reports `length`, ALiX's truncation re-prompt cannot fire —
+    // a small cap therefore silently yields an empty answer instead of a
+    // detectable truncation. `hive-provider.ts` additionally fails closed on that
+    // signature so it can never masquerade as a genuine empty answer.
+    if (
+      chatModel.provider === "deepseek" ||
+      chatModel.provider === "xiaomi-mimo-token-plan" ||
+      chatModel.provider === "hive"
+    ) {
       return createContextBudget(descriptor, { outputCap: 131_072 }).requestedMaxOutputTokens;
     }
     return createContextBudget(descriptor).requestedMaxOutputTokens;
@@ -372,7 +385,9 @@ export async function setupContextLimits(
   // output). Reasoning + content share the budget, so long answers were
   // silently truncated at 32k. Only elevate when the user hasn't set their cap.
   if (
-    (modelConfig.provider === "deepseek" || modelConfig.provider === "xiaomi-mimo-token-plan") &&
+    (modelConfig.provider === "deepseek" ||
+      modelConfig.provider === "xiaomi-mimo-token-plan" ||
+      modelConfig.provider === "hive") &&
     (budgetOptions.outputCap === undefined || budgetOptions.outputCap === DEFAULT_OUTPUT_CAP)
   ) {
     budgetOptions.outputCap = 131_072;
