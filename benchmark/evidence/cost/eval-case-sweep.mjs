@@ -22,10 +22,40 @@ import { readFileSync } from 'node:fs';
 
 const CATALOG = defaultPricingCatalog();
 
-/** Eval case → coverage stratum. Derived from what the case exercises. */
+/**
+ * Eval case → coverage stratum (`baseline-coverage-matrix.mjs` ids).
+ *
+ * Every behavioral case that can carry cost evidence must be mapped here, or a
+ * committed sweep cannot attribute its usage to a PRD stratum and the matrix
+ * reports that stratum as unmeasured even though the run happened. Two strata
+ * have cases split across BOTH drivers (`main-loop` and `delegate`), so this map
+ * is keyed by case id, not by driver.
+ *
+ * Strata with no behavioral case at all (6 coordination, 8 crash/restart) are
+ * measured by their own drivers under `benchmark/evidence/coordination/`.
+ */
 export const CASE_STRATUM = {
+  // 1 — read-only factual inspection
   'behavioral.read-only': 'readonly-inspection',
+  // 2 — unfamiliar-code navigation
   'behavioral.code-navigation': 'code-navigation',
+  // 3 — single-file edit
+  'behavioral.write-file': 'single-file-edit',
+  'behavioral.patch-application': 'single-file-edit',
+  'behavioral.block-replacement': 'single-file-edit',
+  // 4 — multi-file bug fix (composite must land; partial must NOT land)
+  'behavioral.multi-file-fix': 'multi-file-fix',
+  'behavioral.multi-file-fix-partial': 'multi-file-fix',
+  // 5 — verification / repair (applied must land; not-applied must NOT)
+  'behavioral.verification-repair': 'verification-repair',
+  'behavioral.verification-repair-not-applied': 'verification-repair',
+  // 7 — allow/ask/deny capability mixes
+  'behavioral.forbidden-path-write': 'capability-mix',
+  'behavioral.unmet-write-zero-attempts': 'capability-mix',
+  'behavioral.partial-objective': 'capability-mix',
+  // 10 — tool failure / malformed tool calls
+  'behavioral.tool-failure-recovery': 'tool-failure-recovery',
+  'behavioral.malformed-tool-call': 'tool-failure-recovery',
 };
 
 export function resolveSweepModel(explicitProvider, explicitModel) {

@@ -20,7 +20,7 @@ The PRD states an ablation result is inadmissible unless six conditions hold
 
 | # | Condition | State | Blocking? |
 |---|---|---|---|
-| 1 | Same task set, model + version, provider policy, environment, oracle | Task set and oracle exist; **all measured runs used an explicit `openai/gpt-4o` one-off** because the operator default (`intern/deepseek-v4-flash-0731`) returns 429 | **yes** — a variant comparison on one model generalizes to that model only, and the model is not the configured default |
+| 1 | Same task set, model + version, provider policy, environment, oracle | Task set and oracle exist; **all measured runs used an explicit `openai/gpt-4o` one-off** because the operator default (`intern/deepseek-v4-flash-731`) returns 429. Reproduction is **partial**: seven drivers are committed and runnable, four recorded cost files have no producer | **yes** — a variant comparison on one model generalizes to that model only |
 | 2 | Randomized ordering or repetitions | **Every figure is n=1** | **yes** — no uncertainty can be reported |
 | 3 | S0 negatives run independently; a bypass is never a success | S0 negatives exist and pass; they are not re-run per ablation arm | **partial** — must be wired into each arm |
 | 4 | Every failure classified (task / harness / provider / planner-contract) | Failure taxonomy exists in the evaluator; **not applied to any ablation** | **yes** — unclassified failures cannot be compared |
@@ -96,8 +96,12 @@ In order — each is a blocker, not a nice-to-have:
 2. **Model pinned** as a deliberate, recorded choice. The gpt-4o one-off must be
    either adopted explicitly for benchmarking or replaced once the operator
    default stops returning 429.
-3. **Reproducible drivers in-repo**, so a reviewer can regenerate the baseline
-   without the original machine.
+3. **Reproducibility partial, not absent.** Seven driver scripts are committed
+   and runnable (`benchmark/evidence/cost/{eval-case-sweep,run-positive-cases,
+   positive-cases}.mjs`, `benchmark/evidence/coordination/{run-coordination-metered,
+   run-restart-metered}.mjs`, the matrix generator). Four recorded cost files have
+   **no producer**: `readonly-navigation.json`, `eval-mainloop-metered.json`,
+   `delegate-metered-sweep.json`, `stratum9-observation.json`.
 4. **Failure taxonomy wired into each arm** (condition 4).
 5. **S0 negatives re-run per arm** (condition 3) — a variant that appears cheaper
    by bypassing authorization fails the gate outright.

@@ -22,7 +22,7 @@ an artifact that a reviewer can re-check.
 | Gate | Criterion (PRD §9) | Verdict | Basis |
 |---|---|---|---|
 | **A — Inventory** | all high-risk candidates mapped; unknown source/ownership blocks retirement | **PASS with named unknowns** | `harness-component-inventory.md`; §7 lists unresolved items rather than closing them |
-| **B — Baseline** | versioned, independently scored benchmark with reproducible environment | **HOLD** | Coverage 10/10 verified; cost-per-verified-success in 9/10 strata; **not reproducible** (drivers not in-repo) and **n=1** per stratum |
+| **B — Baseline** | versioned, independently scored benchmark with reproducible environment | **HOLD** | Coverage 10/10 verified; cost-per-verified-success in 9/10 strata; **reproducibility partial** — 5 of 7 evidence records have a committed driver, the rest do not; **n=1** per stratum |
 | **C — Ablation** | demonstrable efficiency gain with no unaccepted correctness regression | **NOT STARTED — not authorized** | PRD §12.4 forbids P0-E ablations at this revision |
 | **D — Migration design** | Q04/Q05 cover every supported reader/writer | **NOT STARTED** | PRE-R010 inventory incomplete (gap F-05) |
 | **E — Execution/security** | F8b, authority, crash/recovery, ownership, denied-action negatives qualified **independently** | **PARTIAL — not independently qualified** | S0 negatives exist and pass; independence is a separate security track (P0-G), not performed here |
@@ -44,7 +44,7 @@ advanced, and it did not clear it.
 | R003 | Publish protected S0 invariant map | **met** | `harness-invariant-register.md` §2: S0-1…S0-7, each with owning authority and negative test |
 | R004 | Identify duplicated decisions / incompatible transitions | **partially met** | authority map names one owner per decision; `harness-decision-transition-map.md` |
 | R005 | Fixed, versioned task corpus, independently verified outcomes | **met for 10 strata** | `src/operations/evals/cases/` (14 behavioral cases); evaluator-owned assertions + honesty contract |
-| R006 | Baseline verified success, tokens, cost, latency, retries, tool calls, intervention | **partial** | tokens/cost/verified-success recorded for 9/10 strata; **latency partially**, **retries and operator intervention not measured**; every figure **n=1** |
+| R006 | Baseline verified success, tokens, cost, latency, retries, tool calls, intervention | **partial** | tokens/cost/verified-success recorded for 9/10 strata; **latency partially**, **retries and operator intervention not measured**; every figure **n=1**. Seven drivers committed; four cost files lack a producer (U-1) |
 | R007 | Prompt/shim ablations without modifying production defaults | **NOT STARTED — blocked** | Requires Gate C authorization; see `harness-ablation-report.md` §4 for the seam analysis that avoids touching production defaults |
 | R008 | Benchmark patch-format, routing, context strategies | **NOT STARTED (P2)** | — |
 | R009 | Register model-facing shims with owner/trigger/usage/tests/retirement | **NOT STARTED** | HC register classifies candidates but does not carry per-shim usage telemetry |
@@ -99,7 +99,7 @@ Claims below are supported by an artifact a reviewer can re-run or re-read.
 
 | # | Unknown | Why it blocks | Consequence if ignored |
 |---|---|---|---|
-| U-1 | **Reproducibility of every cost figure** | Scenario drivers that produced the Gate 7 summaries are not in-repo; re-running needs real billable calls | A reviewer cannot regenerate the baseline; Gate B cannot be signed |
+| U-1 | **Reproducibility of every cost figure** | **Partial, not absent.** Seven driver scripts are committed and runnable (`benchmark/evidence/cost/*.mjs`, `benchmark/evidence/coordination/*.mjs`), and the fixture suite passes 6/6 with no network. But four recorded cost files have **no committed producer**: `readonly-navigation.json` (strata 1–2), `eval-mainloop-metered.json` (stratum 3), `delegate-metered-sweep.json` (strata 4/5/7/10) and `stratum9-observation.json` (stratum 9). Those rows cannot be regenerated from this repo; the rest can, at the cost of real billable calls | A reviewer cannot regenerate every baseline row, so Gate B cannot be signed |
 | U-2 | **Statistical support** | Every stratum figure is **n=1** | No uncertainty is reported; a single lucky or unlucky run is indistinguishable from a baseline |
 | U-3 | **HC-01 / HC-03 effectiveness** | No ablation is authorized or run | "Can be removed" is a hypothesis, not a finding |
 | U-4 | **Operator attention** | Not instrumented | Cost-per-success omits the scarce resource §12 was written about |

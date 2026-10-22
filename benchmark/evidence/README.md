@@ -12,11 +12,34 @@ node benchmark/evidence/gate7/baseline-coverage-matrix.mjs
 ```
 
 No arguments, no network, no credentials. It reads recorded files only and never
-re-runs a model. Current qualified cost coverage: **4/10**. Strata 1/2's old
-evaluator passes did not verify unchanged contents; their recorded paid usage
-remains intact, but success counts remain unknown.
-(regenerate rather than trusting this line — it is a snapshot, and the
-strata-with-cost count moves as evidence is added.)
+re-runs a model. Current qualified cost coverage: **9/10** (regenerate rather
+than trusting this line — it is a snapshot and the count moves as evidence is
+added). Only stratum 9 is unmeasured, and it is non-billable by construction
+(local CPU inference carries resource time, not a token cost — `null`, never zero).
+
+## Which evidence can be regenerated
+
+A row is only reproducible if a committed driver produces its record. That is
+**partial**, and the split is stated here rather than implied:
+
+| Evidence record | Strata | Committed driver |
+|---|---|---|
+| `cost/readonly-navigation.json` | 1, 2 | **none** |
+| `cost/eval-mainloop-metered.json` | 3 | **none** |
+| `cost/cost-record.json` (F1-E) | 3 | **none** (qualified by `docs/harness-f1e-qualified.md`) |
+| `cost/positive-strata-4-7.json` | 4, 7 | `cost/run-positive-cases.mjs` |
+| `cost/delegate-metered-sweep.json` | 4, 5, 7, 10 | `cost/eval-case-sweep.mjs` (all 14 cases now attributed) |
+| `cost/coordination-metered.json` | 6 | `coordination/run-coordination-metered.mjs` |
+| `cost/stratum8-restart.json` | 8 | `coordination/run-restart-metered.mjs` |
+| `cost/stratum9-observation.json` | 9 | **none** |
+
+Drivers never estimate cost. They report observed usage and, when no
+`model.usage` event exists, say so — `null`, not zero.
+
+`cost/eval-case-sweep.mjs` attributes **every** behavioral case to its PRD
+stratum; an unmapped case would make a paid sweep unattributable, so the map is
+pinned by `cost/case-stratum-map.test.mjs` (catches both an unmapped case and a
+stratum id the matrix does not define).
 
 ## Contents
 

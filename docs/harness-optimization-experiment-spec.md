@@ -86,7 +86,7 @@ qualified.**
 | Secret controls | Credentials from the store only; never in env files or argv | Exists (store-only key resolution) |
 | Prompt-injection defenses | Fetched/retrieved content treated as data, never instructions | Exists (root contract) |
 | Side-effect policy | Approval-gated execution; no new write path | Exists (`ExecutionAuthorization` → `PolicyGate`) |
-| Replay | Runs reproducible from recorded evidence | Partial — drivers not in-repo (U-1) |
+| Replay | Runs reproducible from recorded evidence | Partial — seven drivers committed and runnable; four cost files have no committed producer (U-1) |
 | Negative tests | S0 negatives run **per arm**, a bypass is never a success | Exists; must be wired per arm |
 
 **Explicitly rejected from upstream:** unrestricted executor network access and
