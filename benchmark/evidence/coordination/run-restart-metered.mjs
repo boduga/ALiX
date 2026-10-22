@@ -14,7 +14,7 @@
  *   4. resumes via the daemon/CLI reclaim path
  *   5. reports usage from BOTH halves and whether the objective landed
  *
- * Cost of a killed half is still real spend, so both halves are summed. If the
+ * Final persisted usage includes both halves and is counted once. If the
  * run never produced usage, that is reported as `null`, never zero.
  */
 import { spawn, spawnSync } from "node:child_process";
@@ -62,6 +62,14 @@ function resolveModel() {
   }
   return { provider: d.provider, model: d.name };
 }
+const outputCapIndex = process.argv.indexOf("--output-cap");
+const outputCapRaw = outputCapIndex < 0 ? null : process.argv[outputCapIndex + 1];
+if (outputCapIndex >= 0 && (!/^[1-9]\d*$/.test(outputCapRaw ?? "") || !Number.isSafeInteger(Number(outputCapRaw)))) {
+  console.error("--output-cap requires a positive safe integer");
+  process.exit(2);
+}
+const outputCap = outputCapRaw === null ? null : Number(outputCapRaw);
+const killOnRunning = process.argv.includes("--kill-on-running");
 const { provider, model } = resolveModel();
 const killAfterMs = Number(flag("kill-after-ms", "6000"));
 const outPath = flag("out", join(here, "restart-metered.json"));
@@ -75,7 +83,7 @@ writeFileSync(
   JSON.stringify({
     models: { default: { provider, name: model } },
     permissions: { default: "allow", sessionMode: "bypass", tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] },
-    context: { repoMap: false, semanticSearch: false },
+    context: { repoMap: false, semanticSearch: false, ...(outputCap === null ? {} : { budget: { outputCap } }) },
     runtime: { provider: "process", shell: "/bin/sh", commandTimeoutMs: 60000, envAllowlist: [] },
     ui: { enabled: false }, mcpServers: [],
   }, null, 2),
@@ -121,42 +129,66 @@ const args = [
 ];
 
 // ── phase 1: start, then SIGKILL the whole tree mid-flight ────────────────
-console.log(`[phase1] starting, will SIGKILL after ${killAfterMs}ms`);
+console.log(`[phase1] starting, will SIGKILL ${killOnRunning ? "on persisted running worker" : `after ${killAfterMs}ms`}`);
 const child = spawn(process.execPath, args, { cwd: workspace, stdio: "ignore", detached: true });
-await new Promise(r => setTimeout(r, killAfterMs));
+let childExited = false;
+const childExit = new Promise((resolveExit, rejectExit) => {
+  child.once("error", rejectExit);
+  child.once("exit", () => { childExited = true; resolveExit(); });
+});
+let killTrigger = null;
+if (killOnRunning) {
+  while (!childExited) {
+    const running = latestRunRecord();
+    const worker = running?.workers?.find(w => w.status === "running");
+    if (worker) {
+      killTrigger = { mode: "running-worker", runId: running.id, workerId: worker.id, attempt: worker.attempt };
+      break;
+    }
+    await Promise.race([childExit, new Promise(r => setTimeout(r, 100))]);
+  }
+} else {
+  await new Promise(r => setTimeout(r, killAfterMs));
+  killTrigger = { mode: "fixed-delay", killAfterMs };
+}
 let killed = false;
-try { process.kill(-child.pid, "SIGKILL"); killed = true; } catch { /* already gone */ }
-await new Promise(r => child.on("exit", r).setTimeout?.(2000) ?? setTimeout(r, 2000));
+if (killTrigger && !childExited) {
+  try { process.kill(-child.pid, "SIGKILL"); killed = true; } catch { /* already gone */ }
+}
+await childExit;
 
 const usage1 = readUsage();
 const afterKill = latestRunRecord();
 const killState = {
   killed,
+  trigger: killTrigger,
   runStatus: afterKill?.status ?? null,
   workers: (afterKill?.workers ?? []).map(w => ({ id: w.id, status: w.status, attempt: w.attempt })),
-  // The point of stratum 8: a crash must not leave a worker falsely complete.
-  falselyCompleted: (afterKill?.workers ?? []).filter(w => w.status === "completed").length,
+  completedAtKill: (afterKill?.workers ?? []).filter(w => w.status === "completed").length,
+  // Status alone cannot distinguish legitimate completion from a false claim.
+  falselyCompleted: null,
 };
 console.log("[phase1] after kill:", JSON.stringify(killState));
 
 // ── phase 2: resume ───────────────────────────────────────────────────────
 console.log("[phase2] resuming");
-const resumeRunId = afterKill?.id;
+const resumeRunId = killed ? afterKill?.id : null;
 if (!resumeRunId) {
-  console.log("[phase2] SKIPPED: no persisted run to resume (the kill landed before the run was created)");
+  console.log("[phase2] SKIPPED: no killed persisted run to resume");
 }
 const resume = resumeRunId
   ? spawnSync(
       process.execPath,
       [join(repoRoot, "bin", "alix.js"), "coordination", "resume", resumeRunId],
-      { cwd: workspace, encoding: "utf-8", timeout: 1_200_000 },
+      { cwd: workspace, encoding: "utf-8" },
     )
   : { status: null, stdout: "" };
 console.log("[phase2] stdout tail:", (resume.stdout ?? "").slice(-400));
 
 const usage2 = readUsage();
 const finalRun = latestRunRecord();
-const all = [...usage1, ...usage2];
+// readUsage is a cumulative snapshot of the same persisted session logs.
+const all = usage2;
 const observed = all.length > 0;
 const inputTokens = observed ? all.reduce((s, r) => s + (r.inputTokens ?? 0), 0) : null;
 const outputTokens = observed ? all.reduce((s, r) => s + (r.outputTokens ?? 0), 0) : null;
@@ -165,6 +197,8 @@ const result = {
   source: "restart/crash scenario on a real model (stratum 8)",
   provider, model, objective,
   killAfterMs,
+  killOnRunning,
+  outputCapOverride: outputCap,
   phase1: { usageRecords: usage1.length, killState },
   phase2: { resumedRunId: resumeRunId ?? null, exitCode: resume.status, usageRecords: usage2.length },
   usage: { observed, inputTokens, outputTokens, records: all },

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { positiveCases, evaluatePositiveCase, mixedPolicyEvidence, runPositiveCases } from './positive-cases.mjs';
+import { positiveCases, evaluatePositiveCase, mixedPolicyEvidence, runPositiveCases, runPositiveCase } from './positive-cases.mjs';
+import { parsePositiveArgs, main } from './run-positive-cases.mjs';
 
 test('single-file repair cannot satisfy two-file objective; absent mixed authority fails', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'positive-oracle-'));
@@ -60,4 +61,43 @@ test('scripted positive fixtures execute real loop and mixed policy, never promo
     else process.env.XDG_CONFIG_HOME = previousXdg;
     rmSync(isolatedHome, { recursive: true, force: true });
   }
+});
+
+
+test('output cap reaches every scripted runtime provider request; omission remains unmodified', async () => {
+  const capped = await runPositiveCases({ scripted: true, outputCap: 512 });
+  assert.equal(capped.outputCap, 512);
+  for (const row of capped.results) {
+    assert.equal(row.outputCap, 512);
+    assert.equal(row.verdict, 'pass');
+    assert.ok(row.scriptedRequests.length >= 4);
+    assert.ok(row.scriptedRequests.every(request => request.maxOutputTokens === 512));
+  }
+  const uncapped = await runPositiveCase(positiveCases[0], { scripted: true });
+  assert.equal(Object.hasOwn(uncapped, 'outputCap'), false);
+  assert.equal(uncapped.verdict, 'pass');
+  assert.ok(uncapped.scriptedRequests.every(request => request.maxOutputTokens !== 512));
+});
+
+test('invalid API caps reject before fixture or provider access', async () => {
+  for (const outputCap of [0, -1, 1.5, NaN, Infinity, '512', null, Number.MAX_SAFE_INTEGER + 1]) {
+    await assert.rejects(runPositiveCase(null, { outputCap }), /positive safe integer/);
+    await assert.rejects(runPositiveCases({ outputCap }), /positive safe integer/);
+  }
+});
+
+test('CLI flags accept arbitrary order; invalid flags reject before runtime', async () => {
+  for (const args of [
+    ['--scripted', '--output', 'result.json', '--output-cap', '512'],
+    ['--output-cap', '512', '--scripted', '--output', 'result.json'],
+    ['--output', 'result.json', '--output-cap', '512', '--scripted'],
+  ]) assert.deepEqual(parsePositiveArgs(args), { scripted: true, output: 'result.json', outputCap: 512 });
+  assert.deepEqual(parsePositiveArgs([]), { scripted: false });
+  for (const args of [
+    ['--output-cap'], ['--output'], ['--output-cap', '--scripted'],
+    ['--output-cap', '0'], ['--output-cap', '-1'], ['--output-cap', '1.5'],
+    ['--output-cap', '1e3'], ['--output-cap', '9007199254740992'],
+    ['--scripted', '--scripted'], ['--output', 'a', '--output', 'b'],
+    ['--output-cap', '1', '--output-cap', '2'], ['--unknown'], ['positional'],
+  ]) await assert.rejects(main(args));
 });

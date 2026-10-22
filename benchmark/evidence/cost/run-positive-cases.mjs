@@ -1,14 +1,32 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runPositiveCases } from './positive-cases.mjs';
+import { runPositiveCases, validateOutputCap } from './positive-cases.mjs';
+
+export function parsePositiveArgs(args) {
+  const options = { scripted: false };
+  const seen = new Set();
+  for (let index = 0; index < args.length; index++) {
+    const flag = args[index];
+    if (!['--scripted', '--output', '--output-cap'].includes(flag)) throw new Error(`Unknown argument: ${flag}`);
+    if (seen.has(flag)) throw new Error(`Duplicate argument: ${flag}`);
+    seen.add(flag);
+    if (flag === '--scripted') { options.scripted = true; continue; }
+    const value = args[++index];
+    if (!value || value.startsWith('-')) throw new Error(`${flag} requires ${flag === '--output' ? 'path' : 'positive integer'}`);
+    if (flag === '--output') options.output = value;
+    else {
+      if (!/^[0-9]+$/.test(value)) throw new Error('--output-cap requires positive integer');
+      options.outputCap = Number(value);
+      validateOutputCap(options.outputCap);
+    }
+  }
+  return options;
+}
 
 export async function main(args = process.argv.slice(2)) {
-  const outputIndex = args.indexOf('--output');
-  const output = outputIndex < 0 ? null : args[outputIndex + 1];
-  if (outputIndex >= 0 && (!output || output.startsWith('--'))) throw new Error('--output requires path');
-  if (args.some((arg, index) => arg !== '--scripted' && arg !== '--output' && !(outputIndex >= 0 && index === outputIndex + 1))) throw new Error('Usage: node run-positive-cases.mjs [--scripted] [--output path]');
-  const result = await runPositiveCases({ scripted: args.includes('--scripted') });
+  const { output, ...options } = parsePositiveArgs(args);
+  const result = await runPositiveCases(options);
   const json = JSON.stringify(result, null, 2) + '\n';
   if (output) writeFileSync(resolve(output), json);
   else process.stdout.write(json);

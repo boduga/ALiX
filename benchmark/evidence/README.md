@@ -36,10 +36,18 @@ full original transcripts were never in this repo and are not required to
 regenerate the table.
 
 Positive cases: `node benchmark/evidence/cost/run-positive-cases.mjs --output <path>`.
+An explicit `--output-cap 2048` changes only that run's temporary output budget;
+raw results record it. The restart harness accepts the same option plus
+`--kill-on-running` to inject failure after a worker is durably running.
 Use `--scripted` only to validate mechanics; it contributes no billable successes.
 Run fixture tests with `node --test benchmark/evidence/cost/positive-cases.test.mjs`.
 The mixed-policy fixture resolves only its exact requested output write; it does
 not grant other pending requests. Raw results do not replace priced baseline records.
+
+`cost/output-budget-admission.json` records controlled quota diagnostics: identical
+tiny requests succeeded at 128 output tokens and failed at 32768; a full captured
+request succeeded with only output cap reduced to 2048. This is diagnostic usage,
+not a qualified baseline. See `docs/2026-10-21-harness-output-admission.md`.
 
 ## Invariants
 

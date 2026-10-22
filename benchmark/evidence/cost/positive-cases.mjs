@@ -87,7 +87,14 @@ function sessionEvents(cwd) {
 // Prototype fixture only: stock scripted provider cannot emit read/shell calls.
 // Restore before returning. Sequential execution is mandatory.
 let running = false;
-export async function runPositiveCase(fixture, { scripted = false, model } = {}) {
+export function validateOutputCap(outputCap) {
+  if (outputCap !== undefined && (!Number.isSafeInteger(outputCap) || outputCap <= 0)) {
+    throw new Error("outputCap must be a positive safe integer");
+  }
+}
+
+export async function runPositiveCase(fixture, { scripted = false, model, outputCap } = {}) {
+  validateOutputCap(outputCap);
   if (running) throw new Error('Positive fixture runner requires sequential execution');
   running = true;
   const cwd = mkdtempSync(join(tmpdir(), 'alix-positive-'));
@@ -97,6 +104,7 @@ export async function runPositiveCase(fixture, { scripted = false, model } = {})
   const originalComplete = ScriptedMockProvider.prototype.complete;
   let stopPolling = false;
   let poller;
+  const scriptedRequests = [];
   let execution;
   let error;
   try {
@@ -113,6 +121,9 @@ export async function runPositiveCase(fixture, { scripted = false, model } = {})
     const configPath = join(cwd, '.alix', 'config.json');
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
     config.models.default = selected;
+    if (outputCap !== undefined) {
+      config.context = { ...config.context, budget: { ...config.context?.budget, outputCap } };
+    }
     // Inherit only selected provider credential; unrelated missing keys cannot block fixture.
     config.apiKeys = Object.fromEntries(Object.keys(userConfig.apiKeys ?? {}).filter(key => scripted || key !== selected.provider).map(key => [key, '']));
     if (fixture.stratum === 7) config.permissions.default = 'ask';
@@ -123,7 +134,8 @@ export async function runPositiveCase(fixture, { scripted = false, model } = {})
     await store.load();
     if (scripted) {
       let cursor = 0;
-      ScriptedMockProvider.prototype.complete = async function () {
+      ScriptedMockProvider.prototype.complete = async function (request) {
+        scriptedRequests.push({ maxOutputTokens: request.maxOutputTokens });
         const step = fixture.steps[cursor++];
         return step ? { text: '', toolCalls: [{ id: `positive-${cursor}`, ...step }] }
           : { text: fixture.stratum === 7 ? 'Created result.txt. Shell probe was denied as expected.' : 'Corrected both files.', toolCalls: [] };
@@ -154,6 +166,7 @@ export async function runPositiveCase(fixture, { scripted = false, model } = {})
     const evaluated = evaluatePositiveCase(cwd, fixture, execution, events, approvals);
     return { caseId: fixture.id, stratum: fixture.stratum, scripted, model: selected, execution, error,
       ...evaluated, usage, costUSD: null, events, approvals,
+      ...(outputCap !== undefined ? { outputCap } : {}), ...(scripted ? { scriptedRequests } : {}),
       verifiedSuccesses: !scripted && !error && evaluated.verdict === 'pass' ? 1 : 0 };
   } finally {
     stopPolling = true;
@@ -172,9 +185,11 @@ export async function runPositiveCase(fixture, { scripted = false, model } = {})
 }
 
 export async function runPositiveCases(options = {}) {
+  validateOutputCap(options.outputCap);
   const startedAt = new Date().toISOString();
   const results = [];
   for (const fixture of positiveCases) results.push(await runPositiveCase(fixture, options));
   return { startedAt, finishedAt: new Date().toISOString(), scripted: options.scripted ?? false, results,
+    ...(options.outputCap !== undefined ? { outputCap: options.outputCap } : {}),
     verifiedSuccesses: results.reduce((n, r) => n + r.verifiedSuccesses, 0), costUSD: null };
 }

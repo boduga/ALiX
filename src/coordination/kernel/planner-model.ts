@@ -37,10 +37,14 @@ export function createPlannerGenerator(config: AlixConfig): PlannerGenerate {
 
   return async (prompt: string): Promise<string> => {
     const provider = await getProvider();
+    const outputCap = config.context.budget?.outputCap;
     const response = await provider.complete({
       systemPrompt:
         "You are a task planner. Respond with ONLY a JSON object. No markdown, no prose.",
       messages: [{ role: "user", content: prompt }],
+      ...(outputCap !== undefined && Number.isSafeInteger(outputCap) && outputCap > 0
+        ? { maxOutputTokens: outputCap }
+        : {}),
     });
     return response.text ?? "";
   };
