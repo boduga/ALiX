@@ -101,3 +101,12 @@ test('CLI flags accept arbitrary order; invalid flags reject before runtime', as
     ['--output-cap', '1', '--output-cap', '2'], ['--unknown'], ['positional'],
   ]) await assert.rejects(main(args));
 });
+
+test('explicit provider and model require both; no checked-in model default', () => {
+  const expected = { scripted: false, provider: 'openai', model: { provider: 'openai', name: 'gpt-4o' } };
+  assert.deepEqual(parsePositiveArgs(['--provider', 'openai', '--model', 'gpt-4o']), expected);
+  assert.deepEqual(parsePositiveArgs(['--model', 'gpt-4o', '--provider', 'openai']), expected);
+  assert.deepEqual(parsePositiveArgs([]), { scripted: false });
+  assert.throws(() => parsePositiveArgs(['--provider', 'openai']), /must be given together/);
+  assert.throws(() => parsePositiveArgs(['--model', 'gpt-4o']), /must be given together/);
+});

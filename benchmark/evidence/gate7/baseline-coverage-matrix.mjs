@@ -40,6 +40,8 @@ const explicitCostPaths = process.argv.slice(4);
 const DEFAULT_COST_PATHS = [
   join(repoEvidenceDir, "cost", "cost-record.json"),
   join(repoEvidenceDir, "cost", "eval-mainloop-metered.json"),
+  join(repoEvidenceDir, "cost", "readonly-navigation.json"),
+  join(repoEvidenceDir, "cost", "positive-strata-4-7.json"),
   join(repoEvidenceDir, "cost", "delegate-metered-sweep.json"),
   join(repoEvidenceDir, "cost", "coordination-metered.json"),
   join(repoEvidenceDir, "cost", "stratum8-restart.json"),

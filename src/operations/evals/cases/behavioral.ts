@@ -131,22 +131,32 @@ export const EVAL_003_REPLACEMENT: EvalCase = {
  * Requires NO filesystem mutation. `objectiveLanded: true` means the read /
  * report objective was satisfied — the evaluator must not equate success with
  * "a file must have changed."
+ *
+ * The contract is now checkable on both halves:
+ *   - `contentEquals` proves the file was not rewritten (existence alone
+ *     passed a rewritten file),
+ *   - `answerIncludes` proves the agent REPORTED the value. The seeded value
+ *     is deliberately distinctive: a digit like `1` occurs by chance in any
+ *     report, so a wrong answer could satisfy the oracle.
  */
 export const EVAL_004_READ_ONLY: EvalCase = {
   id: "behavioral.read-only",
   description:
     "Read-only report task with no mutation. Completion (not a noisy mutation) is the honest signal.",
   driver: "main-loop",
-  task: "Read src/util.ts and report whether it exports x.",
+  task:
+    "Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.",
   objective: {
     kind: "unchanged",
     path: "src/util.ts",
+    contentEquals: 'export const x = "kestrel-9";\n',
+    answerIncludes: ["kestrel-9"],
   },
   expected: { objectiveLanded: true, statuses: ["completed"] },
-  seed: { "src/util.ts": "export const x = 1;\n" },
+  seed: { "src/util.ts": 'export const x = "kestrel-9";\n' },
   scenario: {
     steps: [
-      { kind: "text", text: "src/util.ts exports x." },
+      { kind: "text", text: "src/util.ts exports x with value kestrel-9." },
       { kind: "text", text: "Done." },
     ],
   },

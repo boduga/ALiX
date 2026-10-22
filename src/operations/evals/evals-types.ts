@@ -44,6 +44,29 @@ export type EvalObjective =
   | {
       kind: "unchanged";
       path: string;
+      /**
+       * Expected content of `path`. Equality, not existence.
+       *
+       * An "unchanged" objective that only checks existence passes a REWRITTEN
+       * file. A read-only stratum needs source equality to mean unchanged.
+       */
+      contentEquals?: string;
+      /**
+       * Other seeded files that must still hold exactly this content.
+       *
+       * The named `path` alone does not cover a seeded tree: a run can leave
+       * `path` intact and rewrite its neighbours.
+       */
+      unchanged?: Record<string, string>;
+      /**
+       * Tokens the run's final report must contain.
+       *
+       * A read-only deliverable is an ANSWER, not a file. Without this the
+       * objective passes when the agent reports nothing, or reports the wrong
+       * fact. Tokens must be unambiguous (a distinctive value, not a digit that
+       * occurs by chance) so a wrong answer cannot satisfy them.
+       */
+      answerIncludes?: string[];
     }
   | {
       /**

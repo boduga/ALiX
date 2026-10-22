@@ -192,7 +192,7 @@ export async function runEvalCase(
       };
     }
 
-    const objective = evaluateObjective(cwd, evalCase.objective);
+    const objective = evaluateObjective(cwd, evalCase.objective, execution);
     const objectiveCorrect = objective.landed === evalCase.expected.objectiveLanded;
     const status = evaluateStatus(
       objectiveCorrect,

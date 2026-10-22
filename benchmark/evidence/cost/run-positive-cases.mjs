@@ -8,19 +8,25 @@ export function parsePositiveArgs(args) {
   const seen = new Set();
   for (let index = 0; index < args.length; index++) {
     const flag = args[index];
-    if (!['--scripted', '--output', '--output-cap'].includes(flag)) throw new Error(`Unknown argument: ${flag}`);
+    if (!['--scripted', '--output', '--output-cap', '--provider', '--model'].includes(flag)) throw new Error(`Unknown argument: ${flag}`);
     if (seen.has(flag)) throw new Error(`Duplicate argument: ${flag}`);
     seen.add(flag);
     if (flag === '--scripted') { options.scripted = true; continue; }
     const value = args[++index];
-    if (!value || value.startsWith('-')) throw new Error(`${flag} requires ${flag === '--output' ? 'path' : 'positive integer'}`);
+    if (!value || value.startsWith('-')) throw new Error(`${flag} requires ${flag === '--output' ? 'path' : flag === '--output-cap' ? 'positive integer' : 'value'}`);
     if (flag === '--output') options.output = value;
+    else if (flag === '--provider') options.provider = value;
+    else if (flag === '--model') options.model = value;
     else {
       if (!/^[0-9]+$/.test(value)) throw new Error('--output-cap requires positive integer');
       options.outputCap = Number(value);
       validateOutputCap(options.outputCap);
     }
   }
+  if ((options.provider === undefined) !== (options.model === undefined)) {
+    throw new Error('--provider and --model must be given together');
+  }
+  if (options.provider !== undefined) options.model = { provider: options.provider, name: options.model };
   return options;
 }
 

@@ -191,5 +191,6 @@ export async function runPositiveCases(options = {}) {
   for (const fixture of positiveCases) results.push(await runPositiveCase(fixture, options));
   return { startedAt, finishedAt: new Date().toISOString(), scripted: options.scripted ?? false, results,
     ...(options.outputCap !== undefined ? { outputCap: options.outputCap } : {}),
+    ...(options.model !== undefined ? { model: options.model } : {}),
     verifiedSuccesses: results.reduce((n, r) => n + r.verifiedSuccesses, 0), costUSD: null };
 }

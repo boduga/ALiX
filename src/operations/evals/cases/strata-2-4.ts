@@ -19,6 +19,10 @@ import type { EvalCase } from "../evals-types.js";
  * The worker must locate the file exporting the requested constant and report
  * its value, without modifying anything. Success = the tree is untouched AND the
  * runtime reports completion.
+ *
+ * "Untouched" is source equality on every seeded file, not mere existence: a
+ * rewritten neighbour used to pass. The report must name the file AND state the
+ * value; the seeded value is distinctive so a wrong answer cannot satisfy it.
  */
 export const STRATUM2_NAVIGATION: EvalCase = {
   id: "behavioral.code-navigation",
@@ -26,20 +30,26 @@ export const STRATUM2_NAVIGATION: EvalCase = {
     "Read-only navigation: locate a constant in a seeded tree and report it. No mutation expected.",
   driver: "main-loop",
   task:
-    "Find which file exports MAX_RETRIES and report its value. Do not modify any files.",
+    "Find which file exports MAX_RETRIES and report its exact value. Do not modify any files.",
   objective: {
     kind: "unchanged",
     path: "src/limits.ts",
+    contentEquals: 'export const MAX_RETRIES = "lantern-4";\n',
+    unchanged: {
+      "src/timeouts.ts": "export const TIMEOUT_MS = 3000;\n",
+      "src/index.ts": "export * from './limits.js';\nexport * from './timeouts.js';\n",
+    },
+    answerIncludes: ["limits.ts", "lantern-4"],
   },
   expected: { objectiveLanded: true, statuses: ["completed"] },
   seed: {
-    "src/limits.ts": "export const MAX_RETRIES = 7;\n",
+    "src/limits.ts": 'export const MAX_RETRIES = "lantern-4";\n',
     "src/timeouts.ts": "export const TIMEOUT_MS = 3000;\n",
     "src/index.ts": "export * from './limits.js';\nexport * from './timeouts.js';\n",
   },
   scenario: {
     steps: [
-      { kind: "text", text: "src/limits.ts exports MAX_RETRIES with value 7." },
+      { kind: "text", text: "src/limits.ts exports MAX_RETRIES with value lantern-4." },
       { kind: "text", text: "Done." },
     ],
   },

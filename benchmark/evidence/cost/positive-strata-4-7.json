@@ -1,0 +1,48 @@
+{
+  "source": "real-model positive deliverables on a priced provider (strata 4 and 7)",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "modelOverride": "explicit --provider/--model one-off. The operator default model (intern/deepseek-v4-flash-0731) refused every full agent request with 429 quota exceeded; no default was changed and no offline mock was substituted.",
+  "runner": "benchmark/evidence/cost/run-positive-cases.mjs",
+  "rawResults": "benchmark/evidence/cost/positive-openai-gpt4o.json",
+  "startedAt": "2026-10-22T02:51:33.897Z",
+  "finishedAt": "2026-10-22T03:01:54.885Z",
+  "completeness": "complete",
+  "rate": {
+    "inputPerMillion": 2.5,
+    "outputPerMillion": 10.0,
+    "effectiveFrom": "2025-01-01",
+    "source": "src/operations/observability/cost-attribution.ts defaultPricingCatalog"
+  },
+  "verifiedSuccesses": 2,
+  "costUsd": 0.145067,
+  "perStratum": {
+    "multi-file-fix": {
+      "caseId": "positive.multi-file-fix",
+      "runId": "run-4a919896",
+      "inputTokens": 24228,
+      "outputTokens": 265,
+      "usageRecords": 4,
+      "costUsd": 0.06322,
+      "completeness": "complete",
+      "verifiedSuccesses": 1,
+      "verdict": "pass",
+      "objectiveLanded": true,
+      "statusHonest": true
+    },
+    "capability-mix": {
+      "caseId": "positive.mixed-policy",
+      "runId": "run-2548d958",
+      "inputTokens": 31871,
+      "outputTokens": 217,
+      "usageRecords": 5,
+      "costUsd": 0.081847,
+      "completeness": "complete",
+      "verifiedSuccesses": 1,
+      "verdict": "pass",
+      "objectiveLanded": true,
+      "statusHonest": true
+    }
+  },
+  "recordedAt": "2026-10-21"
+}
