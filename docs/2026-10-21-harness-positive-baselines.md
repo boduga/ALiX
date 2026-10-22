@@ -2,6 +2,10 @@
 
 Gate B and publication remain HOLD.
 
+**Update 2026-10-22:** the qualification rules below held; the coverage they
+blocked is now measured. Qualified measured coverage is **9/10**. See the last
+section.
+
 ## Strata 1/2: unknown success evidence
 
 The original main-loop sweep recorded two real evaluator passes and correlated
@@ -50,3 +54,38 @@ syntax checks, and diff checks pass. Spec-compliance review followed by code-qua
 review found no remaining blockers. Benchmark DOX records qualification and fixture
 approval rules; root and eval subsystem contracts are unchanged because production
 code and evaluator behavior were not modified.
+
+## Update — 2026-10-22
+
+The rules in this record were the reason coverage stayed low; they were kept and
+the missing evidence was produced.
+
+| Stratum | Cost | Verified successes | Evidence |
+|---|---|---|---|
+| 1 read-only | $0.045990 | 1 | `benchmark/evidence/cost/readonly-navigation.json` |
+| 2 code-navigation | $0.044678 | 1 | same record |
+| 4 multi-file fix | $0.063220 | 1 | `benchmark/evidence/cost/positive-strata-4-7.json` |
+| 7 capability mix | $0.081847 | 1 | same record |
+| 8 crash/restart | $0.211623 | 1 | `benchmark/evidence/cost/stratum8-restart.json` |
+
+- **Strata 1/2 needed a stronger oracle, not a retry.** The `unchanged`
+  objective compared existence only, so it could "verify" a file the agent had
+  rewritten. It now compares source equality, the seeded neighbour values and
+  the reported answer; the seeded values were made distinctive so a wrong answer
+  cannot satisfy them. Both strata were re-run on a real model and re-priced.
+- **Strata 4/7 needed a case a real model can pass.** The positive fixtures
+  deliver an exact output and an honest completion; both now carry an explicit
+  positive `verifiedSuccesses` count.
+- **Stratum 8 needed an authorization fix.** The owned-path rule was
+  unreachable behind the tool-permission allow, so a worker scoped to one file
+  wrote all three and its siblings had no mutation evidence. Fixed in
+  `bf29449b`; the crash/restart run now completes 3/3 workers.
+
+All five runs used an explicit `openai/gpt-4o` one-off: the operator's current
+default model (`intern/deepseek-v4-flash-0731`) refuses every full agent request
+with `API error 429: quota exceeded`. No default was changed and no offline
+mock was substituted.
+
+Stratum 9 stays `null`: local CPU inference is non-billable, and `null` is not
+zero. A measured 10/10 is unreachable as stated. Gate B and publication remain
+HOLD.

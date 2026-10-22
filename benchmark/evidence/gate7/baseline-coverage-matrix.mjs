@@ -199,6 +199,46 @@ if (existsSync(S9_PATH)) {
   }
 }
 
+/**
+ * The crash/restart stratum measured on a real model (stratum 8).
+ *
+ * Read from `<evidence>/coordination/stratum8-gpt4o.json`. The run is killed on
+ * a persisted running worker and resumed, so the row reports the FINAL run
+ * state and the crash integrity fields. A row counts as verified only when the
+ * final run completed with a success outcome and every worker completed.
+ */
+const S8_PATH = firstExisting([
+  join(repoEvidenceDir, "coordination", "stratum8-gpt4o.json"),
+]);
+if (existsSync(S8_PATH)) {
+  try {
+    const o = JSON.parse(readFileSync(S8_PATH, "utf8"));
+    const final = o.finalRun ?? {};
+    const workerStates = Array.isArray(final.workers) ? final.workers : [];
+    const ok = final.status === "completed"
+      && final.outcome === "success"
+      && workerStates.length > 0
+      && workerStates.every(w => w === "completed");
+    rows.push({
+      stratum: "crash-outcome-unknown",
+      source: `coordination restart/crash (${o.provider}/${o.model})`,
+      label: o.objective ?? "restart/crash scenario",
+      verified: ok ? "yes" : "no",
+      status: String(final.status ?? "unknown"),
+      workers: workerStates.length,
+      costMeasured: o.usage?.observed
+        ? "yes — usage observed, priced from the catalog"
+        : "no — no usage observed",
+      kind: "real-model (provider-backed, crash-injected)",
+    });
+    if (!ok) {
+      console.error(`warning: stratum-8 evidence at ${S8_PATH} did not qualify (final run/workers)`);
+    }
+  } catch (err) {
+    console.error(`warning: could not read stratum-8 evidence: ${err.message}`);
+  }
+}
+
 // Cost evidence. Only complete, numeric, stratum-attributed records count.
 const costByStratum = new Map();
 /** Recorded cost without an explicit positive success count is not a baseline. */

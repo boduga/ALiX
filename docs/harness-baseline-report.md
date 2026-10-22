@@ -63,21 +63,23 @@ evidence and refuses to count a stratum with no evidence.
 
 | # | Stratum | Verified runs | Measured cost | Blocking |
 |---|---|---|---|---|
-| 1 | Read-only factual inspection | 1/1 | **$0.041675 (complete)** | — |
-| 2 | Unfamiliar-code navigation | **1/1 (deterministic)** | **$0.044698 (complete)** | — |
+| 1 | Read-only factual inspection | 1/1 | **$0.045990 (complete)** | — |
+| 2 | Unfamiliar-code navigation | **1/1 (deterministic)** | **$0.044678 (complete)** | — |
 | 3 | Single-file edit | 3/3 | **$0.108968 (complete)** | — |
-| 4 | Multi-file bug fix | **2/2 (deterministic)** | **$0.112300 recorded, but UNDEFINED per success** | 0 verified successes |
+| 4 | Multi-file bug fix | **2/2 (deterministic)** | **$0.063220 (complete)** | — |
 | 5 | Verification / repair | **2/2 (deterministic)** | **$0.112278 (complete)** | — |
-| 6 | Four-worker coordination | 4/4 | **not measured** | cost unmeasured |
-| 7 | Allow/ask/deny mixes | 5/5 | **$0.076410 recorded, but UNDEFINED per success** | 0 verified successes |
-| 8 | Crash / restart, outcome unknown | 1/1 | **$0.228135 recorded, but UNDEFINED per success** | review sees sibling evidence (open bug) |
-| 9 | Local CPU-only | **1/1 verified** | `null` (non-billable) | — |
+| 6 | Coordination with ownership (3 workers exercised) | 4/4 | **$0.194740 (complete)** | — |
+| 7 | Allow/ask/deny mixes | 5/5 | **$0.081847 (complete)** | — |
+| 8 | Crash / restart, outcome unknown | 2/2 | **$0.211623 (complete)** | — |
+| 9 | Local CPU-only | **1/1 verified** | `null` (non-billable) | cost unmeasured — non-billable by definition |
 | 10 | Tool failure / malformed calls | **2/2 (deterministic)** | **$0.041967 (complete)** | — |
 
-**Verified: 10/10 strata. Measured cost: 6/10 strata** — 1 (read-only,
-`$0.041675`), 2 (code-navigation, `$0.044698`) and 3 (F1-E `run-79feb4e0`,
-`$0.108968`). Blocked: none on coverage; 7 strata remain cost-unmeasured, half
-for a structural reason (see below).
+**Verified: 10/10 strata. Measured cost-per-verified-success: 9/10 strata** — every
+stratum except 9, where local CPU inference is not billed (`null`, never zero).
+Strata 4 and 7 now carry positive deliverable cases, and stratum 8's cost comes
+from a real-model crash/restart run that completes 3/3 workers after a kill on a
+persisted running worker. 10/10 measured is unreachable as stated: stratum 9 is
+non-billable forever.
 
 Stratum 9 changed status this session. **Ollama is installed and serving**, and a
 simple query completed through ALiX on local CPU inference:
@@ -131,41 +133,45 @@ while the objective did not land. So stratum 7 has cost evidence and **zero**
 usable cost-per-success, which is why the matrix marks it unmeasured despite a
 dollar figure.
 
-**Cost caveat.** Three strata now have a measured real-model cost on `gpt-4o`
+**Cost caveat.** Nine strata now have a measured real-model cost on `gpt-4o`
 ($2.50/$10 per Mtok, effective 2025-01-01), each independently recomputed against
 the production pricing catalog:
 
 | Stratum | Run | Tokens (in/out) | Cost |
 |---|---|---|---|
-| 1 read-only | `run-fa199aef` | 16,418 / 63 | $0.041675 |
-| 2 code-navigation | `run-bc589c94` | 17,471 / 102 | $0.044698 |
+| 1 read-only | `run-8dc47a49` | 18,044 / 88 | $0.045990 |
+| 2 code-navigation | `run-20366a87` | 17,479 / 98 | $0.044678 |
 | 3 single-file edit | `run-79feb4e0` | 42,971 / 154 | $0.108968 |
+| 4 multi-file fix | `run-4a919896` | 24,228 / 265 | $0.063220 |
+| 7 capability mix | `run-2548d958` | 31,871 / 217 | $0.081847 |
+| 8 crash/restart | `coord_84cb461d` | 82,097 / 638 | $0.211623 |
 
-The other seven are `null` — unmeasured, not zero. Do **not** read 3/10 as "7
-strata cost nothing".
+The other one is `null` — unmeasured, not zero. Do **not** read 9/10 as "the last
+stratum costs nothing".
 
-**Five of those seven cannot be measured yet, and not for budget reasons.**
-Strata 4, 5, 7 and 10 use the `delegate` driver; its child process writes usage to
-its own session under the per-case temp cwd, which the runner deletes
-(`harness-delegate-cost-gap.md`). Strata 6 and 8 have real-model Gate 7 evidence
-that predates cost correlation. So "run the rest on a priced model" is **not** a
-pure spend decision — most of them need code first.
+**The delegate-driver gap that blocked four of them is closed.** Strata 4, 5, 7 and
+10 use the `delegate` driver; its child process wrote usage to its own session
+under the per-case temp cwd, which the runner deleted
+(`harness-delegate-cost-gap.md`). `eval-usage.ts` now captures the usage before
+the workspace is removed, and the positive fixtures give strata 4 and 7 a case a
+real model can legitimately pass.
 
 ---
 
 ## 3. The dominant Gate B blocker is cost, not code
 
-**Cost is the remaining blocker, but it is no longer universal.** Measured cost
-now exists for 6 of 10 strata (1, 2, 3, 5, 6, 10). The four that remain are
-`null` for two different reasons:
+**Cost is measured in 9 of 10 strata; the one that remains is `null` for a
+structural reason.**
 
-1. **Strata 4 and 7 have recorded cost but ZERO verified successes**, so
-   cost-per-success — the PRD's primary measure — is undefined for them. That is
-   a case-design gap, not a spend gap: the cases need to be ones a real model can
-   legitimately pass.
-2. **Stratum 8 has cost but the run ended failed** on a non-deterministic
-   objective reviewer; stratum 9 is non-billable by definition (local CPU).
-2. Scripted-provider evals have no billable usage at all.
+1. **Stratum 9 is non-billable by definition** (local CPU inference). Its cost
+   stays `null` — not zero — so a measured 10/10 is unreachable as stated.
+2. **Strata 4, 7 and 8 previously carried cost with ZERO verified successes**
+   (undefined quotient) or a failed run. All three are now measured with an
+   explicit positive verified-success count: a strengthened `unchanged` oracle
+   for strata 1/2, positive deliverable cases for 4/7, and a real-model
+   crash/restart run for 8.
+3. Scripted-provider evals still emit no billable usage; they remain coverage
+   evidence, not cost evidence.
 
 This is a **data and correlation gap**, not a missing feature. Per the approved
 rule, `null` stays `null`; nothing is reported as zero.
@@ -182,21 +188,24 @@ runs rather than deterministic ones.
 
 ## 4. Harness readiness verdict
 
-**NOT ready for ablation comparisons — but the two original blockers are gone.**
+**The two original blockers are gone: coverage and cost-mechanics are closed.**
 
 The coverage blocker is closed: strata 2, 4, 5 and 10 now have deterministic case
 coverage, so an ablation is no longer measuring "the easiest third of the work".
 The cost-mechanics blocker is closed by F1-E.
 
-What still blocks a defensible ablation:
+What still qualifies an ablation:
 
-- **Cost is measured in 6 of 10 strata, but cost-per-success exists for only 4.**
-  Strata 4 and 7 have cost and zero verified successes (undefined quotient);
-  stratum 8's run failed on a flaky reviewer; stratum 9 is non-billable. Six
-  measured strata is a mechanism, not yet a baseline.
+- **Cost-per-verified-success exists for 9 of 10 strata.** Only stratum 9 is
+  unmeasured, and only because local CPU inference is not billed. The measured
+  figures are per verified success, so the PRD's primary quotient is defined
+  wherever a stratum has one.
 - **D4-04 is bounded but not fixed.** 42 consecutive passes with zero
   reproduction; two mechanisms (synthetic causality, lease leakage) excluded by
   construction and pinned by test. See `harness-d4-04-investigation.md`.
+
+Gate B and publication stay HOLD by operator decision (Q13), not because a
+stratum is unmeasured.
 
 Running an ablation now would still produce a confident number that answers a
 narrower question than the PRD asks — exactly the failure mode §7 validity rules
@@ -206,13 +215,18 @@ exist to prevent.
 
 ## 5. Recommended next actions, in value order
 
-1. **Real-model cost runs across the newly covered strata** — the coverage exists;
-   what is missing is billable evidence per stratum. Highest leverage.
+1. **Ablation comparisons** — every stratum except 9 now has a verified run and a
+   catalog-priced cost per verified success. Gate B and publication remain HOLD
+   by operator decision (Q13).
 2. **Complete the stratum-9 suite** on ollama, with `--timeout-ms` sized for
    the hardware. Inference is proven; the suite evidence is not.
 3. **D4-04** — bounded and excluded from baseline use until it reproduces or the
    transport is hardened with a failing-first test.
-4. **Provider-backed re-run** once quota returns; pin model/provider versions.
+4. **Pin model/provider versions.** The measured runs used an explicit
+   `openai/gpt-4o` one-off because the operator's current default model
+   (`intern/deepseek-v4-flash-0731`) refuses every full agent request with
+   `API error 429: quota exceeded`. No default was changed and no offline mock
+   was substituted.
 
 ---
 
@@ -237,5 +251,35 @@ exist to prevent.
 
 P0-D3 changed no production code; it executed the existing behavioral evaluator.
 The strata cases added later are listed in `harness-strata-coverage.md`.
+
+---
+
+## 8. Update — 2026-10-22
+
+Coverage is 10/10 and measured cost-per-verified-success is **9/10**. Three
+sessions closed the gap since §2 was first written:
+
+1. **The `unchanged` oracle was strengthened.** It compared the file's
+   existence, so a case could be "verified" after the agent rewrote the answer
+   into the workspace. It now compares source equality, the seeded neighbour
+   values and the reported answer. Strata 1 and 2 were re-run and re-priced:
+   `$0.045990` and `$0.044678`, two verified successes.
+2. **Positive deliverable cases gave strata 4 and 7 a real-model pass**
+   (`$0.063220`, `$0.081847`), each with an explicit verified-success count.
+3. **The stratum-8 blocker was an authorization bug, not a flaky reviewer.**
+   `PolicyGate` returned the tool-permission allow *before* the owned-path rule,
+   and the write capability's permission resolves to "allow" under auto/bypass
+   session modes — the default for a coordination run. A worker scoped to one
+   file could therefore write anywhere: on a real gpt-4o run a worker owned
+   `docs/a.md` and created all three files with 26 tool calls and zero denials.
+   Its siblings then found their deliverables already written, produced no
+   mutation evidence, and the objective review rejected the run. The rule now
+   decides every declared-scope write, and `file.create` applies the same
+   backstop to new files. The re-run passes: killed on a persisted running
+   worker, resumed, 3/3 workers completed, each artifact holding exactly its
+   marker — `$0.211623`.
+
+Stratum 9 stays `null`: local CPU inference is not billed, and `null` is not
+zero. Publication stays HOLD.
 
 Simplification HOLD. Publication HOLD (Q13).

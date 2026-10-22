@@ -1,7 +1,8 @@
 # Worker objective review — evidence isolation and approval diagnosis
 
-**Status:** Local regressions pass; real-model validation blocked by provider quota.
-**Updated:** 2026-10-21
+**Status:** Root cause found and fixed; the real-model crash/restart run now
+passes 3/3 workers.
+**Updated:** 2026-10-22
 
 ## Evidence isolation
 
@@ -49,14 +50,50 @@ The previous approval-theft hypothesis is disproved for this reproducer.
 
 - Worker-review suite: 15/15 pass. Coordination runtime integration: 6/6 pass.
 - Build, unused check, architecture layer/boundary tests, and DOX audit pass.
-- Real restart harness used current default `intern/deepseek-v4-flash-0731`.
-  The six-second startup kill created no resumable run; a 30-second window did.
-  Run `coord_3e140d34-4531-4281-b4ac-687d07926c49` was running at kill, with zero
-  falsely completed workers. Resume recovered one orphan, then ended failed:
-  worker A exhausted attempts; workers B/C reported `API error 429: quota exceeded`.
-  No usage records were observed; cost remains unknown. This is not successful
-  stratum-8 evidence. Record:
+- The earlier quota-blocked run is preserved at
   `benchmark/evidence/coordination/restart-review-quota-blocked.json`.
 
-Gate B remains HOLD. Retry the real harness after provider quota is restored;
-do not substitute another model silently or promote this failed run.
+## Root cause of the review rejection (2026-10-22)
+
+The review was not mis-scoped. **A worker wrote every sibling's file, because
+the owned-scope rule was unreachable.**
+
+`PolicyGate.evaluateToolCall` returned the tool-permission allow at step 5 and
+evaluated the owned-path rule only at step 5.5. The write capability's
+permission resolves to "allow" under auto/bypass session modes — the default
+for a coordination run — so the rule never ran. On a real gpt-4o run a worker
+whose owned scope was `docs/a.md` created `docs/a.md`, `docs/b.md` AND
+`docs/c.md` with 26 tool calls and zero denials. Its siblings then found their
+deliverables already present, produced no mutation evidence in their own
+attempt, and were rejected for work they never owned — the rejection looked
+like a review bug and was an authorization hole.
+
+`FileToolRouter.file.create` had the matching gap: only the OVERWRITE branch
+consulted the owned scope, so a NEW file outside the scope was created with no
+denial.
+
+Fixed in `bf29449b`: an allowed capability now falls through to the owned-path
+rule when the request declares owned paths for a write tool (an explicit
+capability deny still wins), and `file.create` applies the owned-scope backstop
+to new files as well. Pinned by `tests/policy/policy-gate.test.ts` (the
+allow-listed capability × session-mode case, plus deny-wins),
+`tests/executor.test.ts` (bypass session mode), and the `file.create`
+owned-scope parity table in `tests/tools/tool-router.test.ts`.
+
+The re-run passes: killed on a persisted running worker with zero workers
+completed at kill, resume recovered one orphan, final run `completed` /
+`success` with all three workers completed and each artifact holding exactly
+its marker. Evidence `benchmark/evidence/coordination/stratum8-gpt4o.json`, cost
+`benchmark/evidence/cost/stratum8-restart.json` ($0.211623).
+
+## Remaining gap (not fixed)
+
+The review's mutation evidence is scoped to the CURRENT attempt. A retry whose
+deliverable already exists from an earlier attempt therefore has no
+persisted-output evidence, even though the deliverable is on disk and correct.
+Root AGENTS.md ("Durable progress survives failed retries") is not yet honoured
+there. The owned-scope fix removed the trigger in this run; the contract gap
+remains.
+
+Gate B and publication remain HOLD. Do not substitute another model silently or
+promote a failed run.

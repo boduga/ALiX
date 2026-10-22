@@ -1,6 +1,7 @@
 # Harness authority and invariant register (P0-A)
 
-**Status:** DRAFT — read-only audit. No production change authorized.
+**Status:** DRAFT. One production change landed since the audit (the owned-scope
+authorization fix below, `bf29449b`); Gate B and publication remain HOLD.
 **Baseline:** `4ac6df14` (tree `8bf5ac2b`), branch `docs/pre-2.0-harness-audit`.
 **Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (root worktree; see `harness-prd-divergence-finding.md`) §5 (PRE-R003, PRE-R012), §9 Gate A/B.
 
@@ -71,6 +72,15 @@ as covered.
 - **Tests:** `path-scope.test.ts` parity table; `ownership-gate.test.ts`;
   `mutation-targets.test.ts`.
 - **Removal risk:** writes outside declared scope.
+- **Audit finding (fixed, `bf29449b`):** the gate returned the tool-permission
+  allow *before* the owned-path rule, so the rule was unreachable whenever the
+  capability's permission resolved to allow — which is every write under
+  auto/bypass session modes, the default for a coordination run. A worker scoped
+  to one file could write anywhere. The rule now decides every declared-scope
+  write, and `file.create` applies the router backstop to NEW files as well as
+  overwrites. Pinned by `policy-gate.test.ts` (allow-listed capability × session
+  mode, and deny-wins), `executor.test.ts` (bypass mode), and the `file.create`
+  owned-scope parity table in `tool-router.test.ts`.
 
 ### S0-6 — Truthful completion (no false success receipt)
 - **Authority:** `deriveCoordinationCompletion` + aggregate event match.
@@ -98,7 +108,7 @@ as covered.
 | F-07 | Transient clamp-reload test observation unresolved | Possible timing fragility in an approval test | P0-D (recurrence check) |
 | F-08 | Delegate failure result was written to stderr and never parsed by the parent (fixed: D8-01) | Every structured subagent failure surfaced to the parent as a bare crash, losing `status`/`findings`/`error`. Found by running a case, not by reading code | F1/strata — **fixed + regression test** |
 | F-09 | ~~Stratum 9 (local CPU-only) has no observable run~~ **CLOSED** — ollama installed and serving; simple query completed through ALiX on local CPU (`run-a0b682d5`, in=3304 out=14, exit 0, 100% CPU). The earlier "no local provider" note was wrong — never checked | Remaining limitation, stated not hidden: the full stratum-9 eval SUITE still does not complete (~5min/request then ollama 500). The stratum is counted on the single verified observation, not on a suite | closed on observation; suite still open |
-| F-10 | Cost is measured in **6 of 10** strata, but cost-per-success exists for only **4** | Strata 4 and 7 have recorded cost and ZERO verified successes, so the PRD's primary measure is undefined there; stratum 8's run failed on a non-deterministic objective reviewer; stratum 9 is non-billable. Six measured strata prove the mechanism, not a baseline | Gate B — open, needs cases a real model can pass |
+| F-10 | Cost-per-verified-success now exists for **9 of 10** strata | Strata 1/2 were re-measured with a strengthened `unchanged` oracle (source equality + seeded values + reported answer), strata 4/7 gained positive deliverable cases a real model can pass, and stratum 8 passes after the owned-scope authorization fix. Stratum 9 stays `null` — local CPU inference is non-billable, so a measured 10/10 is unreachable as stated | closed by measurement — 9/10; stratum 9 structurally unmeasurable |
 | F-11 | D4-04 delegate transport flake **bounded, not fixed** | 42 consecutive passes, zero reproduction. Synthetic causality and cross-case lease leakage excluded by construction (pinned by test). Standing hypothesis (child-process scheduling) explicitly unproven. A delegate case may not be the sole evidence for a baseline until it reproduces or the transport is hardened with a failing-first test | separately tracked — open |
 | F-12 | Provider cache key omitted `timeoutMs`/`streamIdleTimeoutMs`/`localModelPath` (fixed) | A configured timeout was silently unenforceable: an ollama run aborted at exactly 300000ms with `timeoutMs: 1800000` set. Widening the key can only add distinct entries, never cause a wrong reuse | **fixed + regression test** |
 

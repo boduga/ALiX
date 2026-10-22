@@ -1,0 +1,160 @@
+{
+  "source": "restart/crash scenario on a real model (stratum 8)",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER",
+  "killAfterMs": 6000,
+  "killOnRunning": true,
+  "outputCapOverride": null,
+  "phase1": {
+    "usageRecords": 0,
+    "killState": {
+      "killed": true,
+      "trigger": {
+        "mode": "running-worker",
+        "runId": "coord_84cb461d-e59c-4a62-bfe6-baef18e1982d",
+        "workerId": "worker_ee228cd7-afe2-42a4-a4e2-38efa8f3f504",
+        "attempt": 1
+      },
+      "runStatus": "running",
+      "workers": [
+        {
+          "id": "worker_ee228cd7-afe2-42a4-a4e2-38efa8f3f504",
+          "status": "running",
+          "attempt": 1
+        },
+        {
+          "id": "worker_b654e053-8eff-4650-9318-1349ca8c3fd2",
+          "status": "pending",
+          "attempt": 0
+        },
+        {
+          "id": "worker_e629a603-4c95-449a-ba6b-daee09165d85",
+          "status": "pending",
+          "attempt": 0
+        }
+      ],
+      "completedAtKill": 0,
+      "falselyCompleted": null
+    }
+  },
+  "phase2": {
+    "resumedRunId": "coord_84cb461d-e59c-4a62-bfe6-baef18e1982d",
+    "exitCode": 0,
+    "usageRecords": 13
+  },
+  "usage": {
+    "observed": true,
+    "inputTokens": 82097,
+    "outputTokens": 638,
+    "records": [
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-785106c8",
+        "inputTokens": 5990,
+        "outputTokens": 62
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-785106c8",
+        "inputTokens": 6160,
+        "outputTokens": 16
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-785106c8",
+        "inputTokens": 6200,
+        "outputTokens": 35
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-250e1bc5",
+        "inputTokens": 5990,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-250e1bc5",
+        "inputTokens": 6157,
+        "outputTokens": 26
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-250e1bc5",
+        "inputTokens": 6303,
+        "outputTokens": 180
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-769db746",
+        "inputTokens": 5990,
+        "outputTokens": 32
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-769db746",
+        "inputTokens": 6156,
+        "outputTokens": 25
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-769db746",
+        "inputTokens": 6313,
+        "outputTokens": 26
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-769db746",
+        "inputTokens": 6460,
+        "outputTokens": 27
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-769db746",
+        "inputTokens": 6614,
+        "outputTokens": 79
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-769db746",
+        "inputTokens": 6862,
+        "outputTokens": 18
+      },
+      {
+        "sessionId": "coord_1792641258337",
+        "runId": "run-769db746",
+        "inputTokens": 6902,
+        "outputTokens": 75
+      }
+    ]
+  },
+  "costUsd": null,
+  "costNote": "token totals observed across both halves; pricing applied by cost-attribution",
+  "finalRun": {
+    "status": "completed",
+    "outcome": "success",
+    "workers": [
+      "completed",
+      "completed",
+      "completed"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/a.md",
+      "exists": true,
+      "content": "A-MARKER"
+    },
+    {
+      "path": "docs/b.md",
+      "exists": true,
+      "content": "B-MARKER"
+    },
+    {
+      "path": "docs/c.md",
+      "exists": true,
+      "content": "C-MARKER"
+    }
+  ],
+  "recordedAt": "2026-10-22T03:54:56.288Z"
+}

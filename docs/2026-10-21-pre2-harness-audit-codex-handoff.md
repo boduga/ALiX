@@ -1,20 +1,35 @@
 # Pre-2.0 harness audit — Codex handoff
 
-Updated: 2026-10-21
-Baseline: `main` @ **`cd029a27`**, tree clean, **79 commits ahead of `origin/main`** (nothing pushed; Q13 publication HOLD stands)
+Updated: 2026-10-22
+Baseline: `main` @ **`bf29449b`**, **85 commits ahead of `origin/main`** (nothing pushed; Q13 publication HOLD stands)
 Tag: `pre-2.0-consolidated` (local only)
 
-Latest qualification correction: strict success evidence now yields **4/10**,
-not 6/10. Positive strata 4/7 fixtures are implemented and tested; full runtime
-requests still hit provider quota. See `docs/2026-10-21-harness-positive-baselines.md`.
+**Current state: 9/10 strata have a verified run AND a catalog-priced cost per
+verified success.** Only stratum 9 is unmeasured — local CPU inference is
+non-billable, so its cost stays `null`, and a measured 10/10 is unreachable as
+stated.
 
-Follow-up: objective-review scoping and reviewer-read fixes now pass both coupled
-suites (21 tests total). Instrumentation disproved approval theft: the old test
-approved a retry dispatch after review's pending read failed, not a file write.
-Real restart validation is blocked by the current default provider's quota
-(`API error 429: quota exceeded`); no cost evidence promoted. Gate B stays HOLD.
-See `docs/harness-objective-review-sibling-evidence.md` for current diagnosis and
-`benchmark/evidence/coordination/restart-review-quota-blocked.json` for the failed run.
+What closed the gap since the 2026-10-21 state recorded below:
+
+- **Strata 1/2** were re-measured with a strengthened `unchanged` oracle
+  (`$0.045990`, `$0.044678`; two verified successes). The old oracle compared
+  existence only, so it could "verify" a file the agent had rewritten.
+- **Strata 4/7** gained positive deliverable cases a real model can pass
+  (`$0.063220`, `$0.081847`).
+- **Stratum 8** was blocked by a real authorization bug, not by a flaky reviewer:
+  `PolicyGate` returned the tool-permission allow before the owned-path rule, so
+  a worker scoped to one file could write anywhere. Fixed in `bf29449b`; the
+  re-run completes 3/3 workers after a kill on a persisted running worker
+  (`$0.211623`).
+
+Real runs used an explicit `openai/gpt-4o` one-off: the operator's current
+default model (`intern/deepseek-v4-flash-0731`) refuses every full agent request
+with `API error 429: quota exceeded`. No default was changed, no offline mock was
+substituted, and nothing was pushed.
+
+See `docs/2026-10-21-harness-positive-baselines.md` for the qualification rules
+and `docs/harness-objective-review-sibling-evidence.md` for the diagnosis that
+led to the owned-scope fix.
 
 ## Mission
 
@@ -30,73 +45,62 @@ in the tree; neither should be re-litigated from scratch.
 
 ## 1. Gate B status
 
-**HOLD. Measured cost 6/10 strata.**
+**HOLD (operator decision). Measured cost-per-verified-success 9/10 strata.**
 
-> **Caveat on the 6.** The matrix's zero-success guard only fires on an explicit
-> `verifiedSuccesses: 0`. Strata **1 and 2** were recorded by the earlier main-loop
-> sweep *before* that field existed, so they carry `verifiedSuccesses: null/absent`
-> and are counted as measured without a positive assertion. Their underlying runs
-> did pass 2/2, but the record does not state it. Tighten
-> `benchmark/evidence/cost/eval-mainloop-metered.json` to carry
-> `verifiedSuccesses: 1` per stratum if you want the count to be defensible
-> without this footnote. 6 is the number the generator prints; **5 is the number
-> with an explicitly asserted success.**
+The caveat that used to sit here is gone: every stratum with a cost now carries
+an explicit positive `verifiedSuccesses` count, so the generator's number and
+the defensible number are the same.
 
 | # | Stratum | Cost | Notes |
 |---|---|---|---|
-| 1 | Read-only | $0.041675 | — |
-| 2 | Navigation | $0.044698 | — |
+| 1 | Read-only | $0.045990 | strengthened oracle, 1 verified success |
+| 2 | Navigation | $0.044678 | strengthened oracle, 1 verified success |
 | 3 | Single-file edit | $0.108968 | F1-E `run-79feb4e0` |
-| 4 | Multi-file | $0.112300 | **0 verified successes** — needs cases a real model can pass |
+| 4 | Multi-file | $0.063220 | positive case, 1 verified success |
 | 5 | Verification/repair | $0.112278 | — |
 | 6 | Coordination (3 workers) | $0.194740 | — |
-| 7 | Capability mix | $0.076410 | **0 verified successes** — 3 cases all expect failure |
-| 8 | Crash/restart | $0.228135 | **0 verified successes** — blocked by §2.1 |
+| 7 | Capability mix | $0.081847 | positive case, 1 verified success |
+| 8 | Crash/restart | $0.211623 | 3/3 workers completed after the kill/resume |
 | 9 | Local CPU-only | `null` | non-billable by definition; never zero |
 | 10 | Tool failure | $0.041967 | — |
 
 Reproduce: `node benchmark/evidence/gate7/baseline-coverage-matrix.mjs` (no args).
 
-**10/10 is not reachable as stated.** Stratum 9 is non-billable forever; strata 4
-and 7 need positive-case design, not spend.
+**10/10 is not reachable as stated.** Stratum 9 is non-billable forever.
 
-## 2. Open bug (the one to fix first)
+## 2. The open bug — CLOSED (the root cause was not the review)
 
 ### 2.1 Objective review sees a sibling worker's evidence
 
-`docs/harness-objective-review-sibling-evidence.md` has the full record. Summary:
+`docs/harness-objective-review-sibling-evidence.md` has the full record.
 
-Workers in a coordination run **share one session event log**, so
-`deriveCoordinationChangedFiles(events)` in
-`src/coordination/kernel/default-worker-review.ts` includes every sibling's
-`file.created`. A worker owning `docs/b.md` is reviewed with evidence containing
-`docs/a.md` and `docs/c.md`, then rejected for *"Missing docs/a.md"* — a file it
-never owned. It retries 3× and the run reports `failed` with all artifacts correct
-on disk.
+**Root cause: the owned-scope rule was unreachable, so one worker wrote every
+sibling's file.** `PolicyGate.evaluateToolCall` returned the tool-permission
+allow at step 5; the owned-path rule only ran at step 5.5. The write
+capability's permission resolves to "allow" under auto/bypass session modes —
+the default for a coordination run — so the rule never ran. A worker scoped to
+`docs/a.md` created `docs/a.md`, `docs/b.md` AND `docs/c.md` with 26 tool calls
+and zero denials. Its siblings then found their deliverables already present,
+produced no mutation evidence in their own attempt, and were rejected for work
+they never owned.
 
-**Scoping to owned paths fixes it and breaks a test.** Four variants tried; only
-unscoped passes:
+Fixed in `bf29449b`: an allowed capability falls through to the owned-path rule
+when the request declares owned paths for a write tool (an explicit capability
+deny still wins), and `FileToolRouter.file.create` applies the same backstop to
+NEW files — previously only overwrites consulted the scope. The gate decides;
+the router is the second net.
 
-| Variant | Result |
-|---|---|
-| scoped + existence fallback | fail |
-| scoped + owned-path fallback | fail |
-| scoped + `file.read: allow` on the review executor | fail |
-| **unscoped (shipped)** | **pass** |
+The four review variants in the original table are superseded by that
+diagnosis. The evidence-isolation work was correct and is still in the tree.
+One contract gap remains open and is **not** fixed: the review's mutation
+evidence is scoped to the CURRENT attempt, so a retry whose deliverable already
+exists from an earlier attempt still has no persisted-output evidence. Root
+AGENTS.md ("Durable progress survives failed retries") is not yet honoured there.
 
-Failure mode with scoping: the worker's file-**mutation** approval is never created
-(`pending=0` after the write), so
-`tests/tui/workbench/coordination-runtime-integration.vitest.ts` ("resumes an
-approved worker…") times out in `waitForPendingApproval()`.
-
-**Leading hypothesis, UNVERIFIED:** the review's own `file.read` claims the
-worker's pending write approval — `approval.consumed` appears exactly once in that
-trace. Confirm by instrumenting `ApprovalStore.consumeApproved` and logging which
-approval id each caller claims.
-
-**Do not ship a fifth variant by guesswork.** Instrument first. Once fixed,
-re-run stratum 8 (`benchmark/evidence/coordination/run-restart-metered.mjs`) to
-confirm 3/3 workers **and** the integration test together.
+Re-run result: `benchmark/evidence/coordination/stratum8-gpt4o.json` — killed on
+a persisted running worker, resume recovered one orphan, final run `completed` /
+`success` with all three workers completed and each artifact holding exactly its
+marker. Cost `$0.211623` (`benchmark/evidence/cost/stratum8-restart.json`).
 
 ## 3. Corrections — do not re-derive, do not repeat
 
@@ -146,7 +150,7 @@ Real defects fixed, each with a regression test:
 pnpm build                # tsc, must be clean
 pnpm typecheck:unused     # must be zero
 pnpm test                 # 7471 pass / 7 skip / 689 files at time of writing
-node benchmark/evidence/gate7/baseline-coverage-matrix.mjs   # 6/10 measured
+node benchmark/evidence/gate7/baseline-coverage-matrix.mjs   # 9/10 measured
 node scripts/check-dox-claims.mjs                            # docs claims resolve
 ```
 
@@ -156,7 +160,7 @@ node scripts/check-dox-claims.mjs                            # docs claims resol
 
 ## 6. Constraints — do not violate
 
-- **Nothing pushed.** 77 commits are local-only. Q13 publication HOLD is
+- **Nothing pushed.** 85 commits are local-only. Q13 publication HOLD is
   operator-controlled; `boduga/ALiX` is public. Pushing is a disclosure decision,
   not a backup decision.
 - **No offline mock may stand in for a real billable call** in cost evidence.
@@ -169,19 +173,25 @@ node scripts/check-dox-claims.mjs                            # docs claims resol
 
 ## 7. Suggested order
 
-1. Fix §2.1 via instrumentation, not guesswork. Re-run stratum 8 → 7/10.
-2. Design one positive case for strata 4 and 7 (currently all-negative) → 9/10.
-3. Stratum 9 stays `null` permanently.
-4. Only then: ablation work, which Gate B gates.
+1. Ablation work — 9/10 strata now have a verified run and a cost per verified
+   success. Gate B and publication stay HOLD by operator decision (Q13).
+2. Fix the cross-attempt review evidence gap before a retry needs it: a retry
+   whose deliverable already exists must still be able to prove the deliverable.
+3. Stratum 9 stays `null` permanently; the local suite evidence gap stays open.
 
 ## 8. Documents
 
 | File | Content |
 |---|---|
-| `docs/harness-objective-review-sibling-evidence.md` | **The open bug** — reproducer, variants tried, hypothesis |
+| `docs/harness-objective-review-sibling-evidence.md` | **The closed bug** — reproducer, approval diagnosis, owned-scope root cause |
 | `docs/harness-baseline-report.md` | Coverage matrix + Gate B verdict |
 | `docs/harness-delegate-cost-gap.md` | Subagent cost history; three corrections of itself |
 | `docs/harness-subagent-status-semantics.md` | Ownership-vs-task verdict; two corrections |
 | `docs/harness-prd-divergence-finding.md` | Two documents both labelled v1.1 |
 | `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` | PRD at v1.2 (filename unchanged; 12+ refs) |
 | `benchmark/evidence/` | Recorded evidence + generator, reproduces with no args |
+
+Evidence added since: `benchmark/evidence/cost/stratum8-restart.json`,
+`benchmark/evidence/cost/readonly-navigation.json`,
+`benchmark/evidence/cost/positive-strata-4-7.json`,
+`benchmark/evidence/coordination/stratum8-gpt4o.json`.
