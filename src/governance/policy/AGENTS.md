@@ -19,7 +19,13 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
   one of the two enforcement points and calls `isWithinOwnedScope`; it must
   never grow its own matcher or re-normalize a grant. The rule, the fail-closed
   cases, and the workspace-wide vocabulary are documented there — read them
-  there rather than restating them here.
+  there rather than restating them here. A blanket capability allow never
+  widens a grant: when the request declares owned paths for a write tool, the
+  owned-path rule decides (allow inside the scope, deny outside it) and runs
+  BEFORE any tool-permission allow can short-circuit it. Returning that allow
+  first made the rule unreachable — the write capability's permission resolves
+  to "allow" under auto/bypass session modes, so a worker scoped to one file
+  could write anywhere in the workspace.
 - Two-layer enforcement: capability coverage first, policy second.
 - Most-restrictive-wins across multiple capabilities: deny > ask > allow.
 - RuntimeGate checks ApprovalStore for prior approvals before creating new ones.

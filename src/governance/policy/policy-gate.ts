@@ -93,6 +93,14 @@ export function resolvePolicyPath(cwd: string, path: string): string {
 /** Write tools whose mutation targets can be scoped to ownedPaths. */
 const OWNED_WRITE_TOOLS = new Set(["file.create", "file.delete", "patch.apply"]);
 
+/**
+ * True when the request declares an owned scope for a write tool — the case
+ * where the owned-path rule (step 5.5) is the authority for the write.
+ */
+function hasOwnedWriteScope(request: ToolPolicyRequest): boolean {
+  return Boolean(request.ownedPaths?.length) && OWNED_WRITE_TOOLS.has(request.toolName);
+}
+
 /** Extract the mutation targets from a write-tool's args. */
 function mutationTargets(args: Record<string, unknown>): string[] {
   const path = typeof args.path === "string" ? args.path : undefined;
@@ -285,18 +293,26 @@ export class PolicyGate {
     const toolDecision = this.config.permissions.tools?.[capability];
     if (toolDecision) {
       const effective = applySessionMode(toolDecision, request.sessionMode);
-      if (effective === "allow") {
-        return { requestId: request.requestId, capability, decision: "allow", reason: `Allowed by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
-      }
       if (effective === "deny") {
         return { requestId: request.requestId, capability, decision: "deny", reason: `Denied by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
+      }
+      // A blanket allow must NOT widen past a declared owned scope: the
+      // owned-path rule (5.5) IS the authorization for an owned write, so an
+      // allowed capability falls through to it instead of short-circuiting.
+      // Returning allow here skipped the rule entirely — the write
+      // capability's permission resolves to "allow" under auto/bypass session
+      // modes, so a worker with ownedPaths could write anywhere in the
+      // workspace (observed on a real gpt-4o coordination run: a worker
+      // scoped to one file created two sibling files with no denial).
+      if (effective === "allow" && !hasOwnedWriteScope(request)) {
+        return { requestId: request.requestId, capability, decision: "allow", reason: `Allowed by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
       }
     }
 
     // 5.5 Owned-path auto-approval (headless write subagents).
     // The subagent's ownedPaths ARE the authorization: a write scoped entirely to
     // owned paths is allowed; a write touching anything outside them is denied.
-    if (request.ownedPaths?.length && OWNED_WRITE_TOOLS.has(request.toolName)) {
+    if (hasOwnedWriteScope(request)) {
       const targets = mutationTargets(args);
       if (targets.length === 0) {
         // Unscoped (unparseable targets) — fall through to default/ask; headless

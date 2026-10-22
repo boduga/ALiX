@@ -64,7 +64,10 @@ reason about.
   `tool-router.ts` calls `isWithinOwnedScope`, the single matcher also used by
   the gate. Both points MUST call that one function; neither may re-normalize,
   because the gate runs first. The contract is owned by
-  `src/coordination/ownership/AGENTS.md` — read it there, not here.
+  `src/coordination/ownership/AGENTS.md` — read it there, not here. The
+  backstop covers `file.create` for NEW files as well as overwrites and
+  `file.delete`: a new file outside the declared owned scope used to be created
+  with no denial, because only the overwrite branch consulted the scope.
 - **Containment belongs to `WorkspacePathResolver`.** `execute()` runs
   `checkPath` for every path argument before dispatch, which resolves symlinks
   and canonicalizes. A second hand-rolled `relative`/`startsWith` check in a

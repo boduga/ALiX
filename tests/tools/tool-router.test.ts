@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, writeFile, mkdir, rm, mkdtemp, symlink } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
   FileToolRouter,
@@ -769,6 +769,44 @@ test("file.delete owned-scope parity table (router second net, R1.5)", async () 
         ...(owned ? { ownedPaths: owned } : {}),
       });
       assert.strictEqual(result.kind, allowed ? "success" : "error", `${JSON.stringify(owned)} -> ${path}`);
+    }
+  } finally {
+    await rm(`/tmp/${ws}`, { recursive: true, force: true });
+    await rm(`/tmp/outside-${process.pid}.txt`, { force: true });
+  }
+});
+
+test("file.create owned-scope parity table (router second net, R1.5)", async () => {
+  // The create backstop is the same owned decision as file.delete's and the
+  // overwrite net's, so it gets a parity table, not a spot check. A NEW file
+  // outside the scope used to be created with no denial at all: the overwrite
+  // branch only covered files that already existed.
+  const ws = `create-parity-${process.pid}`;
+  await mkdir(`/tmp/${ws}/nested`, { recursive: true });
+
+  const cases: Array<{ owned: string[] | undefined; path: string; allowed: boolean }> = [
+    { owned: [`${ws}/**`], path: `${ws}/inside.txt`, allowed: true },
+    { owned: [`${ws}/**`], path: `${ws}/nested/deep.txt`, allowed: true },
+    { owned: [`${ws}/exact.txt`], path: `${ws}/exact.txt`, allowed: true },
+    { owned: [`${ws}/other.txt`], path: `${ws}/exact2.txt`, allowed: false },
+    { owned: [`${ws}/**`], path: `${ws}/../outside-${process.pid}.txt`, allowed: false },
+    { owned: ["**"], path: `${ws}/inside2.txt`, allowed: true },
+    // No declared ownership (operator context) is unaffected.
+    { owned: undefined, path: `${ws}/inside3.txt`, allowed: true },
+  ];
+
+  try {
+    for (const { owned, path, allowed } of cases) {
+      const router = new FileToolRouter("/tmp");
+      const result = await router.execute({
+        toolCallId: "1",
+        name: "file.create",
+        args: { path, content: "x" },
+        ...(owned ? { ownedPaths: owned } : {}),
+      });
+      assert.strictEqual(result.kind, allowed ? "success" : "error", `${JSON.stringify(owned)} -> ${path}`);
+      const written = await readFile(resolve("/tmp", path), "utf8").then(() => true, () => false);
+      assert.strictEqual(written, allowed, `${JSON.stringify(owned)} -> ${path} must ${allowed ? "" : "not "}be written`);
     }
   } finally {
     await rm(`/tmp/${ws}`, { recursive: true, force: true });
