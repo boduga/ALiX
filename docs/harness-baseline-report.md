@@ -93,6 +93,17 @@ cost: null (non-billable — resource cost, not token-billed)
 So "no local provider available" — recorded earlier in this document — was
 wrong. It was never checked.
 
+- **The full stratum-9 eval *suite* is hardware-excused, not outstanding work.**
+  The earlier blocker was a harness defect (`--timeout-ms` never reached the
+  delegate child, fixed in `f8a335b7`). With that closed, the remaining limit is
+  machine throughput, measured on this 4-core / 11 GB host at real agent-prompt
+  size: **~10 tok/s prefill, ~5 tok/s generation** — an 878-token prompt took
+  100s per call. A stratum case runs up to 5 agent iterations, so one case is
+  ~10+ minutes of saturated CPU and the 14-case suite is many hours. By operator
+  disposition the stratum is counted on the verified inference observation
+  below, not on a suite run. Stated consequence, not hidden: the suite
+  completion rate on local CPU is **unmeasured**, and no claim depends on it.
+
 Two distinctions kept separate, because collapsing them would overstate the
 evidence:
 
@@ -100,9 +111,12 @@ evidence:
   ALiX on local CPU, and the `model.usage` event carries the `runId`.
 - **The full stratum-9 eval *suite* has still not run to completion.** Both
   attempts ended in ollama `500 / context canceled` after ~5 minutes per
-  request. A single simple query is sufficient to establish that CPU-only
+  request, and the follow-up attempts aborted on the provider-timeout defect
+  described above. A single simple query is sufficient to establish that CPU-only
   execution works; it is not the same as running the ten-case suite on local
-  hardware. The stratum is counted on the observation above, not on a suite.
+  hardware. The stratum is counted on the observation above, not on a suite —
+  see the hardware disposition above for why the suite is excused rather than
+  pending.
 
 Stratum 9's guard now derives its verdict from **evidence**, not intent:
 `classifyCpuOnlyRun` reads per-case `execution.provider` and fails closed on
@@ -218,8 +232,12 @@ exist to prevent.
 1. **Ablation comparisons** — every stratum except 9 now has a verified run and a
    catalog-priced cost per verified success. Gate B and publication remain HOLD
    by operator decision (Q13).
-2. **Complete the stratum-9 suite** on ollama, with `--timeout-ms` sized for
-   the hardware. Inference is proven; the suite evidence is not.
+2. ~~**Complete the stratum-9 suite** on ollama, with `--timeout-ms` sized for
+   the hardware.~~ **Satisfied by constraint.** The plumbing defect is fixed
+   (`f8a335b7`); the residual blocker is measured machine throughput
+   (~10 tok/s prefill / ~5 tok/s generation ⇒ ~10+ min per case on 4 cores), so
+   the suite is hardware-excused and the stratum stands on the verified
+   inference observation. Suite completion rate on local CPU stays unmeasured.
 3. **D4-04** — bounded and excluded from baseline use until it reproduces or the
    transport is hardened with a failing-first test.
 4. **Pin model/provider versions.** The measured runs used an explicit
@@ -281,5 +299,34 @@ sessions closed the gap since §2 was first written:
 
 Stratum 9 stays `null`: local CPU inference is not billed, and `null` is not
 zero. Publication stays HOLD.
+
+### Stratum 9 — suite dispositioned as hardware-excused (2026-10-22)
+
+The blocker that made the stratum-9 suite unrun was a **harness defect**, and it
+is fixed: `--timeout-ms` sized by the eval harness never reached the delegate
+child, which built its provider from the CLI flags and fell back to the provider
+default (300s for ollama). Both suite attempts died at exactly that bound
+(`provider.complete:ollama timed out after 300000ms`), with the configured
+budget already set to 30 minutes. `src/agents/subagent-cli.ts` now reads the
+config entry matching the provider/model it actually runs and passes its
+`timeoutMs`/`streamIdleTimeoutMs` to `createProvider` (`f8a335b7`, regression
+test in `tests/agents/subagent-cli-completion.vitest.ts`); verified end to end
+by resolving the child's view of its own config.
+
+With the defect closed, the residual constraint is the machine, measured rather
+than assumed (`llama3.2:3b`, this 4-core / 11 GB host, real agent-prompt size):
+
+```
+prompt 878 tok, 63 tok generated
+prefill 87.5s (~10 tok/s)   generation 12.3s (~5 tok/s)   ~100s per agent call
+```
+
+A stratum case runs up to 5 agent iterations, so one case is ~10+ minutes of
+saturated CPU and the 14-case suite is many hours — and a single core-saturating
+run also pollutes any concurrent verification lane. **Operator disposition: the
+stratum is satisfied on the verified inference observation (`run-a0b682d5`),
+not on a suite run.** What that does *not* claim: the suite's completion rate on
+local CPU is unmeasured, so no pass-rate, reliability or comparative figure may
+be derived for stratum 9.
 
 Simplification HOLD. Publication HOLD (Q13).

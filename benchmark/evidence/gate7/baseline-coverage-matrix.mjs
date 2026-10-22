@@ -325,6 +325,13 @@ console.log("| # | Stratum | Verified runs | Measured cost | Blocking |");
 console.log("|---|---|---|---|---|");
 
 const unmeasured = [];
+/**
+ * Strata whose cost is structurally unmeasurable rather than outstanding work:
+ * local CPU-only inference is not billable, so no usage↔pricing record can
+ * exist. They are still verified evidence; reporting them as "blocked" would
+ * imply convertible work that does not exist. Kept separate from `unmeasured`.
+ */
+const nonBillable = [];
 for (const stratum of STRATA) {
   const found = byStratum.get(stratum.id) ?? [];
   const verified = found.filter(r => r.verified === "yes").length;
@@ -339,10 +346,15 @@ for (const stratum of STRATA) {
     blocking = "evidence exists but no verified run";
     unmeasured.push(stratum.id);
   } else if (!costAny) {
-    blocking = zeroSuccessCost.has(stratum.id)
-      ? `cost recorded ($${zeroSuccessCost.get(stratum.id).costUsd.toFixed(6)}) but ${zeroSuccessCost.get(stratum.id).note} — cost-per-success undefined`
-      : "verified, but cost unmeasured (no usage↔pricing correlation)";
-    unmeasured.push(stratum.id);
+    if (stratum.id === "local-cpu-only") {
+      blocking = "verified; cost structurally unavailable (local CPU inference is non-billable — `null`, never zero)";
+      nonBillable.push(stratum.id);
+    } else {
+      blocking = zeroSuccessCost.has(stratum.id)
+        ? `cost recorded ($${zeroSuccessCost.get(stratum.id).costUsd.toFixed(6)}) but ${zeroSuccessCost.get(stratum.id).note} — cost-per-success undefined`
+        : "verified, but cost unmeasured (no usage↔pricing correlation)";
+      unmeasured.push(stratum.id);
+    }
   } else {
     blocking = "—";
   }
@@ -369,14 +381,18 @@ for (const stratum of STRATA) {
 
 console.log("## Summary\n");
 const withEvidence = STRATA.length - unmeasured.length;
-console.log(`- strata with independently verified runs AND measured cost: ${withEvidence}/10`);
-console.log(`- strata blocked: ${unmeasured.length}/10`);
+console.log(`- strata with independently verified runs AND measured cost: ${STRATA.length - unmeasured.length - nonBillable.length}/10`);
+console.log(`- strata blocked (actionable work outstanding): ${unmeasured.length}/10`);
 if (unmeasured.length > 0) {
   console.log(`- blocked strata: ${unmeasured.join(", ")}`);
+}
+if (nonBillable.length > 0) {
+  console.log(`- strata verified but structurally non-billable (not blocked, not $(0)): ${nonBillable.join(", ")}`);
 }
 console.log("");
 const costStrata = [...costByStratum.keys()].length;
 console.log(`**Cost is measured in ${costStrata}/10 strata.**`);
+console.log(`**Verified coverage is ${withEvidence}/10 strata; ${nonBillable.length} of those cannot carry a billable cost by construction.**`);
 if (costStrata === 0) {
   console.log("Every recorded Gate 7 summary predates usage/pricing correlation, and");
   console.log("scripted-provider evals are not billable, so `observedCostUsd` stays null.");
