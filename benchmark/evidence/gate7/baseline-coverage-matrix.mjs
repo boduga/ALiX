@@ -29,9 +29,10 @@ function firstExisting(paths) {
 }
 /**
  * Optional cost-evidence files. Each is a `verify-f1e-cost-proof.mjs`-style
- * result or a plain JSON `{ stratum, runId, costUsd, completeness }` record.
+ * result or `{ stratum, runId, costUsd, completeness, verifiedSuccesses }`.
  * Cost is only counted for a stratum when a record names it AND reports a
- * numeric cost with `completeness: "complete"`. Anything else stays `null` —
+ * numeric cost, `completeness: "complete"`, and a positive integer success count.
+ * Anything else stays `null` —
  * an incomplete total is not a measured cost.
  */
 const explicitCostPaths = process.argv.slice(4);
@@ -198,7 +199,7 @@ if (existsSync(S9_PATH)) {
 
 // Cost evidence. Only complete, numeric, stratum-attributed records count.
 const costByStratum = new Map();
-/** Strata with a recorded cost but ZERO verified successes: not a usable baseline. */
+/** Recorded cost without an explicit positive success count is not a baseline. */
 const zeroSuccessCost = new Map();
 for (const path of costEvidencePaths) {
   if (!existsSync(path)) {
@@ -217,7 +218,7 @@ for (const path of costEvidencePaths) {
 
   // Completeness is checked first: an incomplete total is not a measured cost,
   // whatever shape the record has.
-  if (record.completeness !== undefined && record.completeness !== "complete") {
+  if (record.completeness !== "complete") {
     console.error(`warning: cost evidence ${path} completeness is "${record.completeness}", not complete; ignoring`);
     continue;
   }
@@ -227,6 +228,7 @@ for (const path of costEvidencePaths) {
   // single-stratum guard below would reject it for lacking one.
   if (record.perStratum && typeof record.perStratum === "object") {
     for (const [id, entry] of Object.entries(record.perStratum)) {
+      if (entry?.completeness !== undefined && entry.completeness !== "complete") continue;
       const perCost = entry?.costUsd;
       if (typeof perCost !== "number" || !Number.isFinite(perCost) || perCost < 0) {
         console.error(`warning: ${path} perStratum["${id}"] has no finite cost; ignored`);
@@ -235,10 +237,10 @@ for (const path of costEvidencePaths) {
       // The PRD's primary measure is cost per INDEPENDENTLY VERIFIED SUCCESS.
       // Cost recorded on a stratum with zero verified successes is a real
       // observation but it is NOT a usable cost-per-success baseline, so it must
-      // not be counted as "measured". Absent `verifiedSuccesses` keeps the old
-      // behaviour for records that do not carry it.
-      if (typeof entry.verifiedSuccesses === "number" && entry.verifiedSuccesses === 0) {
-        zeroSuccessCost.set(id, { costUsd: perCost, note: entry.costPerSuccessNote });
+      // not be counted as "measured". Missing counts remain unknown.
+      if (!Number.isInteger(entry.verifiedSuccesses) || entry.verifiedSuccesses <= 0) {
+        zeroSuccessCost.set(id, { costUsd: perCost, note: entry.verifiedSuccesses === 0
+          ? "ZERO verified successes" : "no explicit positive verified-success count" });
         continue;
       }
       costByStratum.set(id, { runId: entry.runId ?? record.runId, costUsd: perCost });
@@ -254,7 +256,12 @@ for (const path of costEvidencePaths) {
     console.error(`warning: cost evidence ${path} has no finite numeric cost; ignoring`);
     continue;
   }
-  if (record.completeness !== undefined && record.completeness !== "complete") {
+  if (!Number.isInteger(record.verifiedSuccesses) || record.verifiedSuccesses <= 0) {
+    zeroSuccessCost.set(stratum, { costUsd: cost, note: record.verifiedSuccesses === 0
+      ? "ZERO verified successes" : "no explicit positive verified-success count" });
+    continue;
+  }
+  if (record.completeness !== "complete") {
     console.error(`warning: cost evidence ${path} completeness is "${record.completeness}", not complete; ignoring`);
     continue;
   }
@@ -291,7 +298,7 @@ for (const stratum of STRATA) {
     unmeasured.push(stratum.id);
   } else if (!costAny) {
     blocking = zeroSuccessCost.has(stratum.id)
-      ? `cost recorded ($${zeroSuccessCost.get(stratum.id).costUsd.toFixed(6)}) but ZERO verified successes — cost-per-success undefined`
+      ? `cost recorded ($${zeroSuccessCost.get(stratum.id).costUsd.toFixed(6)}) but ${zeroSuccessCost.get(stratum.id).note} — cost-per-success undefined`
       : "verified, but cost unmeasured (no usage↔pricing correlation)";
     unmeasured.push(stratum.id);
   } else {

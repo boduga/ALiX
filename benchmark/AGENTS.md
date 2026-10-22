@@ -3,6 +3,7 @@
 **Purpose:** Deterministic maintenance/reconciliation task harness proving the architecture (bounded state + hybrid retrieval vs history/summary baselines). C vs D primary bake-off, A/B baselines.
 
 **Ownership:**
+- `benchmark/evidence/cost/positive-cases.mjs` and `benchmark/evidence/cost/run-positive-cases.mjs` — isolated positive two-file and mixed-policy runtime fixtures. Default real runs resolve current `models.default`; `--scripted` validates mechanics only. Approval decisions are fixture-scoped to the exact output invocation; all recorded costs remain unknown until catalog-priced qualification.
 - `types.ts` — Substrate (A_full_history/B_summary_fixed/C_state/D_hybrid), DecisionCategory (state-complete/evidence-dependent/history-dependent), BenchmarkScenario/Event/DecisionPoint, BenchmarkResultRow (machine-readable {scenario, seed, horizon, substrate, taskSuccess, decisionAccuracy, prompt/state/evidence/historyTokens, escalations, retrieval_precision, state_sufficiency}), BenchmarkReport/Summary, GovernanceConfig, REQUIRED_HORIZONS 10/50/100/500.
 - `scenario.ts` — createScenario(seed, horizon) deterministic mulberry32 maintenance/reconciliation generator: execution.created + state-affecting + distractors + evidence.observation + history.artifact_detail, decision points cycling 3 categories every 10 steps, controlled failures/distractors, sorted seq invariant.
 - `fake-environment.ts` — FakeExecutionEnvironment deterministic tools: getFullHistory, getLatestObservation, getEvidenceById/Slice, getSummaryFixed (fixed-budget lossy), getProjectedStateView (bounded state view, no evidence/history leak), toolReconcileCheck.
@@ -20,6 +21,7 @@
 - `real-model-harness.ts` — Real-model accuracy eval (C vs D, optional Phi-3 Q4 / OpenRouter). Its single-run function assembles the substrate context, asks the provider a verbatim-extraction question per decision point, scores exact `includes(expected)`. `maxOutputTokens` is 2048; increase only with output-truncation evidence. Retries once at `temperature: 1` when a model rejects `temperature: 0` (gpt-5 family) and falls back to `reasoning` when `text` is empty. Accuracies reflect model usability, not substrate perfection. CLI `main()` runs smoke horizon 10, or `--full` 10/50/100/500. OpenRouter runs consume account credits — a 402 means the balance cannot cover the requested `max_tokens`, not a model failure.
 
 **Local Contracts:**
+- Cost qualification requires an explicit positive integer `verifiedSuccesses` alongside complete, finite, stratum-attributed cost. Missing/null counts remain unknown; evaluator passes whose oracle did not verify the claimed objective cannot be backfilled as verified successes. Keep raw paid usage even when qualification fails.
 - Same scenario/seed/environment/governance/budget for A/B/C/D — comparable rows.
 - C horizon-invariant on state-complete (accuracy 1.0, tokens bounded 10→500), D recovers evidence/history-dependent where C fails.
 - D context bounded, retrieves only when required — retrieval_precision, unnecessary_escalations measured.

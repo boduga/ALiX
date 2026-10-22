@@ -20,14 +20,18 @@
       "runId": "run-fa199aef",
       "inputTokens": 16418,
       "outputTokens": 63,
-      "costUsd": 0.041675
+      "costUsd": 0.041675,
+      "verifiedSuccesses": null,
+      "verificationNote": "Recorded evaluator pass only. The unchanged oracle checked existence, not source equality or answer correctness; deleted case workspaces prevent retrospective mutation verification."
     },
     "code-navigation": {
       "case": "behavioral.code-navigation",
       "runId": "run-bc589c94",
       "inputTokens": 17471,
       "outputTokens": 102,
-      "costUsd": 0.044698
+      "costUsd": 0.044698,
+      "verifiedSuccesses": null,
+      "verificationNote": "Recorded evaluator pass only. The unchanged oracle checked existence, not source equality or answer correctness; deleted case workspaces prevent retrospective mutation verification."
     }
   },
   "verifiedBy": "captured usage records carry runId; totals reproduced independently against the production pricing catalog",

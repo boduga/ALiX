@@ -1,0 +1,72 @@
+{
+  "source": "restart/crash scenario on a real model (stratum 8)",
+  "provider": "intern",
+  "model": "deepseek-v4-flash-0731",
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER",
+  "killAfterMs": 30000,
+  "phase1": {
+    "usageRecords": 0,
+    "killState": {
+      "killed": true,
+      "runStatus": "running",
+      "workers": [
+        {
+          "id": "worker_b0fd9b94-3829-46b4-bca8-da79db17da93",
+          "status": "running",
+          "attempt": 2
+        },
+        {
+          "id": "worker_639cd567-42a1-4037-bc15-2ea517d1d88a",
+          "status": "pending",
+          "attempt": 0
+        },
+        {
+          "id": "worker_bd69649d-b950-42fe-b3b4-f99e2665b69a",
+          "status": "pending",
+          "attempt": 0
+        }
+      ],
+      "falselyCompleted": 0
+    }
+  },
+  "phase2": {
+    "resumedRunId": "coord_c5bcdfde-7bd7-4241-9838-a94440a0c861",
+    "exitCode": 0,
+    "usageRecords": 0
+  },
+  "usage": {
+    "observed": false,
+    "inputTokens": null,
+    "outputTokens": null,
+    "records": []
+  },
+  "costUsd": null,
+  "costNote": "NO model.usage observed — cost unknown, NOT zero",
+  "finalRun": {
+    "status": "failed",
+    "outcome": "incomplete",
+    "workers": [
+      "failed",
+      "failed",
+      "failed"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/a.md",
+      "exists": false,
+      "content": null
+    },
+    {
+      "path": "docs/b.md",
+      "exists": false,
+      "content": null
+    },
+    {
+      "path": "docs/c.md",
+      "exists": false,
+      "content": null
+    }
+  ],
+  "recordedAt": "2026-10-22T00:08:21.362Z"
+}

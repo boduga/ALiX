@@ -4,6 +4,10 @@ Updated: 2026-10-21
 Baseline: `main` @ **`cd029a27`**, tree clean, **79 commits ahead of `origin/main`** (nothing pushed; Q13 publication HOLD stands)
 Tag: `pre-2.0-consolidated` (local only)
 
+Latest qualification correction: strict success evidence now yields **4/10**,
+not 6/10. Positive strata 4/7 fixtures are implemented and tested; full runtime
+requests still hit provider quota. See `docs/2026-10-21-harness-positive-baselines.md`.
+
 Follow-up: objective-review scoping and reviewer-read fixes now pass both coupled
 suites (21 tests total). Instrumentation disproved approval theft: the old test
 approved a retry dispatch after review's pending read failed, not a file write.

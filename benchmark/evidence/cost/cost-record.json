@@ -6,5 +6,7 @@
   "provider": "openai",
   "model": "gpt-4o",
   "invocations": 3,
-  "source": "F1-E qualification (docs/harness-f1e-qualified.md, 8/8 checks)"
+  "source": "F1-E qualification (docs/harness-f1e-qualified.md, 8/8 checks)",
+  "verifiedSuccesses": 1,
+  "verificationSource": "docs/harness-f1e-qualified.md: real billable response, expected artifact marker, correlated usage and independently recomputed catalog cost (8/8)."
 }
