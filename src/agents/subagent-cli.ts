@@ -38,6 +38,7 @@ export function resolveEffectiveModel(
   };
 }
 import { EventLog } from "../runtime-state/events/event-log.js";
+import { deriveCoordinationChangedFiles, toCoordinationEvidenceEvents } from "../coordination/kernel/coordination-evidence.js";
 import { createProvider } from "../models/providers/registry.js";
 import { createToolExecutor } from "../capabilities/tools/tool-executor-factory.js";
 import type { WorkerApprovalPort } from "../governance/approvals/worker-approval-port.js";
@@ -319,6 +320,26 @@ function pathIsCovered(path: string, successful: string[], cwd: string): boolean
     const sc = resolvePolicyPath(cwd, s);
     return sc === oc || sc.startsWith(oc + "/");
   });
+}
+
+/** Durable session events. An unreadable log yields none, never a failed worker. */
+async function readDurableEvents(log: EventLog): Promise<readonly { type: string; payload?: unknown }[]> {
+  try { return await log.readAll(); } catch { return []; }
+}
+
+/**
+ * Durable mutation paths inside the worker's owned scope.
+ *
+ * A worker with no owned scope has no mutation evidence: a read-only worker
+ * must never inherit the session's writes as its own progress.
+ */
+async function durableOwnedPaths(log: EventLog, ownedPaths: string[]): Promise<string[]> {
+  if (!ownedPaths.length) return [];
+  const changed = deriveCoordinationChangedFiles(
+    { events: toCoordinationEvidenceEvents(await readDurableEvents(log)) },
+    { cwd: process.cwd() },
+  );
+  return changed.filter(path => ownedPaths.some(owned => pathIsCovered(owned, [path], process.cwd())));
 }
 
 /** True when every owned path is covered by a successful write. */
@@ -692,7 +713,18 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
 
     try {
       const messages: NormalizedMessage[] = [{ role: "user", content: prompt }];
-      const progress: WriteProgress = { successfulPaths: new Set(), fatalWriteFailures: [] };
+      // Durable progress: an EARLIER attempt of this worker may already have
+      // written its deliverable, and the shared session log records those
+      // writes. Re-creating identical content produces no new write event, so
+      // without this seed a retry reports no progress and fails before the
+      // review ever runs. Scoped to the worker's OWNED paths, so a sibling's
+      // artifact is never this worker's progress. Coordination workers only: a
+      // plain delegate shares the PARENT's session log, whose writes are the
+      // parent's progress, not the delegate's.
+      const progress: WriteProgress = {
+        successfulPaths: new Set(coordinationRunId ? await durableOwnedPaths(eventLog, ownedPaths) : []),
+        fatalWriteFailures: [],
+      };
       const toolLedger: SubagentToolLedger = new Map();
       const recordLedger = (name: string, ok: boolean): void => {
         const entry = toolLedger.get(name) ?? { completed: 0, failed: 0 };

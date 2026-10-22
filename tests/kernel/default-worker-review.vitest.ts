@@ -46,7 +46,7 @@ describe('default worker review',()=>{
    expect(context.config.permissions.tools).toEqual(readPolicy?{'file.read':readPolicy}:{});
   }finally{closeAllSharedLedgers();await rm(cwd,{recursive:true,force:true});}
  });
- it('reviews only owned outputs when supplied sibling mutation events',async()=>{
+  it('reviews only owned outputs when supplied sibling mutation events',async()=>{
   const {cwd,log,worker,context}=await fixture();try{
    await mkdir(join(cwd,'reports'),{recursive:true});
    await writeFile(join(cwd,'reports','report.md'),'Nigeria report');
@@ -62,6 +62,25 @@ describe('default worker review',()=>{
    expect(result.outcome).toBe('success');expect(mocks.complete).toHaveBeenCalledOnce();
   }finally{closeAllSharedLedgers();await rm(cwd,{recursive:true,force:true});}
  });
+  it('keeps an earlier attempt\'s durable evidence when the retry mutates nothing',async()=>{
+   const {cwd,log,worker,context}=await fixture();try{
+    await mkdir(join(cwd,'reports'),{recursive:true});
+    await writeFile(join(cwd,'reports','report.md'),'Nigeria report');
+    worker.ownershipScopes=['reports/report.md'];
+    // An EARLIER attempt of this worker wrote the deliverable. The session log
+    // is durable, so the retry keeps the proof even though re-creating
+    // identical content emits no mutation event at all.
+    await log.append({sessionId:'session',actor:'tool',type:'file.created',payload:{path:'reports/report.md'}});
+    mocks.complete.mockImplementation(async request=>{
+     const evidence=JSON.parse(request.messages[0].content);
+     expect(evidence.persistedOutputs.map((item:{path:string})=>item.path)).toEqual(['reports/report.md']);
+     return {text:JSON.stringify({satisfied:true,summary:'Correct report',gaps:[]}),toolCalls:[]};
+    });
+    // The retry itself produced NO mutation event: the deliverable already exists.
+    const result=await reviewDefaultWorkerResult(worker,context,{sessionId:'session',summary:'Done',reason:'completed'},[],log,new AbortController().signal);
+    expect(result.outcome).toBe('success');expect(mocks.complete).toHaveBeenCalledOnce();
+   }finally{closeAllSharedLedgers();await rm(cwd,{recursive:true,force:true});}
+  });
  it('passes full successful tool evidence beyond the 200-character telemetry preview',async()=>{
   const {cwd,worker,context}=await fixture();try{
    worker.requiredCapabilities=['web.search'];

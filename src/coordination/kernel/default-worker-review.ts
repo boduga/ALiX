@@ -3,7 +3,7 @@ import type { AlixEvent, NewEvent } from "../../runtime-state/events/types.js";
 import type { WorkerAssignment } from "./coordination-types.js";
 import type { WorkerExecutionContext, WorkerExecutionResult } from "./worker-executor.js";
 import type { RunResult } from "../../run.js";
-import { deriveCoordinationChangedFiles } from "./coordination-evidence.js";
+import { deriveCoordinationChangedFiles, toCoordinationEvidenceEvents } from "./coordination-evidence.js";
 import { reviewCoordinationResult, type ObjectiveArtifact } from "../../agents/coordination-objective-review.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
 import { createProvider } from "../../models/providers/registry.js";
@@ -39,12 +39,14 @@ export async function reviewDefaultWorkerResult(
   evidence: readonly string[] = [],
 ): Promise<WorkerExecutionResult> {
   if (signal.aborted) return { outcome: "failure", failureKind: "cancelled", error: "Execution cancelled" };
-  const mutationEvents = events.map(event => ({
-    type: event.type,
-    payload: event.type === "patch.changed_files"
-      ? { paths: (event.payload as { changedFiles?: unknown }).changedFiles }
-      : event.payload as { path?: unknown; paths?: unknown; files?: unknown },
-  }));
+  // Durable evidence: the run's shared session log outlives ONE attempt, so a
+  // retry whose deliverable was already written keeps its proof. Re-creating
+  // identical content emits NO mutation event (the router returns
+  // `changed: false` before it writes), so without the durable set a correct
+  // retry is reviewed with an empty evidence set and fails. Scope stays the
+  // worker's OWNED paths, so a sibling's artifact is never its evidence.
+  const allEvents = [...await readDurableEvents(log), ...events];
+  const mutationEvents = toCoordinationEvidenceEvents(allEvents);
   const ownedPaths = ownedPathsForWorker(worker);
   const mutatedPaths = deriveCoordinationChangedFiles({ events: mutationEvents }, { cwd: context.cwd })
     .filter(path => isWithinOwnedScope(resolve(context.cwd, path), ownedPaths, context.cwd));
@@ -81,7 +83,7 @@ export async function reviewDefaultWorkerResult(
     if (signal.aborted) return { path, error: "Execution cancelled" };
     const read = await readForReview(path);
     if (read.kind === "success") return { path, content: toolResultText(read) };
-    const deleted = events.some(event => event.type === "file.deleted" && (event.payload as { path?: string }).path === path);
+    const deleted = allEvents.some(event => event.type === "file.deleted" && (event.payload as { path?: string }).path === path);
     if (deleted) {
       const exists = await executor.execute({ toolCallId: randomUUID(), name: "file.exists", args: { path }, signal });
       if (exists.kind === "success" && exists.exists === false) return { path, exists: false };
@@ -102,4 +104,9 @@ export async function reviewDefaultWorkerResult(
   return reviewed.status === "success"
     ? { outcome: "success", summary, outputPath: result.sessionId }
     : { outcome: "failure", failureKind: "execution_error", summary, outputPath: result.sessionId, error: reviewed.error };
+}
+
+/** Durable session events. An unreadable log yields none, never a failed review. */
+async function readDurableEvents(log: EventLog): Promise<readonly AlixEvent[]> {
+  try { return await log.readAll(); } catch { return []; }
 }

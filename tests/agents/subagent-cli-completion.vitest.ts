@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { NormalizedRequest } from "../../src/models/providers/types.js";
 
-const harness = vi.hoisted(() => ({ complete: vi.fn(), execute: vi.fn() }));
+const harness = vi.hoisted(() => ({ complete: vi.fn(), execute: vi.fn(), durable: [] as { type: string; payload?: unknown }[] }));
 vi.mock("../../src/models/providers/registry.js", () => ({ createProvider: async () => ({ complete: harness.complete }) }));
 vi.mock("../../src/operations/config/loader.js", async () => {
   const { DEFAULT_CONFIG } = await import("../../src/operations/config/defaults.js");
   return { loadConfig: async () => ({ ...structuredClone(DEFAULT_CONFIG), models: { default: { provider: "fixture", name: "fixture" } } }) };
 });
-vi.mock("../../src/runtime-state/events/event-log.js", () => ({ EventLog: class { async init() {} async append() {} } }));
+vi.mock("../../src/runtime-state/events/event-log.js", () => ({ EventLog: class { async init() {} async append() {} async readAll() { return harness.durable; } } }));
 vi.mock("../../src/context/repomap/context-compiler.js", () => ({ ContextCompiler: class {
   async warm() {} async compileContext() { return { primaryFiles: [] }; }
 } }));
@@ -25,7 +25,7 @@ vi.mock("../../src/run.js", () => ({ buildToolsForProvider: () => ["alix_grep_se
 
 import { SubagentCLI } from "../../src/agents/subagent-cli.js";
 
-afterEach(() => { vi.restoreAllMocks(); harness.complete.mockReset(); harness.execute.mockReset(); });
+afterEach(() => { vi.restoreAllMocks(); harness.complete.mockReset(); harness.execute.mockReset(); harness.durable.length = 0; });
 
 describe("coordination worker completion boundary", () => {
   it.each(["done", "no_calls", "budget"])("reviews %s exit and retains retrieved evidence", async exit => {
@@ -126,6 +126,56 @@ describe("coordination worker completion boundary", () => {
         expect(result.error).toContain("Changed: docs/report.md");
         expect(await readFile(join(root, "docs/report.md"), "utf8")).toContain("Donald Trump");
       }
+    } finally {
+      process.chdir(cwd);
+      process.exitCode = oldExit;
+      if (tty) Object.defineProperty(process.stdin, "isTTY", tty); else Reflect.deleteProperty(process.stdin, "isTTY");
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps an earlier attempt's durable evidence when the retry writes nothing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "alix-durable-review-"));
+    const cwd = process.cwd();
+    const oldExit = process.exitCode;
+    const tty = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
+    const output = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: true });
+    await mkdir(join(root, "docs"));
+    await writeFile(join(root, "docs/report.md"), "Bola Ahmed Tinubu is Nigeria President.");
+    // An EARLIER attempt of this worker wrote the deliverable; the session log
+    // is durable. The retry itself writes nothing.
+    harness.durable.push({ type: "file.created", payload: { path: "docs/report.md" } });
+    let turns = 0;
+    harness.complete.mockImplementation(async (request: NormalizedRequest) => {
+      if (request.tools?.length === 0) {
+        expect(JSON.stringify(request.messages)).toContain("docs/report.md");
+        return { text: JSON.stringify({ satisfied: true, summary: "Requested deliverable verified", gaps: [] }), toolCalls: [] };
+      }
+      turns++;
+      return turns === 1
+        ? { text: "Checking the deliverable.", toolCalls: [{ id: "search", name: "alix_grep_search", args: { pattern: "report" } }] }
+        : { text: "", toolCalls: [{ id: "done", name: "alix_done", args: {} }] };
+    });
+    harness.execute.mockImplementation(async ({ name, args }: { name: string; args: { path?: string } }) => {
+      const path = join(root, args.path ?? ".");
+      if (name === "file.read") {
+        try { return { kind: "success", content: await readFile(path, "utf8") }; }
+        catch { return { kind: "error", message: "ENOENT" }; }
+      }
+      if (name === "file.exists") {
+        try { await access(path); return { kind: "success", exists: true }; }
+        catch { return { kind: "success", exists: false }; }
+      }
+      return { kind: "success", matches: [{ path: "docs/report.md", lineNumber: 1, line: "Bola Ahmed Tinubu" }] };
+    });
+    try {
+      process.chdir(root);
+      await SubagentCLI.main(["--subagent", "worker", "--mode", "write", "--task-id", "writer", "--session-id", "fixture", "--prompt", "Write Nigeria president report to docs/report.md", "--coordination-run-id", "coord-fixture", "--owned-paths", "docs"]);
+      const result = JSON.parse(String(output.mock.calls.at(-1)?.[0]));
+      expect(result.status).toBe("success");
+      expect(harness.execute.mock.calls.filter(([call]) => call.name === "file.create")).toHaveLength(0);
     } finally {
       process.chdir(cwd);
       process.exitCode = oldExit;

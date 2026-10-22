@@ -43,12 +43,13 @@
   keeps timestamp assertions deterministic.
 - `worker-executor.ts` — In-process runTask executor (CLI default)
 - `coordination-worker-context.ts` — Original run objective and bounded, identity-validated direct dependency results supplied to both worker executors.
-- `default-worker-review.ts` — Invocation-local event capture and objective review for in-process workers; full tool evidence comes from the task-loop observer, not telemetry previews.
+- `default-worker-review.ts` — Invocation-local event capture and objective review for in-process workers; full tool evidence comes from the task-loop observer, not telemetry previews. Mutation evidence is the union of the current attempt's events and the run's durable session log (`toCoordinationEvidenceEvents`), so a retry keeps an earlier attempt's proof.
 
 ## Local Contracts
 
 - `createPlannerGenerator` forwards an explicitly configured positive `context.budget.outputCap` as request `maxOutputTokens`; when absent, the planner leaves that request field unset. Planner calls must honor deliberate per-run output budgeting without changing model selection or stored user configuration.
 - Worker objective review reads persisted mutation paths only within the worker's owned scope, using the shared ownership matcher. Internal review reads turn ask into allow on a cloned executor config; explicit/default read denials, protected paths, and workspace containment remain enforced. Review reads must not request or consume worker approvals. Owned writes may pass the owned-path rule without a second approval; integration tests must distinguish dispatch approvals from exact tool invocations and retry dispatches.
+- **Review evidence spans the whole run, not one attempt.** The review's mutation evidence is the current attempt's events PLUS the run's durable session log, still owned-scoped. A re-created identical file emits no mutation event, so an attempt-scoped set left a correct retry with no evidence and the worker failed for work already on disk — root AGENTS.md ("Durable progress survives failed retries") applied to the worker review. The durable set is owned-scoped, so a sibling's artifact is never this worker's evidence.
 - GraphExecutor runs nodes sequentially, stops on first failure. It is the
   sequential graph-CLI adapter (R3.7), not a second scheduler: scheduling is
   `CoordinationScheduler` alone, and graph-node authorization flows through the

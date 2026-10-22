@@ -90,14 +90,29 @@ The owned-scope rule demonstrably decided: worker B (owned `docs/b.md`) tried to
 write `docs/a.md` and `docs/c.md` and was denied both times — the run's only
 two tool failures, and the reason its siblings' deliverables stayed intact.
 
-## Remaining gap (not fixed)
+## Cross-attempt evidence (fixed)
 
-The review's mutation evidence is scoped to the CURRENT attempt. A retry whose
-deliverable already exists from an earlier attempt therefore has no
-persisted-output evidence, even though the deliverable is on disk and correct.
-Root AGENTS.md ("Durable progress survives failed retries") is not yet honoured
-there. The owned-scope fix removed the trigger in this run; the contract gap
-remains.
+The review's mutation evidence was scoped to the CURRENT attempt. A retry whose
+deliverable already existed from an earlier attempt therefore had no
+persisted-output evidence, even though the deliverable was on disk and correct,
+so root AGENTS.md ("Durable progress survives failed retries") was not honoured
+there. The trigger was structural, not incidental: re-creating identical
+content returns `changed: false` BEFORE the router writes, so it emits no
+mutation event at all and an attempt-scoped evidence set is empty.
+
+Fixed: the review's mutation evidence is now the union of the current attempt's
+events and the run's DURABLE session log, still restricted to the worker's
+owned scope through the shared ownership matcher. The durable set carries an
+earlier attempt's proof (and a killed attempt's, since the log outlives the
+process); the owned scope keeps a sibling's artifact out of this worker's
+evidence. The child worker executor seeds its durable write progress the same
+way, so a retry is not reported as having made no progress and never reaches
+the review with an empty set.
+
+Pinned by `tests/kernel/default-worker-review.vitest.ts` ("keeps an earlier
+attempt's durable evidence when the retry mutates nothing") and
+`tests/agents/subagent-cli-completion.vitest.ts` (the same case for the child
+worker executor). Both fail without the change.
 
 Gate B and publication remain HOLD. Do not substitute another model silently or
 promote a failed run.
