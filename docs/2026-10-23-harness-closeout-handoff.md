@@ -31,7 +31,13 @@ The earlier `pnpm build` failure was not a fixture-validity signal: `tests/run/t
 
 With that build the four-worker fixture produced a retained result at `benchmark/evidence/coordination/four-worker-scripted.json`: four distinct worker IDs and agent IDs, per-worker owned-path leases, one denied out-of-scope write, dependency results for the fourth worker, and completion `{execution: completed, aggregation: generated, outcome: success, verification: verified}`. Recorded `model: null`, `costUSD: null`, `verifiedPaidBaselineSuccesses: 0`. This is scripted-kernel mechanics evidence and does not move Gate B or Q13.
 
-`pnpm check:dox` requires a resolvable committed `--head`; it reported `cannot resolve --head 'HEAD'` on the uncommitted workspace. No checker behavior was changed. It is run after this handoff is committed.
+`pnpm check:dox` requires a resolvable committed `--head`, so it could not run before this handoff was committed (`cannot resolve --head 'HEAD'`). After commit it runs, but its default `--base main` self-compares when the work lands directly on `main` and reports `0 AGENTS.md file(s) changed` — the degenerate pass the root contract warns about, not a result. The meaningful invocation is explicit:
+
+```sh
+node scripts/check-dox-claims.mjs --base 64f2fdafb558a6067989d0012e5c480f28c17a79
+```
+
+That reports 3 claim tokens across 1 changed `AGENTS.md`, all resolving to branch content. No checker behavior was changed.
 
 ## Still required to close
 
@@ -46,7 +52,7 @@ With that build the four-worker fixture produced a retained result at `benchmark
 
 ## Tooling and workspace cautions
 
-- GitNexus was stale/corrupt during this work: impact results returned `UNKNOWN` or unrelated symbols, and prior change detection attributed a critical risk to an empty function identity. Treat graph qualification as unresolved; source searches were used only to confirm literal references, not as a substitute claim of complete graph coverage.
+- GitNexus was stale/corrupt during this work: impact results returned `UNKNOWN` or unrelated symbols, and prior change detection attributed a critical risk to an empty function identity. The build fix reproduced this: `detect-changes --scope all` reported `risk level: critical` with 1 changed symbol named `execute` and 1,231 affected flows, while the actual diff is one `as unknown as` in a test-local object literal whose function is never exported. Treat graph qualification as unresolved; source searches were used only to confirm literal references, not as a substitute claim of complete graph coverage.
 - Do not read protected `.alix` state or credential files directly. Use supported ALiX state tools/CLI if recovering further run evidence.
 - Current branch has uncommitted files listed by `git status --short`; nothing from this pass has been committed or pushed. No production runtime files were intentionally changed. The benchmark/docs DOX indexes were updated for the new durable artifacts.
 
