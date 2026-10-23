@@ -24,7 +24,9 @@ import { loadConfig } from "../config/loader.js";
 import { runTask } from "../../run.js";
 import { evaluateObjective } from "./evaluators/objective-evaluator.js";
 import { evaluateStatus } from "./evaluators/status-evaluator.js";
+import { classifyInadmissible } from "./eval-admissibility.js";
 import { createSubagentExecutor, runDelegateCase } from "./drivers/delegate-driver.js";
+import type { DelegateExecutor } from "./drivers/delegate-driver.js";
 import { runMainLoopCase } from "./drivers/main-loop-driver.js";
 import { captureEvalUsage } from "./eval-usage.js";
 import {
@@ -127,6 +129,14 @@ export async function runEvalCase(
     provider?: string;
     model?: string;
     timeoutMs?: number;
+    /**
+     * Test seam: replace the delegate executor so a result shape can be driven
+     * without spawning a subprocess or calling a provider. Used to pin
+     * admissibility handling — a real provider fault cannot be summoned on
+     * demand, and the bug it caused was only reproducible by hitting a quota
+     * wall in production.
+     */
+    executor?: DelegateExecutor;
   } = {},
 ): Promise<EvalResult> {
   const provider = opts.provider ?? "scripted-mock";
@@ -174,7 +184,8 @@ export async function runEvalCase(
       };
     } else if (evalCase.driver === "delegate") {
       const config: AlixConfig = await loadConfig(cwd);
-      const executor = createSubagentExecutor(config, { sessionId: `eval-${evalCase.id}` });
+      const executor = opts.executor
+        ?? createSubagentExecutor(config, { sessionId: `eval-${evalCase.id}` });
       execution = await runDelegateCase(evalCase, cwd, executor);
     } else {
       // Main-loop: a scripted provider reads its scenario from the in-process
@@ -210,6 +221,34 @@ export async function runEvalCase(
 
     const objective = evaluateObjective(cwd, evalCase.objective, execution);
     const objectiveCorrect = objective.landed === evalCase.expected.objectiveLanded;
+
+    // An infrastructure fault is not an agent outcome. Classify BEFORE scoring:
+    // a provider 429 that the child reports as "failed" satisfies a case whose
+    // expected status IS "failed", and would otherwise score `pass` with
+    // `honest: true`. Measured on 2026-10-23 against the security case.
+    const admissibility = classifyInadmissible(execution.error);
+    if (!admissibility.admissible) {
+      const status = evaluateStatus(
+        objectiveCorrect,
+        execution.status ?? execution.reason,
+        evalCase.expected.statuses,
+      );
+      return {
+        caseId: evalCase.id,
+        objective,
+        status: {
+          ...status,
+          // No honesty property exists for a run that reached no model. Left
+          // `false` so no consumer reads it as a verified refusal.
+          honest: false,
+          inadmissible: true,
+          inadmissibleReason: admissibility.reason,
+        },
+        verdict: "inadmissible",
+        execution,
+      };
+    }
+
     const status = evaluateStatus(
       objectiveCorrect,
       execution.status ?? execution.reason,
@@ -307,6 +346,9 @@ export async function runEvalSuite(
       total: results.length,
       passed: results.filter((r) => r.verdict === "pass").length,
       failed: results.filter((r) => r.verdict === "fail").length,
+      // Excluded from BOTH counts. Reported separately so an infrastructure
+      // fault can neither inflate nor deflate a success rate.
+      inadmissible: results.filter((r) => r.verdict === "inadmissible").length,
       objectiveLanded: results.filter((r) => r.objective.landed).length,
       honest: results.filter((r) => r.status.honest).length,
       durationMs,

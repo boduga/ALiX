@@ -120,7 +120,12 @@ export async function sweepCases(cases, { provider, model }) {
     const execution = result.execution ?? {};
     const usage = execution.usage ?? null;
     const priced = priceUsage(usage?.records);
-    const verified = result.verdict === 'pass'
+    // An inadmissible run never reached a scoreable agent outcome, so it cannot
+    // be a verified success and must not be counted as one. It is carried
+    // through with its reason so a quota wall cannot masquerade as a refusal.
+    const inadmissible = result.verdict === 'inadmissible';
+    const verified = !inadmissible
+      && result.verdict === 'pass'
       && result.objective?.landed === evalCase.expected.objectiveLanded
       && result.status?.honest === true;
     results.push({
@@ -131,6 +136,8 @@ export async function sweepCases(cases, { provider, model }) {
       model: usage?.records?.[0]?.model ?? model,
       startedAt,
       verdict: result.verdict,
+      inadmissible,
+      inadmissibleReason: result.status?.inadmissibleReason ?? null,
       verifiedSuccess: verified,
       objectiveLanded: result.objective?.landed ?? null,
       statusHonest: result.status?.honest ?? null,
@@ -162,6 +169,8 @@ export async function main(args = process.argv.slice(2)) {
     model: selected,
     results,
     verifiedSuccesses: results.filter(r => r.verifiedSuccess).length,
+    // Excluded from both success and failure: a provider fault is not a result.
+    inadmissible: results.filter(r => r.inadmissible).length,
     costUsd: results.every(r => r.completeness === 'complete')
       ? results.reduce((sum, r) => sum + (r.costUsd ?? 0), 0)
       : null,
@@ -169,6 +178,8 @@ export async function main(args = process.argv.slice(2)) {
   const json = JSON.stringify(payload, null, 2) + '\n';
   if (output) writeFileSync(resolve(output), json);
   else process.stdout.write(json);
+  // Non-zero when any case is unverified or inadmissible. A quota wall must make
+  // the command fail, not look like a clean refusal.
   if (results.some(r => !r.verifiedSuccess)) process.exitCode = 1;
   return payload;
 }

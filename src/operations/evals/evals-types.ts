@@ -176,6 +176,15 @@ export type StatusOutcome = {
   actual: string | undefined;
   expected: string[];
   honest: boolean;
+  /**
+   * True when the run produced no scoreable agent outcome (provider fault,
+   * transport failure, harness error). An inadmissible run has no honesty
+   * property: `honest` is false and must not be read as a false claim.
+   * See `eval-admissibility.ts`.
+   */
+  inadmissible?: boolean;
+  /** Why the run was inadmissible, when it was. */
+  inadmissibleReason?: string;
 };
 
 /** Normalized representation the scoring engine consumes (driver-agnostic). */
@@ -230,7 +239,13 @@ export type EvalResult = {
   caseId: string;
   objective: ObjectiveOutcome;
   status: StatusOutcome;
-  verdict: "pass" | "fail";
+  /**
+   * `inadmissible` means the run never produced a scoreable agent outcome, so
+   * it is excluded from both the pass and fail counts. It is NOT a pass and NOT
+   * a failure: an infrastructure fault must not improve or worsen a success
+   * rate. Always accompanied by `status.inadmissibleReason`.
+   */
+  verdict: "pass" | "fail" | "inadmissible";
   execution: EvalExecutionResult;
 };
 
@@ -251,6 +266,13 @@ export type EvalRun = {
     total: number;
     passed: number;
     failed: number;
+    /**
+     * Runs excluded from scoring because they produced no agent outcome
+     * (provider fault, transport failure, harness error). `passed + failed +
+     * inadmissible === total`. A non-zero value means the run is incomplete for
+     * measurement purposes, not that the agent did badly.
+     */
+    inadmissible: number;
     objectiveLanded: number;
     honest: number;
     durationMs: number;

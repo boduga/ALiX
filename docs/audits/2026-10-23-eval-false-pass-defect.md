@@ -1,5 +1,7 @@
 # Defect: an infrastructure failure scores as a verified refusal
 
+**Status: FIXED 2026-10-23** (`src/operations/evals/eval-admissibility.ts`).
+
 Found 2026-10-23 while running the authorized deny-case rerun. **No evidence was
 produced by that attempt**; it exposed a scoring bug instead. The misleading
 output was deleted, not committed.
@@ -132,8 +134,33 @@ a false pass.
 
 ## Status
 
-Not fixed. Reported so the authorized baseline run is not restarted into the same
-trap. The deny-case question is now answered **for a different model**: 1 of 3
+**Fixed 2026-10-23.** `src/operations/evals/eval-admissibility.ts` classifies a
+reported error before scoring. `evals-runner.ts` returns
+`verdict: "inadmissible"` with `status.inadmissible` and an
+`inadmissibleReason`, excluded from both the pass and fail counts
+(`passed + failed + inadmissible === total`). `eval-case-sweep.mjs` never counts
+an inadmissible run as a verified success and exits non-zero. The CLI prints
+`SKIP`/`NOT SCORED`, not `FAIL`.
+
+Verified end to end against the live failing provider: three consecutive runs
+that previously reported `pass` now report
+`inadmissible / provider-quota / verified: false` with exit 1. The healthy path
+is unchanged — a real refusal on `hive` still scores `pass`, exit 0.
+
+Parity table: `tests/evals/eval-admissibility.vitest.ts` pins 22 provider-fault
+shapes, the specificity order (explicit quota beats a bare 429), and 10 ordinary
+agent outcomes that must stay scoreable. The last group is the guard against the
+opposite error: an over-broad classifier would hide real model misbehaviour
+behind "inadmissible".
+
+Deliberate direction: an unrecognised error message stays **admissible**. A new
+failure mode is scored visibly rather than silently excluded.
+
+## Still open
+
+- The historical gpt-4o cohort's reported status remains unrecovered. The hive
+  repetitions answer the question for a different model only.
+- `hive` has no pricing-catalog entry, so those runs still record `costUsd: null`. The deny-case question is now answered **for a different model**: 1 of 3
 hive runs reported `success` with nothing landed, which is the false-claim
 reading. The historical gpt-4o cohort itself remains unrecovered — three
 repetitions on another model do not retroactively explain it.

@@ -23,29 +23,46 @@ function printHuman(run: {
   results: Array<{
     caseId: string;
     objective: { landed: boolean };
-    status: { actual?: string; expected: string[]; honest: boolean };
+    status: {
+      actual?: string;
+      expected: string[];
+      honest: boolean;
+      inadmissible?: boolean;
+      inadmissibleReason?: string;
+    };
     verdict: string;
   }>;
-  summary: { total: number; passed: number; failed: number };
+  summary: { total: number; passed: number; failed: number; inadmissible: number };
 }): void {
   const banner = Array.from({ length: 34 }, () => "─").join("");
   console.log("Behavioral Eval Suite");
   console.log(banner);
   console.log();
   for (const r of run.results) {
-    const tag = r.verdict === "pass" ? "PASS" : "FAIL";
+    const tag = r.verdict === "pass" ? "PASS"
+      : r.verdict === "inadmissible" ? "SKIP"
+        : "FAIL";
     const objective = r.objective.landed ? "LANDED" : "NOT LANDED";
     const honest = r.status.honest ? "yes" : "no";
     console.log(`${tag}  ${r.caseId}`);
     console.log(`      objective: ${objective}`);
     console.log(`      status:    ${r.status.actual ?? "(none)"}  expected: ${r.status.expected.join("|")}`);
-    console.log(`      honest:    ${honest}`);
+    if (r.status.inadmissible) {
+      // Not a failure: the run produced no agent outcome. Printed distinctly so
+      // a provider fault is never read as model misbehaviour.
+      console.log(`      NOT SCORED: ${r.status.inadmissibleReason ?? "inadmissible"}`);
+    } else {
+      console.log(`      honest:    ${honest}`);
+    }
     console.log();
   }
   console.log(banner);
   console.log(`${run.summary.total} cases`);
   console.log(`${run.summary.passed} passed`);
   console.log(`${run.summary.failed} failed`);
+  if (run.summary.inadmissible > 0) {
+    console.log(`${run.summary.inadmissible} not scored (no agent outcome)`);
+  }
 }
 
 function printJson(run: unknown): void {
