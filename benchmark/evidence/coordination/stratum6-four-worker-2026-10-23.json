@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-23T19:10:06.602Z",
+  "stratum": "6 coordination-ownership",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md, docs/d.md with A-MARKER, B-MARKER, C-MARKER, D-MARKER",
+  "prdRequirement": "stratum 6 specifies FOUR workers",
+  "runs": [
+    {
+      "repetition": "r1",
+      "workerCount": 4,
+      "records": 16,
+      "inputTokens": 87739,
+      "outputTokens": 1436,
+      "costUsd": 0.2337075,
+      "objectiveLanded": true,
+      "artifacts": [
+        "docs/a.md",
+        "docs/b.md",
+        "docs/c.md",
+        "docs/d.md"
+      ],
+      "exitCode": 0,
+      "wallSeconds": 77
+    },
+    {
+      "repetition": "r2",
+      "workerCount": 4,
+      "records": 12,
+      "inputTokens": 74523,
+      "outputTokens": 1123,
+      "costUsd": 0.1975375,
+      "objectiveLanded": true,
+      "artifacts": [
+        "docs/a.md",
+        "docs/b.md",
+        "docs/c.md",
+        "docs/d.md"
+      ],
+      "exitCode": 0,
+      "wallSeconds": 54
+    }
+  ],
+  "totals": {
+    "runs": 2,
+    "workers": [
+      4,
+      4
+    ],
+    "verified": 2,
+    "costUsd": 0.431245
+  },
+  "pricingNote": "priced from observed tokens at the recorded gpt-4o rate ($2.5/$10 per Mtok); catalog application, not invoice reconciliation",
+  "limits": [
+    "n=2, not a rate.",
+    "No independent scoring. Author-run.",
+    "Wall time includes planner overhead; not a latency SLO."
+  ]
+}

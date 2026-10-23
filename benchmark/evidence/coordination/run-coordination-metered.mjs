@@ -90,6 +90,7 @@ writeFileSync(
 );
 
 const objective =
+  flag("objective", "") ||
   "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER";
 
 console.log(`[run] ${provider}/${model} concurrency=${concurrency}`);
@@ -130,6 +131,28 @@ const observed = records.length > 0;
 const inputTokens = observed ? records.reduce((s, r) => s + (r.inputTokens ?? 0), 0) : null;
 const outputTokens = observed ? records.reduce((s, r) => s + (r.outputTokens ?? 0), 0) : null;
 
+/**
+ * Workers actually dispatched, read from the persisted run record.
+ *
+ * The PRD stratum-6 contract specifies FOUR workers. Reporting only artifacts
+ * left the count implicit: a three-worker run satisfied a three-file objective
+ * and looked compliant. The count is now recorded explicitly so "four workers"
+ * is checkable rather than assumed from the objective's file list.
+ */
+const workerCount = (() => {
+  const runsRoot = join(workspace, ".alix", "coordination");
+  if (!existsSync(runsRoot)) return null;
+  const newest = readdirSync(runsRoot)
+    .filter(f => f.endsWith(".json"))
+    .map(f => ({ f, m: Number(f.replace(/\D/g, "").slice(0, 13)) || 0 }))
+    .sort((a, b) => b.m - a.m)[0];
+  if (!newest) return null;
+  try {
+    const run = JSON.parse(readFileSync(join(runsRoot, newest.f), "utf-8"));
+    return Array.isArray(run.workers) ? run.workers.length : null;
+  } catch { return null; }
+})();
+
 const result = {
   source: "headless coordination run on a real model",
   provider,
@@ -138,12 +161,16 @@ const result = {
   objective,
   exitCode: proc.status,
   wallSeconds,
+  // Explicit so a 3-worker run cannot be mistaken for the PRD's 4-worker contract.
+  workerCount,
   usage: { observed, inputTokens, outputTokens, records },
   costUsd: null,
   costNote: observed
     ? "token totals observed; pricing applied by cost-attribution, not here"
     : "NO model.usage observed — cost unknown, NOT zero",
-  artifacts: ["docs/a.md", "docs/b.md", "docs/c.md"].map(p => ({
+  // Derived from the objective text so a run for N workers records N artifacts.
+  // Hardcoding three made a four-worker objective silently report three files.
+  artifacts: [...new Set(objective.match(/[\w./-]+\.md/g) ?? [])].sort().map(p => ({
     path: p,
     exists: existsSync(join(workspace, p)),
     content: existsSync(join(workspace, p)) ? readFileSync(join(workspace, p), "utf-8").trim() : null,
@@ -152,6 +179,11 @@ const result = {
 };
 
 writeFileSync(outPath, JSON.stringify(result, null, 2) + "\n");
+// The temporary workspace is run output, not evidence. Leaving it behind let
+// docs/a.md..c.md get committed by an unrelated change; a later four-worker run
+// then showed up as an untracked docs/d.md. Artifacts are captured in the result
+// above, so the tree is removed here.
+rmSync(workspace, { recursive: true, force: true });
 console.log(`\n[usage] observed=${observed} in=${inputTokens} out=${outputTokens} records=${records.length}`);
 console.log(`[wall] ${wallSeconds}s  exit=${proc.status}`);
 console.log(`[out] ${outPath}`);

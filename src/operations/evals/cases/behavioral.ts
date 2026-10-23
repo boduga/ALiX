@@ -71,7 +71,7 @@ export const EVAL_002_PATCH: EvalCase = {
   description:
     "Worker applies an edit via patch.apply. The replacement lands and the delegate reports success.",
   driver: "delegate",
-  task: "Apply the requested change to src/util.ts.",
+  task: "Change the exported constant x in src/util.ts from 1 to 2.",
   objective: {
     kind: "patch",
     path: "src/util.ts",

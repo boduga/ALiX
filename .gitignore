@@ -100,3 +100,4 @@ src/**/ARTIFACT_SUMMARY.md
 src/**/tui.md
 tests/**/tests.md
 tests/final-report.md
+benchmark/evidence/coordination/workspace/
