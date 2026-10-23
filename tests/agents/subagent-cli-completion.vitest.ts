@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, mkdir, writeFile, readFile, unlink, access } from "node:fs/promises";
-import { removeTempDir } from "../helpers/temp.js";
+import { mkdtemp, rm, mkdir, writeFile, readFile, unlink, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { NormalizedRequest } from "../../src/models/providers/types.js";
@@ -48,7 +47,7 @@ describe("child provider call budget", () => {
       process.chdir(cwd);
       process.exitCode = oldExit;
       if (tty) Object.defineProperty(process.stdin, "isTTY", tty); else Reflect.deleteProperty(process.stdin, "isTTY");
-      await removeTempDir(root);
+      await rm(root, { recursive: true, force: true });
     }
   });
 });
@@ -92,7 +91,7 @@ describe("coordination worker completion boundary", () => {
       process.chdir(cwd);
       process.exitCode = oldExit;
       if (tty) Object.defineProperty(process.stdin, "isTTY", tty); else Reflect.deleteProperty(process.stdin, "isTTY");
-      await removeTempDir(root);
+      await rm(root, { recursive: true, force: true });
     }
   });
 
@@ -156,7 +155,7 @@ describe("coordination worker completion boundary", () => {
       process.chdir(cwd);
       process.exitCode = oldExit;
       if (tty) Object.defineProperty(process.stdin, "isTTY", tty); else Reflect.deleteProperty(process.stdin, "isTTY");
-      await removeTempDir(root);
+      await rm(root, { recursive: true, force: true });
     }
   });
 
@@ -206,7 +205,7 @@ describe("coordination worker completion boundary", () => {
       process.chdir(cwd);
       process.exitCode = oldExit;
       if (tty) Object.defineProperty(process.stdin, "isTTY", tty); else Reflect.deleteProperty(process.stdin, "isTTY");
-      await removeTempDir(root);
+      await rm(root, { recursive: true, force: true });
     }
   });
 });
