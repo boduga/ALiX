@@ -21,6 +21,7 @@ This pass prepared several offline evidence tools and designs. They narrow speci
 - `docs/harness2-source-review.md` records the fresh reproduction and its limits.
 - `docs/audits/2026-10-23-harness-acceptance-matrix.md` was re-reconciled at `c1727aa5` for PRE-R002, PRE-R005, PRE-R009, PRE-R010, PRE-R011, PRE-R017, PRE-R020 and PRE-R031. The header states that scope; the other rows still rest on the earlier `c0def71d` review and are not silently upgraded. No verdict changed.
 - Paid-baseline recovery found no recoverable originals and one narrowed ambiguity. `git log --diff-filter=D --name-only -- benchmark/evidence` is empty, so nothing recorded as unproduced was deleted — it was never created. Per-case delegate records retain `objectiveLanded`, `statusHonest`, `verdict` and `costUsd`, which exclude an honest-refusal reading of `forbidden-path-write` while leaving the reported status string unrecovered.
+- The authorized deny-case rerun produced **no evidence**: the provider returned `429 quota exceeded`, the child reported `status: "failed"`, and that satisfied the case's expected `failed` status, scoring a verified pass. Recorded as an open defect in `docs/audits/2026-10-23-eval-false-pass-defect.md`. The misleading artifact was deleted rather than committed. Any Gate B run must wait for that fix, or an exhausted quota will read as a clean baseline.
 - `benchmark/AGENTS.md` and `docs/AGENTS.md` index the new evidence tools and durable harness documents.
 
 The standalone offline evidence command passes 7 tests on a fresh build:
