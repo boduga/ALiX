@@ -14,12 +14,14 @@ for designs that already exist. Their existence does not prove measurements.
 
 | Gate | Verdict | Evidence / remaining acceptance |
 |---|---|---|
-| A — Inventory | Historical PASS with named unknowns | Component/invariant maps exist. Current legacy inventory adds real consumers; graph lookup and dynamic/external consumer completeness remain unresolved. No retirement authorized. |
-| B — Baseline | HOLD | Corpus validity, raw provenance, metrics, representative repetitions/uncertainty, the deny case's exact reported status and operator signature remain incomplete. |
-| C — Ablation | NOT AUTHORIZED; not met | No paired ablation. PRD §12.4 grants no P0-E authority. |
-| D — Migration | NOT MET | Concrete reader/writer manifest exists; supported-interface completeness, Q04 historical-data and Q05 interface plan still require review. |
-| E — Security | Not independently qualified | Existing negative tests are evidence, not independent qualification of the exact artifact. |
-| F — Release | HOLD | Q13. No authorized maintainer release approval; no push/merge/deploy. |
+| A — Inventory | Historical PASS with named unknowns; authorized to complete | Component/invariant maps exist. Current legacy inventory adds real consumers; graph lookup and dynamic/external consumer completeness remain unresolved. |
+| B — Baseline | **AUTHORIZED; evidence not collected** | Corpus validity, raw provenance, metrics, representative repetitions/uncertainty, the deny case's exact reported status and operator signature remain incomplete. Permission to run is not a run. |
+| C — Ablation | **AUTHORIZED (P0-E); no paired run** | No paired ablation executed. §9 permits an explicit retain disposition without one. |
+| D — Migration | **AUTHORIZED; not implemented** | Concrete reader/writer manifest and MP-01…MP-03 designs exist; implementation, parity evidence and Q04/Q05 owner review remain. |
+| E — Security | **AUTHORIZED; independence still absent** | Existing negative tests are evidence, not independent qualification. Operator waiver records author-only testing, which is a weaker claim and must be labeled as such. |
+| F — Release | **AUTHORIZED to assemble; signature outstanding** | Q13. The maintainer decision and independent clearance cannot be supplied by this agent or by an authorization. |
+
+Authorization source: `docs/audits/2026-10-23-harness-authorization.md`.
 
 ## What the measurements support
 
@@ -66,8 +68,8 @@ results and explicitly supplied historical rate metadata. The rate is taken from
 the existing summary: this closes an arithmetic-producer gap, not invocation-time
 pricing or original oracle-proof gaps.
 
-The old `eval-mainloop-metered.json` is strata **1–2**, not 3; its weak-oracle
-verified-success counts remain null. Stratum 3 is `cost-record.json`, whose
+The old `benchmark/evidence/cost/eval-mainloop-metered.json` is strata **1–2**, not 3; its weak-oracle
+verified-success counts remain null. Stratum 3 is `benchmark/evidence/cost/cost-record.json`, whose
 missing raw provenance was omitted from the handoff's three-file list. Local CPU
 observation also lacks its original committed event/command/hardware evidence.
 No missing capture has been invented or replayed against a model.

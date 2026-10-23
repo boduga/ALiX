@@ -14,8 +14,22 @@ fetch or publication performed. This assessment does not certify every interveni
 Reconciled again at `c1727aa5` for PRE-R002, PRE-R005, PRE-R009, PRE-R010,
 PRE-R011, PRE-R017, PRE-R020 and PRE-R031. Reconciled at `9e0ae4dd` for
 PRE-R006 (delegate deny-case: honest-refusal reading excluded; reported status
-string unrecovered). Every other row still reflects the `c0def71d` review and was
-not re-read against the later source.
+string unrecovered).
+
+**Authorization pass (2026-10-23).** The operator authorized all remaining work,
+recorded in `docs/audits/2026-10-23-harness-authorization.md`. This pass re-read **every one
+of the 32 requirement rows** and the six gates against one question: *was this
+row blocked on authority, or on something an approval cannot supply?*
+
+- **Blocked on authority only** → now marked authorized, with the run that still
+  has to happen named (PRE-R007, R008, R024, R032).
+- **Blocked on missing evidence** → unchanged; an approval does not fill it.
+- **Blocked on a third party or on humans** → unchanged, with the reason stated.
+
+Source anchors were re-verified at HEAD for PRE-R003, R004, R015 and the
+coordination completion path. The remaining rows keep their earlier `c0def71d`
+source grounding; this pass changed their *authorization framing*, not their
+source review. No row changed to PASS, because no new measurement was run.
 
 ## Evidence grades
 
@@ -25,7 +39,11 @@ not re-read against the later source.
   implementation and measurements are separate and are not implied.
 - **Recorded:** historical result exists, with the stated reproducibility limits.
 - **Partial / open:** named acceptance work remains.
-- **Blocked:** execution or acceptance requires a separate authorization.
+- **Authorized:** the operator has cleared permission for this work
+  (`docs/audits/2026-10-23-harness-authorization.md`); the evidence or run it needs has still
+  not happened. Authorization is never a PASS.
+- **Blocked:** execution or acceptance requires something an authorization cannot
+  supply — a third party, human reviewers, or a measured number.
 
 These grades are deliberately not a count of approved requirements. A document
 is evidence for a definition, not evidence an experiment or control was executed.
@@ -39,19 +57,19 @@ or `benchmark/` (repository-relative).
 |---|---|---|---|
 | PRE-R001 — pin target/environment/differences | Partial | Entry snapshot above; `harness-component-inventory.md` historical pin; baseline provenance companion | Record exact environment/config and dirty state with each new measured run. Existing paid records do not all carry source/config hashes. The config contract is type-based (`src/operations/config/schema.ts`), not a newly asserted schema version. |
 | PRE-R002 — candidate register with owners/callers/tests | Partial | `harness-component-inventory.md`; [legacy inventory](2026-10-23-harness-legacy-inventory.md); `benchmark/evidence/config-consumer-inventory.json` | Original caller counts are import proxies, and a post-reindex lookup still returns `UNKNOWN` with no impact count for `loadConfig`, so graph coverage remains unanswerable rather than confirmed. The compiler-bound census scanned 1,455 files and resolved 30 schema-bound and 217 other declared-field references, leaving 54 named and 1 dynamic reference unresolved for manual triage; it explicitly claims no graph, runtime, external-consumer or retirement authorization. Subsystem-owner acceptance before retirement remains open. |
-| PRE-R003 — protected invariant map | Supported as a map | `harness-invariant-register.md`, S0-1…S0-7 and named F-series gaps | Keep limitations explicit; this is not independent Gate E qualification. No safeguard retirement follows. |
-| PRE-R004 — decision/transition ownership | Partial | `harness-decision-transition-map.md` | Review live event producers and legacy status aliases at mapping seams; historical map alone cannot certify current complete caller coverage. |
+| PRE-R003 — protected invariant map | Supported as a map; re-checked at HEAD | `harness-invariant-register.md` S0-1…S0-7 and named F-series gaps | Seven S0 entries present. Still a map, not independent Gate E qualification, and no safeguard retirement follows. Gate E authorization does not convert this into an independent result — see `docs/audits/2026-10-23-harness-authorization.md`. |
+| PRE-R004 — decision/transition ownership | Partial; map re-checked at HEAD | `harness-decision-transition-map.md`; `src/coordination/kernel/coordination-types.ts` | Live check confirms both a legacy compatibility field and its replacement: `coordination-types.ts:578` documents a derived user-facing label while "the legacy `status` stays visible for compatibility". `deriveRunCompletion` (`:486`–`:570`) is the single completion authority, mapping execution/aggregation/outcome/verification. The map is therefore accurate at HEAD for this seam. Remaining: no exhaustive census of every legacy status alias across TUI/API/Inspector projections. |
 | PRE-R005 — versioned corpus/independent oracle | Partial | `src/operations/evals/cases/`; objective/status evaluators; `c0def71d` summary regression; `harness-delegate-evidence-validity.md` | Five delegate cases are scripted-only. Do not use them as real-model measurements. PRD stratum 6 specifies four workers; `benchmark/evidence/coordination/four-worker-scripted.json` now exercises four through the real kernel, but with deterministic worker executors and no model, so the stratum-6 real-model corpus row stays unproduced. Local CPU suite rate is unmeasured under recorded hardware disposition. |
-| PRE-R006 — baseline metrics | Partial, Gate B HOLD | `benchmark/evidence/cost/`; `harness-event-metrics.md`; baseline provenance companion | Reproducible inputs, source/config provenance, representative repetition and uncertainty plan, latency/tool/retry/intervention coverage, the deny case's exact reported status, operator acceptance. The deny case is no longer ambiguous in one direction: an honest `failed` report is excluded; which non-failed status occurred needs a priced rerun. Projection availability does not mean every metric was measured. |
-| PRE-R007 — individual prompt/shim ablations | Blocked | `harness-ablation-report.md` | Signed baseline, admissible paired design, independent per-arm S0 checks, explicit P0-E authorization. No ablation run. |
-| PRE-R008 — patch/routing/context comparisons | Open, P2 | Comparison candidates in benchmark/ablation specs | Task-stratified experiments not executed or authorized; preserve deterministic guards. |
+| PRE-R006 — baseline metrics | **Authorized; evidence not collected** | `benchmark/evidence/cost/`; `harness-event-metrics.md`; baseline provenance companion; `docs/audits/2026-10-23-harness-authorization.md` | Permission to run the paid baseline now exists; the run itself has not happened. Still required: qualified corpus, source/config provenance, repetition and uncertainty rationale, latency/tool/retry coverage, the deny case's exact reported status, and operator acceptance. The deny case is no longer ambiguous in one direction: an honest `failed` report is excluded; which non-failed status occurred needs the priced rerun this authorization now permits. |
+| PRE-R007 — individual prompt/shim ablations | **Authorized (P0-E); not executed** | `harness-ablation-report.md`; `docs/harness-shim-catalog.md` | The authority blocker is cleared by `docs/audits/2026-10-23-harness-authorization.md`. What remains is execution: an admissible paired design, independent per-arm S0 checks, and a signed baseline. §9 permits an explicit retain disposition instead of a run if candidates are simply kept. |
+| PRE-R008 — patch/routing/context comparisons | **Authorized; not executed** | Comparison candidates in benchmark/ablation specs | Task-stratified experiments are now permitted but have not been run. Preserve deterministic guards; no comparative result exists. |
 | PRE-R009 — shim register | Partial | `harness-shim-catalog.md` register (HC-01…HC-05, SH-01…SH-05); `harness-dependency-retirement-map.md` | Owner, trigger, applicability, static consumers, tests and keep/retirement criterion now recorded per shim, with HC-04 pinned as a non-removable control. Runtime usage, per-model frequency, incremental cost and causal effectiveness remain unmeasured; static presence is not usage. No telemetry expansion authorized here. |
 | PRE-R010 — legacy consumers/formats/migration paths | Partial | [Legacy inventory](2026-10-23-harness-legacy-inventory.md); `benchmark/evidence/config-consumer-inventory.json`; `harness-cutover-plan.md` | Concrete runtime/display/load/persistence consumers are listed. The config census narrows declared-field consumers but names no external or dynamic one, so graph-qualified completeness, dynamic access and legacy alias compatibility policy stay unresolved. |
 | PRE-R011 — reversible consolidation packages | Partial design | `harness-cutover-plan.md` (runtime reader parity, output-interface retirement, historical JSON migration); legacy inventory migration sequence | Three design-only packages with dependency order and a rollback per step. Every selected concern still needs complete consumer parity, Q04/Q05 treatment and approval; a step without a rollback is marked as needing design first. No production migration performed. |
 | PRE-R012 — independent worker authorization | Recorded controls; qualification open | `harness-invariant-register.md`; worker-port, ownership, approval crash/single-use tests | Independent Gate 7/F8b acceptance on exact target remains separate. Author's passing tests do not provide independent clearance. |
 | PRE-R013 — audit/design/experiment/production separation | Supported for this pass | This pass changes audit artifacts/offline arithmetic only; explicit no-spend/no-publication scope | Keep previous authorized product fixes distinct from audit-only work. This PRD itself grants no production authority. |
-| PRE-R014 — readiness with blockers/evidence | Supported as a report | This matrix and `harness-readiness-report.md` | No implication that all requirements or gates pass. Operator closure/signature remains absent. |
-| PRE-R015 — attention definitions | Design supported | `harness-operator-attention-metrics.md`, M-1…M-5 | All attention measurements remain unmeasured; version/approve definitions before using them in comparisons. Defining metrics does not require a renderer. |
+| PRE-R014 — readiness with blockers/evidence | Supported as a report | This matrix, `harness-readiness-report.md`, `docs/audits/2026-10-23-harness-authorization.md` | No implication that all requirements or gates pass. The operator authorization is now recorded; the closure signature and independent qualification remain absent. |
+| PRE-R015 — attention definitions | Design supported; re-checked at HEAD | `harness-operator-attention-metrics.md`, M-1…M-5 | Five metric definitions present. All attention measurements remain unmeasured; defining a metric is not observing it, and no number changes because the work is authorized. |
 | PRE-R016 — decision brief contract | Design supported | `harness-decision-brief-contract.md` fields and missing-evidence rules | Owner review; no Workbench/HTML implementation authorized or needed to claim a written contract exists. |
 | PRE-R017 — compare presentations | Open | Decision brief §4 explicitly says no comparison run; `harness-review-evaluation-protocol.md` scoring protocol | Paired/blinded human review tasks and recorded accuracy, time, calibration and effort. A scorer and frozen rubric exist, but human observations are n=0 and the public `scope-claim-v1` fixture is training material, not a holdout. Interactive views are optional, not a prerequisite for text/diagram comparison. |
 | PRE-R018 — governance across representations | Design supported; demonstration open | Decision brief §2 preserves existing authenticated binding/consume path | Review contract against current approval authority; no new representation was implemented or qualified. |
@@ -60,7 +78,7 @@ or `benchmark/` (repository-relative).
 | PRE-R021 — upstream/ALiX component map | Design supported; owner review open | `harness2-source-review.md` eight components and duplicate-authority findings; prompt assembly confirmed in `src/execution/run/task-loop/context-phase.ts:42` | Subsystem-owner review of mapping and duplicate-authority findings. No imported framework or performance claim. |
 | PRE-R022 — candidate/probe evidence contract | Design supported | `harness-optimization-experiment-spec.md` §1 | Review missing-field/failure semantics and approve before any probe; no executed candidate. |
 | PRE-R023 — paired benchmark specification | Design supported | Experiment spec §2 | Resolve baseline validity, failure accounting, uncertainty and current task matrix before execution. No comparative result exists. |
-| PRE-R024 — isolation qualification | Open, blocks model-backed probes | Experiment spec §3 qualification table | Benchmark-specific hidden-rubric, sandbox/egress, secrets, replay and negative-test evidence. Existing platform controls are not qualification of a new probe. |
+| PRE-R024 — isolation qualification | **Authorized; qualification not performed** | Experiment spec §3 qualification table | Model-backed probes are now permitted, but no benchmark-specific isolation evidence exists: hidden-rubric, sandbox/egress, secrets, replay and negative tests are still unwritten. Existing platform controls are not qualification of a new probe, and running a probe without this would produce inadmissible results. |
 | PRE-R025 — recursion/order/holdouts/rollback | Design supported | Experiment spec §§4–5 | Owner-approved budgets and holdout protocol still required before execution. Proposed sample floors are not approved promotion thresholds. |
 | PRE-R026 — recommendation without adoption | Supported as recommendation | `harness-optimization-readiness.md`: adopt nothing, defer probes, reject unsafe posture | Independent authority/security review remains unrecorded. Recommendation grants no new capability and clears no gate. |
 | PRE-R027 — supervision contract inventory | Design supported; review open | `harness-supervision-authority-map.md` | Validate current source mappings and trace coverage. `ask` is an enforcing permission mode; it does not mean every tool call requires approval. |
@@ -68,18 +86,22 @@ or `benchmark/` (repository-relative).
 | PRE-R029 — independent promotion evaluation design | Design supported | Eligibility schema §2 | Independent evaluation and policy-owner thresholds not approved/executed. No promotion authority follows from a proposed repetition count. |
 | PRE-R030 — downgrade/suspension definition | Design supported | Eligibility schema §3 trigger table | Define concrete auditable fallback bindings before implementation; automatic downgrade is not implemented. |
 | PRE-R031 — reviewer/sampling/risk benchmark | Open | Eligibility schema §2.1; attention definitions; `harness-review-evaluation-protocol.md` | Measures named and the offline scorer covers joint coverage so a failed review still counts in the denominator; no reviewer-time, missed-risk, exception or sampling result has been observed. |
-| PRE-R032 — non-bypass demonstration | Open | Eligibility schema §§4–5 test matrix | Matrix is specified, not executed. Existing authorization tests do not demonstrate a supervision feature that does not exist. Keep implementation deferred and claim only design. |
+| PRE-R032 — non-bypass demonstration | Open; authorized to execute | Eligibility schema §§4–5 test matrix | Matrix is specified, not executed. Authorization does not supply a supervision feature that does not exist; existing authorization tests still do not demonstrate it. Claim design only. |
 
 ## Gates and decision sequence
 
+Authorization is recorded in `docs/audits/2026-10-23-harness-authorization.md`. It unblocks
+the work; it does not supply a result. Gates B–F are therefore **authorized but
+unmet**, not passed.
+
 | Gate | Current disposition | Required next evidence/authority |
 |---|---|---|
-| A | Historical PASS with named unknowns | Updated consumer inventory does not authorize deletion; current graph/source/owner gaps remain named. |
-| B | HOLD | Qualified corpus and metrics, reproducible inputs, repetition/uncertainty rationale, denied-write reporting evidence, operator signature. |
-| C | Not authorized; unmet | Separate P0-E authorization after baseline acceptance; paired evidence, otherwise retain candidates. |
-| D | Unmet | Complete supported reader/writer inventory and reviewed Q04 historical-data / Q05 interface plan. `harness-cutover-plan.md` now designs MP-01…MP-03 for both questions, but nothing is implemented, reviewed or approved. |
-| E | Not independently qualified | Separate independent security track tied to exact artifact. |
-| F | HOLD | Technical evidence plus independent clearance plus explicit maintainer authorization (Q13). |
+| A | Historical PASS with named unknowns | Authorized to complete. Updated consumer inventory does not authorize deletion; graph/source/owner gaps remain named and unfilled. |
+| B | **Authorized; evidence not yet collected** | Run the qualified corpus with repetitions and an uncertainty rationale, rerun the deny case to capture its reported status, then record operator acceptance. Authorization exists; none of those artifacts does. |
+| C | **Authorized (P0-E); no paired run exists** | Design both arms with HC-01 mandatory coordination routing preserved, run them, then accept or retain. §9 permits an explicit retain disposition without an ablation. |
+| D | **Authorized; implementation not started** | Implement MP-01…MP-03, produce reader/writer parity evidence, obtain Q04/Q05 owner approval. Design-only today. |
+| E | **Authorized; independence still absent** | Run the security qualification. An operator waiving independence records acceptance of author-only testing — a weaker claim that must be labeled as such, not reported as independent clearance. |
+| F | **Authorized to assemble; signature outstanding** | Build the technical packet, then obtain independent clearance and the maintainer decision (Q13). The signature cannot be supplied by this agent or by an authorization. |
 
 ## Executable next work
 

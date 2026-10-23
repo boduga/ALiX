@@ -231,7 +231,9 @@ for all 32 requirements. Written definitions and recommendations exist, while
 measurements, complete consumer/provenance review, independent qualification and
 operator acceptance remain partial. No requirement is waived by this assessment.
 
-**Gate B status: HOLD.** Historical records cover ten strata at differing evidence
+**Gate B status: AUTHORIZED; NOT MET.** The operator authorized the remaining
+work on 2026-10-23 (`audits/2026-10-23-harness-authorization.md`); that clears
+permission, not evidence. Historical records cover ten strata at differing evidence
 levels; the generator's legacy schema admits cost records in 9/10. These are
 artifact counts, not qualified baseline coverage. Four-worker coordination is not
 established by three-worker real-model records; a scripted four-worker fixture now
