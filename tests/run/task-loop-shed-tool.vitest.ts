@@ -245,7 +245,7 @@ it('does not restore the nudged answer after an intervening tool turn', async ()
   const { deps } = await makeTestDeps({
     provider, task: 'Describe the export.', maxIterations: 4,
     providerTools: [{ name: 'alix_file_read', description: 'Read a source file', input_schema: { type: 'object', properties: { path: { type: 'string' } } } }],
-    executor: { execute: async () => ({ kind: 'success', content: 'The export was corrected.' }) } as TaskLoopDeps['executor'],
+    executor: { execute: async () => ({ kind: 'success', content: 'The export was corrected.' }) } as unknown as TaskLoopDeps['executor'],
   });
   const result = await runTaskLoop(deps);
   expect(result.summary).not.toContain('kestrel-9');

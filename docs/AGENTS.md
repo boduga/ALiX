@@ -15,6 +15,9 @@ subtrees below.
 | `docs/architecture/` | Architecture plans, specs, checkpoints, reports |
 | `docs/audits/` | Durable architecture evidence — evidence-graded audits, document inventory/classification, phase registry, SRAP readiness |
 | `docs/audits/2026-10-23-harness-acceptance-matrix.md` | Point-in-time PRE-R001–R032 evidence reconciliation; companions record baseline provenance and legacy config consumers. Definitions, historical observations, executed tests, independent qualification and operator acceptance remain distinct. |
+| `docs/harness-shim-catalog.md` | Harness shim owners, triggers, tests, retirement criteria, and measurement limits. |
+| `docs/harness-review-evaluation-protocol.md` | No-model scoring protocol for future human review; protocol readiness does not imply observations or qualification. |
+| `docs/harness-cutover-plan.md` | Design-only migration packages and their prerequisites; not implementation approval. |
 | `docs/superseded/` | Relocated superseded material, subtree-intact |
 | `docs/jev/` | Jev / System One integration docs |
 | `docs/superpowers/` | Implementation specs and plans |

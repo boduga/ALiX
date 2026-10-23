@@ -1,0 +1,164 @@
+{
+  "recordedAt": "2026-10-23T07:31:22.108Z",
+  "baseCommit": "64f2fdafb558a6067989d0012e5c480f28c17a79",
+  "schemaVersion": 1,
+  "stratum": 6,
+  "evidenceClass": "scripted-real-kernel-mechanics",
+  "scripted": true,
+  "model": null,
+  "costUSD": null,
+  "verifiedPaidBaselineSuccesses": 0,
+  "coordinationRunId": "coord_61e61207-2890-446e-84d6-8cab9787119a",
+  "completion": {
+    "execution": "completed",
+    "aggregation": "generated",
+    "outcome": "success",
+    "verification": "verified"
+  },
+  "workers": [
+    {
+      "id": "worker_1a0cc67e-baa4-4530-9a58-f78690981558",
+      "agentId": "alix#1",
+      "status": "completed",
+      "resultRef": ".alix/coordination/results/worker_1a0cc67e-baa4-4530-9a58-f78690981558.json",
+      "dependencies": [],
+      "ownedPaths": [
+        "docs/a.txt"
+      ]
+    },
+    {
+      "id": "worker_95d17ffa-2d08-4cdc-b3cc-03f23faf150c",
+      "agentId": "alix#2",
+      "status": "completed",
+      "resultRef": ".alix/coordination/results/worker_95d17ffa-2d08-4cdc-b3cc-03f23faf150c.json",
+      "dependencies": [],
+      "ownedPaths": [
+        "docs/b.txt"
+      ]
+    },
+    {
+      "id": "worker_446e2209-cf52-474c-a21d-c638b60bae9a",
+      "agentId": "alix#3",
+      "status": "completed",
+      "resultRef": ".alix/coordination/results/worker_446e2209-cf52-474c-a21d-c638b60bae9a.json",
+      "dependencies": [],
+      "ownedPaths": [
+        "docs/c.txt"
+      ]
+    },
+    {
+      "id": "worker_e7acf10e-938b-40ec-8988-506a34f69a39",
+      "agentId": "alix#4",
+      "status": "completed",
+      "resultRef": ".alix/coordination/results/worker_e7acf10e-938b-40ec-8988-506a34f69a39.json",
+      "dependencies": [
+        "worker_1a0cc67e-baa4-4530-9a58-f78690981558",
+        "worker_95d17ffa-2d08-4cdc-b3cc-03f23faf150c",
+        "worker_446e2209-cf52-474c-a21d-c638b60bae9a"
+      ],
+      "ownedPaths": [
+        "docs/d.txt"
+      ]
+    }
+  ],
+  "outcomes": [
+    {
+      "workerId": "worker_1a0cc67e-baa4-4530-9a58-f78690981558",
+      "outcome": "success"
+    },
+    {
+      "workerId": "worker_95d17ffa-2d08-4cdc-b3cc-03f23faf150c",
+      "outcome": "success"
+    },
+    {
+      "workerId": "worker_446e2209-cf52-474c-a21d-c638b60bae9a",
+      "outcome": "success"
+    },
+    {
+      "workerId": "worker_e7acf10e-938b-40ec-8988-506a34f69a39",
+      "outcome": "success"
+    }
+  ],
+  "observations": [
+    {
+      "workerId": "worker_1a0cc67e-baa4-4530-9a58-f78690981558",
+      "agentId": "alix#1",
+      "path": "docs/a.txt",
+      "dependencies": [],
+      "dependencyResults": [],
+      "leaseIds": [
+        "own_b80f9a5b"
+      ],
+      "outsideDenied": true
+    },
+    {
+      "workerId": "worker_95d17ffa-2d08-4cdc-b3cc-03f23faf150c",
+      "agentId": "alix#2",
+      "path": "docs/b.txt",
+      "dependencies": [],
+      "dependencyResults": [],
+      "leaseIds": [
+        "own_27dabad3"
+      ],
+      "outsideDenied": true
+    },
+    {
+      "workerId": "worker_446e2209-cf52-474c-a21d-c638b60bae9a",
+      "agentId": "alix#3",
+      "path": "docs/c.txt",
+      "dependencies": [],
+      "dependencyResults": [],
+      "leaseIds": [
+        "own_173212a1"
+      ],
+      "outsideDenied": true
+    },
+    {
+      "workerId": "worker_e7acf10e-938b-40ec-8988-506a34f69a39",
+      "agentId": "alix#4",
+      "path": "docs/d.txt",
+      "dependencies": [
+        "worker_1a0cc67e-baa4-4530-9a58-f78690981558",
+        "worker_95d17ffa-2d08-4cdc-b3cc-03f23faf150c",
+        "worker_446e2209-cf52-474c-a21d-c638b60bae9a"
+      ],
+      "dependencyResults": [
+        {
+          "workerId": "worker_1a0cc67e-baa4-4530-9a58-f78690981558"
+        },
+        {
+          "workerId": "worker_95d17ffa-2d08-4cdc-b3cc-03f23faf150c"
+        },
+        {
+          "workerId": "worker_446e2209-cf52-474c-a21d-c638b60bae9a"
+        }
+      ],
+      "leaseIds": [
+        "own_774b4df1"
+      ],
+      "outsideDenied": true
+    }
+  ],
+  "outputs": [
+    {
+      "path": "docs/a.txt",
+      "content": "A-MARKER\n",
+      "expected": "A-MARKER\n"
+    },
+    {
+      "path": "docs/b.txt",
+      "content": "B-MARKER\n",
+      "expected": "B-MARKER\n"
+    },
+    {
+      "path": "docs/c.txt",
+      "content": "C-MARKER\n",
+      "expected": "C-MARKER\n"
+    },
+    {
+      "path": "docs/d.txt",
+      "content": "D-MARKER\n",
+      "expected": "D-MARKER\n"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # Harness cutover plan (P0 — deliverable 5, PRE-R010 / PRE-R011)
 
 **Status:** DESIGN ONLY. Nothing here is approved, scheduled, or authorized.
-**Artifact:** branch `main`, commit `63532d7594f8f806c04571a4ac49d5fe8258c9ce`.
+**Design source snapshot:** `64f2fdaf`; concrete consumer manifest in `audits/2026-10-23-harness-legacy-inventory.md`.
 **Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` §5 (PRE-R010/R011), §8 (P0-F, P0-H), §9.
 **Publication / simplification:** HOLD (Q13). This plan executes nothing.
 
@@ -63,6 +63,9 @@ dead-module gates as the tripwire.
 HC-01 (prompt sections) and HC-03 (patch format). **No removal is proposed here**;
 `harness-ablation-report.md` records why no comparison is admissible yet. These
 cannot enter a cutover until Gate C produces a keep/retire decision.
+`harness-shim-catalog.md` also identifies mandatory coordination routing inside
+HC-01's Parallel Execution section: whole-section deletion is unsafe. Preserve
+that contract even in a future authorized advisory-text comparison.
 
 ### 2.3 S0/S1 (preserve — never cutover targets)
 
@@ -94,18 +97,207 @@ A cutover step that touches authorization without that table is unapprovable.
 
 ---
 
-## 4. Migration of historical data (Q04) and breaking interfaces (Q05)
+## 4. Concrete migration packages — Q04 / Q05 design only
 
-Gate D requires both to cover **every supported reader/writer**. State:
+These are proposals, not execution approval. Supported surfaces to qualify are
+packaged CLI, daemon, Inspector and user/project configuration files. External
+deep-import consumers remain **unknown**; this document does not declare them
+unsupported. Graph-qualified completeness and owner review remain prerequisites.
+No compatibility promise is withdrawn here. Loading historical input must remain
+non-mutating, and legacy input support is distinct from runtime output removal.
 
-| Requirement | State | Blocker |
-|---|---|---|
-| Q04 — historical-data migration | **not designed** | Reader/writer inventory incomplete (F-05). Cannot design a migration over an unknown data shape |
-| Q05 — breaking-interface plan | **not designed** | Depends on the same inventory; also needs the Gate E security clearance for any interface reachable by a governance path |
+Graph-first file impact returned `risk: UNKNOWN`, ambiguous candidates with
+`maxRisk: CRITICAL`, including unrelated symbol identities on this document's
+file UID. Those counts/callers/processes are unusable; risk remains unresolved.
+Literal inbound references were confirmed in the PRD, optimization experiment
+spec, readiness report, acceptance matrix and legacy inventory. This edit changes
+only design text; no runtime symbol or interface was changed.
 
-No migration script, schema version bump, or interface deprecation is proposed
-here. Proposing one against an uninventoried reader set is how silent data loss
-happens.
+### MP-01 — Runtime reader parity
+
+**Owner role:** configuration maintainer, with worker/runtime and CLI reviewers.
+**Dependency:** reviewed PRE-R010 manifest and repaired graph coverage before
+implementation; baseline/gates plus separate cutover authorization before any
+runtime change. Keep final projector throughout this package.
+
+**Input → output:** normalized configuration and role/style requests → existing
+model-selection/display return shapes sourced from canonical `models` via
+`createModelResolver`, without reading derived tier assignments. No disk output.
+Preserve `subagents.enabled`/`roles`, model-setting overrides, legacy seeding,
+missing-versus-invalid-present behavior and copy isolation.
+
+**Affected files/contracts:**
+
+- `src/agents/subagent-manager.ts`: migrate `getRoleModel` and spawn model
+  consumption without changing role/style precedence or delegation enablement.
+- `src/operations/config/loader.ts`: migrate `requireModel` validation to
+  canonical resolution; preserve `requireModel: false` and all input overlays.
+- `src/interfaces/cli/commands/config.ts`: migrate model display, preserving API
+  key redaction and avoiding aliases that mutate canonical assignments.
+- `src/interfaces/cli/commands/init.ts`: review unresolved/default fallback;
+  never invent a provider/model when `DEFAULT_CONFIG.model` is undefined.
+- `src/operations/config/model-resolver.ts`: existing authority; no second
+  resolver or alternate fallback policy. `schema.ts`, `defaults.ts`,
+  `subagent-config.ts` and persistence formats remain compatible in this package.
+
+**Verification proposal:** update `tests/agents/subagent-manager.test.ts`,
+`tests/config-loader.test.ts`, `tests/config/model-resolver.test.ts`,
+`tests/cli/subagent-precedence.vitest.ts`, `tests/cli-discover.test.ts` and
+`tests/tui/workbench/coordination-runtime-integration.vitest.ts`. Explicit cases:
+six tiers; default and explicit role/style selection; missing assignments;
+invalid-present tier/default must not fall through; disabled delegation and
+custom roles preserved; returned model objects independently copied; output
+redacts secrets; load-only performs no write. Add integration coverage for
+packaged CLI, daemon, Inspector and worker startup/restart with identical fixture
+assignments; those additional cases are proposed, not claimed as existing tests.
+
+**Stop / rollback:** any changed selected model, fallback error, behavior,
+redaction, restart result or new boundary violation stops adoption. Revert reader
+commit and its fixtures together. Projector and disk input remain intact, so no
+down-migration is required. Record before/after fixture parity for reviewer.
+
+### MP-02 — Runtime output-interface retirement
+
+**Owner role:** configuration/API maintainer; CLI, daemon and Inspector owners
+sign supported-surface inventory; compatibility owner resolves external users.
+**Dependency:** MP-01 parity, complete owner-reviewed consumers including dynamic
+and serialization paths, approved Q05 compatibility/version policy and explicit
+P0-H authorization. External deep-import uncertainty blocks removal unless an
+owner approves a documented treatment; silence is not consent.
+
+**Input → output:** canonical runtime config → runtime type/object without
+top-level `model` or six derived `subagents.<tier>` outputs. Historical JSON
+`model` and `modelTiers` ingestion remains supported; `subagents.enabled`/`roles`
+survive. No data rewrite, schema-version bump or input deprecation is bundled.
+
+**Affected files/contracts:** final `normalizeModelConfig` projection in
+`src/operations/config/loader.ts`; runtime versus persisted type distinction and
+legacy input seeding in `src/operations/config/schema.ts`; defaults in
+`src/operations/config/defaults.ts`; compatibility stripping in
+`src/operations/config/persistence.ts`. MP-01 consumers and any newly discovered
+serializer/plugin consumer must be added to manifest before removal. Keep
+`src/operations/config/mutation.ts` rejection of direct projection writes; removal
+does not authorize previously forbidden mutation paths.
+
+**Q05 delivery:** publish proposed old/new object examples and affected packaged
+CLI/daemon/Inspector/config-file behavior for owner review; declare transition
+version and deprecation interval only after owners choose them (none invented
+here). Require exact release/consumer inventory and documented external-consumer
+decision. Retain compatibility output until that decision is approved. Config
+file aliases are governed by MP-03, not removed with output fields.
+
+**Verification proposal:** `tests/config-loader.test.ts`,
+`tests/config/model-invariant.test.ts`, `tests/config/persistence.test.ts`,
+`tests/config/mutation.test.ts`, MP-01 suites and
+`tests/config/signing.test.ts`: canonical runtime model selections unchanged;
+target output projections absent; historical input accepted; behavior preserved;
+all standard and atomic mutation writers persist canonical assignments; unrelated
+writes do not erase legacy-only assignment; projection mutation still denied;
+signed-config trust and load-only disk bytes unchanged. Run unused/dead-module
+and boundary gates after edits; a text-search zero alone is insufficient proof.
+
+**Stop / rollback:** any unowned consumer, model-selection mismatch, changed
+supported surface or trust/signature regression stops retirement. Revert output
+type/projector and dependent consumers as one reviewed compatibility unit; reader
+migration can remain only if old projector remains compatible. No disk migration
+occurred, so restore code to recover old outputs. Require both old/new runtime
+loads over unchanged historical fixtures before accepting rollback.
+
+### MP-03 — Opt-in historical JSON migration protocol
+
+**Owner role:** config persistence maintainer; signing/trust and credential-store
+security reviewers approve data handling. **Dependency:** historical sample
+inventory, selected target/old release compatibility policy, reviewed transaction
+and recovery design, independent security qualification, explicit P0-H approval.
+Can be designed independently of MP-02; must not be used to force input removal.
+
+**Input → output:** explicitly selected user/project JSON containing legacy
+`model`, `modelTiers`, or tier projections → staged canonical assignments and
+unchanged behavior/unrelated fields, plus private backup and migration manifest.
+Loading alone still writes nothing. Existing seeding and compatibility inputs
+remain until separate approved deprecation. Model-setting environment overrides
+(`ALIX_<TIER>_PROVIDER`/`MODEL`, `ALIX_STREAMING`) remain supported; provider
+API-key resolution stays store-only.
+
+**Affected existing boundaries:** `src/operations/config/schema.ts`
+`seedLegacyModelDefault`; `loader.ts` legacy merges/normalization;
+`persistence.ts` `withoutDerivedModelProjections` and `writeConfig`;
+`mutation.ts` separate atomic persistence path; `profile-patch.ts`;
+`src/interfaces/cli/commands/init.ts`, `models.ts`, `config.ts`;
+`src/models/model-install.ts`; `src/operations/config/signing.ts`. A future
+migration command/module needs its own impact/DOX review; no executable utility
+or new CLI flag exists by virtue of this plan. `writeConfig` is a simple file
+write today: do not claim it already provides a multi-file migration transaction.
+
+**Proposed protocol:**
+
+1. Explicitly select files and scope; reject symlink/path substitutions and
+   unauthorized locations. Read immutable preimages; record private content
+   hashes, file permissions, original schema/assignments and active trust state.
+   Dry-run validates schema and compares selected models, emits only redacted
+   changes/conflicts, and makes **zero writes**, backups or credential lookups
+   that alter state. Do not fold user/project files into one merged output.
+2. Collision policy: canonical assignment wins when valid; legacy seeds only
+   absent canonical default/tier. Invalid-present canonical assignment is an
+   error, never silently repaired. Conflicting legacy representations stop for
+   explicit resolution; preserve originals. Unknown fields remain byte-preserved
+   where possible and semantically preserved otherwise; duplicate JSON keys or
+   lossy/unrepresentable old-release fields stop migration.
+3. Verify existing signatures and trust before transformation. Missing/untrusted
+   key, invalid signature or anti-rollback denial stops signed migration; never
+   trust a new key or disable verification automatically. Staged transformed
+   config must be validated, signed through existing authorized signing
+   authority, and checked under original trust policy. Signature/version/
+   provenance updates belong to the same reviewed recovery unit as config.
+4. Before mutation, create restrictive, same-owner backups plus transaction
+   manifest. Recheck preimage hashes immediately before commit; concurrent
+   changes abort. Stage files on same filesystem with restrictive permissions;
+   flush staged contents and recovery metadata. A rename of one file is not
+   atomicity for config/signature/provenance/version stamp together. Until a
+   reviewed journal/lock/recovery protocol can guarantee readers see a verified
+   old or new generation, multi-file commit remains blocked. Inject failures
+   before/after each stage in tests; interrupted startup must fail closed or
+   recover verified generation, never execute mixed state.
+5. Secrets: credential-store entries and `cred://` references remain unchanged.
+   Never resolve/copy keys into reports, repository files, argv or environment.
+   Treat original config backups as secrets when historical input contains
+   literals; keep them private outside repo with restrictive permissions and an
+   operator-approved retention policy. Legacy secret relocation is a separate
+   credential migration, never an incidental model-field edit.
+6. Idempotence: content/generation-bound manifest identifies completed migration;
+   second run reports no change and does not create another signature, provenance
+   event or version increment. Partial manifest requires verified recovery, not
+   guessing success. Report input/output hashes privately, schema/generation,
+   validation results, backup location and exact redacted outcome.
+
+**Q04 down-migration:** before adoption, load staged output with chosen old and
+new release fixtures. Prefer restoring verified byte backup when compatible
+with current trust generation. Do **not** lower anti-rollback stamp to revive an
+old signature. If restoration needs current monotonic generation, rebuild old
+representation from backup and sign an authorized new generation, preserving
+current trust rules. Stop if old release cannot read representation, current
+canonical data cannot be represented losslessly, post-migration edits conflict,
+backup/key unavailable, or signing authority absent. Never overwrite newer user
+changes with backup. Exact target-version decision remains owner approval input.
+
+**Verification proposal:** extend `tests/config-loader.test.ts`,
+`tests/config/model-invariant.test.ts`, `tests/config/persistence.test.ts`,
+`tests/config/mutation.test.ts`, `tests/config/signing.test.ts` with fixtures for
+legacy-only/default/tier mixtures, canonical collisions and invalid-present
+values, behavior/custom roles, unknown fields, duplicate-key rejection, missing
+and revoked/untrusted keys, tampering/rollback, credential references/literals,
+dry-run zero writes, concurrent modification, interrupted transaction at every
+stage, retry idempotence, secret-free diagnostics and permission preservation.
+Old/new release round-trip and rollback-after-user-edit conflict cases must pass.
+These protocol tests and migration utility are **not implemented** by this doc.
+
+### Package acceptance / outstanding approval
+
+Q04/Q05 now have concrete proposals, affected files, parity cases, recovery and
+stop criteria. Gate D remains **NOT MET**: graph/dynamic/external completeness,
+target-version compatibility decisions, owner review, executable transaction
+qualification and security approval are unresolved. No package may be executed,
+no alias removed, and no sign-off inferred from this design.
 
 ---
 
@@ -124,7 +316,8 @@ happens.
 ## 6. Explicit non-decisions
 
 - **No retirement is approved.** HC-11 is blocked, HC-01/HC-03 are unmeasured.
-- **No migration is designed.** Q04/Q05 await the reader inventory.
+- **Migration packages are proposed, not approved or implemented.** Q04/Q05
+  completeness and owner review remain open.
 - **No production change is authorized.** §12.4 and Q13 both stand.
 - **No dates.** Duration estimates would be invented; the PRD forbids fabricated
   numeric targets, and a schedule derived from nothing is the same defect.
@@ -135,8 +328,8 @@ happens.
 
 **Gate D: NOT MET.** PRE-R010 is partially met (the one L0 candidate is
 characterised and its concrete readers are enumerated, but supported-interface
-completeness remains unresolved); PRE-R011 has a preliminary reversible reader
-migration sequence in the legacy inventory, not an approved complete cutover plan.
+completeness remains unresolved); PRE-R011 now has three concrete design-only
+packages, not an approved or qualified complete cutover plan.
 
 The plan's value today is the ordering constraint it records: **nothing downstream
 of P0-D is schedulable while Gate B is HOLD**, and the first real step is a reader

@@ -1,7 +1,7 @@
 # Harness² source review (deliverable 9, PRE-R020–R021)
 
 **Status:** Reproduced (demo) / contract map complete / **no ALiX change proposed**.
-**Artifact:** branch `main`, commit `63532d7594f8f806c04571a4ac49d5fe8258c9ce`.
+**Fresh reproduction artifact:** `benchmark/evidence/harness2-reproduction.json` (2026-10-23).
 **Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` §13.1 (PRE-R020, PRE-R021), §13.2–§13.3.
 **Publication / simplification:** HOLD (Q13).
 
@@ -31,55 +31,57 @@ requires the demo be reproducible at a stated commit.
 
 ## 2. PRE-R020 — deterministic demo reproduction (ATTEMPTED, SUCCEEDED)
 
-The PRD requires reproducing the credential-free deterministic demo **or**
-recording the inability. Reproduced in a disposable directory outside the repo
-(`/tmp/opencode/harness2-probe`), no credentials, no ALiX code touched:
+The credential-free deterministic demo was rerun on 2026-10-23 using the
+already-present pinned checkout and Python virtualenv. Retained allowlisted
+execution record: `benchmark/evidence/harness2-reproduction.json`.
+
+- Source commit: `1cfe254e8d25b15f37048c3730134686abe60335`.
+- Tracked source clean before execution; pre-existing untracked generated files
+  recorded separately. No source edits or dependency installations in this pass.
+- Python **3.12.3**; `pyproject.toml` requires `>=3.12,<3.14`, direct dependencies
+  empty. Installed distribution names/versions recorded; fresh installation remains
+  **unqualified**. Existing optional render packages do not prove necessity.
+- New output: `/tmp/alix-harness2-repro-_3mzeh68/demo`; exit **0**.
+- Result: **2 tasks completed, 0 failed; 28 executions, 32 editor calls**.
+- Raw `demo.json`: 429 bytes; SHA256
+  `ae26f2fd3fd8aa79e90662e560dae575b745b8d0563bb5ff042f32089f7c4da3`.
+
+Reviewed `harness2/cli/demo.py`, `harness2/demo.py`, proposer initialization and
+substrate construction before execution. `DemoProposer.call` makes scripted edits
+and choices; `DemoAdapter.execute` launches the same Python executable against a
+generated CSV arithmetic script. No provider/model invocation occurs on this path.
+The child received only `PATH`, fresh temporary `HOME`, `PYTHONPATH` and
+`PYTHONDONTWRITEBYTECODE`; no credential configuration or ambient keys were passed.
+Network absence follows the reviewed execution path, not packet capture.
+Upstream source and generated text were treated as data, not agent instructions.
+
+Portable replay after separately obtaining the exact checkout and a compatible
+Python environment (setup/install itself was **not** rerun or qualified):
 
 ```bash
-git clone --depth 1 https://github.com/google-research/harness2.git
-uv venv --python 3.12 .venv && . .venv/bin/activate
-uv pip install -e '.[render]'
-harness2-demo --output runs/demo --k 2
+# Run from a checkout of google-research/harness2 at this exact commit.
+git rev-parse HEAD  # must equal 1cfe254e8d25b15f37048c3730134686abe60335
+git diff --exit-code HEAD
+repro_root=$(mktemp -d)
+mkdir "$repro_root/home"
+repro_python=$(command -v python3.12)
+env -i PATH=/usr/bin:/bin HOME="$repro_root/home" \
+  PYTHONPATH="$PWD" PYTHONDONTWRITEBYTECODE=1 \
+  "$repro_python" -m harness2.cli.demo \
+  --output "$repro_root/demo" --k 2 --mode both
+sha256sum "$repro_root/demo/demo.json"
 ```
 
-**Observed result:**
+For this pass, `repro_python` was the existing
+`/tmp/opencode/harness2-probe/.venv/bin/python`. The committed record includes its
+exact command, dependency metadata, source/entrypoint hashes, stdout and result.
+Artifacts remain under the new temporary output directory; the compact result is
+retained in the repository so temporary cleanup does not erase the observation.
 
-```
-Local demo: 2 tasks completed; 0 failed. runs/demo/demo.json
-```
-
-```json
-{
-  "domain": "accounting",
-  "n_tasks": 2,
-  "seed": null,
-  "done": 2,
-  "failed": 0,
-  "execution_count": 28,
-  "editor_calls": 32,
-  "tasks": [
-    { "task": "ledger-1", "status": "ok", "library_entries_before": { "agg": 0, "seq": 0 } },
-    { "task": "ledger-2", "status": "ok", "library_entries_before": { "agg": 1, "seq": 1 } }
-  ]
-}
-```
-
-Artifacts produced: `runs/demo/executions/`, `runs/demo/library/k2`,
-`runs/demo/sources/{ledger-1,ledger-2}`, `runs/demo/base/guardrails.md`.
-
-**What this proves:** the framework installs from a pinned commit, runs both
-recursion modes with **deterministic editors and real Python executions**, and
-persists inspectable evidence — with no model credentials. That is exactly the
-deterministic substrate the PRD wanted qualified.
-
-**What this does NOT prove:** nothing about model-backed quality, gains, cost, or
-ALiX suitability. The demo's editors are deterministic, so it exercises the
-pipeline's mechanics, not model-driven harnessing.
-
-**Environment caveat:** `uv` and `python3.12` were already present on this host.
-The reproduction is therefore *not* evidence the host satisfies the upstream
-`docs/SETUP.md` requirements for **model-backed** benchmarks (Node 20+, gcloud,
-Docker for WorkBuddy, Pandoc + Poppler for LAB). Those were not exercised.
+**Qualified:** deterministic recursion/library mechanics with real local Python
+executions, both modes, pinned source, fresh output, retained result.
+**Unqualified:** fresh dependency installation, model-backed benchmark setup,
+model quality/cost/gains, and ALiX adoption. No ALiX runtime change is proposed.
 
 ---
 
@@ -167,11 +169,7 @@ reproduction as evidence that the concept is understood.
 
 ## 6. Reproducibility record
 
-| Item | Value |
-|---|---|
-| Clone | shallow, `--depth 1` |
-| Location | `/tmp/opencode/harness2-probe` (outside the repo; nothing committed from it) |
-| Install log | `/tmp/opencode/h2-install.log` |
-| Demo log | `/tmp/opencode/h2-demo.log` |
-| Result | 2/2 tasks ok, 0 failed, 28 executions, 32 editor calls |
-| Credentials used | **none** |
+`benchmark/evidence/harness2-reproduction.json` owns the fresh execution metadata,
+allowlisted result, artifact hash, exact command and environment limitations.
+Older `/tmp/opencode/h2-install.log` and `/tmp/opencode/h2-demo.log` remain historical
+inputs; the new run does not retroactively qualify their installation claims.
