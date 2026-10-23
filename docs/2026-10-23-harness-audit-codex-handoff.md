@@ -30,7 +30,7 @@ not declared — see §5 for why it is still HOLD.
 | E — Security | NOT independently qualified (separate track P0-G) |
 | F — Release | HOLD (Q13) |
 
-### Deliverables: 13 of 12 PRD docs exist
+### Deliverables: all 12 PRD deliverables have documents (13 files)
 
 All in `docs/`: `harness-component-inventory`, `-invariant-register`,
 `-benchmark-spec`, `-ablation-report`, `-cutover-plan`, `-readiness-report`,
@@ -136,6 +136,15 @@ substantive earlier one). Investigate the task-loop completion/summary path.
 **Do not weaken the objective** to make the suite green — that would re-create the
 "verified after rewriting the answer" hole the strengthened `unchanged` oracle
 exists to close.
+
+**Codex follow-up (2026-10-23):** Fixed summary selection: an immediately
+following bare completion acknowledgment retains the answer displaced by the
+no-tool nudge. Replacement answers and intervening tool turns do not restore
+stale prose; existing completion gates still apply. Fresh scripted behavioral
+run: **14/14 pass**, with the original answer objectives unchanged. Eval tests:
+173/173; task-loop completion tests: 52/52 (one-off 60s test budget during
+indexing). Build, unused-symbol, dead-module, and DOX checks pass. No API spend.
+The real-model security ambiguity in §6.1 remains open; gate verdicts unchanged.
 
 ### 6.3 Fix the case contracts rather than sweeping (no API spend)
 

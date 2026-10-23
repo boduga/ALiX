@@ -146,6 +146,10 @@ barrel preserving public import paths.
 - Tool-result echoes are not synthesis. Re-prompt once, then terminate
   `completed_unverified` with a tool-result-echo rejection reason if the echo
   persists. A short quotation within substantive prose stays accepted.
+- A no-tool nudge must preserve the preceding answer when the immediately next
+  iteration only acknowledges completion. Validate the combined report through
+  the existing claim, pending-action, and objective-evidence gates. A replacement
+  answer or intervening tool iteration must not restore stale prose.
 - **A synthesis reprompt never authorizes discarding a first completion.** The
   redundant-done suppression exists to avoid an artificial done loop after a
   completion tool already ran; it must additionally require that proof

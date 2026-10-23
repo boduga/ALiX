@@ -642,6 +642,7 @@ let truncationContinuations = 0;
 // max_iterations. `noToolNudges` is never reset mid-run.
 const NO_TOOL_NUDGE_LIMIT = 1;
 let noToolNudges = 0;
+let nudgedAnswer: CompletionState["nudgedAnswer"];
 // A completed tool sequence gets at most one dedicated synthesis request.
 // Without this latch, a model that answers the request with another `done`
 // call can consume the entire iteration budget repeating done/synthesis.
@@ -1010,11 +1011,11 @@ if (toolCalls.length > 0) {
   });
 }
 
-const completionState: CompletionState = { repairCount, unconfirmedDoneAttempts, noToolNudges, synthesisRequested, emptySynthesisRetryRequested };
+const completionState: CompletionState = { repairCount, unconfirmedDoneAttempts, noToolNudges, synthesisRequested, emptySynthesisRetryRequested, nudgedAnswer };
 const completionContext: CompletionContext = { deps, config, hooks, log, session, maxIterations, contextBudget, evidenceTask, evidenceTaskType, successfulToolEvidence, taskType, hasMutations, depth, memoryStore, sessionId, sessionDir, model, contextRotThreshold, contextPressure, lastInvocationId, lastAgentProse, usedTools, messages, text, i, explicitDoneCalled, sessionState, enhancedVerifier, task, coordinationUnverified, searchCalls, hookRunEnv, maxRepairs, runHook, providerTools, NO_TOOL_NUDGE_LIMIT, MAX_UNCONFIRMED_DONE_ATTEMPTS, state: completionState };
 if (toolCalls.length === 0) {
   const outcome = await runNoToolsCompletion(completionContext);
-  ({ repairCount, unconfirmedDoneAttempts, noToolNudges, synthesisRequested, emptySynthesisRetryRequested } = completionState);
+  ({ repairCount, unconfirmedDoneAttempts, noToolNudges, synthesisRequested, emptySynthesisRetryRequested, nudgedAnswer } = completionState);
   if (outcome === "continue") continue;
   if (outcome) return outcome;
 } else {
@@ -1409,7 +1410,7 @@ if (toolCalls.length === 0) {
   }
 
   const completionOutcome = await runDeferredCompletion({ ...completionContext, coordinationUnverified, trackCompleted, trackShellComplete, shellOutput });
-  ({ repairCount, unconfirmedDoneAttempts, noToolNudges, synthesisRequested, emptySynthesisRetryRequested } = completionState);
+  ({ repairCount, unconfirmedDoneAttempts, noToolNudges, synthesisRequested, emptySynthesisRetryRequested, nudgedAnswer } = completionState);
   if (completionOutcome === "continue") continue;
   if (completionOutcome) return completionOutcome;
 

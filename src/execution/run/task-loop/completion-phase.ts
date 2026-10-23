@@ -19,6 +19,7 @@ export interface CompletionState {
   noToolNudges: number;
   synthesisRequested: boolean;
   emptySynthesisRetryRequested: boolean;
+  nudgedAnswer?: { text: string; iteration: number };
 }
 export type CompletionContext = Pick<TaskLoopDeps, 'config' | 'hooks' | 'log' | 'session' | 'maxIterations' | 'contextBudget' | 'taskType' | 'depth' | 'memoryStore' | 'sessionId' | 'sessionDir' | 'sessionState' | 'task' | 'providerTools'> & {
   deps: TaskLoopDeps;
@@ -92,7 +93,15 @@ export async function coordinationRunIsVerified(
 /** Completion/repair policy; iteration counters are returned through the shared state. */
 export async function runNoToolsCompletion(ctx: CompletionContext): Promise<RunResult | "continue" | undefined> {
   ctx.deps.cancellationToken?.throwIfCancelled();
-  const { deps, config, hooks, log, session, maxIterations, contextBudget, evidenceTask, evidenceTaskType, successfulToolEvidence, taskType, hasMutations, depth, memoryStore, sessionId, sessionDir, model, contextRotThreshold, contextPressure, lastInvocationId, lastAgentProse, usedTools, messages, text, i, explicitDoneCalled, sessionState, enhancedVerifier, task, coordinationUnverified, searchCalls, hookRunEnv, maxRepairs, runHook, providerTools, NO_TOOL_NUDGE_LIMIT, MAX_UNCONFIRMED_DONE_ATTEMPTS } = ctx;
+  const { deps, config, hooks, log, session, maxIterations, contextBudget, evidenceTask, evidenceTaskType, successfulToolEvidence, taskType, hasMutations, depth, memoryStore, sessionId, sessionDir, model, contextRotThreshold, contextPressure, lastInvocationId, lastAgentProse, usedTools, messages, i, explicitDoneCalled, sessionState, enhancedVerifier, task, coordinationUnverified, searchCalls, hookRunEnv, maxRepairs, runHook, providerTools, NO_TOOL_NUDGE_LIMIT, MAX_UNCONFIRMED_DONE_ATTEMPTS } = ctx;
+  const acknowledgmentOnly = /^(?:done|complete|completed|finished|resolved)[.!]?$/i;
+  const priorAnswer = ctx.state.nudgedAnswer;
+  delete ctx.state.nudgedAnswer;
+  // A runtime nudge must not erase an answer merely because the next reply
+  // only acknowledges completion. Validate the combined report below, too.
+  const text = priorAnswer?.iteration === i - 1 && acknowledgmentOnly.test(ctx.text.trim())
+    ? `${priorAnswer.text}\n\n${ctx.text}`
+    : ctx.text;
   let { repairCount, unconfirmedDoneAttempts, noToolNudges, synthesisRequested, emptySynthesisRetryRequested } = ctx.state;
   try {
   // Check before research limits, verification and prose completion alike.
@@ -128,6 +137,9 @@ export async function runNoToolsCompletion(ctx: CompletionContext): Promise<RunR
     // names + format so it self-corrects instead of silently dropping the call.
     const sawToolMarkers = /<\s*(tool_calls?|invoke|function_calls)\b|<\s*invoke\s+name=/i.test(text);
     const validNames = providerTools.map((t) => t.name).join(", ");
+    if (!sawToolMarkers && text.trim() && !acknowledgmentOnly.test(text.trim())) {
+      ctx.state.nudgedAnswer = { text, iteration: i };
+    }
     messages.push({
       role: "user",
       content: sawToolMarkers
