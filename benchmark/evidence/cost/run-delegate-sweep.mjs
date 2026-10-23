@@ -137,6 +137,12 @@ export async function runDelegateSweep({ provider, model }) {
       verifiedSuccess: r.verifiedSuccess,
       objectiveLanded: r.objectiveLanded,
       statusHonest: r.statusHonest,
+      // Keep the reported-vs-expected pair: it is the difference between "the
+      // guard held and the model was honest about failing" and "the model claimed
+      // success it did not achieve". Both collapse to the same booleans above.
+      statusActual: r.statusActual ?? null,
+      statusExpected: r.statusExpected ?? null,
+      objectiveExpected: r.objectiveExpected ?? null,
       costUsd: r.costUsd ?? null,
       completeness: r.completeness ?? null,
     })),

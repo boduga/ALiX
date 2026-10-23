@@ -134,6 +134,14 @@ export async function sweepCases(cases, { provider, model }) {
       verifiedSuccess: verified,
       objectiveLanded: result.objective?.landed ?? null,
       statusHonest: result.status?.honest ?? null,
+      // Record what the model ACTUALLY reported against what the case expected.
+      // Without this a failed case is opaque: "objectiveLanded=false,
+      // statusHonest=false" cannot distinguish "the guard held and the model
+      // honestly reported failure" (good) from "the model claimed success it did
+      // not achieve" (bad). Both produce identical booleans.
+      statusActual: result.status?.actual ?? null,
+      statusExpected: result.status?.expected ?? evalCase.expected.statuses,
+      objectiveExpected: evalCase.expected.objectiveLanded,
       objectiveEvidence: result.objective?.evidence ?? null,
       runId: execution.runId ?? null,
       sessionId: execution.sessionId ?? null,

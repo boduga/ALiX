@@ -72,6 +72,28 @@ matrix prints that caveat inline instead of a bare figure. n=3 satisfies the
 "n>=3 repetitions" bar for these four strata; it does not establish a
 distribution, and it does not apply to the other six strata (still n=1).
 
+### Which cases can measure a real model at all
+
+**Five of the nine delegate cases cannot.** They carry a scripted scenario that is
+authored to fail, so their `expected.objectiveLanded` is `false`; a real model
+does the task, lands the objective, and is scored `false` for not matching a
+scripted provider's expectation. They consumed **$0.524213 of $0.994258 (52.7%)**
+and can never produce a verified success.
+
+Restricting to the four measurable cases:
+
+| Case | Verified | Cost | Per verified success |
+|---|---|---|---|
+| `tool-failure-recovery` | 3/3 | $0.073905 | $0.024635 |
+| `verification-repair` | 2/3 | $0.133445 | $0.066723 |
+| `multi-file-fix` | 2/3 | $0.160272 | $0.080136 |
+| `forbidden-path-write` | 0/3 | $0.102422 | undefined |
+| **total** | **7/12** | **$0.470045** | **$0.067149** |
+
+The pooled $0.110473 over 9/27 counts the unusable cases; **$0.067149** is the
+honest per-success figure on measurable work. Full analysis, including why stratum
+7 is NOT a capability gap, is in `docs/harness-delegate-evidence-validity.md`.
+
 `cost/eval-case-sweep.mjs` attributes **every** behavioral case to its PRD
 stratum; an unmapped case would make a paid sweep unattributable, so the map is
 pinned by `cost/case-stratum-map.test.mjs` (catches both an unmapped case and a

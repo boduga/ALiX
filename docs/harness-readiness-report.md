@@ -90,7 +90,15 @@ Claims below are supported by an artifact a reviewer can re-run or re-read.
    regression tests: the child provider ignored the configured call budget
    (`f8a335b7`) and the policy gate could emit zero `approval.created` on a
    composition root whose store has no `EventLog` (`a64f57f7`).
-6. **A stale baseline was found by re-running it, and n=3 now exists.** The
+6. **Half the delegate corpus cannot measure a real model.** Five of nine
+   delegate cases carry scripted-specific expectations (authored to fail), so a
+   real model is scored `false` for doing the task correctly. They consumed
+   52.7% of the delegate spend and can never verify. On the four measurable
+   cases the honest figure is **7/12 verified and $0.067149 per verified
+   success** — not the pooled $0.110473. Stratum 7's "stable 0/3" is an artefact
+   of this, not a capability gap. See
+   `harness-delegate-evidence-validity.md`.
+7. **A stale baseline was found by re-running it, and n=3 now exists.** The
    delegate cost record (strata 4/5/7/10) predates the owned-scope authorization
    fix and does not reproduce. Three repetitions on `gpt-4o` ($0.305330 /
    $0.357928 / $0.331000, all complete) pool to **9/27 verified and $0.110473
@@ -100,7 +108,7 @@ Claims below are supported by an artifact a reviewer can re-run or re-read.
    `verification-repair` UNSTABLE but settling at the LOWER count in 2 of 3 runs.
    Reporting the old single run would have been false precision in both
    directions.
-7. **The verification lanes are green on this artifact.** Node lane: 8923 tests,
+8. **The verification lanes are green on this artifact.** Node lane: 8923 tests,
    8917 pass, 0 fail, 6 skipped. Typecheck, unused-symbol gate, dead-module gate,
    architecture boundaries and DOX claim audit all clean.
 
