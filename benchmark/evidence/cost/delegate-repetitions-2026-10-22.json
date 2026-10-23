@@ -1,0 +1,71 @@
+{
+  "source": "delegate sweep repetitions",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "repetitions": 2,
+  "completeness": "complete",
+  "perStratum": {
+    "multi-file-fix": {
+      "repetitions": 2,
+      "verifiedSuccesses": 3,
+      "cases": 4,
+      "perRepetition": [
+        "2/2",
+        "1/2"
+      ],
+      "stable": false,
+      "costUsd": 0.2131975,
+      "costPerVerifiedSuccessUsd": 0.07106583333333334,
+      "note": "UNSTABLE across repetitions (2/2 vs 1/2) — a single run is not a point estimate for this stratum"
+    },
+    "verification-repair": {
+      "repetitions": 2,
+      "verifiedSuccesses": 1,
+      "cases": 4,
+      "perRepetition": [
+        "0/2",
+        "1/2"
+      ],
+      "stable": false,
+      "costUsd": 0.18967750000000003,
+      "costPerVerifiedSuccessUsd": 0.18967750000000003,
+      "note": "UNSTABLE across repetitions (0/2 vs 1/2) — a single run is not a point estimate for this stratum"
+    },
+    "capability-mix": {
+      "repetitions": 2,
+      "verifiedSuccesses": 0,
+      "cases": 6,
+      "perRepetition": [
+        "0/3",
+        "0/3"
+      ],
+      "stable": true,
+      "costUsd": 0.16544749999999997,
+      "costPerVerifiedSuccessUsd": null,
+      "note": "0 verified successes: cost-per-success is undefined, not infinite and not zero"
+    },
+    "tool-failure-recovery": {
+      "repetitions": 2,
+      "verifiedSuccesses": 2,
+      "cases": 4,
+      "perRepetition": [
+        "1/2",
+        "1/2"
+      ],
+      "stable": true,
+      "costUsd": 0.09493499999999999,
+      "costPerVerifiedSuccessUsd": 0.047467499999999996,
+      "note": null
+    }
+  },
+  "totals": {
+    "inputTokens": 247363,
+    "outputTokens": 4485,
+    "costUsd": 0.6632575
+  },
+  "pooledCostPerVerifiedSuccessUsd": 0.11054291666666667,
+  "pooledNote": "pooled over repetitions; strata marked unstable do not carry a single-run point estimate",
+  "verifiedSuccesses": 6,
+  "cases": 18,
+  "recordedAt": "2026-10-23T00:35:59.230Z"
+}

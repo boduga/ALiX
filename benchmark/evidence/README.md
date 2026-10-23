@@ -28,13 +28,36 @@ A row is only reproducible if a committed driver produces its record. That is
 | `cost/eval-mainloop-metered.json` | 3 | **none** |
 | `cost/cost-record.json` (F1-E) | 3 | **none** (qualified by `docs/harness-f1e-qualified.md`) |
 | `cost/positive-strata-4-7.json` | 4, 7 | `cost/run-positive-cases.mjs` |
-| `cost/delegate-metered-sweep.json` | 4, 5, 7, 10 | `cost/eval-case-sweep.mjs` (all 14 cases now attributed) |
+| `cost/delegate-metered-sweep.json` | 4, 5, 7, 10 | `cost/run-delegate-sweep.mjs` — **stale**: recorded 2026-10-20, before the owned-scope authorization fix `bf29449b`; superseded by the repetition record below |
+| `cost/delegate-metered-sweep-r{1,2}-2026-10-22.json` | 4, 5, 7, 10 | `cost/run-delegate-sweep.mjs` (real gpt-4o, one per repetition) |
+| `cost/delegate-repetitions-2026-10-22.json` | 4, 5, 7, 10 | `cost/summarize-delegate-repetitions.mjs` (n=2, with per-stratum stability) |
 | `cost/coordination-metered.json` | 6 | `coordination/run-coordination-metered.mjs` |
 | `cost/stratum8-restart.json` | 8 | `coordination/run-restart-metered.mjs` |
 | `cost/stratum9-observation.json` | 9 | **none** |
 
 Drivers never estimate cost. They report observed usage and, when no
 `model.usage` event exists, say so — `null`, not zero.
+
+## Repetitions and stability (Gate B)
+
+`cost/run-delegate-sweep.mjs` runs the delegate-driven behavioral cases on a real
+priced model; `cost/summarize-delegate-repetitions.mjs` folds N runs into a
+per-stratum stability verdict. Repetition matters: the 2026-10-20 single sweep
+predates the owned-scope authorization fix (`bf29449b`), and re-running the same
+cases on the same model does NOT reproduce it.
+
+| Stratum | recorded (2026-10-20) | R1 | R2 | verdict |
+|---|---|---|---|---|
+| multi-file-fix | 0/2 | 2/2 | 1/2 | **UNSTABLE** |
+| verification-repair | 1/2 | 0/2 | 1/2 | **UNSTABLE** |
+| capability-mix | 0/3 | 0/3 | 0/3 | stable |
+| tool-failure-recovery | 1/2 | 1/2 | 1/2 | stable |
+
+Pooled over R1+R2: **6/18 verified, $0.663258 → $0.110543 per verified success**.
+A stratum marked unstable carries NO single-run point estimate, and the coverage
+matrix prints that caveat inline instead of a bare figure. `n=2` satisfies
+"more than one run"; it does not establish a distribution — treat these as
+drift-detected, not as converged baselines.
 
 `cost/eval-case-sweep.mjs` attributes **every** behavioral case to its PRD
 stratum; an unmapped case would make a paid sweep unattributable, so the map is

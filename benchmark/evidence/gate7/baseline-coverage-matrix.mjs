@@ -42,9 +42,18 @@ const DEFAULT_COST_PATHS = [
   join(repoEvidenceDir, "cost", "eval-mainloop-metered.json"),
   join(repoEvidenceDir, "cost", "readonly-navigation.json"),
   join(repoEvidenceDir, "cost", "positive-strata-4-7.json"),
+  // Retained so the stale single run stays visible rather than deleted. It is
+  // read FIRST because a single run must never outrank its own repetitions —
+  // this record predates the owned-scope authorization fix (bf29449b), and its
+  // outcomes no longer reproduce (multi-file-fix 0/2 recorded, 2/2 and 1/2 on
+  // repetition). Later entries overwrite earlier ones, so precedence is the
+  // array order.
   join(repoEvidenceDir, "cost", "delegate-metered-sweep.json"),
   join(repoEvidenceDir, "cost", "coordination-metered.json"),
   join(repoEvidenceDir, "cost", "stratum8-restart.json"),
+  // Repetition record (n>=2) LAST so it SUPERSEDES the single 2026-10-20 sweep.
+  // Preferring repetitions is the point of Gate B (benchmark-spec §3 rule 5).
+  join(repoEvidenceDir, "cost", "delegate-repetitions-2026-10-22.json"),
 ].filter(existsSync);
 const costEvidencePaths = explicitCostPaths.length > 0 ? explicitCostPaths : DEFAULT_COST_PATHS;
 /** Default to the recorded deterministic eval run, so no args reproduces all ten strata. */
@@ -285,7 +294,16 @@ for (const path of costEvidencePaths) {
           ? "ZERO verified successes" : "no explicit positive verified-success count" });
         continue;
       }
-      costByStratum.set(id, { runId: entry.runId ?? record.runId, costUsd: perCost });
+      costByStratum.set(id, {
+        runId: entry.runId ?? record.runId,
+        costUsd: perCost,
+        // A repetition summary reports whether outcomes AGREED across runs. That
+        // is a property of the MEASUREMENT, not the cost, so it rides alongside:
+        // a drifting success count does not support a single-run point estimate
+        // even when the cost total is complete (benchmark-spec §3 rule 5).
+        unstable: entry.stable === false ? entry.perRepetition ?? null : null,
+        repetitions: typeof record.repetitions === "number" ? record.repetitions : null,
+      });
     }
     continue;
   }
@@ -309,7 +327,18 @@ for (const path of costEvidencePaths) {
   }
   // A record may attribute several strata at once (a multi-case eval run).
   // Each per-stratum figure is validated by the same rules as the total.
-  costByStratum.set(stratum, { runId: record.runId, costUsd: cost });
+  //
+  // A repetition summary also reports whether outcomes AGREED across runs. That
+  // is a property of the measurement, not of the cost, so it is carried
+  // alongside: a stratum whose success count drifts between repetitions does not
+  // support a single-run point estimate even when its cost total is complete
+  // (harness-benchmark-spec §3 rule 5).
+  costByStratum.set(stratum, {
+    runId: record.runId,
+    costUsd: cost,
+    unstable: record.stable === false ? record.perRepetition ?? null : null,
+    repetitions: typeof record.repetitions === "number" ? record.repetitions : null,
+  });
 }
 
 // Aggregate per stratum.
@@ -360,8 +389,13 @@ for (const stratum of STRATA) {
   }
 
   const verifyCell = found.length === 0 ? "**none**" : `${verified}/${found.length}`;
+  // An unstable stratum must not read as a confident measurement. The cell keeps
+  // the cost (which IS complete) but names the drift, so a reader cannot mistake
+  // one repetition's verdict for a point estimate.
   const costCell = costRecord
-    ? `$${costRecord.costUsd.toFixed(6)} (complete)`
+    ? costRecord.unstable
+      ? `$${costRecord.costUsd.toFixed(6)} (complete; **unstable across ${costRecord.repetitions ?? "N"} reps** — ${costRecord.unstable.join(" vs ")})`
+      : `$${costRecord.costUsd.toFixed(6)} (complete${costRecord.repetitions ? `; ${costRecord.repetitions} reps` : ""})`
     : costAny ? "measured" : "**not measured**";
   console.log(`| ${stratum.label.split(".")[0]} | ${stratum.label.split(". ")[1]} | ${verifyCell} | ${costCell} | ${blocking} |`);
 }
@@ -380,7 +414,11 @@ for (const stratum of STRATA) {
 }
 
 console.log("## Summary\n");
+const unstableStrata = STRATA.filter(st => costByStratum.get(st.id)?.unstable).map(st => st.id);
 const withEvidence = STRATA.length - unmeasured.length;
+if (unstableStrata.length > 0) {
+  console.log(`- strata whose success count DRIFTED across repetitions (no single-run point estimate): ${unstableStrata.join(", ")}`);
+}
 console.log(`- strata with independently verified runs AND measured cost: ${STRATA.length - unmeasured.length - nonBillable.length}/10`);
 console.log(`- strata blocked (actionable work outstanding): ${unmeasured.length}/10`);
 if (unmeasured.length > 0) {
