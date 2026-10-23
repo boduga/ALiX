@@ -3,7 +3,7 @@
  * Invoked by SubagentManager.spawn() as a child process via `alix run --subagent`.
  */
 import { parseArgs } from "util";
-import { basename, resolve } from "path";
+import { basename, isAbsolute, relative, resolve } from "path";
 import { mkdir } from "fs/promises";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -318,7 +318,14 @@ function pathIsCovered(path: string, successful: string[], cwd: string): boolean
   const oc = resolvePolicyPath(cwd, path);
   return successful.some((s) => {
     const sc = resolvePolicyPath(cwd, s);
-    return sc === oc || sc.startsWith(oc + "/");
+    if (sc === oc) return true;
+    // Containment via `relative` rather than string concatenation. The previous
+    // `oc + "/"` check never matched a Windows path (`C:\...`), so
+    // `ownedPaths: ["."]` answered "partial" for a write it actually covered —
+    // a platform-dependent result for an ownership question that must not vary
+    // by host.
+    const rel = relative(oc, sc);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
   });
 }
 
