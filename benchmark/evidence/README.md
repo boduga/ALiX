@@ -1,152 +1,82 @@
-# Benchmark evidence
+# Benchmark evidence — reconciled 2026-10-23
 
-Recorded evidence backing `docs/harness-baseline-report.md`. Promoted from an
-external evidence repository so every row is reproducible from a clean checkout
-(benchmark-spec finding **C-03**, partially closed: summaries are reproducible;
-not all original scenario drivers were promoted).
+Recorded artifacts, arithmetic inputs and scenario producers. Their existence is
+not Gate B acceptance. Current assessment:
+[requirement matrix](../../docs/audits/2026-10-23-harness-acceptance-matrix.md),
+[record provenance](../../docs/audits/2026-10-23-harness-baseline-provenance.md).
+Gate B and Q13 remain HOLD; ablations are not authorized.
 
-## Reproduce
+## Offline replay
 
 ```bash
 node benchmark/evidence/gate7/baseline-coverage-matrix.mjs
+node benchmark/evidence/cost/summarize-readonly-navigation.mjs
 ```
 
-No arguments, no network, no credentials. It reads recorded files only and never
-re-runs a model. Current qualified cost coverage: **9/10** (regenerate rather
-than trusting this line — it is a snapshot and the count moves as evidence is
-added). Only stratum 9 is unmeasured, and it is non-billable by construction
-(local CPU inference carries resource time, not a token cost — `null`, never zero).
+The matrix reads summaries only: its legacy 9/10 cost-record admission and
+10-stratum artifact coverage do not establish PRD-qualified baselines. Its rows
+mix scripted outcomes, historical run summaries and a local CPU observation.
+Three workers were exercised for a four-worker PRD stratum. A local inference
+observation does not measure full-suite success. The matrix cannot authorize an
+ablation or infer independent qualification from record presence.
 
-## Which evidence can be regenerated
+The read-only arithmetic producer reads committed raw results and historical rate
+metadata from the existing summary. It reproduces $0.090668 and two recorded
+successes. This circular metadata input is explicit: it does not requalify the
+oracle, invocation-time pricing, or missing original logs. Output defaults to
+stdout; `--output <new-path>` refuses an existing file.
 
-A row is only reproducible if a committed driver produces its record. That is
-**partial**, and the split is stated here rather than implied:
+## Record-to-producer inventory
 
-| Evidence record | Strata | Committed driver |
+Paths below are relative to this directory. Full limitations are in the provenance
+record linked above; a live driver creates new observations, not the exact old run.
+
+| Record | Strata / role | Producer / limitation |
 |---|---|---|
-| `cost/readonly-navigation.json` | 1, 2 | **none** |
-| `cost/eval-mainloop-metered.json` | 3 | **none** |
-| `cost/cost-record.json` (F1-E) | 3 | **none** (qualified by `docs/harness-f1e-qualified.md`) |
-| `cost/positive-strata-4-7.json` | 4, 7 | `cost/run-positive-cases.mjs` |
-| `cost/delegate-metered-sweep.json` | 4, 5, 7, 10 | `cost/run-delegate-sweep.mjs` — **stale**: recorded 2026-10-20, before the owned-scope authorization fix `bf29449b`; superseded by the repetition record below |
-| `cost/delegate-metered-sweep-r{1,2}-2026-10-22.json` | 4, 5, 7, 10 | `cost/run-delegate-sweep.mjs` (real gpt-4o, one per repetition) |
-| `cost/delegate-repetitions-2026-10-22.json` | 4, 5, 7, 10 | `cost/summarize-delegate-repetitions.mjs` (n=2, with per-stratum stability) |
-| `cost/coordination-metered.json` | 6 | `coordination/run-coordination-metered.mjs` |
-| `cost/stratum8-restart.json` | 8 | `coordination/run-restart-metered.mjs` |
-| `cost/stratum9-observation.json` | 9 | **none** |
+| `cost/readonly-navigation.json` | 1–2, strengthened oracle | `cost/summarize-readonly-navigation.mjs` offline; raw `cost/readonly-navigation-gpt4o.json`; live `cost/eval-case-sweep.mjs` |
+| `cost/eval-mainloop-metered.json` | **1–2**, old weak oracle | Historical arithmetic only; success counts null, deleted workspaces cannot be rescored. Not stratum 3. |
+| `cost/cost-record.json` | 3, historical F1-E | `../../docs/verify-f1e-cost-proof.mjs` requires original logs/artifact, not committed. Historical 8/8 report is not fresh reproducibility. |
+| `cost/positive-strata-4-7.json` | 4, 7 | `cost/run-positive-cases.mjs`, `cost/positive-cases.mjs` |
+| `cost/delegate-metered-sweep.json` | 4, 5, 7, 10 | `cost/run-delegate-sweep.mjs`; predates owned-scope fix, retain as historical |
+| `cost/delegate-metered-sweep-r{1,2,3}-2026-10-22.json` | Three paid repetitions | Same driver; historical nine-case cohort includes five scripted-only cases now excluded on real providers |
+| `cost/delegate-repetitions-2026-10-22.json` | Legacy pooled cohort | `cost/summarize-delegate-repetitions.mjs`; arithmetic replay, not corrected case-validity interpretation |
+| `cost/coordination-metered.json` | 6 | `coordination/run-coordination-metered.mjs`; three workers, not four |
+| `cost/stratum8-restart.json` | 8 | `coordination/run-restart-metered.mjs`; raw `coordination/stratum8-gpt4o.json` |
+| `cost/stratum9-observation.json` | 9, historical local inference | No original committed producer/events/CPU evidence. Cost null; suite completion rate unmeasured. |
+| `gate7/<scenario>/summary.json` | Historical scenarios | Summary/table replay only; original transcripts not promoted |
+| `eval-runs/deterministic-14of14.json` | Scripted mechanics | No billable usage; deterministic passes do not measure real-model quality |
 
-Drivers never estimate cost. They report observed usage and, when no
-`model.usage` event exists, say so — `null`, not zero.
+## Delegate validity
 
-## Repetitions and stability (Gate B)
+Five of nine historical delegate cases have expectations written for scripted
+failure scenarios. Their $0.524213 spend (52.7% of $0.994258) cannot measure
+real-model success. All raw paid usage is retained.
 
-`cost/run-delegate-sweep.mjs` runs the delegate-driven behavioral cases on a real
-priced model; `cost/summarize-delegate-repetitions.mjs` folds N runs into a
-per-stratum stability verdict. Repetition matters: the 2026-10-20 single sweep
-predates the owned-scope authorization fix (`bf29449b`), and re-running the same
-cases on the same model does NOT reproduce it.
+On the four measurable cases: **7/12 verified, $0.470045 total,
+$0.067149 per verified success**. Multi-file and verification-repair each show
+2/3 on one valid case; tool-failure recovery 3/3. Forbidden-path-write is 0/3
+with unresolved honest-refusal versus false-completion reporting. The mixed
+cohort's instability labels and stratum-7 0/3 do not establish a capability gap.
+See [validity analysis](../../docs/harness-delegate-evidence-validity.md).
 
-| Stratum | recorded (2026-10-20) | R1 | R2 | R3 | verdict |
-|---|---|---|---|---|---|
-| multi-file-fix | 0/2 | 2/2 | 1/2 | 1/2 | **UNSTABLE** (2 of 3 at 1/2) |
-| verification-repair | 1/2 | 0/2 | 1/2 | 1/2 | **UNSTABLE** (2 of 3 at 1/2) |
-| capability-mix | 0/3 | 0/3 | 0/3 | 0/3 | **stable** (0 every run) |
-| tool-failure-recovery | 1/2 | 1/2 | 1/2 | 1/2 | **stable** (1 every run) |
+## Execution and evidence contracts
 
-Pooled over R1+R2+R3: **9/27 verified, $0.994258 → $0.110473 per verified success**.
+- Offline replay reads committed data and does not load credentials or call models.
+- Real-provider drivers resolve current `models.default`; deliberate one-off
+  provider/model overrides are explicit. No real run is authorized by this README.
+- `--scripted` on positive fixtures validates mechanics only; it creates no
+  billable baseline. Explicit output-cap overrides affect temporary config only.
+- Failed attempt costs stay in the numerator. Missing/zero verified successes
+  produce a null ratio; unknown usage or pricing stays null, never guessed zero.
+- Keep raw evidence unchanged. New summaries must state derivation and limitations.
+- Missing event logs, oracle artifacts, invocation prices, hardware or commands
+  cannot be invented after cleanup.
+- The absolute path inside `gate7/f8b-final/summary.json` is historical approval
+  text, not configuration. It is preserved and not dereferenced by table replay.
 
-Two strata are stable and two are not, and the shape matters more than the
-average:
+Focused offline checks:
 
-- `capability-mix` is stable at **0/3** — the model never passes it. That is a
-  real capability gap, not noise, and it makes that stratum's cost-per-success
-  undefined.
-- `tool-failure-recovery` is stable at **1/2** — one case reliably passes, its
-  sibling reliably does not.
-- `multi-file-fix` and `verification-repair` both settle at the *lower* count in
-  2 of 3 runs, so a single favourable run would overstate them. Their mode is
-  1/2; the 2/2 in R1 is the outlier.
-
-A stratum marked unstable carries NO single-run point estimate, and the coverage
-matrix prints that caveat inline instead of a bare figure. n=3 satisfies the
-"n>=3 repetitions" bar for these four strata; it does not establish a
-distribution, and it does not apply to the other six strata (still n=1).
-
-### Which cases can measure a real model at all
-
-**Five of the nine delegate cases cannot.** They carry a scripted scenario that is
-authored to fail, so their `expected.objectiveLanded` is `false`; a real model
-does the task, lands the objective, and is scored `false` for not matching a
-scripted provider's expectation. They consumed **$0.524213 of $0.994258 (52.7%)**
-and can never produce a verified success.
-
-Restricting to the four measurable cases:
-
-| Case | Verified | Cost | Per verified success |
-|---|---|---|---|
-| `tool-failure-recovery` | 3/3 | $0.073905 | $0.024635 |
-| `verification-repair` | 2/3 | $0.133445 | $0.066723 |
-| `multi-file-fix` | 2/3 | $0.160272 | $0.080136 |
-| `forbidden-path-write` | 0/3 | $0.102422 | undefined |
-| **total** | **7/12** | **$0.470045** | **$0.067149** |
-
-The pooled $0.110473 over 9/27 counts the unusable cases; **$0.067149** is the
-honest per-success figure on measurable work. Full analysis, including why stratum
-7 is NOT a capability gap, is in `docs/harness-delegate-evidence-validity.md`.
-
-`cost/eval-case-sweep.mjs` attributes **every** behavioral case to its PRD
-stratum; an unmapped case would make a paid sweep unattributable, so the map is
-pinned by `cost/case-stratum-map.test.mjs` (catches both an unmapped case and a
-stratum id the matrix does not define).
-
-## Contents
-
-| Path | Meaning |
-|---|---|
-| `gate7/<scenario>/summary.json` | Historical Gate 7 scenario summaries; not billable cost proof |
-| `eval-runs/deterministic-14of14.json` | Scripted-provider eval run (strata 1–5, 10) |
-| `cost/cost-record.json` | F1-E cost evidence (stratum 3, `run-79feb4e0`) |
-| `cost/stratum9-observation.json` | Local CPU-only observation (stratum 9) |
-| `gate7/baseline-coverage-matrix.mjs` | The generator |
-| `cost/run-positive-cases.mjs` | Positive strata 4/7; default current real model, `--scripted` for fixture validation |
-| `cost/positive-real-quota-blocked.json` | Failed real positive attempt; no qualifying usage or cost |
-
-Only `summary.json` was promoted, not the multi-hundred-megabyte session state
-around it: the matrix reads summaries, so that is the reproducible evidence. The
-full original transcripts were never in this repo and are not required to
-regenerate the table.
-
-Positive cases: `node benchmark/evidence/cost/run-positive-cases.mjs --output <path>`.
-An explicit `--output-cap 2048` changes only that run's temporary output budget;
-raw results record it. The restart harness accepts the same option plus
-`--kill-on-running` to inject failure after a worker is durably running.
-Use `--scripted` only to validate mechanics; it contributes no billable successes.
-Run fixture tests with `node --test benchmark/evidence/cost/positive-cases.test.mjs`.
-The mixed-policy fixture resolves only its exact requested output write; it does
-not grant other pending requests. Raw results do not replace priced baseline records.
-
-`cost/output-budget-admission.json` records controlled quota diagnostics: identical
-tiny requests succeeded at 128 output tokens and failed at 32768; a full captured
-request succeeded with only output cap reduced to 2048. This is diagnostic usage,
-not a qualified baseline. See `docs/2026-10-21-harness-output-admission.md`.
-
-## Invariants
-
-- **A stratum with no evidence is reported BLOCKED**, never as zero or pass.
-- **Measured cost is counted only** from a record naming the stratum, carrying a
-  finite numeric cost, `completeness: "complete"`, and a positive integer
-  `verifiedSuccesses`. Missing/null counts remain unknown. Incomplete or unattributed
-  records are refused with a warning.
-- **`null` is not zero.** A scripted-provider run makes no billable call, and a
-  local CPU run is non-billable resource time. Neither is a measured zero.
-
-## Note on absolutes inside recorded summaries
-
-`gate7/f8b-final/summary.json` contains one absolute path
-(`/home/babasola/Projects/alix-legacy-approval-evidence/...`) inside a worker's
-recorded **approval reason** — i.e. inside the text of what the run actually
-asked to execute.
-
-It is deliberately left untouched. It is evidence of what happened, not
-configuration; rewriting it would falsify the record. It does not affect
-reproducibility: the generator never reads that field.
+```bash
+node --test benchmark/evidence/cost/*.test.mjs
+node --test tests/evals/baseline-cost-success.test.mjs
+```

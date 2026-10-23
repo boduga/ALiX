@@ -44,10 +44,12 @@ is schedulable. This is the single most important fact in this document.
 
 | ID | Item | Reader inventory | Status |
 |---|---|---|---|
-| HC-11 | `config.model` / `config.subagents` compatibility projections, single writer `normalizeModelConfig` (`src/operations/config/loader.ts:40-77`) | **NOT COMPLETE** — gap F-05: projection readers not inventoried | **blocked on PRE-R010** |
+| HC-11 | `config.model` / `config.subagents` compatibility projections, single writer `normalizeModelConfig` (`src/operations/config/loader.ts:40-77`) | **PARTIAL** — concrete reader/writer manifest in `audits/2026-10-23-harness-legacy-inventory.md`; dynamic/external/graph completeness unresolved | **blocked on PRE-R010** |
 
 This is the one genuine L0 candidate and it is **not ready to touch**. The
-projections have a single documented writer and an unknown reader set. Retiring a
+final projections have a loader owner and identified live readers; pre-normalization
+merge writes and a distinct atomic persistence writer also exist. Reader completeness
+is unresolved. Retiring a
 projection with live readers is a breaking change to every one of them, and the
 repo's own DOX rule (`Root AGENTS.md`, config contracts) makes the loader the only
 projector — so removal must migrate readers first, never the writer first.
@@ -132,7 +134,9 @@ happens.
 ## 7. Verdict
 
 **Gate D: NOT MET.** PRE-R010 is partially met (the one L0 candidate is
-characterised but its readers are not enumerated); PRE-R011 is not started.
+characterised and its concrete readers are enumerated, but supported-interface
+completeness remains unresolved); PRE-R011 has a preliminary reversible reader
+migration sequence in the legacy inventory, not an approved complete cutover plan.
 
 The plan's value today is the ordering constraint it records: **nothing downstream
 of P0-D is schedulable while Gate B is HOLD**, and the first real step is a reader

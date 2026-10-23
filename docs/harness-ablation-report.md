@@ -1,7 +1,7 @@
 # Harness ablation report (P0-E, deliverable 4, PRE-R007–R009)
 
 **Status:** **NO ABLATION RUN.** Design and authorization analysis only.
-**Artifact:** branch `main`, commit `63532d7594f8f806c04571a4ac49d5fe8258c9ce`.
+**Original artifact:** `63532d7594f8f806c04571a4ac49d5fe8258c9ce`. **Status reconciled 2026-10-23** against `c0def71d`; see [acceptance matrix](audits/2026-10-23-harness-acceptance-matrix.md).
 **Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` §5 (PRE-R007–R009), §9 **Gate C**.
 **Blocked by:** Gate B HOLD (see `harness-readiness-report.md` §1) and the PRD's
 explicit prohibition in §12.4.
@@ -20,8 +20,8 @@ The PRD states an ablation result is inadmissible unless six conditions hold
 
 | # | Condition | State | Blocking? |
 |---|---|---|---|
-| 1 | Same task set, model + version, provider policy, environment, oracle | Task set and oracle exist; **all measured runs used an explicit `openai/gpt-4o` one-off** because the operator default (`intern/deepseek-v4-flash-731`) returns 429. Reproduction is **partial**: seven drivers are committed and runnable, four recorded cost files have no producer | **yes** — a variant comparison on one model generalizes to that model only |
-| 2 | Randomized ordering or repetitions | **Every figure is n=1** | **yes** — no uncertainty can be reported |
+| 1 | Same task set, model + version, provider policy, environment, oracle | Task set and oracle exist; historical priced sweeps use a deliberate gpt-4o one-off. Five delegate cases are scripted-specific. See baseline provenance for record-level replay limits | **yes** — corpus validity/provenance remain incomplete; one-model comparisons are valid only for that declared model population |
+| 2 | Randomized ordering or repetitions | Three delegate repetitions exist; only four cases are real-model measurable. Other strata lack comparable repetitions | **yes** — no accepted representative repetition/uncertainty plan or complete baseline |
 | 3 | S0 negatives run independently; a bypass is never a success | S0 negatives exist and pass; they are not re-run per ablation arm | **partial** — must be wired into each arm |
 | 4 | Every failure classified (task / harness / provider / planner-contract) | Failure taxonomy exists in the evaluator; **not applied to any ablation** | **yes** — unclassified failures cannot be compared |
 | 5 | Uncertainty reported with the point estimate | Nothing to report | **yes** |
@@ -31,9 +31,8 @@ Additionally PRD §12.4 is explicit: the v1.1 amendments "do not authorize P0-E
 ablations or production simplification." Running an ablation now would breach
 that clause regardless of the statistical blockers.
 
-**Conclusion:** a comparison produced today would be inadmissible on five of six
-conditions. Recording it would be worse than recording nothing, because it would
-look like evidence.
+**Conclusion:** the baseline and authorization blockers remain unresolved. No comparison is
+run or accepted by this document.
 
 ---
 
@@ -92,16 +91,11 @@ revision, and an unimplemented seam that no test exercises would be dead weight.
 In order — each is a blocker, not a nice-to-have:
 
 1. **Gate B baseline signed** with repetitions (n≥3 per stratum) and reported
-   uncertainty. Today: n=1.
+   uncertainty. Current repetitions cover a limited delegate cohort, not a complete baseline.
 2. **Model pinned** as a deliberate, recorded choice. The gpt-4o one-off must be
    either adopted explicitly for benchmarking or replaced once the operator
    default stops returning 429.
-3. **Reproducibility partial, not absent.** Seven driver scripts are committed
-   and runnable (`benchmark/evidence/cost/{eval-case-sweep,run-positive-cases,
-   positive-cases}.mjs`, `benchmark/evidence/coordination/{run-coordination-metered,
-   run-restart-metered}.mjs`, the matrix generator). Four recorded cost files have
-   **no producer**: `readonly-navigation.json`, `eval-mainloop-metered.json`,
-   `delegate-metered-sweep.json`, `stratum9-observation.json`.
+3. **Reproducibility partial, not absent.** See [baseline provenance](audits/2026-10-23-harness-baseline-provenance.md). Read-only summary arithmetic is replayable; old weak-oracle main-loop records, F1-E original inputs and local CPU source evidence remain historical gaps. A new live producer does not recover original evidence.
 4. **Failure taxonomy wired into each arm** (condition 4).
 5. **S0 negatives re-run per arm** (condition 3) — a variant that appears cheaper
    by bypassing authorization fails the gate outright.
@@ -113,10 +107,10 @@ In order — each is a blocker, not a nice-to-have:
 
 Recorded so a future decision is informed rather than optimistic:
 
-- **Cost:** HC-01 needs ≥3 repetitions × 10 strata × 2 arms = **60 scored runs**
-  minimum, each a real billable call. At observed per-stratum costs
-  (`$0.045`–`$0.212`), a first pass is roughly **$4–10** plus retries — small in
-  money, large in wall-clock and in operator review.
+- **Cost:** no approved estimate. Fix the valid task set and declare arms,
+  repetition/uncertainty rationale, priced model, tool usage and retry budget
+  before quoting a new spend ceiling. The earlier rough estimate assumed a
+  corpus now known to contain scripted-only cases and is withdrawn.
 - **Risk — confounding:** removing the parallel-execution guidance may change
   *tool-call count* rather than *correctness*; the analysis must report tool calls
   and latency separately or it will attribute a cost change to a quality change.
@@ -134,9 +128,9 @@ Recorded so a future decision is informed rather than optimistic:
 candidates, unmeasured**. Gate C is **NOT MET**, and it cannot be met while Gate B
 is HOLD.
 
-The defensible statement: *the harness can now measure cost per verified success in
-9 of 10 strata, which is the prerequisite for an ablation; it cannot yet measure
-one repeatably, and no ablation is authorized.*
+The defensible statement: the recorded artifact table admits cost records in
+9/10 strata under legacy schema rules. That is not qualified baseline coverage
+or authorization. No ablation is authorized and no simplification is justified.
 
 ---
 

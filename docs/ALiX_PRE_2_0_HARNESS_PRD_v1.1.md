@@ -7,6 +7,8 @@
 **Program:** Pre-2.0 harness complexity audit, measured simplification, and legacy cutover readiness  
 **Source baseline:** audit work performed against `4ac6df14` (tree `8bf5ac2b6dfaeccaa69567410e32e6f7a768a305`), the Gate 7 release candidate fast-forwarded onto `main`. PRE-R001 requires a pinned commit; this is that pin.
 
+**Evidence reconciliation (2026-10-23):** [PRE-R001–R032 acceptance matrix](audits/2026-10-23-harness-acceptance-matrix.md), [baseline provenance](audits/2026-10-23-harness-baseline-provenance.md), and [legacy consumer inventory](audits/2026-10-23-harness-legacy-inventory.md). Requirements and acceptance criteria are unchanged. These records distinguish design evidence from executed measurements and owner acceptance; they grant no new authority.
+
 > **Version-identification record (resolved).** Two different documents previously
 > carried the string "v1.1" — this one (§1–§11 + §12–§14) and an audit-branch copy
 > (§1–§11 only, with the `4ac6df14` pin). The audit copy was deleted on operator
@@ -124,9 +126,12 @@ its own row without desynchronising this table.
 | PRE-R031 | Benchmark reviewer time, sampling quality and missed-risk rates as distinct measures | P1 | §14.1 |
 | PRE-R032 | Demonstrate supervision policy never bypasses existing authorization | P0 | §14.1 |
 
-**All eighteen are `not started`.** None is implemented, instrumented or
-measured. They do not clear Gate B (§12.4), and R026/R032 explicitly forbid
-promoting themselves into privilege or production readiness.
+**Status is requirement-specific.** Metric/brief definitions, Harness² source
+review and experiment design, and supervision schemas already exist. Several
+requirements ask for definitions rather than implementation; reporting all eighteen
+as untouched would be incorrect. The linked acceptance matrix records design,
+historical experiment, measurement and review gaps separately. None clears Gate B
+(§12.4); R026/R032 grant no privilege or production readiness.
 
 ## 6. Nonfunctional and safety requirements
 
@@ -212,29 +217,33 @@ Stop on unauthorized execution, missing authoritative evidence, non-idempotent a
 11. `harness-optimization-readiness.md` — evidence links, gaps and an explicit keep/defer/reject recommendation with authority review (§13, PRE-R026).
 12. `harness-supervision-authority-map.md` and `harness-supervision-eligibility-schema.md` — current governance/trace inventory, node-level eligibility contract, downgrade and exception test matrix, and an explicit reuse/defer/reject recommendation (§14, PRE-R027–R032).
 
-**Status of all twelve: not produced.** Deliverables 1–3 exist as audit artifacts on
-`main`; 4–6 and 7–12 do not exist yet. None is represented as completed, and the
-existence of a document is not evidence that a gate is satisfied.
+**Artifact presence:** all twelve deliverables have documents (13 files, because
+deliverable 12 spans two). Their acceptance is assessed individually in the linked
+matrix. Ablation results, measurements, qualification and signatures remain missing
+where stated; file presence alone satisfies none of those obligations.
 
 ## 11. Traceability and governance
 
 Parent Master PRD: v2.8 Stage 0, §§5–8, 10, 14, 18–19, 22, 28, 31–32, and retained v2.7 §29. Preserve approved Q01–Q15 verbatim. Feature statuses distinguish proposed, designed, implemented-unverified, verified-on-candidate, verified-on-main and released.
 
-**Requirement status at this revision.** PRE-R001–R014 are defined; the
-P0-A/P0-B/P0-C/P0-D artifacts they name exist on `main`. PRE-R015–R032 are
-defined in §12–§14 and **none is started**. Defining a requirement is not
-satisfying it.
+**Requirement status (reconciled 2026-10-23).** See the linked acceptance matrix
+for all 32 requirements. Written definitions and recommendations exist, while
+measurements, complete consumer/provenance review, independent qualification and
+operator acceptance remain partial. No requirement is waived by this assessment.
 
-**Gate B status: HOLD.** Coverage is 10/10 strata verified, but the primary
-measure — total measured cost per independently verified success — is observed in
-**1 of 10** strata (stratum 3, F1-E `run-79feb4e0`, $0.108968, completeness
-`complete`). Everywhere else it is `null`, not zero. One three-invocation run
-qualifies the measurement mechanism; it is not a baseline. Gate B also requires a
-reproducible environment; the matrix and its recorded summaries are now in-repo
-(C-03 partially closed), but the scenario drivers that generated them are not, so
-the runs cannot be re-executed without real billable calls.
+**Gate B status: HOLD.** Historical records cover ten strata at differing evidence
+levels; the generator's legacy schema admits cost records in 9/10. These are
+artifact counts, not qualified baseline coverage. Four-worker coordination is not
+established by three-worker records; local CPU suite completion is unmeasured.
+Five delegate cases have scripted-only expectations. On the four measurable cases,
+the recorded result is 7/12 verified and $0.067149 per verified success. Original
+raw evidence, complete metrics, repetition/uncertainty rationale, denied-write
+reporting evidence and operator signature remain incomplete. Arithmetic replay
+must not be mistaken for a fresh model run or recovered historical proof.
 
-**Decision:** proceed with documentation and read-only audit. **Not authorized:** production edits, merge, push, deployment, release or waiver of Gate 7 publication HOLD.
+**Decision:** continue authorized documentation and offline audit work. Production
+changes need their own explicit operator authorization. Merge, push, deployment,
+release and waiver of Gate 7 publication HOLD remain unauthorized.
 
 
 ## 12. Operator-attention efficiency amendment (v1.1; 2026-10-20)
@@ -273,7 +282,12 @@ Minimum content: decision requested; why human authority is needed; impacted com
 
 **ALiX 2.0:** the Master PRD v2.8 governs any later Workbench/decision-artifact implementation. It depends on canonical evidence projections, stable approval APIs, UI threat review, independent verification and operator-accuracy benchmarks. Existing F8b/R1 boundaries remain S0 safeguards.
 
-**Reported audit state (not independently revalidated from this copy):** coverage is 10/10 strata verified and measured cost is 1/10 (stratum 3, F1-E run-79feb4e0, $0.108968, completeness=complete). F1-A/B/C/D reported complete; F1-E qualified 8/8 after fixing two provider defects (streaming never requested usage; o-series rejected `max_tokens`). Cost remains `null` where no billable call occurred — never zero. These are progress notes, not a Gate B PASS or authorization to publish. Q13 publication HOLD, simplification HOLD and dirty-root preservation remain unchanged.
+**Reported audit state:** the acceptance/provenance records linked above supersede
+the old 1/10 cost snapshot. They retain Gate B HOLD and distinguish recorded
+coverage from qualified evidence. Attention measures remain unmeasured; no
+ablation or presentation implementation follows from this amendment. Q13 and
+production simplification remain HOLD.
+
 
 ## 13. Harness² research qualification (pre-2.0 amendment; proposed)
 
@@ -303,7 +317,7 @@ Minimum content: decision requested; why human authority is needed; impacted com
 
 Research may proceed after inventory and environment isolation are documented. Model-backed experiments depend on qualified sandbox/egress, independent grading and baseline coverage; production changes depend on separate A-series governance decisions. Upstream Harness² explicitly reports unrestricted executor network access and disabled Codex sandboxing, with benchmark rubric exposure risk: reject those settings for ALiX and block any uncontained probe. Domain/task lessons cannot alter global guardrails or tool authority without explicit scoped approval. Preserve dirty-root changes, use isolated worktrees, and do not merge/push/deploy as part of this documentation amendment.
 
-**Unchanged holds:** Gate B HOLD (measured cost 1/10 strata, not coverage); F1-E QUALIFIED (8/8, run-79feb4e0); Q13 publication HOLD; production simplification HOLD.
+**Unchanged holds:** Gate B HOLD; F1-E has a historical 8/8 qualification report (`run-79feb4e0`) with retained-input gaps recorded in the provenance assessment; Q13 publication HOLD; production simplification HOLD.
 
 
 ## 14. Progressive supervision and autonomy qualification research (pre-2.0; proposed)

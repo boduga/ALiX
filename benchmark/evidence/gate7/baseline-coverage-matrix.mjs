@@ -350,6 +350,7 @@ for (const row of rows) {
 }
 
 console.log("# Baseline coverage matrix (P0-D3)\n");
+console.log("Recorded artifact coverage only — not Gate B qualification. Scripted and historical rows are not repeated real-model baseline evidence.\n");
 console.log("| # | Stratum | Verified runs | Measured cost | Blocking |");
 console.log("|---|---|---|---|---|");
 
@@ -441,7 +442,8 @@ if (costStrata === 0) {
   console.log("\"the remaining strata cost nothing\".");
 }
 
-console.log("\n## Readiness verdict\n");
-console.log(withEvidence >= 8
-  ? "Harness is ready for ablation comparisons."
-  : "Harness is NOT ready for ablation comparisons: too few strata have both verified\nruns and a measured cost.");
+console.log("\n## Qualification boundary\n");
+console.log("This table does not determine baseline acceptance or ablation readiness. " +
+  "Recorded cost admission does not assess corpus validity, raw provenance, repetitions, " +
+  "uncertainty, independent security qualification, or operator approval. " +
+  "Gate B remains HOLD; P0-E ablations require separate authorization.");

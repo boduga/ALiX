@@ -73,7 +73,7 @@ Confirms: **one loop chain**, **one scheduler**, **one authorization boundary**,
 |---|---|---|
 | HC-01 prompt guidance | **No** | No benchmark exists; ablating on intuition is exactly what the PRD forbids |
 | HC-03 provider format map | **No** | Same |
-| HC-11 config projections | **No** | Readers not inventoried (F-05); retirement without a reader list risks silent breakage |
+| HC-11 config projections | **No** | Concrete consumers now listed in `audits/2026-10-23-harness-legacy-inventory.md`; graph/dynamic/external completeness and interface policy remain unresolved (F-05) |
 | HC-05 context compiler | **No** | M1, benchmark-first |
 | Anything S0 | **Never by simplification** | Only via an equivalent control with security review |
 

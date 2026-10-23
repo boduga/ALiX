@@ -44,7 +44,7 @@ Mapping them onto existing mechanisms:
 
 | Conceptual stage | Nearest existing mechanism | Does it exist as a mode? |
 |---|---|---|
-| Fully supervised | `sessionMode: "ask"` — every ask-mode tool call creates a fresh approval | **Yes** (as a mode) |
+| Fully supervised | `sessionMode: "ask"` — approval-required decisions follow the enforcing path; tools already allowed by policy do not require an approval merely because this mode is selected | **Yes** (as a mode) |
 | Sampled supervision | *(nothing)* | **No** — no sampling machinery exists |
 | Exception-based | *(nothing)* | **No** — `auto`/`bypass` is broader permission, not exception routing |
 

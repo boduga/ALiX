@@ -44,8 +44,8 @@ is not runnable.
 - **Paired**: baseline arm and candidate arm on the **same** task set, model,
   executor, environment, scorer and seed.
 - **Randomized ordering** between arms to limit drift, with ordering recorded.
-- **Repetitions**: n≥3 per arm minimum; more where variance is observed. (Every
-  existing ALiX baseline is n=1 — see `harness-readiness-report.md` U-2.)
+- **Repetitions**: n≥3 per arm minimum; more where variance is observed. (Historical delegate repetitions exist, but case validity and broader baseline
+  coverage remain incomplete; see `harness-readiness-report.md`.)
 - **Full cost accounting** per `harness-benchmark-spec.md` §2.1: total measured cost
   ÷ independently verified successes, **with failed tasks in the numerator**.
 - **Uncertainty reported with every point estimate.** No single-run claim.
@@ -86,7 +86,7 @@ qualified.**
 | Secret controls | Credentials from the store only; never in env files or argv | Exists (store-only key resolution) |
 | Prompt-injection defenses | Fetched/retrieved content treated as data, never instructions | Exists (root contract) |
 | Side-effect policy | Approval-gated execution; no new write path | Exists (`ExecutionAuthorization` → `PolicyGate`) |
-| Replay | Runs reproducible from recorded evidence | Partial — seven drivers committed and runnable; four cost files have no committed producer (U-1) |
+| Replay | Runs reproducible from recorded evidence | Partial — table/arithmetic replay and scenario reproduction differ; see `audits/2026-10-23-harness-baseline-provenance.md` |
 | Negative tests | S0 negatives run **per arm**, a bypass is never a success | Exists; must be wired per arm |
 
 **Explicitly rejected from upstream:** unrestricted executor network access and
@@ -115,9 +115,10 @@ as much as capability.
 ### 4.1 Cost ceiling
 
 Not defined. PRD §13 forbids inventing one; the operator sets it. For scale, a
-first admissible ALiX ablation is estimated at ~60 scored runs
-(`harness-ablation-report.md` §5); a Harness²-style recursion multiplies that by
-`(2K+1)` per task-level step.
+future paired run needs a valid task set, repetitions, arms, deliberate priced
+model and retry budget before a spend ceiling can be quoted. A Harness²-style
+recursion adds its explicit candidate/step multiplier. No earlier rough dollar
+estimate is an approved budget.
 
 ---
 
