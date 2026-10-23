@@ -3,6 +3,44 @@ import type { ModelAdapter } from "../models/providers/types.js";
 
 export type ObjectiveArtifact = { path: string; content?: string; exists?: boolean; error?: string };
 
+/**
+ * Ceiling on the reviewer's prompt. This bounds a PROMPT, not a worker verdict:
+ * exceeding it must reduce what is sent, never fail the worker for having
+ * gathered thorough evidence.
+ */
+export const REVIEW_BUDGET_CHARS = 128_000;
+
+/** Per-item ceiling when the bulk evidence has to be compressed to fit. */
+const BOUNDED_EVIDENCE_ITEM_CHARS = 2_000;
+
+/**
+ * Compress unbounded tool evidence to fit the review budget.
+ *
+ * Keeps the MOST RECENT outputs in full up to `budgetChars` and drops older ones
+ * with an explicit marker, so the reviewer sees what the worker ended with and
+ * knows evidence was elided. Never silently truncates mid-item in a way that
+ * hides which tool produced it: each surviving item is clipped and marked.
+ */
+export function boundEvidence(evidence: readonly string[], budgetChars: number): string[] {
+  const kept: string[] = [];
+  let used = 0;
+  // Walk newest-first: the tail is what the worker's conclusion rests on.
+  for (let i = evidence.length - 1; i >= 0; i--) {
+    const raw = evidence[i] ?? "";
+    const clipped = raw.length > BOUNDED_EVIDENCE_ITEM_CHARS
+      ? `${raw.slice(0, BOUNDED_EVIDENCE_ITEM_CHARS)}\n[truncated for review budget]`
+      : raw;
+    if (used + clipped.length > budgetChars && kept.length > 0) continue;
+    kept.unshift(clipped);
+    used += clipped.length;
+  }
+  const omitted = evidence.length - kept.length;
+  if (omitted > 0) {
+    kept.unshift(`[${omitted} earlier tool output(s) omitted to fit the review budget]`);
+  }
+  return kept;
+}
+
 /** Independent, tool-free check of delivered evidence against the assigned objective. */
 export async function reviewCoordinationResult(options: {
   result: SubagentResult;
@@ -38,7 +76,32 @@ export async function reviewCoordinationResult(options: {
       executedToolEvidence: options.evidence,
       persistedOutputs: artifacts,
     });
-    if (content.length > 128_000) return reject("Evidence exceeds review budget; completion remains unverified");
+    // The budget bounds the REVIEWER'S PROMPT, so the remedy must be to send less
+    // — not to reject the worker. Previously exceeding it fell straight through to
+    // `reject`, which punished a worker for gathering thorough evidence: on a real
+    // coordination run a worker that inspected test files and read a 1000-line log
+    // was failed with "Evidence exceeds review budget; completion remains unverified"
+    // after three attempts, and its sibling's success could not rescue the run.
+    // Truncating the BULK evidence (never the findings, never the artifact
+    // verdicts) preserves what the review is actually judging while fitting the
+    // bound.
+    if (content.length > REVIEW_BUDGET_CHARS) {
+      const trimmed = JSON.stringify({
+        trust: "untrusted",
+        workerFindings: result.findings,
+        executedToolEvidence: boundEvidence(
+          options.evidence,
+          Math.max(2_000, REVIEW_BUDGET_CHARS - JSON.stringify(result.findings).length - 20_000),
+        ),
+        persistedOutputs: artifacts,
+      });
+      if (trimmed.length > REVIEW_BUDGET_CHARS) {
+        return reject("Evidence exceeds review budget; completion remains unverified");
+      }
+      return await requestReview(trimmed);
+    }
+
+    async function requestReview(reviewContent: string): Promise<SubagentResult> {
     if (options.signal?.aborted) return reject("Review cancelled");
 
     const systemPrompt = `You are reviewing a coordination worker's completion, independently of its success claim.
@@ -60,7 +123,7 @@ Return ONLY JSON: {"satisfied":boolean,"summary":"substantive findings or mismat
     const requestVerdict = async (retryHint?: string): Promise<Verdict> => {
       const response = await provider.complete({
         systemPrompt,
-        messages: [{ role: "user", content: retryHint ? `${content}\n\n${retryHint}` : content }],
+        messages: [{ role: "user", content: retryHint ? `${reviewContent}\n\n${retryHint}` : reviewContent }],
         tools: [],
       }, { signal: options.signal });
       if (options.signal?.aborted) return { kind: "cancelled" };
@@ -112,6 +175,9 @@ Return ONLY JSON: {"satisfied":boolean,"summary":"substantive findings or mismat
       // cannot discard the final answer after preliminary commentary.
       findings: [{ type: "summary", content: `Objective review: ${verdict.summary}`, confidence: "medium" }, ...result.findings],
     };
+    }
+
+    return await requestReview(content);
   } catch (error) {
     return reject(error instanceof Error ? error.message : String(error));
   }
