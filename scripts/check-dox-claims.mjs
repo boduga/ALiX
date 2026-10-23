@@ -400,7 +400,12 @@ for (const line of diff.split("\n")) {
   // (the generated-block exemption, the baseline) silently misses.
   if (line.startsWith("+++ b/")) currentFile = line.slice(6).trimEnd();
   // Only list items: asserted rules, not prose or headings.
-  if (!line.startsWith("+") || line.startsWith("+++") || !/^- /.test(line.slice(1))) continue;
+  // Asserted contracts are list bullets AND table rows: DOX files carry their
+  // Ownership / Child DOX Index as tables, so a table-only edit still adds
+  // claims that must resolve. Headers and separator rows carry no tokens.
+  if (!line.startsWith("+") || line.startsWith("+++")) continue;
+  const added = line.slice(1);
+  if (!/^- /.test(added) && !/^\|/.test(added)) continue;
   if (currentFile) changedFiles.add(currentFile);
 
   for (const m of line.slice(1).matchAll(/`([^`]+)`/g)) {

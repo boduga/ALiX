@@ -13,11 +13,11 @@ Purpose: an independent behavioral-evaluation harness that runs scripted task ca
 | `providers/scripted-mock-carrier.ts` | Module singleton bridging runner to cached provider instances; env hydration (`ALIX_EVAL_SCENARIO`) for subagent subprocesses |
 | `drivers/delegate-driver.ts` | Matrix-G delegate driver over real `SubagentManager.spawn`; `normalizeSubagentResult`, `runDelegateCase`, `createSubagentExecutor` |
 | `drivers/main-loop-driver.ts` | Full agent-loop driver over `runTask`; `normalizeRunResult`, `runMainLoopCase` |
-| `cases/behavioral.ts` | EVAL-001..007 case definitions |
-| `cases/strata-2-4.ts` | Strata 2 (navigation) + 4 (multi-file) — 3 cases, incl. the composite negative |
-| `cases/strata-5-10.ts` | Strata 5 (verification/repair) + 10 (tool failure) — 4 cases |
-| `cases/stratum-9-local.ts` | CPU-only **labelling guard** (`isLocalProvider`, `canLabelCpuOnly`, `classifyCpuOnlyRun`), not a case |
-| `cases/index.ts` | `BEHAVIORAL_CASES` (live, all strata) + `SYNTHETIC_CASES` (honesty fixtures) |
+| `src/operations/evals/cases/behavioral.ts` | EVAL-001..007 case definitions |
+| `src/operations/evals/cases/strata-2-4.ts` | Strata 2 (navigation) + 4 (multi-file) — 3 cases, incl. the composite negative |
+| `src/operations/evals/cases/strata-5-10.ts` | Strata 5 (verification/repair) + 10 (tool failure) — 4 cases |
+| `src/operations/evals/cases/stratum-9-local.ts` | CPU-only **labelling guard** (`isLocalProvider`, `canLabelCpuOnly`, `classifyCpuOnlyRun`), not a case |
+| `src/operations/evals/cases/index.ts` | `BEHAVIORAL_CASES` (live, all strata) + `SYNTHETIC_CASES` (honesty fixtures) |
 | `eval-usage.ts` | `captureEvalUsage` — reads `model.usage` from the case's session log **before** the runner deletes the case cwd. Tokens only; pricing stays in `cost-attribution` |
 | `evals-runner.ts` | `runEvalCase`, `runEvalSuite`, `installEvalConfig`, `installSeed`, `saveRun`, `loadPreviousRuns`; isolated cwd + `.alix/evals/<runId>.json` persistence |
 | `dataset-eval.ts` | P4 model-running loop over corpus incidents: candidate prompt per task, LLM-judge 0..1 scores (`eval:<name>`), fail-open per incident. Judge is a direction check, not a verified fix — the gate decides. Feeds score.mjs batch + eval-gate.mjs. |
@@ -49,7 +49,7 @@ CLI: `src/interfaces/cli/commands/evals.ts` (`alix evals run [--suite behavioral
 
 ## Work Guidance
 
-- Add cases to `cases/behavioral.ts` (or `cases/index.ts` for synthetic fixtures) with a **stable kebab-case id** prefixed `behavioral.`.
+- Add cases to `src/operations/evals/cases/behavioral.ts` (or `src/operations/evals/cases/index.ts` for synthetic fixtures) with a **stable kebab-case id** prefixed `behavioral.`.
 - A new runtime case must ship a deterministic `scenario`, an evaluator-owned `objective`, and an explicit `expected` status/target contract. Verify against the live suite before marking honest.
 - To reproduce a forbidden/partial status, control `ownedPaths` (multiple paths → `partial` when only some are covered; `["."]` covers any in-cwd write). A multi-file objective MUST declare `ownedPaths` for both files — with the default `["."]` a single write satisfies the contract and `success` is the CORRECT verdict, so a partial assertion would be testing a contract the runtime was never given.
 - Patch scenarios use the `search_replace` format (`<<<<<<< SEARCH path=... / ======= / >>>>>>> REPLACE`) — all executable formats are allowed since the scripted provider declares `structured_patch` preferred.
