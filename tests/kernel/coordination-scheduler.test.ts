@@ -1769,17 +1769,25 @@ describe("CoordinationScheduler — runUntilIdle event-driven cadence", () => {
     await scheduler.shutdown();
   });
 
-  // Workload: same never-settling worker with a 50ms watchdog over a 300ms
-  // budget; generous timeout so loaded CI never flakes on the wall clock.
+  // Workload: a never-settling worker with a watchdog well inside the run budget.
+  //
+  // The assertion is a RATIO claim — "the watchdog bounds idle polling, so cycles
+  // stay far below the per-poll count". It is not a claim about absolute
+  // wall-clock speed. The original 300ms budget / 50ms watchdog left no margin:
+  // when the first tick alone took ~300ms on a loaded machine, exactly one tick
+  // fired and `cycles >= 2` failed — observed 1-in-5 even running solo.
+  // Widening the budget to 2000ms with a 100ms watchdog keeps the same shape
+  // (~20 ticks vs ~200 per-poll) while giving the lower bound ~20x the headroom.
   it("watchdog ticks bound idle polling while workers hang", { timeout: 30_000 }, async () => {
     const { executor } = createDeferredExecutor(); // never settles
     const scheduler = build(executor);
     const { run } = await seedOneWorker("cadence-watchdog");
-    // A 50ms watchdog over 300ms: a handful of ticks — far below per-poll (~30).
-    const result = await scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 300, workerTimeoutMs: 60_000, watchdogIntervalMs: 50 });
+    // Expected ~20 watchdog ticks over 2000ms; per-poll would be ~200.
+    const result = await scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 2000, workerTimeoutMs: 60_000, watchdogIntervalMs: 100 });
     assert.equal(result.stopReason, "timeout");
     assert.ok(result.cycles >= 2, `watchdog should tick more than once, got ${result.cycles}`);
-    assert.ok(result.cycles <= 12, `watchdog must bound ticks, got ${result.cycles}`);
+    // Still far below the ~200 per-poll ticks this bound exists to prevent.
+    assert.ok(result.cycles <= 60, `watchdog must bound ticks, got ${result.cycles}`);
     await scheduler.shutdown();
   });
 
