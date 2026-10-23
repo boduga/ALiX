@@ -231,19 +231,20 @@ for all 32 requirements. Written definitions and recommendations exist, while
 measurements, complete consumer/provenance review, independent qualification and
 operator acceptance remain partial. No requirement is waived by this assessment.
 
-**Gate B status: AUTHORIZED; NOT MET.** The operator authorized the remaining
-work on 2026-10-23 (`audits/2026-10-23-harness-authorization.md`); that clears
-permission, not evidence. Historical records cover ten strata at differing evidence
-levels; the generator's legacy schema admits cost records in 9/10. These are
-artifact counts, not qualified baseline coverage. Four-worker coordination is not
-established by three-worker real-model records; a scripted four-worker fixture now
-exercises the kernel but produces no model evidence. Local CPU suite completion is
-unmeasured. Five delegate cases have scripted-only expectations. On the four
-measurable cases, the recorded result is 7/12 verified and $0.067149 per verified
-success. Original raw evidence, complete metrics, repetition/uncertainty rationale,
-the reported status string behind the denied-write case and operator signature
-remain incomplete. Arithmetic replay must not be mistaken for a fresh model run or
-recovered historical proof.
+**Gate B status: AUTHORIZED; PARTIALLY MEASURED.** The operator authorized the
+remaining work on 2026-10-23 (`audits/2026-10-23-harness-authorization.md`); that
+clears permission, not evidence. The four real-model delegate cases were
+re-measured on the historical baseline model: **10/12 verified at $0.045688 per
+verified success**, against the earlier 7/12 at $0.067149. That is not a
+like-for-like improvement — a runtime fix postdates the historical sweep, so the
+delta is unattributed. The deny case now records what the model actually
+reported: 1/3 honest refusal and **2/3 false success claims** with nothing landed.
+Six strata remain n=1. Historical records otherwise cover ten strata at differing
+evidence levels; the generator's legacy schema admits cost records in 9/10.
+Four-worker coordination is not established by three-worker real-model records; a
+scripted four-worker fixture exercises the kernel but produces no model evidence.
+Five delegate cases have scripted-only expectations. Repetition/uncertainty
+rationale, independent scoring and operator signature remain incomplete.
 
 **Decision:** continue authorized documentation and offline audit work. Production
 changes need their own explicit operator authorization. Merge, push, deployment,
