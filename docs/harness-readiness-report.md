@@ -15,7 +15,7 @@ for designs that already exist. Their existence does not prove measurements.
 | Gate | Verdict | Evidence / remaining acceptance |
 |---|---|---|
 | A — Inventory | Historical PASS with named unknowns | Component/invariant maps exist. Current legacy inventory adds real consumers; graph lookup and dynamic/external consumer completeness remain unresolved. No retirement authorized. |
-| B — Baseline | HOLD | Corpus validity, raw provenance, metrics, representative repetitions/uncertainty, deny-reporting ambiguity and operator signature remain incomplete. |
+| B — Baseline | HOLD | Corpus validity, raw provenance, metrics, representative repetitions/uncertainty, the deny case's exact reported status and operator signature remain incomplete. |
 | C — Ablation | NOT AUTHORIZED; not met | No paired ablation. PRD §12.4 grants no P0-E authority. |
 | D — Migration | NOT MET | Concrete reader/writer manifest exists; supported-interface completeness, Q04 historical-data and Q05 interface plan still require review. |
 | E — Security | Not independently qualified | Existing negative tests are evidence, not independent qualification of the exact artifact. |

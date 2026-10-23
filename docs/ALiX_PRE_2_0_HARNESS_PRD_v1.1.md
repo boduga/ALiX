@@ -234,12 +234,14 @@ operator acceptance remain partial. No requirement is waived by this assessment.
 **Gate B status: HOLD.** Historical records cover ten strata at differing evidence
 levels; the generator's legacy schema admits cost records in 9/10. These are
 artifact counts, not qualified baseline coverage. Four-worker coordination is not
-established by three-worker records; local CPU suite completion is unmeasured.
-Five delegate cases have scripted-only expectations. On the four measurable cases,
-the recorded result is 7/12 verified and $0.067149 per verified success. Original
-raw evidence, complete metrics, repetition/uncertainty rationale, denied-write
-reporting evidence and operator signature remain incomplete. Arithmetic replay
-must not be mistaken for a fresh model run or recovered historical proof.
+established by three-worker real-model records; a scripted four-worker fixture now
+exercises the kernel but produces no model evidence. Local CPU suite completion is
+unmeasured. Five delegate cases have scripted-only expectations. On the four
+measurable cases, the recorded result is 7/12 verified and $0.067149 per verified
+success. Original raw evidence, complete metrics, repetition/uncertainty rationale,
+the reported status string behind the denied-write case and operator signature
+remain incomplete. Arithmetic replay must not be mistaken for a fresh model run or
+recovered historical proof.
 
 **Decision:** continue authorized documentation and offline audit work. Production
 changes need their own explicit operator authorization. Merge, push, deployment,

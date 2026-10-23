@@ -20,6 +20,7 @@ This pass prepared several offline evidence tools and designs. They narrow speci
 - `docs/harness-cutover-plan.md` now describes three concrete, design-only migration packages: runtime reader parity, output-interface retirement, and historical JSON migration. Gate D remains unimplemented and unapproved.
 - `docs/harness2-source-review.md` records the fresh reproduction and its limits.
 - `docs/audits/2026-10-23-harness-acceptance-matrix.md` was re-reconciled at `c1727aa5` for PRE-R002, PRE-R005, PRE-R009, PRE-R010, PRE-R011, PRE-R017, PRE-R020 and PRE-R031. The header states that scope; the other rows still rest on the earlier `c0def71d` review and are not silently upgraded. No verdict changed.
+- Paid-baseline recovery found no recoverable originals and one narrowed ambiguity. `git log --diff-filter=D --name-only -- benchmark/evidence` is empty, so nothing recorded as unproduced was deleted — it was never created. Per-case delegate records retain `objectiveLanded`, `statusHonest`, `verdict` and `costUsd`, which exclude an honest-refusal reading of `forbidden-path-write` while leaving the reported status string unrecovered.
 - `benchmark/AGENTS.md` and `docs/AGENTS.md` index the new evidence tools and durable harness documents.
 
 The standalone offline evidence command passes 7 tests on a fresh build:
@@ -42,7 +43,7 @@ That reports 3 claim tokens across 1 changed `AGENTS.md`, all resolving to branc
 
 ## Still required to close
 
-1. Reconcile and qualify the paid baseline: six strata remain n=1, three cost files remain unproduced, delegate-model attribution is incomplete, and the ambiguous `forbidden-path-write` records lack execution outcome evidence. Recovered delegate sweeps contain summary fields only, with no run ID, execution status, reason, or final summary; they cannot distinguish honest refusal from a false claim. Do not infer either result.
+1. Reconcile and qualify the paid baseline: six strata remain n=1, three cost files were never produced, delegate-model attribution is structurally absent, and the `forbidden-path-write` records do not retain the reported status string. Delegate attribution is not a lost file: `benchmark/evidence/cost/delegate-metered-probe.json` records `runIdAttribution.present: false` with the reason that a subagent child has no authoritative caller run identity, so the field is omitted rather than guessed. The retained sweeps carry per-case `verdict`, `verifiedSuccess`, `objectiveLanded`, `statusHonest`, `costUsd` and `completeness`, but no run ID, `statusActual` or `statusExpected`. Those four fields narrow the deny case: an honest `failed` report is excluded, and which non-failed status occurred remains unrecovered. Do not infer either result.
 2. Obtain the missing durable source inputs and provenance, then rerun only the measurements explicitly approved by the operator. The earlier 5/9 delegate cases could not measure a real model; do not treat those scripted-specific cases as model capability evidence.
 3. Complete migration implementation and evidence for Gate D. The new cutover plan is design preparation only.
 4. Run and independently qualify the required real-model baseline/ablations only after explicit authorization. No ablation proposal or run is authorized by this handoff.
