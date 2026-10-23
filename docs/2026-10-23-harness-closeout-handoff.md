@@ -19,6 +19,7 @@ This pass prepared several offline evidence tools and designs. They narrow speci
 - `docs/harness-shim-catalog.md` inventories harness shims, owners, triggers, tests, and retirement criteria. Runtime usage is not measured. Before any future HC01 ablation, preserve the mandatory `alix_coordination_run` routing rule in both arms; removing the whole prompt section would invalidate that comparison.
 - `docs/harness-cutover-plan.md` now describes three concrete, design-only migration packages: runtime reader parity, output-interface retirement, and historical JSON migration. Gate D remains unimplemented and unapproved.
 - `docs/harness2-source-review.md` records the fresh reproduction and its limits.
+- `docs/audits/2026-10-23-harness-acceptance-matrix.md` was re-reconciled at `c1727aa5` for PRE-R002, PRE-R005, PRE-R009, PRE-R010, PRE-R011, PRE-R017, PRE-R020 and PRE-R031. The header states that scope; the other rows still rest on the earlier `c0def71d` review and are not silently upgraded. No verdict changed.
 - `benchmark/AGENTS.md` and `docs/AGENTS.md` index the new evidence tools and durable harness documents.
 
 The standalone offline evidence command passes 7 tests on a fresh build:

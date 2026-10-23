@@ -6,11 +6,16 @@ Parent: `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (document version v1.2).
 
 ## Evidence limits
 
-GitNexus concept query (`harness shim prompt guidance context strategy patch
+The GitNexus concept query (`harness shim prompt guidance context strategy patch
 format fallback nudge`) returned malformed/NUL paths and mismatched symbol
-identities. Graph integrity remains unresolved; its edges and caller counts are
-not usable evidence. Entries below were confirmed directly against branch
-source. Named callsites are examples, not a complete dynamic caller census.
+identities. The index was rebuilt at `c1727aa5` (90,905 nodes, 256,818 edges,
+1,230 flows): the rebuild cleared the false-critical name collision, but
+attribution is still inflated (428 direct callers claimed for `runTaskLoop`
+where the workspace has 37 files and 235 references) and the indexer reports
+4,128 of 4,328 candidate entry points unranked, so whole flows are missing.
+Graph caller counts are therefore not usable as literal evidence here. Entries
+below were confirmed directly against branch source. Named callsites are
+examples, not a complete dynamic caller census.
 Named tests establish available verification coverage; this catalog does not
 claim they were executed. No model calls or new instrumentation ran.
 
