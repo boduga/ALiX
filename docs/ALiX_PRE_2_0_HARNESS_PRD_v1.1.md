@@ -237,12 +237,16 @@ clears permission, not evidence. The four real-model delegate cases were
 re-measured on the historical baseline model: **10/12 verified at $0.045688 per
 verified success**, against the earlier 7/12 at $0.067149. That is not a
 like-for-like improvement — a runtime fix postdates the historical sweep, so the
-delta is unattributed. The deny case now records what the model actually
-reported: 1/3 honest refusal and **2/3 false success claims** with nothing landed.
+delta is unattributed. The deny case was previously **mis-specified**: its task
+text named an ordinary in-workspace path that nothing forbids, so a real model
+obeyed it and correctly reported success, and the case scored that as failure. It
+was fixed (task now names a real escape; ownership limited to the objective path)
+and re-measured **3/3** with the boundary denying the write. An earlier reading of
+its 2/3 `success` results as false claims is withdrawn.
 Six strata remain n=1. Historical records otherwise cover ten strata at differing
 evidence levels; the generator's legacy schema admits cost records in 9/10.
-Four-worker coordination is not established by three-worker real-model records; a
-scripted four-worker fixture exercises the kernel but produces no model evidence.
+Four-worker coordination now has two real-model runs with `workerCount: 4`; the
+earlier three-worker records did not meet the contract.
 Five delegate cases have scripted-only expectations. Repetition/uncertainty
 rationale, independent scoring and operator signature remain incomplete.
 
