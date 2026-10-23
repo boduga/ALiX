@@ -77,8 +77,9 @@ Claims below are supported by an artifact a reviewer can re-run or re-read.
    (9, local CPU-only) rests on a verified inference observation rather than a
    suite run — hardware-excused with the measurement recorded (F-13). Its suite
    completion rate is **unmeasured** and no claim depends on it.
-2. **Cost-per-verified-success exists for 9/10 strata** (`$0.044678`–`$0.211623`).
-   Stratum 9 is `null` by construction (non-billable), never zero.
+2. **Cost-per-verified-success exists for 9/10 strata** (`$0.041967`–`$0.213198`).
+   Stratum 9 is `null` by construction (non-billable), never zero. Two delegate
+   strata carry an explicit UNSTABLE flag rather than a point estimate.
 3. **Authorization survives the worker boundary.** Single-use consumption, child
    self-approval prevention, and ownership parity are all pinned by negative
    tests that fail when the guard is reverted.
@@ -89,7 +90,13 @@ Claims below are supported by an artifact a reviewer can re-run or re-read.
    regression tests: the child provider ignored the configured call budget
    (`f8a335b7`) and the policy gate could emit zero `approval.created` on a
    composition root whose store has no `EventLog` (`a64f57f7`).
-6. **The verification lanes are green on this artifact.** Node lane: 8923 tests,
+6. **A stale baseline was found by re-running it.** The delegate cost record
+   (strata 4/5/7/10) predates the owned-scope authorization fix and no longer
+   reproduces. Two repetitions on `gpt-4o` ($0.305330 / $0.357928, both complete)
+   pool to 6/18 verified and **$0.110543 per verified success**, with two strata
+   explicitly UNSTABLE. Reporting the old single run would have been false
+   precision.
+7. **The verification lanes are green on this artifact.** Node lane: 8923 tests,
    8917 pass, 0 fail, 6 skipped. Typecheck, unused-symbol gate, dead-module gate,
    architecture boundaries and DOX claim audit all clean.
 
@@ -99,8 +106,8 @@ Claims below are supported by an artifact a reviewer can re-run or re-read.
 
 | # | Unknown | Why it blocks | Consequence if ignored |
 |---|---|---|---|
-| U-1 | **Reproducibility of every cost figure** | **Partial, not absent.** Seven driver scripts are committed and runnable (`benchmark/evidence/cost/*.mjs`, `benchmark/evidence/coordination/*.mjs`), and the fixture suite passes 6/6 with no network. But four recorded cost files have **no committed producer**: `readonly-navigation.json` (strata 1–2), `eval-mainloop-metered.json` (stratum 3), `delegate-metered-sweep.json` (strata 4/5/7/10) and `stratum9-observation.json` (stratum 9). Those rows cannot be regenerated from this repo; the rest can, at the cost of real billable calls | A reviewer cannot regenerate every baseline row, so Gate B cannot be signed |
-| U-2 | **Statistical support** | Every stratum figure is **n=1** | No uncertainty is reported; a single lucky or unlucky run is indistinguishable from a baseline |
+| U-1 | **Reproducibility of every cost figure** | **Partial, and one baseline is STALE.** Producers now exist for the delegate sweep (`run-delegate-sweep.mjs`) and its repetition summary. Re-running the delegate cases does NOT reproduce the recorded 2026-10-20 sweep: that record predates the owned-scope authorization fix (`bf29449b`), and settles at different outcomes (multi-file-fix 0/2 recorded vs 2/2 and 1/2 on repetition; verification-repair 1/2 vs 0/2 and 1/2). Three cost files still lack a producer: `readonly-navigation.json` (strata 1–2), `eval-mainloop-metered.json` (stratum 3), `stratum9-observation.json` (stratum 9) | A reviewer cannot regenerate every row, and the delegate baseline itself must be re-signed |
+| U-2 | **Statistical support** | Two repetitions now exist for strata 4/5/7/10, and they expose **drift**: multi-file-fix and verification-repair disagree between runs. Every other stratum is still **n=1** | Two strata have no single-run point estimate; the rest have no uncertainty at all |
 | U-3 | **HC-01 / HC-03 effectiveness** | No ablation is authorized or run | "Can be removed" is a hypothesis, not a finding |
 | U-4 | **Operator attention** | Not instrumented | Cost-per-success omits the scarce resource §12 was written about |
 | U-5 | **Latency, retries, intervention** | Recorded only incidentally, not as scored dimensions | An efficiency claim cannot separate "cheaper" from "slower but cheaper" |
