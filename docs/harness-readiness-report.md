@@ -90,12 +90,16 @@ Claims below are supported by an artifact a reviewer can re-run or re-read.
    regression tests: the child provider ignored the configured call budget
    (`f8a335b7`) and the policy gate could emit zero `approval.created` on a
    composition root whose store has no `EventLog` (`a64f57f7`).
-6. **A stale baseline was found by re-running it.** The delegate cost record
-   (strata 4/5/7/10) predates the owned-scope authorization fix and no longer
-   reproduces. Two repetitions on `gpt-4o` ($0.305330 / $0.357928, both complete)
-   pool to 6/18 verified and **$0.110543 per verified success**, with two strata
-   explicitly UNSTABLE. Reporting the old single run would have been false
-   precision.
+6. **A stale baseline was found by re-running it, and n=3 now exists.** The
+   delegate cost record (strata 4/5/7/10) predates the owned-scope authorization
+   fix and does not reproduce. Three repetitions on `gpt-4o` ($0.305330 /
+   $0.357928 / $0.331000, all complete) pool to **9/27 verified and $0.110473
+   per verified success**, with a per-stratum picture that a single run hides:
+   `capability-mix` is stable at 0/3 (a real capability gap, so its quotient is
+   undefined), `tool-failure-recovery` stable at 1/2, and `multi-file-fix` /
+   `verification-repair` UNSTABLE but settling at the LOWER count in 2 of 3 runs.
+   Reporting the old single run would have been false precision in both
+   directions.
 7. **The verification lanes are green on this artifact.** Node lane: 8923 tests,
    8917 pass, 0 fail, 6 skipped. Typecheck, unused-symbol gate, dead-module gate,
    architecture boundaries and DOX claim audit all clean.
@@ -107,7 +111,7 @@ Claims below are supported by an artifact a reviewer can re-run or re-read.
 | # | Unknown | Why it blocks | Consequence if ignored |
 |---|---|---|---|
 | U-1 | **Reproducibility of every cost figure** | **Partial, and one baseline is STALE.** Producers now exist for the delegate sweep (`run-delegate-sweep.mjs`) and its repetition summary. Re-running the delegate cases does NOT reproduce the recorded 2026-10-20 sweep: that record predates the owned-scope authorization fix (`bf29449b`), and settles at different outcomes (multi-file-fix 0/2 recorded vs 2/2 and 1/2 on repetition; verification-repair 1/2 vs 0/2 and 1/2). Three cost files still lack a producer: `readonly-navigation.json` (strata 1–2), `eval-mainloop-metered.json` (stratum 3), `stratum9-observation.json` (stratum 9) | A reviewer cannot regenerate every row, and the delegate baseline itself must be re-signed |
-| U-2 | **Statistical support** | Two repetitions now exist for strata 4/5/7/10, and they expose **drift**: multi-file-fix and verification-repair disagree between runs. Every other stratum is still **n=1** | Two strata have no single-run point estimate; the rest have no uncertainty at all |
+| U-2 | **Statistical support** | n=3 now exists for strata 4/5/7/10 and exposes **drift**: multi-file-fix and verification-repair disagree between runs and settle at their lower count in 2 of 3. The other six strata remain **n=1** | Two strata have no single-run point estimate; six have no uncertainty at all |
 | U-3 | **HC-01 / HC-03 effectiveness** | No ablation is authorized or run | "Can be removed" is a hypothesis, not a finding |
 | U-4 | **Operator attention** | Not instrumented | Cost-per-success omits the scarce resource §12 was written about |
 | U-5 | **Latency, retries, intervention** | Recorded only incidentally, not as scored dimensions | An efficiency claim cannot separate "cheaper" from "slower but cheaper" |

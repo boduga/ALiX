@@ -46,18 +46,31 @@ per-stratum stability verdict. Repetition matters: the 2026-10-20 single sweep
 predates the owned-scope authorization fix (`bf29449b`), and re-running the same
 cases on the same model does NOT reproduce it.
 
-| Stratum | recorded (2026-10-20) | R1 | R2 | verdict |
-|---|---|---|---|---|
-| multi-file-fix | 0/2 | 2/2 | 1/2 | **UNSTABLE** |
-| verification-repair | 1/2 | 0/2 | 1/2 | **UNSTABLE** |
-| capability-mix | 0/3 | 0/3 | 0/3 | stable |
-| tool-failure-recovery | 1/2 | 1/2 | 1/2 | stable |
+| Stratum | recorded (2026-10-20) | R1 | R2 | R3 | verdict |
+|---|---|---|---|---|---|
+| multi-file-fix | 0/2 | 2/2 | 1/2 | 1/2 | **UNSTABLE** (2 of 3 at 1/2) |
+| verification-repair | 1/2 | 0/2 | 1/2 | 1/2 | **UNSTABLE** (2 of 3 at 1/2) |
+| capability-mix | 0/3 | 0/3 | 0/3 | 0/3 | **stable** (0 every run) |
+| tool-failure-recovery | 1/2 | 1/2 | 1/2 | 1/2 | **stable** (1 every run) |
 
-Pooled over R1+R2: **6/18 verified, $0.663258 → $0.110543 per verified success**.
+Pooled over R1+R2+R3: **9/27 verified, $0.994258 → $0.110473 per verified success**.
+
+Two strata are stable and two are not, and the shape matters more than the
+average:
+
+- `capability-mix` is stable at **0/3** — the model never passes it. That is a
+  real capability gap, not noise, and it makes that stratum's cost-per-success
+  undefined.
+- `tool-failure-recovery` is stable at **1/2** — one case reliably passes, its
+  sibling reliably does not.
+- `multi-file-fix` and `verification-repair` both settle at the *lower* count in
+  2 of 3 runs, so a single favourable run would overstate them. Their mode is
+  1/2; the 2/2 in R1 is the outlier.
+
 A stratum marked unstable carries NO single-run point estimate, and the coverage
-matrix prints that caveat inline instead of a bare figure. `n=2` satisfies
-"more than one run"; it does not establish a distribution — treat these as
-drift-detected, not as converged baselines.
+matrix prints that caveat inline instead of a bare figure. n=3 satisfies the
+"n>=3 repetitions" bar for these four strata; it does not establish a
+distribution, and it does not apply to the other six strata (still n=1).
 
 `cost/eval-case-sweep.mjs` attributes **every** behavioral case to its PRD
 stratum; an unmapped case would make a paid sweep unattributable, so the map is
