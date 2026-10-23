@@ -181,6 +181,9 @@ export const EVAL_005_ZERO_ATTEMPTS: EvalCase = {
     contentIncludes: ["# Q3"],
   },
   expected: { objectiveLanded: false, statuses: ["failed"] },
+  // Scripted-contract case: the scripted scenario is authored to fail, so this
+  // expectation cannot be satisfied by a real model doing the task correctly.
+  scriptedExpectationOnly: true,
   scenario: {
     steps: [
       { kind: "text", text: "I cannot write files in this session." },
@@ -239,6 +242,9 @@ export const EVAL_007_PARTIAL: EvalCase = {
     contentIncludes: ["ok"],
   },
   expected: { objectiveLanded: false, statuses: ["partial"] },
+  // Scripted-contract case: the scripted scenario is authored to fail, so this
+  // expectation cannot be satisfied by a real model doing the task correctly.
+  scriptedExpectationOnly: true,
   ownedPaths: ["a.txt", "b.txt"],
   scenario: {
     steps: [

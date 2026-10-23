@@ -141,6 +141,22 @@ export async function runEvalCase(
   // observation is never mistaken for a deterministic scripted run.
   const usesScripted = provider === "scripted-mock";
   const scriptedScenarioIgnored = !usesScripted && evalCase.scenario !== undefined;
+  // Refuse rather than silently score a scripted-contract case on a real model.
+  //
+  // Such a case's `expected` block describes the SCRIPTED scenario's outcome
+  // (authored to fail), so a real model that simply does the task is scored
+  // `false`. Running it costs money and cannot yield a verified success; five
+  // unmarked cases did exactly that across three sweeps and consumed 52.7% of
+  // the budget. A loud error keeps that from recurring silently, and keeps the
+  // case usable where it belongs (the scripted provider).
+  if (!usesScripted && evalCase.scriptedExpectationOnly) {
+    throw new Error(
+      `${evalCase.id} is a scripted-contract case (scriptedExpectationOnly) and cannot be ` +
+        `scored on a real provider (${provider}): its expected outcome describes a scripted ` +
+        `scenario that a real model does not replay, so it would cost tokens and verify nothing. ` +
+        `Exclude it, or author a real-model oracle for it.`,
+    );
+  }
   const cwd = evalCaseCwd();
   try {
     installEvalConfig(cwd, provider, model, opts.timeoutMs);
@@ -229,7 +245,16 @@ export async function runEvalSuite(
   const suite = opts.suite ?? "behavioral";
   const provider = opts.provider ?? "scripted-mock";
   const filter = CASE_BY_DRIVER[driver];
-  const selected = cases.filter(filter);
+  // A real provider runs only cases whose expectation a real model can satisfy.
+  // Scripted-contract cases are skipped (and reported), never silently scored:
+  // they cost tokens and cannot verify.
+  const usesScripted = provider === "scripted-mock";
+  const skippedForRealProvider = usesScripted
+    ? []
+    : cases.filter(filter).filter((c) => c.scriptedExpectationOnly).map((c) => c.id);
+  const selected = cases.filter(filter).filter(
+    (c) => usesScripted || !c.scriptedExpectationOnly,
+  );
 
   const startedAt = new Date().toISOString();
   const started = Date.now();
@@ -264,6 +289,12 @@ export async function runEvalSuite(
   }
 
   const durationMs = Date.now() - started;
+  if (skippedForRealProvider.length > 0) {
+    console.warn(
+      `[evals] skipped ${skippedForRealProvider.length} scripted-contract case(s) on real ` +
+        `provider "${provider}": ${skippedForRealProvider.join(", ")}`,
+    );
+  }
   return {
     runId: randomUUID(),
     startedAt,

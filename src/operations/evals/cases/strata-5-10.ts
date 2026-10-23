@@ -81,6 +81,9 @@ export const STRATUM5_REPAIR_NOT_APPLIED: EvalCase = {
     expectedContent: "export const timeoutMs = 3000;",
   },
   expected: { objectiveLanded: false, statuses: ["failed"] },
+  // Scripted-contract case: the scripted scenario is authored to fail, so this
+  // expectation cannot be satisfied by a real model doing the task correctly.
+  scriptedExpectationOnly: true,
   seed: { "src/config.ts": "export const timeoutMs = 500;\n" },
   // Owned but never written: Matrix-G's zero-progress ruling makes `failed` the
   // honest status, so this negative stays honest without the path default.
@@ -148,6 +151,10 @@ export const STRATUM10_MALFORMED_NO_RECOVERY: EvalCase = {
     contentIncludes: ["SHOULD_NOT_EXIST"],
   },
   expected: { objectiveLanded: false, statuses: ["failed"] },
+  // Scripted-contract case: the scripted provider raises before any tool runs.
+  // A real model has no equivalent trigger, so this expectation measures the
+  // runtime's malformed-call handling, never model capability.
+  scriptedExpectationOnly: true,
   scenario: {
     steps: [
       { kind: "error", error: "malformed tool call: missing required argument 'path'" },

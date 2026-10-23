@@ -41,6 +41,11 @@ export function delegateCases() {
   return BEHAVIORAL_CASES
     .filter((c) => c.driver === "delegate")
     .filter((c) => DELEGATE_STRATA.includes(CASE_STRATUM[c.id]))
+    // Exclude scripted-contract cases: their expectation is authored for the
+    // scripted provider, so a real model that does the task is scored false.
+    // Measured 2026-10-22: sweeping them burned 52.7% of the budget for zero
+    // usable evidence.
+    .filter((c) => !c.scriptedExpectationOnly)
     .map((c) => c.id);
 }
 

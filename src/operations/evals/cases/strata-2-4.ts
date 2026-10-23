@@ -129,6 +129,9 @@ export const STRATUM4_PARTIAL_FIX: EvalCase = {
     ],
   },
   expected: { objectiveLanded: false, statuses: ["partial"] },
+  // Scripted-contract case: the scripted scenario is authored to fail, so this
+  // expectation cannot be satisfied by a real model doing the task correctly.
+  scriptedExpectationOnly: true,
   seed: {
     "src/a.ts": "var value = 1;\n",
     "src/b.ts": "var other = 2;\n",

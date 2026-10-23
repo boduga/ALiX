@@ -104,6 +104,22 @@ export type EvalCase = {
   objective: EvalObjective;
   expected: EvalExpected;
   /**
+   * This case's `expected` block is written for the SCRIPTED provider only.
+   *
+   * Such a case tests a RUNTIME CONTRACT (refusal of a forbidden path, partial
+   * completion, malformed-tool-call handling), not model capability. Its
+   * `expected.objectiveLanded` is `false` because the scripted scenario is
+   * authored to fail, so a real model that simply does the task is scored
+   * `false` — not because it misbehaved, but because it did not replay the
+   * scripted failure.
+   *
+   * Marking it here is load-bearing: five unmarked cases silently ran on real
+   * models during the 2026-10-22 sweeps and consumed 52.7% of that budget while
+   * being structurally incapable of producing a verified success. Real-provider
+   * runs skip these by default.
+   */
+  scriptedExpectationOnly?: boolean;
+  /**
    * The deterministic model behavior that drives this case. Replayed by the
    * scripted provider (in-process via the carrier for main-loop, or serialized
    * to the subagent env for delegate). Undefined for pure-evaluator fixtures.
