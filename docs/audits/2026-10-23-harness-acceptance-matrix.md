@@ -11,10 +11,11 @@ newly qualified release. Reproduce with `git diff --stat 4ac6df14..c0def71d`.
 `main` was 104 commits ahead of the local `origin/main` tracking ref; no remote
 fetch or publication performed. This assessment does not certify every intervening change.
 
-Reconciled again at `c1727aa5` in the 2026-10-23 offline no-spend pass, for
-PRE-R002, PRE-R005, PRE-R009, PRE-R010, PRE-R011, PRE-R017, PRE-R020 and
-PRE-R031 only. Every other row still reflects the `c0def71d` review and was not
-re-read against the later source.
+Reconciled again at `c1727aa5` for PRE-R002, PRE-R005, PRE-R009, PRE-R010,
+PRE-R011, PRE-R017, PRE-R020 and PRE-R031. Reconciled at `9e0ae4dd` for
+PRE-R006 (delegate deny-case: honest-refusal reading excluded; reported status
+string unrecovered). Every other row still reflects the `c0def71d` review and was
+not re-read against the later source.
 
 ## Evidence grades
 
