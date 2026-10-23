@@ -70,9 +70,9 @@ describe("D4-04 — cross-case lease leakage is excluded by construction", () =>
     expect(runnerSrc).toContain("mkdtempSync(join(tmpdir(), \"eval-task-\"))");
   });
 
-  it("the case cwd is removed in a finally block", () => {
+  it("the complete fixture root is removed in a finally block", () => {
     // Cleanup is unconditional, so a failed case does not leave a registry
     // behind for a later case to collide with.
-    expect(runnerSrc).toMatch(/finally\s*\{\s*rmSync\(cwd/);
+    expect(runnerSrc).toMatch(/finally\s*\{\s*rmSync\(fixtureRoot/);
   });
 });

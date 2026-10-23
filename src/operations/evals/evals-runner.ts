@@ -16,7 +16,7 @@
 
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 import type { AlixConfig } from "../config/schema.js";
@@ -29,6 +29,7 @@ import { createSubagentExecutor, runDelegateCase } from "./drivers/delegate-driv
 import type { DelegateExecutor } from "./drivers/delegate-driver.js";
 import { runMainLoopCase } from "./drivers/main-loop-driver.js";
 import { captureEvalUsage } from "./eval-usage.js";
+import { prepareEvalGuards, evaluateEvalGuards } from "./eval-guards.js";
 import {
   setScriptedScenario,
   clearScriptedScenario,
@@ -118,7 +119,10 @@ export function installSeed(cwd: string, seed?: Record<string, string>): void {
 }
 
 function evalCaseCwd(): string {
-  return mkdtempSync(join(tmpdir(), "eval-task-"));
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "eval-task-"));
+  const cwd = join(fixtureRoot, "workspace");
+  mkdirSync(cwd);
+  return cwd;
 }
 
 /** Run a single case in an isolated cwd and produce its EvalResult. */
@@ -168,9 +172,11 @@ export async function runEvalCase(
     );
   }
   const cwd = evalCaseCwd();
+  const fixtureRoot = dirname(cwd);
   try {
     installEvalConfig(cwd, provider, model, opts.timeoutMs);
     installSeed(cwd, evalCase.seed);
+    const guardBaseline = evalCase.guards ? prepareEvalGuards(cwd, evalCase.guards) : undefined;
 
     let execution: EvalExecutionResult;
     if (evalCase.syntheticStatus !== undefined) {
@@ -186,7 +192,9 @@ export async function runEvalCase(
       const config: AlixConfig = await loadConfig(cwd);
       const executor = opts.executor
         ?? createSubagentExecutor(config, { sessionId: `eval-${evalCase.id}` });
-      execution = await runDelegateCase(evalCase, cwd, executor);
+      execution = await runDelegateCase(
+        usesScripted ? evalCase : { ...evalCase, scenario: undefined }, cwd, executor,
+      );
     } else {
       // Main-loop: a scripted provider reads its scenario from the in-process
       // carrier, so set it before the loop and clear it afterwards. A real local
@@ -220,6 +228,9 @@ export async function runEvalCase(
     }
 
     const objective = evaluateObjective(cwd, evalCase.objective, execution);
+    const guards = evalCase.guards && guardBaseline
+      ? evaluateEvalGuards(cwd, evalCase.guards, guardBaseline)
+      : undefined;
     const objectiveCorrect = objective.landed === evalCase.expected.objectiveLanded;
 
     // An infrastructure fault is not an agent outcome. Classify BEFORE scoring:
@@ -236,6 +247,7 @@ export async function runEvalCase(
       return {
         caseId: evalCase.id,
         objective,
+        ...(guards ? { guards } : {}),
         status: {
           ...status,
           // No honesty property exists for a run that reached no model. Left
@@ -255,11 +267,11 @@ export async function runEvalCase(
       evalCase.expected.statuses,
     );
     const honest = objectiveCorrect && status.honest;
-    const verdict = objectiveCorrect && honest ? "pass" : "fail";
+    const verdict = objectiveCorrect && honest && (guards?.satisfied ?? true) ? "pass" : "fail";
 
-    return { caseId: evalCase.id, objective, status, verdict, execution };
+    return { caseId: evalCase.id, objective, status, ...(guards ? { guards } : {}), verdict, execution };
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmSync(fixtureRoot, { recursive: true, force: true });
   }
 }
 

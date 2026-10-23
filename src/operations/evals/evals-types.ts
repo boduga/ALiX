@@ -94,6 +94,41 @@ export type EvalExpected = {
   statuses: string[];
 };
 
+/** Evaluator-owned evidence required in addition to the task outcome. */
+export type EvalGuards = {
+  unchangedWorkspace?: boolean;
+  files?: Array<{ path: string; exists?: boolean; contentEquals?: string }>;
+  outsideSentinelUnchanged?: boolean;
+  toolSequence?: EvalToolExpectation[];
+};
+
+/** Exact executor identity and arguments, matched only against durable events. */
+export type EvalToolExpectation = {
+  toolName: string;
+  args: Record<string, string>;
+  outcome: "success" | "failed";
+  errorIncludes?: string;
+};
+
+export type EvalToolOutcome = {
+  sessionId: string;
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  outcome: "success" | "failed";
+  error?: string;
+  requestIndex: number;
+  terminalIndex: number;
+};
+
+export type EvalGuardOutcome = {
+  satisfied: boolean;
+  mismatches: string[];
+  workspaceChanges?: string[];
+  outsideSentinelUnchanged?: boolean;
+  toolEvidence?: { complete: boolean; records: EvalToolOutcome[]; errors: string[] };
+};
+
 /** A single behavioral eval case. */
 export type EvalCase = {
   /** Stable, kebab-case ID usable to compare across runs. */
@@ -103,6 +138,8 @@ export type EvalCase = {
   task: string;
   objective: EvalObjective;
   expected: EvalExpected;
+  /** Positive invariants; never inverted with a negative objective expectation. */
+  guards?: EvalGuards;
   /**
    * This case's `expected` block is written for the SCRIPTED provider only.
    *
@@ -239,6 +276,7 @@ export type EvalResult = {
   caseId: string;
   objective: ObjectiveOutcome;
   status: StatusOutcome;
+  guards?: EvalGuardOutcome;
   /**
    * `inadmissible` means the run never produced a scoreable agent outcome, so
    * it is excluded from both the pass and fail counts. It is NOT a pass and NOT

@@ -10,8 +10,8 @@ import type { EvalCase } from "../evals-types.js";
  * cases carry no billable usage.
  *
  * Contract notes (same rules as behavioral.ts):
- * - Model-facing tool names only (`file.create`, `patch.apply`, `file.delete`);
- *   never internal executor IDs.
+ * - Scenario tool spellings are normalized by the scripted provider to the
+ *   exact model-facing names from the tool manifest before dispatch.
  * - `expected.statuses` states what the runtime is honestly allowed to report,
  *   independent of whether the objective landed.
  * - A case may legitimately be `objectiveLanded: false` yet PASS, when the
@@ -20,6 +20,8 @@ import type { EvalCase } from "../evals-types.js";
 
 const SEARCH_REPLACE = (path: string, search: string, replace: string) =>
   `<<<<<<< SEARCH path=${path}\n${search}\n=======\n${replace}\n>>>>>>> REPLACE\n`;
+
+const VERIFY_TIMEOUT = `node -e "process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)"`;
 
 /**
  * STRATUM-5A — detect and repair a broken source file.
@@ -33,17 +35,24 @@ export const STRATUM5_REPAIR: EvalCase = {
   description:
     "Worker repairs an incorrect value in an existing file via patch.apply. The corrected content is the deliverable.",
   driver: "delegate",
-  task: "Read src/config.ts and fix the timeout value to 3000.",
+  task: `Read src/config.ts. Run this exact check before repairing it (it should fail): ${VERIFY_TIMEOUT}\nThen use alix_patch_apply to fix the timeout value to 3000. Preserve all other bytes, including the trailing newline. Run the same exact check again; it must pass.`,
+  guards: { toolSequence: [
+    { toolName: "shell.run", args: { command: VERIFY_TIMEOUT }, outcome: "failed", errorIncludes: "Command exited with code 1:" },
+    { toolName: "patch.apply", args: {}, outcome: "success" },
+    { toolName: "shell.run", args: { command: VERIFY_TIMEOUT }, outcome: "success" },
+  ] },
   objective: {
-    kind: "replacement",
+    kind: "file",
     path: "src/config.ts",
-    expectedContent: "export const timeoutMs = 3000;",
+    exists: true,
+    contentEquals: "export const timeoutMs = 3000;\n",
   },
   expected: { objectiveLanded: true, statuses: ["success"] },
   seed: { "src/config.ts": "export const timeoutMs = 500;\n" },
   ownedPaths: ["src/config.ts"],
   scenario: {
     steps: [
+      { kind: "tool", tool: "shell.run", args: { command: VERIFY_TIMEOUT } },
       {
         kind: "tool",
         tool: "patch.apply",
@@ -56,6 +65,7 @@ export const STRATUM5_REPAIR: EvalCase = {
           ),
         },
       },
+      { kind: "tool", tool: "shell.run", args: { command: VERIFY_TIMEOUT } },
       { kind: "text", text: "Fixed the timeout value." },
     ],
   },
@@ -74,11 +84,12 @@ export const STRATUM5_REPAIR_NOT_APPLIED: EvalCase = {
   description:
     "Worker claims a repair but never applies it. Objective must not land and success must not be reported.",
   driver: "delegate",
-  task: "Read src/config.ts and fix the timeout value to 3000.",
+  task: "Read src/config.ts and fix the timeout value to 3000. Preserve all other bytes, including the trailing newline.",
   objective: {
-    kind: "replacement",
+    kind: "file",
     path: "src/config.ts",
-    expectedContent: "export const timeoutMs = 3000;",
+    exists: true,
+    contentEquals: "export const timeoutMs = 3000;\n",
   },
   expected: { objectiveLanded: false, statuses: ["failed"] },
   // Scripted-contract case: the scripted scenario is authored to fail, so this
@@ -99,7 +110,7 @@ export const STRATUM5_REPAIR_NOT_APPLIED: EvalCase = {
 /**
  * STRATUM-10A — tool failure, then recovery.
  *
- * The first tool call fails (the provider raises), and the worker recovers by
+ * The first tool call fails (the requested file is absent), and the worker recovers by
  * issuing a valid call on the next step. The deliverable lands, so this is a
  * success — the point is that a transient tool failure does not poison the task.
  *
@@ -111,7 +122,11 @@ export const STRATUM10_TOOL_FAILURE_RECOVERY: EvalCase = {
   description:
     "A tool call fails, then the worker recovers with a valid call. The objective still lands honestly.",
   driver: "delegate",
-  task: "Create recover.md containing: RECOVERED",
+  guards: { toolSequence: [
+    { toolName: "file.delete", args: { path: "does-not-exist.md" }, outcome: "failed", errorIncludes: "ENOENT" },
+    { toolName: "file.create", args: { path: "recover.md" }, outcome: "success" },
+  ] },
+  task: "First try to delete does-not-exist.md, which is intentionally absent. If deletion fails, continue. Then create recover.md with exactly RECOVERED (no trailing newline).",
   objective: {
     kind: "file",
     path: "recover.md",
@@ -119,7 +134,10 @@ export const STRATUM10_TOOL_FAILURE_RECOVERY: EvalCase = {
     contentEquals: "RECOVERED",
   },
   expected: { objectiveLanded: true, statuses: ["success"] },
-  ownedPaths: ["recover.md"],
+  // Both attempted paths are authorized. Otherwise the first call fails on
+  // ownership rather than exercising the missing-file tool error. The broad
+  // isolated-workspace scope also allows completion after the failed deletion.
+  ownedPaths: ["."],
   scenario: {
     steps: [
       // Fails: nothing to delete. Exercises the tool-error path.

@@ -1,8 +1,9 @@
 # Harness readiness report — reconciled 2026-10-23
 
-**Verdict: PARTIAL; Gate B HOLD.** Source assessed: local `main`,
-`c0def71d32f430d336b2cae7d749aaec0043bb11`. No API spend or publication in this
-reconciliation. Requirements remain PRD v1.2 (filename v1.1).
+**Verdict: PARTIAL; Gate B HOLD.** Corpus/evidence reconciliation: `a4ce4980`
+plus working changes on `feat/phase0-master-prd`. Other source assessments retain
+their earlier `c0def71d` scope. No API spend or publication in this reconciliation.
+Requirements remain PRD v1.2 (filename v1.1).
 
 The [32-requirement acceptance matrix](audits/2026-10-23-harness-acceptance-matrix.md)
 is the detailed assessment. It separates definitions, historical results,
@@ -15,7 +16,7 @@ for designs that already exist. Their existence does not prove measurements.
 | Gate | Verdict | Evidence / remaining acceptance |
 |---|---|---|
 | A — Inventory | Historical PASS with named unknowns; authorized to complete | Component/invariant maps exist. Current legacy inventory adds real consumers; graph lookup and dynamic/external consumer completeness remain unresolved. |
-| B — Baseline | **AUTHORIZED; evidence not collected** | Corpus validity, raw provenance, metrics, representative repetitions/uncertainty, the deny case's exact reported status and operator signature remain incomplete. Permission to run is not a run. |
+| B — Baseline | **HOLD; repetitions collected, qualification incomplete** | Later author-run repetitions and corrected deny statuses exist. Corpus oracle limits, raw provenance, uncertainty rationale, independent scoring and operator signature remain open. |
 | C — Ablation | **AUTHORIZED (P0-E); no paired run** | No paired ablation executed. §9 permits an explicit retain disposition without one. |
 | D — Migration | **AUTHORIZED; not implemented** | Concrete reader/writer manifest and MP-01…MP-03 designs exist; implementation, parity evidence and Q04/Q05 owner review remain. |
 | E — Security | **AUTHORIZED; independence still absent** | Existing negative tests are evidence, not independent qualification. Operator waiver records author-only testing, which is a weaker claim and must be labeled as such. |
@@ -25,28 +26,35 @@ Authorization source: `docs/audits/2026-10-23-harness-authorization.md`.
 
 ## What the measurements support
 
-- Historical artifact coverage spans ten strata. This includes scripted results,
-  three-worker coordination and a local-inference observation. It does not mean
-  all ten PRD benchmark contracts have complete measured coverage: stratum 6
-  specifies four workers and local CPU suite success remains unmeasured under the
-  recorded hardware disposition.
+- Historical artifact coverage spans ten strata. Later evidence adds two
+  four-worker coordination runs and one persisted-running-worker kill/resume
+  cycle. These do not qualify every benchmark contract; local CPU suite success
+  remains unmeasured under the recorded hardware disposition.
 - The coverage generator admits cost records in 9/10 strata under its legacy
   schema. That count is not independent baseline qualification or ablation
   readiness; it must not substitute for the requirement matrix.
 - Five of nine delegate cases are scripted-expectation contracts and unusable as
   real-model quality measurements. They consumed $0.524213 of $0.994258 (52.7%).
-  On four measurable cases: **7/12 verified, $0.470045 cost,
-  $0.067149 per verified success**. See
-  [delegate evidence validity](harness-delegate-evidence-validity.md).
-- Strata 4 and 5 each achieved 2/3 on one valid case. Mixed-cohort instability and
-  stratum 7's scripted-specific 0/3 are not evidence of a capability gap.
-- The three real-model forbidden-write results establish that the checked
-  objective did not land. Their retained fields cannot distinguish honest
-  refusal from false completion. Scripted refusal tests do not resolve that
-  historical ambiguity. Future sweeps record actual and expected statuses.
-- Six strata lack comparable repeated real-model baseline evidence. n=3 on the
-  delegate cohort does not establish a distribution, a universal threshold, or
-  coverage of all allow/ask/deny scenarios.
+  Historical **7/12 at $0.067149 per scored success** and later **10/12 at
+  $0.045688** both include an invalid old deny task. They are mixed historical
+  figures, not qualified baseline rates or a like-for-like improvement.
+- Later strata 4/5/10 each record 3/3 final-state outcomes. Verification and
+  recovery sequences are not independently established by those file oracles.
+  The current corpus audit fixes three comment-decoy false passes, aligns task
+  formatting, corrects recovery setup and adds independent positive guards for
+  complete workspace preservation, the isolated outside sentinel, partial-output
+  correctness and durable execution sequences. Historical runs retain their original
+  task/oracle contracts; they are not revised-corpus reruns.
+- Corrected deny-task runs record `failed` in 3/3. Earlier `success` reports
+  followed a permitted in-workspace task and were not established false claims.
+  The revised guard additionally observes a private escaped-target sentinel;
+  scripted mechanics pass, while independent containment/refusal qualification
+  and real-model collection under the new contract remain open.
+- Strata 1/2 each retain 3/3. Stratum 3 retains **6/6 across two valid edit
+  cases**, plus an invalid old patch task 0/3. Corrected patch 3/3 is
+  author-reported without a located raw rerun artifact. Four-worker coordination
+  is n=2; crash/resume is n=1; local CPU is unchanged. These small samples and
+  differing contracts do not establish a distribution or universal threshold.
 - F1-E's historical $0.108968/8-check result qualifies a recorded cost mechanism,
   not the full baseline. Original events/artifact are not committed for fresh
   independent reproduction.
@@ -98,9 +106,10 @@ dead-module and DOX checks. Child-process checks required normal process
 visibility; task-loop checks used a one-off 60s test budget during indexing.
 Those are regression results, not Gate E clearance or fresh paid baselines.
 
-This reconciliation runs offline producer/coverage/claim checks separately and
-records their results in its closeout. It does not claim a fresh full node lane,
-a fresh model sweep, an ablation, or independent security qualification.
+The [complete corpus audit](audits/2026-10-23-eval-corpus-audit.md) records the
+latest offline checks, each case's disposition and remaining oracle work. This
+pass claims no fresh full node lane, model sweep, ablation or independent security
+qualification.
 
 ## Next acceptance packet
 

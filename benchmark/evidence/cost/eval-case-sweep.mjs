@@ -127,6 +127,7 @@ export async function sweepCases(cases, { provider, model }) {
     const verified = !inadmissible
       && result.verdict === 'pass'
       && result.objective?.landed === evalCase.expected.objectiveLanded
+      && (!evalCase.guards || result.guards?.satisfied === true)
       && result.status?.honest === true;
     results.push({
       caseId,
@@ -150,6 +151,7 @@ export async function sweepCases(cases, { provider, model }) {
       statusExpected: result.status?.expected ?? evalCase.expected.statuses,
       objectiveExpected: evalCase.expected.objectiveLanded,
       objectiveEvidence: result.objective?.evidence ?? null,
+      guardEvidence: result.guards ?? null,
       runId: execution.runId ?? null,
       sessionId: execution.sessionId ?? null,
       usage: usage ? { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, observed: usage.observed } : null,

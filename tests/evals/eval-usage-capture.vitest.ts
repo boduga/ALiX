@@ -129,7 +129,7 @@ describe("runner ordering", () => {
       "utf-8",
     );
     const capture = src.indexOf("captureEvalUsage(cwd)");
-    const cleanup = src.indexOf("rmSync(cwd, { recursive: true, force: true })");
+    const cleanup = src.indexOf("rmSync(fixtureRoot, { recursive: true, force: true })");
     expect(capture).toBeGreaterThan(-1);
     expect(cleanup).toBeGreaterThan(-1);
     expect(capture).toBeLessThan(cleanup);

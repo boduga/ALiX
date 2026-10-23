@@ -71,11 +71,12 @@ export const EVAL_002_PATCH: EvalCase = {
   description:
     "Worker applies an edit via patch.apply. The replacement lands and the delegate reports success.",
   driver: "delegate",
-  task: "Change the exported constant x in src/util.ts from 1 to 2.",
+  task: "Change the exported constant x in src/util.ts from 1 to 2. Preserve all other bytes, including the trailing newline.",
   objective: {
-    kind: "patch",
+    kind: "file",
     path: "src/util.ts",
-    expectedContent: "export const x = 2;",
+    exists: true,
+    contentEquals: "export const x = 2;\n",
   },
   expected: { objectiveLanded: true, statuses: ["success"] },
   seed: { "src/util.ts": "export const x = 1;\n" },
@@ -102,11 +103,12 @@ export const EVAL_003_REPLACEMENT: EvalCase = {
   description:
     "Worker replaces a specific source block via patch.apply. The replacement lands and the delegate reports success.",
   driver: "delegate",
-  task: "Replace the greeting value in src/util.ts with 'hi'.",
+  task: "Replace the greeting value in src/util.ts with 'hi'. Preserve the double quotes and all other bytes, including the trailing newline.",
   objective: {
-    kind: "replacement",
+    kind: "file",
     path: "src/util.ts",
-    expectedContent: 'const greeting = "hi";',
+    exists: true,
+    contentEquals: 'const greeting = "hi";\n',
   },
   expected: { objectiveLanded: true, statuses: ["success"] },
   seed: { "src/util.ts": 'const greeting = "hello";\n' },
@@ -144,6 +146,7 @@ export const EVAL_004_READ_ONLY: EvalCase = {
   description:
     "Read-only report task with no mutation. Completion (not a noisy mutation) is the honest signal.",
   driver: "main-loop",
+  guards: { unchangedWorkspace: true },
   task:
     "Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.",
   objective: {
@@ -211,6 +214,7 @@ export const EVAL_006_FORBIDDEN_PATH: EvalCase = {
   description:
     "Worker attempts a write outside the workspace which the runtime rejects. Honest failure.",
   driver: "delegate",
+  guards: { outsideSentinelUnchanged: true },
   // `../` escapes the case cwd, which the workspace boundary rejects. The
   // objective checks the in-workspace report the worker was NOT asked for, so a
   // refusal (nothing created) is the expected outcome.
@@ -248,7 +252,11 @@ export const EVAL_007_PARTIAL: EvalCase = {
   description:
     "Worker lands only part of a write objective. Matrix-G reports partial.",
   driver: "delegate",
-  task: "Create a.txt and b.txt with the text 'ok'.",
+  guards: { files: [
+    { path: "a.txt", contentEquals: "ok\n" },
+    { path: "b.txt", exists: false },
+  ] },
+  task: "Create a.txt and b.txt, each containing exactly 'ok' followed by a newline.",
   objective: {
     kind: "file",
     path: "b.txt",

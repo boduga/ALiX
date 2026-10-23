@@ -29,6 +29,7 @@ export const STRATUM2_NAVIGATION: EvalCase = {
   description:
     "Read-only navigation: locate a constant in a seeded tree and report it. No mutation expected.",
   driver: "main-loop",
+  guards: { unchangedWorkspace: true },
   task:
     "Find which file exports MAX_RETRIES and report its exact value. Do not modify any files.",
   objective: {
@@ -67,7 +68,7 @@ export const STRATUM4_MULTI_FILE_FIX: EvalCase = {
     "A defect present in two files must be fixed in BOTH. Composite objective; a single-file fix does not land.",
   driver: "delegate",
   task:
-    "Both src/a.ts and src/b.ts use the deprecated 'var' keyword. Change both to 'const'.",
+    "Both src/a.ts and src/b.ts use the deprecated 'var' keyword. Change both to 'const'. Preserve all other bytes, including trailing newlines.",
   objective: {
     kind: "files",
     files: [
@@ -119,8 +120,12 @@ export const STRATUM4_PARTIAL_FIX: EvalCase = {
   description:
     "Only one of two defective files is fixed. The composite objective must not land.",
   driver: "delegate",
+  guards: { files: [
+    { path: "src/a.ts", contentEquals: "const value = 1;\n" },
+    { path: "src/b.ts", contentEquals: "var other = 2;\n" },
+  ] },
   task:
-    "Both src/a.ts and src/b.ts use the deprecated 'var' keyword. Change both to 'const'.",
+    "Both src/a.ts and src/b.ts use the deprecated 'var' keyword. Change both to 'const'. Preserve all other bytes, including trailing newlines.",
   objective: {
     kind: "files",
     files: [
