@@ -12,6 +12,7 @@
 
 import type { ScriptedScenario } from "./providers/scripted-mock-provider.js";
 import type { EvalExecutionMetrics } from "./eval-execution-metrics.js";
+import type { EvalRunEvidence } from "./eval-evidence.js";
 
 /** Which runtime a case drives. */
 export type EvalDriverKind = "delegate" | "main-loop";
@@ -276,6 +277,13 @@ export type EvalExecutionResult = {
    * `observed: false` (or an `unobserved` reason) may accompany nulls.
    */
   metrics?: EvalExecutionMetrics;
+  /**
+   * Raw evidence the evaluator saw — objective-file bytes, a workspace manifest,
+   * sentinel bytes and the runtime's own account. Captured before the fixture
+   * root is deleted so a third party can re-derive the outcome instead of
+   * trusting the verdict.
+   */
+  evidence?: EvalRunEvidence;
 };
 
 /** Final per-case result, separating objective outcome from status outcome. */

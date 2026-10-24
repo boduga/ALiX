@@ -243,6 +243,11 @@ export async function sweepCases(cases, { provider, model, rate = null }) {
       objectiveExpected: evalCase.expected.objectiveLanded,
       objectiveEvidence: result.objective?.evidence ?? null,
       guardEvidence: result.guards ?? null,
+      // Raw evidence behind the verdict: objective-file bytes, workspace
+      // manifest, sentinel bytes and the runtime's own account. Without this a
+      // third party can check the evaluator's arithmetic but cannot re-derive
+      // the outcome — the gap an independent verification named on 2026-10-24.
+      evidence: execution.evidence ?? null,
       runId: execution.runId ?? null,
       sessionId: execution.sessionId ?? null,
       usage: usage ? { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, observed: usage.observed } : null,

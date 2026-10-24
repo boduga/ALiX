@@ -30,6 +30,7 @@ import type { DelegateExecutor } from "./drivers/delegate-driver.js";
 import { runMainLoopCase } from "./drivers/main-loop-driver.js";
 import { captureEvalUsage } from "./eval-usage.js";
 import { captureEvalExecutionMetrics } from "./eval-execution-metrics.js";
+import { captureEvalRunEvidence } from "./eval-evidence.js";
 import { prepareEvalGuards, evaluateEvalGuards } from "./eval-guards.js";
 import {
   setScriptedScenario,
@@ -237,6 +238,14 @@ export async function runEvalCase(
     // tool calls, repeats, tool-level retries and approval decisions. Capture
     // it here or lose it with the fixture root.
     execution.metrics = captureEvalExecutionMetrics(cwd);
+
+    // Third cleanup-boundary capture, same justification as usage and metrics:
+    // an independent verification confirmed the scores but could not re-derive
+    // them, because rows kept conclusions while the bytes went with the fixture
+    // root. Capture what the evaluator is about to see, not just what it says.
+    execution.evidence = captureEvalRunEvidence(cwd, evalCase.objective, execution, {
+      hasOutsideSentinel: evalCase.guards?.outsideSentinelUnchanged === true,
+    });
 
     const objective = evaluateObjective(cwd, evalCase.objective, execution);
     const guards = evalCase.guards && guardBaseline
