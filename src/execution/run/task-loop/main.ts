@@ -774,6 +774,28 @@ const runModelTurn = async (
   resolvedModel: string | undefined;
   finishReason: string | undefined;
 }> => {
+  // Every provider attempt, retries included, from BOTH the streaming and the
+  // blocking path. Defined at the top of this function because both request
+  // constructions reference it — placed next to a request instead, it landed
+  // AFTER the streaming branch that used it, a temporal-dead-zone reference whose
+  // rejection the `.catch` swallowed, so telemetry silently never fired.
+  const pendingAttemptWrites: Promise<unknown>[] = [];
+  const recordProviderAttempt = (attempt: { attempt: number; status: number | null; error?: string; retryable: boolean }): void => {
+    pendingAttemptWrites.push(deps.log.append({
+      ...deps.session,
+      ...(deps.context?.runId ? { runId: deps.context.runId } : {}),
+      actor: "system",
+      type: "model.attempt",
+      payload: {
+        attempt: attempt.attempt,
+        status: attempt.status,
+        ...(attempt.error ? { error: attempt.error } : {}),
+        retryable: attempt.retryable,
+      },
+    }).catch(() => {
+      // Telemetry must never fail a run.
+    }));
+  };
   let segment: {
     text: string;
     reasoning: string;
@@ -790,8 +812,9 @@ const runModelTurn = async (
       maxOutputTokens: contextBudget.requestedMaxOutputTokens,
       context: deps.context,
     }, deps.cancelSignal
-      ? { onStream, signal: deps.cancelSignal, writeToStdout: deps.verbose ?? true }
-      : { onStream, writeToStdout: deps.verbose ?? true });
+      ? { onStream, signal: deps.cancelSignal, writeToStdout: deps.verbose ?? true, onAttempt: recordProviderAttempt }
+      : { onStream, writeToStdout: deps.verbose ?? true, onAttempt: recordProviderAttempt });
+    await Promise.allSettled(pendingAttemptWrites.splice(0));
     segment = {
       text: result.text,
       reasoning: result.reasoning ?? "",
@@ -816,13 +839,14 @@ const runModelTurn = async (
     // race's onRejected swallows — the loop still sees ExecutionCancelledError.
     const resp = await (deps.cancelSignal
       ? raceWithCancellation(
-          provider.complete(completeReq, { signal: deps.cancelSignal }),
+          provider.complete(completeReq, { signal: deps.cancelSignal, onAttempt: recordProviderAttempt }),
           deps.cancelSignal,
           "cancelled by operator",
         )
-      : provider.complete(completeReq));
+      : provider.complete(completeReq, { onAttempt: recordProviderAttempt }));
     // C1 fix: restore assignments — the non-streaming path MUST populate
     // text/toolCalls/usage from the provider response.
+    await Promise.allSettled(pendingAttemptWrites.splice(0));
     segment = {
       text: resp.text ?? "",
       reasoning: resp.reasoning ?? "",

@@ -34,6 +34,24 @@ export type TokenUsage = {
   outputTokens: number;
 };
 
+/**
+ * One provider request attempt, reported through the attempt observer.
+ *
+ * Delivered OUT OF BAND (`ModelCallOptions.onAttempt`), never inside
+ * `NormalizedRequest`: a request is wire-shaped data that consumers clone and
+ * serialize, and a function breaks both.
+ *
+ * `retryable` mirrors the dispatcher's own decision, so a consumer can tell an
+ * attempt that was abandoned for retry from a terminal one.
+ */
+export type ProviderAttempt = {
+  attempt: number;
+  status: number | null;
+  /** Short failure description for a transport error; absent on a normal response. */
+  error?: string;
+  retryable: boolean;
+};
+
 // Cost profile
 export type CostTier = {
   maxTokens: number;
@@ -137,6 +155,7 @@ export type NormalizedRequest = {
   };
   /** Execution context for diagnostic correlation. Set by the agent loop. */
   context?: ExecutionContext;
+
   /**
    * Capability-negotiated parallelToolCalls flag (T2).
    * When present, _openai-base gates parallel_tool_calls on this single source
@@ -191,6 +210,15 @@ export type NegotiatedCapabilities = {
 export type ModelCallOptions = {
   /** Abort the in-flight provider request when this signal fires. */
   signal?: AbortSignal;
+  /**
+   * Per-attempt transport telemetry.
+   *
+   * Deliberately NOT a field on `NormalizedRequest`: a request is wire-shaped
+   * data that consumers clone (`structuredClone`) and serialize, and a function
+   * breaks both — it did, in ten continuity tests. Options are the caller's
+   * boundary and are never cloned into provider payloads.
+   */
+  onAttempt?: (attempt: ProviderAttempt) => void;
 };
 
 export type ModelAdapter = {

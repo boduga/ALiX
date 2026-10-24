@@ -61,6 +61,8 @@ export class InternProvider extends BaseProvider {
     return complete("intern", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+
+      ...(options?.onAttempt ? { onAttempt: options.onAttempt } : {}),
       baseUrl: this.endpoint(),
     });
   }
@@ -69,6 +71,8 @@ export class InternProvider extends BaseProvider {
     yield* stream("intern", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+
+      ...(options?.onAttempt ? { onAttempt: options.onAttempt } : {}),
       baseUrl: this.endpoint(),
     });
   }

@@ -64,6 +64,13 @@ export type EvalExecutionMetrics = {
    * re-invocation.
    */
   toolRetries: number | null;
+  /**
+   * `model.attempt` events reported by the dispatcher. `providerRetries` counts
+   * the ones the dispatcher marked retryable. Sourced from real telemetry now;
+   * previously there was no emitter, so both were null.
+   */
+  providerAttempts: number | null;
+  providerRetries: number | null;
   /** `approval.resolved` count — approval decisions touching the run. */
   operatorInterventions: number | null;
   /**
@@ -75,7 +82,6 @@ export type EvalExecutionMetrics = {
   unobserved: string[];
 };
 
-const PROVIDER_RETRY_GAP = "provider retries are not emitted by the event vocabulary";
 const MANUAL_RERUN_GAP = "manual re-runs are per-sweep events, not per-case session evidence";
 
 const EMPTY = (reason: string): EvalExecutionMetrics => ({
@@ -86,9 +92,11 @@ const EMPTY = (reason: string): EvalExecutionMetrics => ({
   rejectedCalls: null,
   repeatedCalls: null,
   toolRetries: null,
+  providerAttempts: null,
+  providerRetries: null,
   operatorInterventions: null,
   operatorCancellations: null,
-  unobserved: [reason, PROVIDER_RETRY_GAP, MANUAL_RERUN_GAP],
+  unobserved: [reason, MANUAL_RERUN_GAP],
 });
 
 /** Key-sorted serialization so argument order never fabricates a distinct call. */
@@ -138,6 +146,8 @@ export function captureEvalExecutionMetrics(cwd: string): EvalExecutionMetrics {
   let rejectedCalls = 0;
   let repeatedCalls = 0;
   let toolRetries = 0;
+  let providerAttempts = 0;
+  let providerRetries = 0;
   let operatorInterventions = 0;
   let operatorCancellations = 0;
   let readAny = false;
@@ -179,6 +189,12 @@ export function captureEvalExecutionMetrics(cwd: string): EvalExecutionMetrics {
         }
         if (!isObject(event) || typeof event.type !== "string") continue;
 
+        if (event.type === "model.attempt") {
+          const p = isObject(event.payload) ? event.payload : {};
+          providerAttempts += 1;
+          if (p.retryable === true) providerRetries += 1;
+          continue;
+        }
         if (event.type === "approval.resolved") {
           operatorInterventions += 1;
           continue;
@@ -263,8 +279,10 @@ export function captureEvalExecutionMetrics(cwd: string): EvalExecutionMetrics {
     rejectedCalls,
     repeatedCalls,
     toolRetries,
+    providerAttempts,
+    providerRetries,
     operatorInterventions,
     operatorCancellations,
-    unobserved: [PROVIDER_RETRY_GAP, MANUAL_RERUN_GAP],
+    unobserved: [MANUAL_RERUN_GAP],
   };
 }

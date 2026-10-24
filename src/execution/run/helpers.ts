@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline";
-import type { ModelAdapter, NormalizedMessage, NormalizedRequest, StreamChunk, ToolCall, TokenUsage, ToolDef, ToolParam } from "../../models/providers/types.js";
+import type { ModelAdapter, NormalizedMessage, NormalizedRequest, StreamChunk, ToolCall, TokenUsage, ToolDef, ToolParam, ProviderAttempt } from "../../models/providers/types.js";
 import type { MemoryStore } from "../../operations/utils/memory/store.js";
 import { extractDecisions, promptDecisionConfirmation } from "../../operations/utils/memory/decision-extractor.js";
 import { buildEditFormatPolicy, type EditFormatPolicy } from "../patch/edit-format-policy.js";
@@ -512,7 +512,13 @@ export type StreamToResponseResult = {
 export async function streamToResponse(
   provider: ModelAdapter,
   request: NormalizedRequest,
-  options?: { onStream?: StreamHandler; signal?: AbortSignal; writeToStdout?: boolean }
+  options?: {
+    onStream?: StreamHandler;
+    signal?: AbortSignal;
+    writeToStdout?: boolean;
+    /** Forwarded to the adapter's options; never part of the request payload. */
+    onAttempt?: (attempt: ProviderAttempt) => void;
+  }
 ): Promise<StreamToResponseResult> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
   const signal = options?.signal;
@@ -564,7 +570,7 @@ export async function streamToResponse(
 
   try {
     if (!signal) {
-      for await (const chunk of provider.stream(request)) {
+      for await (const chunk of provider.stream(request, { onAttempt: options?.onAttempt })) {
         await accumulate(chunk);
       }
       return buildResult();
@@ -576,7 +582,7 @@ export async function streamToResponse(
     // (provider.stream request construction) so a cancel aborts the transport
     // request/socket itself, not just the race — while the race stays the
     // prompt-release guarantee.
-    const iterator = provider.stream(request, { signal })[Symbol.asyncIterator]();
+    const iterator = provider.stream(request, { signal, onAttempt: options?.onAttempt })[Symbol.asyncIterator]();
     try {
       for (;;) {
         if (signal.aborted) {

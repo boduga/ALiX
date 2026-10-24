@@ -18,7 +18,7 @@ import { internSpec } from "./specs/intern-spec.js";
 import { hiveSpec } from "./specs/hive-spec.js";
 import { localLlamaSpec } from "./specs/local-llama-spec.js";
 import type { ProviderSpec } from "./spec-types.js";
-import type { NormalizedRequest, NormalizedResponse, StreamChunk, ToolCall } from "./types.js";
+import type { NormalizedRequest, NormalizedResponse, StreamChunk, ToolCall, ProviderAttempt } from "./types.js";
 import { shouldRequestParallelTools } from "./parallel-tool-calls.js";
 
 export const SPECS = new Map<string, ProviderSpec>([
@@ -78,23 +78,31 @@ function abortError(signal: AbortSignal): ApiError {
   return new ApiError(408, signal.reason ? `Request aborted: ${String(signal.reason)}` : "Request aborted");
 }
 
-async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 3): Promise<Response> {
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxRetries = 3,
+  onAttempt?: (attempt: ProviderAttempt) => void,
+): Promise<Response> {
   let lastErr: Response | undefined;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     if (init.signal?.aborted) throw abortError(init.signal);
     try {
       const res = await _fetch(url, init);
       if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
+        onAttempt?.({ attempt, status: res.status, retryable: true });
         lastErr = res;
         const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
+      onAttempt?.({ attempt, status: res.status, retryable: false });
       return res;
     } catch (e) {
       // If the signal fired mid-fetch, cancel now — aborting is not a
       // transient failure worth another retry cycle.
       if (init.signal?.aborted) throw abortError(init.signal);
+      onAttempt?.({ attempt, status: null, error: String(e), retryable: attempt + 1 < maxRetries });
       lastErr = new Response(JSON.stringify({ error: { message: String(e) } }), { status: 503 });
     }
   }
@@ -283,12 +291,13 @@ export async function complete(
   provider: string,
   model: string,
   request: NormalizedRequest,
-  options: { apiKey?: string; signal?: AbortSignal; baseUrl?: string } = {}
+  options: { apiKey?: string; signal?: AbortSignal; baseUrl?: string; onAttempt?: (attempt: ProviderAttempt) => void } = {}
 ): Promise<NormalizedResponse> {
   const spec = SPECS.get(provider);
   if (!spec) throw new Error(`Unknown provider: ${provider}`);
 
   const apiKey = resolveApiKey(provider, options.apiKey);
+  const reportAttempt = options.onAttempt;
   // T2 — single helper gate for parallel_tool_calls (dispatcher end-to-end path).
   const bodyRaw = spec.toRequestBody({ ...request, model } as NormalizedRequest & { model: string });
   const body: any = bodyRaw;
@@ -308,7 +317,7 @@ export async function complete(
     headers: { "Content-Type": "application/json", ...spec.authHeader(apiKey) },
     body: JSON.stringify(body),
     signal: options.signal,
-  });
+  }, 3, reportAttempt);
 
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}));
@@ -346,7 +355,7 @@ export async function* stream(
   provider: string,
   model: string,
   request: NormalizedRequest,
-  options: { apiKey?: string; signal?: AbortSignal; baseUrl?: string } = {}
+  options: { apiKey?: string; signal?: AbortSignal; baseUrl?: string; onAttempt?: (attempt: ProviderAttempt) => void } = {}
 ): AsyncGenerator<StreamChunk> {
   const spec = SPECS.get(provider);
   if (!spec) throw new Error(`Unknown provider: ${provider}`);
@@ -381,13 +390,15 @@ export async function* stream(
         body: JSON.stringify(body),
         signal: options.signal,
       });
-      if (res.ok) break;
+      if (res.ok) { options.onAttempt?.({ attempt, status: res.status, retryable: false }); break; }
       if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
+        options.onAttempt?.({ attempt, status: res.status, retryable: true });
         const delay = Math.floor(Math.random() * 1000 * Math.pow(2, attempt));
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
       const errBody = await res.json().catch(() => ({}));
+      options.onAttempt?.({ attempt, status: res.status, retryable: false });
       yield { type: "error", error: spec.toErrorMessage(res.status, errBody) };
       return;
     } catch (e: any) {
@@ -396,10 +407,14 @@ export async function* stream(
         return;
       }
       if (attempt < maxRetries) {
+        // Report BEFORE backoff: a transport failure that retries silently is the
+        // case that makes admissibility unverifiable.
+        options.onAttempt?.({ attempt, status: null, error: String(e), retryable: true });
         const delay = Math.floor(Math.random() * 1000 * Math.pow(2, attempt));
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
+      options.onAttempt?.({ attempt, status: null, error: String(e), retryable: false });
       yield { type: "error", error: `Stream request failed: ${e.message}` };
       return;
     }

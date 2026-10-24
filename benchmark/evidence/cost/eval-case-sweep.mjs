@@ -215,7 +215,10 @@ export async function sweepCases(cases, { provider, model, rate = null }) {
       rejectedCalls: metrics?.rejectedCalls ?? null,
       repeatedCalls: metrics?.repeatedCalls ?? null,
       toolRetries: metrics?.toolRetries ?? null,
-      providerRetries: null,
+      // Real telemetry now: the dispatcher reports every attempt, retries
+      // included, so a transient fault that recovered is visible.
+      providerRetries: metrics?.providerRetries ?? null,
+      providerAttempts: metrics?.providerAttempts ?? null,
       driverReinvocations: null,
       operatorInterventions: metrics?.operatorInterventions ?? null,
       operatorCancellations: metrics?.operatorCancellations ?? null,

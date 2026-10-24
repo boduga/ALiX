@@ -96,6 +96,8 @@ export class HiveProvider extends BaseProvider {
     const response = await complete("hive", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+
+      ...(options?.onAttempt ? { onAttempt: options.onAttempt } : {}),
       baseUrl: this.endpoint(),
     });
     this.assertNotReasoningStarved(request, response.text, response.reasoning, response.usage);
@@ -109,6 +111,8 @@ export class HiveProvider extends BaseProvider {
     for await (const chunk of stream("hive", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+
+      ...(options?.onAttempt ? { onAttempt: options.onAttempt } : {}),
       baseUrl: this.endpoint(),
     })) {
       if (chunk.type === "text_delta") text += chunk.text;
