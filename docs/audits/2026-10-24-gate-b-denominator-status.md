@@ -138,3 +138,65 @@ The repo contract says to warn on HIGH and never waive it — the correct order 
 inspect first, then commit. The inspection above was performed after the fact and the
 finding is a false positive, but the sequencing was wrong and is noted rather than
 hidden.
+
+---
+
+## 7. Final position (2026-10-24) — GB-06 closed as `partial`, not pursued further
+
+**Decision: stop.** GB-06 stays `partial` and the remaining work is not funded.
+
+### 7.1 Why stopping is the honest call
+
+Two independent reviews declined the denominator across three collections. Each
+refusal named one gap; closing it exposed the next layer:
+
+| Round | Gap named | Resolution |
+|---|---|---|
+| 1 | Rows kept conclusions, not bytes | Evidence capture built |
+| 2 | No before manifests, sentinel bytes, delegate answers | Capture extended |
+| 3 | `events: []` hardcoded on the delegate child | Emission fixed |
+| 4 | No provider-attempt records | **Fixed in code** (commit `0e15cca0`) |
+
+The pattern is the finding: **admissibility is not a field you add, it is a
+property that must hold at every layer.** Four layers each hid the next. That is
+an architectural observation about how the runtime reports on itself, not a
+measurement problem, and it is worth more than the denominator would have been.
+
+### 7.2 What is true right now
+
+- The collection is **independently reproduced**: an external review recomputed all
+  45 outcomes (36 true, 9 false, zero mismatches) and every cost exactly.
+- **Provider-attempt telemetry now works** (commit `0e15cca0`), verified
+  deterministically through the registry path at zero cost.
+- **No collection has been run with that telemetry.** Both 2026-10-24 collections
+  predate it, so their rows still carry `providerAttempts: null`.
+- Therefore GB-06 remains `partial`: outcomes are verified, admissibility is
+  *inspectable going forward* but not established for the collected data.
+
+### 7.3 Why not run a fourth collection
+
+- **Ceiling**: `$9.87` spent against `$9.50` — already over. There is no
+  authorization for more.
+- **Diminishing return**: a fourth pass would establish admissibility for a single
+  model at a proxy rate, against a reviewer whose standard has moved four times.
+  The next gap would likely be invoice reconciliation or operator attention — both
+  outside a model run's reach.
+
+### 7.4 What would actually close GB-06, if it is ever funded
+
+1. One collection at commit `0e15cca0` or later, so rows carry real
+   `providerAttempts`/`providerRetries`.
+2. Independent re-derivation including admissibility from those events.
+3. Provider billing reconciliation — the rate is still a declared proxy, so any
+   dollar figure is planning arithmetic, not an invoice.
+
+### 7.5 The blockers no amount of this touches
+
+- **GB-11** operator attention — requires observed human review. Nothing synthetic
+  produces it.
+- **GB-14** baseline acceptance — requires a signature on an artifact set that GB-11
+  blocks.
+- **Gate E** independence and **Gate F/Q13** — third parties.
+
+Two of Gate B's four remaining blockers are people. That has been true throughout,
+and no ceiling amendment changes it.
