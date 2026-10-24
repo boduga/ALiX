@@ -408,11 +408,51 @@ export function formatToolLedger(ledger: SubagentToolLedger): string {
   return parts.join("; ");
 }
 
+/**
+ * Diagnostics emitted with the result, bounded.
+ *
+ * The result travels to the parent as ONE JSON line on stdout, so an unbounded
+ * event dump would risk the worker's machine contract. Truncation is recorded in
+ * the emitted text rather than being silent: a reviewer must be able to tell a
+ * bounded record from a complete one.
+ */
+export const MAX_RESULT_EVENTS = 200;
+export const MAX_RESULT_EVENT_CHARS = 64 * 1024;
+
+export function serializeResultEvents(
+  events: readonly { type: string; payload?: unknown; timestamp?: string }[],
+): string[] {
+  const out: string[] = [];
+  let chars = 0;
+  let dropped = 0;
+  for (const event of events) {
+    let line: string;
+    try {
+      line = JSON.stringify(event);
+    } catch {
+      continue; // unserializable payload is not evidence
+    }
+    if (out.length >= MAX_RESULT_EVENTS || chars + line.length > MAX_RESULT_EVENT_CHARS) {
+      dropped += 1;
+      continue;
+    }
+    chars += line.length;
+    out.push(line);
+  }
+  if (dropped > 0) {
+    out.push(JSON.stringify({
+      type: "subagent.events.truncated",
+      payload: { dropped, kept: out.length, reason: "result event bound reached" },
+    }));
+  }
+  return out;
+}
+
 export function buildResult(
   taskId: string, role: SubagentRole, _mode: "read_only" | "write",
   text: string, toolOutputs: string[], progress: WriteProgress, ownedPaths: string[],
   toolLedger: SubagentToolLedger = new Map(),
-  options: { ownershipOnly?: boolean } = {},
+  options: { ownershipOnly?: boolean; events?: readonly { type: string; payload?: unknown; timestamp?: string }[] } = {},
 ): SubagentResult {
   let status = computeSubagentStatus(progress, ownedPaths, process.cwd(), options);
   const { successfulPaths, fatalWriteFailures } = progress;
@@ -459,7 +499,7 @@ export function buildResult(
   return {
     id: taskId, role, status,
     findings,
-    events: [],
+    events: serializeResultEvents(options.events ?? []),
     error,
   };
 }
@@ -755,8 +795,13 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
       const executionId = sessionId;
       let invocationId = `inv-${randomUUID()}`;
       const finalizeResult = async (): Promise<SubagentResult> => {
+        // Read the worker's own durable events here, while the log exists. These
+        // are the diagnostics an independent reviewer needs to exclude an
+        // infrastructure fault: previously `events` was hardcoded `[]`, so
+        // admissibility could only be assumed, never checked.
+        const durableEvents = await readDurableEvents(eventLog);
         const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths, toolLedger,
-          { ownershipOnly: Boolean(coordinationRunId) });
+          { ownershipOnly: Boolean(coordinationRunId), events: durableEvents });
         if (!coordinationRunId) return result;
         // Review only the paths this worker OWNS and actually wrote.
         //

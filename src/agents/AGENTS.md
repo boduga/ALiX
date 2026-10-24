@@ -33,6 +33,14 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
   release them before `spawn` resolves, and renew them while running.
   Coordination tasks (`coordinationRunId`/`assignedAgentId` set) skip
   acquisition — the scheduler pre-claims those leases before dispatch.
+  **A subagent result carries the worker's own durable events.** `buildResult`
+  reads them via `readDurableEvents(eventLog)` at the call site and emits them
+  bounded (`MAX_RESULT_EVENTS` / `MAX_RESULT_EVENT_CHARS`), appending an explicit
+  `subagent.events.truncated` marker when a bound is hit. The bound exists because
+  the result crosses to the parent as ONE JSON line on stdout. This was previously
+  a hardcoded `events: []`, which made a worker's admissibility uninspectable:
+  absence of a recorded infrastructure fault could not be distinguished from
+  absence of any record. Pinned by `tests/agents/subagent-result-events.vitest.ts`.
   `getRoleModel` resolves the role's model from the canonical `models` object via
   `createModelResolver` (MP-01 reader parity), never from the derived
   `subagents.<tier>` projection that MP-02 retires. Precedence is role `style`
