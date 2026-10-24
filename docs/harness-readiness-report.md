@@ -17,7 +17,7 @@ for designs that already exist. Their existence does not prove measurements.
 |---|---|---|
 | A — Inventory | Historical PASS with named unknowns; authorized to complete | Component/invariant maps exist. Current legacy inventory adds real consumers; graph lookup and dynamic/external consumer completeness remain unresolved. |
 | B — Baseline | **HOLD; repetitions collected, qualification incomplete** | Later author-run repetitions and corrected deny statuses exist. Corpus oracle limits, raw provenance, uncertainty rationale, independent scoring and operator signature remain open. |
-| C — Ablation | **AUTHORIZED (P0-E); no paired run** | No paired ablation executed. §9 permits an explicit retain disposition without one. |
+| C — Ablation | **RETAIN DISPOSITION RECORDED; no paired run** | No paired ablation executed. §9's "otherwise retain" branch is exercised in [`harness-gate-c-retain-disposition.md`](harness-gate-c-retain-disposition.md): both M2 candidates retained, none retired, and it is explicitly not a measured efficiency finding. PRE-R007/R008 remain unexecuted comparisons. |
 | D — Migration | **AUTHORIZED; not implemented** | Concrete reader/writer manifest and MP-01…MP-03 designs exist; implementation, parity evidence and Q04/Q05 owner review remain. |
 | E — Security | **AUTHORIZED; independence still absent** | Existing negative tests are evidence, not independent qualification. Operator waiver records author-only testing, which is a weaker claim and must be labeled as such. |
 | F — Release | **AUTHORIZED to assemble; signature outstanding** | Q13. The maintainer decision and independent clearance cannot be supplied by this agent or by an authorization. |

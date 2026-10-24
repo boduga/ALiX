@@ -27,6 +27,8 @@ subtrees below.
 | `docs/2026-10-23-harness-closeout-handoff-2.md` | Dated hand-off, current: supersedes the first closeout handoff. Evaluator false-pass fix, two broken eval cases found and repaired, gpt-4o baseline re-measurement, six strata repeated, and every retracted claim marked as such. |
 | `docs/harness-shim-catalog.md` | Harness shim owners, triggers, tests, retirement criteria, and measurement limits. |
 | `docs/harness-review-evaluation-protocol.md` | No-model scoring protocol for future human review; protocol readiness does not imply observations or qualification. |
+| `docs/harness-gate-c-retain-disposition.md` | Gate C decision under PRD §9's default "otherwise retain" branch: HC-01/HC-03 (and HC-02/HC-05) retained, none retired, no ablation run. Explicitly not a measured efficiency finding and not evidence of measured absence of benefit. |
+| `docs/harness-pre-r024-isolation-qualification.md` | PRE-R024 isolation qualification: 6/8 controls evidenced by adversarial test (`tests/security/pre-r024-isolation-qualification.vitest.ts`), 2 deliberately unqualified (rubric containment, replay class). Gates model-backed probes; does not clear them. |
 | `docs/harness-cutover-plan.md` | Design-only migration packages and their prerequisites; not implementation approval. |
 | `docs/superseded/` | Relocated superseded material, subtree-intact |
 | `docs/jev/` | Jev / System One integration docs |
