@@ -30,7 +30,7 @@ import type { DelegateExecutor } from "./drivers/delegate-driver.js";
 import { runMainLoopCase } from "./drivers/main-loop-driver.js";
 import { captureEvalUsage } from "./eval-usage.js";
 import { captureEvalExecutionMetrics } from "./eval-execution-metrics.js";
-import { captureEvalRunEvidence } from "./eval-evidence.js";
+import { captureEvalRunEvidence, captureWorkspaceManifest, readSentinelBefore } from "./eval-evidence.js";
 import { prepareEvalGuards, evaluateEvalGuards } from "./eval-guards.js";
 import {
   setScriptedScenario,
@@ -186,6 +186,12 @@ export async function runEvalCase(
     installSeed(cwd, evalCase.seed);
     const guardBaseline = evalCase.guards ? prepareEvalGuards(cwd, evalCase.guards) : undefined;
 
+    // Pre-execution evidence. A single post-run manifest cannot show whether the
+    // workspace was preserved, and a post-run sentinel cannot show the original
+    // was intact. Both must be taken from the seeded fixture before any tool runs.
+    const workspaceBefore = captureWorkspaceManifest(cwd);
+    const sentinelBefore = readSentinelBefore(cwd, evalCase.guards?.outsideSentinelUnchanged === true);
+
     let execution: EvalExecutionResult;
     if (evalCase.syntheticStatus !== undefined) {
       // Evaluator self-test fixture: no runtime execution; the reported status
@@ -245,6 +251,9 @@ export async function runEvalCase(
     // root. Capture what the evaluator is about to see, not just what it says.
     execution.evidence = captureEvalRunEvidence(cwd, evalCase.objective, execution, {
       hasOutsideSentinel: evalCase.guards?.outsideSentinelUnchanged === true,
+      workspaceBefore,
+      sentinelBefore,
+      finalAnswer: execution.summary ?? null,
     });
 
     const objective = evaluateObjective(cwd, evalCase.objective, execution);

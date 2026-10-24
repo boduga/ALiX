@@ -1,0 +1,577 @@
+{
+  "startedAt": "2026-10-24T06:50:59.151Z",
+  "finishedAt": "2026-10-24T06:52:07.682Z",
+  "frozen": {
+    "model": {
+      "provider": "hive",
+      "name": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revisionSource": "model-id-snapshot"
+    },
+    "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7",
+    "offeredToolsHash": "24fb49fdfe87f7d8cb65b381189169a65f9649d909d02905a810ead8349e0164",
+    "offeredTools": [
+      "alix_collaboration_get_dependency_results",
+      "alix_collaboration_list_conflicts",
+      "alix_collaboration_publish_artifact",
+      "alix_collaboration_publish_finding",
+      "alix_collaboration_query_findings",
+      "alix_collaboration_report_conflict",
+      "alix_coordination_list",
+      "alix_coordination_results",
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_create_skill",
+      "alix_delegate",
+      "alix_done",
+      "alix_execution_state_propose",
+      "alix_file_create",
+      "alix_file_delete",
+      "alix_file_exists",
+      "alix_file_read",
+      "alix_glob_match",
+      "alix_grep_search",
+      "alix_hook_create",
+      "alix_inspect_extension",
+      "alix_list_extensions",
+      "alix_mcp_search_tools",
+      "alix_patch_apply",
+      "alix_schedule_propose",
+      "alix_shell_run",
+      "alix_state_query",
+      "alix_verify_claim",
+      "alix_web_fetch",
+      "alix_web_search"
+    ],
+    "corpusHash": "9ed559998d4b7e8a7bf4497992e0d45a4daf430aace084b31a3c6dc52ba2ce74",
+    "corpusFiles": [
+      {
+        "path": "src/operations/evals/cases/index.ts",
+        "sha256": "09d36787693d5ded9e8c32c4123366f208bd2aa0563651c6c4e2749f48c3827e"
+      },
+      {
+        "path": "src/operations/evals/cases/behavioral.ts",
+        "sha256": "4beb2ff22fbd65b0e2272ae05f8b752c430d1048905deeeb6226e4126ada4e09"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-2-4.ts",
+        "sha256": "3963f18afd4408cb13bd1d25c0e46210e6684e782ec81293054134c4a7381e5f"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-5-10.ts",
+        "sha256": "9cab91edcb4a8f88bffdd9934fa524aeee27e5b7bc7d2d472e7814a196e0a35a"
+      },
+      {
+        "path": "src/operations/evals/cases/stratum-9-local.ts",
+        "sha256": "e77b9b30647c58e0b5e7dea3e37bb1f0a6d76e0970f4e5b6cfc020deb4df8f2d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/objective-evaluator.ts",
+        "sha256": "76869222509ac0a78d7e0dde1104d47e98c07abd9d1553964ec85c4072b6d56d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/status-evaluator.ts",
+        "sha256": "3b16532d05fa07a8005ff3ade2fa52f03c7315435e322f2dc847a3858d759cd4"
+      },
+      {
+        "path": "src/operations/evals/eval-guards.ts",
+        "sha256": "a9b379a9aa87e949dc17256f0d7a9659326cf3e8352aa12d531111e80f2a5d6b"
+      },
+      {
+        "path": "src/operations/evals/eval-admissibility.ts",
+        "sha256": "721408143ecec8e42039e510f32b13a088b2958c8cfb4d47a9d227fbba9ef9a7"
+      }
+    ],
+    "environment": {
+      "node": "v26.11.0",
+      "platform": "linux",
+      "arch": "x64",
+      "cpuCount": 4,
+      "cpuModel": "Intel(R) Core(TM) i3-8145U CPU @ 2.10GHz",
+      "totalMemoryBytes": 12284481536
+    },
+    "pricing": {
+      "source": "operator-declared proxy: openai/gpt-4o catalog rate (defaultPricingCatalog), not a Hive-published rate",
+      "effectiveFrom": "2025-01-01",
+      "inputPerMillion": 2.5,
+      "outputPerMillion": 10,
+      "currency": "USD",
+      "observedAt": "2026-10-23T00:00:00.000Z",
+      "provenance": "operator-snapshot",
+      "note": "Operator-supplied rate snapshot; retained with the run."
+    },
+    "blocking": [],
+    "admissible": true
+  },
+  "suiteDurationMs": 68531,
+  "model": {
+    "provider": "hive",
+    "name": "deepseek-ai/deepseek-v4.1-flash-1017"
+  },
+  "results": [
+    {
+      "caseId": "behavioral.code-navigation",
+      "stratum": "code-navigation",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:50:59.151Z",
+      "finishedAt": "2026-10-24T06:51:16.522Z",
+      "durationMs": 17371,
+      "toolCalls": 2,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/limits.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/limits.ts",
+            "exists": true,
+            "sha256": "4c4b0e686dfce2ff6c3bfde24347392cad7d18524c1d7bb3cc54b64f592128f1",
+            "content": "export const MAX_RETRIES = \"lantern-4\";\n",
+            "bytes": 40
+          }
+        ],
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/index.ts": "file:b7f09448a72193a15a590814a825383a20786c4b5c369f768b2408e8a2d8f271",
+            "src/limits.ts": "file:4c4b0e686dfce2ff6c3bfde24347392cad7d18524c1d7bb3cc54b64f592128f1",
+            "src/timeouts.ts": "file:17da8d74a226a470d46841e62e6a53c18b4a3c657fca3e0cc85c104a01f6e0b4"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "`src/limits.ts` is the only file that exports `MAX_RETRIES`; the one matching line reads `export const MAX_RETRIES = \"lantern-4\"`. So the exact value is the string `\"lantern-4\"` \u2014 worth flagging that it's a quoted string rather than a number, which is unusual for a retry count. No files were modified.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "48fade33-ed51-4b84-ba19-c6e268383015",
+          "runId": "run-8d3a9dcb"
+        },
+        "capturedAt": "2026-10-24T06:51:16.519Z"
+      },
+      "runId": "run-8d3a9dcb",
+      "sessionId": "48fade33-ed51-4b84-ba19-c6e268383015",
+      "usage": {
+        "inputTokens": 21967,
+        "outputTokens": 501,
+        "observed": true
+      },
+      "costUsd": 0.0599275,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.code-navigation",
+      "stratum": "code-navigation",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:51:16.523Z",
+      "finishedAt": "2026-10-24T06:51:28.304Z",
+      "durationMs": 11781,
+      "toolCalls": 5,
+      "toolCallsCompleted": 5,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/limits.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/limits.ts",
+            "exists": true,
+            "sha256": "4c4b0e686dfce2ff6c3bfde24347392cad7d18524c1d7bb3cc54b64f592128f1",
+            "content": "export const MAX_RETRIES = \"lantern-4\";\n",
+            "bytes": 40
+          }
+        ],
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/index.ts": "file:b7f09448a72193a15a590814a825383a20786c4b5c369f768b2408e8a2d8f271",
+            "src/limits.ts": "file:4c4b0e686dfce2ff6c3bfde24347392cad7d18524c1d7bb3cc54b64f592128f1",
+            "src/timeouts.ts": "file:17da8d74a226a470d46841e62e6a53c18b4a3c657fca3e0cc85c104a01f6e0b4"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "`MAX_RETRIES` is exported from `src/limits.ts` (line 1), with the exact value `\"lantern-4\"` \u2014 a string, not a number, despite the name. A direct read of the file confirmed the same declaration, and no files were modified.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "734b8b97-5f59-42fb-9bd5-03cb6aa598e6",
+          "runId": "run-a41c3322"
+        },
+        "capturedAt": "2026-10-24T06:51:28.303Z"
+      },
+      "runId": "run-a41c3322",
+      "sessionId": "734b8b97-5f59-42fb-9bd5-03cb6aa598e6",
+      "usage": {
+        "inputTokens": 38047,
+        "outputTokens": 745,
+        "observed": true
+      },
+      "costUsd": 0.1025675,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.code-navigation",
+      "stratum": "code-navigation",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:51:28.304Z",
+      "finishedAt": "2026-10-24T06:51:41.537Z",
+      "durationMs": 13233,
+      "toolCalls": 4,
+      "toolCallsCompleted": 4,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/limits.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/limits.ts",
+            "exists": true,
+            "sha256": "4c4b0e686dfce2ff6c3bfde24347392cad7d18524c1d7bb3cc54b64f592128f1",
+            "content": "export const MAX_RETRIES = \"lantern-4\";\n",
+            "bytes": 40
+          }
+        ],
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/index.ts": "file:b7f09448a72193a15a590814a825383a20786c4b5c369f768b2408e8a2d8f271",
+            "src/limits.ts": "file:4c4b0e686dfce2ff6c3bfde24347392cad7d18524c1d7bb3cc54b64f592128f1",
+            "src/timeouts.ts": "file:17da8d74a226a470d46841e62e6a53c18b4a3c657fca3e0cc85c104a01f6e0b4"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "**`src/limits.ts`** (line 1) exports it, with the value `\"lantern-4\"` \u2014 a string, not a number, despite the constant-style name.\n\nNo files were modified.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "240b84be-5059-4153-83f6-81073f6fbb52",
+          "runId": "run-1371b97c"
+        },
+        "capturedAt": "2026-10-24T06:51:41.536Z"
+      },
+      "runId": "run-1371b97c",
+      "sessionId": "240b84be-5059-4153-83f6-81073f6fbb52",
+      "usage": {
+        "inputTokens": 22215,
+        "outputTokens": 455,
+        "observed": true
+      },
+      "costUsd": 0.060087499999999995,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.code-navigation",
+      "stratum": "code-navigation",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:51:41.537Z",
+      "finishedAt": "2026-10-24T06:51:52.886Z",
+      "durationMs": 11349,
+      "toolCalls": 4,
+      "toolCallsCompleted": 4,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/limits.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/limits.ts",
+            "exists": true,
+            "sha256": "4c4b0e686dfce2ff6c3bfde24347392cad7d18524c1d7bb3cc54b64f592128f1",
+            "content": "export const MAX_RETRIES = \"lantern-4\";\n",
+            "bytes": 40
+          }
+        ],
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/index.ts": "file:b7f09448a72193a15a590814a825383a20786c4b5c369f768b2408e8a2d8f271",
+            "src/limits.ts": "file:4c4b0e686dfce2ff6c3bfde24347392cad7d18524c1d7bb3cc54b64f592128f1",
+            "src/timeouts.ts": "file:17da8d74a226a470d46841e62e6a53c18b4a3c657fca3e0cc85c104a01f6e0b4"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "`src/limits.ts` exports `MAX_RETRIES`, with the exact value `\"lantern-4\"` (a string, not a number). No files were modified.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "e161a350-9b1b-4698-92bb-e4904924fb18",
+          "runId": "run-2d14ee4d"
+        },
+        "capturedAt": "2026-10-24T06:51:52.885Z"
+      },
+      "runId": "run-2d14ee4d",
+      "sessionId": "e161a350-9b1b-4698-92bb-e4904924fb18",
+      "usage": {
+        "inputTokens": 22206,
+        "outputTokens": 381,
+        "observed": true
+      },
+      "costUsd": 0.059325,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.code-navigation",
+      "stratum": "code-navigation",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:51:52.886Z",
+      "finishedAt": "2026-10-24T06:52:07.682Z",
+      "durationMs": 14796,
+      "toolCalls": 3,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/limits.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/limits.ts",
+            "exists": true,
+            "sha256": "4c4b0e686dfce2ff6c3bfde24347392cad7d18524c1d7bb3cc54b64f592128f1",
+            "content": "export const MAX_RETRIES = \"lantern-4\";\n",
+            "bytes": 40
+          }
+        ],
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/index.ts": "file:b7f09448a72193a15a590814a825383a20786c4b5c369f768b2408e8a2d8f271",
+            "src/limits.ts": "file:4c4b0e686dfce2ff6c3bfde24347392cad7d18524c1d7bb3cc54b64f592128f1",
+            "src/timeouts.ts": "file:17da8d74a226a470d46841e62e6a53c18b4a3c657fca3e0cc85c104a01f6e0b4"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "`src/limits.ts` exports it, and the exact value is the string `\"lantern-4\"` \u2014 not a number, despite the name.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "b6aa17e0-0003-4299-9a9b-02a531d4b10d",
+          "runId": "run-f43095e9"
+        },
+        "capturedAt": "2026-10-24T06:52:07.681Z"
+      },
+      "runId": "run-f43095e9",
+      "sessionId": "b6aa17e0-0003-4299-9a9b-02a531d4b10d",
+      "usage": {
+        "inputTokens": 22096,
+        "outputTokens": 405,
+        "observed": true
+      },
+      "costUsd": 0.05929,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3,
+      "rateSource": "pinned-rate"
+    }
+  ],
+  "latency": {
+    "observed": true,
+    "samples": 5,
+    "p50Ms": 13233,
+    "p95Ms": 17371
+  },
+  "verifiedSuccesses": 5,
+  "inadmissible": 0,
+  "costUsd": 0.3411975
+}

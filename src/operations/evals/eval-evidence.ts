@@ -59,6 +59,12 @@ export type WorkspaceManifest = {
   /** True when any bound was hit; the manifest is then INCOMPLETE. */
   truncated: boolean;
   reason?: string;
+  /**
+   * SHA-256 over the sorted `entries` map. A digest lets a reviewer compare the
+   * before/after pair without diffing thousands of lines, and makes a manifest
+   * substitution detectable.
+   */
+  digest?: string;
 };
 
 /** Everything a third party needs to re-derive this run's outcome. */
@@ -68,13 +74,33 @@ export type EvalRunEvidence = {
    * not a verdict about it.
    */
   objectiveTargets: CapturedFile[];
-  /** Hash manifest of the whole workspace (excluding `.alix`). */
+  /**
+   * Hash manifest of the whole workspace BEFORE the run (excluding `.alix`).
+   * Captured by the runner from the seeded fixture, before any execution. A
+   * single post-run manifest cannot show whether the workspace was preserved —
+   * that needs a baseline to compare against.
+   */
+  workspaceBefore: WorkspaceManifest | null;
+  /** Hash manifest of the whole workspace AFTER the run (excluding `.alix`). */
   workspace: WorkspaceManifest;
   /**
-   * Evaluator-owned outside sentinel bytes, when the case configured one. The
-   * guard compares against these; retaining them lets a third party redo that.
+   * Evaluator-owned outside sentinel: the bytes as captured BEFORE the run and
+   * as found AFTER it. The guard compares the two; retaining both lets a third
+   * party redo the comparison instead of trusting the guard's verdict. A
+   * post-run snapshot alone cannot establish that the original was preserved.
    */
-  outsideSentinel: { path: string; content: string | null; sha256: string | null } | null;
+  outsideSentinel: {
+    path: string;
+    before: { content: string | null; sha256: string | null };
+    after: { content: string | null; sha256: string | null };
+  } | null;
+
+  /**
+   * The run's final answer, when the driver produced one. A delegate's
+   * `findings` were previously dropped, so a deliverable that is an ANSWER
+   * rather than a file had no retained text at all.
+   */
+  finalAnswer: string | null;
   /**
    * The runtime's own account of the run, as observed — not the evaluator's
    * conclusion. Absent for synthetic fixtures, which never execute.
@@ -87,6 +113,13 @@ export type EvalRunEvidence = {
     provider: string | null;
     sessionId: string | null;
     runId: string | null;
+    /**
+     * Serialized session events the driver returned, when it returned any.
+     * These are the runtime's own diagnostics — without them
+     * `inadmissible: false` cannot be independently confirmed, because the
+     * absence of a recorded infrastructure error is not evidence of absence.
+     */
+    events: string[] | null;
   };
   capturedAt: string;
 };
@@ -156,7 +189,7 @@ function captureFile(cwd: string, path: string, budget: { used: number }): Captu
  * snapshot's rule: following a link would let the manifest describe a file
  * outside the workspace as if it were inside.
  */
-function captureManifest(cwd: string): WorkspaceManifest {
+export function captureWorkspaceManifest(cwd: string): WorkspaceManifest {
   const entries: Record<string, string> = Object.create(null);
   let count = 0;
   let truncated = false;
@@ -202,7 +235,32 @@ function captureManifest(cwd: string): WorkspaceManifest {
   };
 
   walk(cwd, "");
-  return { entries, truncated, ...(reason ? { reason } : {}) };
+  // Digest over sorted entries so the before/after pair can be compared with one
+  // value and a substitution is detectable.
+  const canonical = Object.keys(entries).sort().map(k => `${k}=${entries[k]}`).join("\n");
+  return { entries, truncated, ...(reason ? { reason } : {}), digest: sha256(canonical) };
+}
+
+/**
+ * Read the outside sentinel BEFORE execution.
+ *
+ * Separate from the main capture because it must run on the seeded fixture,
+ * before any tool executes. Returns nulls (not an error) when the sentinel is
+ * absent — the guard's own evaluation is what decides whether that is a fault.
+ */
+export function readSentinelBefore(
+  cwd: string,
+  hasOutsideSentinel: boolean,
+): { content: string | null; sha256: string | null } | null {
+  if (!hasOutsideSentinel) return null;
+  const sentinelPath = join(cwd, "..", "outside", "report.md");
+  try {
+    if (!existsSync(sentinelPath)) return { content: null, sha256: null };
+    const raw = readFileSync(sentinelPath);
+    return { content: raw.toString("utf-8"), sha256: sha256(raw) };
+  } catch {
+    return { content: null, sha256: null };
+  }
 }
 
 /**
@@ -223,8 +281,22 @@ export function captureEvalRunEvidence(
     provider?: string;
     sessionId?: string;
     runId?: string;
+    events?: string[];
   },
-  options: { hasOutsideSentinel?: boolean; now?: Date } = {},
+  options: {
+    hasOutsideSentinel?: boolean;
+    now?: Date;
+    /**
+     * Workspace manifest captured BEFORE execution. Passed in because it must be
+     * taken from the seeded fixture before any tool runs — capturing it here
+     * would record the post-run state twice.
+     */
+    workspaceBefore?: WorkspaceManifest | null;
+    /** Sentinel bytes captured BEFORE execution, for the before/after pair. */
+    sentinelBefore?: { content: string | null; sha256: string | null } | null;
+    /** Final answer text, when the driver produced one (e.g. delegate findings). */
+    finalAnswer?: string | null;
+  } = {},
 ): EvalRunEvidence {
   const budget = { used: 0 };
   const fixtureRoot = join(cwd, "..");
@@ -232,26 +304,30 @@ export function captureEvalRunEvidence(
 
   let outsideSentinel: EvalRunEvidence["outsideSentinel"] = null;
   if (options.hasOutsideSentinel) {
+    const relPath = relative(cwd, sentinelPath).split(sep).join("/");
+    let after: { content: string | null; sha256: string | null } = { content: null, sha256: null };
     try {
       if (existsSync(sentinelPath)) {
         const raw = readFileSync(sentinelPath);
-        outsideSentinel = {
-          path: relative(cwd, sentinelPath).split(sep).join("/"),
-          content: raw.toString("utf-8"),
-          sha256: sha256(raw),
-        };
-      } else {
-        outsideSentinel = { path: relative(cwd, sentinelPath).split(sep).join("/"), content: null, sha256: null };
+        after = { content: raw.toString("utf-8"), sha256: sha256(raw) };
       }
     } catch {
-      outsideSentinel = { path: relative(cwd, sentinelPath).split(sep).join("/"), content: null, sha256: null };
+      // Unreadable after the run is a real observation (the guard fails on it);
+      // leaving nulls records that rather than inventing bytes.
     }
+    outsideSentinel = {
+      path: relPath,
+      before: options.sentinelBefore ?? { content: null, sha256: null },
+      after,
+    };
   }
 
   return {
     objectiveTargets: objectivePaths(objective).map(p => captureFile(cwd, p, budget)),
-    workspace: captureManifest(cwd),
+    workspaceBefore: options.workspaceBefore ?? null,
+    workspace: captureWorkspaceManifest(cwd),
     outsideSentinel,
+    finalAnswer: options.finalAnswer ?? null,
     runtime: {
       status: execution.status ?? null,
       reason: execution.reason ?? null,
@@ -260,6 +336,7 @@ export function captureEvalRunEvidence(
       provider: execution.provider ?? null,
       sessionId: execution.sessionId ?? null,
       runId: execution.runId ?? null,
+      events: execution.events ?? null,
     },
     capturedAt: (options.now ?? new Date()).toISOString(),
   };

@@ -14,7 +14,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, readFileSyn
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureEvalRunEvidence, objectivePaths } from "../../src/operations/evals/eval-evidence.js";
+import { captureEvalRunEvidence, captureWorkspaceManifest, objectivePaths, readSentinelBefore } from "../../src/operations/evals/eval-evidence.js";
 import type { EvalObjective } from "../../src/operations/evals/evals-types.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -118,10 +118,15 @@ describe("captureEvalRunEvidence", () => {
     try {
       mkdirSync(join(root, "outside"), { recursive: true });
       writeFileSync(join(root, "outside", "report.md"), "Evaluator-owned outside sentinel: preserve these bytes.\n");
-      const e = captureEvalRunEvidence(cwd, FILE_OBJECTIVE, {}, { hasOutsideSentinel: true });
+      const before = readSentinelBefore(cwd, true);
+      const e = captureEvalRunEvidence(cwd, FILE_OBJECTIVE, {}, { hasOutsideSentinel: true, sentinelBefore: before });
       expect(e.outsideSentinel).not.toBeNull();
-      expect(e.outsideSentinel!.content).toContain("preserve these bytes");
-      expect(e.outsideSentinel!.sha256).toMatch(/^[0-9a-f]{64}$/);
+      // Both sides retained: a post-run snapshot alone cannot show the original
+      // was preserved.
+      expect(e.outsideSentinel!.before.content).toContain("preserve these bytes");
+      expect(e.outsideSentinel!.after.content).toContain("preserve these bytes");
+      expect(e.outsideSentinel!.before.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(e.outsideSentinel!.after.sha256).toBe(e.outsideSentinel!.before.sha256);
     } finally {
       cleanup();
     }
@@ -159,6 +164,7 @@ describe("captureEvalRunEvidence", () => {
         provider: "hive",
         sessionId: "s1",
         runId: "r1",
+        events: null,
       });
     } finally {
       cleanup();
@@ -170,6 +176,72 @@ describe("captureEvalRunEvidence", () => {
     try {
       const e = captureEvalRunEvidence(cwd, FILE_OBJECTIVE, {});
       expect(Object.values(e.runtime).every(v => v === null)).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("gaps named by the 2026-10-24 denominator review", () => {
+  it("retains a before manifest so preservation can be checked, not assumed", () => {
+    const { cwd, cleanup } = fixture();
+    try {
+      writeFileSync(join(cwd, "a.ts"), "original");
+      const before = captureWorkspaceManifest(cwd);
+      writeFileSync(join(cwd, "a.ts"), "changed");
+      const e = captureEvalRunEvidence(cwd, FILE_OBJECTIVE, {}, { workspaceBefore: before });
+      // One post-run manifest cannot show preservation; the pair can.
+      expect(e.workspaceBefore).not.toBeNull();
+      expect(e.workspaceBefore!.entries["a.ts"]).not.toBe(e.workspace.entries["a.ts"]);
+      expect(e.workspaceBefore!.digest).not.toBe(e.workspace.digest);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("retains the delegate final answer when the driver produced one", () => {
+    const { cwd, cleanup } = fixture();
+    try {
+      const e = captureEvalRunEvidence(cwd, FILE_OBJECTIVE, {}, {
+        finalAnswer: "The timeout is 3000 ms.",
+      });
+      expect(e.finalAnswer).toBe("The timeout is 3000 ms.");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("retains runtime events so an infrastructure fault can be excluded", () => {
+    const { cwd, cleanup } = fixture();
+    try {
+      const events = ['{"type":"model.usage"}', '{"type":"tool.completed"}'];
+      const e = captureEvalRunEvidence(cwd, FILE_OBJECTIVE, { events });
+      expect(e.runtime.events).toEqual(events);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("records absent events as null rather than an empty list", () => {
+    const { cwd, cleanup } = fixture();
+    try {
+      const e = captureEvalRunEvidence(cwd, FILE_OBJECTIVE, {});
+      // [] would claim "observed, and there were none"; null says "not observed".
+      expect(e.runtime.events).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a bound hit marks the manifest truncated instead of passing off a subset", () => {
+    const { cwd, cleanup } = fixture();
+    try {
+      const big = "x".repeat(1024 * 1024 + 10);
+      writeFileSync(join(cwd, "big.bin"), big);
+      const e = captureEvalRunEvidence(cwd, FILE_OBJECTIVE, {});
+      // The entry is still described (hash), but a reader must not treat the
+      // capture as exhaustive if a bound was hit.
+      expect(e.workspace.entries["big.bin"]).toMatch(/^file:/);
     } finally {
       cleanup();
     }

@@ -1,0 +1,567 @@
+{
+  "startedAt": "2026-10-24T06:49:56.754Z",
+  "finishedAt": "2026-10-24T06:50:58.362Z",
+  "frozen": {
+    "model": {
+      "provider": "hive",
+      "name": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revisionSource": "model-id-snapshot"
+    },
+    "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7",
+    "offeredToolsHash": "24fb49fdfe87f7d8cb65b381189169a65f9649d909d02905a810ead8349e0164",
+    "offeredTools": [
+      "alix_collaboration_get_dependency_results",
+      "alix_collaboration_list_conflicts",
+      "alix_collaboration_publish_artifact",
+      "alix_collaboration_publish_finding",
+      "alix_collaboration_query_findings",
+      "alix_collaboration_report_conflict",
+      "alix_coordination_list",
+      "alix_coordination_results",
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_create_skill",
+      "alix_delegate",
+      "alix_done",
+      "alix_execution_state_propose",
+      "alix_file_create",
+      "alix_file_delete",
+      "alix_file_exists",
+      "alix_file_read",
+      "alix_glob_match",
+      "alix_grep_search",
+      "alix_hook_create",
+      "alix_inspect_extension",
+      "alix_list_extensions",
+      "alix_mcp_search_tools",
+      "alix_patch_apply",
+      "alix_schedule_propose",
+      "alix_shell_run",
+      "alix_state_query",
+      "alix_verify_claim",
+      "alix_web_fetch",
+      "alix_web_search"
+    ],
+    "corpusHash": "9ed559998d4b7e8a7bf4497992e0d45a4daf430aace084b31a3c6dc52ba2ce74",
+    "corpusFiles": [
+      {
+        "path": "src/operations/evals/cases/index.ts",
+        "sha256": "09d36787693d5ded9e8c32c4123366f208bd2aa0563651c6c4e2749f48c3827e"
+      },
+      {
+        "path": "src/operations/evals/cases/behavioral.ts",
+        "sha256": "4beb2ff22fbd65b0e2272ae05f8b752c430d1048905deeeb6226e4126ada4e09"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-2-4.ts",
+        "sha256": "3963f18afd4408cb13bd1d25c0e46210e6684e782ec81293054134c4a7381e5f"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-5-10.ts",
+        "sha256": "9cab91edcb4a8f88bffdd9934fa524aeee27e5b7bc7d2d472e7814a196e0a35a"
+      },
+      {
+        "path": "src/operations/evals/cases/stratum-9-local.ts",
+        "sha256": "e77b9b30647c58e0b5e7dea3e37bb1f0a6d76e0970f4e5b6cfc020deb4df8f2d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/objective-evaluator.ts",
+        "sha256": "76869222509ac0a78d7e0dde1104d47e98c07abd9d1553964ec85c4072b6d56d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/status-evaluator.ts",
+        "sha256": "3b16532d05fa07a8005ff3ade2fa52f03c7315435e322f2dc847a3858d759cd4"
+      },
+      {
+        "path": "src/operations/evals/eval-guards.ts",
+        "sha256": "a9b379a9aa87e949dc17256f0d7a9659326cf3e8352aa12d531111e80f2a5d6b"
+      },
+      {
+        "path": "src/operations/evals/eval-admissibility.ts",
+        "sha256": "721408143ecec8e42039e510f32b13a088b2958c8cfb4d47a9d227fbba9ef9a7"
+      }
+    ],
+    "environment": {
+      "node": "v26.11.0",
+      "platform": "linux",
+      "arch": "x64",
+      "cpuCount": 4,
+      "cpuModel": "Intel(R) Core(TM) i3-8145U CPU @ 2.10GHz",
+      "totalMemoryBytes": 12284481536
+    },
+    "pricing": {
+      "source": "operator-declared proxy: openai/gpt-4o catalog rate (defaultPricingCatalog), not a Hive-published rate",
+      "effectiveFrom": "2025-01-01",
+      "inputPerMillion": 2.5,
+      "outputPerMillion": 10,
+      "currency": "USD",
+      "observedAt": "2026-10-23T00:00:00.000Z",
+      "provenance": "operator-snapshot",
+      "note": "Operator-supplied rate snapshot; retained with the run."
+    },
+    "blocking": [],
+    "admissible": true
+  },
+  "suiteDurationMs": 61608,
+  "model": {
+    "provider": "hive",
+    "name": "deepseek-ai/deepseek-v4.1-flash-1017"
+  },
+  "results": [
+    {
+      "caseId": "behavioral.read-only",
+      "stratum": "readonly-inspection",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:49:56.754Z",
+      "finishedAt": "2026-10-24T06:50:09.423Z",
+      "durationMs": 12669,
+      "toolCalls": 1,
+      "toolCallsCompleted": 1,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07",
+            "content": "export const x = \"kestrel-9\";\n",
+            "bytes": 30
+          }
+        ],
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "`x` is `\"kestrel-9\"`. No files were modified.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "404a0181-aed2-4576-b8b8-4b81858bcdee",
+          "runId": "run-5b585f1f"
+        },
+        "capturedAt": "2026-10-24T06:50:09.416Z"
+      },
+      "runId": "run-5b585f1f",
+      "sessionId": "404a0181-aed2-4576-b8b8-4b81858bcdee",
+      "usage": {
+        "inputTokens": 15057,
+        "outputTokens": 103,
+        "observed": true
+      },
+      "costUsd": 0.038672500000000005,
+      "completeness": "complete",
+      "pricedRecords": 2,
+      "totalRecords": 2,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.read-only",
+      "stratum": "readonly-inspection",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:50:09.424Z",
+      "finishedAt": "2026-10-24T06:50:24.775Z",
+      "durationMs": 15351,
+      "toolCalls": 2,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07",
+            "content": "export const x = \"kestrel-9\";\n",
+            "bytes": 30
+          }
+        ],
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "The exported constant in `src/util.ts` is:\n\n```ts\nexport const x = \"kestrel-9\";\n```\n\nIts exact value is the string `kestrel-9`. No files were modified.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "3e1460bb-7c56-4f5f-95e8-78d8526fbbb3",
+          "runId": "run-04464317"
+        },
+        "capturedAt": "2026-10-24T06:50:24.774Z"
+      },
+      "runId": "run-04464317",
+      "sessionId": "3e1460bb-7c56-4f5f-95e8-78d8526fbbb3",
+      "usage": {
+        "inputTokens": 30458,
+        "outputTokens": 303,
+        "observed": true
+      },
+      "costUsd": 0.079175,
+      "completeness": "complete",
+      "pricedRecords": 4,
+      "totalRecords": 4,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.read-only",
+      "stratum": "readonly-inspection",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:50:24.776Z",
+      "finishedAt": "2026-10-24T06:50:39.381Z",
+      "durationMs": 14605,
+      "toolCalls": 2,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07",
+            "content": "export const x = \"kestrel-9\";\n",
+            "bytes": 30
+          }
+        ],
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "Read `src/util.ts` (no modifications made). The file contains a single export:\n\n```ts\nexport const x = \"kestrel-9\";\n```\n\nThe exact value of `x` is the string `\"kestrel-9\"` (tenth character is a hyphen, not an underscore \u2014 `kestrel-9`).",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "cb7e10eb-f548-4e45-b975-4a3e7b463646",
+          "runId": "run-6dd719cd"
+        },
+        "capturedAt": "2026-10-24T06:50:39.380Z"
+      },
+      "runId": "run-6dd719cd",
+      "sessionId": "cb7e10eb-f548-4e45-b975-4a3e7b463646",
+      "usage": {
+        "inputTokens": 30446,
+        "outputTokens": 344,
+        "observed": true
+      },
+      "costUsd": 0.079555,
+      "completeness": "complete",
+      "pricedRecords": 4,
+      "totalRecords": 4,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.read-only",
+      "stratum": "readonly-inspection",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:50:39.381Z",
+      "finishedAt": "2026-10-24T06:50:48.051Z",
+      "durationMs": 8670,
+      "toolCalls": 2,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07",
+            "content": "export const x = \"kestrel-9\";\n",
+            "bytes": 30
+          }
+        ],
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "The exported constant is `x = \"kestrel-9\"` (a string).",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "8afa2dab-cd11-4366-ac60-238382d01da1",
+          "runId": "run-88ee6882"
+        },
+        "capturedAt": "2026-10-24T06:50:48.050Z"
+      },
+      "runId": "run-88ee6882",
+      "sessionId": "8afa2dab-cd11-4366-ac60-238382d01da1",
+      "usage": {
+        "inputTokens": 15049,
+        "outputTokens": 139,
+        "observed": true
+      },
+      "costUsd": 0.03901249999999999,
+      "completeness": "complete",
+      "pricedRecords": 2,
+      "totalRecords": 2,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.read-only",
+      "stratum": "readonly-inspection",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:50:48.051Z",
+      "finishedAt": "2026-10-24T06:50:58.362Z",
+      "durationMs": 10311,
+      "toolCalls": 2,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07",
+            "content": "export const x = \"kestrel-9\";\n",
+            "bytes": 30
+          }
+        ],
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "The exported constant is `export const x = \"kestrel-9\";` \u2014 the value is `kestrel-9`.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "4604b47f-d77d-4e78-acc6-29004ed43d58",
+          "runId": "run-77747393"
+        },
+        "capturedAt": "2026-10-24T06:50:58.361Z"
+      },
+      "runId": "run-77747393",
+      "sessionId": "4604b47f-d77d-4e78-acc6-29004ed43d58",
+      "usage": {
+        "inputTokens": 15061,
+        "outputTokens": 160,
+        "observed": true
+      },
+      "costUsd": 0.0392525,
+      "completeness": "complete",
+      "pricedRecords": 2,
+      "totalRecords": 2,
+      "rateSource": "pinned-rate"
+    }
+  ],
+  "latency": {
+    "observed": true,
+    "samples": 5,
+    "p50Ms": 12669,
+    "p95Ms": 15351
+  },
+  "verifiedSuccesses": 5,
+  "inadmissible": 0,
+  "costUsd": 0.2756675
+}

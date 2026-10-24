@@ -238,6 +238,12 @@ export type EvalExecutionResult = {
   findings?: unknown;
   error?: string;
   /**
+   * Serialized session events the driver returned, when it returned any.
+   * Retained as raw evidence so an infrastructure fault can be independently
+   * excluded rather than assumed absent.
+   */
+  events?: string[];
+  /**
    * Provider that actually executed this case, when known.
    *
    * Recorded so the stratum-9 CPU-only guard can decide from observed evidence
