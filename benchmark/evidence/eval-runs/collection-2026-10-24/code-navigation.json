@@ -1,0 +1,422 @@
+{
+  "startedAt": "2026-10-24T06:08:18.377Z",
+  "finishedAt": "2026-10-24T06:09:06.505Z",
+  "frozen": {
+    "model": {
+      "provider": "hive",
+      "name": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revisionSource": "model-id-snapshot"
+    },
+    "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7",
+    "offeredToolsHash": "24fb49fdfe87f7d8cb65b381189169a65f9649d909d02905a810ead8349e0164",
+    "offeredTools": [
+      "alix_collaboration_get_dependency_results",
+      "alix_collaboration_list_conflicts",
+      "alix_collaboration_publish_artifact",
+      "alix_collaboration_publish_finding",
+      "alix_collaboration_query_findings",
+      "alix_collaboration_report_conflict",
+      "alix_coordination_list",
+      "alix_coordination_results",
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_create_skill",
+      "alix_delegate",
+      "alix_done",
+      "alix_execution_state_propose",
+      "alix_file_create",
+      "alix_file_delete",
+      "alix_file_exists",
+      "alix_file_read",
+      "alix_glob_match",
+      "alix_grep_search",
+      "alix_hook_create",
+      "alix_inspect_extension",
+      "alix_list_extensions",
+      "alix_mcp_search_tools",
+      "alix_patch_apply",
+      "alix_schedule_propose",
+      "alix_shell_run",
+      "alix_state_query",
+      "alix_verify_claim",
+      "alix_web_fetch",
+      "alix_web_search"
+    ],
+    "corpusHash": "9ed559998d4b7e8a7bf4497992e0d45a4daf430aace084b31a3c6dc52ba2ce74",
+    "corpusFiles": [
+      {
+        "path": "src/operations/evals/cases/index.ts",
+        "sha256": "09d36787693d5ded9e8c32c4123366f208bd2aa0563651c6c4e2749f48c3827e"
+      },
+      {
+        "path": "src/operations/evals/cases/behavioral.ts",
+        "sha256": "4beb2ff22fbd65b0e2272ae05f8b752c430d1048905deeeb6226e4126ada4e09"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-2-4.ts",
+        "sha256": "3963f18afd4408cb13bd1d25c0e46210e6684e782ec81293054134c4a7381e5f"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-5-10.ts",
+        "sha256": "9cab91edcb4a8f88bffdd9934fa524aeee27e5b7bc7d2d472e7814a196e0a35a"
+      },
+      {
+        "path": "src/operations/evals/cases/stratum-9-local.ts",
+        "sha256": "e77b9b30647c58e0b5e7dea3e37bb1f0a6d76e0970f4e5b6cfc020deb4df8f2d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/objective-evaluator.ts",
+        "sha256": "76869222509ac0a78d7e0dde1104d47e98c07abd9d1553964ec85c4072b6d56d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/status-evaluator.ts",
+        "sha256": "3b16532d05fa07a8005ff3ade2fa52f03c7315435e322f2dc847a3858d759cd4"
+      },
+      {
+        "path": "src/operations/evals/eval-guards.ts",
+        "sha256": "a9b379a9aa87e949dc17256f0d7a9659326cf3e8352aa12d531111e80f2a5d6b"
+      },
+      {
+        "path": "src/operations/evals/eval-admissibility.ts",
+        "sha256": "721408143ecec8e42039e510f32b13a088b2958c8cfb4d47a9d227fbba9ef9a7"
+      }
+    ],
+    "environment": {
+      "node": "v26.11.0",
+      "platform": "linux",
+      "arch": "x64",
+      "cpuCount": 4,
+      "cpuModel": "Intel(R) Core(TM) i3-8145U CPU @ 2.10GHz",
+      "totalMemoryBytes": 12284481536
+    },
+    "pricing": {
+      "source": "operator-declared proxy: openai/gpt-4o catalog rate (defaultPricingCatalog), not a Hive-published rate",
+      "effectiveFrom": "2025-01-01",
+      "inputPerMillion": 2.5,
+      "outputPerMillion": 10,
+      "currency": "USD",
+      "observedAt": "2026-10-23T00:00:00.000Z",
+      "provenance": "operator-snapshot",
+      "note": "Operator-supplied rate snapshot; retained with the run."
+    },
+    "blocking": [],
+    "admissible": true
+  },
+  "suiteDurationMs": 48128,
+  "model": {
+    "provider": "hive",
+    "name": "deepseek-ai/deepseek-v4.1-flash-1017"
+  },
+  "results": [
+    {
+      "caseId": "behavioral.code-navigation",
+      "stratum": "code-navigation",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:08:18.377Z",
+      "finishedAt": "2026-10-24T06:08:28.429Z",
+      "durationMs": 10052,
+      "toolCalls": 5,
+      "toolCallsCompleted": 5,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/limits.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "runId": "run-4fa1b791",
+      "sessionId": "d1cabe42-e728-4230-b607-1ecab18319e4",
+      "usage": {
+        "inputTokens": 22784,
+        "outputTokens": 486,
+        "observed": true
+      },
+      "costUsd": 0.06182,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.code-navigation",
+      "stratum": "code-navigation",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:08:28.430Z",
+      "finishedAt": "2026-10-24T06:08:40.516Z",
+      "durationMs": 12086,
+      "toolCalls": 5,
+      "toolCallsCompleted": 5,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 2,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/limits.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "runId": "run-a231d3ec",
+      "sessionId": "2a8ef3b6-92a5-4fb2-a90b-4d4c86d22eb1",
+      "usage": {
+        "inputTokens": 30024,
+        "outputTokens": 538,
+        "observed": true
+      },
+      "costUsd": 0.08044,
+      "completeness": "complete",
+      "pricedRecords": 4,
+      "totalRecords": 4,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.code-navigation",
+      "stratum": "code-navigation",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:08:40.516Z",
+      "finishedAt": "2026-10-24T06:08:48.633Z",
+      "durationMs": 8117,
+      "toolCalls": 4,
+      "toolCallsCompleted": 4,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/limits.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "runId": "run-2e1680a2",
+      "sessionId": "6f8aa191-87f0-4d3d-95e1-cc9b66c01668",
+      "usage": {
+        "inputTokens": 22232,
+        "outputTokens": 435,
+        "observed": true
+      },
+      "costUsd": 0.05993,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.code-navigation",
+      "stratum": "code-navigation",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:08:48.633Z",
+      "finishedAt": "2026-10-24T06:08:57.509Z",
+      "durationMs": 8876,
+      "toolCalls": 3,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/limits.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "runId": "run-807f1e5b",
+      "sessionId": "39992cd2-f055-4f57-833c-8ce693784b3f",
+      "usage": {
+        "inputTokens": 22096,
+        "outputTokens": 360,
+        "observed": true
+      },
+      "costUsd": 0.05884,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.code-navigation",
+      "stratum": "code-navigation",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:08:57.509Z",
+      "finishedAt": "2026-10-24T06:09:06.505Z",
+      "durationMs": 8996,
+      "toolCalls": 4,
+      "toolCallsCompleted": 4,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/limits.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "runId": "run-6b8f4721",
+      "sessionId": "f72f446f-18b1-4cc3-9ce6-ef1772f95b6b",
+      "usage": {
+        "inputTokens": 22212,
+        "outputTokens": 392,
+        "observed": true
+      },
+      "costUsd": 0.05945,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3,
+      "rateSource": "pinned-rate"
+    }
+  ],
+  "latency": {
+    "observed": true,
+    "samples": 5,
+    "p50Ms": 8996,
+    "p95Ms": 12086
+  },
+  "verifiedSuccesses": 5,
+  "inadmissible": 0,
+  "costUsd": 0.32048
+}

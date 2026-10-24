@@ -1,0 +1,680 @@
+{
+  "startedAt": "2026-10-24T06:20:14.034Z",
+  "finishedAt": "2026-10-24T06:22:08.721Z",
+  "frozen": {
+    "model": {
+      "provider": "hive",
+      "name": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revisionSource": "model-id-snapshot"
+    },
+    "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7",
+    "offeredToolsHash": "24fb49fdfe87f7d8cb65b381189169a65f9649d909d02905a810ead8349e0164",
+    "offeredTools": [
+      "alix_collaboration_get_dependency_results",
+      "alix_collaboration_list_conflicts",
+      "alix_collaboration_publish_artifact",
+      "alix_collaboration_publish_finding",
+      "alix_collaboration_query_findings",
+      "alix_collaboration_report_conflict",
+      "alix_coordination_list",
+      "alix_coordination_results",
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_create_skill",
+      "alix_delegate",
+      "alix_done",
+      "alix_execution_state_propose",
+      "alix_file_create",
+      "alix_file_delete",
+      "alix_file_exists",
+      "alix_file_read",
+      "alix_glob_match",
+      "alix_grep_search",
+      "alix_hook_create",
+      "alix_inspect_extension",
+      "alix_list_extensions",
+      "alix_mcp_search_tools",
+      "alix_patch_apply",
+      "alix_schedule_propose",
+      "alix_shell_run",
+      "alix_state_query",
+      "alix_verify_claim",
+      "alix_web_fetch",
+      "alix_web_search"
+    ],
+    "corpusHash": "9ed559998d4b7e8a7bf4497992e0d45a4daf430aace084b31a3c6dc52ba2ce74",
+    "corpusFiles": [
+      {
+        "path": "src/operations/evals/cases/index.ts",
+        "sha256": "09d36787693d5ded9e8c32c4123366f208bd2aa0563651c6c4e2749f48c3827e"
+      },
+      {
+        "path": "src/operations/evals/cases/behavioral.ts",
+        "sha256": "4beb2ff22fbd65b0e2272ae05f8b752c430d1048905deeeb6226e4126ada4e09"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-2-4.ts",
+        "sha256": "3963f18afd4408cb13bd1d25c0e46210e6684e782ec81293054134c4a7381e5f"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-5-10.ts",
+        "sha256": "9cab91edcb4a8f88bffdd9934fa524aeee27e5b7bc7d2d472e7814a196e0a35a"
+      },
+      {
+        "path": "src/operations/evals/cases/stratum-9-local.ts",
+        "sha256": "e77b9b30647c58e0b5e7dea3e37bb1f0a6d76e0970f4e5b6cfc020deb4df8f2d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/objective-evaluator.ts",
+        "sha256": "76869222509ac0a78d7e0dde1104d47e98c07abd9d1553964ec85c4072b6d56d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/status-evaluator.ts",
+        "sha256": "3b16532d05fa07a8005ff3ade2fa52f03c7315435e322f2dc847a3858d759cd4"
+      },
+      {
+        "path": "src/operations/evals/eval-guards.ts",
+        "sha256": "a9b379a9aa87e949dc17256f0d7a9659326cf3e8352aa12d531111e80f2a5d6b"
+      },
+      {
+        "path": "src/operations/evals/eval-admissibility.ts",
+        "sha256": "721408143ecec8e42039e510f32b13a088b2958c8cfb4d47a9d227fbba9ef9a7"
+      }
+    ],
+    "environment": {
+      "node": "v26.11.0",
+      "platform": "linux",
+      "arch": "x64",
+      "cpuCount": 4,
+      "cpuModel": "Intel(R) Core(TM) i3-8145U CPU @ 2.10GHz",
+      "totalMemoryBytes": 12284481536
+    },
+    "pricing": {
+      "source": "operator-declared proxy: openai/gpt-4o catalog rate (defaultPricingCatalog), not a Hive-published rate",
+      "effectiveFrom": "2025-01-01",
+      "inputPerMillion": 2.5,
+      "outputPerMillion": 10,
+      "currency": "USD",
+      "observedAt": "2026-10-23T00:00:00.000Z",
+      "provenance": "operator-snapshot",
+      "note": "Operator-supplied rate snapshot; retained with the run."
+    },
+    "blocking": [],
+    "admissible": true
+  },
+  "suiteDurationMs": 114687,
+  "model": {
+    "provider": "hive",
+    "name": "deepseek-ai/deepseek-v4.1-flash-1017"
+  },
+  "results": [
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "stratum": "tool-failure-recovery",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:20:14.034Z",
+      "finishedAt": "2026-10-24T06:20:36.850Z",
+      "durationMs": 22816,
+      "toolCalls": 4,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "recover.md",
+        "exists": true,
+        "expected": {
+          "contentEquals": "RECOVERED"
+        },
+        "actual": {
+          "content": "RECOVERED"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-fb511f67-cf72-11f1-af6d-1a01e5c9b303-0-0",
+              "toolName": "file.delete",
+              "args": {
+                "path": "does-not-exist.md"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 7,
+              "outcome": "failed",
+              "error": "Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-zL3vG6/workspace/does-not-exist.md'"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-fcee740e-cf72-11f1-badb-6b6b1188ecda-0-0",
+              "toolName": "file.create",
+              "args": {
+                "path": "recover.md",
+                "content": "RECOVERED"
+              },
+              "requestIndex": 10,
+              "terminalIndex": 17,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-fdfbc497-cf72-11f1-995e-2bd7c6afa681-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "od -c recover.md"
+              },
+              "requestIndex": 19,
+              "terminalIndex": 25,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-028b390d-cf73-11f1-9d69-b34ca332431a-0-0",
+              "toolName": "task.complete",
+              "args": {},
+              "requestIndex": 28,
+              "terminalIndex": 31,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-tool-failure-recovery",
+      "usage": {
+        "inputTokens": 24168,
+        "outputTokens": 717,
+        "observed": true
+      },
+      "costUsd": 0.06759,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "stratum": "tool-failure-recovery",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:20:36.850Z",
+      "finishedAt": "2026-10-24T06:21:02.076Z",
+      "durationMs": 25226,
+      "toolCalls": 3,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "recover.md",
+        "exists": true,
+        "expected": {
+          "contentEquals": "RECOVERED"
+        },
+        "actual": {
+          "content": "RECOVERED"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-08da756e-cf73-11f1-a474-d6805106ff6b-0-0",
+              "toolName": "file.delete",
+              "args": {
+                "path": "does-not-exist.md"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 7,
+              "outcome": "failed",
+              "error": "Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-PonhIX/workspace/does-not-exist.md'"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-0a8af664-cf73-11f1-aad9-4a448e37c27f-0-0",
+              "toolName": "file.create",
+              "args": {
+                "path": "recover.md",
+                "content": "RECOVERED"
+              },
+              "requestIndex": 10,
+              "terminalIndex": 17,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-0bdde001-cf73-11f1-8f17-f201faf24de1-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "od -c recover.md | head -5"
+              },
+              "requestIndex": 19,
+              "terminalIndex": 25,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-tool-failure-recovery",
+      "usage": {
+        "inputTokens": 24158,
+        "outputTokens": 722,
+        "observed": true
+      },
+      "costUsd": 0.067615,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "stratum": "tool-failure-recovery",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:21:02.076Z",
+      "finishedAt": "2026-10-24T06:21:18.056Z",
+      "durationMs": 15980,
+      "toolCalls": 3,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": false,
+      "statusActual": "failed",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "recover.md",
+        "exists": true,
+        "expected": {
+          "contentEquals": "RECOVERED"
+        },
+        "actual": {
+          "content": "RECOVERED"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-18e43a8f-cf73-11f1-9247-cbe84b44f79f-0-0",
+              "toolName": "file.delete",
+              "args": {
+                "path": "does-not-exist.md"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 7,
+              "outcome": "failed",
+              "error": "Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-hBUc4U/workspace/does-not-exist.md'"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-19cc40b9-cf73-11f1-9521-3f7a4c39a802-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "printf 'RECOVERED' > recover.md && wc -c recover.md && od -c recover.md"
+              },
+              "requestIndex": 10,
+              "terminalIndex": 16,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-1e101d84-cf73-11f1-9a99-84398353f630-0-0",
+              "toolName": "task.complete",
+              "args": {},
+              "requestIndex": 18,
+              "terminalIndex": 21,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-tool-failure-recovery",
+      "usage": {
+        "inputTokens": 16693,
+        "outputTokens": 457,
+        "observed": true
+      },
+      "costUsd": 0.0463025,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "stratum": "tool-failure-recovery",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:21:18.056Z",
+      "finishedAt": "2026-10-24T06:21:43.063Z",
+      "durationMs": 25007,
+      "toolCalls": 4,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "recover.md",
+        "exists": true,
+        "expected": {
+          "contentEquals": "RECOVERED"
+        },
+        "actual": {
+          "content": "RECOVERED"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-21ad6aab-cf73-11f1-a15e-231b23d64bea-0-0",
+              "toolName": "file.delete",
+              "args": {
+                "path": "does-not-exist.md"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 7,
+              "outcome": "failed",
+              "error": "Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-pi8WuF/workspace/does-not-exist.md'"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-25733a9e-cf73-11f1-888e-35cd20f495ae-0-0",
+              "toolName": "file.create",
+              "args": {
+                "path": "recover.md",
+                "content": "RECOVERED"
+              },
+              "requestIndex": 10,
+              "terminalIndex": 17,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-2697b078-cf73-11f1-a5f2-8d551dda6be0-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "od -c recover.md && wc -c recover.md"
+              },
+              "requestIndex": 19,
+              "terminalIndex": 25,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-2babdcf1-cf73-11f1-b5a6-7118cbcb84b5-0-0",
+              "toolName": "task.complete",
+              "args": {},
+              "requestIndex": 27,
+              "terminalIndex": 30,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-tool-failure-recovery",
+      "usage": {
+        "inputTokens": 20353,
+        "outputTokens": 481,
+        "observed": true
+      },
+      "costUsd": 0.0556925,
+      "completeness": "complete",
+      "pricedRecords": 4,
+      "totalRecords": 4,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "stratum": "tool-failure-recovery",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:21:43.063Z",
+      "finishedAt": "2026-10-24T06:22:08.720Z",
+      "durationMs": 25657,
+      "toolCalls": 4,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 2,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": false,
+      "statusActual": "failed",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "recover.md",
+        "exists": true,
+        "expected": {
+          "contentEquals": "RECOVERED"
+        },
+        "actual": {
+          "content": "RECOVERED"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-30b1a66d-cf73-11f1-815e-860e1867d3f7-0-0",
+              "toolName": "file.delete",
+              "args": {
+                "path": "does-not-exist.md"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 7,
+              "outcome": "failed",
+              "error": "Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-593p6L/workspace/does-not-exist.md'"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-34b37fc8-cf73-11f1-a826-aa4b4d54517f-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "printf 'RECOVERED' > recover.md && od -c recover.md"
+              },
+              "requestIndex": 10,
+              "terminalIndex": 16,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-3629542f-cf73-11f1-ae21-763523eef1c9-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "ls -l recover.md && od -c recover.md | tail -3; echo \"---\"; ls does-not-exist.md 2>&1"
+              },
+              "requestIndex": 18,
+              "terminalIndex": 23,
+              "outcome": "failed",
+              "error": "Command exited with code 2: ls -l recover.md && od -c recover.md | tail -3; echo \"---\"; ls does-not-exist.md 2>&1\n-rw-rw-r-- 1 babasola babasola 9 Oct 24 00:21 recover.md\n0000000   R   E   C   O   V   E   R   E   D\n0000011\n---\nls: cannot access 'does-not-exist.md': No such file or directory\n"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-3ad117df-cf73-11f1-8064-6d7bf1533c6e-0-0",
+              "toolName": "task.complete",
+              "args": {},
+              "requestIndex": 27,
+              "terminalIndex": 30,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-tool-failure-recovery",
+      "usage": {
+        "inputTokens": 24397,
+        "outputTokens": 766,
+        "observed": true
+      },
+      "costUsd": 0.0686525,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    }
+  ],
+  "latency": {
+    "observed": true,
+    "samples": 5,
+    "p50Ms": 25007,
+    "p95Ms": 25657
+  },
+  "verifiedSuccesses": 3,
+  "inadmissible": 0,
+  "costUsd": 0.30585249999999997
+}
