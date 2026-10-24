@@ -80,7 +80,7 @@ agent at all.
 | GB-10 | Reject mixed/confounded historical ratios | The historical 7/12 at `$0.067149/success` and the later 10/12 at `$0.045688` both include the invalid old deny task. The delegate delta is confounded by `c0def71d` postdating the sweep commit `bebe1909` | supported as an exclusion | Neither ratio may be cited as a baseline rate or an improvement. |
 | GB-11 | Operator attention as a separate measured dimension (PRD §7, §12.3) | No artifact records operator active review minutes, interruptions, or approval touches | missing | `operatorActiveReviewMinutes / verifiedSuccesses` is `null`. Never convert operator time to a dollar figure. |
 | GB-12 | Independent scoring (PRD §9, Gate E boundary) | Every artifact states author-run, same-author evaluator, or "no independent review" | missing | Requires an independent scorer. An operator waiver records author-only testing as a weaker labeled claim; it does not create independence. |
-| GB-13 | Provenance disposition for historical records | `2026-10-23-harness-baseline-provenance.md` classifies table replay, arithmetic replay, and scenario reproduction; four historical records lack original events | partial | Disposition is written; it does not recover deleted raw evidence. `benchmark/evidence/` has no deletion history, so unrecovered records were never produced. |
+| GB-13 | Provenance disposition for historical records | `2026-10-23-harness-baseline-provenance.md` classifies table replay, arithmetic replay, and scenario reproduction; four historical records lack original events | partial | Disposition is written; it does not recover deleted raw evidence. **Corrected 2026-10-23:** the earlier claim that `benchmark/evidence/` has no deletion history was false — commit `15f89a64` deleted `benchmark/evidence/coordination/workspace/docs/{a,b,c}.md`. Unrecovered records therefore cannot be explained by "never produced" alone; the correct statement is that no deletion of *run logs* has been identified, which is weaker and is all the evidence supports. |
 | GB-14 | Operator acceptance of the baseline | No acceptance record exists; `2026-10-23-harness-authorization.md` authorizes the work, not a result | requires reviewer/operator | Signature on an exact artifact set. Blank below (§6). |
 
 ---
@@ -218,9 +218,15 @@ its delta against the historical sweep cannot be attributed.
 
 Cost rows carry `sessionId`, observed token counts, `pricedRecords` and
 `totalRecords`. Several delegate rows record `runId: null`; the historical sweep
-explains this as subagent children having no authoritative caller run id. There is
-no retained raw session event stream for any paid run, so a third party cannot
-recompute an outcome from events — only from the committed summary rows.
+explains this as subagent children having no authoritative caller run id.
+
+**Corrected 2026-10-23 (model-independent review).** The earlier statement here —
+that "there is no retained raw session event stream for any paid run" — was false.
+`benchmark/evidence/cost/positive-openai-gpt4o.json` retains 84 and 78 events for
+its two paid cases, including 4 and 5 `model.usage` records and their terminal tool
+events. What remains true is narrower: the *baseline* stratified artifacts carry
+summary rows only, so a third party cannot recompute those outcomes from events.
+The correct statement is per-artifact, not universal.
 
 ### 5.4 Contract changes that invalidate cross-date comparison
 

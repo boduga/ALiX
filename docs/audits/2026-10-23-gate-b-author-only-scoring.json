@@ -46,8 +46,8 @@
     },
     {
       "id": "GB-08",
-      "verdict": "partial",
-      "note": "I verified the gap rather than trusting the packet: only 2 of 26 cost/coordination artifacts contain any duration field, and both are whole-run wall time (positive-cap2048-attempt.json, positive-openai-gpt4o.json), not per-case finish timestamps. Per-case p50/p95 is unmeasured in committed evidence. The capture path now records it (latency, suiteDurationMs) but no run has used it."
+      "verdict": "missing",
+      "note": "CORRECTED 2026-10-23 after model-independent review. Per-case latency is absent from the baseline: 40 cost/coordination artifacts exist, 6 carry finishedAt and 6 carry a numeric duration field, but per-case durations appear for only two paid cases (positive-openai-gpt4o.json, values 7229 and 609933 ms via observability.metric timer). Two samples are not a p50/p95 baseline. My earlier 'partial' verdict and '26 artifacts / 2 with timing / whole-run only' characterisation were all wrong; see docs/audits/2026-10-23-gate-b-model-independent-review.md §3.3-3.4."
     },
     {
       "id": "GB-09",
@@ -73,7 +73,7 @@
     {
       "id": "GB-13",
       "verdict": "partial",
-      "note": "docs/audits/2026-10-23-harness-baseline-provenance.md classifies table replay, arithmetic replay and scenario reproduction; four historical records lack original events. Disposition is written; it does not recover deleted raw evidence, and benchmark/evidence has no deletion history."
+      "note": "CORRECTED 2026-10-23. docs/audits/2026-10-23-harness-baseline-provenance.md classifies table replay, arithmetic replay and scenario reproduction; four historical records lack original events. My earlier claim that benchmark/evidence has no deletion history was FALSE: commit 15f89a64 deleted benchmark/evidence/coordination/workspace/docs/{a,b,c}.md. What remains true is narrower — no deletion of run logs has been identified — and that does not recover the missing originals."
     },
     {
       "id": "GB-14",
