@@ -121,9 +121,19 @@ must land and be reviewed **before** collection:
 | Guard evidence | present for guard-enabled cases | Retain unchanged |
 
 This is a behavior-neutral instrumentation change to `eval-case-sweep.mjs` and the
-run producer, with tests. It is **not** authorized by this document and must go
-through the normal reviewed-change path. Until it lands, GB-08 and part of GB-07
-stay missing regardless of spend.
+run producer, with tests. It must go through the normal reviewed-change path. Until
+it lands, GB-08 and part of GB-07 stay missing regardless of spend.
+
+**Implementation status (appended 2026-10-23, after approval; the contract above is
+unchanged):** landed as `src/operations/evals/eval-execution-metrics.ts` (captured by
+`runEvalCase` before the case cwd is removed, attached as
+`EvalExecutionResult.metrics`), plus per-row `finishedAt`/`durationMs`, the flat
+tool/repeat/retry/intervention fields, `latency` p50/p95, and `suiteDurationMs` in
+`benchmark/evidence/cost/eval-case-sweep.mjs`. Tests:
+`tests/evals/eval-execution-metrics.vitest.ts` and the existing sweep guard tests.
+Still `null` with a stated reason: `providerRetries` (no event vocabulary) and
+`operatorActiveReviewMinutes` (requires human observation). Provider-level retry
+counting and observed review intervals remain open.
 
 ---
 

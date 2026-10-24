@@ -29,6 +29,7 @@ import { createSubagentExecutor, runDelegateCase } from "./drivers/delegate-driv
 import type { DelegateExecutor } from "./drivers/delegate-driver.js";
 import { runMainLoopCase } from "./drivers/main-loop-driver.js";
 import { captureEvalUsage } from "./eval-usage.js";
+import { captureEvalExecutionMetrics } from "./eval-execution-metrics.js";
 import { prepareEvalGuards, evaluateEvalGuards } from "./eval-guards.js";
 import {
   setScriptedScenario,
@@ -226,6 +227,10 @@ export async function runEvalCase(
         records: usage.records,
       };
     }
+    // Same cleanup boundary as usage: the session log is the only record of
+    // tool calls, repeats, tool-level retries and approval decisions. Capture
+    // it here or lose it with the fixture root.
+    execution.metrics = captureEvalExecutionMetrics(cwd);
 
     const objective = evaluateObjective(cwd, evalCase.objective, execution);
     const guards = evalCase.guards && guardBaseline

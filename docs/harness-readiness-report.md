@@ -126,13 +126,17 @@ Remaining work before a baseline can be signed:
 
 1. Complete source/consumer review and historical provenance disposition.
 2. Finish shim trigger/usage/retirement catalog and benchmark isolation protocol.
-3. Design the missing human-review comparisons and metric capture.
+3. Design the missing human-review comparisons and observe operator review
+   intervals. Tool/retry/repeat/intervention capture now runs inside the eval
+   producer (`eval-execution-metrics.ts`); provider retries and observed review
+   minutes remain `null`.
 4. Collection proposal
    [`audits/2026-10-23-gate-b-collection-proposal.md`](audits/2026-10-23-gate-b-collection-proposal.md)
    is **approved at proposal scope** (operator Babasola, 2026-10-23, ceiling `$4.50`,
-   model resolved at run time). No run may start until the §4 capture extension is
-   merged and reviewed and the §3 pins are recorded; independent scoring (§7) is
-   still required for Gate B acceptance. No spend has occurred.
+   model resolved at run time). Its §4 capture extension is implemented and tested;
+   no run may start until that change is reviewed and the §3 pins are recorded.
+   Independent scoring (§7) is still required for Gate B acceptance. No spend has
+   occurred.
 5. Obtain baseline signature and independent security review on exact artifacts.
 
 Full PRD completion remains open. Audit closure with HOLD requires an explicit

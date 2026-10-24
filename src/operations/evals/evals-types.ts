@@ -11,6 +11,7 @@
  */
 
 import type { ScriptedScenario } from "./providers/scripted-mock-provider.js";
+import type { EvalExecutionMetrics } from "./eval-execution-metrics.js";
 
 /** Which runtime a case drives. */
 export type EvalDriverKind = "delegate" | "main-loop";
@@ -269,6 +270,12 @@ export type EvalExecutionResult = {
       outputTokens?: number;
     }>;
   };
+  /**
+   * Tool, retry and approval counts captured from the same session log, before
+   * the case cwd is deleted. `null` counts mean unobserved, never zero. Only
+   * `observed: false` (or an `unobserved` reason) may accompany nulls.
+   */
+  metrics?: EvalExecutionMetrics;
 };
 
 /** Final per-case result, separating objective outcome from status outcome. */

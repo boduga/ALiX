@@ -110,6 +110,28 @@ export function priceUsage(records) {
   };
 }
 
+/** Nearest-rank percentile; `null` when no duration was recorded. */
+export function percentile(values, p) {
+  const sorted = values.filter(v => typeof v === 'number' && Number.isFinite(v)).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const rank = Math.ceil((p / 100) * sorted.length);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, rank - 1))];
+}
+
+/** Per-run latency summary over case durations, never over the whole suite. */
+export function summarizeLatency(results) {
+  const durations = results.map(r => r.durationMs).filter(v => typeof v === 'number' && Number.isFinite(v));
+  if (durations.length === 0) {
+    return { observed: false, samples: 0, p50Ms: null, p95Ms: null, reason: 'no case duration recorded' };
+  }
+  return {
+    observed: true,
+    samples: durations.length,
+    p50Ms: percentile(durations, 50),
+    p95Ms: percentile(durations, 95),
+  };
+}
+
 export async function sweepCases(cases, { provider, model }) {
   const results = [];
   for (const caseId of cases) {
@@ -117,8 +139,11 @@ export async function sweepCases(cases, { provider, model }) {
     if (!evalCase) throw new Error(`Unknown eval case: ${caseId}`);
     const startedAt = new Date().toISOString();
     const result = await runEvalCase(evalCase, { driver: evalCase.driver, provider, model });
+    const finishedAt = new Date().toISOString();
+    const durationMs = Date.parse(finishedAt) - Date.parse(startedAt);
     const execution = result.execution ?? {};
     const usage = execution.usage ?? null;
+    const metrics = execution.metrics ?? null;
     const priced = priceUsage(usage?.records);
     // An inadmissible run never reached a scoreable agent outcome, so it cannot
     // be a verified success and must not be counted as one. It is carried
@@ -136,6 +161,24 @@ export async function sweepCases(cases, { provider, model }) {
       provider: execution.provider ?? provider,
       model: usage?.records?.[0]?.model ?? model,
       startedAt,
+      finishedAt,
+      durationMs,
+      // Gate B fields (PRD §7). A count is null when the session log was not
+      // observed — never zero. Provider retries are not emitted by the event
+      // vocabulary, and operator active review minutes need human observation,
+      // so both stay null with their reason rather than being inferred.
+      toolCalls: metrics?.toolCalls ?? null,
+      toolCallsCompleted: metrics?.toolCallsCompleted ?? null,
+      toolCallsFailed: metrics?.toolCallsFailed ?? null,
+      repeatedCalls: metrics?.repeatedCalls ?? null,
+      toolRetries: metrics?.toolRetries ?? null,
+      providerRetries: null,
+      operatorInterventions: metrics?.operatorInterventions ?? null,
+      operatorActiveReviewMinutes: null,
+      unobserved: [
+        ...(metrics?.unobserved ?? ['no session log was observed; counts are unknown']),
+        'operator active review minutes require human observation',
+      ],
       verdict: result.verdict,
       inadmissible,
       inadmissibleReason: result.status?.inadmissibleReason ?? null,
@@ -165,11 +208,18 @@ export async function main(args = process.argv.slice(2)) {
   const { output, ...options } = parseSweepArgs(args);
   const selected = resolveSweepModel(options.provider, options.model);
   const results = await sweepCases(options.cases, { provider: selected.provider, model: selected.name });
+  const startedAt = results[0]?.startedAt ?? new Date().toISOString();
+  const finishedAt = new Date().toISOString();
   const payload = {
-    startedAt: results[0]?.startedAt ?? new Date().toISOString(),
-    finishedAt: new Date().toISOString(),
+    startedAt,
+    finishedAt,
+    // Whole-suite wall time. Per-case p50/p95 live in `latency`; keeping the
+    // suite total separate prevents two slow cases from being read as
+    // suite-wide latency.
+    suiteDurationMs: Date.parse(finishedAt) - Date.parse(startedAt),
     model: selected,
     results,
+    latency: summarizeLatency(results),
     verifiedSuccesses: results.filter(r => r.verifiedSuccess).length,
     // Excluded from both success and failure: a provider fault is not a result.
     inadmissible: results.filter(r => r.inadmissible).length,
