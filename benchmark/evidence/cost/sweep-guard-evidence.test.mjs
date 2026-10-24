@@ -47,9 +47,12 @@ for (const guardSatisfied of [true, false]) {
       // A synthetic fixture never starts a driver, so there is no session log to
       // read. Every Gate B count must be unknown (null), never a flattering zero.
       assert.equal(row.toolCalls, null);
+      assert.equal(row.rejectedCalls, null);
       assert.equal(row.repeatedCalls, null);
       assert.equal(row.toolRetries, null);
       assert.equal(row.providerRetries, null);
+      assert.equal(row.driverReinvocations, null);
+      assert.equal(row.operatorCancellations, null);
       assert.equal(row.operatorActiveReviewMinutes, null);
       assert.ok(row.unobserved.length > 0);
       assert.equal(typeof row.finishedAt, 'string');

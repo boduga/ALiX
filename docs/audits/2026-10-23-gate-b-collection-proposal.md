@@ -128,10 +128,12 @@ it lands, GB-08 and part of GB-07 stay missing regardless of spend.
 unchanged):** landed as `src/operations/evals/eval-execution-metrics.ts` (captured by
 `runEvalCase` before the case cwd is removed, attached as
 `EvalExecutionResult.metrics`), plus per-row `finishedAt`/`durationMs`, the flat
-tool/repeat/retry/intervention fields, `latency` p50/p95, and `suiteDurationMs` in
-`benchmark/evidence/cost/eval-case-sweep.mjs`. Tests:
-`tests/evals/eval-execution-metrics.vitest.ts` and the existing sweep guard tests.
-Still `null` with a stated reason: `providerRetries` (no event vocabulary) and
+tool/reject/repeat/retry/intervention/cancellation fields, `latency` p50/p95, and
+`suiteDurationMs` in `benchmark/evidence/cost/eval-case-sweep.mjs`. Tests:
+`tests/evals/eval-execution-metrics.vitest.ts`, `tests/evals/eval-sweep-row-fields.vitest.ts`
+and the existing sweep guard tests. Still `null` with a stated reason:
+`providerRetries` (no provider retry event is emitted), `driverReinvocations` and
+manual re-runs (sweep-level events, not per-case session evidence), and
 `operatorActiveReviewMinutes` (requires human observation). Provider-level retry
 counting and observed review intervals remain open.
 

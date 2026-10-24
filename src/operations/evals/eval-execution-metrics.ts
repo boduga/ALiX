@@ -32,41 +32,63 @@ const MAX_TOTAL_BYTES = 16 * 1024 * 1024;
 /** Counts derived from one case's durable tool/approval events. */
 export type EvalExecutionMetrics = {
   /**
-   * True when at least one session log was read. False means nothing was
-   * observed, so every count below is `null` rather than zero.
+   * True when at least one session log was read in full. False means nothing
+   * complete was observed, so every count below is `null` rather than zero.
    */
   observed: boolean;
-  /** `tool.requested` count. */
+  /**
+   * Dispatched `tool.requested` calls, counted once per `toolCallId`. An
+   * approval-gated call is executed twice under the SAME id; that is one call
+   * from the model, not two.
+   */
   toolCalls: number | null;
   /** `tool.completed` count. */
   toolCallsCompleted: number | null;
   /** `tool.failed` count. */
   toolCallsFailed: number | null;
   /**
-   * Requests whose exact identity (tool name + argument preview) repeats an
+   * Calls whose requested name matched nothing offered. These emit
+   * `tool.rejected` and NEVER a `tool.requested`, so folding them into
+   * `toolCalls` would break the request/terminal correspondence; counted
+   * separately so a hallucinated name is not a measured zero.
+   */
+  rejectedCalls: number | null;
+  /**
+   * Requests whose exact identity (tool name + argument hash) repeats an
    * earlier request in the same session.
    */
   repeatedCalls: number | null;
   /**
    * Repeats whose immediately preceding attempt of the same identity failed.
-   * This is a tool-level retry, not a provider retry.
+   * This is a tool-level retry, not a provider retry and not a driver
+   * re-invocation.
    */
   toolRetries: number | null;
-  /** `approval.resolved` count — operator decisions touching the run. */
+  /** `approval.resolved` count — approval decisions touching the run. */
   operatorInterventions: number | null;
-  /** Explicit absence reasons. Empty when every count above is measured. */
+  /**
+   * `workflow.cancelled` count — operator aborts. One per cancelled run: the
+   * task/graph/workflow trio fires together, so only the outermost is counted.
+   */
+  operatorCancellations: number | null;
+  /** Explicit absence reasons. */
   unobserved: string[];
 };
+
+const PROVIDER_RETRY_GAP = "provider retries are not emitted by the event vocabulary";
+const MANUAL_RERUN_GAP = "manual re-runs are per-sweep events, not per-case session evidence";
 
 const EMPTY = (reason: string): EvalExecutionMetrics => ({
   observed: false,
   toolCalls: null,
   toolCallsCompleted: null,
   toolCallsFailed: null,
+  rejectedCalls: null,
   repeatedCalls: null,
   toolRetries: null,
   operatorInterventions: null,
-  unobserved: [reason, "provider retries are not emitted by the event vocabulary"],
+  operatorCancellations: null,
+  unobserved: [reason, PROVIDER_RETRY_GAP, MANUAL_RERUN_GAP],
 });
 
 /** Key-sorted serialization so argument order never fabricates a distinct call. */
@@ -113,9 +135,11 @@ export function captureEvalExecutionMetrics(cwd: string): EvalExecutionMetrics {
   let toolCalls = 0;
   let toolCallsCompleted = 0;
   let toolCallsFailed = 0;
+  let rejectedCalls = 0;
   let repeatedCalls = 0;
   let toolRetries = 0;
   let operatorInterventions = 0;
+  let operatorCancellations = 0;
   let readAny = false;
   let totalBytes = 0;
   let truncated = false;
@@ -140,6 +164,8 @@ export function captureEvalExecutionMetrics(cwd: string): EvalExecutionMetrics {
       const lastOutcome = new Map<string, "success" | "failed">();
       /** toolCallId → identity, so a terminal event can close the right attempt. */
       const pending = new Map<string, string>();
+      /** toolCallIds already counted as a dispatched call. */
+      const counted = new Set<string>();
       const seen = new Set<string>();
 
       for (const line of raw.split("\n")) {
@@ -157,9 +183,20 @@ export function captureEvalExecutionMetrics(cwd: string): EvalExecutionMetrics {
           operatorInterventions += 1;
           continue;
         }
+        // Only the outermost cancel event is counted; task.cancelled and
+        // graph.cancelled fire with it for the same abort.
+        if (event.type === "workflow.cancelled") {
+          operatorCancellations += 1;
+          continue;
+        }
 
         const payload = isObject(event.payload) ? event.payload : {};
         const toolCallId = typeof payload.toolCallId === "string" ? payload.toolCallId : null;
+
+        if (event.type === "tool.rejected") {
+          rejectedCalls += 1;
+          continue;
+        }
 
         if (event.type === "tool.completed" || event.type === "tool.failed") {
           if (event.type === "tool.completed") toolCallsCompleted += 1;
@@ -177,10 +214,25 @@ export function captureEvalExecutionMetrics(cwd: string): EvalExecutionMetrics {
         }
         if (event.type !== "tool.requested") continue;
 
+        // One approval-gated call is dispatched twice under the same
+        // toolCallId (denied, approved, re-executed). That is one call from the
+        // model: count it once and never let the re-execution look like a
+        // repeat.
+        if (toolCallId) {
+          if (counted.has(toolCallId)) continue;
+          counted.add(toolCallId);
+        }
         toolCalls += 1;
+
         const toolName = typeof payload.toolName === "string" ? payload.toolName : "";
+        // `argsPreview` is sanitized before logging, so two calls that differ
+        // only in a redacted key would collide. The exact stable hash is
+        // recorded on the same event; prefer it and fall back only when absent.
+        const argumentHash = typeof payload.argumentHash === "string" ? payload.argumentHash : null;
         const args = isObject(payload.argsPreview) ? payload.argsPreview : {};
-        const identity = `${toolName}\u0000${stable(args)}`;
+        const identity = argumentHash
+          ? `${toolName}\u0000${argumentHash}`
+          : `${toolName}\u0000${stable(args)}`;
 
         if (seen.has(identity)) {
           repeatedCalls += 1;
@@ -198,11 +250,9 @@ export function captureEvalExecutionMetrics(cwd: string): EvalExecutionMetrics {
     return EMPTY("session log was unreadable or oversized");
   }
   if (truncated) {
-    // A partial scan must not be reported as a complete measurement.
-    return {
-      ...EMPTY("at least one session log was unreadable or oversized"),
-      observed: true,
-    };
+    // A partial scan must not be reported as a complete measurement: some
+    // sessions contributed and others did not, so every count is unknown.
+    return EMPTY("at least one session log was unreadable or oversized");
   }
 
   return {
@@ -210,9 +260,11 @@ export function captureEvalExecutionMetrics(cwd: string): EvalExecutionMetrics {
     toolCalls,
     toolCallsCompleted,
     toolCallsFailed,
+    rejectedCalls,
     repeatedCalls,
     toolRetries,
     operatorInterventions,
-    unobserved: ["provider retries are not emitted by the event vocabulary"],
+    operatorCancellations,
+    unobserved: [PROVIDER_RETRY_GAP, MANUAL_RERUN_GAP],
   };
 }

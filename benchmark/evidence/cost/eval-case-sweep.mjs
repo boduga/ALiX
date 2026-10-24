@@ -170,13 +170,19 @@ export async function sweepCases(cases, { provider, model }) {
       toolCalls: metrics?.toolCalls ?? null,
       toolCallsCompleted: metrics?.toolCallsCompleted ?? null,
       toolCallsFailed: metrics?.toolCallsFailed ?? null,
+      rejectedCalls: metrics?.rejectedCalls ?? null,
       repeatedCalls: metrics?.repeatedCalls ?? null,
       toolRetries: metrics?.toolRetries ?? null,
       providerRetries: null,
+      driverReinvocations: null,
       operatorInterventions: metrics?.operatorInterventions ?? null,
+      operatorCancellations: metrics?.operatorCancellations ?? null,
       operatorActiveReviewMinutes: null,
       unobserved: [
         ...(metrics?.unobserved ?? ['no session log was observed; counts are unknown']),
+        // A driver re-invocation is a sweep-level re-run of a case, not per-case
+        // session evidence, so it cannot be derived from this log.
+        'driver re-invocations are not recorded per case',
         'operator active review minutes require human observation',
       ],
       verdict: result.verdict,

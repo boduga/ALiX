@@ -45,6 +45,10 @@ function approval(approvalId: string) {
   return { type: "approval.resolved", payload: { approvalId, decision: "approved" } };
 }
 
+function rejected(toolCallId: string, requestedName = "alix_made_up") {
+  return { type: "tool.rejected", payload: { toolCallId, requestedName, reason: "name-not-offered" } };
+}
+
 describe("captureEvalExecutionMetrics", () => {
   it("reports observed=false and null counts when no session log exists", () => {
     const cwd = makeCase();
@@ -53,9 +57,11 @@ describe("captureEvalExecutionMetrics", () => {
     expect(m.toolCalls).toBeNull();
     expect(m.toolCallsCompleted).toBeNull();
     expect(m.toolCallsFailed).toBeNull();
+    expect(m.rejectedCalls).toBeNull();
     expect(m.repeatedCalls).toBeNull();
     expect(m.toolRetries).toBeNull();
     expect(m.operatorInterventions).toBeNull();
+    expect(m.operatorCancellations).toBeNull();
     expect(m.unobserved.length).toBeGreaterThan(0);
     rmSync(cwd, { recursive: true, force: true });
   });
@@ -75,6 +81,7 @@ describe("captureEvalExecutionMetrics", () => {
     expect(m.toolCalls).toBe(3);
     expect(m.toolCallsCompleted).toBe(2);
     expect(m.toolCallsFailed).toBe(1);
+    expect(m.rejectedCalls).toBe(0);
     expect(m.repeatedCalls).toBe(0);
     expect(m.toolRetries).toBe(0);
     rmSync(cwd, { recursive: true, force: true });
@@ -175,6 +182,96 @@ describe("captureEvalExecutionMetrics", () => {
     expect(m.observed).toBe(true);
     expect(m.toolCalls).toBe(1);
     expect(m.toolCallsCompleted).toBe(1);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("counts one dispatched call when an approval re-executes the same toolCallId", () => {
+    // The approval path dispatches the same model call twice under one id:
+    // denied first, then approved and re-executed. That is ONE call, not a call
+    // plus a repeat.
+    const cwd = makeCase();
+    writeSession(cwd, "s1", [
+      requested("c1", "alix_shell_run", { command: "pnpm test" }),
+      failed("c1", "Access denied"),
+      requested("c1", "alix_shell_run", { command: "pnpm test" }),
+      completed("c1"),
+      approval("a1"),
+    ]);
+    const m = captureEvalExecutionMetrics(cwd);
+    expect(m.toolCalls).toBe(1);
+    expect(m.repeatedCalls).toBe(0);
+    expect(m.toolRetries).toBe(0);
+    expect(m.operatorInterventions).toBe(1);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("counts a rejected name separately so a hallucinated tool is not a zero", () => {
+    // `tool.rejected` is emitted when no offered name matched; no
+    // `tool.requested` ever exists for it. Folding it into toolCalls would
+    // break the request/terminal correspondence, so it is its own count.
+    const cwd = makeCase();
+    writeSession(cwd, "s1", [rejected("c1"), requested("c2", "alix_file_read"), completed("c2")]);
+    const m = captureEvalExecutionMetrics(cwd);
+    expect(m.toolCalls).toBe(1);
+    expect(m.rejectedCalls).toBe(1);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("counts an abort once, from the outermost cancel event", () => {
+    const cwd = makeCase();
+    writeSession(cwd, "s1", [
+      { type: "task.cancelled", payload: {} },
+      { type: "graph.cancelled", payload: {} },
+      { type: "workflow.cancelled", payload: {} },
+    ]);
+    const m = captureEvalExecutionMetrics(cwd);
+    expect(m.operatorCancellations).toBe(1);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("prefers the exact argument hash over the redacted preview", () => {
+    // argsPreview is sanitized, so two calls differing only in a redacted key
+    // look identical there. The stable hash on the same event distinguishes
+    // them and must win.
+    const cwd = makeCase();
+    writeSession(cwd, "s1", [
+      { type: "tool.requested", payload: { toolCallId: "c1", toolName: "alix_shell_run", argumentHash: "aaa", argsPreview: { command: "***" } } },
+      completed("c1"),
+      { type: "tool.requested", payload: { toolCallId: "c2", toolName: "alix_shell_run", argumentHash: "bbb", argsPreview: { command: "***" } } },
+      completed("c2"),
+    ]);
+    const m = captureEvalExecutionMetrics(cwd);
+    expect(m.toolCalls).toBe(2);
+    expect(m.repeatedCalls).toBe(0);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("treats a cancelled completion as a failed attempt for retry purposes", () => {
+    const cwd = makeCase();
+    writeSession(cwd, "s1", [
+      requested("c1", "alix_shell_run", { command: "make" }),
+      { type: "tool.completed", payload: { toolCallId: "c1", status: "cancelled" } },
+      requested("c2", "alix_shell_run", { command: "make" }),
+      completed("c2"),
+    ]);
+    const m = captureEvalExecutionMetrics(cwd);
+    expect(m.repeatedCalls).toBe(1);
+    expect(m.toolRetries).toBe(1);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("reports every count unknown when one session log is unreadable", () => {
+    // A partial scan is not a complete measurement. Counting only the readable
+    // session would present a subset as the whole.
+    const cwd = makeCase();
+    writeSession(cwd, "s1", [requested("c1", "alix_file_read"), completed("c1")]);
+    const broken = join(cwd, ".alix", "sessions", "s2");
+    mkdirSync(broken, { recursive: true });
+    writeFileSync(join(broken, "events.jsonl"), "x".repeat(4 * 1024 * 1024 + 1));
+    const m = captureEvalExecutionMetrics(cwd);
+    expect(m.observed).toBe(false);
+    expect(m.toolCalls).toBeNull();
+    expect(m.unobserved.some(r => /unreadable or oversized/.test(r))).toBe(true);
     rmSync(cwd, { recursive: true, force: true });
   });
 
