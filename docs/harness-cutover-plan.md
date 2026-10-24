@@ -130,6 +130,13 @@ missing-versus-invalid-present behavior and copy isolation.
 
 - `src/agents/subagent-manager.ts`: migrate `getRoleModel` and spawn model
   consumption without changing role/style precedence or delegation enablement.
+  **LANDED (2026-10-23) — reader only.** `getRoleModel` now resolves through
+  `createModelResolver` against the canonical `models` object instead of
+  `config.subagents[style]`. Precedence is unchanged (role style, then default),
+  the result is a copy, and the spawn path is untouched. Pinned by
+  `tests/agents/mp-01-reader-parity.vitest.ts`, whose disagreeing-projection case
+  fails if the reader ever prefers the projection again. The other files listed
+  in this package are **not** migrated.
 - `src/operations/config/loader.ts`: migrate `requireModel` validation to
   canonical resolution; preserve `requireModel: false` and all input overlays.
 - `src/interfaces/cli/commands/config.ts`: migrate model display, preserving API

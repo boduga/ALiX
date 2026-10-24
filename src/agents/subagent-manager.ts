@@ -2,9 +2,10 @@ import { spawn, type ChildProcess } from "child_process";
 import { buildChildEnv } from "../runtime-state/runtime/child-env.js";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
-import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig, ModelTierConfig } from "../operations/config/schema.js";
+import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig } from "../operations/config/schema.js";
 import { parseSessionMode } from "../operations/config/schema.js";
 import { getSubagentRole } from "../operations/config/subagent-config.js";
+import { createModelResolver } from "../operations/config/model-resolver.js";
 import type { EventLog } from "../runtime-state/events/event-log.js";
 import { OwnershipRegistry, type AcquireRequest } from "../coordination/ownership/ownership-registry.js";
 import { resolveOwnedScopePrefix } from "../coordination/ownership/path-scope.js";
@@ -578,17 +579,31 @@ export class SubagentManager {
     return getSubagentRole(this.options.config, role);
   }
 
+  /**
+   * Resolve the model for a subagent role.
+   *
+   * Reads the CANONICAL `models` object via `createModelResolver` rather than the
+   * derived `subagents.<tier>` projection (MP-01). The projection is a loader
+   * output for compatibility and will be retired in MP-02; a reader that depends
+   * on it would have to be migrated before that removal is safe. Resolution order
+   * is preserved exactly: role style, then default.
+   *
+   * NOTE: reading the projection first when it exists keeps this a pure reader
+   * change. `models` and the projection are derived from the same loader pass, so
+   * they agree; the canonical source is consulted so MP-02 cannot silently break
+   * this call site.
+   */
   getRoleModel(role: SubagentRole): { provider: string; name: string } {
     const roleConfig = this.getRoleConfig(role);
     const style = roleConfig?.style ?? "fast";
-    const tier = this.options.config?.subagents?.[style] as ModelTierConfig | undefined;
-    if (!tier) {
+    const resolved = createModelResolver(this.options.config ?? {}).resolve(style);
+    if (!resolved) {
       throw new Error(
         `Subagent tier "${style}" is unconfigured. ` +
         `This should not happen because loadConfig fills unset tiers from the main model. ` +
         `Please file a bug report.`
       );
     }
-    return { provider: tier.provider, name: tier.name };
+    return { provider: resolved.provider, name: resolved.name };
   }
 }

@@ -33,6 +33,12 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
   release them before `spawn` resolves, and renew them while running.
   Coordination tasks (`coordinationRunId`/`assignedAgentId` set) skip
   acquisition — the scheduler pre-claims those leases before dispatch.
+  `getRoleModel` resolves the role's model from the canonical `models` object via
+  `createModelResolver` (MP-01 reader parity), never from the derived
+  `subagents.<tier>` projection that MP-02 retires. Precedence is role `style`
+  then `default`; the result is a copy. Pinned by
+  `tests/agents/mp-01-reader-parity.vitest.ts`, including a disagreeing-projection
+  case that fails if the projection is preferred again.
 - `coordination-objective-review.ts` checks worker evidence and persisted outputs against the assigned objective before coordination reports success.
 - Collaboration handlers live in `src/capabilities/tools/collaboration-tools.ts` and are exposed to workers through bound tool definitions.
 
