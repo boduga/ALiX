@@ -30,7 +30,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { arch, cpus, platform, totalmem } from "node:os";
 import { join } from "node:path";
 import { ALIX_CANONICAL_BUILTIN_TOOLS } from "../../agents/tool-manifest.js";
-import { defaultPricingCatalog } from "../observability/cost-attribution.js";
+import { defaultPricingCatalog, isNonBillableProvider } from "../observability/cost-attribution.js";
 import { buildEvalConfig } from "./evals-runner.js";
 
 /**
@@ -63,7 +63,13 @@ export type PricingPin = {
    * `operator-snapshot` when the rate came from an explicit fetched snapshot,
    * `built-in-catalog` when it fell back to the repository table.
    */
-  provenance: "operator-snapshot" | "built-in-catalog";
+  /**
+   * `non-billable` means the provider costs nothing by definition (local CPU),
+   * so a missing rate is a measured zero rather than an unknown. This is the same
+   * distinction cost-attribution already draws; treating "no rate" as unknown for
+   * a local model would block a stratum that legitimately costs nothing.
+   */
+  provenance: "operator-snapshot" | "built-in-catalog" | "non-billable";
 };
 
 /**
@@ -203,6 +209,23 @@ function resolvePricingPin(
         observedAt: snapshot.observedAt,
         provenance: "operator-snapshot",
         note: "Operator-supplied rate snapshot; retained with the run.",
+      },
+      blocking: [],
+    };
+  }
+
+  // A local provider has no rate by design. Zero is measured here, not assumed.
+  if (isNonBillableProvider(provider)) {
+    return {
+      pricing: {
+        source: `non-billable provider (${provider})`,
+        effectiveFrom: null,
+        inputPerMillion: 0,
+        outputPerMillion: 0,
+        currency: "USD",
+        observedAt: now.toISOString(),
+        provenance: "non-billable",
+        note: "Local/non-billable provider: zero cost is measured, not unknown.",
       },
       blocking: [],
     };

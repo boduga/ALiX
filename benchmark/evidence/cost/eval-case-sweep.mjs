@@ -77,7 +77,7 @@ export function parseSweepArgs(args) {
   const options = { cases: [] };
   for (let index = 0; index < args.length; index++) {
     const flag = args[index];
-    if (!['--case', '--provider', '--model', '--output', '--rate-snapshot', '--provider-revision'].includes(flag)) {
+    if (!['--case', '--provider', '--model', '--output', '--rate-snapshot', '--provider-revision', '--timeout-ms'].includes(flag)) {
       throw new Error(`Unknown argument: ${flag}`);
     }
     const value = args[++index];
@@ -87,6 +87,10 @@ export function parseSweepArgs(args) {
     else if (flag === '--model') options.model = value;
     else if (flag === '--rate-snapshot') options.rateSnapshotPath = value;
     else if (flag === '--provider-revision') options.providerRevision = value;
+    // Local CPU inference can exceed the 300s provider default by minutes; a
+    // stratum-9 observation needs a timeout sized for the hardware or it aborts
+    // on transport and measures nothing about the model.
+    else if (flag === '--timeout-ms') options.timeoutMs = Number(value);
     else options.output = value;
   }
   if (options.cases.length === 0) throw new Error('--case <caseId> is required');
@@ -174,13 +178,18 @@ export function summarizeLatency(results) {
   };
 }
 
-export async function sweepCases(cases, { provider, model, rate = null }) {
+export async function sweepCases(cases, { provider, model, rate = null, timeoutMs }) {
   const results = [];
   for (const caseId of cases) {
     const evalCase = BEHAVIORAL_CASES.find(c => c.id === caseId);
     if (!evalCase) throw new Error(`Unknown eval case: ${caseId}`);
     const startedAt = new Date().toISOString();
-    const result = await runEvalCase(evalCase, { driver: evalCase.driver, provider, model });
+    const result = await runEvalCase(evalCase, {
+      driver: evalCase.driver,
+      provider,
+      model,
+      ...(Number.isFinite(timeoutMs) ? { timeoutMs } : {}),
+    });
     const finishedAt = new Date().toISOString();
     const durationMs = Date.parse(finishedAt) - Date.parse(startedAt);
     const execution = result.execution ?? {};
@@ -300,6 +309,7 @@ export async function main(args = process.argv.slice(2)) {
     provider: selected.provider,
     model: selected.name,
     rate: pinnedRate,
+    ...(Number.isFinite(options.timeoutMs) ? { timeoutMs: options.timeoutMs } : {}),
   });
   const startedAt = results[0]?.startedAt ?? new Date().toISOString();
   const finishedAt = new Date().toISOString();

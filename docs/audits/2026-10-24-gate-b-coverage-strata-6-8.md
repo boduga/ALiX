@@ -29,7 +29,40 @@ This is the stratum-8 shape the PRD asks for: a persisted running worker killed
 mid-flight, reclaimed through the resume path, run completed with its artifacts
 intact. It is not a graceful restart dressed up as a crash.
 
-## 3. Stratum 6 — measured, but NOT the four-worker contract
+## 2b. Stratum 6 at FOUR workers — measured (2026-10-24, same session)
+
+The three-worker gap above was closed rather than argued around. The harness accepts
+`--objective` and derives the worker count from the objective's file list, so a
+four-file objective produces four workers:
+
+| Run | Workers | Artifacts | Exit | Cost |
+|---|---|---|---|---|
+| 1 | **4** | 4/4 correct | 0 | `$0.4282` |
+| 2 | **4** | 4/4 correct | 0 | `$0.4666` |
+| 3 | **4** | 4/4 correct | 0 | `$0.4929` |
+
+`$1.3878` for the four-worker set. All four markers (`A-MARKER`…`D-MARKER`) were
+written to the correct paths.
+
+**So the PRD's four-worker coordination contract IS now measured.** The earlier
+three-worker runs are retained as artifacts but are not what the stratum requires.
+
+## 3. Stratum 6 — the three-worker runs (superseded by §2b)
+
+The first three runs produced **three** worker markers, not four, because the
+harness's default objective names three files:
+
+> *Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective
+> markers: A-MARKER, B-MARKER, C-MARKER*
+
+`--concurrency 4` bounds the scheduler; it does not create a fourth worker, and
+`workerCount: 3` was the accurate reading.
+
+**Superseded by §2b**, which runs the four-worker form explicitly. Kept here because
+the mistake is instructive: the run looked compliant against a three-file objective,
+which is exactly the shape of error this audit keeps finding.
+
+## 3b. Stratum 9 — NOT MEASURABLE ON THIS HARDWARE
 
 **Three worker markers were produced, not four.** The harness objective is:
 
@@ -53,8 +86,47 @@ objective.
 
 ## 4. Why stratum 9 was not run
 
-`just 8 for now` — operator instruction. Local CPU inference is non-billable but
-requires a local model server; it was not attempted.
+Attempted and blocked by tooling, not by cost:
+
+1. The §3 pricing pin initially refused `ollama` because it had no rate. Fixed: a
+   non-billable provider now records `provenance: "non-billable"` with `$0`, because
+   zero is *measured* for local CPU, not unknown. That is the distinction
+   `cost-attribution` already makes.
+2. The revision pin then refused `llama3.2:3b` as a plain alias. `--provider-revision`
+   resolved it with the model digest (`a80c4f17acd5`), and the pin passed.
+3. **The sweep has no `--timeout-ms` option.** A local 3B model on this hardware
+   exceeds the 300s provider default, so the run aborts at
+   `provider.complete:ollama timed out after 300000ms`. The eval CLI supports
+   `--timeout-ms`; the sweep harness does not.
+
+The timeout flag was then added to the sweep. The run still could not complete.
+
+**Final determination: stratum 9 is not measurable on this hardware, and this is a
+hardware limit rather than a model, configuration or harness defect.** Direct
+checks, outside ALiX entirely:
+
+```
+ollama run llama3.2:3b "2+2="     -> 60s, no output
+ollama run llama3.2:3b "Say OK"   -> 240s of spinner, no output
+```
+
+Hardware: 4 logical CPUs, 11 GB RAM. A 3B model at Q4 needs ~2 GB resident plus
+context; on this box it does not produce a token in a usable time. Loading it also
+evicts working memory, which is why the earlier agent-case attempt aborted at
+`provider.complete:ollama timed out` after 300s.
+
+**Consequence:** stratum 9 needs different hardware (or a much smaller model, or
+more RAM). It cannot be bought with ceiling headroom, and no amount of retrying
+changes it. Recorded so the gap is not mistaken for an unfinished task.
+
+**Two real deliverables did come out of the attempt**, both kept:
+
+1. Non-billable providers now pin `provenance: "non-billable"` with `$0` instead of
+   blocking on a missing rate — zero is *measured* for local CPU, matching the
+   distinction `cost-attribution` already draws.
+2. `eval-case-sweep.mjs` accepts `--timeout-ms`, which it lacked; a local model
+   needs a bound sized for the hardware or it aborts on transport and measures
+   nothing about the model.
 
 ## 5. GB-08 verdict: stays `partial`
 

@@ -53,7 +53,9 @@ describe("captureFrozenInputs", () => {
   });
 
   it("blocks the run when no rate is known, instead of assuming a price", () => {
-    const a = captureFrozenInputs(repoRoot, "ollama", "llama3", {
+    // A BILLABLE provider with no catalog rate. `ollama` cannot serve here: it is
+    // non-billable by definition, so $0 is measured rather than unknown.
+    const a = captureFrozenInputs(repoRoot, "hive", "unlisted-model", {
       now: new Date("2026-10-23T12:00:00.000Z"),
     });
     expect(a.pricing.inputPerMillion).toBeNull();
@@ -137,5 +139,32 @@ describe("captureFrozenInputs", () => {
     expect(a.corpusFiles.every(f => f.sha256 === null)).toBe(true);
     expect(a.blocking.some(r => /corpus file is missing/.test(r))).toBe(true);
     expect(a.admissible).toBe(false);
+  });
+});
+
+describe("non-billable providers", () => {
+  it("pins a local provider at $0 rather than blocking on a missing rate", async () => {
+    const { captureFrozenInputs } = await import("../../src/operations/evals/eval-frozen-inputs.js");
+    // Zero is MEASURED for a local CPU provider, not unknown. Treating "no rate"
+    // as unknown blocked stratum 9 entirely, which costs nothing and therefore
+    // needs no ceiling enforcement.
+    const a = captureFrozenInputs(repoRoot, "ollama", "llama3.2:3b", {
+      now: new Date("2026-10-24T12:00:00.000Z"),
+      providerRevision: "a80c4f17acd5",
+    });
+    expect(a.pricing.provenance).toBe("non-billable");
+    expect(a.pricing.inputPerMillion).toBe(0);
+    expect(a.pricing.outputPerMillion).toBe(0);
+    expect(a.blocking).toEqual([]);
+    expect(a.admissible).toBe(true);
+  });
+
+  it("still requires an immutable revision for a local model", async () => {
+    const { captureFrozenInputs } = await import("../../src/operations/evals/eval-frozen-inputs.js");
+    // A mutable tag is not an identity; `llama3.2:3b` can be repointed.
+    const a = captureFrozenInputs(repoRoot, "ollama", "llama3.2:3b", {
+      now: new Date("2026-10-24T12:00:00.000Z"),
+    });
+    expect(a.blocking.some(r => /immutable model revision/.test(r))).toBe(true);
   });
 });
