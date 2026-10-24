@@ -119,12 +119,22 @@ export function loadRateSnapshot(path) {
   return raw;
 }
 
-/** Price one usage record with the catalog. Unknown pricing stays unknown. */
-export function priceUsage(records) {
+/**
+ * Price one usage record.
+ *
+ * `rate` is the §3 pricing pin (an operator snapshot or a built-in catalog
+ * entry). It is applied here so there is ONE pricing authority per run: a pin
+ * that authorizes a rate the pricing path ignores produces `costUsd: null`
+ * while the run looks admissible, which is worse than either alone. The
+ * built-in catalog remains the fallback when no pin rate was supplied.
+ *
+ * Unknown pricing stays unknown.
+ */
+export function priceUsage(records, rate = null) {
   let cost = 0;
   let priced = 0;
   for (const record of records ?? []) {
-    const entry = CATALOG.lookup(record.provider, record.model);
+    const entry = rate ?? CATALOG.lookup(record.provider, record.model);
     if (!entry) continue;
     cost += ((record.inputTokens ?? 0) / 1e6) * entry.inputPerMillion;
     cost += ((record.outputTokens ?? 0) / 1e6) * entry.outputPerMillion;
@@ -136,6 +146,9 @@ export function priceUsage(records) {
     completeness: total === 0 ? 'none' : priced === total ? 'complete' : 'partial',
     pricedRecords: priced,
     totalRecords: total,
+    // Which rate produced this figure. A proxy rate must never be read as the
+    // vendor's own list price.
+    rateSource: priced > 0 ? (rate ? 'pinned-rate' : 'built-in-catalog') : null,
   };
 }
 
@@ -161,7 +174,7 @@ export function summarizeLatency(results) {
   };
 }
 
-export async function sweepCases(cases, { provider, model }) {
+export async function sweepCases(cases, { provider, model, rate = null }) {
   const results = [];
   for (const caseId of cases) {
     const evalCase = BEHAVIORAL_CASES.find(c => c.id === caseId);
@@ -173,7 +186,7 @@ export async function sweepCases(cases, { provider, model }) {
     const execution = result.execution ?? {};
     const usage = execution.usage ?? null;
     const metrics = execution.metrics ?? null;
-    const priced = priceUsage(usage?.records);
+    const priced = priceUsage(usage?.records, rate);
     // An inadmissible run never reached a scoreable agent outcome, so it cannot
     // be a verified success and must not be counted as one. It is carried
     // through with its reason so a quota wall cannot masquerade as a refusal.
@@ -239,6 +252,19 @@ export async function sweepCases(cases, { provider, model }) {
   return results;
 }
 
+/**
+ * Read a rate snapshot, failing the process with a usage error (exit 2) rather
+ * than an unhandled throw. A bad snapshot is operator input, not a crash.
+ */
+function loadSnapshotOrExit(path) {
+  try {
+    return loadRateSnapshot(path);
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exit(2);
+  }
+}
+
 export async function main(args = process.argv.slice(2)) {
   const { output, ...options } = parseSweepArgs(args);
   const selected = resolveSweepModel(options.provider, options.model);
@@ -246,7 +272,7 @@ export async function main(args = process.argv.slice(2)) {
   // set stops the sweep. Recording after the spend would only describe what was
   // used, not what was frozen.
   const frozen = captureFrozenInputs(process.cwd(), selected.provider, selected.name, {
-    ...(options.rateSnapshotPath ? { rateSnapshot: loadRateSnapshot(options.rateSnapshotPath) } : {}),
+    ...(options.rateSnapshotPath ? { rateSnapshot: loadSnapshotOrExit(options.rateSnapshotPath) } : {}),
     ...(options.providerRevision ? { providerRevision: options.providerRevision } : {}),
   });
   if (!frozen.admissible) {
@@ -257,7 +283,16 @@ export async function main(args = process.argv.slice(2)) {
     process.exitCode = 2;
     return payload;
   }
-  const results = await sweepCases(options.cases, { provider: selected.provider, model: selected.name });
+  // The pin's rate is the pricing authority for this run. Passing it here keeps
+  // "what was pinned" and "what was charged" the same single value.
+  const pinnedRate = frozen.pricing.inputPerMillion !== null && frozen.pricing.outputPerMillion !== null
+    ? { inputPerMillion: frozen.pricing.inputPerMillion, outputPerMillion: frozen.pricing.outputPerMillion }
+    : null;
+  const results = await sweepCases(options.cases, {
+    provider: selected.provider,
+    model: selected.name,
+    rate: pinnedRate,
+  });
   const startedAt = results[0]?.startedAt ?? new Date().toISOString();
   const finishedAt = new Date().toISOString();
   const payload = {

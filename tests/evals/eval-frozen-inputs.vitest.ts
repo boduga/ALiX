@@ -76,10 +76,10 @@ describe("captureFrozenInputs", () => {
   });
 
   it("accepts a dated snapshot model id as the immutable revision", () => {
-    const a = captureFrozenInputs(repoRoot, "intern", "deepseek-v4-flash-0731", {
+    const a = captureFrozenInputs(repoRoot, "hive", "deepseek-ai/deepseek-v4.1-flash-1017", {
       now: new Date("2026-10-23T12:00:00.000Z"),
     });
-    expect(a.model.revision).toBe("deepseek-v4-flash-0731");
+    expect(a.model.revision).toBe("deepseek-ai/deepseek-v4.1-flash-1017");
     expect(a.model.revisionSource).toBe("model-id-snapshot");
     expect(a.blocking.some(r => /immutable model revision/.test(r))).toBe(false);
   });

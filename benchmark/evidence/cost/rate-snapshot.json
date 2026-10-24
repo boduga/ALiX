@@ -1,0 +1,11 @@
+{
+  "_comment": "Operator-declared proxy rate. The Hive vendor does not publish a per-token list price this repository can cite, so the operator directed these runs be priced at the OpenAI gpt-4o catalog rate. This is a proxy for cost accounting, NOT a Hive list price: never cite it as the vendor's rate, and never promote it into defaultPricingCatalog() (see docs/harness-pricing-coverage.md §1). Using gpt-4o keeps the approved collection proposal's arithmetic valid (proposal §5).",
+  "provider": "hive",
+  "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+  "inputPerMillion": 2.5,
+  "outputPerMillion": 10,
+  "currency": "USD",
+  "source": "operator-declared proxy: openai/gpt-4o catalog rate (defaultPricingCatalog), not a Hive-published rate",
+  "observedAt": "2026-10-23T00:00:00.000Z",
+  "effectiveFrom": "2025-01-01"
+}
