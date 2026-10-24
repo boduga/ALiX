@@ -17,7 +17,7 @@ import { inferCapability } from "../../capabilities/tools/capability-map.js";
 import type { InvocationIdentity } from "../approvals/approval-binding.js";
 import { invocationMatches } from "../approvals/approval-binding.js";
 import { extractPatchPaths } from "../../execution/patch/patch-paths.js";
-import { resolve } from "node:path";
+import { relative, resolve, sep } from "node:path";
 import { isWithinOwnedScope } from "../../coordination/ownership/path-scope.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -175,12 +175,36 @@ function applySessionMode(toolDecision: string, mode: SessionMode): "allow" | "a
 
 // ─── Protected path check ────────────────────────────────────────────
 
-function isProtectedPath(patterns: string[], path: string): boolean {
+/**
+ * Match `path` against protected-path patterns.
+ *
+ * Patterns are workspace-RELATIVE by convention (`.git/**`, `.env`,
+ * `secrets/**`), while the gate holds resolved absolute paths. Comparing the two
+ * directly never matched, so this rule silently never fired for the default
+ * configuration. Callers therefore pass both forms; matching either is enough.
+ */
+function isProtectedPath(patterns: string[], absolutePath: string, relativePath?: string): boolean {
+  const candidates = relativePath === undefined ? [absolutePath] : [absolutePath, relativePath];
   return patterns.some((pattern) => {
-    if (pattern.endsWith("/**")) return path.startsWith(pattern.slice(0, -3));
-    if (pattern.endsWith(".*")) return path === pattern.slice(0, -2) || path.startsWith(pattern.slice(0, -1));
-    return path === pattern;
+    if (pattern.endsWith("/**")) {
+      // The prefix must be the directory ITSELF or a descendant. A bare
+      // `startsWith` would match `.gitignore` and `.github/` against `.git/**`,
+      // which over-blocks unrelated files.
+      const prefix = pattern.slice(0, -3);
+      return candidates.some((p) => p === prefix || p.startsWith(`${prefix}/`));
+    }
+    if (pattern.endsWith(".*")) {
+      const base = pattern.slice(0, -2);
+      return candidates.some((p) => p === base || p.startsWith(pattern.slice(0, -1)));
+    }
+    return candidates.some((p) => p === pattern);
   });
+}
+
+/** Workspace-relative form of an absolute path, or undefined when outside it. */
+function workspaceRelative(cwd: string, absolutePath: string): string | undefined {
+  const rel = relative(cwd, absolutePath);
+  return rel.startsWith("..") ? undefined : rel.split(sep).join("/");
 }
 
 // ─── PolicyGate ──────────────────────────────────────────────────────
@@ -208,7 +232,7 @@ export class PolicyGate {
     const rawPath = typeof args.path === "string" ? args.path : undefined;
     if (rawPath) {
       const resolvedPath = resolvePolicyPath(request.cwd, rawPath);
-      if (isProtectedPath(this.config.permissions.protectedPaths, resolvedPath)) {
+      if (isProtectedPath(this.config.permissions.protectedPaths, resolvedPath, workspaceRelative(request.cwd, resolvedPath))) {
         return {
           requestId: request.requestId,
           capability,
@@ -321,7 +345,8 @@ export class PolicyGate {
         const resolvedTargets = targets.map((t) => resolvePolicyPath(request.cwd, t));
         // Protected paths are a hard deny even when owned (patch.apply has no
         // args.path, so step 1 never sees its targets — check them here).
-        const protectedTarget = resolvedTargets.find((t) => isProtectedPath(this.config.permissions.protectedPaths, t));
+        const protectedTarget = resolvedTargets.find((t) =>
+          isProtectedPath(this.config.permissions.protectedPaths, t, workspaceRelative(request.cwd, t)));
         if (protectedTarget) {
           return {
             requestId: request.requestId, capability, decision: "deny",

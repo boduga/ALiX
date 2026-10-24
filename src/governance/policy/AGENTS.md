@@ -27,6 +27,7 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
   to "allow" under auto/bypass session modes, so a worker scoped to one file
   could write anywhere in the workspace.
 - Two-layer enforcement: capability coverage first, policy second.
+- **Protected-path patterns are workspace-relative; the gate holds absolute paths, so it compares BOTH forms.** Comparing resolved absolute paths only against the shipped relative defaults (`.git/**`, `.env`, `secrets/**`) meant the rule never matched and silently never fired. `isProtectedPath` now takes `(patterns, absolutePath, relativePath?)` and matches either. `/**` prefixes must match the directory itself or a descendant — a bare `startsWith` over-blocks `.gitignore`/`.github/` — and `.*` suffixes keep exact-or-suffixed semantics. A protected read now refuses in the gate (`denied`) rather than reaching the router's `error`; same refusal, earlier layer, and it still never becomes an approvable request. Parity table: `tests/security/policy-protected-path-parity.vitest.ts` (relative and absolute forms, over-block negatives, patch targets under an owned scope).
 - Most-restrictive-wins across multiple capabilities: deny > ask > allow.
 - RuntimeGate checks ApprovalStore for prior approvals before creating new ones.
 - One pending approval per key: capability asks reuse the pending approval for their capability; coordination asks reuse by exact binding key; ask-mode tool calls always create a fresh record.

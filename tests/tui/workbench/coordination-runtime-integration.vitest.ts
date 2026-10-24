@@ -286,7 +286,13 @@ describe('Phase9 public coordination port with real handlers and scheduler', () 
     const protectedRead = await new ToolExecutor(
       f.config, f.log, f.cwd, undefined, undefined, undefined, undefined, f.approvalStore,
     ).execute({ toolCallId: 'protected-read-check', name: 'file.read', args: { path: '.env' } } as any);
-    expect(protectedRead).toMatchObject({ kind: 'error', message: expect.stringMatching(/path is protected/i) });
+    // The protected-path rule fires in `PolicyGate` now that relative patterns
+    // are matched against a workspace-relative path, so the refusal surfaces as
+    // a policy `denied` rather than reaching the router's `error`. Same outcome,
+    // earlier layer: it must still be refused, still name protection, and still
+    // never become an approval request the operator could grant.
+    expect(protectedRead.kind).toBe('denied');
+    expect(String((protectedRead as { reason?: string }).reason)).toMatch(/path is protected/i);
     await f.approvalStore.load();
     expect(f.approvalStore.listPending()).toHaveLength(0);
   }, 120_000);
