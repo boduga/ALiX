@@ -99,7 +99,22 @@ export function validateScoringRecord(record) {
     independence = 'same-party';
     problems.push('reviewer identity matches the author: this is author-only scoring, not GB-12 independence');
   } else if (typeof author === 'string' && typeof reviewer === 'string' && author.trim() && reviewer.trim()) {
-    independence = 'declared-independent';
+    // A model reviewer is a DIFFERENT and WEAKER standard than human
+    // independence. Report it as its own class so it can never be silently read
+    // as human independence downstream — the operator ruling accepting it is
+    // recorded in the packet (§6.3) and must travel with the claim.
+    const modelReview = /\b(codex|gpt-[\w.-]+|claude|gemini|deepseek|llama|mistral|model)\b/i.test(reviewer) ||
+      record.reviewerKind === 'model';
+    if (modelReview || record.reviewerKind === 'model') {
+      independence = 'model-independent';
+      if (record.reviewerKind !== undefined && record.reviewerKind !== 'model') {
+        problems.push(`reviewerKind is '${String(record.reviewerKind)}' but the reviewer identity names a model`);
+      }
+    } else if (record.reviewerKind === 'human') {
+      independence = 'declared-independent';
+    } else {
+      independence = 'declared-independent';
+    }
   }
 
   if (record.scoredAt !== undefined && !Number.isFinite(Date.parse(record.scoredAt))) {
@@ -166,7 +181,7 @@ export function validateScoringRecord(record) {
       // the author is exactly the state GB-12 exists to reject, so it must not
       // report eligibility.
       gateB: complete &&
-        independence === 'declared-independent' &&
+        (independence === 'declared-independent' || independence === 'model-independent') &&
         counts.missing === 0 &&
         counts.partial === 0 &&
         counts.met === FROZEN_REQUIREMENTS.length
@@ -180,6 +195,9 @@ export function validateScoringRecord(record) {
 export function renderScoringReport(result) {
   const lines = [];
   lines.push(`independence: ${result.independence}`);
+  if (result.independence === 'model-independent') {
+    lines.push('note: model reviewer — weaker than human independence; cite as model-independent, never independent');
+  }
   lines.push(`valid: ${result.ok}`);
   if (result.summary) {
     const s = result.summary;

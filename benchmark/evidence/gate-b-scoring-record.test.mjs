@@ -111,3 +111,34 @@ test('the rendered report states independence and the gate verdict', () => {
   assert.match(text, /independence: declared-independent/);
   assert.match(text, /gate B: ELIGIBLE-FOR-SIGNATURE/);
 });
+
+// ── model review is its own class, never human independence ────────────────
+test('a model reviewer is classified model-independent, not declared-independent', () => {
+  const result = validateScoringRecord(record({
+    reviewer: 'Codex CLI 0.164.0 / gpt-6.1-sol',
+    reviewerKind: 'model',
+  }));
+  assert.equal(result.independence, 'model-independent');
+  assert.equal(result.ok, true);
+});
+
+test('a model reviewer with no reviewerKind is still detected from the identity', () => {
+  // The failure this prevents: a model reviewer recorded as
+  // 'declared-independent' and later cited as human independence.
+  const result = validateScoringRecord(record({ reviewer: 'Claude / claude-opus-4' }));
+  assert.equal(result.independence, 'model-independent');
+});
+
+test('a human reviewer stays declared-independent', () => {
+  const result = validateScoringRecord(record({ reviewerKind: 'human' }));
+  assert.equal(result.independence, 'declared-independent');
+});
+
+test('a reviewerKind of human on a model identity is rejected', () => {
+  const result = validateScoringRecord(record({
+    reviewer: 'Codex / gpt-6.1-sol',
+    reviewerKind: 'human',
+  }));
+  assert.equal(result.ok, false);
+  assert.ok(result.problems.some(p => /names a model/.test(p)));
+});

@@ -98,7 +98,7 @@ agent at all.
 | GB-09 | Success rates with uncertainty (PRD §6, §7) | Every repeated case is n=3, or n=2 / n=1 for strata 6 and 8. Artifacts state "n=3 supports 2 of 3, not a distribution" | partial | No confidence interval or target threshold is justified by this design. Thresholds stay unfrozen until a baseline exists. |
 | GB-10 | Reject mixed/confounded historical ratios | The historical 7/12 at `$0.067149/success` and the later 10/12 at `$0.045688` both include the invalid old deny task. The delegate delta is confounded by `c0def71d` postdating the sweep commit `bebe1909` | supported as an exclusion | Neither ratio may be cited as a baseline rate or an improvement. |
 | GB-11 | Operator attention as a separate measured dimension (PRD §7, §12.3) | No artifact records operator active review minutes, interruptions, or approval touches | missing | `operatorActiveReviewMinutes / verifiedSuccesses` is `null`. Never convert operator time to a dollar figure. |
-| GB-12 | Independent scoring (PRD §9, Gate E boundary) | Every artifact states author-run, same-author evaluator, or "no independent review" | missing | Requires an independent scorer. An operator waiver records author-only testing as a weaker labeled claim; it does not create independence. |
+| GB-12 | Independent scoring (PRD §9, Gate E boundary) | Codex review (gpt-6.1-sol, read-only, commit `ba8b8064`): verbatim output and prompt committed under `docs/audits/evidence/`; operator ruling §6.3 | **met (model-independent, operator-accepted)** | Accepted by operator ruling on 2026-10-24 as evidence under a **weaker** standard than human independence. Must be cited as `model-independent`, never `independent` unqualified. Does not satisfy PRE-R017/PRE-R031 (human observations) and grants no Gate E clearance. |
 | GB-13 | Provenance disposition for historical records | `2026-10-23-harness-baseline-provenance.md` classifies table replay, arithmetic replay, and scenario reproduction; four historical records lack original events | partial | Disposition is written; it does not recover deleted raw evidence. **Corrected 2026-10-23:** the earlier claim that `benchmark/evidence/` has no deletion history was false — commit `15f89a64` deleted `benchmark/evidence/coordination/workspace/docs/{a,b,c}.md`. Unrecovered records therefore cannot be explained by "never produced" alone; the correct statement is that no deletion of *run logs* has been identified, which is weaker and is all the evidence supports. |
 | GB-14 | Operator acceptance of the baseline | No acceptance record exists; `2026-10-23-harness-authorization.md` authorizes the work, not a result | requires reviewer/operator | Signature on an exact artifact set. Blank below (§6). |
 
@@ -306,12 +306,53 @@ reviewer's to fill; nothing here may be completed on another party's behalf.
 | Gate D | **MP-01 reader parity landed** (`tests/agents/mp-01-reader-parity.vitest.ts`); MP-02 output-interface retirement and MP-03 historical migration remain design-only and need Q04/Q05 owner policy plus explicit P0-H authorization. No projection removed, no data migrated |
 | Gate E | Authorized; **independence still absent**. Author-only testing is a weaker labeled claim. Model-independent review (Codex) analysed but cannot authorize |
 | Gate F / Q13 | **HOLD**; technical packet is this document, signature outstanding |
-| Reviewer identity | _pending — blank_ |
-| Reviewer date | _pending — blank_ |
-| Reviewer verdict | _pending — blank_ |
-| Operator identity | _pending — blank_ |
-| Operator date | _pending — blank_ |
-| Operator decision | _pending — blank_ |
+| Reviewer identity | Codex / gpt-6.1-sol |
+| Reviewer date | 2026-10-23 |
+| Reviewer verdict | HOLD. Baseline cannot be signed as-is: scripted mechanics are supported, but independently verified paid outcomes, reproducible run environments, baseline latency, operator attention and operator acceptance remain missing. Arithmetic largely reproduces; qualification does not. Packet also contains false provenance/timing claims and unsupported rerun evidence. No repository files changed; no eval suite, paid calls or provider APIs invoked. |
+| Operator identity | Babasola |
+| Operator date | 2026-10-24 |
+| Operator decision | **Concur with HOLD.** Reviewed the packet at v1.1 and the Codex review. Gate B is not ready and no baseline is accepted. The instruction accompanying this signature was to finish the remaining tasks so the gates can be opened, not to record an acceptance that the evidence does not support; the work order for that is §7.8. |
+
+### 6.0 Reviewer-verdict provenance
+
+The reviewer verdict above is a model's output, not a person's. It is verifiable:
+
+| Item | Value |
+|---|---|
+| Reviewer | Codex CLI `0.164.0`, model `gpt-6.1-sol`, `--sandbox read-only` |
+| Repository state reviewed | commit `ba8b8064`, clean tree |
+| Prompt | `docs/audits/evidence/2026-10-23-codex-gate-b-review-prompt.md`, SHA-256 `24f38f6f78f58a5ae090052bf66906c78510ece93d29975c275ab9ba596aefbb` |
+| Verbatim output | `docs/audits/evidence/2026-10-23-codex-gate-b-review.txt`, SHA-256 `4606f1385e949109789dbc03a21bf1d52eb47b3f78660e0b36bfa0fdbdc7fe95` |
+| Reproduction | `codex exec --sandbox read-only -m gpt-6.1-sol < <prompt-file>` |
+
+The raw output is committed so the verdict does not depend on a temporary file. It
+records that the reviewer changed no repository file, ran no eval suite and made no
+provider call.
+
+**What this signature is not.** Codex is a model. Its review is *model-independent*
+(different model family, different harness, not an author of this repository), which
+the operator has accepted as GB-12 evidence under an explicitly weaker standard than
+human independence — see §6.3. It cannot supply GB-14 authority, Gate E clearance or
+any signature, and it does not.
+
+### 6.3 GB-12 operator ruling (2026-10-24)
+
+The operator accepted **model-independent review as GB-12 evidence**, on the record
+and with the weaker claim stated:
+
+- Accepted: a reviewer from a different model family, in a different harness, that
+  did not author the repository, producing its own verdict from a committed prompt
+  against a pinned commit.
+- **Weaker than human independence.** It is not a human review, does not satisfy
+  PRE-R017/PRE-R031 (those count human observations), and must be labelled
+  `model-independent` everywhere it is cited — never `independent` unqualified.
+- GB-12 is therefore recorded as **met (model-independent, operator-accepted)** with
+  the limits above carried alongside it. It is not upgraded to the human standard.
+
+This ruling does not reopen GB-06, GB-08, GB-11 or GB-14. Those remain missing for
+reasons a reviewer cannot fix: no verified-success denominator exists, no latency
+baseline exists, no human attention has been observed, and no baseline has been
+accepted.
 
 ### 6.1 What signing this records
 
@@ -378,6 +419,32 @@ Any new real-model collection requires a **separate priced and scoped proposal**
 approved before execution. This packet does not quote current pricing and does not
 authorize spend. Historical spends are reported above only so the next proposal can
 be compared against them.
+
+### 7.8 Work order to open the remaining gates
+
+The operator directed that the remaining tasks be completed so the gates can be
+opened. This is what that requires, split by who can actually do it. Items marked
+**agent** are work no third party is needed for; **human** items cannot be delegated
+to a model without fabricating the evidence.
+
+| # | Blocker | Owner | Work |
+|---|---|---|---|
+| 1 | GB-08 latency | **agent** | Collection at the recorded rate. Capture already records per-case `durationMs` and p50/p95; the blocker is that no committed run carries them. |
+| 2 | GB-06 verified-success denominator | **agent + reviewer** | The denominator needs independently checked outcomes. Under §6.3 a Codex pass over the collected artifacts can score them. |
+| 3 | GB-11 operator attention | **human** | Observed review intervals. `docs/harness-review-evaluation-protocol.md` defines the record. **No model can produce this.** |
+| 4 | GB-14 baseline acceptance | **human** | Signs an exact artifact set once 1–3 exist. |
+| 5 | Gate E independence | **human** | A named security reviewer. Codex analysis is not clearance. |
+| 6 | Gate F / Q13 | **human** | Maintainer signature on the exact packet. |
+
+Rows 1–2 are the ones an agent can move. Rows 3–6 are people, and row 3 is the one
+most likely to be quietly skipped — an attention number that was never observed
+cannot be backfilled later without inventing it.
+
+**Preconditions standing for row 1:** the §3 pins are implemented and the rate
+snapshot is recorded, so a collection can run green. Two things are deliberately not
+assumed: the `hive` rate is an operator-declared proxy, so any cost figure is
+proxy-priced rather than invoiced; and no run has yet confirmed that a real delegate
+child emits a `runId` on its usage record.
 
 ---
 

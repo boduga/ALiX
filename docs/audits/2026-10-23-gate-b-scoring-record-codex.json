@@ -1,0 +1,87 @@
+{
+  "_label": "MODEL-INDEPENDENT SCORING. WEAKER THAN HUMAN INDEPENDENCE. DOES NOT SATISFY GB-14 OR GATE E.",
+  "_why_this_exists": "The operator accepted model-independent review as GB-12 evidence on 2026-10-24 (packet §6.3). The reviewer is a different model family in a different harness that did not author this repository. It is NOT a human review and must be cited as 'model-independent', never as 'independent' unqualified.",
+  "_instructions_never": "Do not relabel reviewerKind to 'human'. Do not cite this as satisfying PRE-R017/PRE-R031 (which count human observations) or as Gate E clearance.",
+  "author": "Babasola <boduga@gmail.com> (work performed by an AI agent acting for the operator)",
+  "reviewer": "Codex CLI 0.164.0 / gpt-6.1-sol (read-only sandbox)",
+  "reviewerKind": "model",
+  "reviewedCommit": "ba8b8064",
+  "scoredAt": "2026-10-23T00:00:00.000Z",
+  "artifactSet": "commit ba8b8064; docs/audits/evidence/2026-10-23-codex-gate-b-review.txt (verbatim output, sha256 4606f1385e949109789dbc03a21bf1d52eb47b3f78660e0b36bfa0fdbdc7fe95); docs/audits/evidence/2026-10-23-codex-gate-b-review-prompt.md (sha256 24f38f6f78f58a5ae090052bf66906c78510ece93d29975c275ab9ba596aefbb)",
+  "requirements": [
+    {
+      "id": "GB-01",
+      "verdict": "partial",
+      "note": "Reviewer: all eight recorded hashes match pinned commit 7ca6f689, but only six match current files. Independent oracle qualification remains absent — the oracle is author-written."
+    },
+    {
+      "id": "GB-02",
+      "verdict": "met",
+      "evidence": "benchmark/evidence/eval-runs/guarded-2026-10-23.json:run.results, run.summary",
+      "note": "Reviewer recomputed 14 passes, zero failures, eight landed objectives, 14 honest statuses, seven satisfied guard groups and two complete tool traces. Establishes scripted mechanics only — never model quality or a baseline rate."
+    },
+    {
+      "id": "GB-03",
+      "verdict": "met",
+      "evidence": "src/operations/evals/eval-guards.ts:108-185,212-268; benchmark/evidence/eval-runs/guarded-2026-10-23.json:run.results[].guards",
+      "note": "Guards check workspace content, escaped-target sentinel, partial files and ordered tool outcomes, rejecting missing, malformed, duplicate and unmatched trace records. Historical paid runs lack these guards."
+    },
+    {
+      "id": "GB-04",
+      "verdict": "partial",
+      "note": "Some runs record producer commits and model aliases, but baseline artifacts lack immutable model revisions and complete runtime/config/tool-manifest pins. Capture now implements the pins (src/operations/evals/eval-frozen-inputs.ts) but no committed run carries them."
+    },
+    {
+      "id": "GB-05",
+      "verdict": "partial",
+      "note": "Artifacts nominally cover ten strata, but repair/recovery sequences lack paid-run proof, coordination samples are tiny, and CPU-only execution lacks hardware/network evidence."
+    },
+    {
+      "id": "GB-06",
+      "verdict": "missing",
+      "note": "Reviewer recomputed the selected subtotal as 24 author-scored passes at $0.936605, but retained evidence cannot establish an independently verified success denominator."
+    },
+    {
+      "id": "GB-07",
+      "verdict": "partial",
+      "note": "Token-based cost arithmetic and descriptive means/medians reproduce, but vendor billing is unverified and the hive snapshot explicitly uses an OpenAI proxy rate."
+    },
+    {
+      "id": "GB-08",
+      "verdict": "missing",
+      "note": "Repeated baseline rows lack finish timestamps and p50/p95 latency. Historical event streams contain limited workflow durations (two paid cases: 7229 ms, 609933 ms) but supply no qualified baseline latency distribution."
+    },
+    {
+      "id": "GB-09",
+      "verdict": "partial",
+      "note": "Per-case counts reproduce, but uncertainty analysis is absent and 'stable: true' overstates three observations."
+    },
+    {
+      "id": "GB-10",
+      "verdict": "met",
+      "evidence": "docs/harness-readiness-report.md:36-57; docs/audits/2026-10-23-gate-b-acceptance-packet.md:225-240",
+      "note": "Current acceptance documents explicitly exclude mixed historical ratios, invalid task contracts and attributable-improvement claims."
+    },
+    {
+      "id": "GB-11",
+      "verdict": "missing",
+      "note": "Baseline rows contain no measured operator review minutes or intervention counts; historical approval events cannot establish human attention or attention per success."
+    },
+    {
+      "id": "GB-12",
+      "verdict": "met",
+      "evidence": "docs/audits/evidence/2026-10-23-codex-gate-b-review.txt; docs/audits/2026-10-23-gate-b-acceptance-packet.md §6.3",
+      "note": "Met as MODEL-INDEPENDENT under operator ruling 2026-10-24: a different model family in a different harness that did not author this repository, producing its own verdict from a committed prompt against a pinned commit. NOT human independence, does not satisfy PRE-R017/R031, grants no Gate E clearance."
+    },
+    {
+      "id": "GB-13",
+      "verdict": "partial",
+      "note": "Replay limitations are documented, but missing originals remain unresolved. The reviewer found that the earlier claim of no deletion history is false: commit 15f89a64 deleted benchmark/evidence/coordination/workspace/docs/{a,b,c}.md."
+    },
+    {
+      "id": "GB-14",
+      "verdict": "missing",
+      "note": "Acceptance fields record a concurrence with HOLD and no baseline acceptance. Authorization permits work and explicitly does not accept results; GB-14 requires accepting an exact baseline artifact set, which does not exist while GB-06/08/11 are missing."
+    }
+  ]
+}
