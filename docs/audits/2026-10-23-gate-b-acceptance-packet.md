@@ -1,8 +1,10 @@
 # Gate B acceptance packet — pre-2.0 harness baseline
 
-**Packet version:** 1.0 (assembled 2026-10-23)
+**Packet version:** 1.1 (assembled 2026-10-23; reconciled 2026-10-23 after
+model-independent review)
 **Source pin:** branch `feat/phase0-master-prd`, commit
 `7ca6f6899bfd87ea3fadb7fe74c19c654178685a` (working tree clean at assembly)
+**Reconciliation pin:** commit `148dabc7` (the tree this version was checked against)
 **Requirements:** [PRD v1.2, filename `ALiX_PRE_2_0_HARNESS_PRD_v1.1.md`](../ALiX_PRE_2_0_HARNESS_PRD_v1.1.md)
 **Recommended decision: GATE B HOLD. Gate E independence absent. Gate F / Q13 HOLD.**
 
@@ -10,6 +12,23 @@ This packet assembles committed evidence. It is not a pass, not a signature, and
 an independent qualification. It grants no publication, push, merge, deploy,
 model-run or spend authorization. Reviewer and operator fields are intentionally
 blank.
+
+**Version 1.1 changes (2026-10-23).** Five statements in v1.0 were wrong or stale and
+are corrected in place, each marked at its site with `Corrected 2026-10-23`:
+
+1. §5.3 claimed no paid run retains a raw event stream. False — see §5.3.
+2. GB-13 claimed `benchmark/evidence/` has no deletion history. False — see the
+   requirement row.
+3. GB-08 was absent from the packet's own basis line and is now recorded as
+   `missing` with corrected evidence counts.
+4. Gate C row described the disposition as merely permitted; a retain disposition is
+   now recorded.
+5. Gate D row said "design only"; MP-01 reader parity has landed.
+
+Corrections were found by a model-independent review
+([`2026-10-23-gate-b-model-independent-review.md`](2026-10-23-gate-b-model-independent-review.md),
+Codex / `gpt-6.1-sol`, read-only). That review is **not** human independence, **not**
+GB-14 authority and **not** Gate E clearance.
 
 ---
 
@@ -75,7 +94,7 @@ agent at all.
 | GB-05 | Ten-stratum coverage | §3. All ten strata have at least one committed artifact; strata 6 and 8 have n≤2, stratum 9 is a single historical observation | partial | Do not read coverage as qualification. Per-stratum sample size and contract caveats stay visible. |
 | GB-06 | Primary measure: measured cost / independently verified success | Recomputed valid-contract subtotal is 24 runs, 24 verified, `$0.936605` (see §4). **No independently verified denominator exists** | missing | The metric must be reported as `null / unavailable`. Only an independent scorer can supply the denominator. |
 | GB-07 | Mean / median cost, token counts | Present per artifact and per case (§4). Costs are catalog-priced from observed tokens, not invoice-reconciled | partial | Invoice reconciliation and per-invocation rate evidence are absent. |
-| GB-08 | p50/p95 latency | **Absent.** No per-case finish timestamps exist in any cost artifact; `startedAt` only. Stratum 6 records whole-run `wallSeconds` (77 s, 54 s) including planner overhead | missing | Latency reporting is not possible from committed evidence. Keep separate from elapsed/wait time. |
+| GB-08 | p50/p95 latency | **Absent from the baseline.** 40 cost/coordination artifacts exist; 6 carry `finishedAt` and 6 carry a numeric duration field, but per-case durations exist for only two paid cases (`positive-openai-gpt4o.json`: 7229 ms and 609933 ms via `observability.metric` timer) | missing | Corrected 2026-10-23 from `partial`: two samples are not a p50/p95 baseline. Capture now records `latency`/`suiteDurationMs`/`durationMs` per run, so a future collection can measure it; no committed run does. |
 | GB-09 | Success rates with uncertainty (PRD §6, §7) | Every repeated case is n=3, or n=2 / n=1 for strata 6 and 8. Artifacts state "n=3 supports 2 of 3, not a distribution" | partial | No confidence interval or target threshold is justified by this design. Thresholds stay unfrozen until a baseline exists. |
 | GB-10 | Reject mixed/confounded historical ratios | The historical 7/12 at `$0.067149/success` and the later 10/12 at `$0.045688` both include the invalid old deny task. The delegate delta is confounded by `c0def71d` postdating the sweep commit `bebe1909` | supported as an exclusion | Neither ratio may be cited as a baseline rate or an improvement. |
 | GB-11 | Operator attention as a separate measured dimension (PRD §7, §12.3) | No artifact records operator active review minutes, interruptions, or approval touches | missing | `operatorActiveReviewMinutes / verifiedSuccesses` is `null`. Never convert operator time to a dollar figure. |
@@ -260,18 +279,32 @@ Author-side spec-compliance review followed by code-quality review found no
 actionable findings in the corpus work. That is not independent Gate E
 qualification, and it does not satisfy GB-12.
 
+**Corrected 2026-10-23.** A model-independent review (Codex / `gpt-6.1-sol`,
+read-only, commit `ba8b8064`) *did* find actionable findings — including two false
+claims in this packet and three errors in the author-only scoring record. The
+statement above that reviews "found no actionable findings" therefore holds only
+for the author-side passes it describes, and must not be read as a clean bill.
+See [`2026-10-23-gate-b-model-independent-review.md`](2026-10-23-gate-b-model-independent-review.md).
+Whether model independence satisfies GB-12 is an operator policy decision and is
+not recorded here.
+
 ---
 
 ## 6. Decision record
 
+**Reconciled 2026-10-23 (packet v1.1).** Every row below was re-checked against
+commit `148dabc7`. The three signature fields are blank and are the operator's and
+reviewer's to fill; nothing here may be completed on another party's behalf.
+
 | Field | Value |
 |---|---|
 | Gate B disposition | **HOLD** |
-| Basis | GB-06 primary metric unavailable; GB-08, GB-11, GB-12 missing; GB-14 unsigned |
+| Basis | GB-06 (no independently verified denominator), GB-08 (no latency baseline), GB-11 (no observed operator attention) and GB-12 (no accepted independent scoring) are missing; GB-14 unsigned |
 | Gate A | Historical PASS with named unknowns; no retirement implied |
-| Gate C | Authorized; no paired ablation exists; §9 permits an explicit retain disposition |
-| Gate D | Authorized; design only; no parity evidence |
-| Gate E | Authorized; **independence absent**; author-only testing would be a weaker labeled claim |
+| Gate B — what would move it | An independent scorer's record (human or an operator-accepted model reviewer) + observed operator attention + a priced collection carrying the §3 pins and §4 fields |
+| Gate C | **Retain disposition recorded** — [`harness-gate-c-retain-disposition.md`](../harness-gate-c-retain-disposition.md). HC-01/HC-03 retained, none retired, no ablation run. Not a measured efficiency finding. PRE-R007/R008 remain unexecuted comparisons |
+| Gate D | **MP-01 reader parity landed** (`tests/agents/mp-01-reader-parity.vitest.ts`); MP-02 output-interface retirement and MP-03 historical migration remain design-only and need Q04/Q05 owner policy plus explicit P0-H authorization. No projection removed, no data migrated |
+| Gate E | Authorized; **independence still absent**. Author-only testing is a weaker labeled claim. Model-independent review (Codex) analysed but cannot authorize |
 | Gate F / Q13 | **HOLD**; technical packet is this document, signature outstanding |
 | Reviewer identity | _pending — blank_ |
 | Reviewer date | _pending — blank_ |
@@ -280,7 +313,25 @@ qualification, and it does not satisfy GB-12.
 | Operator date | _pending — blank_ |
 | Operator decision | _pending — blank_ |
 
-Nothing in this section may be filled in on another party's behalf.
+### 6.1 What signing this records
+
+Signing **constitutes concurrence with a HOLD**, i.e. that Gate B is not ready and
+why. It is not baseline acceptance, not a Gate B PASS, not Gate E clearance and not
+Gate F/Q13 approval. Those are separate decisions with separate evidence
+requirements, and none of them is available today.
+
+An operator signature on this packet does **not** discharge GB-14. GB-14 requires
+acceptance of an exact *baseline artifact set*; there is no acceptable baseline to
+accept while GB-06/08/11/12 are missing.
+
+### 6.2 What is explicitly not signature-ready
+
+- Any claim that the baseline is reproducible: §3 pins are implemented but no
+  committed run carries them.
+- Any cost-per-success figure: the denominator does not exist, and the current rate
+  is an operator-declared proxy, not a vendor price.
+- Any latency or operator-attention number.
+- Any statement that a stratum is stable or qualified.
 
 ---
 
@@ -418,3 +469,16 @@ This packet and the files it edits to link to it are deliberately not self-hashe
    superseded on the worker-count contract by the 2026-10-23 four-worker record.
 6. The coverage generator's "9/10 strata admitted" count reflects the legacy record
    schema, not qualified baseline coverage.
+7. **Packet v1.1 corrections.** `scripts/check-dox-claims.mjs`-visible claims in
+   this packet were re-verified at `148dabc7`; three statements were false or stale
+   and are corrected in place: the §5.3 "no retained raw event stream for any paid
+   run" claim, the GB-13 "no deletion history" claim, and the GB-08 row. The §8
+   manifest hashes remain hashes of the `7ca6f689` blobs and are **not** re-hashed
+   for v1.1 — a hash establishes byte identity at that pin, and source files have
+   since changed for the capture work. Do not read a §8 hash as describing the
+   current tree.
+8. **Model-independent review is not signature authority.** The Codex review
+   referenced in §5.6 and in the version header was performed by a model, not a
+   person. It found real defects and is recorded; it cannot satisfy GB-14, cannot
+   grant Gate E clearance, and whether it satisfies GB-12 is an unresolved operator
+   policy decision.
