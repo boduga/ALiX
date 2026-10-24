@@ -52,6 +52,47 @@ import type {
  * the scripted provider is not a local-inference backend — labelling it CPU-only
  * would be a false claim.
  */
+/**
+ * Build the minimal eval config for a case cwd.
+ *
+ * Extracted so the §3 frozen-input pins hash EXACTLY the config the case runs
+ * under, rather than a copy that can drift from what `installEvalConfig` writes.
+ */
+export function buildEvalConfig(provider: string, model: string, timeoutMs?: number) {
+  return {
+    models: {
+      default: {
+        provider,
+        name: model,
+        ...(timeoutMs !== undefined && provider !== "scripted-mock" ? { timeoutMs } : {}),
+      },
+    },
+    permissions: {
+      default: "allow",
+      tools: {},
+      protectedPaths: [],
+      allowNetworkDomains: [],
+      denyCommands: [],
+    },
+    context: {
+      repoMap: false,
+      repoMapMode: "lite",
+      maxRepoMapTokens: 1000,
+      semanticSearch: false,
+      includeGitStatus: false,
+      pinnedFiles: [],
+    },
+    runtime: {
+      provider: "process",
+      shell: "/bin/sh",
+      commandTimeoutMs: 30000,
+      envAllowlist: [],
+    },
+    ui: { enabled: false, host: "localhost", port: 3000, transport: "sse" },
+    mcpServers: [],
+  };
+}
+
 export function installEvalConfig(
   cwd: string,
   provider = "scripted-mock",
@@ -70,42 +111,7 @@ export function installEvalConfig(
   mkdirSync(join(cwd, ".alix"), { recursive: true });
   writeFileSync(
     join(cwd, ".alix", "config.json"),
-    JSON.stringify(
-      {
-        models: {
-          default: {
-            provider,
-            name: model,
-            ...(timeoutMs !== undefined && provider !== "scripted-mock" ? { timeoutMs } : {}),
-          },
-        },
-        permissions: {
-          default: "allow",
-          tools: {},
-          protectedPaths: [],
-          allowNetworkDomains: [],
-          denyCommands: [],
-        },
-        context: {
-          repoMap: false,
-          repoMapMode: "lite",
-          maxRepoMapTokens: 1000,
-          semanticSearch: false,
-          includeGitStatus: false,
-          pinnedFiles: [],
-        },
-        runtime: {
-          provider: "process",
-          shell: "/bin/sh",
-          commandTimeoutMs: 30000,
-          envAllowlist: [],
-        },
-        ui: { enabled: false, host: "localhost", port: 3000, transport: "sse" },
-        mcpServers: [],
-      },
-      null,
-      2,
-    ),
+    JSON.stringify(buildEvalConfig(provider, model, timeoutMs), null, 2),
   );
 }
 

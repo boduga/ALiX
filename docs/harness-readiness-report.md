@@ -133,10 +133,12 @@ Remaining work before a baseline can be signed:
 4. Collection proposal
    [`audits/2026-10-23-gate-b-collection-proposal.md`](audits/2026-10-23-gate-b-collection-proposal.md)
    is **approved at proposal scope** (operator Babasola, 2026-10-23, ceiling `$4.50`,
-   model resolved at run time). Its §4 capture extension is implemented and tested;
-   no run may start until that change is reviewed and the §3 pins are recorded.
-   Independent scoring (§7) is still required for Gate B acceptance. No spend has
-   occurred.
+   model resolved at run time). Its §4 capture extension and §3 frozen-input pins are
+   implemented and tested. No run may start until that change is reviewed and a
+   pricing rate snapshot is recorded — the operator's current default has no built-in
+   rate, so the pin correctly blocks. Independent scoring (§7) is still required for
+   Gate B acceptance; the record template and validator exist but no record is
+   filled in. No spend has occurred.
 5. Obtain baseline signature and independent security review on exact artifacts.
 
 Full PRD completion remains open. Audit closure with HOLD requires an explicit

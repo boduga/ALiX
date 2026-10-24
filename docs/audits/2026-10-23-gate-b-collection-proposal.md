@@ -102,6 +102,29 @@ Every run must record, before the first invocation:
 Unknown or missing input → do not run. A run admitted with a missing pin is not
 Gate B evidence.
 
+**Implementation status (appended 2026-10-23; the contract above is unchanged):**
+`src/operations/evals/eval-frozen-inputs.ts` computes every row above, and
+`eval-case-sweep.mjs` calls it **before** the first invocation. An incomplete pin
+set exits 2 without invoking a provider; nothing is spent.
+
+How each row is resolved:
+
+| Pin | Resolution |
+|---|---|
+| Model revision | A provider-reported fingerprint if the operator supplies one (`--provider-revision`), else a **dated snapshot model id** (e.g. `deepseek-v4-flash-0731`) which is the provider's immutable identifier. A plain alias stays `null` + blocking. |
+| Provider | Recorded from the resolved `models.default` or the explicit override. |
+| Config | SHA-256 over `buildEvalConfig`, the single construction site the case actually runs under. |
+| Offered tools | SHA-256 over the sorted canonical built-in manifest. |
+| Corpus | SHA-256 per listed corpus/oracle file, plus a combined hash; a missing file is blocking. |
+| Environment | Node, platform, arch, plus logical CPU count, CPU model and total memory — stratum 9 is an observation about hardware, so the hardware is pinned. |
+| Pricing | An operator snapshot (`--rate-snapshot`, validated: provider/model must match the run) is preferred and labelled `operator-snapshot`. Otherwise the built-in table is used and labelled `built-in-catalog`. A missing entry blocks the run. |
+
+**Current standing against the operator's configuration:** `models.default` is
+`intern/deepseek-v4-flash-0731`. Its dated id satisfies the revision pin, but the
+built-in pricing table has no `intern` rate, so the pricing pin is `null` and the
+run is correctly inadmissible. Recording a fetched rate snapshot is what unblocks
+it; the code will not borrow another provider's rate.
+
 ---
 
 ## 4. Capture contract (prerequisite code work)
@@ -213,6 +236,13 @@ Two admissible paths:
   move Gate B toward acceptance, subject to operator signature.
 - **Fallback:** author-only scoring, explicitly labeled as such wherever used. This
   is a weaker claim, does not satisfy GB-12, and Gate B stays HOLD.
+
+Record shape and the validator that enforces it:
+[`2026-10-23-gate-b-scoring-record-template.md`](2026-10-23-gate-b-scoring-record-template.md)
+and `benchmark/evidence/gate-b-scoring-record.mjs`. The validator rejects a missing
+verdict, a `met` with no cited evidence, and a reviewer identity that matches the
+author; it reports `ELIGIBLE-FOR-SIGNATURE` only for a complete, declared-independent
+record with no `missing`/`partial` verdicts. No record has been filled in.
 
 Independent review is scored from retained guard evidence and final state, not model
 prose. An infrastructure failure is `inadmissible`, never a refusal or a success.

@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runEvalCase } from '../../../dist/src/operations/evals/evals-runner.js';
 import { BEHAVIORAL_CASES } from '../../../dist/src/operations/evals/cases/index.js';
+import { captureFrozenInputs } from '../../../dist/src/operations/evals/eval-frozen-inputs.js';
 import { defaultPricingCatalog } from '../../../dist/src/operations/observability/cost-attribution.js';
 import { userConfigDir } from '../../../dist/src/operations/config/loader.js';
 import { readFileSync } from 'node:fs';
@@ -76,7 +77,7 @@ export function parseSweepArgs(args) {
   const options = { cases: [] };
   for (let index = 0; index < args.length; index++) {
     const flag = args[index];
-    if (!['--case', '--provider', '--model', '--output'].includes(flag)) {
+    if (!['--case', '--provider', '--model', '--output', '--rate-snapshot', '--provider-revision'].includes(flag)) {
       throw new Error(`Unknown argument: ${flag}`);
     }
     const value = args[++index];
@@ -84,10 +85,38 @@ export function parseSweepArgs(args) {
     if (flag === '--case') options.cases.push(value);
     else if (flag === '--provider') options.provider = value;
     else if (flag === '--model') options.model = value;
+    else if (flag === '--rate-snapshot') options.rateSnapshotPath = value;
+    else if (flag === '--provider-revision') options.providerRevision = value;
     else options.output = value;
   }
   if (options.cases.length === 0) throw new Error('--case <caseId> is required');
   return options;
+}
+
+/**
+ * Read and validate an operator-supplied rate snapshot file.
+ *
+ * §3 asks for a rate with its own source and timestamp, not only the catalog
+ * default. A malformed snapshot is refused here rather than silently falling
+ * back to the built-in table, which would make a weaker pin look like a stronger
+ * one.
+ */
+export function loadRateSnapshot(path) {
+  const raw = JSON.parse(readFileSync(resolve(path), 'utf-8'));
+  for (const field of ['provider', 'model', 'currency', 'source', 'observedAt']) {
+    if (typeof raw?.[field] !== 'string' || raw[field].length === 0) {
+      throw new Error(`rate snapshot is missing a non-empty string '${field}'`);
+    }
+  }
+  for (const field of ['inputPerMillion', 'outputPerMillion']) {
+    if (typeof raw?.[field] !== 'number' || !Number.isFinite(raw[field]) || raw[field] < 0) {
+      throw new Error(`rate snapshot has an invalid '${field}'`);
+    }
+  }
+  if (!Number.isFinite(Date.parse(raw.observedAt))) {
+    throw new Error("rate snapshot has an unparseable 'observedAt'");
+  }
+  return raw;
 }
 
 /** Price one usage record with the catalog. Unknown pricing stays unknown. */
@@ -213,12 +242,28 @@ export async function sweepCases(cases, { provider, model }) {
 export async function main(args = process.argv.slice(2)) {
   const { output, ...options } = parseSweepArgs(args);
   const selected = resolveSweepModel(options.provider, options.model);
+  // §3: pins are recorded BEFORE the first invocation, and an inadmissible pin
+  // set stops the sweep. Recording after the spend would only describe what was
+  // used, not what was frozen.
+  const frozen = captureFrozenInputs(process.cwd(), selected.provider, selected.name, {
+    ...(options.rateSnapshotPath ? { rateSnapshot: loadRateSnapshot(options.rateSnapshotPath) } : {}),
+    ...(options.providerRevision ? { providerRevision: options.providerRevision } : {}),
+  });
+  if (!frozen.admissible) {
+    const payload = { model: selected, frozen, results: [], reason: 'frozen inputs incomplete' };
+    const json = JSON.stringify(payload, null, 2) + '\n';
+    if (output) writeFileSync(resolve(output), json);
+    else process.stdout.write(json);
+    process.exitCode = 2;
+    return payload;
+  }
   const results = await sweepCases(options.cases, { provider: selected.provider, model: selected.name });
   const startedAt = results[0]?.startedAt ?? new Date().toISOString();
   const finishedAt = new Date().toISOString();
   const payload = {
     startedAt,
     finishedAt,
+    frozen,
     // Whole-suite wall time. Per-case p50/p95 live in `latency`; keeping the
     // suite total separate prevents two slow cases from being read as
     // suite-wide latency.

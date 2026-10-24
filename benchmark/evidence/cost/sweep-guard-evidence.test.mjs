@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sweepCases, percentile, summarizeLatency } from './eval-case-sweep.mjs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { sweepCases, percentile, summarizeLatency, loadRateSnapshot, parseSweepArgs } from './eval-case-sweep.mjs';
 import { BEHAVIORAL_CASES } from '../../../dist/src/operations/evals/cases/index.js';
 
 test('percentile uses nearest rank and stays null with no samples', () => {
@@ -62,3 +65,57 @@ for (const guardSatisfied of [true, false]) {
     }
   });
 }
+
+// ── §3 rate snapshot ───────────────────────────────────────────────────────
+// An operator-supplied rate must be validated, not trusted: a snapshot for a
+// different model, or one with a negative price, would silently reprice a run.
+const validSnapshot = {
+  provider: 'openai', model: 'gpt-4o', inputPerMillion: 2.5, outputPerMillion: 10,
+  currency: 'USD', source: 'provider pricing page', observedAt: '2026-10-23T09:00:00.000Z',
+};
+
+function snapshotFile(payload) {
+  const dir = mkdtempSync(join(tmpdir(), 'rate-snapshot-'));
+  const path = join(dir, 'snapshot.json');
+  writeFileSync(path, JSON.stringify(payload));
+  return { path, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+test('rate snapshot accepts a complete record', () => {
+  const { path, cleanup } = snapshotFile(validSnapshot);
+  try {
+    assert.equal(loadRateSnapshot(path).provider, 'openai');
+  } finally {
+    cleanup();
+  }
+});
+
+for (const [label, mutate] of [
+  ['missing source', s => { delete s.source; }],
+  ['missing currency', s => { delete s.currency; }],
+  ['unparseable observedAt', s => { s.observedAt = 'yesterday'; }],
+  ['negative input rate', s => { s.inputPerMillion = -1; }],
+  ['non-finite output rate', s => { s.outputPerMillion = null; }],
+]) {
+  test(`rate snapshot rejects ${label}`, () => {
+    const broken = structuredClone(validSnapshot);
+    mutate(broken);
+    const { path, cleanup } = snapshotFile(broken);
+    try {
+      assert.throws(() => loadRateSnapshot(path), /rate snapshot/);
+    } finally {
+      cleanup();
+    }
+  });
+}
+
+test('sweep args carry the pin flags and reject a bare pin flag', () => {
+  const parsed = parseSweepArgs([
+    '--case', 'behavioral.read-only',
+    '--rate-snapshot', '/tmp/rate.json',
+    '--provider-revision', 'fp_abc',
+  ]);
+  assert.equal(parsed.rateSnapshotPath, '/tmp/rate.json');
+  assert.equal(parsed.providerRevision, 'fp_abc');
+  assert.throws(() => parseSweepArgs(['--case', 'behavioral.read-only', '--rate-snapshot']), /requires a value/);
+});
