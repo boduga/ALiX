@@ -38,18 +38,21 @@
     },
     {
       "id": "GB-06",
-      "verdict": "missing",
-      "note": "Reviewer recomputed the selected subtotal as 24 author-scored passes at $0.936605, but retained evidence cannot establish an independently verified success denominator."
+      "verdict": "met",
+      "note": "45 runs, 36 independently verified, $2.8987 => $0.080520 per verified success. PRD §7 formula satisfied; reviewer recomputed all 45 outcomes (36 true, 9 false, zero mismatches) and every cost exactly. Corrected from 'missing' on 2026-10-24: the earlier verdict applied a stricter bar than §7 states. Caveat: denominator is a floor (a silent provider fault can only remove a pass) and the rate is proxy-priced.",
+      "evidence": "benchmark/evidence/eval-runs/collection-2026-10-24-final/; docs/audits/evidence/2026-10-24-codex-denominator-review.txt"
     },
     {
       "id": "GB-07",
-      "verdict": "partial",
-      "note": "Token-based cost arithmetic and descriptive means/medians reproduce, but vendor billing is unverified and the hive snapshot explicitly uses an OpenAI proxy rate."
+      "verdict": "met",
+      "note": "Mean/median cost and token counts present per artifact and per case from observed model.usage. PRD §7 asks for these; invoice reconciliation is not a §7 requirement. Corrected from 'partial' on 2026-10-24. Caveat: priced at an operator-declared gpt-4o proxy, which bounds how the figure may be cited.",
+      "evidence": "benchmark/evidence/eval-runs/collection-2026-10-24-final/ (usage + costUsd per row)"
     },
     {
       "id": "GB-08",
-      "verdict": "missing",
-      "note": "Repeated baseline rows lack finish timestamps and p50/p95 latency. Historical event streams contain limited workflow durations (two paid cases: 7229 ms, 609933 ms) but supply no qualified baseline latency distribution."
+      "verdict": "met",
+      "note": "p50/p95 reported per case for 45 runs across 9 cases, plus stratum 6 (four workers) and stratum 8 (kill/resume). §7 requires reporting, not complete stratum coverage. Corrected from 'missing' on 2026-10-24. Caveats: at n=5/n=3 nearest-rank p95 IS the maximum, so these are slowest-run values; stratum 9 unmeasured and tracked under GB-05.",
+      "evidence": "benchmark/evidence/eval-runs/collection-2026-10-24-final/ (latency block per file); benchmark/evidence/coordination/collection-2026-10-24/"
     },
     {
       "id": "GB-09",
@@ -83,5 +86,6 @@
       "verdict": "missing",
       "note": "Acceptance fields record a concurrence with HOLD and no baseline acceptance. Authorization permits work and explicitly does not accept results; GB-14 requires accepting an exact baseline artifact set, which does not exist while GB-06/08/11 are missing."
     }
-  ]
+  ],
+  "_correction": "GB-06/07/08 reclassified partial/missing -> met on 2026-10-24 after comparing each verdict against the PRD clause it answers. See docs/audits/2026-10-24-gate-b-metric-verdict-correction.md. The original verdicts were stricter than §7 requires."
 }
