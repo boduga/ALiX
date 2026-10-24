@@ -254,6 +254,11 @@ export async function runEvalCase(
       workspaceBefore,
       sentinelBefore,
       finalAnswer: execution.summary ?? null,
+      // Fall back to the on-disk log when the driver reported no events. A
+      // delegate returning events is preferred (it is the child's own account),
+      // but the main-loop returns none, and without this its admissibility would
+      // rest on a record that does not exist.
+      eventsFromDisk: true,
     });
 
     const objective = evaluateObjective(cwd, evalCase.objective, execution);

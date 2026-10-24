@@ -242,6 +242,74 @@ export function captureWorkspaceManifest(cwd: string): WorkspaceManifest {
 }
 
 /**
+ * Read the case's durable session events from disk, before cleanup.
+ *
+ * Needed because the two drivers report diagnostics differently: a delegate
+ * child returns them in its result, while the main-loop's `RunResult` carries
+ * none. Reading the log covers both with one seam and is the only route for the
+ * main-loop path — without it, `inadmissible: false` on a main-loop run rests on
+ * a record that was never kept.
+ *
+ * Bounded like the rest of the capture. A truncated read is marked, never passed
+ * off as the whole log.
+ */
+export const MAX_EVIDENCE_EVENTS = 400;
+export const MAX_EVIDENCE_EVENT_CHARS = 128 * 1024;
+const MAX_EVENT_FILE_BYTES = 8 * 1024 * 1024;
+
+export function readSessionEventsFromDisk(cwd: string): string[] | null {
+  const sessionsRoot = join(cwd, ".alix", "sessions");
+  if (!existsSync(sessionsRoot)) return null;
+  let dirs: string[];
+  try {
+    dirs = readdirSync(sessionsRoot, { withFileTypes: true })
+      .filter(e => e.isDirectory())
+      .map(e => e.name)
+      .sort();
+  } catch {
+    return null;
+  }
+  const out: string[] = [];
+  let chars = 0;
+  let dropped = 0;
+  let readAny = false;
+  for (const dir of dirs) {
+    const path = join(sessionsRoot, dir, "events.jsonl");
+    if (!existsSync(path)) continue;
+    try {
+      const stat = lstatSync(path);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_EVENT_FILE_BYTES) {
+        dropped += 1;
+        continue;
+      }
+      readAny = true;
+      for (const line of readFileSync(path, "utf-8").split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (out.length >= MAX_EVIDENCE_EVENTS || chars + trimmed.length > MAX_EVIDENCE_EVENT_CHARS) {
+          dropped += 1;
+          continue;
+        }
+        chars += trimmed.length;
+        out.push(trimmed);
+      }
+    } catch {
+      dropped += 1;
+    }
+  }
+  if (!readAny) return null;
+  if (dropped > 0) {
+    // A bounded record must say so; a short list that looks complete is worse
+    // than one that admits the bound.
+    out.push(JSON.stringify({
+      type: "evidence.events.truncated",
+      payload: { dropped, kept: out.length, reason: "evidence event bound reached" },
+    }));
+  }
+  return out;
+}
+
+/**
  * Read the outside sentinel BEFORE execution.
  *
  * Separate from the main capture because it must run on the seeded fixture,
@@ -296,6 +364,11 @@ export function captureEvalRunEvidence(
     sentinelBefore?: { content: string | null; sha256: string | null } | null;
     /** Final answer text, when the driver produced one (e.g. delegate findings). */
     finalAnswer?: string | null;
+    /**
+     * Read the case's session log when the driver reported no events. Used for
+     * drivers that do not surface diagnostics in their result (main-loop).
+     */
+    eventsFromDisk?: boolean;
   } = {},
 ): EvalRunEvidence {
   const budget = { used: 0 };
@@ -336,7 +409,7 @@ export function captureEvalRunEvidence(
       provider: execution.provider ?? null,
       sessionId: execution.sessionId ?? null,
       runId: execution.runId ?? null,
-      events: execution.events ?? null,
+      events: execution.events ?? (options.eventsFromDisk ? readSessionEventsFromDisk(cwd) : null),
     },
     capturedAt: (options.now ?? new Date()).toISOString(),
   };

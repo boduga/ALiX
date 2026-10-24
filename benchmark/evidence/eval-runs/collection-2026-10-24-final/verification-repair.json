@@ -1,0 +1,1313 @@
+{
+  "startedAt": "2026-10-24T08:06:31.211Z",
+  "finishedAt": "2026-10-24T08:11:33.576Z",
+  "frozen": {
+    "model": {
+      "provider": "hive",
+      "name": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revisionSource": "model-id-snapshot"
+    },
+    "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7",
+    "offeredToolsHash": "24fb49fdfe87f7d8cb65b381189169a65f9649d909d02905a810ead8349e0164",
+    "offeredTools": [
+      "alix_collaboration_get_dependency_results",
+      "alix_collaboration_list_conflicts",
+      "alix_collaboration_publish_artifact",
+      "alix_collaboration_publish_finding",
+      "alix_collaboration_query_findings",
+      "alix_collaboration_report_conflict",
+      "alix_coordination_list",
+      "alix_coordination_results",
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_create_skill",
+      "alix_delegate",
+      "alix_done",
+      "alix_execution_state_propose",
+      "alix_file_create",
+      "alix_file_delete",
+      "alix_file_exists",
+      "alix_file_read",
+      "alix_glob_match",
+      "alix_grep_search",
+      "alix_hook_create",
+      "alix_inspect_extension",
+      "alix_list_extensions",
+      "alix_mcp_search_tools",
+      "alix_patch_apply",
+      "alix_schedule_propose",
+      "alix_shell_run",
+      "alix_state_query",
+      "alix_verify_claim",
+      "alix_web_fetch",
+      "alix_web_search"
+    ],
+    "corpusHash": "9ed559998d4b7e8a7bf4497992e0d45a4daf430aace084b31a3c6dc52ba2ce74",
+    "corpusFiles": [
+      {
+        "path": "src/operations/evals/cases/index.ts",
+        "sha256": "09d36787693d5ded9e8c32c4123366f208bd2aa0563651c6c4e2749f48c3827e"
+      },
+      {
+        "path": "src/operations/evals/cases/behavioral.ts",
+        "sha256": "4beb2ff22fbd65b0e2272ae05f8b752c430d1048905deeeb6226e4126ada4e09"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-2-4.ts",
+        "sha256": "3963f18afd4408cb13bd1d25c0e46210e6684e782ec81293054134c4a7381e5f"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-5-10.ts",
+        "sha256": "9cab91edcb4a8f88bffdd9934fa524aeee27e5b7bc7d2d472e7814a196e0a35a"
+      },
+      {
+        "path": "src/operations/evals/cases/stratum-9-local.ts",
+        "sha256": "e77b9b30647c58e0b5e7dea3e37bb1f0a6d76e0970f4e5b6cfc020deb4df8f2d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/objective-evaluator.ts",
+        "sha256": "76869222509ac0a78d7e0dde1104d47e98c07abd9d1553964ec85c4072b6d56d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/status-evaluator.ts",
+        "sha256": "3b16532d05fa07a8005ff3ade2fa52f03c7315435e322f2dc847a3858d759cd4"
+      },
+      {
+        "path": "src/operations/evals/eval-guards.ts",
+        "sha256": "a9b379a9aa87e949dc17256f0d7a9659326cf3e8352aa12d531111e80f2a5d6b"
+      },
+      {
+        "path": "src/operations/evals/eval-admissibility.ts",
+        "sha256": "721408143ecec8e42039e510f32b13a088b2958c8cfb4d47a9d227fbba9ef9a7"
+      }
+    ],
+    "environment": {
+      "node": "v26.11.0",
+      "platform": "linux",
+      "arch": "x64",
+      "cpuCount": 4,
+      "cpuModel": "Intel(R) Core(TM) i3-8145U CPU @ 2.10GHz",
+      "totalMemoryBytes": 12284481536
+    },
+    "pricing": {
+      "source": "operator-declared proxy: openai/gpt-4o catalog rate (defaultPricingCatalog), not a Hive-published rate",
+      "effectiveFrom": "2025-01-01",
+      "inputPerMillion": 2.5,
+      "outputPerMillion": 10,
+      "currency": "USD",
+      "observedAt": "2026-10-23T00:00:00.000Z",
+      "provenance": "operator-snapshot",
+      "note": "Operator-supplied rate snapshot; retained with the run."
+    },
+    "blocking": [],
+    "admissible": true
+  },
+  "suiteDurationMs": 302365,
+  "model": {
+    "provider": "hive",
+    "name": "deepseek-ai/deepseek-v4.1-flash-1017"
+  },
+  "results": [
+    {
+      "caseId": "behavioral.verification-repair",
+      "stratum": "verification-repair",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T08:06:31.211Z",
+      "finishedAt": "2026-10-24T08:07:36.398Z",
+      "durationMs": 65187,
+      "toolCalls": 6,
+      "toolCallsCompleted": 5,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/config.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const timeoutMs = 3000;\n"
+        },
+        "actual": {
+          "content": "export const timeoutMs = 3000;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-d570edda-cf81-11f1-8745-0ac4ba0cad60-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 8,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-d570edda-cf81-11f1-8745-0ac4ba0cad60-0-1",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\""
+              },
+              "requestIndex": 9,
+              "terminalIndex": 14,
+              "outcome": "failed",
+              "error": "Command exited with code 1: node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"\n"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-da51b7b8-cf81-11f1-850b-78f45a00e868-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE path=src/config.ts"
+              },
+              "requestIndex": 17,
+              "terminalIndex": 29,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-e148c597-cf81-11f1-8096-13c185231216-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\" && echo CHECK_PASSED"
+              },
+              "requestIndex": 31,
+              "terminalIndex": 37,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-e8c2547c-cf81-11f1-b0f8-e21c04b43e28-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "cat -A src/config.ts && node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\" && echo CHECK_PASSED"
+              },
+              "requestIndex": 39,
+              "terminalIndex": 45,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-f389f1f8-cf81-11f1-9110-bc9bcc45d198-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\" && echo CHECK_PASSED"
+              },
+              "requestIndex": 47,
+              "terminalIndex": 53,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/config.ts",
+            "exists": true,
+            "sha256": "936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc",
+            "content": "export const timeoutMs = 3000;\n",
+            "bytes": 31
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/config.ts": "file:138bd79af510453bb9ee79a3f0ef43107b009e3118a624ab6d32f784f9767fea"
+          },
+          "truncated": false,
+          "digest": "2adee687641b8673748ab06cef897fc7e6bb45dc9f99aff142fcec000757d5ea"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:92250a9618c5a4b68262cd3de8e1250895e9c6fb840b9a766a444fb91875d820",
+            "src": "directory",
+            "src/config.ts": "file:936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc"
+          },
+          "truncated": false,
+          "digest": "c2b5dfb8ba97bde7dc6d257adbd96ffe7890e0a44eda85b69b972fc26a169bf8"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 1 completed; shell.run 3 completed, 1 denied; patch.apply 1 completed.\n\nFile read and the pre-check failed as expected (exit 1). Now applying the fix.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-d570edda-cf81-11f1-8745-0ac4ba0cad60-0-0:\\nexport const timeoutMs = 500;\",\"Tool alix_shell_run, call call-e148c597-cf81-11f1-8096-13c185231216-0-0:\\nCHECK_PASSED\",\"Tool alix_shell_run, call call-e8c2547c-cf81-11f1-b0f8-e21c04b43e28-0-0:\\nexport const timeoutMs = 3000;$\\nCHECK_PASSED\",\"Tool alix_shell_run, call call-f389f1f8-cf81-11f1-9110-bc9bcc45d198-0-0:\\nCHECK_PASSED\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 1 completed; shell.run 3 completed, 1 denied; patch.apply 1 completed.\n\nFile read and the pre-check failed as expected (exit 1). Now applying the fix.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-d570edda-cf81-11f1-8745-0ac4ba0cad60-0-0:\\nexport const timeoutMs = 500;\",\"Tool alix_shell_run, call call-e148c597-cf81-11f1-8096-13c185231216-0-0:\\nCHECK_PASSED\",\"Tool alix_shell_run, call call-e8c2547c-cf81-11f1-b0f8-e21c04b43e28-0-0:\\nexport const timeoutMs = 3000;$\\nCHECK_PASSED\",\"Tool alix_shell_run, call call-f389f1f8-cf81-11f1-9110-bc9bcc45d198-0-0:\\nCHECK_PASSED\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-verification-repair",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.verification-repair\",\"payload\":{\"subagentId\":\"eval-behavioral-verification-repair\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\"src/config.ts\"]},\"id\":\"f4e056e2-3e3d-4dee-bfea-b0820065000e\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T08:06:34.053Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5594,\"outputTokens\":155},\"id\":\"95c42b91-5667-433a-ac1b-db8ae52a2f60\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.423Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-d570edda-cf81-11f1-8745-0ac4ba0cad60-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"argsPreview\":{\"path\":\"src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-5a7649cd-41df-4b7b-8c05-d19322ac13f2\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"132c61a9-0a74-4b5d-82f0-b6bed76cbf38\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.427Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-d570edda-cf81-11f1-8745-0ac4ba0cad60-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-5a7649cd-41df-4b7b-8c05-d19322ac13f2\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"5f0145ac-7d60-4003-9f09-7e280053ffda\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.434Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T08:06:44.434Z\"},\"id\":\"5b7555d1-750f-437a-9b8f-8f4383687811\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.434Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"49344be3-63b1-42ad-a7bd-d07a5ba61e50\",\"operation\":\"tool.route.file.read\"},\"id\":\"d470a402-487c-4fd5-a6c0-6347c9028858\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.436Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"49344be3-63b1-42ad-a7bd-d07a5ba61e50\",\"operation\":\"tool.route.file.read\",\"durationMs\":2.54,\"outcome\":\"success\"},\"id\":\"7a997185-134d-437b-8e4e-8a5dc53ca046\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.439Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-d570edda-cf81-11f1-8745-0ac4ba0cad60-0-0\",\"outputPreview\":\"export const timeoutMs = 500;\\n\",\"outputSize\":30,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-5a7649cd-41df-4b7b-8c05-d19322ac13f2\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"e2de4e19-eae1-41f3-8d9e-4ea07a4e5574\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.440Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-d570edda-cf81-11f1-8745-0ac4ba0cad60-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":13,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-5a7649cd-41df-4b7b-8c05-d19322ac13f2\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"45364eb7-bac9-47ba-a0a8-ab0c81bdccfc\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.440Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-d570edda-cf81-11f1-8745-0ac4ba0cad60-0-1\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"da760c23ed50ce83e4ebcb1c16eb3d5c127ba86f564a0f1f09940dd68513d167\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\"\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-5a7649cd-41df-4b7b-8c05-d19322ac13f2\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"a0710ac8-b882-4740-8c79-27d7db680ae2\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.441Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-d570edda-cf81-11f1-8745-0ac4ba0cad60-0-1\",\"toolName\":\"shell.run\",\"argumentHash\":\"da760c23ed50ce83e4ebcb1c16eb3d5c127ba86f564a0f1f09940dd68513d167\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-5a7649cd-41df-4b7b-8c05-d19322ac13f2\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"ab4ec038-7194-487a-9a19-3bb620aeb19d\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.445Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:06:44.445Z\"},\"id\":\"6d9c5fcd-bf3b-46af-8859-66b945168c44\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.445Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"999b7c90-3529-437f-8c14-1454cab48860\",\"operation\":\"tool.route.shell.run\"},\"id\":\"4b12e8a4-1344-4e31-8607-6c82b00ecf35\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.446Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"999b7c90-3529-437f-8c14-1454cab48860\",\"operation\":\"tool.route.shell.run\",\"durationMs\":40.48,\"outcome\":\"success\"},\"id\":\"3ba94f73-9b72-445f-8334-3b2a1df8c234\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.487Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-d570edda-cf81-11f1-8745-0ac4ba0cad60-0-1\",\"toolName\":\"shell.run\",\"error\":\"Command exited with code 1: node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\"\\n\",\"durationMs\":46,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"da760c23ed50ce83e4ebcb1c16eb3d5c127ba86f564a0f1f09940dd68513d167\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-5a7649cd-41df-4b7b-8c05-d19322ac13f2\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"fc3aa29e-a670-4e41-aee5-67fbee247c13\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.488Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:06:44.488Z\"},\"id\":\"c82815a4-588f-4952-87e8-6a793baec95b\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T08:06:44.488Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5815,\"outputTokens\":145},\"id\":\"c35c5c5b-8691-43b3-b581-2b3dcc916a77\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.199Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-da51b7b8-cf81-11f1-850b-78f45a00e868-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"fab72a4118426c1ddb7cd700eb255acc486ae44c165cffbff219a2cbec460f27\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/config.ts\\nexport const timeoutMs = 500;\\n=======\\nexport const timeoutMs = 3000;\\n>>>>>>> REPLACE path=src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-7bdab813-94be-4fef-8070-55cf6b1ef7d5\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"b032b5dc-de71-45e0-8f1d-7c8ff743d5e9\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.201Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-da51b7b8-cf81-11f1-850b-78f45a00e868-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"fab72a4118426c1ddb7cd700eb255acc486ae44c165cffbff219a2cbec460f27\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-7bdab813-94be-4fef-8070-55cf6b1ef7d5\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"d0de0e2d-4491-47a3-a9f1-304d5468cf2c\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.205Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T08:06:56.206Z\"},\"id\":\"b0f94627-45ae-4e9c-9dfb-b1a9715fba32\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.207Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"0c543871-ee3c-4580-916a-d28ad1f898f0\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"8727b13d-9024-4203-816a-01229aac7043\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.207Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-da51b7b8-cf81-11f1-850b-78f45a00e868-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"281498e0-dd5c-4b41-8624-6d63da77b054\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.209Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-da51b7b8-cf81-11f1-850b-78f45a00e868-0-0\",\"checkpointId\":\"31e194b5-aa82-48b4-8338-43089cf8c646\",\"files\":[\"src/config.ts\"]},\"id\":\"8c816c28-cff4-48df-ae8c-2813469950dd\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.213Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"18e09784-2a40-4d3c-be99-0a833faf92b2\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/config.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"7f6cf81f-db7e-4b6b-9e26-a76ca9929355\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.215Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"18e09784-2a40-4d3c-be99-0a833faf92b2\",\"validated\":true},\"id\":\"ea785e92-5ac6-4313-bc32-a8c665bfc569\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.216Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.applied\",\"payload\":{\"proposalId\":\"18e09784-2a40-4d3c-be99-0a833faf92b2\",\"checkpointId\":\"\",\"changedFiles\":[\"src/config.ts\"]},\"id\":\"52396066-dd3f-4590-8ffc-1cb4e4309992\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.218Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.changed_files\",\"payload\":{\"changedFiles\":[\"src/config.ts\"]},\"id\":\"e3ebb0cc-d303-4540-8327-eea173f54211\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.218Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"0c543871-ee3c-4580-916a-d28ad1f898f0\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":11,\"outcome\":\"success\"},\"id\":\"6b01a905-fb14-47c4-8a20-ebbaff3bb92b\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.219Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-da51b7b8-cf81-11f1-850b-78f45a00e868-0-0\",\"outputPreview\":\"[no output]\",\"outputSize\":0,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-7bdab813-94be-4fef-8070-55cf6b1ef7d5\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"3dfad727-d951-4b19-8a02-37ec13aec5b9\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.219Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-da51b7b8-cf81-11f1-850b-78f45a00e868-0-0\",\"toolName\":\"patch.apply\",\"status\":\"success\",\"durationMs\":19,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"fab72a4118426c1ddb7cd700eb255acc486ae44c165cffbff219a2cbec460f27\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-7bdab813-94be-4fef-8070-55cf6b1ef7d5\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"43b8b96e-a744-40f4-9c64-6a23eb6070e5\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T08:06:56.220Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5901,\"outputTokens\":173},\"id\":\"c289c71f-a2b8-41f2-aaae-3db80663fbb6\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T08:07:08.564Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-e148c597-cf81-11f1-8096-13c185231216-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\" && echo CHECK_PASSED\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-dd44758a-df18-47b9-b5fc-5dc1aa46d6a9\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"be88b58c-f434-45ba-8d1b-acb0c76ff320\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T08:07:08.565Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-e148c597-cf81-11f1-8096-13c185231216-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-dd44758a-df18-47b9-b5fc-5dc1aa46d6a9\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"3a31ba38-b3f9-4060-b4d6-315b83f47cd1\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T08:07:08.568Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:07:08.569Z\"},\"id\":\"5502b3ec-fcd7-462a-8585-a43245977469\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T08:07:08.569Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"c9e98200-e8fd-4063-be1f-1e11a3a236e7\",\"operation\":\"tool.route.shell.run\"},\"id\":\"d060eb28-07f0-40a5-9c80-7e31b57ae949\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T08:07:08.571Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"c9e98200-e8fd-4063-be1f-1e11a3a236e7\",\"operation\":\"tool.route.shell.run\",\"durationMs\":126.54,\"outcome\":\"success\"},\"id\":\"304adf87-ed6a-486d-af87-3bb4ca5ed227\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T08:07:08.700Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-e148c597-cf81-11f1-8096-13c185231216-0-0\",\"outputPreview\":\"CHECK_PASSED\\n\",\"outputSize\":13,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-dd44758a-df18-47b9-b5fc-5dc1aa46d6a9\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"8819add8-59f3-4f64-aa86-4aebfcaef54e\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T08:07:08.701Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-e148c597-cf81-11f1-8096-13c185231216-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":137,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-dd44758a-df18-47b9-b5fc-5dc1aa46d6a9\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"4edf8b95-94e3-405d-b2fd-db8e014d895d\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T08:07:08.702Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5983,\"outputTokens\":208},\"id\":\"4f85d9fd-af7c-492b-b9cf-606950b2f92a\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T08:07:26.764Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-e8c2547c-cf81-11f1-b0f8-e21c04b43e28-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"dcc9f444203e748a335f890f47ec634b10a9c11375ddc15d81f775e1712af737\",\"argsPreview\":{\"command\":\"cat -A src/config.ts && node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\" && echo CHECK_PASSED\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-3a61b4bb-a5b1-4c3a-ad56-1d7858a7cdd5\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"80d0b57d-9d73-4bd5-9ae9-fb0b264335b7\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T08:07:26.766Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-e8c2547c-cf81-11f1-b0f8-e21c04b43e28-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"dcc9f444203e748a335f890f47ec634b10a9c11375ddc15d81f775e1712af737\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-3a61b4bb-a5b1-4c3a-ad56-1d7858a7cdd5\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"22c8224d-aa4e-440c-9b56-3a7c33896ebf\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T08:07:26.767Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:07:26.767Z\"},\"id\":\"1a874c2a-019c-4f20-beea-ecb41cf37307\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T08:07:26.768Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"acbe8285-14c2-4fcd-b078-695d7b3a92eb\",\"operation\":\"tool.route.shell.run\"},\"id\":\"58e0e765-5b00-445c-9ff7-76fdb50349f7\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T08:07:26.768Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"acbe8285-14c2-4fcd-b078-695d7b3a92eb\",\"operation\":\"tool.route.shell.run\",\"durationMs\":67,\"outcome\":\"success\"},\"id\":\"685c3277-c511-493f-9508-02dcec8609a4\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T08:07:26.837Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-e8c2547c-cf81-11f1-b0f8-e21c04b43e28-0-0\",\"outputPreview\":\"export const timeoutMs = 3000;$\\nCHECK_PASSED\\n\",\"outputSize\":45,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-3a61b4bb-a5b1-4c3a-ad56-1d7858a7cdd5\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"ec824567-376d-48b5-bc0b-e89aad31c10b\",\"seq\":45,\"version\":1,\"timestamp\":\"2026-10-24T08:07:26.837Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-e8c2547c-cf81-11f1-b0f8-e21c04b43e28-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":72,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"dcc9f444203e748a335f890f47ec634b10a9c11375ddc15d81f775e1712af737\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-3a61b4bb-a5b1-4c3a-ad56-1d7858a7cdd5\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"37ac9e49-4119-4ebe-bc97-c022c18d214c\",\"seq\":46,\"version\":1,\"timestamp\":\"2026-10-24T08:07:26.838Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":6084,\"outputTokens\":191},\"id\":\"58812fd5-5854-4f7e-81b7-1151794d7d04\",\"seq\":47,\"version\":1,\"timestamp\":\"2026-10-24T08:07:36.309Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-f389f1f8-cf81-11f1-9110-bc9bcc45d198-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\" && echo CHECK_PASSED\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-81cfa8da-8e48-4828-abaf-a6b2730b62d1\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"1cab3011-b847-41d4-bc26-fe11565464a1\",\"seq\":48,\"version\":1,\"timestamp\":\"2026-10-24T08:07:36.310Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-f389f1f8-cf81-11f1-9110-bc9bcc45d198-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-81cfa8da-8e48-4828-abaf-a6b2730b62d1\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"af417553-aeab-4644-b21d-3670591cb7fc\",\"seq\":49,\"version\":1,\"timestamp\":\"2026-10-24T08:07:36.311Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:07:36.311Z\"},\"id\":\"93386d59-d4b0-4605-a954-c884ee265d50\",\"seq\":50,\"version\":1,\"timestamp\":\"2026-10-24T08:07:36.312Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"332cba86-fa9a-4715-b4f9-b2398a3d12b0\",\"operation\":\"tool.route.shell.run\"},\"id\":\"93261e8f-9882-40d5-b6d3-a9f46f05743c\",\"seq\":51,\"version\":1,\"timestamp\":\"2026-10-24T08:07:36.313Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"332cba86-fa9a-4715-b4f9-b2398a3d12b0\",\"operation\":\"tool.route.shell.run\",\"durationMs\":47.05,\"outcome\":\"success\"},\"id\":\"851110e6-e6ad-411c-ac6c-c66deaf9e713\",\"seq\":52,\"version\":1,\"timestamp\":\"2026-10-24T08:07:36.360Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-f389f1f8-cf81-11f1-9110-bc9bcc45d198-0-0\",\"outputPreview\":\"CHECK_PASSED\\n\",\"outputSize\":13,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-81cfa8da-8e48-4828-abaf-a6b2730b62d1\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"1388561f-b9a4-4a33-b282-de3be1b866db\",\"seq\":53,\"version\":1,\"timestamp\":\"2026-10-24T08:07:36.362Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-f389f1f8-cf81-11f1-9110-bc9bcc45d198-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":50,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-81cfa8da-8e48-4828-abaf-a6b2730b62d1\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"0198199a-8568-455a-b56c-0a989512c018\",\"seq\":54,\"version\":1,\"timestamp\":\"2026-10-24T08:07:36.362Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T08:07:36.395Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-verification-repair",
+      "usage": {
+        "inputTokens": 29377,
+        "outputTokens": 872,
+        "observed": true
+      },
+      "costUsd": 0.0821625,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.verification-repair",
+      "stratum": "verification-repair",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T08:07:36.399Z",
+      "finishedAt": "2026-10-24T08:08:51.720Z",
+      "durationMs": 75321,
+      "toolCalls": 7,
+      "toolCallsCompleted": 7,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 2,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/config.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const timeoutMs = 3000;\n"
+        },
+        "actual": {
+          "content": "export const timeoutMs = 3000;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 8,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-1",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo \"exit=$?\""
+              },
+              "requestIndex": 9,
+              "terminalIndex": 15,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-0b3288b4-cf82-11f1-a4b5-941bf4dc76cb-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE"
+              },
+              "requestIndex": 17,
+              "terminalIndex": 29,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-141a9f48-cf82-11f1-9b35-d987b0c119a9-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo exit=$?"
+              },
+              "requestIndex": 31,
+              "terminalIndex": 37,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-1d30cf19-cf82-11f1-88a4-ecea64d68055-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo \"exit=$?\"; cat -A src/config.ts"
+              },
+              "requestIndex": 39,
+              "terminalIndex": 45,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-2090488d-cf82-11f1-9c88-538c72166dbe-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 47,
+              "terminalIndex": 53,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-2090488d-cf82-11f1-9c88-538c72166dbe-0-1",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo \"exit=$?\""
+              },
+              "requestIndex": 54,
+              "terminalIndex": 60,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/config.ts",
+            "exists": true,
+            "sha256": "936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc",
+            "content": "export const timeoutMs = 3000;\n",
+            "bytes": 31
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/config.ts": "file:138bd79af510453bb9ee79a3f0ef43107b009e3118a624ab6d32f784f9767fea"
+          },
+          "truncated": false,
+          "digest": "2adee687641b8673748ab06cef897fc7e6bb45dc9f99aff142fcec000757d5ea"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:92250a9618c5a4b68262cd3de8e1250895e9c6fb840b9a766a444fb91875d820",
+            "src": "directory",
+            "src/config.ts": "file:936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc"
+          },
+          "truncated": false,
+          "digest": "c2b5dfb8ba97bde7dc6d257adbd96ffe7890e0a44eda85b69b972fc26a169bf8"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; shell.run 4 completed; patch.apply 1 completed.\n\nI'll start by reading the file and running the pre-check.\n\nRead the file and confirmed the pre-check fails (exit=1). Now applying the fix:\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-0:\\nexport const timeoutMs = 500;\",\"Tool alix_shell_run, call call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-1:\\nexit=1\",\"Tool alix_shell_run, call call-141a9f48-cf82-11f1-9b35-d987b0c119a9-0-0:\\nexit=0\",\"Tool alix_shell_run, call call-1d30cf19-cf82-11f1-88a4-ecea64d68055-0-0:\\nexit=0\\nexport const timeoutMs = 3000;$\",\"Tool alix_file_read, call call-2090488d-cf82-11f1-9c88-538c72166dbe-0-0:\\nexport const timeoutMs = 3000;\",\"Tool alix_shell_run, call call-2090488d-cf82-11f1-9c88-538c72166dbe-0-1:\\nexit=0\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; shell.run 4 completed; patch.apply 1 completed.\n\nI'll start by reading the file and running the pre-check.\n\nRead the file and confirmed the pre-check fails (exit=1). Now applying the fix:\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-0:\\nexport const timeoutMs = 500;\",\"Tool alix_shell_run, call call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-1:\\nexit=1\",\"Tool alix_shell_run, call call-141a9f48-cf82-11f1-9b35-d987b0c119a9-0-0:\\nexit=0\",\"Tool alix_shell_run, call call-1d30cf19-cf82-11f1-88a4-ecea64d68055-0-0:\\nexit=0\\nexport const timeoutMs = 3000;$\",\"Tool alix_file_read, call call-2090488d-cf82-11f1-9c88-538c72166dbe-0-0:\\nexport const timeoutMs = 3000;\",\"Tool alix_shell_run, call call-2090488d-cf82-11f1-9c88-538c72166dbe-0-1:\\nexit=0\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-verification-repair",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.verification-repair\",\"payload\":{\"subagentId\":\"eval-behavioral-verification-repair\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\"src/config.ts\"]},\"id\":\"d80b9233-5679-4643-a5a6-43ff2b6178ff\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T08:07:39.246Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5594,\"outputTokens\":171},\"id\":\"d5ba4d64-49c5-4fa0-b26c-a94de18ad366\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.420Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"argsPreview\":{\"path\":\"src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-e2ba898b-fb70-44b4-a054-704285f7abaa\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"9e11e8e8-27fa-468c-ab62-70563677b53b\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.424Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-e2ba898b-fb70-44b4-a054-704285f7abaa\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"076bae36-1683-4c2b-a94d-6ad1d081fcfa\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.431Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T08:08:06.432Z\"},\"id\":\"8e92e2b4-c030-4756-98bb-02a99cd1caf4\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.432Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"9caef405-1d24-46e7-918e-669a9f0f912b\",\"operation\":\"tool.route.file.read\"},\"id\":\"8ff59a14-872c-4442-8480-4747a2459f81\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.434Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"9caef405-1d24-46e7-918e-669a9f0f912b\",\"operation\":\"tool.route.file.read\",\"durationMs\":1.75,\"outcome\":\"success\"},\"id\":\"da0c5029-5009-4584-b289-df94325358f7\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.436Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-0\",\"outputPreview\":\"export const timeoutMs = 500;\\n\",\"outputSize\":30,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-e2ba898b-fb70-44b4-a054-704285f7abaa\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"125f987e-2bc8-465e-a6c6-5f17d83e8065\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.437Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":14,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-e2ba898b-fb70-44b4-a054-704285f7abaa\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"8321ead8-a0ba-452d-af26-37aa4efea6a0\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.438Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-1\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\"; echo \\\"exit=$?\\\"\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-e2ba898b-fb70-44b4-a054-704285f7abaa\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"834e4965-50e3-4d4e-bb7a-94e86fb6ac07\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.439Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-1\",\"toolName\":\"shell.run\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-e2ba898b-fb70-44b4-a054-704285f7abaa\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"b1d78f8b-3e70-425b-876e-d2c556b7d1d6\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.443Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:08:06.444Z\"},\"id\":\"f946f189-c240-4685-bc12-27b6ab879d99\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.444Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"893a5fcc-0c58-477e-9c8e-8d81020761d8\",\"operation\":\"tool.route.shell.run\"},\"id\":\"b3545fda-f33a-4fa1-a99c-aaab4f862e9c\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.445Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"893a5fcc-0c58-477e-9c8e-8d81020761d8\",\"operation\":\"tool.route.shell.run\",\"durationMs\":36.62,\"outcome\":\"success\"},\"id\":\"598eadad-2c3c-47ba-8864-abbd071e82fa\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.482Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-1\",\"outputPreview\":\"exit=1\\n\",\"outputSize\":7,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-e2ba898b-fb70-44b4-a054-704285f7abaa\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"6eb3ae3d-cd96-40ad-b157-efe081f54223\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.482Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-fd56ec93-cf81-11f1-89dd-11f7bdd4b54c-0-1\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":44,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-e2ba898b-fb70-44b4-a054-704285f7abaa\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"28e56710-aeef-401f-aaa1-f4756a8e2580\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T08:08:06.483Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5764,\"outputTokens\":198},\"id\":\"561af84a-49a6-478e-85e2-437c29de08b2\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.418Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-0b3288b4-cf82-11f1-a4b5-941bf4dc76cb-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"02a4220cfd153423fb4b296539d5b252a7f054a0aef99625bc0987a555f23061\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/config.ts\\nexport const timeoutMs = 500;\\n=======\\nexport const timeoutMs = 3000;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-643581b0-9dd3-4ddd-bba8-6d976b3d455d\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"7a19597b-a12f-424e-8c80-a4dd085d5a59\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.421Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-0b3288b4-cf82-11f1-a4b5-941bf4dc76cb-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"02a4220cfd153423fb4b296539d5b252a7f054a0aef99625bc0987a555f23061\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-643581b0-9dd3-4ddd-bba8-6d976b3d455d\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"738c5bd3-b5ba-4857-879a-d94d3f602920\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.423Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T08:08:21.423Z\"},\"id\":\"b7257aea-227b-471d-bc20-0deabf37bd35\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.424Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"71b5c100-4622-43f7-8483-db580ec88c5f\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"4fd870bd-6853-449b-b58f-0f182694bdae\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.424Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-0b3288b4-cf82-11f1-a4b5-941bf4dc76cb-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"b5f3d40a-d820-4f76-b10a-88bbfda1c864\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.426Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-0b3288b4-cf82-11f1-a4b5-941bf4dc76cb-0-0\",\"checkpointId\":\"0e390a81-65aa-4705-9dd1-c2ee40f28753\",\"files\":[\"src/config.ts\"]},\"id\":\"2ebea6a8-2469-47fe-90c6-ab51cc145a9b\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.431Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"6781d120-94fe-4feb-83ad-25351da1c3af\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/config.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"edb984dc-0965-40d0-9dbc-e4c723d64cf8\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.433Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"6781d120-94fe-4feb-83ad-25351da1c3af\",\"validated\":true},\"id\":\"1319cfa3-b7e4-4b79-8603-9869ffe4e6e6\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.434Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.applied\",\"payload\":{\"proposalId\":\"6781d120-94fe-4feb-83ad-25351da1c3af\",\"checkpointId\":\"\",\"changedFiles\":[\"src/config.ts\"]},\"id\":\"0ef95262-6d21-46e6-9625-6b89d5d283f1\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.438Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.changed_files\",\"payload\":{\"changedFiles\":[\"src/config.ts\"]},\"id\":\"fa8f28f9-dd7b-45fa-b30a-75a23dd28adf\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.439Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"71b5c100-4622-43f7-8483-db580ec88c5f\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":14.7,\"outcome\":\"success\"},\"id\":\"87ed1d22-df77-4ae1-aebf-1b9a1011aa68\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.440Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-0b3288b4-cf82-11f1-a4b5-941bf4dc76cb-0-0\",\"outputPreview\":\"[no output]\",\"outputSize\":0,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-643581b0-9dd3-4ddd-bba8-6d976b3d455d\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"9019462d-dfd8-4828-8e2a-5f2687fd0b9b\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.440Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-0b3288b4-cf82-11f1-a4b5-941bf4dc76cb-0-0\",\"toolName\":\"patch.apply\",\"status\":\"success\",\"durationMs\":20,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"02a4220cfd153423fb4b296539d5b252a7f054a0aef99625bc0987a555f23061\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-643581b0-9dd3-4ddd-bba8-6d976b3d455d\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"5d9748fd-0a8e-4064-847d-386603ac0345\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T08:08:21.441Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5850,\"outputTokens\":257},\"id\":\"ca0c8bae-8094-4456-ba8a-de63f5dfff20\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T08:08:36.619Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-141a9f48-cf82-11f1-9b35-d987b0c119a9-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"90a983b71a95b3bfcb115839c8e7342286ea5617a1988fa1767b04bc69dfe0f5\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\"; echo exit=$?\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-2dcb6d98-d304-44c5-ad5a-5c66fe6f4a37\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"66e6b341-4ce5-48ef-aceb-196fdf3d8354\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T08:08:36.620Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-141a9f48-cf82-11f1-9b35-d987b0c119a9-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"90a983b71a95b3bfcb115839c8e7342286ea5617a1988fa1767b04bc69dfe0f5\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-2dcb6d98-d304-44c5-ad5a-5c66fe6f4a37\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"37693fba-17b6-41ae-883a-acdf3d47bfeb\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T08:08:36.622Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:08:36.623Z\"},\"id\":\"8efbf382-fe32-4dac-861a-3603e305592d\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T08:08:36.623Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"18a0b57a-2f25-46cf-982d-a9fb49239c88\",\"operation\":\"tool.route.shell.run\"},\"id\":\"953fadbd-4026-4b73-9d09-edf190d4f4f9\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T08:08:36.625Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"18a0b57a-2f25-46cf-982d-a9fb49239c88\",\"operation\":\"tool.route.shell.run\",\"durationMs\":54.81,\"outcome\":\"success\"},\"id\":\"d5f2d4a1-ca15-4927-ab13-87bfbfe50ac2\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T08:08:36.680Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-141a9f48-cf82-11f1-9b35-d987b0c119a9-0-0\",\"outputPreview\":\"exit=0\\n\",\"outputSize\":7,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-2dcb6d98-d304-44c5-ad5a-5c66fe6f4a37\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"64b4369d-660f-40d5-af3a-29b541531997\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T08:08:36.681Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-141a9f48-cf82-11f1-9b35-d987b0c119a9-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":61,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"90a983b71a95b3bfcb115839c8e7342286ea5617a1988fa1767b04bc69dfe0f5\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-2dcb6d98-d304-44c5-ad5a-5c66fe6f4a37\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"dcdc0738-b9b6-4a81-ac23-e33ff7badbd2\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T08:08:36.681Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5938,\"outputTokens\":260},\"id\":\"388b3b5a-8467-47d1-b6ce-2c8d5ba48a13\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T08:08:42.264Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-1d30cf19-cf82-11f1-88a4-ecea64d68055-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"f143921b2931fe2850af2b80a4fe2d5bca7fc8634fd3c4a045efc8f4a9e981eb\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\"; echo \\\"exit=$?\\\"; cat -A src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a665244f-4f37-48c7-9196-39e72d29fd55\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"4bbcc013-d176-44ab-b9eb-75671b178bab\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T08:08:42.268Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-1d30cf19-cf82-11f1-88a4-ecea64d68055-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"f143921b2931fe2850af2b80a4fe2d5bca7fc8634fd3c4a045efc8f4a9e981eb\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a665244f-4f37-48c7-9196-39e72d29fd55\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"ab80050e-0936-48e4-9e36-6c9632f47914\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T08:08:42.270Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:08:42.271Z\"},\"id\":\"6a3b9335-57b3-400d-84c0-c06def667bfa\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T08:08:42.271Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"adc49b63-a5c8-4b5f-a0bf-0f894f680c91\",\"operation\":\"tool.route.shell.run\"},\"id\":\"a483635c-9e7e-417d-b8d4-d61e40dad04f\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T08:08:42.274Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"adc49b63-a5c8-4b5f-a0bf-0f894f680c91\",\"operation\":\"tool.route.shell.run\",\"durationMs\":103.74,\"outcome\":\"success\"},\"id\":\"1eb96843-9ea3-47a5-a2af-4d8b01c6af12\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T08:08:42.378Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-1d30cf19-cf82-11f1-88a4-ecea64d68055-0-0\",\"outputPreview\":\"exit=0\\nexport const timeoutMs = 3000;$\\n\",\"outputSize\":39,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a665244f-4f37-48c7-9196-39e72d29fd55\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"e203a4a2-9cc2-49ee-86df-dd905f8d49f2\",\"seq\":45,\"version\":1,\"timestamp\":\"2026-10-24T08:08:42.379Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-1d30cf19-cf82-11f1-88a4-ecea64d68055-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":113,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"f143921b2931fe2850af2b80a4fe2d5bca7fc8634fd3c4a045efc8f4a9e981eb\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a665244f-4f37-48c7-9196-39e72d29fd55\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"5a4be222-3077-4063-a94c-8260025b5a54\",\"seq\":46,\"version\":1,\"timestamp\":\"2026-10-24T08:08:42.380Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":6031,\"outputTokens\":273},\"id\":\"a5e62184-c612-4f11-8312-af34180b5961\",\"seq\":47,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.635Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-2090488d-cf82-11f1-9c88-538c72166dbe-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"argsPreview\":{\"path\":\"src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a0482bba-de1b-4cb1-9604-ed2578558eca\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"92035421-7535-44de-89b2-7d6d6a40533c\",\"seq\":48,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.636Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-2090488d-cf82-11f1-9c88-538c72166dbe-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a0482bba-de1b-4cb1-9604-ed2578558eca\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"cb8e2d7e-44a8-4a50-8b62-871b4be7a54e\",\"seq\":49,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.638Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T08:08:51.638Z\"},\"id\":\"83a933fd-7f15-47df-8e4f-1a340fc664de\",\"seq\":50,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.638Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"05f50cc5-1488-4fe0-b9ff-6d29e42367ad\",\"operation\":\"tool.route.file.read\"},\"id\":\"48196266-d042-4675-a135-9e57c9faeaa8\",\"seq\":51,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.639Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"05f50cc5-1488-4fe0-b9ff-6d29e42367ad\",\"operation\":\"tool.route.file.read\",\"durationMs\":0.52,\"outcome\":\"success\"},\"id\":\"8bfa0284-542c-4ada-b55a-4f7606d4de66\",\"seq\":52,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.640Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-2090488d-cf82-11f1-9c88-538c72166dbe-0-0\",\"outputPreview\":\"export const timeoutMs = 3000;\\n\",\"outputSize\":31,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a0482bba-de1b-4cb1-9604-ed2578558eca\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"333d39e2-b5ca-48f0-b98d-289752b8085b\",\"seq\":53,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.641Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-2090488d-cf82-11f1-9c88-538c72166dbe-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":4,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a0482bba-de1b-4cb1-9604-ed2578558eca\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"af5e0152-55dc-40e0-be54-5dc9bef91f67\",\"seq\":54,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.643Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-2090488d-cf82-11f1-9c88-538c72166dbe-0-1\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\"; echo \\\"exit=$?\\\"\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a0482bba-de1b-4cb1-9604-ed2578558eca\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"a519a6f4-42f6-4e0e-89e7-70dfb364b215\",\"seq\":55,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.644Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-2090488d-cf82-11f1-9c88-538c72166dbe-0-1\",\"toolName\":\"shell.run\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a0482bba-de1b-4cb1-9604-ed2578558eca\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"6cf21c5f-2a7c-4e77-9ba5-d257f1d9172c\",\"seq\":56,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.645Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:08:51.646Z\"},\"id\":\"aa61329f-a109-4172-9c17-75e7bcd5c981\",\"seq\":57,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.646Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"200369f1-061b-479a-bb0a-3db9136133df\",\"operation\":\"tool.route.shell.run\"},\"id\":\"fcf6927e-6122-4253-b921-20efed6c439c\",\"seq\":58,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.647Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"200369f1-061b-479a-bb0a-3db9136133df\",\"operation\":\"tool.route.shell.run\",\"durationMs\":36.95,\"outcome\":\"success\"},\"id\":\"77772f88-60a9-437b-8c9a-8f86a7b88ff5\",\"seq\":59,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.684Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-2090488d-cf82-11f1-9c88-538c72166dbe-0-1\",\"outputPreview\":\"exit=0\\n\",\"outputSize\":7,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a0482bba-de1b-4cb1-9604-ed2578558eca\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"7268d2c5-e82a-476b-9a92-abc87bdbe8d6\",\"seq\":60,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.685Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-2090488d-cf82-11f1-9c88-538c72166dbe-0-1\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":40,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-a0482bba-de1b-4cb1-9604-ed2578558eca\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"47cba0d2-b37a-4d23-867f-2646dc51cef1\",\"seq\":61,\"version\":1,\"timestamp\":\"2026-10-24T08:08:51.685Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T08:08:51.719Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-verification-repair",
+      "usage": {
+        "inputTokens": 29177,
+        "outputTokens": 1159,
+        "observed": true
+      },
+      "costUsd": 0.0845325,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.verification-repair",
+      "stratum": "verification-repair",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T08:08:51.720Z",
+      "finishedAt": "2026-10-24T08:09:57.969Z",
+      "durationMs": 66249,
+      "toolCalls": 6,
+      "toolCallsCompleted": 6,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/config.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const timeoutMs = 3000;\n"
+        },
+        "actual": {
+          "content": "export const timeoutMs = 3000;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 8,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-1",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo \"exit=$?\""
+              },
+              "requestIndex": 9,
+              "terminalIndex": 15,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-329325ec-cf82-11f1-b565-232661c13b0e-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE path=src/config.ts"
+              },
+              "requestIndex": 17,
+              "terminalIndex": 29,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-38006bcb-cf82-11f1-8960-1022087550c5-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 31,
+              "terminalIndex": 37,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-412ca0f9-cf82-11f1-ab5b-44af2d68902b-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\" && echo PASS"
+              },
+              "requestIndex": 39,
+              "terminalIndex": 45,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-461f4e1a-cf82-11f1-b098-bf565b9df8d2-0-0",
+              "toolName": "task.complete",
+              "args": {},
+              "requestIndex": 47,
+              "terminalIndex": 50,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/config.ts",
+            "exists": true,
+            "sha256": "936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc",
+            "content": "export const timeoutMs = 3000;\n",
+            "bytes": 31
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/config.ts": "file:138bd79af510453bb9ee79a3f0ef43107b009e3118a624ab6d32f784f9767fea"
+          },
+          "truncated": false,
+          "digest": "2adee687641b8673748ab06cef897fc7e6bb45dc9f99aff142fcec000757d5ea"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:92250a9618c5a4b68262cd3de8e1250895e9c6fb840b9a766a444fb91875d820",
+            "src": "directory",
+            "src/config.ts": "file:936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc"
+          },
+          "truncated": false,
+          "digest": "c2b5dfb8ba97bde7dc6d257adbd96ffe7890e0a44eda85b69b972fc26a169bf8"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; shell.run 2 completed; patch.apply 1 completed; task.complete 1 completed.\n\nI'll start by reading the file and running the required check.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-0:\\nexport const timeoutMs = 500;\",\"Tool alix_shell_run, call call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-1:\\nexit=1\",\"Tool alix_file_read, call call-38006bcb-cf82-11f1-8960-1022087550c5-0-0:\\nexport const timeoutMs = 3000;\",\"Tool alix_shell_run, call call-412ca0f9-cf82-11f1-ab5b-44af2d68902b-0-0:\\nPASS\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; shell.run 2 completed; patch.apply 1 completed; task.complete 1 completed.\n\nI'll start by reading the file and running the required check.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-0:\\nexport const timeoutMs = 500;\",\"Tool alix_shell_run, call call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-1:\\nexit=1\",\"Tool alix_file_read, call call-38006bcb-cf82-11f1-8960-1022087550c5-0-0:\\nexport const timeoutMs = 3000;\",\"Tool alix_shell_run, call call-412ca0f9-cf82-11f1-ab5b-44af2d68902b-0-0:\\nPASS\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-verification-repair",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.verification-repair\",\"payload\":{\"subagentId\":\"eval-behavioral-verification-repair\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\"src/config.ts\"]},\"id\":\"78f9ce4e-7adb-46e1-8f9d-f3e5e0d83c2c\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T08:08:54.678Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5594,\"outputTokens\":173},\"id\":\"22c64f5e-cc30-4735-9a88-14ea36cb1a80\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.470Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"argsPreview\":{\"path\":\"src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-fceeece5-196b-4dc2-a918-2a80300b8bd8\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"60ae48e8-d2d0-4bd9-8fa2-8e5b3072353d\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.475Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-fceeece5-196b-4dc2-a918-2a80300b8bd8\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"6cad203d-8abb-4061-a036-9b5ae3557a3e\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.482Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T08:09:12.483Z\"},\"id\":\"6eeba999-de8c-4360-b317-b99a4cf96305\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.483Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"850a3d51-f458-48dd-96bc-1f8083e719ee\",\"operation\":\"tool.route.file.read\"},\"id\":\"9af86b1f-9a8c-4fca-a83e-20cde8fe4f79\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.484Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"850a3d51-f458-48dd-96bc-1f8083e719ee\",\"operation\":\"tool.route.file.read\",\"durationMs\":2.08,\"outcome\":\"success\"},\"id\":\"8492485a-065d-43ce-b275-55b5cc52cf5e\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.487Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-0\",\"outputPreview\":\"export const timeoutMs = 500;\\n\",\"outputSize\":30,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-fceeece5-196b-4dc2-a918-2a80300b8bd8\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"657cb507-0b07-4e15-9a72-e182d7128346\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.488Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":14,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-fceeece5-196b-4dc2-a918-2a80300b8bd8\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"089ef380-f15b-48c7-a442-af42b6958fb0\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.488Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-1\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\"; echo \\\"exit=$?\\\"\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-fceeece5-196b-4dc2-a918-2a80300b8bd8\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"59a048e9-b1b5-4f8c-950a-0d3fbaf38fc6\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.490Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-1\",\"toolName\":\"shell.run\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-fceeece5-196b-4dc2-a918-2a80300b8bd8\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"9fb8f67a-8d15-492d-a076-90b161969f92\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.493Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:09:12.493Z\"},\"id\":\"ce45d215-3a24-4d0a-beea-6ea1f17f87ac\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.494Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"5b461725-44d4-4a5b-b6d4-3177e71bdc68\",\"operation\":\"tool.route.shell.run\"},\"id\":\"aed50e54-0ad6-4f30-8d10-d9ab7e5520d5\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.494Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"5b461725-44d4-4a5b-b6d4-3177e71bdc68\",\"operation\":\"tool.route.shell.run\",\"durationMs\":49.83,\"outcome\":\"success\"},\"id\":\"8d3cb42f-80a0-46e4-b16f-d02a8c1260c7\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.544Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-1\",\"outputPreview\":\"exit=1\\n\",\"outputSize\":7,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-fceeece5-196b-4dc2-a918-2a80300b8bd8\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"7a5bdb51-e459-44ea-8808-549fc88495b0\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.545Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-2b67935f-cf82-11f1-a57b-e26edd489a57-0-1\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":55,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-fceeece5-196b-4dc2-a918-2a80300b8bd8\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"3acaa2bc-7171-4794-bbdb-92eac3921f70\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T08:09:12.545Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5762,\"outputTokens\":133},\"id\":\"940fe959-a093-4c25-a182-73b8202e1da6\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.627Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-329325ec-cf82-11f1-b565-232661c13b0e-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"fab72a4118426c1ddb7cd700eb255acc486ae44c165cffbff219a2cbec460f27\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/config.ts\\nexport const timeoutMs = 500;\\n=======\\nexport const timeoutMs = 3000;\\n>>>>>>> REPLACE path=src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-86be1b90-649b-49a8-841d-5b328a82462d\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"cc367f12-d7b1-409e-bbbc-a5ff877451df\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.629Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-329325ec-cf82-11f1-b565-232661c13b0e-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"fab72a4118426c1ddb7cd700eb255acc486ae44c165cffbff219a2cbec460f27\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-86be1b90-649b-49a8-841d-5b328a82462d\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"9ae956ee-aa92-4cf3-89eb-2b1a55de5b1a\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.632Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T08:09:21.633Z\"},\"id\":\"b5b71baf-31cf-4086-95fa-a69afb66babe\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.634Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"99a04bda-adec-49e9-a2be-0e1a531b027c\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"516a9a7f-04b2-4e7a-a78e-c85d4970ec3d\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.635Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-329325ec-cf82-11f1-b565-232661c13b0e-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"32c27425-3399-4147-9d12-7a5b48b953ec\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.636Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-329325ec-cf82-11f1-b565-232661c13b0e-0-0\",\"checkpointId\":\"a915c493-5667-4dac-8ac5-c2ad21051632\",\"files\":[\"src/config.ts\"]},\"id\":\"a20302b4-4a5a-4440-aa3b-ffcb71bd1961\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.644Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"59244254-cfac-4e74-abb4-23e1a8c1d241\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/config.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"fdfa7a7c-1482-4b22-adf8-fc1149426ff9\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.645Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"59244254-cfac-4e74-abb4-23e1a8c1d241\",\"validated\":true},\"id\":\"12d4064a-c4da-438c-b391-1003fe22da88\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.646Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.applied\",\"payload\":{\"proposalId\":\"59244254-cfac-4e74-abb4-23e1a8c1d241\",\"checkpointId\":\"\",\"changedFiles\":[\"src/config.ts\"]},\"id\":\"43776dfe-2927-4bc5-b173-31e78020a215\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.648Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.changed_files\",\"payload\":{\"changedFiles\":[\"src/config.ts\"]},\"id\":\"7e6e59c2-8408-465d-a5d0-4ce2ea2a5a6c\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.649Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"99a04bda-adec-49e9-a2be-0e1a531b027c\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":14.34,\"outcome\":\"success\"},\"id\":\"1dc7bc65-6d56-48e5-ad00-469872035d0b\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.649Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-329325ec-cf82-11f1-b565-232661c13b0e-0-0\",\"outputPreview\":\"[no output]\",\"outputSize\":0,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-86be1b90-649b-49a8-841d-5b328a82462d\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"6556ef1c-2aba-446c-949f-84201c417d78\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.650Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-329325ec-cf82-11f1-b565-232661c13b0e-0-0\",\"toolName\":\"patch.apply\",\"status\":\"success\",\"durationMs\":22,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"fab72a4118426c1ddb7cd700eb255acc486ae44c165cffbff219a2cbec460f27\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-86be1b90-649b-49a8-841d-5b328a82462d\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"fdcb4a61-b722-4687-9438-47b98359e83e\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T08:09:21.650Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5844,\"outputTokens\":127},\"id\":\"f13c7428-cd4b-4dc3-9fb2-ffc3d35b0e12\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T08:09:37.038Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-38006bcb-cf82-11f1-8960-1022087550c5-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"argsPreview\":{\"path\":\"src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-200fea6c-189c-47b1-a4f9-e49f738e505c\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"f964716d-d500-4b0b-8671-e68ed7e3dff4\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T08:09:37.039Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-38006bcb-cf82-11f1-8960-1022087550c5-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-200fea6c-189c-47b1-a4f9-e49f738e505c\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"7c847264-4166-49fb-97f5-81bac27775eb\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T08:09:37.040Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T08:09:37.040Z\"},\"id\":\"dbd817c7-2cb3-400d-a41e-658ca5dcb9c3\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T08:09:37.041Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"4394c5c2-5e58-4c46-a391-e8143ee8f25c\",\"operation\":\"tool.route.file.read\"},\"id\":\"49a7dfbf-f7ff-4117-b9ae-5ae1b76fa116\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T08:09:37.041Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"4394c5c2-5e58-4c46-a391-e8143ee8f25c\",\"operation\":\"tool.route.file.read\",\"durationMs\":0.66,\"outcome\":\"success\"},\"id\":\"27385cbe-c281-4696-9699-d0b89c2e3ebf\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T08:09:37.043Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-38006bcb-cf82-11f1-8960-1022087550c5-0-0\",\"outputPreview\":\"export const timeoutMs = 3000;\\n\",\"outputSize\":31,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-200fea6c-189c-47b1-a4f9-e49f738e505c\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"1b28d593-ddf7-438b-86a4-0197d9680222\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T08:09:37.044Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-38006bcb-cf82-11f1-8960-1022087550c5-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":4,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-200fea6c-189c-47b1-a4f9-e49f738e505c\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"b00e89e5-2ebb-49e0-b2c0-ec6e5fb331af\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T08:09:37.044Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5932,\"outputTokens\":201},\"id\":\"92815443-fd3e-4d13-a06d-911eefd82c23\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T08:09:45.235Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-412ca0f9-cf82-11f1-ab5b-44af2d68902b-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"4a03529c3f9028acf82669efedb3211ad55ae4aba83f04f3d3845b0a5d5ef812\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\" && echo PASS\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-608d6a34-e777-4845-acbd-03de8bff2b4c\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"b5e6a582-583d-4194-884c-68351c87a974\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T08:09:45.238Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-412ca0f9-cf82-11f1-ab5b-44af2d68902b-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"4a03529c3f9028acf82669efedb3211ad55ae4aba83f04f3d3845b0a5d5ef812\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-608d6a34-e777-4845-acbd-03de8bff2b4c\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"1e1d01ed-a2e5-46e3-9440-e64180287e2d\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T08:09:45.243Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:09:45.247Z\"},\"id\":\"16850b90-d425-43db-8446-01e3fd7277db\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T08:09:45.248Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"6796cee5-1197-4a73-8081-55dbe890d090\",\"operation\":\"tool.route.shell.run\"},\"id\":\"0e7c3b87-90c9-4d48-bf9e-d06eea4bf9ee\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T08:09:45.249Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"6796cee5-1197-4a73-8081-55dbe890d090\",\"operation\":\"tool.route.shell.run\",\"durationMs\":99.02,\"outcome\":\"success\"},\"id\":\"d7a16b6b-1ecb-4f00-80ce-f60891c9ba66\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T08:09:45.350Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-412ca0f9-cf82-11f1-ab5b-44af2d68902b-0-0\",\"outputPreview\":\"PASS\\n\",\"outputSize\":5,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-608d6a34-e777-4845-acbd-03de8bff2b4c\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"1adc77f5-4da2-460a-8068-b189086fe807\",\"seq\":45,\"version\":1,\"timestamp\":\"2026-10-24T08:09:45.350Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-412ca0f9-cf82-11f1-ab5b-44af2d68902b-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":113,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"4a03529c3f9028acf82669efedb3211ad55ae4aba83f04f3d3845b0a5d5ef812\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-608d6a34-e777-4845-acbd-03de8bff2b4c\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"41ed3fe7-174c-4386-a13b-e84f15b37a4c\",\"seq\":46,\"version\":1,\"timestamp\":\"2026-10-24T08:09:45.351Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":6015,\"outputTokens\":187},\"id\":\"ca89fd31-30cd-4dc6-89d6-084065a33a13\",\"seq\":47,\"version\":1,\"timestamp\":\"2026-10-24T08:09:57.923Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-461f4e1a-cf82-11f1-b098-bf565b9df8d2-0-0\",\"toolName\":\"task.complete\",\"capability\":\"task.complete\",\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"argsPreview\":{},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-3f99f7e7-41c7-4e1d-aea8-9b44d7c56b52\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"06dfb743-dfc3-456b-82bf-27f46b23656c\",\"seq\":48,\"version\":1,\"timestamp\":\"2026-10-24T08:09:57.924Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-461f4e1a-cf82-11f1-b098-bf565b9df8d2-0-0\",\"toolName\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-3f99f7e7-41c7-4e1d-aea8-9b44d7c56b52\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"fa4e8114-6bbb-45aa-ad02-5f6ccf761ccc\",\"seq\":49,\"version\":1,\"timestamp\":\"2026-10-24T08:09:57.925Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-461f4e1a-cf82-11f1-b098-bf565b9df8d2-0-0\",\"outputPreview\":\"Task complete.\",\"outputSize\":14,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-3f99f7e7-41c7-4e1d-aea8-9b44d7c56b52\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"e54beb5d-03c6-4ad1-b977-b7e44190b074\",\"seq\":50,\"version\":1,\"timestamp\":\"2026-10-24T08:09:57.926Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-461f4e1a-cf82-11f1-b098-bf565b9df8d2-0-0\",\"toolName\":\"task.complete\",\"status\":\"success\",\"durationMs\":2,\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-3f99f7e7-41c7-4e1d-aea8-9b44d7c56b52\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"ba5157ee-095d-4ec3-ba48-f550fb3723f6\",\"seq\":51,\"version\":1,\"timestamp\":\"2026-10-24T08:09:57.927Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T08:09:57.967Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-verification-repair",
+      "usage": {
+        "inputTokens": 29147,
+        "outputTokens": 821,
+        "observed": true
+      },
+      "costUsd": 0.0810775,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.verification-repair",
+      "stratum": "verification-repair",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T08:09:57.969Z",
+      "finishedAt": "2026-10-24T08:10:44.848Z",
+      "durationMs": 46879,
+      "toolCalls": 5,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 2,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/config.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const timeoutMs = 3000;\n"
+        },
+        "actual": {
+          "content": "export const timeoutMs = 3000;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-530fc8e3-cf82-11f1-9069-82f6c67c1e8a-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 8,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-575e4f9d-cf82-11f1-8b0a-27bbace2e5a2-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo \"exit=$?\""
+              },
+              "requestIndex": 10,
+              "terminalIndex": 16,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-5a41d959-cf82-11f1-b653-926324fb32a9-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE src/config.ts"
+              },
+              "requestIndex": 18,
+              "terminalIndex": 27,
+              "outcome": "failed",
+              "error": "Patch rejected: No patch hunks were parsed from the search_replace payload \u2014 the patch syntax is malformed or empty. Each search_replace block must be exactly `<<<<<<< SEARCH path=<file>` (the path on the SAME line as SEARCH), then the original text, then `=======`, then the replacement text, then `>>>>>>> REPLACE`. To create a NEW file, use alix_file_create instead of patch.apply."
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-64d9f9a1-cf82-11f1-9f62-abb4379485a7-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n\n=======\nexport const timeoutMs = 3000;\n\n>>>>>>> REPLACE"
+              },
+              "requestIndex": 30,
+              "terminalIndex": 42,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-67ba6c82-cf82-11f1-adbb-3426150660d3-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE"
+              },
+              "requestIndex": 44,
+              "terminalIndex": 55,
+              "outcome": "failed",
+              "error": "Search block not found for src/config.ts"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/config.ts",
+            "exists": true,
+            "sha256": "936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc",
+            "content": "export const timeoutMs = 3000;\n",
+            "bytes": 31
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/config.ts": "file:138bd79af510453bb9ee79a3f0ef43107b009e3118a624ab6d32f784f9767fea"
+          },
+          "truncated": false,
+          "digest": "2adee687641b8673748ab06cef897fc7e6bb45dc9f99aff142fcec000757d5ea"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:92250a9618c5a4b68262cd3de8e1250895e9c6fb840b9a766a444fb91875d820",
+            "src": "directory",
+            "src/config.ts": "file:936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc"
+          },
+          "truncated": false,
+          "digest": "c2b5dfb8ba97bde7dc6d257adbd96ffe7890e0a44eda85b69b972fc26a169bf8"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 1 completed; shell.run 1 completed; patch.apply 1 completed, 2 denied.\n\nI'll start by reading the file.\n\nFile read (content: `export const timeoutMs = 500;` plus trailing newline) and the pre-check exited `1` as expected. Now applying the fix.\n\nThe initial check failed as expected (exit=1). My first patch attempt had malformed syntax; retrying with the correct format.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-530fc8e3-cf82-11f1-9069-82f6c67c1e8a-0-0:\\nexport const timeoutMs = 500;\",\"Tool alix_shell_run, call call-575e4f9d-cf82-11f1-8b0a-27bbace2e5a2-0-0:\\nexit=1\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 1 completed; shell.run 1 completed; patch.apply 1 completed, 2 denied.\n\nI'll start by reading the file.\n\nFile read (content: `export const timeoutMs = 500;` plus trailing newline) and the pre-check exited `1` as expected. Now applying the fix.\n\nThe initial check failed as expected (exit=1). My first patch attempt had malformed syntax; retrying with the correct format.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-530fc8e3-cf82-11f1-9069-82f6c67c1e8a-0-0:\\nexport const timeoutMs = 500;\",\"Tool alix_shell_run, call call-575e4f9d-cf82-11f1-8b0a-27bbace2e5a2-0-0:\\nexit=1\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-verification-repair",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.verification-repair\",\"payload\":{\"subagentId\":\"eval-behavioral-verification-repair\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\"src/config.ts\"]},\"id\":\"73fc8190-ed8e-4308-b61a-1c642194d96a\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T08:10:00.996Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5594,\"outputTokens\":68},\"id\":\"a9774add-27aa-47fb-a409-23939bb622a2\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T08:10:14.270Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-530fc8e3-cf82-11f1-9069-82f6c67c1e8a-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"argsPreview\":{\"path\":\"src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-512e3cc9-d94f-4a1a-bda2-3bf512989150\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"af778af1-c57d-499a-87a3-e6d0583a5b19\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T08:10:14.273Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-530fc8e3-cf82-11f1-9069-82f6c67c1e8a-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-512e3cc9-d94f-4a1a-bda2-3bf512989150\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"0b1003ec-956b-4aaf-98cf-fc9b6742f7bd\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T08:10:14.279Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T08:10:14.279Z\"},\"id\":\"478156e0-e559-445f-81e5-5f9af929218b\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T08:10:14.279Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"be9de448-2342-425f-8ee7-52be81c48e4c\",\"operation\":\"tool.route.file.read\"},\"id\":\"26630d2d-afaa-4631-97d6-e26ed71da764\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T08:10:14.280Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"be9de448-2342-425f-8ee7-52be81c48e4c\",\"operation\":\"tool.route.file.read\",\"durationMs\":1.46,\"outcome\":\"success\"},\"id\":\"f32fd5c9-eb43-4f5d-bcf5-3c765dc043f2\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T08:10:14.282Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-530fc8e3-cf82-11f1-9069-82f6c67c1e8a-0-0\",\"outputPreview\":\"export const timeoutMs = 500;\\n\",\"outputSize\":30,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-512e3cc9-d94f-4a1a-bda2-3bf512989150\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"361617bd-0a9c-4ef1-9036-787239f168ca\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T08:10:14.283Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-530fc8e3-cf82-11f1-9069-82f6c67c1e8a-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":11,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-512e3cc9-d94f-4a1a-bda2-3bf512989150\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"6e590787-4c1e-4fc9-bae2-2a8f8197601d\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T08:10:14.283Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5685,\"outputTokens\":119},\"id\":\"36dd067f-acc8-46ce-ab77-dde65cb8b285\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T08:10:19.049Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-575e4f9d-cf82-11f1-8b0a-27bbace2e5a2-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\"; echo \\\"exit=$?\\\"\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-210f0b88-4b35-4caa-9766-2038277c8826\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"31d7c380-dfef-4586-bd0d-6afd1314f640\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T08:10:19.051Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-575e4f9d-cf82-11f1-8b0a-27bbace2e5a2-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-210f0b88-4b35-4caa-9766-2038277c8826\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"ac9f4808-81d9-4223-af36-3ee859c10062\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T08:10:19.059Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:10:19.060Z\"},\"id\":\"90926f33-15b2-44c7-9da4-45d4b2dfb023\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T08:10:19.061Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"e628a482-e52f-48ea-b451-ec3d33b5b37d\",\"operation\":\"tool.route.shell.run\"},\"id\":\"d9c9a4a8-d4c6-4f4a-88d3-355c335badf9\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T08:10:19.062Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"e628a482-e52f-48ea-b451-ec3d33b5b37d\",\"operation\":\"tool.route.shell.run\",\"durationMs\":66.47,\"outcome\":\"success\"},\"id\":\"7adc7678-0d16-4848-874f-a2664e1aba03\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T08:10:19.129Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-575e4f9d-cf82-11f1-8b0a-27bbace2e5a2-0-0\",\"outputPreview\":\"exit=1\\n\",\"outputSize\":7,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-210f0b88-4b35-4caa-9766-2038277c8826\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"84e670f1-b014-42e7-ba7c-86df1851c91f\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T08:10:19.130Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-575e4f9d-cf82-11f1-8b0a-27bbace2e5a2-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":80,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"ee8191b00cc959509acd3bdfc8f67bdd19ef9c49e8b9e5cc5c0caa07280ce1bc\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-210f0b88-4b35-4caa-9766-2038277c8826\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"8eff1536-6895-4229-a703-29bea1fbd59d\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T08:10:19.131Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5774,\"outputTokens\":168},\"id\":\"b19d1865-450a-41cd-a0ef-dae35b7c3e4b\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.940Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-5a41d959-cf82-11f1-b653-926324fb32a9-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"6902ae7780bc4936b78da64aade8c24793cec508a1cd0c30f9a715228188e30b\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH src/config.ts\\nexport const timeoutMs = 500;\\n=======\\nexport const timeoutMs = 3000;\\n>>>>>>> REPLACE src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-682668a0-c317-4f62-b114-0e23836fdd6d\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"20db021f-e4ab-4a0b-be3d-c7f903326252\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.942Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-5a41d959-cf82-11f1-b653-926324fb32a9-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"6902ae7780bc4936b78da64aade8c24793cec508a1cd0c30f9a715228188e30b\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-682668a0-c317-4f62-b114-0e23836fdd6d\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"c14345e9-d6dd-49e6-a1e0-f59a1710abc7\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.944Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T08:10:36.945Z\"},\"id\":\"54932ac3-ec06-4c95-aa20-e8e0490aa935\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.946Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"aefdc914-d058-4c30-9cc3-fdec03dc3afa\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"bcfe96cc-13fe-405d-80de-8ad63363e24b\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.946Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-5a41d959-cf82-11f1-b653-926324fb32a9-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"3f102c91-9703-4e8f-ad68-045308431ae5\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.948Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"fc636cc0-dd0d-4bd3-b9a5-927ef4635bf2\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[],\"requiresApproval\":false},\"id\":\"75da0e19-9efe-458d-9f61-9d26b3d4504f\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.950Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"fc636cc0-dd0d-4bd3-b9a5-927ef4635bf2\",\"validated\":false,\"errors\":[\"No patch hunks were parsed from the search_replace payload \u2014 the patch syntax is malformed or empty. Each search_replace block must be exactly `<<<<<<< SEARCH path=<file>` (the path on the SAME line as SEARCH), then the original text, then `=======`, then the replacement text, then `>>>>>>> REPLACE`. To create a NEW file, use alix_file_create instead of patch.apply.\"]},\"id\":\"8161d284-dc19-475a-9c6f-a81b26f07075\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.950Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.rejected\",\"payload\":{\"proposalId\":\"fc636cc0-dd0d-4bd3-b9a5-927ef4635bf2\",\"reason\":\"No patch hunks were parsed from the search_replace payload \u2014 the patch syntax is malformed or empty. Each search_replace block must be exactly `<<<<<<< SEARCH path=<file>` (the path on the SAME line as SEARCH), then the original text, then `=======`, then the replacement text, then `>>>>>>> REPLACE`. To create a NEW file, use alix_file_create instead of patch.apply.\"},\"id\":\"c0e89574-7253-4726-877d-0ec2979d5812\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.951Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"aefdc914-d058-4c30-9cc3-fdec03dc3afa\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":4.59,\"outcome\":\"success\"},\"id\":\"e562eae8-6393-4e17-8b5c-dbbc1fad5109\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.952Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-5a41d959-cf82-11f1-b653-926324fb32a9-0-0\",\"toolName\":\"patch.apply\",\"error\":\"Patch rejected: No patch hunks were parsed from the search_replace payload \u2014 the patch syntax is malformed or empty. Each search_replace block must be exactly `<<<<<<< SEARCH path=<file>` (the path on the SAME line as SEARCH), then the original text, then `=======`, then the replacement text, then `>>>>>>> REPLACE`. To create a NEW file, use alix_file_create instead of patch.apply.\",\"durationMs\":11,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"6902ae7780bc4936b78da64aade8c24793cec508a1cd0c30f9a715228188e30b\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-682668a0-c317-4f62-b114-0e23836fdd6d\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"f16a2bfb-bcef-48d2-9086-a14b2cccdf32\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.952Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T08:10:36.952Z\"},\"id\":\"84231256-4f53-46e1-b3f1-b2c01109fe13\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T08:10:36.953Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3859,\"outputTokens\":157},\"id\":\"cff04e4e-4032-4e8d-9eb5-4b5506197485\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.752Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-64d9f9a1-cf82-11f1-9f62-abb4379485a7-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"5448e2f6792325d292a63bcacbec5356b71c7a4126ac8207951514e2f2f3250e\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/config.ts\\nexport const timeoutMs = 500;\\n\\n=======\\nexport const timeoutMs = 3000;\\n\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-f1f67379-ca63-4716-84df-63d07f1a9f0a\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"e3679b4f-360e-4e28-ad61-4db60569df03\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.755Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-64d9f9a1-cf82-11f1-9f62-abb4379485a7-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"5448e2f6792325d292a63bcacbec5356b71c7a4126ac8207951514e2f2f3250e\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-f1f67379-ca63-4716-84df-63d07f1a9f0a\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"42b551d5-96aa-475a-aa88-bf69b53335b7\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.759Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T08:10:41.759Z\"},\"id\":\"af0e5895-76c6-4b6b-9a96-d47fda2be143\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.759Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"a009d8c3-31a1-4bfc-8ecb-1d5be2794d9f\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"c7f66c61-d08d-435f-a8f9-e42ef28594e2\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.760Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-64d9f9a1-cf82-11f1-9f62-abb4379485a7-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"0051a6a8-88b4-45ff-a7b3-28600199198a\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.761Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-64d9f9a1-cf82-11f1-9f62-abb4379485a7-0-0\",\"checkpointId\":\"57bca29f-190f-49c7-a189-4b01e9efb426\",\"files\":[\"src/config.ts\"]},\"id\":\"e4533b22-5cd5-4f77-baf4-4c5fd3fb65b6\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.765Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"82028e2f-8d73-42a5-b539-8f76a0403b12\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/config.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"1996898f-1bec-40df-8fa6-06513e3bf2b2\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.767Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"82028e2f-8d73-42a5-b539-8f76a0403b12\",\"validated\":true},\"id\":\"f2a25ad1-68fe-444d-853c-c6d993384968\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.768Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.applied\",\"payload\":{\"proposalId\":\"82028e2f-8d73-42a5-b539-8f76a0403b12\",\"checkpointId\":\"\",\"changedFiles\":[\"src/config.ts\"]},\"id\":\"76320163-f33a-4b95-95ca-c4d576ed1821\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.771Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.changed_files\",\"payload\":{\"changedFiles\":[\"src/config.ts\"]},\"id\":\"1e11ef7a-20f2-49b4-b876-90ded4a1e4e4\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.772Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"a009d8c3-31a1-4bfc-8ecb-1d5be2794d9f\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":11.81,\"outcome\":\"success\"},\"id\":\"bbbb1c22-5d9a-4cbe-9ac7-6e2ffbfd5bf6\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.773Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-64d9f9a1-cf82-11f1-9f62-abb4379485a7-0-0\",\"outputPreview\":\"[no output]\",\"outputSize\":0,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-f1f67379-ca63-4716-84df-63d07f1a9f0a\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"5ed77d18-afc3-4a33-bae5-a3513216b1ed\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.774Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-64d9f9a1-cf82-11f1-9f62-abb4379485a7-0-0\",\"toolName\":\"patch.apply\",\"status\":\"success\",\"durationMs\":19,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"5448e2f6792325d292a63bcacbec5356b71c7a4126ac8207951514e2f2f3250e\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-f1f67379-ca63-4716-84df-63d07f1a9f0a\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"71250d7d-ed40-471e-bd6f-6b413fd80d79\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T08:10:41.774Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":6062,\"outputTokens\":243},\"id\":\"74200dd6-6a1d-4dfd-b7f1-29c7e021beb4\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.766Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-67ba6c82-cf82-11f1-adbb-3426150660d3-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"02a4220cfd153423fb4b296539d5b252a7f054a0aef99625bc0987a555f23061\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/config.ts\\nexport const timeoutMs = 500;\\n=======\\nexport const timeoutMs = 3000;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-4418032b-123a-46d5-a04c-1c23cef3089a\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"7c278c93-a35e-4b84-aee9-b2ed6d87d78f\",\"seq\":45,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.772Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-67ba6c82-cf82-11f1-adbb-3426150660d3-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"02a4220cfd153423fb4b296539d5b252a7f054a0aef99625bc0987a555f23061\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-4418032b-123a-46d5-a04c-1c23cef3089a\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"4209866d-6dfa-41f0-916d-466d277b02b5\",\"seq\":46,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.775Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T08:10:44.776Z\"},\"id\":\"5a289a44-9030-4a80-b72c-99803eadefe2\",\"seq\":47,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.780Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"ccca1497-374f-4feb-8e60-b5d22621332f\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"e6f99c81-1255-499e-9889-d1bb9fb81552\",\"seq\":48,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.785Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-67ba6c82-cf82-11f1-adbb-3426150660d3-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"b03b1957-a825-4833-be11-588794d3f21e\",\"seq\":49,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.788Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-67ba6c82-cf82-11f1-adbb-3426150660d3-0-0\",\"checkpointId\":\"08f31bdc-63a6-4cbd-92a7-1a5582071e32\",\"files\":[\"src/config.ts\"]},\"id\":\"72cff462-b74a-4ab5-bab7-81e96c7e3773\",\"seq\":50,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.794Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"7fbb3a74-1d0c-477b-baf4-eeec461d1c39\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/config.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"21ef985d-346f-434e-bcec-7db17a457421\",\"seq\":51,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.795Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"7fbb3a74-1d0c-477b-baf4-eeec461d1c39\",\"validated\":true},\"id\":\"594bac5b-cd85-49f0-80ed-a94ffe40a0b3\",\"seq\":52,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.797Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.rollback_started\",\"payload\":{\"toolCallId\":\"call-67ba6c82-cf82-11f1-adbb-3426150660d3-0-0\",\"checkpointId\":\"08f31bdc-63a6-4cbd-92a7-1a5582071e32\",\"files\":[\"src/config.ts\"]},\"id\":\"df809bfe-97d1-40f9-b00d-e2a56c491f10\",\"seq\":53,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.798Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.rollback_completed\",\"payload\":{\"toolCallId\":\"call-67ba6c82-cf82-11f1-adbb-3426150660d3-0-0\",\"checkpointId\":\"08f31bdc-63a6-4cbd-92a7-1a5582071e32\",\"files\":[\"src/config.ts\"]},\"id\":\"0fc12f09-1759-4189-91de-9629170eb69a\",\"seq\":54,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.805Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"ccca1497-374f-4feb-8e60-b5d22621332f\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":19.74,\"outcome\":\"success\"},\"id\":\"aab7b4af-5514-41f3-8dd1-329f4b073247\",\"seq\":55,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.806Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-67ba6c82-cf82-11f1-adbb-3426150660d3-0-0\",\"toolName\":\"patch.apply\",\"error\":\"Search block not found for src/config.ts\",\"durationMs\":38,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"02a4220cfd153423fb4b296539d5b252a7f054a0aef99625bc0987a555f23061\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-4418032b-123a-46d5-a04c-1c23cef3089a\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"3be2a100-f549-43b6-968b-b5633fa40324\",\"seq\":56,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.809Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T08:10:44.810Z\"},\"id\":\"fda4c1ad-0e8a-461e-89ee-299885444169\",\"seq\":57,\"version\":1,\"timestamp\":\"2026-10-24T08:10:44.810Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T08:10:44.847Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-verification-repair",
+      "usage": {
+        "inputTokens": 26974,
+        "outputTokens": 755,
+        "observed": true
+      },
+      "costUsd": 0.07498500000000001,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.verification-repair",
+      "stratum": "verification-repair",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T08:10:44.848Z",
+      "finishedAt": "2026-10-24T08:11:33.576Z",
+      "durationMs": 48728,
+      "toolCalls": 6,
+      "toolCallsCompleted": 5,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 2,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/config.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const timeoutMs = 3000;\n"
+        },
+        "actual": {
+          "content": "export const timeoutMs = 3000;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-6c5c200a-cf82-11f1-add7-e86d9c7b8463-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 8,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-6c5c200a-cf82-11f1-add7-e86d9c7b8463-0-1",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\""
+              },
+              "requestIndex": 9,
+              "terminalIndex": 14,
+              "outcome": "failed",
+              "error": "Command exited with code 1: node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"\n"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-76eb4d91-cf82-11f1-af7d-bfa42de8bcdb-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE"
+              },
+              "requestIndex": 17,
+              "terminalIndex": 29,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-7b960b05-cf82-11f1-b35d-4a9820e2eb25-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 31,
+              "terminalIndex": 37,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-7fc597c1-cf82-11f1-b839-4d66445c8721-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\" && echo CHECK_PASSED"
+              },
+              "requestIndex": 39,
+              "terminalIndex": 45,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-841f28b0-cf82-11f1-99a7-a8f7a0caa22f-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\" && echo CHECK_PASSED"
+              },
+              "requestIndex": 47,
+              "terminalIndex": 53,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/config.ts",
+            "exists": true,
+            "sha256": "936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc",
+            "content": "export const timeoutMs = 3000;\n",
+            "bytes": 31
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/config.ts": "file:138bd79af510453bb9ee79a3f0ef43107b009e3118a624ab6d32f784f9767fea"
+          },
+          "truncated": false,
+          "digest": "2adee687641b8673748ab06cef897fc7e6bb45dc9f99aff142fcec000757d5ea"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:92250a9618c5a4b68262cd3de8e1250895e9c6fb840b9a766a444fb91875d820",
+            "src": "directory",
+            "src/config.ts": "file:936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc"
+          },
+          "truncated": false,
+          "digest": "c2b5dfb8ba97bde7dc6d257adbd96ffe7890e0a44eda85b69b972fc26a169bf8"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; shell.run 2 completed, 1 denied; patch.apply 1 completed.\n\nI'll start by reading the file and running the pre-check.\n\nThe check failed as expected (exit code 1). Now applying the patch.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-6c5c200a-cf82-11f1-add7-e86d9c7b8463-0-0:\\nexport const timeoutMs = 500;\",\"Tool alix_file_read, call call-7b960b05-cf82-11f1-b35d-4a9820e2eb25-0-0:\\nexport const timeoutMs = 3000;\",\"Tool alix_shell_run, call call-7fc597c1-cf82-11f1-b839-4d66445c8721-0-0:\\nCHECK_PASSED\",\"Tool alix_shell_run, call call-841f28b0-cf82-11f1-99a7-a8f7a0caa22f-0-0:\\nCHECK_PASSED\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; shell.run 2 completed, 1 denied; patch.apply 1 completed.\n\nI'll start by reading the file and running the pre-check.\n\nThe check failed as expected (exit code 1). Now applying the patch.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-6c5c200a-cf82-11f1-add7-e86d9c7b8463-0-0:\\nexport const timeoutMs = 500;\",\"Tool alix_file_read, call call-7b960b05-cf82-11f1-b35d-4a9820e2eb25-0-0:\\nexport const timeoutMs = 3000;\",\"Tool alix_shell_run, call call-7fc597c1-cf82-11f1-b839-4d66445c8721-0-0:\\nCHECK_PASSED\",\"Tool alix_shell_run, call call-841f28b0-cf82-11f1-99a7-a8f7a0caa22f-0-0:\\nCHECK_PASSED\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-verification-repair",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.verification-repair\",\"payload\":{\"subagentId\":\"eval-behavioral-verification-repair\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\"src/config.ts\"]},\"id\":\"dda9f25a-ede9-4df6-8278-457bbcf1579e\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T08:10:47.842Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5594,\"outputTokens\":167},\"id\":\"3acb97f3-aa5b-4630-aa8f-f0cd8d28e5f2\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.086Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-6c5c200a-cf82-11f1-add7-e86d9c7b8463-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"argsPreview\":{\"path\":\"src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-7431302d-508b-411a-b279-b5635cf8f669\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"5d560603-a4e5-4139-a4fc-c3584bc93d98\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.093Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-6c5c200a-cf82-11f1-add7-e86d9c7b8463-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-7431302d-508b-411a-b279-b5635cf8f669\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"049fac48-97df-4dc2-a496-89bd37ac8458\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.104Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T08:11:07.104Z\"},\"id\":\"163460ae-37c2-40fa-9974-6896066db98f\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.105Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"3223b054-f941-4881-85e9-5eb28ed1a7b3\",\"operation\":\"tool.route.file.read\"},\"id\":\"0c247227-a85b-402e-9089-0fbd7664684c\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.106Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"3223b054-f941-4881-85e9-5eb28ed1a7b3\",\"operation\":\"tool.route.file.read\",\"durationMs\":6.85,\"outcome\":\"success\"},\"id\":\"7be5be79-8f58-4b11-a4f2-61d52971ce6c\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.115Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-6c5c200a-cf82-11f1-add7-e86d9c7b8463-0-0\",\"outputPreview\":\"export const timeoutMs = 500;\\n\",\"outputSize\":30,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-7431302d-508b-411a-b279-b5635cf8f669\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"8961913f-d3e0-4239-bd08-3d4c9e2c6fed\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.116Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-6c5c200a-cf82-11f1-add7-e86d9c7b8463-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":26,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-7431302d-508b-411a-b279-b5635cf8f669\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"94ff9510-0f40-479c-8ca7-7c8478b3b551\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.118Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-6c5c200a-cf82-11f1-add7-e86d9c7b8463-0-1\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"da760c23ed50ce83e4ebcb1c16eb3d5c127ba86f564a0f1f09940dd68513d167\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\"\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-7431302d-508b-411a-b279-b5635cf8f669\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"a9151bc7-0119-4f26-bec4-54341cd9a641\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.120Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-6c5c200a-cf82-11f1-add7-e86d9c7b8463-0-1\",\"toolName\":\"shell.run\",\"argumentHash\":\"da760c23ed50ce83e4ebcb1c16eb3d5c127ba86f564a0f1f09940dd68513d167\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-7431302d-508b-411a-b279-b5635cf8f669\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"e852df40-929e-4af8-b7ff-4afb7f3f006c\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.127Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:11:07.129Z\"},\"id\":\"93be672f-48f8-482d-b0e5-57a6c8f007c4\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.129Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"f2646060-69e3-4cbf-bddb-0cc3b6e08041\",\"operation\":\"tool.route.shell.run\"},\"id\":\"4fd85f32-b092-45fd-b8f8-7c7fc8741301\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.131Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"f2646060-69e3-4cbf-bddb-0cc3b6e08041\",\"operation\":\"tool.route.shell.run\",\"durationMs\":72.78,\"outcome\":\"success\"},\"id\":\"b606c3e6-9650-4662-9a1e-2e03b2a56bba\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.205Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-6c5c200a-cf82-11f1-add7-e86d9c7b8463-0-1\",\"toolName\":\"shell.run\",\"error\":\"Command exited with code 1: node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\"\\n\",\"durationMs\":86,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"da760c23ed50ce83e4ebcb1c16eb3d5c127ba86f564a0f1f09940dd68513d167\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-7431302d-508b-411a-b279-b5635cf8f669\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"3913db0d-e3ff-4f77-82ba-ddab0520b66a\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.205Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:11:07.206Z\"},\"id\":\"fc510f38-692a-4c05-991d-8040082c5a03\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T08:11:07.206Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5811,\"outputTokens\":139},\"id\":\"a8b331ea-320a-48bf-90bc-c60fc8dc2779\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.025Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-76eb4d91-cf82-11f1-af7d-bfa42de8bcdb-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"02a4220cfd153423fb4b296539d5b252a7f054a0aef99625bc0987a555f23061\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/config.ts\\nexport const timeoutMs = 500;\\n=======\\nexport const timeoutMs = 3000;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-88d38369-8af0-496f-b054-a12b57f3f8bb\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"6246d175-4254-405d-ae50-60882a594174\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.027Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-76eb4d91-cf82-11f1-af7d-bfa42de8bcdb-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"02a4220cfd153423fb4b296539d5b252a7f054a0aef99625bc0987a555f23061\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-88d38369-8af0-496f-b054-a12b57f3f8bb\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"06753716-908e-4b67-ace0-30b86fbfab65\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.029Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T08:11:15.029Z\"},\"id\":\"d352b10a-6e3d-4b30-9525-7d0fbcb2bac0\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.030Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"7eb6a0d2-118a-45b7-a955-3c3ed287d0b1\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"21d00667-8fb0-47f7-b605-38962d75d208\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.030Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-76eb4d91-cf82-11f1-af7d-bfa42de8bcdb-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"18963851-061d-4447-9117-c8a0e546992c\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.031Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-76eb4d91-cf82-11f1-af7d-bfa42de8bcdb-0-0\",\"checkpointId\":\"7138640a-cb0b-40a3-9a12-7e032126db31\",\"files\":[\"src/config.ts\"]},\"id\":\"2c7a1ee9-4586-4ad8-9c73-f55c35ea3355\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.034Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"3977353a-b703-42fc-a2d4-e6aa59324211\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/config.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"634d5bca-74f8-493c-8577-04b04e7975db\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.035Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"3977353a-b703-42fc-a2d4-e6aa59324211\",\"validated\":true},\"id\":\"157ec9ee-17d5-4b2b-b433-ffbd5c4e9ad2\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.035Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.applied\",\"payload\":{\"proposalId\":\"3977353a-b703-42fc-a2d4-e6aa59324211\",\"checkpointId\":\"\",\"changedFiles\":[\"src/config.ts\"]},\"id\":\"8434b000-4a20-40f0-93db-85a24a081969\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.037Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"patch.changed_files\",\"payload\":{\"changedFiles\":[\"src/config.ts\"]},\"id\":\"7670f2e4-bc60-45f7-8e6d-4bd32ead9bb7\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.037Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"7eb6a0d2-118a-45b7-a955-3c3ed287d0b1\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":7.1,\"outcome\":\"success\"},\"id\":\"e7118b8f-fd91-42ab-8443-3d99cb6e863c\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.037Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-76eb4d91-cf82-11f1-af7d-bfa42de8bcdb-0-0\",\"outputPreview\":\"[no output]\",\"outputSize\":0,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-88d38369-8af0-496f-b054-a12b57f3f8bb\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"6f4b3d22-41fc-4c3c-b40c-c262b6428d7a\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.038Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-76eb4d91-cf82-11f1-af7d-bfa42de8bcdb-0-0\",\"toolName\":\"patch.apply\",\"status\":\"success\",\"durationMs\":11,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"02a4220cfd153423fb4b296539d5b252a7f054a0aef99625bc0987a555f23061\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-88d38369-8af0-496f-b054-a12b57f3f8bb\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"9f879a37-215d-4f6b-acd8-3a21d99f5fa3\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T08:11:15.038Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5896,\"outputTokens\":226},\"id\":\"859ff3db-f8ec-4816-a4ad-d3d1077bf091\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T08:11:22.044Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-7b960b05-cf82-11f1-b35d-4a9820e2eb25-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"argsPreview\":{\"path\":\"src/config.ts\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-87dc76fe-3b1e-4ce8-af72-4258fcf0e9e3\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"85f51c7b-e2ec-4771-a306-75484abd9f16\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T08:11:22.045Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-7b960b05-cf82-11f1-b35d-4a9820e2eb25-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-87dc76fe-3b1e-4ce8-af72-4258fcf0e9e3\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"218b3be9-d53f-49bf-958a-e2e2cd3bd2e9\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T08:11:22.047Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T08:11:22.047Z\"},\"id\":\"4873fd5d-b4d0-4fa2-8c8e-36ed5163745d\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T08:11:22.047Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"9703f6b1-91af-4ac7-b3e9-212bf37e0dd4\",\"operation\":\"tool.route.file.read\"},\"id\":\"7962462a-8b2f-4f8c-be32-2f31cf79ec7a\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T08:11:22.048Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"9703f6b1-91af-4ac7-b3e9-212bf37e0dd4\",\"operation\":\"tool.route.file.read\",\"durationMs\":0.81,\"outcome\":\"success\"},\"id\":\"bbc17bdb-9013-4f89-8553-43b9f2a4a255\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T08:11:22.051Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-7b960b05-cf82-11f1-b35d-4a9820e2eb25-0-0\",\"outputPreview\":\"export const timeoutMs = 3000;\\n\",\"outputSize\":31,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-87dc76fe-3b1e-4ce8-af72-4258fcf0e9e3\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"034454cd-e8cc-435c-96a8-faf01673a5ee\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T08:11:22.053Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-7b960b05-cf82-11f1-b35d-4a9820e2eb25-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":7,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"c7d206905ffbf5e9865f0b7d27adb717faccf5d92803e83e080c2e05c3911647\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-87dc76fe-3b1e-4ce8-af72-4258fcf0e9e3\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"30d0d2d2-1c40-4d09-89d9-a00e6052af5d\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T08:11:22.053Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5990,\"outputTokens\":179},\"id\":\"d5dd9e21-68c8-4731-b4ef-3a752ad0ecca\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T08:11:29.362Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-7fc597c1-cf82-11f1-b839-4d66445c8721-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\" && echo CHECK_PASSED\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-f9787be8-acba-4732-b8cb-c56637149122\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"4b87c285-ac81-48fb-9190-283d24cda1e3\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T08:11:29.363Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-7fc597c1-cf82-11f1-b839-4d66445c8721-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-f9787be8-acba-4732-b8cb-c56637149122\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"de46bcb7-3442-44ed-93b9-8983725c93ae\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T08:11:29.364Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:11:29.364Z\"},\"id\":\"9aa49316-cb29-461a-be49-07c451511be9\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T08:11:29.364Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"71dab7f8-b94d-4830-8e81-7cfe97d48787\",\"operation\":\"tool.route.shell.run\"},\"id\":\"de208371-03a5-4028-b666-85b87b6f157a\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T08:11:29.365Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"71dab7f8-b94d-4830-8e81-7cfe97d48787\",\"operation\":\"tool.route.shell.run\",\"durationMs\":47.6,\"outcome\":\"success\"},\"id\":\"278c0e3f-0588-457c-98bb-ebab3f7e55d6\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T08:11:29.413Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-7fc597c1-cf82-11f1-b839-4d66445c8721-0-0\",\"outputPreview\":\"CHECK_PASSED\\n\",\"outputSize\":13,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-f9787be8-acba-4732-b8cb-c56637149122\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"dae4fa41-aa48-4021-a765-69a62e8860c7\",\"seq\":45,\"version\":1,\"timestamp\":\"2026-10-24T08:11:29.413Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-7fc597c1-cf82-11f1-b839-4d66445c8721-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":51,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-f9787be8-acba-4732-b8cb-c56637149122\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"308b3a36-eecb-45f9-9252-334707430ad2\",\"seq\":46,\"version\":1,\"timestamp\":\"2026-10-24T08:11:29.414Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":6069,\"outputTokens\":259},\"id\":\"c0645ee0-81b3-4654-bbdf-2e625cf77469\",\"seq\":47,\"version\":1,\"timestamp\":\"2026-10-24T08:11:33.495Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-841f28b0-cf82-11f1-99a7-a8f7a0caa22f-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"argsPreview\":{\"command\":\"node -e \\\"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\\\n' ? 0 : 1)\\\" && echo CHECK_PASSED\"},\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-71f92f22-2c62-44ed-b131-033669b56033\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"04874fa1-2a4c-4ecd-9da4-37700d6ad7ee\",\"seq\":48,\"version\":1,\"timestamp\":\"2026-10-24T08:11:33.496Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-841f28b0-cf82-11f1-99a7-a8f7a0caa22f-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-71f92f22-2c62-44ed-b131-033669b56033\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"92be9793-2c52-455a-a371-3e7f515ec7a0\",\"seq\":49,\"version\":1,\"timestamp\":\"2026-10-24T08:11:33.497Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:11:33.497Z\"},\"id\":\"96ca307f-3043-4186-86a5-579dd57936a7\",\"seq\":50,\"version\":1,\"timestamp\":\"2026-10-24T08:11:33.497Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"85d983ed-a777-40d5-a933-9613e14bf44c\",\"operation\":\"tool.route.shell.run\"},\"id\":\"dffe1c6f-1aed-4561-b71a-b1e80826a26d\",\"seq\":51,\"version\":1,\"timestamp\":\"2026-10-24T08:11:33.498Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"85d983ed-a777-40d5-a933-9613e14bf44c\",\"operation\":\"tool.route.shell.run\",\"durationMs\":44.86,\"outcome\":\"success\"},\"id\":\"7d762a16-74de-4594-88f6-f69226598412\",\"seq\":52,\"version\":1,\"timestamp\":\"2026-10-24T08:11:33.543Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-841f28b0-cf82-11f1-99a7-a8f7a0caa22f-0-0\",\"outputPreview\":\"CHECK_PASSED\\n\",\"outputSize\":13,\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-71f92f22-2c62-44ed-b131-033669b56033\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"69e8f9f9-2cd7-4128-9e1b-4a504844d396\",\"seq\":53,\"version\":1,\"timestamp\":\"2026-10-24T08:11:33.544Z\"}",
+            "{\"sessionId\":\"eval:behavioral.verification-repair\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-841f28b0-cf82-11f1-99a7-a8f7a0caa22f-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":49,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"4a963af787c98525f37b68c545aaff075e8360fc22bd0d0e52235f631177dd7c\",\"executionId\":\"eval:behavioral.verification-repair\",\"invocationId\":\"inv-71f92f22-2c62-44ed-b131-033669b56033\",\"agentId\":\"eval-behavioral-verification-repair\"},\"id\":\"ce5ea6dc-9a4f-4198-a9a6-54f3cd4135c1\",\"seq\":54,\"version\":1,\"timestamp\":\"2026-10-24T08:11:33.544Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T08:11:33.575Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-verification-repair",
+      "usage": {
+        "inputTokens": 29360,
+        "outputTokens": 970,
+        "observed": true
+      },
+      "costUsd": 0.0831,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    }
+  ],
+  "latency": {
+    "observed": true,
+    "samples": 5,
+    "p50Ms": 65187,
+    "p95Ms": 75321
+  },
+  "verifiedSuccesses": 0,
+  "inadmissible": 0,
+  "costUsd": 0.4058575
+}

@@ -1,0 +1,858 @@
+{
+  "startedAt": "2026-10-24T07:54:36.222Z",
+  "finishedAt": "2026-10-24T07:57:09.780Z",
+  "frozen": {
+    "model": {
+      "provider": "hive",
+      "name": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revisionSource": "model-id-snapshot"
+    },
+    "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7",
+    "offeredToolsHash": "24fb49fdfe87f7d8cb65b381189169a65f9649d909d02905a810ead8349e0164",
+    "offeredTools": [
+      "alix_collaboration_get_dependency_results",
+      "alix_collaboration_list_conflicts",
+      "alix_collaboration_publish_artifact",
+      "alix_collaboration_publish_finding",
+      "alix_collaboration_query_findings",
+      "alix_collaboration_report_conflict",
+      "alix_coordination_list",
+      "alix_coordination_results",
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_create_skill",
+      "alix_delegate",
+      "alix_done",
+      "alix_execution_state_propose",
+      "alix_file_create",
+      "alix_file_delete",
+      "alix_file_exists",
+      "alix_file_read",
+      "alix_glob_match",
+      "alix_grep_search",
+      "alix_hook_create",
+      "alix_inspect_extension",
+      "alix_list_extensions",
+      "alix_mcp_search_tools",
+      "alix_patch_apply",
+      "alix_schedule_propose",
+      "alix_shell_run",
+      "alix_state_query",
+      "alix_verify_claim",
+      "alix_web_fetch",
+      "alix_web_search"
+    ],
+    "corpusHash": "9ed559998d4b7e8a7bf4497992e0d45a4daf430aace084b31a3c6dc52ba2ce74",
+    "corpusFiles": [
+      {
+        "path": "src/operations/evals/cases/index.ts",
+        "sha256": "09d36787693d5ded9e8c32c4123366f208bd2aa0563651c6c4e2749f48c3827e"
+      },
+      {
+        "path": "src/operations/evals/cases/behavioral.ts",
+        "sha256": "4beb2ff22fbd65b0e2272ae05f8b752c430d1048905deeeb6226e4126ada4e09"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-2-4.ts",
+        "sha256": "3963f18afd4408cb13bd1d25c0e46210e6684e782ec81293054134c4a7381e5f"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-5-10.ts",
+        "sha256": "9cab91edcb4a8f88bffdd9934fa524aeee27e5b7bc7d2d472e7814a196e0a35a"
+      },
+      {
+        "path": "src/operations/evals/cases/stratum-9-local.ts",
+        "sha256": "e77b9b30647c58e0b5e7dea3e37bb1f0a6d76e0970f4e5b6cfc020deb4df8f2d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/objective-evaluator.ts",
+        "sha256": "76869222509ac0a78d7e0dde1104d47e98c07abd9d1553964ec85c4072b6d56d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/status-evaluator.ts",
+        "sha256": "3b16532d05fa07a8005ff3ade2fa52f03c7315435e322f2dc847a3858d759cd4"
+      },
+      {
+        "path": "src/operations/evals/eval-guards.ts",
+        "sha256": "a9b379a9aa87e949dc17256f0d7a9659326cf3e8352aa12d531111e80f2a5d6b"
+      },
+      {
+        "path": "src/operations/evals/eval-admissibility.ts",
+        "sha256": "721408143ecec8e42039e510f32b13a088b2958c8cfb4d47a9d227fbba9ef9a7"
+      }
+    ],
+    "environment": {
+      "node": "v26.11.0",
+      "platform": "linux",
+      "arch": "x64",
+      "cpuCount": 4,
+      "cpuModel": "Intel(R) Core(TM) i3-8145U CPU @ 2.10GHz",
+      "totalMemoryBytes": 12284481536
+    },
+    "pricing": {
+      "source": "operator-declared proxy: openai/gpt-4o catalog rate (defaultPricingCatalog), not a Hive-published rate",
+      "effectiveFrom": "2025-01-01",
+      "inputPerMillion": 2.5,
+      "outputPerMillion": 10,
+      "currency": "USD",
+      "observedAt": "2026-10-23T00:00:00.000Z",
+      "provenance": "operator-snapshot",
+      "note": "Operator-supplied rate snapshot; retained with the run."
+    },
+    "blocking": [],
+    "admissible": true
+  },
+  "suiteDurationMs": 153558,
+  "model": {
+    "provider": "hive",
+    "name": "deepseek-ai/deepseek-v4.1-flash-1017"
+  },
+  "results": [
+    {
+      "caseId": "behavioral.patch-application",
+      "stratum": "single-file-edit",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:54:36.222Z",
+      "finishedAt": "2026-10-24T07:55:13.331Z",
+      "durationMs": 37109,
+      "toolCalls": 4,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const x = 2;\n"
+        },
+        "actual": {
+          "content": "export const x = 2;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": null,
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "75758b734961c0d811915ed18890376202faf7249003733ce3af41a66ecc42d1",
+            "content": "export const x = 2;\n",
+            "bytes": 20
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:b40dedde60828bf61d1fadbfc3bb7ea2e0421e9511d22f1b5fb44ae5ba07dbb3"
+          },
+          "truncated": false,
+          "digest": "a3ddb1222e359ad3547d8aef5426b4a9778c497eaedf91b4e744b58897a36750"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:3434edd410ef4d7006db8f81ecd0c91e30819bb1add570c741eb11c4e8adfd09",
+            "src": "directory",
+            "src/util.ts": "file:75758b734961c0d811915ed18890376202faf7249003733ce3af41a66ecc42d1"
+          },
+          "truncated": false,
+          "digest": "b37923b313812577263e1bbb3d97d01d025387cb677b43926664074eb33ed7c3"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; patch.apply 1 completed, 1 denied; alix_file_read 1 denied.\n\nI'll read the file first.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-2d6e2fdc-cf80-11f1-90ec-eff06320e4d9-0-0:\\nexport const x = 1;\",\"Tool alix_file_read, call call-374d0263-cf80-11f1-bd37-6cc1bb133f93-0-0:\\nexport const x = 2;\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; patch.apply 1 completed, 1 denied; alix_file_read 1 denied.\n\nI'll read the file first.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-2d6e2fdc-cf80-11f1-90ec-eff06320e4d9-0-0:\\nexport const x = 1;\",\"Tool alix_file_read, call call-374d0263-cf80-11f1-bd37-6cc1bb133f93-0-0:\\nexport const x = 2;\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-patch-application",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.patch-application\",\"payload\":{\"subagentId\":\"eval-behavioral-patch-application\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\".\"]},\"id\":\"606ad969-0816-4dd6-b7b4-166306aab135\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T07:54:38.947Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5441,\"outputTokens\":71},\"id\":\"f7aa5485-8ff5-48c1-8be4-593f58533d85\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T07:54:53.846Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-2d6e2fdc-cf80-11f1-90ec-eff06320e4d9-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-8560a988-b053-4519-977c-239ed7287ebd\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"14a49ad2-32ad-4a56-9f16-1f0339408a75\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T07:54:53.849Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-2d6e2fdc-cf80-11f1-90ec-eff06320e4d9-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-8560a988-b053-4519-977c-239ed7287ebd\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"cf3afe95-09fb-4c05-8dcb-063cf597056f\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T07:54:53.855Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:54:53.855Z\"},\"id\":\"ce45aa50-3c3d-46d1-8ebd-34ada6356ced\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T07:54:53.855Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"fd6efe9d-cbea-47db-bd60-81f573db7a41\",\"operation\":\"tool.route.file.read\"},\"id\":\"e12fe0a1-be4a-4539-ac01-84c69cacb7ec\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T07:54:53.856Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"fd6efe9d-cbea-47db-bd60-81f573db7a41\",\"operation\":\"tool.route.file.read\",\"durationMs\":1.41,\"outcome\":\"success\"},\"id\":\"eb5fe0a2-25f8-40e3-9289-a040b186405a\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T07:54:53.859Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-2d6e2fdc-cf80-11f1-90ec-eff06320e4d9-0-0\",\"outputPreview\":\"export const x = 1;\\n\",\"outputSize\":20,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-8560a988-b053-4519-977c-239ed7287ebd\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"81d09317-5949-48b0-9797-12d3c0892b2c\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T07:54:53.860Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-2d6e2fdc-cf80-11f1-90ec-eff06320e4d9-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":11,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-8560a988-b053-4519-977c-239ed7287ebd\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"2447f085-cc6d-45ad-bc5c-6b5932418c6d\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T07:54:53.861Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5525,\"outputTokens\":181},\"id\":\"fbfa3fe1-c552-4aa2-bf00-7e25fa10102c\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.520Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-32c1bbd3-cf80-11f1-b1f6-1b7c68f8d214-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/util.ts\\nexport const x = 1;\\n=======\\nexport const x = 2;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-48aa8726-32d7-426e-bd7a-005010c6d926\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"7498db5e-2574-4367-b0a2-e7fdb800e3a4\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.521Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-32c1bbd3-cf80-11f1-b1f6-1b7c68f8d214-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-48aa8726-32d7-426e-bd7a-005010c6d926\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"f9a377e4-0c26-4cb2-b78e-3506b3bf687a\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.522Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:55:01.523Z\"},\"id\":\"4f2b6407-4dcf-43f4-91cc-778a1b4ffc61\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.523Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"8ddf34c0-a4f8-4f82-b8df-3e29121b8b76\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"7f206a6a-6be1-47d0-8ce6-5297046f92a0\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.524Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-32c1bbd3-cf80-11f1-b1f6-1b7c68f8d214-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"ad3653d3-878a-4683-81b7-7a628a816c94\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.525Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-32c1bbd3-cf80-11f1-b1f6-1b7c68f8d214-0-0\",\"checkpointId\":\"320ef393-2ad9-41c9-a1d2-fb0b5a18770b\",\"files\":[\"src/util.ts\"]},\"id\":\"6069601c-26b9-4f1f-ada1-a2a6f58c056f\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.528Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"31be8761-c954-4e6c-be50-61b0b7c56a66\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/util.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"0ee97793-1826-40b0-b06a-24dd15854f02\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.529Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"31be8761-c954-4e6c-be50-61b0b7c56a66\",\"validated\":true},\"id\":\"42ccce1c-7c29-4680-936d-134fc6709f3d\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.529Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.applied\",\"payload\":{\"proposalId\":\"31be8761-c954-4e6c-be50-61b0b7c56a66\",\"checkpointId\":\"\",\"changedFiles\":[\"src/util.ts\"]},\"id\":\"72cfaca7-285e-44d8-9125-4cafe6f255de\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.531Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.changed_files\",\"payload\":{\"changedFiles\":[\"src/util.ts\"]},\"id\":\"d6b2c599-f763-4caa-90c2-909e4dee810a\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.531Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"8ddf34c0-a4f8-4f82-b8df-3e29121b8b76\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":7.26,\"outcome\":\"success\"},\"id\":\"d74cf2af-a1e3-4cdf-b78e-9ed58bdc9904\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.531Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-32c1bbd3-cf80-11f1-b1f6-1b7c68f8d214-0-0\",\"outputPreview\":\"[no output]\",\"outputSize\":0,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-48aa8726-32d7-426e-bd7a-005010c6d926\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"ccaab110-a238-4b46-9277-813000547e48\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.532Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-32c1bbd3-cf80-11f1-b1f6-1b7c68f8d214-0-0\",\"toolName\":\"patch.apply\",\"status\":\"success\",\"durationMs\":11,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-48aa8726-32d7-426e-bd7a-005010c6d926\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"755982a6-0eed-484f-b08c-06a8b2d841ac\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T07:55:01.532Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5612,\"outputTokens\":120},\"id\":\"ba319168-9f54-41ef-8e7d-1b1e9e052b5e\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T07:55:04.413Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-374d0263-cf80-11f1-bd37-6cc1bb133f93-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-d3e9a2f3-ee9a-47b9-9cd4-63572d864edd\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"429bde30-c306-477b-b208-d7cda3678d3b\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T07:55:04.416Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-374d0263-cf80-11f1-bd37-6cc1bb133f93-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-d3e9a2f3-ee9a-47b9-9cd4-63572d864edd\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"78a8161f-e37b-4b74-951a-7ac16888820e\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T07:55:04.418Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:55:04.418Z\"},\"id\":\"9c5c234b-096b-471c-9e4d-c821fffbe181\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T07:55:04.418Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"fa7af914-4d48-4941-b659-35eb2b535426\",\"operation\":\"tool.route.file.read\"},\"id\":\"a6e825e6-9338-4e6f-82c8-f45df811b0d0\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T07:55:04.419Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"fa7af914-4d48-4941-b659-35eb2b535426\",\"operation\":\"tool.route.file.read\",\"durationMs\":0.66,\"outcome\":\"success\"},\"id\":\"397c3689-162d-4a94-84fb-0c0803bfce9b\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T07:55:04.420Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-374d0263-cf80-11f1-bd37-6cc1bb133f93-0-0\",\"outputPreview\":\"export const x = 2;\\n\",\"outputSize\":20,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-d3e9a2f3-ee9a-47b9-9cd4-63572d864edd\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"44ed677b-7ba7-4ca1-a114-41b7416b1671\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T07:55:04.421Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-374d0263-cf80-11f1-bd37-6cc1bb133f93-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":5,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-d3e9a2f3-ee9a-47b9-9cd4-63572d864edd\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"6f57f0b0-1e30-4caa-a396-53c18a2a8b6a\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T07:55:04.422Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3610,\"outputTokens\":147},\"id\":\"c5593737-1246-48e4-a9d1-3803eaffeef9\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.051Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-3906b9ea-cf80-11f1-8e48-b6697a997ec7-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"fd72a3fdec43aef49a0ce930953a5b57d5b5a367722459c8848c26696b04ae00\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH src/util.ts\\nexport const x = 1;\\n=======\\nexport const x = 2;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-fa186b4e-a4ce-4288-b90a-5db49792cd5c\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"c0a1c412-213a-472f-ab9a-5f9951a76f2e\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.053Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-3906b9ea-cf80-11f1-8e48-b6697a997ec7-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"fd72a3fdec43aef49a0ce930953a5b57d5b5a367722459c8848c26696b04ae00\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-fa186b4e-a4ce-4288-b90a-5db49792cd5c\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"2194e043-1a16-4702-80c8-34a5898ade9f\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.055Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:55:09.055Z\"},\"id\":\"bab4b038-4696-49e1-96ab-22df5156b180\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.055Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"8fb79352-dcc9-4022-8b3f-79a4b31110fa\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"909c91d1-5fed-4635-9091-15af4e92abf6\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.056Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-3906b9ea-cf80-11f1-8e48-b6697a997ec7-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"96f54387-dd44-47aa-9e43-a0e914fc61be\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.057Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"93c27b52-fa75-4fc0-94ac-35811ca90f04\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[],\"requiresApproval\":false},\"id\":\"a0727196-c952-4b01-89f3-a96911c641d7\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.057Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"93c27b52-fa75-4fc0-94ac-35811ca90f04\",\"validated\":false,\"errors\":[\"No patch hunks were parsed from the search_replace payload \u2014 the patch syntax is malformed or empty. Each search_replace block must be exactly `<<<<<<< SEARCH path=<file>` (the path on the SAME line as SEARCH), then the original text, then `=======`, then the replacement text, then `>>>>>>> REPLACE`. To create a NEW file, use alix_file_create instead of patch.apply.\"]},\"id\":\"8a0c0c7b-43f9-4ed9-8360-fd035cafd121\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.059Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.rejected\",\"payload\":{\"proposalId\":\"93c27b52-fa75-4fc0-94ac-35811ca90f04\",\"reason\":\"No patch hunks were parsed from the search_replace payload \u2014 the patch syntax is malformed or empty. Each search_replace block must be exactly `<<<<<<< SEARCH path=<file>` (the path on the SAME line as SEARCH), then the original text, then `=======`, then the replacement text, then `>>>>>>> REPLACE`. To create a NEW file, use alix_file_create instead of patch.apply.\"},\"id\":\"84f5e483-685c-468b-8002-47e33d6a757d\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.059Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"8fb79352-dcc9-4022-8b3f-79a4b31110fa\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":3.35,\"outcome\":\"success\"},\"id\":\"1e090fdf-4a61-4a8b-b7d0-0b0fd659af8b\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.060Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-3906b9ea-cf80-11f1-8e48-b6697a997ec7-0-0\",\"toolName\":\"patch.apply\",\"error\":\"Patch rejected: No patch hunks were parsed from the search_replace payload \u2014 the patch syntax is malformed or empty. Each search_replace block must be exactly `<<<<<<< SEARCH path=<file>` (the path on the SAME line as SEARCH), then the original text, then `=======`, then the replacement text, then `>>>>>>> REPLACE`. To create a NEW file, use alix_file_create instead of patch.apply.\",\"durationMs\":7,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"fd72a3fdec43aef49a0ce930953a5b57d5b5a367722459c8848c26696b04ae00\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-fa186b4e-a4ce-4288-b90a-5db49792cd5c\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"da876341-0e97-4f15-bf65-e38c7f7647e3\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.060Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:55:09.060Z\"},\"id\":\"5d6b9510-f427-47e4-994a-83bc3d74840c\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T07:55:09.061Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3809,\"outputTokens\":109},\"id\":\"968fba50-f9db-4dd6-8a2e-a2f33baab755\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T07:55:13.292Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T07:55:13.330Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-patch-application",
+      "usage": {
+        "inputTokens": 23997,
+        "outputTokens": 628,
+        "observed": true
+      },
+      "costUsd": 0.0662725,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.patch-application",
+      "stratum": "single-file-edit",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:55:13.331Z",
+      "finishedAt": "2026-10-24T07:55:46.477Z",
+      "durationMs": 33146,
+      "toolCalls": 4,
+      "toolCallsCompleted": 4,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const x = 2;\n"
+        },
+        "actual": {
+          "content": "export const x = 2;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": null,
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "75758b734961c0d811915ed18890376202faf7249003733ce3af41a66ecc42d1",
+            "content": "export const x = 2;\n",
+            "bytes": 20
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:b40dedde60828bf61d1fadbfc3bb7ea2e0421e9511d22f1b5fb44ae5ba07dbb3"
+          },
+          "truncated": false,
+          "digest": "a3ddb1222e359ad3547d8aef5426b4a9778c497eaedf91b4e744b58897a36750"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:3434edd410ef4d7006db8f81ecd0c91e30819bb1add570c741eb11c4e8adfd09",
+            "src": "directory",
+            "src/util.ts": "file:75758b734961c0d811915ed18890376202faf7249003733ce3af41a66ecc42d1"
+          },
+          "truncated": false,
+          "digest": "b37923b313812577263e1bbb3d97d01d025387cb677b43926664074eb33ed7c3"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; patch.apply 1 completed; alix_grep_search 1 denied; task.complete 1 completed.\n\nI'll read the file first to see its exact contents.\n\nThe change was already applied successfully \u2014 `src/util.ts` now reads `export const x = 2;` with the trailing newline preserved.\n\n[summary] Changed exported constant x in src/util.ts from 1 to 2; file content verified as `export const x = 2;` with trailing newline intact and no other bytes altered.\n[file_ref] src/util.ts\n[confidence] high\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-411c0f57-cf80-11f1-b90a-c6a9aa72afd4-0-0:\\nexport const x = 1;\",\"Tool alix_file_read, call call-495a2678-cf80-11f1-a320-301e62b9f3bc-0-0:\\nexport const x = 2;\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; patch.apply 1 completed; alix_grep_search 1 denied; task.complete 1 completed.\n\nI'll read the file first to see its exact contents.\n\nThe change was already applied successfully \u2014 `src/util.ts` now reads `export const x = 2;` with the trailing newline preserved.\n\n[summary] Changed exported constant x in src/util.ts from 1 to 2; file content verified as `export const x = 2;` with trailing newline intact and no other bytes altered.\n[file_ref] src/util.ts\n[confidence] high\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-411c0f57-cf80-11f1-b90a-c6a9aa72afd4-0-0:\\nexport const x = 1;\",\"Tool alix_file_read, call call-495a2678-cf80-11f1-a320-301e62b9f3bc-0-0:\\nexport const x = 2;\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-patch-application",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.patch-application\",\"payload\":{\"subagentId\":\"eval-behavioral-patch-application\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\".\"]},\"id\":\"f652845c-2422-4a4b-8708-660e85339bce\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T07:55:16.060Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5441,\"outputTokens\":73},\"id\":\"6848de0a-9176-4588-81e3-89462319af42\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T07:55:21.985Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-411c0f57-cf80-11f1-b90a-c6a9aa72afd4-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-b9a24432-56e8-47e5-bbde-5310ab6951a1\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"ef78ee18-ee43-4822-8324-73a042ef2d76\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T07:55:21.988Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-411c0f57-cf80-11f1-b90a-c6a9aa72afd4-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-b9a24432-56e8-47e5-bbde-5310ab6951a1\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"198cdd4d-6309-4642-a239-606d024412f9\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T07:55:21.993Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:55:21.994Z\"},\"id\":\"eca7104e-45a8-4d40-923f-45564444e22c\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T07:55:21.994Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"766d5c7e-1a5a-4b39-ab4f-2b651c50190f\",\"operation\":\"tool.route.file.read\"},\"id\":\"7c531257-50a4-4d78-9c26-1f0039fbbadc\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T07:55:21.995Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"766d5c7e-1a5a-4b39-ab4f-2b651c50190f\",\"operation\":\"tool.route.file.read\",\"durationMs\":1.58,\"outcome\":\"success\"},\"id\":\"5403c8c9-3eff-435a-a634-0e51aa0d585a\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T07:55:21.997Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-411c0f57-cf80-11f1-b90a-c6a9aa72afd4-0-0\",\"outputPreview\":\"export const x = 1;\\n\",\"outputSize\":20,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-b9a24432-56e8-47e5-bbde-5310ab6951a1\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"2ee18781-82d5-494a-ae3a-c42b114e156a\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T07:55:21.998Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-411c0f57-cf80-11f1-b90a-c6a9aa72afd4-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":11,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-b9a24432-56e8-47e5-bbde-5310ab6951a1\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"0ae36017-f2c2-410a-9a18-710e15e21369\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T07:55:21.998Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5529,\"outputTokens\":137},\"id\":\"2a201394-f603-4cc9-b070-0b119134b831\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.728Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-4385ee9a-cf80-11f1-ae68-429fae29af53-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/util.ts\\nexport const x = 1;\\n=======\\nexport const x = 2;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-2e862df4-f84b-4a19-9181-6a5776d12d03\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"dd03ab32-ac1e-4411-9708-0c87e3198414\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.731Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-4385ee9a-cf80-11f1-ae68-429fae29af53-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-2e862df4-f84b-4a19-9181-6a5776d12d03\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"879a3992-9079-400b-837c-29fec3efaff0\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.735Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:55:31.736Z\"},\"id\":\"8d91fcdf-7d9e-4c9c-af6a-8a115cf01936\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.737Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"f3cfecaa-2528-4f00-b5fe-23983944fe5a\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"29ddfa62-2b37-4e4b-a1d9-f14f3a6547ae\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.739Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-4385ee9a-cf80-11f1-ae68-429fae29af53-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"0e7b0137-5298-4d05-ace8-b150b2dd47e4\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.743Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-4385ee9a-cf80-11f1-ae68-429fae29af53-0-0\",\"checkpointId\":\"9f1a37e8-d77c-4e33-81f2-c5da025e8665\",\"files\":[\"src/util.ts\"]},\"id\":\"46974bf9-2823-43b2-a826-b1fe023bf04e\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.752Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"738e5c40-b94b-4e54-a469-aaa4f22cb552\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/util.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"3713c1d9-fa66-40c2-a366-4d6e4b405723\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.757Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"738e5c40-b94b-4e54-a469-aaa4f22cb552\",\"validated\":true},\"id\":\"0541243d-b8b3-491c-a6a4-867539700421\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.758Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.applied\",\"payload\":{\"proposalId\":\"738e5c40-b94b-4e54-a469-aaa4f22cb552\",\"checkpointId\":\"\",\"changedFiles\":[\"src/util.ts\"]},\"id\":\"f1dcc669-5ad6-4ce0-96df-41926a63ae6a\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.764Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.changed_files\",\"payload\":{\"changedFiles\":[\"src/util.ts\"]},\"id\":\"6dafcce3-3739-4146-b527-d9296f7aaa24\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.767Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"f3cfecaa-2528-4f00-b5fe-23983944fe5a\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":28,\"outcome\":\"success\"},\"id\":\"1b09b022-f0e5-4fb7-a99f-aff4d856fc51\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.768Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-4385ee9a-cf80-11f1-ae68-429fae29af53-0-0\",\"outputPreview\":\"[no output]\",\"outputSize\":0,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-2e862df4-f84b-4a19-9181-6a5776d12d03\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"f14f51b9-7395-4d27-bf92-712751fe3ccd\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.770Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-4385ee9a-cf80-11f1-ae68-429fae29af53-0-0\",\"toolName\":\"patch.apply\",\"status\":\"success\",\"durationMs\":40,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-2e862df4-f84b-4a19-9181-6a5776d12d03\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"033563f4-6951-47b4-9a3f-15965022dd52\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T07:55:31.772Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5613,\"outputTokens\":146},\"id\":\"9e435ee7-d4b4-4cec-9df8-6befcc71efae\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T07:55:37.355Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-495a2678-cf80-11f1-a320-301e62b9f3bc-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-86717a91-976a-412e-8ec7-9025844ab268\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"d3660175-eb6d-4cac-b2d6-ac8697909e14\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T07:55:37.356Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-495a2678-cf80-11f1-a320-301e62b9f3bc-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-86717a91-976a-412e-8ec7-9025844ab268\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"5a3b6dbb-ad2a-4090-b461-d18addf2bb1b\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T07:55:37.357Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:55:37.358Z\"},\"id\":\"5a3b33b2-52c0-4048-815f-0cc064ba0ccb\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T07:55:37.358Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"310968b5-c93d-4a9d-821a-953c74fff741\",\"operation\":\"tool.route.file.read\"},\"id\":\"52bcdacd-dbdb-4701-8ad3-a6e73c514d64\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T07:55:37.360Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"310968b5-c93d-4a9d-821a-953c74fff741\",\"operation\":\"tool.route.file.read\",\"durationMs\":0.7,\"outcome\":\"success\"},\"id\":\"25046f38-e9ac-411d-89cf-1f7e210dc170\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T07:55:37.364Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-495a2678-cf80-11f1-a320-301e62b9f3bc-0-0\",\"outputPreview\":\"export const x = 2;\\n\",\"outputSize\":20,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-86717a91-976a-412e-8ec7-9025844ab268\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"67898e0e-385a-4a49-b9eb-b6a5a64ebba8\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T07:55:37.364Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-495a2678-cf80-11f1-a320-301e62b9f3bc-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":9,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-86717a91-976a-412e-8ec7-9025844ab268\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"ca9542c6-f134-4230-ad48-e69d608cc63d\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T07:55:37.365Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3606,\"outputTokens\":203},\"id\":\"10cf676d-eb80-40e7-aba9-8b354d7c24aa\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T07:55:41.488Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3760,\"outputTokens\":226},\"id\":\"1d7f23b0-dd0c-4f57-8310-0dc24189c960\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T07:55:46.439Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-4f25c48c-cf80-11f1-a3f7-403e7105b8c1-0-0\",\"toolName\":\"task.complete\",\"capability\":\"task.complete\",\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"argsPreview\":{},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-15361056-95b6-44d4-8d9a-d006531c5645\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"9a509c8c-605c-4360-afea-66ce91119de0\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T07:55:46.440Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-4f25c48c-cf80-11f1-a3f7-403e7105b8c1-0-0\",\"toolName\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-15361056-95b6-44d4-8d9a-d006531c5645\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"442a7f49-cf2b-434c-a0ee-e380fc524b51\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T07:55:46.441Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-4f25c48c-cf80-11f1-a3f7-403e7105b8c1-0-0\",\"outputPreview\":\"Task complete.\",\"outputSize\":14,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-15361056-95b6-44d4-8d9a-d006531c5645\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"d676848c-e50f-45eb-bb34-e6ef63fceb2c\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T07:55:46.441Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-4f25c48c-cf80-11f1-a3f7-403e7105b8c1-0-0\",\"toolName\":\"task.complete\",\"status\":\"success\",\"durationMs\":2,\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-15361056-95b6-44d4-8d9a-d006531c5645\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"16f84941-938b-4848-992c-fdc9a7fa4e3f\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T07:55:46.442Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T07:55:46.476Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-patch-application",
+      "usage": {
+        "inputTokens": 23949,
+        "outputTokens": 785,
+        "observed": true
+      },
+      "costUsd": 0.06772249999999999,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.patch-application",
+      "stratum": "single-file-edit",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:55:46.477Z",
+      "finishedAt": "2026-10-24T07:56:13.478Z",
+      "durationMs": 27001,
+      "toolCalls": 4,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 2,
+      "rejectedCalls": 0,
+      "repeatedCalls": 2,
+      "toolRetries": 1,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const x = 2;\n"
+        },
+        "actual": {
+          "content": "export const x = 2;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": null,
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "75758b734961c0d811915ed18890376202faf7249003733ce3af41a66ecc42d1",
+            "content": "export const x = 2;\n",
+            "bytes": 20
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:b40dedde60828bf61d1fadbfc3bb7ea2e0421e9511d22f1b5fb44ae5ba07dbb3"
+          },
+          "truncated": false,
+          "digest": "a3ddb1222e359ad3547d8aef5426b4a9778c497eaedf91b4e744b58897a36750"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:3434edd410ef4d7006db8f81ecd0c91e30819bb1add570c741eb11c4e8adfd09",
+            "src": "directory",
+            "src/util.ts": "file:75758b734961c0d811915ed18890376202faf7249003733ce3af41a66ecc42d1"
+          },
+          "truncated": false,
+          "digest": "b37923b313812577263e1bbb3d97d01d025387cb677b43926664074eb33ed7c3"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 1 completed; patch.apply 1 completed, 2 denied; alix_file_read 1 denied.\n\nI'll read the file first.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-569d0ee4-cf80-11f1-9c6d-fcfd21435735-0-0:\\nexport const x = 1;\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 1 completed; patch.apply 1 completed, 2 denied; alix_file_read 1 denied.\n\nI'll read the file first.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-569d0ee4-cf80-11f1-9c6d-fcfd21435735-0-0:\\nexport const x = 1;\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-patch-application",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.patch-application\",\"payload\":{\"subagentId\":\"eval-behavioral-patch-application\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\".\"]},\"id\":\"649837d7-4f49-47a4-8283-d998394c2542\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T07:55:49.352Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5441,\"outputTokens\":68},\"id\":\"51ffe0a5-adc0-416f-b748-eb321892ba0c\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T07:55:57.009Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-569d0ee4-cf80-11f1-9c6d-fcfd21435735-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5664ea82-02f6-4ff0-a5b1-7c98c9173fca\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"66a77a2f-7bb8-465f-ac19-ebcbf1166fcf\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T07:55:57.012Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-569d0ee4-cf80-11f1-9c6d-fcfd21435735-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5664ea82-02f6-4ff0-a5b1-7c98c9173fca\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"dc1625a5-5acf-4c03-b59c-7256550192b8\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T07:55:57.018Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:55:57.018Z\"},\"id\":\"d1f670cd-bcee-4b8f-9376-d565c287eaf8\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T07:55:57.018Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"29cc4fba-69fa-4c0f-bc53-29ce4abbb99e\",\"operation\":\"tool.route.file.read\"},\"id\":\"bd1a8fda-f404-4da8-a264-78a92f7f4d95\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T07:55:57.019Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"29cc4fba-69fa-4c0f-bc53-29ce4abbb99e\",\"operation\":\"tool.route.file.read\",\"durationMs\":2.67,\"outcome\":\"success\"},\"id\":\"08c9be70-d5c4-4282-95b7-c58bfbf8cf95\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T07:55:57.023Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-569d0ee4-cf80-11f1-9c6d-fcfd21435735-0-0\",\"outputPreview\":\"export const x = 1;\\n\",\"outputSize\":20,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5664ea82-02f6-4ff0-a5b1-7c98c9173fca\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"2a5d5740-8420-4049-8a8c-955b03717c1d\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T07:55:57.024Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-569d0ee4-cf80-11f1-9c6d-fcfd21435735-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":12,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5664ea82-02f6-4ff0-a5b1-7c98c9173fca\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"2e9b3bd5-bef8-4589-b754-c4ae6286c874\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T07:55:57.024Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5530,\"outputTokens\":152},\"id\":\"b5ca5b42-a384-4279-ade4-cf54eada24fe\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.832Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-58609b30-cf80-11f1-b43e-5c9384966700-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/util.ts\\nexport const x = 1;\\n=======\\nexport const x = 2;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-ef952a63-9025-4aed-a517-f5c0074db8c6\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"c1caef91-a88a-459c-b361-b5e8db73d64e\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.833Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-58609b30-cf80-11f1-b43e-5c9384966700-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-ef952a63-9025-4aed-a517-f5c0074db8c6\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"8fd6b814-1897-46c6-ab15-d2d7d474afed\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.836Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:56:00.836Z\"},\"id\":\"7b105f1f-82c3-484f-869b-fa20183ff8b6\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.838Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"0910fcca-1876-4c5b-94fc-f93384d1c43e\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"c222004a-5cad-4239-832a-e016580abd44\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.839Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-58609b30-cf80-11f1-b43e-5c9384966700-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"41635d79-e605-4c00-a4b7-62bab875b46c\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.842Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-58609b30-cf80-11f1-b43e-5c9384966700-0-0\",\"checkpointId\":\"ab466f3d-d878-4cc3-b523-f79c6247f1a8\",\"files\":[\"src/util.ts\"]},\"id\":\"5f0c1ae6-29c1-4208-afe4-e16ead4128db\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.845Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"3e62719f-8115-42a8-a302-7fc6f284bfdb\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/util.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"9cd55963-4b65-41e4-b70f-83b03ffff262\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.847Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"3e62719f-8115-42a8-a302-7fc6f284bfdb\",\"validated\":true},\"id\":\"5f07eeea-0e30-4271-89b6-62591d33479e\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.847Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.applied\",\"payload\":{\"proposalId\":\"3e62719f-8115-42a8-a302-7fc6f284bfdb\",\"checkpointId\":\"\",\"changedFiles\":[\"src/util.ts\"]},\"id\":\"ade0eef2-b357-4bee-b573-24e621cdd04d\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.849Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.changed_files\",\"payload\":{\"changedFiles\":[\"src/util.ts\"]},\"id\":\"f448d769-7a7b-4343-af2a-042e612c9fa1\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.849Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"0910fcca-1876-4c5b-94fc-f93384d1c43e\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":9.63,\"outcome\":\"success\"},\"id\":\"45205ae2-1832-4033-8598-ca98506c5d74\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.850Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-58609b30-cf80-11f1-b43e-5c9384966700-0-0\",\"outputPreview\":\"[no output]\",\"outputSize\":0,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-ef952a63-9025-4aed-a517-f5c0074db8c6\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"bf981abc-4835-4536-8423-5adfd6d2b7e2\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.850Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-58609b30-cf80-11f1-b43e-5c9384966700-0-0\",\"toolName\":\"patch.apply\",\"status\":\"success\",\"durationMs\":17,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-ef952a63-9025-4aed-a517-f5c0074db8c6\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"27116d36-f18c-4401-aaab-59cb8c035ea7\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T07:56:00.851Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5611,\"outputTokens\":135},\"id\":\"eff14078-7c67-4352-98e2-1b9e689b439f\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.852Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-5aa8a0c5-cf80-11f1-8f9f-9f278e614a60-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/util.ts\\nexport const x = 1;\\n=======\\nexport const x = 2;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-83ae3db8-47ae-45ad-b210-59b1d7192aca\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"92dfb811-1446-4946-8073-64aac40939ee\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.854Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-5aa8a0c5-cf80-11f1-8f9f-9f278e614a60-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-83ae3db8-47ae-45ad-b210-59b1d7192aca\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"570488b6-3b89-4928-8690-8f9c95fba484\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.856Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:56:03.857Z\"},\"id\":\"4955c972-b5c5-401d-9007-177c4eb4fd00\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.857Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"f4030c41-8704-41a6-800b-9b6574021c08\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"13d8a5f9-852c-4317-a0da-9f9a184cbfe8\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.859Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-5aa8a0c5-cf80-11f1-8f9f-9f278e614a60-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"7ff6264b-b238-463d-b0e7-1dc2bdb9c513\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.861Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-5aa8a0c5-cf80-11f1-8f9f-9f278e614a60-0-0\",\"checkpointId\":\"37985681-24d8-461e-bd4a-c5ac88c8a622\",\"files\":[\"src/util.ts\"]},\"id\":\"cdfc9f9d-646e-4a2f-a123-f4ad52f7c803\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.865Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"c47f13dc-1a5e-4a7b-b1d2-783ac73d5819\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/util.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"8ff99856-fdc0-416f-83ce-d4df3d95ecdf\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.866Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"c47f13dc-1a5e-4a7b-b1d2-783ac73d5819\",\"validated\":true},\"id\":\"c1675807-3fd2-4fd0-bc2f-9d9b49bfefb2\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.867Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.rollback_started\",\"payload\":{\"toolCallId\":\"call-5aa8a0c5-cf80-11f1-8f9f-9f278e614a60-0-0\",\"checkpointId\":\"37985681-24d8-461e-bd4a-c5ac88c8a622\",\"files\":[\"src/util.ts\"]},\"id\":\"86781679-68ba-4e07-a7f3-0b7ddbdb60ea\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.868Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.rollback_completed\",\"payload\":{\"toolCallId\":\"call-5aa8a0c5-cf80-11f1-8f9f-9f278e614a60-0-0\",\"checkpointId\":\"37985681-24d8-461e-bd4a-c5ac88c8a622\",\"files\":[\"src/util.ts\"]},\"id\":\"e4eee010-327e-4581-a41c-e6282afa618c\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.872Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"f4030c41-8704-41a6-800b-9b6574021c08\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":12.23,\"outcome\":\"success\"},\"id\":\"59d316d4-f5fe-48cf-94c8-7b43ad4eabd6\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.873Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-5aa8a0c5-cf80-11f1-8f9f-9f278e614a60-0-0\",\"toolName\":\"patch.apply\",\"error\":\"Search block not found for src/util.ts\",\"durationMs\":21,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-83ae3db8-47ae-45ad-b210-59b1d7192aca\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"b955d0c9-c66a-465f-8a53-e0ffffa66f03\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.875Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:56:03.875Z\"},\"id\":\"8ad240d6-254e-477b-8eaf-164ee46ce889\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T07:56:03.876Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3614,\"outputTokens\":101},\"id\":\"cf16794b-4d14-43ab-bc61-cf50f556be4a\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T07:56:09.046Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3764,\"outputTokens\":194},\"id\":\"96920105-334d-487d-a910-c7c0d2d6120f\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.332Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-5f918837-cf80-11f1-aef5-9cf5c3457897-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/util.ts\\nexport const x = 1;\\n=======\\nexport const x = 2;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-59887b79-2908-46de-88fd-1cab062cb3b9\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"bafb0e79-e98e-4b40-862b-7dc9906a4b3c\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.334Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-5f918837-cf80-11f1-aef5-9cf5c3457897-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-59887b79-2908-46de-88fd-1cab062cb3b9\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"05e3cc53-bd07-4db2-ada8-b7fc22f5f237\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.336Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:56:13.337Z\"},\"id\":\"889cb60d-3c33-4294-9810-62d265967b58\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.339Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"3eb45512-5429-4ff2-bd7d-66e3a37d5a37\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"5a88f575-ba83-4f5b-aea3-a38988f74077\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.341Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-5f918837-cf80-11f1-aef5-9cf5c3457897-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"d1c96c8e-0353-4548-a4e7-809505fa8e9b\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.343Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-5f918837-cf80-11f1-aef5-9cf5c3457897-0-0\",\"checkpointId\":\"4930a752-bd9d-4078-b1cc-96eb19691ef6\",\"files\":[\"src/util.ts\"]},\"id\":\"f1da9328-2661-4557-bb43-c0e341e5cde5\",\"seq\":45,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.347Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"fb13272a-6d9a-40e7-b45f-adf8b128fa73\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/util.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"20761f3c-d310-4192-9084-c165a23d06b7\",\"seq\":46,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.348Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"fb13272a-6d9a-40e7-b45f-adf8b128fa73\",\"validated\":true},\"id\":\"a90768d7-1e9b-4d73-85d1-b140efeda54c\",\"seq\":47,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.349Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.rollback_started\",\"payload\":{\"toolCallId\":\"call-5f918837-cf80-11f1-aef5-9cf5c3457897-0-0\",\"checkpointId\":\"4930a752-bd9d-4078-b1cc-96eb19691ef6\",\"files\":[\"src/util.ts\"]},\"id\":\"61c321db-bd8f-46cc-a953-e84f055fabf9\",\"seq\":48,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.351Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.rollback_completed\",\"payload\":{\"toolCallId\":\"call-5f918837-cf80-11f1-aef5-9cf5c3457897-0-0\",\"checkpointId\":\"4930a752-bd9d-4078-b1cc-96eb19691ef6\",\"files\":[\"src/util.ts\"]},\"id\":\"a8969581-e48f-466d-8009-203441bd7de3\",\"seq\":49,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.353Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"3eb45512-5429-4ff2-bd7d-66e3a37d5a37\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":11.64,\"outcome\":\"success\"},\"id\":\"ab7ebd1c-1d98-4be9-8234-b0c68ce584bb\",\"seq\":50,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.355Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-5f918837-cf80-11f1-aef5-9cf5c3457897-0-0\",\"toolName\":\"patch.apply\",\"error\":\"Search block not found for src/util.ts\",\"durationMs\":23,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-59887b79-2908-46de-88fd-1cab062cb3b9\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"98f0420c-d8e6-421b-8315-1f71c194f208\",\"seq\":51,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.357Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:56:13.359Z\"},\"id\":\"4e156f49-0ec4-45d6-8e5f-67c5e3078012\",\"seq\":52,\"version\":1,\"timestamp\":\"2026-10-24T07:56:13.360Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T07:56:13.428Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-patch-application",
+      "usage": {
+        "inputTokens": 23960,
+        "outputTokens": 650,
+        "observed": true
+      },
+      "costUsd": 0.06639999999999999,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.patch-application",
+      "stratum": "single-file-edit",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:56:13.479Z",
+      "finishedAt": "2026-10-24T07:56:35.331Z",
+      "durationMs": 21852,
+      "toolCalls": 4,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 2,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const x = 2;\n"
+        },
+        "actual": {
+          "content": "export const x = 2;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": null,
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "75758b734961c0d811915ed18890376202faf7249003733ce3af41a66ecc42d1",
+            "content": "export const x = 2;\n",
+            "bytes": 20
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:b40dedde60828bf61d1fadbfc3bb7ea2e0421e9511d22f1b5fb44ae5ba07dbb3"
+          },
+          "truncated": false,
+          "digest": "a3ddb1222e359ad3547d8aef5426b4a9778c497eaedf91b4e744b58897a36750"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:3434edd410ef4d7006db8f81ecd0c91e30819bb1add570c741eb11c4e8adfd09",
+            "src": "directory",
+            "src/util.ts": "file:75758b734961c0d811915ed18890376202faf7249003733ce3af41a66ecc42d1"
+          },
+          "truncated": false,
+          "digest": "b37923b313812577263e1bbb3d97d01d025387cb677b43926664074eb33ed7c3"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; patch.apply 1 completed, 1 denied; alix_shell_run 1 denied.\n\nTask completed.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-654d07ea-cf80-11f1-be83-cdd497d65624-0-0:\\nexport const x = 1;\",\"Tool alix_file_read, call call-673acfb4-cf80-11f1-8c47-121702b123b9-0-0:\\nexport const x = 1;\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; patch.apply 1 completed, 1 denied; alix_shell_run 1 denied.\n\nTask completed.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-654d07ea-cf80-11f1-be83-cdd497d65624-0-0:\\nexport const x = 1;\",\"Tool alix_file_read, call call-673acfb4-cf80-11f1-8c47-121702b123b9-0-0:\\nexport const x = 1;\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-patch-application",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.patch-application\",\"payload\":{\"subagentId\":\"eval-behavioral-patch-application\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\".\"]},\"id\":\"0bc83afa-ce05-4a9d-923c-dcc2e4c89aba\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T07:56:16.796Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5441,\"outputTokens\":61},\"id\":\"e9c47104-9a77-457c-a171-9d38a5895e09\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T07:56:21.920Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-654d07ea-cf80-11f1-be83-cdd497d65624-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-23d8d0c0-ed3f-4386-982b-f54761c96c44\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"66062eb6-f0d8-49d7-9705-442e0ccce289\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T07:56:21.923Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-654d07ea-cf80-11f1-be83-cdd497d65624-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-23d8d0c0-ed3f-4386-982b-f54761c96c44\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"547cedba-e3b3-48e3-83bb-b51218d1021c\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T07:56:21.928Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:56:21.928Z\"},\"id\":\"20978be1-a5f7-4848-be49-f5a66270df4b\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T07:56:21.929Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"654e51d4-a7b7-4e89-9c4c-a0e4ffa0a574\",\"operation\":\"tool.route.file.read\"},\"id\":\"9d6cf7d2-91ec-4047-87e4-2bbc174b927e\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T07:56:21.930Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"654e51d4-a7b7-4e89-9c4c-a0e4ffa0a574\",\"operation\":\"tool.route.file.read\",\"durationMs\":2.02,\"outcome\":\"success\"},\"id\":\"5d2e3107-0161-48c9-b485-5d12f773d9e9\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T07:56:21.933Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-654d07ea-cf80-11f1-be83-cdd497d65624-0-0\",\"outputPreview\":\"export const x = 1;\\n\",\"outputSize\":20,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-23d8d0c0-ed3f-4386-982b-f54761c96c44\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"89589e85-c492-4d16-86e8-dda6d2de9726\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T07:56:21.934Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-654d07ea-cf80-11f1-be83-cdd497d65624-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":11,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-23d8d0c0-ed3f-4386-982b-f54761c96c44\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"41bf35e7-51c0-4c0a-bb4f-aa078229b6fc\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T07:56:21.934Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5524,\"outputTokens\":102},\"id\":\"b814524e-169a-41ea-a163-ccc061851a82\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T07:56:24.669Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-673acfb4-cf80-11f1-8c47-121702b123b9-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-50405b5a-98a9-41cd-b0af-0aa35f3d2804\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"2bac05a2-c038-4228-96bd-30335c2d8591\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T07:56:24.673Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-673acfb4-cf80-11f1-8c47-121702b123b9-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-50405b5a-98a9-41cd-b0af-0aa35f3d2804\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"03a52308-406d-4124-a0ee-9a37d40d7aca\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T07:56:24.678Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:56:24.679Z\"},\"id\":\"4d18e844-5ee9-462b-b6f2-591089032a32\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T07:56:24.680Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"b76feb9a-c696-4802-8b0b-420d2c194ba8\",\"operation\":\"tool.route.file.read\"},\"id\":\"afd4d464-b8d9-4769-b7ae-e17100ba62d0\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T07:56:24.681Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"b76feb9a-c696-4802-8b0b-420d2c194ba8\",\"operation\":\"tool.route.file.read\",\"durationMs\":0.89,\"outcome\":\"success\"},\"id\":\"ed9f0c31-a8a9-4311-b29d-58f294452ccc\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T07:56:24.683Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-673acfb4-cf80-11f1-8c47-121702b123b9-0-0\",\"outputPreview\":\"export const x = 1;\\n\",\"outputSize\":20,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-50405b5a-98a9-41cd-b0af-0aa35f3d2804\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"560dd3c9-0634-4cea-bd3c-6e25c4addfb1\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T07:56:24.684Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-673acfb4-cf80-11f1-8c47-121702b123b9-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":14,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-50405b5a-98a9-41cd-b0af-0aa35f3d2804\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"e8cc83a6-f215-497b-b8ac-a6d275439af3\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T07:56:24.686Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5611,\"outputTokens\":151},\"id\":\"71954163-b68e-444a-b688-409bfa1bb45a\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.462Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-68dd7185-cf80-11f1-aa93-e7b2b1dfc73d-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/util.ts\\nexport const x = 1;\\n=======\\nexport const x = 2;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5673bbb3-26b9-42f2-95c0-64e3d9fd0f11\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"5a23e733-66e3-4f6d-b713-a9205c02eba7\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.463Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-68dd7185-cf80-11f1-aa93-e7b2b1dfc73d-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5673bbb3-26b9-42f2-95c0-64e3d9fd0f11\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"ab9ec978-7db1-4d31-b521-deb59d4e387c\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.465Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:56:28.466Z\"},\"id\":\"e87703ab-fb4c-4242-b385-0ef7cc564dff\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.466Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"c18d3187-519f-41f3-a12e-d1fb796e187f\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"b6b411df-bbcc-483c-bd76-ac1b46dfa364\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.466Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-68dd7185-cf80-11f1-aa93-e7b2b1dfc73d-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"61312939-9b28-4654-b250-e1e51c1ec6ab\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.468Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-68dd7185-cf80-11f1-aa93-e7b2b1dfc73d-0-0\",\"checkpointId\":\"95844a36-81a1-4587-8cb0-dc915360f9db\",\"files\":[\"src/util.ts\"]},\"id\":\"e53c5eb2-2221-4fa1-91de-cde5cdad7d28\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.471Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"7e3e583b-3871-448b-9732-252e514155eb\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/util.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"025aaf0b-9338-4bfe-ada6-d366c1db399e\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.472Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"7e3e583b-3871-448b-9732-252e514155eb\",\"validated\":true},\"id\":\"a36b5f9f-3a58-4081-b9e8-97b8a3689178\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.473Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.applied\",\"payload\":{\"proposalId\":\"7e3e583b-3871-448b-9732-252e514155eb\",\"checkpointId\":\"\",\"changedFiles\":[\"src/util.ts\"]},\"id\":\"4d51e1fc-3365-4833-8d94-619a7f0cbe89\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.479Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.changed_files\",\"payload\":{\"changedFiles\":[\"src/util.ts\"]},\"id\":\"d586cdc0-cfcd-4ee3-a1ea-93c38e7acbce\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.481Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"c18d3187-519f-41f3-a12e-d1fb796e187f\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":15.13,\"outcome\":\"success\"},\"id\":\"6e76b009-25ec-4810-8923-a82d46e0db45\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.482Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-68dd7185-cf80-11f1-aa93-e7b2b1dfc73d-0-0\",\"outputPreview\":\"[no output]\",\"outputSize\":0,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5673bbb3-26b9-42f2-95c0-64e3d9fd0f11\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"cd2f1821-804c-419a-a359-636abb962faa\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.483Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-68dd7185-cf80-11f1-aa93-e7b2b1dfc73d-0-0\",\"toolName\":\"patch.apply\",\"status\":\"success\",\"durationMs\":19,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5673bbb3-26b9-42f2-95c0-64e3d9fd0f11\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"4be02b84-d272-417d-a688-001ac9978105\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T07:56:28.484Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3609,\"outputTokens\":139},\"id\":\"60d716ce-4564-4f99-85ba-0da2cad6eb2e\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.537Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-6b1fe550-cf80-11f1-808c-003f627506bd-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/util.ts\\nexport const x = 1;\\n=======\\nexport const x = 2;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-df0f3322-054e-4455-b30c-2aa8eafd0f8e\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"e2916232-2b21-42fb-bb5d-468264705d9a\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.537Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-6b1fe550-cf80-11f1-808c-003f627506bd-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-df0f3322-054e-4455-b30c-2aa8eafd0f8e\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"3a9c054f-6586-47fd-80cc-6b938d40c394\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.538Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:56:32.538Z\"},\"id\":\"89b25626-ba1d-4dc9-8d85-bd313b2cd4dd\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.539Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"2023c132-47ec-4df8-8ebb-979702626b7a\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"8ef327bd-572a-4baa-bc41-9586437c3783\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.541Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-6b1fe550-cf80-11f1-808c-003f627506bd-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"e86a013e-895b-453c-8a3c-b270cf2ea898\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.543Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-6b1fe550-cf80-11f1-808c-003f627506bd-0-0\",\"checkpointId\":\"d9a6fbc3-5b9b-481c-984b-af19c3d841bd\",\"files\":[\"src/util.ts\"]},\"id\":\"88889d2f-f77c-4999-8e59-1d461041741e\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.544Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"bb6abb87-6532-485e-8ec3-1adafa09497c\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/util.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"01e737ba-8e28-40dd-94c6-0996075de487\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.545Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"bb6abb87-6532-485e-8ec3-1adafa09497c\",\"validated\":true},\"id\":\"0bc61c02-ff88-4549-a896-864212d7ebb8\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.545Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.rollback_started\",\"payload\":{\"toolCallId\":\"call-6b1fe550-cf80-11f1-808c-003f627506bd-0-0\",\"checkpointId\":\"d9a6fbc3-5b9b-481c-984b-af19c3d841bd\",\"files\":[\"src/util.ts\"]},\"id\":\"0d440fc8-8765-41b1-90be-3cdfaa9cfa3f\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.546Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.rollback_completed\",\"payload\":{\"toolCallId\":\"call-6b1fe550-cf80-11f1-808c-003f627506bd-0-0\",\"checkpointId\":\"d9a6fbc3-5b9b-481c-984b-af19c3d841bd\",\"files\":[\"src/util.ts\"]},\"id\":\"889a932c-bae5-41fc-b8da-e59c33226c8c\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.548Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"2023c132-47ec-4df8-8ebb-979702626b7a\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":5.51,\"outcome\":\"success\"},\"id\":\"4386b325-146a-471a-84c0-086ad2a42793\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.548Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-6b1fe550-cf80-11f1-808c-003f627506bd-0-0\",\"toolName\":\"patch.apply\",\"error\":\"Search block not found for src/util.ts\",\"durationMs\":12,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-df0f3322-054e-4455-b30c-2aa8eafd0f8e\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"94db4a82-d6d1-4477-8546-c0a5d5420e5c\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.549Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:56:32.549Z\"},\"id\":\"26a6bfcc-bde5-4f82-bef2-7ba9beb643bf\",\"seq\":45,\"version\":1,\"timestamp\":\"2026-10-24T07:56:32.549Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3725,\"outputTokens\":120},\"id\":\"3843fdb6-a91f-4254-8fc3-2e7453f971a5\",\"seq\":46,\"version\":1,\"timestamp\":\"2026-10-24T07:56:35.273Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T07:56:35.330Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-patch-application",
+      "usage": {
+        "inputTokens": 23910,
+        "outputTokens": 573,
+        "observed": true
+      },
+      "costUsd": 0.06550500000000001,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.patch-application",
+      "stratum": "single-file-edit",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:56:35.331Z",
+      "finishedAt": "2026-10-24T07:57:09.780Z",
+      "durationMs": 34449,
+      "toolCalls": 4,
+      "toolCallsCompleted": 4,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const x = 2;\n"
+        },
+        "actual": {
+          "content": "export const x = 2;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": null,
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "75758b734961c0d811915ed18890376202faf7249003733ce3af41a66ecc42d1",
+            "content": "export const x = 2;\n",
+            "bytes": 20
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:b40dedde60828bf61d1fadbfc3bb7ea2e0421e9511d22f1b5fb44ae5ba07dbb3"
+          },
+          "truncated": false,
+          "digest": "a3ddb1222e359ad3547d8aef5426b4a9778c497eaedf91b4e744b58897a36750"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:3434edd410ef4d7006db8f81ecd0c91e30819bb1add570c741eb11c4e8adfd09",
+            "src": "directory",
+            "src/util.ts": "file:75758b734961c0d811915ed18890376202faf7249003733ce3af41a66ecc42d1"
+          },
+          "truncated": false,
+          "digest": "b37923b313812577263e1bbb3d97d01d025387cb677b43926664074eb33ed7c3"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; patch.apply 1 completed; alix_file_read 1 denied; task.complete 1 completed.\n\nI'll read the file first.\n\nThe change is already applied. The file `src/util.ts` now contains `export const x = 2;` followed by a trailing newline \u2014 all other bytes preserved.\n\nI'm not creating any placeholder file: the \"owned outputs: ..\" list is empty, so there is nothing extra to write, and inventing a `\".\"` file would add an unwanted artifact. The requested edit is complete.\n\n[summary] Changed exported constant x in src/util.ts from 1 to 2, preserving all other bytes and the trailing newline.\n[file_ref] src/util.ts\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-726e30a9-cf80-11f1-99a7-e2e0265ffd82-0-0:\\nexport const x = 1;\",\"Tool alix_file_read, call call-75c2a355-cf80-11f1-903a-6ee953fa4ae4-0-0:\\nexport const x = 2;\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.read 2 completed; patch.apply 1 completed; alix_file_read 1 denied; task.complete 1 completed.\n\nI'll read the file first.\n\nThe change is already applied. The file `src/util.ts` now contains `export const x = 2;` followed by a trailing newline \u2014 all other bytes preserved.\n\nI'm not creating any placeholder file: the \"owned outputs: ..\" list is empty, so there is nothing extra to write, and inventing a `\".\"` file would add an unwanted artifact. The requested edit is complete.\n\n[summary] Changed exported constant x in src/util.ts from 1 to 2, preserving all other bytes and the trailing newline.\n[file_ref] src/util.ts\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_read, call call-726e30a9-cf80-11f1-99a7-e2e0265ffd82-0-0:\\nexport const x = 1;\",\"Tool alix_file_read, call call-75c2a355-cf80-11f1-903a-6ee953fa4ae4-0-0:\\nexport const x = 2;\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-patch-application",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.patch-application\",\"payload\":{\"subagentId\":\"eval-behavioral-patch-application\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\".\"]},\"id\":\"6ba2dec8-795e-4015-a9e2-83cc368c5612\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T07:56:38.129Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5441,\"outputTokens\":67},\"id\":\"f2bad4a9-9d02-4ec7-893c-206f0a8f9b6c\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T07:56:44.118Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-726e30a9-cf80-11f1-99a7-e2e0265ffd82-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-8ea3d05c-ffc4-424a-99ed-ccdcffc60efa\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"af0ccba0-d808-4533-85fa-21256db8c07f\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T07:56:44.125Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-726e30a9-cf80-11f1-99a7-e2e0265ffd82-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-8ea3d05c-ffc4-424a-99ed-ccdcffc60efa\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"cee156e9-4d4c-47ab-9dce-113105147e07\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T07:56:44.143Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:56:44.144Z\"},\"id\":\"5a5687c8-a815-4595-8c36-38aa51357a76\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T07:56:44.145Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"539eab65-f6bb-419d-9576-6c60d0db520c\",\"operation\":\"tool.route.file.read\"},\"id\":\"fe82f62d-6cb4-4289-a00a-fa36a3ef98d2\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T07:56:44.147Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"539eab65-f6bb-419d-9576-6c60d0db520c\",\"operation\":\"tool.route.file.read\",\"durationMs\":4.79,\"outcome\":\"success\"},\"id\":\"b4e45155-c98d-46fa-9709-cd43bd1055ff\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T07:56:44.154Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-726e30a9-cf80-11f1-99a7-e2e0265ffd82-0-0\",\"outputPreview\":\"export const x = 1;\\n\",\"outputSize\":20,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-8ea3d05c-ffc4-424a-99ed-ccdcffc60efa\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"be207f71-efeb-49f5-985a-1ddd60742f1d\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T07:56:44.157Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-726e30a9-cf80-11f1-99a7-e2e0265ffd82-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":33,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-8ea3d05c-ffc4-424a-99ed-ccdcffc60efa\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"c4c2244a-8a3d-4049-955d-a903e9427e8e\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T07:56:44.159Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5529,\"outputTokens\":137},\"id\":\"d0c7bac1-64d2-4258-99c2-7395049d2b69\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.315Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-747f53d9-cf80-11f1-b6aa-a639cda0f36f-0-0\",\"toolName\":\"patch.apply\",\"capability\":\"patch.apply\",\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"argsPreview\":{\"format\":\"search_replace\",\"patchText\":\"<<<<<<< SEARCH path=src/util.ts\\nexport const x = 1;\\n=======\\nexport const x = 2;\\n>>>>>>> REPLACE\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-a7b2bd1c-f9b2-4e23-9095-812de19c62e2\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"2b17f61e-e472-444a-858b-2a93079b83ab\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.316Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-747f53d9-cf80-11f1-b6aa-a639cda0f36f-0-0\",\"toolName\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-a7b2bd1c-f9b2-4e23-9095-812de19c62e2\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"1411b4b6-9e0d-4425-9b81-61e6fe6e25ab\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.317Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"patch.apply\"},\"timestamp\":\"2026-10-24T07:56:46.317Z\"},\"id\":\"5985c1f5-5fc0-4403-9efd-a411bfb272b3\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.317Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"e0a01314-b8bb-42d2-9ab6-86fabd98e0e6\",\"operation\":\"tool.route.patch.apply\"},\"id\":\"98db0c73-9579-48b2-b1be-65ed21779d3b\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.318Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.edit_format_policy\",\"payload\":{\"toolCallId\":\"call-747f53d9-cf80-11f1-b6aa-a639cda0f36f-0-0\",\"provider\":\"hive\",\"requestedFormat\":\"search_replace\",\"effectiveFormat\":\"search_replace\",\"formatAutoDetected\":false,\"preferredFormat\":\"structured_patch\",\"allowedFormats\":[\"structured_patch\",\"search_replace\",\"unified_diff\"],\"matchesPreference\":false,\"allowed\":true,\"fullFileRewrite\":\"deny\"},\"id\":\"04c93362-c742-4638-9a17-c4a44e6a37d3\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.319Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.checkpoint_created\",\"payload\":{\"toolCallId\":\"call-747f53d9-cf80-11f1-b6aa-a639cda0f36f-0-0\",\"checkpointId\":\"fe031282-a9da-4383-ad8e-b80f0aac7d7b\",\"files\":[\"src/util.ts\"]},\"id\":\"c0cc330f-99f1-4f5b-bebd-c855c745dc6b\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.322Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.proposed\",\"payload\":{\"proposalId\":\"dd708bf1-2a87-410b-93cd-afcbff1b0bc7\",\"format\":\"search_replace\",\"provider\":\"alix\",\"model\":\"n/a\",\"files\":[{\"path\":\"src/util.ts\",\"operation\":\"modify\"}],\"requiresApproval\":false},\"id\":\"3fbcc756-fe7f-419f-b9e2-c0f46e2f3125\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.324Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.parsed\",\"payload\":{\"proposalId\":\"dd708bf1-2a87-410b-93cd-afcbff1b0bc7\",\"validated\":true},\"id\":\"89071551-b725-4fa6-b33c-a23eb82ce6d9\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.324Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.applied\",\"payload\":{\"proposalId\":\"dd708bf1-2a87-410b-93cd-afcbff1b0bc7\",\"checkpointId\":\"\",\"changedFiles\":[\"src/util.ts\"]},\"id\":\"fefa4fb2-ae31-4ee3-af41-8a831c9a990c\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.327Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"patch.changed_files\",\"payload\":{\"changedFiles\":[\"src/util.ts\"]},\"id\":\"7eb944d9-d24f-4269-92b5-cf997e74bde5\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.328Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"e0a01314-b8bb-42d2-9ab6-86fabd98e0e6\",\"operation\":\"tool.route.patch.apply\",\"durationMs\":9.99,\"outcome\":\"success\"},\"id\":\"eb93b399-a8e3-4180-bc45-7a7c68195613\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.329Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-747f53d9-cf80-11f1-b6aa-a639cda0f36f-0-0\",\"outputPreview\":\"[no output]\",\"outputSize\":0,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-a7b2bd1c-f9b2-4e23-9095-812de19c62e2\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"b3068b8e-9ee2-4844-acb2-b28fc32b2168\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.329Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-747f53d9-cf80-11f1-b6aa-a639cda0f36f-0-0\",\"toolName\":\"patch.apply\",\"status\":\"success\",\"durationMs\":14,\"canonicalCapability\":\"patch.apply\",\"argumentHash\":\"f15d2d4b81799541fff61d393b2083bf970a7e53ce88b98a878c091f284accae\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-a7b2bd1c-f9b2-4e23-9095-812de19c62e2\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"7b15a35f-3164-4ebc-8346-cadd4157ea24\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T07:56:46.329Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5615,\"outputTokens\":141},\"id\":\"6876f3c6-4187-4456-9382-032ce1fc23fd\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T07:56:50.058Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-75c2a355-cf80-11f1-903a-6ee953fa4ae4-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-710f5a00-130c-40b6-a6da-57fded782070\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"1bf16e09-11ae-4295-a7eb-3b3718c2dc13\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T07:56:50.059Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-75c2a355-cf80-11f1-903a-6ee953fa4ae4-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-710f5a00-130c-40b6-a6da-57fded782070\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"aa2d0aa7-eeec-4bba-9afc-5260eae1e539\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T07:56:50.060Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:56:50.061Z\"},\"id\":\"3d3799d1-9226-41f9-a425-99b1817413f5\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T07:56:50.061Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"1d857df4-f32c-440f-8f16-11e48f60217f\",\"operation\":\"tool.route.file.read\"},\"id\":\"a555a29a-e4c8-4e12-948f-15805a95fd00\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T07:56:50.062Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"1d857df4-f32c-440f-8f16-11e48f60217f\",\"operation\":\"tool.route.file.read\",\"durationMs\":0.74,\"outcome\":\"success\"},\"id\":\"ff4fd5e2-7c78-4dcf-a13b-2a64828923cc\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T07:56:50.064Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-75c2a355-cf80-11f1-903a-6ee953fa4ae4-0-0\",\"outputPreview\":\"export const x = 2;\\n\",\"outputSize\":20,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-710f5a00-130c-40b6-a6da-57fded782070\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"6f73ca63-b79c-4dac-8848-6916785407ca\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T07:56:50.065Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-75c2a355-cf80-11f1-903a-6ee953fa4ae4-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":5,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-710f5a00-130c-40b6-a6da-57fded782070\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"29bb1282-b710-4669-94c0-b11ce15c64fa\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T07:56:50.066Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3610,\"outputTokens\":91},\"id\":\"5dbbeffb-cd1d-46d2-8d39-98f4f409e080\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T07:56:54.089Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3755,\"outputTokens\":296},\"id\":\"869d2c5b-b2fc-4c77-95ca-9c7abe79bfac\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T07:57:09.676Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-7a696208-cf80-11f1-8574-374b004ff17d-0-0\",\"toolName\":\"task.complete\",\"capability\":\"task.complete\",\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"argsPreview\":{},\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5178f2cf-ab0d-4f5a-8040-3377bcc22d4b\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"5c616804-d51f-428b-9baa-4683af9c3f6d\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T07:57:09.677Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-7a696208-cf80-11f1-8574-374b004ff17d-0-0\",\"toolName\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5178f2cf-ab0d-4f5a-8040-3377bcc22d4b\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"21318ceb-81d2-4ea0-b134-3e9f7c62659a\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T07:57:09.678Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-7a696208-cf80-11f1-8574-374b004ff17d-0-0\",\"outputPreview\":\"Task complete.\",\"outputSize\":14,\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5178f2cf-ab0d-4f5a-8040-3377bcc22d4b\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"1b617b11-9b89-4ade-8425-bc749d3ba4b1\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T07:57:09.679Z\"}",
+            "{\"sessionId\":\"eval:behavioral.patch-application\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-7a696208-cf80-11f1-8574-374b004ff17d-0-0\",\"toolName\":\"task.complete\",\"status\":\"success\",\"durationMs\":1,\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.patch-application\",\"invocationId\":\"inv-5178f2cf-ab0d-4f5a-8040-3377bcc22d4b\",\"agentId\":\"eval-behavioral-patch-application\"},\"id\":\"d8d4790c-5476-4017-979e-915431865ce6\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T07:57:09.680Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T07:57:09.718Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-patch-application",
+      "usage": {
+        "inputTokens": 23950,
+        "outputTokens": 732,
+        "observed": true
+      },
+      "costUsd": 0.067195,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    }
+  ],
+  "latency": {
+    "observed": true,
+    "samples": 5,
+    "p50Ms": 33146,
+    "p95Ms": 37109
+  },
+  "verifiedSuccesses": 5,
+  "inadmissible": 0,
+  "costUsd": 0.333095
+}

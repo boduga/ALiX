@@ -271,3 +271,81 @@ describe("capture is wired before cleanup", () => {
     expect(sweep).toContain("evidence: execution.evidence ?? null");
   });
 });
+
+describe("session-log fallback for drivers that report no events", () => {
+  it("reads the case's durable events from disk", async () => {
+    const { cwd, cleanup } = fixture();
+    try {
+      const dir = join(cwd, ".alix", "sessions", "s1");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "events.jsonl"),
+        [
+          JSON.stringify({ type: "session.started", payload: {} }),
+          JSON.stringify({ type: "model.usage", payload: { inputTokens: 5 } }),
+        ].join("\n") + "\n",
+      );
+      const { readSessionEventsFromDisk } = await import("../../src/operations/evals/eval-evidence.js");
+      const events = readSessionEventsFromDisk(cwd);
+      expect(events).not.toBeNull();
+      expect(events!).toHaveLength(2);
+      expect(JSON.parse(events![1]!).payload.inputTokens).toBe(5);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("returns null when no session log exists, never an empty array", async () => {
+    const { cwd, cleanup } = fixture();
+    try {
+      const { readSessionEventsFromDisk } = await import("../../src/operations/evals/eval-evidence.js");
+      // [] would claim "observed, and there were none".
+      expect(readSessionEventsFromDisk(cwd)).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("prefers driver-reported events over the log", async () => {
+    const { cwd, cleanup } = fixture();
+    try {
+      const dir = join(cwd, ".alix", "sessions", "s1");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "events.jsonl"), JSON.stringify({ type: "from.disk" }) + "\n");
+      const e = captureEvalRunEvidence(cwd, FILE_OBJECTIVE, { events: ['{"type":"from.driver"}'] });
+      expect(e.runtime.events).toEqual(['{"type":"from.driver"}']);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("falls back to the log when the driver reported none", async () => {
+    const { cwd, cleanup } = fixture();
+    try {
+      const dir = join(cwd, ".alix", "sessions", "s1");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "events.jsonl"), JSON.stringify({ type: "from.disk" }) + "\n");
+      const e = captureEvalRunEvidence(cwd, FILE_OBJECTIVE, {}, { eventsFromDisk: true });
+      expect(e.runtime.events).toHaveLength(1);
+      expect(JSON.parse(e.runtime.events![0]!).type).toBe("from.disk");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("marks a truncated event read instead of passing off a subset", async () => {
+    const { cwd, cleanup } = fixture();
+    try {
+      const dir = join(cwd, ".alix", "sessions", "s1");
+      mkdirSync(dir, { recursive: true });
+      const many = Array.from({ length: 450 }, (_, i) => JSON.stringify({ type: "tool.completed", payload: { i } }));
+      writeFileSync(join(dir, "events.jsonl"), many.join("\n") + "\n");
+      const { readSessionEventsFromDisk, MAX_EVIDENCE_EVENTS } = await import("../../src/operations/evals/eval-evidence.js");
+      const events = readSessionEventsFromDisk(cwd)!;
+      expect(events).toHaveLength(MAX_EVIDENCE_EVENTS + 1);
+      expect(JSON.parse(events[events.length - 1]!).type).toBe("evidence.events.truncated");
+    } finally {
+      cleanup();
+    }
+  });
+});
