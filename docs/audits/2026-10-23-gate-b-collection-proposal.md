@@ -1,10 +1,10 @@
 # Gate B collection proposal — priced and scoped
 
-**Status: PROPOSAL ONLY. NOT AUTHORIZED. NO SPEND.**
+**Status: APPROVED (proposal scope only). EXECUTION STILL BLOCKED. NO SPEND YET.**
 **Date:** 2026-10-23
 **Source pin:** `feat/phase0-master-prd`, commit `4dbbfd0d` (clean tree)
 **Companion:** [Gate B acceptance packet](2026-10-23-gate-b-acceptance-packet.md)
-**Gate B remains HOLD whether or not this proposal is approved.**
+**Gate B remains HOLD.**
 
 This document scopes the next real-model measurement pass and states what it would
 cost. It does not authorize that pass, does not freeze a model, and does not quote a
@@ -220,15 +220,28 @@ prose. An infrastructure failure is `inadmissible`, never a refusal or a success
 
 ## 9. Approval
 
-Approval is required before any invocation and must name the exact committed
-version of this proposal.
+Approval is required before any invocation and binds the exact proposal text.
+
+**Approved proposal text:** commit `9d416d85` (this file before the signature block).
+**Approval record:** the commit that adds the block below, a direct child of
+`9d416d85`. No other change was made in that commit.
 
 | Field | Value |
 |---|---|
-| Operator identity | _pending — blank_ |
-| Approval date | _pending — blank_ |
-| Approved ceiling | _pending — blank_ |
-| Approved model revision | _pending — blank_ |
-| Conditions added by operator | _pending — blank_ |
+| Operator identity | Babasola &lt;boduga@gmail.com&gt; (repository git identity) |
+| Approval date | 2026-10-23 |
+| Approved ceiling | `$4.50` USD at the recorded catalog rate, per §5 conditions |
+| Approved model revision | Resolve `models.default` at run start; pin the provider's immutable revision. No model is hardcoded. |
+| Approved scope | Proposal scope only: §2 runs, §3 frozen inputs, §4 capture contract, §6 stop rules. This approval does not start any run. |
+| Conditions added by operator | None beyond §5 ceiling conditions and §7 independent-scoring requirement. |
 
-Until this block is filled by the operator, this document authorizes nothing.
+### What this approval does not authorize
+
+- It does not authorize an invocation while §4 capture work is unlanded.
+- It does not authorize author-only scoring to stand in for Gate B acceptance.
+- It does not authorize push, publication, merge, migration, security
+  qualification, or release. Gate B, Gate E and Gate F/Q13 remain separate
+  decisions.
+
+Execution additionally requires the §3 pins to be recorded and the §4 change to be
+merged and reviewed.
