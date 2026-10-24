@@ -113,6 +113,17 @@ qualification.
 
 ## Next acceptance packet
 
+The Gate B acceptance packet is assembled:
+[`audits/2026-10-23-gate-b-acceptance-packet.md`](audits/2026-10-23-gate-b-acceptance-packet.md).
+Scope: Gate B only (PRD §9 baseline, PRE-R005/R006, §7 measurement contract).
+Source pin: branch `feat/phase0-master-prd`, commit `7ca6f689`, clean tree.
+It assembles committed evidence, records `null` for every unmeasured field, and
+recommends Gate B HOLD with Gate E independence and Gate F/Q13 signature still
+blank. It is not a pass, a signature, or a qualification, and it authorizes no
+collection or spend.
+
+Remaining work before a baseline can be signed:
+
 1. Complete source/consumer review and historical provenance disposition.
 2. Finish shim trigger/usage/retirement catalog and benchmark isolation protocol.
 3. Design the missing human-review comparisons and metric capture.
