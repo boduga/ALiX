@@ -127,7 +127,12 @@ Remaining work before a baseline can be signed:
 1. Complete source/consumer review and historical provenance disposition.
 2. Finish shim trigger/usage/retirement catalog and benchmark isolation protocol.
 3. Design the missing human-review comparisons and metric capture.
-4. Present a priced, scoped proposal before any new real-model collection.
+4. Approve or reject the priced, scoped collection proposal
+   [`audits/2026-10-23-gate-b-collection-proposal.md`](audits/2026-10-23-gate-b-collection-proposal.md).
+   It is a proposal only: 52 planned runs, base estimate `$2.947558` at the recorded
+   catalog rate, requested ceiling `$4.50`, plus a prerequisite capture extension for
+   latency, tool/retry counts and operator review time. Nothing may run until the
+   operator fills its approval block.
 5. Obtain baseline signature and independent security review on exact artifacts.
 
 Full PRD completion remains open. Audit closure with HOLD requires an explicit
