@@ -1,0 +1,173 @@
+{
+  "source": "headless coordination run on a real model",
+  "provider": "hive",
+  "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+  "concurrency": 4,
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER",
+  "exitCode": 0,
+  "wallSeconds": 63,
+  "workerCount": 3,
+  "usage": {
+    "observed": true,
+    "inputTokens": 134782,
+    "outputTokens": 2769,
+    "records": [
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-e7ba6aaa",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7539,
+        "outputTokens": 90
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-e7ba6aaa",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7715,
+        "outputTokens": 84
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-e7ba6aaa",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7860,
+        "outputTokens": 143
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-10ebab1c",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7539,
+        "outputTokens": 100
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-10ebab1c",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7794,
+        "outputTokens": 220
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-10ebab1c",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8062,
+        "outputTokens": 236
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-10ebab1c",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8298,
+        "outputTokens": 199
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-10ebab1c",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8336,
+        "outputTokens": 275
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-edfc3b21",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7539,
+        "outputTokens": 90
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-edfc3b21",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7713,
+        "outputTokens": 130
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-edfc3b21",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7977,
+        "outputTokens": 226
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-edfc3b21",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8133,
+        "outputTokens": 172
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-f9c9f495",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7539,
+        "outputTokens": 93
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-f9c9f495",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7916,
+        "outputTokens": 149
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-f9c9f495",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8068,
+        "outputTokens": 155
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-f9c9f495",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8358,
+        "outputTokens": 147
+      },
+      {
+        "sessionId": "coord_1792871628902",
+        "runId": "run-f9c9f495",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8396,
+        "outputTokens": 260
+      }
+    ]
+  },
+  "costUsd": null,
+  "costNote": "token totals observed; pricing applied by cost-attribution, not here",
+  "artifacts": [
+    {
+      "path": "docs/a.md",
+      "exists": true,
+      "content": "A-MARKER"
+    },
+    {
+      "path": "docs/b.md",
+      "exists": true,
+      "content": "B-MARKER"
+    },
+    {
+      "path": "docs/c.md",
+      "exists": true,
+      "content": "C-MARKER"
+    }
+  ],
+  "recordedAt": "2026-10-24T19:54:49.243Z"
+}

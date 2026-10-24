@@ -1,0 +1,164 @@
+{
+  "source": "restart/crash scenario on a real model (stratum 8)",
+  "provider": "hive",
+  "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER",
+  "killAfterMs": 6000,
+  "killOnRunning": false,
+  "outputCapOverride": null,
+  "phase1": {
+    "usageRecords": 0,
+    "killState": {
+      "killed": true,
+      "trigger": {
+        "mode": "fixed-delay",
+        "killAfterMs": 6000
+      },
+      "runStatus": "running",
+      "workers": [
+        {
+          "id": "worker_81d0aa80-8ff1-4110-9ef3-d93aa7b8b290",
+          "status": "running",
+          "attempt": 1
+        },
+        {
+          "id": "worker_3ef6648f-4ad7-497c-8650-69dcef59ae14",
+          "status": "pending",
+          "attempt": 0
+        },
+        {
+          "id": "worker_58952647-7adf-452b-b55b-6e049322f59d",
+          "status": "pending",
+          "attempt": 0
+        }
+      ],
+      "completedAtKill": 0,
+      "falselyCompleted": null
+    }
+  },
+  "phase2": {
+    "resumedRunId": "coord_6d0f7915-da06-4ce7-9783-c1cb84f026d0",
+    "exitCode": 0,
+    "usageRecords": 14
+  },
+  "usage": {
+    "observed": true,
+    "inputTokens": 111877,
+    "outputTokens": 2183,
+    "records": [
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-eafc7ba2",
+        "inputTokens": 7542,
+        "outputTokens": 90
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-eafc7ba2",
+        "inputTokens": 7720,
+        "outputTokens": 107
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-eafc7ba2",
+        "inputTokens": 7954,
+        "outputTokens": 246
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-eafc7ba2",
+        "inputTokens": 8133,
+        "outputTokens": 189
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-c9ad0f17",
+        "inputTokens": 7542,
+        "outputTokens": 81
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-c9ad0f17",
+        "inputTokens": 7895,
+        "outputTokens": 161
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-c9ad0f17",
+        "inputTokens": 8158,
+        "outputTokens": 255
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-c9ad0f17",
+        "inputTokens": 8368,
+        "outputTokens": 183
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-c9ad0f17",
+        "inputTokens": 8406,
+        "outputTokens": 265
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-ac87991a",
+        "inputTokens": 7542,
+        "outputTokens": 95
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-ac87991a",
+        "inputTokens": 7916,
+        "outputTokens": 172
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-ac87991a",
+        "inputTokens": 8082,
+        "outputTokens": 125
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-ac87991a",
+        "inputTokens": 8234,
+        "outputTokens": 81
+      },
+      {
+        "sessionId": "coord_1792871859294",
+        "runId": "run-ac87991a",
+        "inputTokens": 8385,
+        "outputTokens": 133
+      }
+    ]
+  },
+  "costUsd": null,
+  "costNote": "token totals observed across both halves; pricing applied by cost-attribution",
+  "finalRun": {
+    "status": "completed",
+    "outcome": "success",
+    "workers": [
+      "completed",
+      "completed",
+      "completed"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/a.md",
+      "exists": true,
+      "content": "A-MARKER"
+    },
+    {
+      "path": "docs/b.md",
+      "exists": true,
+      "content": "B-MARKER"
+    },
+    {
+      "path": "docs/c.md",
+      "exists": true,
+      "content": "C-MARKER"
+    }
+  ],
+  "recordedAt": "2026-10-24T19:58:27.667Z"
+}

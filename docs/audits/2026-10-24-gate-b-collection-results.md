@@ -27,7 +27,9 @@ Spend `$2.9520` of the `$4.50` ceiling. Actual/estimate ratio **1.41×**.
 Every case above has per-case `durationMs` plus a `latency` block (p50/p95,
 nearest-rank, `observed: true`). **GB-08 moves from `missing` to `partial`**:
 latency is measured for 45 runs across 9 cases on one model. It is *not* `met`
-because strata 6/8/9 are unmeasured and one model is not a population.
+because strata 6/8/9 were unmeasured at the time and one model is not a
+population; strata 6 and 8 were added on 2026-10-24 (three-worker and kill/resume
+forms), stratum 9 still is not.
 
 ## 3. Failures, and what each one is
 
@@ -92,7 +94,9 @@ One run reported `partial` instead of `success`; status honesty failed. Counted.
   Ceiling arithmetic: 45 runs cost `$2.952` at 1.41× estimate; the remaining 6
   estimated runs (~`$1.14` at proposal rates) project to ~`$1.61` actual, which
   would exceed the `$1.548` left. The ceiling is a hard stop, so these were not
-  attempted. Coverage is **9 of 10 strata** for this collection.
+  attempted. Coverage is **7 of 10 strata** for this collection (corrected 2026-10-24:
+  an earlier "9 of 10" counted strata with historical artifacts, not strata this
+  collection measured).
 - **GB-06 verified-success denominator — independently re-checked, and it still
   does not qualify.** A model-independent pass
   ([verification](../../benchmark/evidence/eval-runs/collection-2026-10-24/) →
