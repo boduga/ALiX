@@ -98,3 +98,43 @@ well as the run.
 
 Step 1 is complete. Steps 2–3 are spend and review. Nothing in this document closes
 the gate, and no figure here should be quoted as cost per verified success.
+
+---
+
+## Risk assessment — commit c3ec118e (HIGH per detect-changes)
+
+`detect-changes` reported **risk: high, 12 affected processes** for this commit.
+Investigated; it is a **name-collision false positive**, not real blast radius.
+
+The graph matched `buildResult` in `src/agents/subagent-cli.ts` against an unrelated
+private `buildResult` in `src/context/repomap/repomap-lite.ts:201`, then walked
+GitNexus analyzer internals (`DependencyGraphImpl`, `SymbolExtractor`, `ClassifyKind`,
+`CountDependencies`) through that symbol name. Every one of the 12 "affected flows"
+begins `Main → …` and none reaches the subagent result path.
+
+Verified by text search instead, since the graph answer was unusable:
+
+| Reference | Kind |
+|---|---|
+| `src/agents/subagent-cli.ts:411` | definition |
+| `src/agents/subagent-cli.ts:758` | the one production call site |
+| `tests/agents/subagent-cli.test.ts:153` | test |
+| `tests/agents/subagent-result-events.vitest.ts:97,108` | new tests |
+
+No other production caller exists. `subagent-cli.ts` is imported only by
+`src/cli.ts` via dynamic import.
+
+**Real risk assessment:** the change is additive at the result-construction seam —
+`buildResult` gains an optional `events` field and the call site passes it. The
+returned `events` array goes from always-`[]` to bounded real events, which is the
+intended fix. The bound plus explicit truncation marker protects the stdout JSON
+contract that the parent parses.
+
+**Verification:** full suite 7695 passed / 706 files; `typecheck:unused` green;
+`check:dead` green; live delegate run emits 35 events where it previously emitted 0.
+
+**Process error, recorded:** I committed before reading the `detect-changes` output.
+The repo contract says to warn on HIGH and never waive it — the correct order is to
+inspect first, then commit. The inspection above was performed after the fact and the
+finding is a false positive, but the sequencing was wrong and is noted rather than
+hidden.
