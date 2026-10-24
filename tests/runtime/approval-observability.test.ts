@@ -84,7 +84,12 @@ describe("Approval observability", () => {
     const pgTmpDir = mkdtempSync(join(tmpdir(), "pg-obs-"));
     mkdirSync(join(pgTmpDir, ".alix", "approvals"), { recursive: true });
     try {
-      const store = new ApprovalStore(pgTmpDir);
+      // The store is wired with the SAME log so the authoritative creation
+      // event has one producer (the store's committed creation transition).
+      // A store without an EventLog is the headless composition root, where the
+      // gate supplies it instead — pinned separately in
+      // tests/security/approval-event-dedup.vitest.ts.
+      const store = new ApprovalStore(pgTmpDir, { eventLog: mockLog });
       await store.load();
 
       const config = makeConfig({ permissions: { tools: { "shell.run": "ask" } } as any });
@@ -102,10 +107,11 @@ describe("Approval observability", () => {
       });
 
       assert.equal(result.decision, "ask");
+      await store.flushEvents();
       const createdEvent = events.find(e => e.type === "approval.created");
       assert.ok(createdEvent, "Expected approval.created event");
-      assert.equal(createdEvent.payload.capability, "shell.run");
-      assert.equal(createdEvent.payload.toolName, "shell.run");
+      assert.ok(createdEvent.payload.capabilities?.includes("shell.run") || createdEvent.payload.capability === "shell.run");
+      assert.equal(createdEvent.payload.requestId, "obs-test-1");
       assert.equal(createdEvent.payload.agentId, "agent-obs");
       assert.equal(createdEvent.payload.status, "pending");
     } finally {

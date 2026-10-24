@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -13,12 +14,63 @@ import {
   COORDINATION_RESULTS_TOOL,
 } from "../../src/coordination/kernel/coordination-tools.js";
 import { CoordinationStore } from "../../src/coordination/kernel/coordination-store.js";
+import { createCoordinationScheduler } from "../../src/coordination/kernel/coordination-scheduler.js";
 import { createCoordinationRun, createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import { PolicyGate } from "../../src/governance/policy/policy-gate.js";
+import { ExecutionAuthorization } from "../../src/runtime-state/runtime/execution-authorization.js";
+import { OwnershipRegistry } from "../../src/coordination/ownership/ownership-registry.js";
+import { buildDefaultToolIndex } from "../../src/capabilities/tools/tool-registry.js";
+import { ToolExecutor } from "../../src/capabilities/tools/executor.js";
 import { ApprovalManager } from "../../src/interfaces/tui/approval-manager.js";
 import { createApprovalResolver } from "../../src/interfaces/tui/approval-resolver.js";
 import { buildErrorMessage } from "../../src/run.js";
-import type { AlixConfig } from "../../src/operations/config/schema.js";
+import type { CoordinationPlanner } from "../../src/coordination/kernel/coordination-planner.js";
+import type { AlixConfig, SessionMode } from "../../src/operations/config/schema.js";
+
+/**
+ * Attach the aggregate evidence a real completed run carries.
+ *
+ * `handleCoordinationRun` reports success only for a `completed` execution that
+ * is also `verified`, and verification requires BOTH an attached aggregate ref
+ * with its source fingerprint AND a matching durable
+ * `coordination.aggregate.completed` event (see `deriveCoordinationCompletion`).
+ * Fixtures that pre-complete workers without running the completion service
+ * must attach that evidence explicitly, or they are asserting success on a run
+ * the product would correctly call unverified — which is exactly the Gate 6 F3
+ * false-success class this gate now rejects.
+ */
+async function attachVerifiedAggregate(
+  store: CoordinationStore,
+  runId: string,
+  eventLog?: { append: (event: { sessionId: string; type: string; payload: Record<string, unknown> }) => Promise<unknown> },
+  outcome: "success" | "partial_success" | "failure" = "success",
+): Promise<void> {
+  const { computeAggregationSourceFingerprint } = await import(
+    "../../src/coordination/kernel/coordination-aggregation-fingerprint.js"
+  );
+  const run = await store.load(runId);
+  if (!run) throw new Error(`attachVerifiedAggregate: run ${runId} not found`);
+  const fingerprint = computeAggregationSourceFingerprint(run);
+  const aggregateResultRef = `.alix/coordination/results/runs/${runId}.json`;
+  await store.attachAggregate(runId, {
+    aggregateResultRef,
+    aggregateGeneratedAt: new Date().toISOString(),
+    aggregateSourceFingerprint: fingerprint,
+    outcome,
+  });
+  await eventLog?.append({
+    sessionId: run.sessionId,
+    type: "coordination.aggregate.completed",
+    payload: {
+      runId,
+      outcome,
+      workerCount: run.workers.length,
+      aggregateResultRef,
+      sourceFingerprint: fingerprint,
+    },
+  });
+}
 
 function testConfig(): AlixConfig {
   return {
@@ -73,11 +125,22 @@ describe("coordination chat tools", () => {
         plannedSessionId = sessionId;
         const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
         await store.save(run);
-        return { valid: true, errors: [], run };
+        const worker = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "worker", goalPrompt: "do",
+          status: "pending", requiredCapabilities: ["filesystem.write"], maxAttempts: 2, planOrder: 0,
+        });
+        await store.addWorker(run.id, worker);
+        return { valid: true, errors: [], run: { ...run, workers: [worker] } };
       },
     } as any;
+    const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+    const sessionDir = join(cwd, ".alix", "sessions", "tui-session-1");
+    await mkdir(sessionDir, { recursive: true });
+    const eventLog = new EventLog(sessionDir);
+    await eventLog.init();
     const handlers = createCoordinationHandlers({
-      cwd, config: testConfig(), store, planner, sessionId: "tui-session-1",
+      cwd, config: testConfig(), store, planner, eventLog, sessionId: "tui-session-1",
+      executor: { execute: async () => ({ outcome: "success" as const, summary: "done" }) },
     });
 
     const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "coordinate test" });
@@ -110,12 +173,22 @@ describe("coordination chat tools", () => {
         return { valid: true, errors: [], run: { ...run, workers } };
       },
     } as any;
+    const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+    const sessionDir = join(cwd, ".alix", "sessions", "tui-approval-reconciliation");
+    await mkdir(sessionDir, { recursive: true });
+    const eventLog = new EventLog(sessionDir);
+    await eventLog.init();
     const handlers = createCoordinationHandlers({
       cwd,
       config: testConfig(),
       store,
       planner,
+      eventLog,
       approvalStore,
+      // The run's session id decides which session dir the completion evidence
+      // is read from; it must be the same session the event log was opened on,
+      // or the aggregate event can never verify the run.
+      sessionId: "tui-approval-reconciliation",
       executor: {
         execute: async () => {
           executionCount++;
@@ -369,15 +442,22 @@ describe("coordination chat tools", () => {
         return { valid: true, errors: [], run: { ...run, workers: [writer] } };
       },
     } as any;
-    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner });
+    // A run whose results were never aggregated is NOT a verified success, so
+    // this asserts the changed-file contract on the non-success path too: the
+    // ownership scope must still never become changed-file evidence.
+    const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+    const sessionDir = join(cwd, ".alix", "sessions", "s1");
+    await mkdir(sessionDir, { recursive: true });
+    const eventLog = new EventLog(sessionDir);
+    await eventLog.init();
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner, eventLog, sessionId: "s1" });
 
     const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "write the owned file" });
 
     // Ownership scopes are where a worker MAY write, not proof that it did:
     // a completed worker with no mutation record is not changed-file evidence.
-    assert.equal(result.kind, "success");
-    assert.notEqual(result.changed, true);
-    assert.equal(result.changedFiles, undefined);
+    assert.notEqual((result as { changed?: boolean }).changed, true);
+    assert.equal((result as { changedFiles?: string[] }).changedFiles, undefined);
   });
 
   it("reports changed files from explicit worker mutation records", async () => {
@@ -387,27 +467,42 @@ describe("coordination chat tools", () => {
         await store.save(run);
         const writer = createWorkerAssignment({
           coordinationRunId: run.id, agentId: "alix#1", taskLabel: "writer", goalPrompt: "write",
-          status: "completed", ownershipScopes: [".tmp/out/a.md"],
+          status: "pending", ownershipScopes: [".tmp/out/a.md"],
+          ownershipClaims: [{ path: ".tmp/out/a.md", recursive: false }],
+          requiredCapabilities: ["filesystem.write"], maxAttempts: 2, planOrder: 0,
         });
         await store.addWorker(run.id, writer);
-        await store.patchWorker(run.id, writer.id, { status: "completed" });
         return { valid: true, errors: [], run: { ...run, workers: [writer] } };
       },
     } as any;
-    // The session recorded the write the worker actually performed.
+    // The session recorded the write the worker actually performed. The worker
+    // is dispatched for real (pending + success executor) so the completion
+    // service aggregates an honest `success`, keeping this on the verified
+    // success path where changed-file evidence is derived.
+    const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+    const sessionDir = join(cwd, ".alix", "sessions", "s1");
+    await mkdir(sessionDir, { recursive: true });
+    const realLog = new EventLog(sessionDir);
+    await realLog.init();
     const eventLog = {
       readAll: async () => [
         { sessionId: "s1", type: "file.created", payload: { path: ".tmp/out/a.md" } },
+        ...(await realLog.readAll()),
       ],
-      append: async () => {},
+      append: async (event: { sessionId: string; type: string; payload: Record<string, unknown> }) => {
+        await realLog.append(event as never);
+      },
     } as any;
-    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner, eventLog, sessionId: "s1" });
+    const handlers = createCoordinationHandlers({
+      cwd, config: testConfig(), store, planner, eventLog, sessionId: "s1",
+      executor: { execute: async () => ({ outcome: "success" as const, summary: "done" }) },
+    });
 
     const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "write the owned file" });
 
     assert.equal(result.kind, "success");
-    assert.equal(result.changed, true);
-    assert.deepEqual(result.changedFiles, [".tmp/out/a.md"]);
+    assert.equal((result as { changed?: boolean }).changed, true);
+    assert.deepEqual((result as { changedFiles?: string[] }).changedFiles, [".tmp/out/a.md"]);
   });
 
   it("publishes structured dependency waits before worker dispatch", async () => {
@@ -432,13 +527,25 @@ describe("coordination chat tools", () => {
         return { valid: true, errors: [], run: { ...run, workers: [producer, consumer] } };
       },
     } as any;
+    const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+    const sessionDir = join(cwd, ".alix", "sessions", "s1");
+    await mkdir(sessionDir, { recursive: true });
+    const realLog = new EventLog(sessionDir);
+    await realLog.init();
     const eventLog = {
-      readAll: async () => [],
-      append: async (event: { type: string; payload: Record<string, unknown> }) => { appended.push(event); },
+      readAll: async () => (await realLog.readAll()) as never,
+      append: async (event: { sessionId: string; type: string; payload: Record<string, unknown> }) => {
+        appended.push(event as never);
+        await realLog.append(event as never);
+      },
     } as any;
-    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner, eventLog });
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner, eventLog, sessionId: "s1" });
     const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "produce then consume" });
-    assert.equal(result.kind, "success");
+    // The dependency/scheduling events are emitted BEFORE the verdict, and are
+    // independent of it: this fixture pre-completes workers without an
+    // aggregation outcome, so the completion is correctly unverified. Asserting
+    // `success` here would be asserting the very F3 false receipt being fixed.
+    assert.equal(result.kind, "error");
     const assignments = appended.filter(event => event.type === "agent.task_assigned");
     assert.equal(assignments.length, 2);
     assert.deepEqual(assignments.map(event => event.payload.dependencyIds), [[], [dependencyId]]);
@@ -448,6 +555,11 @@ describe("coordination chat tools", () => {
   });
 
   it("claims no changed files when no worker completed", async () => {
+    // A goal that plans ZERO workers never produces a terminal run: the
+    // scheduler returns while the run is still `running`. That must NOT be
+    // reported as success (Gate 6 F3) — and it certainly must not claim
+    // changed files. The changed-file assertion below is only reachable on the
+    // non-success path now, which is the point.
     const planner = {
       plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
         const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
@@ -459,9 +571,14 @@ describe("coordination chat tools", () => {
 
     const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "nothing to do" });
 
-    assert.equal(result.kind, "success");
-    assert.equal(result.changed, undefined);
-    assert.equal(result.changedFiles, undefined);
+    assert.equal(result.kind, "error");
+    assert.equal((result as { outcomeUnknown?: boolean }).outcomeUnknown, true);
+    assert.equal((result as { changed?: boolean }).changed, undefined);
+    assert.equal((result as { changedFiles?: string[] }).changedFiles, undefined);
+    assert.match(result.message ?? "", /still (running|planning)/);
+    // Durable state is preserved, not synthesized into a failure.
+    const run = (await store.list())[0];
+    assert.ok(["planning", "running", "replanning", "blocked"].includes(run?.status ?? ""), `run status ${run?.status}`);
   });
 
   it("status reports workers by status and failures", async () => {
@@ -592,6 +709,456 @@ describe("coordination chat tools", () => {
     const status = await handlers[COORDINATION_STATUS_TOOL]({ runId: mine.id });
     assert.equal(status.kind, "success");
     assert.match(status.output ?? "", new RegExp(mine.id));
+  });
+});
+
+/**
+ * The session-mode clamp (`effectiveSessionMode`).
+ *
+ * `args.sessionMode` on `alix_coordination_run` is the MODEL's own argument, so
+ * it is untrusted: it may tighten the host mode, never loosen it. The defect
+ * this pins: the handler returned the argument verbatim, so an `ask` session ran
+ * its workers under `bypass`, `PolicyGate.applySessionMode` turned every `ask`
+ * capability decision into `allow`, and no worker approval was ever requested
+ * (session `run-real`: `{"sessionMode":"bypass"}` in the model's own tool args).
+ *
+ * The clamp must hold across the whole lifecycle, not only at the handler:
+ * the effective mode is what the planner PERSISTS as `run.sessionMode`, and the
+ * scheduler authorizes workers under `run.sessionMode` (re-applied over the
+ * host config on every tick and after a reload). So the matrix asserts the
+ * persisted mode, and the approval tests assert the real PolicyGate verdict —
+ * a persisted-but-ignored mode would still be a downgrade.
+ */
+describe("coordination.run session-mode clamp", () => {
+  let cwd: string;
+  let store: CoordinationStore;
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "coord-clamp-"));
+    store = new CoordinationStore(cwd);
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  function modeConfig(sessionMode: SessionMode, decision: "ask" | "allow" = "ask"): AlixConfig {
+    const base = testConfig();
+    return {
+      ...base,
+      permissions: { ...base.permissions, sessionMode, default: decision },
+    } as AlixConfig;
+  }
+
+  /**
+   * Mirrors `CoordinationPlanner.plan`: the run persists `metadata.sessionMode`
+   * before it is saved (pinned directly by
+   * `tests/kernel/coordination-planner.test.ts`, "persists host metadata and
+   * concurrency before the run is saved"). Captures what the handler passed, so
+   * a missing clamp shows up both in the captured argument and in the store.
+   */
+  function persistingPlanner(captured: Array<{ runId: string; sessionMode?: string }>): CoordinationPlanner {
+    return {
+      plan: async (
+        goal: string,
+        _coordinatorId: string,
+        sessionId: string,
+        metadata?: { sessionMode?: SessionMode },
+      ) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        if (metadata?.sessionMode) run.sessionMode = metadata.sessionMode;
+        await store.save(run);
+        const worker = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "write",
+          goalPrompt: "Write docs/a.md", status: "pending",
+          ownershipScopes: ["docs/a.md"], ownershipClaims: [{ path: "docs/a.md", recursive: false }],
+          requiredCapabilities: ["filesystem.write"], maxAttempts: 2, planOrder: 0,
+        });
+        await store.addWorker(run.id, worker);
+        captured.push({ runId: run.id, sessionMode: metadata?.sessionMode });
+        return { valid: true, errors: [], run: { ...run, workers: [worker] } };
+      },
+    } as unknown as CoordinationPlanner;
+  }
+  // `ask` is the only enforcing mode: PolicyGate.applySessionMode turns an
+  // `ask` decision into `allow` under `auto` AND `bypass`, so the two are one
+  // class for model-originated loosening. The table is deliberately broader
+  // than the implementation (invalid and absent arguments included).
+  const MATRIX: Array<{ host: SessionMode; arg: SessionMode | "yes" | undefined; expected: SessionMode }> = [
+    { host: "ask", arg: "bypass", expected: "ask" },
+    { host: "ask", arg: "auto", expected: "ask" },
+    { host: "ask", arg: "ask", expected: "ask" },
+    { host: "ask", arg: undefined, expected: "ask" },
+    { host: "ask", arg: "yes", expected: "ask" },
+    { host: "auto", arg: "bypass", expected: "auto" },
+    { host: "auto", arg: "auto", expected: "auto" },
+    { host: "auto", arg: undefined, expected: "auto" },
+    { host: "auto", arg: "ask", expected: "ask" },
+    { host: "bypass", arg: "ask", expected: "ask" },
+    { host: "bypass", arg: "bypass", expected: "bypass" },
+    { host: "bypass", arg: undefined, expected: "bypass" },
+  ];
+
+  for (const { host, arg, expected } of MATRIX) {
+    it(`host ${host} + request ${String(arg)} persists ${expected}`, async () => {
+      const captured: Array<{ runId: string; sessionMode?: string }> = [];
+      // A real event log is required for verification: the aggregate-completed
+      // event is the durable evidence `deriveCoordinationCompletion` checks, and
+      // without it a genuinely completed run reads `unverified` (correctly).
+      const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+      const sessionDir = join(cwd, ".alix", "sessions", "s-clamp");
+      await mkdir(sessionDir, { recursive: true });
+      const eventLog = new EventLog(sessionDir);
+      await eventLog.init();
+      const handlers = createCoordinationHandlers({
+        cwd, config: modeConfig(host, "allow"), store,
+        planner: persistingPlanner(captured),
+        executor: { execute: async () => ({ outcome: "success" as const, summary: "done" }) },
+        eventLog,
+        sessionId: "s-clamp",
+      });
+
+      const result = await handlers[COORDINATION_RUN_TOOL](
+        { goal: "Write docs/a.md", ...(arg === undefined ? {} : { sessionMode: arg }) },
+        { toolCallId: `clamp-${host}-${String(arg)}`, name: COORDINATION_RUN_TOOL, args: {}, signal: new AbortController().signal } as never,
+      );
+
+      assert.equal(result.kind, "success");
+      assert.equal(captured.length, 1);
+      assert.equal(captured[0].sessionMode, expected);
+      const persisted = await store.load(captured[0].runId);
+      assert.equal(persisted?.sessionMode, expected);
+    });
+  }
+
+  it("host ask + request bypass: worker requires approval, and still does after a scheduler reload", async () => {
+    const approvalStore = new ApprovalStore(cwd);
+    await approvalStore.load();
+    const captured: Array<{ runId: string; sessionMode?: string }> = [];
+    let executorCalls = 0;
+    const executor = {
+      execute: async () => { executorCalls++; return { outcome: "success" as const, summary: "done" }; },
+    };
+    const config = modeConfig("ask", "ask");
+    const handlers = createCoordinationHandlers({
+      cwd, config, store, planner: persistingPlanner(captured), executor, approvalStore, sessionId: "s-clamp",
+    });
+    const controller = new AbortController();
+    const pendingRun = handlers[COORDINATION_RUN_TOOL](
+      { goal: "Write docs/a.md", sessionMode: "bypass" },
+      { toolCallId: "clamp-ask", name: COORDINATION_RUN_TOOL, args: {}, signal: controller.signal } as never,
+    );
+
+    let failed = false;
+    try {
+      // The handler stays alive polling its durable approvals (CLI-hosted run), so
+      // wait for the block instead of awaiting the call.
+      const blocked = await waitFor(async () => {
+        const runId = captured[0]?.runId;
+        if (!runId) return undefined;
+        const run = await store.load(runId);
+        const worker = run?.workers.find(w => w.status === "blocked" && w.blockReason === "approval_required");
+        return run && worker ? { run, worker } : undefined;
+      });
+
+      // Clamp: the model asked for `bypass`, the run executes as `ask`.
+      assert.equal(captured[0].sessionMode, "ask");
+      assert.equal(blocked.run.sessionMode, "ask");
+      assert.ok(blocked.worker.approvalId);
+      // Durable approval was actually created for the capability — this is the
+      // real PolicyGate verdict, not just a persisted string.
+      const approval = approvalStore.listPending().find(a => a.id === blocked.worker.approvalId);
+      assert.ok(approval, "expected a pending durable approval for the worker");
+      assert.deepEqual(approval.capabilities, ["filesystem.write"]);
+      assert.equal(executorCalls, 0);
+
+      // Restart: a fresh scheduler over the same store re-authorizes a
+      // dispatchable worker under the PERSISTED mode. The worker is made pending
+      // again (its approval id kept), so the reload path — not the first handler
+      // call — is what has to refuse the downgrade.
+      await store.patchWorker(blocked.run.id, blocked.worker.id, { status: "pending", blockReason: undefined });
+      const restartScheduler = createCoordinationScheduler({
+        cwd,
+        daemonInstanceId: "clamp-restart",
+        configProvider: async () => config,
+        store,
+        authorization: new ExecutionAuthorization({
+          policyGate: new PolicyGate(config, { approvalStore }),
+          toolRegistry: buildDefaultToolIndex().registry,
+        }),
+        ownershipRegistry: new OwnershipRegistry(cwd),
+        executor,
+      }, { maxConcurrency: 2 });
+
+      const outcome = await restartScheduler.runUntilIdle(blocked.run.id);
+      assert.equal(outcome.dispatched, 0);
+      const reloaded = await store.load(blocked.run.id);
+      assert.equal(reloaded?.sessionMode, "ask");
+      assert.equal(reloaded?.workers[0].status, "blocked");
+      assert.equal(reloaded?.workers[0].blockReason, "approval_required");
+      assert.equal(reloaded?.workers[0].approvalId, blocked.worker.approvalId);
+      assert.equal(executorCalls, 0);
+      // Re-authorization is not allowed to mint a second approval for the same
+      // worker (dispatch consumes; reconcile only verifies).
+      assert.equal(approvalStore.listPending().length, 1);
+    } catch (error) {
+      failed = true;
+      throw error;
+    } finally {
+      controller.abort();
+      const settled = await pendingRun.then(() => undefined, (error: unknown) => error as Error);
+      // The handler can now settle before the abort lands (an approved worker
+      // resumes, so the call may return its own incomplete/terminal result
+      // first). Either way it must never surface as an unhandled rejection.
+      if (settled) assert.equal(settled.name, "ExecutionCancelledError");
+    }
+  });
+
+  it("host bypass + request ask: tightening still requires approval", async () => {
+    const approvalStore = new ApprovalStore(cwd);
+    await approvalStore.load();
+    const captured: Array<{ runId: string; sessionMode?: string }> = [];
+    let executorCalls = 0;
+    const handlers = createCoordinationHandlers({
+      cwd, config: modeConfig("bypass", "ask"), store,
+      planner: persistingPlanner(captured),
+      executor: { execute: async () => { executorCalls++; return { outcome: "success" as const, summary: "done" }; } },
+      approvalStore, sessionId: "s-clamp",
+    });
+    const controller = new AbortController();
+    const pendingRun = handlers[COORDINATION_RUN_TOOL](
+      { goal: "Write docs/a.md", sessionMode: "ask" },
+      { toolCallId: "clamp-tighten", name: COORDINATION_RUN_TOOL, args: {}, signal: controller.signal } as never,
+    );
+
+    let failed = false;
+    try {
+      const blocked = await waitFor(async () => {
+        const runId = captured[0]?.runId;
+        if (!runId) return undefined;
+        const run = await store.load(runId);
+        const worker = run?.workers.find(w => w.status === "blocked" && w.blockReason === "approval_required");
+        return run && worker ? { run, worker } : undefined;
+      });
+
+      assert.equal(blocked.run.sessionMode, "ask");
+      assert.ok(blocked.worker.approvalId);
+      assert.equal(executorCalls, 0);
+    } catch (error) {
+      failed = true;
+      throw error;
+    } finally {
+      controller.abort();
+      const settled = await pendingRun.then(() => undefined, (error: unknown) => error as Error);
+      if (!failed) assert.equal(settled?.name, "ExecutionCancelledError");
+    }
+  });
+});
+
+async function waitFor<T>(probe: () => Promise<T | undefined>, timeoutMs = 5000): Promise<T> {
+  const startedAt = Date.now();
+  for (;;) {
+    const value = await probe();
+    if (value !== undefined) return value;
+    if (Date.now() - startedAt > timeoutMs) throw new Error("timed out waiting for the expected coordination state");
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+}
+
+/**
+ * F3 — a coordination run that is still running must never produce a successful
+ * execution receipt.
+ *
+ * Observed on integration `6b5fa7f7` (and pre-clamp `9cad1ff0`, so it is not a
+ * clamp regression): an interleaved worker-retry / approval cycle exhausts the
+ * scheduler's idle budget, `runUntilIdle` returns `stopReason: "idle"` while the
+ * run is still `running`, and `handleCoordinationRun` treated anything other
+ * than `failed` as success. The outer `coordination.run` approval was therefore
+ * recorded `executionOutcome: "succeeded"` for work that never finished — a
+ * false success receipt on the same durable-outcome contract the single-use gate
+ * exists to protect.
+ *
+ * Contract pinned here (see `handleCoordinationRun`): success requires a
+ * terminal `completed` execution AND a `verified` completion. Anything else
+ * returns a non-success result, preserves the durable run/worker state (never
+ * synthesizes `failed`), leaves the consumed approval non-reusable, and reports
+ * `outcomeUnknown` so the executor writes no success receipt.
+ */
+describe("coordination.run incomplete-execution receipt (F3)", () => {
+  let cwd: string;
+  let store: CoordinationStore;
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "coord-f3-"));
+    store = new CoordinationStore(cwd);
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("a run still running at scheduler idle returns non-success and records no success receipt", { timeout: 90_000 }, async () => {    const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+    const sessionDir = join(cwd, ".alix", "sessions", "f3");
+    await mkdir(sessionDir, { recursive: true });
+    const eventLog = new EventLog(sessionDir);
+    await eventLog.init();
+    const approvalStore = new ApprovalStore(cwd, { eventLog });
+    await approvalStore.load();
+
+    // Deterministic reproduction of the F3 precondition: the scheduler has
+    // nothing left to do but the run is NOT terminal. A worker whose dependency
+    // can never complete is never ready, so no tick dispatches, no approval is
+    // requested, `progressMade` stays false, and `runUntilIdle` exhausts its
+    // idle budget and returns `stopReason: "idle"` with the run still
+    // non-terminal — exactly the state Gate 6 reached through the
+    // retry/approval interleave (which is timing-dependent and unsuitable as a
+    // unit regression).
+    let executorCalls = 0;
+    const planner = {
+      plan: async (goal: string, _c: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        run.sessionMode = "ask";
+        await store.save(run);
+        const producer = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "producer", goalPrompt: "write p",
+          status: "pending", ownershipScopes: ["docs/p.md"],
+          ownershipClaims: [{ path: "docs/p.md", recursive: false }],
+          requiredCapabilities: ["filesystem.write"], maxAttempts: 2, planOrder: 0,
+          dependencies: ["worker_that_never_completes"],
+        });
+        await store.addWorker(run.id, producer);
+        return { valid: true, errors: [], run: { ...run, workers: [producer] } };
+      },
+    } as unknown as CoordinationPlanner;
+
+    const handlers = createCoordinationHandlers({
+      cwd, config: testConfig(), store, planner, eventLog, approvalStore, sessionId: "f3",
+      executor: {
+        execute: async () => {
+          executorCalls++;
+          return { outcome: "failure" as const, failureKind: "execution_error" as const, error: "objective review: content mismatch" };
+        },
+      },
+    });
+
+    // Drive the REAL executor so the outer `coordination.run` approval is
+    // claimed and its execution receipt is recorded by the production path —
+    // asserting on a handler-only call would never exercise the receipt.
+    // An `ask` host so the OUTER coordination.run call itself is gated and
+    // claimed (testConfig() defaults to bypass, which would skip the approval).
+    const askConfig = {
+      ...testConfig(),
+      permissions: { ...testConfig().permissions, default: "ask", sessionMode: "ask" },
+    } as AlixConfig;
+    const handlersWithAsk = createCoordinationHandlers({
+      cwd, config: askConfig, store, planner, eventLog, approvalStore, sessionId: "f3",
+      executor: { execute: async () => ({ outcome: "success" as const, summary: "done" }) },
+    });
+    const toolExecutor = new ToolExecutor(
+      askConfig, eventLog, cwd, undefined, undefined, handlersWithAsk, undefined, approvalStore,
+    );
+
+    // Under `ask` the first call returns an approval gate instead of executing;
+    // approve it and retry, which is exactly the TUI flow.
+    const outerArgs = { goal: "write docs/p.md", sessionMode: "ask" };
+    const first = await toolExecutor.execute(
+      { toolCallId: "f3-outer", name: "coordination.run", args: outerArgs } as never,
+    ) as { kind: string; approvalId?: string };
+    assert.equal(first.kind, "denied");
+    const outerApprovalId = first.approvalId;
+    assert.ok(outerApprovalId, "the outer coordination.run approval must be created");
+    await approvalStore.resolve(outerApprovalId, "approved", "f3-test");
+
+    const result = await toolExecutor.execute(
+      { toolCallId: "f3-outer", name: "coordination.run", args: outerArgs } as never,
+    );
+
+    // The scheduler really did return idle with the run unfinished.
+    const message = "message" in result ? result.message : "";
+    assert.match(message, /stop: idle/, "the regression must reproduce the idle exit");
+    assert.match(message, /Status: (running|planning|replanning|blocked)/);
+
+    // 1. The handler does not claim success.
+    assert.equal(result.kind, "error");
+    assert.equal((result as { outcomeUnknown?: boolean }).outcomeUnknown, true);
+    assert.equal((result as { retryable?: boolean }).retryable, false);
+    assert.match(result.message ?? "", /Incomplete:/);
+    assert.match(result.message ?? "", /SECOND run/);
+    assert.doesNotMatch(result.message ?? "", /Completion: verified completion/);
+
+    // 2. Durable run state is preserved, not synthesized into `failed`.
+    const runs = await store.list();
+    assert.equal(runs.length, 1, "no duplicate coordination run");
+    const run = runs[0];
+    assert.ok(
+      ["running", "planning", "replanning", "blocked"].includes(run.status),
+      `run must stay non-terminal, got ${run.status}`,
+    );
+    assert.notEqual(run.status, "failed");
+    assert.equal(run.aggregateResultRef, undefined, "no aggregate may be invented");
+    assert.ok(run.workers.length >= 1, "worker state remains available for recovery");
+
+    // 3. No successful execution receipt was persisted for any approval.
+    const outer = approvalStore.list().filter(r => (r.capabilities ?? []).includes("coordination.run"));
+    assert.equal(outer.length, 1, "exactly one outer coordination.run approval");
+    for (const record of approvalStore.list()) {
+      assert.notEqual(
+        record.executionOutcome, "succeeded",
+        `approval ${record.id} (${record.capabilities}) must not record a success receipt`,
+      );
+    }
+
+    // 4. The consumed outer claim is never restored to reusable.
+    assert.notEqual(outer[0].status, "approved", "a consumed claim must not be reopened");
+    assert.notEqual(outer[0].status, "pending", "a consumed claim must not be reissued");
+    const replay = await approvalStore.consumeApproved(outer[0].id, outer[0].bindingKey, {});
+    assert.equal(replay.consumed, false, "the outer claim stays non-reusable");
+
+    assert.equal(executorCalls, 0, "nothing was dispatchable; the run is incomplete, not failed");
+  });
+
+  it("positive control: a genuinely completed run still reports success and a succeeded receipt", { timeout: 60_000 }, async () => {
+    const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+    const sessionDir = join(cwd, ".alix", "sessions", "f3-ok");
+    await mkdir(sessionDir, { recursive: true });
+    const eventLog = new EventLog(sessionDir);
+    await eventLog.init();
+    const approvalStore = new ApprovalStore(cwd, { eventLog });
+    await approvalStore.load();
+
+    const planner = {
+      plan: async (goal: string, _c: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        run.sessionMode = "bypass";
+        await store.save(run);
+        const worker = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "writer", goalPrompt: "write",
+          status: "pending", ownershipScopes: ["docs/ok.md"],
+          ownershipClaims: [{ path: "docs/ok.md", recursive: false }],
+          requiredCapabilities: ["filesystem.write"], maxAttempts: 2, planOrder: 0,
+        });
+        await store.addWorker(run.id, worker);
+        return { valid: true, errors: [], run: { ...run, workers: [worker] } };
+      },
+    } as unknown as CoordinationPlanner;
+
+    const handlers = createCoordinationHandlers({
+      cwd, config: testConfig(), store, planner, eventLog, sessionId: "f3-ok",
+      executor: { execute: async () => ({ outcome: "success" as const, summary: "done" }) },
+      approvalStore,
+    });
+
+    const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "write docs/ok.md" });
+
+    assert.equal(result.kind, "success");
+    assert.match(result.output ?? "", /Completion: verified completion/);
+    assert.match(result.output ?? "", /verification=verified/);
+    const run = (await store.list())[0];
+    assert.equal(run.status, "completed");
+    assert.ok(run.aggregateResultRef);
   });
 });
 

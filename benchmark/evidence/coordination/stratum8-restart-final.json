@@ -1,0 +1,157 @@
+{
+  "source": "restart/crash scenario on a real model (stratum 8)",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER",
+  "killAfterMs": 12000,
+  "phase1": {
+    "usageRecords": 0,
+    "killState": {
+      "killed": true,
+      "runStatus": "running",
+      "workers": [
+        {
+          "id": "worker_467f1895-2e85-4fb2-b616-55dd9f9c7075",
+          "status": "running",
+          "attempt": 1
+        },
+        {
+          "id": "worker_4dc79267-930a-45f8-a787-1d43220cb7de",
+          "status": "pending",
+          "attempt": 0
+        },
+        {
+          "id": "worker_80b9ccf5-4d74-4ce7-b775-0df7c5679e6e",
+          "status": "pending",
+          "attempt": 0
+        }
+      ],
+      "falselyCompleted": 0
+    }
+  },
+  "phase2": {
+    "resumedRunId": "coord_479a926f-f9e0-4fdd-9777-59a016e3ce94",
+    "exitCode": 0,
+    "usageRecords": 14
+  },
+  "usage": {
+    "observed": true,
+    "inputTokens": 85794,
+    "outputTokens": 1365,
+    "records": [
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-7c43b64f",
+        "inputTokens": 5990,
+        "outputTokens": 33
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-7c43b64f",
+        "inputTokens": 6154,
+        "outputTokens": 186
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-a12f8fa2",
+        "inputTokens": 5990,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-a12f8fa2",
+        "inputTokens": 6155,
+        "outputTokens": 104
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-39b425f1",
+        "inputTokens": 5990,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-39b425f1",
+        "inputTokens": 6153,
+        "outputTokens": 161
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-31ae0042",
+        "inputTokens": 5990,
+        "outputTokens": 34
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-31ae0042",
+        "inputTokens": 6163,
+        "outputTokens": 175
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-3d23289b",
+        "inputTokens": 5990,
+        "outputTokens": 34
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-3d23289b",
+        "inputTokens": 6160,
+        "outputTokens": 234
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-34fc5335",
+        "inputTokens": 5990,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-34fc5335",
+        "inputTokens": 6157,
+        "outputTokens": 211
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-34fc5335",
+        "inputTokens": 6436,
+        "outputTokens": 19
+      },
+      {
+        "sessionId": "coord_1792603649826",
+        "runId": "run-34fc5335",
+        "inputTokens": 6476,
+        "outputTokens": 63
+      }
+    ]
+  },
+  "costUsd": null,
+  "costNote": "token totals observed across both halves; pricing applied by cost-attribution",
+  "finalRun": {
+    "status": "failed",
+    "outcome": "partial_success",
+    "workers": [
+      "completed",
+      "failed",
+      "completed"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/a.md",
+      "exists": true,
+      "content": "A-MARKER"
+    },
+    {
+      "path": "docs/b.md",
+      "exists": true,
+      "content": "B-MARKER"
+    },
+    {
+      "path": "docs/c.md",
+      "exists": true,
+      "content": "C-MARKER"
+    }
+  ],
+  "recordedAt": "2026-10-21T17:28:35.309Z"
+}

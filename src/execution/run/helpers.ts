@@ -239,7 +239,7 @@ export const BASE_TOOLS: ToolDef[] = [
         sessionMode: {
           type: "string",
           enum: ["auto", "ask", "bypass"],
-          description: "Approval mode for worker capabilities (defaults to the session mode; write goals need bypass/auto when no approval store is attached)"
+          description: "Approval mode for worker capabilities. May only TIGHTEN the session mode: the run never executes workers under a looser mode than the current session, so `bypass`/`auto` are ignored when the session is `ask`. For unattended worker writes, set the session mode (config/CLI) instead of this argument."
         },
         agentPool: {
           type: "array",

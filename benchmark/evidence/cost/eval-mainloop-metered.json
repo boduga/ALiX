@@ -1,0 +1,39 @@
+{
+  "source": "eval main-loop sweep on a real priced model",
+  "runId": "1f17670f-7a6d-4293-b408-6a9092b16e88",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "cases": 2,
+  "passed": 2,
+  "inputTokens": 33889,
+  "outputTokens": 165,
+  "costUsd": 0.086373,
+  "completeness": "complete",
+  "rate": {
+    "inputPerMillion": 2.5,
+    "outputPerMillion": 10.0,
+    "effectiveFrom": "2025-01-01"
+  },
+  "perStratum": {
+    "readonly-inspection": {
+      "case": "behavioral.read-only",
+      "runId": "run-fa199aef",
+      "inputTokens": 16418,
+      "outputTokens": 63,
+      "costUsd": 0.041675,
+      "verifiedSuccesses": null,
+      "verificationNote": "Recorded evaluator pass only. The unchanged oracle checked existence, not source equality or answer correctness; deleted case workspaces prevent retrospective mutation verification."
+    },
+    "code-navigation": {
+      "case": "behavioral.code-navigation",
+      "runId": "run-bc589c94",
+      "inputTokens": 17471,
+      "outputTokens": 102,
+      "costUsd": 0.044698,
+      "verifiedSuccesses": null,
+      "verificationNote": "Recorded evaluator pass only. The unchanged oracle checked existence, not source equality or answer correctness; deleted case workspaces prevent retrospective mutation verification."
+    }
+  },
+  "verifiedBy": "captured usage records carry runId; totals reproduced independently against the production pricing catalog",
+  "recordedAt": "2026-10-20"
+}

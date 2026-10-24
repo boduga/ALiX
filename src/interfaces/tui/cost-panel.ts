@@ -8,6 +8,14 @@
 export interface CostPanelData {
   totalTokens: number;
   totalCost: number;
+  /**
+   * F1-C completeness. Optional so existing callers (and tests) that construct
+   * a panel without it keep working; when absent the panel falls back to the
+   * `totalCost >= 0` interpretation.
+   */
+  costCompleteness?: "complete" | "partial" | "non_billable" | "none";
+  /** Diagnostic partial figure; only meaningful when completeness is partial. */
+  knownCostSubtotal?: number | null;
   byProvider: Record<string, { tokens: number; cost: number; calls: number; latencyMs: number }>;
   byWorkflow: Record<string, { tokens: number; cost: number; calls: number }>;
   unknownPricingModels: string[];
@@ -21,6 +29,13 @@ export function formatCostPanel(data: CostPanelData, _width?: number): string[] 
   lines.push(`── Cost & Tokens ─────────────────────────`);
   lines.push(` Total tokens: ${data.totalTokens.toLocaleString()}`);
   lines.push(` Total cost:   ${data.totalCost >= 0 ? `$${data.totalCost.toFixed(4)}` : "unknown"}`);
+  // F1-C: a partial figure is diagnostic, never a total. Labelled as such.
+  if (data.costCompleteness === "partial" && typeof data.knownCostSubtotal === "number") {
+    lines.push(` Known cost:   $${data.knownCostSubtotal.toFixed(4)} (partial — not a total)`);
+  }
+  if (data.costCompleteness === "non_billable") {
+    lines.push(` Cost:         non-billable execution`);
+  }
   if (data.unknownPricingModels.length > 0) {
     lines.push(` ⚠ ${data.unknownPricingModels.length} model(s) with unknown pricing`);
   }

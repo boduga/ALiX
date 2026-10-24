@@ -36,12 +36,33 @@ export class PricingCatalog {
   }
 
   /**
-   * Look up the latest pricing for a (provider, model) combination.
-   * Returns undefined if no pricing exists.
+   * Look up the pricing that applies at a given time.
+   *
+   * HISTORICAL CORRECTNESS (F1-D): an invocation must be costed at the rate in
+   * effect WHEN IT RAN, not whichever rate happens to be current. The previous
+   * behaviour always returned the latest entry, so replaying a run from before a
+   * price change applied the new price — in a two-tier test that is a 10x error.
+   *
+   * `at` is an ISO timestamp or date. Entries effective AFTER `at` are excluded;
+   * among those that apply, the newest wins. When no entry applies yet (the
+   * invocation predates the earliest known price) this returns `undefined`, which
+   * correctly surfaces as unknown cost rather than borrowing a later price.
+   *
+   * Omitting `at` keeps the previous "latest known price" behaviour, which is
+   * only appropriate for a forward-looking estimate — never for attribution of a
+   * past invocation.
    */
-  lookup(provider: string, model: string): PricingEntry | undefined {
+  lookup(provider: string, model: string, at?: string): PricingEntry | undefined {
+    const cutoff = at ? Date.parse(at) : null;
     const matches = this.entries
       .filter(e => e.provider === provider && e.model === model)
+      .filter(e => {
+        if (cutoff === null || !Number.isFinite(cutoff)) return true;
+        const from = Date.parse(e.effectiveFrom);
+        // An unparseable effectiveFrom cannot be shown to apply; exclude it
+        // rather than treating it as always-valid.
+        return Number.isFinite(from) && from <= cutoff;
+      })
       .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
     return matches[0];
   }
@@ -80,12 +101,57 @@ export interface WorkflowCostDetail {
 
 export interface CostSummary {
   totalTokens: number;
+  /**
+   * Complete total cost in USD, or `-1` when it cannot be completely known.
+   *
+   * COMPLETENESS CONTRACT (F1-C): `-1` means at least one contributing
+   * invocation had unknown pricing, so NO complete total exists. It never means
+   * "zero" and must never be summed, averaged or compared as a number.
+   *
+   * Previously this field summed only priced providers, so a session mixing
+   * priced and unpriced models produced a figure that looked complete and was
+   * silently too low. Use `costCompleteness` to branch, and `knownCostSubtotal`
+   * when a diagnostic partial figure is genuinely useful.
+   */
   totalCost: number;
+  /**
+   * Whether `totalCost` is a complete figure.
+   *
+   * - `complete`   — every billable invocation had applicable pricing
+   * - `partial`    — some invocations were unpriced; `totalCost` is `-1`
+   * - `non_billable` — only non-billable providers ran; `totalCost` is `0`
+   * - `none`       — no billable usage at all; `totalCost` is `0`
+   */
+  costCompleteness: CostCompleteness;
+  /**
+   * Sum of the invocations whose pricing WAS known. Diagnostic only — never a
+   * total. Present for `partial` so a reader can see what is accounted for, and
+   * `null` otherwise (there is nothing partial about a complete figure).
+   */
+  knownCostSubtotal: number | null;
   byProvider: Record<string, ProviderCostDetail>;
   byWorkflow: Record<string, WorkflowCostDetail>;
   periodStart: string;
   periodEnd: string;
   unknownPricingModels: string[];
+}
+
+/** How complete the reported `totalCost` is. See `CostSummary.costCompleteness`. */
+export type CostCompleteness = "complete" | "partial" | "non_billable" | "none";
+
+/**
+ * Providers that execute locally or by script and are never billable.
+ *
+ * SINGLE DEFINITION (F1-C): this lives here, beside the pricing authority, so the
+ * evaluator's cost correlation and this summary cannot disagree about what
+ * "non-billable" means. Consumers import it rather than re-listing providers.
+ */
+const NON_BILLABLE_PROVIDERS: ReadonlySet<string> = new Set([
+  "scripted-mock", "mock", "local-llama", "ollama", "test",
+]);
+
+export function isNonBillableProvider(provider: string): boolean {
+  return NON_BILLABLE_PROVIDERS.has(provider.toLowerCase());
 }
 
 function computeCost(
@@ -115,6 +181,10 @@ export class CostAttribution {
     const unknownPricingModels: string[] = [];
     let totalTokens = 0;
     let totalCost = 0;
+    let knownCostSubtotal = 0;
+    let sawBillable = false;
+    let sawNonBillable = false;
+    let sawUnpricedBillable = false;
     let periodStart = "";
     let periodEnd = "";
 
@@ -143,17 +213,25 @@ export class CostAttribution {
           const cachedInputTokens = Number(p.cachedInputTokens ?? 0);
           const reasoningTokens = Number(p.reasoningTokens ?? 0);
           const tokens = inputTokens + outputTokens;
-          const price = this.catalog.lookup(provider, model);
+          const price = this.catalog.lookup(provider, model, event.timestamp);
           const cost = computeCost(inputTokens, outputTokens, price);
+          const billable = !isNonBillableProvider(provider);
 
-          if (!price) {
+          if (!price && billable) {
             const key = `${provider}/${model}`;
             if (!unknownPricingModels.includes(key)) {
               unknownPricingModels.push(key);
             }
           }
+          if (!billable) sawNonBillable = true;
+          if (billable) sawBillable = true;
 
           totalTokens += tokens;
+
+          if (billable) {
+            if (cost < 0) sawUnpricedBillable = true;
+            else knownCostSubtotal += cost;
+          }
 
           if (!byProvider[provider]) {
             byProvider[provider] = {
@@ -193,14 +271,37 @@ export class CostAttribution {
       }
     }
 
-    // Sum total cost from providers (ignoring unknowns)
-    for (const p of Object.values(byProvider)) {
-      if (p.cost >= 0) totalCost += p.cost;
+    // COMPLETENESS (F1-C): a complete total requires every BILLABLE invocation to
+    // have known pricing. Reporting the priced subtotal as `totalCost` — the
+    // previous behaviour — understated cost while appearing complete.
+    //
+    //   unpriced billable present -> -1 (partial; knownCostSubtotal carries the diagnostic)
+    //   billable, all priced      -> the exact sum (complete)
+    //   only non-billable         -> 0, explicitly labelled non_billable (not "unknown")
+    //   no usage at all           -> 0, labelled none
+    const costCompleteness: CostCompleteness =
+      sawUnpricedBillable ? "partial"
+        : sawBillable ? "complete"
+          : sawNonBillable ? "non_billable"
+            : "none";
+
+    if (costCompleteness === "partial") {
+      totalCost = -1;
+    } else if (costCompleteness === "complete") {
+      totalCost = Math.round(knownCostSubtotal * 1_000_000) / 1_000_000;
+    } else {
+      // non_billable / none: a legitimate zero, not an unknown.
+      totalCost = 0;
     }
 
     return {
       totalTokens,
       totalCost,
+      costCompleteness,
+      // Diagnostic only, and only meaningful for a partial figure.
+      knownCostSubtotal: costCompleteness === "partial"
+        ? Math.round(knownCostSubtotal * 1_000_000) / 1_000_000
+        : null,
       byProvider,
       byWorkflow,
       periodStart,

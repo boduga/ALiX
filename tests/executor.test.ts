@@ -162,3 +162,26 @@ test("executor denies a write outside ownedPaths with the owned-path reason", as
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("executor denies an out-of-scope owned write under a bypass session mode", async () => {
+  // The owned-path rule used to be unreachable whenever the capability's
+  // permission resolved to "allow" — which is every write under auto/bypass
+  // session modes. A worker scoped to one file could then write anywhere in
+  // the workspace (observed on a real gpt-4o coordination run).
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    const config = {
+      ...DEFAULT_CONFIG,
+      permissions: { ...DEFAULT_CONFIG.permissions, sessionMode: "bypass" as const },
+    } as AlixConfig;
+    const executor = new ToolExecutor(config, log, dir, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ["src"]);
+    const result = await executor.execute({ toolCallId: "t3", name: "file.create", args: { path: "config.json", content: "{}" }, ...TEST_CORRELATION });
+    assert.equal(result.kind, "denied");
+    assert.match(result.reason, /outside owned paths/);
+    assert.equal(existsSync(join(dir, "config.json")), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -128,6 +128,11 @@ export async function cmdExport(cwd: string, args: string[]): Promise<void> {
   console.log(`- Period: ${costSummary.periodStart || "N/A"} -- ${costSummary.periodEnd}`);
   console.log(`- Total tokens: ${costSummary.totalTokens.toLocaleString()}`);
   console.log(`- Total cost: ${costSummary.totalCost >= 0 ? `$${costSummary.totalCost.toFixed(6)}` : "unknown"}`);
+  console.log(`- Cost completeness: ${costSummary.costCompleteness}`);
+  if (costSummary.costCompleteness === "partial" && costSummary.knownCostSubtotal !== null) {
+    // Diagnostic only: what IS accounted for. Never labelled a total.
+    console.log(`- Known cost (partial, not a total): $${costSummary.knownCostSubtotal.toFixed(6)}`);
+  }
   console.log();
   if (Object.keys(costSummary.byProvider).length > 0) {
     console.log("By Provider:");

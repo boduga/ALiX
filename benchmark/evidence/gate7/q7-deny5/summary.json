@@ -1,0 +1,222 @@
+{
+  "objective": "Using coordinated workers, create docs/deny-a.md containing exactly DENY_A_OK and docs/deny-b.md containing exactly DENY_B_OK",
+  "provider": "intern",
+  "model": "deepseek-v4-flash-0731",
+  "run": {
+    "id": "coord_6c970ebc-14be-433e-a42b-d6894c6e8863",
+    "status": "failed",
+    "workers": [
+      {
+        "id": "worker_c23a7758-f96d-47fb-bfa9-c3a4cefa7e9e",
+        "status": "failed",
+        "scopes": [
+          "docs/deny-a.md"
+        ],
+        "attempt": 0,
+        "failureKind": "approval_denied",
+        "blockReason": "execution_failed",
+        "approvalId": "approval_1792468005646_664jw",
+        "error": "Approval approval_1792468005646_664jw denied for capability filesystem.write"
+      },
+      {
+        "id": "worker_5a610e33-ea24-4a37-a2bc-ab80268763c1",
+        "status": "blocked",
+        "scopes": [
+          "docs/deny-b.md"
+        ],
+        "attempt": 0,
+        "failureKind": null,
+        "blockReason": "approval_required",
+        "approvalId": "approval_1792468006074_z4xqm",
+        "error": ""
+      },
+      {
+        "id": "worker_aad5f05a-985c-4c61-9c18-d69c79519143",
+        "status": "blocked",
+        "scopes": [],
+        "attempt": 0,
+        "failureKind": null,
+        "blockReason": "dependency_failed",
+        "approvalId": null,
+        "error": "Dependency worker_c23a7758-f96d-47fb-bfa9-c3a4cefa7e9e failed: Approval approval_1792468005646_664jw denied for capability filesystem.write"
+      }
+    ]
+  },
+  "aggregate": {
+    "status": "failed",
+    "outcome": "incomplete",
+    "complete": false,
+    "counts": {
+      "workers": 3,
+      "completed": 0,
+      "failed": 1,
+      "blocked": 2,
+      "cancelled": 0,
+      "pending": 0,
+      "running": 0,
+      "successfulResults": 0,
+      "failedResults": 0,
+      "missingResults": 0
+    },
+    "failureChains": [
+      {
+        "rootWorkerId": "worker_c23a7758-f96d-47fb-bfa9-c3a4cefa7e9e",
+        "rootTaskLabel": "Create deny-a.md",
+        "rootFailureKind": "approval_denied",
+        "rootError": "Approval approval_1792468005646_664jw denied for capability filesystem.write",
+        "directDependents": [
+          "worker_aad5f05a-985c-4c61-9c18-d69c79519143"
+        ],
+        "allAffectedWorkers": [
+          "worker_aad5f05a-985c-4c61-9c18-d69c79519143"
+        ],
+        "depthByWorker": {
+          "worker_c23a7758-f96d-47fb-bfa9-c3a4cefa7e9e": 0,
+          "worker_aad5f05a-985c-4c61-9c18-d69c79519143": 1
+        }
+      }
+    ]
+  },
+  "approvals": [
+    {
+      "id": "approval_1792468151062_m0urk",
+      "status": "consumed",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "executionOutcome": "pending"
+    },
+    {
+      "id": "approval_1792468090579_ptcb8",
+      "status": "approved",
+      "capabilities": [
+        "task.complete"
+      ],
+      "executionOutcome": null
+    },
+    {
+      "id": "approval_1792468068322_y457m",
+      "status": "consumed",
+      "capabilities": [
+        "shell.run"
+      ],
+      "executionOutcome": "succeeded"
+    },
+    {
+      "id": "approval_1792468053278_v7jpt",
+      "status": "consumed",
+      "capabilities": [
+        "file.write"
+      ],
+      "executionOutcome": "succeeded"
+    },
+    {
+      "id": "approval_1792468035293_a05gp",
+      "status": "consumed",
+      "capabilities": [
+        "file.write"
+      ],
+      "executionOutcome": "succeeded"
+    },
+    {
+      "id": "approval_1792468006074_z4xqm",
+      "status": "approved",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": null
+    },
+    {
+      "id": "approval_1792468005646_664jw",
+      "status": "denied",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": null
+    },
+    {
+      "id": "approval_1792467984976_lec5w",
+      "status": "consumed",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "executionOutcome": "failed"
+    }
+  ],
+  "operator_decisions": [
+    {
+      "id": "approval_1792467984976_lec5w",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "decision": "approved",
+      "intended": "approved",
+      "at": 50.3
+    },
+    {
+      "id": "approval_1792468005646_664jw",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "decision": "denied",
+      "intended": "denied",
+      "at": 78.9
+    },
+    {
+      "id": "approval_1792468006074_z4xqm",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "decision": "approved",
+      "intended": "approved",
+      "at": 92.9
+    },
+    {
+      "id": "approval_1792468035293_a05gp",
+      "capabilities": [
+        "file.write"
+      ],
+      "decision": "approved",
+      "post_run": true,
+      "at": 97.3
+    },
+    {
+      "id": "approval_1792468053278_v7jpt",
+      "capabilities": [
+        "file.write"
+      ],
+      "decision": "approved",
+      "post_run": true,
+      "at": 116.2
+    },
+    {
+      "id": "approval_1792468068322_y457m",
+      "capabilities": [
+        "shell.run"
+      ],
+      "decision": "approved",
+      "post_run": true,
+      "at": 130.3
+    },
+    {
+      "id": "approval_1792468090579_ptcb8",
+      "capabilities": [
+        "task.complete"
+      ],
+      "decision": "approved",
+      "post_run": true,
+      "at": 152.6
+    },
+    {
+      "id": "approval_1792468151062_m0urk",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "decision": "approved",
+      "post_run": true,
+      "at": 213.1
+    }
+  ],
+  "pending_left": [],
+  "plan_approved": false
+}

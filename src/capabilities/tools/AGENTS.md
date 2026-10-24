@@ -45,6 +45,11 @@ reason about.
 - **The policy gate runs first, and it is not optional.** `ToolExecutor`
   authorizes through `PolicyGate` before any router sees a call. A router's own
   checks are a SECOND, narrower safety net — never the authorization.
+- **Approval-required dispatch is a nonterminal pause.** Persist the
+  continuation and return the structured approval id without emitting
+  `tool.failed`; `handleToolCall` waits up to five minutes for the durable
+  decision and re-dispatches the same tool call after approval. Only a real
+  denial, expiry, cancellation, or execution error terminalizes the tool card.
 - **Tool telemetry is fail-open (P0).** All EventLog writes on the tool path go
   through `telemetry.ts:emitToolTelemetry` (`ToolExecutor.logEvent`, the
   artifact-created notification, the `observability.metric` emissions, and the
@@ -59,7 +64,10 @@ reason about.
   `tool-router.ts` calls `isWithinOwnedScope`, the single matcher also used by
   the gate. Both points MUST call that one function; neither may re-normalize,
   because the gate runs first. The contract is owned by
-  `src/coordination/ownership/AGENTS.md` — read it there, not here.
+  `src/coordination/ownership/AGENTS.md` — read it there, not here. The
+  backstop covers `file.create` for NEW files as well as overwrites and
+  `file.delete`: a new file outside the declared owned scope used to be created
+  with no denial, because only the overwrite branch consulted the scope.
 - **Containment belongs to `WorkspacePathResolver`.** `execute()` runs
   `checkPath` for every path argument before dispatch, which resolves symlinks
   and canonicalizes. A second hand-rolled `relative`/`startsWith` check in a
@@ -71,6 +79,7 @@ reason about.
   (same PolicyGate pipeline as dispatch) before the handler runs: `allow` →
   run, `ask` → durable approval wait, `deny`/unbacked-ask → `Access denied`.
   The handler never runs ungoverned.
+- **A cited approval is claimed exactly once, in `dispatch`, before any router runs.** `ToolExecutor.dispatch` calls `claimApproval` on an allowed decision that cites a durable approval (`decision.approvalId && !decision.approvalConsumed`) and on the continuation branch after the ownership gate. That claim is the single consumed-once seam for both execution routes: a concurrent or fresh-process replay loses the race and is denied, never executed. `claimApproval` fails closed when no store can atomically consume, and the post-claim outcome (`succeeded`/`failed`/`cancelled`) is reported so a crash between claim and execution stays `pending` and is later classified `unverified` rather than reissued. The coordination exact-binding branch already consumed in-gate and reports `approvalConsumed: true`, so dispatch skips its claim. Owner: `src/governance/approvals/AGENTS.md`.
 - **Continuation resumes re-validate authorization (R1.5).** A request with
   `source: "continuation-resume"` must carry `approvalId`, and the executor
   independently checks the durable record (present, `approved`, not expired)
@@ -124,6 +133,10 @@ reason about.
 - `tests/unit/safe-shell.test.ts` — shell admission grammar.
 - `tests/policy/policy-gate.test.ts` — the authorization decision that runs
   before any of this.
+- `tests/security/legacy-approval-single-use.test.ts` — the dispatch claim on
+  the ordinary retry and continuation routes (one real effect, replay denied).
+- `tests/security/approval-crash-recovery.test.ts` — post-claim outcome
+  reporting and crash classification.
 
 ## Child DOX Index
 

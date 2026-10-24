@@ -38,11 +38,12 @@ import { closeAllSharedLedgers } from '../../../src/runtime-state/storage/runtim
 import { ApprovalStore } from '../../../src/governance/approvals/approval-store.js';
 import { ApprovalManager } from '../../../src/interfaces/tui/approval-manager.js';
 import { createApprovalResolver } from '../../../src/interfaces/tui/approval-resolver.js';
+import { PolicyGate } from '../../../src/governance/policy/policy-gate.js';
 
 const roots: string[] = [];
 afterEach(() => { clearScriptedScenario(); vi.unstubAllEnvs(); vi.restoreAllMocks(); closeAllSharedLedgers(); for (const cwd of roots.splice(0)) rmSync(cwd, { recursive: true, force: true }); });
 
-async function fixture(executor: CoordinationWorkerExecutor, count = 4) {
+async function fixture(executorInput: CoordinationWorkerExecutor | ((store: ApprovalStore) => CoordinationWorkerExecutor), count = 4) {
   const cwd = mkdtempSync(join(tmpdir(), 'workbench-phase9-')); roots.push(cwd);
   const id = 'phase9-parent';
   const sessionDir = join(cwd, '.alix', 'sessions', id); await mkdir(sessionDir, { recursive: true });
@@ -50,6 +51,7 @@ async function fixture(executor: CoordinationWorkerExecutor, count = 4) {
   const log = new EventLog(sessionDir); await log.init();
   const store = new CoordinationStore(cwd);
   const approvalStore = new ApprovalStore(cwd, { eventLog: log }); await approvalStore.load();
+  const executor = typeof executorInput === 'function' ? executorInput(approvalStore) : executorInput;
   const config = { version: 1,
     model: { provider: 'mock', name: 'mock' }, models: { default: { provider: 'mock', name: 'mock', streaming: false } },
     permissions: { default: 'allow', tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [], sessionMode: 'bypass' },
@@ -98,17 +100,19 @@ async function fixture(executor: CoordinationWorkerExecutor, count = 4) {
 }
 
 describe('Phase9 public coordination port with real handlers and scheduler', () => {
-  // Covers two durable approval waits, scripted model turns, worker tool dispatch, and review; allow for slow CI ledgers.
+  // Covers dispatch approval, owned-write authorization, and independent review.
   it('resumes an approved worker through the configured provider and verifies its owned artifact', async () => {
-    const f = await fixture(new DefaultWorkerExecutor(), 1);
+    const consumeProbe = vi.spyOn(ApprovalStore.prototype, 'consumeApproved');
+    const gateProbe = vi.spyOn(PolicyGate.prototype, 'evaluateToolCall');
+    const f = await fixture(store => new DefaultWorkerExecutor(store), 1);
     f.config.models!.default = { provider: 'scripted-mock', name: 'scripted-worker', streaming: false } as any;
     f.config.model = { provider: 'scripted-mock', name: 'scripted-worker' } as any;
     f.config.permissions.default = 'ask';
-    f.config.permissions.tools = { 'filesystem.write': 'ask' };
+    f.config.permissions.tools = { 'filesystem.write': 'ask', 'file.write': 'ask' };
     installEvalConfig(f.cwd, 'scripted-mock');
     const evalConfigPath = join(f.cwd, '.alix', 'config.json');
     const evalConfig = JSON.parse(await readFile(evalConfigPath, 'utf8'));
-    evalConfig.permissions.tools = { 'filesystem.write': 'ask' };
+    evalConfig.permissions.tools = { 'filesystem.write': 'ask', 'file.write': 'ask' };
     await writeFile(evalConfigPath, JSON.stringify(evalConfig));
     const isolatedHome = join(f.cwd, 'isolated-home');
     vi.stubEnv('HOME', isolatedHome);
@@ -169,13 +173,6 @@ describe('Phase9 public coordination port with real handlers and scheduler', () 
       approvedIds.add(dispatchApproval.id);
       await expect(f.approvalStore.loadFresh(dispatchApproval.id)).resolves.toMatchObject({ status: 'approved' });
 
-      // The real worker then requests its owned file mutation; resolve that TUI-visible request too.
-      const fileApproval = await waitForPendingApproval();
-      expect(scriptedMockCarrier.calls).toBeGreaterThan(0);
-      expect(fileApproval.id).not.toBe(dispatchApproval.id);
-      expect(await approvalResolver.resolve(fileApproval.id, 'approved')).toBe(true);
-      approvedIds.add(fileApproval.id);
-
       const result = await pendingRun;
       const run = (await f.store.list())[0]!;
       const events = await f.log.readAll();
@@ -191,13 +188,107 @@ describe('Phase9 public coordination port with real handlers and scheduler', () 
       expect(result.output).toContain('Status: completed');
       await f.approvalStore.load();
       expect(f.approvalStore.get(dispatchApproval.id)?.status).toBe('consumed');
-      expect(f.approvalStore.get(fileApproval.id)?.status).toBe('consumed');
+      expect(consumeProbe.mock.calls.map(([id]) => id)).toEqual([dispatchApproval.id]);
+      const writeIndex = gateProbe.mock.calls.findIndex(([request]) => request.toolName === 'file.create');
+      expect(writeIndex).toBeGreaterThanOrEqual(0);
+      expect(await gateProbe.mock.results[writeIndex]?.value).toMatchObject({ decision: 'allow', matchedRuleId: 'owned-path-rule' });
+      expect(run.workers[0]?.attempt).toBe(1);
+      expect(f.approvalStore.listPending()).toHaveLength(0);
+      expect(gateProbe.mock.calls.some(([request]) => request.toolName === 'file.read')).toBe(true);
     } finally {
       if (!runSettled) {
         controller.abort();
         await Promise.race([pendingRun.catch(() => {}), new Promise(resolve => setTimeout(resolve, 2_000))]);
       }
     }
+  }, 120_000);
+
+  it('qualifies an in-process owned write and reviewer read under explicit test policy', async () => {
+    const f = await fixture(new DefaultWorkerExecutor(), 1);
+    const policyGateSpy = vi.spyOn(PolicyGate.prototype, 'evaluateToolCall');
+    f.config.permissions.default = 'ask';
+    f.config.permissions.tools = {
+      'filesystem.write': 'allow',
+      'file.write': 'allow',
+      'file.read': 'allow',
+    };
+    f.config.permissions.protectedPaths = ['.git/**', '.env', '.env.*', 'secrets/**'];
+    f.config.models!.default = { provider: 'scripted-mock', name: 'scripted-worker', streaming: false } as any;
+    f.config.model = { provider: 'scripted-mock', name: 'scripted-worker' } as any;
+    installEvalConfig(f.cwd, 'scripted-mock');
+    const evalConfigPath = join(f.cwd, '.alix', 'config.json');
+    const evalConfig = JSON.parse(await readFile(evalConfigPath, 'utf8'));
+    evalConfig.permissions.default = 'ask';
+    evalConfig.permissions.tools = { ...f.config.permissions.tools };
+    evalConfig.permissions.protectedPaths = [...f.config.permissions.protectedPaths];
+    await writeFile(evalConfigPath, JSON.stringify(evalConfig));
+    const isolatedHome = join(f.cwd, 'isolated-home');
+    vi.stubEnv('HOME', isolatedHome);
+    const isolatedConfigDir = join(isolatedHome, '.config', 'alix');
+    await mkdir(isolatedConfigDir, { recursive: true });
+    await writeFile(join(isolatedConfigDir, 'config.json'), JSON.stringify({ apiKeys: {} }));
+    setScriptedScenario({ steps: [
+      { kind: 'tool', tool: 'file.create', args: {
+        path: 'reports/0.md', content: '# Scripted worker output\nprovider=scripted-mock\n',
+      } },
+      ...Array.from({ length: 8 }, () => ({
+        kind: 'text' as const,
+        text: '{"satisfied":true,"summary":"Created the requested report.","gaps":[]}',
+      })),
+    ] });
+
+    const runArgs = { goal: 'Create one report', maxConcurrency: 1, sessionMode: 'ask' };
+    const result = await f.handlers[COORDINATION_RUN_TOOL](runArgs, {
+      toolCallId: 'inprocess-owned-path-qualification', name: COORDINATION_RUN_TOOL,
+      args: runArgs,
+    } as any);
+    const run = (await f.store.list())[0]!;
+    const events = await f.log.readAll();
+
+    expect(result.kind).toBe('success');
+    expect(scriptedMockCarrier.calls).toBeGreaterThan(0);
+    expect(run).toMatchObject({ status: 'completed' });
+    expect(run.workers[0]).toMatchObject({ status: 'completed' });
+    expect(run.workers[0]?.resultRef).toBeTruthy();
+    expect(run.aggregateResultRef).toBeTruthy();
+    expect(matchesAttachedAggregateEvent(run, events as AggregateCompletedEventLike[])).toBe(true);
+    expect(deriveCoordinationCompletion(run, {
+      aggregateEventMatches: true,
+      currentFingerprint: computeAggregationSourceFingerprint(run),
+    })).toMatchObject({ execution: 'completed', aggregation: 'generated', verification: 'verified' });
+
+    const artifact = await readFile(join(f.cwd, 'reports/0.md'), 'utf8');
+    expect(artifact).toContain('provider=scripted-mock');
+    expect(events.some(event => event.type === 'tool.completed'
+      && (event.payload as any)?.toolName === 'file.create')).toBe(true);
+    expect(events.some(event => event.type === 'file.created'
+      && (event.payload as any)?.path === 'reports/0.md')).toBe(true);
+
+    const reviewReadIndex = policyGateSpy.mock.calls.findIndex(([request]) =>
+      request.toolName === 'file.read' && request.args.path === 'reports/0.md');
+    expect(reviewReadIndex).toBeGreaterThanOrEqual(0);
+    const reviewReadRequest = policyGateSpy.mock.calls[reviewReadIndex]?.[0];
+    const reviewReadDecision = await policyGateSpy.mock.results[reviewReadIndex]?.value;
+    expect(reviewReadRequest).toMatchObject({
+      toolName: 'file.read',
+      capability: 'file.read',
+      source: 'tool',
+      cwd: f.cwd,
+      sessionMode: 'ask',
+    });
+    expect(reviewReadDecision).toMatchObject({
+      capability: 'file.read',
+      decision: 'allow',
+      matchedRuleId: 'tool-policy-file.read',
+      reason: 'Allowed by tool policy (mode: ask)',
+    });
+
+    const protectedRead = await new ToolExecutor(
+      f.config, f.log, f.cwd, undefined, undefined, undefined, undefined, f.approvalStore,
+    ).execute({ toolCallId: 'protected-read-check', name: 'file.read', args: { path: '.env' } } as any);
+    expect(protectedRead).toMatchObject({ kind: 'error', message: expect.stringMatching(/path is protected/i) });
+    await f.approvalStore.load();
+    expect(f.approvalStore.listPending()).toHaveLength(0);
   }, 120_000);
 
   it('runs four dependent workers, retries identity safely, and verifies the actual aggregate', async () => {

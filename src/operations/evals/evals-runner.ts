@@ -16,7 +16,7 @@
 
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 import type { AlixConfig } from "../config/schema.js";
@@ -24,8 +24,12 @@ import { loadConfig } from "../config/loader.js";
 import { runTask } from "../../run.js";
 import { evaluateObjective } from "./evaluators/objective-evaluator.js";
 import { evaluateStatus } from "./evaluators/status-evaluator.js";
+import { classifyInadmissible } from "./eval-admissibility.js";
 import { createSubagentExecutor, runDelegateCase } from "./drivers/delegate-driver.js";
+import type { DelegateExecutor } from "./drivers/delegate-driver.js";
 import { runMainLoopCase } from "./drivers/main-loop-driver.js";
+import { captureEvalUsage } from "./eval-usage.js";
+import { prepareEvalGuards, evaluateEvalGuards } from "./eval-guards.js";
 import {
   setScriptedScenario,
   clearScriptedScenario,
@@ -39,14 +43,41 @@ import type {
   EvalSuite,
 } from "./evals-types.js";
 
-/** Install a minimal scripted-mock test configuration in an eval cwd. */
-export function installEvalConfig(cwd: string, provider = "scripted-mock"): void {
+/**
+ * Install a minimal test configuration in an eval cwd.
+ *
+ * Defaults to the deterministic `scripted-mock` provider. A local CPU-only
+ * (stratum 9) run passes `provider: "ollama"` with the real model name, because
+ * the scripted provider is not a local-inference backend — labelling it CPU-only
+ * would be a false claim.
+ */
+export function installEvalConfig(
+  cwd: string,
+  provider = "scripted-mock",
+  model = "mock",
+  /**
+   * Total provider-call timeout for a REAL provider.
+   *
+   * Local CPU inference is slow: a ~3.5K-token agent prompt on a 3B model can
+   * take many minutes, well past the 300s default. Without this the case aborts
+   * with a transport timeout that says nothing about model capability, which
+   * would make a stratum-9 observation meaningless. The scripted provider never
+   * needs it (no network, no inference).
+   */
+  timeoutMs?: number,
+): void {
   mkdirSync(join(cwd, ".alix"), { recursive: true });
   writeFileSync(
     join(cwd, ".alix", "config.json"),
     JSON.stringify(
       {
-        models: { default: { provider, name: "mock" } },
+        models: {
+          default: {
+            provider,
+            name: model,
+            ...(timeoutMs !== undefined && provider !== "scripted-mock" ? { timeoutMs } : {}),
+          },
+        },
         permissions: {
           default: "allow",
           tools: {},
@@ -88,18 +119,64 @@ export function installSeed(cwd: string, seed?: Record<string, string>): void {
 }
 
 function evalCaseCwd(): string {
-  return mkdtempSync(join(tmpdir(), "eval-task-"));
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "eval-task-"));
+  const cwd = join(fixtureRoot, "workspace");
+  mkdirSync(cwd);
+  return cwd;
 }
 
 /** Run a single case in an isolated cwd and produce its EvalResult. */
 export async function runEvalCase(
   evalCase: EvalCase,
-  _opts: { driver?: EvalDriverKind } = {},
+  opts: {
+    driver?: EvalDriverKind;
+    provider?: string;
+    model?: string;
+    timeoutMs?: number;
+    /**
+     * Test seam: replace the delegate executor so a result shape can be driven
+     * without spawning a subprocess or calling a provider. Used to pin
+     * admissibility handling — a real provider fault cannot be summoned on
+     * demand, and the bug it caused was only reproducible by hitting a quota
+     * wall in production.
+     */
+    executor?: DelegateExecutor;
+  } = {},
 ): Promise<EvalResult> {
+  const provider = opts.provider ?? "scripted-mock";
+  const model = opts.model ?? "mock";
+  // A scripted scenario is the DETERMINISTIC STAND-IN for model behaviour. When a
+  // real provider runs the case, the model decides for itself and the scenario
+  // must NOT be fed to it — otherwise a real run would silently replay scripted
+  // steps and the evidence would be fictitious. The case's `task` prompt is what
+  // the model receives; the objective is then evaluated against real behaviour.
+  //
+  // This is recorded on the result rather than applied silently, so a stratum-9
+  // observation is never mistaken for a deterministic scripted run.
+  const usesScripted = provider === "scripted-mock";
+  const scriptedScenarioIgnored = !usesScripted && evalCase.scenario !== undefined;
+  // Refuse rather than silently score a scripted-contract case on a real model.
+  //
+  // Such a case's `expected` block describes the SCRIPTED scenario's outcome
+  // (authored to fail), so a real model that simply does the task is scored
+  // `false`. Running it costs money and cannot yield a verified success; five
+  // unmarked cases did exactly that across three sweeps and consumed 52.7% of
+  // the budget. A loud error keeps that from recurring silently, and keeps the
+  // case usable where it belongs (the scripted provider).
+  if (!usesScripted && evalCase.scriptedExpectationOnly) {
+    throw new Error(
+      `${evalCase.id} is a scripted-contract case (scriptedExpectationOnly) and cannot be ` +
+        `scored on a real provider (${provider}): its expected outcome describes a scripted ` +
+        `scenario that a real model does not replay, so it would cost tokens and verify nothing. ` +
+        `Exclude it, or author a real-model oracle for it.`,
+    );
+  }
   const cwd = evalCaseCwd();
+  const fixtureRoot = dirname(cwd);
   try {
-    installEvalConfig(cwd);
+    installEvalConfig(cwd, provider, model, opts.timeoutMs);
     installSeed(cwd, evalCase.seed);
+    const guardBaseline = evalCase.guards ? prepareEvalGuards(cwd, evalCase.guards) : undefined;
 
     let execution: EvalExecutionResult;
     if (evalCase.syntheticStatus !== undefined) {
@@ -113,32 +190,88 @@ export async function runEvalCase(
       };
     } else if (evalCase.driver === "delegate") {
       const config: AlixConfig = await loadConfig(cwd);
-      const executor = createSubagentExecutor(config, { sessionId: `eval-${evalCase.id}` });
-      execution = await runDelegateCase(evalCase, cwd, executor);
+      const executor = opts.executor
+        ?? createSubagentExecutor(config, { sessionId: `eval-${evalCase.id}` });
+      execution = await runDelegateCase(
+        usesScripted ? evalCase : { ...evalCase, scenario: undefined }, cwd, executor,
+      );
     } else {
-      // Main-loop: the registry provider reads the scenario from the in-process
-      // carrier, so set it before the loop and clear it afterwards.
-      if (evalCase.scenario) setScriptedScenario(evalCase.scenario);
+      // Main-loop: a scripted provider reads its scenario from the in-process
+      // carrier, so set it before the loop and clear it afterwards. A real local
+      // provider has no scenario.
+      if (usesScripted && evalCase.scenario) setScriptedScenario(evalCase.scenario);
       try {
         execution = await runMainLoopCase(evalCase, cwd, (c, t, o) => runTask(c, t, o));
       } finally {
-        clearScriptedScenario();
+        if (usesScripted) clearScriptedScenario();
       }
     }
+    // Record the provider that actually ran, so the CPU-only guard can decide
+    // from observed evidence rather than from intent.
+    execution.provider = provider;
+    if (scriptedScenarioIgnored) execution.scriptedScenarioIgnored = true;
 
-    const objective = evaluateObjective(cwd, evalCase.objective);
+    // Capture provider-reported tokens NOW, while the session log still exists.
+    // The case cwd is removed in the finally below, which takes
+    // `<cwd>/.alix/sessions/**.jsonl` with it — the only authoritative record of
+    // what the model actually consumed. Reading it after cleanup is impossible,
+    // which is precisely how a real gpt-4o run passed 2/2 and produced no cost
+    // evidence.
+    const usage = captureEvalUsage(cwd);
+    if (usage.observed) {
+      execution.usage = {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        observed: usage.observed,
+        records: usage.records,
+      };
+    }
+
+    const objective = evaluateObjective(cwd, evalCase.objective, execution);
+    const guards = evalCase.guards && guardBaseline
+      ? evaluateEvalGuards(cwd, evalCase.guards, guardBaseline)
+      : undefined;
     const objectiveCorrect = objective.landed === evalCase.expected.objectiveLanded;
+
+    // An infrastructure fault is not an agent outcome. Classify BEFORE scoring:
+    // a provider 429 that the child reports as "failed" satisfies a case whose
+    // expected status IS "failed", and would otherwise score `pass` with
+    // `honest: true`. Measured on 2026-10-23 against the security case.
+    const admissibility = classifyInadmissible(execution.error);
+    if (!admissibility.admissible) {
+      const status = evaluateStatus(
+        objectiveCorrect,
+        execution.status ?? execution.reason,
+        evalCase.expected.statuses,
+      );
+      return {
+        caseId: evalCase.id,
+        objective,
+        ...(guards ? { guards } : {}),
+        status: {
+          ...status,
+          // No honesty property exists for a run that reached no model. Left
+          // `false` so no consumer reads it as a verified refusal.
+          honest: false,
+          inadmissible: true,
+          inadmissibleReason: admissibility.reason,
+        },
+        verdict: "inadmissible",
+        execution,
+      };
+    }
+
     const status = evaluateStatus(
       objectiveCorrect,
       execution.status ?? execution.reason,
       evalCase.expected.statuses,
     );
     const honest = objectiveCorrect && status.honest;
-    const verdict = objectiveCorrect && honest ? "pass" : "fail";
+    const verdict = objectiveCorrect && honest && (guards?.satisfied ?? true) ? "pass" : "fail";
 
-    return { caseId: evalCase.id, objective, status, verdict, execution };
+    return { caseId: evalCase.id, objective, status, ...(guards ? { guards } : {}), verdict, execution };
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmSync(fixtureRoot, { recursive: true, force: true });
   }
 }
 
@@ -154,19 +287,37 @@ export async function runEvalSuite(
   opts: {
     suite?: EvalSuite;
     driver?: EvalDriverKind | "both";
+    provider?: string;
+    model?: string;
+    timeoutMs?: number;
   } = {},
 ): Promise<EvalRun> {
   const driver = opts.driver ?? "both";
   const suite = opts.suite ?? "behavioral";
+  const provider = opts.provider ?? "scripted-mock";
   const filter = CASE_BY_DRIVER[driver];
-  const selected = cases.filter(filter);
+  // A real provider runs only cases whose expectation a real model can satisfy.
+  // Scripted-contract cases are skipped (and reported), never silently scored:
+  // they cost tokens and cannot verify.
+  const usesScripted = provider === "scripted-mock";
+  const skippedForRealProvider = usesScripted
+    ? []
+    : cases.filter(filter).filter((c) => c.scriptedExpectationOnly).map((c) => c.id);
+  const selected = cases.filter(filter).filter(
+    (c) => usesScripted || !c.scriptedExpectationOnly,
+  );
 
   const startedAt = new Date().toISOString();
   const started = Date.now();
   const results: EvalResult[] = [];
   for (const evalCase of selected) {
     try {
-      results.push(await runEvalCase(evalCase, { driver: evalCase.driver }));
+      results.push(await runEvalCase(evalCase, {
+        driver: evalCase.driver,
+        provider,
+        ...(opts.model !== undefined ? { model: opts.model } : {}),
+        ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+      }));
     } catch (err) {
       // A case that throws yields an explicit failed result rather than aborting
       // the whole run.
@@ -175,23 +326,41 @@ export async function runEvalSuite(
         objective: { landed: false, evidence: {} },
         status: { actual: undefined, expected: evalCase.expected.statuses, honest: false },
         verdict: "fail",
-        execution: { driver: evalCase.driver, cwd: "<isolated>", error: String(err) },
+        // Attribute the provider even on failure. Without it a failed real run
+        // is indistinguishable from a failed scripted one, and the CPU-only
+        // guard would be reasoning about "unknown" when the answer is known.
+        execution: {
+          driver: evalCase.driver,
+          cwd: "<isolated>",
+          provider,
+          error: String(err),
+        },
       });
     }
   }
 
   const durationMs = Date.now() - started;
+  if (skippedForRealProvider.length > 0) {
+    console.warn(
+      `[evals] skipped ${skippedForRealProvider.length} scripted-contract case(s) on real ` +
+        `provider "${provider}": ${skippedForRealProvider.join(", ")}`,
+    );
+  }
   return {
     runId: randomUUID(),
     startedAt,
     finishedAt: new Date().toISOString(),
     suite,
     driver,
+    provider,
     results,
     summary: {
       total: results.length,
       passed: results.filter((r) => r.verdict === "pass").length,
       failed: results.filter((r) => r.verdict === "fail").length,
+      // Excluded from BOTH counts. Reported separately so an infrastructure
+      // fault can neither inflate nor deflate a success rate.
+      inadmissible: results.filter((r) => r.verdict === "inadmissible").length,
       objectiveLanded: results.filter((r) => r.objective.landed).length,
       honest: results.filter((r) => r.status.honest).length,
       durationMs,

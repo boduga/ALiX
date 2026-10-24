@@ -41,12 +41,21 @@ export function buildWorkbenchApprovalCardLines(
   totalPending: number,
   width: number,
   _now = Date.now(),
+  /**
+   * 1-based position of this approval among the pending set.
+   *
+   * The title used to hardcode `1 OF ${totalPending}` for every card, so two
+   * pending approvals both read "1 OF 2" and the second was indistinguishable
+   * from the first. Optional to keep existing callers that render a single card
+   * unchanged.
+   */
+  position?: number,
 ): string[] {
   if (width < 12) return [];
   const cardWidth = Math.min(width, 76);
   const inner = cardWidth - 2;
-  const position = totalPending > 1 ? ` · 1 OF ${totalPending}` : '';
-  const title = ` ${fit(`APPROVAL REQUIRED · ${approval.toolName}${position}`, inner - 2)} `;
+  const ordinal = totalPending > 1 ? ` · ${position ?? 1} OF ${totalPending}` : '';
+  const title = ` ${fit(`APPROVAL REQUIRED · ${approval.toolName}${ordinal}`, inner - 2)} `;
   return [
     `╭${title}${'─'.repeat(Math.max(0, inner - title.length))}╮`,
     `│${fit(approval.target || 'No target details provided', inner).padEnd(inner)}│`,

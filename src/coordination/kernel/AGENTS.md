@@ -20,7 +20,8 @@
   does not own or tick these runs. Inject the worker executor through
   `CoordinationToolDeps.executor` for end-to-end lifecycle coverage.
 - `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
-- `worker-role.ts` — Capability → role classification shared by planner (ownership) and executor (mode)
+- `worker-role.ts` — Capability → role classification and canonical owned-path extraction shared by both worker executors; write workers with missing or malformed ownership fail closed before execution
+- `worker-executor.ts` — In-process worker execution via `runTask`; write-worker ownership claims flow as trusted execution options to the policy gate
 - `owner-liveness.ts` — the ONE worker-liveness module (R3.3): `<kind>-<pid>`
   execution-owner liveness probe (unknown owners read alive), heartbeat
   staleness (`heartbeatStale`; missing/unparseable = no evidence), and the
@@ -42,10 +43,13 @@
   keeps timestamp assertions deterministic.
 - `worker-executor.ts` — In-process runTask executor (CLI default)
 - `coordination-worker-context.ts` — Original run objective and bounded, identity-validated direct dependency results supplied to both worker executors.
-- `default-worker-review.ts` — Invocation-local event capture and objective review for in-process workers; full tool evidence comes from the task-loop observer, not telemetry previews.
+- `default-worker-review.ts` — Invocation-local event capture and objective review for in-process workers; full tool evidence comes from the task-loop observer, not telemetry previews. Mutation evidence is the union of the current attempt's events and the run's durable session log (`toCoordinationEvidenceEvents`), so a retry keeps an earlier attempt's proof.
 
 ## Local Contracts
 
+- `createPlannerGenerator` forwards an explicitly configured positive `context.budget.outputCap` as request `maxOutputTokens`; when absent, the planner leaves that request field unset. Planner calls must honor deliberate per-run output budgeting without changing model selection or stored user configuration.
+- Worker objective review reads persisted mutation paths only within the worker's owned scope, using the shared ownership matcher. Internal review reads turn ask into allow on a cloned executor config; explicit/default read denials, protected paths, and workspace containment remain enforced. Review reads must not request or consume worker approvals. Owned writes may pass the owned-path rule without a second approval; integration tests must distinguish dispatch approvals from exact tool invocations and retry dispatches.
+- **Review evidence spans the whole run, not one attempt.** The review's mutation evidence is the current attempt's events PLUS the run's durable session log, still owned-scoped. A re-created identical file emits no mutation event, so an attempt-scoped set left a correct retry with no evidence and the worker failed for work already on disk — root AGENTS.md ("Durable progress survives failed retries") applied to the worker review. The durable set is owned-scoped, so a sibling's artifact is never this worker's evidence.
 - GraphExecutor runs nodes sequentially, stops on first failure. It is the
   sequential graph-CLI adapter (R3.7), not a second scheduler: scheduling is
   `CoordinationScheduler` alone, and graph-node authorization flows through the
@@ -144,6 +148,35 @@
   into the shared `shouldReclaimWorker` verdict; callers pass locally-active
   executions when known (default: none). Never reclaim a locally-active
   worker on PID evidence alone.
+- **Model-originated `sessionMode` may tighten, never loosen.** `alix_coordination_run`'s
+  `sessionMode` argument is model output, so `effectiveSessionMode` (`coordination-tools.ts`)
+  returns the host mode unless the request is stricter: `ask` is the only enforcing mode
+  (`PolicyGate.applySessionMode` turns an `ask` decision into `allow` under BOTH `auto` and
+  `bypass`), so `auto` and `bypass` form one loosening class. `ask` host → always `ask`;
+  otherwise a requested `ask` wins, everything else (including an absent or invalid value)
+  keeps the host mode. Clamp BEFORE persistence: the planner stores the effective mode on
+  `run.sessionMode`, and the scheduler re-applies that persisted value over the host config on
+  every tick and after restart, so a looser persisted value would re-open the boundary for the
+  whole lifecycle. Operator-supplied modes are unaffected — Inspector's
+  `POST /api/coordination/run` body and the CLI `--session-mode` are host input, not model
+  output. Pinned by `tests/kernel/coordination-tools.test.ts` ("coordination.run session-mode
+  clamp", full host×request matrix plus durable-approval and post-reload re-authorization).
+- **Approval-blocked is not idle (F5).** `SchedulerTickResult.approvalBlocked`
+  lists workers blocked on `approval_required` in the CURRENT
+  post-reconciliation run state, and `runUntilIdle` treats a non-empty list as
+  `stopReason: "awaiting_approval"`. Without it, `awaitingApproval` (which only
+  reports blocks created while dispatching THIS tick's candidates, and
+  candidates require `status === "pending"`) stopped reporting a worker from the
+  tick after it blocked, so the loop counted idle and exited with the run still
+  non-terminal — a later operator approval then had nothing left ticking the run
+  (Gate 6 F5). The field is accounting only: it never authorizes or dispatches,
+  it is derived from the reloaded post-reconcile run (never an earlier snapshot)
+  so a resumed worker cannot linger in it, terminal runs report it empty, and it
+  deliberately does NOT feed `progressMade` — waiting for an operator is not
+  work, and counting it as progress would keep genuinely idle runs alive. The
+  handler already polls `stopReason: "awaiting_approval"`, so no tool change was
+  needed. Pinned by `tests/kernel/coordination-scheduler.test.ts` ("F5 —
+  approval-blocked visibility").
 - **Approval reconciliation VERIFIES; dispatch CONSUMES.** `CoordinationScheduler.reconcile`'s
   `isApproved` matches a blocked `approval_required` worker to its approval by
   the binding key the approval was **created** with (`worker.authorizationEvidence.bindingKey`,
@@ -160,6 +193,23 @@
   before its authorization read, so a CLI-resolved approval written by another
   process is observed without a daemon restart; the watcher stays a
   notification-only accelerator, never the correctness path.
+- **`alix_coordination_run` NEVER reports success for a non-terminal run (F3).**
+  The handler derives completion from authoritative run state via
+  `deriveCoordinationCompletion` (`coordination-types.ts`), never from the
+  scheduler's stop reason. Success requires `execution === "completed"` AND
+  `verification === "verified"`, where verification needs an attached aggregate
+  ref AND a matching durable `coordination.aggregate.completed` event
+  (`matchesAttachedAggregateEvent`). `stopReason: "idle"` is explicitly NOT
+  completion evidence: an interleaved retry/approval cycle can exhaust
+  `maxIdleTicks` while the run is still `running`, which previously produced a
+  successful tool result and an `executionOutcome: "succeeded"` outer approval
+  for unfinished work. Every non-success path preserves durable run/worker
+  state (never synthesizing `failed`), leaves the consumed claim non-reusable,
+  and sets `outcomeUnknown` so `ToolExecutor` writes no execution receipt (the
+  claim stays `pending`, replay-classified `unverified`, fail-closed). Pinned
+  by `tests/kernel/coordination-tools.test.ts` ("coordination.run
+  incomplete-execution receipt (F3)") which drives the real `ToolExecutor`, plus
+  its positive control for a verified completion.
 - **Approval-required requires a durable approval id (SRAP PR B).** `authorizeWorker`
   fails closed (`denied`) when a capability returns `approval_required` with no
   durable `approvalId` OR with the `ExecutionAuthorization` legacy sentinel

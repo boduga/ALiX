@@ -1,0 +1,20 @@
+{
+  "stratum": "local-cpu-only",
+  "label": "9. Local CPU-only execution",
+  "runId": "run-a0b682d5",
+  "sessionId": "ec447ac2-fe48-4e89-80ec-ee252cd8585a",
+  "provider": "ollama",
+  "model": "llama3.2:3b",
+  "objective": "Hi",
+  "outcome": "completed",
+  "exitCode": 0,
+  "usage": { "inputTokens": 3304, "outputTokens": 14 },
+  "processor": "100% CPU",
+  "network": "none (localhost:11434)",
+  "wallClockSeconds": 622,
+  "cost": null,
+  "costNote": "non-billable provider: local CPU inference has resource cost, not token-billed cost. Reported as null, never as 0 USD.",
+  "verifiedBy": "model.usage event carries runId; provider classified local by isLocalProvider('ollama')",
+  "priorObservation": "run-379d9b20 (same path, earlier attempt)",
+  "recordedAt": "2026-10-20"
+}

@@ -15,14 +15,14 @@ import { acquireWorkerOwnership, releaseWorkerOwnership, releaseWorkerLeases, re
 import { DEFAULT_ORPHAN_THRESHOLD_MS } from "./owner-liveness.js";
 import { markRunGraphCancelled } from "./coordination-resume.js";
 import { reconcileCoordinationRun } from "./coordination-reconciliation.js";
-import type { ReconciliationResult as ReconcileResult } from "./coordination-reconciliation.js";
+import type { ReconciliationResult as ReconcileResult, WorkerApprovalDenial } from "./coordination-reconciliation.js";
 import { authorizeWorker } from "./coordination-authorization.js";
 import type { ExecutionAuthorization } from "../../runtime-state/runtime/execution-authorization.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
 import type { MetricsSink } from "../../runtime-state/contracts/metrics-sink.js";
 import type { AuditStore } from "../../governance/audit/audit-store.js";
-import type { AlixConfig } from "../../operations/config/schema.js";
+import type { AlixConfig, SessionMode } from "../../operations/config/schema.js";
 import { recomputeRunStatus, type CoordinationRun, type CoordinationRunStatus, type WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationCompletionService } from "./coordination-completion-service.js";
 import { createCompletionService } from "./coordination-completion-service.js";
@@ -131,6 +131,23 @@ export type SchedulerTickResult = {
   ready: number;
   dispatched: string[];
   awaitingApproval: string[];
+  /**
+   * Workers blocked on `approval_required` in the CURRENT post-reconciliation
+   * run state — whether the block was created by this tick or by an earlier
+   * one.
+   *
+   * `awaitingApproval` only reports approval blocks encountered while
+   * dispatching candidates, and candidates come from `readyWorkers`
+   * (`status === "pending"`). A worker already blocked on approval is
+   * therefore invisible to it from the next tick on, which made
+   * `runUntilIdle` misread "waiting for an operator" as "nothing to do" and
+   * exit `idle` with the run still non-terminal (Gate 6 F5).
+   *
+   * This field is accounting only: it never authorizes, dispatches, or mutates
+   * anything. It also does not count as progress — an approval wait is not
+   * work.
+   */
+  approvalBlocked: string[];
   denied: string[];
   ownershipConflicts: string[];
   dependencyBlocked: string[];
@@ -204,6 +221,151 @@ export class CoordinationScheduler {
 
   // ── Reconciliation ─────────────────────────────────────────────────
 
+  /**
+   * Is this worker's approval evidence satisfied by currently-valid approvals?
+   *
+   * APPROVAL SCOPING (F6). `requiredCapabilities` is everything a worker needs;
+   * `authorizationEvidence.decisions` records the outcome per capability; and
+   * each approval record authorizes exactly ONE gated capability. Comparing one
+   * record's capability list against the worker's complete capability set — as
+   * this check used to do — made any worker whose capabilities mixed an
+   * allow and an ask (e.g. `["file.exists", "file.read"]`) permanently
+   * unresumable, because a single record can never equal a two-entry set.
+   *
+   * The correct question is per gated capability: does EVERY capability that
+   * requires approval have its own currently-valid approval? Answered here with
+   * the operator's safeguards:
+   *
+   *   1. Authorization is RECOMPUTED at reconcile time against the current
+   *      policy — persisted decisions are evidence of what was gated, never the
+   *      authority that decides resumption. A capability that policy now denies
+   *      blocks the worker; one that is now allowed needs no approval.
+   *   2. Every required capability must have a valid decision: a capability in
+   *      `requiredCapabilities` with no recorded decision fails closed.
+   *   3. Each approval-required capability must have a matching APPROVED record
+   *      with the exact run / worker / attempt / capability / ownership-claims
+   *      hash / policy revision binding and an unexpired grant.
+   *   4. An approval satisfies ONLY its own capability — never a superset, never
+   *      a sibling. Two gated capabilities therefore need two approvals.
+   *   5. This is VERIFY-ONLY. Consumption stays with the dispatch path
+   *      (PolicyGate `exact-binding-approved`), so a legitimate approval is never
+   *      spent by a probe and two dispatches cannot both claim it.
+   */
+  /**
+   * Resolve, for every gated capability of this worker, the currently-bound
+   * approval record and whether that capability is satisfied.
+   *
+   * One implementation for BOTH reconciliation outcomes, so an approval and a
+   * denial are validated against exactly the same authority. Returns null when
+   * the worker has no usable evidence.
+   */
+  private async resolveWorkerApprovals(
+    worker: WorkerAssignment,
+    run: CoordinationRun,
+  ): Promise<{
+    satisfied: boolean;
+    denial: WorkerApprovalDenial | null;
+  } | null> {
+    const evidence = worker.authorizationEvidence;
+    if (!evidence?.decisions?.length) return null;
+
+    const required = [...new Set(worker.requiredCapabilities ?? [])];
+    if (required.length === 0) return null;
+
+    // Every required capability must have been evaluated. A capability with no
+    // decision is missing authorization evidence, not an allow.
+    const decided = new Map(evidence.decisions.map(d => [d.capability, d]));
+    if (required.some(cap => !decided.has(cap))) return null;
+
+    const { ApprovalStore } = await import("../../governance/approvals/approval-store.js");
+    const store = new ApprovalStore(this.deps.cwd);
+    await store.load();
+
+    const { computeOwnershipClaimsHash } = await import("../../governance/approvals/approval-binding.js");
+    const { computePolicyRevision } = await import("../../governance/policy/policy-revision.js");
+    const config = await this.deps.configProvider();
+    const currentPolicyRevision = computePolicyRevision(config);
+    const wantClaimsHash = computeOwnershipClaimsHash(worker.ownershipClaims ?? []);
+    // The run's persisted mode wins over the host's current config, exactly as
+    // dispatch reads it.
+    const sessionMode = run.sessionMode ?? config.permissions.sessionMode ?? "ask";
+
+    for (const capability of required) {
+      const recorded = decided.get(capability)!;
+
+      // (1) Recompute the POLICY verdict against the current config. Persisted
+      // decisions are evidence of what was gated, never the authority that
+      // decides resumption — a capability policy now denies can never be
+      // rescued by a stale approval, and one policy now allows needs none.
+      //
+      // Computed from config only (the same tool-entry → default → session-mode
+      // precedence `PolicyGate.evaluateCapability` applies before it ever
+      // touches an approval), deliberately WITHOUT calling the gate: the
+      // capability path mints approvals as a side effect, and reconciliation
+      // must never create or spend one.
+      const verdict = capabilityPolicyVerdict(config, capability, sessionMode);
+
+      if (verdict === "deny") return { satisfied: false, denial: null };
+      if (verdict === "allow") continue; // no approval needed under current policy
+
+      // (2/3) Policy requires approval: this capability needs its OWN valid,
+      // currently-bound record.
+      if (recorded.status !== "approval_required") return { satisfied: false, denial: null };
+      const approvalId = recorded.approvalId;
+      if (!approvalId) return { satisfied: false, denial: null };
+
+      const record = await store.loadFresh(approvalId);
+      if (!record) return { satisfied: false, denial: null };
+      if (new Date(record.expiresAt) <= new Date()) return { satisfied: false, denial: null };
+
+      // (4) Exact scope: this record authorizes THIS capability and nothing
+      // else. Two gated capabilities therefore need two approvals, and one
+      // record can never satisfy a sibling.
+      const recordCaps = record.capabilities ?? [];
+      if (recordCaps.length !== 1 || recordCaps[0] !== capability) {
+        return { satisfied: false, denial: null };
+      }
+
+      // Exact identity binding — shared by the approve and deny paths.
+      if (record.coordinationRunId !== run.id) return { satisfied: false, denial: null };
+      if (record.workerId !== worker.id) return { satisfied: false, denial: null };
+      if ((record.workerAttempt ?? 0) !== (worker.attempt ?? 0)) return { satisfied: false, denial: null };
+      if (computeOwnershipClaimsHash(record.ownershipClaims ?? []) !== wantClaimsHash) {
+        return { satisfied: false, denial: null };
+      }
+      if (record.policyRevision !== currentPolicyRevision) return { satisfied: false, denial: null };
+
+      // (5) An EXPLICIT operator denial is a definitive refusal for this exact
+      // capability — terminal for the worker, never resumable. Only `denied`
+      // qualifies: `pending` keeps waiting, and `expired`/`revoked`/
+      // `invalidated`/`consumed` keep their own fail-closed semantics rather
+      // than being reinterpreted as a denial.
+      if (record.status === "denied") {
+        return {
+          satisfied: false,
+          denial: {
+            approvalId: record.id,
+            capability,
+            status: "denied",
+            ...(record.decidedAt ? { deniedAt: record.decidedAt } : {}),
+          },
+        };
+      }
+
+      if (record.status !== "approved") return { satisfied: false, denial: null };
+    }
+
+    return { satisfied: true, denial: null };
+  }
+
+  private async isWorkerApprovalSatisfied(
+    worker: WorkerAssignment,
+    run: CoordinationRun,
+  ): Promise<boolean> {
+    const resolved = await this.resolveWorkerApprovals(worker, run);
+    return resolved?.satisfied ?? false;
+  }
+
   async reconcile(runId: string): Promise<ReconciliationResult> {
     const result = await reconcileCoordinationRun({
       store: this.deps.store,
@@ -212,56 +374,17 @@ export class CoordinationScheduler {
       clock: this.deps.clock,
       isApproved: async (worker: WorkerAssignment, run: CoordinationRun) => {
         try {
-          const evidence = worker.authorizationEvidence;
-          if (!evidence?.decisions?.length) return false;
-          // Approval-binding continuity (SRAP): reconcile on the binding key the
-          // approval was CREATED with. Reconstructing it from partial worker
-          // evidence produced a different request fingerprint and an unmatched key.
-          if (typeof evidence.bindingKey !== "string" || evidence.bindingKey.length === 0) {
-            // Legacy evidence without a persisted binding → fail closed.
-            return false;
-          }
-          const { ApprovalStore } = await import("../../governance/approvals/approval-store.js");
-          const store = new ApprovalStore(this.deps.cwd);
-          await store.load();
-
-          const record = store.findExact(evidence.bindingKey);
-          if (!record) return false;
-          if (record.status !== "approved") return false;
-          if (new Date(record.expiresAt) <= new Date()) return false;
-
-          // Independent context verification: the persisted binding must still
-          // describe THIS run / worker / attempt / capability set. A stale key must
-          // never authorize a different execution attempt.
-          if (record.coordinationRunId !== run.id) return false;
-          if (record.workerId !== worker.id) return false;
-          if ((record.workerAttempt ?? 0) !== (worker.attempt ?? 0)) return false;
-          const wantCaps = [...(worker.requiredCapabilities ?? [])].sort().join(",");
-          const haveCaps = [...(record.capabilities ?? [])].sort().join(",");
-          if (wantCaps !== haveCaps) return false;
-
-          // Ownership claims are part of the canonical binding: a grant for
-          // different declared scopes must never authorize this worker.
-          const { computeOwnershipClaimsHash } = await import("../../governance/approvals/approval-binding.js");
-          const wantClaimsHash = computeOwnershipClaimsHash(worker.ownershipClaims ?? []);
-          const haveClaimsHash = computeOwnershipClaimsHash(record.ownershipClaims ?? []);
-          if (wantClaimsHash !== haveClaimsHash) return false;
-
-          // Policy revision: an approval bound to a superseded policy must not
-          // authorize (the store also invalidates these, this is defence in depth).
-          const { computePolicyRevision } = await import("../../governance/policy/policy-revision.js");
-          const currentPolicyRevision = computePolicyRevision(await this.deps.configProvider());
-          if (record.policyRevision !== currentPolicyRevision) return false;
-
-          // VERIFY ONLY — do NOT consume here. Consumption is owned by the
-          // dispatch path (PolicyGate's `exact-binding-approved` branch), which
-          // is the single place an approval authorizes execution. Consuming
-          // here as a probe made reconcile resume the worker and then the
-          // re-dispatch re-authorize against an already-consumed approval,
-          // creating a fresh pending and blocking forever (double consumption).
-          return true;
+          return await this.isWorkerApprovalSatisfied(worker, run);
         } catch {
           return false;
+        }
+      },
+      approvalDenial: async (worker: WorkerAssignment, run: CoordinationRun) => {
+        try {
+          const resolved = await this.resolveWorkerApprovals(worker, run);
+          return resolved?.denial ?? null;
+        } catch {
+          return null;
         }
       },
       activeExecutionIds: new Set(this.activeExecutions.keys()),
@@ -463,6 +586,24 @@ export class CoordinationScheduler {
     run = (await this.deps.store.load(runId))!;
     const progressMade = dispatched.length > 0 || recResult.orphaned.length > 0 || recResult.dependencyBlocked.length > 0;
 
+    // Approval-blocked workers from the CURRENT post-reconciliation state.
+    //
+    // Derived from the reloaded run — never an earlier snapshot — so a worker
+    // that reconciliation just resumed to `pending` cannot linger here, and a
+    // block created by this tick's dispatch is included. Terminal runs report
+    // none: terminal precedence means a terminal run is never "awaiting
+    // approval" because of a leftover worker record.
+    //
+    // Accounting only: this deliberately does NOT feed `progressMade`. Waiting
+    // for an operator is not work, and treating it as progress would keep a
+    // genuinely idle run alive.
+    const runIsTerminal = run?.status === "completed" || run?.status === "failed" || run?.status === "cancelled";
+    const approvalBlocked = runIsTerminal
+      ? []
+      : (run?.workers ?? [])
+          .filter(w => w.status === "blocked" && w.blockReason === "approval_required")
+          .map(w => w.id);
+
     // Emit tick completed only for a MEANINGFUL transition (see terminalTicksEmitted).
     // An idle poll — nothing dispatched/reconciled, nobody awaiting approval or
     // denied, no ownership conflict, run not newly terminal — records nothing.
@@ -488,6 +629,7 @@ export class CoordinationScheduler {
         examined: readyWorkers.length,
         dispatched,
         awaitingApproval,
+        approvalBlocked,
         denied,
         ownershipConflicts,
         activeRunning,
@@ -518,7 +660,7 @@ export class CoordinationScheduler {
 
     return {
       runId, examined: readyWorkers.length, ready: readyWorkers.length,
-      dispatched, awaitingApproval, denied, ownershipConflicts,
+      dispatched, awaitingApproval, approvalBlocked, denied, ownershipConflicts,
       dependencyBlocked: [...recResult.dependencyBlocked],
       recoveredOrphans: [...recResult.orphaned],
       activeRunning, availableSlots,
@@ -829,6 +971,17 @@ export class CoordinationScheduler {
       }
 
       if (result.awaitingApproval.length > 0) {
+        return { runId, finalStatus: "blocked", stopReason: "awaiting_approval", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
+      }
+
+      // Approval-blocked from an EARLIER tick is still waiting for an operator,
+      // never idle. `awaitingApproval` above only reports blocks created while
+      // dispatching this tick's candidates, so without this a worker blocked at
+      // attempt N and approved later was invisible on the following tick: the
+      // loop counted idle and exited with the run still non-terminal (F5).
+      // Returning here hands control back to the handler's bounded approval
+      // poll — no busy loop, and the terminal branches above still win.
+      if (result.approvalBlocked.length > 0) {
         return { runId, finalStatus: "blocked", stopReason: "awaiting_approval", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
       }
 
@@ -1249,9 +1402,36 @@ export function createCoordinationScheduler(
   return new CoordinationScheduler({ ...deps, completionService }, options);
 }
 
+/**
+ * The POLICY verdict for one capability, with no side effects.
+ *
+ * Mirrors the precedence `PolicyGate.evaluateCapability` applies BEFORE it
+ * reaches any approval: an explicit `tools[capability]` entry, else
+ * `permissions.default`, each interpreted through the session mode. Kept here
+ * as a pure function because the gate's own capability path mints approvals as
+ * a side effect, and reconciliation must never create or spend one.
+ *
+ * Returns `allow` when the capability needs no approval, `deny` when policy
+ * forbids it outright, and `ask` when it requires an approval.
+ */
+function capabilityPolicyVerdict(
+  config: AlixConfig,
+  capability: string,
+  sessionMode: SessionMode,
+): "allow" | "ask" | "deny" {
+  const interpret = (decision: string): "allow" | "ask" | "deny" => {
+    if (decision === "allow") return "allow";
+    if (decision === "deny") return "deny";
+    return sessionMode === "auto" || sessionMode === "bypass" ? "allow" : "ask";
+  };
+  const toolDecision = config.permissions.tools?.[capability];
+  if (toolDecision) return interpret(toolDecision);
+  return interpret(config.permissions.default ?? "ask");
+}
+
 function emptyTick(runId: string, status: CoordinationRunStatus): SchedulerTickResult {
   return {
-    runId, examined: 0, ready: 0, dispatched: [], awaitingApproval: [], denied: [],
+    runId, examined: 0, ready: 0, dispatched: [], awaitingApproval: [], approvalBlocked: [], denied: [],
     ownershipConflicts: [], dependencyBlocked: [], recoveredOrphans: [], activeRunning: 0, availableSlots: 0,
     runStatus: status, progressMade: false,
   };

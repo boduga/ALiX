@@ -1,0 +1,47 @@
+{
+  "source": "real-model read-only strata (1 and 2) scored by the strengthened unchanged oracle",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "modelOverride": "explicit --provider/--model one-off. The operator default model (intern/deepseek-v4-flash-0731) refused every full agent request with 429 quota exceeded; no default was changed and no offline mock was substituted.",
+  "runner": "benchmark/evidence/cost/eval-case-sweep.mjs",
+  "rawResults": "benchmark/evidence/cost/readonly-navigation-gpt4o.json",
+  "startedAt": "2026-10-22T03:19:59.217Z",
+  "finishedAt": "2026-10-22T03:20:20.161Z",
+  "completeness": "complete",
+  "rate": {
+    "inputPerMillion": 2.5,
+    "outputPerMillion": 10.0,
+    "effectiveFrom": "2025-01-01",
+    "source": "src/operations/observability/cost-attribution.ts defaultPricingCatalog"
+  },
+  "verifiedSuccesses": 2,
+  "costUsd": 0.090668,
+  "perStratum": {
+    "readonly-inspection": {
+      "caseId": "behavioral.read-only",
+      "runId": "run-8dc47a49",
+      "inputTokens": 18044,
+      "outputTokens": 88,
+      "costUsd": 0.04599,
+      "completeness": "complete",
+      "verifiedSuccesses": 1,
+      "verdict": "pass",
+      "objectiveLanded": true,
+      "statusHonest": true
+    },
+    "code-navigation": {
+      "caseId": "behavioral.code-navigation",
+      "runId": "run-20366a87",
+      "inputTokens": 17479,
+      "outputTokens": 98,
+      "costUsd": 0.044678,
+      "completeness": "complete",
+      "verifiedSuccesses": 1,
+      "verdict": "pass",
+      "objectiveLanded": true,
+      "statusHonest": true
+    }
+  },
+  "oracleNote": "The unchanged objective now verifies source equality on every seeded file and the reported answer, not mere existence. The earlier records for these two strata carried no verified-success count because the oracle could not tell a rewritten file from an untouched one.",
+  "recordedAt": "2026-10-21"
+}

@@ -14,6 +14,17 @@ subtrees below.
 | `docs/agents/` | Agent workflow guides (issue tracker, triage labels, domain) |
 | `docs/architecture/` | Architecture plans, specs, checkpoints, reports |
 | `docs/audits/` | Durable architecture evidence — evidence-graded audits, document inventory/classification, phase registry, SRAP readiness |
+| `docs/audits/2026-10-23-harness-acceptance-matrix.md` | Point-in-time PRE-R001–R032 evidence reconciliation; companions record baseline provenance and legacy config consumers. Definitions, historical observations, executed tests, independent qualification and operator acceptance remain distinct. |
+| `docs/audits/2026-10-23-eval-corpus-audit.md` | All 14 behavioral cases and two synthetic fixtures: exact-content and positive-guard fixes, retained scripted proof, historical repetition reconciliation and independent-qualification limits. |
+| `docs/audits/2026-10-23-master-prd-traceability.md` | Master PRD v2.8 GAP-12, P0 slice: PRD-R to source-anchor/test mapping with five declared Phase 0 gaps. Located/Partial labels are not acceptance; P1–P3 unmapped. |
+| `docs/audits/2026-10-23-harness-authorization.md` | Operator authorization for all remaining harness closeout work. Records that permission was granted, and separately that Gate E independence, human observations and measured numbers cannot be granted by an authorization. |
+| `docs/audits/2026-10-23-eval-false-pass-defect.md` | Fixed defect record: a provider/transport failure (429 quota) satisfied the `failed` expectation and scored as a verified refusal on the security case. Fix is `src/operations/evals/eval-admissibility.ts`; parity table in `tests/evals/eval-admissibility.vitest.ts`. |
+| `docs/2026-10-23-delegate-baseline-remeasurement.md` | Dated hand-off: four real-model delegate cases re-measured on the historical gpt-4o baseline after the admissibility fix — 10/12 at $0.045688/success, delta unattributed because `c0def71d` postdates the historical sweep. Its deny-case reading was later corrected: the case was mis-specified, not the model. |
+| `docs/2026-10-23-strata-repetition-pass.md` | Dated hand-off: six n=1 strata repeated on the baseline model ($1.76), plus three harness defects found — an unpassable `patch-application` case, a three-worker driver against a four-worker contract, and a fixed-delay crash kill that captured nothing. |
+| `docs/2026-10-23-harness-closeout-handoff-2.md` | Dated hand-off, current: supersedes the first closeout handoff. Evaluator false-pass fix, two broken eval cases found and repaired, gpt-4o baseline re-measurement, six strata repeated, and every retracted claim marked as such. |
+| `docs/harness-shim-catalog.md` | Harness shim owners, triggers, tests, retirement criteria, and measurement limits. |
+| `docs/harness-review-evaluation-protocol.md` | No-model scoring protocol for future human review; protocol readiness does not imply observations or qualification. |
+| `docs/harness-cutover-plan.md` | Design-only migration packages and their prerequisites; not implementation approval. |
 | `docs/superseded/` | Relocated superseded material, subtree-intact |
 | `docs/jev/` | Jev / System One integration docs |
 | `docs/superpowers/` | Implementation specs and plans |

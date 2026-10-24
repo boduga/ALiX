@@ -23,29 +23,46 @@ function printHuman(run: {
   results: Array<{
     caseId: string;
     objective: { landed: boolean };
-    status: { actual?: string; expected: string[]; honest: boolean };
+    status: {
+      actual?: string;
+      expected: string[];
+      honest: boolean;
+      inadmissible?: boolean;
+      inadmissibleReason?: string;
+    };
     verdict: string;
   }>;
-  summary: { total: number; passed: number; failed: number };
+  summary: { total: number; passed: number; failed: number; inadmissible: number };
 }): void {
   const banner = Array.from({ length: 34 }, () => "─").join("");
   console.log("Behavioral Eval Suite");
   console.log(banner);
   console.log();
   for (const r of run.results) {
-    const tag = r.verdict === "pass" ? "PASS" : "FAIL";
+    const tag = r.verdict === "pass" ? "PASS"
+      : r.verdict === "inadmissible" ? "SKIP"
+        : "FAIL";
     const objective = r.objective.landed ? "LANDED" : "NOT LANDED";
     const honest = r.status.honest ? "yes" : "no";
     console.log(`${tag}  ${r.caseId}`);
     console.log(`      objective: ${objective}`);
     console.log(`      status:    ${r.status.actual ?? "(none)"}  expected: ${r.status.expected.join("|")}`);
-    console.log(`      honest:    ${honest}`);
+    if (r.status.inadmissible) {
+      // Not a failure: the run produced no agent outcome. Printed distinctly so
+      // a provider fault is never read as model misbehaviour.
+      console.log(`      NOT SCORED: ${r.status.inadmissibleReason ?? "inadmissible"}`);
+    } else {
+      console.log(`      honest:    ${honest}`);
+    }
     console.log();
   }
   console.log(banner);
   console.log(`${run.summary.total} cases`);
   console.log(`${run.summary.passed} passed`);
   console.log(`${run.summary.failed} failed`);
+  if (run.summary.inadmissible > 0) {
+    console.log(`${run.summary.inadmissible} not scored (no agent outcome)`);
+  }
 }
 
 function printJson(run: unknown): void {
@@ -82,8 +99,24 @@ export async function handleEvalsRun(args: string[]): Promise<void> {
   let suite: string | undefined;
   let driver: EvalDriverKind | "both" = "both";
   let asJson = false;
+  // Default: the deterministic scripted provider. `--provider ollama --model ...`
+  // runs the same cases on local inference (stratum 9, CPU-only).
+  let provider = "scripted-mock";
+  let model = "mock";
+  let timeoutMs: number | undefined;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--suite" && args[i + 1]) suite = args[++i];
+    else if (args[i] === "--provider" && args[i + 1]) provider = args[++i];
+    else if (args[i] === "--model" && args[i + 1]) model = args[++i];
+    else if (args[i] === "--timeout-ms" && args[i + 1]) {
+      const raw = args[++i];
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        console.error(`--timeout-ms must be a positive number of milliseconds, got "${raw}"`);
+        process.exit(1);
+      }
+      timeoutMs = parsed;
+    }
     else if (args[i] === "--driver" && args[i + 1]) {
       const d = args[++i] as EvalDriverKind | "both";
       if (!(VALID_DRIVERS as readonly string[]).includes(d)) {
@@ -92,6 +125,10 @@ export async function handleEvalsRun(args: string[]): Promise<void> {
       }
       driver = d;
     } else if (args[i] === "--json") asJson = true;
+  }
+  if (provider !== "scripted-mock" && model === "mock") {
+    console.error(`--provider ${provider} requires --model <name> (e.g. --model llama3.2:3b)`);
+    process.exit(1);
   }
   if (suite !== undefined && !(VALID_SUITES as readonly string[]).includes(suite)) {
     console.error(`Unknown suite "${suite}". Valid suites: ${VALID_SUITES.join(", ")}`);
@@ -105,7 +142,13 @@ export async function handleEvalsRun(args: string[]): Promise<void> {
   await loadConfig(cwd);
 
   performance.now();
-  const run = await runEvalSuite(cases, { suite: "behavioral", driver });
+  const run = await runEvalSuite(cases, {
+    suite: "behavioral",
+    driver,
+    provider,
+    model,
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+  });
   const file = saveRun(cwd, run);
 
   if (asJson) {

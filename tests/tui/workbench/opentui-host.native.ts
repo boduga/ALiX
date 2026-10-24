@@ -442,12 +442,26 @@ test('OpenTUI approval buttons resolve the visible approval while blocking cover
     // resolves the approval that card names, not the oldest one.
     assert.equal(frame.split('a approve').length - 1, 2);
     assert.doesNotMatch(frame, /Resolve oldest approval first/);
-    const firstRow = frame.split('\n')[host.content.approval.screenY + 3]!;
-    await mouse.click(firstRow.indexOf('a approve'), host.content.approval.screenY + 3);
-    await mouse.click(firstRow.indexOf('d deny'), host.content.approval.screenY + 3);
+    // Both cards must be distinguishable, not two copies of "1 OF 2".
+    assert.match(frame, /1 OF 2/);
+    assert.match(frame, /2 OF 2/);
+    // Approvals render INLINE in the transcript, so the decision labels live at
+    // their painted frame row — the floating `approval` box is hidden and its
+    // screenY no longer locates them.
+    const frameLines = frame.split('\n');
+    const decisionRows: number[] = [];
+    frameLines.forEach((line, row) => { if (line.includes('a approve')) decisionRows.push(row); });
+    assert.equal(decisionRows.length, 2);
+    const [firstRowIndex, secondRowIndex] = decisionRows as [number, number];
+    const firstRow = frameLines[firstRowIndex]!;
+    const clickIn = async (line: string, label: string, row: number) => {
+      await mouse.click(line.indexOf(label), row);
+    };
+    await clickIn(firstRow, 'a approve', firstRowIndex);
+    await clickIn(firstRow, 'd deny', firstRowIndex);
     assert.deepEqual(calls.resolveApproval, [['ap1', 'approved'], ['ap1', 'denied']]);
-    const secondRow = frame.split('\n')[host.content.approval.screenY + 9]!;
-    await mouse.click(secondRow.indexOf('a approve'), host.content.approval.screenY + 9);
+    const secondRow = frameLines[secondRowIndex]!;
+    await clickIn(secondRow, 'a approve', secondRowIndex);
     assert.deepEqual(calls.resolveApproval, [['ap1', 'approved'], ['ap1', 'denied'], ['ap2', 'approved']]);
     host.dispose();
   } finally {

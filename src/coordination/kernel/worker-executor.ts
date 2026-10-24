@@ -13,6 +13,8 @@ import { createCollaborationTools } from "../../capabilities/tools/collaboration
 import type { BoundTool } from "../../capabilities/tools/collaboration-tools.js";
 import { renderWorkerExecutionPrompt, type WorkerDependencyResult } from "./coordination-worker-context.js";
 import { captureWorkerEventLog, reviewDefaultWorkerResult } from "./default-worker-review.js";
+import { isWriteWorker, ownedPathsForWorker } from "./worker-role.js";
+import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
 
 export type WorkerExecutionContext = {
   run: CoordinationRun;
@@ -80,11 +82,35 @@ async function initSharedEventLog(cwd: string, sessionId: string): Promise<Event
  * custom executor is injected into CoordinationScheduler.
  */
 export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
+  /**
+   * The AUTHORITATIVE approval store, injected from the coordination host.
+   *
+   * Two authorization boundaries share it and neither bypasses the other:
+   * the scheduler authorizes worker DISPATCH and its required capabilities,
+   * while the worker's own ToolExecutor re-evaluates each actual tool call and
+   * mints a durable tool-level approval when policy asks. A dispatch approval
+   * for `filesystem.write` therefore never authorizes writing an arbitrary path
+   * with arbitrary content.
+   *
+   * One store instance serves both boundaries — no second approval authority.
+   * Omitted only when the host has none, in which case gated tool calls fail
+   * closed exactly as before.
+   */
+  constructor(private readonly approvalStore?: ApprovalStore) {}
+
   async execute(
     worker: WorkerAssignment,
     context: WorkerExecutionContext,
     signal: AbortSignal,
   ): Promise<WorkerExecutionResult> {
+    const ownedPaths = isWriteWorker(worker) ? ownedPathsForWorker(worker) : undefined;
+    if (isWriteWorker(worker) && !ownedPaths?.length) {
+      return {
+        outcome: "failure",
+        failureKind: "authorization_denied",
+        error: "Write worker has no valid owned paths",
+      };
+    }
     try {
       const { runTask } = await import("../../run.js");
 
@@ -116,6 +142,13 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
             }
           : undefined,
         boundTools,
+        ...(ownedPaths ? { ownedPaths } : {}),
+        // Tool-level authorization boundary: the worker's own PolicyGate mints
+        // durable approvals against the SAME store the scheduler uses, so a
+        // gated tool call can pause the worker and resume it exactly once after
+        // an operator decision. Omitted when the host has no store, preserving
+        // the previous fail-closed behaviour.
+        ...(this.approvalStore ? { approvalStore: this.approvalStore } : {}),
       });
 
       if (signal.aborted) {

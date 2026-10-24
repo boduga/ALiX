@@ -1,0 +1,30 @@
+{
+  "source": "delegate-path probe on a real priced model (subagent usage emission)",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "case": "behavioral.write-file",
+  "inputTokens": 8199,
+  "outputTokens": 56,
+  "costUsd": 0.021057,
+  "completeness": "complete",
+  "rate": {
+    "inputPerMillion": 2.5,
+    "outputPerMillion": 10.0,
+    "effectiveFrom": "2025-01-01"
+  },
+  "perStratum": {
+    "single-file-edit": {
+      "case": "behavioral.write-file",
+      "inputTokens": 8199,
+      "outputTokens": 56,
+      "costUsd": 0.021057
+    }
+  },
+  "runIdAttribution": {
+    "present": false,
+    "reason": "a subagent child has no authoritative caller run identity; the field is omitted rather than guessed (same posture as task-loop/main.ts). The originating case id identifies the run for eval purposes.",
+    "openQuestion": "per-worker runId would be needed to attribute individual workers inside a multi-worker coordination run"
+  },
+  "verifiedBy": "captured by captureEvalUsage before cleanup; arithmetic reproduced against the production pricing catalog",
+  "recordedAt": "2026-10-20"
+}

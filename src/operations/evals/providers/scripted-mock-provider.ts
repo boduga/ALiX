@@ -35,7 +35,7 @@ export type ScriptedModelStep =
   | { kind: "text"; text: string }
   | {
       kind: "tool";
-      tool: "file.create" | "file.delete" | "patch.apply";
+      tool: "file.create" | "file.delete" | "patch.apply" | "shell.run";
       args: Record<string, unknown>;
     }
   | { kind: "error"; error: string };
@@ -62,10 +62,11 @@ const DEFAULT_CAPABILITIES: ModelCapabilities = {
 };
 
 /** Model-facing tool names (the wire names the agent loop resolves). */
-const TOOL_NAMES: Record<"file.create" | "file.delete" | "patch.apply", string> = {
+const TOOL_NAMES: Record<"file.create" | "file.delete" | "patch.apply" | "shell.run", string> = {
   "file.create": "alix_file_create",
   "file.delete": "alix_file_delete",
   "patch.apply": "alix_patch_apply",
+  "shell.run": "alix_shell_run",
 };
 
 /**

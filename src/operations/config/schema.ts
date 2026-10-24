@@ -160,6 +160,13 @@ export type ModelConfig = {
    * `${internBaseUrl}/chat/completions`.
    */
   internBaseUrl?: string;
+  /**
+   * Inference API root for the hive provider (default
+   * https://api-cdn.thehive.ai/api/v3). The root already carries its version
+   * segment, so the chat endpoint is `${hiveBaseUrl}/chat/completions` — not
+   * the `/v1` convention other OpenAI-compatible vendors use.
+   */
+  hiveBaseUrl?: string;
   routing?: {
     freeFallback?: boolean;
     fallbacks?: Array<{
@@ -429,6 +436,16 @@ export type SubagentTask = {
   cwd?: string; // working directory for the spawned subagent process
   scriptedScenarioJson?: string; // scripted provider scenario for the eval harness
   coordinationRunId?: string; // optional operator-facing correlation metadata
+  /**
+   * The worker's OWN assigned objective, distinct from `prompt`.
+   *
+   * `prompt` is the rendered execution prompt: it embeds the root coordination
+   * objective, ownership limits and dependency evidence. Judging a worker's
+   * result against the root objective rejects correct work — a worker that owns
+   * `docs/b.md` is not responsible for `docs/a.md` or `docs/c.md`. The objective
+   * review must score against this field, not against `prompt`.
+   */
+  assignedObjective?: string;
   assignedAgentId?: string; // planner-assigned agent label; not the execution identity
   taskLabel?: string; // concise operator-facing task title
   /** Coordination retries are terminal only when the scheduler exhausts them. */

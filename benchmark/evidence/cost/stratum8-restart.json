@@ -1,0 +1,84 @@
+{
+  "source": "real-model restart/crash coordination on a priced provider (stratum 8)",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "modelOverride": "explicit --provider/--model one-off. The operator default model (intern/deepseek-v4-flash-0731) refused every full agent request with 429 quota exceeded; no default was changed and no offline mock was substituted.",
+  "runner": "benchmark/evidence/coordination/run-restart-metered.mjs",
+  "rawResults": "benchmark/evidence/coordination/stratum8-gpt4o.json",
+  "startedAt": "2026-10-22T03:54:22.026Z",
+  "finishedAt": "2026-10-22T03:54:56.288Z",
+  "completeness": "complete",
+  "rate": {
+    "inputPerMillion": 2.5,
+    "outputPerMillion": 10,
+    "effectiveFrom": "2025-01-01",
+    "source": "src/operations/observability/cost-attribution.ts defaultPricingCatalog"
+  },
+  "verifiedSuccesses": 1,
+  "costUsd": 0.211623,
+  "perStratum": {
+    "crash-outcome-unknown": {
+      "caseId": "coordination.restart-after-crash",
+      "runId": "coord_84cb461d-e59c-4a62-bfe6-baef18e1982d",
+      "inputTokens": 82097,
+      "outputTokens": 638,
+      "usageRecords": 13,
+      "costUsd": 0.211623,
+      "completeness": "complete",
+      "verifiedSuccesses": 1,
+      "verdict": "pass",
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "crashIntegrity": {
+        "killed": true,
+        "trigger": {
+          "mode": "running-worker",
+          "runId": "coord_84cb461d-e59c-4a62-bfe6-baef18e1982d",
+          "workerId": "worker_ee228cd7-afe2-42a4-a4e2-38efa8f3f504",
+          "attempt": 1
+        },
+        "runStatusAtKill": "running",
+        "completedAtKill": 0,
+        "falselyCompleted": null
+      },
+      "artifacts": [
+        {
+          "path": "docs/a.md",
+          "exists": true,
+          "content": "A-MARKER"
+        },
+        {
+          "path": "docs/b.md",
+          "exists": true,
+          "content": "B-MARKER"
+        },
+        {
+          "path": "docs/c.md",
+          "exists": true,
+          "content": "C-MARKER"
+        }
+      ],
+      "finalRun": {
+        "status": "completed",
+        "outcome": "success",
+        "workers": [
+          "completed",
+          "completed",
+          "completed"
+        ]
+      },
+      "ownedScopeEnforcement": {
+        "deniedWrites": 2,
+        "paths": [
+          "docs/a.md",
+          "docs/c.md"
+        ],
+        "deniedBy": "PolicyGate owned-path rule",
+        "source": "benchmark/evidence/coordination/restart-workspace/.alix/sessions/coord_1792641258337/events.jsonl (tool.failed)",
+        "note": "Worker B (owned docs/b.md) attempted to write two sibling files and was denied both times. These are the run's only tool failures, so the owned-scope rule decided and no worker wrote outside its declared scope."
+      }
+    }
+  },
+  "oracleNote": "The run was killed on a persisted running worker (no worker had completed at kill), resumed through the reclaim path, and finished with all three workers completed and each owned artifact holding exactly its marker. The cost covers both halves of the crash scenario: the pre-kill usage was counted once from the final session-log snapshot.",
+  "recordedAt": "2026-10-22"
+}

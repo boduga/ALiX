@@ -61,6 +61,50 @@ export function computeBindingKey(binding: ApprovalBinding): string {
   return createHash("sha256").update(canonical).digest("hex");
 }
 
+/**
+ * The exact invocation an approval authorizes.
+ *
+ * Persisted on the record at creation and re-derived at authorization time so a
+ * reused request id cannot carry an approval across a changed argument set,
+ * capability, tool, workspace, session, or agent. Every field is host-derived;
+ * none may come from prompt-supplied authority.
+ */
+export interface InvocationIdentity {
+  capability: string;
+  toolName?: string;
+  /** Canonical absolute workspace root. */
+  workspace: string;
+  argsHash: string;
+  sessionId?: string;
+  agentId?: string;
+}
+
+/**
+ * Deterministic fingerprint over the full invocation identity.
+ *
+ * Reuses the same recursive key sort as `computeBindingKey` so two equivalent
+ * argument objects cannot produce different fingerprints through key order.
+ */
+export function computeInvocationFingerprint(identity: InvocationIdentity): string {
+  const canonical = JSON.stringify(canonicalize(identity));
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
+/**
+ * Compare a persisted invocation fingerprint against the current request.
+ *
+ * A record that carries no fingerprint predates this binding. Legacy records
+ * are NOT silently trusted: they fail closed and the caller must re-request
+ * operator approval.
+ */
+export function invocationMatches(
+  record: { invocationFingerprint?: string },
+  identity: InvocationIdentity,
+): boolean {
+  if (!record.invocationFingerprint) return false;
+  return record.invocationFingerprint === computeInvocationFingerprint(identity);
+}
+
 const VALID_STATUSES: readonly string[] = ["pending", "approved", "denied", "consumed", "expired", "revoked", "invalidated"];
 const VALID_POLICIES: readonly string[] = ["single_use", "worker_attempt", "coordination_run", "session"];
 

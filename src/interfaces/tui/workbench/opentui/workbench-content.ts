@@ -10,9 +10,7 @@ import { renderResponse } from '../../blocks/render.js';
 import type { WorkbenchRegion } from '../layout/responsive-layout.js';
 import type { WorkbenchViewState } from '../view-state/types.js';
 import { buildAgentInspectorSections } from '../views/agent-inspector.js';
-import {
-  WORKBENCH_APPROVAL_DECISION_ROW, buildWorkbenchApprovalCardLines, workbenchApprovalDecisionSpans,
-} from '../views/approval-dialog.js';
+import { buildWorkbenchApprovalCardLines, WORKBENCH_APPROVAL_DECISION_ROW, workbenchApprovalDecisionSpans } from '../views/approval-dialog.js';
 import { buildOperatorStatusSegments } from '../views/operator-shell.js';
 import { buildWorkbenchToolCardLines } from '../views/tool-card.js';
 import type { ComposerLayout } from '../views/composer-view.js';
@@ -33,7 +31,6 @@ const ACTIVITY_STATUS: Readonly<Record<string, string>> = {
 type Color = keyof typeof COLORS;
 interface NativePart { readonly text: string; readonly color?: Color; readonly background?: Color; readonly bold?: boolean }
 interface NativeLine { readonly text: string; readonly color?: Color; readonly fill?: boolean; readonly parts?: readonly NativePart[] }
-
 function styledLines(lines: readonly NativeLine[], width: number): StyledText {
   const chunks = lines.flatMap((line, index) => {
     let remaining = width;
@@ -86,6 +83,13 @@ export interface OpenTuiWorkbenchContent {
   inspectorClickTarget(row: number): OpenTuiClickAction | undefined;
   footerClickTarget(column: number, row: number): OpenTuiClickAction | undefined;
   approvalClickTarget(column: number, row: number): OpenTuiClickAction | undefined;
+  /**
+   * True while an authoritative approval is pending.
+   *
+   * Approvals are painted inline in the transcript, so the host needs this to
+   * keep the decision rows actionable while the rest of the shell is blocked.
+   */
+  hasPendingApproval(): boolean;
   update(state: ContentState): void;
   dispose(): void;
 }
@@ -318,7 +322,7 @@ function localTimeLabel(ms: number): string {
 /** Transcript gutter width. Kept tight so prose starts near its responder. */
 const ACTOR_COLUMN = 8;
 
-function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number, width: number, actor: string): NativeLine[] {
+function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, height: number, width: number, actor: string, approval?: ContentState['approval'][number], totalPending = 0): NativeLine[] {
   const time = localTimeLabel(item.startedAt);
   const prefix = `[${time}] ${actor.padEnd(ACTOR_COLUMN, ' ')} `;
   const gutter = ' '.repeat(prefix.length);
@@ -337,7 +341,9 @@ function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, 
     case 'user': return lead(proseRows(item.text, Math.max(8, width - prefix.length)));
     case 'assistant': return lead(proseRows(item.text, Math.max(8, width - prefix.length)));
     case 'activity': return lead(plain(`${item.verifiedOutcome === 'success' ? '✓ ' : item.verifiedOutcome === 'failure' ? '✗ ' : ''}${item.status ? `${ACTIVITY_STATUS[item.status] ?? item.status.toUpperCase()}  ` : ''}${item.text}`));
-    case 'approval': return lead(plain(`APPROVAL  ${item.text}`, 'yellow'));
+    case 'approval': return approval
+      ? lead(buildWorkbenchApprovalCardLines(approval, totalPending, Math.max(12, width - prefix.length)).map(text => ({ text, color: 'yellow' })))
+      : lead(plain(`APPROVAL  ${item.text}`, 'yellow'));
     case 'diagnostic': return lead(plain(`${item.severity.toUpperCase()}  ${item.text}`, item.severity === 'error' ? 'red' : 'yellow'));
     case 'phase': return lead(plain(`PHASE  ${item.phase}`, 'purple'));
     case 'plan': return [
@@ -367,8 +373,20 @@ function itemLines(item: TranscriptItem, errorOnly: boolean, detailed: boolean, 
   }
 }
 
-function transcriptLines(state: ContentState, conversation: ConversationSnapshot, width: number, height: number): { lines: NativeLine[]; resolvedScrollRows: number } {
-  if (height === 0 || width === 0) return { lines: [], resolvedScrollRows: 0 };
+function transcriptLines(state: ContentState, conversation: ConversationSnapshot, width: number, height: number): {
+  lines: NativeLine[];
+  resolvedScrollRows: number;
+  /**
+   * Rendered decision rows for inline approval cards.
+   *
+   * Approvals are painted inline in the transcript, but the floating `approval`
+   * box that used to own their click handling is now hidden and its targets are
+   * empty. Without this the Accept/Deny labels render as inert text and a
+   * pending approval cannot be resolved by mouse at all from the Workbench.
+   */
+  approvalTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }>;
+} {
+  if (height === 0 || width === 0) return { lines: [], resolvedScrollRows: 0, approvalTargets: [] };
   const { transcript, selection } = state;
   const scrollRows = transcript.followTail ? 0 : Math.max(0, Math.floor(transcript.scrollRowsFromTail ?? 0));
   const neededRows = height + scrollRows;
@@ -378,12 +396,15 @@ function transcriptLines(state: ContentState, conversation: ConversationSnapshot
   const lines: NativeLine[] = [];
   const roster = state.roster.agents?.agents ?? [];
   const items = conversation.items;
+  let inlineApprovalRendered = false;
   for (let index = items.length - 1; index >= 0; index--) {
     const item = items[index]!;
     if (!visible(item)) continue;
     const agent = roster.find(entry => entry.agentId === item.agentId);
     const actor = item.kind === 'user' ? 'YOU' : agent?.assignedAgentId ?? agent?.role ?? item.agentId ?? 'ALiX';
-    const itemContent = itemLines(item, transcript.filter === 'error', transcript.mode === 'detailed', neededRows, width, actor);
+    const pendingApproval = item.kind === 'approval' ? state.approval[0] : undefined;
+    const itemContent = itemLines(item, transcript.filter === 'error', transcript.mode === 'detailed', neededRows, width, actor, pendingApproval, state.approval.length);
+    if (pendingApproval) inlineApprovalRendered = true;
     const color: Color = item.kind === 'tool-group' ? item.tools.some(tool => tool.status === 'failed') ? 'red' : 'cyan'
       : item.kind === 'activity' ? item.verifiedOutcome === 'failure' ? 'red' : item.verifiedOutcome === 'success' ? 'green' : 'muted'
         : item.kind === 'diagnostic' ? item.severity === 'error' ? 'red' : 'yellow'
@@ -409,10 +430,53 @@ function transcriptLines(state: ContentState, conversation: ConversationSnapshot
     }
     if (lines.length >= neededRows) break;
   }
-  if (lines.length === 0) return { lines: [{ text: 'No conversation yet', color: 'muted' }], resolvedScrollRows: 0 };
+  const approvalTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
+  if (state.approval[0] && !inlineApprovalRendered) {
+    // Fallback when no approval transcript item exists: paint the cards so they
+    // are never invisible. EVERY pending approval gets a card — the previous
+    // version rendered only `state.approval[0]` while passing
+    // `state.approval.length` as the total, so with two pending approvals the
+    // frame showed a single card labelled "1 OF 2" and the second approval was
+    // unreachable: its Accept/Deny buttons were never drawn, so it could not be
+    // resolved from the Workbench at all. The count and the cards must agree.
+    const total = state.approval.length;
+    const cards: NativeLine[] = [];
+    const placed: Array<{ approval: ContentState['approval'][number]; cardRow: number; prefixWidth: number }> = [];
+    state.approval.forEach((pending, index) => {
+      const prefix = `[${localTimeLabel(pending.requestedAt)}] ${'ALiX'.padEnd(ACTOR_COLUMN, ' ')} `;
+      const gutter = ' '.repeat(prefix.length);
+      const cardLines = buildWorkbenchApprovalCardLines(pending, total, Math.max(12, width - prefix.length), Date.now(), index + 1);
+      placed.push({ approval: pending, cardRow: cards.length + WORKBENCH_APPROVAL_DECISION_ROW, prefixWidth: prefix.length });
+      cards.push(...cardLines.map((text, row): NativeLine => ({ text: `${row === 0 ? prefix : gutter}${text}`, color: 'yellow' })));
+    });
+    // `lines` is newest-first while collecting. Reserve room for these newest
+    // response cards, then prepend them in reverse row order before final layout.
+    const reserve = Math.min(neededRows, cards.length);
+    if (lines.length > neededRows - reserve) lines.splice(neededRows - reserve);
+    lines.unshift(...cards.reverse());
+    // Row coordinates are relative to the final `slice(0, height)` orientation:
+    // the cards occupy the LAST `cards.length` collection rows, which become the
+    // FIRST rendered rows once the buffer is reversed.
+    const renderedCards = Math.min(cards.length, height);
+    const offset = renderedCards - cards.length;
+    for (const entry of placed) {
+      const row = entry.cardRow + offset;
+      if (row < 0 || row >= renderedCards) continue;
+      for (const span of workbenchApprovalDecisionSpans()) {
+        approvalTargets.push({
+          row,
+          start: entry.prefixWidth + span.start,
+          end: entry.prefixWidth + span.end,
+          action: { type: 'approval.resolve', approvalId: entry.approval.id, decision: span.decision },
+        });
+      }
+    }
+  }
+  if (lines.length === 0) return { lines: [{ text: 'No conversation yet', color: 'muted' }], resolvedScrollRows: 0, approvalTargets };
   return {
     lines: lines.reverse().slice(0, height),
     resolvedScrollRows: lines.length < neededRows ? Math.max(0, lines.length - height) : scrollRows,
+    approvalTargets,
   };
 }
 
@@ -701,6 +765,13 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   let pausedConversation: ConversationSnapshot | undefined;
   let lastConversation: ConversationSnapshot | undefined;
   let resolvedScrollRows = 0;
+  /**
+   * Whether an authoritative approval was pending at the last paint.
+   *
+   * Captured during `update` so the host can decide, without re-reading content
+   * state, whether the transcript's inline decision rows stay actionable.
+   */
+  let pendingApprovalVisible = false;
   let rosterClickTargets: ReadonlyArray<OpenTuiClickAction | undefined> = [];
   let overlayClickTargets: ReadonlyArray<OpenTuiClickAction | undefined> = [];
   let inspectorClickTargets: ReadonlyArray<OpenTuiClickAction | undefined> = [];
@@ -708,6 +779,7 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
   let footerClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
   let approvalClickTargets: Array<{ row: number; start: number; end: number; action: OpenTuiClickAction }> = [];
   const update = (state: ContentState): void => {
+    pendingApprovalVisible = state.approval.length > 0;
     const headerSize = placeText(header, layout.regions.header, layout.geometry.regions.header);
     const footerSize = placeText(footer, layout.regions.footer, layout.geometry.regions.footer);
     const rosterSize = placeText(roster, layout.regions.roster, layout.geometry.regions.roster);
@@ -795,6 +867,11 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
       state, pausedConversation ?? state.transcript.conversation, transcriptSize.width, Math.max(0, transcriptSize.height - transcriptChrome.length),
     );
     resolvedScrollRows = transcriptWindow.resolvedScrollRows;
+    // Approval cards are painted inline, so their decision rows are transcript
+    // click targets. Row 0 is the persistent toolbar/chrome, hence the offset.
+    for (const target of transcriptWindow.approvalTargets) {
+      transcriptClickTargets.push({ ...target, row: target.row + transcriptChrome.length });
+    }
     transcript.content = styledLines([
       ...transcriptChrome,
       ...transcriptWindow.lines,
@@ -807,31 +884,11 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
     const overlayBody = state.overlay.drawer !== 'closed' ? drawerLines(state, overlaySize.width, overlaySize.height) : undefined;
     overlayClickTargets = overlayBody?.targets ?? [];
     overlay.content = overlayBody ? styledLines(overlayBody.lines.map(line => ({ text: line })), overlaySize.width) : '';
-    const approvalLines: string[] = [];
+    // Agent approvals are rendered inline with their response in the
+    // transcript; a floating card here detached the decision from its call.
     approvalClickTargets = [];
-    for (const entry of state.approval) {
-      const card = buildWorkbenchApprovalCardLines(entry, state.approval.length, renderer.width);
-      const base = approvalLines.length;
-      approvalLines.push(...card.slice(0, Math.max(0, Math.max(1, renderer.height - 3) - base)));
-      if (base + WORKBENCH_APPROVAL_DECISION_ROW >= approvalLines.length) continue;
-      for (const span of workbenchApprovalDecisionSpans()) {
-        approvalClickTargets.push({
-          row: base + WORKBENCH_APPROVAL_DECISION_ROW, start: span.start, end: span.end,
-          action: { type: 'approval.resolve', approvalId: entry.id, decision: span.decision },
-        });
-      }
-    }
-    approval.visible = approvalLines.length > 0;
-    if (approvalLines.length > 0) {
-      const cardWidth = approvalLines[0]!.length;
-      approvalText.content = approvalLines.join('\n');
-      approval.width = Math.max(1, cardWidth);
-      approval.height = approvalLines.length;
-      approval.left = Math.max(0, Math.floor((renderer.width - cardWidth) / 2));
-      approval.top = Math.min(Math.max(0, renderer.height - approvalLines.length), 3);
-    } else {
-      approvalText.content = '';
-    }
+    approval.visible = false;
+    approvalText.content = '';
   };
   update(initial);
   let disposed = false;
@@ -848,6 +905,7 @@ export function mountOpenTuiWorkbenchContent(renderer: CliRenderer, layout: Open
       ? footerClickTargets.find(target => target.row === row && column >= target.start && column < target.end)?.action : undefined,
     approvalClickTarget: (column, row) => approval.visible && column >= 0 && column < approval.width && row >= 0 && row < approval.height
       ? approvalClickTargets.find(target => target.row === row && column >= target.start && column < target.end)?.action : undefined,
+    hasPendingApproval: () => pendingApprovalVisible,
     dispose: () => {
       if (disposed) return;
       disposed = true;

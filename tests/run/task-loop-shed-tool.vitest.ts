@@ -193,6 +193,64 @@ async function makeTestDeps(overrides: {
 
 // ── Tests ─────────────────────────────────────────────────────────────
 
+it('preserves a substantive answer when the next turn only says Done', async () => {
+  const provider = createMockProvider();
+  let iteration = 0;
+  provider.complete = async () => ({
+    text: iteration++ === 0 ? 'src/util.ts exports x with value kestrel-9.' : 'Done.',
+    toolCalls: [],
+    finishReason: 'stop',
+  });
+  const { deps } = await makeTestDeps({ provider, task: 'Describe what src/util.ts exports.' });
+  const result = await runTaskLoop(deps);
+  expect(result.summary).toContain('kestrel-9');
+  expect(result.reason).toBe('completed');
+});
+
+it('uses a replacement answer instead of restoring the nudged answer', async () => {
+  const provider = createMockProvider();
+  let iteration = 0;
+  provider.complete = async () => ({
+    text: iteration++ === 0 ? 'The export is kestrel-9.' : 'Correction: the export is raven-2. Done.',
+    toolCalls: [],
+    finishReason: 'stop',
+  });
+  const { deps } = await makeTestDeps({ provider, task: 'Describe the export.' });
+  const result = await runTaskLoop(deps);
+  expect(result.summary).toBe('Correction: the export is raven-2. Done.');
+});
+
+it('checks unsupported claims in the preserved answer', async () => {
+  const provider = createMockProvider();
+  let iteration = 0;
+  provider.complete = async () => ({
+    text: iteration++ === 0 ? 'I wrote report.md with kestrel-9.' : 'Done.',
+    toolCalls: [],
+    finishReason: 'stop',
+  });
+  const { deps } = await makeTestDeps({ provider, task: 'Create report.md with kestrel-9.', maxIterations: 2 });
+  const result = await runTaskLoop(deps);
+  expect(result.reason).toBe('completed_unverified');
+});
+
+it('does not restore the nudged answer after an intervening tool turn', async () => {
+  const provider = createMockProvider();
+  let iteration = 0;
+  provider.complete = async () => {
+    iteration++;
+    if (iteration === 1) return { text: 'The export is kestrel-9.', toolCalls: [] };
+    if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read', args: { path: 'src/util.ts' } }] };
+    return { text: 'Done.', toolCalls: [] };
+  };
+  const { deps } = await makeTestDeps({
+    provider, task: 'Describe the export.', maxIterations: 4,
+    providerTools: [{ name: 'alix_file_read', description: 'Read a source file', input_schema: { type: 'object', properties: { path: { type: 'string' } } } }],
+    executor: { execute: async () => ({ kind: 'success', content: 'The export was corrected.' }) } as unknown as TaskLoopDeps['executor'],
+  });
+  const result = await runTaskLoop(deps);
+  expect(result.summary).not.toContain('kestrel-9');
+});
+
 const doneTool: ToolDef = {
   name: 'alix_done',
   description: 'Signal completion',

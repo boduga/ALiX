@@ -111,6 +111,50 @@ describe("objective-evaluator — unchanged", () => {
     expect(r.landed).toBe(false);
     rmSync(cwd, { recursive: true, force: true });
   });
+
+  it("contentEquals rejects a REWRITTEN file that still exists", () => {
+    const cwd = makeCwd();
+    writeFileSync(join(cwd, "keep.txt"), "changed");
+    const r = evaluateObjective(cwd, {
+      kind: "unchanged",
+      path: "keep.txt",
+      contentEquals: "original",
+    } as EvalObjective);
+    expect(r.landed).toBe(false);
+    expect(r.evidence.exists).toBe(true);
+    expect(r.evidence.mismatches?.some(m => m.includes("content mismatch"))).toBe(true);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("unchanged map rejects a rewritten NEIGHBOUR while the named file stays intact", () => {
+    const cwd = makeCwd();
+    writeFileSync(join(cwd, "keep.txt"), "original");
+    writeFileSync(join(cwd, "neighbour.txt"), "rewritten");
+    const r = evaluateObjective(cwd, {
+      kind: "unchanged",
+      path: "keep.txt",
+      contentEquals: "original",
+      unchanged: { "neighbour.txt": "original" },
+    } as EvalObjective);
+    expect(r.landed).toBe(false);
+    expect(r.evidence.mismatches?.some(m => m.startsWith("neighbour.txt:"))).toBe(true);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("answerIncludes requires the report to state the answer", () => {
+    const cwd = makeCwd();
+    writeFileSync(join(cwd, "keep.txt"), "original");
+    const objective = {
+      kind: "unchanged",
+      path: "keep.txt",
+      answerIncludes: ["kestrel-9"],
+    } as EvalObjective;
+    expect(evaluateObjective(cwd, objective, { summary: "I could not find it." }).landed).toBe(false);
+    expect(evaluateObjective(cwd, objective, { summary: "The value is kestrel-9." }).landed).toBe(true);
+    // Case-insensitive: a report must not fail on capitalisation alone.
+    expect(evaluateObjective(cwd, objective, { summary: "Value: KESTREL-9" }).landed).toBe(true);
+    rmSync(cwd, { recursive: true, force: true });
+  });
 });
 
 describe("objective-evaluator — path containment", () => {

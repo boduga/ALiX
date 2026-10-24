@@ -31,6 +31,9 @@ plus the path-scope arithmetic both enforcement points share.
   (`src/capabilities/tools/tool-router.ts`) both authorize the same `ownedPaths`, and the
   gate runs first. Both call `isWithinOwnedScope`; neither
   may grow a second matcher, and neither may re-normalize on its own.
+  A broader capability permission never widens the grant: for a write that
+  declares owned paths, the gate's owned-path rule decides (allow inside the
+  scope, deny outside it) and the router's create/delete backstops mirror it.
 - **One durable registry, no ephemeral twins (R3.2).** `ownership-registry.ts`
   is the only live claim store. `SubagentManager` acquires its chat-delegate
   write leases on it at spawn (scope reduced with `resolveOwnedScopePrefix`,

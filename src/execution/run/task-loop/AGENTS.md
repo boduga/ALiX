@@ -84,6 +84,11 @@ barrel preserving public import paths.
   `buildOfferedExecutableTools(wireTools, mcpToolIndex)`, never the
   relevance-truncated `selectedTools` list. The call site is pinned by
   `tests/run/task-loop-shed-tool.vitest.ts` with an empty selector list.
+- **Approval waits stay nonterminal.** `handleToolCall` marks the activity as
+  awaiting approval, polls the durable approval for up to five minutes, and
+  re-dispatches the same call after approval. The executor's initial
+  approval-required result must not emit `tool.failed`; only denial, expiry,
+  cancellation, or a real execution failure closes the tool lifecycle.
 - **Keep callable and dispatch identities separate.** `toolCall.name` and
   `usedTools` hold exact model-facing names. `isCompletionToolName` checks that
   vocabulary; runtime trace consumers use `isCompletionExecName`. Resolution
@@ -141,6 +146,10 @@ barrel preserving public import paths.
 - Tool-result echoes are not synthesis. Re-prompt once, then terminate
   `completed_unverified` with a tool-result-echo rejection reason if the echo
   persists. A short quotation within substantive prose stays accepted.
+- A no-tool nudge must preserve the preceding answer when the immediately next
+  iteration only acknowledges completion. Validate the combined report through
+  the existing claim, pending-action, and objective-evidence gates. A replacement
+  answer or intervening tool iteration must not restore stale prose.
 - **A synthesis reprompt never authorizes discarding a first completion.** The
   redundant-done suppression exists to avoid an artificial done loop after a
   completion tool already ran; it must additionally require that proof

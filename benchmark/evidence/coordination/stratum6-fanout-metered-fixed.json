@@ -1,0 +1,132 @@
+{
+  "source": "headless coordination run on a real model",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "concurrency": 3,
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER",
+  "exitCode": 0,
+  "wallSeconds": 46,
+  "usage": {
+    "observed": true,
+    "inputTokens": 74392,
+    "outputTokens": 876,
+    "records": [
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-b1b53153",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 5988,
+        "outputTokens": 66
+      },
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-b1b53153",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 6155,
+        "outputTokens": 52
+      },
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-b1b53153",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 6308,
+        "outputTokens": 112
+      },
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-b1b53153",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 6639,
+        "outputTokens": 17
+      },
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-b1b53153",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 6679,
+        "outputTokens": 70
+      },
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-b6a6813e",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 5988,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-b6a6813e",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 6152,
+        "outputTokens": 17
+      },
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-b6a6813e",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 6192,
+        "outputTokens": 68
+      },
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-d406ae22",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 5988,
+        "outputTokens": 35
+      },
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-d406ae22",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 6156,
+        "outputTokens": 184
+      },
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-0a8613ba",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 5988,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792557567677",
+        "runId": "run-0a8613ba",
+        "provider": "openai",
+        "model": "gpt-4o",
+        "inputTokens": 6159,
+        "outputTokens": 181
+      }
+    ]
+  },
+  "costUsd": null,
+  "costNote": "token totals observed; pricing applied by cost-attribution, not here",
+  "artifacts": [
+    {
+      "path": "docs/a.md",
+      "exists": true,
+      "content": "A-MARKER"
+    },
+    {
+      "path": "docs/b.md",
+      "exists": true,
+      "content": "B-MARKER"
+    },
+    {
+      "path": "docs/c.md",
+      "exists": true,
+      "content": "C-MARKER"
+    }
+  ],
+  "recordedAt": "2026-10-21T04:40:10.180Z"
+}

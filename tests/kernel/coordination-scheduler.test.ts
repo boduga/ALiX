@@ -126,6 +126,7 @@ describe("CoordinationScheduler", () => {
   function createScheduler(overrides: {
     executor?: any;
     authorization?: ExecutionAuthorization;
+    config?: any;
     maxConcurrency?: number;
     maxDispatchPerTick?: number;
     workerTimeoutMs?: number;
@@ -133,7 +134,7 @@ describe("CoordinationScheduler", () => {
     return new CoordinationScheduler({
       cwd,
       daemonInstanceId: "daemon-1",
-      configProvider: async () => minimalConfig(),
+      configProvider: async () => overrides.config ?? minimalConfig(),
       store,
       authorization: overrides.authorization ?? allowAllAuth(),
       ownershipRegistry: registry,
@@ -280,6 +281,767 @@ describe("CoordinationScheduler", () => {
     const loaded = await store.load(run.id);
     assert.equal(loaded!.workers[0].status, "blocked");
     assert.equal(loaded!.workers[0].blockReason, "approval_required");
+  });
+
+  // ── F5: approval-blocked workers must not be mistaken for idle ─────
+  //
+  // `awaitingApproval` only reports approval blocks created while dispatching
+  // THIS tick's candidates, and candidates require `status === "pending"`. A
+  // worker blocked on approval at attempt N is therefore invisible to it from
+  // the next tick on, so `runUntilIdle` counted idle and exited with the run
+  // still non-terminal — once the operator approved later, nothing ticked the
+  // run again and the worker stayed blocked forever (Gate 6 F5).
+  describe("F5 — approval-blocked visibility", () => {
+    /**
+     * Always asks for approval, and flips to allowed on demand. Unlike
+     * `approvalRequiredAuth` (which allows the first call), this has no call
+     * counter, so a block really persists across ticks.
+     */
+    function switchableAuth() {
+      let allowed = false;
+      return {
+        allow() { allowed = true; },
+        auth: {
+          evaluate: async () =>
+            allowed
+              ? { status: "allowed" as const }
+              : { status: "approval_required" as const, approvalId: "test-approval-id", reason: "needs human ok" },
+        } as any,
+      };
+    }
+
+    async function seedBlockedWorker(attempt = 0, maxAttempts = 3) {
+      const run = createCoordinationRun({ sessionId: "s1", rootGoal: "f5", coordinatorAgentId: "alix" });
+      await store.save(run);
+      const worker = createWorkerAssignment({
+        coordinationRunId: run.id, agentId: "w1", taskLabel: "blocked", goalPrompt: "do",
+        requiredCapabilities: ["risky.cap"], attempt, maxAttempts,
+      });
+      await store.addWorker(run.id, worker);
+      return { run, worker };
+    }
+
+    it("an already-blocked approval worker stays visible on later ticks", async () => {
+      // The stub asks for approval AND the config must agree: reconciliation
+      // now recomputes the policy verdict, so an allow-by-default config would
+      // correctly resume the worker instead of leaving it blocked.
+      const sched = createScheduler({
+        authorization: switchableAuth().auth,
+        config: (() => { const c = minimalConfig() as any; c.permissions.default = "ask"; c.permissions.sessionMode = "ask"; c.permissions.tools = { "risky.cap": "ask" }; return c; })(),
+      });
+      const { run, worker } = await seedBlockedWorker();
+
+      // Tick 1 creates the block; it is reported as a fresh approval wait.
+      const first = await sched.tick(run.id);
+      assert.ok(first.awaitingApproval.includes(worker.id));
+      assert.ok(first.approvalBlocked.includes(worker.id));
+
+      // Tick 2+ sees the worker already blocked. It is still awaiting approval,
+      // not idle. This is the assertion the defect violated.
+      for (const label of ["tick 2", "tick 3"]) {
+        const later = await sched.tick(run.id);
+        assert.deepEqual(later.awaitingApproval, [], `${label}: no NEW approval during dispatch`);
+        assert.deepEqual(later.approvalBlocked, [worker.id], `${label}: existing block is visible`);
+        assert.equal(later.progressMade, false, `${label}: an approval wait is not progress`);
+      }
+    });
+
+    it("runUntilIdle returns awaiting_approval, not idle, for a pre-existing block", async () => {
+      // The stub asks for approval AND the config must agree: reconciliation
+      // now recomputes the policy verdict, so an allow-by-default config would
+      // correctly resume the worker instead of leaving it blocked.
+      const sched = createScheduler({
+        authorization: switchableAuth().auth,
+        config: (() => { const c = minimalConfig() as any; c.permissions.default = "ask"; c.permissions.sessionMode = "ask"; c.permissions.tools = { "risky.cap": "ask" }; return c; })(),
+      });
+      const { run, worker } = await seedBlockedWorker();
+      // Create the block first, so it is pre-existing when the loop starts.
+      await sched.tick(run.id);
+
+      const result = await sched.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 5000, maxIdleTicks: 5 });
+
+      assert.equal(result.stopReason, "awaiting_approval");
+      assert.notEqual(result.stopReason, "idle");
+      assert.equal(result.finalStatus, "blocked");
+      const loaded = await store.load(run.id);
+      // A run whose every worker is blocked/pending recomputes to `blocked`,
+      // which is non-terminal — never `completed`/`failed`.
+      assert.equal(loaded!.status, "blocked", "an approval wait never finalizes the run");
+      assert.ok(["pending", "blocked", "cancelled"].includes(loaded!.status));
+      assert.equal(loaded!.workers[0].status, "blocked");
+      assert.equal(loaded!.workers[0].id, worker.id);
+    });
+
+    it("approval followed by reconciliation makes the worker dispatchable (later attempt)", async () => {
+      // A real PolicyGate + ApprovalStore, so the approve -> resume path is the
+      // production one (`reconcile` requires an exact binding match).
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+      const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
+      const { ExecutionAuthorization } = await import("../../src/runtime-state/runtime/execution-authorization.js");
+      const { buildDefaultToolIndex } = await import("../../src/capabilities/tools/tool-registry.js");
+      const approvalStore = new ApprovalStore(cwd);
+      await approvalStore.load();
+      const config = minimalConfig() as any;
+      // `minimalConfig` is allow-by-default; asking is the whole point here.
+      config.permissions.default = "ask";
+      config.permissions.tools = { "risky.cap": "ask" };
+      const auth = new ExecutionAuthorization({
+        policyGate: new PolicyGate(config, { approvalStore }),
+        toolRegistry: buildDefaultToolIndex().registry,
+      });
+      const executed: string[] = [];
+      const sched = new CoordinationScheduler({
+        cwd, daemonInstanceId: "daemon-f5", configProvider: async () => config,
+        store, authorization: auth, ownershipRegistry: registry,
+        executor: { execute: async (w: any) => { executed.push(w.id); return { outcome: "success" }; } } as any,
+      }, { maxConcurrency: 2, orphanThresholdMs: 60_000 });
+
+      // Attempt 1 of 3: exactly the "later-attempt approval" shape.
+      const run = createCoordinationRun({ sessionId: "s1", rootGoal: "later attempt", coordinatorAgentId: "alix" });
+      run.hostKind = "cli";
+      run.sessionMode = "ask";
+      await store.save(run);
+      const worker = createWorkerAssignment({
+        coordinationRunId: run.id, agentId: "w1", taskLabel: "later", goalPrompt: "do",
+        requiredCapabilities: ["risky.cap"], attempt: 1, maxAttempts: 3,
+        ownershipScopes: ["x.md"], ownershipClaims: [{ path: "x.md", recursive: false }],
+      });
+      await store.addWorker(run.id, worker);
+
+      const blockedTick = await sched.tick(run.id);
+      assert.equal(blockedTick.dispatched.length, 0, "a blocked worker must not be dispatched");
+      assert.ok(blockedTick.approvalBlocked.includes(worker.id), "the block must be reported");
+      assert.deepEqual(executed, [], "nothing executes while blocked");
+
+      // A second tick must still see it as awaiting approval, not idle.
+      const stillBlocked = await sched.tick(run.id);
+      assert.ok(stillBlocked.approvalBlocked.includes(worker.id));
+
+      const pending = approvalStore.listPending();
+      assert.equal(pending.length, 1, "exactly one durable approval");
+      await approvalStore.resolve(pending[0]!.id, "approved", "f5-test");
+
+      // Approve -> reconcile resumes it -> dispatch runs it exactly once.
+      const resumedTick = await sched.tick(run.id);
+
+      assert.deepEqual(resumedTick.approvalBlocked, [], "a resumed worker must not linger in approvalBlocked");
+      assert.ok(resumedTick.dispatched.includes(worker.id), "the approved worker is dispatched");
+      // Dispatch starts execution asynchronously; wait for it to settle before
+      // asserting the exactly-once contract.
+      for (let i = 0; i < 200 && executed.length === 0; i++) {
+        await new Promise(r => setTimeout(r, 10));
+      }
+      await new Promise(r => setTimeout(r, 50));
+      assert.equal(executed.length, 1, "exactly one execution");
+      assert.equal(executed[0], worker.id);
+      assert.equal(approvalStore.listPending().length, 0, "no duplicate approval is minted");
+
+      const loaded = await store.load(run.id);
+      const after = loaded!.workers.find(w => w.id === worker.id)!;
+      assert.equal(after.status, "completed");
+      await sched.shutdown();
+    });
+
+    // ── F6: mixed-capability approval reconciliation ──────────────────
+    //
+    // `requiredCapabilities` is everything a worker needs; each approval record
+    // authorizes exactly ONE gated capability. Comparing a record's capabilities
+    // against the worker's whole set made any mixed allow/ask worker permanently
+    // unresumable. These pin the corrected per-gated-capability contract.
+    describe("F6 — mixed-capability approval reconciliation", () => {
+      /** A scheduler wired to a real PolicyGate + ApprovalStore. */
+      async function realScheduler(tools: Record<string, "allow" | "ask" | "deny">, exec?: any) {
+        const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+        const { ExecutionAuthorization } = await import("../../src/runtime-state/runtime/execution-authorization.js");
+        const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
+        const { buildDefaultToolIndex } = await import("../../src/capabilities/tools/tool-registry.js");
+        const approvalStore = new ApprovalStore(cwd);
+        await approvalStore.load();
+        const config = minimalConfig() as any;
+        config.permissions.default = "ask";
+        config.permissions.tools = tools;
+        const auth = new ExecutionAuthorization({
+          policyGate: new PolicyGate(config, { approvalStore }),
+          toolRegistry: buildDefaultToolIndex().registry,
+        });
+        const executed: string[] = [];
+        const sched = new CoordinationScheduler({
+          cwd, daemonInstanceId: "daemon-f6", configProvider: async () => config,
+          store, authorization: auth, ownershipRegistry: registry,
+          executor: exec ?? { execute: async (w: any) => { executed.push(w.id); return { outcome: "success" }; } } as any,
+        }, { maxConcurrency: 2, orphanThresholdMs: 60_000 });
+        return { sched, approvalStore, executed, config };
+      }
+
+      async function seed(caps: string[], attempt = 0) {
+        const run = createCoordinationRun({ sessionId: "s1", rootGoal: "f6", coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        run.sessionMode = "ask";
+        await store.save(run);
+        const worker = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "mixed", goalPrompt: "do",
+          requiredCapabilities: caps, attempt, maxAttempts: 3,
+          ownershipScopes: ["x.md"], ownershipClaims: [{ path: "x.md", recursive: false }],
+        });
+        await store.addWorker(run.id, worker);
+        return { run, worker };
+      }
+
+      async function approveAll(approvalStore: any, runId: string) {
+        const pending = approvalStore.listPending().filter((a: any) => a.coordinationRunId === runId);
+        for (const a of pending) await approvalStore.resolve(a.id, "approved", "f6-test");
+        return pending;
+      }
+
+      // Busy-polls the scheduler up to ~2s (200 x 10ms) waiting for dispatch;
+      // declared timeout gives headroom on a loaded CI box.
+      it("(1) mixed allow/ask: one approval resumes the worker", { timeout: 30_000 }, async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "file.read": "allow", "file.exists": "ask" });
+        const { run, worker } = await seed(["file.exists", "file.read"]);
+
+        await sched.tick(run.id);
+        assert.equal(executed.length, 0, "nothing runs while gated");
+        const pending = await approveAll(approvalStore, run.id);
+        assert.equal(pending.length, 1, "only the ask capability needs an approval");
+        assert.deepEqual(pending[0].capabilities, ["file.exists"]);
+
+        const resumed = await sched.tick(run.id);
+        assert.ok(resumed.dispatched.includes(worker.id), "the worker resumes");
+        for (let i = 0; i < 200 && executed.length === 0; i++) await new Promise(r => setTimeout(r, 10));
+        assert.equal(executed.length, 1, "exactly one execution");
+        await sched.shutdown();
+      });
+
+      it("(2) two ask capabilities: BOTH approvals are required", async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "cap.a": "ask", "cap.b": "ask" });
+        const { run, worker } = await seed(["cap.a", "cap.b"]);
+
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter((a: any) => a.coordinationRunId === run.id);
+        assert.equal(pending.length, 2, "each gated capability gets its own approval");
+
+        // Approve only ONE: the worker must stay blocked.
+        await approvalStore.resolve(pending[0].id, "approved", "f6-test");
+        await sched.tick(run.id);
+        assert.equal(executed.length, 0, "one approval cannot satisfy two gated capabilities");
+
+        // Approve the second: now it resumes.
+        await approvalStore.resolve(pending[1].id, "approved", "f6-test");
+        const resumed = await sched.tick(run.id);
+        assert.ok(resumed.dispatched.includes(worker.id));
+        await sched.shutdown();
+      });
+
+      // Busy-polls the scheduler up to ~2s (200 x 10ms) waiting for dispatch;
+      // declared timeout gives headroom on a loaded CI box.
+      it("(3) allow/allow: no approval is required", { timeout: 30_000 }, async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "file.read": "allow", "file.search": "allow" });
+        const { run, worker } = await seed(["file.read", "file.search"]);
+
+        const tick = await sched.tick(run.id);
+        assert.ok(tick.dispatched.includes(worker.id));
+        assert.equal(approvalStore.list().length, 0, "no approval is minted");
+        for (let i = 0; i < 200 && executed.length === 0; i++) await new Promise(r => setTimeout(r, 10));
+        await sched.shutdown();
+      });
+
+      it("(4) ask/deny: denied, no execution", async () => {
+        const { sched, executed } = await realScheduler({ "cap.a": "ask", "cap.b": "deny" });
+        const { run } = await seed(["cap.a", "cap.b"]);
+
+        const tick = await sched.tick(run.id);
+        assert.deepEqual(tick.dispatched, []);
+        const loaded = await store.load(run.id);
+        const w = loaded!.workers[0];
+        assert.equal(w.status, "failed");
+        assert.equal(w.blockReason, "authorization_denied");
+        assert.equal(executed.length, 0, "a denial can never be overridden by an ask");
+        await sched.shutdown();
+      });
+
+      it("(5) missing authorization decision: fails closed", async () => {
+        const { sched, executed } = await realScheduler({ "cap.a": "ask" });
+        const { run, worker } = await seed(["cap.a"]);
+        await sched.tick(run.id);
+        // Drop the decision for a required capability: evidence is incomplete.
+        await store.patchWorker(run.id, worker.id, { authorizationEvidence: { evaluatedAt: new Date().toISOString(), decisions: [] } });
+        const tick = await sched.tick(run.id);
+        assert.deepEqual(tick.dispatched, [], "missing evidence must not resume");
+        assert.equal(executed.length, 0);
+        await sched.shutdown();
+      });
+
+      it("(6) stale policy revision: no resume", async () => {
+        const { sched, approvalStore, executed, config } = await realScheduler({ "cap.a": "ask" });
+        const { run } = await seed(["cap.a"]);
+        await sched.tick(run.id);
+        const pending = await approveAll(approvalStore, run.id);
+        assert.equal(pending.length, 1);
+
+        // Change a policy-relevant field: the approval is now bound to a stale revision.
+        (config.permissions.tools as any)["cap.other"] = "allow";
+        const tick = await sched.tick(run.id);
+        assert.deepEqual(tick.dispatched, [], "an approval from a superseded policy must not authorize");
+        assert.equal(executed.length, 0);
+        await sched.shutdown();
+      });
+
+      it("(7) wrong worker or attempt: no resume", async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "cap.a": "ask" });
+        const { run, worker } = await seed(["cap.a"]);
+        await sched.tick(run.id);
+        const pending = await approveAll(approvalStore, run.id);
+
+        // Bump the attempt: the approval was issued for attempt 0.
+        await store.patchWorker(run.id, worker.id, { attempt: 1 });
+        const tick = await sched.tick(run.id);
+        assert.deepEqual(tick.dispatched, [], "an approval bound to another attempt must not resume");
+        assert.equal(executed.length, 0);
+        assert.equal(pending.length, 1);
+        await sched.shutdown();
+      });
+
+      it("(8) duplicate capability entries: no duplicate approval or consumption", async () => {
+        const { sched, approvalStore } = await realScheduler({ "cap.a": "ask", "cap.b": "allow" });
+        const { run, worker } = await seed(["cap.a", "cap.a", "cap.b"]);
+
+        await sched.tick(run.id);
+        const created = approvalStore.list().filter((a: any) => a.coordinationRunId === run.id);
+        assert.equal(created.length, 1, "a duplicated capability must not mint two approvals");
+
+        await approveAll(approvalStore, run.id);
+        const resumed = await sched.tick(run.id);
+        assert.ok(resumed.dispatched.includes(worker.id));
+        const after = approvalStore.list().filter((a: any) => a.coordinationRunId === run.id);
+        assert.equal(after.length, 1, "resumption must not create a second approval");
+        await sched.shutdown();
+      });
+
+      it("(9) restart recovery with mixed-capability approvals", async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "file.read": "allow", "file.exists": "ask" });
+        const { run, worker } = await seed(["file.exists", "file.read"]);
+        await sched.tick(run.id);
+        await approveAll(approvalStore, run.id);
+        await sched.shutdown();
+
+        // A FRESH scheduler over the same durable state must resume it.
+        const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+        const { ExecutionAuthorization } = await import("../../src/runtime-state/runtime/execution-authorization.js");
+        const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
+        const { buildDefaultToolIndex } = await import("../../src/capabilities/tools/tool-registry.js");
+        const store2 = new ApprovalStore(cwd);
+        await store2.load();
+        const config = minimalConfig() as any;
+        config.permissions.default = "ask";
+        config.permissions.tools = { "file.read": "allow", "file.exists": "ask" };
+        const restart = new CoordinationScheduler({
+          cwd, daemonInstanceId: "daemon-f6-restart", configProvider: async () => config,
+          store,
+          authorization: new ExecutionAuthorization({
+            policyGate: new PolicyGate(config, { approvalStore: store2 }),
+            toolRegistry: buildDefaultToolIndex().registry,
+          }),
+          ownershipRegistry: registry,
+          executor: { execute: async (w: any) => { executed.push(w.id); return { outcome: "success" }; } } as any,
+        }, { maxConcurrency: 2, orphanThresholdMs: 60_000 });
+        const tick = await restart.tick(run.id);
+        assert.ok(tick.dispatched.includes(worker.id), "a fresh scheduler resumes the mixed-capability worker");
+        await restart.shutdown();
+      });
+
+      // Busy-polls the scheduler up to ~2s (200 x 10ms) waiting for dispatch;
+      // declared timeout gives headroom on a loaded CI box.
+      it("(10) single-capability approval behavior is unchanged", { timeout: 30_000 }, async () => {
+        const { sched, approvalStore, executed } = await realScheduler({ "cap.a": "ask" });
+        const { run, worker } = await seed(["cap.a"]);
+        await sched.tick(run.id);
+        const pending = await approveAll(approvalStore, run.id);
+        assert.equal(pending.length, 1);
+        const resumed = await sched.tick(run.id);
+        assert.ok(resumed.dispatched.includes(worker.id));
+        for (let i = 0; i < 200 && executed.length === 0; i++) await new Promise(r => setTimeout(r, 10));
+        assert.equal(executed.length, 1);
+        await sched.shutdown();
+      });
+    });
+
+    // ── F7: an operator DENIAL is terminal for the worker ────────────
+    //
+    // A denial is a definitive authorization outcome, not a pending approval.
+    // Before this, reconciliation only ever resumed on `isApproved === true`,
+    // so a denied worker stayed `blocked`/`approval_required` forever: it never
+    // failed, dependents were never attributed, and the run could not reach a
+    // terminal state. Denial now fails the worker with
+    // `failureKind: "approval_denied"`, preserving the denied approval identity
+    // and capability, and lets ordinary dependency propagation do the rest.
+    describe("F7 — operator denial is terminal", () => {
+      async function realSchedulerF7(tools: Record<string, "allow" | "ask" | "deny">) {
+        const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+        const { ExecutionAuthorization } = await import("../../src/runtime-state/runtime/execution-authorization.js");
+        const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
+        const { buildDefaultToolIndex } = await import("../../src/capabilities/tools/tool-registry.js");
+        const approvalStore = new ApprovalStore(cwd);
+        await approvalStore.load();
+        const config = minimalConfig() as any;
+        config.permissions.default = "ask";
+        config.permissions.sessionMode = "ask";
+        config.permissions.tools = tools;
+        const executed: string[] = [];
+        const sched = new CoordinationScheduler({
+          cwd, daemonInstanceId: "daemon-f7", configProvider: async () => config,
+          store, authorization: new ExecutionAuthorization({
+            policyGate: new PolicyGate(config, { approvalStore }),
+            toolRegistry: buildDefaultToolIndex().registry,
+          }),
+          ownershipRegistry: registry,
+          executor: { execute: async (w: any) => { executed.push(w.id); return { outcome: "success" }; } } as any,
+        }, { maxConcurrency: 3, orphanThresholdMs: 60_000 });
+        return { sched, approvalStore, executed, config };
+      }
+
+      async function seedRun(workers: Array<{ caps: string[]; scopes?: string[]; depsOf?: number; attempt?: number }>) {
+        const run = createCoordinationRun({ sessionId: "s1", rootGoal: "f7", coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        run.sessionMode = "ask";
+        await store.save(run);
+        const created = [];
+        for (const spec of workers) {
+          const w = createWorkerAssignment({
+            coordinationRunId: run.id, agentId: `alix#${created.length + 1}`,
+            taskLabel: `w${created.length + 1}`, goalPrompt: "do", status: "pending",
+            requiredCapabilities: spec.caps, attempt: spec.attempt ?? 0, maxAttempts: 3,
+            ownershipScopes: spec.scopes ?? [],
+            ownershipClaims: (spec.scopes ?? []).map(p => ({ path: p, recursive: false })),
+          });
+          await store.addWorker(run.id, w);
+          created.push(w);
+        }
+        // Wire dependencies after ids exist.
+        for (let i = 0; i < workers.length; i++) {
+          const spec = workers[i]!;
+          if (spec.depsOf === undefined) continue;
+          await store.patchWorker(run.id, created[i]!.id, { dependencies: [created[spec.depsOf]!.id] });
+        }
+        const fresh = await store.load(run.id);
+        return { run: fresh!, workers: fresh!.workers };
+      }
+
+      it("(1) single worker, one denied approval -> worker fails with approval_denied", async () => {
+        const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([{ caps: ["cap.a"] }]);
+        await sched.tick(run.id);
+
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        assert.equal(pending.length, 1);
+        await approvalStore.resolve(pending[0]!.id, "denied", "f7-test");
+
+        const tick = await sched.tick(run.id);
+        const loaded = await store.load(run.id);
+        const w = loaded!.workers.find(x => x.id === workers[0]!.id)!;
+
+        assert.equal(w.status, "failed");
+        assert.equal(w.failureKind, "approval_denied");
+        assert.match(w.error ?? "", /denied/i);
+        // The denial evidence is preserved on the record.
+        assert.equal((w as any).approvalId, pending[0]!.id);
+        assert.equal((w as any).approvalDeniedCapability, "cap.a");
+        assert.deepEqual(tick.dispatched, [], "a denied attempt never dispatches");
+        assert.equal(executed.length, 0);
+        await sched.shutdown();
+      });
+
+      it("(2) mixed allow/deny capability decisions: denied worker fails, no execution", async () => {
+        const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.allow": "allow", "cap.ask": "ask" });
+        const { run, workers } = await seedRun([{ caps: ["cap.allow", "cap.ask"] }]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        await approvalStore.resolve(pending[0]!.id, "denied", "f7-test");
+
+        await sched.tick(run.id);
+        const w = (await store.load(run.id))!.workers.find(x => x.id === workers[0]!.id)!;
+        assert.equal(w.status, "failed");
+        assert.equal(w.failureKind, "approval_denied");
+        assert.equal(executed.length, 0);
+        await sched.shutdown();
+      });
+
+      it("(3) two gated capabilities, one approved and one denied -> fails on the denial", async () => {
+        const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.a": "ask", "cap.b": "ask" });
+        const { run, workers } = await seedRun([{ caps: ["cap.a", "cap.b"] }]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        assert.equal(pending.length, 2, "each gated capability has its own approval");
+        const byCap = new Map(pending.map(p => [p.capabilities![0]!, p]));
+        await approvalStore.resolve(byCap.get("cap.a")!.id, "approved", "f7-test");
+        await approvalStore.resolve(byCap.get("cap.b")!.id, "denied", "f7-test");
+
+        await sched.tick(run.id);
+        const w = (await store.load(run.id))!.workers.find(x => x.id === workers[0]!.id)!;
+        assert.equal(w.status, "failed", "one denial is enough to refuse the attempt");
+        assert.equal(w.failureKind, "approval_denied");
+        assert.equal((w as any).approvalDeniedCapability, "cap.b");
+        assert.equal(executed.length, 0);
+        await sched.shutdown();
+      });
+
+      it("(4) denied worker with dependents: dependents are attributed via propagation", async () => {
+        const { sched, approvalStore } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([
+          { caps: ["cap.a"], scopes: ["a.md"] },
+          { caps: ["cap.a"], scopes: ["b.md"], depsOf: 0 },
+        ]);
+        await sched.tick(run.id);
+        // Deny every pending approval so the producer is refused.
+        for (const p of approvalStore.listPending().filter(a => a.coordinationRunId === run.id)) {
+          await approvalStore.resolve(p.id, "denied", "f7-test");
+        }
+        await sched.tick(run.id);
+
+        const loaded = await store.load(run.id);
+        const producer = loaded!.workers.find(x => x.id === workers[0]!.id)!;
+        const dependent = loaded!.workers.find(x => x.id === workers[1]!.id)!;
+        assert.equal(producer.status, "failed");
+        assert.equal(producer.failureKind, "approval_denied");
+        assert.equal(dependent.status, "blocked");
+        assert.equal(dependent.blockReason, "dependency_failed");
+        assert.ok(
+          (dependent.failureProvenance?.rootCauseWorkerIds ?? []).includes(producer.id),
+          "the dependent's failure provenance names the denied worker",
+        );
+        await sched.shutdown();
+      });
+
+      // Busy-polls the scheduler up to ~2s (200 x 10ms) waiting for dispatch;
+      // declared timeout gives headroom on a loaded CI box.
+      it("(5) denied worker with an independent worker: the independent one keeps its outcome", { timeout: 30_000 }, async () => {
+        const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([
+          { caps: ["cap.a"], scopes: ["a.md"] },
+          { caps: ["cap.a"], scopes: ["b.md"] },
+        ]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        const byWorker = new Map(pending.map(p => [p.workerId!, p]));
+        // Deny the first worker, approve the second.
+        await approvalStore.resolve(byWorker.get(workers[0]!.id)!.id, "denied", "f7-test");
+        await approvalStore.resolve(byWorker.get(workers[1]!.id)!.id, "approved", "f7-test");
+
+        await sched.tick(run.id);
+        for (let i = 0; i < 200 && executed.length < 1; i++) await new Promise(r => setTimeout(r, 10));
+
+        const loaded = await store.load(run.id);
+        const denied = loaded!.workers.find(x => x.id === workers[0]!.id)!;
+        const independent = loaded!.workers.find(x => x.id === workers[1]!.id)!;
+        assert.equal(denied.status, "failed");
+        assert.equal(denied.failureKind, "approval_denied");
+        assert.notEqual(independent.status, "failed", "an independent worker is not failed by another's denial");
+        assert.deepEqual(executed, [workers[1]!.id], "only the approved worker executes");
+        await sched.shutdown();
+      });
+
+      it("(6) repeated reconciliation after denial is idempotent", async () => {
+        const { sched, approvalStore } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([{ caps: ["cap.a"] }]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        await approvalStore.resolve(pending[0]!.id, "denied", "f7-test");
+        await sched.tick(run.id);
+        const first = (await store.load(run.id))!.workers.find(x => x.id === workers[0]!.id)!;
+        const firstError = first.error;
+        const firstCompletedAt = first.completedAt;
+
+        // Further ticks must not rewrite or revive it.
+        await sched.tick(run.id);
+        await sched.tick(run.id);
+        const later = (await store.load(run.id))!.workers.find(x => x.id === workers[0]!.id)!;
+        assert.equal(later.status, "failed");
+        assert.equal(later.failureKind, "approval_denied");
+        assert.equal(later.error, firstError);
+        assert.equal(later.completedAt, firstCompletedAt);
+        assert.equal(approvalStore.list().filter(a => a.capabilities?.includes("cap.a")).length, 1, "no new approval");
+        await sched.shutdown();
+      });
+
+      it("(7) daemon restart after denial stays terminal", async () => {
+        const { sched, approvalStore, config } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([{ caps: ["cap.a"] }]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        await approvalStore.resolve(pending[0]!.id, "denied", "f7-test");
+        await sched.tick(run.id);
+        await sched.shutdown();
+
+        const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+        const { ExecutionAuthorization } = await import("../../src/runtime-state/runtime/execution-authorization.js");
+        const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
+        const { buildDefaultToolIndex } = await import("../../src/capabilities/tools/tool-registry.js");
+        const store2 = new ApprovalStore(cwd);
+        await store2.load();
+        const restart = new CoordinationScheduler({
+          cwd, daemonInstanceId: "daemon-f7-restart", configProvider: async () => config,
+          store, authorization: new ExecutionAuthorization({
+            policyGate: new PolicyGate(config, { approvalStore: store2 }),
+            toolRegistry: buildDefaultToolIndex().registry,
+          }),
+          ownershipRegistry: registry,
+          executor: immediateExecutor(),
+        }, { maxConcurrency: 2, orphanThresholdMs: 60_000 });
+
+        const tick = await restart.tick(run.id);
+        const reloaded = (await store.load(run.id))!.workers.find(x => x.id === workers[0]!.id)!;
+        assert.equal(reloaded.status, "failed", "a restart must never revive a denied attempt");
+        assert.equal(reloaded.failureKind, "approval_denied");
+        assert.deepEqual(tick.dispatched, []);
+        await restart.shutdown();
+      });
+
+      it("(8) a denial bound to another worker/attempt cannot terminate this worker", async () => {
+        const { sched, approvalStore } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([
+          { caps: ["cap.a"], scopes: ["a.md"] },
+          { caps: ["cap.a"], scopes: ["b.md"] },
+        ]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        const byWorker = new Map(pending.map(p => [p.workerId!, p]));
+        // Deny worker 1 only; worker 2 stays pending.
+        await approvalStore.resolve(byWorker.get(workers[0]!.id)!.id, "denied", "f7-test");
+
+        await sched.tick(run.id);
+        const loaded = await store.load(run.id);
+        const other = loaded!.workers.find(x => x.id === workers[1]!.id)!;
+        assert.equal(
+          other.status, "blocked",
+          "another worker's denial must not terminate this one",
+        );
+        assert.equal(other.failureKind, undefined);
+        await sched.shutdown();
+      });
+
+      it("(9) denial produces no successful consumption and no verified-success receipt", async () => {
+        const { sched, approvalStore } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run } = await seedRun([{ caps: ["cap.a"] }]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        await approvalStore.resolve(pending[0]!.id, "denied", "f7-test");
+        await sched.tick(run.id);
+
+        await approvalStore.load();
+        const record = approvalStore.list().find(a => a.id === pending[0]!.id)!;
+        assert.equal(record.status, "denied", "the denial is preserved, never converted to approval");
+        assert.notEqual(record.executionOutcome, "succeeded");
+        const loaded = await store.load(run.id);
+        assert.notEqual(loaded!.status, "completed", "a denied run is never completed");
+        assert.equal(loaded!.aggregateResultRef, undefined, "no aggregate success is invented");
+        await sched.shutdown();
+      });
+
+      // Busy-polls the scheduler up to ~2s (200 x 10ms) waiting for dispatch;
+      // declared timeout gives headroom on a loaded CI box.
+      it("(10) approved and pending flows are unchanged", { timeout: 30_000 }, async () => {
+        const { sched, approvalStore, executed } = await realSchedulerF7({ "cap.a": "ask" });
+        const { run, workers } = await seedRun([
+          { caps: ["cap.a"], scopes: ["a.md"] },
+          { caps: ["cap.a"], scopes: ["b.md"] },
+        ]);
+        await sched.tick(run.id);
+        const pending = approvalStore.listPending().filter(a => a.coordinationRunId === run.id);
+        const byWorker = new Map(pending.map(p => [p.workerId!, p]));
+        await approvalStore.resolve(byWorker.get(workers[0]!.id)!.id, "approved", "f7-test");
+        // worker 2 stays pending
+
+        await sched.tick(run.id);
+        for (let i = 0; i < 200 && executed.length < 1; i++) await new Promise(r => setTimeout(r, 10));
+        const loaded = await store.load(run.id);
+        const approvedWorker = loaded!.workers.find(x => x.id === workers[0]!.id)!;
+        const stillPending = loaded!.workers.find(x => x.id === workers[1]!.id)!;
+        assert.equal(approvedWorker.status, "completed", "approval still resumes and completes");
+        assert.equal(stillPending.status, "blocked", "a pending approval still keeps waiting");
+        assert.equal(stillPending.blockReason, "approval_required");
+        assert.deepEqual(executed, [workers[0]!.id]);
+        await sched.shutdown();
+      });
+    });
+
+    it("a genuinely idle run still exits idle", async () => {
+      // No workers at all: nothing actionable and no approval block.
+      const run = createCoordinationRun({ sessionId: "s1", rootGoal: "nothing", coordinatorAgentId: "alix" });
+      await store.save(run);
+      const sched = createScheduler({ authorization: allowAllAuth() });
+
+      const result = await sched.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 5000, maxIdleTicks: 3 });
+
+      assert.equal(result.stopReason, "idle", "the idle exit must not be disabled");
+    });
+
+    it("terminal state wins over a leftover approval-blocked worker record", async () => {
+      // A terminal run whose worker record still says blocked: terminal
+      // precedence must win, so it is never reported as awaiting approval.
+      const run = createCoordinationRun({ sessionId: "s1", rootGoal: "terminal", coordinatorAgentId: "alix" });
+      run.status = "failed";
+      await store.save(run);
+      const worker = createWorkerAssignment({
+        coordinationRunId: run.id, agentId: "w1", taskLabel: "stale", goalPrompt: "do",
+        requiredCapabilities: ["risky.cap"], attempt: 0, maxAttempts: 3,
+        status: "blocked", blockReason: "approval_required",
+      });
+      await store.addWorker(run.id, worker);
+      // addWorker recomputes status; force it back to terminal for the test.
+      const forced = await store.load(run.id);
+      forced!.status = "failed";
+      await store.save(forced!);
+
+      // The stub asks for approval AND the config must agree: reconciliation
+      // now recomputes the policy verdict, so an allow-by-default config would
+      // correctly resume the worker instead of leaving it blocked.
+      const sched = createScheduler({
+        authorization: switchableAuth().auth,
+        config: (() => { const c = minimalConfig() as any; c.permissions.default = "ask"; c.permissions.sessionMode = "ask"; c.permissions.tools = { "risky.cap": "ask" }; return c; })(),
+      });
+      const result = await sched.tick(run.id);
+
+      assert.equal(result.runStatus, "failed");
+      assert.deepEqual(result.approvalBlocked, [], "a terminal run is never awaiting approval");
+      assert.equal(result.awaitingApproval.length, 0);
+    });
+
+    it("does not create duplicate approvals across repeated ticks", async () => {
+      // A real approval store proves the accounting change creates nothing.
+      const { ApprovalStore } = await import("../../src/governance/approvals/approval-store.js");
+      const approvalStore = new ApprovalStore(cwd);
+      await approvalStore.load();
+      const { ExecutionAuthorization } = await import("../../src/runtime-state/runtime/execution-authorization.js");
+      const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
+      const { buildDefaultToolIndex } = await import("../../src/capabilities/tools/tool-registry.js");
+      const config = minimalConfig() as any;
+      // `minimalConfig` is allow-by-default; asking is the whole point here.
+      config.permissions.default = "ask";
+      config.permissions.tools = { "risky.cap": "ask" };
+      const auth = new ExecutionAuthorization({
+        policyGate: new PolicyGate(config, { approvalStore }),
+        toolRegistry: buildDefaultToolIndex().registry,
+      });
+      const sched = new CoordinationScheduler({
+        cwd, daemonInstanceId: "daemon-f5", configProvider: async () => config,
+        store, authorization: auth, ownershipRegistry: registry, executor: immediateExecutor(),
+      }, { maxConcurrency: 2, orphanThresholdMs: 60_000 });
+
+      const run = createCoordinationRun({ sessionId: "s1", rootGoal: "dedupe", coordinatorAgentId: "alix" });
+      run.hostKind = "cli"; run.sessionMode = "ask";
+      await store.save(run);
+      const worker = createWorkerAssignment({
+        coordinationRunId: run.id, agentId: "w1", taskLabel: "unknown", goalPrompt: "do",
+        requiredCapabilities: ["risky.cap"], attempt: 0, maxAttempts: 3,
+        ownershipScopes: ["x.md"], ownershipClaims: [{ path: "x.md", recursive: false }],
+      });
+      await store.addWorker(run.id, worker);
+
+      for (let i = 0; i < 4; i++) await sched.tick(run.id);
+      const all = approvalStore.list().filter(a => a.capabilities?.includes("risky.cap"));
+      assert.equal(all.length, 1, `repeated ticks must not mint duplicate approvals, got ${all.length}`);
+      assert.equal(approvalStore.listPending().length, 1);
+      await sched.shutdown();
+    });
   });
 
   // ── Concurrency and rate limiting ─────────────────────────────────
@@ -1007,17 +1769,25 @@ describe("CoordinationScheduler — runUntilIdle event-driven cadence", () => {
     await scheduler.shutdown();
   });
 
-  // Workload: same never-settling worker with a 50ms watchdog over a 300ms
-  // budget; generous timeout so loaded CI never flakes on the wall clock.
+  // Workload: a never-settling worker with a watchdog well inside the run budget.
+  //
+  // The assertion is a RATIO claim — "the watchdog bounds idle polling, so cycles
+  // stay far below the per-poll count". It is not a claim about absolute
+  // wall-clock speed. The original 300ms budget / 50ms watchdog left no margin:
+  // when the first tick alone took ~300ms on a loaded machine, exactly one tick
+  // fired and `cycles >= 2` failed — observed 1-in-5 even running solo.
+  // Widening the budget to 2000ms with a 100ms watchdog keeps the same shape
+  // (~20 ticks vs ~200 per-poll) while giving the lower bound ~20x the headroom.
   it("watchdog ticks bound idle polling while workers hang", { timeout: 30_000 }, async () => {
     const { executor } = createDeferredExecutor(); // never settles
     const scheduler = build(executor);
     const { run } = await seedOneWorker("cadence-watchdog");
-    // A 50ms watchdog over 300ms: a handful of ticks — far below per-poll (~30).
-    const result = await scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 300, workerTimeoutMs: 60_000, watchdogIntervalMs: 50 });
+    // Expected ~20 watchdog ticks over 2000ms; per-poll would be ~200.
+    const result = await scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 2000, workerTimeoutMs: 60_000, watchdogIntervalMs: 100 });
     assert.equal(result.stopReason, "timeout");
     assert.ok(result.cycles >= 2, `watchdog should tick more than once, got ${result.cycles}`);
-    assert.ok(result.cycles <= 12, `watchdog must bound ticks, got ${result.cycles}`);
+    // Still far below the ~200 per-poll ticks this bound exists to prevent.
+    assert.ok(result.cycles <= 60, `watchdog must bound ticks, got ${result.cycles}`);
     await scheduler.shutdown();
   });
 

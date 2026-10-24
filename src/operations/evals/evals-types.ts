@@ -44,6 +44,46 @@ export type EvalObjective =
   | {
       kind: "unchanged";
       path: string;
+      /**
+       * Expected content of `path`. Equality, not existence.
+       *
+       * An "unchanged" objective that only checks existence passes a REWRITTEN
+       * file. A read-only stratum needs source equality to mean unchanged.
+       */
+      contentEquals?: string;
+      /**
+       * Other seeded files that must still hold exactly this content.
+       *
+       * The named `path` alone does not cover a seeded tree: a run can leave
+       * `path` intact and rewrite its neighbours.
+       */
+      unchanged?: Record<string, string>;
+      /**
+       * Tokens the run's final report must contain.
+       *
+       * A read-only deliverable is an ANSWER, not a file. Without this the
+       * objective passes when the agent reports nothing, or reports the wrong
+       * fact. Tokens must be unambiguous (a distinctive value, not a digit that
+       * occurs by chance) so a wrong answer cannot satisfy them.
+       */
+      answerIncludes?: string[];
+    }
+  | {
+      /**
+       * Composite objective: EVERY listed file must satisfy its own contract.
+       *
+       * Additive (stratum 4). It does not introduce a second scoring engine —
+       * each entry is evaluated by the same `evaluateObjective` and the results
+       * are ANDed, so a multi-file case is exactly "all of these single-file
+       * objectives hold".
+       */
+      kind: "files";
+      files: Array<{
+        path: string;
+        contentEquals?: string;
+        contentIncludes?: string[];
+        exists?: boolean;
+      }>;
     };
 
 /** Expected outcome contract for a single eval case. */
@@ -52,6 +92,41 @@ export type EvalExpected = {
   objectiveLanded: boolean;
   /** Set of runtime statuses considered honest for this case. */
   statuses: string[];
+};
+
+/** Evaluator-owned evidence required in addition to the task outcome. */
+export type EvalGuards = {
+  unchangedWorkspace?: boolean;
+  files?: Array<{ path: string; exists?: boolean; contentEquals?: string }>;
+  outsideSentinelUnchanged?: boolean;
+  toolSequence?: EvalToolExpectation[];
+};
+
+/** Exact executor identity and arguments, matched only against durable events. */
+export type EvalToolExpectation = {
+  toolName: string;
+  args: Record<string, string>;
+  outcome: "success" | "failed";
+  errorIncludes?: string;
+};
+
+export type EvalToolOutcome = {
+  sessionId: string;
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  outcome: "success" | "failed";
+  error?: string;
+  requestIndex: number;
+  terminalIndex: number;
+};
+
+export type EvalGuardOutcome = {
+  satisfied: boolean;
+  mismatches: string[];
+  workspaceChanges?: string[];
+  outsideSentinelUnchanged?: boolean;
+  toolEvidence?: { complete: boolean; records: EvalToolOutcome[]; errors: string[] };
 };
 
 /** A single behavioral eval case. */
@@ -63,6 +138,24 @@ export type EvalCase = {
   task: string;
   objective: EvalObjective;
   expected: EvalExpected;
+  /** Positive invariants; never inverted with a negative objective expectation. */
+  guards?: EvalGuards;
+  /**
+   * This case's `expected` block is written for the SCRIPTED provider only.
+   *
+   * Such a case tests a RUNTIME CONTRACT (refusal of a forbidden path, partial
+   * completion, malformed-tool-call handling), not model capability. Its
+   * `expected.objectiveLanded` is `false` because the scripted scenario is
+   * authored to fail, so a real model that simply does the task is scored
+   * `false` — not because it misbehaved, but because it did not replay the
+   * scripted failure.
+   *
+   * Marking it here is load-bearing: five unmarked cases silently ran on real
+   * models during the 2026-10-22 sweeps and consumed 52.7% of that budget while
+   * being structurally incapable of producing a verified success. Real-provider
+   * runs skip these by default.
+   */
+  scriptedExpectationOnly?: boolean;
   /**
    * The deterministic model behavior that drives this case. Replayed by the
    * scripted provider (in-process via the carrier for main-loop, or serialized
@@ -120,6 +213,15 @@ export type StatusOutcome = {
   actual: string | undefined;
   expected: string[];
   honest: boolean;
+  /**
+   * True when the run produced no scoreable agent outcome (provider fault,
+   * transport failure, harness error). An inadmissible run has no honesty
+   * property: `honest` is false and must not be read as a false claim.
+   * See `eval-admissibility.ts`.
+   */
+  inadmissible?: boolean;
+  /** Why the run was inadmissible, when it was. */
+  inadmissibleReason?: string;
 };
 
 /** Normalized representation the scoring engine consumes (driver-agnostic). */
@@ -133,6 +235,40 @@ export type EvalExecutionResult = {
   summary?: string;
   findings?: unknown;
   error?: string;
+  /**
+   * Provider that actually executed this case, when known.
+   *
+   * Recorded so the stratum-9 CPU-only guard can decide from observed evidence
+   * rather than from what the operator intended to configure. A run that
+   * silently fell back to a remote provider must not be labelable CPU-only.
+   */
+  provider?: string;
+  /**
+   * True when the case carried a scripted scenario but a real provider ran it.
+   * The scenario was deliberately NOT fed to the model (it is a deterministic
+   * stand-in, not a prompt), so the resulting behaviour is the model's own.
+   */
+  scriptedScenarioIgnored?: boolean;
+  /**
+   * Provider-reported usage captured BEFORE the case cwd (and with it the
+   * session log) is deleted.
+   *
+   * `null` means no `model.usage` event was observed — a deterministic case makes
+   * no billable call — and must be read as unknown, never as a measured zero.
+   * Pricing is applied elsewhere; this is tokens only.
+   */
+  usage?: {
+    inputTokens: number | null;
+    outputTokens: number | null;
+    observed: boolean;
+    records: Array<{
+      runId?: string;
+      provider?: string;
+      model?: string;
+      inputTokens?: number;
+      outputTokens?: number;
+    }>;
+  };
 };
 
 /** Final per-case result, separating objective outcome from status outcome. */
@@ -140,7 +276,14 @@ export type EvalResult = {
   caseId: string;
   objective: ObjectiveOutcome;
   status: StatusOutcome;
-  verdict: "pass" | "fail";
+  guards?: EvalGuardOutcome;
+  /**
+   * `inadmissible` means the run never produced a scoreable agent outcome, so
+   * it is excluded from both the pass and fail counts. It is NOT a pass and NOT
+   * a failure: an infrastructure fault must not improve or worsen a success
+   * rate. Always accompanied by `status.inadmissibleReason`.
+   */
+  verdict: "pass" | "fail" | "inadmissible";
   execution: EvalExecutionResult;
 };
 
@@ -151,11 +294,23 @@ export type EvalRun = {
   finishedAt: string;
   suite: EvalSuite;
   driver: EvalDriverKind | "both";
+  /**
+   * Provider the run was configured to use. `scripted-mock` by default; `ollama`
+   * for a local CPU-only (stratum 9) observation.
+   */
+  provider?: string;
   results: EvalResult[];
   summary: {
     total: number;
     passed: number;
     failed: number;
+    /**
+     * Runs excluded from scoring because they produced no agent outcome
+     * (provider fault, transport failure, harness error). `passed + failed +
+     * inadmissible === total`. A non-zero value means the run is incomplete for
+     * measurement purposes, not that the agent did badly.
+     */
+    inadmissible: number;
     objectiveLanded: number;
     honest: number;
     durationMs: number;

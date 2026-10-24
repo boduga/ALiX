@@ -1,0 +1,166 @@
+{
+  "source": "Controlled output-budget admission diagnostic, not baseline qualification",
+  "provider": "intern",
+  "model": "deepseek-v4-flash-0731",
+  "recordedAt": "2026-10-21 America/Edmonton",
+  "tinyPromptPairs": [
+    {
+      "max_tokens": 128,
+      "status": 200,
+      "ms": 4017,
+      "limits": {},
+      "error": null,
+      "usage": {
+        "prompt_tokens": 37,
+        "total_tokens": 66,
+        "completion_tokens": 29,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 26
+        }
+      },
+      "finishReason": "stop"
+    },
+    {
+      "max_tokens": 32768,
+      "status": 429,
+      "ms": 1207,
+      "limits": {},
+      "error": {
+        "message": "quota exceeded",
+        "type": "quota_exceeded",
+        "param": null,
+        "code": "quota_exceeded",
+        "trace_id": "e8a78c85e31d4f1ad9ca08a000a4cda4"
+      },
+      "usage": null,
+      "finishReason": null
+    },
+    {
+      "max_tokens": 128,
+      "status": 200,
+      "ms": 12906,
+      "limits": {},
+      "error": null,
+      "usage": {
+        "prompt_tokens": 37,
+        "total_tokens": 52,
+        "completion_tokens": 15,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 12
+        }
+      },
+      "finishReason": "stop"
+    }
+  ],
+  "capturedFullRequest": {
+    "max_tokens": 32768,
+    "stream": true,
+    "tools": 20,
+    "messages": 2,
+    "inputAndToolsSha256": "6a3fd6be8ad8a0bb67c1b8b76a5be15bb91968e84d9cf97d844d98100d36b817",
+    "bodyBytesUtf8": 29384,
+    "bodyCharactersUtf16": 29297
+  },
+  "fullRequestReducedCap": {
+    "provider": "intern",
+    "model": "deepseek-v4-flash-0731",
+    "tools": 20,
+    "stream": true,
+    "max_tokens": 2048,
+    "status": 200,
+    "ms": 8417,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 7212,
+      "total_tokens": 7339,
+      "completion_tokens": 127,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "created_cache_tokens": 7168
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      }
+    },
+    "finishReason": "tool_calls",
+    "toolNames": [
+      "alix_file_read"
+    ],
+    "bodyCharactersUtf16": 29296,
+    "bodyBytesUtf8": 29383
+  },
+  "conclusion": "Same tiny prompt succeeds at 128, fails at 32768, succeeds again at 128; full captured request succeeds with only max_tokens reduced to 2048. Supports requested-output-dependent quota admission. Exact quota accounting is not disclosed by the response.",
+  "costUsd": null,
+  "verifiedSuccesses": 0,
+  "baselineQualified": false,
+  "repeatTinyPromptPairs": [
+    {
+      "max_tokens": 128,
+      "status": 200,
+      "ms": 2419,
+      "limits": {},
+      "error": null,
+      "usage": {
+        "prompt_tokens": 37,
+        "total_tokens": 56,
+        "completion_tokens": 19,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 16
+        }
+      },
+      "finishReason": "stop"
+    },
+    {
+      "max_tokens": 32768,
+      "status": 429,
+      "ms": 847,
+      "limits": {},
+      "error": {
+        "message": "quota exceeded",
+        "type": "quota_exceeded",
+        "param": null,
+        "code": "quota_exceeded",
+        "trace_id": "0842b1d78e781bfb6fd6ed60fa76b2b5"
+      },
+      "usage": null,
+      "finishReason": null
+    },
+    {
+      "max_tokens": 128,
+      "status": 200,
+      "ms": 2214,
+      "limits": {},
+      "error": null,
+      "usage": {
+        "prompt_tokens": 37,
+        "total_tokens": 49,
+        "completion_tokens": 12,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 9
+        }
+      },
+      "finishReason": "stop"
+    }
+  ],
+  "serializationNote": "Initial capture counted UTF-8 bytes; replay initially mislabeled JavaScript UTF-16 string length as bytes. Fields now state units. Exact JSON.stringify wire forms differ by one ASCII character (32768 -> 2048); input/tools unchanged."
+}

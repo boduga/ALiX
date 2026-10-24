@@ -129,8 +129,15 @@ describe("ObservabilityStreamHub", () => {
     assert.strictEqual(h.subscriberCount, 0);
   });
 
-  it("25 clients share one producer cycle", async () => {
-    const h = new ObservabilityStreamHub(tmp, { cycleIntervalMs: 5000 });
+  // Timing-sensitive: the hub runs its first cycle IMMEDIATELY inside start(),
+  // i.e. before these 25 clients subscribe, so the first cycle they can observe
+  // is a later interval tick — and a cycle is async work (dynamic imports plus
+  // health/metrics I/O) whose duration is load-dependent. A fixed sleep asserts
+  // that the machine happened to finish a cycle in time, which is exactly what
+  // failed under CPU contention. Poll for the observable condition instead, with
+  // a bounded deadline.
+  it("25 clients share one producer cycle", { timeout: 30_000 }, async () => {
+    const h = new ObservabilityStreamHub(tmp, { cycleIntervalMs: 100 });
     h.start();
     const connections: MockSecureSseConnection[] = [];
     for (let i = 0; i < 25; i++) {
@@ -140,18 +147,16 @@ describe("ObservabilityStreamHub", () => {
     }
     assert.strictEqual(h.subscriberCount, 25);
 
-    // Wait for at least one cycle
-    await new Promise((r) => setTimeout(r, 2500));
-
-    // All 25 clients should have received the same set of events
-    // (health.snapshot, alert events if any, etc.)
-    // At minimum, verify that all clients got events
-    let minEvents = Infinity;
-    for (const c of connections) {
-      if (c.events.length < minEvents) minEvents = c.events.length;
+    // Poll until every subscriber has received at least one event, or the
+    // deadline passes. All 25 must clear: a shared cycle fans out to all of
+    // them, so a single laggard means the fan-out (not the timing) is wrong.
+    const minEvents = () => Math.min(...connections.map((c) => c.events.length));
+    const deadline = Date.now() + 15_000;
+    while (minEvents() === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 25));
     }
-    // With a 5s cycle, 2.5s wait should get at least 1 cycle
-    assert.ok(minEvents > 0, "all 25 clients should receive events from shared cycle");
+
+    assert.ok(minEvents() > 0, "all 25 clients should receive events from shared cycle");
 
     h.stop();
   });

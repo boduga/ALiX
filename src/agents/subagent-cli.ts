@@ -3,7 +3,7 @@
  * Invoked by SubagentManager.spawn() as a child process via `alix run --subagent`.
  */
 import { parseArgs } from "util";
-import { basename, resolve } from "path";
+import { basename, isAbsolute, relative, resolve } from "path";
 import { mkdir } from "fs/promises";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -13,6 +13,7 @@ import { ALIX_BUILTIN_EXECUTORS } from "./tool-manifest.js";
 import { createModelResolver } from "../operations/config/model-resolver.js";
 import { getSubagentRole } from "../operations/config/subagent-config.js";
 import { SUBAGENT_EVENT_TYPES } from "../runtime-state/events/types.js";
+import { buildModelUsageEventPayload } from "./agent/messages.js";
 
 /**
  * §10.3: resolve the effective model for a subagent invocation with
@@ -37,8 +38,10 @@ export function resolveEffectiveModel(
   };
 }
 import { EventLog } from "../runtime-state/events/event-log.js";
+import { deriveCoordinationChangedFiles, toCoordinationEvidenceEvents } from "../coordination/kernel/coordination-evidence.js";
 import { createProvider } from "../models/providers/registry.js";
 import { createToolExecutor } from "../capabilities/tools/tool-executor-factory.js";
+import type { WorkerApprovalPort } from "../governance/approvals/worker-approval-port.js";
 import type { ToolDef, ToolCall, NormalizedMessage } from "../models/providers/types.js";
 import { buildToolsForProvider } from "../run.js";
 import { McpManager } from "../capabilities/mcp/manager.js";
@@ -315,8 +318,35 @@ function pathIsCovered(path: string, successful: string[], cwd: string): boolean
   const oc = resolvePolicyPath(cwd, path);
   return successful.some((s) => {
     const sc = resolvePolicyPath(cwd, s);
-    return sc === oc || sc.startsWith(oc + "/");
+    if (sc === oc) return true;
+    // Containment via `relative` rather than string concatenation. The previous
+    // `oc + "/"` check never matched a Windows path (`C:\...`), so
+    // `ownedPaths: ["."]` answered "partial" for a write it actually covered —
+    // a platform-dependent result for an ownership question that must not vary
+    // by host.
+    const rel = relative(oc, sc);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
   });
+}
+
+/** Durable session events. An unreadable log yields none, never a failed worker. */
+async function readDurableEvents(log: EventLog): Promise<readonly { type: string; payload?: unknown }[]> {
+  try { return await log.readAll(); } catch { return []; }
+}
+
+/**
+ * Durable mutation paths inside the worker's owned scope.
+ *
+ * A worker with no owned scope has no mutation evidence: a read-only worker
+ * must never inherit the session's writes as its own progress.
+ */
+async function durableOwnedPaths(log: EventLog, ownedPaths: string[]): Promise<string[]> {
+  if (!ownedPaths.length) return [];
+  const changed = deriveCoordinationChangedFiles(
+    { events: toCoordinationEvidenceEvents(await readDurableEvents(log)) },
+    { cwd: process.cwd() },
+  );
+  return changed.filter(path => ownedPaths.some(owned => pathIsCovered(owned, [path], process.cwd())));
 }
 
 /** True when every owned path is covered by a successful write. */
@@ -453,6 +483,7 @@ export class SubagentCLI {
         output: { type: "string" },
         "coordination-run-id": { type: "string" },
         "credential-fd": { type: "string" },
+        "assigned-objective": { type: "string" },
       },
       allowPositionals: false,
     });
@@ -460,6 +491,9 @@ export class SubagentCLI {
     const role: SubagentRole = (args.values.subagent ?? "explorer") as SubagentRole;
     const taskId = args.values["task-id"];
     const prompt = args.values.prompt ?? "";
+    // The objective the worker was actually assigned. Falls back to the rendered
+    // prompt for non-coordination callers, which have no separate objective.
+    const assignedObjective = args.values["assigned-objective"];
     const mode = (args.values.mode ?? "read_only") as "read_only" | "write";
     const sessionId = args.values["session-id"];
     const sessionMode = args.values["session-mode"] as "auto" | "ask" | "bypass" | undefined;
@@ -589,9 +623,18 @@ export class SubagentCLI {
       console.error(`[SubagentCLI] MCP init failed: ${(err as Error).message}. Continuing without MCP tools.`);
     }
 
+    // Carry the configured call budget for the model we actually run. The CLI
+    // flags name provider/model; the timeout lives on that model's config
+    // entry. Without this a child worker always gets the provider default
+    // (300s for local CPU), so a sized timeout never reaches it.
+    const modelEntry = Object.values(config.models ?? {}).find(
+      entry => entry?.provider === effectiveProvider && entry?.name === effectiveName,
+    );
     const provider = await createProvider({
       provider: effectiveProvider,
       name: effectiveName,
+      ...(modelEntry?.timeoutMs !== undefined ? { timeoutMs: modelEntry.timeoutMs } : {}),
+      ...(modelEntry?.streamIdleTimeoutMs !== undefined ? { streamIdleTimeoutMs: modelEntry.streamIdleTimeoutMs } : {}),
       ...(effectiveSelection !== undefined ? { selection: effectiveSelection } : {}),
     });
     const providerTools = buildToolsForProvider(provider);
@@ -606,6 +649,37 @@ export class SubagentCLI {
     const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy)
       .filter(t => !nestedRunBlocklist.has(t.name));
 
+    // Tool-level authorization boundary for an ISOLATED worker process.
+    //
+    // A subagent runs as its own OS process, so it cannot receive the parent's
+    // in-memory ApprovalStore. It therefore opens its own instance against the
+    // SAME authoritative workspace (`projectRoot` is the cwd the parent spawned
+    // us in — never a guessed or config-derived path), and recognises itself
+    // through a RESTRICTED port that can request, observe and consume approvals
+    // but cannot record a decision. That is deliberate: without the port a
+    // worker could call `resolve()` on its own request and grant itself any
+    // capability.
+    //
+    // Fail closed: if the ledger cannot be opened or loaded, no port is wired
+    // and gated tool calls stay denied exactly as before — an inaccessible
+    // approval store must never become implicit permission.
+    let approvalPort: WorkerApprovalPort | undefined;
+    try {
+      const { openWorkerApprovalPort } = await import("../governance/approvals/worker-approval-port.js");
+      approvalPort = await openWorkerApprovalPort(projectRoot, { eventLog, workerId: taskId });
+    } catch (err) {
+      // Readable, actionable evidence — never a silent downgrade.
+      try {
+        await eventLog.append({
+          actor: "subagent",
+          type: "subagent.approval_store_unavailable",
+          sessionId,
+          payload: { error: err instanceof Error ? err.message : String(err) },
+        });
+      } catch { /* telemetry is best-effort; the denial below is the contract */ }
+      approvalPort = undefined;
+    }
+
     const executor = createToolExecutor({
       config,
       log: eventLog,
@@ -613,6 +687,12 @@ export class SubagentCLI {
       mcpManager: mcpManager ?? undefined,
       editFormatPolicy: buildEditFormatPolicy({ provider: effectiveProvider, preferred: provider.editFormatPreference }),
       ownedPaths: mode === "write" ? ownedPaths : undefined,
+      // The port is passed as-is: `createToolExecutor` takes `approvalStore:
+      // unknown` and the facade enforces the narrowing at runtime by throwing if
+      // a decision method ever becomes reachable. The earlier `as never` cast
+      // suppressed type checking for no benefit and implied the port needed
+      // widening, which is the opposite of its purpose.
+      ...(approvalPort ? { approvalStore: approvalPort } : {}),
     });
 
     // Build system prompt with role instructions and context
@@ -649,7 +729,18 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
 
     try {
       const messages: NormalizedMessage[] = [{ role: "user", content: prompt }];
-      const progress: WriteProgress = { successfulPaths: new Set(), fatalWriteFailures: [] };
+      // Durable progress: an EARLIER attempt of this worker may already have
+      // written its deliverable, and the shared session log records those
+      // writes. Re-creating identical content produces no new write event, so
+      // without this seed a retry reports no progress and fails before the
+      // review ever runs. Scoped to the worker's OWNED paths, so a sibling's
+      // artifact is never this worker's progress. Coordination workers only: a
+      // plain delegate shares the PARENT's session log, whose writes are the
+      // parent's progress, not the delegate's.
+      const progress: WriteProgress = {
+        successfulPaths: new Set(coordinationRunId ? await durableOwnedPaths(eventLog, ownedPaths) : []),
+        fatalWriteFailures: [],
+      };
       const toolLedger: SubagentToolLedger = new Map();
       const recordLedger = (name: string, ok: boolean): void => {
         const entry = toolLedger.get(name) ?? { completed: 0, failed: 0 };
@@ -667,13 +758,30 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths, toolLedger,
           { ownershipOnly: Boolean(coordinationRunId) });
         if (!coordinationRunId) return result;
+        // Review only the paths this worker OWNS and actually wrote.
+        //
+        // `progress.successfulPaths` accumulates every successful write with no
+        // ownership filter, so a sibling worker's file could enter this worker's
+        // evidence. Observed on a real gpt-4o restart run: a worker owning
+        // docs/b.md was rejected because the review saw A-MARKER and C-MARKER in
+        // its evidence — its siblings' artifacts, not its own. The reviewer was
+        // right about what it was shown; it was shown the wrong set.
+        const reviewPaths = [...progress.successfulPaths].filter(path =>
+          ownedPaths.length === 0
+            ? true
+            : ownedPaths.some(owned => pathIsCovered(owned, [path], process.cwd())),
+        );
         return reviewCoordinationResult({
           result,
-          objective: prompt,
-          mutatedPaths: [...progress.successfulPaths],
+          // Judge against the ASSIGNED objective, not the rendered prompt. The
+          // prompt embeds the root coordination goal ("create a.md, b.md AND
+          // c.md"), so reviewing against it rejected workers that correctly
+          // produced only their own single deliverable.
+          objective: assignedObjective ?? prompt,
+          mutatedPaths: reviewPaths,
           evidence: toolOutputs,
           provider,
-          readArtifacts: async () => Promise.all([...progress.successfulPaths].map(async path => {
+          readArtifacts: async () => Promise.all(reviewPaths.map(async path => {
             const read = await executor.execute({
               toolCallId: `objective-review-${randomUUID()}`,
               name: "file.read",
@@ -730,6 +838,37 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           messages,
           tools: iterationTools as ToolDef[],
         });
+
+        // Record provider-reported usage for EVERY child completion.
+        //
+        // This loop previously consumed only `resp.text` and `resp.toolCalls`, so
+        // a subagent's tokens never reached the event log — on a real billable
+        // call it emitted `observability.metric` and nothing else. The effect was
+        // silent undercount: delegated work, the work most likely to be
+        // expensive, was absent from every cost figure rather than reported.
+        //
+        // Mirrors task-loop/main.ts. The child has no authoritative caller
+        // `runId`, so the field is omitted rather than guessed — the same honest
+        // posture as the main loop, and cost correlation reports `no-run-id`
+        // instead of inventing one.
+        if (resp.usage) {
+          try {
+            await eventLog.append({
+              sessionId,
+              actor: "agent",
+              type: "model.usage",
+              payload: buildModelUsageEventPayload(
+                provider.id ?? "unknown",
+                effectiveName,
+                resp.usage,
+                resp.resolvedModel,
+              ),
+            });
+          } catch {
+            // Usage telemetry must never fail a worker whose work has already
+            // been done; the tool ledger and result remain authoritative.
+          }
+        }
 
         text = appendSubagentResponseText(text, resp.text);
         const toolCalls: ToolCall[] = resp.toolCalls ?? [];
@@ -876,7 +1015,22 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         events: [],
         error: errorMsg,
       };
-      console.error(formatSubagentResult(result, outputFormat));
+      // JSON is the MACHINE contract: the parent (SubagentManager.spawn) parses
+      // ONLY stdout for the final result. A failed JSON result written to stderr
+      // is never seen, so the parent falls back to the raw exit code and
+      // rejects with a bare error string — losing the structured `status`,
+      // `findings` and `error` the child actually produced, and misreporting a
+      // clean structured failure as a crash. Emit JSON on stdout, like the
+      // success paths do.
+      //
+      // Text is the HUMAN format: its failure rendering stays on stderr so a
+      // `--output text` invocation does not put an error message where a
+      // caller may be capturing a report.
+      if (outputFormat === "json") {
+        console.log(formatSubagentResult(result, outputFormat));
+      } else {
+        console.error(formatSubagentResult(result, outputFormat));
+      }
       process.exitCode = 1;
       return;
     }

@@ -10,7 +10,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, isAbsolute, sep } from "node:path";
-import type { EvalObjective, ObjectiveOutcome } from "../evals-types.js";
+import type { EvalExecutionResult, EvalObjective, ObjectiveOutcome } from "../evals-types.js";
 
 /** Thrown when an objective path escapes (or illegitimately targets) the cwd. */
 export class ObjectivePathEscapeError extends Error {
@@ -50,8 +50,17 @@ function contentIncludesCheck(actual: string | undefined, includes?: string[]): 
   return mismatches;
 }
 
-/** Evaluate a filesystem objective. Never throws on I/O absence — reports not-landed. */
-export function evaluateObjective(cwd: string, objective: EvalObjective): ObjectiveOutcome {
+/**
+ * Evaluate a filesystem objective. Never throws on I/O absence — reports not-landed.
+ *
+ * `execution` is optional and only consulted by objectives whose deliverable is
+ * a REPORT rather than a file. It is never trusted for the filesystem half.
+ */
+export function evaluateObjective(
+  cwd: string,
+  objective: EvalObjective,
+  execution?: Pick<EvalExecutionResult, "summary">,
+): ObjectiveOutcome {
   switch (objective.kind) {
     case "file": {
       const abs = resolveObjectivePath(cwd, objective.path);
@@ -123,15 +132,69 @@ export function evaluateObjective(cwd: string, objective: EvalObjective): Object
     }
     case "unchanged": {
       const abs = resolveObjectivePath(cwd, objective.path);
-      if (!existsSync(abs)) {
-        return {
-          landed: false,
-          evidence: { path: objective.path, exists: false, mismatches: [`file missing: ${objective.path}`] },
-        };
+      const mismatches: string[] = [];
+      const exists = existsSync(abs);
+      if (!exists) {
+        mismatches.push(`file missing: ${objective.path}`);
+      } else {
+        const actual = readFileSync(abs, "utf-8");
+        const mismatch = contentMatches(actual, objective.contentEquals);
+        if (mismatch) mismatches.push(`${objective.path}: ${mismatch}`);
+      }
+      for (const [path, expected] of Object.entries(objective.unchanged ?? {})) {
+        const otherAbs = resolveObjectivePath(cwd, path);
+        if (!existsSync(otherAbs)) {
+          mismatches.push(`file missing: ${path}`);
+          continue;
+        }
+        const actual = readFileSync(otherAbs, "utf-8");
+        const mismatch = contentMatches(actual, expected);
+        if (mismatch) mismatches.push(`${path}: ${mismatch}`);
+      }
+      const report = execution?.summary ?? "";
+      for (const needle of objective.answerIncludes ?? []) {
+        if (!report.toLowerCase().includes(needle.toLowerCase())) {
+          mismatches.push(`final report does not state: ${needle}`);
+        }
       }
       return {
-        landed: true,
-        evidence: { path: objective.path, exists: true, changed: false },
+        landed: mismatches.length === 0,
+        evidence: {
+          path: objective.path,
+          exists,
+          changed: false,
+          ...(mismatches.length > 0 ? { mismatches } : {}),
+        },
+      };
+    }
+    case "files": {
+      // Composite: delegate each entry to the SAME single-file evaluation and
+      // AND the results. No second scoring engine, no independent truth.
+      const outcomes = objective.files.map(entry => ({
+        entry,
+        outcome: evaluateObjective(cwd, {
+          kind: "file",
+          path: entry.path,
+          exists: entry.exists ?? true,
+          ...(entry.contentEquals !== undefined ? { contentEquals: entry.contentEquals } : {}),
+          ...(entry.contentIncludes !== undefined ? { contentIncludes: entry.contentIncludes } : {}),
+        }),
+      }));
+      // A single-file outcome reports its own path in evidence, but a composite
+      // has several — so every mismatch must name the file it came from or the
+      // operator cannot tell which of N files failed.
+      const mismatches = outcomes.flatMap(({ entry, outcome }) =>
+        (outcome.evidence.mismatches ?? []).map(m => `${entry.path}: ${m}`),
+      );
+      return {
+        landed: outcomes.every(({ outcome }) => outcome.landed),
+        evidence: {
+          // No single path: the composite covers several.
+          path: objective.files.map(f => f.path).join(", "),
+          exists: outcomes.every(({ outcome }) => outcome.evidence.exists),
+          changed: true,
+          mismatches,
+        },
       };
     }
   }

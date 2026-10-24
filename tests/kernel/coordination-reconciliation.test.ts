@@ -30,7 +30,13 @@ describe("reconcileCoordinationRun", () => {
     const result = await reconcileCoordinationRun({ store, ownershipRegistry: mockRegistry, orphanThresholdMs: ORPHAN_THRESHOLD_MS }, run.id);
     assert.equal(result.orphaned.length, 1);
     const loaded = await store.load(run.id);
-    assert.equal(loaded!.workers[0].status, "failed");
+    // RESET FOR BOUNDED RETRY, not terminal. The root AGENTS contract says
+    // reclaim must "reset workers to pending and increment attempts within their
+    // limit"; marking `failed` permanently destroyed a crashed worker's work and
+    // made runs report failed with correct artifacts on disk.
+    assert.equal(loaded!.workers[0].status, "pending");
+    assert.equal(loaded!.workers[0].attempt, 1);
+    assert.equal(loaded!.workers[0].executionOwnerId, undefined);
   });
 
   it("leaves stale workers of unprovable owners alone (never steal)", async () => {
@@ -113,7 +119,11 @@ describe("reconcileCoordinationRun", () => {
     );
     assert.equal(result.orphaned.length, 1);
     const loaded = await store.load(run.id);
-    assert.equal(loaded!.workers[0].status, "failed");
-    assert.equal(loaded!.workers[0].blockReason, "orphaned");
+    assert.equal(loaded!.workers[0].status, "pending");
+    // A reclaimed worker is queued for retry, so it must NOT carry the terminal
+    // `orphaned` block reason — that would keep it out of dispatch while it sits
+    // pending. The reclaim is recorded in `error` instead.
+    assert.equal(loaded!.workers[0].blockReason, undefined);
+    assert.match(String(loaded!.workers[0].error), /Reclaimed/);
   });
 });

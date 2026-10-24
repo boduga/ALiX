@@ -334,6 +334,7 @@ export class SubagentManager {
           "--prompt", task.prompt,
           "--mode", task.mode,
           "--session-id", task.contextBundle ?? `sub-${Date.now()}`,
+          ...(task.assignedObjective ? ["--assigned-objective", task.assignedObjective] : []),
           "--provider", provider,
           "--model", name,
           "--session-mode", sessionMode,

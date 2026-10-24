@@ -1,0 +1,160 @@
+{
+  "source": "restart/crash scenario on a real model (stratum 8)",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER",
+  "killAfterMs": 6000,
+  "killOnRunning": true,
+  "outputCapOverride": null,
+  "phase1": {
+    "usageRecords": 0,
+    "killState": {
+      "killed": true,
+      "trigger": {
+        "mode": "running-worker",
+        "runId": "coord_57d227c2-fc44-409a-a9fb-9d43b6446e4e",
+        "workerId": "worker_3e2b94b9-9045-45ee-8f0c-4ca166d02d77",
+        "attempt": 1
+      },
+      "runStatus": "running",
+      "workers": [
+        {
+          "id": "worker_3e2b94b9-9045-45ee-8f0c-4ca166d02d77",
+          "status": "running",
+          "attempt": 1
+        },
+        {
+          "id": "worker_112bef9a-b6ba-4b52-a957-0c4931509c7d",
+          "status": "pending",
+          "attempt": 0
+        },
+        {
+          "id": "worker_154f814e-b3bf-4c4c-91c4-acb9da317c53",
+          "status": "pending",
+          "attempt": 0
+        }
+      ],
+      "completedAtKill": 0,
+      "falselyCompleted": null
+    }
+  },
+  "phase2": {
+    "resumedRunId": "coord_57d227c2-fc44-409a-a9fb-9d43b6446e4e",
+    "exitCode": 0,
+    "usageRecords": 10
+  },
+  "usage": {
+    "observed": true,
+    "inputTokens": 62110,
+    "outputTokens": 1023,
+    "records": [
+      {
+        "sessionId": "coord_1792782330536",
+        "runId": "run-74190c5b",
+        "inputTokens": 5990,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792782330536",
+        "runId": "run-74190c5b",
+        "inputTokens": 6153,
+        "outputTokens": 29
+      },
+      {
+        "sessionId": "coord_1792782330536",
+        "runId": "run-74190c5b",
+        "inputTokens": 6303,
+        "outputTokens": 151
+      },
+      {
+        "sessionId": "coord_1792782330536",
+        "runId": "run-74190c5b",
+        "inputTokens": 6624,
+        "outputTokens": 143
+      },
+      {
+        "sessionId": "coord_1792782330536",
+        "runId": "run-1631e847",
+        "inputTokens": 5990,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792782330536",
+        "runId": "run-1631e847",
+        "inputTokens": 6148,
+        "outputTokens": 26
+      },
+      {
+        "sessionId": "coord_1792782330536",
+        "runId": "run-1631e847",
+        "inputTokens": 6287,
+        "outputTokens": 179
+      },
+      {
+        "sessionId": "coord_1792782330536",
+        "runId": "run-dde5a57f",
+        "inputTokens": 5990,
+        "outputTokens": 34
+      },
+      {
+        "sessionId": "coord_1792782330536",
+        "runId": "run-dde5a57f",
+        "inputTokens": 6153,
+        "outputTokens": 197
+      },
+      {
+        "sessionId": "coord_1792782330536",
+        "runId": "run-dde5a57f",
+        "inputTokens": 6472,
+        "outputTokens": 190
+      }
+    ]
+  },
+  "costUsd": 0.16550499999999999,
+  "costNote": "token totals observed across both halves; pricing applied by cost-attribution",
+  "finalRun": {
+    "status": "completed",
+    "outcome": "success",
+    "workers": [
+      "completed",
+      "completed",
+      "completed"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/a.md",
+      "exists": true,
+      "content": "A-MARKER"
+    },
+    {
+      "path": "docs/b.md",
+      "exists": true,
+      "content": "B-MARKER"
+    },
+    {
+      "path": "docs/c.md",
+      "exists": true,
+      "content": "C-MARKER"
+    }
+  ],
+  "recordedAt": "2026-10-23T19:06:15.935Z",
+  "pricingNote": "priced from observed tokens at the recorded gpt-4o rate ($2.5/$10 per Mtok)",
+  "repetitionNote": "n=1: one crash/resume cycle. Not a rate.",
+  "crashIntegrity": {
+    "killedOnPersistedRunningWorker": true,
+    "falselyCompletedAtKill": 0,
+    "resumedSameRun": true,
+    "finalWorkers": [
+      "completed",
+      "completed",
+      "completed"
+    ],
+    "runStatusAtKill": "running",
+    "workersAtKill": [
+      "running",
+      "pending",
+      "pending"
+    ]
+  }
+}

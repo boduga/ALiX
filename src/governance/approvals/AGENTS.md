@@ -46,6 +46,17 @@ File-backed approval queue management — create, resolve, list, and lookup pend
     already denied at authentication (A′), so it never reaches this route.
     `tests/server/derive-permissions.test.ts` pins the `approvals:decide` grant
     (admin + operator, never `readonly`).
+- **`approval.created` has exactly one producer per composition root, chosen by
+  capability.** The store emits it from its committed creation transition, but
+  only when the store itself was constructed with an `EventLog`
+  (`ApprovalStore.emit()` is a no-op otherwise); `ApprovalStore.emitsLifecycleEvents`
+  reports that construction state. `PolicyGate` emits `approval.created` itself
+  **only** when the store positively reports it has no log, and never on top of a
+  store that emits — duplicate creation events inflate approval-volume counters
+  (F1-B), while silence on both paths erases the approval lifecycle entirely
+  (headless `alix run` built the store without a log, so the gate must supply it).
+  `approval.reused` is always the gate's: the store emits nothing on reuse.
+  Pinned in both directions by `tests/security/approval-event-dedup.vitest.ts`.
 - Approval records are durable JSON — full history preserved.
 - **The approval ledger is authoritative (R2.5); JSON/journal is a
   compatibility projection.** `mutate()` appends its classified diff to the
@@ -64,6 +75,10 @@ File-backed approval queue management — create, resolve, list, and lookup pend
   protected import under the R1 freeze).
 - Approval records preserve optional canonical `agentId` correlation from execution authorization through created/resolved lifecycle events; never derive it from `workerId` or display labels.
 - **Coordination approvals are created with the canonical binding atomically.** `PolicyGate.handleAskDecision` commits them through `requestOrReusePending` (see `src/governance/policy/AGENTS.md`); the store persists `bindingKey`, `requestFingerprint`, `policyRevision`, `capabilities`, `ownershipClaims`, and `coordinationRunId`/`workerId`/`workerAttempt` in the one authoritative `approval.created` ledger payload. `findExact`/`findPendingByBindingKey` are indexed from that committed record, so a freshly reloaded store sees the coordination binding. A post-commit field patch on a `request()` result is NOT a valid way to set these — the legacy `request()` binding would be the committed truth.
+- **Isolated worker processes reach the ledger through a RESTRICTED port, never a store.** A coordination subagent runs as its own OS process spawn-time-cwded to the parent's workspace, so it cannot receive the parent's in-memory `ApprovalStore`. `createWorkerApprovalPort` (`worker-approval-port.ts`) opens the child's own store against that SAME authoritative workspace and exposes only request / observe / consume / report-outcome. It deliberately has NO reachable decision method (`resolve`, `resolveWithEvidence`, `resolveGroup`, `revoke`, `invalidate`, `mutate`) — handing a child a full store would let a compromised worker approve its own request, i.e. grant itself any capability. The facade self-checks at construction and throws if a forbidden method ever becomes reachable. Decisions stay operator-controlled because no reachable method records one. Cross-process atomicity is the store's, not the port's: `consumeApproved` re-reads and re-validates under the cross-process lock, so two processes cannot both consume one single-use approval. An unopenable or unloadable ledger wires no port and emits `subagent.approval_store_unavailable` — gated tools then stay denied; an inaccessible store is never implicit permission.
+- **Single-use approval consumption is one claim at one seam.** `consumeApproved` is the only atomic claim. `ToolExecutor.dispatch` claims a cited tool approval; the coordination exact-binding branch inside `PolicyGate` consumes in-gate and reports `approvalConsumed: true`, so dispatch does not claim twice. A legacy prior approval with no invocation fingerprint fails closed and is re-asked, never reused; a `consumed` approval is denied with an exact reason naming the recorded outcome.
+- **A consumed approval carries a durable post-claim execution outcome.** The claim sets `executionOutcome: "pending"`; the executor then reports `recordExecutionOutcome` (`succeeded`/`failed`/`cancelled`), and only the first terminal transition from `pending` is accepted so a duplicated report cannot rewrite a resolved claim. A claim whose holder never reported back stays `pending`; a later replay classifies it `unverified` via `markExecutionUnverified` — terminal, fail-closed, never reissued. `listUncertainConsumptions` reports `pending`/`unverified` claims without a wall-clock sweep. Events: `APPROVAL_EVENT_TYPES.EXECUTION_SUCCEEDED`/`EXECUTION_FAILED`/`EXECUTION_CANCELLED`/`EXECUTION_UNVERIFIED`.
+- **Approval authority binds to the exact invocation, not the request id.** `ApprovalRequestInput.invocation` (`InvocationIdentity`: capability, toolName, workspace, argsHash, sessionId, agentId) is persisted with a deterministic `computeInvocationFingerprint`; `consumeApproved` takes an optional `expectedInvocation` and refuses on mismatch. `invocationMatches` returns false for a record with no fingerprint, so a legacy record is never reused on a request-id match alone.
 - **Remote-decision evidence is bounded and lives in the ledger payload.** `RemoteDecisionEvidence` (`approval-types.ts`) is persisted on the `ApprovalRecord` inside the authoritative `approval.updated` ledger event via `ApprovalStore.resolveWithEvidence`; `resolve` (no evidence) is unchanged for CLI/local decisions. Fields: `decisionId` (idempotency key for audit projection), `principalId`, `credentialRef` (versioned HMAC over the credential record id — never a raw token/credential id), `decision`, `nonce`, `decidedAt`, `transport`. `remoteDecisionRetryKey` is the bounded exact-retry identity (`principalId`+`nonce`+`decision`).
   - **A′ landed (SRAP-1 G3-A′).** `principalId` resolves to a `PrincipalRecord`
     (`src/governance/security/inspector/principal-store.ts`) bound via
@@ -86,6 +101,9 @@ File-backed approval queue management — create, resolve, list, and lookup pend
 - `tests/kernel/coordination-approval-binding.test.ts` — coordination binding persisted and matched through the real chain (see `src/coordination/kernel/AGENTS.md`).
 - `tests/approvals/approval-ledger-dualwrite.test.ts` — ledger authority (create/resolve/journal path/prune tombstone), append-failure fail-closed, projection-failure tolerance, tampered-projection ignored, reconciliation drift (legacy/mismatch/tamper).
 - `tests/audit/remote-decision-projection.test.ts` — SRAP remote-decision projection: idempotent re-run, duplicate drop, chain-anchored dedup after checkpoint loss, fail-closed on unverifiable chain, lag counter.
+- `tests/security/legacy-approval-single-use.test.ts` — single-use across the ordinary retry and continuation routes, changed args/capability/agent, legacy unbound re-ask, and concurrent duplicate execution.
+- `tests/security/approval-crash-recovery.test.ts` — crash-after-consume classification (`pending` → `unverified`), outcome reporting, duplicate-outcome rejection, and the continuation seam.
+- `tests/security/approval-consumed-propagation.test.ts` — `approvalConsumed` propagation through `decisionAllowed`/`ExecutionAuthorization`.
 
 ## Child DOX Index
 

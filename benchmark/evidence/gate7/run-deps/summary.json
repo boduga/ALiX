@@ -1,0 +1,137 @@
+{
+  "scenario": "deps",
+  "objective": "Create docs/p.md, docs/q.md, docs/r.md containing exactly their respective markers, using coordinated workers",
+  "run": {
+    "id": "coord_04a52234-e7e3-4a26-a49d-49f667ea5075",
+    "status": "completed",
+    "workers": [
+      {
+        "id": "worker_99111f27-57ae-4938-a725-35563127955e",
+        "status": "completed",
+        "scopes": [
+          "docs/p.md"
+        ],
+        "dependencies": [],
+        "blockReason": null,
+        "attempt": 1,
+        "startedAt": "2026-10-19T16:05:24.524Z",
+        "completedAt": "2026-10-19T16:05:36.467Z"
+      },
+      {
+        "id": "worker_045bd009-74c1-4091-973b-b8fd399664c9",
+        "status": "completed",
+        "scopes": [
+          "docs/q.md"
+        ],
+        "dependencies": [
+          "worker_99111f27-57ae-4938-a725-35563127955e"
+        ],
+        "blockReason": null,
+        "attempt": 1,
+        "startedAt": "2026-10-19T16:05:51.919Z",
+        "completedAt": "2026-10-19T16:06:03.865Z"
+      },
+      {
+        "id": "worker_0bdca36c-07bf-488a-94c9-af7b65428da4",
+        "status": "completed",
+        "scopes": [
+          "docs/r.md"
+        ],
+        "dependencies": [],
+        "blockReason": null,
+        "attempt": 1,
+        "startedAt": "2026-10-19T16:05:35.148Z",
+        "completedAt": "2026-10-19T16:05:47.195Z"
+      }
+    ]
+  },
+  "aggregate": {
+    "status": "completed",
+    "outcome": "success",
+    "complete": true,
+    "counts": {
+      "workers": 3,
+      "completed": 3,
+      "failed": 0,
+      "blocked": 0,
+      "cancelled": 0,
+      "pending": 0,
+      "running": 0,
+      "successfulResults": 3,
+      "failedResults": 0,
+      "missingResults": 0
+    },
+    "failureChains": [],
+    "sourceFingerprint": "bda2652488a98cd0958e70f8fa0051af69a009d1085dd023fcc349a419da8080"
+  },
+  "artifacts": {
+    "docs/p.md": "DEPS_P_OK\n",
+    "docs/q.md": "DEPS_Q_OK\n",
+    "docs/r.md": "DEPS_R_OK\n"
+  },
+  "approvals": [
+    {
+      "id": "approval_1792425936812_hzyb1",
+      "status": "consumed",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": "pending"
+    },
+    {
+      "id": "approval_1792425919522_hk4j0",
+      "status": "consumed",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": "pending"
+    },
+    {
+      "id": "approval_1792425919221_ixvvl",
+      "status": "consumed",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": "pending"
+    },
+    {
+      "id": "approval_1792425916311_5gxn0",
+      "status": "consumed",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "executionOutcome": "succeeded"
+    }
+  ],
+  "keyboard_approvals": [
+    {
+      "id": "approval_1792425916311_5gxn0",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "at": 17.31031322479248
+    },
+    {
+      "id": "approval_1792425919221_ixvvl",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "at": 18.88984990119934
+    },
+    {
+      "id": "approval_1792425919522_hk4j0",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "at": 24.59945297241211
+    },
+    {
+      "id": "approval_1792425936812_hzyb1",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "at": 36.00356602668762
+    }
+  ],
+  "pending_left": []
+}

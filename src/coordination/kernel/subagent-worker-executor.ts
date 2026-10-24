@@ -23,7 +23,7 @@ import { SubagentManager } from "../../agents/subagent-manager.js";
 import type { SubagentTask, AlixConfig } from "../../operations/config/schema.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
 import type { WorkerAssignment } from "./coordination-types.js";
-import { roleForWorker } from "./worker-role.js";
+import { ownedPathsForWorker, roleForWorker } from "./worker-role.js";
 import { renderWorkerExecutionPrompt } from "./coordination-worker-context.js";
 import type {
   CoordinationWorkerExecutor,
@@ -32,19 +32,7 @@ import type {
 } from "./worker-executor.js";
 
 export { roleForWorker } from "./worker-role.js";
-
-/** Owned paths for a write worker: exact claim paths first, then scopes. */
-export function ownedPathsForWorker(
-  worker: Pick<WorkerAssignment, "ownershipScopes"> & {
-    ownershipClaims?: Array<{ path: string }>;
-  },
-): string[] {
-  const paths = [
-    ...(worker.ownershipClaims ?? []).map(c => c.path),
-    ...(worker.ownershipScopes ?? []),
-  ].filter(p => typeof p === "string" && p.length > 0);
-  return [...new Set(paths)];
-}
+export { ownedPathsForWorker } from "./worker-role.js";
 
 export function taskForWorker(
   worker: WorkerAssignment,
@@ -67,6 +55,7 @@ export function taskForWorker(
     ownedPaths,
     inputPaths: worker.inputPaths,
     contextBundle: sessionId,
+    assignedObjective: worker.goalPrompt,
     eventSessionId: sessionId,
     cwd,
     coordinationRunId: worker.coordinationRunId,
@@ -120,6 +109,13 @@ export class SubagentWorkerExecutor implements CoordinationWorkerExecutor {
   ): Promise<WorkerExecutionResult> {
     if (signal.aborted) {
       return { outcome: "failure", failureKind: "cancelled", error: "Execution cancelled before start" };
+    }
+    if (roleForWorker(worker) === "worker" && !ownedPathsForWorker(worker).length) {
+      return {
+        outcome: "failure",
+        failureKind: "authorization_denied",
+        error: "Write worker has no valid owned paths",
+      };
     }
     const task = taskForWorker(worker, context.sessionId, context.cwd, context);
     const taskId = task.id || randomUUID();

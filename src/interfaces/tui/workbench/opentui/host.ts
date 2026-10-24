@@ -30,8 +30,7 @@ export function mountOpenTuiWorkbenchHost(renderer: CliRenderer, deps: OpenTuiHo
   const clickAllowed = (): boolean => {
     const state = deps.contentState();
     return state.approval.length === 0 && state.overlay.stack.length === 0;
-  };
-  let pressedAt: { x: number; y: number } | undefined;
+  };  let pressedAt: { x: number; y: number } | undefined;
   let dragged = false;
   layout.shell.onMouseDown = (event): void => {
     pressedAt = event.button === 0 ? { x: event.x, y: event.y } : undefined;
@@ -49,9 +48,20 @@ export function mountOpenTuiWorkbenchHost(renderer: CliRenderer, deps: OpenTuiHo
   const wire = (
     region: { onMouseUp: ((event: MouseEvent) => void) | undefined },
     action: (event: MouseEvent) => OpenTuiClickAction | undefined,
+    /**
+     * Region answers while a pending approval blocks the rest of the shell.
+     *
+     * The approval card used to be its own floating box and answered
+     * `approvalClickTarget` outside this gate. It now renders INLINE in the
+     * transcript, so without this flag the decision labels are painted but every
+     * click is rejected by `clickAllowed()` — a pending approval could not be
+     * resolved by mouse at all.
+     */
+    answersWhileApprovalPending = false,
   ): void => {
     region.onMouseUp = (event): void => {
-      if (!isClick(event) || !clickAllowed()) return;
+      if (!isClick(event)) return;
+      if (!answersWhileApprovalPending && !clickAllowed()) return;
       const resolved = action(event);
       if (!resolved) return;
       deps.onClick(resolved);
@@ -60,8 +70,16 @@ export function mountOpenTuiWorkbenchHost(renderer: CliRenderer, deps: OpenTuiHo
   };
   wire(layout.regions.roster, event => content.rosterClickTarget(event.y - content.roster.screenY));
   wire(layout.regions.overlay, event => content.rosterClickTarget(event.y - content.overlay.screenY, 'overlay'));
-  wire(layout.regions.transcript, event => content.transcriptClickTarget(event.x - content.transcript.screenX, event.y - content.transcript.screenY)
-    ?? { type: 'focus.set', focus: 'transcript' });
+  // The transcript renders approval cards INLINE, so it must stay actionable
+  // while an approval is pending. Only the approval decision targets resolve in
+  // that state; every other transcript click still falls through to the gate.
+  wire(layout.regions.transcript, event => {
+    const target = content.transcriptClickTarget(event.x - content.transcript.screenX, event.y - content.transcript.screenY);
+    if (content.hasPendingApproval()) {
+      return target?.type === 'approval.resolve' ? target : undefined;
+    }
+    return target ?? { type: 'focus.set', focus: 'transcript' };
+  }, true);
   wire(layout.regions.composer, () => ({ type: 'focus.set', focus: 'composer' }));
   wire(layout.regions.inspector, event => content.inspectorClickTarget(event.y - content.inspector.screenY));
   wire(layout.regions.footer, event => content.footerClickTarget(event.x - content.footer.screenX, event.y - content.footer.screenY));

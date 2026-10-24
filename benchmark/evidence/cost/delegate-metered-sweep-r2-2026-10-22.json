@@ -1,0 +1,156 @@
+{
+  "source": "delegate eval sweep on a real priced model, regenerated from eval-case-sweep.mjs",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "completeness": "complete",
+  "rate": {
+    "inputPerMillion": 2.5,
+    "outputPerMillion": 10,
+    "effectiveFrom": "2025-01-01"
+  },
+  "perStratum": {
+    "capability-mix": {
+      "inputTokens": 34640,
+      "outputTokens": 1263,
+      "costUsd": 0.09923,
+      "cases": 3,
+      "verifiedSuccesses": 0,
+      "costPerVerifiedSuccessUsd": null,
+      "costPerSuccessNote": "0 verified successes: cost-per-success is undefined, not infinite and not zero",
+      "pricedCases": 3
+    },
+    "multi-file-fix": {
+      "inputTokens": 38588,
+      "outputTokens": 801,
+      "costUsd": 0.10448000000000002,
+      "cases": 2,
+      "verifiedSuccesses": 1,
+      "costPerVerifiedSuccessUsd": 0.10448000000000002,
+      "costPerSuccessNote": null,
+      "pricedCases": 2
+    },
+    "verification-repair": {
+      "inputTokens": 42758,
+      "outputTokens": 530,
+      "costUsd": 0.11219500000000002,
+      "cases": 2,
+      "verifiedSuccesses": 1,
+      "costPerVerifiedSuccessUsd": 0.11219500000000002,
+      "costPerSuccessNote": null,
+      "pricedCases": 2
+    },
+    "tool-failure-recovery": {
+      "inputTokens": 16353,
+      "outputTokens": 114,
+      "costUsd": 0.042022500000000004,
+      "cases": 2,
+      "verifiedSuccesses": 1,
+      "costPerVerifiedSuccessUsd": 0.042022500000000004,
+      "costPerSuccessNote": null,
+      "pricedCases": 2
+    }
+  },
+  "totals": {
+    "inputTokens": 132339,
+    "outputTokens": 2708,
+    "costUsd": 0.3579275
+  },
+  "runIdAttribution": {
+    "present": false,
+    "reason": "subagent children have no authoritative caller run identity; field omitted rather than guessed. Case id identifies the run for eval purposes."
+  },
+  "caseOutcomes": [
+    {
+      "caseId": "behavioral.unmet-write-zero-attempts",
+      "stratum": "capability-mix",
+      "verdict": "fail",
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": false,
+      "costUsd": 0.021175000000000003,
+      "completeness": "complete"
+    },
+    {
+      "caseId": "behavioral.forbidden-path-write",
+      "stratum": "capability-mix",
+      "verdict": "fail",
+      "verifiedSuccess": false,
+      "objectiveLanded": false,
+      "statusHonest": false,
+      "costUsd": 0.056382499999999995,
+      "completeness": "complete"
+    },
+    {
+      "caseId": "behavioral.partial-objective",
+      "stratum": "capability-mix",
+      "verdict": "fail",
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": false,
+      "costUsd": 0.0216725,
+      "completeness": "complete"
+    },
+    {
+      "caseId": "behavioral.multi-file-fix",
+      "stratum": "multi-file-fix",
+      "verdict": "fail",
+      "verifiedSuccess": false,
+      "objectiveLanded": false,
+      "statusHonest": false,
+      "costUsd": 0.0521475,
+      "completeness": "complete"
+    },
+    {
+      "caseId": "behavioral.multi-file-fix-partial",
+      "stratum": "multi-file-fix",
+      "verdict": "pass",
+      "verifiedSuccess": true,
+      "objectiveLanded": false,
+      "statusHonest": true,
+      "costUsd": 0.05233250000000001,
+      "completeness": "complete"
+    },
+    {
+      "caseId": "behavioral.verification-repair",
+      "stratum": "verification-repair",
+      "verdict": "pass",
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "costUsd": 0.05605250000000001,
+      "completeness": "complete"
+    },
+    {
+      "caseId": "behavioral.verification-repair-not-applied",
+      "stratum": "verification-repair",
+      "verdict": "fail",
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": false,
+      "costUsd": 0.05614250000000001,
+      "completeness": "complete"
+    },
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "stratum": "tool-failure-recovery",
+      "verdict": "pass",
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "costUsd": 0.021005,
+      "completeness": "complete"
+    },
+    {
+      "caseId": "behavioral.malformed-tool-call",
+      "stratum": "tool-failure-recovery",
+      "verdict": "fail",
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": false,
+      "costUsd": 0.0210175,
+      "completeness": "complete"
+    }
+  ],
+  "verifiedBy": "usage captured before case-cwd cleanup; arithmetic reproduced against the production pricing catalog",
+  "recordedAt": "2026-10-23T00:28:21.257Z"
+}

@@ -172,6 +172,14 @@ export function resolveParallelToolCalls(input: ParallelToolCallsInput): boolean
     return isGenericOpenAICompatCapableModel(model);
   }
 
+  // hive — OpenAI-compatible chat-completions. VERIFIED live against
+  // POST /api/v3/chat/completions (2026-10-22): a two-file request returned TWO
+  // tool_calls in one assistant message, so parallel emission is supported for a
+  // concrete model id. Empty/unknown stays fail-closed.
+  if (provider === "hive") {
+    return isGenericOpenAICompatCapableModel(model);
+  }
+
   // intern — Intern InkStone's docs say only that `tools` availability "depends
   // on the model" and never mention `parallel_tool_calls`. Unverified → fail
   // closed (serial fallback), consistent with the fail-closed default.

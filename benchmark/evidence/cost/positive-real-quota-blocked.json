@@ -1,0 +1,621 @@
+{
+  "startedAt": "2026-10-22T00:09:38.397Z",
+  "scripted": false,
+  "results": [
+    {
+      "caseId": "positive.multi-file-fix",
+      "stratum": 4,
+      "scripted": false,
+      "model": {
+        "provider": "intern",
+        "name": "deepseek-v4-flash-0731"
+      },
+      "error": "ApiError: API error 429: quota exceeded",
+      "objective": {
+        "landed": false,
+        "evidence": {
+          "path": "src/timeout.txt, src/retries.txt",
+          "exists": true,
+          "changed": true,
+          "mismatches": [
+            "src/timeout.txt: content mismatch: expected \"timeout=3000\n\"",
+            "src/retries.txt: content mismatch: expected \"retries=3\n\""
+          ]
+        }
+      },
+      "status": {
+        "expected": [
+          "completed"
+        ],
+        "honest": false
+      },
+      "verdict": "fail",
+      "usage": {
+        "records": [],
+        "inputTokens": null,
+        "outputTokens": null,
+        "observed": false
+      },
+      "costUSD": null,
+      "events": [
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "session.started",
+          "payload": {
+            "cwd": "/tmp/alix-positive-YjJ6RS",
+            "configHash": "mvp"
+          },
+          "id": "0653575f-1bab-40d6-b6a4-0bb1fbcfa524",
+          "seq": 1,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:08.553Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "user",
+          "type": "user.message",
+          "payload": {
+            "text": "Fix BOTH files using file tools: src/timeout.txt must contain exactly \"timeout=3000\\n\" and src/retries.txt exactly \"retries=3\\n\". Read both, write both corrected files. No tests or verification commands needed. Report completion.",
+            "attachments": []
+          },
+          "id": "8a42a6d7-618b-4a7a-a1a3-14927ff79851",
+          "seq": 2,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:08.555Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "context.repo_map_lite_created",
+          "payload": {
+            "fileCount": 0,
+            "sourceCount": 0,
+            "testCount": 0
+          },
+          "id": "de92020d-25fe-412e-b78f-b3d16306b6d9",
+          "seq": 3,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:08.558Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "workflow.created",
+          "payload": {
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69",
+            "goal": "Fix BOTH files using file tools: src/timeout.txt must contain exactly \"timeout=3000\\n\" and src/retries.txt exactly \"retries=3\\n\". Read both, write both corrected files. No tests or verification commands needed. Report completion.",
+            "mode": "interactive"
+          },
+          "meta": {
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69"
+          },
+          "id": "c8559a48-f550-4e5a-89d9-47144f2781ad",
+          "seq": 4,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:08.690Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "graph.created",
+          "payload": {
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f",
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69",
+            "nodeCount": 1
+          },
+          "meta": {
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69",
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f",
+            "nodeId": "node_374de196-0859-4bfa-85ec-62f873829216"
+          },
+          "id": "c71ab5d9-5825-4884-b702-7d0f0eb75702",
+          "seq": 5,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:08.693Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "task.ready",
+          "payload": {
+            "nodeId": "node_374de196-0859-4bfa-85ec-62f873829216",
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f",
+            "goal": "Fix BOTH files using file tools: src/timeout.txt must contain exactly \"timeout=3000\\n\" and src/retries.txt exactly \"retries=3\\n\". Read both, write both corrected files. No tests or verification commands needed. Report completion."
+          },
+          "meta": {
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69",
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f",
+            "nodeId": "node_374de196-0859-4bfa-85ec-62f873829216"
+          },
+          "id": "9b37521c-53eb-4419-8de5-7bee2f530e77",
+          "seq": 6,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:08.694Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "mcp.tools_selected",
+          "payload": {
+            "total": 0,
+            "selected": 0,
+            "taskPreview": "Fix BOTH files using file tools: src/timeout.txt must contain exactly \"timeout=3000\\n\" and src/retri"
+          },
+          "id": "5e78c5a8-3593-4d66-9847-f7056ed440a6",
+          "seq": 7,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:09.214Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "task.started",
+          "payload": {
+            "nodeId": "node_374de196-0859-4bfa-85ec-62f873829216",
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f"
+          },
+          "meta": {
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69",
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f",
+            "nodeId": "node_374de196-0859-4bfa-85ec-62f873829216"
+          },
+          "id": "6814cecb-0865-4a2f-82c0-0b3ffeaf114f",
+          "seq": 8,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:09.217Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "graph.status_changed",
+          "payload": {
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f",
+            "status": "running"
+          },
+          "meta": {
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69",
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f",
+            "nodeId": "node_374de196-0859-4bfa-85ec-62f873829216"
+          },
+          "id": "742773b7-711a-4586-976e-80885651d2f6",
+          "seq": 9,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:09.218Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "embedder.initialized",
+          "payload": {
+            "dbPath": "/home/babasola/.alix/failures.db"
+          },
+          "id": "3dc6a569-7726-4149-a40e-81eb6351b350",
+          "seq": 10,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:09.248Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80-agent",
+          "actor": "system",
+          "type": "context.snapshot.created",
+          "payload": {
+            "invocationId": "inv-0659a493-ad6d-4966-addf-6788da1df0bb",
+            "candidateTokens": 6436
+          },
+          "id": "ab4bcb3c-a3aa-40e6-a251-ed25c3ee74c6",
+          "seq": 11,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:09.305Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80-agent",
+          "actor": "system",
+          "type": "context.budget.computed",
+          "payload": {
+            "invocationId": "inv-0659a493-ad6d-4966-addf-6788da1df0bb",
+            "contextWindowTokens": 1048576,
+            "availableInputTokens": 1015808,
+            "budgetReservation": 32768,
+            "requestedMaxOutputTokens": 32768,
+            "policyReservation": 32768
+          },
+          "id": "89f04594-1e58-41e8-b00b-2597ef950f8a",
+          "seq": 12,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:09.309Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80-agent",
+          "actor": "system",
+          "type": "context.assembled",
+          "payload": {
+            "invocationId": "inv-0659a493-ad6d-4966-addf-6788da1df0bb",
+            "admittedItems": 3,
+            "droppedItems": 0,
+            "admittedTokens": 6436,
+            "droppedTokens": 0,
+            "admittedByCategory": {
+              "mandatory_system_governance": 6367,
+              "current_task": 69
+            },
+            "droppedReasons": []
+          },
+          "id": "be63c033-46d3-41e5-b246-876067d3d678",
+          "seq": 13,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:09.314Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "task.failed",
+          "payload": {
+            "nodeId": "node_374de196-0859-4bfa-85ec-62f873829216",
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f",
+            "error": "ApiError: API error 429: quota exceeded"
+          },
+          "meta": {
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69",
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f",
+            "nodeId": "node_374de196-0859-4bfa-85ec-62f873829216"
+          },
+          "id": "7eb8f0e9-7a9c-49dc-9f5b-1579088b9c10",
+          "seq": 14,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:21.240Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "graph.failed",
+          "payload": {
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f",
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69",
+            "summary": "ApiError: API error 429: quota exceeded"
+          },
+          "meta": {
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69",
+            "graphId": "graph_8c82fd35-999b-4938-92db-6b97c5d1d92f",
+            "nodeId": "node_374de196-0859-4bfa-85ec-62f873829216"
+          },
+          "id": "752e0d22-0859-4880-8320-16cc5d9eb51c",
+          "seq": 15,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:21.244Z"
+        },
+        {
+          "sessionId": "669066cd-d64f-42f3-8002-eb9529e32a80",
+          "actor": "system",
+          "type": "workflow.failed",
+          "payload": {
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69",
+            "summary": "ApiError: API error 429: quota exceeded"
+          },
+          "meta": {
+            "workflowId": "wf_e6b95b7f-51a5-4dc1-b301-fafff9134a69"
+          },
+          "id": "652b8c99-91b3-45d6-a9d8-60b9c566b4df",
+          "seq": 16,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:21.246Z"
+        }
+      ],
+      "approvals": [],
+      "verifiedSuccesses": 0
+    },
+    {
+      "caseId": "positive.mixed-policy",
+      "stratum": 7,
+      "scripted": false,
+      "model": {
+        "provider": "intern",
+        "name": "deepseek-v4-flash-0731"
+      },
+      "error": "ApiError: API error 429: quota exceeded",
+      "objective": {
+        "landed": false,
+        "evidence": {
+          "path": "result.txt",
+          "exists": false,
+          "expected": {
+            "contentEquals": "seed=green\npolicy=deny\n"
+          },
+          "mismatches": [
+            "file missing: result.txt",
+            "content mismatch: expected \"seed=green\npolicy=deny\n\""
+          ]
+        }
+      },
+      "status": {
+        "expected": [
+          "completed"
+        ],
+        "honest": false
+      },
+      "policy": {
+        "read": false,
+        "deniedShell": false,
+        "write": false,
+        "approvedWrite": false,
+        "satisfied": false
+      },
+      "verdict": "fail",
+      "usage": {
+        "records": [],
+        "inputTokens": null,
+        "outputTokens": null,
+        "observed": false
+      },
+      "costUSD": null,
+      "events": [
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "session.started",
+          "payload": {
+            "cwd": "/tmp/alix-positive-AAmosr",
+            "configHash": "mvp"
+          },
+          "id": "fc8ef63c-0988-45a8-b489-58d5fb56eb0a",
+          "seq": 1,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.595Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "user",
+          "type": "user.message",
+          "payload": {
+            "text": "Perform these steps in order: use alix_file_read to read seed.txt; attempt alix_shell_run with command \"printf policy-probe\" exactly once (shell is intentionally denied; this denial is expected). Then use alix_file_create to create result.txt with exactly \"seed=green\\npolicy=deny\\n\". File writes require approval; harness operator approves only this fixture write. Deliver result.txt despite expected shell denial. No tests or verification commands needed. Report completion and expected shell denial honestly.",
+            "attachments": []
+          },
+          "id": "9a39dc2c-6868-4d5f-9c85-7e69cdc796e9",
+          "seq": 2,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.595Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "context.repo_map_lite_created",
+          "payload": {
+            "fileCount": 0,
+            "sourceCount": 0,
+            "testCount": 0
+          },
+          "id": "f805ac0d-9596-4321-9c20-27249b722ab0",
+          "seq": 3,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.596Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "workflow.created",
+          "payload": {
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579",
+            "goal": "Perform these steps in order: use alix_file_read to read seed.txt; attempt alix_shell_run with command \"printf policy-probe\" exactly once (shell is intentionally denied; this denial is expected). Then use alix_file_create to create result.txt with exactly \"seed=green\\npolicy=deny\\n\". File writes require approval; harness operator approves only this fixture write. Deliver result.txt despite expected shell denial. No tests or verification commands needed. Report completion and expected shell denial honestly.",
+            "mode": "interactive"
+          },
+          "meta": {
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579"
+          },
+          "id": "98e0ad5c-09f4-4fcb-aaef-141990945402",
+          "seq": 4,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.640Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "graph.created",
+          "payload": {
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd",
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579",
+            "nodeCount": 1
+          },
+          "meta": {
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579",
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd",
+            "nodeId": "node_b38fdf02-fc40-451b-812a-fc4d3e2585bc"
+          },
+          "id": "1ba51158-6aab-4f7a-a8ad-def6faaba879",
+          "seq": 5,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.641Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "task.ready",
+          "payload": {
+            "nodeId": "node_b38fdf02-fc40-451b-812a-fc4d3e2585bc",
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd",
+            "goal": "Perform these steps in order: use alix_file_read to read seed.txt; attempt alix_shell_run with command \"printf policy-probe\" exactly once (shell is intentionally denied; this denial is expected). Then use alix_file_create to create result.txt with exactly \"seed=green\\npolicy=deny\\n\". File writes require approval; harness operator approves only this fixture write. Deliver result.txt despite expected shell denial. No tests or verification commands needed. Report completion and expected shell denial honestly."
+          },
+          "meta": {
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579",
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd",
+            "nodeId": "node_b38fdf02-fc40-451b-812a-fc4d3e2585bc"
+          },
+          "id": "46f02791-312c-4d18-9f25-d9b7dd325838",
+          "seq": 6,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.642Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "mcp.tools_selected",
+          "payload": {
+            "total": 0,
+            "selected": 0,
+            "taskPreview": "Perform these steps in order: use alix_file_read to read seed.txt; attempt alix_shell_run with comma"
+          },
+          "id": "702fd9f6-4cda-4682-8b25-60f022bbc3a0",
+          "seq": 7,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.648Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "task.started",
+          "payload": {
+            "nodeId": "node_b38fdf02-fc40-451b-812a-fc4d3e2585bc",
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd"
+          },
+          "meta": {
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579",
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd",
+            "nodeId": "node_b38fdf02-fc40-451b-812a-fc4d3e2585bc"
+          },
+          "id": "643aee9b-2d8f-4efc-a284-f0d760088e6b",
+          "seq": 8,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.650Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "graph.status_changed",
+          "payload": {
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd",
+            "status": "running"
+          },
+          "meta": {
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579",
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd",
+            "nodeId": "node_b38fdf02-fc40-451b-812a-fc4d3e2585bc"
+          },
+          "id": "87ed8e75-7662-4d57-b09c-1f4ba1f7beed",
+          "seq": 9,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.653Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "embedder.initialized",
+          "payload": {
+            "dbPath": "/home/babasola/.alix/failures.db"
+          },
+          "id": "83cb5b78-9b43-4688-8eb5-bdc8cd9c6134",
+          "seq": 10,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.665Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d-agent",
+          "actor": "system",
+          "type": "context.snapshot.created",
+          "payload": {
+            "invocationId": "inv-5f48d0dd-928f-41c9-b7ef-4f47a2dea686",
+            "candidateTokens": 6698
+          },
+          "id": "5cb2963a-8b41-42dc-b834-7f9d59c97c58",
+          "seq": 11,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.685Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d-agent",
+          "actor": "system",
+          "type": "context.budget.computed",
+          "payload": {
+            "invocationId": "inv-5f48d0dd-928f-41c9-b7ef-4f47a2dea686",
+            "contextWindowTokens": 1048576,
+            "availableInputTokens": 1015808,
+            "budgetReservation": 32768,
+            "requestedMaxOutputTokens": 32768,
+            "policyReservation": 32768
+          },
+          "id": "1ed2eeb4-fd4f-452d-9136-8f432f38e721",
+          "seq": 12,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.686Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d-agent",
+          "actor": "system",
+          "type": "context.assembled",
+          "payload": {
+            "invocationId": "inv-5f48d0dd-928f-41c9-b7ef-4f47a2dea686",
+            "admittedItems": 3,
+            "droppedItems": 0,
+            "admittedTokens": 6698,
+            "droppedTokens": 0,
+            "admittedByCategory": {
+              "mandatory_system_governance": 6572,
+              "current_task": 126
+            },
+            "droppedReasons": []
+          },
+          "id": "c1110989-12bb-4a50-af10-df1ef09e45ee",
+          "seq": 13,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:23.687Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "task.failed",
+          "payload": {
+            "nodeId": "node_b38fdf02-fc40-451b-812a-fc4d3e2585bc",
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd",
+            "error": "ApiError: API error 429: quota exceeded"
+          },
+          "meta": {
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579",
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd",
+            "nodeId": "node_b38fdf02-fc40-451b-812a-fc4d3e2585bc"
+          },
+          "id": "f6f51ea5-338a-465e-9a22-51d6434ecf1d",
+          "seq": 14,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:37.246Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "graph.failed",
+          "payload": {
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd",
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579",
+            "summary": "ApiError: API error 429: quota exceeded"
+          },
+          "meta": {
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579",
+            "graphId": "graph_9412c6df-2a74-427f-a4ad-417af4b5debd",
+            "nodeId": "node_b38fdf02-fc40-451b-812a-fc4d3e2585bc"
+          },
+          "id": "343f412a-62c0-41ee-a0d9-ddd73ae402f3",
+          "seq": 15,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:37.250Z"
+        },
+        {
+          "sessionId": "6d4fb308-9b31-4ce2-9e9d-73924f02956d",
+          "actor": "system",
+          "type": "workflow.failed",
+          "payload": {
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579",
+            "summary": "ApiError: API error 429: quota exceeded"
+          },
+          "meta": {
+            "workflowId": "wf_bc71f525-c51a-4896-969a-061b445f5579"
+          },
+          "id": "8a0e7590-69c8-4d61-81bf-0ef2757aa04c",
+          "seq": 16,
+          "version": 1,
+          "timestamp": "2026-10-22T00:09:37.252Z"
+        }
+      ],
+      "approvals": [],
+      "verifiedSuccesses": 0
+    }
+  ],
+  "verifiedSuccesses": 0,
+  "costUSD": null
+}

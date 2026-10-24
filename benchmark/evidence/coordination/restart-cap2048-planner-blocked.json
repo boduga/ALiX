@@ -1,0 +1,62 @@
+{
+  "source": "restart/crash scenario on a real model (stratum 8)",
+  "provider": "intern",
+  "model": "deepseek-v4-flash-0731",
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER",
+  "killAfterMs": 6000,
+  "killOnRunning": true,
+  "outputCapOverride": 2048,
+  "phase1": {
+    "usageRecords": 0,
+    "killState": {
+      "killed": false,
+      "trigger": null,
+      "runStatus": "blocked",
+      "workers": [
+        {
+          "id": "worker_f9c6d6a6-a561-43aa-9e51-40d7b370f482",
+          "status": "blocked",
+          "attempt": 0
+        }
+      ],
+      "falselyCompleted": 0
+    }
+  },
+  "phase2": {
+    "resumedRunId": null,
+    "exitCode": null,
+    "usageRecords": 0
+  },
+  "usage": {
+    "observed": false,
+    "inputTokens": null,
+    "outputTokens": null,
+    "records": []
+  },
+  "costUsd": null,
+  "costNote": "NO model.usage observed — cost unknown, NOT zero",
+  "finalRun": {
+    "status": "blocked",
+    "workers": [
+      "blocked"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/a.md",
+      "exists": false,
+      "content": null
+    },
+    {
+      "path": "docs/b.md",
+      "exists": false,
+      "content": null
+    },
+    {
+      "path": "docs/c.md",
+      "exists": false,
+      "content": null
+    }
+  ],
+  "recordedAt": "2026-10-22T01:09:11.838Z"
+}

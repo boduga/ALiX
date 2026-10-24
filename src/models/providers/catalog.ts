@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 
 import { DEFAULT_XIAOMI_MIMO_BASE_URL } from "./specs/xiaomi-mimo-token-plan-spec.js";
 import { DEFAULT_INTERN_BASE_URL, DEFAULT_INTERN_MODEL } from "./specs/intern-spec.js";
+import { DEFAULT_HIVE_BASE_URL, DEFAULT_HIVE_MODEL } from "./specs/hive-spec.js";
 
 /**
  * Provider catalog - shared definitions for provider selection and model listing.
@@ -36,6 +37,7 @@ export const PROVIDERS: ProviderInfo[] = [
   { id: "freellmapi", name: "FreeLLMAPI", env: "FREELLMAPI_API_KEY", hint: "freellmapi-..." },
   { id: "xiaomi-mimo-token-plan", name: "Xiaomi MiMo (Token Plan)", env: "XIAOMI_MIMO_TOKEN_PLAN_KEY", hint: "tp-..." },
   { id: "intern", name: "Intern InkStone (Token Plan)", env: "INTERN_API_KEY", hint: "(token-plan key)" },
+  { id: "hive", name: "Hive", env: "HIVE_API_KEY", hint: "(hive inference key)" },
   { id: "perplexity", name: "Perplexity", env: "PERPLEXITY_API_KEY", hint: "pplx-..." },
   { id: "minimax", name: "MiniMax", env: "MINIMAX_API_KEY", hint: "..." },
   { id: "minimax-token-plan", name: "MiniMax (Token Plan)", env: "MINIMAX_TOKEN_PLAN_KEY", hint: "sk-cp-..." },
@@ -220,6 +222,22 @@ export async function listModels(providerId: string, apiKey: string): Promise<Mo
       const data = (await response.json()) as { data: Array<{ id: string; object?: string }> };
       return data.data.map((m) => ({ id: m.id, displayName: m.id }));
     }
+    case "hive": {
+      const response = await fetch(`${DEFAULT_HIVE_BASE_URL}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
+      // Hive reports a `shutdown_date` per model; surface it so retirement is
+      // visible rather than discovered as a 404 later.
+      const data = (await response.json()) as {
+        data: Array<{ id: string; object?: string; shutdown_date?: string | null }>;
+      };
+      return data.data.map((m) => ({
+        id: m.id,
+        displayName: m.shutdown_date ? `${m.id} (shutdown ${m.shutdown_date})` : m.id,
+      }));
+    }
     default:
       throw new Error(`Unknown provider: ${providerId}`);
   }
@@ -334,6 +352,7 @@ const DEFAULT_MODELS: Record<string, string> = {
   freellmapi: "nvidia/nemotron-3-super-120b-a12b:free",
   "xiaomi-mimo-token-plan": "mimo-v2.6-pro",
   intern: DEFAULT_INTERN_MODEL,
+  hive: DEFAULT_HIVE_MODEL,
 };
 
 /**

@@ -227,12 +227,8 @@ export class FramePainter {
         },
       );
     }
-    if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent' && this.deps.workbenchState?.().overlayStack.length) {
-      const pending = s.views.agent.pendingApprovals.length ? s.views.agent.pendingApprovals : s.lastSnapshot.approvals?.pending ?? [];
-      const body = layoutWorkbenchSurface(s.views.agent.inputBuffer, dims, this.deps.workbenchState?.().drawer ?? 'closed').geometry.regions.body;
-      const approvalRect = { ...rect, headerH: body.y, footerH: 0, height: Math.max(0, body.y + body.height - 1) };
-      paintWorkbenchApprovalDialog(approvalRect, pending[0], pending.length, s.lastSnapshot.generatedAt);
-    }
+    // Agent approvals are rendered inline in the response transcript. Keep
+    // the shared overlay only for non-agent tabs below.
     if (this.deps.opts.workbenchEnabled && s.activeTab !== 'agent') {
       paintWorkbenchApprovalDialog(
         rect,

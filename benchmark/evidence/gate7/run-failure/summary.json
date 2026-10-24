@@ -1,0 +1,168 @@
+{
+  "scenario": "failure",
+  "objective": "Create docs/p.md, docs/q.md, docs/r.md containing exactly their respective markers, using coordinated workers",
+  "run": {
+    "id": "coord_dcaeb625-a594-460a-a9fd-240ff16b46bb",
+    "status": "failed",
+    "workers": [
+      {
+        "id": "worker_be49bc0b-0d61-473e-a5a1-33e6f2b5feed",
+        "status": "failed",
+        "scopes": [
+          "docs/p.md"
+        ],
+        "dependencies": [],
+        "blockReason": "execution_failed",
+        "attempt": 3,
+        "startedAt": "2026-10-19T16:10:13.604Z",
+        "completedAt": "2026-10-19T16:10:25.563Z"
+      },
+      {
+        "id": "worker_1b587a2a-8fc2-4f07-bbbd-81c58c6cc54b",
+        "status": "pending",
+        "scopes": [
+          "docs/q.md"
+        ],
+        "dependencies": [
+          "worker_be49bc0b-0d61-473e-a5a1-33e6f2b5feed"
+        ],
+        "blockReason": null,
+        "attempt": 0,
+        "startedAt": null,
+        "completedAt": null
+      },
+      {
+        "id": "worker_61b4a746-5403-426c-b188-f24390e0cfb0",
+        "status": "completed",
+        "scopes": [
+          "docs/r.md"
+        ],
+        "dependencies": [],
+        "blockReason": null,
+        "attempt": 1,
+        "startedAt": "2026-10-19T16:09:46.716Z",
+        "completedAt": "2026-10-19T16:09:58.584Z"
+      }
+    ]
+  },
+  "aggregate": {
+    "status": "failed",
+    "outcome": "incomplete",
+    "complete": true,
+    "counts": {
+      "workers": 3,
+      "completed": 1,
+      "failed": 1,
+      "blocked": 0,
+      "cancelled": 0,
+      "pending": 1,
+      "running": 0,
+      "successfulResults": 1,
+      "failedResults": 1,
+      "missingResults": 0
+    },
+    "failureChains": [
+      {
+        "rootWorkerId": "worker_be49bc0b-0d61-473e-a5a1-33e6f2b5feed",
+        "rootTaskLabel": "Write docs/p.md",
+        "rootFailureKind": "execution_error",
+        "rootError": "[partial] Objective review: content mismatch\nChanged: docs/p.md\n\n[summary] Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.create 1 completed.\n[summary] Done.\n[summary] Executed tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call local-1792426225436-r6dt0v:\\nFile already exists with identical content: docs/p.md\"]\n[risk_flag] Objective review: content mismatch",
+        "directDependents": [
+          "worker_1b587a2a-8fc2-4f07-bbbd-81c58c6cc54b"
+        ],
+        "allAffectedWorkers": [
+          "worker_1b587a2a-8fc2-4f07-bbbd-81c58c6cc54b"
+        ],
+        "depthByWorker": {
+          "worker_be49bc0b-0d61-473e-a5a1-33e6f2b5feed": 0,
+          "worker_1b587a2a-8fc2-4f07-bbbd-81c58c6cc54b": 1
+        }
+      }
+    ],
+    "sourceFingerprint": "f3d3d1594b86cb2b74679f7adf7e00434c4f7f0e46c3993285a555f4630ebab8"
+  },
+  "artifacts": {
+    "docs/p.md": "FAIL_P_OK\n",
+    "docs/r.md": "FAIL_R_OK\n"
+  },
+  "approvals": [
+    {
+      "id": "approval_1792426211399_aa8wm",
+      "status": "consumed",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": "pending"
+    },
+    {
+      "id": "approval_1792426193507_m1m3t",
+      "status": "consumed",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": "pending"
+    },
+    {
+      "id": "approval_1792426179033_0jt5m",
+      "status": "consumed",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": "pending"
+    },
+    {
+      "id": "approval_1792426178758_i72ty",
+      "status": "consumed",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "executionOutcome": "pending"
+    },
+    {
+      "id": "approval_1792426175529_6ygsi",
+      "status": "consumed",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "executionOutcome": "failed"
+    }
+  ],
+  "keyboard_approvals": [
+    {
+      "id": "approval_1792426175529_6ygsi",
+      "capabilities": [
+        "coordination.run"
+      ],
+      "at": 17.276607275009155
+    },
+    {
+      "id": "approval_1792426178758_i72ty",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "at": 18.82993984222412
+    },
+    {
+      "id": "approval_1792426179033_0jt5m",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "at": 21.280022382736206
+    },
+    {
+      "id": "approval_1792426193507_m1m3t",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "at": 33.11141777038574
+    },
+    {
+      "id": "approval_1792426211399_aa8wm",
+      "capabilities": [
+        "filesystem.write"
+      ],
+      "at": 51.01009178161621
+    }
+  ],
+  "pending_left": []
+}

@@ -197,6 +197,20 @@ export class FileToolRouter implements ToolRouter {
         if (relativeIsOutside(rel)) {
           return { kind: "error", message: "Path is outside workspace", retryable: false };
         }
+        // Owned-write backstop (R1.5 parity with file.delete): a caller
+        // operating under declared ownership may only write inside its own
+        // scope. The gate already decided this — the router mirrors it as the
+        // second, narrower net. Without it a NEW file outside the scope
+        // escaped the owned decision entirely: the overwrite branch below
+        // only covered files that already existed.
+        if (request.ownedPaths?.length && !this.isOwnedWriteTarget(request, resolvedPath)) {
+          return {
+            kind: "error",
+            message: `Create target is outside owned scope: ${path}`,
+            retryable: false,
+            hint: "Workers may only write files inside their declared owned paths.",
+          };
+        }
         await mkdir(dirname(resolvedPath), { recursive: true });
         let overwritten = false;
         try {

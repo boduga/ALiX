@@ -1,0 +1,169 @@
+{
+  "source": "restart/crash scenario on a real model (stratum 8)",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER",
+  "killAfterMs": 15000,
+  "phase1": {
+    "usageRecords": 2,
+    "killState": {
+      "killed": true,
+      "runStatus": "running",
+      "workers": [
+        {
+          "id": "worker_63b9016c-4bc1-41c7-8237-a93326487ad8",
+          "status": "running",
+          "attempt": 1
+        },
+        {
+          "id": "worker_4eb2b58e-56ce-4545-94f1-322a9d90ab1b",
+          "status": "pending",
+          "attempt": 0
+        },
+        {
+          "id": "worker_8ee63a02-2dfc-4e12-ad5e-4c6609e3bf79",
+          "status": "pending",
+          "attempt": 0
+        }
+      ],
+      "falselyCompleted": 0
+    }
+  },
+  "phase2": {
+    "resumedRunId": "coord_65f8c96b-1487-4255-b917-5b4b25da3632",
+    "exitCode": 0,
+    "usageRecords": 14
+  },
+  "usage": {
+    "observed": true,
+    "inputTokens": 98482,
+    "outputTokens": 1055,
+    "records": [
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-d47e7aa9",
+        "inputTokens": 5990,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-d47e7aa9",
+        "inputTokens": 6151,
+        "outputTokens": 25
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-d47e7aa9",
+        "inputTokens": 5990,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-d47e7aa9",
+        "inputTokens": 6151,
+        "outputTokens": 25
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-139ce5fc",
+        "inputTokens": 5990,
+        "outputTokens": 35
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-139ce5fc",
+        "inputTokens": 6156,
+        "outputTokens": 26
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-139ce5fc",
+        "inputTokens": 6300,
+        "outputTokens": 27
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-139ce5fc",
+        "inputTokens": 6448,
+        "outputTokens": 187
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-35a3cba7",
+        "inputTokens": 5990,
+        "outputTokens": 33
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-35a3cba7",
+        "inputTokens": 6158,
+        "outputTokens": 82
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-35a3cba7",
+        "inputTokens": 6414,
+        "outputTokens": 17
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-35a3cba7",
+        "inputTokens": 6454,
+        "outputTokens": 78
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-5093cc32",
+        "inputTokens": 5990,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-5093cc32",
+        "inputTokens": 6159,
+        "outputTokens": 196
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-b1e7a439",
+        "inputTokens": 5990,
+        "outputTokens": 37
+      },
+      {
+        "sessionId": "coord_1792559624355",
+        "runId": "run-b1e7a439",
+        "inputTokens": 6151,
+        "outputTokens": 176
+      }
+    ]
+  },
+  "costUsd": null,
+  "costNote": "token totals observed across both halves; pricing applied by cost-attribution",
+  "finalRun": {
+    "status": "failed",
+    "outcome": "incomplete",
+    "workers": [
+      "failed",
+      "completed",
+      "failed"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/a.md",
+      "exists": true,
+      "content": "A-MARKER"
+    },
+    {
+      "path": "docs/b.md",
+      "exists": true,
+      "content": "B-MARKER"
+    },
+    {
+      "path": "docs/c.md",
+      "exists": true,
+      "content": "C-MARKER"
+    }
+  ],
+  "recordedAt": "2026-10-21T05:14:48.998Z"
+}

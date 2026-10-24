@@ -1,0 +1,189 @@
+#!/usr/bin/env node
+/**
+ * run-coordination-metered.mjs — run a REAL-MODEL coordination scenario and
+ * record its metered cost.
+ *
+ * Why this exists: the original Gate 7 scenarios (run-fanout, run-deps,
+ * run-conflict, run-failure, q7-deny5, restart-final) were driven by a SCRIPTED
+ * local model server (`provider-fanout.mjs`, `provider.mjs`), not a real model.
+ * Their recorded summaries carry no `model.usage` and cannot be re-costed. To
+ * measure strata 6 and 8 you have to actually spend tokens.
+ *
+ * Usage:
+ *   node benchmark/evidence/coordination/run-coordination-metered.mjs \
+ *     --provider openai --model gpt-4o --concurrency 3 --out <path>
+ *
+ * The script NEVER estimates cost. It reports the usage it observed and, when no
+ * `model.usage` event exists, says so — `null`, not zero.
+ */
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(here, "..", "..", "..");
+
+function flag(name, fallback) {
+  const i = process.argv.indexOf(`--${name}`);
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
+}
+
+/**
+ * Resolve the operator's CURRENT default model.
+ *
+ * AGENTS.md: "Real-model tests and harnesses resolve the operator's CURRENT
+ * default model (`models.default` in ~/.config/alix/config.json); never hardcode
+ * a provider/model in a test, driver, or fixture." A committed `flag(...,
+ * "openai")` fallback IS a checked-in default, so there is none: an explicit
+ * --provider/--model override is honoured, otherwise the operator's default is
+ * read, and absence fails loudly.
+ */
+function resolveModel() {
+  const explicitProvider = flag("provider", null);
+  const explicitModel = flag("model", null);
+  if (explicitProvider && explicitModel) return { provider: explicitProvider, model: explicitModel };
+  const configPath = join(homedir(), ".config", "alix", "config.json");
+  let config;
+  try {
+    config = JSON.parse(readFileSync(configPath, "utf-8"));
+  } catch (err) {
+    console.error(`No --provider/--model given and cannot read ${configPath}: ${err.message}`);
+    console.error("Set models.default or pass explicit --provider and --model.");
+    process.exit(2);
+  }
+  const d = config?.models?.default;
+  if (!d?.provider || !d?.name) {
+    console.error(`No --provider/--model given and ${configPath} has no models.default.`);
+    console.error("Set models.default or pass explicit --provider and --model.");
+    process.exit(2);
+  }
+  return { provider: d.provider, model: d.name };
+}
+
+const { provider, model } = resolveModel();
+const concurrency = Number(flag("concurrency", "3"));
+const outPath = flag("out", join(here, "coordination-metered.json"));
+
+const workspace = join(here, "workspace");
+rmSync(workspace, { recursive: true, force: true });
+mkdirSync(join(workspace, ".alix"), { recursive: true });
+for (const d of ["docs"]) mkdirSync(join(workspace, d), { recursive: true });
+
+// Bypass approvals: this measures COST, not the approval path (already qualified
+// in Gate 7 / F1-B). Recorded so the run is not mistaken for an approval test.
+writeFileSync(
+  join(workspace, ".alix", "config.json"),
+  JSON.stringify(
+    {
+      models: { default: { provider, name: model } },
+      permissions: { default: "allow", sessionMode: "bypass", tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] },
+      context: { repoMap: false, semanticSearch: false },
+      runtime: { provider: "process", shell: "/bin/sh", commandTimeoutMs: 60000, envAllowlist: [] },
+      ui: { enabled: false },
+      mcpServers: [],
+    },
+    null,
+    2,
+  ),
+);
+
+const objective =
+  flag("objective", "") ||
+  "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER";
+
+console.log(`[run] ${provider}/${model} concurrency=${concurrency}`);
+const started = Date.now();
+const proc = spawnSync(
+  process.execPath,
+  [join(repoRoot, "bin", "alix.js"), "coordination", "run", objective,
+   "--max-concurrency", String(concurrency), "--session-mode", "bypass"],
+  { cwd: workspace, encoding: "utf-8", timeout: 1_800_000 },
+);
+const wallSeconds = Math.round((Date.now() - started) / 1000);
+console.log(proc.stdout?.slice(-800) ?? "");
+if (proc.stderr) console.log("stderr:", proc.stderr.slice(-400));
+
+// --- capture usage from every session log the run produced -------------------
+const records = [];
+const sessionsRoot = join(workspace, ".alix", "sessions");
+for (const dir of existsSync(sessionsRoot) ? readdirSync(sessionsRoot) : []) {
+  const path = join(sessionsRoot, dir, "events.jsonl");
+  if (!existsSync(path)) continue;
+  for (const line of readFileSync(path, "utf-8").split("\n")) {
+    if (!line.trim()) continue;
+    let e;
+    try { e = JSON.parse(line); } catch { continue; }
+    if (e.type !== "model.usage") continue;
+    records.push({
+      sessionId: e.sessionId,
+      ...(e.runId ? { runId: e.runId } : {}),
+      provider: e.payload?.provider,
+      model: e.payload?.model,
+      inputTokens: e.payload?.inputTokens,
+      outputTokens: e.payload?.outputTokens,
+    });
+  }
+}
+
+const observed = records.length > 0;
+const inputTokens = observed ? records.reduce((s, r) => s + (r.inputTokens ?? 0), 0) : null;
+const outputTokens = observed ? records.reduce((s, r) => s + (r.outputTokens ?? 0), 0) : null;
+
+/**
+ * Workers actually dispatched, read from the persisted run record.
+ *
+ * The PRD stratum-6 contract specifies FOUR workers. Reporting only artifacts
+ * left the count implicit: a three-worker run satisfied a three-file objective
+ * and looked compliant. The count is now recorded explicitly so "four workers"
+ * is checkable rather than assumed from the objective's file list.
+ */
+const workerCount = (() => {
+  const runsRoot = join(workspace, ".alix", "coordination");
+  if (!existsSync(runsRoot)) return null;
+  const newest = readdirSync(runsRoot)
+    .filter(f => f.endsWith(".json"))
+    .map(f => ({ f, m: Number(f.replace(/\D/g, "").slice(0, 13)) || 0 }))
+    .sort((a, b) => b.m - a.m)[0];
+  if (!newest) return null;
+  try {
+    const run = JSON.parse(readFileSync(join(runsRoot, newest.f), "utf-8"));
+    return Array.isArray(run.workers) ? run.workers.length : null;
+  } catch { return null; }
+})();
+
+const result = {
+  source: "headless coordination run on a real model",
+  provider,
+  model,
+  concurrency,
+  objective,
+  exitCode: proc.status,
+  wallSeconds,
+  // Explicit so a 3-worker run cannot be mistaken for the PRD's 4-worker contract.
+  workerCount,
+  usage: { observed, inputTokens, outputTokens, records },
+  costUsd: null,
+  costNote: observed
+    ? "token totals observed; pricing applied by cost-attribution, not here"
+    : "NO model.usage observed — cost unknown, NOT zero",
+  // Derived from the objective text so a run for N workers records N artifacts.
+  // Hardcoding three made a four-worker objective silently report three files.
+  artifacts: [...new Set(objective.match(/[\w./-]+\.md/g) ?? [])].sort().map(p => ({
+    path: p,
+    exists: existsSync(join(workspace, p)),
+    content: existsSync(join(workspace, p)) ? readFileSync(join(workspace, p), "utf-8").trim() : null,
+  })),
+  recordedAt: new Date().toISOString(),
+};
+
+writeFileSync(outPath, JSON.stringify(result, null, 2) + "\n");
+// The temporary workspace is run output, not evidence. Leaving it behind let
+// docs/a.md..c.md get committed by an unrelated change; a later four-worker run
+// then showed up as an untracked docs/d.md. Artifacts are captured in the result
+// above, so the tree is removed here.
+rmSync(workspace, { recursive: true, force: true });
+console.log(`\n[usage] observed=${observed} in=${inputTokens} out=${outputTokens} records=${records.length}`);
+console.log(`[wall] ${wallSeconds}s  exit=${proc.status}`);
+console.log(`[out] ${outPath}`);

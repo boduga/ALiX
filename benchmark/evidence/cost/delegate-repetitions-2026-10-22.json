@@ -1,0 +1,75 @@
+{
+  "source": "delegate sweep repetitions",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "repetitions": 3,
+  "completeness": "complete",
+  "perStratum": {
+    "multi-file-fix": {
+      "repetitions": 3,
+      "verifiedSuccesses": 4,
+      "cases": 6,
+      "perRepetition": [
+        "2/2",
+        "1/2",
+        "1/2"
+      ],
+      "stable": false,
+      "costUsd": 0.32431,
+      "costPerVerifiedSuccessUsd": 0.0810775,
+      "note": "UNSTABLE across repetitions (2/2 vs 1/2 vs 1/2) — a single run is not a point estimate for this stratum"
+    },
+    "verification-repair": {
+      "repetitions": 3,
+      "verifiedSuccesses": 2,
+      "cases": 6,
+      "perRepetition": [
+        "0/2",
+        "1/2",
+        "1/2"
+      ],
+      "stable": false,
+      "costUsd": 0.30189000000000005,
+      "costPerVerifiedSuccessUsd": 0.15094500000000002,
+      "note": "UNSTABLE across repetitions (0/2 vs 1/2 vs 1/2) — a single run is not a point estimate for this stratum"
+    },
+    "capability-mix": {
+      "repetitions": 3,
+      "verifiedSuccesses": 0,
+      "cases": 9,
+      "perRepetition": [
+        "0/3",
+        "0/3",
+        "0/3"
+      ],
+      "stable": true,
+      "costUsd": 0.23093999999999998,
+      "costPerVerifiedSuccessUsd": null,
+      "note": "0 verified successes: cost-per-success is undefined, not infinite and not zero"
+    },
+    "tool-failure-recovery": {
+      "repetitions": 3,
+      "verifiedSuccesses": 3,
+      "cases": 6,
+      "perRepetition": [
+        "1/2",
+        "1/2",
+        "1/2"
+      ],
+      "stable": true,
+      "costUsd": 0.1371175,
+      "costPerVerifiedSuccessUsd": 0.045705833333333334,
+      "note": null
+    }
+  },
+  "totals": {
+    "inputTokens": 371379,
+    "outputTokens": 6581,
+    "costUsd": 0.9942575000000001
+  },
+  "pooledCostPerVerifiedSuccessUsd": 0.11047305555555557,
+  "pooledNote": "pooled over repetitions; strata marked unstable do not carry a single-run point estimate",
+  "verifiedSuccesses": 9,
+  "cases": 27,
+  "recordedAt": "2026-10-23T02:11:26.910Z"
+}

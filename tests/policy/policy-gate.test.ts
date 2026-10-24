@@ -421,6 +421,44 @@ describe("PolicyGate", () => {
     assert.match(decision.reason, /outside owned paths/);
   });
 
+  // A blanket capability allow must not widen past a declared owned scope.
+  // The write capability's permission resolves to "allow" under auto/bypass
+  // session modes, and returning that allow BEFORE the owned-path rule made
+  // the rule unreachable: a worker scoped to one file created sibling files
+  // with no denial (real gpt-4o coordination run, stratum 8).
+  it("owned-path rule still decides when the capability is allow-listed", async () => {
+    const config = makeConfig({ permissions: { tools: { "file.write": "allow" } } as any });
+    for (const mode of ["ask", "auto", "bypass"] as const) {
+      const gate = new PolicyGate(config);
+      const outside = await gate.evaluateToolCall({
+        requestId: `scoped-out-${mode}`, toolName: "file.create", args: { path: "config.json" }, cwd: "/ws",
+        sessionMode: mode, source: "tool", ownedPaths: ["src"],
+      });
+      assert.equal(outside.decision, "deny", `session mode ${mode}`);
+      assert.match(outside.reason, /outside owned paths/);
+
+      const inside = await gate.evaluateToolCall({
+        requestId: `scoped-in-${mode}`, toolName: "file.create", args: { path: "src/new.ts" }, cwd: "/ws",
+        sessionMode: mode, source: "tool", ownedPaths: ["src"],
+      });
+      assert.equal(inside.decision, "allow", `session mode ${mode}`);
+      assert.equal(inside.matchedRuleId, "owned-path-rule");
+    }
+  });
+
+  // The owned scope narrows the grant; it never widens it. A capability that
+  // is explicitly denied stays denied even for a worker that owns the path.
+  it("owned-path rule does not override an explicit capability deny", async () => {
+    const config = makeConfig({ permissions: { tools: { "file.write": "deny" } } as any });
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "denied-cap", toolName: "file.create", args: { path: "src/new.ts" }, cwd: "/ws",
+      sessionMode: "ask", source: "tool", ownedPaths: ["src"],
+    });
+    assert.equal(decision.decision, "deny");
+    assert.match(decision.reason, /Denied by tool policy/);
+  });
+
   // The gate runs BEFORE the file router, so a normalization bug here silently
   // denies every owned write the router would have allowed. The gate and the
   // router once had two independent matchers, and `**` resolved to a literal

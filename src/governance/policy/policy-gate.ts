@@ -14,6 +14,8 @@ import type { PolicySnapshot, PolicyRuleSnapshot } from "../../interfaces/tui/sn
 import { computePolicyRevision } from "./policy-revision.js";
 import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
 import { inferCapability } from "../../capabilities/tools/capability-map.js";
+import type { InvocationIdentity } from "../approvals/approval-binding.js";
+import { invocationMatches } from "../approvals/approval-binding.js";
 import { extractPatchPaths } from "../../execution/patch/patch-paths.js";
 import { resolve } from "node:path";
 import { isWithinOwnedScope } from "../../coordination/ownership/path-scope.js";
@@ -32,6 +34,11 @@ export type PolicyGateDecision = {
   bindingKey?: string;
   /** The request fingerprint that key was computed from. */
   requestFingerprint?: string;
+  /**
+   * Set only by the coordination exact-binding branch, which consumes the
+   * approval inside the gate. The executor must NOT claim it again.
+   */
+  approvalConsumed?: boolean;
 };
 
 export type ToolPolicyRequest = {
@@ -85,6 +92,14 @@ export function resolvePolicyPath(cwd: string, path: string): string {
 
 /** Write tools whose mutation targets can be scoped to ownedPaths. */
 const OWNED_WRITE_TOOLS = new Set(["file.create", "file.delete", "patch.apply"]);
+
+/**
+ * True when the request declares an owned scope for a write tool — the case
+ * where the owned-path rule (step 5.5) is the authority for the write.
+ */
+function hasOwnedWriteScope(request: ToolPolicyRequest): boolean {
+  return Boolean(request.ownedPaths?.length) && OWNED_WRITE_TOOLS.has(request.toolName);
+}
 
 /** Extract the mutation targets from a write-tool's args. */
 function mutationTargets(args: Record<string, unknown>): string[] {
@@ -278,18 +293,26 @@ export class PolicyGate {
     const toolDecision = this.config.permissions.tools?.[capability];
     if (toolDecision) {
       const effective = applySessionMode(toolDecision, request.sessionMode);
-      if (effective === "allow") {
-        return { requestId: request.requestId, capability, decision: "allow", reason: `Allowed by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
-      }
       if (effective === "deny") {
         return { requestId: request.requestId, capability, decision: "deny", reason: `Denied by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
+      }
+      // A blanket allow must NOT widen past a declared owned scope: the
+      // owned-path rule (5.5) IS the authorization for an owned write, so an
+      // allowed capability falls through to it instead of short-circuiting.
+      // Returning allow here skipped the rule entirely — the write
+      // capability's permission resolves to "allow" under auto/bypass session
+      // modes, so a worker with ownedPaths could write anywhere in the
+      // workspace (observed on a real gpt-4o coordination run: a worker
+      // scoped to one file created two sibling files with no denial).
+      if (effective === "allow" && !hasOwnedWriteScope(request)) {
+        return { requestId: request.requestId, capability, decision: "allow", reason: `Allowed by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
       }
     }
 
     // 5.5 Owned-path auto-approval (headless write subagents).
     // The subagent's ownedPaths ARE the authorization: a write scoped entirely to
     // owned paths is allowed; a write touching anything outside them is denied.
-    if (request.ownedPaths?.length && OWNED_WRITE_TOOLS.has(request.toolName)) {
+    if (hasOwnedWriteScope(request)) {
       const targets = mutationTargets(args);
       if (targets.length === 0) {
         // Unscoped (unparseable targets) — fall through to default/ask; headless
@@ -352,31 +375,107 @@ export class PolicyGate {
         ownershipClaims: request.ownershipClaims,
         requestFingerprint: request.requestFingerprint,
       } : undefined,
+      // Exact invocation identity for the tool path. Persisted at creation and
+      // re-derived at authorization so authority cannot drift to a changed
+      // capability/tool/workspace/args/session/agent.
+      {
+        capability,
+        toolName: request.toolName,
+        workspace: resolve(request.cwd),
+        argsHash: (await import("../../capabilities/tools/hash-args.js")).hashArgs(args),
+        sessionId: request.sessionId,
+        agentId: request.agentId,
+      },
     );
 
-    // Emit approval lifecycle event (created or reused)
+    // Emit approval lifecycle events.
+    //
+    // DEDUPLICATION (F1-B): on a NEW approval the store emits `approval.created`
+    // from its committed creation transition, with a payload that is a superset
+    // of this one (approvalId, requestId, agentId, capabilities, bindingKey,
+    // policyRevision, reason, status, toolId). Emitting again here produced two
+    // creation events per logical request, which inflates approval-volume
+    // counters.
+    //
+    // ...but the store only emits when IT was constructed with an EventLog.
+    // `ApprovalStore.emit()` is a no-op otherwise, and a production caller does
+    // exactly that: headless `alix run` builds the store WITHOUT one
+    // (`run.ts`) while the executor's gate has one. Suppressing this site
+    // unconditionally therefore produced ZERO creation events on that path —
+    // the opposite failure, and a silent one. Exactly one emitter must fire:
+    // the store when it can, this gate when it cannot.
+    //
+    // The `toolName`/`cwd` fields this site adds are not lost on the store path:
+    // `approval-projection.ts` resolves a display tool name as
+    // `toolName ?? capabilities[0] ?? toolId`, and the store payload carries
+    // `capabilities` and `toolId`.
+    //
+    // On REUSE the store emits nothing (`requestOrReusePending` returns the
+    // existing record without an event), so `approval.reused` here remains the
+    // only record that a pending approval was observed and reused.
     if (this.deps.eventLog && askDecision.approvalId && askDecision.decision === "ask") {
       const isReused = askDecision.matchedRuleId === "pending-approval";
-      await this.deps.eventLog.append({
-        sessionId: request.sessionId ?? "unknown",
-        actor: "policy",
-        type: isReused ? "approval.reused" : "approval.created",
-        payload: {
-          approvalId: askDecision.approvalId,
-          requestId: request.requestId,
-          sessionId: request.sessionId,
-          agentId: request.agentId,
-          capability,
-          toolName: (request as ToolPolicyRequest).toolName,
-          status: isReused ? ("reused" as const) : ("pending" as const),
-          reason: askDecision.reason,
-          cwd: (request as ToolPolicyRequest).cwd,
-          previousApprovalId: isReused ? askDecision.approvalId : undefined,
-        },
-      }).catch(() => {});
+      if (isReused) {
+        await this.deps.eventLog.append({
+          sessionId: request.sessionId ?? "unknown",
+          actor: "policy",
+          type: "approval.reused",
+          payload: {
+            approvalId: askDecision.approvalId,
+            requestId: request.requestId,
+            sessionId: request.sessionId,
+            agentId: request.agentId,
+            capability,
+            toolName: (request as ToolPolicyRequest).toolName,
+            status: "reused" as const,
+            reason: askDecision.reason,
+            cwd: (request as ToolPolicyRequest).cwd,
+            previousApprovalId: askDecision.approvalId,
+          },
+        }).catch(() => {});
+      } else if (this.storeEmitsCreationEvents() === false) {
+        // The store has no EventLog, so this is the ONLY creation record.
+        await this.deps.eventLog.append({
+          sessionId: request.sessionId ?? "unknown",
+          actor: "policy",
+          type: "approval.created",
+          payload: {
+            approvalId: askDecision.approvalId,
+            requestId: request.requestId,
+            sessionId: request.sessionId,
+            agentId: request.agentId,
+            capability,
+            toolName: (request as ToolPolicyRequest).toolName,
+            status: "pending" as const,
+            reason: askDecision.reason,
+            cwd: (request as ToolPolicyRequest).cwd,
+          },
+        }).catch(() => {});
+      }
     }
 
     return askDecision;
+  }
+
+  /**
+   * Whether the approval store supplies its own `approval.created` event.
+   *
+   * The store emits from its committed creation transition only when it was
+   * constructed with an EventLog (`ApprovalStore.emit()` is a no-op otherwise).
+   * This gate must therefore emit the creation record itself on exactly the
+   * paths where the store cannot, or the approval lifecycle disappears from the
+   * event stream — headless `alix run` is one such composition root.
+   *
+   * Fail toward "the store emits": a late/absent capability must never cause a
+   * second creation event, because duplicate records inflate approval-volume
+   * counters (F1-B). Only a store that positively reports it has no EventLog
+   * moves the emission here.
+   */
+  private storeEmitsCreationEvents(): boolean {
+    const store = this.deps.approvalStore as
+      | { emitsLifecycleEvents?: boolean }
+      | undefined;
+    return store?.emitsLifecycleEvents !== false;
   }
 
   /**
@@ -444,24 +543,62 @@ export class PolicyGate {
       );
     }
 
-    // Emit approval lifecycle event (created or reused)
+    // Emit approval lifecycle event.
+    //
+    // DEDUPLICATION (F1-B): the store emits `approval.created` from its
+    // committed creation transition (`createApprovalRecord`) when it was
+    // constructed with an EventLog, and that payload is a SUPERSET of what this
+    // site would emit — it carries approvalId, requestId, agentId, capabilities,
+    // bindingKey, policyRevision, reason and status. Emitting `created` again
+    // here produced two creation events for one logical request (26 events
+    // across 13 approvals in a real session), which inflates any consumer
+    // counting approval volume.
+    //
+    // The store's emission is conditional on its own EventLog, so this site
+    // supplies `created` exactly when the store cannot (see
+    // `storeEmitsCreationEvents`). Silence on both paths would erase the
+    // approval lifecycle from the stream.
+    //
+    // On reuse the store emits nothing — `requestOrReusePending` returns the
+    // existing record without an event — so `approval.reused` here is always
+    // the only record of that observation.
+    //
+    // Historical logs may still contain duplicate `created` events; consumers
+    // deduplicate on `approvalId`, and those records remain valid evidence.
     if (this.deps.eventLog && capAskDecision.approvalId && capAskDecision.decision === "ask") {
       const isReused = capAskDecision.matchedRuleId === "pending-approval";
-      await this.deps.eventLog.append({
-        sessionId: request.sessionId ?? "unknown",
-        actor: "policy",
-        type: isReused ? "approval.reused" : "approval.created",
-        payload: {
-          approvalId: capAskDecision.approvalId,
-          requestId: request.requestId,
-          sessionId: request.sessionId,
-          agentId: request.agentId,
-          capability: request.capability,
-          status: isReused ? ("reused" as const) : ("pending" as const),
-          reason: capAskDecision.reason,
-          previousApprovalId: isReused ? capAskDecision.approvalId : undefined,
-        },
-      }).catch(() => {});
+      if (isReused) {
+        await this.deps.eventLog.append({
+          sessionId: request.sessionId ?? "unknown",
+          actor: "policy",
+          type: "approval.reused",
+          payload: {
+            approvalId: capAskDecision.approvalId,
+            requestId: request.requestId,
+            sessionId: request.sessionId,
+            agentId: request.agentId,
+            capability: request.capability,
+            status: "reused" as const,
+            reason: capAskDecision.reason,
+            previousApprovalId: capAskDecision.approvalId,
+          },
+        }).catch(() => {});
+      } else if (this.storeEmitsCreationEvents() === false) {
+        await this.deps.eventLog.append({
+          sessionId: request.sessionId ?? "unknown",
+          actor: "policy",
+          type: "approval.created",
+          payload: {
+            approvalId: capAskDecision.approvalId,
+            requestId: request.requestId,
+            sessionId: request.sessionId,
+            agentId: request.agentId,
+            capability: request.capability,
+            status: "pending" as const,
+            reason: capAskDecision.reason,
+          },
+        }).catch(() => {});
+      }
     }
 
     return capAskDecision;
@@ -482,6 +619,7 @@ export class PolicyGate {
       ownershipClaims?: WorkerOwnershipClaim[];
       requestFingerprint?: string;
     },
+    invocation?: InvocationIdentity,
   ): Promise<PolicyGateDecision> {
     const store = this.deps.approvalStore;
     const policyRevision = computePolicyRevision(this.config);
@@ -554,7 +692,7 @@ export class PolicyGate {
         // Try to consume it
         const consumed = await store.consumeApproved(approved.id, bindingKey, {});
         if (consumed.consumed) {
-          return { requestId, capability, decision: "allow", reason: "Approved by prior exact binding", approvalId: approved.id, matchedRuleId: "exact-binding-approved", policyRevision };
+          return { requestId, capability, decision: "allow", reason: "Approved by prior exact binding", approvalId: approved.id, matchedRuleId: "exact-binding-approved", policyRevision, approvalConsumed: true };
         }
       }
 
@@ -602,18 +740,58 @@ export class PolicyGate {
       const prior = requestId ? store.findByRequestId?.(requestId) : undefined;
       if (prior) {
         if (prior.status === "approved") {
-          return { requestId, capability, decision: "allow", reason: `Already approved: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-approved", policyRevision };
-        }
-        if (prior.status === "denied") {
+          // Single-use by exact invocation. When the caller supplies an
+          // invocation identity, a mismatch — including a legacy record with NO
+          // fingerprint — must NOT authorize. Fall through and ask again so a
+          // fresh, exactly-bound approval is created. The capability-level path
+          // (no tool invocation) keeps its prior reuse behavior.
+          const unexpired = !prior.expiresAt || new Date(prior.expiresAt).getTime() > Date.now();
+          const bindingOk = invocation ? invocationMatches(prior, invocation) : true;
+          if (unexpired && bindingOk) {
+            return { requestId, capability, decision: "allow", reason: `Already approved: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-approved", policyRevision };
+          }
+          // else: fall through to create a fresh approval
+        } else if (prior.status === "denied") {
           return { requestId, capability, decision: "deny", reason: `Already denied: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-denied", policyRevision };
-        }
-        // pending → reuse the existing pending approval
-        if (prior.status === "pending") {
+        } else if (prior.status === "consumed") {
+          // A spent single-use approval. Distinguish a proven outcome from a
+          // crashed claim: `pending` means the process holding the claim never
+          // reported back, so classify it `unverified` and deny with an exact
+          // reason. Never re-authorize.
+          let outcome = prior.executionOutcome;
+          if (outcome === "pending") {
+            try {
+              const verdict = await (store as { markExecutionUnverified?: (id: string) => Promise<string> })
+                .markExecutionUnverified?.(prior.id);
+              if (verdict === "unverified") outcome = "unverified";
+            } catch {
+              // Classification is observability; the denial below stands either way.
+            }
+          }
+          const detail = outcome === "unverified" || outcome === "pending"
+            ? "its execution outcome is UNVERIFIED (the process holding the claim did not report back); the side effect is unknown"
+            : outcome === "succeeded"
+              ? "it already executed successfully"
+              : outcome === "failed"
+                ? "its execution already failed"
+                : outcome === "cancelled"
+                  ? "its execution was cancelled"
+                  : "it was already consumed";
+          return {
+            requestId,
+            capability,
+            decision: "deny",
+            reason: `Approval ${prior.id} is single-use and already consumed — ${detail}. Request a fresh approval for a new attempt.`,
+            approvalId: prior.id,
+            matchedRuleId: "prior-approval-consumed",
+            policyRevision,
+          };
+        } else if (prior.status === "pending") {
           return { requestId, capability, decision: "ask", reason: `Pending approval: ${prior.id}`, approvalId: prior.id, matchedRuleId: "pending-approval", policyRevision };
         }
       }
-      // Create new pending approval
-      const approval = await store.request({ reason, capability, sessionId, agentId, requestId });
+      // Create new pending approval, persisting the exact invocation binding
+      const approval = await store.request({ reason, capability, sessionId, agentId, requestId, invocation });
       return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
     }
 

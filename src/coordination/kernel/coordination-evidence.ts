@@ -40,6 +40,25 @@ export type CoordinationEvidenceEvent = {
   };
 };
 
+/**
+ * Map session events to the evidence shape the derivation reads.
+ *
+ * `patch.changed_files` records its paths under `changedFiles`, which the path
+ * collector does not read; rewrite them to `paths` so a patch write is
+ * evidence like any other mutation. Used by the worker review, which reads
+ * the durable session log rather than one invocation's events.
+ */
+export function toCoordinationEvidenceEvents(
+  events: readonly { type: string; payload?: unknown }[],
+): CoordinationEvidenceEvent[] {
+  return events.map(event => ({
+    type: event.type,
+    payload: event.type === "patch.changed_files"
+      ? { paths: (event.payload as { changedFiles?: unknown } | undefined)?.changedFiles }
+      : (event.payload as CoordinationEvidenceEvent["payload"]),
+  }));
+}
+
 export type WorkerMutationReport = {
   workerId: string;
   /** Paths this worker explicitly reported as changed. */

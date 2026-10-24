@@ -1,0 +1,68 @@
+{
+  "startedAt": "2026-10-22T03:19:59.217Z",
+  "finishedAt": "2026-10-22T03:20:20.161Z",
+  "model": {
+    "provider": "openai",
+    "name": "gpt-4o"
+  },
+  "results": [
+    {
+      "caseId": "behavioral.read-only",
+      "stratum": "readonly-inspection",
+      "driver": "main-loop",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "startedAt": "2026-10-22T03:19:59.217Z",
+      "verdict": "pass",
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "changed": false
+      },
+      "runId": "run-8dc47a49",
+      "sessionId": "6865af70-b35f-4240-8442-c8cf9a61e940",
+      "usage": {
+        "inputTokens": 18044,
+        "outputTokens": 88,
+        "observed": true
+      },
+      "costUsd": 0.04599,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3
+    },
+    {
+      "caseId": "behavioral.code-navigation",
+      "stratum": "code-navigation",
+      "driver": "main-loop",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "startedAt": "2026-10-22T03:20:08.730Z",
+      "verdict": "pass",
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "objectiveEvidence": {
+        "path": "src/limits.ts",
+        "exists": true,
+        "changed": false
+      },
+      "runId": "run-20366a87",
+      "sessionId": "4f18dbf1-9a48-4c3f-b336-3ab56e43d656",
+      "usage": {
+        "inputTokens": 17479,
+        "outputTokens": 98,
+        "observed": true
+      },
+      "costUsd": 0.0446775,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3
+    }
+  ],
+  "verifiedSuccesses": 2,
+  "costUsd": 0.09066750000000001
+}
