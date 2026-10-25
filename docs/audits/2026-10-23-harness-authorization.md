@@ -19,7 +19,7 @@ though a gate passed.
 | P0-E ablations (Gate C) | Running paired ablation arms | A completed paired run with both arms and an accept/retain verdict |
 | Gate B evidence collection | Paid real-model measurement, repetitions, deny-case rerun | Qualified corpus, uncertainty rationale, signed acceptance |
 | Gate D migration (MP-01…MP-03) | Implementation work | Implemented packages, reader/writer parity, Q04/Q05 owner approval |
-| Gate E / F8b qualification | **Executed author-side** — five clauses, 282/282 tests, five gaps declared ([record](2026-10-24-gate-e-qualification.md)) | The second party. `gate-e-qualification-record.mjs` reports `QUALIFIED-AUTHOR-ONLY` and exits 3; only independent qualification produces 0. F8b release clearance remains a separate security track (P0-G) |
+| Gate E / F8b qualification | **Executed, then REJECTED by independent review** — 0 of 5 clauses qualified ([qualification](2026-10-24-gate-e-qualification.md), [review](evidence/2026-10-25-codex-gate-e-review.txt)) | Remediation of the eleven review defects, then mutation-checked proof per clause. Independence was obtainable and was used; it returned NO, so the gate stays HOLD. F8b release clearance remains a separate security track (P0-G) |
 | Gate F technical packet | Assembling the qualification packet | Independent security clearance and maintainer signature |
 | Gate F release decision | **Nothing further, mechanically** — the validator, its 18 tests and the recorded artifact are committed | The two authorities themselves: an independent clearance and the maintainer's decision. `release-clearance-record.mjs` computes `HOLD` until both exist for the exact commit |
 | Row reconciliation | Re-reviewing all 32 rows at HEAD | The re-review itself |

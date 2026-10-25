@@ -209,8 +209,15 @@ test('declared gaps are preserved in the report and never counted as covered', (
 
 test('model-independent review is labelled distinctly from independent', () => {
   withFixtures(dir => {
+    writeFileSync(join(dir, 'review.md'), 'Reviewer: Codex / gpt-6.1-sol\n');
     const result = validateGateERecord(
-      baseRecord({ independence: { class: 'model-independent', note: 'reviewed by a different model family' } }),
+      baseRecord({
+        independence: {
+          class: 'model-independent',
+          note: 'reviewed by a different model family',
+          qualifier: { ref: 'review.md', identity: 'Codex / gpt-6.1-sol', reviewedAt: '2026-10-25T00:00:00.000Z' },
+        },
+      }),
       { baseDir: dir },
     );
     assert.equal(result.outcome, GATE_E_OUTCOMES.independent);
@@ -262,4 +269,89 @@ test('the vocabularies are frozen and contain no "independent" shortcut', () => 
   // A record may not declare bare "independent": the class is either author-only
   // or a named weaker form.
   assert.ok(!INDEPENDENCE_CLASSES.includes('independent'));
+});
+
+/**
+ * Regressions from the independent Gate E review (2026-10-25, Codex/gpt-6.1-sol).
+ *
+ * Both defects were found by probe, not by reading: D9 forged the strongest
+ * label by typing it, and D10 read a HOLD as a pass via exit code. A validator
+ * whose output can be manufactured is not a check.
+ */
+
+test('D9: independence cannot be declared from free text alone', () => {
+  withFixtures(dir => {
+    const result = validateGateERecord(
+      baseRecord({ independence: { class: 'declared-independent', note: 'trust me' } }),
+      { baseDir: dir },
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.outcome, GATE_E_OUTCOMES.hold);
+    assert.ok(result.problems.some(p => /requires independence\.qualifier/.test(p)));
+  });
+});
+
+test('D9: a qualifier citation that does not exist is rejected', () => {
+  withFixtures(dir => {
+    const result = validateGateERecord(
+      baseRecord({
+        independence: {
+          class: 'model-independent',
+          note: 'reviewed by another model',
+          qualifier: { ref: 'missing-review.md', identity: 'Codex', reviewedAt: '2026-10-25T00:00:00.000Z' },
+        },
+      }),
+      { baseDir: dir },
+    );
+    assert.equal(result.ok, false);
+    assert.ok(result.problems.some(p => /qualifier\.ref does not exist/.test(p)));
+  });
+});
+
+test('D9: a qualifier artifact that does not name the qualifier is rejected', () => {
+  withFixtures(dir => {
+    writeFileSync(join(dir, 'review.md'), '# review\n\nno attribution\n');
+    const result = validateGateERecord(
+      baseRecord({
+        independence: {
+          class: 'model-independent',
+          note: 'reviewed by another model',
+          qualifier: { ref: 'review.md', identity: 'Codex / gpt-6.1-sol', reviewedAt: '2026-10-25T00:00:00.000Z' },
+        },
+      }),
+      { baseDir: dir },
+    );
+    assert.equal(result.ok, false);
+    assert.ok(result.problems.some(p => /does not contain the named qualifier/.test(p)));
+  });
+});
+
+test('D9: a cited, named qualifier is accepted', () => {
+  withFixtures(dir => {
+    writeFileSync(join(dir, 'review.md'), '# review\n\nReviewer: Codex / gpt-6.1-sol\nVERDICT: ...\n');
+    const result = validateGateERecord(
+      baseRecord({
+        independence: {
+          class: 'model-independent',
+          note: 'reviewed by another model family',
+          qualifier: { ref: 'review.md', identity: 'Codex / gpt-6.1-sol', reviewedAt: '2026-10-25T00:00:00.000Z' },
+        },
+      }),
+      { baseDir: dir },
+    );
+    assert.deepEqual(result.problems, []);
+    assert.equal(result.outcome, GATE_E_OUTCOMES.independent);
+  });
+});
+
+test('D10: a valid record that still HOLDs is not a pass', () => {
+  withFixtures(dir => {
+    const comps = components();
+    comps[0].observed = 'partial';
+    const result = validateGateERecord(baseRecord({ components: comps }), { baseDir: dir });
+    // The record is well-formed...
+    assert.equal(result.ok, true);
+    // ...and still not cleared, which is the state that used to exit 0.
+    assert.equal(result.outcome, GATE_E_OUTCOMES.hold);
+  });
 });

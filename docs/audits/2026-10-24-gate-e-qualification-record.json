@@ -49,8 +49,8 @@
         "docs/harness-invariant-register.md"
       ],
       "negativeCase": "WorkerApprovalPort throws at construction if a resolve/revoke/invalidate/mutate method appears; recordExecutionOutcome is scoped to the bound workerId.",
-      "observed": "qualified",
-      "note": "Author-side. F8b independence remains a separate release gate (P0-G, separate security track)."
+      "observed": "partial",
+      "note": "DOWNGRADED to partial by independent review (D6, D7). The facade omits decision methods and pending consumption is rejected, but the constructor guard is verified by a VACUOUS test and the facade narrows an object without confining a process: a child can reopen ApprovalStore via import or the approval CLI. Treated as a narrowing, not an authority boundary."
     },
     {
       "clause": "authority",
@@ -62,8 +62,8 @@
         "tests/policy/rule-evaluator.test.ts"
       ],
       "negativeCase": "Deny stays deny across auto/bypass/ask; an allow is never invented; a consumed approval cannot be re-consumed; deny-wins when an allow and a deny both match.",
-      "observed": "qualified",
-      "note": "Structural demonstration. There is no progressive-supervision feature to test, so this is non-bypass of the existing authority, not of a future one."
+      "observed": "unqualified",
+      "note": "DOWNGRADED to unqualified by independent review (D1, D11). A hard deny IS bypassed: executor.ts:513 dispatches safe-shell commands before authorization in ask mode, and rule-evaluator returns the FIRST matching rule so an allow preceding a deny wins. The review executed a probe reaching a mock router with zero policy-gate calls."
     },
     {
       "clause": "crash/recovery",
@@ -75,8 +75,8 @@
         "tests/security/approval-consumed-propagation.test.ts"
       ],
       "negativeCase": "A pending claim observed on replay is classified unverified and denied without reissuing authority; a legacy approval with no fingerprint fails closed and is re-asked; silence is never success.",
-      "observed": "qualified",
-      "note": "Covers the crash window between claim and execution, which is the one state where double execution would otherwise be possible."
+      "observed": "partial",
+      "note": "DOWNGRADED to partial by independent review (D3, D4). Ordinary replay is genuinely asserted (denial, zero effects, consumed/unverified), but coordination replay creates a REPLACEMENT approval instead of denying uncertainty, and stale-lock takeover can admit two claimants."
     },
     {
       "clause": "ownership",
@@ -89,8 +89,8 @@
         "tests/security/policy-protected-path-parity.vitest.ts"
       ],
       "negativeCase": "The owned-path rule decides every declared-scope write; a broader capability permission never widens the grant; file.create applies the router backstop to new files as well as overwrites. The bf29449b regression — gate returned the allow before the owned-path rule — is pinned by an explicit allow-listed-capability x session-mode table.",
-      "observed": "qualified",
-      "note": "The parity table (tests/ownership/path-scope.test.ts) is broader than the implementation, per the authorization-parity contract."
+      "observed": "unqualified",
+      "note": "DOWNGRADED to unqualified by independent review (D2). OWNED_WRITE_TOOLS covers only file.create/file.delete/patch.apply, so shell.run can never trigger owned-path enforcement; a probe with ownedPaths [\"inside.txt\"] and a shell redirect returned allow. The file-tool fix and its regression test are real and pinned."
     },
     {
       "clause": "denied-action negatives",
@@ -103,10 +103,41 @@
         "tests/ownership/ownership-gate.test.ts"
       ],
       "negativeCase": "Protected paths are not written; a denied command is classified deny and does not reach dispatch; denial at the port and at dispatch level both produce a deny decision rather than an execution.",
-      "observed": "qualified",
-      "note": "Proven at port and dispatch level. Full TUI operator-denial scenario is NOT exercised — recorded as gap F-03, not claimed."
+      "observed": "partial",
+      "note": "DOWNGRADED to partial by independent review. Decision assertions exist but the cited files do not demonstrate dispatch suppression plus absence of prohibited effects; classification is repeatedly presented as execution evidence."
     }
   ],
+  "independence": {
+    "class": "model-independent",
+    "note": "A model-independent review WAS obtained and it REJECTED the qualification. That is independence doing its job, not a clearance.",
+    "qualifier": {
+      "ref": "docs/audits/evidence/2026-10-25-codex-gate-e-review.txt",
+      "identity": "gpt-6.1-sol",
+      "reviewedAt": "2026-10-25T00:00:00.000Z"
+    }
+  },
+  "suiteRepair": {
+    "found": "2026-10-24/25 during full-suite verification of this record.",
+    "failures": 20,
+    "cause": "Two fixtures configured model tiers under subagents.<tier>; createModelResolver reads config.models[tier]. getRoleModel threw \"Subagent tier is unconfigured\" and every assertion downstream of spawn() observed that error instead of the behaviour under test.",
+    "scope": "tests/agents/subagent-manager.test.ts (16) and tests/kernel/subagent-worker-executor.test.ts (4). Type-checking could not catch it: the projection is genuinely part of the type.",
+    "fix": "Fixtures now carry a real models block (default/fast/coding/thinking/critic).",
+    "after": "subagent-manager 19/19, subagent-worker-executor 13/13; node lane 8915 pass, 0 fail.",
+    "preExisting": "CONFIRMED pre-existing, not a regression: both suites fail identically at parent commit ea863a25 in a clean worktree.",
+    "relevance": "These are not Gate E evidence (the five clauses cite different files), but a suite that reports 20 failures cannot be read as green, so the repair is recorded here rather than left implicit."
+  },
+  "independentReview": {
+    "reviewer": "Codex / gpt-6.1-sol (codex-cli 0.164.0, --sandbox read-only)",
+    "reviewedAt": "2026-10-25T00:00:00.000Z",
+    "promptRef": "docs/audits/evidence/2026-10-25-codex-gate-e-review-prompt.md",
+    "promptSha256": "d7b67e7190813ecbe0ad07f9834dc0ad9b6abf37e4d586b9e220df33bb9565de",
+    "outputRef": "docs/audits/evidence/2026-10-25-codex-gate-e-review.txt",
+    "outputSha256": "b70d8ef07ca7c1006f91c1763a31887729f7985beeb01c1ec65378ce5f6ee157",
+    "verdict": "NO",
+    "claim": "Author-side qualification is NOT sound enough to accept as coverage of all five clauses.",
+    "class": "model-independent, NOT human independence"
+  },
+  "iWasWrong": "The author-side record claimed 5/5 clauses qualified. An independent review downgraded all five: authority and ownership are NOT QUALIFIED, F8b/crash-recovery/denied-action are partial. Two of the review's defects were in MY OWN validator (D9 forged independence, D10 HOLD exited 0) and both were reproduced by probe before fixing. The review also found a vacuous test whose claimed guard I verified by deletion: removing the constructor guard leaves all 14 tests green.",
   "declaredGaps": [
     {
       "id": "F-02",
@@ -133,20 +164,5 @@
       "gap": "D4-04 delegate transport flake bounded, not fixed",
       "why": "42 consecutive passes, zero reproduction; a delegate case may not be the sole evidence for a baseline"
     }
-  ],
-  "independence": {
-    "class": "author-only",
-    "note": "Gate E requires qualification 'independently'. Author-side tests cannot supply independence, and an operator waiver records acceptance of author-only testing rather than creating a second party. No independence is claimed.",
-    "waiverRef": null
-  },
-  "suiteRepair": {
-    "found": "2026-10-24/25 during full-suite verification of this record.",
-    "failures": 20,
-    "cause": "Two fixtures configured model tiers under subagents.<tier>; createModelResolver reads config.models[tier]. getRoleModel threw \"Subagent tier is unconfigured\" and every assertion downstream of spawn() observed that error instead of the behaviour under test.",
-    "scope": "tests/agents/subagent-manager.test.ts (16) and tests/kernel/subagent-worker-executor.test.ts (4). Type-checking could not catch it: the projection is genuinely part of the type.",
-    "fix": "Fixtures now carry a real models block (default/fast/coding/thinking/critic).",
-    "after": "subagent-manager 19/19, subagent-worker-executor 13/13; node lane 8915 pass, 0 fail.",
-    "preExisting": "CONFIRMED pre-existing, not a regression: both suites fail identically at parent commit ea863a25 in a clean worktree.",
-    "relevance": "These are not Gate E evidence (the five clauses cite different files), but a suite that reports 20 failures cannot be read as green, so the repair is recorded here rather than left implicit."
-  }
+  ]
 }

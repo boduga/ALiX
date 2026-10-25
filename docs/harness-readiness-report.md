@@ -19,7 +19,7 @@ for designs that already exist. Their existence does not prove measurements.
 | B — Baseline | **CLOSED-WITH-WAIVER** | 13 met, 1 waived, 0 missing. Oracle defects fixed and the retained collection re-derives with **0 verdict changes**; `36/45` and `$0.080520` per verified success stand ([review](audits/2026-10-24-gb01-oracle-review.md), [re-score](../benchmark/evidence/eval-runs/collection-2026-10-24-final/RESCORE.md)). GB-11 waived and signed (M-1 human, unmeasured); GB-14 accepted as a baseline with a waived operator-attention dimension. Closure is model-independent — no human independence, no Gate E clearance, Gate F/Q13 HOLD. See [pre-2.0 acceptance](audits/2026-10-24-pre-2.0-acceptance.md). |
 | C — Ablation | **RETAIN DISPOSITION RECORDED; no paired run** | No paired ablation executed. §9's "otherwise retain" branch is exercised in [`harness-gate-c-retain-disposition.md`](harness-gate-c-retain-disposition.md): both M2 candidates retained, none retired, and it is explicitly not a measured efficiency finding. PRE-R007/R008 remain unexecuted comparisons. |
 | D — Migration | **AUTHORIZED; not implemented** | Concrete reader/writer manifest and MP-01…MP-03 designs exist; implementation, parity evidence and Q04/Q05 owner review remain. |
-| E — Execution/security | **`QUALIFIED-AUTHOR-ONLY`** | All five clauses executed with executable negative cases: 282/282 tests green (214 `node --test`, 68 vitest). Five gaps declared, not covered. Independence absent — the gate stays open on the word *independently*. See [Gate E qualification](audits/2026-10-24-gate-e-qualification.md). |
+| E — Execution/security | **HOLD — 0 of 5 clauses qualified** | An independent model-independent review ([Codex/gpt-6.1-sol](audits/evidence/2026-10-25-codex-gate-e-review.txt)) **rejected** the author-side qualification: authority and ownership are NOT QUALIFIED (hard deny bypassed in ask-mode safe-shell dispatch; `shell.run` escapes owned scope), F8b/crash-recovery/denied-action are partial. 2 of the 11 defects were in this gate's own validator and are fixed. See [Gate E qualification](audits/2026-10-24-gate-e-qualification.md). |
 | F — Release | **HOLD — computed** | Q13. `release-clearance-record.mjs` refuses the current artifact on three recorded facts: technical `partial`, no independent security clearance, no maintainer decision. Both absent items are authority, not measurement — no agent and no authorization can supply them, and Gate F has no waiver path. See [Gate F/Q13 enumeration](audits/2026-10-24-gate-f-q13-enumeration.md). |
 
 Authorization source: `docs/audits/2026-10-23-harness-authorization.md`.
@@ -156,12 +156,13 @@ Remaining work for a full (non-waived) baseline:
    attention measurement, and the two Gate F/Q13 authorities (independent
    security clearance, maintainer decision), which are computed to `HOLD` by
    [`release-clearance-record.mjs`](../benchmark/evidence/release-clearance-record.mjs).
-   Gate E's five clauses are now executed and recorded
-   ([qualification](audits/2026-10-24-gate-e-qualification.md)) at
-   `QUALIFIED-AUTHOR-ONLY`; only the second party is missing.
+   Gate E's five clauses were executed and recorded
+   ([qualification](audits/2026-10-24-gate-e-qualification.md)), and an independent
+   review **rejected** the result: 0 of 5 clauses qualified, two of them NOT
+   QUALIFIED. The gate is remediation work, not a missing second party.
 
-Full PRD completion remains open. Gate B closed at a labelled weaker standard and
-Gate E is qualified author-side only; Gate F/Q13 is computed to `HOLD`. The three
-gaps that remain are all authority, not measurement: a second party for Gate E
-independence, an independent security clearance, and the maintainer's decision.
+Full PRD completion remains open. Gate B closed at a labelled weaker standard. Gate E is `HOLD` — independence was
+obtained and it rejected the qualification, so the gap there is remediation, not
+authority. Gate F/Q13 is computed to `HOLD`: one partial qualification and two
+absent authorities (independent security clearance, maintainer decision).
 Nothing here may be silently waived — Gate F has no waiver path at all.

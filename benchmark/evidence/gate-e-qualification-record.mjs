@@ -263,6 +263,46 @@ export function validateGateERecord(record, options = {}) {
     if (independenceClass !== 'author-only' && !nonEmpty(independence.note)) {
       problems.push('independence.note is required when independence is claimed: say how it was obtained');
     }
+    // Independent review D9: changing `class` to `declared-independent` plus a
+    // free-text note produced QUALIFIED-INDEPENDENT, so the strongest label in
+    // the vocabulary was reachable by typing it. Independence must be a CITED
+    // artifact that exists and names the qualifier — the same rule Gate B's
+    // waiver and Gate F's approval already enforce.
+    if (independenceClass !== 'author-only') {
+      const qualifier = independence.qualifier;
+      if (!qualifier || typeof qualifier !== 'object' || Array.isArray(qualifier)) {
+        problems.push(
+          `${independenceClass} requires independence.qualifier {ref, identity, reviewedAt}: a record may not declare its own independence from free text`,
+        );
+      } else {
+        if (!nonEmpty(qualifier.identity)) {
+          problems.push('independence.qualifier.identity is required: an independent qualifier must be named');
+        }
+        if (!Number.isFinite(Date.parse(qualifier.reviewedAt))) {
+          problems.push('independence.qualifier.reviewedAt must be an ISO timestamp');
+        }
+        if (!nonEmpty(qualifier.ref)) {
+          problems.push('independence.qualifier.ref is required: name the artifact holding the review');
+        } else if (pathBase) {
+          const qualifierPath = resolveCited(qualifier.ref, baseDir, pathBase);
+          if (!existsSync(qualifierPath)) {
+            problems.push(`independence.qualifier.ref does not exist: ${qualifier.ref}`);
+          } else if (nonEmpty(qualifier.identity)) {
+            let body = '';
+            try {
+              body = readFileSync(qualifierPath, 'utf-8');
+            } catch {
+              problems.push(`independence.qualifier.ref is unreadable: ${qualifier.ref}`);
+            }
+            if (body && !body.includes(qualifier.identity.trim())) {
+              problems.push(
+                `independence.qualifier.ref does not contain the named qualifier: ${qualifier.identity}`,
+              );
+            }
+          }
+        }
+      }
+    }
   }
 
   // ── Outcome ─────────────────────────────────────────────────────
@@ -346,11 +386,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   }
   const result = validateGateERecord(parsed, { baseDir: dirname(resolve(path)) });
   process.stdout.write(renderGateEReport(result) + '\n');
-  // A sound author-only record is NOT a cleared gate. It gets its own exit code
-  // so a pipeline cannot mistake "the record validates" for "Gate E closed".
-  process.exitCode = !result.ok
+  // Exit codes must never collapse "valid" into "cleared".
+  //
+  // A HOLD is a HOLD whether or not the record itself is well-formed: a record
+  // that validates and still reports HOLD (e.g. one clause `partial`) previously
+  // exited 0, which let a pipeline read a HOLD as a pass. Found by independent
+  // review D10; the original exit mapping only special-cased author-only.
+  process.exitCode = result.outcome === GATE_E_OUTCOMES.hold
     ? 1
-    : result.outcome === GATE_E_OUTCOMES.authorOnly
-      ? 3
-      : 0;
+    : !result.ok
+      ? 1
+      : result.outcome === GATE_E_OUTCOMES.authorOnly
+        ? 3
+        : 0;
 }
