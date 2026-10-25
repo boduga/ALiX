@@ -28,8 +28,9 @@
     },
     {
       "id": "GB-04",
-      "verdict": "partial",
-      "note": "Some runs record producer commits and model aliases, but baseline artifacts lack immutable model revisions and complete runtime/config/tool-manifest pins. Capture now implements the pins (src/operations/evals/eval-frozen-inputs.ts) but no committed run carries them."
+      "verdict": "met",
+      "note": "All 9 artifacts in collection-2026-10-24-final/ carry frozen.admissible:true with model revision, configHash, offeredToolsHash, corpusHash (9 files), environment and pricing provenance. Verified directly against the files. Corrected 2026-10-24 from a stale partial that predated the final collection.",
+      "evidence": "benchmark/evidence/eval-runs/collection-2026-10-24-final/ (frozen block per file)"
     },
     {
       "id": "GB-05",
@@ -56,8 +57,9 @@
     },
     {
       "id": "GB-09",
-      "verdict": "partial",
-      "note": "Per-case counts reproduce, but uncertainty analysis is absent and 'stable: true' overstates three observations."
+      "verdict": "met",
+      "note": "Wilson 95% intervals computed from the committed rows: pooled 36/45 = 0.80 [0.66, 0.89]; every 5/5 case is [0.57, 1.00]. PRD §6 requires reporting uncertainty; it was not missing, only uncomputed. No threshold frozen.",
+      "evidence": "benchmark/evidence/eval-runs/collection-2026-10-24-final/ (per-run verifiedSuccess)"
     },
     {
       "id": "GB-10",
@@ -78,8 +80,9 @@
     },
     {
       "id": "GB-13",
-      "verdict": "partial",
-      "note": "Replay limitations are documented, but missing originals remain unresolved. The reviewer found that the earlier claim of no deletion history is false: commit 15f89a64 deleted benchmark/evidence/coordination/workspace/docs/{a,b,c}.md."
+      "verdict": "met",
+      "note": "PRE-R019 asks that provenance be preserved and classified, not that deleted originals be recovered. Manifest, per-row pins and the provenance document exist; four unrecoverable records are labelled rather than backfilled.",
+      "evidence": "docs/audits/2026-10-23-harness-baseline-provenance.md; docs/audits/2026-10-24-gate-b-uncertainty-and-provenance.md"
     },
     {
       "id": "GB-14",
@@ -87,5 +90,5 @@
       "note": "Acceptance fields record a concurrence with HOLD and no baseline acceptance. Authorization permits work and explicitly does not accept results; GB-14 requires accepting an exact baseline artifact set, which does not exist while GB-06/08/11 are missing."
     }
   ],
-  "_correction": "GB-06/07/08 reclassified partial/missing -> met on 2026-10-24 after comparing each verdict against the PRD clause it answers. See docs/audits/2026-10-24-gate-b-metric-verdict-correction.md. The original verdicts were stricter than §7 requires."
+  "_correction": "GB-04/09/13 reclassified 2026-10-24 along with GB-06/07/08. Two required no new work, only reading what was already committed. See docs/audits/2026-10-24-gate-b-uncertainty-and-provenance.md."
 }

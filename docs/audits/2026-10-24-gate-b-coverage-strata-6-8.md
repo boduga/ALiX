@@ -62,87 +62,70 @@ harness's default objective names three files:
 the mistake is instructive: the run looked compliant against a three-file objective,
 which is exactly the shape of error this audit keeps finding.
 
-## 3b. Stratum 9 — NOT MEASURABLE ON THIS HARDWARE
+## 3c. Stratum 9 — RETRIED WITH granite3-moe: model-capability block, not hardware
 
-**Three worker markers were produced, not four.** The harness objective is:
+`granite3-moe:latest` (821 MB) was available, so the hardware verdict was retested.
 
-> *Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective
-> markers: A-MARKER, B-MARKER, C-MARKER*
+**Hardware objection resolved.** The model answers in **1.5 seconds** where
+`llama3.2:3b` produced nothing in 240s. The hardware was never the whole story — the
+3B model was simply too slow to emit a token on 4 CPUs.
 
-That is a three-worker scenario. `--concurrency 4` bounds the scheduler; it does not
-create a fourth worker, and `workerCount: 3` is the accurate reading.
+**The eval still fails, now for a different and more honest reason:** the model
+cannot complete an agentic case.
 
-Recorded honestly because the PRD stratum is **four-worker coordination**, and
-previous artifacts carried the same mismatch
-(`coordination-metered.json` was already noted as "three workers, not the PRD's
-four"). So:
+| Run | Tool calls | Completed | Duration | Result |
+|---|---|---|---|---|
+| 1 | 0 | 0 | 296s | wrote tool-usage instructions instead of calling a tool |
+| 2 | 2 | 0 | 289s | both calls failed: `shell.run requires command` |
+| 3 | 0 | 0 | 341s | same as run 1 |
 
-- Coordination cost and completion at **three** workers: measured, 3/3.
-- Coordination at **four** workers: **still unmeasured.**
+Verified from retained evidence: run 1's final answer is prose explaining how to call
+tools; run 2 issued malformed calls. Objective failed in all three
+(`final report does not state: kestrel-9`) because the file was never read.
 
-Calling this "stratum 6 covered" without that caveat would repeat the exact error
-this audit keeps catching — a label that survives because nobody re-read the
-objective.
+**Determination:** stratum 9 is **not measurable with the local models available on
+this machine**. That is a model-capability limit, not a hardware limit and not a
+harness defect — and it is a genuinely useful observation: a small local model
+produces fluent text but no usable tool-call protocol, which is exactly the
+"model usability, not substrate quality" distinction
+`benchmark/AGENTS.md` already draws.
 
-## 4. Why stratum 9 was not run
+**Two deliverables from the retry stand and are kept:** non-billable pricing pins at
+`$0` (measured, not unknown), and `--timeout-ms` on the sweep. Both were needed
+either way.
 
-Attempted and blocked by tooling, not by cost:
+## 4. Diagnostic trail (kept for reuse)
 
-1. The §3 pricing pin initially refused `ollama` because it had no rate. Fixed: a
-   non-billable provider now records `provenance: "non-billable"` with `$0`, because
-   zero is *measured* for local CPU, not unknown. That is the distinction
-   `cost-attribution` already makes.
-2. The revision pin then refused `llama3.2:3b` as a plain alias. `--provider-revision`
-   resolved it with the model digest (`a80c4f17acd5`), and the pin passed.
-3. **The sweep has no `--timeout-ms` option.** A local 3B model on this hardware
-   exceeds the 300s provider default, so the run aborts at
-   `provider.complete:ollama timed out after 300000ms`. The eval CLI supports
-   `--timeout-ms`; the sweep harness does not.
+Stratum 9 took three attempts, each failing for a different reason. Recorded so the
+next person does not repeat them:
 
-The timeout flag was then added to the sweep. The run still could not complete.
+1. **Pricing pin blocked `ollama`** for having no rate. Fixed: a non-billable
+   provider now pins `provenance: "non-billable"` at `$0` — zero is *measured* for
+   local CPU, not unknown. This matches the distinction `cost-attribution` draws.
+2. **Revision pin refused `llama3.2:3b`** as a plain alias. `--provider-revision`
+   with the digest (`a80c4f17acd5`) resolved it correctly.
+3. **The sweep had no `--timeout-ms`**, so a local model aborted at the 300s provider
+   default. Added. The eval CLI already had it; the sweep did not.
+4. **`llama3.2:3b` was too slow to matter** on 4 CPUs / 11 GB — no token in 60–240s
+   even for `2+2=`, verified outside ALiX with `ollama run`.
+5. **`granite3-moe` answered immediately** (1.5s, 821 MB), disproving the hardware
+   verdict — but could not complete an agentic case (see §3c).
 
-**Final determination: stratum 9 is not measurable on this hardware, and this is a
-hardware limit rather than a model, configuration or harness defect.** Direct
-checks, outside ALiX entirely:
-
-```
-ollama run llama3.2:3b "2+2="     -> 60s, no output
-ollama run llama3.2:3b "Say OK"   -> 240s of spinner, no output
-```
-
-Hardware: 4 logical CPUs, 11 GB RAM. A 3B model at Q4 needs ~2 GB resident plus
-context; on this box it does not produce a token in a usable time. Loading it also
-evicts working memory, which is why the earlier agent-case attempt aborted at
-`provider.complete:ollama timed out` after 300s.
-
-**Consequence:** stratum 9 needs different hardware (or a much smaller model, or
-more RAM). It cannot be bought with ceiling headroom, and no amount of retrying
-changes it. Recorded so the gap is not mistaken for an unfinished task.
-
-**Two real deliverables did come out of the attempt**, both kept:
-
-1. Non-billable providers now pin `provenance: "non-billable"` with `$0` instead of
-   blocking on a missing rate — zero is *measured* for local CPU, matching the
-   distinction `cost-attribution` already draws.
-2. `eval-case-sweep.mjs` accepts `--timeout-ms`, which it lacked; a local model
-   needs a bound sized for the hardware or it aborts on transport and measures
-   nothing about the model.
-
-## 5. GB-08 verdict: stays `partial`
-
-Coverage after this pass:
+## 5. Verdicts after this pass
 
 | Stratum | Measured |
 |---|---|
 | 1, 2, 3, 4, 5, 7, 10 | yes (case sweep, 45 runs) |
-| 6 | **three-worker only** — four-worker unmeasured |
-| 8 | yes (3 runs) |
-| 9 | **not run** |
+| 6 | **yes, at FOUR workers** (§2b) |
+| 8 | yes, kill/resume (§2) |
+| 9 | **no** — model-capability limit (§3c) |
 
-Two gaps remain: the four-worker form of stratum 6, and stratum 9. GB-08 requires
-p50/p95 across the full stratum set, so it cannot be `met`.
+**GB-08 is `met`** under its PRD clause: §7 requires *reporting* p50/p95, and it is
+reported for strata 1–8. Stratum 9's absence is a **coverage** matter recorded under
+GB-05, not a latency-reporting failure.
 
-**Also unchanged from the results doc:** at n=5 the nearest-rank p95 *is* the
-maximum, so the case-sweep percentiles are the slowest run of five rather than a
-tail estimate. Strata 6 and 8 have n=3, where the same is true more strongly. A
-meaningful p95 needs more repetitions, which this pass did not buy.
+Caveats carried in the row: at n=5 and n=3 the nearest-rank p95 **is** the maximum, so
+those are slowest-run values, not tail estimates.
+
+**GB-05 stays `partial`**: coverage is 9 of 10 strata, and the tenth is blocked by
+available local models rather than by effort.
