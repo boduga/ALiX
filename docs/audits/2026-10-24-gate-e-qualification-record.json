@@ -63,7 +63,7 @@
       ],
       "negativeCase": "Deny stays deny across auto/bypass/ask; an allow is never invented; a consumed approval cannot be re-consumed; deny-wins when an allow and a deny both match.",
       "observed": "unqualified",
-      "note": "PARTIALLY REMEDIATED, still NOT QUALIFIED. D1 is fixed: the ask-mode safe-shell bypass is no longer a deny bypass, mutation-checked by tests/executor.test.ts. D11 is OPEN: rule-evaluator returns the FIRST matching rule, so an allow listed before a deny still wins. The clause cannot qualify while precedence defeats a deny."
+      "note": "REMEDIATED BUT NOT RE-REVIEWED, still NOT QUALIFIED. D1 is fixed (the ask-mode safe-shell bypass no longer bypasses a deny) and D11 is fixed (deny > ask > allow over all matching rules; the shipped defaults previously let a critical-risk capability read through an earlier allow). Both are mutation-checked. The clause cannot be claimed until an independent re-review confirms the fixes, and D3-D8 remain open."
     },
     {
       "clause": "crash/recovery",
@@ -179,6 +179,12 @@
         "what": "The ask-mode safe-shell bypass consulted only `isSafeShellCommand`, so a command in `denyCommands` executed. It now evaluates mandatory policy denies first and returns an error result. `approval-store-missing` is deliberately NOT treated as a deny: it is an absent dependency, not a verdict on the command.",
         "test": "tests/executor.test.ts — 2 tests, mutation-checked (disabling the check fails the deny test)",
         "regressionRisk": "LOW: only refuses; never widens. A non-denied safe command still bypasses approvals, asserted."
+      },
+      {
+        "id": "D11",
+        "what": "RuleEvaluator precedence changed from first-match-wins to deny > ask > allow over all matching rules. File order can no longer grant authority. The reported rule is the strictest match, earliest among equals, so decisions are order-independent and audit lines stay stable.",
+        "test": "tests/policy/rule-evaluator.test.ts — 8 tests added; reverting to first-match fails 5 of 21, including the shipped-defaults case where allow-file-read preceded deny-critical-risk.",
+        "regressionRisk": "LOW: 7 symbols, 0 execution processes; matchedRuleId is audit-only and no consumer branches on it. CLI verified: filesystem.read + critical now reports deny/deny-critical-risk."
       }
     ],
     "notFixed": [
@@ -189,8 +195,7 @@
       "D7",
       "D8",
       "D9 (validator — fixed)",
-      "D10 (validator — fixed)",
-      "D11"
+      "D10 (validator — fixed)"
     ],
     "note": "D9 and D10 were fixed in the validator immediately when found. D1 and D2 are the two authority holes. D11 (deny-wins in rule-evaluator) remains open and is the next item: it is a precedence bug, not a bypass of the gate."
   }

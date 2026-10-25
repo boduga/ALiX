@@ -7,7 +7,7 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
 ## Ownership
 
 - `policy-rule.ts` — PolicyRule type, matchPolicy(), validatePolicyRule()
-- `rule-evaluator.ts` — Pure first-match-wins evaluator (decoupled from runtime subsystems)
+- `rule-evaluator.ts` — Pure **deny-wins** evaluator (decoupled from runtime subsystems). Precedence is `deny > ask > allow` over ALL matching rules, not declaration order: order must never grant authority. The reported rule is the strictest match, and the earliest one among equals so audit lines do not drift. Do not reintroduce first-match-wins — the shipped defaults put `allow-file-read` before `deny-critical-risk`, which let a critical-risk read through (Gate E D11).
 - `runtime-gate.ts` — Graph-node authorization adapter (R3.7): capability coverage (CapabilityResolver) + the graph-specific approval reuse/create lifecycle, with every POLICY decision routed through the one `ExecutionAuthorization` boundary (the same service tools and coordination workers use). Not a second policy authority.
 - `policy-gate.ts` — PolicyGate, the single authoritative policy engine: tool-call and capability evaluation with approval lifecycle (binding-key reuse for coordination, capability reuse for capability asks, fresh approval per tool call in ask mode), plus TUI policy snapshots. Do not introduce a second policy authority.
 - `default-policies.ts` — 11 built-in rules (allow/ask/deny by risk level and capability)
@@ -64,7 +64,7 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
 
 - `tests/policy/policy-gate.test.ts` — the owned-path rule across the full space of workspace-wide spellings (listed and derived), and fail-closed behaviour. A router-only test bypasses this enforcement point.
 - `tests/policy/policy-rule.test.ts` — validation and matching
-- `tests/policy/rule-evaluator.test.ts` — evaluator and default policies
+- `tests/policy/rule-evaluator.test.ts` — evaluator and default policies, including **deny-wins order independence**: the same rules in both orders must reach one decision, and the shipped defaults must not allow a critical-risk capability that an earlier allow matched. First-match-wins fails 5 of these.
 - `tests/policy/policy-loader.test.ts` — disk loading and fallback
 - `tests/policy/runtime-gate.test.ts` — composed gate behavior
 

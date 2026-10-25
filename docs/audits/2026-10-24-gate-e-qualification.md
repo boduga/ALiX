@@ -354,3 +354,54 @@ the review named.
 
 Gate E remains `HOLD` at **0 of 5 clauses qualified**. Two holes closed; the gate is
 not closed.
+
+## 11. Remediation — D11 deny-wins
+
+Fixed. `RuleEvaluator` was **first-match-wins**, so a deny held only when no
+permissive rule appeared before it in file order. File order granted authority.
+
+The hole existed **without anyone editing a rule file**: the shipped defaults
+declare `allow-file-read` (match: `capability`) before `deny-critical-risk`
+(match: `riskLevel`). A critical-risk file read matched the allow first and was
+permitted. Verified through the CLI:
+
+```
+$ alix policy eval --capability filesystem.read --risk critical
+Before: Decision: allow   Rule: allow-file-read
+After:  Decision: deny    Rule: deny-critical-risk
+```
+
+### 11.1 The rule
+
+Precedence is now `deny > ask > allow` over **all** matching rules. Two properties
+follow, and they are what the tests assert:
+
+- file order cannot grant authority; only an absence of stricter matches can
+- adding a deny anywhere in the file takes effect immediately
+
+The reported rule is the strictest match, and the **earliest among equals** — so
+the decision never depends on order, while the audit line stays stable across
+runs. `matchedRuleId` is audit-only (no consumer branches on it), and
+`detect-changes` rated this change LOW risk: 7 symbols, 0 execution processes.
+
+### 11.2 Mutation evidence
+
+Reverting to first-match-wins fails **5 of 21** tests, including the
+shipped-defaults case:
+
+| Reverted | Failing |
+|---|---|
+| `deny > ask > allow` precedent | 5 |
+| restore | 0 |
+
+### 11.3 Where the gate now stands
+
+| Clause | Before | Now |
+|---|---|---|
+| Authority | NOT QUALIFIED | NOT QUALIFIED — D1 and D11 both fixed, but the clause cannot be claimed until the fixes are re-reviewed |
+| Ownership | NOT QUALIFIED | NOT QUALIFIED — D2 fixed, router backstop evidence still uncited |
+
+Three of the review's major defects are now closed with mutation-checked tests.
+Gate E remains **HOLD** at **0 of 5**: the honest reading is that three holes are
+shut and the remaining ones (D3–D8, plus the vacuous tests) are still open. A
+re-review decides the clause verdicts, not the author.
