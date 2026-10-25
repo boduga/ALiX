@@ -70,8 +70,8 @@
     },
     {
       "id": "GB-11",
-      "verdict": "missing",
-      "note": "Baseline rows contain no measured operator review minutes or intervention counts; historical approval events cannot establish human attention or attention per success."
+      "verdict": "partial",
+      "note": "WAIVED, not met. M-2..M-5 are now agent-derived from committed evidence (interruptions 0, approval touches 0 -- the eval harness runs permissions.default=allow so no approval path executes). M-1 (active review minutes per verified success) is n=0 and cannot be produced by an agent: it measures human cognition. Operator ruling 2026-10-24 accepts the gap as a weaker labelled claim. No attention figure may be cited."
     },
     {
       "id": "GB-12",

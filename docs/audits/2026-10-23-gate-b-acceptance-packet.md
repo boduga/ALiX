@@ -6,7 +6,7 @@ model-independent review)
 `7ca6f6899bfd87ea3fadb7fe74c19c654178685a` (working tree clean at assembly)
 **Reconciliation pin:** commit `148dabc7` (the tree this version was checked against)
 **Requirements:** [PRD v1.2, filename `ALiX_PRE_2_0_HARNESS_PRD_v1.1.md`](../ALiX_PRE_2_0_HARNESS_PRD_v1.1.md)
-**Recommended decision: GATE B HOLD — held by GB-11 (no observed operator attention) and GB-14 (unsigned), not by the metrics. Gate E independence absent. Gate F / Q13 HOLD.**
+**Recommended decision: GATE B HOLD — held by GB-11 (attention measurement waived, M-1 unmeasured) and GB-14 (unsigned), not by the metrics. Gate E independence absent. Gate F / Q13 HOLD.**
 
 This packet assembles committed evidence. It is not a pass, not a signature, and not
 an independent qualification. It grants no publication, push, merge, deploy,
@@ -97,7 +97,7 @@ agent at all.
 | GB-08 | p50/p95 latency (PRD §7) | 45 case runs across 9 cases with per-case p50/p95, plus stratum 6 (3 runs at four workers) and stratum 8 (3 runs) | **met** | §7 requires *reporting* p50/p95; the report exists for strata 1–8. **Caveats:** at n=5/n=3 the nearest-rank p95 IS the maximum, so these are slowest-run values rather than tail estimates; stratum 9 is unmeasured and is tracked under GB-05, not here. |
 | GB-09 | Success rates with uncertainty (PRD §6, §7) | Wilson 95% intervals per case and pooled: **36/45 = 0.80 [0.66, 0.89]**; each 5/5 case is [0.57, 1.00], not 100% | **met** | §6 requires reporting uncertainty, and it is now computed from the committed rows. The intervals are the point: a 5/5 case does not establish a 100% rate. No threshold is frozen, per §6 ordering. |
 | GB-10 | Reject mixed/confounded historical ratios | The historical 7/12 at `$0.067149/success` and the later 10/12 at `$0.045688` both include the invalid old deny task. The delegate delta is confounded by `c0def71d` postdating the sweep commit `bebe1909` | supported as an exclusion | Neither ratio may be cited as a baseline rate or an improvement. |
-| GB-11 | Operator attention as a separate measured dimension (PRD §7, §12.3) | No artifact records operator active review minutes, interruptions, or approval touches | missing | `operatorActiveReviewMinutes / verifiedSuccesses` is `null`. Never convert operator time to a dollar figure. |
+| GB-11 | Operator attention measured separately (PRD §7, §12.3) | M-2–M-5 derived from committed evidence (`attention-metrics.ts`): interruptions 0, approval touches 0 (the eval harness runs `permissions.default: allow`, so no approval path is exercised). **M-1 not measured — n=0** | **waived** | Operator ruling 2026-10-24: M-1 measures human cognitive time, which no agent can observe; the gap is accepted rather than fabricated. `waived` is not `met`. `operatorActiveReviewMinutes / verifiedSuccesses` is `null`, and no attention claim may be cited. See [waiver](2026-10-24-gb11-waiver.md) and [agent measures](2026-10-24-operator-attention-agent-measures.md). |
 | GB-12 | Independent scoring (PRD §9, Gate E boundary) | Codex review (gpt-6.1-sol, read-only, commit `ba8b8064`): verbatim output and prompt committed under `docs/audits/evidence/`; operator ruling §6.3 | **met (model-independent, operator-accepted)** | Accepted by operator ruling on 2026-10-24 as evidence under a **weaker** standard than human independence. Must be cited as `model-independent`, never `independent` unqualified. Does not satisfy PRE-R017/PRE-R031 (human observations) and grants no Gate E clearance. |
 | GB-13 | Provenance disposition (PRE-R019) | §8 manifest, per-row pins, and `2026-10-23-harness-baseline-provenance.md` classifying replay classes; four unrecoverable records labelled, not backfilled | **met** | PRE-R019 asks that provenance be preserved and generated views be safe, not that deleted originals be recovered. Absence of original events for four records is a documented replayability limit; reconstructing them would be fabrication. |
 | GB-14 | Operator acceptance of the baseline | No acceptance record exists; `2026-10-23-harness-authorization.md` authorizes the work, not a result | requires reviewer/operator | Signature on an exact artifact set. Blank below (§6). |
@@ -299,7 +299,7 @@ reviewer's to fill; nothing here may be completed on another party's behalf.
 | Field | Value |
 |---|---|
 | Gate B disposition | **HOLD** |
-| Basis | GB-01 partial (oracle is author-written), GB-11 missing (no observed operator attention), GB-14 unsigned. All other requirements are `met` under the clause they answer |
+| Basis | GB-01 partial (oracle is author-written), **GB-11 waived** (M-1 unmeasured, n=0, accepted as a gap), GB-14 unsigned. All other requirements are `met` under the clause they answer |
 | Gate A | Historical PASS with named unknowns; no retirement implied |
 | Gate B — what would move it | An independent scorer's record (human or an operator-accepted model reviewer) + observed operator attention + a priced collection carrying the §3 pins and §4 fields |
 | Gate C | **Retain disposition recorded** — [`harness-gate-c-retain-disposition.md`](../harness-gate-c-retain-disposition.md). HC-01/HC-03 retained, none retired, no ablation run. Not a measured efficiency finding. PRE-R007/R008 remain unexecuted comparisons |
