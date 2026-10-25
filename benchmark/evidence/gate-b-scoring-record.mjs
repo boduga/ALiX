@@ -26,9 +26,9 @@
  * Exit 0 = valid and complete, 1 = invalid/incomplete, 2 = usage error.
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 
 /** The frozen requirement set a Gate B scoring record must cover. */
 export const FROZEN_REQUIREMENTS = [
@@ -36,7 +36,27 @@ export const FROZEN_REQUIREMENTS = [
   'GB-08', 'GB-09', 'GB-10', 'GB-11', 'GB-12', 'GB-13', 'GB-14',
 ];
 
-export const VERDICTS = ['met', 'partial', 'missing', 'not-applicable'];
+/**
+ * `waived` is a first-class verdict, not a synonym for `met`.
+ *
+ * It exists because some requirements are not measurable by any agent — operator
+ * cognitive time is the one case — and the honest dispositions are "measured",
+ * "not measured and the gap is signed", or nothing. Folding a waiver into `met`
+ * is the error this vocabulary prevents: it would let an unmeasured requirement
+ * count toward an all-met total.
+ *
+ * A `waived` entry must carry `waiver: { ref, signedBy, signedAt }`, and `ref` must
+ * be a file that exists and contains `signedBy`. That makes the signature
+ * mechanically checkable instead of asserted.
+ */
+export const VERDICTS = ['met', 'partial', 'missing', 'not-applicable', 'waived'];
+
+/** Gate-B outcomes. `CLOSED-WITH-WAIVER` is closed at a label, never at `met`. */
+export const GATE_B_OUTCOMES = {
+  eligible: 'ELIGIBLE-FOR-SIGNATURE',
+  closedWithWaiver: 'CLOSED-WITH-WAIVER',
+  hold: 'HOLD',
+};
 
 /**
  * Normalize a name for the author/reviewer comparison.
@@ -56,6 +76,42 @@ export function normalizeIdentity(value) {
     .replace(/\s+/g, ' ');
 }
 
+/** Check a `waived` entry's citation: the waiver file must exist and name the signer. */
+function checkWaiverCitation(id, entry, baseDir, problems) {
+  const waiver = entry.waiver;
+  if (typeof waiver !== 'object' || waiver === null) {
+    problems.push(`${id} is 'waived' without a waiver citation (ref, signedBy, signedAt)`);
+    return;
+  }
+  if (typeof waiver.ref !== 'string' || waiver.ref.trim().length === 0) {
+    problems.push(`${id} waiver has no ref: a waiver must point at the signed artifact`);
+    return;
+  }
+  if (typeof waiver.signedBy !== 'string' || waiver.signedBy.trim().length === 0) {
+    problems.push(`${id} waiver has no signedBy`);
+  }
+  if (!Number.isFinite(Date.parse(waiver.signedAt))) {
+    problems.push(`${id} waiver signedAt must be an ISO timestamp`);
+  }
+  const waiverPath = resolve(baseDir, waiver.ref);
+  if (!existsSync(waiverPath)) {
+    problems.push(`${id} waiver ref does not exist: ${waiver.ref}`);
+    return;
+  }
+  let body = '';
+  try {
+    body = readFileSync(waiverPath, 'utf-8');
+  } catch (error) {
+    problems.push(`${id} waiver ref is unreadable: ${waiver.ref} (${String(error)})`);
+    return;
+  }
+  // The signature must be IN the artifact. A record that cites a blank waiver is
+  // citing an unsigned gap.
+  if (typeof waiver.signedBy === 'string' && waiver.signedBy.trim() && !body.includes(waiver.signedBy.trim())) {
+    problems.push(`${id} waiver ref does not contain the named signer: ${waiver.signedBy}`);
+  }
+}
+
 function emailOf(value) {
   const match = /<([^>]+)>/.exec(String(value ?? ''));
   if (match) return match[1].trim().toLowerCase();
@@ -71,7 +127,8 @@ function emailOf(value) {
  * verdict — a rate over a partial record is how an incomplete review becomes a
  * quota.
  */
-export function validateScoringRecord(record) {
+export function validateScoringRecord(record, options = {}) {
+  const baseDir = options.baseDir ? resolve(options.baseDir) : process.cwd();
   const problems = [];
   if (typeof record !== 'object' || record === null || Array.isArray(record)) {
     return { ok: false, independence: 'unknown', problems: ['record is not an object'], summary: null };
@@ -155,12 +212,13 @@ export function validateScoringRecord(record) {
     if (entry.verdict !== 'met' && (typeof entry.note !== 'string' || entry.note.trim().length === 0)) {
       problems.push(`${id} is '${String(entry.verdict)}' without a note saying what is unmet`);
     }
+    if (entry.verdict === 'waived') checkWaiverCitation(id, entry, baseDir, problems);
   }
   for (const id of FROZEN_REQUIREMENTS) {
     if (!seen.has(id)) problems.push(`${id} has no verdict`);
   }
 
-  const counts = { met: 0, partial: 0, missing: 0, 'not-applicable': 0 };
+  const counts = { met: 0, partial: 0, missing: 0, 'not-applicable': 0, waived: 0 };
   for (const entry of requirements) {
     if (entry && VERDICTS.includes(entry.verdict)) counts[entry.verdict] += 1;
   }
@@ -180,13 +238,29 @@ export function validateScoringRecord(record) {
       // Independence is a separate gate, not a comment. An all-met record from
       // the author is exactly the state GB-12 exists to reject, so it must not
       // report eligibility.
-      gateB: complete &&
-        (independence === 'declared-independent' || independence === 'model-independent') &&
-        counts.missing === 0 &&
-        counts.partial === 0 &&
-        counts.met === FROZEN_REQUIREMENTS.length
-        ? 'ELIGIBLE-FOR-SIGNATURE'
-        : 'HOLD',
+      //
+      // Two closed states, never one:
+      //  - ELIGIBLE-FOR-SIGNATURE   — every requirement met.
+      //  - CLOSED-WITH-WAIVER       — every requirement met or signed-waived.
+      // `waived` is not `met`, so the label states which one produced the
+      // closure and the citation phrase travels with it. A record with any
+      // `missing`/`partial` stays HOLD in both cases.
+      gateB: (() => {
+        const independent = independence === 'declared-independent' || independence === 'model-independent';
+        // Closure requires a VALID record, not merely favourable counts. An
+        // unsigned waiver still counts as `waived` for counting purposes, so
+        // without this a citation that points at nothing would close the gate
+        // while the record is rejected.
+        if (problems.length > 0 || !complete || !independent || counts.missing > 0 || counts.partial > 0) {
+          return GATE_B_OUTCOMES.hold;
+        }
+        if (counts.met === FROZEN_REQUIREMENTS.length) return GATE_B_OUTCOMES.eligible;
+        if (counts.met + counts.waived === FROZEN_REQUIREMENTS.length && counts.waived > 0) {
+          return GATE_B_OUTCOMES.closedWithWaiver;
+        }
+        return GATE_B_OUTCOMES.hold;
+      })(),
+      waivedRequirements: requirements.filter(r => r && r.verdict === 'waived').map(r => r.id),
     },
   };
 }
@@ -201,8 +275,15 @@ export function renderScoringReport(result) {
   lines.push(`valid: ${result.ok}`);
   if (result.summary) {
     const s = result.summary;
-    lines.push(`scored: ${s.scored}/${s.total} (met ${s.met}, partial ${s.partial}, missing ${s.missing}, n/a ${s['not-applicable']})`);
+    lines.push(`scored: ${s.scored}/${s.total} (met ${s.met}, waived ${s.waived}, partial ${s.partial}, missing ${s.missing}, n/a ${s['not-applicable']})`);
     lines.push(`gate B: ${s.gateB}`);
+    if (s.gateB === GATE_B_OUTCOMES.closedWithWaiver) {
+      // The label is the deliverable. A closure that drops it reads as a pass.
+      lines.push(`note: closed at a WEAKER standard — ${s.waivedRequirements.join(', ')} waived, not met; cite as "accepted baseline with a waived dimension", never as all requirements met`);
+      if (result.independence === 'model-independent') {
+        lines.push('note: closure is model-independent; no human independence is claimed');
+      }
+    }
   }
   if (result.problems.length > 0) {
     lines.push('problems:');
@@ -232,7 +313,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     process.stderr.write(`scoring record is not valid JSON: ${String(error)}\n`);
     process.exit(2);
   }
-  const result = validateScoringRecord(parsed);
+  const result = validateScoringRecord(parsed, { baseDir: dirname(resolve(path)) });
   process.stdout.write(renderScoringReport(result) + '\n');
   process.exitCode = result.ok ? 0 : 1;
 }

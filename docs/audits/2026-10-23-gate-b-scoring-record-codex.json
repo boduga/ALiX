@@ -71,9 +71,14 @@
     },
     {
       "id": "GB-11",
-      "verdict": "partial",
-      "note": "WAIVED, not met -- signed 2026-10-24 by the operator (identity provenance in the waiver's section 7). M-2..M-5 are agent-derived from committed evidence (interruptions 0, approval touches 0: the eval harness runs permissions.default allow, so no approval path is exercised). M-1 operator-attention time is unmeasured, n=0, and no agent can observe it. 'waived' is not 'met'; converting it requires Route A (~3 h, $0) in docs/audits/2026-10-24-gb11-instructions.md.",
-      "evidence": "docs/audits/2026-10-24-gb11-waiver.md (signed section 7) + docs/audits/2026-10-24-operator-attention-agent-measures.md + src/operations/evals/attention-metrics.ts + tests/evals/attention-metrics.vitest.ts"
+      "verdict": "waived",
+      "note": "WAIVED, not met, and signed 2026-10-24. M-2..M-5 are agent-derived from committed evidence (interruptions 0, approval touches 0: the eval harness runs permissions.default allow, so no approval path is exercised). M-1 operator-attention time is unmeasured, n=0, and no agent can observe human cognitive time; substituting a different quantity would invert PRD 12.3's purpose. The validator requires the cited waiver file to exist AND to name the signer, so this is a signature, not a flag.",
+      "evidence": "docs/audits/2026-10-24-gb11-waiver.md (signed section 7) + docs/audits/2026-10-24-operator-attention-agent-measures.md + src/operations/evals/attention-metrics.ts + tests/evals/attention-metrics.vitest.ts",
+      "waiver": {
+        "ref": "2026-10-24-gb11-waiver.md",
+        "signedBy": "Babasola",
+        "signedAt": "2026-10-24T00:00:00.000Z"
+      }
     },
     {
       "id": "GB-12",
@@ -94,5 +99,6 @@
       "evidence": "docs/audits/2026-10-23-gate-b-acceptance-packet.md section 6 (operator signature) + docs/audits/2026-10-24-gb11-waiver.md + benchmark/evidence/eval-runs/collection-2026-10-24-final/ + benchmark/evidence/eval-runs/collection-2026-10-24-final/RESCORE.md"
     }
   ],
-  "_correction": "2026-10-24 (final): GB-14 accepted as a baseline with a waived operator-attention dimension; GB-11 stays waived. Gate B is accepted with waiver, not passed: 12 met, 1 waived, 0 missing. Still model-independent, no Gate E clearance, Gate F/Q13 HOLD."
+  "_correction": "2026-10-24 (final): GB-14 accepted as a baseline with a waived operator-attention dimension; GB-11 recorded as the first-class verdict `waived` (signed, citation checked by the validator). Gate B computes to CLOSED-WITH-WAIVER: 13 met, 1 waived, 0 missing, 0 partial. Model-independent only; no Gate E clearance; Gate F/Q13 HOLD.",
+  "acceptanceScope": "pre-2.0"
 }

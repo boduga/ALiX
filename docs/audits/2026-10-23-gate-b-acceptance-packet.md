@@ -6,7 +6,7 @@ model-independent review)
 `7ca6f6899bfd87ea3fadb7fe74c19c654178685a` (working tree clean at assembly)
 **Reconciliation pin:** commit `148dabc7` (the tree this version was checked against)
 **Requirements:** [PRD v1.2, filename `ALiX_PRE_2_0_HARNESS_PRD_v1.1.md`](../ALiX_PRE_2_0_HARNESS_PRD_v1.1.md)
-**Decision recorded: GATE B ACCEPTED WITH WAIVER — a baseline with a waived operator-attention dimension, not a pass and not all requirements met. 12 met, 1 waived, 0 missing. Gate E independence absent; Gate F / Q13 HOLD.**
+**Decision recorded: GATE B `CLOSED-WITH-WAIVER` — 13 met, 1 waived (GB-11, signed), 0 missing. The baseline is accepted as "accepted baseline with a waived operator-attention dimension"; the gate is not a pass, Gate E independence is absent, Gate F / Q13 HOLD.**
 
 This packet assembles committed evidence. It is not a pass, not a signature, and not
 an independent qualification. It grants no publication, push, merge, deploy,
@@ -299,8 +299,8 @@ completed on another party's behalf.
 
 | Field | Value |
 |---|---|
-| Gate B disposition | **ACCEPTED WITH WAIVER** — the baseline is accepted; the *gate* is not passed. 12 met, 1 waived, 0 missing; the scoring validator still reports `HOLD` while GB-11 is not `met` |
-| Basis | **12 met, 1 waived, 0 missing.** GB-01 met on a model-independent review whose defects were fixed and re-scored; GB-06 met after the re-score returned 0 verdict changes; GB-11 **waived** (M-1 unmeasured, signed); GB-14 met **as scoped acceptance** of a baseline with a waived attention dimension. GB-02/03/10 supported in their narrower scopes |
+| Gate B disposition | **`CLOSED-WITH-WAIVER`** (validator-computed) — the baseline is accepted; the gate is not a pass. 13 met, 1 waived, 0 missing, 0 partial |
+| Basis | **13 met, 1 waived, 0 missing.** GB-01 met on a model-independent review whose defects were fixed and re-scored; GB-06 met after the re-score returned 0 verdict changes; GB-11 **waived** (M-1 unmeasured, signed, citation verified by the validator); GB-14 met **as scoped acceptance** of a baseline with a waived attention dimension. GB-02/03/10 supported in their narrower scopes |
 | Gate A | Historical PASS with named unknowns; no retirement implied |
 | Gate B — what would move it to a pass | A measured M-1 attention figure (~3 h, `$0`, Route A in `2026-10-24-gb11-instructions.md`; converts `waived` → `met`) and human-independent qualification. Nothing else is open |
 | Gate C | **Retain disposition recorded** — [`harness-gate-c-retain-disposition.md`](../harness-gate-c-retain-disposition.md). HC-01/HC-03 retained, none retired, no ablation run. Not a measured efficiency finding. PRE-R007/R008 remain unexecuted comparisons |
@@ -357,25 +357,40 @@ reasons a reviewer cannot fix: no verified-success denominator exists, no latenc
 baseline exists, no human attention has been observed, and no baseline has been
 accepted.
 
-### 6.1 What signing this records
+### 6.1 What the 2026-10-24 signature records
 
-Signing **constitutes concurrence with a HOLD**, i.e. that Gate B is not ready and
-why. It is not baseline acceptance, not a Gate B PASS, not Gate E clearance and not
-Gate F/Q13 approval. Those are separate decisions with separate evidence
-requirements, and none of them is available today.
+The signature below was **re-recorded on 2026-10-24** against commit `d7ee992e`. The
+earlier v1.1 entry was concurrence with a HOLD while GB-06/08/11/12 were missing; that
+state has changed and the record follows the evidence rather than the earlier text.
 
-An operator signature on this packet does **not** discharge GB-14. GB-14 requires
-acceptance of an exact *baseline artifact set*; there is no acceptable baseline to
-accept while GB-06/08/11/12 are missing.
+Signing now records:
 
-### 6.2 What is explicitly not signature-ready
+- **GB-14 acceptance of an exact artifact set**, scoped: accepted **as a baseline with a
+  waived operator-attention dimension**. That phrase is required wherever the baseline
+  is cited.
+- The acceptance is **not a Gate B pass**. GB-11 is waived, so the scoring validator
+  reports `CLOSED-WITH-WAIVER` — a closure at a weaker, labelled standard, never
+  `ELIGIBLE-FOR-SIGNATURE`.
+- It is **not** Gate E clearance and **not** Gate F/Q13 approval. Independence remains
+  model-only, and those gates need their own decisions.
+- It **does not** supply an operator-attention figure. M-1 is `null`; the waiver is the
+  whole record of that dimension.
 
-- Any claim that the baseline is reproducible: §3 pins are implemented but no
-  committed run carries them.
-- Any cost-per-success figure: the denominator does not exist, and the current rate
-  is an operator-declared proxy, not a vendor price.
-- Any latency or operator-attention number.
-- Any statement that a stratum is stable or qualified.
+The mechanical rule the signature relies on is in
+`benchmark/evidence/gate-b-scoring-record.mjs`: `waived` is a first-class verdict, its
+citation must exist and name the signer, and any invalid record stays `HOLD`.
+
+### 6.2 What remains not signature-ready
+
+- **Any operator-attention number.** M-1 is unmeasured, n = 0; the waiver is signed and
+  the measurement is not.
+- **Any claim of human independence.** The reviewer was a model
+  (`model-independent`), which is weaker and is labelled as such everywhere.
+- **Any vendor price.** Every dollar figure is an operator-declared proxy rate, not a
+  reconciled invoice.
+- **Any resolution of PRE-R017/PRE-R031.** Both count human observations and are outside
+  this packet's scope.
+- **Any statement that a stratum is stable or qualified** on n = 3–5 runs.
 
 ---
 

@@ -36,7 +36,7 @@ be scored.
   "scoredAt": "YYYY-MM-DDTHH:MM:SSZ",
   "artifactSet": "<commit + paths scored>",
   "requirements": [
-    { "id": "GB-01", "verdict": "met|partial|missing|not-applicable", "evidence": "<path a third party can re-read>", "note": "<required when not met>" }
+    { "id": "GB-01", "verdict": "met|partial|missing|not-applicable|waived", "evidence": "<path a third party can re-read>", "note": "<required when not met>" }
   ]
 }
 ```
@@ -45,6 +45,10 @@ Rules the validator enforces:
 
 - every id in GB-01..GB-14 appears exactly once
 - `met` requires cited `evidence`; an assertion is not evidence
+- `waived` requires `waiver: { "ref", "signedBy", "signedAt" }`; the ref must be a file
+  that exists **and contains the signer's name** — a bare flag is rejected. `waived` is
+  never counted as `met`; a record that closes on a waiver reports
+  `CLOSED-WITH-WAIVER`, not `ELIGIBLE-FOR-SIGNATURE`
 - anything other than `met` requires a `note` saying what is unmet
 - a record is `incomplete` (and Gate B `HOLD`) while any requirement lacks a verdict
 - `ELIGIBLE-FOR-SIGNATURE` requires a complete record, a declared-independent

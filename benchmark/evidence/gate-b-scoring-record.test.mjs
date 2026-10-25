@@ -8,6 +8,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   FROZEN_REQUIREMENTS,
   validateScoringRecord,
@@ -141,4 +144,108 @@ test('a reviewerKind of human on a model identity is rejected', () => {
   }));
   assert.equal(result.ok, false);
   assert.ok(result.problems.some(p => /names a model/.test(p)));
+});
+
+/**
+ * `waived` closure — a requirement no agent can measure, signed and cited.
+ *
+ * The failure modes this covers: a waiver written as a bare flag (so nothing was
+ * actually signed), a citation to a file that does not exist, a citation whose
+ * artifact does not name the signer, and a waiver quietly counted as `met`.
+ */
+const SIGNED_WAIVER = {
+  ref: 'waiver.md',
+  signedBy: 'Babasola',
+  signedAt: '2026-10-24T00:00:00.000Z',
+};
+
+function waivedRecord({ waiver = SIGNED_WAIVER, verdict = 'waived' } = {}) {
+  const reqs = fullRequirements();
+  reqs[10] = {
+    id: 'GB-11',
+    verdict,
+    note: 'operator attention is not measurable by any agent',
+    evidence: 'docs/audits/2026-10-24-gb11-waiver.md',
+    ...(waiver === null ? {} : { waiver }),
+  };
+  return { reqs };
+}
+
+function withWaiverFile(body, fn) {
+  const dir = mkdtempSync(join(tmpdir(), 'gate-b-waiver-'));
+  try {
+    writeFileSync(join(dir, 'waiver.md'), body);
+    return fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('a signed, cited waiver closes Gate B at the weaker label, never at met', () => {
+  withWaiverFile('# waiver\n\n| Operator identity | Babasola |\n', dir => {
+    const { reqs } = waivedRecord();
+    const result = validateScoringRecord(record({ requirements: reqs }), { baseDir: dir });
+    assert.equal(result.ok, true);
+    assert.equal(result.summary.waived, 1);
+    assert.equal(result.summary.met, FROZEN_REQUIREMENTS.length - 1);
+    assert.equal(result.summary.allMet, false);
+    assert.equal(result.summary.gateB, 'CLOSED-WITH-WAIVER');
+    assert.deepEqual(result.summary.waivedRequirements, ['GB-11']);
+    const text = renderScoringReport(result);
+    assert.ok(/waived, not met/.test(text));
+    assert.ok(/never as all requirements met/.test(text));
+  });
+});
+
+test('a waived requirement without a citation is rejected', () => {
+  const { reqs } = waivedRecord({ waiver: null });
+  const result = validateScoringRecord(record({ requirements: reqs }));
+  assert.equal(result.ok, false);
+  assert.ok(result.problems.some(p => /without a waiver citation/.test(p)));
+  assert.equal(result.summary.gateB, 'HOLD');
+});
+
+test('a waiver citing a file that does not exist is rejected', () => {
+  const { reqs } = waivedRecord();
+  const result = validateScoringRecord(record({ requirements: reqs }), { baseDir: tmpdir() });
+  assert.equal(result.ok, false);
+  assert.ok(result.problems.some(p => /waiver ref does not exist/.test(p)));
+  assert.equal(result.summary.gateB, 'HOLD');
+});
+
+test('a waiver whose artifact does not name the signer is rejected', () => {
+  withWaiverFile('# waiver\n\nall fields blank\n', dir => {
+    const { reqs } = waivedRecord();
+    const result = validateScoringRecord(record({ requirements: reqs }), { baseDir: dir });
+    assert.equal(result.ok, false);
+    assert.ok(result.problems.some(p => /does not contain the named signer/.test(p)));
+    assert.equal(result.summary.gateB, 'HOLD');
+  });
+});
+
+test('a waiver cannot carry an author-only record past HOLD', () => {
+  withWaiverFile('| Operator identity | Babasola |\n', dir => {
+    const { reqs } = waivedRecord();
+    const result = validateScoringRecord(
+      record({ requirements: reqs, reviewer: AUTHOR }),
+      { baseDir: dir },
+    );
+    assert.equal(result.independence, 'same-party');
+    assert.equal(result.summary.gateB, 'HOLD');
+  });
+});
+
+test('one remaining partial keeps Gate B on HOLD even with a signed waiver', () => {
+  withWaiverFile('| Operator identity | Babasola |\n', dir => {
+    const reqs = fullRequirements();
+    reqs[10] = {
+      id: 'GB-11',
+      verdict: 'waived',
+      note: 'not measurable',
+      waiver: { ref: 'waiver.md', signedBy: 'Babasola', signedAt: '2026-10-24T00:00:00.000Z' },
+    };
+    reqs[5] = { id: 'GB-06', verdict: 'partial', note: 'denominator unverified' };
+    const result = validateScoringRecord(record({ requirements: reqs }), { baseDir: dir });
+    assert.equal(result.summary.gateB, 'HOLD');
+  });
 });
