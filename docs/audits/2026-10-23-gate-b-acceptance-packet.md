@@ -6,7 +6,7 @@ model-independent review)
 `7ca6f6899bfd87ea3fadb7fe74c19c654178685a` (working tree clean at assembly)
 **Reconciliation pin:** commit `148dabc7` (the tree this version was checked against)
 **Requirements:** [PRD v1.2, filename `ALiX_PRE_2_0_HARNESS_PRD_v1.1.md`](../ALiX_PRE_2_0_HARNESS_PRD_v1.1.md)
-**Recommended decision: GATE B HOLD — held by a waived attention measure (GB-11) and an unsigned baseline (GB-14). The oracle review is resolved: its defects are fixed and the retained collection re-scores unchanged. Gate E independence absent. Gate F / Q13 HOLD.**
+**Decision recorded: GATE B ACCEPTED WITH WAIVER — a baseline with a waived operator-attention dimension, not a pass and not all requirements met. 12 met, 1 waived, 0 missing. Gate E independence absent; Gate F / Q13 HOLD.**
 
 This packet assembles committed evidence. It is not a pass, not a signature, and not
 an independent qualification. It grants no publication, push, merge, deploy,
@@ -97,10 +97,10 @@ agent at all.
 | GB-08 | p50/p95 latency (PRD §7) | 45 case runs across 9 cases with per-case p50/p95, plus stratum 6 (3 runs at four workers) and stratum 8 (3 runs) | **met** | §7 requires *reporting* p50/p95; the report exists for strata 1–8. **Caveats:** at n=5/n=3 the nearest-rank p95 IS the maximum, so these are slowest-run values rather than tail estimates; stratum 9 is unmeasured and is tracked under GB-05, not here. |
 | GB-09 | Success rates with uncertainty (PRD §6, §7) | Wilson 95% intervals per case and pooled: **36/45 = 0.80 [0.66, 0.89]**; each 5/5 case is [0.57, 1.00], not 100% | **met** | §6 requires reporting uncertainty, and it is now computed from the committed rows. The intervals are the point: a 5/5 case does not establish a 100% rate. No threshold is frozen, per §6 ordering. |
 | GB-10 | Reject mixed/confounded historical ratios | The historical 7/12 at `$0.067149/success` and the later 10/12 at `$0.045688` both include the invalid old deny task. The delegate delta is confounded by `c0def71d` postdating the sweep commit `bebe1909` | supported as an exclusion | Neither ratio may be cited as a baseline rate or an improvement. |
-| GB-11 | Operator attention measured separately (PRD §7, §12.3) | M-2–M-5 derived from committed evidence (`attention-metrics.ts`): interruptions 0, approval touches 0 (the eval harness runs `permissions.default: allow`, so no approval path is exercised). **M-1 not measured — n=0** | **waived** | Operator ruling 2026-10-24: M-1 measures human cognitive time, which no agent can observe; the gap is accepted rather than fabricated. `waived` is not `met`. `operatorActiveReviewMinutes / verifiedSuccesses` is `null`, and no attention claim may be cited. See [waiver](2026-10-24-gb11-waiver.md) and [agent measures](2026-10-24-operator-attention-agent-measures.md). |
+| GB-11 | Operator attention measured separately (PRD §7, §12.3) | M-2–M-5 derived from committed evidence (`attention-metrics.ts`): interruptions 0, approval touches 0 (the eval harness runs `permissions.default: allow`, so no approval path is exercised). **M-1 not measured — n=0** | **waived (signed 2026-10-24)** | Operator ruling: M-1 measures human cognitive time, which no agent can observe; the gap is accepted rather than fabricated. `waived` is not `met`. `operatorActiveReviewMinutes / verifiedSuccesses` is `null`, and no attention claim may be cited. Signature block filled in the [waiver](2026-10-24-gb11-waiver.md) §7; identity provenance recorded there. Converts to `met` only by running Route A (~3 h, `$0`). |
 | GB-12 | Independent scoring (PRD §9, Gate E boundary) | Codex review (gpt-6.1-sol, read-only, commit `ba8b8064`): verbatim output and prompt committed under `docs/audits/evidence/`; operator ruling §6.3 | **met (model-independent, operator-accepted)** | Accepted by operator ruling on 2026-10-24 as evidence under a **weaker** standard than human independence. Must be cited as `model-independent`, never `independent` unqualified. Does not satisfy PRE-R017/PRE-R031 (human observations) and grants no Gate E clearance. |
 | GB-13 | Provenance disposition (PRE-R019) | §8 manifest, per-row pins, and `2026-10-23-harness-baseline-provenance.md` classifying replay classes; four unrecoverable records labelled, not backfilled | **met** | PRE-R019 asks that provenance be preserved and generated views be safe, not that deleted originals be recovered. Absence of original events for four records is a documented replayability limit; reconstructing them would be fabrication. |
-| GB-14 | Operator acceptance of the baseline | No acceptance record exists; `2026-10-23-harness-authorization.md` authorizes the work, not a result | requires reviewer/operator | Signature on an exact artifact set. Blank below (§6). |
+| GB-14 | Operator acceptance of the baseline | Operator signature in §6, recorded 2026-10-24 over the artifact set at commit `d7ee992e`: the 9 collection artifacts (45 runs, 36 verified, `$2.8987` proxy-priced), `stratum9-attempts/`, strata 6/8 coverage and the re-score record | **met — scoped acceptance** | Accepted **as a baseline with a waived operator-attention dimension**; that phrase is required wherever the baseline is cited. The signature explicitly does not make GB-11 `met`, assert an attention figure, or create Gate E independence. This is the only disposition GB-11's waiver permits. |
 
 ---
 
@@ -292,16 +292,17 @@ not recorded here.
 
 ## 6. Decision record
 
-**Reconciled 2026-10-23 (packet v1.1).** Every row below was re-checked against
-commit `148dabc7`. The three signature fields are blank and are the operator's and
-reviewer's to fill; nothing here may be completed on another party's behalf.
+**Reconciled 2026-10-23 (packet v1.1); re-signed 2026-10-24 (v1.2).** Every row below
+was re-checked against commit `148dabc7`; the operator signature below was re-recorded
+against commit `d7ee992e` after GB-01 and GB-06 were resolved. Nothing here may be
+completed on another party's behalf.
 
 | Field | Value |
 |---|---|
-| Gate B disposition | **HOLD** |
-| Basis | **GB-01 met** on a model-independent review whose defects were fixed and re-scored, **GB-06 met** after the re-score returned 0 verdict changes, **GB-11 waived** (M-1 unmeasured), **GB-14 unsigned**. GB-05/07/08/09/12/13 met |
+| Gate B disposition | **ACCEPTED WITH WAIVER** — the baseline is accepted; the *gate* is not passed. 12 met, 1 waived, 0 missing; the scoring validator still reports `HOLD` while GB-11 is not `met` |
+| Basis | **12 met, 1 waived, 0 missing.** GB-01 met on a model-independent review whose defects were fixed and re-scored; GB-06 met after the re-score returned 0 verdict changes; GB-11 **waived** (M-1 unmeasured, signed); GB-14 met **as scoped acceptance** of a baseline with a waived attention dimension. GB-02/03/10 supported in their narrower scopes |
 | Gate A | Historical PASS with named unknowns; no retirement implied |
-| Gate B — what would move it | An independent scorer's record (human or an operator-accepted model reviewer) + observed operator attention + a priced collection carrying the §3 pins and §4 fields |
+| Gate B — what would move it to a pass | A measured M-1 attention figure (~3 h, `$0`, Route A in `2026-10-24-gb11-instructions.md`; converts `waived` → `met`) and human-independent qualification. Nothing else is open |
 | Gate C | **Retain disposition recorded** — [`harness-gate-c-retain-disposition.md`](../harness-gate-c-retain-disposition.md). HC-01/HC-03 retained, none retired, no ablation run. Not a measured efficiency finding. PRE-R007/R008 remain unexecuted comparisons |
 | Gate D | **MP-01 reader parity landed** (`tests/agents/mp-01-reader-parity.vitest.ts`); MP-02 output-interface retirement and MP-03 historical migration remain design-only and need Q04/Q05 owner policy plus explicit P0-H authorization. No projection removed, no data migrated |
 | Gate E | Authorized; **independence still absent**. Author-only testing is a weaker labeled claim. Model-independent review (Codex) analysed but cannot authorize |
@@ -309,9 +310,11 @@ reviewer's to fill; nothing here may be completed on another party's behalf.
 | Reviewer identity | Codex / gpt-6.1-sol |
 | Reviewer date | 2026-10-23 |
 | Reviewer verdict | HOLD. Baseline cannot be signed as-is: scripted mechanics are supported, but independently verified paid outcomes, reproducible run environments, baseline latency, operator attention and operator acceptance remain missing. Arithmetic largely reproduces; qualification does not. Packet also contains false provenance/timing claims and unsupported rerun evidence. No repository files changed; no eval suite, paid calls or provider APIs invoked. |
-| Operator identity | Babasola |
+| Operator identity | Babasola (`boduga@gmail.com`) — repository operator principal |
 | Operator date | 2026-10-24 |
-| Operator decision | **Concur with HOLD.** Reviewed the packet at v1.1 and the Codex review. Gate B is not ready and no baseline is accepted. The instruction accompanying this signature was to finish the remaining tasks so the gates can be opened, not to record an acceptance that the evidence does not support; the work order for that is §7.8. |
+| Operator decision | **Accept the Gate B baseline, scoped.** Signed over the artifact set as of commit `d7ee992e`: `benchmark/evidence/eval-runs/collection-2026-10-24-final/` (9 artifacts, 45 runs, 36 verified, `$2.8987` proxy-priced, `$0.080520` per verified success), `stratum9-attempts/`, the strata 6/8 coverage records, and the re-score record. Accepted **as a baseline with a waived attention dimension**. This supersedes the 2026-10-24 concurrence with HOLD recorded at packet v1.1, which was written before GB-01's oracle defects were fixed and GB-06 was re-scored, and before the GB-11 waiver was signed. |
+| Operator acceptance phrase (required wherever cited) | "Accepted baseline with a waived operator-attention dimension" |
+| What this signature does NOT do | It does not make GB-11 `met`, asserts no attention figure, creates no Gate E independence, clears no Gate F / Q13 dependency, and is not a claim that all Gate B requirements were met. |
 
 ### 6.0 Reviewer-verdict provenance
 

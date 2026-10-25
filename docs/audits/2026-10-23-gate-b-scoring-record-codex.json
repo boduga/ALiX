@@ -72,7 +72,8 @@
     {
       "id": "GB-11",
       "verdict": "partial",
-      "note": "WAIVED, not met. M-2..M-5 are now agent-derived from committed evidence (interruptions 0, approval touches 0 -- the eval harness runs permissions.default=allow so no approval path executes). M-1 (active review minutes per verified success) is n=0 and cannot be produced by an agent: it measures human cognition. Operator ruling 2026-10-24 accepts the gap as a weaker labelled claim. No attention figure may be cited."
+      "note": "WAIVED, not met -- signed 2026-10-24 by the operator (identity provenance in the waiver's section 7). M-2..M-5 are agent-derived from committed evidence (interruptions 0, approval touches 0: the eval harness runs permissions.default allow, so no approval path is exercised). M-1 operator-attention time is unmeasured, n=0, and no agent can observe it. 'waived' is not 'met'; converting it requires Route A (~3 h, $0) in docs/audits/2026-10-24-gb11-instructions.md.",
+      "evidence": "docs/audits/2026-10-24-gb11-waiver.md (signed section 7) + docs/audits/2026-10-24-operator-attention-agent-measures.md + src/operations/evals/attention-metrics.ts + tests/evals/attention-metrics.vitest.ts"
     },
     {
       "id": "GB-12",
@@ -88,9 +89,10 @@
     },
     {
       "id": "GB-14",
-      "verdict": "missing",
-      "note": "Acceptance fields record a concurrence with HOLD and no baseline acceptance. Authorization permits work and explicitly does not accept results; GB-14 requires accepting an exact baseline artifact set, which does not exist while GB-06/08/11 are missing."
+      "verdict": "met",
+      "note": "Operator acceptance recorded 2026-10-24 over the artifact set at commit d7ee992e: 9 collection artifacts (45 runs, 36 verified, $2.8987 proxy-priced, $0.080520 per verified success), stratum9-attempts, strata 6/8 coverage and the re-score record. Accepted AS A BASELINE WITH A WAIVED OPERATOR-ATTENTION DIMENSION -- the only disposition GB-11's waiver permits -- and that phrase is required wherever the baseline is cited. The signature does not make GB-11 met, asserts no attention figure and creates no Gate E independence.",
+      "evidence": "docs/audits/2026-10-23-gate-b-acceptance-packet.md section 6 (operator signature) + docs/audits/2026-10-24-gb11-waiver.md + benchmark/evidence/eval-runs/collection-2026-10-24-final/ + benchmark/evidence/eval-runs/collection-2026-10-24-final/RESCORE.md"
     }
   ],
-  "_correction": "2026-10-24 (later): the GB-01 review's three reproduced defects were fixed and the retained collection was re-scored with no verdict changes, so GB-01 and GB-06 are met. Model-independent only; grants no Gate E clearance."
+  "_correction": "2026-10-24 (final): GB-14 accepted as a baseline with a waived operator-attention dimension; GB-11 stays waived. Gate B is accepted with waiver, not passed: 12 met, 1 waived, 0 missing. Still model-independent, no Gate E clearance, Gate F/Q13 HOLD."
 }
