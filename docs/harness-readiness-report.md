@@ -113,16 +113,18 @@ qualification.
 
 ## Next acceptance packet
 
-The Gate B acceptance packet is assembled:
+The Gate B acceptance packet is assembled and re-signed:
 [`audits/2026-10-23-gate-b-acceptance-packet.md`](audits/2026-10-23-gate-b-acceptance-packet.md).
 Scope: Gate B only (PRD §9 baseline, PRE-R005/R006, §7 measurement contract).
-Source pin: branch `feat/phase0-master-prd`, commit `7ca6f689`, clean tree.
-It assembles committed evidence, records `null` for every unmeasured field, and
-recommends Gate B HOLD with Gate E independence and Gate F/Q13 signature still
-blank. It is not a pass, a signature, or a qualification, and it authorizes no
-collection or spend.
+Assembled at branch `feat/phase0-master-prd`, commit `7ca6f689`; re-signed
+2026-10-24 against `d7ee992e`. As assembled it recommended HOLD with Gate E
+independence and the Gate F/Q13 signature blank. It now records Gate B
+`CLOSED-WITH-WAIVER` (13 met, 1 waived) and Gate F/Q13 **HOLD computed** by
+[`release-clearance-record.mjs`](../benchmark/evidence/release-clearance-record.mjs).
+It is not a pass, a qualification or a release authorization, and it authorizes
+no collection or spend.
 
-Remaining work before a baseline can be signed:
+Remaining work for a full (non-waived) baseline:
 
 1. Complete source/consumer review and historical provenance disposition.
 2. Finish shim trigger/usage/retirement catalog and benchmark isolation protocol.
@@ -134,16 +136,25 @@ Remaining work before a baseline can be signed:
    per-arm negative execution still block model-backed probes.
 4. Collection proposal
    [`audits/2026-10-23-gate-b-collection-proposal.md`](audits/2026-10-23-gate-b-collection-proposal.md)
-   is **approved at proposal scope** (operator Babasola, 2026-10-23, ceiling `$4.50`,
-   model resolved at run time). Its §4 capture extension and §3 frozen-input pins are
-   implemented and tested, and the pricing rate snapshot is recorded (gpt-4o proxy
-   for `hive`, labelled as a proxy). No run has been collected: the blockers are
-   the independent scorer ([engagement packet](audits/2026-10-23-gate-b-scorer-engagement.md))
-   and second-party review of the pins, not the code. Independent scoring (§7) is
-   still required; the record template and validator exist but no record is filled
-   in. Four probe calls were made while wiring capture (notional ~$0.68 at the
-   proxy rate; the actual `hive` bill is unknown).
-5. Obtain baseline signature and independent security review on exact artifacts.
+   was approved at proposal scope (operator Babasola, 2026-10-23). **Three
+   collections have since been run against it** — see the
+   [results](audits/2026-10-24-gate-b-collection-results.md), the
+   [denominator status](audits/2026-10-24-gate-b-denominator-status.md) and the
+   retained `collection-2026-10-24-final/` artifact set (45 runs, 36 verified,
+   `$2.8987` proxy-priced, `$0.080520` per verified success). The ceilings were
+   amended `$4.50` → `$6.75` → `$9.50` → `$15.00`; measured spend is a proxy
+   lower bound and the vendor bill stays unknown. **Do not run a fourth
+   collection** — the remaining `$1.66` of headroom is not authorization, and the
+   contract/oracle defects found by review were fixed and re-scored at zero spend
+   instead.
+5. **Baseline signature obtained; independent security review still absent.**
+   Gate B is `CLOSED-WITH-WAIVER` with the operator signature recorded
+   2026-10-24. What remains is not a signature: Gate E independence, the M-1
+   attention measurement, and the two Gate F/Q13 authorities (independent
+   security clearance, maintainer decision), which are computed to `HOLD` by
+   [`release-clearance-record.mjs`](../benchmark/evidence/release-clearance-record.mjs).
 
-Full PRD completion remains open. Audit closure with HOLD requires an explicit
-operator disposition; it cannot silently waive the unmet gates.
+Full PRD completion remains open. Gate B closed at a labelled weaker standard;
+Gate E independence and Gate F/Q13 remain unmet, and the latter is computed to
+`HOLD` rather than described as pending. Nothing here may be silently waived —
+Gate F has no waiver path at all.

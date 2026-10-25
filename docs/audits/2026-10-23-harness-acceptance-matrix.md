@@ -106,7 +106,7 @@ unmet**, not passed.
 | C | **Authorized (P0-E); no paired run exists** | Design both arms with HC-01 mandatory coordination routing preserved, run them, then accept or retain. §9 permits an explicit retain disposition without an ablation. |
 | D | **Authorized; implementation not started** | Implement MP-01…MP-03, produce reader/writer parity evidence, obtain Q04/Q05 owner approval. Design-only today. |
 | E | **Authorized; independence still absent** | Run the security qualification. An operator waiving independence records acceptance of author-only testing — a weaker claim that must be labeled as such, not reported as independent clearance. |
-| F | **Authorized to assemble; signature outstanding** | Build the technical packet, then obtain independent clearance and the maintainer decision (Q13). The signature cannot be supplied by this agent or by an authorization. |
+| F | **HOLD — computed, three recorded facts** | [`release-clearance-record.mjs`](../../benchmark/evidence/release-clearance-record.mjs) refuses the current artifact: technical `partial`, no independent security clearance, no maintainer decision ([enumeration](2026-10-24-gate-f-q13-enumeration.md)). The five Q13 negatives and the artifact-binding rules are machine-checked; the two authorities are not obtainable by an agent, and Gate F has **no waiver path** — waiving Q13 deletes the requirement rather than substituting a measurement. |
 
 ## Executable next work
 
