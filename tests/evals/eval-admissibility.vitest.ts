@@ -36,10 +36,10 @@ describe("classifyInadmissible — parity", () => {
       ["Internal Server Error", "provider-server"],
       ["Service Unavailable", "provider-server"],
       ["request timed out after 300s", "timeout"],
-      ["AbortError: aborted", "timeout"],
+      ["request aborted by provider timeout", "timeout"],
       ["ETIMEDOUT", "timeout"],
       ["ECONNREFUSED 127.0.0.1:11434", "transport"],
-      ["fetch failed", "transport"],
+      ["provider request failed: ECONNREFUSED", "transport"],
       ["socket hang up", "transport"],
       ["getaddrinfo ENOTFOUND api.example.com", "transport"],
     ])("%s → %s", (message, reason) => {

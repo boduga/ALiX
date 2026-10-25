@@ -1,10 +1,43 @@
-# GB-01 — independent oracle review result: NOT FIT
+# GB-01 — independent oracle review: NOT FIT as reviewed, fixed and re-scored
 
 **Date:** 2026-10-24
 **Reviewer:** Codex CLI `0.164.0` / `gpt-6.1-sol`, read-only sandbox
 **Evidence:** `docs/audits/evidence/2026-10-24-codex-gb01-oracle-review.txt`
 (SHA-256 `c3b312d1ed2258d5…`), prompt `…-prompt.md` (`de39b80670cfcc51…`)
-**Verdict: `NO`. The oracle is not fit to independently verify baseline outcomes.**
+**Review verdict: `NO`. The oracle was not fit to independently verify baseline outcomes.**
+
+## 0. Resolution (added after the review)
+
+The review was acted on rather than filed. Sections 1–7 below are the review record
+as it stood; this section is what happened to it.
+
+| Review finding | Status | Where |
+|---|---|---|
+| 1. A negated answer passes | **fixed** — `answerAsserts` replaces the substring test; a value found in a negated or corrective clause fails, a type-clarifying `not` ("a string, not a number") still passes | `src/operations/evals/evaluators/objective-evaluator.ts` |
+| 2. Ordinary task failures classified as provider faults | **fixed** — status-position anchoring for HTTP codes, unmistakable transport prose, and a mixed-signal rule that keeps a task failure scoreable | `src/operations/evals/eval-admissibility.ts` |
+| 3. Broken code passes a `patch`/`replacement` objective | **fixed** — exact final content, and `changed` is derived rather than hardcoded | same evaluator |
+| 4. `verification-repair` args bind no target | **open, recorded** — see §8 | — |
+| 5. `malformed-tool-call` is not malformed; stratum-9 accepts `results: []` | **open, recorded** — see §8 | — |
+
+**Re-score (no spend).** `benchmark/evidence/rescore-collection.mjs` re-derives the
+retained collection against the corrected oracle:
+35 of 45 rows re-derivable end to end, **0 verdicts changed**; 40 exact-content
+objectives checked by digest, **0 mismatches**; 15 answer assertions, **0 mismatches**;
+5 retained error strings re-classified, **0 flips**. Full record:
+`benchmark/evidence/eval-runs/collection-2026-10-24-final/RESCORE.md`.
+
+**Two of the three defects were latent in this collection**, and that is stated rather
+than dropped: no eval case uses `kind: "patch"`/`"replacement"`, and both the old and the
+new classifier return `admissible` for all five retained error strings. The defect that
+was exercised — answer assertions, 15 checks across 10 runs — survives the stricter check
+intact. "The fix changed nothing" and "the fix could not have changed anything" are
+different claims; only the second is true for defects 2 and 3.
+
+**Consequence:** GB-01 is `met` on a model-independent review plus reproduced, fixed
+defects and a parity table wider than the implementation
+(`tests/evals/oracle-parity.vitest.ts`, 26 cases including the must-stay-accepted rows);
+GB-06 is `met` again because the corrected oracle re-derives its denominator unchanged.
+Model-independent is still weaker than human independence and grants no Gate E clearance.
 
 ## 1. GB-01 stays `partial` — and the reason is now stronger than before
 
@@ -115,3 +148,27 @@ that can be faked.
 Fixing items 1–3 is code work, no spend. Re-scoring the retained collection against a
 fixed oracle is also no spend, because the evidence is retained. That is the path back
 to a defensible GB-06.
+
+## 8. Items 4–5: open case-design debt, recorded not waived
+
+These are **not fixed**, and they are not claimed as fixed. Neither one creates a false
+pass inside the 45-run collection, and that is the reason they do not hold GB-01/GB-06:
+
+- **`verification-repair` binds no patch target** (`args: {}`). The case's objective is
+  an exact-content check on `src/config.ts` plus a post-mutation verification guard, so a
+  run still has to produce that exact file state and a successful verification. What is
+  unbound is the *task prompt's* concrete edit, which makes the case harder to satisfy
+  for the right reason than it should be — it does not make it easier to fake. Measured
+  result: **0/5**, a real failure, not a false pass.
+- **`malformed-tool-call` is not in this collection.** The case is absent from all nine
+  artifacts, so its defect cannot inflate the denominator. It must be corrected before
+  the case is ever collected.
+- **Stratum 9's classifier accepts `results: []`.** Stratum 9 is GB-05 coverage
+  (`benchmark/evidence/eval-runs/stratum9-attempts/`), not part of the GB-06
+  denominator. It is recorded there as a 0/3 measured failure, so accepting an empty
+  result list does not manufacture a success.
+
+Both remaining items are therefore **case-design debt against future collections**, not
+measurement evidence for this one. They stay visible here rather than being closed by a
+verdict change.
+

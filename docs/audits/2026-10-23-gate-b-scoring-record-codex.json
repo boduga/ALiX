@@ -11,8 +11,9 @@
   "requirements": [
     {
       "id": "GB-01",
-      "verdict": "partial",
-      "note": "Independent oracle review performed 2026-10-24 and REJECTED the oracle. Three defects reproduced by direct probe: (1) a negated answer passes read-only/navigation -- 'x is NOT kestrel-9; x is raven-2' lands true because answerIncludes is a substring test; (2) ordinary task failures are classified inadmissible -- 'Non-retryable write failures: forbidden.md' becomes provider-auth, 'expected 500, received 3000' becomes provider-server; (3) a comment containing the fix passes patch/replacement, with changed hardcoded true. The oracle admits false passes, so it cannot independently verify outcomes. See docs/audits/2026-10-24-gb01-oracle-review.md."
+      "verdict": "met",
+      "note": "Independent oracle review performed 2026-10-24 (Codex / gpt-6.1-sol, read-only). It REJECTED the oracle and three defects were reproduced by direct probe against the built evaluator: negated answers passed, ordinary task failures were classified inadmissible, and a comment containing the fix passed patch/replacement objectives. All three were then fixed -- answerAsserts replaces the substring test, admissibility is provenance-anchored, and patch/replacement require exact final content with a derived (not hardcoded) 'changed'. Parity table: tests/evals/oracle-parity.vitest.ts. Caveats: model-independent only, the oracle remains first-party code, and two case-design items (verification-repair unbound args; malformed-tool-call not malformed) stay open as recorded debt. See docs/audits/2026-10-24-gb01-oracle-review.md sections 0 and 8.",
+      "evidence": "docs/audits/2026-10-24-gb01-oracle-review.md (sections 0 and 8) + docs/audits/evidence/2026-10-24-codex-gb01-oracle-review.txt (SHA-256 c3b312d1ed2258d5...); fixed in src/operations/evals/evaluators/objective-evaluator.ts and src/operations/evals/eval-admissibility.ts; parity table tests/evals/oracle-parity.vitest.ts"
     },
     {
       "id": "GB-02",
@@ -40,8 +41,9 @@
     },
     {
       "id": "GB-06",
-      "verdict": "partial",
-      "note": "REOPENED. The 36/45 denominator and $0.080520 per-success figure rest on the oracle that GB-01's review found admits false passes. The number must not be cited as independently verified until the retained collection is re-scored against a corrected oracle. No new spend is needed: the evidence is retained."
+      "verdict": "met",
+      "note": "Re-scored against the corrected oracle with no new spend: benchmark/evidence/rescore-collection.mjs re-derives 35 of 45 retained rows end to end with 0 verdict changes; 40 exact-content objectives verified by sha256 digest against the retained after-run manifest with 0 mismatches; 15 answer assertions with 0 mismatches; 5 retained error strings re-classified with 0 flips. Denominator 36/45 and $0.080520 per verified success stand. Caveats: 10 rows are contentIncludes/existence objectives that digest-only evidence cannot re-derive (declared, never counted as confirmed), and all pricing is a proxy rate, not a reconciled invoice.",
+      "evidence": "benchmark/evidence/rescore-collection.mjs + benchmark/evidence/eval-runs/collection-2026-10-24-final/RESCORE.md: 35/45 rows re-derived, 0 verdict changes; 40 exact-content objectives by sha256 digest, 0 mismatches; 15 answer assertions, 0 mismatches; 5 error strings re-classified, 0 flips. Artifacts: benchmark/evidence/eval-runs/collection-2026-10-24-final/*.json"
     },
     {
       "id": "GB-07",
@@ -90,5 +92,5 @@
       "note": "Acceptance fields record a concurrence with HOLD and no baseline acceptance. Authorization permits work and explicitly does not accept results; GB-14 requires accepting an exact baseline artifact set, which does not exist while GB-06/08/11 are missing."
     }
   ],
-  "_correction": "2026-10-24: GB-01 review rejected the oracle; GB-06 reopened as a consequence. Earlier 'met' verdicts for GB-06 assumed a sound oracle."
+  "_correction": "2026-10-24 (later): the GB-01 review's three reproduced defects were fixed and the retained collection was re-scored with no verdict changes, so GB-01 and GB-06 are met. Model-independent only; grants no Gate E clearance."
 }
