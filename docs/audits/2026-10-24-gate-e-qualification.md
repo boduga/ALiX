@@ -281,3 +281,76 @@ claimed as fixed.
   blanket-allow ownership regression would fail if their controls were removed.
 - Not that remediating the six items closes the gate: each needs its own
   mutation-checked evidence, and F8b release clearance remains a separate track.
+
+## 10. Remediation — D1 and D2 fixed
+
+Both authority holes are repaired, each with a test that fails when the control
+is removed. Gate E stays `HOLD`; the clause count has not moved.
+
+### 10.1 D2 — shell writes escaped declared ownership
+
+`OWNED_WRITE_TOOLS` listed only `file.create`, `file.delete` and `patch.apply`, so
+`hasOwnedWriteScope` was false for a shell command and the owned-path rule never
+ran. The capability's blanket `allow` then short-circuited. A worker owning
+`inside.txt` was permitted `printf x > outside.txt`.
+
+Fix: a new hard-deny rule at policy step **1.5**, before the permissive branches:
+
+```
+if (isUnscopableMutationWithinScope({ capability, ownedPaths })) -> deny
+  matchedRuleId: "unscopable-mutation-rule"
+```
+
+Placed with the other denies rather than later, because a rule reachable only
+after a permissive branch is not a rule. The set is `shell.run`, `mcp.invoke`,
+`dynamictool.invoke` — channels whose targets `mutationTargets()` cannot
+enumerate. Deny is the only safe answer: the gate cannot prove the command stays
+inside the declared paths.
+
+Scope of the narrowing: **scoped workers only.** Unscoped workers are unaffected,
+and in-scope file writes still take the `owned-path-rule` allow. Both are asserted,
+so the fix narrows rather than removes.
+
+### 10.2 D1 — safe-shell bypass was a deny bypass
+
+The ask-mode bypass existed to skip the *approval* gate for read-only commands. It
+returned before authorization entirely, so a command in `denyCommands` executed as
+long as `isSafeShellCommand` accepted it. `ls` is both safe and deniable — the
+exact overlap.
+
+Fix: the bypass now asks for a **mandatory deny** first and returns an error
+result when one applies.
+
+One subtlety worth recording: the first version of this probe treated *any* `deny`
+as mandatory, including `approval-store-missing`, which broke a legitimate safe
+command in an executor without a store. That is an absent dependency, not a verdict
+on the command, so it is excluded. The probe now answers only genuine policy
+denies — it can refuse, never widen.
+
+### 10.3 Mutation evidence
+
+A passing test proves nothing here; the Gate E review established that. Each fix
+was verified by disabling it:
+
+| Fix | Control disabled | Result |
+|---|---|---|
+| D2 | `if (false && isUnscopableMutationInScope(...))` | **2 tests fail** |
+| D1 | `const mandatoryDeny = null` | **1 test fails** |
+
+Both restored, suites green: `policy-gate` 43/43, `executor` 12/12, and 622 node +
+140 vitest across security/ownership/policy/tools.
+
+### 10.4 What is still open
+
+D11 is next and is the reason **authority** stays `NOT QUALIFIED`: `rule-evaluator`
+returns the *first* matching rule, so an `allow` listed before a `deny` still wins.
+That is a precedence bug rather than a bypass of the gate, but a deny-wins claim
+that depends on file order is not deny-wins.
+
+Also open: D3 (approval CAS race), D4 (coordination replay mints replacements),
+D5 (lost receipts on preconsumed approvals), D6/D7 (F8b is an object boundary, not
+a process boundary), D8 (corrupt authority files fall open), and the vacuous tests
+the review named.
+
+Gate E remains `HOLD` at **0 of 5 clauses qualified**. Two holes closed; the gate is
+not closed.

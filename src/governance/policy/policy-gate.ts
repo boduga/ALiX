@@ -94,6 +94,41 @@ export function resolvePolicyPath(cwd: string, path: string): string {
 const OWNED_WRITE_TOOLS = new Set(["file.create", "file.delete", "patch.apply"]);
 
 /**
+ * Capabilities that can mutate the workspace through a channel whose targets
+ * `mutationTargets()` cannot enumerate — a shell command, a dynamic tool.
+ *
+ * These are the reason `hasOwnedWriteScope` is not enough on its own. A worker
+ * declared to own exactly one file could previously run
+ * `printf x > outside.txt` and be allowed, because `shell.run` is not in
+ * `OWNED_WRITE_TOOLS`: the owned-path rule (step 5.5) never ran for it, and the
+ * capability's blanket `allow` short-circuited at step 5. Independent Gate E
+ * review defect D2.
+ *
+ * The rule is deliberately blunt: if a scope was declared, an unscopable
+ * mutation channel is denied. Denying is the only safe answer, because the
+ * gate has no way to prove the command stays inside the declared paths.
+ */
+const UNSCOPABLE_MUTATION_CAPABILITIES = new Set([
+  "shell.run",
+  "mcp.invoke",
+  "dynamictool.invoke",
+]);
+
+/**
+ * True when this request declares an owned scope AND can mutate through a
+ * channel the owned-path rule cannot evaluate.
+ */
+function isUnscopableMutationWithinScope(request: {
+  capability: string;
+  ownedPaths?: string[];
+}): boolean {
+  return (
+    Boolean(request.ownedPaths?.length) &&
+    UNSCOPABLE_MUTATION_CAPABILITIES.has(request.capability)
+  );
+}
+
+/**
  * True when the request declares an owned scope for a write tool — the case
  * where the owned-path rule (step 5.5) is the authority for the write.
  */
@@ -242,6 +277,30 @@ export class PolicyGate {
           policyRevision,
         };
       }
+    }
+
+    // 1.5 Owned-scope channel check (Gate E defect D2).
+    //
+    // A declared scope is only meaningful if every mutation channel can be
+    // evaluated against it. `mutationTargets()` reads a path or patch text, so
+    // it cannot enumerate what a shell command writes. Before this check a
+    // worker owning `inside.txt` was allowed `printf x > outside.txt`: the
+    // owned-path rule never ran (shell.run is not an OWNED_WRITE_TOOL) and the
+    // capability's blanket allow short-circuited at step 5.
+    //
+    // This sits with the hard denies rather than later, because a rule that can
+    // be reached only after a permissive branch is not a rule.
+    if (isUnscopableMutationWithinScope({ capability, ownedPaths: request.ownedPaths })) {
+      return {
+        requestId: request.requestId,
+        capability,
+        decision: "deny",
+        reason:
+          `Capability '${capability}' cannot be constrained to owned paths ` +
+          `(${request.ownedPaths!.length} declared); denied for scoped workers`,
+        matchedRuleId: "unscopable-mutation-rule",
+        policyRevision,
+      };
     }
 
     // 2. Check deny commands

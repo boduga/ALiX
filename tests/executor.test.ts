@@ -185,3 +185,63 @@ test("executor denies an out-of-scope owned write under a bypass session mode", 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// ── D1: the safe-shell bypass must still honour a mandatory deny ──────
+//
+// Independent Gate E review defect D1. The bypass existed to skip the APPROVAL
+// gate for read-only commands, but it returned before authorization entirely, so
+// a command named in `denyCommands` still executed as long as isSafeShellCommand
+// said yes. `ls` is both safe and deniable, which is the exact overlap.
+//
+// This test fails if the mandatory-deny check is removed: the command then runs
+// and the result is a success rather than a denial.
+test("D1: a denyCommands entry still denies through the safe-shell bypass", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-d1-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    // `ls` is a SAFE_SHELL_COMMANDS entry AND explicitly denied: the two sets
+    // overlap, which is what made the bypass a deny bypass.
+    const config: AlixConfig = {
+      ...DEFAULT_CONFIG,
+      permissions: {
+        ...DEFAULT_CONFIG.permissions,
+        sessionMode: "ask" as const,
+        denyCommands: ["ls"],
+      },
+    };
+    const executor = new ToolExecutor(config, log, dir);
+    const result = await executor.execute({
+      toolCallId: "d1-deny",
+      name: "shell.run",
+      args: { command: "ls", cwd: dir, timeoutMs: 5000 },
+      ...TEST_CORRELATION,
+    });
+    assert.notEqual(result.kind, "success", "a denied command must not succeed");
+    assert.equal(result.kind, "error");
+    assert.match(String((result as { error?: string }).error ?? ""), /denied by policy/i);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("D1: a non-denied safe command still bypasses approvals", async () => {
+  // The narrowing must not turn the bypass off. `echo` is safe and not denied,
+  // so it must still execute without an approval prompt in ask mode.
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-d1-ok-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir);
+    const result = await executor.execute({
+      toolCallId: "d1-allow",
+      name: "shell.run",
+      args: { command: "echo d1-ok", cwd: dir, timeoutMs: 5000 },
+      ...TEST_CORRELATION,
+    });
+    assert.equal(result.kind, "success", JSON.stringify(result));
+    assert.match(String((result as { output?: string }).output ?? ""), /d1-ok/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

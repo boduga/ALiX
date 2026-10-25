@@ -630,3 +630,84 @@ describe("PolicyGate", () => {
     }
   });
 });
+
+  // ── D2: an owned scope must constrain EVERY mutation channel ──────
+  //
+  // Independent Gate E review defect D2. `mutationTargets()` reads a path or
+  // patch text; it cannot enumerate what a shell command writes. A worker
+  // declared to own `inside.txt` was therefore allowed `printf x > outside.txt`:
+  // the owned-path rule never ran for shell.run, and the capability's blanket
+  // allow short-circuited first.
+  //
+  // These tests fail if the unscopable-mutation rule is removed. That is the
+  // point — the previous evidence for this control could not fail.
+  it("D2: a scoped worker cannot mutate through shell even when shell is allow-listed", async () => {
+    const config = makeConfig({ permissions: { tools: { "shell.run": "allow" } } as any });
+    for (const mode of ["ask", "auto", "bypass"] as const) {
+      const gate = new PolicyGate(config);
+      const redirect = await gate.evaluateToolCall({
+        requestId: `d2-redirect-${mode}`,
+        toolName: "shell.run",
+        args: { command: "printf x > outside.txt" },
+        cwd: "/ws",
+        sessionMode: mode,
+        source: "tool",
+        ownedPaths: ["inside.txt"],
+      });
+      assert.equal(redirect.decision, "deny", `session mode ${mode}`);
+      assert.equal(redirect.matchedRuleId, "unscopable-mutation-rule");
+      assert.match(redirect.reason, /cannot be constrained to owned paths/);
+    }
+  });
+
+  it("D2: the unscopable-mutation deny cannot be reached only after a permissive branch", async () => {
+    // Default policy "allow" plus an allow-listed capability is the most
+    // permissive composition available. The deny must still win, because a rule
+    // reachable only after a permissive branch is not a rule.
+    const config = makeConfig({
+      permissions: { default: "allow", tools: { "shell.run": "allow" } } as any,
+    });
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "d2-permissive",
+      toolName: "shell.run",
+      args: { command: "echo hi" },
+      cwd: "/ws",
+      sessionMode: "bypass",
+      source: "tool",
+      ownedPaths: ["a.ts"],
+    });
+    assert.equal(decision.decision, "deny");
+    assert.equal(decision.matchedRuleId, "unscopable-mutation-rule");
+  });
+
+  it("D2: an UNSCOPED worker is unaffected — the rule narrows, never widens", async () => {
+    const config = makeConfig({ permissions: { tools: { "shell.run": "allow" } } as any });
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "d2-unscoped",
+      toolName: "shell.run",
+      args: { command: "echo hi" },
+      cwd: "/ws",
+      sessionMode: "auto",
+      source: "tool",
+    });
+    assert.equal(decision.decision, "allow");
+  });
+
+  it("D2: scoped file writes inside the scope still work", async () => {
+    // The narrowing must not break the path it was built for.
+    const config = makeConfig({ permissions: { tools: { "file.write": "allow" } } as any });
+    const gate = new PolicyGate(config);
+    const inside = await gate.evaluateToolCall({
+      requestId: "d2-regression-inside",
+      toolName: "file.create",
+      args: { path: "src/ok.ts" },
+      cwd: "/ws",
+      sessionMode: "auto",
+      source: "tool",
+      ownedPaths: ["src"],
+    });
+    assert.equal(inside.decision, "allow");
+    assert.equal(inside.matchedRuleId, "owned-path-rule");
+  });

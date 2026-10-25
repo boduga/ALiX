@@ -238,6 +238,39 @@ export class ToolExecutor {
     return this.policyGateInstance;
   }
 
+  /**
+   * Evaluate only the MANDATORY denies for a shell command, without creating an
+   * approval.
+   *
+   * The safe-shell bypass needs to know "is this denied outright?" before it can
+   * skip authorization, and it must not run the full authorization path (that
+   * would mint approvals from a path that is supposed to skip them).
+   *
+   * Returns the deny reason, or `null` when the command may proceed to the
+   * normal path. Only POLICY denies are answered: `ask`, `allow`, and the
+   * `approval-store-missing` outcome all return `null`, because that last one is
+   * an absent dependency rather than a decision about the command — treating it
+   * as a deny would turn "this executor has no store" into "this command is
+   * forbidden", and the bypass must not widen its meaning. This can therefore
+   * never widen authority; it only refuses.
+   */
+  private async mandatoryShellDeny(command: string): Promise<string | null> {
+    const gate = await this.policyGate();
+    const decision = await gate.evaluateToolCall({
+      requestId: `safe-shell-probe-${Date.now()}`,
+      toolName: "shell.run",
+      capability: "shell.run",
+      args: { command },
+      cwd: process.cwd(),
+      sessionMode: "ask",
+      source: "tool",
+    });
+    if (decision.decision !== "deny") return null;
+    // A missing approval store is not a verdict on the command.
+    if (decision.matchedRuleId === "approval-store-missing") return null;
+    return decision.reason;
+  }
+
   private sessionId(): string {
     // Extract sessionId from EventLog sessionDir: .alix/sessions/<sessionId>
     const parts = this.log.sessionDir.split("sessions/");
@@ -510,11 +543,37 @@ export class ToolExecutor {
       return resumed;
     }
 
-    // Safe shell bypass for ask mode: read-only commands skip policy gate
+    // Safe shell bypass for ask mode: read-only commands skip the approval gate.
+    //
+    // "Skip the approval gate" must NOT mean "skip policy". Mandatory denies are
+    // still evaluated first: a deny is an absolute, and consulting it only after
+    // a permissive branch makes the deny advisory. Before this check, a command
+    // in `denyCommands` (or blocked/evaded) still executed here, because the
+    // bypass returned before authorization. Independent Gate E review defect D1.
+    //
+    // This deliberately does not create approvals — `evaluateToolCall` would, and
+    // an `ask` verdict here must fall through to the real authorization path so
+    // the approval lifecycle stays in one place.
     const mode = this.config.permissions.sessionMode ?? "ask";
     if (mode === "ask" && name === "shell.run") {
       const command = typeof args?.command === "string" ? args.command : "";
       if (command && isSafeShellCommand(command)) {
+        const mandatoryDeny = await this.mandatoryShellDeny(command);
+        if (mandatoryDeny) {
+          await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
+            toolCallId,
+            toolName: name,
+            argumentHash,
+            executionId: correlation.executionId,
+            invocationId: correlation.invocationId,
+            ...agentPayload,
+            ...(request.replayId ? { replayId: request.replayId } : {}),
+          });
+          return {
+            kind: "error",
+            error: `Command denied by policy: ${mandatoryDeny}`,
+          } as unknown as Awaited<ReturnType<typeof this.toolAwareRouter.downstream.execute>>;
+        }
         // Skip the approval gate for a whitelisted read-only command, but do
         // not execute it here: the downstream ShellToolRouter owns workspace
         // path validation and command-failure classification.

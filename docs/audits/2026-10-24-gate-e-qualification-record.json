@@ -63,7 +63,7 @@
       ],
       "negativeCase": "Deny stays deny across auto/bypass/ask; an allow is never invented; a consumed approval cannot be re-consumed; deny-wins when an allow and a deny both match.",
       "observed": "unqualified",
-      "note": "DOWNGRADED to unqualified by independent review (D1, D11). A hard deny IS bypassed: executor.ts:513 dispatches safe-shell commands before authorization in ask mode, and rule-evaluator returns the FIRST matching rule so an allow preceding a deny wins. The review executed a probe reaching a mock router with zero policy-gate calls."
+      "note": "PARTIALLY REMEDIATED, still NOT QUALIFIED. D1 is fixed: the ask-mode safe-shell bypass is no longer a deny bypass, mutation-checked by tests/executor.test.ts. D11 is OPEN: rule-evaluator returns the FIRST matching rule, so an allow listed before a deny still wins. The clause cannot qualify while precedence defeats a deny."
     },
     {
       "clause": "crash/recovery",
@@ -90,7 +90,7 @@
       ],
       "negativeCase": "The owned-path rule decides every declared-scope write; a broader capability permission never widens the grant; file.create applies the router backstop to new files as well as overwrites. The bf29449b regression — gate returned the allow before the owned-path rule — is pinned by an explicit allow-listed-capability x session-mode table.",
       "observed": "unqualified",
-      "note": "DOWNGRADED to unqualified by independent review (D2). OWNED_WRITE_TOOLS covers only file.create/file.delete/patch.apply, so shell.run can never trigger owned-path enforcement; a probe with ownedPaths [\"inside.txt\"] and a shell redirect returned allow. The file-tool fix and its regression test are real and pinned."
+      "note": "PARTIALLY REMEDIATED, still NOT QUALIFIED. D2 is fixed: a declared owned scope now denies unscopable mutation channels (shell, dynamic tools) via the `unscopable-mutation-rule` hard deny, mutation-checked by 4 tests in tests/policy/policy-gate.test.ts. Router backstop coverage for new files is still outside the cited evidence set, so the clause stays unqualified until that is added."
     },
     {
       "clause": "denied-action negatives",
@@ -164,5 +164,34 @@
       "gap": "D4-04 delegate transport flake bounded, not fixed",
       "why": "42 consecutive passes, zero reproduction; a delegate case may not be the sole evidence for a baseline"
     }
-  ]
+  ],
+  "remediation": {
+    "startedAt": "2026-10-25T00:00:00.000Z",
+    "fixed": [
+      {
+        "id": "D2",
+        "what": "A declared owned scope now denies every mutation channel that cannot be enumerated against it (shell, dynamic tools). New hard-deny rule `unscopable-mutation-rule` at policy-gate step 1.5, placed with the denies so a permissive branch cannot precede it.",
+        "test": "tests/policy/policy-gate.test.ts — 4 tests, mutation-checked (disabling the rule fails 2 of them)",
+        "regressionRisk": "LOW: narrows scoped workers only; unscoped workers and in-scope file writes unaffected and covered by tests"
+      },
+      {
+        "id": "D1",
+        "what": "The ask-mode safe-shell bypass consulted only `isSafeShellCommand`, so a command in `denyCommands` executed. It now evaluates mandatory policy denies first and returns an error result. `approval-store-missing` is deliberately NOT treated as a deny: it is an absent dependency, not a verdict on the command.",
+        "test": "tests/executor.test.ts — 2 tests, mutation-checked (disabling the check fails the deny test)",
+        "regressionRisk": "LOW: only refuses; never widens. A non-denied safe command still bypasses approvals, asserted."
+      }
+    ],
+    "notFixed": [
+      "D3",
+      "D4",
+      "D5",
+      "D6",
+      "D7",
+      "D8",
+      "D9 (validator — fixed)",
+      "D10 (validator — fixed)",
+      "D11"
+    ],
+    "note": "D9 and D10 were fixed in the validator immediately when found. D1 and D2 are the two authority holes. D11 (deny-wins in rule-evaluator) remains open and is the next item: it is a precedence bug, not a bypass of the gate."
+  }
 }
