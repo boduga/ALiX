@@ -1,0 +1,142 @@
+{
+  "recordVersion": 1,
+  "pathBase": "repo-root",
+  "purpose": "Gate E execution/security qualification record for the pre-2.0 artifact. Every row names the executable test that asserts it and the negative case that would catch its removal. This record QUALIFIES author-side coverage; it does NOT discharge the independence requirement, which no author can supply.",
+  "artifact": {
+    "commit": "ea863a25b5dd0e014d275bc1c4b979b7b7d5afee",
+    "branch": "feat/phase0-master-prd"
+  },
+  "observedAt": "2026-10-24T22:17:00.000Z",
+  "runs": [
+    {
+      "runner": "node --test",
+      "files": [
+        "tests/security/legacy-approval-single-use.test.ts",
+        "tests/security/approval-crash-recovery.test.ts",
+        "tests/security/approval-consumed-propagation.test.ts",
+        "tests/ownership/path-scope.test.ts",
+        "tests/ownership/ownership-gate.test.ts",
+        "tests/ownership/ownership-registry.test.ts",
+        "tests/policy/policy-gate.test.ts",
+        "tests/policy/rule-evaluator.test.ts",
+        "tests/policy/command-classifier.test.ts"
+      ],
+      "tests": 214,
+      "passed": 214,
+      "failed": 0
+    },
+    {
+      "runner": "vitest run",
+      "files": [
+        "tests/security/worker-approval-port.vitest.ts",
+        "tests/security/policy-protected-path-parity.vitest.ts",
+        "tests/security/pre-r032-non-bypass.vitest.ts",
+        "tests/security/pre-r024-isolation-qualification.vitest.ts",
+        "tests/security/approval-event-dedup.vitest.ts"
+      ],
+      "tests": 68,
+      "passed": 68,
+      "failed": 0
+    }
+  ],
+  "components": [
+    {
+      "clause": "F8b",
+      "id": "GE-01",
+      "question": "Is the child-process approval surface incapable of self-approval?",
+      "evidence": [
+        "tests/security/worker-approval-port.vitest.ts",
+        "docs/harness-invariant-register.md"
+      ],
+      "negativeCase": "WorkerApprovalPort throws at construction if a resolve/revoke/invalidate/mutate method appears; recordExecutionOutcome is scoped to the bound workerId.",
+      "observed": "qualified",
+      "note": "Author-side. F8b independence remains a separate release gate (P0-G, separate security track)."
+    },
+    {
+      "clause": "authority",
+      "id": "GE-02",
+      "question": "Does a hard policy deny survive every session mode?",
+      "evidence": [
+        "tests/security/pre-r032-non-bypass.vitest.ts",
+        "tests/policy/policy-gate.test.ts",
+        "tests/policy/rule-evaluator.test.ts"
+      ],
+      "negativeCase": "Deny stays deny across auto/bypass/ask; an allow is never invented; a consumed approval cannot be re-consumed; deny-wins when an allow and a deny both match.",
+      "observed": "qualified",
+      "note": "Structural demonstration. There is no progressive-supervision feature to test, so this is non-bypass of the existing authority, not of a future one."
+    },
+    {
+      "clause": "crash/recovery",
+      "id": "GE-03",
+      "question": "Does an approval claimed and then crashed stay consumed rather than silently reusable?",
+      "evidence": [
+        "tests/security/approval-crash-recovery.test.ts",
+        "tests/security/legacy-approval-single-use.test.ts",
+        "tests/security/approval-consumed-propagation.test.ts"
+      ],
+      "negativeCase": "A pending claim observed on replay is classified unverified and denied without reissuing authority; a legacy approval with no fingerprint fails closed and is re-asked; silence is never success.",
+      "observed": "qualified",
+      "note": "Covers the crash window between claim and execution, which is the one state where double execution would otherwise be possible."
+    },
+    {
+      "clause": "ownership",
+      "id": "GE-04",
+      "question": "Can a worker write outside its declared owned paths?",
+      "evidence": [
+        "tests/ownership/path-scope.test.ts",
+        "tests/ownership/ownership-gate.test.ts",
+        "tests/ownership/ownership-registry.test.ts",
+        "tests/security/policy-protected-path-parity.vitest.ts"
+      ],
+      "negativeCase": "The owned-path rule decides every declared-scope write; a broader capability permission never widens the grant; file.create applies the router backstop to new files as well as overwrites. The bf29449b regression — gate returned the allow before the owned-path rule — is pinned by an explicit allow-listed-capability x session-mode table.",
+      "observed": "qualified",
+      "note": "The parity table (tests/ownership/path-scope.test.ts) is broader than the implementation, per the authorization-parity contract."
+    },
+    {
+      "clause": "denied-action negatives",
+      "id": "GE-05",
+      "question": "Are denied actions observably denied, and do they leave no side effect?",
+      "evidence": [
+        "tests/security/pre-r032-non-bypass.vitest.ts",
+        "tests/policy/command-classifier.test.ts",
+        "tests/security/policy-protected-path-parity.vitest.ts",
+        "tests/ownership/ownership-gate.test.ts"
+      ],
+      "negativeCase": "Protected paths are not written; a denied command is classified deny and does not reach dispatch; denial at the port and at dispatch level both produce a deny decision rather than an execution.",
+      "observed": "qualified",
+      "note": "Proven at port and dispatch level. Full TUI operator-denial scenario is NOT exercised — recorded as gap F-03, not claimed."
+    }
+  ],
+  "declaredGaps": [
+    {
+      "id": "F-02",
+      "gap": "No explicit wrong-workspace test for the worker port",
+      "why": "The failure mode cannot be constructed through the port (no user-supplied workspace path), but the test itself does not exist"
+    },
+    {
+      "id": "F-03",
+      "gap": "Tool-level operator denial not exercised through the full TUI scenario",
+      "why": "Denial is proven at port and dispatch level only"
+    },
+    {
+      "id": "F-04",
+      "gap": "Ownership HARD-CONFLICT rejection not demonstrated",
+      "why": "Prior evidence shows dependency serialization, not rejection of an unsynchronized conflict"
+    },
+    {
+      "id": "F-07",
+      "gap": "Transient clamp-reload observation unresolved",
+      "why": "Possible timing fragility in an approval test; one unreproduced observation"
+    },
+    {
+      "id": "F-11",
+      "gap": "D4-04 delegate transport flake bounded, not fixed",
+      "why": "42 consecutive passes, zero reproduction; a delegate case may not be the sole evidence for a baseline"
+    }
+  ],
+  "independence": {
+    "class": "author-only",
+    "note": "Gate E requires qualification 'independently'. Author-side tests cannot supply independence, and an operator waiver records acceptance of author-only testing rather than creating a second party. No independence is claimed.",
+    "waiverRef": null
+  }
+}

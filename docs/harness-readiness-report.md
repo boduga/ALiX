@@ -19,7 +19,7 @@ for designs that already exist. Their existence does not prove measurements.
 | B — Baseline | **CLOSED-WITH-WAIVER** | 13 met, 1 waived, 0 missing. Oracle defects fixed and the retained collection re-derives with **0 verdict changes**; `36/45` and `$0.080520` per verified success stand ([review](audits/2026-10-24-gb01-oracle-review.md), [re-score](../benchmark/evidence/eval-runs/collection-2026-10-24-final/RESCORE.md)). GB-11 waived and signed (M-1 human, unmeasured); GB-14 accepted as a baseline with a waived operator-attention dimension. Closure is model-independent — no human independence, no Gate E clearance, Gate F/Q13 HOLD. See [pre-2.0 acceptance](audits/2026-10-24-pre-2.0-acceptance.md). |
 | C — Ablation | **RETAIN DISPOSITION RECORDED; no paired run** | No paired ablation executed. §9's "otherwise retain" branch is exercised in [`harness-gate-c-retain-disposition.md`](harness-gate-c-retain-disposition.md): both M2 candidates retained, none retired, and it is explicitly not a measured efficiency finding. PRE-R007/R008 remain unexecuted comparisons. |
 | D — Migration | **AUTHORIZED; not implemented** | Concrete reader/writer manifest and MP-01…MP-03 designs exist; implementation, parity evidence and Q04/Q05 owner review remain. |
-| E — Security | **AUTHORIZED; independence still absent** | Existing negative tests are evidence, not independent qualification. Operator waiver records author-only testing, which is a weaker claim and must be labeled as such. |
+| E — Execution/security | **`QUALIFIED-AUTHOR-ONLY`** | All five clauses executed with executable negative cases: 282/282 tests green (214 `node --test`, 68 vitest). Five gaps declared, not covered. Independence absent — the gate stays open on the word *independently*. See [Gate E qualification](audits/2026-10-24-gate-e-qualification.md). |
 | F — Release | **HOLD — computed** | Q13. `release-clearance-record.mjs` refuses the current artifact on three recorded facts: technical `partial`, no independent security clearance, no maintainer decision. Both absent items are authority, not measurement — no agent and no authorization can supply them, and Gate F has no waiver path. See [Gate F/Q13 enumeration](audits/2026-10-24-gate-f-q13-enumeration.md). |
 
 Authorization source: `docs/audits/2026-10-23-harness-authorization.md`.
@@ -104,7 +104,10 @@ were preserved. The preceding verified pass recorded behavioral **14/14**, eval
 unit tests **173/173**, task-loop tests **52/52**, build, unused-symbol,
 dead-module and DOX checks. Child-process checks required normal process
 visibility; task-loop checks used a one-off 60s test budget during indexing.
-Those are regression results, not Gate E clearance or fresh paid baselines.
+Those are regression results, not Gate E clearance or fresh paid baselines. Gate E
+coverage is recorded separately by clause in the
+[qualification record](audits/2026-10-24-gate-e-qualification.md) and is
+author-side only.
 
 The [complete corpus audit](audits/2026-10-23-eval-corpus-audit.md) records the
 latest offline checks, each case's disposition and remaining oracle work. This
@@ -153,8 +156,12 @@ Remaining work for a full (non-waived) baseline:
    attention measurement, and the two Gate F/Q13 authorities (independent
    security clearance, maintainer decision), which are computed to `HOLD` by
    [`release-clearance-record.mjs`](../benchmark/evidence/release-clearance-record.mjs).
+   Gate E's five clauses are now executed and recorded
+   ([qualification](audits/2026-10-24-gate-e-qualification.md)) at
+   `QUALIFIED-AUTHOR-ONLY`; only the second party is missing.
 
-Full PRD completion remains open. Gate B closed at a labelled weaker standard;
-Gate E independence and Gate F/Q13 remain unmet, and the latter is computed to
-`HOLD` rather than described as pending. Nothing here may be silently waived —
-Gate F has no waiver path at all.
+Full PRD completion remains open. Gate B closed at a labelled weaker standard and
+Gate E is qualified author-side only; Gate F/Q13 is computed to `HOLD`. The three
+gaps that remain are all authority, not measurement: a second party for Gate E
+independence, an independent security clearance, and the maintainer's decision.
+Nothing here may be silently waived — Gate F has no waiver path at all.
