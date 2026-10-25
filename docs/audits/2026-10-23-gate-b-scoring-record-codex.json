@@ -34,8 +34,9 @@
     },
     {
       "id": "GB-05",
-      "verdict": "partial",
-      "note": "Artifacts nominally cover ten strata, but repair/recovery sequences lack paid-run proof, coordination samples are tiny, and CPU-only execution lacks hardware/network evidence."
+      "verdict": "met",
+      "note": "All ten strata executed and reported. PRD §7 lists ten strata to execute and requires failures counted in the numerator, which presumes they occur; coverage is execution+reporting, not universal success. Stratum 9 carries a MEASURED FAILURE: 3/3 runs on granite3-moe produced zero or malformed tool calls and never read the file, with resource-time, tokens and a non-billable $0 recorded. Caveat: stratum 9 is n=3 on one 3B-class model, characterising that model, not the local-CPU axis.",
+      "evidence": "benchmark/evidence/eval-runs/collection-2026-10-24-final/; benchmark/evidence/coordination/collection-2026-10-24/; benchmark/evidence/eval-runs/stratum9-attempts/"
     },
     {
       "id": "GB-06",
@@ -90,5 +91,5 @@
       "note": "Acceptance fields record a concurrence with HOLD and no baseline acceptance. Authorization permits work and explicitly does not accept results; GB-14 requires accepting an exact baseline artifact set, which does not exist while GB-06/08/11 are missing."
     }
   ],
-  "_correction": "GB-04/09/13 reclassified 2026-10-24 along with GB-06/07/08. Two required no new work, only reading what was already committed. See docs/audits/2026-10-24-gate-b-uncertainty-and-provenance.md."
+  "_correction": "GB-04/05/06/07/08/09/13 reclassified 2026-10-24 after checking each verdict against its PRD clause. Two of them (GB-04, GB-09) required no new work, only reading what was already committed. See docs/audits/2026-10-24-gate-b-metric-verdict-correction.md and 2026-10-24-gate-b-coverage-complete.md."
 }
