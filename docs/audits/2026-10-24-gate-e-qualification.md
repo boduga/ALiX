@@ -99,6 +99,37 @@ note: author-side qualification only: Gate E requires independent qualification
 note: this does not clear Gate E; it records the coverage an independent qualifier would review
 ```
 
+## 6.1 Suite repair found while verifying this record
+
+Running the full suite to confirm the record's numbers surfaced 20 failures that
+had nothing to do with Gate E, and they were **pre-existing**: both suites fail
+identically at parent commit `ea863a25` in a clean worktree.
+
+The cause was a fixture defect, not a product defect. Two fixtures configured model
+tiers under `subagents.<tier>`, but `createModelResolver` reads `config.models[tier]`.
+So `getRoleModel` threw "Subagent tier is unconfigured" and every assertion
+downstream of `spawn()` observed that error instead of the behaviour it was written
+to check.
+
+Type-checking could not catch it: §2.8.1/§2.8.4 made `subagents.<tier>` a
+loader-derived compatibility projection — genuinely part of the type, never
+persisted, never the source. The fixtures kept the projection and lost the source.
+
+| Suite | Before | After |
+|---|---|---|
+| `subagent-manager.test.ts` | 3/19 | **19/19** |
+| `subagent-worker-executor.test.ts` | 9/13 | **13/13** |
+
+Node lane after repair: **8915 pass, 0 fail**. Both are recorded in the Gate E
+record under `suiteRepair`. They are **not** Gate E evidence — the five clauses cite
+different files — but a suite reporting 20 failures cannot be read as green, so the
+repair is written down rather than left implicit.
+
+Two tests were *cancelled*, not failed, by resource contention in the parallel run:
+`cli-discover.test.js` spent 48 minutes under contention and passes in 11s
+standalone, and `ContextCompiler.warm()` timed out at 120s but passes in 2s
+standalone. Cancellation is recorded as cancellation.
+
 ## 7. Reproduce
 
 ```sh

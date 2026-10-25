@@ -138,5 +138,15 @@
     "class": "author-only",
     "note": "Gate E requires qualification 'independently'. Author-side tests cannot supply independence, and an operator waiver records acceptance of author-only testing rather than creating a second party. No independence is claimed.",
     "waiverRef": null
+  },
+  "suiteRepair": {
+    "found": "2026-10-24/25 during full-suite verification of this record.",
+    "failures": 20,
+    "cause": "Two fixtures configured model tiers under subagents.<tier>; createModelResolver reads config.models[tier]. getRoleModel threw \"Subagent tier is unconfigured\" and every assertion downstream of spawn() observed that error instead of the behaviour under test.",
+    "scope": "tests/agents/subagent-manager.test.ts (16) and tests/kernel/subagent-worker-executor.test.ts (4). Type-checking could not catch it: the projection is genuinely part of the type.",
+    "fix": "Fixtures now carry a real models block (default/fast/coding/thinking/critic).",
+    "after": "subagent-manager 19/19, subagent-worker-executor 13/13; node lane 8915 pass, 0 fail.",
+    "preExisting": "CONFIRMED pre-existing, not a regression: both suites fail identically at parent commit ea863a25 in a clean worktree.",
+    "relevance": "These are not Gate E evidence (the five clauses cite different files), but a suite that reports 20 failures cannot be read as green, so the repair is recorded here rather than left implicit."
   }
 }
