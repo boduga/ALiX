@@ -20,7 +20,7 @@ for designs that already exist. Their existence does not prove measurements.
 | C — Ablation | **RETAIN DISPOSITION RECORDED; no paired run** | No paired ablation executed. §9's "otherwise retain" branch is exercised in [`harness-gate-c-retain-disposition.md`](harness-gate-c-retain-disposition.md): both M2 candidates retained, none retired, and it is explicitly not a measured efficiency finding. PRE-R007/R008 remain unexecuted comparisons. |
 | D — Migration | **AUTHORIZED; not implemented** | Concrete reader/writer manifest and MP-01…MP-03 designs exist; implementation, parity evidence and Q04/Q05 owner review remain. |
 | E — Security | **AUTHORIZED; independence still absent** | Existing negative tests are evidence, not independent qualification. Operator waiver records author-only testing, which is a weaker claim and must be labeled as such. |
-| F — Release | **AUTHORIZED to assemble; signature outstanding** | Q13. The maintainer decision and independent clearance cannot be supplied by this agent or by an authorization. |
+| F — Release | **HOLD — computed** | Q13. `release-clearance-record.mjs` refuses the current artifact on three recorded facts: technical `partial`, no independent security clearance, no maintainer decision. Both absent items are authority, not measurement — no agent and no authorization can supply them, and Gate F has no waiver path. See [Gate F/Q13 enumeration](audits/2026-10-24-gate-f-q13-enumeration.md). |
 
 Authorization source: `docs/audits/2026-10-23-harness-authorization.md`.
 
