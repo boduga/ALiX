@@ -7,13 +7,27 @@ import { SubagentManager } from "../../src/agents/subagent-manager.js";
 import { resolveRenewalResult } from "../../src/agents/subagent-manager.js";
 import type { AlixConfig, SubagentRole, SubagentTask } from "../../src/operations/config/schema.js";
 
-/** Minimal subagent tier config so getRoleModel doesn't throw. */
+/**
+ * Minimal subagent config so getRoleModel doesn't throw.
+ *
+ * Model tiers live under `models`, not `subagents`: `createModelResolver` reads
+ * `config.models[tier]`, and §2.8.1/§2.8.4 make `subagents.<tier>` a
+ * loader-derived projection that is never persisted and never the source. A
+ * fixture that supplies only `subagents.<tier>` leaves `models` empty and
+ * `getRoleModel` throws "tier is unconfigured" — which is what this fixture did
+ * before, failing 16 tests for a reason unrelated to anything they assert.
+ */
 const TEST_SUBAGENT_CFG: AlixConfig["subagents"] = {
   enabled: true,
   roles: [
     { role: "explorer", mode: "read_only", style: "fast", retryCount: 1 },
     { role: "worker", mode: "write", style: "coding", retryCount: 0 },
   ],
+};
+
+/** Model tiers, resolved from `models` exactly as the loader projects them. */
+const TEST_MODELS: AlixConfig["models"] = {
+  default: { provider: "ollama", name: "llama3.2:3b" },
   fast: { provider: "ollama", name: "llama3.2:3b" },
   coding: { provider: "ollama", name: "llama3.2:3b" },
   thinking: { provider: "ollama", name: "llama3.2:3b" },
@@ -61,7 +75,7 @@ describe("SubagentManager", () => {
     manager = new SubagentManager({
       sessionId: "test-session",
       cwd,
-      config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+      config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
       // Use node -e which exits immediately with code 0 — no real CLI needed
       spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
     });
@@ -81,7 +95,7 @@ describe("SubagentManager", () => {
     const holder = new SubagentManager({
       sessionId: "holder-session",
       cwd,
-      config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+      config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
       spawnOverride: { command: process.execPath, args: ["-e", "setInterval(() => {}, 1000)"] },
     });
     const holderResult = holder.spawn(
@@ -106,7 +120,7 @@ describe("SubagentManager", () => {
     const coordManager = new SubagentManager({
       sessionId: "coord-session",
       cwd: coordCwd,
-      config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+      config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
       spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
     });
     const result = await coordManager.spawn(makeTask({
@@ -149,7 +163,7 @@ describe("SubagentManager", () => {
     const fresh = new SubagentManager({
       sessionId: "fresh-session",
       cwd,
-      config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+      config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
       spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
     });
     const result = await fresh.spawn(makeTask({ role: "worker" as SubagentRole, ownedPaths: ["src/bar.ts"] }));
@@ -161,7 +175,7 @@ test("manager resolves with the child's failed status instead of overriding to s
   const manager = new SubagentManager({
     sessionId: "s1",
     cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
     spawnOverride: {
       command: process.execPath,
       args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "failed", findings: [], events: [], error: "write blocked" })); process.exit(1);`],
@@ -178,7 +192,7 @@ test("manager resolves with failed status even on exit 0 when the child reports 
   const manager = new SubagentManager({
     sessionId: "s1",
     cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
     spawnOverride: {
       command: process.execPath,
       args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "failed", findings: [], events: [], error: "no writes applied" })); process.exit(0);`],
@@ -194,7 +208,7 @@ test("manager preserves child-reported partial status on exit 1", async () => {
   const manager = new SubagentManager({
     sessionId: "s1",
     cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
     spawnOverride: {
       command: process.execPath,
       args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "partial", findings: [], events: [], error: "delegated objective incomplete" })); process.exit(1);`],
@@ -210,7 +224,7 @@ test("manager preserves child-reported partial status on exit 0", async () => {
   const manager = new SubagentManager({
     sessionId: "s1",
     cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
     spawnOverride: {
       command: process.execPath,
       args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "partial", findings: [], events: [], error: "delegated objective incomplete" })); process.exit(0);`],
@@ -227,7 +241,7 @@ test("manager emits partial once without rewriting it as completed state", async
   const manager = new SubagentManager({
     sessionId: "s1",
     cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
     eventLog: { append: (entry: any) => { emitted.push(entry); return Promise.resolve(entry); } } as any,
     spawnOverride: {
       command: process.execPath,
@@ -244,7 +258,7 @@ test("manager emits coordination lifecycle into the parent runtime session", asy
   const emitted: Array<{ type: string; sessionId: string }> = [];
   const manager = new SubagentManager({
     sessionId: "coord-sub-run-1",
-    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
     eventLog: { append: (entry: any) => { emitted.push(entry); return Promise.resolve(entry); } } as any,
     spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
   });
@@ -264,7 +278,7 @@ test("manager shutdown emits cancellation without a later failed terminal", asyn
   const manager = new SubagentManager({
     sessionId: "s1",
     cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
     eventLog: { append: (entry: any) => { emitted.push(entry); return Promise.resolve(entry); } } as any,
     spawnOverride: { command: process.execPath, args: ["-e", "setInterval(() => {}, 1000)"] },
   });
@@ -293,7 +307,7 @@ test("spawned subagent inherits the secret-service bus address but not ambient s
     const manager = new SubagentManager({
       sessionId: "s1",
       cwd: tmpCwd(),
-      config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+      config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
       spawnOverride: {
         command: process.execPath,
         args: ["-e", `console.log(JSON.stringify({ id: "env-probe", role: "explorer", status: "success", findings: ["DBUS=" + (process.env.DBUS_SESSION_BUS_ADDRESS ?? "<absent>"), "XDG=" + (process.env.XDG_RUNTIME_DIR ?? "<absent>"), "SECRET=" + ("ALIX_TEST_SENTINEL_SECRET" in process.env ? process.env.ALIX_TEST_SENTINEL_SECRET : "<absent>")], events: [] }));`],
@@ -328,6 +342,7 @@ test("coordination worker inherits store-resolved API keys over private fd 3", a
     cwd: tmpCwd(),
     config: {
       subagents: TEST_SUBAGENT_CFG,
+      models: TEST_MODELS,
       apiKeys: { deepseek: "resolved-parent-secret" },
     } as unknown as AlixConfig,
     spawnOverride: {
@@ -348,7 +363,7 @@ test("spawnMany runs specs in parallel and aligns results to input order", async
   const manager = new SubagentManager({
     sessionId: "s1",
     cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
     spawnOverride: {
       command: process.execPath,
       args: ["-e", `await new Promise(r => setTimeout(r, 200)); console.log(JSON.stringify({ status: "success", findings: [], events: [] }));`],
@@ -372,7 +387,7 @@ test("spawnMany isolates a spawn rejection to a failed result", async () => {
   const manager = new SubagentManager({
     sessionId: "s1",
     cwd: tmpCwd(),
-    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
     // Slow children: the first task must still hold its lease while the
     // second task's acquisition runs (fast-exit children would release
     // before the sibling acquire and hide the overlap).
