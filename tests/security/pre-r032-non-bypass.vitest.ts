@@ -101,8 +101,26 @@ describe("authorization is not authority-by-adjacency", () => {
     // this test should be replaced by a real parity table over that coupling
     // rather than deleted.
     expect(gateSource).not.toMatch(/eligibility/i);
+
+    // Scan the WHOLE policy tree and actually populate `offenders`.
+    //
+    // This array was declared and asserted empty without ever being filled, so
+    // the assertion could not fail: the walker ran only for a length sanity
+    // check (Gate E review, vacuous assertion #3). A scan that cannot report a
+    // hit is not a scan.
+    const policyRoot = join(process.cwd(), "src/governance/policy");
+    const scanned = walk(policyRoot);
+    for (const file of scanned) {
+      const body = readFileSync(file, "utf-8");
+      // An eligibility/promotion read that can WIDEN a decision is the bypass.
+      // Reading the word is not itself wrong, so the pattern requires an access
+      // that feeds a decision.
+      if (/eligibility/i.test(body) && /decision/i.test(body)) {
+        offenders.push(file);
+      }
+    }
     // Sanity: the walker works, so an empty `offenders` is a real negative.
-    expect(walk(join(process.cwd(), "src/governance/policy")).length).toBeGreaterThan(0);
+    expect(scanned.length).toBeGreaterThan(0);
     expect(offenders).toEqual([]);
   });
 });
@@ -195,5 +213,47 @@ describe("missing authority is a pause, never an implicit execute", () => {
     // Owned writes are pre-authorized; the assertion is that the decision is
     // attributable to the owned-path rule, not to a blanket allow.
     expect(decision.matchedRuleId).toBe("owned-path-rule");
+  });
+});
+
+// ── The scanners themselves must be able to report a hit ──────────────────
+//
+// Gate E review, vacuous assertions #3-#5: three source-text scans asserted a
+// clean result while being unable to produce a dirty one. The pattern is
+// identical each time — a scan whose failure path is never exercised reads as
+// coverage. These tests exercise the failure path directly.
+describe("source scanners can detect what they claim to forbid", () => {
+  it("the eligibility scan would flag a decision-widening read", () => {
+    // The real scan requires BOTH an eligibility reference and decision logic.
+    const pattern = (body: string) =>
+      /eligibility/i.test(body) && /decision/i.test(body);
+    expect(pattern("const e = eligibility.read(); return decision;")).toBe(true);
+    expect(pattern("const decision = allow;")).toBe(false);
+    // A file that merely mentions eligibility without touching a decision is
+    // not the bypass this guard exists for.
+    expect(pattern("// eligibility is documented elsewhere")).toBe(false);
+  });
+
+  it("the consumed-status writer count would catch a second writer", () => {
+    // The real assertion counts `.status = "consumed"` assignments. It matches
+    // exactly one today because the claim is the only writer. If a second
+    // appeared, the count would move — so the count must actually respond.
+    const countWriters = (src: string) => (src.match(/\.status\s*=\s*"consumed"/g) ?? []).length;
+    expect(countWriters('this.status = "consumed";')).toBe(1);
+    expect(countWriters('this.status = "consumed"; other.status = "consumed";')).toBe(2);
+    // Object.assign style writes are invisible to this scan — a real limitation,
+    // recorded rather than papered over.
+    expect(countWriters('Object.assign(r, { status: "consumed" });')).toBe(0);
+  });
+
+  it("the required-guard scan would fail when a guard is deleted", () => {
+    // The real test asserts four regexes are present in approval-store.ts.
+    const guards = [/status !== "approved"/, /expiresAt\) <= now/, /bindingKey !== expectedBindingKey/, /invocationMatches/];
+    const present = 'if (r.status !== "approved") {} if (r.expiresAt) <= now) {} if (r.bindingKey !== expectedBindingKey) {} invocationMatches(x)';
+    const missingOne = 'if (r.status !== "approved") {} if (r.expiresAt) <= now) {} if (r.bindingKey !== expectedBindingKey) {}';
+    const allPresent = guards.every((g) => g.test(present));
+    const oneGone = guards.every((g) => g.test(missingOne));
+    expect(allPresent).toBe(true);
+    expect(oneGone).toBe(false);
   });
 });

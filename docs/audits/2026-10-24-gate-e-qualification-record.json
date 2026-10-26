@@ -98,13 +98,13 @@
       "question": "Are denied actions observably denied, and do they leave no side effect?",
       "evidence": [
         "tests/security/pre-r032-non-bypass.vitest.ts",
-        "tests/policy/command-classifier.test.ts",
         "tests/security/policy-protected-path-parity.vitest.ts",
-        "tests/ownership/ownership-gate.test.ts"
+        "tests/ownership/ownership-gate.test.ts",
+        "tests/executor.test.ts"
       ],
       "negativeCase": "Protected paths are not written; a denied command is classified deny and does not reach dispatch; denial at the port and at dispatch level both produce a deny decision rather than an execution.",
       "observed": "partial",
-      "note": "DOWNGRADED to partial by independent review. Decision assertions exist but the cited files do not demonstrate dispatch suppression plus absence of prohibited effects; classification is repeatedly presented as execution evidence."
+      "note": "PARTIAL. Decision assertions exist and dispatch refusal is asserted for the paths below. REMOVED FROM EVIDENCE: tests/policy/command-classifier.test.ts — the classifier has NO production consumer (GitNexus risk UNKNOWN, confirmed by text search), so it classifies commands but proves nothing about denial or dispatch suppression. Citing it was a vacuous-evidence finding, now corrected. Full TUI operator-denial remains F-03."
     }
   ],
   "independence": {
@@ -185,11 +185,22 @@
         "what": "RuleEvaluator precedence changed from first-match-wins to deny > ask > allow over all matching rules. File order can no longer grant authority. The reported rule is the strictest match, earliest among equals, so decisions are order-independent and audit lines stay stable.",
         "test": "tests/policy/rule-evaluator.test.ts — 8 tests added; reverting to first-match fails 5 of 21, including the shipped-defaults case where allow-file-read preceded deny-critical-risk.",
         "regressionRisk": "LOW: 7 symbols, 0 execution processes; matchedRuleId is audit-only and no consumer branches on it. CLI verified: filesystem.read + critical now reports deny/deny-critical-risk."
+      },
+      {
+        "id": "VACUOUS-TESTS",
+        "what": "Eight of the eleven vacuous assertions repaired to fail when their control is removed; two scoped to what they actually prove; the command-classifier removed from evidence entirely because it has no production consumer.",
+        "test": "Constructor guard 2, ownership persistence 10, continuation ownership 1, D2 2, D1 1, D11 5 — all fail on mutation.",
+        "regressionRisk": "LOW. One production change beyond the defects: continuation-resume now enforces ownedPaths (it failed closed before this, so defence-in-depth, not a new denial path for legitimate work)."
+      },
+      {
+        "id": "D4",
+        "what": "A consumed coordination binding is now DENIED instead of minting a replacement pending approval; a lost claim race is denied rather than re-asked.",
+        "test": "tests/security/approval-consumed-propagation.test.ts — the tightened assertion reproduced D4 before the fix and passes after.",
+        "regressionRisk": "LOW: 1221 node tests across security/policy/ownership/kernel pass."
       }
     ],
     "notFixed": [
       "D3",
-      "D4",
       "D5",
       "D6",
       "D7",
@@ -197,6 +208,20 @@
       "D9 (validator — fixed)",
       "D10 (validator — fixed)"
     ],
-    "note": "D9 and D10 were fixed in the validator immediately when found. D1 and D2 are the two authority holes. D11 (deny-wins in rule-evaluator) remains open and is the next item: it is a precedence bug, not a bypass of the gate."
+    "note": "D9 and D10 were fixed in the validator immediately when found. D1 and D2 are the two authority holes. D11 (deny-wins in rule-evaluator) remains open and is the next item: it is a precedence bug, not a bypass of the gate.",
+    "foundWhileFixing": [
+      {
+        "id": "CONTINUATION-OWNEDSCOPE",
+        "what": "The continuation-resume branch skips PolicyGate, so ownedPaths was never enforced there; only the registry lease ran, with autoAcquire:true, which grants coverage. Now enforced before the approval claim.",
+        "severity": "defence-in-depth — it failed closed before (invocation-identity refused first), but the check was unreachable",
+        "test": "tests/executor.test.ts — removing the call fails 1 test"
+      },
+      {
+        "id": "CLASSIFIER-NO-CONSUMER",
+        "what": "CommandClassifier/classifyCommand have no production consumer (GitNexus risk UNKNOWN; only the policy barrel re-exports). Tests were cited as denied-action enforcement evidence.",
+        "severity": "evidence defect, not a code defect",
+        "test": "scope banner added; removed from Gate E evidence"
+      }
+    ]
   }
 }

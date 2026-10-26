@@ -405,3 +405,71 @@ Three of the review's major defects are now closed with mutation-checked tests.
 Gate E remains **HOLD** at **0 of 5**: the honest reading is that three holes are
 shut and the remaining ones (D3–D8, plus the vacuous tests) are still open. A
 re-review decides the clause verdicts, not the author.
+
+## 12. Remediation — the vacuous assertions
+
+Eleven tests named controls they could not observe. Each is now either
+mutation-checked or explicitly scoped to what it actually proves. "Fixed" here
+means **the test fails when the control is removed**, not merely that it passes.
+
+| # | Test | Was | Now |
+|---|---|---|---|
+| 1 | `worker-approval-port` "refuses to construct" | Built a CLEAN port and asserted methods absent — true by construction | Guard extracted as `assertNoForbiddenDecisionMethods`; contaminated candidates throw. **Deleting the guard fails 2 tests** |
+| 2 | `worker-approval-port` "does not expose another worker's records" | Expected another worker's record to be `defined` — proved lookup separation | Retained as the narrower claim it is, with the guard test above carrying isolation |
+| 3 | `pre-r032` eligibility scan | `offenders` declared and asserted empty, never populated | Tree is walked and `offenders` filled; a probe test proves the pattern can match |
+| 7 | `rule-evaluator` "evaluates first matching rule" | Disjoint rules — first-match and deny-wins agreed | Renamed to "matches a single applicable rule"; overlapping rules tested under D11 |
+| 8 | `ownership-registry` persistence | Re-acquired the same scope for the same agent, which succeeds with persistence disabled | Asserts the persisted record is retrieved by id **and** that a rival agent is refused. **Disabling persistence fails it** |
+| 9 | `approval-consumed-propagation` | `notEqual("allow")` — satisfied by `ask` + a fresh approval | Requires `deny`. Tightening it **immediately reproduced defect D4** |
+| 10 | `ownership-gate` continuation | Called `checkOwnershipGate` directly, never through the executor | Three executor-level tests; one drives a real approved record into the continuation branch. **Removing the call fails it** |
+| 11 | `command-classifier` | Cited as denied-action evidence | `CommandClassifier` has **no production consumer** — see §12.2 |
+
+### 12.1 Two defects surfaced while fixing the tests
+
+**D4 (consumed bindings mint replacements).** Tightening assertion #9 was enough to
+expose it: a consumed coordination binding returned `ask` and created a fresh
+pending approval, handing back the authority single use exists to remove. The gate
+now denies `consumed` bindings outright, and denies when a claim is lost to a race
+rather than asking again — silence is never success.
+
+**Continuation resumes skipped owned-scope enforcement.** The continuation branch
+deliberately skips `PolicyGate`, so `ownedPaths` was never checked there. Only the
+ownership *registry* ran, and it runs with `autoAcquire: true` — it **grants**
+coverage rather than enforcing a declared scope. The branch now enforces
+`ownedPaths` before claiming the approval. It failed closed before this change
+(the invocation-identity check refused first), so this was a defence-in-depth gap
+rather than an exploitable hole — but the check was unreachable, which is the same
+class of defect as a vacuous test.
+
+### 12.2 `CommandClassifier` has no production consumer
+
+The review said classification was "repeatedly presented as execution evidence".
+That is correct, and the reason is structural: `classifyCommand` and
+`CommandClassifier` are re-exported from `policy/index.ts` and called **only by
+tests**. GitNexus reports `risk: UNKNOWN` (no resolvable callers); a text search
+confirms the barrel is the only reference. `PolicyGate` enforces through
+`denyCommands`, the shell whitelist, `BLOCKED_COMMANDS` and evasion patterns, none
+of which consult the classifier.
+
+The tests are accurate tests *of classification*. What was wrong was citing them
+as proof that denied actions are denied. The suite now carries a scope banner
+saying so, and the classifier has been **removed from Gate E's denied-action
+evidence**.
+
+This is worth stating plainly: a well-tested module with no consumer is not a
+control, and a test suite cannot tell you which one it is. Only tracing callers
+does that.
+
+### 12.3 Mutation summary
+
+| Control removed | Tests that fail |
+|---|---|
+| Constructor guard | 2 |
+| Ownership persistence | 10 |
+| Continuation ownership call | 1 |
+| D2 unscopable-mutation rule | 2 |
+| D1 mandatory deny | 1 |
+| D11 deny-wins precedence | 5 |
+
+Gate E remains **HOLD at 0 of 5**. Four of eleven review defects are now closed
+(D1, D2, D4, D11), eight vacuous assertions are repaired or scoped, and the
+remaining defects (D3, D5, D6, D7, D8) are still open.

@@ -9,7 +9,10 @@ import { defaultPolicyRules } from "../../src/governance/policy/default-policies
 import { validatePolicyRule } from "../../src/governance/policy/policy-rule.js";
 
 describe("RuleEvaluator", () => {
-  it("evaluates first matching rule", () => {
+  it("matches a single applicable rule", () => {
+    // Disjoint rules: only one can match, so first-match and deny-wins agree
+    // here. This is why the case could not detect the precedence bug (Gate E
+    // review, vacuous assertion #7) — overlapping rules are tested under D11.
     const engine = new RuleEvaluator([
       { id: "first", description: "First", match: { capability: "a" }, decision: "allow", enabled: true },
       { id: "second", description: "Second", match: { capability: "b" }, decision: "deny", enabled: true },

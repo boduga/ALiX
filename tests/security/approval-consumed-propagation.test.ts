@@ -119,7 +119,16 @@ describe("approval consumption propagation", () => {
         agentId: "w1", source: "tool",
         coordinationRunId: "run-1", workerId: "w1", workerAttempt: 0, requestFingerprint: "fp",
       });
+      // `notEqual("allow")` was too weak: returning "ask" and minting a
+      // REPLACEMENT approval also satisfies it, while giving away the very
+      // authority single use exists to remove (Gate E review, vacuous #9, and
+      // defect D4). The states that are actually acceptable are deny, or an
+      // explicit unverified classification — never a fresh request.
       assert.notEqual(replay.decision, "allow", "a consumed exact binding cannot authorize twice");
+      assert.ok(
+        replay.decision === "deny",
+        `a consumed binding must be denied, not re-asked (got ${replay.decision})`,
+      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

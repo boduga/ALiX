@@ -772,12 +772,43 @@ export class PolicyGate {
 
       // Check for existing approved binding
       const approved = store.findExact(bindingKey);
+
+      // A CONSUMED binding is a spent authority, and spent means denied — not
+      // "ask again". Falling through to requestOrReusePending here created a
+      // fresh pending approval, which hands back the authority single use exists
+      // to remove (Gate E review defect D4). The record is already attributed to
+      // this exact invocation, so a new request for it is a replay.
+      if (approved?.status === "consumed") {
+        return {
+          requestId,
+          capability,
+          decision: "deny",
+          reason: `Approval ${approved.id} is already consumed; a spent binding cannot authorize another attempt`,
+          matchedRuleId: "consumed-binding-denied",
+          policyRevision,
+          bindingKey,
+        };
+      }
+
       if (approved?.status === "approved" && new Date(approved.expiresAt) > new Date()) {
         // Try to consume it
         const consumed = await store.consumeApproved(approved.id, bindingKey, {});
         if (consumed.consumed) {
           return { requestId, capability, decision: "allow", reason: "Approved by prior exact binding", approvalId: approved.id, matchedRuleId: "exact-binding-approved", policyRevision, approvalConsumed: true };
         }
+        // The claim lost a race: the record was claimed between the read above
+        // and this attempt. Reporting `ask` would mint a replacement for an
+        // approval that may already be executing, so this is an unverifiable
+        // state and is denied. Silence is never success.
+        return {
+          requestId,
+          capability,
+          decision: "deny",
+          reason: `Approval ${approved.id} could not be claimed (already consumed or raced); refusing to re-issue authority`,
+          matchedRuleId: "binding-claim-lost",
+          policyRevision,
+          bindingKey,
+        };
       }
 
       // Check for existing pending

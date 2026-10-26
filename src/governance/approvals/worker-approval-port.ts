@@ -137,6 +137,26 @@ const FORBIDDEN = [
 ] as const;
 
 /**
+ * Throw if a candidate worker view exposes any decision-recording method.
+ *
+ * Exported so it can be exercised directly. The previous version of this check
+ * lived inline and its test constructed a port from a CLEAN store and asserted
+ * the methods were absent — which is true by construction, so the test passed
+ * even with this function deleted. A reviewer deleted the guard and all 14 tests
+ * stayed green (Gate E review, vacuous assertion #1).
+ *
+ * A guard that cannot be made to fire is not a guard. Testing it needs a
+ * contaminated candidate, and that is what the export exists for.
+ */
+export function assertNoForbiddenDecisionMethods(candidate: object): void {
+  for (const method of FORBIDDEN) {
+    if (method in candidate) {
+      throw new Error(`WorkerApprovalPort must not expose "${method}"`);
+    }
+  }
+}
+
+/**
  * Build the restricted worker view over a store instance opened on the worker's
  * own authoritative workspace.
  *
@@ -177,10 +197,6 @@ export function createWorkerApprovalPort(
   // Structural guarantee, not a convention: no forbidden method is reachable
   // from the object a worker receives. A future refactor that added one would
   // fail this check immediately.
-  for (const method of FORBIDDEN) {
-    if (method in port) {
-      throw new Error(`WorkerApprovalPort must not expose "${method}"`);
-    }
-  }
+  assertNoForbiddenDecisionMethods(port);
   return port;
 }

@@ -516,6 +516,12 @@ export class ToolExecutor {
             : "Continuation resume rejected: no durable approval backing this request",
         };
       }
+      // Ownership BEFORE the approval claim: a continuation resume is still a
+      // write, and a write outside the declared scope is refused on its own
+      // terms rather than incidentally by an invocation-binding mismatch. The
+      // ordering also keeps this check reachable in tests — with the claim
+      // first, every continuation resume failed on invocation identity and the
+      // ownership call was never exercised (Gate E review, vacuous #10).
       const contGateResult = await this.checkOwnershipGate(request, name, args);
       if (contGateResult) return contGateResult;
       // R1.5: the continuation tombstone is NOT authorization — claim the
@@ -1043,6 +1049,43 @@ export class ToolExecutor {
     toolName: string,
     args: Record<string, unknown>,
   ): Promise<ToolResult | null> {
+    // A declared owned scope is enforced HERE, not only in PolicyGate.
+    //
+    // The continuation-resume branch deliberately skips PolicyGate (approval was
+    // already verified by ContinuationManager), so `ownedPaths` would go
+    // unchecked on that path: the registry lease below runs with
+    // `autoAcquire: true`, which GRANTS coverage rather than enforcing it. A
+    // scoped worker resuming a continuation could therefore write outside its
+    // declared scope. Same rule as PolicyGate's owned-path step, applied to the
+    // targets the shared extractor can see.
+    const ownedPaths = request.ownedPaths?.length ? request.ownedPaths : this.ownedPaths;
+    if (ownedPaths?.length && this.workspacePathResolver) {
+      const { extractMutationTargets } = await import("../../coordination/ownership/mutation-targets.js");
+      const extraction = extractMutationTargets(toolName, args, this.workspacePathResolver);
+      if (extraction.classification === "unknown-write") {
+        return {
+          kind: "error",
+          message:
+            `Cannot determine mutation targets for ${toolName} — a declared owned scope cannot be verified. ` +
+            `Acquire an explicit lease covering the expected paths and retry.`,
+          retryable: false,
+        };
+      }
+      if (extraction.classification === "known-write") {
+        const { isWithinOwnedScope } = await import("../../coordination/ownership/path-scope.js");
+        const outside = extraction.targets
+          .map((target) => target.path)
+          .filter((path) => !isWithinOwnedScope(path, ownedPaths, this.root));
+        if (outside.length > 0) {
+          return {
+            kind: "error",
+            message: `Ownership check failed: ${outside.join(", ")} outside owned paths`,
+            retryable: false,
+          };
+        }
+      }
+    }
+
     // Skip if ownership is not wired
     if (!this.ownershipRegistry) return null;
     if (!this.workspacePathResolver) return null;
