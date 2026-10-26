@@ -80,8 +80,8 @@ export interface WorkerApprovalPort {
    * Scope-limited by the `workerId` bound at construction: the record must
    * belong to this worker, or carry no worker binding at all (legacy
    * non-coordination records). Without this, any worker holding a consumed id
-   * could falsify another worker's execution receipt — the store itself
-   * validates only status/outcome transition, not reporter identity.
+   * could falsify another worker's execution receipt. The store checks this
+   * trusted scope against fresh ledger state inside its mutation lock.
    *
    * Returns the store's own boolean: `true` only when the transition landed.
    */
@@ -169,29 +169,37 @@ export function createWorkerApprovalPort(
   options: { workerId?: string } = {},
 ): WorkerApprovalPort {
   const boundWorkerId = options.workerId;
+  // A bound worker can only observe its own records and explicitly legacy
+  // unbound approvals. An unbound compatibility port cannot observe records
+  // owned by any worker. Do not leak metadata via alternate lookup methods.
+  const visible = (record: ApprovalRecord | undefined): ApprovalRecord | undefined =>
+    record && (!record.workerId || record.workerId === boundWorkerId) ? record : undefined;
   const port: WorkerApprovalPort = {
-    get: (id) => store.get(id),
-    loadFresh: (id) => store.loadFresh(id),
-    findExact: (bindingKey) => store.findExact(bindingKey),
-    findPendingByBindingKey: (bindingKey) => store.findPendingByBindingKey(bindingKey),
-    findPending: (query) => store.findPending(query),
-    findResolved: (opts) => store.findResolved(opts),
-    findByRequestId: (requestId) => store.findByRequestId(requestId),
+    get: (id) => visible(store.get(id)),
+    loadFresh: async (id) => visible(await store.loadFresh(id)),
+    findExact: (bindingKey) => visible(store.findExact(bindingKey)),
+    findPendingByBindingKey: (bindingKey) => visible(store.findPendingByBindingKey(bindingKey)),
+    findPending: (query) => visible(store.findPending(query)),
+    findResolved: (opts) => visible(store.findResolved(opts)),
+    findByRequestId: (requestId) => visible(store.findByRequestId(requestId)),
     request: (opts) => store.request(opts),
-    requestOrReusePending: (input) => store.requestOrReusePending(input),
-    consumeApproved: store.consumeApproved.bind(store),
-    recordExecutionOutcome: async (id, outcome) => {
-      // Ownership check FIRST: a worker may only report on a record it owns, or
-      // on a legacy record with no worker binding. A port constructed without a
-      // workerId therefore refuses to report on worker-bound records at all
-      // (fail closed) while still serving legacy records.
-      const record = store.get(id) ?? await store.loadFresh(id);
-      if (!record) return false;
-      if (record.workerId && record.workerId !== boundWorkerId) return false;
-      return store.recordExecutionOutcome(id, outcome);
+    requestOrReusePending: (input) => {
+      if (boundWorkerId && input.workerId && input.workerId !== boundWorkerId) {
+        throw new Error("worker approval request identity mismatch");
+      }
+      return store.requestOrReusePending(boundWorkerId ? { ...input, workerId: boundWorkerId } : input);
     },
+    consumeApproved: (id, bindingKey, consumer, invocation) => {
+      if (boundWorkerId && consumer.workerId && consumer.workerId !== boundWorkerId) {
+        return Promise.resolve({ consumed: false, reason: "worker mismatch" });
+      }
+      return store.consumeApproved(id, bindingKey, boundWorkerId ? { ...consumer, workerId: boundWorkerId } : consumer, invocation);
+    },
+    recordExecutionOutcome: (id, outcome) =>
+      store.recordExecutionOutcome(id, outcome, { workerId: boundWorkerId }),
     load: () => store.load(),
-    markExecutionUnverified: (id) => store.markExecutionUnverified(id),
+    markExecutionUnverified: (id) =>
+      store.markExecutionUnverified(id, { workerId: boundWorkerId }),
   };
 
   // Structural guarantee, not a convention: no forbidden method is reachable

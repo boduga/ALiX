@@ -88,6 +88,14 @@ export type PendingContinuation = {
     /** agentId was added in M0.75. Legacy continuations may lack this. */
     agentId?: string;
   };
+  /** Set only by the host after observing the originating worker's tool events. */
+  coordinationWorker?: {
+    runId: string;
+    workerId: string;
+    attempt: number;
+    ownershipHash: string;
+    ownershipScopes: string[];
+  };
   createdAt: string;
   /**
    * Set when a continuation was loaded from persistent storage but has

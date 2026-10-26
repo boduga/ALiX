@@ -46,6 +46,7 @@ if (!socketPath || !defaultCwd) {
 const globalDir = join(homedir(), ".alix");
 let currentSessionId: string | undefined;
 let coordinationService: import("./coordination-scheduler-service.js").CoordinationSchedulerService | undefined;
+let toolContinuationResumer: import("./tool-continuation-resumer.js").DaemonToolContinuationResumer | undefined;
 let approvalWatcher: import("./approval-watcher.js").ApprovalWatcher | undefined;
 let scheduledTaskService: import("../schedule/scheduled-task-service.js").ScheduledTaskService | undefined;
 let scheduledTaskTimer: ReturnType<typeof setInterval> | undefined;
@@ -83,9 +84,10 @@ async function startCoordinationService(): Promise<void> {
     executor = new SubagentWorkerExecutor({ sessionId: `coord-daemon-${Date.now()}`, config });
   } else {
     const { DefaultWorkerExecutor } = await import("../../coordination/kernel/worker-executor.js");
-    executor = new DefaultWorkerExecutor();
+    executor = new DefaultWorkerExecutor(approvalStore);
   }
 
+  const ownershipRegistry = new OwnershipRegistry(defaultCwd);
   const scheduler = createCoordinationScheduler({
     cwd: defaultCwd,
     daemonInstanceId: `daemon-${process.pid}`,
@@ -95,7 +97,7 @@ async function startCoordinationService(): Promise<void> {
       policyGate: new PolicyGate(config, { approvalStore }),
       toolRegistry,
     }),
-    ownershipRegistry: new OwnershipRegistry(defaultCwd),
+    ownershipRegistry,
     executor,
     // Scheduler telemetry → the metrics store (not the session EventLog).
     metricsSink: createMetricsStoreSink(new MetricsStore(defaultCwd)),
@@ -103,7 +105,16 @@ async function startCoordinationService(): Promise<void> {
 
   coordinationService = new CoordinationSchedulerService(scheduler, store, { hostKind: "daemon" });
   coordinationService.start();
-  approvalWatcher = new ApprovalWatcher(defaultCwd, coordinationService);
+  const { DaemonToolContinuationResumer } = await import("./tool-continuation-resumer.js");
+  if (approvalStore) toolContinuationResumer = new DaemonToolContinuationResumer(defaultCwd, config, store,
+    approvalStore, ownershipRegistry, async sessionId => {
+      const log = new EventLog(join(defaultCwd, ".alix", "sessions", sessionId));
+      await log.init();
+      return log;
+    });
+  approvalWatcher = new ApprovalWatcher(defaultCwd, coordinationService, {
+    resumeApproved: async id => { await toolContinuationResumer?.resumeApproved(id); },
+  });
   approvalWatcher.start();
 }
 
@@ -649,7 +660,7 @@ process.on("SIGTERM", () => {
   approvalWatcher?.stop();
   if (scheduledTaskTimer) clearInterval(scheduledTaskTimer);
   const stopCoordination = coordinationService?.shutdown() ?? Promise.resolve();
-  void stopCoordination.catch(() => {}).then(() => {
+  void Promise.all([stopCoordination, toolContinuationResumer?.shutdown()]).catch(() => {}).then(() => {
     server.close(() => {
       // T14 bounded shutdown — the daemon's single existing "app closing down"
       // choke point, extracted to daemon-tracing-shutdown.ts (Task 15) for test

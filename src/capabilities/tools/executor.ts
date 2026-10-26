@@ -970,6 +970,42 @@ export class ToolExecutor {
  * previously built this object literal verbatim; a change to what identifies an
  * invocation would have had to find both.
  */
+  /** Host-only continuation operations; this module owns store construction. */
+  async pendingContinuations(): Promise<import("../../runtime-state/runtime/continuation-store.js").PendingContinuation[]> {
+    const { ContinuationStore } = await import("../../runtime-state/runtime/continuation-store.js");
+    const store = new ContinuationStore(this.root);
+    await store.load();
+    return store.list();
+  }
+
+  async bindContinuationWorker(
+    approvalId: string,
+    worker: NonNullable<import("../../runtime-state/runtime/continuation-store.js").PendingContinuation["coordinationWorker"]>,
+  ): Promise<boolean> {
+    await this.approvalStore?.load?.();
+    const approval = this.approvalStore?.get?.(approvalId);
+    if (!approval || !["pending", "approved"].includes(approval.status)) return false;
+    const { ContinuationStore } = await import("../../runtime-state/runtime/continuation-store.js");
+    const store = new ContinuationStore(this.root);
+    await store.load();
+    const cont = store.findByApprovalId(approvalId);
+    if (!cont) return false;
+    await store.persist({ ...cont, coordinationWorker: worker });
+    return true;
+  }
+
+  async resumeApprovedContinuation(approvalId: string, signal: AbortSignal): Promise<{ resumed: boolean; output?: string; error?: string }> {
+    if (!this.approvalStore || signal.aborted) return { resumed: false, error: "Approval authority unavailable or cancelled" };
+    await this.approvalStore.load();
+    const { ContinuationStore } = await import("../../runtime-state/runtime/continuation-store.js");
+    const { ContinuationManager } = await import("../../runtime-state/runtime/continuation-manager.js");
+    const store = new ContinuationStore(this.root);
+    await store.load();
+    const manager = new ContinuationManager({ continuationStore: store, approvalStore: this.approvalStore,
+      eventLog: this.log, executeTool: call => this.execute({ ...call, signal }) });
+    return manager.resumeApproved(approvalId);
+  }
+
   /** Identity of the exact invocation being authorised. */
   private invocationIdentity(
     capability: string,
