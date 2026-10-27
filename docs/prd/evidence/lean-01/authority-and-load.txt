@@ -1,0 +1,183 @@
+=== CAPABILITY MUTATION ===
+src/capabilities/capability/platform.ts:107:    this.registry.setMutationPort(new CatalogBackedCapabilityMutationPort(this.catalog));
+src/capabilities/capability/platform.ts:109:    this.providers.register("native", new NativeProviderExecutor(this.native));
+src/capabilities/capability/platform.ts:113:      this.providers.register(t, new UnavailableProviderExecutor(t));
+src/capabilities/capability/platform.ts:229:  register(capability: Capability): void { this.registry.register(capability); }
+src/capabilities/capability/platform.ts:247:    this.providers.register(type, executor);
+src/capabilities/capability/registry.ts:74:  setMutationPort(port: CapabilityMutationPort): void {
+src/capabilities/capability/registry.ts:181:      this.mutationPort?.register(def);
+src/capabilities/capability/registry.ts:190:  register(capability: Capability): void {
+src/capabilities/capability/registry.ts:194:    if (!this.mutationPort) throw new CapabilityValidationError(`No mutation port wired — register() is bootstrap-only (CAP-3)`);
+src/capabilities/capability/registry.ts:195:    this.mutationPort.register(legacyToCanonicalDefinition(capability));
+src/capabilities/capability/registry.ts:201:  unregister(id: string): void {
+src/capabilities/capability/registry.ts:202:    this.mutationPort?.unregister(id);
+src/capabilities/capability/mutation-port.ts:14:  register(def: CapabilityDefinition): void;
+src/capabilities/capability/mutation-port.ts:15:  unregister(id: string): void;
+src/capabilities/capability/mutation-port.ts:25:  register(def: CapabilityDefinition): void {
+src/capabilities/capability/mutation-port.ts:27:    this.catalog.register(def, def.bindings[0]);
+src/capabilities/capability/mutation-port.ts:30:  unregister(id: string): void {
+src/capabilities/capability/mutation-port.ts:32:    this.catalog.remove(id);
+=== GOVERNANCE BINDING ===
+/**
+ * approval-store.ts — File-backed approval queue.
+ *
+ * Stores approval requests in .alix/approvals/approvals.json.
+ * CLI-first: no browser write actions.
+ */
+
+import { readFile, writeFile, mkdir, appendFile, rm } from "node:fs/promises";
+import { rename as renameFile } from "node:fs/promises";
+import { join } from "node:path";
+import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import type { AuditStore } from "../audit/audit-store.js";
+import type { EventLog } from "../../runtime-state/events/event-log.js";
+import type { ApprovalRecord, ApprovalGroup, ConsumeResult, RemoteDecisionEvidence } from "./approval-types.js";
+import type { WorkerOwnershipClaim } from "../../coordination/kernel/coordination-types.js";
+import { normalizeApprovalRecord, computeInvocationFingerprint, invocationMatches } from "./approval-binding.js";
+import type { InvocationIdentity } from "./approval-binding.js";
+import { ApprovalStoreLock } from "./approval-store-lock.js";
+import { APPROVAL_EVENT_TYPES } from "../../runtime-state/events/types.js";
+import { getSharedLedger, appendFact, currentEntityVersion, type LedgerFactCounters } from "../../runtime-state/storage/runtime-ledger.js";
+
+/** Compact the append-only journal once it reaches this many entries (#703). */
+const JOURNAL_COMPACT_THRESHOLD = 500;
+
+export type ApprovalRequestInput = {
+  reason: string;
+  bindingKey: string;
+  requestFingerprint: string;
+  policyRevision: string;
+  capabilities: string[];
+  ownershipClaims?: WorkerOwnershipClaim[];
+  coordinationRunId?: string;
+  workerId?: string;
+  workerAttempt?: number;
+  graphId?: string;
+  nodeId?: string;
+  sessionId?: string;
+  agentId?: string;
+  toolId?: string;
+  riskLevel?: "low" | "medium" | "high" | "critical";
+  /**
+   * Exact invocation this approval authorizes. Persisted with a deterministic
+   * fingerprint so authorization cannot drift to a changed argument set,
+   * capability, tool, workspace, session, or agent. Absent on legacy records,
+   * which fail closed rather than authorize on a request-id match alone.
+   */
+  invocation?: InvocationIdentity;
+  groupId?: string;
+  expiresAt?: string;
+  /** Stable request id (typically the toolCallId) used for retry de-dup. */
+  requestId?: string;
+  /** Structured payload for non-tool approvals (e.g. schedule.propose). */
+  metadata?: Record<string, unknown>;
+};
+
+/**
+ * The invocation identity + its fingerprint, as one spreadable pair.
+ *
+ * One builder so the identity can never be persisted without its fingerprint, or
+ * vice versa. This pair was inlined identically at three creation sites
+ * (request / requestOrReusePending / pending-reuse); a future change to the
+ * fingerprint rule would otherwise have had to find all three.
+ */
+function invocationFields(invocation: InvocationIdentity | undefined): {
+  invocation?: InvocationIdentity;
+  invocationFingerprint?: string;
+} {
+  return {
+    invocation,
+    invocationFingerprint: invocation ? computeInvocationFingerprint(invocation) : undefined,
+  };
+}
+
+export class ApprovalStore {
+  private approvals: ApprovalRecord[] = [];
+  private groups: ApprovalGroup[] = [];
+  private filePath: string;
+  /** Append-only delta log for new records (#703); folded into the snapshot
+   *  on compaction. External readers must replay it after the snapshot. */
+  private journalPath: string;
+  private cwd: string;
+  private auditStore?: AuditStore;
+  private eventLog?: EventLog;
+  /** In-flight fire-and-forget appends, for a deterministic test barrier. */
+  private pendingAppends: Promise<unknown>[] = [];
+
+  /**
+   * Whether this store emits lifecycle events itself.
+   *
+   * `emit()` is a no-op without an EventLog, so a caller that constructs the
+   * store WITHOUT one (e.g. headless `alix run`, `run.ts`) gets no
+   * `approval.created` from the committed creation transition. The policy gate
+   * uses this to decide whether it must supply the creation record itself —
+   * exactly one emitter either way. Read-only projection of construction state;
+   * it grants no authority.
+   */
+  get emitsLifecycleEvents(): boolean {
+    return this.eventLog !== undefined;
+  }
+
+  /** O(1) lookup indexes (#703), rebuilt on load and after each mutation. */
+  private byId = new Map<string, ApprovalRecord>();
+  private byBindingKey = new Map<string, ApprovalRecord[]>();
+
+  /** Retention cap for terminal (non-pending/approved) records (#703). */
+  private readonly maxTerminalRecords: number;
+  /**
+   * R2.5 authority counters. The LEDGER append is the commit (append failure
+   * throws); the JSON/journal projection is best-effort — failures are
+=== COORDINATION ===
+src/operations/daemon/coordination-scheduler-service.ts:79:    void this.scheduler.tick(runId).catch(() => {});
+src/operations/daemon/coordination-scheduler-service.ts:98:        await this.scheduler.tick(run.id);
+src/interfaces/cli/commands/coordination.ts:53:  scheduler: Pick<import("../../../coordination/kernel/coordination-scheduler.js").CoordinationScheduler, "reconcile" | "runUntilIdle">,
+src/interfaces/cli/commands/coordination.ts:57:  execution: Awaited<ReturnType<typeof scheduler.runUntilIdle>>;
+src/interfaces/cli/commands/coordination.ts:60:  const execution = await scheduler.runUntilIdle(runId);
+src/interfaces/cli/commands/coordination.ts:235:    result = await scheduler.runUntilIdle(runId);
+src/interfaces/cli/commands/coordination.ts:266:  const result = await scheduler.tick(runId);
+src/interfaces/cli/commands/coordination.ts:306:  let execution: Awaited<ReturnType<typeof scheduler.runUntilIdle>>;
+src/interfaces/server/coordination-routes.ts:446:      let result = await scheduler.runUntilIdle(runId);
+src/interfaces/server/coordination-routes.ts:453:        result = await scheduler.runUntilIdle(runId);
+src/coordination/kernel/coordination-tools.ts:8: * - `coordination.run` — plan + schedule + runUntilIdle (blocking), returns
+src/coordination/kernel/coordination-tools.ts:353:    result = await scheduler.runUntilIdle(runId);
+src/coordination/kernel/coordination-tools.ts:382:      result = await scheduler.runUntilIdle(runId);
+=== WORKLOAD AVAILABILITY ===
+benchmark/real-model-harness.ts
+benchmark/AGENTS.md
+benchmark/universal-row.ts
+benchmark/scenarios/mutation-conflict.ts
+benchmark/real-harness.ts
+benchmark/real-eventlog-environment.ts
+benchmark/mutation-conflict-stress.ts
+benchmark/mutation-conflict.ts
+benchmark/metrics.ts
+benchmark/index.ts
+benchmark/fake-environment.ts
+benchmark/evidence/harness2-reproduction.json
+benchmark/evidence/gate-b-scoring-record.test.mjs
+benchmark/evidence/review-trial.mjs
+benchmark/evidence/release-clearance-record.mjs
+benchmark/evidence/release-clearance-record.test.mjs
+benchmark/evidence/config-consumer-inventory.json
+benchmark/evidence/gate-e-qualification-record.test.mjs
+benchmark/evidence/record-validation.mjs
+benchmark/evidence/README.md
+benchmark/evidence/gate-e-qualification-record.mjs
+benchmark/evidence/review-trial.test.mjs
+benchmark/evidence/config-consumer-inventory.mjs
+benchmark/evidence/config-consumer-inventory.test.mjs
+benchmark/evidence/rescore-collection.mjs
+benchmark/evidence/gate-b-scoring-record.mjs
+benchmark/types.ts
+benchmark/session-shadow.ts
+=== SYSTEM ===
+ 21:25:12 up  2:37,  1 user,  load average: 1.64, 2.00, 2.74
+COMMAND           RSS %CPU COMMAND
+Isolated Web Co 836092 15.5 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:41692 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {a73cfd6f-1321-4b58-8899-2ab1552108f3} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 9 tab
+Isolated Web Co 699004 3.9 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:41651 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {aa74594b-080c-498d-bf40-a6b0b028f957} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 15 tab
+floorp          673992 22.5 /usr/bin/floorp
+node-MainThread 615556 0.2 node /home/babasola/.config/nvm/versions/node/v26.11.0/bin/gitnexus mcp
+Isolated Web Co 375164 1.6 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:41692 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {d6758e15-68c4-47f5-8013-9afa95a565c0} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 23 tab
+WebExtensions   371284 2.1 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:52669 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {6ba7092e-bf73-4541-b3be-2d756091214f} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 7 tab
+Isolated Web Co 365452 0.9 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:41651 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {0b89cf6c-9ac3-4b9d-b5fe-391748a28f24} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 13 tab

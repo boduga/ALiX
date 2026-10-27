@@ -1,0 +1,6 @@
+wrapper 1 elapsed=0.70 maxrss_kb=153300 exit=0
+wrapper 2 elapsed=0.73 maxrss_kb=153848 exit=0
+wrapper 3 elapsed=0.68 maxrss_kb=154284 exit=0
+direct 1 elapsed=0.65 maxrss_kb=154968 exit=0
+direct 2 elapsed=0.65 maxrss_kb=153544 exit=0
+direct 3 elapsed=0.66 maxrss_kb=161088 exit=0

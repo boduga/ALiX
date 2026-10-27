@@ -1,0 +1,69 @@
+{
+  "capturedAt": {
+    "current_time": "2026-10-26 14:45:27 UTC"
+  },
+  "workspace": "/tmp/alix-d9-configfix-KzqJgE/workspace",
+  "runId": "coord_36518aec-0ae3-4099-b21b-b886a8f19849",
+  "sessionId": "coord_1793022604682",
+  "captures": [
+    {
+      "label": "status",
+      "command": "node /home/babasola/Projects/ALiX/dist/src/cli.js coordination status coord_36518aec-0ae3-4099-b21b-b886a8f19849 --json",
+      "exitCode": 0,
+      "output": "Run: coord_36518aec-0ae3-4099-b21b-b886a8f19849\nStatus: blocked\nGoal: Create docs/d9-receipt.txt containing D9-APPROVED\nWorkers: 1 blocked\nAwaiting approval: approval_1793022668107_rf1xy\nCreated: 2026-10-26T13:50:04.992Z\nUpdated: 2026-10-26T14:43:41.176Z\nAggregate: .alix/coordination/results/runs/coord_36518aec-0ae3-4099-b21b-b886a8f19849.json (fresh)\nOutcome: blocked\nCompletion: in progress\n  execution=running aggregation=generated outcome=blocked verification=failed\n"
+    },
+    {
+      "label": "workers",
+      "command": "node /home/babasola/Projects/ALiX/dist/src/cli.js coordination workers coord_36518aec-0ae3-4099-b21b-b886a8f19849 --json",
+      "exitCode": 0,
+      "output": "[\n  {\n    \"id\": \"worker_6e4f9e01-dc97-4573-9f91-621911466ff4\",\n    \"taskLabel\": \"Create isolated receipt\",\n    \"agentId\": \"alix#1\",\n    \"status\": \"blocked\",\n    \"attempt\": 1,\n    \"maxAttempts\": 3,\n    \"planOrder\": 0,\n    \"outcome\": \"failure\",\n    \"error\": \"Objective review: Reviewer requested tools instead of returning a verdict\\nChanged: docs/d9-receipt.txt\",\n    \"failureKind\": \"execution_error\",\n    \"blockReason\": \"approval_required\",\n    \"startedAt\": \"2026-10-26T13:51:00.663Z\",\n    \"ownershipScopes\": [\n      \"docs/d9-receipt.txt\"\n    ],\n    \"leaseIds\": [],\n    \"approvalId\": \"approval_1793022668107_rf1xy\",\n    \"resultRef\": \".alix/coordination/results/worker_6e4f9e01-dc97-4573-9f91-621911466ff4.json\"\n  }\n]\n"
+    },
+    {
+      "label": "approvals",
+      "command": "node /home/babasola/Projects/ALiX/dist/src/cli.js coordination approvals coord_36518aec-0ae3-4099-b21b-b886a8f19849 --json",
+      "exitCode": 0,
+      "output": "[\n  {\n    \"id\": \"approval_1793022605302_ceq4n\",\n    \"status\": \"consumed\",\n    \"capabilities\": [\n      \"filesystem.write\"\n    ],\n    \"bindingKey\": \"2c711ee5c2c64b7710967964e5cbe6816b49d9820f8035765eaa8ad050dbc113\",\n    \"workerId\": \"worker_6e4f9e01-dc97-4573-9f91-621911466ff4\",\n    \"createdAt\": \"2026-10-26T13:50:05.302Z\",\n    \"expiresAt\": \"2026-10-26T14:20:05.302Z\"\n  },\n  {\n    \"id\": \"approval_1793022668107_rf1xy\",\n    \"status\": \"pending\",\n    \"capabilities\": [\n      \"filesystem.write\"\n    ],\n    \"bindingKey\": \"e90effc3c7b046e779bc7a797cf99e0aaf9bbbd478819824b00d64d8c1541d57\",\n    \"workerId\": \"worker_6e4f9e01-dc97-4573-9f91-621911466ff4\",\n    \"createdAt\": \"2026-10-26T13:51:08.107Z\",\n    \"expiresAt\": \"2026-10-26T14:21:08.107Z\"\n  }\n]\n"
+    },
+    {
+      "label": "ownership",
+      "command": "node /home/babasola/Projects/ALiX/dist/src/cli.js coordination ownership coord_36518aec-0ae3-4099-b21b-b886a8f19849 --json",
+      "exitCode": 0,
+      "output": "[\n  {\n    \"id\": \"own_637bf477\",\n    \"agentId\": \"alix#1\",\n    \"scope\": \"/tmp/alix-d9-configfix-KzqJgE/workspace/docs/d9-receipt.txt\",\n    \"mode\": \"exclusive-write\",\n    \"status\": \"released\",\n    \"acquiredAt\": \"2026-10-26T13:51:00.661Z\",\n    \"expiresAt\": \"2026-10-26T14:21:00.661Z\",\n    \"expiresInMs\": 0,\n    \"taskId\": \"worker_6e4f9e01-dc97-4573-9f91-621911466ff4\"\n  }\n]\n"
+    },
+    {
+      "label": "events",
+      "command": "node /home/babasola/Projects/ALiX/dist/src/cli.js runtime events --session coord_1793022604682 --limit 100 --json",
+      "exitCode": 0,
+      "output": "approval:approval.created        7:51:08 AM   cap=filesystem.write\n  Requires approval for capability: filesystem.write\nsession:tool.completed           7:51:07 AM   cap=filesystem.read\nsession:runtime.phase.completed  7:51:07 AM  \nsession:runtime.phase.started    7:51:07 AM  \nsession:tool.started             7:51:07 AM  \nsession:graph.completed          7:51:07 AM  graph=graph_ddf9741d-44e0-4ff0-8a03-3cd5a586d273 node=node_d09435f6-f91c-4abb-8655-bc39bd1c15a4\n  Done.\nsession:task.done                7:51:07 AM  graph=graph_ddf9741d-44e0-4ff0-8a03-3cd5a586d273 node=node_d09435f6-f91c-4abb-8655-bc39bd1c15a4\n  Done.\nsession:session.ended            7:51:07 AM  \n  completed\nsession:tool.completed           7:51:07 AM   cap=filesystem.write\nsession:runtime.phase.completed  7:51:07 AM  \nsession:file.created             7:51:07 AM  \nsession:runtime.phase.started    7:51:07 AM  \nsession:tool.started             7:51:07 AM  \nsession:graph.status_changed     7:51:05 AM  graph=graph_ddf9741d-44e0-4ff0-8a03-3cd5a586d273 node=node_d09435f6-f91c-4abb-8655-bc39bd1c15a4\nsession:task.started             7:51:05 AM  graph=graph_ddf9741d-44e0-4ff0-8a03-3cd5a586d273 node=node_d09435f6-f91c-4abb-8655-bc39bd1c15a4\nsession:graph.created            7:51:05 AM  graph=graph_ddf9741d-44e0-4ff0-8a03-3cd5a586d273 node=node_d09435f6-f91c-4abb-8655-bc39bd1c15a4\nsession:task.ready               7:51:05 AM  graph=graph_ddf9741d-44e0-4ff0-8a03-3cd5a586d273 node=node_d09435f6-f91c-4abb-8655-bc39bd1c15a4\nsession:session.started          7:51:01 AM  \napproval:approval.denied         7:50:05 AM   cap=filesystem.write\n  Requires approval for capability: filesystem.write\n\n19 events\n"
+    },
+    {
+      "label": "coordinationEvents",
+      "command": "node /home/babasola/Projects/ALiX/dist/src/cli.js coordination events coord_36518aec-0ae3-4099-b21b-b886a8f19849 --json",
+      "exitCode": 0,
+      "output": "[]\n"
+    },
+    {
+      "label": "audit",
+      "command": "node /home/babasola/Projects/ALiX/dist/src/cli.js audit by-approval approval_1793022605302_ceq4n",
+      "exitCode": 0,
+      "output": "No records for approval.\n"
+    }
+  ],
+  "exportedTrace": {
+    "path": "/tmp/alix-d9-configfix-KzqJgE/trace.jsonl",
+    "output": "{\"timestamp\":\"2026-10-26T13:49:31.753Z\",\"pid\":156869,\"event\":\"daemon.coordination.start\",\"cwd\":\"/tmp/alix-d9-configfix-KzqJgE/workspace\",\"provider\":\"scripted-mock\",\"subagentsEnabled\":false,\"scenarioEnvPresent\":true}\n{\"timestamp\":\"2026-10-26T13:50:58.857Z\",\"pid\":157616,\"event\":\"daemon.coordination.start\",\"cwd\":\"/tmp/alix-d9-configfix-KzqJgE/workspace\",\"provider\":\"scripted-mock\",\"subagentsEnabled\":false,\"scenarioEnvPresent\":true}\n{\"timestamp\":\"2026-10-26T13:51:01.020Z\",\"pid\":157616,\"event\":\"worker\",\"workerId\":\"worker_6e4f9e01-dc97-4573-9f91-621911466ff4\",\"provider\":\"scripted-mock\",\"scenarioLoaded\":true}\n{\"timestamp\":\"2026-10-26T13:51:07.139Z\",\"pid\":157616,\"event\":\"step\",\"source\":\"invocation\",\"index\":0,\"kind\":\"tool\"}\n{\"timestamp\":\"2026-10-26T13:51:07.158Z\",\"pid\":157616,\"event\":\"step\",\"source\":\"invocation\",\"index\":1,\"kind\":\"text\"}\n{\"timestamp\":\"2026-10-26T13:51:07.308Z\",\"pid\":157616,\"event\":\"step\",\"source\":\"global\",\"index\":0,\"kind\":\"tool\"}\n",
+    "exitCode": 0
+  },
+  "receipt": {
+    "path": "/tmp/alix-d9-configfix-KzqJgE/workspace/docs/d9-receipt.txt",
+    "output": "D9-APPROVED",
+    "exitCode": 0
+  },
+  "limits": [
+    "CLI output is retained verbatim; --json is not honored by every CLI surface.",
+    "The runtime-events projection labels the consumed dispatch approval approval.denied; authoritative approval CLI output reports consumed. The projection label is not used as a decision fact.",
+    "No complete tool-authorization decision or matched-rule record was available through the queried interfaces.",
+    "The exported scripted trace is observational evidence, not an authoritative authorization record.",
+    "No protected .alix file was opened directly and no blocked source inspection was retried."
+  ]
+}

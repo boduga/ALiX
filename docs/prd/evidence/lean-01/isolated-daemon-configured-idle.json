@@ -1,0 +1,159 @@
+{
+  "revision": "d412ea15e000f29cb6fe86588f3a267956604fb2",
+  "duration_s": 12.07,
+  "sample_count": 24,
+  "exit": 0,
+  "reason": "",
+  "stderr_tail": "Daemon listening on /tmp/alix-lean01-ie_9ud83/daemon.sock\n[Config WARN] ui.security.authentication: Authentication is disabled. This is only acceptable for local development on loopback.\n",
+  "samples": [
+    {
+      "t_s": 0.5,
+      "rss_kib": 59104,
+      "cpu_ticks": 5,
+      "write_bytes": 49152
+    },
+    {
+      "t_s": 1.0,
+      "rss_kib": 59104,
+      "cpu_ticks": 6,
+      "write_bytes": 126976
+    },
+    {
+      "t_s": 1.5,
+      "rss_kib": 75532,
+      "cpu_ticks": 15,
+      "write_bytes": 147456
+    },
+    {
+      "t_s": 2.01,
+      "rss_kib": 75580,
+      "cpu_ticks": 15,
+      "write_bytes": 221184
+    },
+    {
+      "t_s": 2.51,
+      "rss_kib": 75700,
+      "cpu_ticks": 17,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 3.01,
+      "rss_kib": 76576,
+      "cpu_ticks": 18,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 3.51,
+      "rss_kib": 76576,
+      "cpu_ticks": 18,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 4.01,
+      "rss_kib": 76580,
+      "cpu_ticks": 18,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 4.51,
+      "rss_kib": 76580,
+      "cpu_ticks": 18,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 5.02,
+      "rss_kib": 76580,
+      "cpu_ticks": 18,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 5.52,
+      "rss_kib": 76580,
+      "cpu_ticks": 18,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 6.02,
+      "rss_kib": 76592,
+      "cpu_ticks": 18,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 6.52,
+      "rss_kib": 76592,
+      "cpu_ticks": 18,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 7.02,
+      "rss_kib": 76592,
+      "cpu_ticks": 18,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 7.52,
+      "rss_kib": 76592,
+      "cpu_ticks": 18,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 8.02,
+      "rss_kib": 76596,
+      "cpu_ticks": 19,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 8.52,
+      "rss_kib": 76596,
+      "cpu_ticks": 19,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 9.02,
+      "rss_kib": 76600,
+      "cpu_ticks": 19,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 9.52,
+      "rss_kib": 76600,
+      "cpu_ticks": 19,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 10.03,
+      "rss_kib": 76600,
+      "cpu_ticks": 19,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 10.53,
+      "rss_kib": 76612,
+      "cpu_ticks": 19,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 11.03,
+      "rss_kib": 76612,
+      "cpu_ticks": 19,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 11.53,
+      "rss_kib": 76624,
+      "cpu_ticks": 19,
+      "write_bytes": 278528
+    },
+    {
+      "t_s": 12.03,
+      "rss_kib": 76624,
+      "cpu_ticks": 19,
+      "write_bytes": 278528
+    }
+  ],
+  "isolated_home": true,
+  "isolated_project": true,
+  "configured_model_is_nonexistent_placeholder": true,
+  "no_provider_requests": true,
+  "shared_load_host": true
+}
