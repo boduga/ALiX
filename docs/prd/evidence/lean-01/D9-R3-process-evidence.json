@@ -1,0 +1,75 @@
+{
+  "evidence": "D9-R3",
+  "daemonPids": [
+    183265,
+    183282
+  ],
+  "daemonLogs": [
+    "Daemon listening on /tmp/alix-d9-r3-wK4r2m/daemon.sock\n[Config WARN] ui.security.authentication: Authentication is disabled. This is only acceptable for local development on loopback.\n[daemon] completion recovery failed for coord_4b007e03-776e-438e-bdf4-f59a452660af: Error: Cannot reconcile completion: attached aggregate is missing or stale\n    at CoordinationCompletionService.finalize (file:///home/babasola/Projects/ALiX/dist/src/coordination/kernel/coordination-completion-service.js:81:27)\n    at async CoordinationScheduler.reconcileTerminalCompletion (file:///home/babasola/Projects/ALiX/dist/src/coordination/kernel/coordination-scheduler.js:974:9)\n    at async CoordinationSchedulerService.reconcileTerminalOnStartup (file:///home/babasola/Projects/ALiX/dist/src/operations/daemon/coordination-scheduler-service.js:86:17)\n[daemon] completion recovery failed for coord_410a3b5f-7c5f-4e7a-aa59-c6d138a2cbdc: Error: Cannot reconcile completion: attached aggregate is missing or stale\n    at CoordinationCompletionService.finalize (file:///home/babasola/Projects/ALiX/dist/src/coordination/kernel/coordination-completion-service.js:81:27)\n    at async CoordinationScheduler.reconcileTerminalCompletion (file:///home/babasola/Projects/ALiX/dist/src/coordination/kernel/coordination-scheduler.js:974:9)\n    at async CoordinationSchedulerService.reconcileTerminalOnStartup (file:///home/babasola/Projects/ALiX/dist/src/operations/daemon/coordination-scheduler-service.js:86:17)\n",
+    "Daemon listening on /tmp/alix-d9-r3-wK4r2m/daemon.sock\n[Config WARN] ui.security.authentication: Authentication is disabled. This is only acceptable for local development on loopback.\n[daemon] completion recovery failed for coord_4b007e03-776e-438e-bdf4-f59a452660af: Error: Cannot reconcile completion: attached aggregate is missing or stale\n    at CoordinationCompletionService.finalize (file:///home/babasola/Projects/ALiX/dist/src/coordination/kernel/coordination-completion-service.js:81:27)\n    at async CoordinationScheduler.reconcileTerminalCompletion (file:///home/babasola/Projects/ALiX/dist/src/coordination/kernel/coordination-scheduler.js:974:9)\n    at async CoordinationSchedulerService.reconcileTerminalOnStartup (file:///home/babasola/Projects/ALiX/dist/src/operations/daemon/coordination-scheduler-service.js:86:17)\n[daemon] completion recovery failed for coord_410a3b5f-7c5f-4e7a-aa59-c6d138a2cbdc: Error: Cannot reconcile completion: attached aggregate is missing or stale\n    at CoordinationCompletionService.finalize (file:///home/babasola/Projects/ALiX/dist/src/coordination/kernel/coordination-completion-service.js:81:27)\n    at async CoordinationScheduler.reconcileTerminalCompletion (file:///home/babasola/Projects/ALiX/dist/src/coordination/kernel/coordination-scheduler.js:974:9)\n    at async CoordinationSchedulerService.reconcileTerminalOnStartup (file:///home/babasola/Projects/ALiX/dist/src/operations/daemon/coordination-scheduler-service.js:86:17)\n"
+  ],
+  "runs": [
+    {
+      "runId": "coord_c45738c2-2873-49ce-a4d1-6f34566a8eeb",
+      "firstEvents": [
+        {
+          "sessionId": "d9-valid-e0643b6e-42e6-4cbf-b024-8c24111fa404",
+          "actor": "coordination",
+          "type": "coordination.aggregate.completed",
+          "payload": {
+            "runId": "coord_c45738c2-2873-49ce-a4d1-6f34566a8eeb",
+            "outcome": "success",
+            "workerCount": 1,
+            "aggregateResultRef": ".alix/coordination/results/runs/coord_c45738c2-2873-49ce-a4d1-6f34566a8eeb.json",
+            "sourceFingerprint": "74263cc3278b84fd2c1baa70af1a06884ecdd392b560d7b67d16be3848533516"
+          },
+          "id": "d5fd1920-a78e-4bb1-b395-f4419e040ba4",
+          "seq": 2,
+          "version": 1,
+          "timestamp": "2026-10-26T18:54:42.187Z"
+        }
+      ],
+      "restartEvents": [
+        {
+          "sessionId": "d9-valid-e0643b6e-42e6-4cbf-b024-8c24111fa404",
+          "actor": "coordination",
+          "type": "coordination.aggregate.completed",
+          "payload": {
+            "runId": "coord_c45738c2-2873-49ce-a4d1-6f34566a8eeb",
+            "outcome": "success",
+            "workerCount": 1,
+            "aggregateResultRef": ".alix/coordination/results/runs/coord_c45738c2-2873-49ce-a4d1-6f34566a8eeb.json",
+            "sourceFingerprint": "74263cc3278b84fd2c1baa70af1a06884ecdd392b560d7b67d16be3848533516"
+          },
+          "id": "d5fd1920-a78e-4bb1-b395-f4419e040ba4",
+          "seq": 2,
+          "version": 1,
+          "timestamp": "2026-10-26T18:54:42.187Z"
+        }
+      ]
+    },
+    {
+      "runId": "coord_410a3b5f-7c5f-4e7a-aa59-c6d138a2cbdc",
+      "firstEvents": [],
+      "restartEvents": []
+    },
+    {
+      "runId": "coord_7ffa16e2-f3a8-4304-bab9-594e49a92042",
+      "firstEvents": [],
+      "restartEvents": []
+    },
+    {
+      "runId": "coord_4b007e03-776e-438e-bdf4-f59a452660af",
+      "firstEvents": [],
+      "restartEvents": []
+    }
+  ],
+  "sourceSha256": {
+    "src/coordination/kernel/coordination-completion-service.ts": "976b91c72e6acf5e8071c625d6fc1f80b3fd5848f92e894f13e2e8eb7fec1698",
+    "src/coordination/kernel/coordination-scheduler.ts": "9a183a5911579aa00793452779fb7eca8ab58d2f05fd46a0cc8932eade0c80b2",
+    "src/operations/daemon/coordination-scheduler-service.ts": "34cd3998722ed7234e3008a9122e92225b3094e6cee8c70316db511725bbd972",
+    "src/operations/daemon/daemon-server.ts": "f4d3bd3f871e63d67534e332c93283fe9d9a12bc69f185c21c1886eda65f9fed",
+    "tests/events/d9-daemon-restart-e2e.test.ts": "7e7b22fab2f3e3457eb9169baa6787d9607a7295feb49a4183646eb7a68e5937"
+  },
+  "scope": "Seeded terminal daemon-hosted runs; actual compiled daemon, clean SIGTERM and OS-process restart. Not independent security review or full D9 qualification."
+}

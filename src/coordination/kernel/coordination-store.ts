@@ -422,6 +422,35 @@ export class CoordinationStore {
     }
   }
 
+  /** Atomically claim a pending worker for execution under the durable per-run lock.
+   * A stale scheduler snapshot must never dispatch an already-claimed worker.
+   */
+  async claimPendingWorker(
+    runId: string,
+    workerId: string,
+    expectedAttempt: number,
+    patch: WorkerPatch,
+  ): Promise<boolean> {
+    const lock = new CoordinationRunLock(this.cwd, runId);
+    if (!(await lock.acquire())) return false;
+    try {
+      const run = await this.loadWithRetry(runId);
+      if (!run) return false;
+      const worker = run.workers.find(w => w.id === workerId);
+      if (!worker || worker.status !== "pending" || worker.blockReason || worker.attempt !== expectedAttempt) {
+        return false; // No ledger event or JSON projection for rejected claims.
+      }
+      Object.assign(worker, patch, { status: "running", attempt: expectedAttempt + 1 });
+      run.status = recomputeRunStatus(run);
+      run.updatedAt = new Date().toISOString();
+      this.commitToLedger(runId, "snapshot", runLedgerPayload(run), run.updatedAt);
+      await this.projectJson(runId, run);
+      return true;
+    } finally {
+      lock.release();
+    }
+  }
+
   /** Update specific fields on a worker within a run. Uses lock-safe updateRun. */
   async patchWorker(
     runId: string,

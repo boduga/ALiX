@@ -51,6 +51,8 @@ export class FreeLLMAPIProvider extends BaseProvider {
     return complete("freellmapi", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+
+      ...(options?.onAttempt ? { onAttempt: options.onAttempt } : {}),
       baseUrl: this.endpoint(),
     });
   }
@@ -59,6 +61,8 @@ export class FreeLLMAPIProvider extends BaseProvider {
     yield* stream("freellmapi", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+
+      ...(options?.onAttempt ? { onAttempt: options.onAttempt } : {}),
       baseUrl: this.endpoint(),
     });
   }

@@ -567,6 +567,32 @@ describe("durable aggregation evidence", () => {
     );
   });
 
+  it("recovers a missing completion event exactly once after aggregate attachment", async () => {
+    const { runId } = await terminalUnaggregated();
+    const { createCompletionService } = await import("../../src/coordination/kernel/coordination-completion-service.js");
+    let appendAttempts = 0;
+    const service = createCompletionService(cwd, {
+      store,
+      eventLog: { append: async () => { appendAttempts++; throw new Error("event sink unavailable"); } } as any,
+    });
+    await service.finalize(runId);
+    const attached = await store.load(runId);
+    assert.ok(attached?.aggregateResultRef);
+    assert.equal(appendAttempts, 1);
+    const { EventLog } = await import("../../src/runtime-state/events/event-log.js");
+    const log = new EventLog(join(cwd, ".alix", "sessions", (await store.load(runId))!.sessionId));
+    await log.init();
+    const restart = createCompletionService(cwd, { store, eventLog: log });
+    await restart.finalize(runId);
+    await restart.finalize(runId);
+    const events = (await log.readAll()).filter(event => event.type === "coordination.aggregate.completed" &&
+      (event.payload as Record<string, unknown>).runId === runId);
+    assert.equal(events.length, 1, "repeated recovery must emit one durable completion event");
+    assert.equal((events[0]!.payload as Record<string, unknown>).sourceFingerprint, attached!.aggregateSourceFingerprint);
+    assert.equal((events[0]!.payload as Record<string, unknown>).aggregateResultRef, attached!.aggregateResultRef);
+    await log.close();
+  });
+
   it("leaves an attached aggregate unverified when no matching event exists", async () => {
     const { runId, recorder } = await terminalUnaggregated();
     const service = await workingService(recorder);

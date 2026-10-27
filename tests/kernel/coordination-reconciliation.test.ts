@@ -35,7 +35,7 @@ describe("reconcileCoordinationRun", () => {
     // limit"; marking `failed` permanently destroyed a crashed worker's work and
     // made runs report failed with correct artifacts on disk.
     assert.equal(loaded!.workers[0].status, "pending");
-    assert.equal(loaded!.workers[0].attempt, 1);
+    assert.equal(loaded!.workers[0].attempt, 0); // Claim increments when the next execution actually begins.
     assert.equal(loaded!.workers[0].executionOwnerId, undefined);
   });
 

@@ -23,6 +23,15 @@ import { getSharedLedger, appendFact, currentEntityVersion, type LedgerFactCount
 /** Compact the append-only journal once it reaches this many entries (#703). */
 const JOURNAL_COMPACT_THRESHOLD = 500;
 
+/** Trusted host context supplied by the restricted worker port, never request metadata.
+ * Omitted scope is the existing privileged host path; an explicit empty scope
+ * permits only legacy records without a worker binding.
+ */
+export type ApprovalOutcomeScope = Readonly<{ workerId?: string }>;
+
+// Abort mutate() before pruning, ledger append, or projection writes on denial.
+const OUTCOME_SCOPE_DENIED = Symbol("approval outcome scope denied");
+
 export type ApprovalRequestInput = {
   reason: string;
   bindingKey: string;
@@ -779,18 +788,24 @@ export class ApprovalStore {
   async recordExecutionOutcome(
     id: string,
     outcome: "succeeded" | "failed" | "cancelled",
+    scope?: ApprovalOutcomeScope,
   ): Promise<boolean> {
+    const scoped = scope !== undefined;
+    const workerId = scope?.workerId;
     let recorded = false;
     let sessionId: string | undefined;
     await this.mutate((approvals) => {
       const r = approvals.find(a => a.id === id);
       if (!r) return;
+      if (scoped && r.workerId && r.workerId !== workerId) throw OUTCOME_SCOPE_DENIED;
       if (r.status !== "consumed") return;
       if (r.executionOutcome !== "pending") return;
       r.executionOutcome = outcome;
       r.executionOutcomeAt = new Date().toISOString();
       sessionId = r.sessionId;
       recorded = true;
+    }).catch((error: unknown) => {
+      if (error !== OUTCOME_SCOPE_DENIED) throw error;
     });
     if (recorded) {
       const type = outcome === "succeeded"
@@ -810,12 +825,18 @@ export class ApprovalStore {
    *
    * Returns the record's current state so a caller can name the exact reason.
    */
-  async markExecutionUnverified(id: string): Promise<"unverified" | "terminal" | "missing"> {
+  async markExecutionUnverified(
+    id: string,
+    scope?: ApprovalOutcomeScope,
+  ): Promise<"unverified" | "terminal" | "missing"> {
+    const scoped = scope !== undefined;
+    const workerId = scope?.workerId;
     let verdict: "unverified" | "terminal" | "missing" = "missing";
     let sessionId: string | undefined;
     await this.mutate((approvals) => {
       const r = approvals.find(a => a.id === id);
       if (!r) { verdict = "missing"; return; }
+      if (scoped && r.workerId && r.workerId !== workerId) throw OUTCOME_SCOPE_DENIED;
       if (r.status !== "consumed") { verdict = "terminal"; return; }
       if (r.executionOutcome === "unverified") { verdict = "unverified"; return; }
       if (r.executionOutcome !== "pending") { verdict = "terminal"; return; }
@@ -823,6 +844,8 @@ export class ApprovalStore {
       r.executionOutcomeAt = new Date().toISOString();
       sessionId = r.sessionId;
       verdict = "unverified";
+    }).catch((error: unknown) => {
+      if (error !== OUTCOME_SCOPE_DENIED) throw error;
     });
     // `verdict` is assigned inside the mutate() closure, so TS narrows it to the
     // initial literal here. Re-assert the declared union before comparing.
@@ -860,6 +883,18 @@ export class ApprovalStore {
   async loadFresh(approvalId: string): Promise<ApprovalRecord | undefined> {
     await this.load();
     return this.byId.get(approvalId);
+  }
+
+  /** Recovery authority: no legacy JSON/journal fallback and no cached view. */
+  loadCommitted(approvalId: string): ApprovalRecord | undefined {
+    const event = getSharedLedger(this.cwd).readLatestByEntityType("approval")
+      .find(fact => fact.entityId === approvalId);
+    if (!event || event.eventType === "approval.removed") return undefined;
+    const payload = event.payload as { approval?: ApprovalRecord } | null;
+    if (!payload?.approval || payload.approval.id !== approvalId) {
+      throw new Error(`approval ledger event for ${approvalId} missing matching approval payload`);
+    }
+    return payload.approval;
   }
 
   /**
@@ -954,11 +989,18 @@ export class ApprovalStore {
       const now = consumer.now ?? new Date();
       if (new Date(r.expiresAt) <= now) { result = { consumed: false, reason: "expired" }; return; }
       if (r.bindingKey !== expectedBindingKey) { result = { consumed: false, reason: "binding key mismatch" }; return; }
-      if (r.workerId && consumer.workerId && r.workerId !== consumer.workerId) { result = { consumed: false, reason: "worker mismatch" }; return; }
-      // Exact-invocation binding: a caller that supplies the identity must match
-      // the persisted fingerprint. A legacy record with no fingerprint fails
-      // closed — it is never reinterpreted as reusable.
-      if (expectedInvocation && !invocationMatches(r, expectedInvocation)) {
+      // Worker-bound authority requires explicit, matching execution identity.
+      // A binding key alone must never authorize a different worker or attempt.
+      if (r.workerId && r.workerId !== consumer.workerId) {
+        result = { consumed: false, reason: "worker mismatch" }; return;
+      }
+      if (r.workerAttempt !== undefined && r.workerAttempt !== consumer.workerAttempt) {
+        result = { consumed: false, reason: "worker attempt mismatch" }; return;
+      }
+      // Invocation-bound records require a current invocation even if the
+      // caller omits it. Explicit legacy unbound records remain single-use.
+      if ((r.invocationFingerprint || expectedInvocation) &&
+          (!expectedInvocation || !invocationMatches(r, expectedInvocation))) {
         result = { consumed: false, reason: "invocation mismatch" }; return;
       }
       r.status = "consumed";

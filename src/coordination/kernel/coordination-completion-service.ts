@@ -16,12 +16,15 @@ import type { RunResultSummary } from "./coordination-result-types.js";
 import type { RunSynthesizer } from "./coordination-run-synthesizer.js";
 import type { EventLog } from "../../runtime-state/events/event-log.js";
 
+/** Append-only event port; a multi-session host routes by the event's session ID. */
+export type CoordinationEventSink = Pick<EventLog, "append"> & Partial<Pick<EventLog, "appendIfAbsent">>;
+
 export type CoordinationCompletionServiceDeps = {
   coordinationStore: CoordinationStore;
   resultAggregator: ResultAggregator;
   aggregateStore: CoordinationAggregateStore;
   synthesizer?: RunSynthesizer;
-  eventLog?: EventLog;
+  eventLog?: CoordinationEventSink;
 };
 
 export type CompletionServiceOptions = {
@@ -31,7 +34,7 @@ export type CompletionServiceOptions = {
   resultStore?: CoordinationResultStore;
   /** Reuse a caller-held aggregate store instead of constructing one. */
   aggregateStore?: CoordinationAggregateStore;
-  eventLog?: EventLog;
+  eventLog?: CoordinationEventSink;
   synthesizer?: RunSynthesizer;
 };
 
@@ -59,7 +62,28 @@ export function createCompletionService(
 export class CoordinationCompletionService {
   constructor(private deps: CoordinationCompletionServiceDeps) {}
 
-  async finalize(runId: string): Promise<RunResultSummary> {
+  private async emitCompletion(run: { sessionId: string }, runId: string, summary: RunResultSummary, ref: string, fingerprint: string): Promise<void> {
+    const sink = this.deps.eventLog;
+    if (!sink) return;
+    const event = {
+      sessionId: run.sessionId,
+      actor: "coordination" as const,
+      type: "coordination.aggregate.completed" as const,
+      payload: { runId, outcome: summary.outcome, workerCount: summary.counts.workers,
+        aggregateResultRef: ref, sourceFingerprint: fingerprint },
+    };
+    if (sink.appendIfAbsent) {
+      await sink.appendIfAbsent(event, existing => existing.type === event.type &&
+        existing.sessionId === event.sessionId &&
+        (existing.payload as Record<string, unknown>)?.runId === runId &&
+        (existing.payload as Record<string, unknown>)?.aggregateResultRef === ref &&
+        (existing.payload as Record<string, unknown>)?.sourceFingerprint === fingerprint);
+    } else {
+      await sink.append(event);
+    }
+  }
+
+  async finalize(runId: string, options: { reconcileOnly?: boolean } = {}): Promise<RunResultSummary> {
     const lock = new CoordinationFinalizationLock((this.deps.coordinationStore as any).cwd, runId);
     const acquired = await lock.acquire();
     if (!acquired) throw new Error("Could not acquire finalization lock");
@@ -70,10 +94,39 @@ export class CoordinationCompletionService {
 
       const fingerprint = computeAggregationSourceFingerprint(run);
 
+      // Startup recovery repairs event evidence only. Ordinary finalization
+      // may rebuild an aggregate; recovery must never promote stale or absent
+      // evidence by silently doing that work. Validate under this same lock.
+      if (options.reconcileOnly) {
+        const existing = await this.deps.aggregateStore.load(runId);
+        const expectedRef = `.alix/coordination/results/runs/${runId}.json`;
+        if ((run.status !== "completed" && run.status !== "failed") ||
+          run.aggregateResultRef !== expectedRef ||
+          run.aggregateSourceFingerprint !== fingerprint ||
+          !existing || existing.aggregateRef !== expectedRef ||
+          existing.sourceFingerprint !== fingerprint ||
+          existing.generatedAt !== run.aggregateGeneratedAt ||
+          existing.outcome !== run.outcome) {
+          throw new Error("Cannot reconcile completion: attached aggregate is missing or stale");
+        }
+        if (!this.deps.eventLog?.appendIfAbsent) {
+          throw new Error("Cannot reconcile completion: conditional event sink is unavailable");
+        }
+        await this.emitCompletion(run, runId, existing, expectedRef, fingerprint);
+        return existing;
+      }
+
       // Check for fresh aggregate — if source fingerprint matches, reuse
       if (run.aggregateSourceFingerprint === fingerprint && run.aggregateResultRef) {
         const existing = await this.deps.aggregateStore.load(runId);
-        if (existing) return existing;
+        if (existing) {
+          // Reconcile a completion event lost after durable aggregate attach.
+          // Only conditional sinks can safely retry without duplicate events.
+          if (this.deps.eventLog?.appendIfAbsent && (run.status === "completed" || run.status === "failed")) {
+            await this.emitCompletion(run, runId, existing, run.aggregateResultRef, fingerprint).catch(() => {});
+          }
+          return existing;
+        }
       }
 
       try {
@@ -124,24 +177,8 @@ export class CoordinationCompletionService {
         return existing ?? summary;
       }
 
-      // Emit event — exactly once, by the attach winner
-      await this.deps.eventLog?.append({
-        sessionId: run.sessionId,
-        actor: "coordination",
-        type: "coordination.aggregate.completed",
-        // The ref and fingerprint are what make this event usable as durable
-        // verification evidence: a consumer can check the event describes the
-        // aggregate currently attached to the run (see
-        // `matchesAttachedAggregateEvent`). Without them an older event could
-        // verify a newer, post-replan aggregate.
-        payload: {
-          runId,
-          outcome: summary.outcome,
-          workerCount: summary.counts.workers,
-          aggregateResultRef: aggregateRef,
-          sourceFingerprint: fingerprint,
-        },
-      }).catch(() => {});
+      // Emit idempotently when the sink supports atomic conditional append.
+      await this.emitCompletion(run, runId, summary, aggregateRef, fingerprint).catch(() => {});
 
       return summary;
       } catch (error) {

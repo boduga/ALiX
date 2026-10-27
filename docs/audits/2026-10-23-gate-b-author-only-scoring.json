@@ -1,0 +1,84 @@
+{
+  "_label": "AUTHOR-ONLY SCORING. NOT INDEPENDENT. DOES NOT SATISFY GB-12.",
+  "_why_this_exists": "A rigorous per-requirement assessment by an agent that is itself the author. GB-12 requires a scorer who is not the author; this record cannot supply that and must never be cited as if it did.",
+  "_instructions_never": "Do not relabel this reviewer field, and do not attach this record to a Gate B signature. An operator waiver of independence records a decision to accept author-only testing; it does not create a second party.",
+  "author": "Babasola <boduga@gmail.com> (work performed by an AI agent acting for the operator)",
+  "reviewer": "Babasola <boduga@gmail.com> (work performed by an AI agent acting for the operator) — AUTHOR, NOT INDEPENDENT",
+  "scoredAt": "2026-10-23T00:00:00.000Z",
+  "artifactSet": "Branch feat/phase0-master-prd at 9a69181f; docs/audits/2026-10-23-gate-b-acceptance-packet.md §8 manifest; benchmark/evidence/eval-runs/guarded-2026-10-23.json; benchmark/evidence/cost/*; benchmark/evidence/coordination/*",
+  "requirements": [
+    {
+      "id": "GB-01",
+      "verdict": "partial",
+      "note": "Corpus files are hash-pinned, not version-identified. I re-verified the recorded corpus manifest against the working tree: 6 of 8 hashes match, 2 differ (evals-types.ts, evals-runner.ts) because the §3/§4 capture work legitimately changed them after the record. The oracle remains author-written, so there is no independent oracle review."
+    },
+    {
+      "id": "GB-02",
+      "verdict": "met",
+      "evidence": "benchmark/evidence/eval-runs/guarded-2026-10-23.json — run summary total 14, passed 14, failed 0, inadmissible 0, objectiveLanded 8, honest 14; qualification field reads 'scripted-mechanics-only', billableInference false, costUsd null.",
+      "note": "Met strictly as scripted mechanics. Must never be read as model quality, a baseline rate, or paid evidence."
+    },
+    {
+      "id": "GB-03",
+      "verdict": "met",
+      "evidence": "src/operations/evals/eval-guards.ts; guarded-2026-10-23.json — 7 of 14 results carry guard evidence, and 2 records report toolEvidence.complete true.",
+      "note": "New runs retain guard evidence per row. Historical paid runs cannot inherit these guards; that limit is not repaired by this verdict."
+    },
+    {
+      "id": "GB-04",
+      "verdict": "partial",
+      "note": "Reproducible-environment capture now EXISTS and is enforced (src/operations/evals/eval-frozen-inputs.ts computes model revision, config hash, offered-tool hash, corpus hashes, environment incl. CPU/memory, and a pricing pin with provenance; the sweep exits 2 on an incomplete pin set). But NO committed run carries those pins, because no collection has been performed. The capability is green; the evidence is absent."
+    },
+    {
+      "id": "GB-05",
+      "verdict": "partial",
+      "note": "All ten strata have at least one committed artifact, but strata 6 and 8 have n<=2 and stratum 9 is a single historical observation. Coverage is not qualification, and no stratum is 'stable'."
+    },
+    {
+      "id": "GB-06",
+      "verdict": "missing",
+      "note": "The primary measure needs an independently verified success denominator, which does not exist. It must be reported as null/unavailable. The 24-run $0.936605 subtotal has no independent denominator and is not this metric."
+    },
+    {
+      "id": "GB-07",
+      "verdict": "partial",
+      "note": "Mean/median cost and tokens are present per artifact and per case, catalog-priced from observed tokens. Invoice reconciliation is absent, and the current provider rate is an operator-declared gpt-4o PROXY for hive (benchmark/evidence/cost/rate-snapshot.json), not a vendor list price."
+    },
+    {
+      "id": "GB-08",
+      "verdict": "missing",
+      "note": "CORRECTED 2026-10-23 after model-independent review. Per-case latency is absent from the baseline: 40 cost/coordination artifacts exist, 6 carry finishedAt and 6 carry a numeric duration field, but per-case durations appear for only two paid cases (positive-openai-gpt4o.json, values 7229 and 609933 ms via observability.metric timer). Two samples are not a p50/p95 baseline. My earlier 'partial' verdict and '26 artifacts / 2 with timing / whole-run only' characterisation were all wrong; see docs/audits/2026-10-23-gate-b-model-independent-review.md §3.3-3.4."
+    },
+    {
+      "id": "GB-09",
+      "verdict": "partial",
+      "note": "n=3 (or n=2/n=1 for strata 6 and 8) supports '2 of 3', not a distribution. No confidence interval or threshold is justified by this design, and thresholds must stay unfrozen until a baseline exists."
+    },
+    {
+      "id": "GB-10",
+      "verdict": "met",
+      "evidence": "docs/audits/2026-10-23-gate-b-acceptance-packet.md §5; docs/harness-readiness-report.md — the 7/12 at $0.067149 and 10/12 at $0.045688 ratios are both marked as including the invalid old deny task and are excluded as baselines.",
+      "note": "Met as an exclusion. Neither ratio may be cited as a rate or as an attributable improvement."
+    },
+    {
+      "id": "GB-11",
+      "verdict": "missing",
+      "note": "Operator attention is unmeasured. No artifact records active review minutes, interruptions or approval touches; operatorActiveReviewMinutes is null by design in the sweep rows. This needs observed human review, which no model run can produce."
+    },
+    {
+      "id": "GB-12",
+      "verdict": "missing",
+      "note": "This record is AUTHOR-ONLY and therefore cannot close GB-12. A validator rejects it on independence grounds by construction (reviewer identity equals author). Engagement packet exists: docs/audits/2026-10-23-gate-b-scorer-engagement.md. No independent scorer has reviewed anything."
+    },
+    {
+      "id": "GB-13",
+      "verdict": "partial",
+      "note": "CORRECTED 2026-10-23. docs/audits/2026-10-23-harness-baseline-provenance.md classifies table replay, arithmetic replay and scenario reproduction; four historical records lack original events. My earlier claim that benchmark/evidence has no deletion history was FALSE: commit 15f89a64 deleted benchmark/evidence/coordination/workspace/docs/{a,b,c}.md. What remains true is narrower — no deletion of run logs has been identified — and that does not recover the missing originals."
+    },
+    {
+      "id": "GB-14",
+      "verdict": "missing",
+      "note": "No operator acceptance of a baseline exists. docs/audits/2026-10-23-harness-authorization.md authorizes the work, not a result. The decision-record fields in the acceptance packet are blank and must not be filled on another party's behalf."
+    }
+  ]
+}

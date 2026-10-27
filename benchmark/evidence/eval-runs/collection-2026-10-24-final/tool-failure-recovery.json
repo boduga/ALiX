@@ -1,0 +1,1030 @@
+{
+  "startedAt": "2026-10-24T08:02:56.539Z",
+  "finishedAt": "2026-10-24T08:06:30.433Z",
+  "frozen": {
+    "model": {
+      "provider": "hive",
+      "name": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revisionSource": "model-id-snapshot"
+    },
+    "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7",
+    "offeredToolsHash": "24fb49fdfe87f7d8cb65b381189169a65f9649d909d02905a810ead8349e0164",
+    "offeredTools": [
+      "alix_collaboration_get_dependency_results",
+      "alix_collaboration_list_conflicts",
+      "alix_collaboration_publish_artifact",
+      "alix_collaboration_publish_finding",
+      "alix_collaboration_query_findings",
+      "alix_collaboration_report_conflict",
+      "alix_coordination_list",
+      "alix_coordination_results",
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_create_skill",
+      "alix_delegate",
+      "alix_done",
+      "alix_execution_state_propose",
+      "alix_file_create",
+      "alix_file_delete",
+      "alix_file_exists",
+      "alix_file_read",
+      "alix_glob_match",
+      "alix_grep_search",
+      "alix_hook_create",
+      "alix_inspect_extension",
+      "alix_list_extensions",
+      "alix_mcp_search_tools",
+      "alix_patch_apply",
+      "alix_schedule_propose",
+      "alix_shell_run",
+      "alix_state_query",
+      "alix_verify_claim",
+      "alix_web_fetch",
+      "alix_web_search"
+    ],
+    "corpusHash": "9ed559998d4b7e8a7bf4497992e0d45a4daf430aace084b31a3c6dc52ba2ce74",
+    "corpusFiles": [
+      {
+        "path": "src/operations/evals/cases/index.ts",
+        "sha256": "09d36787693d5ded9e8c32c4123366f208bd2aa0563651c6c4e2749f48c3827e"
+      },
+      {
+        "path": "src/operations/evals/cases/behavioral.ts",
+        "sha256": "4beb2ff22fbd65b0e2272ae05f8b752c430d1048905deeeb6226e4126ada4e09"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-2-4.ts",
+        "sha256": "3963f18afd4408cb13bd1d25c0e46210e6684e782ec81293054134c4a7381e5f"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-5-10.ts",
+        "sha256": "9cab91edcb4a8f88bffdd9934fa524aeee27e5b7bc7d2d472e7814a196e0a35a"
+      },
+      {
+        "path": "src/operations/evals/cases/stratum-9-local.ts",
+        "sha256": "e77b9b30647c58e0b5e7dea3e37bb1f0a6d76e0970f4e5b6cfc020deb4df8f2d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/objective-evaluator.ts",
+        "sha256": "76869222509ac0a78d7e0dde1104d47e98c07abd9d1553964ec85c4072b6d56d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/status-evaluator.ts",
+        "sha256": "3b16532d05fa07a8005ff3ade2fa52f03c7315435e322f2dc847a3858d759cd4"
+      },
+      {
+        "path": "src/operations/evals/eval-guards.ts",
+        "sha256": "a9b379a9aa87e949dc17256f0d7a9659326cf3e8352aa12d531111e80f2a5d6b"
+      },
+      {
+        "path": "src/operations/evals/eval-admissibility.ts",
+        "sha256": "721408143ecec8e42039e510f32b13a088b2958c8cfb4d47a9d227fbba9ef9a7"
+      }
+    ],
+    "environment": {
+      "node": "v26.11.0",
+      "platform": "linux",
+      "arch": "x64",
+      "cpuCount": 4,
+      "cpuModel": "Intel(R) Core(TM) i3-8145U CPU @ 2.10GHz",
+      "totalMemoryBytes": 12284481536
+    },
+    "pricing": {
+      "source": "operator-declared proxy: openai/gpt-4o catalog rate (defaultPricingCatalog), not a Hive-published rate",
+      "effectiveFrom": "2025-01-01",
+      "inputPerMillion": 2.5,
+      "outputPerMillion": 10,
+      "currency": "USD",
+      "observedAt": "2026-10-23T00:00:00.000Z",
+      "provenance": "operator-snapshot",
+      "note": "Operator-supplied rate snapshot; retained with the run."
+    },
+    "blocking": [],
+    "admissible": true
+  },
+  "suiteDurationMs": 213894,
+  "model": {
+    "provider": "hive",
+    "name": "deepseek-ai/deepseek-v4.1-flash-1017"
+  },
+  "results": [
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "stratum": "tool-failure-recovery",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T08:02:56.539Z",
+      "finishedAt": "2026-10-24T08:03:44.244Z",
+      "durationMs": 47705,
+      "toolCalls": 3,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "recover.md",
+        "exists": true,
+        "expected": {
+          "contentEquals": "RECOVERED"
+        },
+        "actual": {
+          "content": "RECOVERED"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-5519e378-cf81-11f1-ac27-71a16d503e88-0-0",
+              "toolName": "file.delete",
+              "args": {
+                "path": "does-not-exist.md"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 7,
+              "outcome": "failed",
+              "error": "Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-Nf85BQ/workspace/does-not-exist.md'"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-5aea583e-cf81-11f1-843e-78382a402664-0-0",
+              "toolName": "file.create",
+              "args": {
+                "path": "recover.md",
+                "content": "RECOVERED"
+              },
+              "requestIndex": 10,
+              "terminalIndex": 17,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-63ce4565-cf81-11f1-960c-009c3043f880-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "wc -c recover.md && od -c recover.md"
+              },
+              "requestIndex": 19,
+              "terminalIndex": 25,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "recover.md",
+            "exists": true,
+            "sha256": "511b6de24de031f53b6629672385535563df7a0e3d590d4dea13dc93266f194f",
+            "content": "RECOVERED",
+            "bytes": 9
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {},
+          "truncated": false,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "recover.md": "file:511b6de24de031f53b6629672385535563df7a0e3d590d4dea13dc93266f194f"
+          },
+          "truncated": false,
+          "digest": "801b1a1872e1e8b159155d894dbb470f6d7226693a606751d70b36377d723255"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.delete 1 denied; file.create 1 completed; shell.run 1 completed.\n\nI'll start by attempting the deletion.\n\nBoth steps completed despite the first failure:\n\n- Attempted `alix_file_delete` on `does-not-exist.md` \u2192 failed with ENOENT (intentionally absent). As instructed, I continued rather than retrying.\n- Created `recover.md` containing exactly `RECOVERED`. Verification via `wc`/hex dump shows 9 bytes (`R E C O V E R E D`), confirming no trailing newline.\n\n[summary] Deletion failed as expected (ENOENT); continued and created recover.md with exactly RECOVERED (9 bytes, no trailing newline).\n[file_ref] recover.md\n[file_ref] does-not-exist.md (deletion attempted, failed \u2014 file absent)\nFully succeeded.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call call-5aea583e-cf81-11f1-843e-78382a402664-0-0:\\nFile created: recover.md\",\"Tool alix_shell_run, call call-63ce4565-cf81-11f1-960c-009c3043f880-0-0:\\n9 recover.md\\n0000000   R   E   C   O   V   E   R   E   D\\n0000011\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.delete 1 denied; file.create 1 completed; shell.run 1 completed.\n\nI'll start by attempting the deletion.\n\nBoth steps completed despite the first failure:\n\n- Attempted `alix_file_delete` on `does-not-exist.md` \u2192 failed with ENOENT (intentionally absent). As instructed, I continued rather than retrying.\n- Created `recover.md` containing exactly `RECOVERED`. Verification via `wc`/hex dump shows 9 bytes (`R E C O V E R E D`), confirming no trailing newline.\n\n[summary] Deletion failed as expected (ENOENT); continued and created recover.md with exactly RECOVERED (9 bytes, no trailing newline).\n[file_ref] recover.md\n[file_ref] does-not-exist.md (deletion attempted, failed \u2014 file absent)\nFully succeeded.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call call-5aea583e-cf81-11f1-843e-78382a402664-0-0:\\nFile created: recover.md\",\"Tool alix_shell_run, call call-63ce4565-cf81-11f1-960c-009c3043f880-0-0:\\n9 recover.md\\n0000000   R   E   C   O   V   E   R   E   D\\n0000011\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-tool-failure-recovery",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"payload\":{\"subagentId\":\"eval-behavioral-tool-failure-recovery\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\".\"]},\"id\":\"2db9e033-fce5-497b-972b-1f3004316f73\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T08:02:59.729Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5448,\"outputTokens\":73},\"id\":\"a641ccc6-fdb3-486b-91d0-c1230c70a2f4\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T08:03:10.711Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-5519e378-cf81-11f1-ac27-71a16d503e88-0-0\",\"toolName\":\"file.delete\",\"capability\":\"file.write\",\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"argsPreview\":{\"path\":\"does-not-exist.md\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-b32c3def-9738-4998-bccd-f5f19eb627a6\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"81917067-d880-4449-8bed-9e47ebe5517d\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T08:03:10.716Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-5519e378-cf81-11f1-ac27-71a16d503e88-0-0\",\"toolName\":\"file.delete\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-b32c3def-9738-4998-bccd-f5f19eb627a6\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"dcb12807-38e1-44c8-ad6d-9d6032561d9b\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T08:03:10.725Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.delete\"},\"timestamp\":\"2026-10-24T08:03:10.726Z\"},\"id\":\"291a90fe-8b34-4f62-97ed-f12f4566728d\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T08:03:10.726Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"7139ade4-0347-4350-9e55-319f0f89a947\",\"operation\":\"tool.route.file.delete\"},\"id\":\"e38c6e70-fee3-4b93-841b-bc6b1263ad18\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T08:03:10.727Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"7139ade4-0347-4350-9e55-319f0f89a947\",\"operation\":\"tool.route.file.delete\",\"durationMs\":1.78,\"outcome\":\"success\"},\"id\":\"d41118d0-033a-4aa6-8e43-e744e810d5ae\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T08:03:10.730Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-5519e378-cf81-11f1-ac27-71a16d503e88-0-0\",\"toolName\":\"file.delete\",\"error\":\"Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-Nf85BQ/workspace/does-not-exist.md'\",\"durationMs\":16,\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-b32c3def-9738-4998-bccd-f5f19eb627a6\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"480fd11e-380d-4951-95c7-3aca66173059\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T08:03:10.731Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.delete\"},\"timestamp\":\"2026-10-24T08:03:10.732Z\"},\"id\":\"c2a00df4-8828-4004-9d48-ee797f7aeb0f\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T08:03:10.733Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5563,\"outputTokens\":122},\"id\":\"db1bcec4-ae82-40f9-a3cf-00a91af087a8\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T08:03:25.668Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-5aea583e-cf81-11f1-843e-78382a402664-0-0\",\"toolName\":\"file.create\",\"capability\":\"file.write\",\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"argsPreview\":{\"path\":\"recover.md\",\"content\":\"RECOVERED\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-e5478d74-bac6-4990-acd8-0874aecd1775\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"d88f34b4-6980-4914-bab4-0dd1fc71dbc5\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T08:03:25.670Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-5aea583e-cf81-11f1-843e-78382a402664-0-0\",\"toolName\":\"file.create\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-e5478d74-bac6-4990-acd8-0874aecd1775\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"7bdd987c-1048-4026-8bed-44daf97527b2\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T08:03:25.671Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.create\"},\"timestamp\":\"2026-10-24T08:03:25.672Z\"},\"id\":\"8874b57e-ab5b-466a-b2cc-af02ebae8673\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T08:03:25.672Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"223f8e23-3760-4c8d-a6e3-9616dee8783f\",\"operation\":\"tool.route.file.create\"},\"id\":\"0f9bee63-e013-4a80-a6bb-269173e60895\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T08:03:25.673Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"file.created\",\"payload\":{\"path\":\"recover.md\",\"resolvedPath\":\"/tmp/eval-task-Nf85BQ/workspace/recover.md\",\"root\":\"/tmp/eval-task-Nf85BQ/workspace\"},\"id\":\"dd024b3c-0d4c-4aa8-9c69-0d161ad6949f\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T08:03:25.674Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"223f8e23-3760-4c8d-a6e3-9616dee8783f\",\"operation\":\"tool.route.file.create\",\"durationMs\":1.5,\"outcome\":\"success\"},\"id\":\"dbf43f61-c761-445c-ba98-ea93223f827a\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T08:03:25.675Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-5aea583e-cf81-11f1-843e-78382a402664-0-0\",\"outputPreview\":\"File created: recover.md\",\"outputSize\":24,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-e5478d74-bac6-4990-acd8-0874aecd1775\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"3739e0a1-0c21-4cd5-8dcf-f0bb6d36c93a\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T08:03:25.675Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-5aea583e-cf81-11f1-843e-78382a402664-0-0\",\"toolName\":\"file.create\",\"status\":\"success\",\"durationMs\":6,\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-e5478d74-bac6-4990-acd8-0874aecd1775\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"73f917e1-9b33-4007-b5c3-dc0aa7b408fd\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T08:03:25.676Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5645,\"outputTokens\":106},\"id\":\"50442529-aebb-4223-89a2-0c29c07f8820\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T08:03:36.589Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-63ce4565-cf81-11f1-960c-009c3043f880-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"12d9984984df31c1c9d348d376062b6ef5df8dc91ac38466c13eff035f34ec05\",\"argsPreview\":{\"command\":\"wc -c recover.md && od -c recover.md\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-69521147-e72d-40db-a295-756d8511943e\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"8e9678d8-ff9e-43bc-9a0b-77bfa8535608\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T08:03:36.590Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-63ce4565-cf81-11f1-960c-009c3043f880-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"12d9984984df31c1c9d348d376062b6ef5df8dc91ac38466c13eff035f34ec05\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-69521147-e72d-40db-a295-756d8511943e\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"7b1a611a-f853-4201-a766-730b4fb4f232\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T08:03:36.596Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:03:36.597Z\"},\"id\":\"7a26a189-26b6-4be3-85a4-25de0713f016\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T08:03:36.597Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"3c06597c-f67c-4bdf-97e3-f4086ec45802\",\"operation\":\"tool.route.shell.run\"},\"id\":\"2af95420-6fac-4823-a75d-5744c7c11475\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T08:03:36.599Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"3c06597c-f67c-4bdf-97e3-f4086ec45802\",\"operation\":\"tool.route.shell.run\",\"durationMs\":8.35,\"outcome\":\"success\"},\"id\":\"753a89c7-709f-47fa-bb99-abfbe01b019e\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T08:03:36.608Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-63ce4565-cf81-11f1-960c-009c3043f880-0-0\",\"outputPreview\":\"9 recover.md\\n0000000   R   E   C   O   V   E   R   E   D\\n0000011\\n\",\"outputSize\":65,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-69521147-e72d-40db-a295-756d8511943e\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"58675390-8fce-4fe6-9e8d-6be6448651a7\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T08:03:36.608Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-63ce4565-cf81-11f1-960c-009c3043f880-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":19,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"12d9984984df31c1c9d348d376062b6ef5df8dc91ac38466c13eff035f34ec05\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-69521147-e72d-40db-a295-756d8511943e\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"92ea189f-2277-476a-a6bf-144074b5fbd4\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T08:03:36.609Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3660,\"outputTokens\":186},\"id\":\"97576561-fae9-4a06-a95e-bfac087f6e5f\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T08:03:44.210Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T08:03:44.241Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-tool-failure-recovery",
+      "usage": {
+        "inputTokens": 20316,
+        "outputTokens": 487,
+        "observed": true
+      },
+      "costUsd": 0.055659999999999994,
+      "completeness": "complete",
+      "pricedRecords": 4,
+      "totalRecords": 4,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "stratum": "tool-failure-recovery",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T08:03:44.244Z",
+      "finishedAt": "2026-10-24T08:04:25.807Z",
+      "durationMs": 41563,
+      "toolCalls": 4,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "recover.md",
+        "exists": true,
+        "expected": {
+          "contentEquals": "RECOVERED"
+        },
+        "actual": {
+          "content": "RECOVERED"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-723e3c29-cf81-11f1-89c3-f16d9ec51d8b-0-0",
+              "toolName": "file.delete",
+              "args": {
+                "path": "does-not-exist.md"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 7,
+              "outcome": "failed",
+              "error": "Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-eg7LO5/workspace/does-not-exist.md'"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-75bd4765-cf81-11f1-bc4d-d924728a142f-0-0",
+              "toolName": "file.create",
+              "args": {
+                "path": "recover.md",
+                "content": "RECOVERED"
+              },
+              "requestIndex": 10,
+              "terminalIndex": 17,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-787b615b-cf81-11f1-89dd-d7c9baa07fbc-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "od -c recover.md && wc -c recover.md"
+              },
+              "requestIndex": 19,
+              "terminalIndex": 25,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-7eaa0bb3-cf81-11f1-be38-9ad293b04575-0-0",
+              "toolName": "task.complete",
+              "args": {},
+              "requestIndex": 27,
+              "terminalIndex": 30,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "recover.md",
+            "exists": true,
+            "sha256": "511b6de24de031f53b6629672385535563df7a0e3d590d4dea13dc93266f194f",
+            "content": "RECOVERED",
+            "bytes": 9
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {},
+          "truncated": false,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "recover.md": "file:511b6de24de031f53b6629672385535563df7a0e3d590d4dea13dc93266f194f"
+          },
+          "truncated": false,
+          "digest": "801b1a1872e1e8b159155d894dbb470f6d7226693a606751d70b36377d723255"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.delete 1 denied; file.create 1 completed; shell.run 1 completed; task.complete 1 completed.\n\nI'll attempt the delete first.\n\nDeletion failed as expected (ENOENT) \u2014 continuing as instructed.\n\nDeletion failed as expected (ENOENT), and the file was created. Let me verify the exact bytes.\n\nThe steps already completed successfully:\n\n1. **Delete attempt on `does-not-exist.md`** \u2014 failed with `ENOENT` as expected (file intentionally absent). Per instructions, I continued past the failure rather than retrying.\n2. **Created `recover.md`** \u2014 verification shows exactly 9 bytes `R E C O R D E D`... precisely `RECOVERED` with no trailing newline (hexdump: `0000011`, i.e. offset 9).\n\n[summary] Deletion of absent file failed as expected; recover.md created with exactly \"RECOVERED\" (9 bytes, no trailing newline verified via hexdump).\n\n[file_ref] recover.md\n\nConfidence: high \u2014 the byte-level check confirms exact content and absence of trailing newline.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call call-75bd4765-cf81-11f1-bc4d-d924728a142f-0-0:\\nFile created: recover.md\",\"Tool alix_shell_run, call call-787b615b-cf81-11f1-89dd-d7c9baa07fbc-0-0:\\n0000000   R   E   C   O   V   E   R   E   D\\n0000011\\n9 recover.md\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.delete 1 denied; file.create 1 completed; shell.run 1 completed; task.complete 1 completed.\n\nI'll attempt the delete first.\n\nDeletion failed as expected (ENOENT) \u2014 continuing as instructed.\n\nDeletion failed as expected (ENOENT), and the file was created. Let me verify the exact bytes.\n\nThe steps already completed successfully:\n\n1. **Delete attempt on `does-not-exist.md`** \u2014 failed with `ENOENT` as expected (file intentionally absent). Per instructions, I continued past the failure rather than retrying.\n2. **Created `recover.md`** \u2014 verification shows exactly 9 bytes `R E C O R D E D`... precisely `RECOVERED` with no trailing newline (hexdump: `0000011`, i.e. offset 9).\n\n[summary] Deletion of absent file failed as expected; recover.md created with exactly \"RECOVERED\" (9 bytes, no trailing newline verified via hexdump).\n\n[file_ref] recover.md\n\nConfidence: high \u2014 the byte-level check confirms exact content and absence of trailing newline.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call call-75bd4765-cf81-11f1-bc4d-d924728a142f-0-0:\\nFile created: recover.md\",\"Tool alix_shell_run, call call-787b615b-cf81-11f1-89dd-d7c9baa07fbc-0-0:\\n0000000   R   E   C   O   V   E   R   E   D\\n0000011\\n9 recover.md\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-tool-failure-recovery",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"payload\":{\"subagentId\":\"eval-behavioral-tool-failure-recovery\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\".\"]},\"id\":\"eba11136-8c49-4e70-9f9c-c3e5d660fe8d\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T08:03:47.141Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5448,\"outputTokens\":70},\"id\":\"d38a429a-242b-408f-a590-e1b3889f0c4b\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T08:03:55.697Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-723e3c29-cf81-11f1-89c3-f16d9ec51d8b-0-0\",\"toolName\":\"file.delete\",\"capability\":\"file.write\",\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"argsPreview\":{\"path\":\"does-not-exist.md\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-c8bcd66e-0418-44db-b2c2-cd65d6bfc7b2\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"44de8865-e55c-48ae-92ac-a4eee99c1176\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T08:03:55.705Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-723e3c29-cf81-11f1-89c3-f16d9ec51d8b-0-0\",\"toolName\":\"file.delete\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-c8bcd66e-0418-44db-b2c2-cd65d6bfc7b2\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"a20ea8b4-e1da-4dbc-88a3-ea621217da15\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T08:03:55.718Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.delete\"},\"timestamp\":\"2026-10-24T08:03:55.719Z\"},\"id\":\"b2add7ab-8dd3-47a1-8b93-c7f5701fbcd0\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T08:03:55.720Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"e4715c93-2db3-415d-a2f6-8ff0d7465c32\",\"operation\":\"tool.route.file.delete\"},\"id\":\"2362a0ae-b964-463f-ae2f-91a06f0d543e\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T08:03:55.722Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"e4715c93-2db3-415d-a2f6-8ff0d7465c32\",\"operation\":\"tool.route.file.delete\",\"durationMs\":3.84,\"outcome\":\"success\"},\"id\":\"3dcaa18a-4c5d-4e7f-8963-8ee64edb217b\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T08:03:55.728Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-723e3c29-cf81-11f1-89c3-f16d9ec51d8b-0-0\",\"toolName\":\"file.delete\",\"error\":\"Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-eg7LO5/workspace/does-not-exist.md'\",\"durationMs\":25,\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-c8bcd66e-0418-44db-b2c2-cd65d6bfc7b2\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"bb17f3e7-13e5-4cfa-bbd1-3fe38474516f\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T08:03:55.730Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.delete\"},\"timestamp\":\"2026-10-24T08:03:55.731Z\"},\"id\":\"dc1bddb9-3902-4be1-a5a7-a7770aca5f4e\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T08:03:55.732Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5571,\"outputTokens\":117},\"id\":\"161e9088-0d6b-4bcd-ae5c-a6fb65fdb9f9\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T08:04:00.331Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-75bd4765-cf81-11f1-bc4d-d924728a142f-0-0\",\"toolName\":\"file.create\",\"capability\":\"file.write\",\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"argsPreview\":{\"path\":\"recover.md\",\"content\":\"RECOVERED\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-4603a725-0c77-4062-8590-662924cd10fe\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"9e4da524-f18a-4cc2-afa0-0cda71c61582\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T08:04:00.333Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-75bd4765-cf81-11f1-bc4d-d924728a142f-0-0\",\"toolName\":\"file.create\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-4603a725-0c77-4062-8590-662924cd10fe\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"588a1737-c44c-4255-bb0a-b6e8b035f442\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T08:04:00.334Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.create\"},\"timestamp\":\"2026-10-24T08:04:00.335Z\"},\"id\":\"d1698fbd-ca02-4020-928a-d0f62c7fce8f\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T08:04:00.335Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"634c25bb-a33c-4c3e-984d-706d24f00fd8\",\"operation\":\"tool.route.file.create\"},\"id\":\"4d2b15c3-4e1b-4d33-8ed1-6d42e7c2f1f4\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T08:04:00.336Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"file.created\",\"payload\":{\"path\":\"recover.md\",\"resolvedPath\":\"/tmp/eval-task-eg7LO5/workspace/recover.md\",\"root\":\"/tmp/eval-task-eg7LO5/workspace\"},\"id\":\"3a3c6a46-e9b6-48b9-9888-5656111c5493\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T08:04:00.338Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"634c25bb-a33c-4c3e-984d-706d24f00fd8\",\"operation\":\"tool.route.file.create\",\"durationMs\":1.58,\"outcome\":\"success\"},\"id\":\"10f37ed4-c576-42c0-beac-44f45de7e028\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T08:04:00.338Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-75bd4765-cf81-11f1-bc4d-d924728a142f-0-0\",\"outputPreview\":\"File created: recover.md\",\"outputSize\":24,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-4603a725-0c77-4062-8590-662924cd10fe\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"7ee6b146-113d-42ea-9782-3007eeccb8f3\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T08:04:00.339Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-75bd4765-cf81-11f1-bc4d-d924728a142f-0-0\",\"toolName\":\"file.create\",\"status\":\"success\",\"durationMs\":6,\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-4603a725-0c77-4062-8590-662924cd10fe\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"e8fb07b2-2bc0-4499-9477-16effad6dce9\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T08:04:00.340Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5654,\"outputTokens\":157},\"id\":\"52c2a50b-82c9-4a75-b51b-10b6d30f17de\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T08:04:10.668Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-787b615b-cf81-11f1-89dd-d7c9baa07fbc-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"27be144cb7c0bff00b1d585974654f4b1f40d141cbfb0731c17c85a104f588d4\",\"argsPreview\":{\"command\":\"od -c recover.md && wc -c recover.md\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-d0a9f1b7-8a75-404a-92cb-3bcfebc57e43\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"8af8b5d9-765a-4fe5-82b1-d33a405903f3\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T08:04:10.670Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-787b615b-cf81-11f1-89dd-d7c9baa07fbc-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"27be144cb7c0bff00b1d585974654f4b1f40d141cbfb0731c17c85a104f588d4\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-d0a9f1b7-8a75-404a-92cb-3bcfebc57e43\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"3ca6269c-ab14-4f1e-adde-a6be200ecf4f\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T08:04:10.680Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:04:10.681Z\"},\"id\":\"28bf5e60-cbd0-4de0-803c-8f5d4151fa73\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T08:04:10.682Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"6798fc36-eae3-49b9-9805-0fb2a0a3e0d7\",\"operation\":\"tool.route.shell.run\"},\"id\":\"e3ce7080-cff8-4279-a4fe-510baddd9b53\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T08:04:10.686Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"6798fc36-eae3-49b9-9805-0fb2a0a3e0d7\",\"operation\":\"tool.route.shell.run\",\"durationMs\":18.1,\"outcome\":\"success\"},\"id\":\"9c3fedde-e972-4649-9d4c-bc5ddbd3657f\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T08:04:10.706Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-787b615b-cf81-11f1-89dd-d7c9baa07fbc-0-0\",\"outputPreview\":\"0000000   R   E   C   O   V   E   R   E   D\\n0000011\\n9 recover.md\\n\",\"outputSize\":65,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-d0a9f1b7-8a75-404a-92cb-3bcfebc57e43\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"22c3b67b-5ded-4048-af1c-4941e2b431ef\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T08:04:10.708Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-787b615b-cf81-11f1-89dd-d7c9baa07fbc-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":38,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"27be144cb7c0bff00b1d585974654f4b1f40d141cbfb0731c17c85a104f588d4\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-d0a9f1b7-8a75-404a-92cb-3bcfebc57e43\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"d7c48aa8-84db-44b7-b32b-62d6ae08dc13\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T08:04:10.709Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3679,\"outputTokens\":285},\"id\":\"327e3606-715e-4945-a314-a70c84bafdef\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T08:04:25.729Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-7eaa0bb3-cf81-11f1-be38-9ad293b04575-0-0\",\"toolName\":\"task.complete\",\"capability\":\"task.complete\",\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"argsPreview\":{},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-64fedfcd-30d4-4cc5-a4b1-35c5722e9dc3\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"05298960-30e4-4aa2-b27f-aeb63f15d6af\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T08:04:25.732Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-7eaa0bb3-cf81-11f1-be38-9ad293b04575-0-0\",\"toolName\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-64fedfcd-30d4-4cc5-a4b1-35c5722e9dc3\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"dd01b77d-cb9b-4b0f-90a0-ecb2d146b3e3\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T08:04:25.735Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-7eaa0bb3-cf81-11f1-be38-9ad293b04575-0-0\",\"outputPreview\":\"Task complete.\",\"outputSize\":14,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-64fedfcd-30d4-4cc5-a4b1-35c5722e9dc3\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"68dc566d-1da0-47f8-aedb-ced455c988bd\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T08:04:25.737Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-7eaa0bb3-cf81-11f1-be38-9ad293b04575-0-0\",\"toolName\":\"task.complete\",\"status\":\"success\",\"durationMs\":6,\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-64fedfcd-30d4-4cc5-a4b1-35c5722e9dc3\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"1a9ac1ad-21fa-4427-aed1-59403f63bc04\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T08:04:25.738Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T08:04:25.804Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-tool-failure-recovery",
+      "usage": {
+        "inputTokens": 20352,
+        "outputTokens": 629,
+        "observed": true
+      },
+      "costUsd": 0.057170000000000006,
+      "completeness": "complete",
+      "pricedRecords": 4,
+      "totalRecords": 4,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "stratum": "tool-failure-recovery",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T08:04:25.808Z",
+      "finishedAt": "2026-10-24T08:05:04.500Z",
+      "durationMs": 38692,
+      "toolCalls": 4,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "recover.md",
+        "exists": true,
+        "expected": {
+          "contentEquals": "RECOVERED"
+        },
+        "actual": {
+          "content": "RECOVERED"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-8a3787d2-cf81-11f1-a866-f259ccef9197-0-0",
+              "toolName": "file.delete",
+              "args": {
+                "path": "does-not-exist.md"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 7,
+              "outcome": "failed",
+              "error": "Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-V6N4Io/workspace/does-not-exist.md'"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-8e53466a-cf81-11f1-a098-bed06593862e-0-0",
+              "toolName": "file.create",
+              "args": {
+                "path": "recover.md",
+                "content": "RECOVERED"
+              },
+              "requestIndex": 10,
+              "terminalIndex": 17,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-927dcc99-cf81-11f1-b40a-505f40b192cd-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "od -c recover.md | head -5"
+              },
+              "requestIndex": 19,
+              "terminalIndex": 25,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-9991586a-cf81-11f1-876b-928c769a6e28-0-0",
+              "toolName": "task.complete",
+              "args": {},
+              "requestIndex": 27,
+              "terminalIndex": 30,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "recover.md",
+            "exists": true,
+            "sha256": "511b6de24de031f53b6629672385535563df7a0e3d590d4dea13dc93266f194f",
+            "content": "RECOVERED",
+            "bytes": 9
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {},
+          "truncated": false,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "recover.md": "file:511b6de24de031f53b6629672385535563df7a0e3d590d4dea13dc93266f194f"
+          },
+          "truncated": false,
+          "digest": "801b1a1872e1e8b159155d894dbb470f6d7226693a606751d70b36377d723255"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.delete 1 denied; file.create 1 completed; shell.run 1 completed; task.complete 1 completed.\n\nI'll start by attempting the deletion.\n\nThe work is already complete and verified from the recorded results:\n\n- **Deletion attempt**: `alix_file_delete does-not-exist.md` failed with `ENOENT` as expected (intentionally absent) \u2014 I continued rather than retrying.\n- **Creation**: `recover.md` was created successfully.\n- **Verification**: `od` output shows exactly the 9 bytes `R E C O V E R E D` (offset `0000000`\u2013`0000011`), with no trailing newline.\n\n[summary] Deletion of absent file failed as expected (ENOENT); proceeded to create recover.md containing exactly RECOVERED with no trailing newline, verified via od byte dump.\n[file_ref] recover.md\n[file_ref] does-not-exist.md (deletion attempted, failed \u2014 file absent, unchanged)\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call call-8e53466a-cf81-11f1-a098-bed06593862e-0-0:\\nFile created: recover.md\",\"Tool alix_shell_run, call call-927dcc99-cf81-11f1-b40a-505f40b192cd-0-0:\\n0000000   R   E   C   O   V   E   R   E   D\\n0000011\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.delete 1 denied; file.create 1 completed; shell.run 1 completed; task.complete 1 completed.\n\nI'll start by attempting the deletion.\n\nThe work is already complete and verified from the recorded results:\n\n- **Deletion attempt**: `alix_file_delete does-not-exist.md` failed with `ENOENT` as expected (intentionally absent) \u2014 I continued rather than retrying.\n- **Creation**: `recover.md` was created successfully.\n- **Verification**: `od` output shows exactly the 9 bytes `R E C O V E R E D` (offset `0000000`\u2013`0000011`), with no trailing newline.\n\n[summary] Deletion of absent file failed as expected (ENOENT); proceeded to create recover.md containing exactly RECOVERED with no trailing newline, verified via od byte dump.\n[file_ref] recover.md\n[file_ref] does-not-exist.md (deletion attempted, failed \u2014 file absent, unchanged)\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call call-8e53466a-cf81-11f1-a098-bed06593862e-0-0:\\nFile created: recover.md\",\"Tool alix_shell_run, call call-927dcc99-cf81-11f1-b40a-505f40b192cd-0-0:\\n0000000   R   E   C   O   V   E   R   E   D\\n0000011\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-tool-failure-recovery",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"payload\":{\"subagentId\":\"eval-behavioral-tool-failure-recovery\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\".\"]},\"id\":\"20285ef0-3557-4648-979d-d4a6bca88417\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T08:04:28.917Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5448,\"outputTokens\":73},\"id\":\"04ba85c6-080a-4548-ad30-391f39d22aa5\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T08:04:37.017Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-8a3787d2-cf81-11f1-a866-f259ccef9197-0-0\",\"toolName\":\"file.delete\",\"capability\":\"file.write\",\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"argsPreview\":{\"path\":\"does-not-exist.md\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-87050fc5-2051-4434-af7f-c24651ef6e3d\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"19c92e20-9c34-434f-b29d-5baa4a405345\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T08:04:37.020Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-8a3787d2-cf81-11f1-a866-f259ccef9197-0-0\",\"toolName\":\"file.delete\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-87050fc5-2051-4434-af7f-c24651ef6e3d\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"6254ffa5-a43f-4979-a4e6-c628d61220af\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T08:04:37.024Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.delete\"},\"timestamp\":\"2026-10-24T08:04:37.025Z\"},\"id\":\"39e3f0f8-2373-431b-8c0d-52dc34f73ccf\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T08:04:37.025Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"7515fc4c-4841-4e10-af73-3d89241c2591\",\"operation\":\"tool.route.file.delete\"},\"id\":\"eef85e0a-6251-4c55-ace8-6dd44ff079d6\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T08:04:37.026Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"7515fc4c-4841-4e10-af73-3d89241c2591\",\"operation\":\"tool.route.file.delete\",\"durationMs\":1.93,\"outcome\":\"success\"},\"id\":\"0e008398-634a-4db8-b547-f53485f858bc\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T08:04:37.029Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-8a3787d2-cf81-11f1-a866-f259ccef9197-0-0\",\"toolName\":\"file.delete\",\"error\":\"Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-V6N4Io/workspace/does-not-exist.md'\",\"durationMs\":10,\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-87050fc5-2051-4434-af7f-c24651ef6e3d\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"1a27af5b-5478-4258-9b68-c16004282a97\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T08:04:37.030Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.delete\"},\"timestamp\":\"2026-10-24T08:04:37.030Z\"},\"id\":\"a5a9fcc5-c4f8-4fc0-b85a-aff27cb7e2bb\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T08:04:37.030Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5565,\"outputTokens\":92},\"id\":\"729297aa-3c78-4d04-a0d5-2ad0712f6088\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T08:04:44.010Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-8e53466a-cf81-11f1-a098-bed06593862e-0-0\",\"toolName\":\"file.create\",\"capability\":\"file.write\",\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"argsPreview\":{\"path\":\"recover.md\",\"content\":\"RECOVERED\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-cb207a58-d9b4-443e-bbc1-08f2a0d3f50a\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"e71b4cbf-bd75-483e-8bc3-9522c5b1d126\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T08:04:44.012Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-8e53466a-cf81-11f1-a098-bed06593862e-0-0\",\"toolName\":\"file.create\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-cb207a58-d9b4-443e-bbc1-08f2a0d3f50a\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"7dc9e347-e8c5-445c-880b-ffcbc3445aa2\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T08:04:44.014Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.create\"},\"timestamp\":\"2026-10-24T08:04:44.016Z\"},\"id\":\"f27fc9f1-8fa8-46a3-8c19-67a67fa1fe3c\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T08:04:44.016Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"ba0e624a-a1e7-4ed2-8169-a14fc42c8957\",\"operation\":\"tool.route.file.create\"},\"id\":\"b50b16d5-ca3a-4b40-9365-49e973d68a73\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T08:04:44.017Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"file.created\",\"payload\":{\"path\":\"recover.md\",\"resolvedPath\":\"/tmp/eval-task-V6N4Io/workspace/recover.md\",\"root\":\"/tmp/eval-task-V6N4Io/workspace\"},\"id\":\"8c14e295-eb16-4926-ac6d-bef0d33b56fa\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T08:04:44.018Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"ba0e624a-a1e7-4ed2-8169-a14fc42c8957\",\"operation\":\"tool.route.file.create\",\"durationMs\":1.64,\"outcome\":\"success\"},\"id\":\"be94e5ec-f035-4c70-8b27-9f43a5650301\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T08:04:44.019Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-8e53466a-cf81-11f1-a098-bed06593862e-0-0\",\"outputPreview\":\"File created: recover.md\",\"outputSize\":24,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-cb207a58-d9b4-443e-bbc1-08f2a0d3f50a\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"a1bf0e08-997a-4792-95a7-a23d32e37034\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T08:04:44.020Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-8e53466a-cf81-11f1-a098-bed06593862e-0-0\",\"toolName\":\"file.create\",\"status\":\"success\",\"durationMs\":8,\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-cb207a58-d9b4-443e-bbc1-08f2a0d3f50a\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"d6b05ed8-3eb6-47b4-824b-f61f9d97d203\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T08:04:44.020Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5651,\"outputTokens\":147},\"id\":\"4e39c0b1-10fa-46d1-8c51-aab5922bbfe1\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T08:04:55.851Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-927dcc99-cf81-11f1-b40a-505f40b192cd-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"d36b5ab77e96769e0167eba4abe0c128c2d819f8142fd575183e64315f81a841\",\"argsPreview\":{\"command\":\"od -c recover.md | head -5\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-c6b5b7f1-8481-4e11-8d75-320769fc859a\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"bdff7f9f-c54c-4f29-8171-8cb7ef742c5a\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T08:04:55.854Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-927dcc99-cf81-11f1-b40a-505f40b192cd-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"d36b5ab77e96769e0167eba4abe0c128c2d819f8142fd575183e64315f81a841\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-c6b5b7f1-8481-4e11-8d75-320769fc859a\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"77fa9f5d-5d3b-4543-8687-8615794a4129\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T08:04:55.875Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:04:55.876Z\"},\"id\":\"9524364d-d5e0-4946-b8e5-f862f928437b\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T08:04:55.877Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"d3231d22-8f54-4c76-a2e0-39e2e4ff7c5d\",\"operation\":\"tool.route.shell.run\"},\"id\":\"5c64dcb5-b9c1-48ca-a608-03113ab77a04\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T08:04:55.882Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"d3231d22-8f54-4c76-a2e0-39e2e4ff7c5d\",\"operation\":\"tool.route.shell.run\",\"durationMs\":16.62,\"outcome\":\"success\"},\"id\":\"a413f5c6-1588-4f4a-bd83-cdf031e36050\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T08:04:55.900Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-927dcc99-cf81-11f1-b40a-505f40b192cd-0-0\",\"outputPreview\":\"0000000   R   E   C   O   V   E   R   E   D\\n0000011\\n\",\"outputSize\":52,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-c6b5b7f1-8481-4e11-8d75-320769fc859a\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"2c6e745f-11e8-462f-bda6-fca98fb99522\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T08:04:55.901Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-927dcc99-cf81-11f1-b40a-505f40b192cd-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":48,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"d36b5ab77e96769e0167eba4abe0c128c2d819f8142fd575183e64315f81a841\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-c6b5b7f1-8481-4e11-8d75-320769fc859a\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"27edb797-d515-4068-b175-6566048e8e01\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T08:04:55.901Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3668,\"outputTokens\":340},\"id\":\"f4fa6051-43c7-4771-9ce8-0015be90849a\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T08:05:04.420Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-9991586a-cf81-11f1-876b-928c769a6e28-0-0\",\"toolName\":\"task.complete\",\"capability\":\"task.complete\",\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"argsPreview\":{},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-841c2dc4-d8f1-4ee6-9ecb-dfcdbdfc9553\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"2ee6e9f8-6e0c-4a8f-8f70-acc8c3a00c06\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T08:05:04.422Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-9991586a-cf81-11f1-876b-928c769a6e28-0-0\",\"toolName\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-841c2dc4-d8f1-4ee6-9ecb-dfcdbdfc9553\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"9d9257fe-6e8d-4be5-a292-0aac4232814b\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T08:05:04.423Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-9991586a-cf81-11f1-876b-928c769a6e28-0-0\",\"outputPreview\":\"Task complete.\",\"outputSize\":14,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-841c2dc4-d8f1-4ee6-9ecb-dfcdbdfc9553\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"128b41d3-49cf-4357-b1af-4e64fa640fe6\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T08:05:04.425Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-9991586a-cf81-11f1-876b-928c769a6e28-0-0\",\"toolName\":\"task.complete\",\"status\":\"success\",\"durationMs\":3,\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-841c2dc4-d8f1-4ee6-9ecb-dfcdbdfc9553\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"ad829722-48ea-4bc3-8b14-954bd0f4112d\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T08:05:04.426Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T08:05:04.495Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-tool-failure-recovery",
+      "usage": {
+        "inputTokens": 20332,
+        "outputTokens": 652,
+        "observed": true
+      },
+      "costUsd": 0.05735,
+      "completeness": "complete",
+      "pricedRecords": 4,
+      "totalRecords": 4,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "stratum": "tool-failure-recovery",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T08:05:04.501Z",
+      "finishedAt": "2026-10-24T08:05:45.470Z",
+      "durationMs": 40969,
+      "toolCalls": 4,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": false,
+      "statusActual": "failed",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "recover.md",
+        "exists": true,
+        "expected": {
+          "contentEquals": "RECOVERED"
+        },
+        "actual": {
+          "content": "RECOVERED"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-a2d58073-cf81-11f1-b8a3-9ba72b06028d-0-0",
+              "toolName": "file.delete",
+              "args": {
+                "path": "does-not-exist.md"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 7,
+              "outcome": "failed",
+              "error": "Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-L8QiGT/workspace/does-not-exist.md'"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-ab82b54a-cf81-11f1-919e-178da3dc2956-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "printf 'RECOVERED' > recover.md && wc -c < recover.md"
+              },
+              "requestIndex": 10,
+              "terminalIndex": 16,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-b0292a08-cf81-11f1-981b-d2d8f23e81f9-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "printf 'RECOVERED' > recover.md && xxd recover.md | tail -1 && wc -c recover.md"
+              },
+              "requestIndex": 18,
+              "terminalIndex": 24,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-b3b4ce20-cf81-11f1-ba67-c426cad8c991-0-0",
+              "toolName": "task.complete",
+              "args": {},
+              "requestIndex": 26,
+              "terminalIndex": 29,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "recover.md",
+            "exists": true,
+            "sha256": "511b6de24de031f53b6629672385535563df7a0e3d590d4dea13dc93266f194f",
+            "content": "RECOVERED",
+            "bytes": 9
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {},
+          "truncated": false,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "recover.md": "file:511b6de24de031f53b6629672385535563df7a0e3d590d4dea13dc93266f194f"
+          },
+          "truncated": false,
+          "digest": "801b1a1872e1e8b159155d894dbb470f6d7226693a606751d70b36377d723255"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.delete 1 denied; shell.run 2 completed; task.complete 1 completed.\n\nI'll start by attempting the deletion as instructed.\n\nDeletion failed as expected (file absent). Proceeding with recovery.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_shell_run, call call-ab82b54a-cf81-11f1-919e-178da3dc2956-0-0:\\n9\",\"Tool alix_shell_run, call call-b0292a08-cf81-11f1-981b-d2d8f23e81f9-0-0:\\n00000000: 5245 434f 5645 5245 44                   RECOVERED\\n9 recover.md\"]",
+        "runtime": {
+          "status": "failed",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.delete 1 denied; shell.run 2 completed; task.complete 1 completed.\n\nI'll start by attempting the deletion as instructed.\n\nDeletion failed as expected (file absent). Proceeding with recovery.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_shell_run, call call-ab82b54a-cf81-11f1-919e-178da3dc2956-0-0:\\n9\",\"Tool alix_shell_run, call call-b0292a08-cf81-11f1-981b-d2d8f23e81f9-0-0:\\n00000000: 5245 434f 5645 5245 44                   RECOVERED\\n9 recover.md\"]",
+          "error": "Non-retryable write failures: file.delete",
+          "provider": "hive",
+          "sessionId": "eval-behavioral-tool-failure-recovery",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"payload\":{\"subagentId\":\"eval-behavioral-tool-failure-recovery\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\".\"]},\"id\":\"e72efbec-ec5e-41a9-a5ff-dc183c52a9d3\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T08:05:07.391Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5448,\"outputTokens\":75},\"id\":\"2ea8ac04-c9a7-4404-97c5-d5c838329554\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T08:05:25.938Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-a2d58073-cf81-11f1-b8a3-9ba72b06028d-0-0\",\"toolName\":\"file.delete\",\"capability\":\"file.write\",\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"argsPreview\":{\"path\":\"does-not-exist.md\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-42a8f795-d434-4dc9-b392-a76f7b15d437\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"fd7df260-0ea6-4a4a-a953-38dda2a65604\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T08:05:25.941Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-a2d58073-cf81-11f1-b8a3-9ba72b06028d-0-0\",\"toolName\":\"file.delete\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-42a8f795-d434-4dc9-b392-a76f7b15d437\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"6397c94f-a4e9-4ac6-8d3d-1bb7f8a72f19\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T08:05:25.947Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.delete\"},\"timestamp\":\"2026-10-24T08:05:25.948Z\"},\"id\":\"c33b0302-a49f-4630-9d52-2c11efd1306d\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T08:05:25.948Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"1ec23e3c-0461-4c5f-9087-a6e650b10e89\",\"operation\":\"tool.route.file.delete\"},\"id\":\"12456228-54f7-4701-b1ef-25281e48c797\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T08:05:25.949Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"1ec23e3c-0461-4c5f-9087-a6e650b10e89\",\"operation\":\"tool.route.file.delete\",\"durationMs\":1.38,\"outcome\":\"success\"},\"id\":\"c87d6759-e03b-42b8-b260-b285242e386b\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T08:05:25.951Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-a2d58073-cf81-11f1-b8a3-9ba72b06028d-0-0\",\"toolName\":\"file.delete\",\"error\":\"Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-L8QiGT/workspace/does-not-exist.md'\",\"durationMs\":11,\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-42a8f795-d434-4dc9-b392-a76f7b15d437\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"90c82793-2fc6-4a8c-aa8e-f4f4fdbfad2c\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T08:05:25.951Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.delete\"},\"timestamp\":\"2026-10-24T08:05:25.951Z\"},\"id\":\"bd311897-ea8d-4353-bb11-01c9268641ed\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T08:05:25.952Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5564,\"outputTokens\":164},\"id\":\"f6282910-1182-4ab6-85c5-caeb7123bf7d\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T08:05:33.731Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-ab82b54a-cf81-11f1-919e-178da3dc2956-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"48d4579bac206999954b4e94a6a39f9e83557f434090fb1f0f691a336e563bbe\",\"argsPreview\":{\"command\":\"printf 'RECOVERED' > recover.md && wc -c < recover.md\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-a902637e-43a0-4e2d-846f-ee38450a6099\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"45e4e487-dde0-4145-b4ed-c0d35ef55357\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T08:05:33.735Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-ab82b54a-cf81-11f1-919e-178da3dc2956-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"48d4579bac206999954b4e94a6a39f9e83557f434090fb1f0f691a336e563bbe\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-a902637e-43a0-4e2d-846f-ee38450a6099\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"d41d340e-7bfc-4127-ad96-b92823a5b467\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T08:05:33.752Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:05:33.754Z\"},\"id\":\"8aad879d-5951-4f87-be7a-9bdd6106fdff\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T08:05:33.755Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"9c224223-87d3-40b8-a808-5d6b5fc2bc04\",\"operation\":\"tool.route.shell.run\"},\"id\":\"daff1d33-c39f-4c2b-8403-1279ef9e7e8b\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T08:05:33.758Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"9c224223-87d3-40b8-a808-5d6b5fc2bc04\",\"operation\":\"tool.route.shell.run\",\"durationMs\":25.08,\"outcome\":\"success\"},\"id\":\"5168c665-2930-42a0-92db-459f3af07c02\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T08:05:33.785Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-ab82b54a-cf81-11f1-919e-178da3dc2956-0-0\",\"outputPreview\":\"9\\n\",\"outputSize\":2,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-a902637e-43a0-4e2d-846f-ee38450a6099\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"1ec0b56c-8924-4daf-8c4b-35ef147b96e9\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T08:05:33.787Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-ab82b54a-cf81-11f1-919e-178da3dc2956-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":54,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"48d4579bac206999954b4e94a6a39f9e83557f434090fb1f0f691a336e563bbe\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-a902637e-43a0-4e2d-846f-ee38450a6099\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"e6a62649-c5a2-450b-8035-c1667d5c5c44\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T08:05:33.788Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5645,\"outputTokens\":154},\"id\":\"7309f8ba-e103-4bb5-8044-0c8e517b1515\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T08:05:39.470Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-b0292a08-cf81-11f1-981b-d2d8f23e81f9-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"7125ad40babf5feda18b7434a644e61acfb82c8a49d9ca722ab42b69d3292eff\",\"argsPreview\":{\"command\":\"printf 'RECOVERED' > recover.md && xxd recover.md | tail -1 && wc -c recover.md\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-f860eaa7-445b-40ce-b26b-036a50bfdf1c\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"74cedbea-5dd2-49a5-aed1-6039cba7d740\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T08:05:39.472Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-b0292a08-cf81-11f1-981b-d2d8f23e81f9-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"7125ad40babf5feda18b7434a644e61acfb82c8a49d9ca722ab42b69d3292eff\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-f860eaa7-445b-40ce-b26b-036a50bfdf1c\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"288e7700-6ae7-4099-9c99-f3a6e0a9b895\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T08:05:39.475Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:05:39.476Z\"},\"id\":\"b3e0a1a6-c29c-4170-b3a1-e97e06b1a8f2\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T08:05:39.478Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"0ad7295f-8fe3-4af9-9ba0-d61323824310\",\"operation\":\"tool.route.shell.run\"},\"id\":\"77bf4f3a-568e-4069-af53-79a311abd237\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T08:05:39.480Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"0ad7295f-8fe3-4af9-9ba0-d61323824310\",\"operation\":\"tool.route.shell.run\",\"durationMs\":261.36,\"outcome\":\"success\"},\"id\":\"b85bea2a-7f84-4855-b9de-5124cf0ad122\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T08:05:39.745Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-b0292a08-cf81-11f1-981b-d2d8f23e81f9-0-0\",\"outputPreview\":\"00000000: 5245 434f 5645 5245 44                   RECOVERED\\n9 recover.md\\n\",\"outputSize\":74,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-f860eaa7-445b-40ce-b26b-036a50bfdf1c\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"b078613b-7c6d-4cb6-846d-e416633a797e\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T08:05:39.750Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-b0292a08-cf81-11f1-981b-d2d8f23e81f9-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":278,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"7125ad40babf5feda18b7434a644e61acfb82c8a49d9ca722ab42b69d3292eff\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-f860eaa7-445b-40ce-b26b-036a50bfdf1c\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"ab3a6c15-207f-4b77-93a1-c14030197d66\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T08:05:39.752Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3663,\"outputTokens\":188},\"id\":\"b5552028-2724-4714-805b-211099cc4925\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T08:05:45.396Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-b3b4ce20-cf81-11f1-ba67-c426cad8c991-0-0\",\"toolName\":\"task.complete\",\"capability\":\"task.complete\",\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"argsPreview\":{},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-21eab065-9c95-49c3-bff1-edff5610bcdc\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"db29b780-fb1a-4b72-b02e-5f605f1861a3\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T08:05:45.410Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-b3b4ce20-cf81-11f1-ba67-c426cad8c991-0-0\",\"toolName\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-21eab065-9c95-49c3-bff1-edff5610bcdc\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"5acd3475-80da-47f1-96bd-9747ea175e62\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T08:05:45.413Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-b3b4ce20-cf81-11f1-ba67-c426cad8c991-0-0\",\"outputPreview\":\"Task complete.\",\"outputSize\":14,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-21eab065-9c95-49c3-bff1-edff5610bcdc\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"a9205950-b387-449b-815e-09cd3ad456f5\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T08:05:45.422Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-b3b4ce20-cf81-11f1-ba67-c426cad8c991-0-0\",\"toolName\":\"task.complete\",\"status\":\"success\",\"durationMs\":11,\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-21eab065-9c95-49c3-bff1-edff5610bcdc\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"c18676e7-3649-4981-8388-699f724589ba\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T08:05:45.426Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T08:05:45.467Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-tool-failure-recovery",
+      "usage": {
+        "inputTokens": 20320,
+        "outputTokens": 581,
+        "observed": true
+      },
+      "costUsd": 0.05661,
+      "completeness": "complete",
+      "pricedRecords": 4,
+      "totalRecords": 4,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.tool-failure-recovery",
+      "stratum": "tool-failure-recovery",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T08:05:45.470Z",
+      "finishedAt": "2026-10-24T08:06:30.433Z",
+      "durationMs": 44963,
+      "toolCalls": 4,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "recover.md",
+        "exists": true,
+        "expected": {
+          "contentEquals": "RECOVERED"
+        },
+        "actual": {
+          "content": "RECOVERED"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-b9eb412f-cf81-11f1-9192-9b6366712655-0-0",
+              "toolName": "file.delete",
+              "args": {
+                "path": "does-not-exist.md"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 7,
+              "outcome": "failed",
+              "error": "Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-op5W5L/workspace/does-not-exist.md'"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-bd7458c6-cf81-11f1-8f29-0035ef23e08d-0-0",
+              "toolName": "file.create",
+              "args": {
+                "path": "recover.md",
+                "content": "RECOVERED"
+              },
+              "requestIndex": 10,
+              "terminalIndex": 17,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-c20c5b26-cf81-11f1-b356-52542df67334-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "od -c recover.md && wc -c recover.md"
+              },
+              "requestIndex": 19,
+              "terminalIndex": 25,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.tool-failure-recovery",
+              "toolCallId": "call-cbf732c1-cf81-11f1-bb09-9fdf92e08973-0-0",
+              "toolName": "task.complete",
+              "args": {},
+              "requestIndex": 28,
+              "terminalIndex": 31,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "recover.md",
+            "exists": true,
+            "sha256": "511b6de24de031f53b6629672385535563df7a0e3d590d4dea13dc93266f194f",
+            "content": "RECOVERED",
+            "bytes": 9
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {},
+          "truncated": false,
+          "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "recover.md": "file:511b6de24de031f53b6629672385535563df7a0e3d590d4dea13dc93266f194f"
+          },
+          "truncated": false,
+          "digest": "801b1a1872e1e8b159155d894dbb470f6d7226693a606751d70b36377d723255"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.delete 1 denied; file.create 1 completed; shell.run 1 completed; alix_file_exists 1 denied; task.complete 1 completed.\n\nI'll attempt the deletion first, expecting it to fail.\n\nDeletion failed as expected (ENOENT). Continuing to the create step.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call call-bd7458c6-cf81-11f1-8f29-0035ef23e08d-0-0:\\nFile created: recover.md\",\"Tool alix_shell_run, call call-c20c5b26-cf81-11f1-b356-52542df67334-0-0:\\n0000000   R   E   C   O   V   E   R   E   D\\n0000011\\n9 recover.md\"]",
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": "Subagent tool ledger \u2014 ran inside the subagent, not the parent: file.delete 1 denied; file.create 1 completed; shell.run 1 completed; alix_file_exists 1 denied; task.complete 1 completed.\n\nI'll attempt the deletion first, expecting it to fail.\n\nDeletion failed as expected (ENOENT). Continuing to the create step.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call call-bd7458c6-cf81-11f1-8f29-0035ef23e08d-0-0:\\nFile created: recover.md\",\"Tool alix_shell_run, call call-c20c5b26-cf81-11f1-b356-52542df67334-0-0:\\n0000000   R   E   C   O   V   E   R   E   D\\n0000011\\n9 recover.md\"]",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-tool-failure-recovery",
+          "runId": null,
+          "events": [
+            "{\"actor\":\"subagent\",\"type\":\"subagent.started\",\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"payload\":{\"subagentId\":\"eval-behavioral-tool-failure-recovery\",\"role\":\"worker\",\"mode\":\"write\",\"ownedPaths\":[\".\"]},\"id\":\"1e7e6c85-ff24-4100-8725-7caab2f22270\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T08:05:48.877Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5448,\"outputTokens\":77},\"id\":\"01b4bebb-cf91-4d33-af05-3558253d466b\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T08:05:56.014Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-b9eb412f-cf81-11f1-9192-9b6366712655-0-0\",\"toolName\":\"file.delete\",\"capability\":\"file.write\",\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"argsPreview\":{\"path\":\"does-not-exist.md\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-6c517ede-98e9-4dd9-a072-01cc66e8dac6\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"9308138c-d281-462d-b830-3097bc8ba499\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T08:05:56.018Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-b9eb412f-cf81-11f1-9192-9b6366712655-0-0\",\"toolName\":\"file.delete\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-6c517ede-98e9-4dd9-a072-01cc66e8dac6\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"6ee431c8-ace1-4902-a70e-4d73ef244ac9\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T08:05:56.025Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.delete\"},\"timestamp\":\"2026-10-24T08:05:56.026Z\"},\"id\":\"5d6463f5-60d4-440c-bed4-dff75a9b3b94\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T08:05:56.026Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"6562a1f5-e789-4abe-b071-2324802917d3\",\"operation\":\"tool.route.file.delete\"},\"id\":\"92b23b16-7d0c-4394-aff9-51c10525731c\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T08:05:56.027Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"6562a1f5-e789-4abe-b071-2324802917d3\",\"operation\":\"tool.route.file.delete\",\"durationMs\":1.62,\"outcome\":\"success\"},\"id\":\"4867ccdd-f80d-4c64-a19f-e9a716989e81\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T08:05:56.029Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.failed\",\"payload\":{\"toolCallId\":\"call-b9eb412f-cf81-11f1-9192-9b6366712655-0-0\",\"toolName\":\"file.delete\",\"error\":\"Delete failed: ENOENT: no such file or directory, lstat '/tmp/eval-task-op5W5L/workspace/does-not-exist.md'\",\"durationMs\":12,\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"a3a57bc1a50814b3260943100adc71032e3747e9a14d390c5b62e07cff70d698\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-6c517ede-98e9-4dd9-a072-01cc66e8dac6\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"8a9be5ea-bcc5-4f2e-8f61-6b258614a530\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T08:05:56.030Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_failures_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.delete\"},\"timestamp\":\"2026-10-24T08:05:56.030Z\"},\"id\":\"aebabbb4-5bc7-416e-a25d-5dd1d917413b\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T08:05:56.030Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5565,\"outputTokens\":149},\"id\":\"2a50dac3-89d7-4251-be81-26b404902c49\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T08:06:03.800Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-bd7458c6-cf81-11f1-8f29-0035ef23e08d-0-0\",\"toolName\":\"file.create\",\"capability\":\"file.write\",\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"argsPreview\":{\"path\":\"recover.md\",\"content\":\"RECOVERED\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-f6b627df-d744-4a64-8c35-61e07d76a18f\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"8538909a-eb05-4627-98c7-a81636ec7889\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T08:06:03.802Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-bd7458c6-cf81-11f1-8f29-0035ef23e08d-0-0\",\"toolName\":\"file.create\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-f6b627df-d744-4a64-8c35-61e07d76a18f\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"4fbcb204-2375-4c15-b0a2-4626a752a984\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T08:06:03.802Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.create\"},\"timestamp\":\"2026-10-24T08:06:03.803Z\"},\"id\":\"e2767c20-80f0-45a6-abed-50251911635f\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T08:06:03.803Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"6143f9b7-133f-4d9f-9265-ba630d775060\",\"operation\":\"tool.route.file.create\"},\"id\":\"3b5561e8-f9e9-4a8e-b431-64f927dd4da2\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T08:06:03.804Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"file.created\",\"payload\":{\"path\":\"recover.md\",\"resolvedPath\":\"/tmp/eval-task-op5W5L/workspace/recover.md\",\"root\":\"/tmp/eval-task-op5W5L/workspace\"},\"id\":\"3310260e-ff26-470a-83ea-3e1baf405d81\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T08:06:03.805Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"6143f9b7-133f-4d9f-9265-ba630d775060\",\"operation\":\"tool.route.file.create\",\"durationMs\":1.03,\"outcome\":\"success\"},\"id\":\"d34b18e2-364e-47d0-9e82-35e3fdf1e296\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T08:06:03.805Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-bd7458c6-cf81-11f1-8f29-0035ef23e08d-0-0\",\"outputPreview\":\"File created: recover.md\",\"outputSize\":24,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-f6b627df-d744-4a64-8c35-61e07d76a18f\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"c78be42c-97a3-4fcf-ae2e-f7067e3b9c3d\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T08:06:03.806Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-bd7458c6-cf81-11f1-8f29-0035ef23e08d-0-0\",\"toolName\":\"file.create\",\"status\":\"success\",\"durationMs\":4,\"canonicalCapability\":\"filesystem.write\",\"argumentHash\":\"02bef5c6ef6dea5052da36d23c99b5e1d11b0b1a52c6dd6678df0d0c19d3cdb3\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-f6b627df-d744-4a64-8c35-61e07d76a18f\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"0a6eb49e-6a50-44d4-8816-ff408035bd1c\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T08:06:03.806Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":5654,\"outputTokens\":117},\"id\":\"4631c9ef-6d8f-428e-8f72-20f16ea73f96\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T08:06:10.191Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-c20c5b26-cf81-11f1-b356-52542df67334-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"27be144cb7c0bff00b1d585974654f4b1f40d141cbfb0731c17c85a104f588d4\",\"argsPreview\":{\"command\":\"od -c recover.md && wc -c recover.md\"},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-7dda07bb-eb9e-4a79-8bf0-b1791e5c3d3e\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"88a0a42f-1aa7-416c-b54d-d51d697f5629\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T08:06:10.195Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-c20c5b26-cf81-11f1-b356-52542df67334-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"27be144cb7c0bff00b1d585974654f4b1f40d141cbfb0731c17c85a104f588d4\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-7dda07bb-eb9e-4a79-8bf0-b1791e5c3d3e\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"3588096e-28fb-4f50-a88a-f452130c1ae4\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T08:06:10.203Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T08:06:10.203Z\"},\"id\":\"af1cadf0-4b44-43ae-beac-07ad7449ef99\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T08:06:10.204Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"b80046fd-9407-4983-9828-e0ab84020430\",\"operation\":\"tool.route.shell.run\"},\"id\":\"de6b9bcd-b2eb-43f0-b541-d2e9c908b172\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T08:06:10.204Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"b80046fd-9407-4983-9828-e0ab84020430\",\"operation\":\"tool.route.shell.run\",\"durationMs\":9.07,\"outcome\":\"success\"},\"id\":\"4e9d0f9c-98c7-4422-b307-48b9d3ef920f\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T08:06:10.214Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-c20c5b26-cf81-11f1-b356-52542df67334-0-0\",\"outputPreview\":\"0000000   R   E   C   O   V   E   R   E   D\\n0000011\\n9 recover.md\\n\",\"outputSize\":65,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-7dda07bb-eb9e-4a79-8bf0-b1791e5c3d3e\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"b5bf1634-0c1a-4f28-9288-7beae9cfdae6\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T08:06:10.214Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-c20c5b26-cf81-11f1-b356-52542df67334-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":20,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"27be144cb7c0bff00b1d585974654f4b1f40d141cbfb0731c17c85a104f588d4\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-7dda07bb-eb9e-4a79-8bf0-b1791e5c3d3e\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"b7670e4e-c1bc-43b7-9b3a-026e3f7e8d7a\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T08:06:10.215Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3677,\"outputTokens\":158},\"id\":\"0702f02b-a187-4c20-a4ed-6a69672a8850\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T08:06:20.433Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"agent\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":3832,\"outputTokens\":80},\"id\":\"52c89666-fde4-463a-b545-f59e8f7c3625\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T08:06:30.376Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-cbf732c1-cf81-11f1-bb09-9fdf92e08973-0-0\",\"toolName\":\"task.complete\",\"capability\":\"task.complete\",\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"argsPreview\":{},\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-c6c321d1-2b00-4bfd-b6ed-88e046de7169\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"123f3d80-d40d-4fdf-87a1-ed1c4005f3ea\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T08:06:30.379Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-cbf732c1-cf81-11f1-bb09-9fdf92e08973-0-0\",\"toolName\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-c6c321d1-2b00-4bfd-b6ed-88e046de7169\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"21a3045c-7866-410b-8b85-91ad33e8b0d5\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T08:06:30.380Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-cbf732c1-cf81-11f1-bb09-9fdf92e08973-0-0\",\"outputPreview\":\"Task complete.\",\"outputSize\":14,\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-c6c321d1-2b00-4bfd-b6ed-88e046de7169\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"5bd4d3cc-ca6f-4b65-884a-4f4f284b176d\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T08:06:30.381Z\"}",
+            "{\"sessionId\":\"eval:behavioral.tool-failure-recovery\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-cbf732c1-cf81-11f1-bb09-9fdf92e08973-0-0\",\"toolName\":\"task.complete\",\"status\":\"success\",\"durationMs\":2,\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"eval:behavioral.tool-failure-recovery\",\"invocationId\":\"inv-c6c321d1-2b00-4bfd-b6ed-88e046de7169\",\"agentId\":\"eval-behavioral-tool-failure-recovery\"},\"id\":\"a26fac86-9fbe-4b86-adc7-dbc632e20685\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T08:06:30.382Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T08:06:30.409Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-tool-failure-recovery",
+      "usage": {
+        "inputTokens": 24176,
+        "outputTokens": 581,
+        "observed": true
+      },
+      "costUsd": 0.06624999999999999,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    }
+  ],
+  "latency": {
+    "observed": true,
+    "samples": 5,
+    "p50Ms": 41563,
+    "p95Ms": 47705
+  },
+  "verifiedSuccesses": 4,
+  "inadmissible": 0,
+  "costUsd": 0.29303999999999997
+}

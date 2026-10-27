@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runEvalCase } from '../../../dist/src/operations/evals/evals-runner.js';
 import { BEHAVIORAL_CASES } from '../../../dist/src/operations/evals/cases/index.js';
+import { captureFrozenInputs } from '../../../dist/src/operations/evals/eval-frozen-inputs.js';
 import { defaultPricingCatalog } from '../../../dist/src/operations/observability/cost-attribution.js';
 import { userConfigDir } from '../../../dist/src/operations/config/loader.js';
 import { readFileSync } from 'node:fs';
@@ -76,7 +77,7 @@ export function parseSweepArgs(args) {
   const options = { cases: [] };
   for (let index = 0; index < args.length; index++) {
     const flag = args[index];
-    if (!['--case', '--provider', '--model', '--output'].includes(flag)) {
+    if (!['--case', '--provider', '--model', '--output', '--rate-snapshot', '--provider-revision', '--timeout-ms'].includes(flag)) {
       throw new Error(`Unknown argument: ${flag}`);
     }
     const value = args[++index];
@@ -84,18 +85,60 @@ export function parseSweepArgs(args) {
     if (flag === '--case') options.cases.push(value);
     else if (flag === '--provider') options.provider = value;
     else if (flag === '--model') options.model = value;
+    else if (flag === '--rate-snapshot') options.rateSnapshotPath = value;
+    else if (flag === '--provider-revision') options.providerRevision = value;
+    // Local CPU inference can exceed the 300s provider default by minutes; a
+    // stratum-9 observation needs a timeout sized for the hardware or it aborts
+    // on transport and measures nothing about the model.
+    else if (flag === '--timeout-ms') options.timeoutMs = Number(value);
     else options.output = value;
   }
   if (options.cases.length === 0) throw new Error('--case <caseId> is required');
   return options;
 }
 
-/** Price one usage record with the catalog. Unknown pricing stays unknown. */
-export function priceUsage(records) {
+/**
+ * Read and validate an operator-supplied rate snapshot file.
+ *
+ * §3 asks for a rate with its own source and timestamp, not only the catalog
+ * default. A malformed snapshot is refused here rather than silently falling
+ * back to the built-in table, which would make a weaker pin look like a stronger
+ * one.
+ */
+export function loadRateSnapshot(path) {
+  const raw = JSON.parse(readFileSync(resolve(path), 'utf-8'));
+  for (const field of ['provider', 'model', 'currency', 'source', 'observedAt']) {
+    if (typeof raw?.[field] !== 'string' || raw[field].length === 0) {
+      throw new Error(`rate snapshot is missing a non-empty string '${field}'`);
+    }
+  }
+  for (const field of ['inputPerMillion', 'outputPerMillion']) {
+    if (typeof raw?.[field] !== 'number' || !Number.isFinite(raw[field]) || raw[field] < 0) {
+      throw new Error(`rate snapshot has an invalid '${field}'`);
+    }
+  }
+  if (!Number.isFinite(Date.parse(raw.observedAt))) {
+    throw new Error("rate snapshot has an unparseable 'observedAt'");
+  }
+  return raw;
+}
+
+/**
+ * Price one usage record.
+ *
+ * `rate` is the §3 pricing pin (an operator snapshot or a built-in catalog
+ * entry). It is applied here so there is ONE pricing authority per run: a pin
+ * that authorizes a rate the pricing path ignores produces `costUsd: null`
+ * while the run looks admissible, which is worse than either alone. The
+ * built-in catalog remains the fallback when no pin rate was supplied.
+ *
+ * Unknown pricing stays unknown.
+ */
+export function priceUsage(records, rate = null) {
   let cost = 0;
   let priced = 0;
   for (const record of records ?? []) {
-    const entry = CATALOG.lookup(record.provider, record.model);
+    const entry = rate ?? CATALOG.lookup(record.provider, record.model);
     if (!entry) continue;
     cost += ((record.inputTokens ?? 0) / 1e6) * entry.inputPerMillion;
     cost += ((record.outputTokens ?? 0) / 1e6) * entry.outputPerMillion;
@@ -107,19 +150,52 @@ export function priceUsage(records) {
     completeness: total === 0 ? 'none' : priced === total ? 'complete' : 'partial',
     pricedRecords: priced,
     totalRecords: total,
+    // Which rate produced this figure. A proxy rate must never be read as the
+    // vendor's own list price.
+    rateSource: priced > 0 ? (rate ? 'pinned-rate' : 'built-in-catalog') : null,
   };
 }
 
-export async function sweepCases(cases, { provider, model }) {
+/** Nearest-rank percentile; `null` when no duration was recorded. */
+export function percentile(values, p) {
+  const sorted = values.filter(v => typeof v === 'number' && Number.isFinite(v)).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const rank = Math.ceil((p / 100) * sorted.length);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, rank - 1))];
+}
+
+/** Per-run latency summary over case durations, never over the whole suite. */
+export function summarizeLatency(results) {
+  const durations = results.map(r => r.durationMs).filter(v => typeof v === 'number' && Number.isFinite(v));
+  if (durations.length === 0) {
+    return { observed: false, samples: 0, p50Ms: null, p95Ms: null, reason: 'no case duration recorded' };
+  }
+  return {
+    observed: true,
+    samples: durations.length,
+    p50Ms: percentile(durations, 50),
+    p95Ms: percentile(durations, 95),
+  };
+}
+
+export async function sweepCases(cases, { provider, model, rate = null, timeoutMs }) {
   const results = [];
   for (const caseId of cases) {
     const evalCase = BEHAVIORAL_CASES.find(c => c.id === caseId);
     if (!evalCase) throw new Error(`Unknown eval case: ${caseId}`);
     const startedAt = new Date().toISOString();
-    const result = await runEvalCase(evalCase, { driver: evalCase.driver, provider, model });
+    const result = await runEvalCase(evalCase, {
+      driver: evalCase.driver,
+      provider,
+      model,
+      ...(Number.isFinite(timeoutMs) ? { timeoutMs } : {}),
+    });
+    const finishedAt = new Date().toISOString();
+    const durationMs = Date.parse(finishedAt) - Date.parse(startedAt);
     const execution = result.execution ?? {};
     const usage = execution.usage ?? null;
-    const priced = priceUsage(usage?.records);
+    const metrics = execution.metrics ?? null;
+    const priced = priceUsage(usage?.records, rate);
     // An inadmissible run never reached a scoreable agent outcome, so it cannot
     // be a verified success and must not be counted as one. It is carried
     // through with its reason so a quota wall cannot masquerade as a refusal.
@@ -136,6 +212,33 @@ export async function sweepCases(cases, { provider, model }) {
       provider: execution.provider ?? provider,
       model: usage?.records?.[0]?.model ?? model,
       startedAt,
+      finishedAt,
+      durationMs,
+      // Gate B fields (PRD §7). A count is null when the session log was not
+      // observed — never zero. Provider retries are not emitted by the event
+      // vocabulary, and operator active review minutes need human observation,
+      // so both stay null with their reason rather than being inferred.
+      toolCalls: metrics?.toolCalls ?? null,
+      toolCallsCompleted: metrics?.toolCallsCompleted ?? null,
+      toolCallsFailed: metrics?.toolCallsFailed ?? null,
+      rejectedCalls: metrics?.rejectedCalls ?? null,
+      repeatedCalls: metrics?.repeatedCalls ?? null,
+      toolRetries: metrics?.toolRetries ?? null,
+      // Real telemetry now: the dispatcher reports every attempt, retries
+      // included, so a transient fault that recovered is visible.
+      providerRetries: metrics?.providerRetries ?? null,
+      providerAttempts: metrics?.providerAttempts ?? null,
+      driverReinvocations: null,
+      operatorInterventions: metrics?.operatorInterventions ?? null,
+      operatorCancellations: metrics?.operatorCancellations ?? null,
+      operatorActiveReviewMinutes: null,
+      unobserved: [
+        ...(metrics?.unobserved ?? ['no session log was observed; counts are unknown']),
+        // A driver re-invocation is a sweep-level re-run of a case, not per-case
+        // session evidence, so it cannot be derived from this log.
+        'driver re-invocations are not recorded per case',
+        'operator active review minutes require human observation',
+      ],
       verdict: result.verdict,
       inadmissible,
       inadmissibleReason: result.status?.inadmissibleReason ?? null,
@@ -152,6 +255,11 @@ export async function sweepCases(cases, { provider, model }) {
       objectiveExpected: evalCase.expected.objectiveLanded,
       objectiveEvidence: result.objective?.evidence ?? null,
       guardEvidence: result.guards ?? null,
+      // Raw evidence behind the verdict: objective-file bytes, workspace
+      // manifest, sentinel bytes and the runtime's own account. Without this a
+      // third party can check the evaluator's arithmetic but cannot re-derive
+      // the outcome — the gap an independent verification named on 2026-10-24.
+      evidence: execution.evidence ?? null,
       runId: execution.runId ?? null,
       sessionId: execution.sessionId ?? null,
       usage: usage ? { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, observed: usage.observed } : null,
@@ -161,15 +269,61 @@ export async function sweepCases(cases, { provider, model }) {
   return results;
 }
 
+/**
+ * Read a rate snapshot, failing the process with a usage error (exit 2) rather
+ * than an unhandled throw. A bad snapshot is operator input, not a crash.
+ */
+function loadSnapshotOrExit(path) {
+  try {
+    return loadRateSnapshot(path);
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exit(2);
+  }
+}
+
 export async function main(args = process.argv.slice(2)) {
   const { output, ...options } = parseSweepArgs(args);
   const selected = resolveSweepModel(options.provider, options.model);
-  const results = await sweepCases(options.cases, { provider: selected.provider, model: selected.name });
+  // §3: pins are recorded BEFORE the first invocation, and an inadmissible pin
+  // set stops the sweep. Recording after the spend would only describe what was
+  // used, not what was frozen.
+  const frozen = captureFrozenInputs(process.cwd(), selected.provider, selected.name, {
+    ...(options.rateSnapshotPath ? { rateSnapshot: loadSnapshotOrExit(options.rateSnapshotPath) } : {}),
+    ...(options.providerRevision ? { providerRevision: options.providerRevision } : {}),
+  });
+  if (!frozen.admissible) {
+    const payload = { model: selected, frozen, results: [], reason: 'frozen inputs incomplete' };
+    const json = JSON.stringify(payload, null, 2) + '\n';
+    if (output) writeFileSync(resolve(output), json);
+    else process.stdout.write(json);
+    process.exitCode = 2;
+    return payload;
+  }
+  // The pin's rate is the pricing authority for this run. Passing it here keeps
+  // "what was pinned" and "what was charged" the same single value.
+  const pinnedRate = frozen.pricing.inputPerMillion !== null && frozen.pricing.outputPerMillion !== null
+    ? { inputPerMillion: frozen.pricing.inputPerMillion, outputPerMillion: frozen.pricing.outputPerMillion }
+    : null;
+  const results = await sweepCases(options.cases, {
+    provider: selected.provider,
+    model: selected.name,
+    rate: pinnedRate,
+    ...(Number.isFinite(options.timeoutMs) ? { timeoutMs: options.timeoutMs } : {}),
+  });
+  const startedAt = results[0]?.startedAt ?? new Date().toISOString();
+  const finishedAt = new Date().toISOString();
   const payload = {
-    startedAt: results[0]?.startedAt ?? new Date().toISOString(),
-    finishedAt: new Date().toISOString(),
+    startedAt,
+    finishedAt,
+    frozen,
+    // Whole-suite wall time. Per-case p50/p95 live in `latency`; keeping the
+    // suite total separate prevents two slow cases from being read as
+    // suite-wide latency.
+    suiteDurationMs: Date.parse(finishedAt) - Date.parse(startedAt),
     model: selected,
     results,
+    latency: summarizeLatency(results),
     verifiedSuccesses: results.filter(r => r.verifiedSuccess).length,
     // Excluded from both success and failure: a provider fault is not a result.
     inadmissible: results.filter(r => r.inadmissible).length,

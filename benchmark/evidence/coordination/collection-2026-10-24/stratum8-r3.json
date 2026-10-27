@@ -1,0 +1,188 @@
+{
+  "source": "restart/crash scenario on a real model (stratum 8)",
+  "provider": "hive",
+  "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER",
+  "killAfterMs": 6000,
+  "killOnRunning": false,
+  "outputCapOverride": null,
+  "phase1": {
+    "usageRecords": 0,
+    "killState": {
+      "killed": true,
+      "trigger": {
+        "mode": "fixed-delay",
+        "killAfterMs": 6000
+      },
+      "runStatus": "running",
+      "workers": [
+        {
+          "id": "worker_0e549a56-019a-4626-a89a-891672b5be98",
+          "status": "running",
+          "attempt": 1
+        },
+        {
+          "id": "worker_0694d7b0-ff1f-420b-b323-498724e87abe",
+          "status": "pending",
+          "attempt": 0
+        },
+        {
+          "id": "worker_b1435dbe-6afd-4467-a748-e881be04165c",
+          "status": "pending",
+          "attempt": 0
+        }
+      ],
+      "completedAtKill": 0,
+      "falselyCompleted": null
+    }
+  },
+  "phase2": {
+    "resumedRunId": "coord_a6b39d3e-19d0-466f-bafd-69bf05e4167a",
+    "exitCode": 0,
+    "usageRecords": 18
+  },
+  "usage": {
+    "observed": true,
+    "inputTokens": 143683,
+    "outputTokens": 2491,
+    "records": [
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-2c81f5ea",
+        "inputTokens": 7542,
+        "outputTokens": 86
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-2c81f5ea",
+        "inputTokens": 7756,
+        "outputTokens": 154
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-2c81f5ea",
+        "inputTokens": 7909,
+        "outputTokens": 105
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-2c81f5ea",
+        "inputTokens": 8057,
+        "outputTokens": 111
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-db3cccd6",
+        "inputTokens": 7542,
+        "outputTokens": 87
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-db3cccd6",
+        "inputTokens": 7896,
+        "outputTokens": 173
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-db3cccd6",
+        "inputTokens": 8048,
+        "outputTokens": 146
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-db3cccd6",
+        "inputTokens": 8321,
+        "outputTokens": 100
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-db3cccd6",
+        "inputTokens": 8359,
+        "outputTokens": 169
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-ecbe941e",
+        "inputTokens": 7542,
+        "outputTokens": 79
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-ecbe941e",
+        "inputTokens": 7922,
+        "outputTokens": 120
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-ecbe941e",
+        "inputTokens": 8074,
+        "outputTokens": 296
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-ecbe941e",
+        "inputTokens": 8360,
+        "outputTokens": 136
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-ecbe941e",
+        "inputTokens": 8398,
+        "outputTokens": 184
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-e3a8a3b1",
+        "inputTokens": 7542,
+        "outputTokens": 87
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-e3a8a3b1",
+        "inputTokens": 7926,
+        "outputTokens": 161
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-e3a8a3b1",
+        "inputTokens": 8086,
+        "outputTokens": 111
+      },
+      {
+        "sessionId": "coord_1792872970914",
+        "runId": "run-e3a8a3b1",
+        "inputTokens": 8403,
+        "outputTokens": 186
+      }
+    ]
+  },
+  "costUsd": null,
+  "costNote": "token totals observed across both halves; pricing applied by cost-attribution",
+  "finalRun": {
+    "status": "completed",
+    "outcome": "success",
+    "workers": [
+      "completed",
+      "completed",
+      "completed"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "docs/a.md",
+      "exists": true,
+      "content": "A-MARKER"
+    },
+    {
+      "path": "docs/b.md",
+      "exists": true,
+      "content": "B-MARKER"
+    },
+    {
+      "path": "docs/c.md",
+      "exists": true,
+      "content": "C-MARKER"
+    }
+  ],
+  "recordedAt": "2026-10-24T20:17:10.360Z"
+}

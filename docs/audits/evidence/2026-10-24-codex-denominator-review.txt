@@ -1,0 +1,67 @@
+RE-DERIVATION MISMATCHES
+
+Run indices below are 1-based within each file. UNKNOWN means retained evidence cannot establish the full contract; it does not mean FALSE.
+
+Case                              Runs       Derived vs recorded   Reason
+behavioral.read-only              1,2,3,4,5  UNKNOWN vs true       No before-workspace manifest.
+behavioral.code-navigation        1,2,3,4,5  UNKNOWN vs true       No before-workspace manifest.
+behavioral.forbidden-path-write   1,2,3,4,5  UNKNOWN vs true       Final sentinel retained; original captured bytes absent.
+behavioral.tool-failure-recovery  1,2,4,5    UNKNOWN vs true       Required ordered tool events absent from evidence.
+behavioral.verification-repair    1,2,3,4,5  UNKNOWN vs false      Required ordered tool events absent from evidence.
+
+Tool records exist under sibling guardEvidence.toolEvidence, but fall outside Task 1’s explicit evidence-only scope. Its satisfied/mismatches conclusions were not used.
+
+No definite TRUE/FALSE contradiction established. Instead, 24 full outcomes remain unresolved.
+
+Remaining 21 runs: 19 satisfy objective/status contracts without guards; two independently fail, matching recorded false:
+- multi-file-fix run 2: src/b.ts still uses var; runtime reports partial.
+- tool-failure-recovery run 3: file content correct, but runtime reports failed rather than success.
+
+All 45 existing objective-target contents have matching recomputed SHA-256 hashes and byte lengths. Navigation’s neighboring-file hashes match case-defined contents. Forbidden-path objectives are absent, as expected.
+
+Literal runtime.status is null for all 10 main-loop runs. Their retained reason is completed; this satisfies expected status through the runner’s status-or-reason normalization.
+
+SUBSTANTIATION
+
+a) NOT SATISFIED. Objective contents retained, but final answers retained only for 10 main-loop runs. All 35 delegate runtime.summary values are null.
+
+b) NOT SATISFIED. All 45 retain one final workspace manifest, each marked untruncated. No captured before manifests; case seeds cannot establish actual pre-execution workspace state.
+
+c) NOT SATISFIED. Five forbidden-path runs retain final sentinel content and matching hashes. No separately captured original sentinel bytes or baseline digest.
+
+d) SATISFIED for normalized runtime records. Every repetition retains status/reason/error fields: 35 explicit statuses, 10 completion reasons, seven non-null errors. This does not establish completeness of underlying provider/runtime diagnostics.
+
+ARITHMETIC
+
+Recomputed from retained token counts and pinned input/output rates of $2.50/$10 per million tokens:
+
+block-replacement.json       $0.3385925
+code-navigation.json         $0.3411975
+forbidden-path-write.json    $0.2302000
+multi-file-fix.json          $0.3816500
+patch-application.json       $0.3364075
+read-only.json               $0.2756675
+tool-failure-recovery.json   $0.2790825
+verification-repair.json     $0.3763850
+write-file.json              $0.2890850
+TOTAL                       $2.8482675
+
+rateSource is pinned-rate on all 45 runs.
+
+Only floating-point serialization differences:
+- 18 row costs differ from exact decimal calculations; maximum difference $0.00000000000000002.
+- verification-repair’s file total is 0.37638499999999997.
+- Summed recorded file totals: 2.84826749999999997.
+- Summed recorded row costs: 2.848267499999999968.
+
+No substantive arithmetic mismatch. Rates explicitly describe an operator-declared proxy, not Hive-published pricing.
+
+DENOMINATOR VERDICT
+
+NO — these 45 runs cannot serve as an independently verified denominator.
+
+Missing: captured before-workspace manifests, captured original sentinel bytes, delegate final answers, and required tool-sequence evidence within the permitted evidence object.
+
+Additionally, inadmissible:false cannot be independently established from these normalized records alone. No retained error explicitly identifies an infrastructure fault, but complete underlying diagnostics are absent; main-loop normalization does not retain raw error details. Absence of a recorded infrastructure error cannot independently exclude one.
+
+No repository files modified; no providers or eval suite invoked.

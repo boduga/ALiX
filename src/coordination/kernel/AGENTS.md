@@ -21,7 +21,8 @@
   `CoordinationToolDeps.executor` for end-to-end lifecycle coverage.
 - `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
 - `worker-role.ts` — Capability → role classification and canonical owned-path extraction shared by both worker executors; write workers with missing or malformed ownership fail closed before execution
-- `worker-executor.ts` — In-process worker execution via `runTask`; write-worker ownership claims flow as trusted execution options to the policy gate
+- `worker-executor.ts` — In-process worker execution via `runTask`; write-worker ownership claims flow as trusted execution options to the policy gate. A single pending tool observed in the worker's captured events returns `approval_required` with its durable approval ID.
+- `worker-tool-continuation.ts` — binds a single pending continuation to the originating worker/attempt and ownership snapshot through the executor's host API, using only that invocation's captured tool events, never a shared-session guess or model metadata.
 - `owner-liveness.ts` — the ONE worker-liveness module (R3.3): `<kind>-<pid>`
   execution-owner liveness probe (unknown owners read alive), heartbeat
   staleness (`heartbeatStale`; missing/unparseable = no evidence), and the
@@ -38,6 +39,7 @@
   on `leaseIds` any lease that failed to release, so a later reclaim retries
   it; the old signature blanket-cleared and left live records blocking later
   runs until TTL).
+- `coordination-run-lock.ts` — Token-safe per-run acquisition always attempts once, even with a zero contention budget; parent-directory setup does not consume the retry budget.
 - `replan-proposal-store.ts` — Atomic durable proposal lifecycle at
   `.alix/coordination/replans/<runId>/<proposalId>.json`; its injected clock
   keeps timestamp assertions deterministic.
@@ -329,6 +331,8 @@
   attached `aggregateResultRef`, and attached source fingerprint against a
   durable `coordination.aggregate.completed` event. Older events cannot verify
   replanned aggregates; an aggregate without its event remains unverified.
+
+- **A tool-level approval pause is nonterminal.** `CoordinationScheduler.executeWorker` persists `approval_required` results with a durable ID as blocked, clears dispatch-only authorization evidence, and leaves the run waiting. Dispatch reconciliation must not consume or reinterpret that tool grant. The daemon continuation host can requeue a successful tool receipt; whole-worker completion still requires the normal result/review path.
 
 ## Work Guidance
 

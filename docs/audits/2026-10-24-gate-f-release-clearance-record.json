@@ -1,0 +1,34 @@
+{
+  "recordVersion": 1,
+  "purpose": "Q13 / Gate F release-clearance record for the current pre-2.0 artifact. This is the record the validator READS, not a decision. Two of its three inputs are absent on purpose: neither this file nor any agent may supply the independent security clearance or the maintainer decision.",
+  "artifact": {
+    "commit": "ea863a25b5dd0e014d275bc1c4b979b7b7d5afee",
+    "version": "2.0.0-pre",
+    "sha256": null
+  },
+  "technical": {
+    "verdict": "partial",
+    "commit": "ea863a25b5dd0e014d275bc1c4b979b7b7d5afee",
+    "qualifiedAt": "2026-10-24T00:00:00.000Z",
+    "evidence": [
+      "2026-10-23-gate-b-acceptance-packet.md",
+      "2026-10-24-pre-2.0-acceptance.md",
+      "../harness-readiness-report.md"
+    ],
+    "note": "PARTIAL, not pass. The mechanical gates ran green at this commit: build, pnpm typecheck:unused (0), pnpm check:dead, full vitest (708 files, 7749 passed, 7 skipped), pnpm check:dox (107 claims), and detect-changes --scope all (low risk). Those are mechanical gates, not a release qualification. Gate B is CLOSED-WITH-WAIVER (GB-11 waived: M-1 operator attention unmeasured) and Gate E independence is absent, so the technical qualification cannot be recorded as a PASS. Recording it as pass because the suite is green is exactly the substitution PRD-R082 forbids."
+  },
+  "clearance": null,
+  "approval": null,
+  "status": "HOLD",
+  "whyThisIsHOLD": [
+    "technical qualification is PARTIAL (Gate B closed with a waiver; Gate E independence absent)",
+    "no independent security publication clearance is recorded — Q13 requires it through its designated process, and no agent or authorization can supply it",
+    "no maintainer decision is recorded — Q13 requires the authorized repository maintainer, and that signature may not be filled in on anyone's behalf"
+  ],
+  "validation": {
+    "validator": "benchmark/evidence/release-clearance-record.mjs",
+    "expectedOutcome": "HOLD",
+    "expectedProblemCount": 3
+  },
+  "notWaivable": "Gate F has no waiver path. Gate B could waive M-1 because the quantity (human review minutes) is unmeasurable and a waiver honestly disposed of the MEASUREMENT. Q13's requirement is the clearance and the maintainer decision themselves, so a waiver would delete the requirement rather than substitute for it. The validator rejects any record carrying a waiver."
+}

@@ -302,6 +302,11 @@ export function withProviderContracts(
       // or any throw.
       let span: ModelSpanHandle = null;
       try {
+        // `validateNormalizedRequest` decodes through an Effect Schema, which
+        // strips any field the schema does not declare. `onAttempt` is a
+        // callback, not wire data, so it is re-attached here rather than added
+        // to the request schema — the schema describes what the provider is
+        // asked for, and a function has no place in it.
         const validatedRequest = clampMaxOutputTokens(adapter, validateNormalizedRequest(request));
         // R5.1 egress gate: redact secrets from provider-bound text before the
         // physical request. Fail-closed on locality (unknown provider = remote).

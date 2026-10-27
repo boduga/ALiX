@@ -20,9 +20,9 @@ links the documents themselves carry.
 
 ## Local Contracts
 
-- **Spec → plan → code, in that order.** The chain is enforced by the
-  `brainstorming` skill (spec must be approved) and the `writing-plans` skill
-  (plan before implementation). Do not start code while the spec is unapproved.
+- **Spec → plan → code, in that order.** Use EGM under the root operator
+  preferences to draft and review specs, preserving its human decision gates.
+  Record the implementation plan before starting code; the spec must be approved.
 - **Naming is the index.** Specs always use `YYYY-MM-DD-<topic>-design.md`;
   plans use `YYYY-MM-DD-<topic>.md`. The date is the creation date, the topic
   is kebab-case. Never rename an existing file — the links break.

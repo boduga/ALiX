@@ -20,7 +20,8 @@
 import { createServer, type Socket } from "node:net";
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
+import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js";
 import { homedir } from "node:os";
 import type { DaemonResponse } from "./daemon-types.js";
 import { isNamedPipe } from "./daemon-paths.js";
@@ -46,6 +47,7 @@ if (!socketPath || !defaultCwd) {
 const globalDir = join(homedir(), ".alix");
 let currentSessionId: string | undefined;
 let coordinationService: import("./coordination-scheduler-service.js").CoordinationSchedulerService | undefined;
+let toolContinuationResumer: import("./tool-continuation-resumer.js").DaemonToolContinuationResumer | undefined;
 let approvalWatcher: import("./approval-watcher.js").ApprovalWatcher | undefined;
 let scheduledTaskService: import("../schedule/scheduled-task-service.js").ScheduledTaskService | undefined;
 let scheduledTaskTimer: ReturnType<typeof setInterval> | undefined;
@@ -70,6 +72,10 @@ async function startCoordinationService(): Promise<void> {
   const { createMetricsStoreSink } = await import("../observability/metrics-sink.js");
 
   const config = await loadConfig(defaultCwd);
+  if (process.env.ALIX_EVAL_TRACE === "1") {
+    const { traceScriptedEval } = await import("../evals/providers/scripted-mock-carrier.js");
+    traceScriptedEval({ event: "daemon.coordination.start", cwd: defaultCwd, provider: config.models?.default?.provider ?? "unset", subagentsEnabled: isSubagentsEnabled(config), scenarioEnvPresent: !!process.env.ALIX_EVAL_SCENARIO });
+  }
   const store = new CoordinationStore(defaultCwd);
   const toolRegistry = buildDefaultToolIndex().registry;
   // R1.5: the coordination scheduler's gate must share the project approval
@@ -83,9 +89,22 @@ async function startCoordinationService(): Promise<void> {
     executor = new SubagentWorkerExecutor({ sessionId: `coord-daemon-${Date.now()}`, config });
   } else {
     const { DefaultWorkerExecutor } = await import("../../coordination/kernel/worker-executor.js");
-    executor = new DefaultWorkerExecutor();
+    executor = new DefaultWorkerExecutor(approvalStore);
   }
 
+  const ownershipRegistry = new OwnershipRegistry(defaultCwd);
+  // One containment check and log constructor for scheduler events and resumes.
+  const openSessionLog = async (sessionId: string): Promise<EventLog> => {
+    if (typeof sessionId !== "string" || !sessionId) throw new Error("Coordination event requires a session ID");
+    const sessionsRoot = resolve(defaultCwd, ".alix", "sessions");
+    const sessionDir = resolve(sessionsRoot, sessionId);
+    if (sessionDir === sessionsRoot || relativeIsOutside(relative(sessionsRoot, sessionDir))) {
+      throw new Error("Coordination event session escapes session root");
+    }
+    const log = new EventLog(sessionDir);
+    await log.init();
+    return log;
+  };
   const scheduler = createCoordinationScheduler({
     cwd: defaultCwd,
     daemonInstanceId: `daemon-${process.pid}`,
@@ -95,15 +114,34 @@ async function startCoordinationService(): Promise<void> {
       policyGate: new PolicyGate(config, { approvalStore }),
       toolRegistry,
     }),
-    ownershipRegistry: new OwnershipRegistry(defaultCwd),
+    ownershipRegistry,
     executor,
+    // A daemon hosts several sessions. Persist lifecycle/finalization evidence
+    // in the run's own session, where deriveRunCompletion reads it.
+    eventLog: {
+      append: async event => {
+        const log = await openSessionLog(event.sessionId);
+        try { return await log.append(event); }
+        finally { await log.close(); }
+      },
+      appendIfAbsent: async (event, matches) => {
+        const log = await openSessionLog(event.sessionId);
+        try { return await log.appendIfAbsent(event, matches); }
+        finally { await log.close(); }
+      },
+    },
     // Scheduler telemetry → the metrics store (not the session EventLog).
     metricsSink: createMetricsStoreSink(new MetricsStore(defaultCwd)),
   });
 
   coordinationService = new CoordinationSchedulerService(scheduler, store, { hostKind: "daemon" });
   coordinationService.start();
-  approvalWatcher = new ApprovalWatcher(defaultCwd, coordinationService);
+  const { DaemonToolContinuationResumer } = await import("./tool-continuation-resumer.js");
+  if (approvalStore) toolContinuationResumer = new DaemonToolContinuationResumer(defaultCwd, config, store,
+    approvalStore, ownershipRegistry, openSessionLog);
+  approvalWatcher = new ApprovalWatcher(defaultCwd, coordinationService, {
+    resumeApproved: async id => { await toolContinuationResumer?.resumeApproved(id); },
+  });
   approvalWatcher.start();
 }
 
@@ -649,7 +687,7 @@ process.on("SIGTERM", () => {
   approvalWatcher?.stop();
   if (scheduledTaskTimer) clearInterval(scheduledTaskTimer);
   const stopCoordination = coordinationService?.shutdown() ?? Promise.resolve();
-  void stopCoordination.catch(() => {}).then(() => {
+  void Promise.all([stopCoordination, toolContinuationResumer?.shutdown()]).catch(() => {}).then(() => {
     server.close(() => {
       // T14 bounded shutdown — the daemon's single existing "app closing down"
       // choke point, extracted to daemon-tracing-shutdown.ts (Task 15) for test

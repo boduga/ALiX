@@ -507,7 +507,9 @@ export function mergeConfig(
       ),
       mcpServerPaths: mergeUnique(result.mcpServerPaths ?? [], override.mcpServerPaths ?? []),
       models: { ...(result.models ?? {}), ...(override.models ?? {}) },
-      subagents: { ...(result.subagents ?? DEFAULT_CONFIG.subagents) } as SubagentConfig,
+      // Behavior flags are configuration, not model-tier projections. Honor
+      // project-level enabled/roles overrides before tier normalization.
+      subagents: { ...(result.subagents ?? DEFAULT_CONFIG.subagents), ...(override.subagents ?? {}) } as SubagentConfig,
     };
     // Apply config-file modelTiers overrides to the canonical `models` object
     // (authoritative) instead of the subagents projection (§2.8.2). This runs

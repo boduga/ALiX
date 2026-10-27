@@ -98,6 +98,13 @@ review records why (§4.1 there).
 fetched). Until that is closed, a model-backed probe would measure contamination
 as much as capability.
 
+**Qualification status (2026-10-23):** six of eight controls now have executable
+adversarial evidence rather than an "exists" claim — see
+[isolation qualification record](harness-pre-r024-isolation-qualification.md) and
+`tests/security/pre-r024-isolation-qualification.vitest.ts`. The blocker above is
+unchanged, and per-arm execution of the S0 negative suites remains a runner
+obligation. Two rows still hold this gate shut.
+
 ---
 
 ## 4. Recursion budgets and ordering (PRE-R025)

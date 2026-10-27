@@ -47,6 +47,11 @@ import type {
 } from "../../models/tracing/types.js";
 import { isCancellationError } from "../../runtime-state/runtime/cancellation-token.js";
 
+/** Session identity uses the session directory on both POSIX and Windows. */
+export function sessionIdFromDirectory(sessionDir: string): string {
+  return sessionDir.split(/[/\\]sessions[/\\]/)[1] ?? "unknown";
+}
+
 const LARGE_OUTPUT_THRESHOLD = 10000;
 
 function sanitizeArgs(args: Record<string, unknown>): Record<string, unknown> {
@@ -238,10 +243,49 @@ export class ToolExecutor {
     return this.policyGateInstance;
   }
 
+  /**
+   * Evaluate only the MANDATORY denies for a shell command, without creating an
+   * approval.
+   *
+   * The safe-shell bypass needs to know "is this denied outright?" before it can
+   * skip authorization, and it must not run the full authorization path (that
+   * would mint approvals from a path that is supposed to skip them).
+   *
+   * Returns the deny reason, or `null` when the command may proceed to the
+   * normal path. Only POLICY denies are answered: `ask`, `allow`, and the
+   * `approval-store-missing` outcome all return `null`, because that last one is
+   * an absent dependency rather than a decision about the command — treating it
+   * as a deny would turn "this executor has no store" into "this command is
+   * forbidden", and the bypass must not widen its meaning. This can therefore
+   * never widen authority; it only refuses.
+   */
+  private async mandatoryShellDeny(command: string): Promise<string | null> {
+    const gate = await this.policyGate();
+    const decision = await gate.evaluateToolCall({
+      requestId: `safe-shell-probe-${Date.now()}`,
+      toolName: "shell.run",
+      capability: "shell.run",
+      args: { command },
+      // The CALLER's workspace, not the process cwd: protected-path and evasion
+      // verdicts are cwd-relative, so probing from a different root could allow
+      // a command the real evaluation denies.
+      cwd: this.root,
+      sessionMode: "ask",
+      source: "tool",
+      // Carry the declared scope so the probe sees the same channel denial the
+      // real authorization would. Without this a scoped worker's mutating
+      // "safe" command (e.g. `git branch -d x`) skipped the D2 check entirely.
+      ...(this.ownedPaths?.length ? { ownedPaths: this.ownedPaths } : {}),
+    });
+    if (decision.decision !== "deny") return null;
+    // A missing approval store is not a verdict on the command.
+    if (decision.matchedRuleId === "approval-store-missing") return null;
+    return decision.reason;
+  }
+
   private sessionId(): string {
     // Extract sessionId from EventLog sessionDir: .alix/sessions/<sessionId>
-    const parts = this.log.sessionDir.split("sessions/");
-    return parts.length > 1 ? parts[1] : "unknown";
+    return sessionIdFromDirectory(this.log.sessionDir);
   }
 
   private async logEvent(type: string, payload: Record<string, unknown>): Promise<void> {
@@ -483,6 +527,12 @@ export class ToolExecutor {
             : "Continuation resume rejected: no durable approval backing this request",
         };
       }
+      // Ownership BEFORE the approval claim: a continuation resume is still a
+      // write, and a write outside the declared scope is refused on its own
+      // terms rather than incidentally by an invocation-binding mismatch. The
+      // ordering also keeps this check reachable in tests — with the claim
+      // first, every continuation resume failed on invocation identity and the
+      // ownership call was never exercised (Gate E review, vacuous #10).
       const contGateResult = await this.checkOwnershipGate(request, name, args);
       if (contGateResult) return contGateResult;
       // R1.5: the continuation tombstone is NOT authorization — claim the
@@ -510,11 +560,38 @@ export class ToolExecutor {
       return resumed;
     }
 
-    // Safe shell bypass for ask mode: read-only commands skip policy gate
+    // Safe shell bypass for ask mode: read-only commands skip the approval gate.
+    //
+    // "Skip the approval gate" must NOT mean "skip policy". Mandatory denies are
+    // still evaluated first: a deny is an absolute, and consulting it only after
+    // a permissive branch makes the deny advisory. Before this check, a command
+    // in `denyCommands` (or blocked/evaded) still executed here, because the
+    // bypass returned before authorization. Independent Gate E review defect D1.
+    //
+    // This deliberately does not create approvals — `evaluateToolCall` would, and
+    // an `ask` verdict here must fall through to the real authorization path so
+    // the approval lifecycle stays in one place.
     const mode = this.config.permissions.sessionMode ?? "ask";
     if (mode === "ask" && name === "shell.run") {
       const command = typeof args?.command === "string" ? args.command : "";
       if (command && isSafeShellCommand(command)) {
+        const mandatoryDeny = await this.mandatoryShellDeny(command);
+        if (mandatoryDeny) {
+          await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
+            toolCallId,
+            toolName: name,
+            argumentHash,
+            executionId: correlation.executionId,
+            invocationId: correlation.invocationId,
+            ...agentPayload,
+            ...(request.replayId ? { replayId: request.replayId } : {}),
+          });
+          return {
+            kind: "error",
+            message: `Command denied by policy: ${mandatoryDeny}`,
+            retryable: false,
+          };
+        }
         // Skip the approval gate for a whitelisted read-only command, but do
         // not execute it here: the downstream ShellToolRouter owns workspace
         // path validation and command-failure classification.
@@ -905,6 +982,42 @@ export class ToolExecutor {
  * previously built this object literal verbatim; a change to what identifies an
  * invocation would have had to find both.
  */
+  /** Host-only continuation operations; this module owns store construction. */
+  async pendingContinuations(): Promise<import("../../runtime-state/runtime/continuation-store.js").PendingContinuation[]> {
+    const { ContinuationStore } = await import("../../runtime-state/runtime/continuation-store.js");
+    const store = new ContinuationStore(this.root);
+    await store.load();
+    return store.list();
+  }
+
+  async bindContinuationWorker(
+    approvalId: string,
+    worker: NonNullable<import("../../runtime-state/runtime/continuation-store.js").PendingContinuation["coordinationWorker"]>,
+  ): Promise<boolean> {
+    await this.approvalStore?.load?.();
+    const approval = this.approvalStore?.get?.(approvalId);
+    if (!approval || !["pending", "approved"].includes(approval.status)) return false;
+    const { ContinuationStore } = await import("../../runtime-state/runtime/continuation-store.js");
+    const store = new ContinuationStore(this.root);
+    await store.load();
+    const cont = store.findByApprovalId(approvalId);
+    if (!cont) return false;
+    await store.persist({ ...cont, coordinationWorker: worker });
+    return true;
+  }
+
+  async resumeApprovedContinuation(approvalId: string, signal: AbortSignal): Promise<{ resumed: boolean; output?: string; error?: string }> {
+    if (!this.approvalStore || signal.aborted) return { resumed: false, error: "Approval authority unavailable or cancelled" };
+    await this.approvalStore.load();
+    const { ContinuationStore } = await import("../../runtime-state/runtime/continuation-store.js");
+    const { ContinuationManager } = await import("../../runtime-state/runtime/continuation-manager.js");
+    const store = new ContinuationStore(this.root);
+    await store.load();
+    const manager = new ContinuationManager({ continuationStore: store, approvalStore: this.approvalStore,
+      eventLog: this.log, executeTool: call => this.execute({ ...call, signal }) });
+    return manager.resumeApproved(approvalId);
+  }
+
   /** Identity of the exact invocation being authorised. */
   private invocationIdentity(
     capability: string,
@@ -984,6 +1097,58 @@ export class ToolExecutor {
     toolName: string,
     args: Record<string, unknown>,
   ): Promise<ToolResult | null> {
+    // A declared owned scope is enforced HERE, not only in PolicyGate.
+    //
+    // The continuation-resume branch deliberately skips PolicyGate (approval was
+    // already verified by ContinuationManager), so `ownedPaths` would go
+    // unchecked on that path: the registry lease below runs with
+    // `autoAcquire: true`, which GRANTS coverage rather than enforcing it. A
+    // scoped worker resuming a continuation could therefore write outside its
+    // declared scope.
+    //
+    // The CHANNEL rule comes from the shared module, not from a copy here: the
+    // first version of this block handled only enumerable targets, so a shell or
+    // delegate channel slipped through the same way it did in PolicyGate.
+    const ownedPaths = request.ownedPaths?.length ? request.ownedPaths : this.ownedPaths;
+    if (ownedPaths?.length) {
+      const { unscopableChannelDenial } = await import("../../coordination/ownership/owned-scope-channels.js");
+      const capabilityId = this.toolRegistry?.lookupByName(toolName)?.policyKey ?? toolName;
+      const unscopable = unscopableChannelDenial({
+        capability: capabilityId,
+        toolName,
+        ownedPaths,
+      });
+      if (unscopable) {
+        return { kind: "error", message: unscopable, retryable: false };
+      }
+    }
+    if (ownedPaths?.length && this.workspacePathResolver) {
+      const { extractMutationTargets } = await import("../../coordination/ownership/mutation-targets.js");
+      const extraction = extractMutationTargets(toolName, args, this.workspacePathResolver);
+      if (extraction.classification === "unknown-write") {
+        return {
+          kind: "error",
+          message:
+            `Cannot determine mutation targets for ${toolName} — a declared owned scope cannot be verified. ` +
+            `Acquire an explicit lease covering the expected paths and retry.`,
+          retryable: false,
+        };
+      }
+      if (extraction.classification === "known-write") {
+        const { isWithinOwnedScope } = await import("../../coordination/ownership/path-scope.js");
+        const outside = extraction.targets
+          .map((target) => target.path)
+          .filter((path) => !isWithinOwnedScope(path, ownedPaths, this.root));
+        if (outside.length > 0) {
+          return {
+            kind: "error",
+            message: `Ownership check failed: ${outside.join(", ")} outside owned paths`,
+            retryable: false,
+          };
+        }
+      }
+    }
+
     // Skip if ownership is not wired
     if (!this.ownershipRegistry) return null;
     if (!this.workspacePathResolver) return null;
@@ -1069,7 +1234,7 @@ async function writeOutputToFile(
 
   // Emit artifact.created event (best-effort via emitToolTelemetry: the
   // artifact file above is the authoritative record).
-  const sessionId = sessionDir.split("sessions/").length > 1 ? sessionDir.split("sessions/")[1] : "unknown";
+  const sessionId = sessionIdFromDirectory(sessionDir);
   await emitToolTelemetry(log, sessionId, ARTIFACT_EVENT_TYPES.CREATED, {
     artifactId,
     toolCallId,

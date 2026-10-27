@@ -4,8 +4,8 @@ import { verifyObservation } from '../../src/operations/evals/eval-observation.j
 
 /** A Gate 7 coordination success, mirroring the real run-fanout summary shape. */
 const FANOUT: Gate7Summary = {
-  provider: 'intern',
-  model: 'deepseek-v4-flash-0731',
+  provider: 'hive',
+  model: 'deepseek-ai/deepseek-v4.1-flash-1017',
   run: {
     id: 'coord_abc',
     status: 'completed',
@@ -39,8 +39,8 @@ describe('Gate 7 → canonical observation adapter (P0-D)', () => {
     expect(row.failureClass).toBeNull();
     expect(row.terminalStatus).toBe('completed');
     expect(row.stratum).toBe('coordination-ownership');
-    expect(row.provider).toBe('intern');
-    expect(row.model).toBe('deepseek-v4-flash-0731');
+    expect(row.provider).toBe('hive');
+    expect(row.model).toBe('deepseek-ai/deepseek-v4.1-flash-1017');
     expect(verifyObservation(row).ok).toBe(true);
   });
 
@@ -88,7 +88,7 @@ describe('Gate 7 → canonical observation adapter (P0-D)', () => {
 
   it('classifies an operator-denied run as policy-denial, not task failure', () => {
     const denied: Gate7Summary = {
-      provider: 'intern', model: 'm',
+      provider: 'hive', model: 'm',
       run: {
         id: 'coord_deny', status: 'failed',
         workers: [

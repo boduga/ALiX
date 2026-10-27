@@ -59,6 +59,11 @@ export class CoordinationSchedulerService {
     this.pollTimer = setInterval(() => { void this.tickAll().catch(() => {}); }, this.options.pollIntervalMs);
     this.renewTimer = setInterval(() => { void this.renewAll().catch(() => {}); }, this.options.renewIntervalMs);
     this.heartbeatTimer = setInterval(() => { void this.heartbeatAll().catch(() => {}); }, this.options.heartbeatIntervalMs);
+    // Terminal runs are excluded from normal scheduling ticks. Reconcile their
+    // persisted completion evidence once at startup, without dispatching work.
+    void this.reconcileTerminalOnStartup().catch(err => {
+      console.error("[daemon] terminal completion reconciliation failed:", err);
+    });
   }
 
   stop(): void {
@@ -82,6 +87,20 @@ export class CoordinationSchedulerService {
   async shutdown(): Promise<void> {
     this.stop();
     await this.scheduler.shutdown();
+  }
+
+  private async reconcileTerminalOnStartup(): Promise<void> {
+    const runs = await this.store.list();
+    for (const run of runs) {
+      if (this.stopped) return;
+      if (run.status !== "completed" && run.status !== "failed") continue;
+      if (this.options.hostKind && run.hostKind !== this.options.hostKind) continue;
+      try {
+        await this.scheduler.reconcileTerminalCompletion(run.id);
+      } catch (error) {
+        console.error(`[daemon] completion recovery failed for ${run.id}:`, error);
+      }
+    }
   }
 
   private async tickAll(): Promise<void> {

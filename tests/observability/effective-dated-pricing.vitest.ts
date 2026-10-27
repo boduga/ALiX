@@ -120,27 +120,28 @@ describe('dated pricing through run correlation (F1-D)', () => {
   });
 });
 
-describe('intern pricing remains unresolved (F1-D)', () => {
-  it('intern is absent from the default catalog and stays unknown', async () => {
+describe('hive pricing remains unresolved in the catalog (F1-D)', () => {
+  it('hive is absent from the default catalog and stays unknown', async () => {
     const { defaultPricingCatalog } = await import('../../src/operations/observability/cost-attribution.js');
-    // No authoritative rate exists in-repo. A per-account Token Plan subscription
-    // is not per-token metering, so a list price would not describe the bill.
-    expect(defaultPricingCatalog().lookup('intern', 'deepseek-v4-flash-0731')).toBeUndefined();
+    // No vendor-published rate exists in-repo. A proxy rate may be supplied as an
+    // operator rate snapshot, but it must never live in the catalog: a catalog
+    // entry reads as the vendor's own list price.
+    expect(defaultPricingCatalog().lookup('hive', 'deepseek-ai/deepseek-v4.1-flash-1017')).toBeUndefined();
   });
 
-  it('an intern run reports partial cost rather than a fabricated figure', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), '.alix-f1d-intern-'));
+  it('a hive run reports partial cost rather than a fabricated figure', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), '.alix-f1d-hive-'));
     cwds.push(cwd);
     const dir = join(cwd, '.alix', 'sessions', 's1');
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, 'events.jsonl'), JSON.stringify({
       id: 'e1', seq: 1, timestamp: '2026-10-20T00:00:00Z', type: 'model.usage', sessionId: 's1',
-      payload: { provider: 'intern', model: 'deepseek-v4-flash-0731', inputTokens: 1000, outputTokens: 100 },
+      payload: { provider: 'hive', model: 'deepseek-ai/deepseek-v4.1-flash-1017', inputTokens: 1000, outputTokens: 100 },
     }) + '\n');
 
     const s = await new CostAttribution(cwd).summary('s1');
     expect(s.totalCost).toBe(-1);
     expect(s.costCompleteness).toBe('partial');
-    expect(s.unknownPricingModels).toContain('intern/deepseek-v4-flash-0731');
+    expect(s.unknownPricingModels).toContain('hive/deepseek-ai/deepseek-v4.1-flash-1017');
   });
 });

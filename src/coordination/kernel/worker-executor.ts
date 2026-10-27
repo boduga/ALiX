@@ -14,6 +14,7 @@ import type { BoundTool } from "../../capabilities/tools/collaboration-tools.js"
 import { renderWorkerExecutionPrompt, type WorkerDependencyResult } from "./coordination-worker-context.js";
 import { captureWorkerEventLog, reviewDefaultWorkerResult } from "./default-worker-review.js";
 import { isWriteWorker, ownedPathsForWorker } from "./worker-role.js";
+import { createToolExecutor } from "../../capabilities/tools/tool-executor-factory.js";
 import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
 
 export type WorkerExecutionContext = {
@@ -35,6 +36,7 @@ export type WorkerExecutionResult = {
   outputPath?: string;
   error?: string;
   failureKind?: WorkerFailureKind;
+  approvalId?: string;
 };
 
 export interface CoordinationWorkerExecutor {
@@ -122,7 +124,8 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
 
       const captured = captureWorkerEventLog(await initSharedEventLog(context.cwd, context.sessionId));
       const toolEvidence: string[] = [];
-      const result = await runTask(context.cwd, renderWorkerExecutionPrompt(worker, context), {
+      const { scriptedScenarioFromEnv, withScriptedScenario, traceScriptedEval } = await import("../../operations/evals/providers/scripted-mock-carrier.js");
+      const runWorker = () => runTask(context.cwd, renderWorkerExecutionPrompt(worker, context), {
         signal,
         onToolResult: (name, content) => { toolEvidence.push(`Tool ${name}:\n${content}`); },
         sessionMode: context.config.permissions.sessionMode ?? "ask",
@@ -150,9 +153,25 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
         // the previous fail-closed behaviour.
         ...(this.approvalStore ? { approvalStore: this.approvalStore } : {}),
       });
+      const scenario = context.config.models?.default?.provider === "scripted-mock"
+        ? scriptedScenarioFromEnv() : null;
+      traceScriptedEval({ event: "worker", workerId: worker.id, provider: context.config.models?.default?.provider ?? "unset", scenarioLoaded: !!scenario });
+      if (process.env.ALIX_EVAL_TRACE === "1") {
+        process.stderr.write(`[scripted-eval] worker=${worker.id} pid=${process.pid} provider=${context.config.models?.default?.provider ?? "unset"} scenario=${scenario ? "loaded" : "absent"}\n`);
+      }
+      const result = scenario ? await withScriptedScenario(scenario, runWorker) : await runWorker();
 
       if (signal.aborted) {
         return { outcome: "failure", failureKind: "cancelled", error: "Execution cancelled" };
+      }
+
+      // A paused tool is not a failed worker, and cannot lose its scope on resume.
+      const { bindWorkerToolContinuation } = await import("./worker-tool-continuation.js");
+      const approvalId = await bindWorkerToolContinuation(context.sessionId, worker, captured.events, () =>
+        createToolExecutor({ config: context.config, log: captured.log, root: context.cwd, approvalStore: this.approvalStore }));
+      if (approvalId) {
+        return { outcome: "failure", failureKind: "approval_required", approvalId,
+          error: `Tool approval required: ${approvalId}` };
       }
 
       if (result.reason !== "completed") {

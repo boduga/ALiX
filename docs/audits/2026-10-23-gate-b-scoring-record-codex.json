@@ -1,0 +1,104 @@
+{
+  "_label": "MODEL-INDEPENDENT SCORING. WEAKER THAN HUMAN INDEPENDENCE. DOES NOT SATISFY GB-14 OR GATE E.",
+  "_why_this_exists": "The operator accepted model-independent review as GB-12 evidence on 2026-10-24 (packet §6.3). The reviewer is a different model family in a different harness that did not author this repository. It is NOT a human review and must be cited as 'model-independent', never as 'independent' unqualified.",
+  "_instructions_never": "Do not relabel reviewerKind to 'human'. Do not cite this as satisfying PRE-R017/PRE-R031 (which count human observations) or as Gate E clearance.",
+  "author": "Babasola <boduga@gmail.com> (work performed by an AI agent acting for the operator)",
+  "reviewer": "Codex CLI 0.164.0 / gpt-6.1-sol (read-only sandbox)",
+  "reviewerKind": "model",
+  "reviewedCommit": "ba8b8064",
+  "scoredAt": "2026-10-23T00:00:00.000Z",
+  "artifactSet": "commit ba8b8064; docs/audits/evidence/2026-10-23-codex-gate-b-review.txt (verbatim output, sha256 4606f1385e949109789dbc03a21bf1d52eb47b3f78660e0b36bfa0fdbdc7fe95); docs/audits/evidence/2026-10-23-codex-gate-b-review-prompt.md (sha256 24f38f6f78f58a5ae090052bf66906c78510ece93d29975c275ab9ba596aefbb)",
+  "requirements": [
+    {
+      "id": "GB-01",
+      "verdict": "met",
+      "note": "Independent oracle review performed 2026-10-24 (Codex / gpt-6.1-sol, read-only). It REJECTED the oracle and three defects were reproduced by direct probe against the built evaluator: negated answers passed, ordinary task failures were classified inadmissible, and a comment containing the fix passed patch/replacement objectives. All three were then fixed -- answerAsserts replaces the substring test, admissibility is provenance-anchored, and patch/replacement require exact final content with a derived (not hardcoded) 'changed'. Parity table: tests/evals/oracle-parity.vitest.ts. Caveats: model-independent only, the oracle remains first-party code, and two case-design items (verification-repair unbound args; malformed-tool-call not malformed) stay open as recorded debt. See docs/audits/2026-10-24-gb01-oracle-review.md sections 0 and 8.",
+      "evidence": "docs/audits/2026-10-24-gb01-oracle-review.md (sections 0 and 8) + docs/audits/evidence/2026-10-24-codex-gb01-oracle-review.txt (SHA-256 c3b312d1ed2258d5...); fixed in src/operations/evals/evaluators/objective-evaluator.ts and src/operations/evals/eval-admissibility.ts; parity table tests/evals/oracle-parity.vitest.ts"
+    },
+    {
+      "id": "GB-02",
+      "verdict": "met",
+      "evidence": "benchmark/evidence/eval-runs/guarded-2026-10-23.json:run.results, run.summary",
+      "note": "Reviewer recomputed 14 passes, zero failures, eight landed objectives, 14 honest statuses, seven satisfied guard groups and two complete tool traces. Establishes scripted mechanics only — never model quality or a baseline rate."
+    },
+    {
+      "id": "GB-03",
+      "verdict": "met",
+      "evidence": "src/operations/evals/eval-guards.ts:108-185,212-268; benchmark/evidence/eval-runs/guarded-2026-10-23.json:run.results[].guards",
+      "note": "Guards check workspace content, escaped-target sentinel, partial files and ordered tool outcomes, rejecting missing, malformed, duplicate and unmatched trace records. Historical paid runs lack these guards."
+    },
+    {
+      "id": "GB-04",
+      "verdict": "met",
+      "note": "All 9 artifacts in collection-2026-10-24-final/ carry frozen.admissible:true with model revision, configHash, offeredToolsHash, corpusHash (9 files), environment and pricing provenance. Verified directly against the files. Corrected 2026-10-24 from a stale partial that predated the final collection.",
+      "evidence": "benchmark/evidence/eval-runs/collection-2026-10-24-final/ (frozen block per file)"
+    },
+    {
+      "id": "GB-05",
+      "verdict": "met",
+      "note": "All ten strata executed and reported. PRD §7 lists ten strata to execute and requires failures counted in the numerator, which presumes they occur; coverage is execution+reporting, not universal success. Stratum 9 carries a MEASURED FAILURE: 3/3 runs on granite3-moe produced zero or malformed tool calls and never read the file, with resource-time, tokens and a non-billable $0 recorded. Caveat: stratum 9 is n=3 on one 3B-class model, characterising that model, not the local-CPU axis.",
+      "evidence": "benchmark/evidence/eval-runs/collection-2026-10-24-final/; benchmark/evidence/coordination/collection-2026-10-24/; benchmark/evidence/eval-runs/stratum9-attempts/"
+    },
+    {
+      "id": "GB-06",
+      "verdict": "met",
+      "note": "Re-scored against the corrected oracle with no new spend: benchmark/evidence/rescore-collection.mjs re-derives 35 of 45 retained rows end to end with 0 verdict changes; 40 exact-content objectives verified by sha256 digest against the retained after-run manifest with 0 mismatches; 15 answer assertions with 0 mismatches; 5 retained error strings re-classified with 0 flips. Denominator 36/45 and $0.080520 per verified success stand. Caveats: 10 rows are contentIncludes/existence objectives that digest-only evidence cannot re-derive (declared, never counted as confirmed), and all pricing is a proxy rate, not a reconciled invoice.",
+      "evidence": "benchmark/evidence/rescore-collection.mjs + benchmark/evidence/eval-runs/collection-2026-10-24-final/RESCORE.md: 35/45 rows re-derived, 0 verdict changes; 40 exact-content objectives by sha256 digest, 0 mismatches; 15 answer assertions, 0 mismatches; 5 error strings re-classified, 0 flips. Artifacts: benchmark/evidence/eval-runs/collection-2026-10-24-final/*.json"
+    },
+    {
+      "id": "GB-07",
+      "verdict": "met",
+      "note": "Mean/median cost and token counts present per artifact and per case from observed model.usage. PRD §7 asks for these; invoice reconciliation is not a §7 requirement. Corrected from 'partial' on 2026-10-24. Caveat: priced at an operator-declared gpt-4o proxy, which bounds how the figure may be cited.",
+      "evidence": "benchmark/evidence/eval-runs/collection-2026-10-24-final/ (usage + costUsd per row)"
+    },
+    {
+      "id": "GB-08",
+      "verdict": "met",
+      "note": "p50/p95 reported per case for 45 runs across 9 cases, plus stratum 6 (four workers) and stratum 8 (kill/resume). §7 requires reporting, not complete stratum coverage. Corrected from 'missing' on 2026-10-24. Caveats: at n=5/n=3 nearest-rank p95 IS the maximum, so these are slowest-run values; stratum 9 unmeasured and tracked under GB-05.",
+      "evidence": "benchmark/evidence/eval-runs/collection-2026-10-24-final/ (latency block per file); benchmark/evidence/coordination/collection-2026-10-24/"
+    },
+    {
+      "id": "GB-09",
+      "verdict": "met",
+      "note": "Wilson 95% intervals computed from the committed rows: pooled 36/45 = 0.80 [0.66, 0.89]; every 5/5 case is [0.57, 1.00]. PRD §6 requires reporting uncertainty; it was not missing, only uncomputed. No threshold frozen.",
+      "evidence": "benchmark/evidence/eval-runs/collection-2026-10-24-final/ (per-run verifiedSuccess)"
+    },
+    {
+      "id": "GB-10",
+      "verdict": "met",
+      "evidence": "docs/harness-readiness-report.md:36-57; docs/audits/2026-10-23-gate-b-acceptance-packet.md:225-240",
+      "note": "Current acceptance documents explicitly exclude mixed historical ratios, invalid task contracts and attributable-improvement claims."
+    },
+    {
+      "id": "GB-11",
+      "verdict": "waived",
+      "note": "WAIVED, not met, and signed 2026-10-24. M-2..M-5 are agent-derived from committed evidence (interruptions 0, approval touches 0: the eval harness runs permissions.default allow, so no approval path is exercised). M-1 operator-attention time is unmeasured, n=0, and no agent can observe human cognitive time; substituting a different quantity would invert PRD 12.3's purpose. The validator requires the cited waiver file to exist AND to name the signer, so this is a signature, not a flag.",
+      "evidence": "docs/audits/2026-10-24-gb11-waiver.md (signed section 7) + docs/audits/2026-10-24-operator-attention-agent-measures.md + src/operations/evals/attention-metrics.ts + tests/evals/attention-metrics.vitest.ts",
+      "waiver": {
+        "ref": "2026-10-24-gb11-waiver.md",
+        "signedBy": "Babasola",
+        "signedAt": "2026-10-24T00:00:00.000Z"
+      }
+    },
+    {
+      "id": "GB-12",
+      "verdict": "met",
+      "evidence": "docs/audits/evidence/2026-10-23-codex-gate-b-review.txt; docs/audits/2026-10-23-gate-b-acceptance-packet.md §6.3",
+      "note": "Met as MODEL-INDEPENDENT under operator ruling 2026-10-24: a different model family in a different harness that did not author this repository, producing its own verdict from a committed prompt against a pinned commit. NOT human independence, does not satisfy PRE-R017/R031, grants no Gate E clearance."
+    },
+    {
+      "id": "GB-13",
+      "verdict": "met",
+      "note": "PRE-R019 asks that provenance be preserved and classified, not that deleted originals be recovered. Manifest, per-row pins and the provenance document exist; four unrecoverable records are labelled rather than backfilled.",
+      "evidence": "docs/audits/2026-10-23-harness-baseline-provenance.md; docs/audits/2026-10-24-gate-b-uncertainty-and-provenance.md"
+    },
+    {
+      "id": "GB-14",
+      "verdict": "met",
+      "note": "Operator acceptance recorded 2026-10-24 over the artifact set at commit d7ee992e: 9 collection artifacts (45 runs, 36 verified, $2.8987 proxy-priced, $0.080520 per verified success), stratum9-attempts, strata 6/8 coverage and the re-score record. Accepted AS A BASELINE WITH A WAIVED OPERATOR-ATTENTION DIMENSION -- the only disposition GB-11's waiver permits -- and that phrase is required wherever the baseline is cited. The signature does not make GB-11 met, asserts no attention figure and creates no Gate E independence.",
+      "evidence": "docs/audits/2026-10-23-gate-b-acceptance-packet.md section 6 (operator signature) + docs/audits/2026-10-24-gb11-waiver.md + benchmark/evidence/eval-runs/collection-2026-10-24-final/ + benchmark/evidence/eval-runs/collection-2026-10-24-final/RESCORE.md"
+    }
+  ],
+  "_correction": "2026-10-24 (final): GB-14 accepted as a baseline with a waived operator-attention dimension; GB-11 recorded as the first-class verdict `waived` (signed, citation checked by the validator). Gate B computes to CLOSED-WITH-WAIVER: 13 met, 1 waived, 0 missing, 0 partial. Model-independent only; no Gate E clearance; Gate F/Q13 HOLD.",
+  "acceptanceScope": "pre-2.0"
+}

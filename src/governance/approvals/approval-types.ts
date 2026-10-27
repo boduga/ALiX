@@ -83,6 +83,17 @@ export interface ApprovalRecord {
   consumedAt?: string;
   consumedByWorkerId?: string;
   consumedAttempt?: number;
+  /** Host-attributed tool continuation context, committed before resumption.
+   * Not accepted from approval request metadata or exposed as a worker write.
+   */
+  toolContinuation?: {
+    runId: string;
+    workerId: string;
+    attempt: number;
+    ownershipHash: string;
+    ownershipScopes: string[];
+    invocationFingerprint: string;
+  };
   /** Post-claim execution state; see `ApprovalExecutionOutcome`. */
   executionOutcome?: ApprovalExecutionOutcome;
   /** When `executionOutcome` last changed. */

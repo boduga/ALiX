@@ -1,0 +1,53 @@
+2026-10-25T21:24:55-06:00
+d412ea15e000f29cb6fe86588f3a267956604fb2
+MM AGENTS.md
+M  benchmark/evidence/gate-e-qualification-record.mjs
+M  benchmark/evidence/gate-e-qualification-record.test.mjs
+A  benchmark/evidence/record-validation.mjs
+M  benchmark/evidence/release-clearance-record.mjs
+M  docs/audits/2026-10-23-harness-acceptance-matrix.md
+M  docs/audits/2026-10-24-gate-e-qualification-record.json
+M  docs/audits/2026-10-24-gate-e-qualification.md
+A  docs/prd/ALiX_MASTER_PRD_v2.9.md
+A  docs/prd/ALiX_PRE_2_0_MASTER_PRD_v1.0.md
+A  docs/prd/archive/ALiX_PRE_2_0_HARNESS_PRD_v1.3_superseded-draft.md
+ M docs/superpowers/AGENTS.md
+M  src/agents/subagent-cli.ts
+M  src/capabilities/tools/executor.ts
+M  src/capabilities/tools/safe-shell.ts
+A  src/coordination/ownership/owned-scope-channels.ts
+M  src/governance/policy/AGENTS.md
+M  src/governance/policy/policy-gate.ts
+M  tests/executor.test.ts
+M  tests/policy/policy-gate.test.ts
+M  tests/security/approval-consumed-propagation.test.ts
+M  tests/security/pre-r032-non-bypass.vitest.ts
+A  tests/security/source-scanners.ts
+M  tests/unit/safe-shell.test.ts
+?? docs/prd/ALiX_LEAN_ARCHITECTURE_BASELINE_2026-10-25.md
+?? docs/prd/ALiX_PRE_2_0_MASTER_PRD_v1.1.md
+?? docs/prd/evidence/
+Architecture:                            x86_64
+CPU(s):                                  4
+On-line CPU(s) list:                     0-3
+Model name:                              Intel(R) Core(TM) i3-8145U CPU @ 2.10GHz
+CPU(s) scaling MHz:                      95%
+NUMA node0 CPU(s):                       0-3
+               total        used        free      shared  buff/cache   available
+Mem:           11715        5432        2079         357        4892        6283
+Swap:          16383           0       16383
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda2       916G  736G  134G  85% /
+v26.11.0
+    PID COMMAND           RSS %CPU COMMAND
+  20922 Isolated Web Co 817916 15.4 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:41692 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {a73cfd6f-1321-4b58-8899-2ab1552108f3} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 9 tab
+  21343 Isolated Web Co 698996 3.9 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:41651 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {aa74594b-080c-498d-bf40-a6b0b028f957} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 15 tab
+  20591 floorp          672408 22.5 /usr/bin/floorp
+  36677 node-MainThread 615552 0.2 node /home/babasola/.config/nvm/versions/node/v26.11.0/bin/gitnexus mcp
+  34936 Isolated Web Co 376052 1.6 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:41692 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {d6758e15-68c4-47f5-8013-9afa95a565c0} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 23 tab
+  20821 WebExtensions   372028 2.1 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:52669 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {6ba7092e-bf73-4541-b3be-2d756091214f} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 7 tab
+  21267 Isolated Web Co 365176 0.9 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:41651 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {0b89cf6c-9ac3-4b9d-b5fe-391748a28f24} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 13 tab
+  21645 Isolated Web Co 361196 0.6 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:41651 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {c4f9afcc-6d0d-48a6-89d1-38a0606f6f4e} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 19 tab
+  35786 codex           316540 4.6 /home/babasola/.config/nvm/versions/node/v26.11.0/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex --approve-for-me
+  22008 Isolated Web Co 245128 0.3 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:41651 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {38e0914b-26a1-4e48-8377-f71358447336} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 20 tab
+  22918 Isolated Web Co 176460 0.2 /usr/lib/floorp/floorp -contentproc -isForBrowser -prefsHandle 0:41651 -prefMapHandle 1:302467 -jsInitHandle 2:162336 -parentBuildID 20261014104253 -sandboxReporter 3 -chrootClient 4 -ipcHandle 5 -initialChannelId {4d4c3d54-669f-4831-8bc9-33b0fe3b03ba} -parentPid 20591 -greomni /usr/lib/floorp/omni.ja -appomni /usr/lib/floorp/browser/omni.ja -appDir /usr/lib/floorp/browser 22 tab

@@ -51,6 +51,98 @@ function contentIncludesCheck(actual: string | undefined, includes?: string[]): 
 }
 
 /**
+ * Decide whether a report ASSERTS a value, rather than merely containing it.
+ *
+ * THE DEFECT THIS FIXES
+ *
+ * `answerIncludes` was a substring test, so a report reading
+ * "x is NOT kestrel-9; x is raven-2" satisfied `answerIncludes: ["kestrel-9"]`.
+ * A model could state the exact opposite of the truth and pass, which made the
+ * read-only and navigation oracles unsound.
+ *
+ * The rule: find each occurrence of the needle, take the clause it sits in, and
+ * reject the occurrence when the clause negates or corrects it. Anything else is
+ * treated as an assertion — an unrecognised phrasing stays accepted, because
+ * discarding a genuine answer is the worse error.
+ */
+/**
+ * Negation markers that invert a clause ABOUT THE VALUE.
+ *
+ * Applied to both sides, and deliberately narrow:
+ *
+ *  - "x is NOT kestrel-9"                        -> negated (upstream)
+ *  - "kestrel-9? No, it is raven-2"              -> negated (downstream)
+ *  - "kestrel-9, not raven-2"                    -> ASSERTED: the negation governs
+ *                                                   the alternative, not the value
+ *  - "lantern-4 (a string, not a number)"        -> ASSERTED: `not` disambiguates
+ *                                                   the TYPE
+ *
+ * A detector that flags any nearby `not` fails honest work, which is its own
+ * unsoundness — measured on two real navigation runs.
+ */
+const NEGATION_BEFORE =
+  /\b(?:not|isn't|isnt|aren't|arent|wasn't|wasnt|never|no longer|incorrect|wrong|false|rather than|other than|instead of)\b|n't\b/;
+
+/** Negation that follows the value and denies it by naming a replacement. */
+const NEGATION_AFTER =
+  /^\s*(?:\?|,)?\s*\b(?:no\b|nope\b|actually\b|rather\b|instead\b)/;
+
+/** Words that make a following `not` a clarification of type or category. */
+const BENIGN_AFTER =
+  /^[^.;\n]{0,20}?not\s+(?:a|an|the)?\s*(?:number|string|boolean|array|object|file|directory|function|class|constant|error)/;
+
+export function answerAsserts(report: string, needle: string): "asserted" | "negated" | "absent" {
+  const haystack = report.toLowerCase();
+  const want = needle.toLowerCase();
+  let from = 0;
+  let sawNegated = false;
+  for (;;) {
+    const at = haystack.indexOf(want, from);
+    if (at < 0) break;
+    const { before, after } = clausePanels(haystack, at, want.length);
+    from = at + want.length;
+    if (NEGATION_BEFORE.test(before)) {
+      sawNegated = true;
+      continue;
+    }
+    // A `not` after the value denies it only when it names a replacement. A `not`
+    // that clarifies type ("a string, not a number") leaves the value asserted.
+    if (!BENIGN_AFTER.test(after) && NEGATION_AFTER.test(after)) {
+      sawNegated = true;
+      continue;
+    }
+    return "asserted";
+  }
+  return sawNegated ? "negated" : "absent";
+}
+
+/**
+ * Text before and after an occurrence, bounded by sentence breaks and
+ * semicolons, so a negation elsewhere in the report cannot contaminate it.
+ *
+ * The AFTER panel crosses at most one `?` or `!`, because a correction can be
+ * phrased as a question ("... kestrel-9? No, it is raven-2"). It does NOT cross a
+ * `.` or a newline: "The value is kestrel-9. No files were modified." is two
+ * assertions, and the second one says nothing about the value. Crossing it would
+ * fail an honest report, which is the failure mode this whole function exists to
+ * avoid in the other direction.
+ */
+function clausePanels(text: string, at: number, length: number): { before: string; after: string } {
+  const delimiters = /[.;!?\n]/;
+  let start = at;
+  while (start > 0 && !delimiters.test(text[start - 1]!)) start--;
+  let end = at + length;
+  while (end < text.length && !delimiters.test(text[end]!)) end++;
+
+  const terminator = end < text.length ? text[end]! : "";
+  let afterEnd = Math.min(end + 1, text.length);
+  if (terminator === "?" || terminator === "!") {
+    while (afterEnd < text.length && !delimiters.test(text[afterEnd]!)) afterEnd++;
+  }
+  return { before: text.slice(start, at), after: text.slice(at + length, afterEnd) };
+}
+
+/**
  * Evaluate a filesystem objective. Never throws on I/O absence — reports not-landed.
  *
  * `execution` is optional and only consulted by objectives whose deliverable is
@@ -111,20 +203,29 @@ export function evaluateObjective(
         }
       }
       const mismatches: string[] = [];
+      const expected = objective.expectedContent;
       if (!exists) {
         mismatches.push(`file missing: ${objective.path}`);
       } else if (actualContent === undefined) {
         mismatches.push(`could not read: ${objective.path}`);
-      } else if (!actualContent.includes(objective.expectedContent)) {
-        mismatches.push(`expected content not present: ${objective.expectedContent}`);
+      } else if (actualContent !== expected) {
+        // EXACT final content, not "contains".
+        //
+        // A substring test accepted `const x = 1;` plus `// export const x = 2;`
+        // as a repaired file: the fix was present, as a COMMENT, and the bug was
+        // still there. The objective is the file's state after the repair, so the
+        // comparison is byte-exact.
+        mismatches.push(`final content differs from expected (${actualContent.length} vs ${expected.length} bytes)`);
       }
       return {
         landed: mismatches.length === 0,
         evidence: {
           path: objective.path,
           exists,
-          changed: true,
-          expected: { contentEquals: objective.expectedContent },
+          // `changed` is DERIVED, never hardcoded: a caller reading it must not be
+          // told a file changed when it may not have.
+          changed: undefined,
+          expected: { contentEquals: expected },
           actual: actualContent !== undefined ? { content: actualContent } : undefined,
           mismatches,
         },
@@ -153,8 +254,9 @@ export function evaluateObjective(
       }
       const report = execution?.summary ?? "";
       for (const needle of objective.answerIncludes ?? []) {
-        if (!report.toLowerCase().includes(needle.toLowerCase())) {
-          mismatches.push(`final report does not state: ${needle}`);
+        const verdict = answerAsserts(report, needle);
+        if (verdict !== "asserted") {
+          mismatches.push(`final report does not state: ${needle}${verdict === "negated" ? " (found only in a negated clause)" : ""}`);
         }
       }
       return {

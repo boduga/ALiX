@@ -85,9 +85,10 @@ export class DaemonRuntimeExecutor implements RuntimeExecutor {
     return this.runAndEmit((config) => executeChatBehavior(route, config, { signal: this.opts.signal }));
   }
 
-  async executeGroundedChat(route: TaskRoute & { kind: "grounded_chat" }, _ctx: RuntimeContext): Promise<string> {
+  async executeGroundedChat(route: TaskRoute & { kind: "grounded_chat" }, ctx: RuntimeContext): Promise<string> {
     return this.runAndEmit((config) =>
       executeGroundedChatBehavior(route, config, {
+        ...(ctx.approvalStore ? { approvalStore: ctx.approvalStore } : {}),
         eventLog: this.opts.eventLog,
         cwd: this.opts.cwd,
         signal: this.opts.signal,
@@ -99,7 +100,7 @@ export class DaemonRuntimeExecutor implements RuntimeExecutor {
     );
   }
 
-  async executeTool(route: TaskRoute & { kind: "tool" }, _ctx: RuntimeContext): Promise<string> {
+  async executeTool(route: TaskRoute & { kind: "tool" }, ctx: RuntimeContext): Promise<string> {
     const config = await this.getConfig();
     // Marker frame BEFORE the tool runs — the daemon announces the invocation
     // so the client gets immediate "tool is running" feedback even if the
@@ -107,6 +108,7 @@ export class DaemonRuntimeExecutor implements RuntimeExecutor {
     // daemon contract.)
     this.emitText(`→ ${route.tool} ${JSON.stringify(route.args)}\n`);
     const text = await executeToolBehavior(route, config, {
+      ...(ctx.approvalStore ? { approvalStore: ctx.approvalStore } : {}),
       eventLog: this.opts.eventLog,
       cwd: this.opts.cwd,
       renderApprovalPrompt: false, // a socket client can't act on /approve

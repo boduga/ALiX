@@ -17,8 +17,9 @@ import { inferCapability } from "../../capabilities/tools/capability-map.js";
 import type { InvocationIdentity } from "../approvals/approval-binding.js";
 import { invocationMatches } from "../approvals/approval-binding.js";
 import { extractPatchPaths } from "../../execution/patch/patch-paths.js";
-import { resolve } from "node:path";
+import { relative, resolve, sep } from "node:path";
 import { isWithinOwnedScope } from "../../coordination/ownership/path-scope.js";
+import { SCOPABLE_WRITE_TOOLS, unscopableChannelDenial } from "../../coordination/ownership/owned-scope-channels.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -90,15 +91,12 @@ export function resolvePolicyPath(cwd: string, path: string): string {
 
 // ─── Owned-path auto-approval helpers ─────────────────────────────────
 
-/** Write tools whose mutation targets can be scoped to ownedPaths. */
-const OWNED_WRITE_TOOLS = new Set(["file.create", "file.delete", "patch.apply"]);
-
 /**
  * True when the request declares an owned scope for a write tool — the case
  * where the owned-path rule (step 5.5) is the authority for the write.
  */
 function hasOwnedWriteScope(request: ToolPolicyRequest): boolean {
-  return Boolean(request.ownedPaths?.length) && OWNED_WRITE_TOOLS.has(request.toolName);
+  return Boolean(request.ownedPaths?.length) && SCOPABLE_WRITE_TOOLS.has(request.toolName);
 }
 
 /** Extract the mutation targets from a write-tool's args. */
@@ -175,12 +173,36 @@ function applySessionMode(toolDecision: string, mode: SessionMode): "allow" | "a
 
 // ─── Protected path check ────────────────────────────────────────────
 
-function isProtectedPath(patterns: string[], path: string): boolean {
+/**
+ * Match `path` against protected-path patterns.
+ *
+ * Patterns are workspace-RELATIVE by convention (`.git/**`, `.env`,
+ * `secrets/**`), while the gate holds resolved absolute paths. Comparing the two
+ * directly never matched, so this rule silently never fired for the default
+ * configuration. Callers therefore pass both forms; matching either is enough.
+ */
+function isProtectedPath(patterns: string[], absolutePath: string, relativePath?: string): boolean {
+  const candidates = relativePath === undefined ? [absolutePath] : [absolutePath, relativePath];
   return patterns.some((pattern) => {
-    if (pattern.endsWith("/**")) return path.startsWith(pattern.slice(0, -3));
-    if (pattern.endsWith(".*")) return path === pattern.slice(0, -2) || path.startsWith(pattern.slice(0, -1));
-    return path === pattern;
+    if (pattern.endsWith("/**")) {
+      // The prefix must be the directory ITSELF or a descendant. A bare
+      // `startsWith` would match `.gitignore` and `.github/` against `.git/**`,
+      // which over-blocks unrelated files.
+      const prefix = pattern.slice(0, -3);
+      return candidates.some((p) => p === prefix || p.startsWith(`${prefix}/`));
+    }
+    if (pattern.endsWith(".*")) {
+      const base = pattern.slice(0, -2);
+      return candidates.some((p) => p === base || p.startsWith(pattern.slice(0, -1)));
+    }
+    return candidates.some((p) => p === pattern);
   });
+}
+
+/** Workspace-relative form of an absolute path, or undefined when outside it. */
+function workspaceRelative(cwd: string, absolutePath: string): string | undefined {
+  const rel = relative(cwd, absolutePath);
+  return rel.startsWith("..") ? undefined : rel.split(sep).join("/");
 }
 
 // ─── PolicyGate ──────────────────────────────────────────────────────
@@ -208,7 +230,7 @@ export class PolicyGate {
     const rawPath = typeof args.path === "string" ? args.path : undefined;
     if (rawPath) {
       const resolvedPath = resolvePolicyPath(request.cwd, rawPath);
-      if (isProtectedPath(this.config.permissions.protectedPaths, resolvedPath)) {
+      if (isProtectedPath(this.config.permissions.protectedPaths, resolvedPath, workspaceRelative(request.cwd, resolvedPath))) {
         return {
           requestId: request.requestId,
           capability,
@@ -220,6 +242,33 @@ export class PolicyGate {
       }
     }
 
+    // 1.5 Owned-scope channel check (Gate E defect D2).
+    //
+    // A declared scope is only meaningful if every mutation channel can be
+    // evaluated against it. A shell command, a dynamic MCP tool, or a delegate
+    // that spawns another agent cannot be — their targets are not in the args.
+    // Before this check a worker owning `inside.txt` was allowed
+    // `printf x > outside.txt`: the owned-path rule never ran (shell.run is not
+    // a scopable write tool) and the capability's blanket allow short-circuited.
+    //
+    // This sits with the hard denies rather than later, because a rule that can
+    // be reached only after a permissive branch is not a rule.
+    const unscopableReason = unscopableChannelDenial({
+      capability,
+      toolName: request.toolName,
+      ownedPaths: request.ownedPaths,
+    });
+    if (unscopableReason) {
+      return {
+        requestId: request.requestId,
+        capability,
+        decision: "deny",
+        reason: unscopableReason,
+        matchedRuleId: "unscopable-mutation-rule",
+        policyRevision,
+      };
+    }
+
     // 2. Check deny commands
     const command = typeof args.command === "string" ? args.command : undefined;
     if (command && this.config.permissions.denyCommands.includes(command)) {
@@ -229,6 +278,19 @@ export class PolicyGate {
         decision: "deny",
         reason: `Command is denied: ${command}`,
         matchedRuleId: "deny-command-rule",
+        policyRevision,
+      };
+    }
+
+    // Explicit tool denials precede every branch that can request approval,
+    // including the shell whitelist. Session modes never weaken a deny (D11).
+    if (this.config.permissions.tools?.[capability] === "deny") {
+      return {
+        requestId: request.requestId,
+        capability,
+        decision: "deny",
+        reason: `Denied by tool policy (mode: ${request.sessionMode})`,
+        matchedRuleId: `tool-policy-${capability}`,
         policyRevision,
       };
     }
@@ -293,9 +355,6 @@ export class PolicyGate {
     const toolDecision = this.config.permissions.tools?.[capability];
     if (toolDecision) {
       const effective = applySessionMode(toolDecision, request.sessionMode);
-      if (effective === "deny") {
-        return { requestId: request.requestId, capability, decision: "deny", reason: `Denied by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
-      }
       // A blanket allow must NOT widen past a declared owned scope: the
       // owned-path rule (5.5) IS the authorization for an owned write, so an
       // allowed capability falls through to it instead of short-circuiting.
@@ -321,7 +380,8 @@ export class PolicyGate {
         const resolvedTargets = targets.map((t) => resolvePolicyPath(request.cwd, t));
         // Protected paths are a hard deny even when owned (patch.apply has no
         // args.path, so step 1 never sees its targets — check them here).
-        const protectedTarget = resolvedTargets.find((t) => isProtectedPath(this.config.permissions.protectedPaths, t));
+        const protectedTarget = resolvedTargets.find((t) =>
+          isProtectedPath(this.config.permissions.protectedPaths, t, workspaceRelative(request.cwd, t)));
         if (protectedTarget) {
           return {
             requestId: request.requestId, capability, decision: "deny",
@@ -688,12 +748,46 @@ export class PolicyGate {
 
       // Check for existing approved binding
       const approved = store.findExact(bindingKey);
+
+      // A CONSUMED binding is a spent authority, and spent means denied — not
+      // "ask again". Falling through to requestOrReusePending here created a
+      // fresh pending approval, which hands back the authority single use exists
+      // to remove (Gate E review defect D4). The record is already attributed to
+      // this exact invocation, so a new request for it is a replay.
+      if (approved?.status === "consumed") {
+        return {
+          requestId,
+          capability,
+          decision: "deny",
+          reason: `Approval ${approved.id} is already consumed; a spent binding cannot authorize another attempt`,
+          matchedRuleId: "consumed-binding-denied",
+          policyRevision,
+          bindingKey,
+        };
+      }
+
       if (approved?.status === "approved" && new Date(approved.expiresAt) > new Date()) {
         // Try to consume it
-        const consumed = await store.consumeApproved(approved.id, bindingKey, {});
+        const consumed = await store.consumeApproved(approved.id, bindingKey, {
+          workerId: coordinationContext.workerId,
+          workerAttempt: coordinationContext.workerAttempt,
+        }, invocation);
         if (consumed.consumed) {
           return { requestId, capability, decision: "allow", reason: "Approved by prior exact binding", approvalId: approved.id, matchedRuleId: "exact-binding-approved", policyRevision, approvalConsumed: true };
         }
+        // The claim lost a race: the record was claimed between the read above
+        // and this attempt. Reporting `ask` would mint a replacement for an
+        // approval that may already be executing, so this is an unverifiable
+        // state and is denied. Silence is never success.
+        return {
+          requestId,
+          capability,
+          decision: "deny",
+          reason: `Approval ${approved.id} could not be claimed (already consumed or raced); refusing to re-issue authority`,
+          matchedRuleId: "binding-claim-lost",
+          policyRevision,
+          bindingKey,
+        };
       }
 
       // Check for existing pending
@@ -724,6 +818,7 @@ export class PolicyGate {
         sessionId,
         agentId,
         requestId,
+        invocation,
       });
       return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision, bindingKey: approval.bindingKey, requestFingerprint: approval.requestFingerprint };
     }

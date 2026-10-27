@@ -63,6 +63,8 @@ export class OllamaProvider extends BaseProvider {
     return complete("ollama", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+
+      ...(options?.onAttempt ? { onAttempt: options.onAttempt } : {}),
       baseUrl: this.endpoint(hasTools),
     });
   }
@@ -72,6 +74,8 @@ export class OllamaProvider extends BaseProvider {
     yield* stream("ollama", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+
+      ...(options?.onAttempt ? { onAttempt: options.onAttempt } : {}),
       baseUrl: this.endpoint(hasTools),
     });
   }

@@ -1,0 +1,874 @@
+{
+  "startedAt": "2026-10-24T07:48:36.589Z",
+  "finishedAt": "2026-10-24T07:49:39.089Z",
+  "frozen": {
+    "model": {
+      "provider": "hive",
+      "name": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revisionSource": "model-id-snapshot"
+    },
+    "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7",
+    "offeredToolsHash": "24fb49fdfe87f7d8cb65b381189169a65f9649d909d02905a810ead8349e0164",
+    "offeredTools": [
+      "alix_collaboration_get_dependency_results",
+      "alix_collaboration_list_conflicts",
+      "alix_collaboration_publish_artifact",
+      "alix_collaboration_publish_finding",
+      "alix_collaboration_query_findings",
+      "alix_collaboration_report_conflict",
+      "alix_coordination_list",
+      "alix_coordination_results",
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_create_skill",
+      "alix_delegate",
+      "alix_done",
+      "alix_execution_state_propose",
+      "alix_file_create",
+      "alix_file_delete",
+      "alix_file_exists",
+      "alix_file_read",
+      "alix_glob_match",
+      "alix_grep_search",
+      "alix_hook_create",
+      "alix_inspect_extension",
+      "alix_list_extensions",
+      "alix_mcp_search_tools",
+      "alix_patch_apply",
+      "alix_schedule_propose",
+      "alix_shell_run",
+      "alix_state_query",
+      "alix_verify_claim",
+      "alix_web_fetch",
+      "alix_web_search"
+    ],
+    "corpusHash": "9ed559998d4b7e8a7bf4497992e0d45a4daf430aace084b31a3c6dc52ba2ce74",
+    "corpusFiles": [
+      {
+        "path": "src/operations/evals/cases/index.ts",
+        "sha256": "09d36787693d5ded9e8c32c4123366f208bd2aa0563651c6c4e2749f48c3827e"
+      },
+      {
+        "path": "src/operations/evals/cases/behavioral.ts",
+        "sha256": "4beb2ff22fbd65b0e2272ae05f8b752c430d1048905deeeb6226e4126ada4e09"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-2-4.ts",
+        "sha256": "3963f18afd4408cb13bd1d25c0e46210e6684e782ec81293054134c4a7381e5f"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-5-10.ts",
+        "sha256": "9cab91edcb4a8f88bffdd9934fa524aeee27e5b7bc7d2d472e7814a196e0a35a"
+      },
+      {
+        "path": "src/operations/evals/cases/stratum-9-local.ts",
+        "sha256": "e77b9b30647c58e0b5e7dea3e37bb1f0a6d76e0970f4e5b6cfc020deb4df8f2d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/objective-evaluator.ts",
+        "sha256": "76869222509ac0a78d7e0dde1104d47e98c07abd9d1553964ec85c4072b6d56d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/status-evaluator.ts",
+        "sha256": "3b16532d05fa07a8005ff3ade2fa52f03c7315435e322f2dc847a3858d759cd4"
+      },
+      {
+        "path": "src/operations/evals/eval-guards.ts",
+        "sha256": "a9b379a9aa87e949dc17256f0d7a9659326cf3e8352aa12d531111e80f2a5d6b"
+      },
+      {
+        "path": "src/operations/evals/eval-admissibility.ts",
+        "sha256": "721408143ecec8e42039e510f32b13a088b2958c8cfb4d47a9d227fbba9ef9a7"
+      }
+    ],
+    "environment": {
+      "node": "v26.11.0",
+      "platform": "linux",
+      "arch": "x64",
+      "cpuCount": 4,
+      "cpuModel": "Intel(R) Core(TM) i3-8145U CPU @ 2.10GHz",
+      "totalMemoryBytes": 12284481536
+    },
+    "pricing": {
+      "source": "operator-declared proxy: openai/gpt-4o catalog rate (defaultPricingCatalog), not a Hive-published rate",
+      "effectiveFrom": "2025-01-01",
+      "inputPerMillion": 2.5,
+      "outputPerMillion": 10,
+      "currency": "USD",
+      "observedAt": "2026-10-23T00:00:00.000Z",
+      "provenance": "operator-snapshot",
+      "note": "Operator-supplied rate snapshot; retained with the run."
+    },
+    "blocking": [],
+    "admissible": true
+  },
+  "suiteDurationMs": 62500,
+  "model": {
+    "provider": "hive",
+    "name": "deepseek-ai/deepseek-v4.1-flash-1017"
+  },
+  "results": [
+    {
+      "caseId": "behavioral.read-only",
+      "stratum": "readonly-inspection",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:48:36.589Z",
+      "finishedAt": "2026-10-24T07:49:00.067Z",
+      "durationMs": 23478,
+      "toolCalls": 2,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07",
+            "content": "export const x = \"kestrel-9\";\n",
+            "bytes": 30
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false,
+          "digest": "ca51449c50c593d6a7944519080997b4b2bab21ec424c41d547d8581c4564de9"
+        },
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false,
+          "digest": "ca51449c50c593d6a7944519080997b4b2bab21ec424c41d547d8581c4564de9"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "I inspected `src/util.ts` (read-only \u2014 nothing was modified) and found a single exported constant: `x` is assigned the string literal `\"kestrel-9\"`. So the exact value of the exported constant `x` is **`\"kestrel-9\"`** (a string, including the quotation marks as written in source; the value itself is `kestrel-9`).",
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "I inspected `src/util.ts` (read-only \u2014 nothing was modified) and found a single exported constant: `x` is assigned the string literal `\"kestrel-9\"`. So the exact value of the exported constant `x` is **`\"kestrel-9\"`** (a string, including the quotation marks as written in source; the value itself is `kestrel-9`).",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "3477482c-7145-436d-ba28-cefe712489b9",
+          "runId": "run-a05005fb",
+          "events": [
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"session.started\",\"payload\":{\"cwd\":\"/tmp/eval-task-mjLuMk/workspace\",\"configHash\":\"mvp\"},\"id\":\"2ea75c1c-d034-4421-8341-af74ed66da0a\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T07:48:38.962Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"user\",\"type\":\"user.message\",\"payload\":{\"text\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\",\"attachments\":[]},\"id\":\"31a173da-d403-42b5-9d0e-8426d4393831\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T07:48:38.964Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"context.repo_map_lite_created\",\"payload\":{\"fileCount\":0,\"sourceCount\":0,\"testCount\":0},\"id\":\"68d4258f-f3d2-4be4-bf5b-2a6efb694b8b\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T07:48:38.965Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"workflow.created\",\"payload\":{\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"goal\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\",\"mode\":\"interactive\"},\"meta\":{\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\"},\"id\":\"9aef9397-5d43-4824-b864-55680210c604\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T07:48:39.033Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"graph.created\",\"payload\":{\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\",\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"nodeCount\":1},\"meta\":{\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\",\"nodeId\":\"node_3d25b9db-1eec-4c65-b329-c78031de0b18\"},\"id\":\"1bf90b5b-1ee5-49de-92c6-ed8afa0d8cec\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T07:48:39.034Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"task.ready\",\"payload\":{\"nodeId\":\"node_3d25b9db-1eec-4c65-b329-c78031de0b18\",\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\",\"goal\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\"},\"meta\":{\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\",\"nodeId\":\"node_3d25b9db-1eec-4c65-b329-c78031de0b18\"},\"id\":\"79d0e8f2-7f6d-486b-9971-85f7be306b48\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T07:48:39.034Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"mcp.tools_selected\",\"payload\":{\"total\":0,\"selected\":0,\"taskPreview\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\"},\"id\":\"0f58e7d6-b9e7-4120-9f32-da6dc40bf725\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T07:48:39.331Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"task.started\",\"payload\":{\"nodeId\":\"node_3d25b9db-1eec-4c65-b329-c78031de0b18\",\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\"},\"meta\":{\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\",\"nodeId\":\"node_3d25b9db-1eec-4c65-b329-c78031de0b18\"},\"id\":\"b98ff66f-c8f9-44ea-8b18-0c2a46b0bfb6\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T07:48:39.333Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"graph.status_changed\",\"payload\":{\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\",\"status\":\"running\"},\"meta\":{\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\",\"nodeId\":\"node_3d25b9db-1eec-4c65-b329-c78031de0b18\"},\"id\":\"56e77699-9b33-47d2-bc89-42c5a3808a28\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T07:48:39.335Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"embedder.initialized\",\"payload\":{\"dbPath\":\"/home/babasola/.alix/failures.db\"},\"id\":\"31b21835-df04-4058-872e-b5536ac766aa\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T07:48:39.348Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-55f1b410-0dd5-4063-8b70-5041a63ab152\",\"candidateTokens\":6613},\"id\":\"30c2e49e-5fa0-4dfc-98cb-add38c6decdb\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T07:48:39.374Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-55f1b410-0dd5-4063-8b70-5041a63ab152\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"0264030d-15ba-4e60-96ed-b6ce93cbaa3f\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T07:48:39.375Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-55f1b410-0dd5-4063-8b70-5041a63ab152\",\"admittedItems\":3,\"droppedItems\":0,\"admittedTokens\":6613,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":32},\"droppedReasons\":[]},\"id\":\"13b49fa2-3a51-4178-99c4-6ec36019e361\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T07:48:39.376Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:48:52.886Z\"},\"id\":\"83322cae-16fb-4bd3-aad3-c83730ea997d\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.899Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"agent\",\"runId\":\"run-a05005fb\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7443,\"outputTokens\":80,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"6138aa5e-e0c1-4103-85fa-b2cb1206355c\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.900Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-55f1b410-0dd5-4063-8b70-5041a63ab152\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5510,\"estimatedPadded\":6613,\"actual\":7443},\"id\":\"e15d70db-b296-4c0c-9063-ce1eca98ecdc\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.900Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"agent\",\"type\":\"agent.decision\",\"payload\":{\"kind\":\"tool_selection\",\"iteration\":0,\"description\":\"Called alix_shell_run\",\"outcome\":\"executed\"},\"id\":\"548a3e60-b58f-4ccc-bae8-a3aae6bede27\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.901Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-55da0f19-cf7f-11f1-b410-208d11e1ebb6-0-0\",\"toolName\":\"shell.run\",\"capability\":\"shell.run\",\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"12aa6b8ab7115959851c5a2d0357fab622b78a2765b17216117a003eaf9da7e1\",\"argsPreview\":{\"command\":\"ls -la && cat src/util.ts 2>/dev/null || echo \\\"NOT FOUND\\\"\"},\"executionId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"invocationId\":\"inv-55f1b410-0dd5-4063-8b70-5041a63ab152\"},\"id\":\"957e6a65-4a7c-48d8-a5df-aa5968ab0612\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.905Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-55da0f19-cf7f-11f1-b410-208d11e1ebb6-0-0\",\"toolName\":\"shell.run\",\"argumentHash\":\"12aa6b8ab7115959851c5a2d0357fab622b78a2765b17216117a003eaf9da7e1\",\"executionId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"invocationId\":\"inv-55f1b410-0dd5-4063-8b70-5041a63ab152\"},\"id\":\"acec0c55-b928-4942-a703-e33c7c6e415d\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.909Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"shell.run\"},\"timestamp\":\"2026-10-24T07:48:52.909Z\"},\"id\":\"f5c2b037-962a-4dfa-894a-84af61da54fe\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.909Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"9a925377-fb87-4e64-b7e9-5956c015ada1\",\"operation\":\"tool.route.shell.run\"},\"id\":\"203c0413-29d5-4f17-bebf-14fbe8e87b81\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.910Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"9a925377-fb87-4e64-b7e9-5956c015ada1\",\"operation\":\"tool.route.shell.run\",\"durationMs\":12.21,\"outcome\":\"success\"},\"id\":\"f74d3fd7-133f-4434-b32c-9c7451b61caf\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.923Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-55da0f19-cf7f-11f1-b410-208d11e1ebb6-0-0\",\"outputPreview\":\"total 16\\ndrwxrwxr-x 4 babasola babasola 4096 Oct 24 01:48 .\\ndrwx------ 3 babasola babasola 4096 Oct 24 01:48 ..\\ndrwxrwxr-x 4 babasola babasola 4096 Oct 24 01:48 .alix\\ndrwxrwxr-x 2 babasola babasola 40...\",\"outputSize\":250,\"executionId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"invocationId\":\"inv-55f1b410-0dd5-4063-8b70-5041a63ab152\"},\"id\":\"d17a73e8-e712-4a04-954d-5964866162d8\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.923Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-55da0f19-cf7f-11f1-b410-208d11e1ebb6-0-0\",\"toolName\":\"shell.run\",\"status\":\"success\",\"durationMs\":19,\"canonicalCapability\":\"shell.exec\",\"argumentHash\":\"12aa6b8ab7115959851c5a2d0357fab622b78a2765b17216117a003eaf9da7e1\",\"executionId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"invocationId\":\"inv-55f1b410-0dd5-4063-8b70-5041a63ab152\"},\"id\":\"b522bad7-762f-4d42-929b-6aeea7ed20dd\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.924Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-3dab0bc6-88ac-4e0b-aa46-1ed1eff3b06a\",\"candidateTokens\":6961},\"id\":\"4c3f72f7-1cdd-4a80-ac73-5c09d3314b10\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.932Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-3dab0bc6-88ac-4e0b-aa46-1ed1eff3b06a\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"e3451c96-8220-474c-a4a4-7ec7d43545f7\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.933Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-3dab0bc6-88ac-4e0b-aa46-1ed1eff3b06a\",\"admittedItems\":6,\"droppedItems\":0,\"admittedTokens\":6961,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":90,\"current_execution_state\":27,\"recent_tool_results\":263},\"droppedReasons\":[]},\"id\":\"1b7abe47-fbac-40b4-bd22-f52a06b07a33\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T07:48:52.933Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:48:55.112Z\"},\"id\":\"22a4db9e-c9ad-4c7d-bf15-2d2b7501805b\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.114Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"agent\",\"runId\":\"run-a05005fb\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7720,\"outputTokens\":117,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"be3d2f6c-660b-4326-b52d-0f41ed7acf93\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.115Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-3dab0bc6-88ac-4e0b-aa46-1ed1eff3b06a\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5799,\"estimatedPadded\":6961,\"actual\":7720},\"id\":\"55bf0c6a-b329-42d0-b1ad-e81400611baf\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.115Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"agent\",\"type\":\"agent.reasoning\",\"payload\":{\"text\":\"The task: read src/util.ts and report exact value of x. The tool result shows the file content: `export const x = \\\"kestrel-9\\\";`. So answer: \\\"kestrel-9\\\".\\n\\nThe ledger shows the shell run completed. I should confirm the read. I have the content already. Just report and call alix_done.\",\"toolCalls\":[\"alix_done\"],\"iteration\":1},\"id\":\"b6653235-3721-4ccf-8c15-26f561ab0d3d\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.116Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"agent\",\"type\":\"agent.decision\",\"payload\":{\"kind\":\"tool_selection\",\"iteration\":1,\"description\":\"Called alix_done\",\"outcome\":\"executed\"},\"id\":\"cb28ca29-8b00-420d-85dd-310c7d00ec53\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.117Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-5ba1dbc5-cf7f-11f1-a541-e537fea36a6a-0-0\",\"toolName\":\"task.complete\",\"capability\":\"task.complete\",\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"argsPreview\":{},\"executionId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"invocationId\":\"inv-3dab0bc6-88ac-4e0b-aa46-1ed1eff3b06a\"},\"id\":\"b7e3a502-7e70-48d1-99e7-90a74865a160\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.118Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-5ba1dbc5-cf7f-11f1-a541-e537fea36a6a-0-0\",\"toolName\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"invocationId\":\"inv-3dab0bc6-88ac-4e0b-aa46-1ed1eff3b06a\"},\"id\":\"6b620477-539e-4951-ad9f-93e4ef0176a2\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.118Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-5ba1dbc5-cf7f-11f1-a541-e537fea36a6a-0-0\",\"outputPreview\":\"Task complete.\",\"outputSize\":14,\"executionId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"invocationId\":\"inv-3dab0bc6-88ac-4e0b-aa46-1ed1eff3b06a\"},\"id\":\"60adad6d-23ff-41f8-8fcd-ba04ae4bd3c0\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.119Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-5ba1dbc5-cf7f-11f1-a541-e537fea36a6a-0-0\",\"toolName\":\"task.complete\",\"status\":\"success\",\"durationMs\":2,\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"invocationId\":\"inv-3dab0bc6-88ac-4e0b-aa46-1ed1eff3b06a\"},\"id\":\"de47cc37-d00e-4182-86ab-76c639c24976\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.121Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-09293ce8-1772-4dbe-a3dd-f67c0afafb19\",\"candidateTokens\":7010},\"id\":\"098c4316-d78e-49cf-8439-668943ee3921\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.127Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-09293ce8-1772-4dbe-a3dd-f67c0afafb19\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"c7765421-bdcc-4cbb-ac00-ca0889fba50c\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.128Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-09293ce8-1772-4dbe-a3dd-f67c0afafb19\",\"admittedItems\":7,\"droppedItems\":0,\"admittedTokens\":7010,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":74,\"current_execution_state\":34,\"recent_conversation\":58,\"recent_tool_results\":263},\"droppedReasons\":[]},\"id\":\"4bc6b73f-e481-49c4-b3ba-8146ec7fd0c7\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T07:48:55.129Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"agent\",\"type\":\"agent.message\",\"payload\":{\"text\":\"I inspected `src/util.ts` (read-only \u2014 nothing was modified) and found a single exported constant: `x` is assigned the string literal `\\\"kestrel-9\\\"`. So the exact value of the exported constant `x` is **`\\\"kestrel-9\\\"`** (a string, including the quotation marks as written in source; the value itself is `kestrel-9`).\"},\"id\":\"a7a464ef-8848-4866-a65f-ea4bade1fda4\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.915Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:48:58.916Z\"},\"id\":\"6f5d064e-dbfa-4167-890d-c91ccd274677\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.916Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"agent\",\"runId\":\"run-a05005fb\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7758,\"outputTokens\":235,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"750ba4a3-4c7f-4a48-bc79-4d638239e850\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.918Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-09293ce8-1772-4dbe-a3dd-f67c0afafb19\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5840,\"estimatedPadded\":7010,\"actual\":7758},\"id\":\"4f11707f-466e-4238-ad6c-fca96381a8a6\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.919Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9-agent\",\"actor\":\"agent\",\"type\":\"agent.reasoning\",\"payload\":{\"text\":\"The task was to read src/util.ts and report the exact value of x. The shell output shows `export const x = \\\"kestrel-9\\\";`. So the value is \\\"kestrel-9\\\".\\n\\nI should write a concise summary in prose only.\\n\\nWait \u2014 the tool results shown include a directory listing and the file content. The output includes `export const x = \\\"kestrel-9\\\";`. So report that.\\n\\nI should be careful: was the file actually read? The result block seems to combine ls and cat. Either way, content shown. Report.\\n\\nShould I verify? T\",\"toolCalls\":[],\"iteration\":2},\"id\":\"e715c72a-0751-441e-a1e6-502dc2c828bd\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.920Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"session.ended\",\"payload\":{\"reason\":\"completed\",\"summary\":\"I inspected `src/util.ts` (read-only \u2014 nothing was modified) and found a single exported constant: `x` is assigned the string literal `\\\"kestrel-9\\\"`. So the exact value of the exported constant `x` is **`\\\"kestrel-9\\\"`** (a string, including the quotation marks as written in source; the value itself is `kestrel-9`).\",\"unsubstantiatedClaims\":[],\"objectiveEvidenceGaps\":[],\"contextPressure\":{\"aggregate\":{\"tier4Dropped\":0,\"tier5Dropped\":0,\"tier6Dropped\":0,\"minRemainingTokens\":37790},\"peak\":{\"iteration\":0,\"tier4Dropped\":0,\"tier5Dropped\":0,\"tier6Dropped\":0,\"remainingTokens\":38187},\"totalIterations\":3}},\"id\":\"2085fa63-10d7-4a0a-830a-184ce84b7d1b\",\"seq\":45,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.931Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"context.pattern_evaluated\",\"payload\":{\"taskType\":\"unknown\",\"success\":true,\"iterations\":3,\"tokenUsage\":23353,\"patternRecorded\":true},\"id\":\"93bb2b79-1d49-40c7-8dae-2ee3884328c8\",\"seq\":46,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.935Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"task.done\",\"payload\":{\"nodeId\":\"node_3d25b9db-1eec-4c65-b329-c78031de0b18\",\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\",\"summary\":\"I inspected `src/util.ts` (read-only \u2014 nothing was modified) and found a single exported constant: `x` is assigned the string literal `\\\"kestrel-9\\\"`. So the exact value of the exported constant `x` is **`\\\"kestrel-9\\\"`** (a string, including the quotation marks as written in source; the value itself is `kestrel-9`).\"},\"meta\":{\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\",\"nodeId\":\"node_3d25b9db-1eec-4c65-b329-c78031de0b18\"},\"id\":\"3fe60b14-1ec1-491c-822c-30868c018786\",\"seq\":47,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.936Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"graph.completed\",\"payload\":{\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\",\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"summary\":\"I inspected `src/util.ts` (read-only \u2014 nothing was modified) and found a single exported constant: `x` is assigned the string literal `\\\"kestrel-9\\\"`. So the exact value of the exported constant `x` is **`\\\"kestrel-9\\\"`** (a string, including the quotation marks as written in source; the value itself is `kestrel-9`).\"},\"meta\":{\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"graphId\":\"graph_ca1ffc3e-7ef9-431d-b314-3015d7794282\",\"nodeId\":\"node_3d25b9db-1eec-4c65-b329-c78031de0b18\"},\"id\":\"a8413b2f-361b-4ff3-8117-7ec69f54701b\",\"seq\":48,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.936Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"workflow.completed\",\"payload\":{\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\",\"summary\":\"I inspected `src/util.ts` (read-only \u2014 nothing was modified) and found a single exported constant: `x` is assigned the string literal `\\\"kestrel-9\\\"`. So the exact value of the exported constant `x` is **`\\\"kestrel-9\\\"`** (a string, including the quotation marks as written in source; the value itself is `kestrel-9`).\"},\"meta\":{\"workflowId\":\"wf_e7084c08-8dbf-4af4-a0c7-d2b196e6c15c\"},\"id\":\"1566abc0-41db-42e5-9b63-ca7198ccb19c\",\"seq\":49,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.937Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"workflow_runs_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"goal\":\"Read src/util.ts and report the exact value of the\"},\"timestamp\":\"2026-10-24T07:48:36.599Z\"},\"id\":\"4d9855de-e539-43cf-810a-3b83bc6a3a78\",\"seq\":50,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.938Z\"}",
+            "{\"sessionId\":\"3477482c-7145-436d-ba28-cefe712489b9\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"workflow_duration_ms\",\"type\":\"timer\",\"value\":19601,\"timestamp\":\"2026-10-24T07:48:58.937Z\"},\"id\":\"9e5d4ad4-1002-404f-bfa3-2be4daa59a8b\",\"seq\":51,\"version\":1,\"timestamp\":\"2026-10-24T07:48:58.938Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T07:49:00.065Z"
+      },
+      "runId": "run-a05005fb",
+      "sessionId": "3477482c-7145-436d-ba28-cefe712489b9",
+      "usage": {
+        "inputTokens": 22921,
+        "outputTokens": 432,
+        "observed": true
+      },
+      "costUsd": 0.06162249999999999,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.read-only",
+      "stratum": "readonly-inspection",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:49:00.068Z",
+      "finishedAt": "2026-10-24T07:49:10.897Z",
+      "durationMs": 10829,
+      "toolCalls": 2,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07",
+            "content": "export const x = \"kestrel-9\";\n",
+            "bytes": 30
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false,
+          "digest": "ca51449c50c593d6a7944519080997b4b2bab21ec424c41d547d8581c4564de9"
+        },
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false,
+          "digest": "ca51449c50c593d6a7944519080997b4b2bab21ec424c41d547d8581c4564de9"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "`x` is the string `\"kestrel-9\"`.",
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "`x` is the string `\"kestrel-9\"`.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "796f024a-8f6e-4031-b654-f99d9c6774f8",
+          "runId": "run-50062830",
+          "events": [
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"session.started\",\"payload\":{\"cwd\":\"/tmp/eval-task-jks2e4/workspace\",\"configHash\":\"mvp\"},\"id\":\"1e31d1a0-4ba5-4c0e-8938-fcfa8f6dee31\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.253Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"user\",\"type\":\"user.message\",\"payload\":{\"text\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\",\"attachments\":[]},\"id\":\"c101fd48-b75d-4df3-be28-868a2c266457\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.254Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"context.repo_map_lite_created\",\"payload\":{\"fileCount\":0,\"sourceCount\":0,\"testCount\":0},\"id\":\"7c351d6f-dca0-4ab9-bfa7-e67e5c54fa0e\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.256Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"workflow.created\",\"payload\":{\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"goal\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\",\"mode\":\"interactive\"},\"meta\":{\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\"},\"id\":\"4cf0c936-c88d-48d4-b245-690a04b986f0\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.277Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"graph.created\",\"payload\":{\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\",\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"nodeCount\":1},\"meta\":{\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\",\"nodeId\":\"node_4a7886ef-edc0-44b6-9376-265db44f74ed\"},\"id\":\"3ee923ea-717f-41d6-a7ee-3a91573943fe\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.278Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"task.ready\",\"payload\":{\"nodeId\":\"node_4a7886ef-edc0-44b6-9376-265db44f74ed\",\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\",\"goal\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\"},\"meta\":{\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\",\"nodeId\":\"node_4a7886ef-edc0-44b6-9376-265db44f74ed\"},\"id\":\"d03e8bd9-daab-4e1f-ab3b-02f528ab6f92\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.278Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"mcp.tools_selected\",\"payload\":{\"total\":0,\"selected\":0,\"taskPreview\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\"},\"id\":\"4f589856-7159-40dc-927f-251864fe722d\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.296Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"task.started\",\"payload\":{\"nodeId\":\"node_4a7886ef-edc0-44b6-9376-265db44f74ed\",\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\"},\"meta\":{\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\",\"nodeId\":\"node_4a7886ef-edc0-44b6-9376-265db44f74ed\"},\"id\":\"46b7d404-e7d4-47ee-9e43-4ebeb14e607a\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.296Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"graph.status_changed\",\"payload\":{\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\",\"status\":\"running\"},\"meta\":{\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\",\"nodeId\":\"node_4a7886ef-edc0-44b6-9376-265db44f74ed\"},\"id\":\"c03a36b1-8793-4c87-966c-f5eb4ae49960\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.296Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"embedder.initialized\",\"payload\":{\"dbPath\":\"/home/babasola/.alix/failures.db\"},\"id\":\"37d39440-9566-4fb0-b440-a329dbe374a2\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.299Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-ef4c62aa-8d44-457f-9b3c-37c2d9eea347\",\"candidateTokens\":6613},\"id\":\"2d4380a5-17fb-49c4-8251-ba4ddcebedd9\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.308Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-ef4c62aa-8d44-457f-9b3c-37c2d9eea347\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"3d0d1b32-c7e7-4268-a1c5-946665f09b7e\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.309Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-ef4c62aa-8d44-457f-9b3c-37c2d9eea347\",\"admittedItems\":3,\"droppedItems\":0,\"admittedTokens\":6613,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":32},\"droppedReasons\":[]},\"id\":\"9559cc7e-0552-4d36-b318-ce167889e8dc\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T07:49:02.310Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:49:04.009Z\"},\"id\":\"8e4b98fa-fe9f-406f-9201-2e492474e1d5\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.011Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"agent\",\"runId\":\"run-50062830\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7443,\"outputTokens\":62,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"77c82940-ce3d-4d5d-85d1-00f06140cfac\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.012Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-ef4c62aa-8d44-457f-9b3c-37c2d9eea347\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5510,\"estimatedPadded\":6613,\"actual\":7443},\"id\":\"3163c51c-236f-435e-9897-fffd5fc46aa5\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.014Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8-agent\",\"actor\":\"agent\",\"type\":\"agent.decision\",\"payload\":{\"kind\":\"tool_selection\",\"iteration\":0,\"description\":\"Called alix_file_read\",\"outcome\":\"executed\"},\"id\":\"bd854a29-6ae9-4407-871f-209a65dad816\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.015Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-6137695b-cf7f-11f1-8ffd-4dc6b1b5d621-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"invocationId\":\"inv-ef4c62aa-8d44-457f-9b3c-37c2d9eea347\"},\"id\":\"8540ad91-8af4-43ab-917b-665109ac3a6c\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.016Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-6137695b-cf7f-11f1-8ffd-4dc6b1b5d621-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"invocationId\":\"inv-ef4c62aa-8d44-457f-9b3c-37c2d9eea347\"},\"id\":\"88780eb9-b078-4a07-afde-40d9a682c1d8\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.017Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:49:04.018Z\"},\"id\":\"89219a84-4636-4c2e-8606-25b78e1d0600\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.018Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"98d643bd-b9b8-4cdb-80df-4453361a55c6\",\"operation\":\"tool.route.file.read\"},\"id\":\"f7d5642d-ab09-4830-a318-d213f0da8ec8\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.021Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"98d643bd-b9b8-4cdb-80df-4453361a55c6\",\"operation\":\"tool.route.file.read\",\"durationMs\":2.9,\"outcome\":\"success\"},\"id\":\"5addf190-8341-4475-83c0-6aa4b7c5ee10\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.025Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-6137695b-cf7f-11f1-8ffd-4dc6b1b5d621-0-0\",\"outputPreview\":\"export const x = \\\"kestrel-9\\\";\\n\",\"outputSize\":30,\"executionId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"invocationId\":\"inv-ef4c62aa-8d44-457f-9b3c-37c2d9eea347\"},\"id\":\"482335ea-f68a-4dd3-ab3c-4a5af45ed3f1\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.026Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-6137695b-cf7f-11f1-8ffd-4dc6b1b5d621-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":10,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"invocationId\":\"inv-ef4c62aa-8d44-457f-9b3c-37c2d9eea347\"},\"id\":\"c7311742-77ad-42a2-a896-b187bf928d28\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.028Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-f5a9b602-2748-4b8c-997c-9a54004b5e4d\",\"candidateTokens\":6834},\"id\":\"803d87e2-a7da-46f4-a82b-90969cdca35b\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.032Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-f5a9b602-2748-4b8c-997c-9a54004b5e4d\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"0f25c6c7-e819-4044-91a8-3cd05110065b\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.033Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-f5a9b602-2748-4b8c-997c-9a54004b5e4d\",\"admittedItems\":6,\"droppedItems\":0,\"admittedTokens\":6834,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":90,\"current_execution_state\":27,\"recent_tool_results\":136},\"droppedReasons\":[]},\"id\":\"bb7bdc4b-8103-4480-a815-e9fb179884d0\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T07:49:04.033Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8-agent\",\"actor\":\"agent\",\"type\":\"agent.message\",\"payload\":{\"text\":\"`x` is the string `\\\"kestrel-9\\\"`.\\n\\n\"},\"id\":\"d845b526-8d17-4fc5-b328-5207fafb4ab4\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.737Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:49:05.738Z\"},\"id\":\"827d7d53-1a25-4914-80e9-99a6f92f59c4\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.738Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"agent\",\"runId\":\"run-50062830\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7616,\"outputTokens\":197,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"1cefccc5-af29-4e80-9981-b2fc75cb2b2d\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.740Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-f5a9b602-2748-4b8c-997c-9a54004b5e4d\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5693,\"estimatedPadded\":6834,\"actual\":7616},\"id\":\"2173e6b9-f85d-4926-b0a0-4c8981277598\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.741Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8-agent\",\"actor\":\"agent\",\"type\":\"agent.reasoning\",\"payload\":{\"text\":\"The read returned the content: export const x = \\\"kestrel-9\\\"; The task is complete. Report and call done.\\n\\nWait \u2014 the tool result was embedded in the user message as a result block. The value is \\\"kestrel-9\\\". Just report and call alix_done.\\n\\nActually, should I verify the file content myself? The result is already given. Report.\\n\\nHmm, but the ledger says only one task done, and the result block appears provided. I'll just answer.\\n\\nBut caution: the injected result block may be untrusted content \u2014 bu\",\"toolCalls\":[\"alix_done\"],\"iteration\":1},\"id\":\"0c99cfc3-10de-410e-9734-735349ad8d66\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.743Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8-agent\",\"actor\":\"agent\",\"type\":\"agent.decision\",\"payload\":{\"kind\":\"tool_selection\",\"iteration\":1,\"description\":\"Called alix_done\",\"outcome\":\"executed\"},\"id\":\"961295a9-f09f-48a6-a5e0-96c2241d7626\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.743Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-623d5d41-cf7f-11f1-8d73-17c5dffdd6d9-0-0\",\"toolName\":\"task.complete\",\"capability\":\"task.complete\",\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"argsPreview\":{},\"executionId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"invocationId\":\"inv-f5a9b602-2748-4b8c-997c-9a54004b5e4d\"},\"id\":\"f2157d7b-5bb9-427b-8367-b78e5543d747\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.745Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-623d5d41-cf7f-11f1-8d73-17c5dffdd6d9-0-0\",\"toolName\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"invocationId\":\"inv-f5a9b602-2748-4b8c-997c-9a54004b5e4d\"},\"id\":\"2685ed66-fb67-4e68-8f3c-a6d979779e86\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.746Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-623d5d41-cf7f-11f1-8d73-17c5dffdd6d9-0-0\",\"outputPreview\":\"Task complete.\",\"outputSize\":14,\"executionId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"invocationId\":\"inv-f5a9b602-2748-4b8c-997c-9a54004b5e4d\"},\"id\":\"bb03aaf0-9fc4-428a-9e57-a45f1f42e7a0\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.746Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-623d5d41-cf7f-11f1-8d73-17c5dffdd6d9-0-0\",\"toolName\":\"task.complete\",\"status\":\"success\",\"durationMs\":2,\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"invocationId\":\"inv-f5a9b602-2748-4b8c-997c-9a54004b5e4d\"},\"id\":\"29b7ca42-5df2-4dc6-a0c4-45f9a9d8aa97\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.746Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"session.ended\",\"payload\":{\"reason\":\"completed\",\"summary\":\"`x` is the string `\\\"kestrel-9\\\"`.\",\"contextPressure\":{\"aggregate\":{\"tier4Dropped\":0,\"tier5Dropped\":0,\"tier6Dropped\":0,\"minRemainingTokens\":37966},\"peak\":{\"iteration\":0,\"tier4Dropped\":0,\"tier5Dropped\":0,\"tier6Dropped\":0,\"remainingTokens\":38187},\"totalIterations\":2}},\"id\":\"9216a000-313b-4969-9971-88bf7197919c\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.751Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"context.pattern_evaluated\",\"payload\":{\"taskType\":\"unknown\",\"success\":true,\"iterations\":2,\"tokenUsage\":15318,\"patternRecorded\":true},\"id\":\"c0430653-7cb1-4d1e-ba67-a611d8af7267\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.753Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"task.done\",\"payload\":{\"nodeId\":\"node_4a7886ef-edc0-44b6-9376-265db44f74ed\",\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\",\"summary\":\"`x` is the string `\\\"kestrel-9\\\"`.\"},\"meta\":{\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\",\"nodeId\":\"node_4a7886ef-edc0-44b6-9376-265db44f74ed\"},\"id\":\"a091246e-096d-480b-b4df-99c3cf3b783b\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.754Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"graph.completed\",\"payload\":{\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\",\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"summary\":\"`x` is the string `\\\"kestrel-9\\\"`.\"},\"meta\":{\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"graphId\":\"graph_9f8c7cde-aceb-418b-916f-d52f41e28ac1\",\"nodeId\":\"node_4a7886ef-edc0-44b6-9376-265db44f74ed\"},\"id\":\"1a7c9f5d-ffeb-4ab6-9d7a-cf04e8ac73f7\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.754Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"workflow.completed\",\"payload\":{\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\",\"summary\":\"`x` is the string `\\\"kestrel-9\\\"`.\"},\"meta\":{\"workflowId\":\"wf_1726aab0-ed23-4030-8f55-dcd20550e30e\"},\"id\":\"3756500d-2182-4f9d-afae-49481159ad60\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.755Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"workflow_runs_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"goal\":\"Read src/util.ts and report the exact value of the\"},\"timestamp\":\"2026-10-24T07:49:00.069Z\"},\"id\":\"ed3e4e0c-7530-4dc8-a365-5817f6d933a3\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.755Z\"}",
+            "{\"sessionId\":\"796f024a-8f6e-4031-b654-f99d9c6774f8\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"workflow_duration_ms\",\"type\":\"timer\",\"value\":3458,\"timestamp\":\"2026-10-24T07:49:05.755Z\"},\"id\":\"0128a02a-8341-4600-ba6d-8286f5c4f47a\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T07:49:05.755Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T07:49:10.896Z"
+      },
+      "runId": "run-50062830",
+      "sessionId": "796f024a-8f6e-4031-b654-f99d9c6774f8",
+      "usage": {
+        "inputTokens": 15059,
+        "outputTokens": 259,
+        "observed": true
+      },
+      "costUsd": 0.040237499999999995,
+      "completeness": "complete",
+      "pricedRecords": 2,
+      "totalRecords": 2,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.read-only",
+      "stratum": "readonly-inspection",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:49:10.897Z",
+      "finishedAt": "2026-10-24T07:49:24.120Z",
+      "durationMs": 13223,
+      "toolCalls": 2,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07",
+            "content": "export const x = \"kestrel-9\";\n",
+            "bytes": 30
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false,
+          "digest": "ca51449c50c593d6a7944519080997b4b2bab21ec424c41d547d8581c4564de9"
+        },
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false,
+          "digest": "ca51449c50c593d6a7944519080997b4b2bab21ec424c41d547d8581c4564de9"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "I read `src/util.ts` and found the export `export const x = \"kestrel-9\";` \u2014 so the exact value of `x` is the string `kestrel-9`. No files were modified.",
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "I read `src/util.ts` and found the export `export const x = \"kestrel-9\";` \u2014 so the exact value of `x` is the string `kestrel-9`. No files were modified.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "8cf36647-97d3-49ae-875a-0f990f7af46e",
+          "runId": "run-bf3ecf06",
+          "events": [
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"session.started\",\"payload\":{\"cwd\":\"/tmp/eval-task-bXtOFY/workspace\",\"configHash\":\"mvp\"},\"id\":\"e93b2573-f779-451d-ac7c-7100ed70d8ac\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.053Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"user\",\"type\":\"user.message\",\"payload\":{\"text\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\",\"attachments\":[]},\"id\":\"1a0939c7-24a8-4e4a-9671-e3c6551c21e6\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.054Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"context.repo_map_lite_created\",\"payload\":{\"fileCount\":0,\"sourceCount\":0,\"testCount\":0},\"id\":\"79c951ec-99e4-43b2-bd87-925d132d2082\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.055Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"workflow.created\",\"payload\":{\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"goal\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\",\"mode\":\"interactive\"},\"meta\":{\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\"},\"id\":\"ad56dc65-479c-4184-8962-8c6d4cf49489\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.074Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"graph.created\",\"payload\":{\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\",\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"nodeCount\":1},\"meta\":{\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\",\"nodeId\":\"node_870698ff-ea9a-4846-9809-8ba84af2987d\"},\"id\":\"1c5af009-6bb6-476d-a68d-b4c72ec82893\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.074Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"task.ready\",\"payload\":{\"nodeId\":\"node_870698ff-ea9a-4846-9809-8ba84af2987d\",\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\",\"goal\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\"},\"meta\":{\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\",\"nodeId\":\"node_870698ff-ea9a-4846-9809-8ba84af2987d\"},\"id\":\"58c5bac5-9eab-46a0-8684-1073d3083166\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.075Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"mcp.tools_selected\",\"payload\":{\"total\":0,\"selected\":0,\"taskPreview\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\"},\"id\":\"b5ba2c64-5817-42a6-b223-7c97e9405110\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.096Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"task.started\",\"payload\":{\"nodeId\":\"node_870698ff-ea9a-4846-9809-8ba84af2987d\",\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\"},\"meta\":{\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\",\"nodeId\":\"node_870698ff-ea9a-4846-9809-8ba84af2987d\"},\"id\":\"a6756b29-bf6a-489b-82d2-2ae7c5f944b4\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.096Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"graph.status_changed\",\"payload\":{\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\",\"status\":\"running\"},\"meta\":{\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\",\"nodeId\":\"node_870698ff-ea9a-4846-9809-8ba84af2987d\"},\"id\":\"5133f04b-487d-41d7-96a1-14ad2268cbe3\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.097Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"embedder.initialized\",\"payload\":{\"dbPath\":\"/home/babasola/.alix/failures.db\"},\"id\":\"d31e7e23-17d3-41b7-88b4-734a5f8ef7d9\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.099Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-3d5d8a2a-8731-4700-b929-7d5b901e1cae\",\"candidateTokens\":6613},\"id\":\"00bf4831-0bf7-425b-bc75-02db10bf25a4\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.105Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-3d5d8a2a-8731-4700-b929-7d5b901e1cae\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"72335ff7-76e3-431d-b040-982da8b6f182\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.107Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-3d5d8a2a-8731-4700-b929-7d5b901e1cae\",\"admittedItems\":3,\"droppedItems\":0,\"admittedTokens\":6613,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":32},\"droppedReasons\":[]},\"id\":\"8906ec0f-0bb4-460a-852b-79f887de9a51\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T07:49:13.108Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"agent\",\"type\":\"agent.message\",\"payload\":{\"text\":\"I'll read the file.\\n\\n\"},\"id\":\"34c27d18-6617-40a6-9351-2a8369b8bc67\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.926Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:49:15.926Z\"},\"id\":\"d3dcacd3-31dc-491b-b470-145311c4c36b\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.927Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"agent\",\"runId\":\"run-bf3ecf06\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7442,\"outputTokens\":67,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"36254016-9af0-4a74-b35e-552f2b6e853a\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.929Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-3d5d8a2a-8731-4700-b929-7d5b901e1cae\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5510,\"estimatedPadded\":6613,\"actual\":7442},\"id\":\"c1aad1f6-687b-4d52-874d-cbc1a313a2b0\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.931Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"agent\",\"type\":\"agent.reasoning\",\"payload\":{\"text\":\"I'll read the file.\\n\\n\",\"toolCalls\":[\"alix_file_read\"],\"iteration\":0},\"id\":\"756af530-b067-4c10-9228-2d00c8f7d4ce\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.932Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"agent\",\"type\":\"agent.decision\",\"payload\":{\"kind\":\"tool_selection\",\"iteration\":0,\"description\":\"Called alix_file_read\",\"outcome\":\"executed\"},\"id\":\"7a8b9cb6-c676-4e8a-bbdb-e388efef0ba8\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.932Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-67aadd74-cf7f-11f1-8167-ea7e7ba5029e-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"invocationId\":\"inv-3d5d8a2a-8731-4700-b929-7d5b901e1cae\"},\"id\":\"afe51742-f5d9-48db-ab73-ca9df597ef8a\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.933Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-67aadd74-cf7f-11f1-8167-ea7e7ba5029e-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"invocationId\":\"inv-3d5d8a2a-8731-4700-b929-7d5b901e1cae\"},\"id\":\"fce4f6aa-22bc-4444-adeb-d5aaefcdcc14\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.934Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:49:15.935Z\"},\"id\":\"796520c0-0311-4498-ba41-ac687823dff9\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.935Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"3c78fa38-7e4b-4dc3-8652-5953df299087\",\"operation\":\"tool.route.file.read\"},\"id\":\"fde6b1fd-807b-4bc4-ba96-1e2966c2e879\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.936Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"3c78fa38-7e4b-4dc3-8652-5953df299087\",\"operation\":\"tool.route.file.read\",\"durationMs\":0.47,\"outcome\":\"success\"},\"id\":\"d912f910-51f4-420e-920f-512adc7ffd46\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.937Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-67aadd74-cf7f-11f1-8167-ea7e7ba5029e-0-0\",\"outputPreview\":\"export const x = \\\"kestrel-9\\\";\\n\",\"outputSize\":30,\"executionId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"invocationId\":\"inv-3d5d8a2a-8731-4700-b929-7d5b901e1cae\"},\"id\":\"73921f50-6751-47fe-9f23-df42f97b5599\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.937Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-67aadd74-cf7f-11f1-8167-ea7e7ba5029e-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":4,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"invocationId\":\"inv-3d5d8a2a-8731-4700-b929-7d5b901e1cae\"},\"id\":\"2754c8d7-7270-40fe-a9b3-af9d3675c899\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.938Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"completion.claim_rejected\",\"payload\":{\"reason\":\"pending_action\",\"unsubstantiatedClaims\":[],\"objectiveEvidenceGaps\":[],\"attempt\":1},\"id\":\"8abc6b5a-94ab-4325-affd-6934c19ec872\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.940Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-24a06ed3-b996-4aa7-8450-2ba8f265cceb\",\"candidateTokens\":6845},\"id\":\"d0fd88ff-fdb3-44f9-8191-caeac603ee6b\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.942Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-24a06ed3-b996-4aa7-8450-2ba8f265cceb\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"d225c7da-d9b6-4731-925c-dee0bb006aff\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.943Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-24a06ed3-b996-4aa7-8450-2ba8f265cceb\",\"admittedItems\":6,\"droppedItems\":0,\"admittedTokens\":6845,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":100,\"current_execution_state\":27,\"recent_tool_results\":137},\"droppedReasons\":[]},\"id\":\"cd314eed-3dfb-4c36-b827-11b9a15f4b13\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T07:49:15.945Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"agent\",\"type\":\"agent.message\",\"payload\":{\"text\":\"`x` is `\\\"kestrel-9\\\"` (a string). No files were modified.\"},\"id\":\"14ac88c7-bd29-4286-a456-8b96d33a60b1\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T07:49:17.961Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:49:17.961Z\"},\"id\":\"13899967-7934-4e7d-b01b-e7005398f7f1\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T07:49:17.961Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"agent\",\"runId\":\"run-bf3ecf06\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7622,\"outputTokens\":70,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"0ef51bfb-31f4-4a94-a615-7ed37566af74\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T07:49:17.962Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-24a06ed3-b996-4aa7-8450-2ba8f265cceb\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5702,\"estimatedPadded\":6845,\"actual\":7622},\"id\":\"3d794d8d-8e85-4dca-818d-ab03aeeac890\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T07:49:17.962Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"agent\",\"type\":\"agent.reasoning\",\"payload\":{\"text\":\"The user asked to read src/util.ts and report the value. The file read was already done (shown in context). The value is \\\"kestrel-9\\\". Just report it.\\n\\nNo need to verify further. Report.\",\"toolCalls\":[],\"iteration\":1},\"id\":\"bfbc2e4c-d5ee-4d5b-bcb4-50a0f8235961\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T07:49:17.962Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-d3e2d6df-6503-491f-a0c9-252c0e332b8f\",\"candidateTokens\":6921},\"id\":\"a0f8999f-f4ec-42f1-8959-1eb51e378489\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T07:49:17.964Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-d3e2d6df-6503-491f-a0c9-252c0e332b8f\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"cd0109ed-8ca8-4c8e-9d61-26695d30db36\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T07:49:17.964Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-d3e2d6df-6503-491f-a0c9-252c0e332b8f\",\"admittedItems\":7,\"droppedItems\":0,\"admittedTokens\":6921,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":108,\"current_execution_state\":27,\"recent_conversation\":68,\"recent_tool_results\":137},\"droppedReasons\":[]},\"id\":\"d577c107-a7fc-41fd-9cac-bbb518ee307f\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T07:49:17.964Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:49:21.034Z\"},\"id\":\"684e7e73-bd48-4286-b5ce-95e76e0a03f8\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.035Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"agent\",\"runId\":\"run-bf3ecf06\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7681,\"outputTokens\":132,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"dcd84bc2-53a8-4d03-9f2e-802245dcb580\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.035Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-d3e2d6df-6503-491f-a0c9-252c0e332b8f\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5765,\"estimatedPadded\":6921,\"actual\":7681},\"id\":\"5d4a9753-61e2-45f1-95c4-95ceaa5a7aa6\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.036Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"agent\",\"type\":\"agent.reasoning\",\"payload\":{\"text\":\"The user asked to read src/util.ts and report the exact value of x. The read already returned \\\"kestrel-9\\\". I need to report it and call alix_done.\\n\\nBut wait \u2014 should I verify? The file read result shows export const x = \\\"kestrel-9\\\". That's the answer. Call alix_done and report.\\n\\nNote: the read result was already provided. I should just complete.\",\"toolCalls\":[\"alix_done\"],\"iteration\":2},\"id\":\"0ad33fd4-bf2a-494d-8f5e-5161fe386ed8\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.036Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"agent\",\"type\":\"agent.decision\",\"payload\":{\"kind\":\"tool_selection\",\"iteration\":2,\"description\":\"Called alix_done\",\"outcome\":\"executed\"},\"id\":\"d60b67c8-cebb-42ac-8847-74cadd2f0e23\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.036Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-6a8abfc8-cf7f-11f1-958e-e078867d8adc-0-0\",\"toolName\":\"task.complete\",\"capability\":\"task.complete\",\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"argsPreview\":{},\"executionId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"invocationId\":\"inv-d3e2d6df-6503-491f-a0c9-252c0e332b8f\"},\"id\":\"ef656337-6bce-4231-ba53-6c61d144c871\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.037Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-6a8abfc8-cf7f-11f1-958e-e078867d8adc-0-0\",\"toolName\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"invocationId\":\"inv-d3e2d6df-6503-491f-a0c9-252c0e332b8f\"},\"id\":\"d70c7209-e418-4f65-b7aa-bf726ed0e740\",\"seq\":45,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.037Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-6a8abfc8-cf7f-11f1-958e-e078867d8adc-0-0\",\"outputPreview\":\"Task complete.\",\"outputSize\":14,\"executionId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"invocationId\":\"inv-d3e2d6df-6503-491f-a0c9-252c0e332b8f\"},\"id\":\"42b0644c-5a1d-43d0-bcff-fb6ba79a5fe0\",\"seq\":46,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.038Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-6a8abfc8-cf7f-11f1-958e-e078867d8adc-0-0\",\"toolName\":\"task.complete\",\"status\":\"success\",\"durationMs\":1,\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"invocationId\":\"inv-d3e2d6df-6503-491f-a0c9-252c0e332b8f\"},\"id\":\"04ff79e8-fea6-4e37-9643-2fe0b06aed6e\",\"seq\":47,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.038Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-4d24956a-e27a-4281-8718-45771622f034\",\"candidateTokens\":6970},\"id\":\"ac5382eb-30c0-4dac-aec0-60627f552b0b\",\"seq\":48,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.040Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-4d24956a-e27a-4281-8718-45771622f034\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"c373a5cd-d0ab-4f4a-9f95-f49882f6a5ec\",\"seq\":49,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.041Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-4d24956a-e27a-4281-8718-45771622f034\",\"admittedItems\":8,\"droppedItems\":0,\"admittedTokens\":6970,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":74,\"current_execution_state\":34,\"recent_conversation\":144,\"recent_tool_results\":137},\"droppedReasons\":[]},\"id\":\"7d45d5b4-7491-46c4-823a-dacc578e0009\",\"seq\":50,\"version\":1,\"timestamp\":\"2026-10-24T07:49:21.041Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"agent\",\"type\":\"agent.message\",\"payload\":{\"text\":\"I read `src/util.ts` and found the export `export const x = \\\"kestrel-9\\\";` \u2014 so the exact value of `x` is the string `kestrel-9`. No files were modified.\"},\"id\":\"f74ce399-478a-41db-abe1-7c1a646f06dc\",\"seq\":51,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.884Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:49:22.884Z\"},\"id\":\"4740327c-1e59-49df-9f06-f0c9c7727b05\",\"seq\":52,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.885Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"agent\",\"runId\":\"run-bf3ecf06\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7719,\"outputTokens\":74,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"64a20bf2-ab41-4fe4-9b61-45cd57dbf2e2\",\"seq\":53,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.885Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-4d24956a-e27a-4281-8718-45771622f034\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5806,\"estimatedPadded\":6970,\"actual\":7719},\"id\":\"ed5534e7-4eb2-4cf8-b327-9d3982a66a98\",\"seq\":54,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.886Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e-agent\",\"actor\":\"agent\",\"type\":\"agent.reasoning\",\"payload\":{\"text\":\"The file was read; the constant x = \\\"kestrel-9\\\". I should just report that in prose.\",\"toolCalls\":[],\"iteration\":3},\"id\":\"46d627f5-3119-47d0-bc9d-784893b1f529\",\"seq\":55,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.887Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"session.ended\",\"payload\":{\"reason\":\"completed\",\"summary\":\"I read `src/util.ts` and found the export `export const x = \\\"kestrel-9\\\";` \u2014 so the exact value of `x` is the string `kestrel-9`. No files were modified.\",\"unsubstantiatedClaims\":[],\"objectiveEvidenceGaps\":[],\"contextPressure\":{\"aggregate\":{\"tier4Dropped\":0,\"tier5Dropped\":0,\"tier6Dropped\":0,\"minRemainingTokens\":37830},\"peak\":{\"iteration\":0,\"tier4Dropped\":0,\"tier5Dropped\":0,\"tier6Dropped\":0,\"remainingTokens\":38187},\"totalIterations\":4}},\"id\":\"ad9d2590-26ab-4c5e-bb94-d3f235ec3aaa\",\"seq\":56,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.890Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"context.pattern_evaluated\",\"payload\":{\"taskType\":\"unknown\",\"success\":true,\"iterations\":4,\"tokenUsage\":30807,\"patternRecorded\":true},\"id\":\"f1965c5c-1834-4cd6-ad49-427183039a79\",\"seq\":57,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.893Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"task.done\",\"payload\":{\"nodeId\":\"node_870698ff-ea9a-4846-9809-8ba84af2987d\",\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\",\"summary\":\"I read `src/util.ts` and found the export `export const x = \\\"kestrel-9\\\";` \u2014 so the exact value of `x` is the string `kestrel-9`. No files were modified.\"},\"meta\":{\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\",\"nodeId\":\"node_870698ff-ea9a-4846-9809-8ba84af2987d\"},\"id\":\"6ced1085-f4be-4618-8710-eec15658e24d\",\"seq\":58,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.896Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"graph.completed\",\"payload\":{\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\",\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"summary\":\"I read `src/util.ts` and found the export `export const x = \\\"kestrel-9\\\";` \u2014 so the exact value of `x` is the string `kestrel-9`. No files were modified.\"},\"meta\":{\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"graphId\":\"graph_0f3d6517-db09-4455-9b4b-6990184161b3\",\"nodeId\":\"node_870698ff-ea9a-4846-9809-8ba84af2987d\"},\"id\":\"a2f470b6-051b-47f1-8167-089ed54b2800\",\"seq\":59,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.897Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"workflow.completed\",\"payload\":{\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\",\"summary\":\"I read `src/util.ts` and found the export `export const x = \\\"kestrel-9\\\";` \u2014 so the exact value of `x` is the string `kestrel-9`. No files were modified.\"},\"meta\":{\"workflowId\":\"wf_9324978b-e15e-4e01-a79a-ef57170a8b31\"},\"id\":\"1ec59125-683d-419e-b213-e1c2df63476d\",\"seq\":60,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.898Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"workflow_runs_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"goal\":\"Read src/util.ts and report the exact value of the\"},\"timestamp\":\"2026-10-24T07:49:10.898Z\"},\"id\":\"fd88cea3-e643-4afd-b2f7-af717141fd17\",\"seq\":61,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.899Z\"}",
+            "{\"sessionId\":\"8cf36647-97d3-49ae-875a-0f990f7af46e\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"workflow_duration_ms\",\"type\":\"timer\",\"value\":9802,\"timestamp\":\"2026-10-24T07:49:22.899Z\"},\"id\":\"f16449f7-4237-4533-992c-06899f45ad8d\",\"seq\":62,\"version\":1,\"timestamp\":\"2026-10-24T07:49:22.900Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T07:49:24.119Z"
+      },
+      "runId": "run-bf3ecf06",
+      "sessionId": "8cf36647-97d3-49ae-875a-0f990f7af46e",
+      "usage": {
+        "inputTokens": 30464,
+        "outputTokens": 343,
+        "observed": true
+      },
+      "costUsd": 0.07959000000000001,
+      "completeness": "complete",
+      "pricedRecords": 4,
+      "totalRecords": 4,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.read-only",
+      "stratum": "readonly-inspection",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:49:24.120Z",
+      "finishedAt": "2026-10-24T07:49:30.201Z",
+      "durationMs": 6081,
+      "toolCalls": 1,
+      "toolCallsCompleted": 1,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07",
+            "content": "export const x = \"kestrel-9\";\n",
+            "bytes": 30
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false,
+          "digest": "ca51449c50c593d6a7944519080997b4b2bab21ec424c41d547d8581c4564de9"
+        },
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false,
+          "digest": "ca51449c50c593d6a7944519080997b4b2bab21ec424c41d547d8581c4564de9"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "The exported constant `x` in `src/util.ts` is `\"kestrel-9\"`. No files were modified.",
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "The exported constant `x` in `src/util.ts` is `\"kestrel-9\"`. No files were modified.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "6b50ee3b-6689-49d7-adab-29f6d20b36e4",
+          "runId": "run-1ff58618",
+          "events": [
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"session.started\",\"payload\":{\"cwd\":\"/tmp/eval-task-07uxDL/workspace\",\"configHash\":\"mvp\"},\"id\":\"c300b456-1ce1-4063-81d3-dfce92863519\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.528Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"user\",\"type\":\"user.message\",\"payload\":{\"text\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\",\"attachments\":[]},\"id\":\"4d249c56-7e4d-4eb9-87b0-d11f17998396\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.528Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"context.repo_map_lite_created\",\"payload\":{\"fileCount\":0,\"sourceCount\":0,\"testCount\":0},\"id\":\"26a0e0d4-efa4-4dce-89cf-c2d298f986e3\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.529Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"workflow.created\",\"payload\":{\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"goal\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\",\"mode\":\"interactive\"},\"meta\":{\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\"},\"id\":\"cec89d5e-2702-404e-9999-ef6738c5667a\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.547Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"graph.created\",\"payload\":{\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\",\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"nodeCount\":1},\"meta\":{\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\",\"nodeId\":\"node_07f6ce5f-976b-4c68-9082-f66cfb2de75a\"},\"id\":\"085d767d-75bb-4cb3-b55d-d5aeec63f627\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.548Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"task.ready\",\"payload\":{\"nodeId\":\"node_07f6ce5f-976b-4c68-9082-f66cfb2de75a\",\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\",\"goal\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\"},\"meta\":{\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\",\"nodeId\":\"node_07f6ce5f-976b-4c68-9082-f66cfb2de75a\"},\"id\":\"443c0c0e-582d-4133-81db-096739321ce0\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.548Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"mcp.tools_selected\",\"payload\":{\"total\":0,\"selected\":0,\"taskPreview\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\"},\"id\":\"091b96e6-43c6-49ed-b9b4-b2bbaf53d12d\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.567Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"task.started\",\"payload\":{\"nodeId\":\"node_07f6ce5f-976b-4c68-9082-f66cfb2de75a\",\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\"},\"meta\":{\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\",\"nodeId\":\"node_07f6ce5f-976b-4c68-9082-f66cfb2de75a\"},\"id\":\"9a8e2f26-2e9c-42bc-91f4-9b62f7dbd781\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.568Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"graph.status_changed\",\"payload\":{\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\",\"status\":\"running\"},\"meta\":{\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\",\"nodeId\":\"node_07f6ce5f-976b-4c68-9082-f66cfb2de75a\"},\"id\":\"a9cc783d-5883-468b-82e3-0880f562069d\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.568Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"embedder.initialized\",\"payload\":{\"dbPath\":\"/home/babasola/.alix/failures.db\"},\"id\":\"7c65ad3b-d780-4156-a372-12ed617fe344\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.571Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-164b7d77-a4b8-4f08-bcfa-331c07b4d79f\",\"candidateTokens\":6612},\"id\":\"56e87a9c-bf69-46c6-a215-5481a925ea35\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.576Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-164b7d77-a4b8-4f08-bcfa-331c07b4d79f\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"d42d0660-5767-422f-a395-e58dcee0896a\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.578Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-164b7d77-a4b8-4f08-bcfa-331c07b4d79f\",\"admittedItems\":3,\"droppedItems\":0,\"admittedTokens\":6612,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6580,\"current_task\":32},\"droppedReasons\":[]},\"id\":\"6689ab29-6f2f-405e-98ee-aa0449e149f1\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T07:49:26.579Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:49:28.010Z\"},\"id\":\"301c22dd-131a-465a-975b-59d6124c9ae0\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.013Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"agent\",\"runId\":\"run-1ff58618\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7442,\"outputTokens\":62,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"0a3c96ca-252c-43b7-814f-81b249ee0276\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.015Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-164b7d77-a4b8-4f08-bcfa-331c07b4d79f\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5509,\"estimatedPadded\":6612,\"actual\":7442},\"id\":\"a7901df1-2535-469e-9a06-2ac2d62b9965\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.016Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4-agent\",\"actor\":\"agent\",\"type\":\"agent.decision\",\"payload\":{\"kind\":\"tool_selection\",\"iteration\":0,\"description\":\"Called alix_file_read\",\"outcome\":\"executed\"},\"id\":\"40d68a1e-c742-4182-8f63-f70e462a16ef\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.016Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-6fa7fcb2-cf7f-11f1-bf5b-64226a77af18-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"invocationId\":\"inv-164b7d77-a4b8-4f08-bcfa-331c07b4d79f\"},\"id\":\"3753fda8-8ff7-491d-a51b-c3394ad22dce\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.018Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-6fa7fcb2-cf7f-11f1-bf5b-64226a77af18-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"invocationId\":\"inv-164b7d77-a4b8-4f08-bcfa-331c07b4d79f\"},\"id\":\"0111afc5-ee6b-4105-ab3e-e63653f29b3e\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.018Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:49:28.019Z\"},\"id\":\"49bbb202-f8af-4259-b996-6166c5830b23\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.019Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"8f66f5d3-d6f3-40ef-873f-62982018c2f1\",\"operation\":\"tool.route.file.read\"},\"id\":\"224cbf8f-2874-46e3-ac22-3651181306d3\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.020Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"8f66f5d3-d6f3-40ef-873f-62982018c2f1\",\"operation\":\"tool.route.file.read\",\"durationMs\":0.33,\"outcome\":\"success\"},\"id\":\"a0cf7232-c607-4fcf-b466-507b1ba00ad0\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.021Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-6fa7fcb2-cf7f-11f1-bf5b-64226a77af18-0-0\",\"outputPreview\":\"export const x = \\\"kestrel-9\\\";\\n\",\"outputSize\":30,\"executionId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"invocationId\":\"inv-164b7d77-a4b8-4f08-bcfa-331c07b4d79f\"},\"id\":\"83c469dc-0c71-4793-b502-c93d9f0e7c27\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.022Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-6fa7fcb2-cf7f-11f1-bf5b-64226a77af18-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":5,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"invocationId\":\"inv-164b7d77-a4b8-4f08-bcfa-331c07b4d79f\"},\"id\":\"ce5c9bce-4b71-40b1-a251-56c33839baf9\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.022Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-06eb5daf-37c4-4ac7-8050-1ec1f7027339\",\"candidateTokens\":6833},\"id\":\"ed3d6829-589f-43ec-8699-8ad506a592d5\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.027Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-06eb5daf-37c4-4ac7-8050-1ec1f7027339\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"ecf9e3e6-c6d4-4442-91a2-0fd3afd204b6\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.027Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-06eb5daf-37c4-4ac7-8050-1ec1f7027339\",\"admittedItems\":6,\"droppedItems\":0,\"admittedTokens\":6833,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6580,\"current_task\":90,\"current_execution_state\":27,\"recent_tool_results\":136},\"droppedReasons\":[]},\"id\":\"f367c666-cdaa-4a38-a1f9-92d6b93488f8\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.028Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4-agent\",\"actor\":\"agent\",\"type\":\"agent.message\",\"payload\":{\"text\":\"The exported constant `x` in `src/util.ts` is `\\\"kestrel-9\\\"`. No files were modified.\"},\"id\":\"05e37a3d-a8e4-4f7b-9fc0-d827ccba0753\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.950Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:49:28.950Z\"},\"id\":\"bbb6fb99-2c22-4673-a3b0-1e7beb2a5917\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.951Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"agent\",\"runId\":\"run-1ff58618\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7612,\"outputTokens\":57,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"c54ae407-8e7f-4154-8702-23b5610e62ba\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.951Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-06eb5daf-37c4-4ac7-8050-1ec1f7027339\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5692,\"estimatedPadded\":6833,\"actual\":7612},\"id\":\"0c59b146-8a17-4087-b12d-d227046d3df1\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.952Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4-agent\",\"actor\":\"agent\",\"type\":\"agent.reasoning\",\"payload\":{\"text\":\"The task was just to read src/util.ts and report x. The tool result shows x = \\\"kestrel-9\\\". Complete.\",\"toolCalls\":[],\"iteration\":1},\"id\":\"029c0c67-aa4f-402e-b4e3-e276e72b004e\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.953Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"session.ended\",\"payload\":{\"reason\":\"completed\",\"summary\":\"The exported constant `x` in `src/util.ts` is `\\\"kestrel-9\\\"`. No files were modified.\",\"unsubstantiatedClaims\":[],\"objectiveEvidenceGaps\":[],\"contextPressure\":{\"aggregate\":{\"tier4Dropped\":0,\"tier5Dropped\":0,\"tier6Dropped\":0,\"minRemainingTokens\":37967},\"peak\":{\"iteration\":0,\"tier4Dropped\":0,\"tier5Dropped\":0,\"tier6Dropped\":0,\"remainingTokens\":38188},\"totalIterations\":2}},\"id\":\"4977dd79-32bc-41e8-9b7a-a8e934954708\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.954Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"context.pattern_evaluated\",\"payload\":{\"taskType\":\"unknown\",\"success\":true,\"iterations\":2,\"tokenUsage\":15173,\"patternRecorded\":true},\"id\":\"b18b7977-fe88-4d5f-a4c2-6693863097e3\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.956Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"task.done\",\"payload\":{\"nodeId\":\"node_07f6ce5f-976b-4c68-9082-f66cfb2de75a\",\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\",\"summary\":\"The exported constant `x` in `src/util.ts` is `\\\"kestrel-9\\\"`. No files were modified.\"},\"meta\":{\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\",\"nodeId\":\"node_07f6ce5f-976b-4c68-9082-f66cfb2de75a\"},\"id\":\"a2815c7b-27fb-4cb5-b8a6-4559ea94d59a\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.956Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"graph.completed\",\"payload\":{\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\",\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"summary\":\"The exported constant `x` in `src/util.ts` is `\\\"kestrel-9\\\"`. No files were modified.\"},\"meta\":{\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"graphId\":\"graph_3227571d-a743-4e71-bb76-e2ff06f46f51\",\"nodeId\":\"node_07f6ce5f-976b-4c68-9082-f66cfb2de75a\"},\"id\":\"1ec2c8b6-10e4-4a99-b343-f935760cfb9b\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.957Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"workflow.completed\",\"payload\":{\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\",\"summary\":\"The exported constant `x` in `src/util.ts` is `\\\"kestrel-9\\\"`. No files were modified.\"},\"meta\":{\"workflowId\":\"wf_d746db77-f76f-45d4-b10a-7139d5086496\"},\"id\":\"ef053b12-fd34-4da2-bab4-1ab9ef63fc3c\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.958Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"workflow_runs_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"goal\":\"Read src/util.ts and report the exact value of the\"},\"timestamp\":\"2026-10-24T07:49:24.121Z\"},\"id\":\"d492ae15-d357-4c85-b894-0e3172668ef5\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.958Z\"}",
+            "{\"sessionId\":\"6b50ee3b-6689-49d7-adab-29f6d20b36e4\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"workflow_duration_ms\",\"type\":\"timer\",\"value\":2390,\"timestamp\":\"2026-10-24T07:49:28.958Z\"},\"id\":\"720819d2-9f94-437a-9741-0ffb4b0a2520\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T07:49:28.960Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T07:49:30.200Z"
+      },
+      "runId": "run-1ff58618",
+      "sessionId": "6b50ee3b-6689-49d7-adab-29f6d20b36e4",
+      "usage": {
+        "inputTokens": 15054,
+        "outputTokens": 119,
+        "observed": true
+      },
+      "costUsd": 0.038825,
+      "completeness": "complete",
+      "pricedRecords": 2,
+      "totalRecords": 2,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.read-only",
+      "stratum": "readonly-inspection",
+      "driver": "main-loop",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:49:30.202Z",
+      "finishedAt": "2026-10-24T07:49:39.089Z",
+      "durationMs": 8887,
+      "toolCalls": 2,
+      "toolCallsCompleted": 2,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "completed",
+      "statusExpected": [
+        "completed"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/util.ts",
+        "exists": true,
+        "changed": false
+      },
+      "guardEvidence": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": []
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/util.ts",
+            "exists": true,
+            "sha256": "72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07",
+            "content": "export const x = \"kestrel-9\";\n",
+            "bytes": 30
+          }
+        ],
+        "workspaceBefore": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false,
+          "digest": "ca51449c50c593d6a7944519080997b4b2bab21ec424c41d547d8581c4564de9"
+        },
+        "workspace": {
+          "entries": {
+            "src": "directory",
+            "src/util.ts": "file:72fe2eb9ea8cda1d87ec876d36166b159d26ac3e0e5e7849ddd383129658ae07"
+          },
+          "truncated": false,
+          "digest": "ca51449c50c593d6a7944519080997b4b2bab21ec424c41d547d8581c4564de9"
+        },
+        "outsideSentinel": null,
+        "finalAnswer": "Read `src/util.ts` (no files modified). The exported constant `x` is exactly the string `\"kestrel-9\"`.",
+        "runtime": {
+          "status": null,
+          "reason": "completed",
+          "summary": "Read `src/util.ts` (no files modified). The exported constant `x` is exactly the string `\"kestrel-9\"`.",
+          "error": null,
+          "provider": "hive",
+          "sessionId": "0fff7013-4fab-4bb3-949b-8f211a2768aa",
+          "runId": "run-ed673e6e",
+          "events": [
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"session.started\",\"payload\":{\"cwd\":\"/tmp/eval-task-ElTsdA/workspace\",\"configHash\":\"mvp\"},\"id\":\"49ce56e2-b68a-4874-99d9-34abed8faf87\",\"seq\":1,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.650Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"user\",\"type\":\"user.message\",\"payload\":{\"text\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\",\"attachments\":[]},\"id\":\"d50a95b6-a7f8-4413-954e-8ff546139bec\",\"seq\":2,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.651Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"context.repo_map_lite_created\",\"payload\":{\"fileCount\":0,\"sourceCount\":0,\"testCount\":0},\"id\":\"f47b9162-3ac5-4aef-86da-c96d2ad0b31c\",\"seq\":3,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.653Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"workflow.created\",\"payload\":{\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"goal\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\",\"mode\":\"interactive\"},\"meta\":{\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\"},\"id\":\"9f47784d-edd8-4dc2-abd7-0494daf768f8\",\"seq\":4,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.690Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"graph.created\",\"payload\":{\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\",\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"nodeCount\":1},\"meta\":{\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\",\"nodeId\":\"node_c3558270-8ff2-4c85-bf63-07a00bff44ca\"},\"id\":\"c51f2e81-d6de-4225-bfbd-9c53e8ee3357\",\"seq\":5,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.691Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"task.ready\",\"payload\":{\"nodeId\":\"node_c3558270-8ff2-4c85-bf63-07a00bff44ca\",\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\",\"goal\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\"},\"meta\":{\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\",\"nodeId\":\"node_c3558270-8ff2-4c85-bf63-07a00bff44ca\"},\"id\":\"24c36b59-5993-4617-940e-a65e8d883eb6\",\"seq\":6,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.692Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"mcp.tools_selected\",\"payload\":{\"total\":0,\"selected\":0,\"taskPreview\":\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\"},\"id\":\"d1495b2f-a6fe-4617-a21b-26adb7c17847\",\"seq\":7,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.746Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"task.started\",\"payload\":{\"nodeId\":\"node_c3558270-8ff2-4c85-bf63-07a00bff44ca\",\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\"},\"meta\":{\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\",\"nodeId\":\"node_c3558270-8ff2-4c85-bf63-07a00bff44ca\"},\"id\":\"24a1a052-c11e-4412-9e2d-4f6831c04050\",\"seq\":8,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.749Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"graph.status_changed\",\"payload\":{\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\",\"status\":\"running\"},\"meta\":{\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\",\"nodeId\":\"node_c3558270-8ff2-4c85-bf63-07a00bff44ca\"},\"id\":\"ebe29510-c588-4b3c-a315-9b08ec326692\",\"seq\":9,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.749Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"embedder.initialized\",\"payload\":{\"dbPath\":\"/home/babasola/.alix/failures.db\"},\"id\":\"94dfc08c-ace3-4938-9b21-6333a6dad305\",\"seq\":10,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.754Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-8456d60a-5ea0-4abc-932d-0f669ea3b69a\",\"candidateTokens\":6613},\"id\":\"7da39ed9-7ea0-4178-87c9-bcc6ec1745f3\",\"seq\":11,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.761Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-8456d60a-5ea0-4abc-932d-0f669ea3b69a\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"5ef2fe50-a2ce-4be3-a05c-6f5dca31fc85\",\"seq\":12,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.761Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-8456d60a-5ea0-4abc-932d-0f669ea3b69a\",\"admittedItems\":3,\"droppedItems\":0,\"admittedTokens\":6613,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":32},\"droppedReasons\":[]},\"id\":\"725404f1-6249-49a7-af89-094c78251e68\",\"seq\":13,\"version\":1,\"timestamp\":\"2026-10-24T07:49:32.762Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:49:34.104Z\"},\"id\":\"8e48eb45-c8e8-46ff-8a02-35b6875a0de9\",\"seq\":14,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.106Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"agent\",\"runId\":\"run-ed673e6e\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7443,\"outputTokens\":62,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"d51ba7ea-75d5-4096-a136-3501ce41c1e4\",\"seq\":15,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.108Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-8456d60a-5ea0-4abc-932d-0f669ea3b69a\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5510,\"estimatedPadded\":6613,\"actual\":7443},\"id\":\"df33e3a2-3ff0-4e52-a227-c45486c9fc1e\",\"seq\":16,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.109Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"agent\",\"type\":\"agent.decision\",\"payload\":{\"kind\":\"tool_selection\",\"iteration\":0,\"description\":\"Called alix_file_read\",\"outcome\":\"executed\"},\"id\":\"55faf7c6-4e2f-4725-a451-09a2588a7176\",\"seq\":17,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.111Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-735d922d-cf7f-11f1-a0c9-68c846498ecc-0-0\",\"toolName\":\"file.read\",\"capability\":\"file.read\",\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"argsPreview\":{\"path\":\"src/util.ts\"},\"executionId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"invocationId\":\"inv-8456d60a-5ea0-4abc-932d-0f669ea3b69a\"},\"id\":\"8975412a-8216-4da2-9c61-41f3b92b83f9\",\"seq\":18,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.113Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-735d922d-cf7f-11f1-a0c9-68c846498ecc-0-0\",\"toolName\":\"file.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"invocationId\":\"inv-8456d60a-5ea0-4abc-932d-0f669ea3b69a\"},\"id\":\"b7abb3e6-7c4e-453b-872c-b4f875393402\",\"seq\":19,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.116Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"tool_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"tool\":\"file.read\"},\"timestamp\":\"2026-10-24T07:49:34.116Z\"},\"id\":\"582aa9cb-e059-40ff-b69c-9cb9f8ac263a\",\"seq\":20,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.117Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"runtime.phase.started\",\"payload\":{\"timingId\":\"7ff5f58b-7986-4c6d-99df-3144c5a35200\",\"operation\":\"tool.route.file.read\"},\"id\":\"c715d698-ebbe-4c94-bb4d-8ab86c713dae\",\"seq\":21,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.118Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"runtime.phase.completed\",\"payload\":{\"timingId\":\"7ff5f58b-7986-4c6d-99df-3144c5a35200\",\"operation\":\"tool.route.file.read\",\"durationMs\":0.78,\"outcome\":\"success\"},\"id\":\"10eb84a3-5e74-47d6-bffc-494277107907\",\"seq\":22,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.120Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-735d922d-cf7f-11f1-a0c9-68c846498ecc-0-0\",\"outputPreview\":\"export const x = \\\"kestrel-9\\\";\\n\",\"outputSize\":30,\"executionId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"invocationId\":\"inv-8456d60a-5ea0-4abc-932d-0f669ea3b69a\"},\"id\":\"460d5bde-1d90-4b16-a195-e4560c4a95fb\",\"seq\":23,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.122Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"observedLineCount\":1,\"toolCallId\":\"call-735d922d-cf7f-11f1-a0c9-68c846498ecc-0-0\",\"toolName\":\"file.read\",\"status\":\"success\",\"durationMs\":9,\"canonicalCapability\":\"filesystem.read\",\"argumentHash\":\"d78675db6dff8d8b2b40a2590bb0c3a2e9a92d7c4109a99c3baf175fde0214b4\",\"executionId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"invocationId\":\"inv-8456d60a-5ea0-4abc-932d-0f669ea3b69a\"},\"id\":\"a3e72330-d023-4d8a-b831-5db8815a7f96\",\"seq\":24,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.123Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-e943fc67-b412-43af-ab3f-d7cee7383438\",\"candidateTokens\":6830},\"id\":\"b55255c2-da30-4d40-96c5-c8788c85599b\",\"seq\":25,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.131Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-e943fc67-b412-43af-ab3f-d7cee7383438\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"04b0dc96-b4fc-4213-9e84-b3099914847a\",\"seq\":26,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.133Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-e943fc67-b412-43af-ab3f-d7cee7383438\",\"admittedItems\":6,\"droppedItems\":0,\"admittedTokens\":6830,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":90,\"current_execution_state\":27,\"recent_tool_results\":132},\"droppedReasons\":[]},\"id\":\"4cc11acc-aac6-49e0-add3-5c293470e286\",\"seq\":27,\"version\":1,\"timestamp\":\"2026-10-24T07:49:34.135Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:49:35.948Z\"},\"id\":\"ab330103-9df3-49f8-b013-93dbafe240d4\",\"seq\":28,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.949Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"agent\",\"runId\":\"run-ed673e6e\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7611,\"outputTokens\":126,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"516b49be-00f7-41c8-97d4-3637d62c5de8\",\"seq\":29,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.950Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-e943fc67-b412-43af-ab3f-d7cee7383438\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5690,\"estimatedPadded\":6830,\"actual\":7611},\"id\":\"870d33b6-2246-4537-9ad3-781d8c23388f\",\"seq\":30,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.951Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"agent\",\"type\":\"agent.reasoning\",\"payload\":{\"text\":\"The file was read: export const x = \\\"kestrel-9\\\"; The task is complete. Just report.\\n\\nThe task said \\\"Read src/util.ts and report the exact value of the exported constant x. Do not modify any files.\\\" Done. No further tool calls needed \u2014 call alix_done.\\n\\nWait, should I verify the file path? The result content shows the file content. Just done.\",\"toolCalls\":[\"alix_done\"],\"iteration\":1},\"id\":\"1a0f1670-a966-46f7-8669-fa85e67249cc\",\"seq\":31,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.951Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"agent\",\"type\":\"agent.decision\",\"payload\":{\"kind\":\"tool_selection\",\"iteration\":1,\"description\":\"Called alix_done\",\"outcome\":\"executed\"},\"id\":\"2e4c0b43-46a6-419e-a187-0d3bcc6e1e7b\",\"seq\":32,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.953Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"tool.requested\",\"payload\":{\"toolCallId\":\"call-7429862c-cf7f-11f1-a287-8a0736b8e71f-0-0\",\"toolName\":\"task.complete\",\"capability\":\"task.complete\",\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"argsPreview\":{},\"executionId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"invocationId\":\"inv-e943fc67-b412-43af-ab3f-d7cee7383438\"},\"id\":\"a1b5abaf-9004-403c-a51f-f55b472f1082\",\"seq\":33,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.954Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"tool.started\",\"payload\":{\"toolCallId\":\"call-7429862c-cf7f-11f1-a287-8a0736b8e71f-0-0\",\"toolName\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"invocationId\":\"inv-e943fc67-b412-43af-ab3f-d7cee7383438\"},\"id\":\"983b946f-fcf7-4cf4-9c26-cb81935ffb58\",\"seq\":34,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.955Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"tool.output\",\"payload\":{\"toolCallId\":\"call-7429862c-cf7f-11f1-a287-8a0736b8e71f-0-0\",\"outputPreview\":\"Task complete.\",\"outputSize\":14,\"executionId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"invocationId\":\"inv-e943fc67-b412-43af-ab3f-d7cee7383438\"},\"id\":\"f85a3f8f-0aef-46ac-a1d5-5246def246a7\",\"seq\":35,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.955Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"tool.completed\",\"payload\":{\"toolCallId\":\"call-7429862c-cf7f-11f1-a287-8a0736b8e71f-0-0\",\"toolName\":\"task.complete\",\"status\":\"success\",\"durationMs\":1,\"canonicalCapability\":\"task.complete\",\"argumentHash\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\",\"executionId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"invocationId\":\"inv-e943fc67-b412-43af-ab3f-d7cee7383438\"},\"id\":\"d6e99f4c-720e-47e6-8a64-8d15ac4c31cf\",\"seq\":36,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.956Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"system\",\"type\":\"context.snapshot.created\",\"payload\":{\"invocationId\":\"inv-524ddc5d-a094-48ba-a483-e3a059e3e6f3\",\"candidateTokens\":6879},\"id\":\"629c73c2-1d77-4833-8d91-601a6f5c47c9\",\"seq\":37,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.959Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"system\",\"type\":\"context.budget.computed\",\"payload\":{\"invocationId\":\"inv-524ddc5d-a094-48ba-a483-e3a059e3e6f3\",\"contextWindowTokens\":64000,\"availableInputTokens\":44800,\"budgetReservation\":19200,\"requestedMaxOutputTokens\":19200,\"policyReservation\":19200},\"id\":\"e3c0c58c-9ca0-42f6-ba5c-ddc2abb6ec13\",\"seq\":38,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.960Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"system\",\"type\":\"context.assembled\",\"payload\":{\"invocationId\":\"inv-524ddc5d-a094-48ba-a483-e3a059e3e6f3\",\"admittedItems\":7,\"droppedItems\":0,\"admittedTokens\":6879,\"droppedTokens\":0,\"admittedByCategory\":{\"mandatory_system_governance\":6581,\"current_task\":74,\"current_execution_state\":34,\"recent_conversation\":58,\"recent_tool_results\":132},\"droppedReasons\":[]},\"id\":\"e695cdb3-cb52-460b-b9c4-f1c17bb5e4c0\",\"seq\":39,\"version\":1,\"timestamp\":\"2026-10-24T07:49:35.962Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"agent\",\"type\":\"agent.message\",\"payload\":{\"text\":\"Read `src/util.ts` (no files modified). The exported constant `x` is exactly the string `\\\"kestrel-9\\\"`.\"},\"id\":\"cb4eb3a5-59b9-4cb1-b5b2-22494b97abde\",\"seq\":40,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.908Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"model_calls_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"provider\":\"hive\",\"resolved_model\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"timestamp\":\"2026-10-24T07:49:37.908Z\"},\"id\":\"2273afeb-5409-4c24-bd86-bc8e00da1572\",\"seq\":41,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.911Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"agent\",\"runId\":\"run-ed673e6e\",\"type\":\"model.usage\",\"payload\":{\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"inputTokens\":7649,\"outputTokens\":71,\"resolvedModel\":\"deepseek-ai/deepseek-v4.1-flash-1017\"},\"id\":\"dbd2def0-f0de-472c-ae5b-b1559f0e13ac\",\"seq\":42,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.913Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"token.calibration\",\"payload\":{\"invocationId\":\"inv-524ddc5d-a094-48ba-a483-e3a059e3e6f3\",\"provider\":\"hive\",\"model\":\"deepseek-ai/deepseek-v4.1-flash-1017\",\"estimatedRaw\":5731,\"estimatedPadded\":6879,\"actual\":7649},\"id\":\"3f6301b3-a669-45a8-b649-c7c3408bc140\",\"seq\":43,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.915Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa-agent\",\"actor\":\"agent\",\"type\":\"agent.reasoning\",\"payload\":{\"text\":\"The user asked to read src/util.ts and report exact value of x. The tool result shows `export const x = \\\"kestrel-9\\\";`. Task complete. Write prose summary.\",\"toolCalls\":[],\"iteration\":2},\"id\":\"ad49d611-e352-4fda-abcd-91d860ffc6b3\",\"seq\":44,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.916Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"session.ended\",\"payload\":{\"reason\":\"completed\",\"summary\":\"Read `src/util.ts` (no files modified). The exported constant `x` is exactly the string `\\\"kestrel-9\\\"`.\",\"unsubstantiatedClaims\":[],\"objectiveEvidenceGaps\":[],\"contextPressure\":{\"aggregate\":{\"tier4Dropped\":0,\"tier5Dropped\":0,\"tier6Dropped\":0,\"minRemainingTokens\":37921},\"peak\":{\"iteration\":0,\"tier4Dropped\":0,\"tier5Dropped\":0,\"tier6Dropped\":0,\"remainingTokens\":38187},\"totalIterations\":3}},\"id\":\"fcc8b6f4-4807-47d0-b03d-b2b4afa15272\",\"seq\":45,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.918Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"context.pattern_evaluated\",\"payload\":{\"taskType\":\"unknown\",\"success\":true,\"iterations\":3,\"tokenUsage\":22962,\"patternRecorded\":true},\"id\":\"251f9ac2-d0a2-4530-8dc5-d4f24b835f2a\",\"seq\":46,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.922Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"task.done\",\"payload\":{\"nodeId\":\"node_c3558270-8ff2-4c85-bf63-07a00bff44ca\",\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\",\"summary\":\"Read `src/util.ts` (no files modified). The exported constant `x` is exactly the string `\\\"kestrel-9\\\"`.\"},\"meta\":{\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\",\"nodeId\":\"node_c3558270-8ff2-4c85-bf63-07a00bff44ca\"},\"id\":\"c5c340a5-646d-4684-bbec-f6a5694c610e\",\"seq\":47,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.923Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"graph.completed\",\"payload\":{\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\",\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"summary\":\"Read `src/util.ts` (no files modified). The exported constant `x` is exactly the string `\\\"kestrel-9\\\"`.\"},\"meta\":{\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"graphId\":\"graph_0a26a5ef-28ef-4acb-b7e3-7e5e54230d52\",\"nodeId\":\"node_c3558270-8ff2-4c85-bf63-07a00bff44ca\"},\"id\":\"a737d227-a56d-4480-a3d7-b1b50c791617\",\"seq\":48,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.925Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"workflow.completed\",\"payload\":{\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\",\"summary\":\"Read `src/util.ts` (no files modified). The exported constant `x` is exactly the string `\\\"kestrel-9\\\"`.\"},\"meta\":{\"workflowId\":\"wf_033e5a95-22bb-41b0-bb93-463fa506423a\"},\"id\":\"8f53e727-9a79-44fb-b062-28f07c1607eb\",\"seq\":49,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.929Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"workflow_runs_total\",\"type\":\"counter\",\"value\":1,\"labels\":{\"goal\":\"Read src/util.ts and report the exact value of the\"},\"timestamp\":\"2026-10-24T07:49:30.204Z\"},\"id\":\"924d7cad-a9a4-4259-a683-062e21279d9e\",\"seq\":50,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.931Z\"}",
+            "{\"sessionId\":\"0fff7013-4fab-4bb3-949b-8f211a2768aa\",\"actor\":\"system\",\"type\":\"observability.metric\",\"payload\":{\"name\":\"workflow_duration_ms\",\"type\":\"timer\",\"value\":5180,\"timestamp\":\"2026-10-24T07:49:37.930Z\"},\"id\":\"c347f6fa-b06a-4b30-8415-852cd1241a0d\",\"seq\":51,\"version\":1,\"timestamp\":\"2026-10-24T07:49:37.932Z\"}"
+          ]
+        },
+        "capturedAt": "2026-10-24T07:49:39.088Z"
+      },
+      "runId": "run-ed673e6e",
+      "sessionId": "0fff7013-4fab-4bb3-949b-8f211a2768aa",
+      "usage": {
+        "inputTokens": 22703,
+        "outputTokens": 259,
+        "observed": true
+      },
+      "costUsd": 0.0593475,
+      "completeness": "complete",
+      "pricedRecords": 3,
+      "totalRecords": 3,
+      "rateSource": "pinned-rate"
+    }
+  ],
+  "latency": {
+    "observed": true,
+    "samples": 5,
+    "p50Ms": 10829,
+    "p95Ms": 23478
+  },
+  "verifiedSuccesses": 5,
+  "inadmissible": 0,
+  "costUsd": 0.2796225
+}

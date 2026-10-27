@@ -57,6 +57,35 @@ describe("PolicyGate", () => {
     assert.equal(result.decision, "deny");
   });
 
+  // D11: explicit denies cannot become approval prompts through the whitelist
+  // or evasion checks. Include allow/ask controls to pin the intended precedence.
+  for (const mode of ["ask", "auto", "bypass"] as const) {
+    for (const scenario of [
+      { label: "unmatched whitelist", command: "echo hello", whitelist: true, allowUnmatched: true, expected: "ask" },
+      { label: "strict whitelist", command: "echo hello", whitelist: true, allowUnmatched: false, expected: "deny" },
+      { label: "whitelisted command", command: "ls", whitelist: true, allowUnmatched: true, expected: "allow" },
+      { label: "evasion ask", command: "sudo su -", whitelist: false, allowUnmatched: true, expected: "ask" },
+      { label: "ordinary command", command: "echo hello", whitelist: false, allowUnmatched: true, expected: "allow" },
+    ] as const) {
+      for (const permission of ["deny", "allow"] as const) {
+        it(`D11: ${permission} / ${scenario.label} / ${mode}`, async () => {
+          const config = makeConfig();
+          config.permissions.tools = { "shell.run": permission };
+          config.permissions.shellWhitelist = { enabled: scenario.whitelist, commands: ["ls"], allowUnmatched: scenario.allowUnmatched };
+          const result = await new PolicyGate(config).evaluateToolCall({
+            requestId: "d11-precedence", toolName: "shell.run", args: { command: scenario.command },
+            cwd: "/tmp", sessionMode: mode, source: "tool",
+          });
+          assert.equal(result.decision, permission === "deny" ? "deny" : scenario.expected);
+          if (permission === "deny") {
+            assert.equal(result.matchedRuleId, "tool-policy-shell.run");
+            assert.equal(result.approvalId, undefined);
+          }
+        });
+      }
+    }
+  }
+
   it("denies protected path", async () => {
     const config = makeConfig();
     const gate = new PolicyGate(config);
@@ -630,3 +659,118 @@ describe("PolicyGate", () => {
     }
   });
 });
+
+  // ── D2: an owned scope must constrain EVERY mutation channel ──────
+  //
+  // Independent Gate E review defect D2. `mutationTargets()` reads a path or
+  // patch text; it cannot enumerate what a shell command writes. A worker
+  // declared to own `inside.txt` was therefore allowed `printf x > outside.txt`:
+  // the owned-path rule never ran for shell.run, and the capability's blanket
+  // allow short-circuited first.
+  //
+  // These tests fail if the unscopable-mutation rule is removed. That is the
+  // point — the previous evidence for this control could not fail.
+  it("D2: a scoped worker cannot mutate through ANY unscopable channel", async () => {
+    // The first fix listed forbidden channels by name and the review defeated it
+    // by naming ones the list missed. This asserts the ALLOWLIST polarity: every
+    // channel below mutates and none of them can be proven within a declared
+    // scope, so every one must deny.
+    const channels = [
+      { tool: "shell.run", capability: "shell.run", args: { command: "printf x > outside.txt" } },
+      { tool: "mcp.invoke", capability: "mcp.invoke", args: { server: "s", tool: "t" } },
+      { tool: "mcp__server__weird", capability: undefined, args: { anything: 1 } },
+      { tool: "skill.create", capability: "skill.create", args: { name: "x" } },
+      { tool: "agent.delegate", capability: "agent.delegate", args: { task: "write outside" } },
+      { tool: "coordination.run", capability: "coordination.run", args: {} },
+      { tool: "schedule.propose", capability: "schedule.propose", args: {} },
+      { tool: "hook.create", capability: "hook.create", args: {} },
+    ];
+    for (const channel of channels) {
+      for (const mode of ["ask", "auto", "bypass"] as const) {
+        const config = makeConfig({ permissions: { tools: { [channel.capability ?? channel.tool]: "allow" } } as any });
+        const gate = new PolicyGate(config);
+        const decision = await gate.evaluateToolCall({
+          requestId: `d2-${channel.tool}-${mode}`,
+          toolName: channel.tool,
+          ...(channel.capability ? { capability: channel.capability } : {}),
+          args: channel.args,
+          cwd: "/ws",
+          sessionMode: mode,
+          source: "tool",
+          ownedPaths: ["inside.txt"],
+        });
+        assert.equal(decision.decision, "deny", `${channel.tool} / ${mode}`);
+        assert.equal(decision.matchedRuleId, "unscopable-mutation-rule", `${channel.tool} / ${mode}`);
+      }
+    }
+  });
+
+  it("D2: the unscopable-mutation deny cannot be reached only after a permissive branch", async () => {
+    // Default policy "allow" plus an allow-listed capability is the most
+    // permissive composition available. The deny must still win, because a rule
+    // reachable only after a permissive branch is not a rule.
+    const config = makeConfig({
+      permissions: { default: "allow", tools: { "shell.run": "allow" } } as any,
+    });
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "d2-permissive",
+      toolName: "shell.run",
+      args: { command: "echo hi" },
+      cwd: "/ws",
+      sessionMode: "bypass",
+      source: "tool",
+      ownedPaths: ["a.ts"],
+    });
+    assert.equal(decision.decision, "deny");
+    assert.equal(decision.matchedRuleId, "unscopable-mutation-rule");
+  });
+
+  it("D2: a scoped worker can still use read-only capabilities", async () => {
+    // The allowlist denies unscopable MUTATION. A read cannot violate a write
+    // scope, so denying it would be an over-correction that breaks workers.
+    const config = makeConfig({ permissions: { tools: { "filesystem.read": "allow" } } as any });
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "d2-read",
+      toolName: "file.read",
+      capability: "filesystem.read",
+      args: { path: "inside.txt" },
+      cwd: "/ws",
+      sessionMode: "auto",
+      source: "tool",
+      ownedPaths: ["inside.txt"],
+    });
+    assert.equal(decision.decision, "allow");
+  });
+
+  it("D2: an UNSCOPED worker is unaffected — the rule narrows, never widens", async () => {
+    const config = makeConfig({ permissions: { tools: { "shell.run": "allow" } } as any });
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "d2-unscoped",
+      toolName: "shell.run",
+      args: { command: "echo hi" },
+      cwd: "/ws",
+      sessionMode: "auto",
+      source: "tool",
+    });
+    assert.equal(decision.decision, "allow");
+  });
+
+  it("D2: scoped file writes inside the scope still work", async () => {
+    // The narrowing must not break the path it was built for.
+    const config = makeConfig({ permissions: { tools: { "file.write": "allow" } } as any });
+    const gate = new PolicyGate(config);
+    const inside = await gate.evaluateToolCall({
+      requestId: "d2-regression-inside",
+      toolName: "file.create",
+      args: { path: "src/ok.ts" },
+      cwd: "/ws",
+      sessionMode: "auto",
+      source: "tool",
+      ownedPaths: ["src"],
+    });
+    assert.equal(inside.decision, "allow");
+    assert.equal(inside.matchedRuleId, "owned-path-rule");
+  });

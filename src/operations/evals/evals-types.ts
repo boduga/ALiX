@@ -11,6 +11,8 @@
  */
 
 import type { ScriptedScenario } from "./providers/scripted-mock-provider.js";
+import type { EvalExecutionMetrics } from "./eval-execution-metrics.js";
+import type { EvalRunEvidence } from "./eval-evidence.js";
 
 /** Which runtime a case drives. */
 export type EvalDriverKind = "delegate" | "main-loop";
@@ -236,6 +238,12 @@ export type EvalExecutionResult = {
   findings?: unknown;
   error?: string;
   /**
+   * Serialized session events the driver returned, when it returned any.
+   * Retained as raw evidence so an infrastructure fault can be independently
+   * excluded rather than assumed absent.
+   */
+  events?: string[];
+  /**
    * Provider that actually executed this case, when known.
    *
    * Recorded so the stratum-9 CPU-only guard can decide from observed evidence
@@ -269,6 +277,19 @@ export type EvalExecutionResult = {
       outputTokens?: number;
     }>;
   };
+  /**
+   * Tool, retry and approval counts captured from the same session log, before
+   * the case cwd is deleted. `null` counts mean unobserved, never zero. Only
+   * `observed: false` (or an `unobserved` reason) may accompany nulls.
+   */
+  metrics?: EvalExecutionMetrics;
+  /**
+   * Raw evidence the evaluator saw — objective-file bytes, a workspace manifest,
+   * sentinel bytes and the runtime's own account. Captured before the fixture
+   * root is deleted so a third party can re-derive the outcome instead of
+   * trusting the verdict.
+   */
+  evidence?: EvalRunEvidence;
 };
 
 /** Final per-case result, separating objective outcome from status outcome. */

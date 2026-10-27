@@ -11,6 +11,13 @@ import type { AlixConfig, SubagentTask } from "../../src/operations/config/schem
 import type { WorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 import { createWorkerAssignment } from "../../src/coordination/kernel/coordination-types.js";
 
+/**
+ * Minimal subagent config so getRoleModel doesn't throw.
+ *
+ * Model tiers live under `models`, not `subagents`: `createModelResolver` reads
+ * `config.models[tier]`, and `subagents.<tier>` is a loader-derived projection
+ * that is never persisted and never the source.
+ */
 const TEST_SUBAGENT_CFG: AlixConfig["subagents"] = {
   enabled: true,
   roles: [
@@ -18,6 +25,11 @@ const TEST_SUBAGENT_CFG: AlixConfig["subagents"] = {
     { role: "researcher", mode: "read_only", style: "fast", retryCount: 1 },
     { role: "worker", mode: "write", style: "coding", retryCount: 0 },
   ],
+};
+
+/** Model tiers, resolved from `models` exactly as the loader projects them. */
+const TEST_MODELS: AlixConfig["models"] = {
+  default: { provider: "test", name: "test-default" },
   fast: { provider: "test", name: "test-fast" },
   coding: { provider: "test", name: "test-coding" },
   thinking: { provider: "test", name: "test-thinking" },
@@ -38,7 +50,7 @@ function worker(overrides: Partial<WorkerAssignment> = {}): WorkerAssignment {
 function managerWith(childJs: string): SubagentManager {
   return new SubagentManager({
     sessionId: "test-session",
-    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    config: { subagents: TEST_SUBAGENT_CFG, models: TEST_MODELS } as AlixConfig,
     spawnOverride: { command: process.execPath, args: ["-e", childJs] },
   });
 }

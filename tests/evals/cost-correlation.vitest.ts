@@ -74,13 +74,13 @@ describe('cost correlation (P0-D4)', () => {
     // complete while silently excluding an unpriced model.
     const events = [
       usage('openai', 'gpt-4o', 1_000_000, 0),
-      usage('intern', 'deepseek-v4-flash-0731', 1_000_000, 0),
+      usage('hive', 'deepseek-ai/deepseek-v4.1-flash-1017', 1_000_000, 0),
     ];
     const result = correlateRunCost(events, 'run-1', catalog);
 
     expect(result.observedCostUsd).toBeNull();
     expect(result.gap).toBe('unknown-pricing');
-    expect(result.unpricedModels).toEqual(['intern/deepseek-v4-flash-0731']);
+    expect(result.unpricedModels).toEqual(['hive/deepseek-ai/deepseek-v4.1-flash-1017']);
     // Tokens are still reported: a different dimension from cost.
     expect(result.inputTokens).toBe(2_000_000);
     expect(result.evidence.join(' ')).toContain('partial sum withheld');
@@ -149,7 +149,7 @@ describe('invocation extraction (P0-D4)', () => {
       expect(isNonBillableProvider(provider)).toBe(true);
     }
     expect(isNonBillableProvider('openai')).toBe(false);
-    expect(isNonBillableProvider('intern')).toBe(false);
+    expect(isNonBillableProvider('hive')).toBe(false);
   });
 
   it('keeps a malformed invocation visible instead of dropping it', () => {

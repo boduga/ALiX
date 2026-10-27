@@ -7,7 +7,7 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
 ## Ownership
 
 - `policy-rule.ts` — PolicyRule type, matchPolicy(), validatePolicyRule()
-- `rule-evaluator.ts` — Pure first-match-wins evaluator (decoupled from runtime subsystems)
+- `rule-evaluator.ts` — Pure **deny-wins** evaluator (decoupled from runtime subsystems). Precedence is `deny > ask > allow` over ALL matching rules, not declaration order: order must never grant authority. The reported rule is the strictest match, and the earliest one among equals so audit lines do not drift. Do not reintroduce first-match-wins — the shipped defaults put `allow-file-read` before `deny-critical-risk`, which let a critical-risk read through (Gate E D11).
 - `runtime-gate.ts` — Graph-node authorization adapter (R3.7): capability coverage (CapabilityResolver) + the graph-specific approval reuse/create lifecycle, with every POLICY decision routed through the one `ExecutionAuthorization` boundary (the same service tools and coordination workers use). Not a second policy authority.
 - `policy-gate.ts` — PolicyGate, the single authoritative policy engine: tool-call and capability evaluation with approval lifecycle (binding-key reuse for coordination, capability reuse for capability asks, fresh approval per tool call in ask mode), plus TUI policy snapshots. Do not introduce a second policy authority.
 - `default-policies.ts` — 11 built-in rules (allow/ask/deny by risk level and capability)
@@ -16,17 +16,23 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
 ## Local Contracts
 
 - **Owned-scope matching is owned by `src/coordination/ownership/AGENTS.md`.** This gate is
-  one of the two enforcement points and calls `isWithinOwnedScope`; it must
-  never grow its own matcher or re-normalize a grant. The rule, the fail-closed
-  cases, and the workspace-wide vocabulary are documented there — read them
-  there rather than restating them here. A blanket capability allow never
-  widens a grant: when the request declares owned paths for a write tool, the
-  owned-path rule decides (allow inside the scope, deny outside it) and runs
-  BEFORE any tool-permission allow can short-circuit it. Returning that allow
-  first made the rule unreachable — the write capability's permission resolves
-  to "allow" under auto/bypass session modes, so a worker scoped to one file
-  could write anywhere in the workspace.
+  one of the enforcement points (with the `ToolExecutor` continuation/owned path and `FileToolRouter`)
+  and calls `isWithinOwnedScope`; it must never grow its own matcher or re-normalize a grant.
+  A blanket capability allow never widens a grant: the owned-path rule decides every
+  declared-scope write before tool-permission allows can short-circuit it.
+- **Owned-scope channels have one allowlist.** `src/coordination/ownership/owned-scope-channels.ts`
+  exports `SCOPABLE_WRITE_TOOLS` for path-check admission and `unscopableChannelDenial`
+  for channel denial. Mutability comes from the executor's registry entry, never a
+  caller-supplied capability policy key. Unknown tools fail closed; known read-only
+  tools remain unaffected. Add scopable mutation channels only in that module.
+- **Explicit tool denials precede approval prompts.** A configured capability deny
+  is checked before shell-whitelist and evasion asks in every session mode.
+- **Rule ids are a durable audit surface.** Preserve `unscopable-mutation-rule`,
+  `consumed-binding-denied`, `binding-claim-lost`, and `approval-store-missing`.
+  The last means the approval authority is unavailable; callers must not treat it
+  as an operator denial of the command.
 - Two-layer enforcement: capability coverage first, policy second.
+- **Protected-path patterns are workspace-relative; the gate holds absolute paths, so it compares BOTH forms.** Comparing resolved absolute paths only against the shipped relative defaults (`.git/**`, `.env`, `secrets/**`) meant the rule never matched and silently never fired. `isProtectedPath` now takes `(patterns, absolutePath, relativePath?)` and matches either. `/**` prefixes must match the directory itself or a descendant — a bare `startsWith` over-blocks `.gitignore`/`.github/` — and `.*` suffixes keep exact-or-suffixed semantics. A protected read now refuses in the gate (`denied`) rather than reaching the router's `error`; same refusal, earlier layer, and it still never becomes an approvable request. Parity table: `tests/security/policy-protected-path-parity.vitest.ts` (relative and absolute forms, over-block negatives, patch targets under an owned scope).
 - Most-restrictive-wins across multiple capabilities: deny > ask > allow.
 - RuntimeGate checks ApprovalStore for prior approvals before creating new ones.
 - One pending approval per key: capability asks reuse the pending approval for their capability; coordination asks reuse by exact binding key; ask-mode tool calls always create a fresh record.
@@ -63,7 +69,7 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
 
 - `tests/policy/policy-gate.test.ts` — the owned-path rule across the full space of workspace-wide spellings (listed and derived), and fail-closed behaviour. A router-only test bypasses this enforcement point.
 - `tests/policy/policy-rule.test.ts` — validation and matching
-- `tests/policy/rule-evaluator.test.ts` — evaluator and default policies
+- `tests/policy/rule-evaluator.test.ts` — evaluator and default policies, including **deny-wins order independence**: the same rules in both orders must reach one decision, and the shipped defaults must not allow a critical-risk capability that an earlier allow matched. First-match-wins fails 5 of these.
 - `tests/policy/policy-loader.test.ts` — disk loading and fallback
 - `tests/policy/runtime-gate.test.ts` — composed gate behavior
 

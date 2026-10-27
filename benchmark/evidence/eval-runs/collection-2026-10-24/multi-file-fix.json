@@ -1,0 +1,409 @@
+{
+  "startedAt": "2026-10-24T06:13:04.043Z",
+  "finishedAt": "2026-10-24T06:14:52.445Z",
+  "frozen": {
+    "model": {
+      "provider": "hive",
+      "name": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revisionSource": "model-id-snapshot"
+    },
+    "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7",
+    "offeredToolsHash": "24fb49fdfe87f7d8cb65b381189169a65f9649d909d02905a810ead8349e0164",
+    "offeredTools": [
+      "alix_collaboration_get_dependency_results",
+      "alix_collaboration_list_conflicts",
+      "alix_collaboration_publish_artifact",
+      "alix_collaboration_publish_finding",
+      "alix_collaboration_query_findings",
+      "alix_collaboration_report_conflict",
+      "alix_coordination_list",
+      "alix_coordination_results",
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_create_skill",
+      "alix_delegate",
+      "alix_done",
+      "alix_execution_state_propose",
+      "alix_file_create",
+      "alix_file_delete",
+      "alix_file_exists",
+      "alix_file_read",
+      "alix_glob_match",
+      "alix_grep_search",
+      "alix_hook_create",
+      "alix_inspect_extension",
+      "alix_list_extensions",
+      "alix_mcp_search_tools",
+      "alix_patch_apply",
+      "alix_schedule_propose",
+      "alix_shell_run",
+      "alix_state_query",
+      "alix_verify_claim",
+      "alix_web_fetch",
+      "alix_web_search"
+    ],
+    "corpusHash": "9ed559998d4b7e8a7bf4497992e0d45a4daf430aace084b31a3c6dc52ba2ce74",
+    "corpusFiles": [
+      {
+        "path": "src/operations/evals/cases/index.ts",
+        "sha256": "09d36787693d5ded9e8c32c4123366f208bd2aa0563651c6c4e2749f48c3827e"
+      },
+      {
+        "path": "src/operations/evals/cases/behavioral.ts",
+        "sha256": "4beb2ff22fbd65b0e2272ae05f8b752c430d1048905deeeb6226e4126ada4e09"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-2-4.ts",
+        "sha256": "3963f18afd4408cb13bd1d25c0e46210e6684e782ec81293054134c4a7381e5f"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-5-10.ts",
+        "sha256": "9cab91edcb4a8f88bffdd9934fa524aeee27e5b7bc7d2d472e7814a196e0a35a"
+      },
+      {
+        "path": "src/operations/evals/cases/stratum-9-local.ts",
+        "sha256": "e77b9b30647c58e0b5e7dea3e37bb1f0a6d76e0970f4e5b6cfc020deb4df8f2d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/objective-evaluator.ts",
+        "sha256": "76869222509ac0a78d7e0dde1104d47e98c07abd9d1553964ec85c4072b6d56d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/status-evaluator.ts",
+        "sha256": "3b16532d05fa07a8005ff3ade2fa52f03c7315435e322f2dc847a3858d759cd4"
+      },
+      {
+        "path": "src/operations/evals/eval-guards.ts",
+        "sha256": "a9b379a9aa87e949dc17256f0d7a9659326cf3e8352aa12d531111e80f2a5d6b"
+      },
+      {
+        "path": "src/operations/evals/eval-admissibility.ts",
+        "sha256": "721408143ecec8e42039e510f32b13a088b2958c8cfb4d47a9d227fbba9ef9a7"
+      }
+    ],
+    "environment": {
+      "node": "v26.11.0",
+      "platform": "linux",
+      "arch": "x64",
+      "cpuCount": 4,
+      "cpuModel": "Intel(R) Core(TM) i3-8145U CPU @ 2.10GHz",
+      "totalMemoryBytes": 12284481536
+    },
+    "pricing": {
+      "source": "operator-declared proxy: openai/gpt-4o catalog rate (defaultPricingCatalog), not a Hive-published rate",
+      "effectiveFrom": "2025-01-01",
+      "inputPerMillion": 2.5,
+      "outputPerMillion": 10,
+      "currency": "USD",
+      "observedAt": "2026-10-23T00:00:00.000Z",
+      "provenance": "operator-snapshot",
+      "note": "Operator-supplied rate snapshot; retained with the run."
+    },
+    "blocking": [],
+    "admissible": true
+  },
+  "suiteDurationMs": 108402,
+  "model": {
+    "provider": "hive",
+    "name": "deepseek-ai/deepseek-v4.1-flash-1017"
+  },
+  "results": [
+    {
+      "caseId": "behavioral.multi-file-fix",
+      "stratum": "multi-file-fix",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:13:04.043Z",
+      "finishedAt": "2026-10-24T06:13:20.249Z",
+      "durationMs": 16206,
+      "toolCalls": 5,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 2,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": false,
+      "statusHonest": false,
+      "statusActual": "partial",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/a.ts, src/b.ts",
+        "exists": true,
+        "changed": true,
+        "mismatches": [
+          "src/b.ts: content mismatch: expected \"const other = 2;\n\""
+        ]
+      },
+      "guardEvidence": null,
+      "runId": null,
+      "sessionId": "eval-behavioral-multi-file-fix",
+      "usage": {
+        "inputTokens": 24343,
+        "outputTokens": 1114,
+        "observed": true
+      },
+      "costUsd": 0.07199749999999999,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.multi-file-fix",
+      "stratum": "multi-file-fix",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:13:20.249Z",
+      "finishedAt": "2026-10-24T06:13:41.868Z",
+      "durationMs": 21619,
+      "toolCalls": 8,
+      "toolCallsCompleted": 6,
+      "toolCallsFailed": 2,
+      "rejectedCalls": 0,
+      "repeatedCalls": 2,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/a.ts, src/b.ts",
+        "exists": true,
+        "changed": true,
+        "mismatches": []
+      },
+      "guardEvidence": null,
+      "runId": null,
+      "sessionId": "eval-behavioral-multi-file-fix",
+      "usage": {
+        "inputTokens": 26935,
+        "outputTokens": 951,
+        "observed": true
+      },
+      "costUsd": 0.0768475,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.multi-file-fix",
+      "stratum": "multi-file-fix",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:13:41.868Z",
+      "finishedAt": "2026-10-24T06:13:59.869Z",
+      "durationMs": 18001,
+      "toolCalls": 10,
+      "toolCallsCompleted": 10,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 6,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/a.ts, src/b.ts",
+        "exists": true,
+        "changed": true,
+        "mismatches": []
+      },
+      "guardEvidence": null,
+      "runId": null,
+      "sessionId": "eval-behavioral-multi-file-fix",
+      "usage": {
+        "inputTokens": 29000,
+        "outputTokens": 973,
+        "observed": true
+      },
+      "costUsd": 0.08222999999999998,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.multi-file-fix",
+      "stratum": "multi-file-fix",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:13:59.869Z",
+      "finishedAt": "2026-10-24T06:14:18.979Z",
+      "durationMs": 19110,
+      "toolCalls": 7,
+      "toolCallsCompleted": 7,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 3,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/a.ts, src/b.ts",
+        "exists": true,
+        "changed": true,
+        "mismatches": []
+      },
+      "guardEvidence": null,
+      "runId": null,
+      "sessionId": "eval-behavioral-multi-file-fix",
+      "usage": {
+        "inputTokens": 26634,
+        "outputTokens": 770,
+        "observed": true
+      },
+      "costUsd": 0.074285,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.multi-file-fix",
+      "stratum": "multi-file-fix",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T06:14:18.979Z",
+      "finishedAt": "2026-10-24T06:14:52.444Z",
+      "durationMs": 33465,
+      "toolCalls": 8,
+      "toolCallsCompleted": 5,
+      "toolCallsFailed": 3,
+      "rejectedCalls": 0,
+      "repeatedCalls": 2,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "pass",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": true,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/a.ts, src/b.ts",
+        "exists": true,
+        "changed": true,
+        "mismatches": []
+      },
+      "guardEvidence": null,
+      "runId": null,
+      "sessionId": "eval-behavioral-multi-file-fix",
+      "usage": {
+        "inputTokens": 27192,
+        "outputTokens": 1215,
+        "observed": true
+      },
+      "costUsd": 0.08012999999999999,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    }
+  ],
+  "latency": {
+    "observed": true,
+    "samples": 5,
+    "p50Ms": 19110,
+    "p95Ms": 33465
+  },
+  "verifiedSuccesses": 4,
+  "inadmissible": 0,
+  "costUsd": 0.38548999999999994
+}

@@ -49,6 +49,8 @@ export class XiaomiMimoTokenPlanProvider extends BaseProvider {
     return complete("xiaomi-mimo-token-plan", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+
+      ...(options?.onAttempt ? { onAttempt: options.onAttempt } : {}),
       baseUrl: this.endpoint(),
     });
   }
@@ -57,6 +59,8 @@ export class XiaomiMimoTokenPlanProvider extends BaseProvider {
     yield* stream("xiaomi-mimo-token-plan", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+
+      ...(options?.onAttempt ? { onAttempt: options.onAttempt } : {}),
       baseUrl: this.endpoint(),
     });
   }

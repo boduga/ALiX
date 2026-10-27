@@ -33,6 +33,8 @@ reason about.
 
 ## Local Contracts
 
+- `sessionIdFromDirectory` in `executor.ts` extracts session identity using either directory separator; approvals, continuations, and tool artifacts use the same identity on every supported host.
+
 - **The registry owns routed tool metadata.** Each entry pairs an internal
   executor ID with its capability id, policy key, risk, and `mutates` flag. `ALIX_BUILTIN_EXECUTORS` (`src/agents/tool-manifest.ts`) is the
   model-facing surface and `ToolName`/`ToolNameSchema` derive from it, so a
@@ -80,6 +82,7 @@ reason about.
   run, `ask` → durable approval wait, `deny`/unbacked-ask → `Access denied`.
   The handler never runs ungoverned.
 - **A cited approval is claimed exactly once, in `dispatch`, before any router runs.** `ToolExecutor.dispatch` calls `claimApproval` on an allowed decision that cites a durable approval (`decision.approvalId && !decision.approvalConsumed`) and on the continuation branch after the ownership gate. That claim is the single consumed-once seam for both execution routes: a concurrent or fresh-process replay loses the race and is denied, never executed. `claimApproval` fails closed when no store can atomically consume, and the post-claim outcome (`succeeded`/`failed`/`cancelled`) is reported so a crash between claim and execution stays `pending` and is later classified `unverified` rather than reissued. The coordination exact-binding branch already consumed in-gate and reports `approvalConsumed: true`, so dispatch skips its claim. Owner: `src/governance/approvals/AGENTS.md`.
+- **Continuation storage stays behind its existing executor seam.** `pendingContinuations`, `bindContinuationWorker` and `resumeApprovedContinuation` are host APIs, not model-facing tools. They retain store construction inside the existing authorized importer, bind only still-pending/approved records, and resume through `ContinuationManager` plus the executor's normal ownership/invocation/single-use claim checks. No raw approval decision method is exposed. Hosts must supply trusted scope and consumer context before invoking resumption.
 - **Continuation resumes re-validate authorization (R1.5).** A request with
   `source: "continuation-resume"` must carry `approvalId`, and the executor
   independently checks the durable record (present, `approved`, not expired)

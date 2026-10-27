@@ -185,3 +185,187 @@ test("executor denies an out-of-scope owned write under a bypass session mode", 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// ── D1: the safe-shell bypass must still honour a mandatory deny ──────
+//
+// Independent Gate E review defect D1. The bypass existed to skip the APPROVAL
+// gate for read-only commands, but it returned before authorization entirely, so
+// a command named in `denyCommands` still executed as long as isSafeShellCommand
+// said yes. `ls` is both safe and deniable, which is the exact overlap.
+//
+// This test fails if the mandatory-deny check is removed: the command then runs
+// and the result is a success rather than a denial.
+test("D1: a denyCommands entry still denies through the safe-shell bypass", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-d1-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    // `ls` is a SAFE_SHELL_COMMANDS entry AND explicitly denied: the two sets
+    // overlap, which is what made the bypass a deny bypass.
+    const config: AlixConfig = {
+      ...DEFAULT_CONFIG,
+      permissions: {
+        ...DEFAULT_CONFIG.permissions,
+        sessionMode: "ask" as const,
+        denyCommands: ["ls"],
+      },
+    };
+    const executor = new ToolExecutor(config, log, dir);
+    const result = await executor.execute({
+      toolCallId: "d1-deny",
+      name: "shell.run",
+      args: { command: "ls", cwd: dir, timeoutMs: 5000 },
+      ...TEST_CORRELATION,
+    });
+    assert.notEqual(result.kind, "success", "a denied command must not succeed");
+    assert.equal(result.kind, "error");
+    // `message`, not a nonexistent `error` field: ToolResult's error branch is
+    // {kind, message}. Asserting `.error` locked in a shape that rendered as
+    // "Error: undefined" downstream.
+    assert.match(String((result as { message?: string }).message ?? ""), /denied by policy/i);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("D1: a non-denied safe command still bypasses approvals", async () => {
+  // The narrowing must not turn the bypass off. `echo` is safe and not denied,
+  // so it must still execute without an approval prompt in ask mode.
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-d1-ok-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir);
+    const result = await executor.execute({
+      toolCallId: "d1-allow",
+      name: "shell.run",
+      args: { command: "echo d1-ok", cwd: dir, timeoutMs: 5000 },
+      ...TEST_CORRELATION,
+    });
+    assert.equal(result.kind, "success", JSON.stringify(result));
+    assert.match(String((result as { output?: string }).output ?? ""), /d1-ok/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Vacuous #10: the continuation-resume ownership check ──────────────
+//
+// The cited test called `checkOwnershipGate` directly, so it would still pass if
+// the executor's continuation branch stopped calling it (Gate E review,
+// vacuous assertion #10). These drive the EXECUTOR through that branch, so
+// removing the call at executor.ts fails them.
+test("continuation-resume still enforces ownership through the executor", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-cont-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    const config = {
+      ...DEFAULT_CONFIG,
+      permissions: { ...DEFAULT_CONFIG.permissions, sessionMode: "bypass" as const },
+    } as AlixConfig;
+    const executor = new ToolExecutor(
+      config, log, dir,
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      ["src"],
+    );
+    const result = await executor.execute({
+      toolCallId: "cont-1",
+      name: "file.create",
+      args: { path: "config.json", content: "{}" },
+      source: "continuation-resume",
+      ...TEST_CORRELATION,
+    } as never);
+    // No durable approval backs this, so the continuation branch fails closed
+    // before ownership is even consulted. Either refusal is correct; a SUCCESS
+    // is the defect.
+    assert.notEqual(result.kind, "success", JSON.stringify(result));
+    assert.equal(existsSync(join(dir, "config.json")), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("continuation-resume DENIES an out-of-scope owned write once approval is valid", async () => {
+  // This is the case that actually reaches executor.ts's continuation ownership
+  // check: a real, approved, unexpired backing record. Without the ownership
+  // call the write would be allowed, so this test fails when that call is
+  // removed. The two tests above only prove the branch fails closed earlier.
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-cont3-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    const { ApprovalStore } = await import("../src/governance/approvals/approval-store.js");
+    const store = new ApprovalStore(dir);
+    await store.load();
+    const created = await store.request({
+      reason: "continuation test",
+      requestedBy: "test",
+      capability: "file.write",
+      capabilities: ["file.write"],
+    } as never);
+    await store.resolve(created.id, "approved", "operator");
+
+    const config = {
+      ...DEFAULT_CONFIG,
+      permissions: { ...DEFAULT_CONFIG.permissions, sessionMode: "bypass" as const },
+    } as AlixConfig;
+    const executor = new ToolExecutor(
+      config, log, dir,
+      undefined, undefined, undefined, undefined,
+      store,
+      new (await import("../src/runtime-state/runtime/workspace-path.js")).WorkspacePathResolver(dir, []),
+      new (await import("../src/coordination/ownership/ownership-registry.js")).OwnershipRegistry(dir),
+      ["src"],
+    );
+    const result = await executor.execute({
+      toolCallId: "cont-3",
+      name: "file.create",
+      args: { path: "outside.ts", content: "x" },
+      source: "continuation-resume",
+      approvalId: created.id,
+      ...TEST_CORRELATION,
+    } as never);
+    assert.notEqual(result.kind, "success", "an out-of-scope owned write must not succeed");
+    // The refusal must come from the OWNED-SCOPE rule, not incidentally from an
+    // invocation-binding mismatch. Asserting only "not success" let the previous
+    // version of this test pass with the ownership call deleted.
+    assert.match(
+      JSON.stringify(result),
+      /outside owned paths/,
+      `expected an owned-scope refusal, got ${JSON.stringify(result)}`,
+    );
+    assert.equal(existsSync(join(dir, "outside.ts")), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("continuation-resume cannot authorize an owned out-of-scope write", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-cont2-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    const config = {
+      ...DEFAULT_CONFIG,
+      permissions: { ...DEFAULT_CONFIG.permissions, sessionMode: "bypass" as const },
+    } as AlixConfig;
+    const executor = new ToolExecutor(
+      config, log, dir,
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      ["src"],
+    );
+    const result = await executor.execute({
+      toolCallId: "cont-2",
+      name: "file.create",
+      args: { path: "outside.ts", content: "x" },
+      source: "continuation-resume",
+      approvalId: "nonexistent-approval",
+      ...TEST_CORRELATION,
+    } as never);
+    assert.equal(result.kind, "denied");
+    assert.equal(existsSync(join(dir, "outside.ts")), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

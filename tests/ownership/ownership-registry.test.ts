@@ -119,22 +119,35 @@ describe("OwnershipRegistry", () => {
   // ─── Persistence ────────────────────────────────────────────────
 
   it("save and reload persists records", async () => {
-    await reg.acquire({
+    const first = await reg.acquire({
       agentId: "agent-1",
       scope: { kind: "path", root: join(dir, "src"), recursive: true },
       mode: "exclusive-write",
       reason: "test persistence",
     });
 
-    // Create a fresh registry instance to verify persistence
+    // A fresh instance over the same dir. Merely re-acquiring the same scope for
+    // the same agent proves nothing: with persistence DISABLED that call still
+    // succeeds by creating a new record (Gate E review, vacuous assertion #8).
     const reg2 = new OwnershipRegistry(dir);
-    // Acquire triggers reload internally
-    const result = await reg2.acquire({
-      agentId: "agent-1",
+
+    // The persisted record must be the SAME record, not a replacement. A fresh
+    // instance is empty until it reloads, so refresh explicitly — reg2.get()
+    // alone would search nothing and the old test never checked.
+    await reg2.refresh();
+    const reloaded = reg2.get(first.record!.id);
+    assert.ok(reloaded, "the acquired claim must survive a new registry instance");
+    assert.equal(reloaded!.agentId, "agent-1");
+    assert.equal(reloaded!.reason, "test persistence");
+
+    // And the durable fact that matters: a DIFFERENT agent is refused, because
+    // the scope is already held. This is what fails if persistence is removed.
+    const rival = await reg2.acquire({
+      agentId: "agent-2",
       scope: { kind: "path", root: join(dir, "src"), recursive: true },
       mode: "exclusive-write",
     });
-    assert.equal(result.acquired, true); // renew of persisted record
+    assert.equal(rival.acquired, false, "a persisted exclusive claim must block another agent");
   });
 
   // ─── Renew ──────────────────────────────────────────────────────

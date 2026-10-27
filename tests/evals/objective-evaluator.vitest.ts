@@ -60,10 +60,12 @@ describe("objective-evaluator — file objective", () => {
 });
 
 describe("objective-evaluator — patch / replacement", () => {
-  it("patch landed when expected content present", () => {
+  it("patch landed when the file is EXACTLY the expected content", () => {
+    // Exact equality, not "contains": a comment carrying the fix must not satisfy
+    // the objective (see the oracle review, 2026-10-24).
     const cwd = makeCwd();
     mkdirSync(join(cwd, "src"), { recursive: true });
-    writeFileSync(join(cwd, "src", "util.ts"), "const NEW = 1;\n");
+    writeFileSync(join(cwd, "src", "util.ts"), "const NEW = 1;");
     const r = evaluateObjective(cwd, { kind: "patch", path: "src/util.ts", expectedContent: "const NEW = 1;" });
     expect(r.landed).toBe(true);
     rmSync(cwd, { recursive: true, force: true });
@@ -78,11 +80,21 @@ describe("objective-evaluator — patch / replacement", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("replacement landed when block present", () => {
+  it("replacement landed when the file IS the expected block", () => {
+    // Exact equality: `block: HELLO` with a leftover `block:` prefix is not the
+    // replacement the case asked for.
+    const cwd = makeCwd();
+    writeFileSync(join(cwd, "x.ts"), "HELLO");
+    const r = evaluateObjective(cwd, { kind: "replacement", path: "x.ts", expectedContent: "HELLO" });
+    expect(r.landed).toBe(true);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("replacement does NOT land when the expected text is only embedded", () => {
     const cwd = makeCwd();
     writeFileSync(join(cwd, "x.ts"), "block: HELLO");
     const r = evaluateObjective(cwd, { kind: "replacement", path: "x.ts", expectedContent: "HELLO" });
-    expect(r.landed).toBe(true);
+    expect(r.landed).toBe(false);
     rmSync(cwd, { recursive: true, force: true });
   });
 

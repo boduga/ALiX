@@ -1,0 +1,11 @@
+{
+  "_comment": "TEMPLATE — not a rate. Replace every field with a rate you actually read, then pass this file to `node benchmark/evidence/cost/eval-case-sweep.mjs --rate-snapshot <path>`. The double-underscore fields fail validation on purpose, so an unedited copy cannot be used. §3 requires a rate with its own source and timestamp; this file records where you read it and when.",
+  "provider": "__REPLACE_provider_id__",
+  "model": "__REPLACE_model_id__",
+  "inputPerMillion": -1,
+  "outputPerMillion": -1,
+  "currency": "USD",
+  "source": "__REPLACE_url_or_document_you_read__",
+  "observedAt": "__REPLACE_ISO_TIMESTAMP__",
+  "effectiveFrom": "__REPLACE_ISO_DATE_IF_THE_PROVIDER_STATES_ONE__"
+}

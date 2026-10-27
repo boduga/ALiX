@@ -59,6 +59,33 @@ describe("delegate-driver — normalization", () => {
 
   it("normalizeSubagentResult is a pure function", () => {
     const r = normalizeSubagentResult(fakeResult("partial"), "/cwd");
-    expect(r).toEqual({ driver: "delegate", cwd: "/cwd", status: "partial", sessionId: "sub-1", findings: [], error: undefined });
+    // `events` and `summary` are carried so raw-evidence capture can retain the
+    // child's diagnostics and final answer. A delegate that returns no findings
+    // and no events yields an empty array and undefined respectively — the
+    // distinction between "observed, none" and "not observed" is made at the
+    // capture layer, which maps a missing `events` to null.
+    expect(r).toEqual({
+      driver: "delegate",
+      cwd: "/cwd",
+      status: "partial",
+      sessionId: "sub-1",
+      findings: [],
+      error: undefined,
+      events: [],
+      summary: undefined,
+    });
+  });
+
+  it("carries the child's final answer from summary/synthesis findings", () => {
+    const raw = {
+      ...fakeResult("success"),
+      findings: [
+        { type: "file_ref" as const, content: "src/a.ts", confidence: "high" as const },
+        { type: "summary" as const, content: "  The timeout is 3000 ms.  ", confidence: "high" as const },
+        { type: "synthesis" as const, content: "No other issues.", confidence: "high" as const },
+      ],
+    };
+    const r = normalizeSubagentResult(raw, "/cwd");
+    expect(r.summary).toBe("The timeout is 3000 ms.\n\nNo other issues.");
   });
 });

@@ -93,7 +93,7 @@ describe("coordination resume", () => {
     });
   }
 
-  it("reclaims dead-owner running workers to pending and bumps attempt", async () => {
+  it("reclaims dead-owner running workers to pending without charging another attempt", async () => {
     const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
     run.hostKind = "inspector";
     await store.save(run);
@@ -105,7 +105,7 @@ describe("coordination resume", () => {
     const loaded = await store.load(run.id);
     const worker = loaded!.workers[0];
     assert.equal(worker.status, "pending");
-    assert.equal(worker.attempt, 1);
+    assert.equal(worker.attempt, 0); // The next successful claim charges the attempt.
     assert.equal(worker.executionOwnerId, undefined);
     assert.match(worker.error ?? "", /Reclaimed/);
   });

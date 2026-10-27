@@ -1,0 +1,218 @@
+{
+  "source": "headless coordination run on a real model",
+  "provider": "hive",
+  "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+  "concurrency": 3,
+  "objective": "Create docs/a.md, docs/b.md, docs/c.md, docs/d.md containing exactly their respective markers: A-MARKER, B-MARKER, C-MARKER, D-MARKER",
+  "exitCode": 0,
+  "wallSeconds": 95,
+  "workerCount": 4,
+  "usage": {
+    "observed": true,
+    "inputTokens": 173344,
+    "outputTokens": 3327,
+    "records": [
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-99583bfa",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7548,
+        "outputTokens": 94
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-99583bfa",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7875,
+        "outputTokens": 148
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-99583bfa",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8028,
+        "outputTokens": 88
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-99583bfa",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8259,
+        "outputTokens": 164
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-c7c67d07",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7548,
+        "outputTokens": 79
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-c7c67d07",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7906,
+        "outputTokens": 174
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-c7c67d07",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8056,
+        "outputTokens": 105
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-c7c67d07",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8212,
+        "outputTokens": 193
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-c7c67d07",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8476,
+        "outputTokens": 323
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-ed3361ba",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7548,
+        "outputTokens": 90
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-ed3361ba",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7716,
+        "outputTokens": 73
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-ed3361ba",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7867,
+        "outputTokens": 178
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-ed3361ba",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8150,
+        "outputTokens": 219
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-df129168",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7548,
+        "outputTokens": 93
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-df129168",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7726,
+        "outputTokens": 179
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-df129168",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8175,
+        "outputTokens": 203
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-5eb3113c",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7548,
+        "outputTokens": 93
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-5eb3113c",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7720,
+        "outputTokens": 213
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-5eb3113c",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8146,
+        "outputTokens": 173
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-118c56a5",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7548,
+        "outputTokens": 90
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-118c56a5",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 7716,
+        "outputTokens": 132
+      },
+      {
+        "sessionId": "coord_1792873391798",
+        "runId": "run-118c56a5",
+        "provider": "hive",
+        "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+        "inputTokens": 8028,
+        "outputTokens": 223
+      }
+    ]
+  },
+  "costUsd": null,
+  "costNote": "token totals observed; pricing applied by cost-attribution, not here",
+  "artifacts": [
+    {
+      "path": "docs/a.md",
+      "exists": true,
+      "content": "A-MARKER"
+    },
+    {
+      "path": "docs/b.md",
+      "exists": true,
+      "content": "B-MARKER"
+    },
+    {
+      "path": "docs/c.md",
+      "exists": true,
+      "content": "C-MARKER"
+    },
+    {
+      "path": "docs/d.md",
+      "exists": true,
+      "content": "D-MARKER"
+    }
+  ],
+  "recordedAt": "2026-10-24T20:24:43.130Z"
+}

@@ -53,50 +53,84 @@ export type Admissibility =
  * convert real model misbehaviour into "inadmissible" and hide the very signal
  * these cases exist to measure.
  */
+/**
+ * Provider-fault signatures, anchored to how a PROVIDER reports a fault.
+ *
+ * WHY ANCHORED, NOT SUBSTRING
+ *
+ * These patterns used to be unscoped substring tests over arbitrary error text.
+ * Measured consequences: `Non-retryable write failures: forbidden.md` matched the
+ * auth pattern and became `provider-auth`; `expected 500, received 3000` matched
+ * the 5xx pattern and became `provider-server`. Ordinary agent failures — precisely
+ * what the benchmark measures — were silently removed from numerator and
+ * denominator, while a real fault (`TLS certificate has expired`) matched nothing
+ * and was scored. The rule was inverted.
+ *
+ * Two rules now apply:
+ *
+ *  1. An HTTP status is only evidence of a provider fault when it appears in a
+ *     status position (`HTTP 403`, `status: 429`, `API error 500`), never as a bare
+ *     number that a task might legitimately mention.
+ *  2. Prose must be unmistakably transport/provider language, not a word that also
+ *     appears in domain vocabulary (`forbidden` is a policy word before it is an
+ *     HTTP one).
+ */
 const ERROR_SIGNATURES: ReadonlyArray<{
   reason: InadmissibilityReason;
   test: (text: string) => boolean;
 }> = [
   {
     reason: "provider-quota",
-    test: (t) => /quota[ _-]?exceeded|insufficient[ _-]?quota|billing|credit balance|payment required/i.test(t),
+    test: (t) =>
+      /quota[ _-]?exceeded|insufficient[ _-]?quota|credit balance|payment required/i.test(t) ||
+      /\b402\b/.test(t),
   },
   {
     reason: "provider-rate-limit",
-    test: (t) => /rate[ _-]?limit|too many requests|channel rate limit|\b429\b/i.test(t),
+    test: (t) =>
+      /rate[ _-]?limit|too many requests|channel rate limit/i.test(t) ||
+      /(?:http|status|code|error)[\s:=]*429\b/i.test(t),
   },
   {
     reason: "provider-auth",
-    test: (t) => /invalid[ _-]?api[ _-]?key|unauthori[sz]ed|authentication|forbidden|\b401\b|\b403\b/i.test(t),
+    test: (t) =>
+      /invalid[ _-]?api[ _-]?key|unauthori[sz]ed|authentication failed|api key/i.test(t) ||
+      /(?:http|status|code|error)[\s:=]*(?:401|403)\b/i.test(t),
   },
   {
     reason: "provider-server",
-    test: (t) => /\b5\d\d\b|internal server error|bad gateway|service unavailable|gateway timeout/i.test(t),
+    test: (t) =>
+      /internal server error|bad gateway|service unavailable|gateway timeout/i.test(t) ||
+      /(?:http|status|code|error)[\s:=]*5\d\d\b/i.test(t),
   },
   {
     reason: "timeout",
-    test: (t) => /timed? ?out|timeout|aborted|ETIMEDOUT/i.test(t),
+    // A provider call timing out, not a task assertion that mentions a timeout.
+    test: (t) =>
+      /ETIMEDOUT|provider[^.]{0,40}tim(?:ed)? ?out|stream[^.]{0,20}tim(?:ed)? ?out/i.test(t) ||
+      /request (?:timed out|aborted)/i.test(t),
   },
   {
     reason: "transport",
-    test: (t) => /ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|fetch failed|network error|socket hang up/i.test(t),
+    test: (t) =>
+      /ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|network error/i.test(t) ||
+      /TLS|certificate/i.test(t) && /(expired|verif|handshake)/i.test(t),
   },
 ];
 
-/**
- * Classify a reported error string.
- *
- * Returns `admissible: true` for an unknown or absent error: an unrecognised
- * message is treated as an agent outcome so that a new failure mode is never
- * silently discarded. The cost of that direction is a possible false
- * adjudication, which is visible; the cost of the other direction is a silent
- * exclusion, which is not.
- */
 export function classifyInadmissible(error: string | undefined): Admissibility {
   const text = error?.trim();
   if (!text) return { admissible: true };
+
+  // A message that reports BOTH a provider fault and a task failure is treated as
+  // an agent outcome. Excluding it would hide a real behavioural result behind a
+  // coincidental word, which is the defect this function previously had.
+  const taskFailure = /Command exited with code|assertion failed|write failures|test failed|expected .* received/i.test(text);
+
   for (const { reason, test } of ERROR_SIGNATURES) {
-    if (test(text)) return { admissible: false, reason, detail: text };
+    if (!test(text)) continue;
+    if (taskFailure) return { admissible: true };
+    return { admissible: false, reason, detail: text };
   }
   return { admissible: true };
 }

@@ -1,0 +1,122 @@
+{
+  "revision": "d412ea15e000f29cb6fe86588f3a267956604fb2",
+  "duration_s": 9.06,
+  "sample_count": 18,
+  "exit": 0,
+  "reason": "",
+  "stderr_tail": "Daemon listening on /tmp/alix-lean01-ucl8hd7_/daemon.sock\n[daemon] coordination service failed to start: No model configured. Run: alix models set-default\nExample: alix models set-default deepseek deepseek-v4-flash\nOr run: alix models doctor\n",
+  "samples": [
+    {
+      "t_s": 0.5,
+      "rss_kib": 59140,
+      "cpu_ticks": 6,
+      "write_bytes": 49152
+    },
+    {
+      "t_s": 1.0,
+      "rss_kib": 59140,
+      "cpu_ticks": 6,
+      "write_bytes": 126976
+    },
+    {
+      "t_s": 1.5,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 2.0,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 2.51,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 3.01,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 3.51,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 4.01,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 4.51,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 5.01,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 5.51,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 6.01,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 6.51,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 7.02,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 7.52,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 8.02,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 8.52,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    },
+    {
+      "t_s": 9.02,
+      "rss_kib": 75716,
+      "cpu_ticks": 14,
+      "write_bytes": 139264
+    }
+  ],
+  "isolated_home": true,
+  "isolated_project": true,
+  "no_provider_requests": true,
+  "shared_load_host": true
+}

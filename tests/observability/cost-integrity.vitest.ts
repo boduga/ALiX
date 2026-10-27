@@ -54,7 +54,7 @@ describe('aggregate cost integrity (F1-C)', () => {
   it('one priced + one unpriced billable -> complete total is UNKNOWN', async () => {
     const s = await summarise([
       usage('openai', 'gpt-4o', 1_000_000, 0),
-      usage('intern', 'deepseek-v4-flash-0731', 1_000_000, 0),
+      usage('hive', 'deepseek-ai/deepseek-v4.1-flash-1017', 1_000_000, 0),
     ]);
     expect(s.totalCost).toBe(-1);
     expect(s.costCompleteness).toBe('partial');
@@ -63,7 +63,7 @@ describe('aggregate cost integrity (F1-C)', () => {
   });
 
   it('all invocations unpriced -> complete total is UNKNOWN', async () => {
-    const s = await summarise([usage('intern', 'deepseek-v4-flash-0731', 1_000_000, 0)]);
+    const s = await summarise([usage('hive', 'deepseek-ai/deepseek-v4.1-flash-1017', 1_000_000, 0)]);
     expect(s.totalCost).toBe(-1);
     expect(s.costCompleteness).toBe('partial');
     expect(s.knownCostSubtotal).toBe(0);
@@ -95,9 +95,9 @@ describe('aggregate cost integrity (F1-C)', () => {
   it('names the unpriced model as the blocker', async () => {
     const s = await summarise([
       usage('openai', 'gpt-4o', 1_000_000, 0),
-      usage('intern', 'deepseek-v4-flash-0731', 1_000_000, 0),
+      usage('hive', 'deepseek-ai/deepseek-v4.1-flash-1017', 1_000_000, 0),
     ]);
-    expect(s.unknownPricingModels).toContain('intern/deepseek-v4-flash-0731');
+    expect(s.unknownPricingModels).toContain('hive/deepseek-ai/deepseek-v4.1-flash-1017');
   });
 
   it('concurrent worker invocations are counted once each', async () => {
@@ -112,10 +112,10 @@ describe('aggregate cost integrity (F1-C)', () => {
   it('per-provider and per-workflow unknown behaviour is preserved', async () => {
     const s = await summarise([
       usage('openai', 'gpt-4o', 1_000_000, 0),
-      usage('intern', 'deepseek-v4-flash-0731', 1_000_000, 0),
+      usage('hive', 'deepseek-ai/deepseek-v4.1-flash-1017', 1_000_000, 0),
     ]);
     // Unchanged contract: an unknown call makes that provider's figure unknown.
-    expect(s.byProvider['intern']!.cost).toBe(-1);
+    expect(s.byProvider['hive']!.cost).toBe(-1);
     expect(s.byProvider['openai']!.cost).toBe(2.5);
   });
 });
@@ -134,7 +134,7 @@ describe('cost panel renders completeness honestly (F1-C)', () => {
       totalCost: -1,
       costCompleteness: 'partial',
       knownCostSubtotal: 2.5,
-      unknownPricingModels: ['intern/deepseek'],
+      unknownPricingModels: ['hive/deepseek'],
     }).join('\n');
 
     expect(lines).toContain('unknown');
@@ -167,6 +167,6 @@ describe('non-billable provider list has one definition (F1-C)', () => {
     }
     expect(isNonBillableProvider('openai')).toBe(false);
     // A real remote provider with missing pricing is NOT non-billable.
-    expect(isNonBillableProvider('intern')).toBe(false);
+    expect(isNonBillableProvider('hive')).toBe(false);
   });
 });

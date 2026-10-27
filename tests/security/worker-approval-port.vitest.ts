@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ApprovalStore } from '../../src/governance/approvals/approval-store.js';
-import { createWorkerApprovalPort, type WorkerApprovalPort } from '../../src/governance/approvals/worker-approval-port.js';
+import { assertNoForbiddenDecisionMethods, createWorkerApprovalPort, type WorkerApprovalPort } from '../../src/governance/approvals/worker-approval-port.js';
 import { closeAllSharedLedgers } from '../../src/runtime-state/storage/runtime-ledger.js';
 
 const cwds: string[] = [];
@@ -89,7 +89,7 @@ describe('worker approval port (F8b)', () => {
 
   it('a worker cannot self-approve its own request through the port', async () => {
     const { store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
 
     const created = await port.requestOrReusePending(REQUEST);
     expect(created.status).toBe('pending');
@@ -105,7 +105,7 @@ describe('worker approval port (F8b)', () => {
 
   it('observes an operator decision made by a DIFFERENT process', async () => {
     const { cwd, store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
     const created = await port.requestOrReusePending(REQUEST);
 
     // The operator resolves through their own store instance (the TUI).
@@ -119,12 +119,12 @@ describe('worker approval port (F8b)', () => {
 
   it('consumes exactly once across processes (no double effect)', async () => {
     const { cwd, store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
     const created = await port.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
 
-    const first = await port.consumeApproved(created.id, REQUEST.bindingKey, {});
+    const first = await port.consumeApproved(created.id, REQUEST.bindingKey, { workerAttempt: 0 });
     expect(first.consumed).toBe(true);
 
     // A second process holding its OWN store must lose the race.
@@ -135,7 +135,7 @@ describe('worker approval port (F8b)', () => {
 
   it('rejects consumption bound to a different binding key', async () => {
     const { cwd, store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
     const created = await port.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
@@ -147,7 +147,7 @@ describe('worker approval port (F8b)', () => {
 
   it('an operator DENIAL is visible to the worker and blocks consumption', async () => {
     const { cwd, store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
     const created = await port.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'denied', 'operator');
@@ -159,7 +159,7 @@ describe('worker approval port (F8b)', () => {
 
   it('does not expose another worker\u2019s records through a different binding', async () => {
     const { store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-b' });
     await port.requestOrReusePending({ ...REQUEST, bindingKey: 'worker-b-binding', workerId: 'worker-b' });
 
     expect(port.findExact('worker-b-binding')).toBeDefined();
@@ -172,7 +172,7 @@ describe('worker approval port (F8b)', () => {
     const created = await port.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
-    await port.consumeApproved(created.id, REQUEST.bindingKey, {});
+    await port.consumeApproved(created.id, REQUEST.bindingKey, { workerAttempt: 0 });
 
     expect(await port.recordExecutionOutcome(created.id, 'succeeded')).toBe(true);
     const after = await port.loadFresh(created.id);
@@ -190,10 +190,11 @@ describe('worker approval port (F8b)', () => {
     const created = await ownerPort.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
-    await ownerPort.consumeApproved(created.id, REQUEST.bindingKey, {});
+    await ownerPort.consumeApproved(created.id, REQUEST.bindingKey, { workerAttempt: 0 });
 
     expect(await otherPort.recordExecutionOutcome(created.id, 'succeeded')).toBe(false);
-    expect((await otherPort.loadFresh(created.id))?.executionOutcome).toBe('pending');
+    expect(await otherPort.loadFresh(created.id)).toBeUndefined();
+    expect((await store.loadFresh(created.id))?.executionOutcome).toBe('pending');
 
     // The rightful owner can still report.
     expect(await ownerPort.recordExecutionOutcome(created.id, 'failed')).toBe(true);
@@ -207,19 +208,50 @@ describe('worker approval port (F8b)', () => {
     const created = await bound.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
-    await bound.consumeApproved(created.id, REQUEST.bindingKey, {});
+    await bound.consumeApproved(created.id, REQUEST.bindingKey, { workerAttempt: 0 });
 
     expect(await unbound.recordExecutionOutcome(created.id, 'succeeded')).toBe(false);
     expect(await bound.recordExecutionOutcome(created.id, 'succeeded')).toBe(true);
   });
 
-  it('refuses to construct a port that would expose a decision method', async () => {
-    // Structural guarantee: if a future refactor added `resolve` to the facade,
-    // createWorkerApprovalPort must throw rather than quietly ship it.
+  it('the clean facade exposes no decision method', async () => {
+    // Necessary but NOT sufficient: this is true by construction. The test below
+    // is the one that can fail if the guard is removed.
     const { store } = await workspace();
     const port = createWorkerApprovalPort(store) as unknown as Record<string, unknown>;
     expect('resolve' in port).toBe(false);
     expect('revoke' in port).toBe(false);
+  });
+
+  it('THROWS when a candidate view exposes a decision method', async () => {
+    // This is the guard actually firing. Previously the "refuses to construct"
+    // test built a CLEAN port and asserted the methods were absent, so deleting
+    // the guard left every test green (Gate E review, vacuous assertion #1).
+    // Each forbidden method must be rejected on its own, not just the first.
+    const forbidden = [
+      'resolve', 'resolveWithEvidence', 'resolveGroup',
+      'revoke', 'invalidate', 'append', 'mutate',
+    ];
+    for (const method of forbidden) {
+      const contaminated = { get: () => undefined, [method]: () => undefined };
+      expect(
+        () => assertNoForbiddenDecisionMethods(contaminated),
+        method,
+      ).toThrow(/must not expose/);
+    }
+    // And a clean candidate passes, so the guard is not simply always-throwing.
+    expect(() => assertNoForbiddenDecisionMethods({ get: () => undefined })).not.toThrow();
+  });
+
+  it('a refactor that leaked `resolve` onto the facade would be caught', async () => {
+    // End-to-end shape of the same guarantee, without touching production code:
+    // the port a worker receives must satisfy the guard.
+    const { store } = await workspace();
+    const port = createWorkerApprovalPort(store);
+    expect(() => assertNoForbiddenDecisionMethods(port)).not.toThrow();
+    // Simulate the leak the guard exists for.
+    const leaked = { ...port, resolve: () => undefined };
+    expect(() => assertNoForbiddenDecisionMethods(leaked)).toThrow(/resolve/);
   });
 
   it('PolicyGate reuses an approved request through the port instead of asking again', async () => {

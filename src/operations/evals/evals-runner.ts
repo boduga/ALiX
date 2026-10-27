@@ -29,6 +29,8 @@ import { createSubagentExecutor, runDelegateCase } from "./drivers/delegate-driv
 import type { DelegateExecutor } from "./drivers/delegate-driver.js";
 import { runMainLoopCase } from "./drivers/main-loop-driver.js";
 import { captureEvalUsage } from "./eval-usage.js";
+import { captureEvalExecutionMetrics } from "./eval-execution-metrics.js";
+import { captureEvalRunEvidence, captureWorkspaceManifest, readSentinelBefore } from "./eval-evidence.js";
 import { prepareEvalGuards, evaluateEvalGuards } from "./eval-guards.js";
 import {
   setScriptedScenario,
@@ -51,6 +53,47 @@ import type {
  * the scripted provider is not a local-inference backend — labelling it CPU-only
  * would be a false claim.
  */
+/**
+ * Build the minimal eval config for a case cwd.
+ *
+ * Extracted so the §3 frozen-input pins hash EXACTLY the config the case runs
+ * under, rather than a copy that can drift from what `installEvalConfig` writes.
+ */
+export function buildEvalConfig(provider: string, model: string, timeoutMs?: number) {
+  return {
+    models: {
+      default: {
+        provider,
+        name: model,
+        ...(timeoutMs !== undefined && provider !== "scripted-mock" ? { timeoutMs } : {}),
+      },
+    },
+    permissions: {
+      default: "allow",
+      tools: {},
+      protectedPaths: [],
+      allowNetworkDomains: [],
+      denyCommands: [],
+    },
+    context: {
+      repoMap: false,
+      repoMapMode: "lite",
+      maxRepoMapTokens: 1000,
+      semanticSearch: false,
+      includeGitStatus: false,
+      pinnedFiles: [],
+    },
+    runtime: {
+      provider: "process",
+      shell: "/bin/sh",
+      commandTimeoutMs: 30000,
+      envAllowlist: [],
+    },
+    ui: { enabled: false, host: "localhost", port: 3000, transport: "sse" },
+    mcpServers: [],
+  };
+}
+
 export function installEvalConfig(
   cwd: string,
   provider = "scripted-mock",
@@ -69,42 +112,7 @@ export function installEvalConfig(
   mkdirSync(join(cwd, ".alix"), { recursive: true });
   writeFileSync(
     join(cwd, ".alix", "config.json"),
-    JSON.stringify(
-      {
-        models: {
-          default: {
-            provider,
-            name: model,
-            ...(timeoutMs !== undefined && provider !== "scripted-mock" ? { timeoutMs } : {}),
-          },
-        },
-        permissions: {
-          default: "allow",
-          tools: {},
-          protectedPaths: [],
-          allowNetworkDomains: [],
-          denyCommands: [],
-        },
-        context: {
-          repoMap: false,
-          repoMapMode: "lite",
-          maxRepoMapTokens: 1000,
-          semanticSearch: false,
-          includeGitStatus: false,
-          pinnedFiles: [],
-        },
-        runtime: {
-          provider: "process",
-          shell: "/bin/sh",
-          commandTimeoutMs: 30000,
-          envAllowlist: [],
-        },
-        ui: { enabled: false, host: "localhost", port: 3000, transport: "sse" },
-        mcpServers: [],
-      },
-      null,
-      2,
-    ),
+    JSON.stringify(buildEvalConfig(provider, model, timeoutMs), null, 2),
   );
 }
 
@@ -178,6 +186,12 @@ export async function runEvalCase(
     installSeed(cwd, evalCase.seed);
     const guardBaseline = evalCase.guards ? prepareEvalGuards(cwd, evalCase.guards) : undefined;
 
+    // Pre-execution evidence. A single post-run manifest cannot show whether the
+    // workspace was preserved, and a post-run sentinel cannot show the original
+    // was intact. Both must be taken from the seeded fixture before any tool runs.
+    const workspaceBefore = captureWorkspaceManifest(cwd);
+    const sentinelBefore = readSentinelBefore(cwd, evalCase.guards?.outsideSentinelUnchanged === true);
+
     let execution: EvalExecutionResult;
     if (evalCase.syntheticStatus !== undefined) {
       // Evaluator self-test fixture: no runtime execution; the reported status
@@ -226,6 +240,26 @@ export async function runEvalCase(
         records: usage.records,
       };
     }
+    // Same cleanup boundary as usage: the session log is the only record of
+    // tool calls, repeats, tool-level retries and approval decisions. Capture
+    // it here or lose it with the fixture root.
+    execution.metrics = captureEvalExecutionMetrics(cwd);
+
+    // Third cleanup-boundary capture, same justification as usage and metrics:
+    // an independent verification confirmed the scores but could not re-derive
+    // them, because rows kept conclusions while the bytes went with the fixture
+    // root. Capture what the evaluator is about to see, not just what it says.
+    execution.evidence = captureEvalRunEvidence(cwd, evalCase.objective, execution, {
+      hasOutsideSentinel: evalCase.guards?.outsideSentinelUnchanged === true,
+      workspaceBefore,
+      sentinelBefore,
+      finalAnswer: execution.summary ?? null,
+      // Fall back to the on-disk log when the driver reported no events. A
+      // delegate returning events is preferred (it is the child's own account),
+      // but the main-loop returns none, and without this its admissibility would
+      // rest on a record that does not exist.
+      eventsFromDisk: true,
+    });
 
     const objective = evaluateObjective(cwd, evalCase.objective, execution);
     const guards = evalCase.guards && guardBaseline

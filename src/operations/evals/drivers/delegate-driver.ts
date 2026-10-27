@@ -34,7 +34,23 @@ export function normalizeSubagentResult(raw: SubagentResult, cwd: string): EvalE
     sessionId: raw.id,
     findings: raw.findings,
     error: raw.error,
+    // Carried so raw-evidence capture can retain the child's own diagnostics and
+    // its final answer. Without `events`, an independent reviewer cannot exclude
+    // an infrastructure fault: absence of a recorded error is not evidence of
+    // absence. Without a summary finding, an answer-shaped deliverable has no
+    // retained text at all.
+    events: raw.events,
+    summary: finalAnswerFrom(raw.findings),
   };
+}
+
+/** The child's final answer: its synthesis/summary findings, in order. */
+function finalAnswerFrom(findings: SubagentResult["findings"]): string | undefined {
+  const answers = (findings ?? [])
+    .filter(f => f.type === "summary" || f.type === "synthesis")
+    .map(f => f.content.trim())
+    .filter(Boolean);
+  return answers.length > 0 ? answers.join("\n\n") : undefined;
 }
 
 /**

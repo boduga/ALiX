@@ -1,0 +1,1592 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-26T15:38:12.607154+00:00",
+  "scope": "Instrumented deterministic daemon reproduction; scripted reviewer verdict is fixture data, not independent security review.",
+  "cases": {
+    "baseline": {
+      "summary": {
+        "mode": "baseline",
+        "root": "/tmp/alix-d9-review-baseline-VMiT8w",
+        "workspace": "/tmp/alix-d9-review-baseline-VMiT8w/workspace",
+        "sourceHashes": {
+          "src/governance/policy/policy-gate.ts": "8e2658483f84bfc4b59ad3281a85bda352330f84b4ace39575b5168edb097c57",
+          "src/capabilities/tools/executor.ts": "c8da6906bf14af68f5174c37a5fd96e480e354fec560e75c6ad55c0d532ac86d",
+          "src/coordination/kernel/default-worker-review.ts": "c2aa637a2cdaa362b4a73e4117abe78ccc5e0c15ba66183e7027753b10dde208",
+          "src/coordination/kernel/worker-executor.ts": "97be22e536133a00dd5517c6c3771f6c45f526fdb0c2ba6a65a04a9df2e27fce",
+          "src/operations/evals/providers/scripted-mock-carrier.ts": "8f82af50bccf84b9bdbacbc437c10f0bf457c5607f4bbfc5629583ea59b8bedb"
+        },
+        "expected": "reviewer tools rejected",
+        "passed": true,
+        "runId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6",
+        "initialApprovalId": "approval_1793028795116_pz1br",
+        "worker": {
+          "id": "worker_dadf24ac-557c-4c79-b11e-19c048237bfd",
+          "taskLabel": "Create isolated receipt",
+          "agentId": "alix#1",
+          "status": "blocked",
+          "attempt": 1,
+          "maxAttempts": 3,
+          "planOrder": 0,
+          "outcome": "failure",
+          "error": "Objective review: Reviewer requested tools instead of returning a verdict\nChanged: docs/d9-receipt.txt",
+          "failureKind": "execution_error",
+          "blockReason": "approval_required",
+          "startedAt": "2026-10-26T15:33:17.221Z",
+          "ownershipScopes": [
+            "docs/d9-receipt.txt"
+          ],
+          "leaseIds": [],
+          "approvalId": "approval_1793028808247_fl04l",
+          "resultRef": ".alix/coordination/results/worker_dadf24ac-557c-4c79-b11e-19c048237bfd.json"
+        },
+        "toolAuthorization": {
+          "at": "2026-10-26T15:33:27.183Z",
+          "pid": 165058,
+          "type": "policy.tool",
+          "request": {
+            "requestId": "scripted-1793028807159-889901",
+            "toolName": "file.create",
+            "capability": "file.write",
+            "agentId": "alix",
+            "sessionId": "coord_1793028792807",
+            "source": "tool",
+            "cwd": "/tmp/alix-d9-review-baseline-VMiT8w/workspace",
+            "sessionMode": "ask",
+            "ownedPaths": [
+              "docs/d9-receipt.txt"
+            ],
+            "argsHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70"
+          },
+          "decision": {
+            "requestId": "scripted-1793028807159-889901",
+            "capability": "file.write",
+            "decision": "allow",
+            "reason": "Write targets owned path",
+            "matchedRuleId": "owned-path-rule",
+            "policyRevision": "817fba5cb5732d14c365a02542533264fe55ee1a7ec7076c6adf28e79f2d3db5"
+          }
+        },
+        "fileCreateCount": 1,
+        "approvals": [
+          {
+            "id": "approval_1793028795116_pz1br",
+            "status": "consumed",
+            "capabilities": [
+              "filesystem.write"
+            ],
+            "bindingKey": "fd8ffe3dcfdd447011ae72c163f63c08a0d1585999498ea3a28dfacb943780e4",
+            "workerId": "worker_dadf24ac-557c-4c79-b11e-19c048237bfd",
+            "createdAt": "2026-10-26T15:33:15.116Z",
+            "expiresAt": "2026-10-26T16:03:15.116Z"
+          },
+          {
+            "id": "approval_1793028808247_fl04l",
+            "status": "pending",
+            "capabilities": [
+              "filesystem.write"
+            ],
+            "bindingKey": "a47b21a9322c124c5ba5fbd01445bdaeb9c2a50795bd4c15834d6cfa4dcaf0c3",
+            "workerId": "worker_dadf24ac-557c-4c79-b11e-19c048237bfd",
+            "createdAt": "2026-10-26T15:33:28.247Z",
+            "expiresAt": "2026-10-26T16:03:28.247Z"
+          }
+        ],
+        "status": "Run: coord_70227952-a1ed-4e77-aebd-87b8a6cabef6\nStatus: blocked\nGoal: Create docs/d9-receipt.txt containing D9-APPROVED\nWorkers: 1 blocked\nAwaiting approval: approval_1793028808247_fl04l\nCreated: 2026-10-26T15:33:12.868Z\nUpdated: 2026-10-26T15:33:28.321Z\nAggregate: not yet generated\nCompletion: in progress\n  execution=running aggregation=not_required outcome=unknown verification=unverified\n",
+        "results": {
+          "schemaVersion": "1.0",
+          "runId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6",
+          "rootGoal": "Create docs/d9-receipt.txt containing D9-APPROVED",
+          "status": "blocked",
+          "outcome": "blocked",
+          "generatedAt": "2026-10-26T15:33:31.343Z",
+          "sourceFingerprint": "41883ebfe7dd4760c767c80590a57c4f7f4a0b3a6df0928138ad22c6687c515b",
+          "sourceRunUpdatedAt": "2026-10-26T15:33:28.321Z",
+          "complete": true,
+          "issues": [],
+          "counts": {
+            "workers": 1,
+            "completed": 0,
+            "failed": 0,
+            "blocked": 1,
+            "cancelled": 0,
+            "pending": 0,
+            "running": 0,
+            "successfulResults": 0,
+            "failedResults": 1,
+            "missingResults": 0
+          },
+          "workerResults": [
+            {
+              "workerId": "worker_dadf24ac-557c-4c79-b11e-19c048237bfd",
+              "taskLabel": "Create isolated receipt",
+              "goalPrompt": "Create docs/d9-receipt.txt containing D9-APPROVED",
+              "agentId": "alix#1",
+              "planOrder": 0,
+              "status": "blocked",
+              "attempt": 1,
+              "maxAttempts": 3,
+              "outcome": "failure",
+              "error": "Objective review: Reviewer requested tools instead of returning a verdict\nChanged: docs/d9-receipt.txt",
+              "failureKind": "execution_error",
+              "blockReason": "approval_required",
+              "startedAt": "2026-10-26T15:33:17.221Z"
+            }
+          ],
+          "failureChains": [],
+          "timing": {
+            "startedAt": "2026-10-26T15:33:17.221Z",
+            "totalWorkerDurationMs": 0
+          },
+          "synthesis": {
+            "status": "not_requested"
+          },
+          "aggregateRef": ".alix/coordination/results/runs/coord_70227952-a1ed-4e77-aebd-87b8a6cabef6.json"
+        },
+        "daemonExit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      "observations": [
+        {
+          "at": "2026-10-26T15:33:13.002Z",
+          "pid": 165058,
+          "type": "observer.ready",
+          "policyUnchanged": true
+        },
+        {
+          "at": "2026-10-26T15:33:15.177Z",
+          "pid": 165058,
+          "type": "policy.capability",
+          "request": {
+            "requestId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6:worker_dadf24ac-557c-4c79-b11e-19c048237bfd:filesystem.write:0",
+            "capability": "filesystem.write",
+            "agentId": "alix#1",
+            "sessionId": "coord_1793028792807",
+            "source": "tool",
+            "sessionMode": "ask",
+            "coordinationRunId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6",
+            "workerId": "worker_dadf24ac-557c-4c79-b11e-19c048237bfd",
+            "workerAttempt": 0
+          },
+          "decision": {
+            "requestId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6:worker_dadf24ac-557c-4c79-b11e-19c048237bfd:filesystem.write:0",
+            "capability": "filesystem.write",
+            "decision": "ask",
+            "reason": "Pending approval: approval_1793028795116_pz1br",
+            "approvalId": "approval_1793028795116_pz1br",
+            "matchedRuleId": "created-approval",
+            "policyRevision": "817fba5cb5732d14c365a02542533264fe55ee1a7ec7076c6adf28e79f2d3db5",
+            "bindingKey": "fd8ffe3dcfdd447011ae72c163f63c08a0d1585999498ea3a28dfacb943780e4",
+            "requestFingerprint": "filesystem.write"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:15.177Z",
+          "pid": 165058,
+          "type": "authorization",
+          "request": {
+            "requestId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6:worker_dadf24ac-557c-4c79-b11e-19c048237bfd:filesystem.write:0",
+            "capability": "filesystem.write",
+            "agentId": "alix#1",
+            "sessionId": "coord_1793028792807",
+            "source": "agent",
+            "cwd": "/tmp/alix-d9-review-baseline-VMiT8w/workspace",
+            "sessionMode": "ask",
+            "coordination": {
+              "coordinationRunId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6",
+              "workerId": "worker_dadf24ac-557c-4c79-b11e-19c048237bfd",
+              "workerAttempt": 0,
+              "ownershipClaims": [
+                {
+                  "path": "docs/d9-receipt.txt",
+                  "recursive": false,
+                  "sourcePattern": "docs/d9-receipt.txt"
+                }
+              ]
+            }
+          },
+          "decision": {
+            "status": "approval_required",
+            "approvalId": "approval_1793028795116_pz1br",
+            "reason": "Pending approval: approval_1793028795116_pz1br",
+            "policyRuleId": "created-approval",
+            "bindingKey": "fd8ffe3dcfdd447011ae72c163f63c08a0d1585999498ea3a28dfacb943780e4",
+            "requestFingerprint": "filesystem.write"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:17.219Z",
+          "pid": 165058,
+          "type": "policy.capability",
+          "request": {
+            "requestId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6:worker_dadf24ac-557c-4c79-b11e-19c048237bfd:filesystem.write:0",
+            "capability": "filesystem.write",
+            "agentId": "alix#1",
+            "sessionId": "coord_1793028792807",
+            "source": "tool",
+            "sessionMode": "ask",
+            "coordinationRunId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6",
+            "workerId": "worker_dadf24ac-557c-4c79-b11e-19c048237bfd",
+            "workerAttempt": 0
+          },
+          "decision": {
+            "requestId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6:worker_dadf24ac-557c-4c79-b11e-19c048237bfd:filesystem.write:0",
+            "capability": "filesystem.write",
+            "decision": "allow",
+            "reason": "Approved by prior exact binding",
+            "approvalId": "approval_1793028795116_pz1br",
+            "matchedRuleId": "exact-binding-approved",
+            "policyRevision": "817fba5cb5732d14c365a02542533264fe55ee1a7ec7076c6adf28e79f2d3db5",
+            "approvalConsumed": true
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:17.219Z",
+          "pid": 165058,
+          "type": "authorization",
+          "request": {
+            "requestId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6:worker_dadf24ac-557c-4c79-b11e-19c048237bfd:filesystem.write:0",
+            "capability": "filesystem.write",
+            "agentId": "alix#1",
+            "sessionId": "coord_1793028792807",
+            "source": "agent",
+            "cwd": "/tmp/alix-d9-review-baseline-VMiT8w/workspace",
+            "sessionMode": "ask",
+            "coordination": {
+              "coordinationRunId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6",
+              "workerId": "worker_dadf24ac-557c-4c79-b11e-19c048237bfd",
+              "workerAttempt": 0,
+              "ownershipClaims": [
+                {
+                  "path": "docs/d9-receipt.txt",
+                  "recursive": false,
+                  "sourcePattern": "docs/d9-receipt.txt"
+                }
+              ]
+            }
+          },
+          "decision": {
+            "status": "allowed",
+            "policyRuleId": "exact-binding-approved",
+            "approvalId": "approval_1793028795116_pz1br",
+            "approvalConsumed": true
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:17.711Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807",
+            "actor": "system",
+            "type": "session.started",
+            "payload": {
+              "cwd": "/tmp/alix-d9-review-baseline-VMiT8w/workspace",
+              "configHash": "mvp"
+            },
+            "id": "27cdaf4f-d5cc-4e5d-b0c0-fa3f53f330bf",
+            "seq": 1,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:17.710Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.166Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807-agent",
+            "actor": "agent",
+            "type": "agent.decision",
+            "payload": {
+              "kind": "tool_selection",
+              "iteration": 0,
+              "description": "Called alix_file_create",
+              "outcome": "executed"
+            },
+            "id": "6aec39d8-30e9-4918-b9e3-15a713d1e8a5",
+            "seq": 15,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.165Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.177Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807",
+            "actor": "system",
+            "type": "tool.requested",
+            "payload": {
+              "toolCallId": "scripted-1793028807159-889901",
+              "toolName": "file.create",
+              "capability": "file.write",
+              "canonicalCapability": "filesystem.write",
+              "argumentHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70",
+              "argsPreview": {
+                "path": "docs/d9-receipt.txt",
+                "content": "D9-APPROVED"
+              },
+              "executionId": "wf_e262fccc-c9d8-4aa0-b457-f2fd06cfa22a",
+              "invocationId": "inv-b52ff8ce-db84-4a29-a7eb-c85f7aca1fb9"
+            },
+            "id": "efdb3ba2-cfba-4060-b98d-c5558ac3d248",
+            "seq": 16,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.176Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.183Z",
+          "pid": 165058,
+          "type": "policy.tool",
+          "request": {
+            "requestId": "scripted-1793028807159-889901",
+            "toolName": "file.create",
+            "capability": "file.write",
+            "agentId": "alix",
+            "sessionId": "coord_1793028792807",
+            "source": "tool",
+            "cwd": "/tmp/alix-d9-review-baseline-VMiT8w/workspace",
+            "sessionMode": "ask",
+            "ownedPaths": [
+              "docs/d9-receipt.txt"
+            ],
+            "argsHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70"
+          },
+          "decision": {
+            "requestId": "scripted-1793028807159-889901",
+            "capability": "file.write",
+            "decision": "allow",
+            "reason": "Write targets owned path",
+            "matchedRuleId": "owned-path-rule",
+            "policyRevision": "817fba5cb5732d14c365a02542533264fe55ee1a7ec7076c6adf28e79f2d3db5"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.183Z",
+          "pid": 165058,
+          "type": "authorization",
+          "request": {
+            "requestId": "scripted-1793028807159-889901",
+            "toolName": "file.create",
+            "capability": "file.write",
+            "agentId": "alix",
+            "sessionId": "coord_1793028792807",
+            "source": "tool",
+            "cwd": "/tmp/alix-d9-review-baseline-VMiT8w/workspace",
+            "sessionMode": "ask",
+            "ownedPaths": [
+              "docs/d9-receipt.txt"
+            ],
+            "argsHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70"
+          },
+          "decision": {
+            "status": "allowed",
+            "policyRuleId": "owned-path-rule"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.185Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807",
+            "actor": "system",
+            "type": "tool.started",
+            "payload": {
+              "toolCallId": "scripted-1793028807159-889901",
+              "toolName": "file.create",
+              "argumentHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70",
+              "executionId": "wf_e262fccc-c9d8-4aa0-b457-f2fd06cfa22a",
+              "invocationId": "inv-b52ff8ce-db84-4a29-a7eb-c85f7aca1fb9"
+            },
+            "id": "5d8ca390-52e9-43cf-9e48-8c1897a7317a",
+            "seq": 17,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.184Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.195Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807",
+            "actor": "system",
+            "type": "file.created",
+            "payload": {
+              "path": "docs/d9-receipt.txt",
+              "resolvedPath": "/tmp/alix-d9-review-baseline-VMiT8w/workspace/docs/d9-receipt.txt",
+              "root": "/tmp/alix-d9-review-baseline-VMiT8w/workspace"
+            },
+            "id": "4afe5f40-61d6-486d-8eb6-0b5fdf3f34ca",
+            "seq": 20,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.194Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.199Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807",
+            "actor": "system",
+            "type": "tool.output",
+            "payload": {
+              "toolCallId": "scripted-1793028807159-889901",
+              "outputPreview": "File created: docs/d9-receipt.txt",
+              "outputSize": 33,
+              "executionId": "wf_e262fccc-c9d8-4aa0-b457-f2fd06cfa22a",
+              "invocationId": "inv-b52ff8ce-db84-4a29-a7eb-c85f7aca1fb9"
+            },
+            "id": "24988db5-3d08-4d54-ac55-efedabb3113a",
+            "seq": 22,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.198Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.200Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807",
+            "actor": "system",
+            "type": "tool.completed",
+            "payload": {
+              "toolCallId": "scripted-1793028807159-889901",
+              "toolName": "file.create",
+              "status": "success",
+              "durationMs": 23,
+              "canonicalCapability": "filesystem.write",
+              "argumentHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70",
+              "executionId": "wf_e262fccc-c9d8-4aa0-b457-f2fd06cfa22a",
+              "invocationId": "inv-b52ff8ce-db84-4a29-a7eb-c85f7aca1fb9"
+            },
+            "id": "c8515bbd-28ff-4cf9-9edb-b2f8b6e81e76",
+            "seq": 23,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.200Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.238Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807-agent",
+            "actor": "agent",
+            "type": "agent.message",
+            "payload": {
+              "text": "Done."
+            },
+            "id": "5c6cf392-1d59-4df8-8f2d-5d471267198f",
+            "seq": 27,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.236Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.243Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807-agent",
+            "actor": "agent",
+            "type": "agent.reasoning",
+            "payload": {
+              "text": "Done.",
+              "toolCalls": [],
+              "iteration": 1
+            },
+            "id": "a38ffee8-1749-4b50-ba41-4a51597094b1",
+            "seq": 29,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.242Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.267Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807",
+            "actor": "system",
+            "type": "session.ended",
+            "payload": {
+              "reason": "completed",
+              "summary": "Done.",
+              "unsubstantiatedClaims": [],
+              "objectiveEvidenceGaps": [],
+              "contextPressure": {
+                "aggregate": {
+                  "tier4Dropped": 0,
+                  "tier5Dropped": 0,
+                  "tier6Dropped": 0,
+                  "minRemainingTokens": 44109
+                },
+                "peak": {
+                  "iteration": 0,
+                  "tier4Dropped": 0,
+                  "tier5Dropped": 0,
+                  "tier6Dropped": 0,
+                  "remainingTokens": 44302
+                },
+                "totalIterations": 2
+              }
+            },
+            "id": "9e82688d-64f9-40e9-9591-44b660013517",
+            "seq": 30,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.266Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.337Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807",
+            "actor": "system",
+            "type": "tool.requested",
+            "payload": {
+              "toolCallId": "7cfebeca-7e06-4467-a6fc-46ddcca3c801",
+              "toolName": "file.read",
+              "capability": "file.read",
+              "canonicalCapability": "filesystem.read",
+              "argumentHash": "cdcbaae3ee44fc0c46b15793c40a90adcba6ffd6030a022ffec5b2033a589dca",
+              "argsPreview": {
+                "path": "docs/d9-receipt.txt"
+              },
+              "executionId": "",
+              "invocationId": ""
+            },
+            "id": "e5719bfd-1ddd-49b8-9372-7cdf852b81b4",
+            "seq": 37,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.337Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.337Z",
+          "pid": 165058,
+          "type": "policy.tool",
+          "request": {
+            "requestId": "7cfebeca-7e06-4467-a6fc-46ddcca3c801",
+            "toolName": "file.read",
+            "capability": "file.read",
+            "agentId": "alix",
+            "sessionId": "coord_1793028792807",
+            "source": "tool",
+            "cwd": "/tmp/alix-d9-review-baseline-VMiT8w/workspace",
+            "sessionMode": "ask",
+            "argsHash": "cdcbaae3ee44fc0c46b15793c40a90adcba6ffd6030a022ffec5b2033a589dca"
+          },
+          "decision": {
+            "requestId": "7cfebeca-7e06-4467-a6fc-46ddcca3c801",
+            "capability": "file.read",
+            "decision": "allow",
+            "reason": "Allowed by tool policy (mode: ask)",
+            "matchedRuleId": "tool-policy-file.read",
+            "policyRevision": "817fba5cb5732d14c365a02542533264fe55ee1a7ec7076c6adf28e79f2d3db5"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.337Z",
+          "pid": 165058,
+          "type": "authorization",
+          "request": {
+            "requestId": "7cfebeca-7e06-4467-a6fc-46ddcca3c801",
+            "toolName": "file.read",
+            "capability": "file.read",
+            "agentId": "alix",
+            "sessionId": "coord_1793028792807",
+            "source": "tool",
+            "cwd": "/tmp/alix-d9-review-baseline-VMiT8w/workspace",
+            "sessionMode": "ask",
+            "argsHash": "cdcbaae3ee44fc0c46b15793c40a90adcba6ffd6030a022ffec5b2033a589dca"
+          },
+          "decision": {
+            "status": "allowed",
+            "policyRuleId": "tool-policy-file.read"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.338Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807",
+            "actor": "system",
+            "type": "tool.started",
+            "payload": {
+              "toolCallId": "7cfebeca-7e06-4467-a6fc-46ddcca3c801",
+              "toolName": "file.read",
+              "argumentHash": "cdcbaae3ee44fc0c46b15793c40a90adcba6ffd6030a022ffec5b2033a589dca",
+              "executionId": "",
+              "invocationId": ""
+            },
+            "id": "12c65b36-4dcd-42fb-82e3-dfe5d7d83f11",
+            "seq": 38,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.338Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.341Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807",
+            "actor": "system",
+            "type": "tool.output",
+            "payload": {
+              "toolCallId": "7cfebeca-7e06-4467-a6fc-46ddcca3c801",
+              "outputPreview": "D9-APPROVED",
+              "outputSize": 11,
+              "executionId": "",
+              "invocationId": ""
+            },
+            "id": "145f25cf-605c-47ec-ab8d-625f228101aa",
+            "seq": 42,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.341Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:27.341Z",
+          "pid": 165058,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028792807",
+            "actor": "system",
+            "type": "tool.completed",
+            "payload": {
+              "observedLineCount": 1,
+              "toolCallId": "7cfebeca-7e06-4467-a6fc-46ddcca3c801",
+              "toolName": "file.read",
+              "status": "success",
+              "durationMs": 4,
+              "canonicalCapability": "filesystem.read",
+              "argumentHash": "cdcbaae3ee44fc0c46b15793c40a90adcba6ffd6030a022ffec5b2033a589dca",
+              "executionId": "",
+              "invocationId": ""
+            },
+            "id": "35adab46-d907-44a8-bc31-d4aaf5f312a9",
+            "seq": 43,
+            "version": 1,
+            "timestamp": "2026-10-26T15:33:27.341Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:28.319Z",
+          "pid": 165058,
+          "type": "policy.capability",
+          "request": {
+            "requestId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6:worker_dadf24ac-557c-4c79-b11e-19c048237bfd:filesystem.write:1",
+            "capability": "filesystem.write",
+            "agentId": "alix#1",
+            "sessionId": "coord_1793028792807",
+            "source": "tool",
+            "sessionMode": "ask",
+            "coordinationRunId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6",
+            "workerId": "worker_dadf24ac-557c-4c79-b11e-19c048237bfd",
+            "workerAttempt": 1
+          },
+          "decision": {
+            "requestId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6:worker_dadf24ac-557c-4c79-b11e-19c048237bfd:filesystem.write:1",
+            "capability": "filesystem.write",
+            "decision": "ask",
+            "reason": "Pending approval: approval_1793028808247_fl04l",
+            "approvalId": "approval_1793028808247_fl04l",
+            "matchedRuleId": "created-approval",
+            "policyRevision": "817fba5cb5732d14c365a02542533264fe55ee1a7ec7076c6adf28e79f2d3db5",
+            "bindingKey": "a47b21a9322c124c5ba5fbd01445bdaeb9c2a50795bd4c15834d6cfa4dcaf0c3",
+            "requestFingerprint": "filesystem.write"
+          }
+        },
+        {
+          "at": "2026-10-26T15:33:28.320Z",
+          "pid": 165058,
+          "type": "authorization",
+          "request": {
+            "requestId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6:worker_dadf24ac-557c-4c79-b11e-19c048237bfd:filesystem.write:1",
+            "capability": "filesystem.write",
+            "agentId": "alix#1",
+            "sessionId": "coord_1793028792807",
+            "source": "agent",
+            "cwd": "/tmp/alix-d9-review-baseline-VMiT8w/workspace",
+            "sessionMode": "ask",
+            "coordination": {
+              "coordinationRunId": "coord_70227952-a1ed-4e77-aebd-87b8a6cabef6",
+              "workerId": "worker_dadf24ac-557c-4c79-b11e-19c048237bfd",
+              "workerAttempt": 1,
+              "ownershipClaims": [
+                {
+                  "path": "docs/d9-receipt.txt",
+                  "recursive": false,
+                  "sourcePattern": "docs/d9-receipt.txt"
+                }
+              ]
+            }
+          },
+          "decision": {
+            "status": "approval_required",
+            "approvalId": "approval_1793028808247_fl04l",
+            "reason": "Pending approval: approval_1793028808247_fl04l",
+            "policyRuleId": "created-approval",
+            "bindingKey": "a47b21a9322c124c5ba5fbd01445bdaeb9c2a50795bd4c15834d6cfa4dcaf0c3",
+            "requestFingerprint": "filesystem.write"
+          }
+        }
+      ],
+      "scriptedTrace": [
+        {
+          "timestamp": "2026-10-26T15:33:12.814Z",
+          "pid": 165045,
+          "event": "step",
+          "source": "global",
+          "index": 0,
+          "kind": "text"
+        },
+        {
+          "timestamp": "2026-10-26T15:33:13.646Z",
+          "pid": 165058,
+          "event": "daemon.coordination.start",
+          "cwd": "/tmp/alix-d9-review-baseline-VMiT8w/workspace",
+          "provider": "scripted-mock",
+          "subagentsEnabled": false,
+          "scenarioEnvPresent": true
+        },
+        {
+          "timestamp": "2026-10-26T15:33:17.612Z",
+          "pid": 165058,
+          "event": "worker",
+          "workerId": "worker_dadf24ac-557c-4c79-b11e-19c048237bfd",
+          "provider": "scripted-mock",
+          "scenarioLoaded": true
+        },
+        {
+          "timestamp": "2026-10-26T15:33:27.158Z",
+          "pid": 165058,
+          "event": "step",
+          "source": "invocation",
+          "index": 0,
+          "kind": "tool"
+        },
+        {
+          "timestamp": "2026-10-26T15:33:27.231Z",
+          "pid": 165058,
+          "event": "step",
+          "source": "invocation",
+          "index": 1,
+          "kind": "text"
+        },
+        {
+          "timestamp": "2026-10-26T15:33:27.342Z",
+          "pid": 165058,
+          "event": "step",
+          "source": "global",
+          "index": 0,
+          "kind": "tool"
+        }
+      ],
+      "workerScenario": {
+        "steps": [
+          {
+            "kind": "tool",
+            "tool": "file.create",
+            "args": {
+              "path": "docs/d9-receipt.txt",
+              "content": "D9-APPROVED"
+            }
+          },
+          {
+            "kind": "text",
+            "text": "Done."
+          }
+        ]
+      },
+      "globalScenario": {
+        "steps": [
+          {
+            "kind": "tool",
+            "tool": "file.create",
+            "args": {
+              "path": "docs/d9-receipt.txt",
+              "content": "D9-APPROVED"
+            }
+          },
+          {
+            "kind": "text",
+            "text": "Done."
+          }
+        ]
+      },
+      "configurationSha256": "59ff2dc849d3e39808778399bc94c914ad4926bbab28962e06af3fc5f970dc38"
+    },
+    "corrected": {
+      "summary": {
+        "mode": "corrected",
+        "root": "/tmp/alix-d9-review-corrected-liGo1J",
+        "workspace": "/tmp/alix-d9-review-corrected-liGo1J/workspace",
+        "sourceHashes": {
+          "src/governance/policy/policy-gate.ts": "8e2658483f84bfc4b59ad3281a85bda352330f84b4ace39575b5168edb097c57",
+          "src/capabilities/tools/executor.ts": "c8da6906bf14af68f5174c37a5fd96e480e354fec560e75c6ad55c0d532ac86d",
+          "src/coordination/kernel/default-worker-review.ts": "c2aa637a2cdaa362b4a73e4117abe78ccc5e0c15ba66183e7027753b10dde208",
+          "src/coordination/kernel/worker-executor.ts": "97be22e536133a00dd5517c6c3771f6c45f526fdb0c2ba6a65a04a9df2e27fce",
+          "src/operations/evals/providers/scripted-mock-carrier.ts": "8f82af50bccf84b9bdbacbc437c10f0bf457c5607f4bbfc5629583ea59b8bedb"
+        },
+        "expected": "worker completed once",
+        "passed": true,
+        "runId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f",
+        "initialApprovalId": "approval_1793028846304_tv845",
+        "worker": {
+          "id": "worker_dfd36306-3dfc-4850-8c8f-a9a022708593",
+          "taskLabel": "Create isolated receipt",
+          "agentId": "alix#1",
+          "status": "completed",
+          "attempt": 1,
+          "maxAttempts": 3,
+          "planOrder": 0,
+          "outcome": "success",
+          "startedAt": "2026-10-26T15:34:08.554Z",
+          "completedAt": "2026-10-26T15:34:15.218Z",
+          "durationMs": 6664,
+          "ownershipScopes": [
+            "docs/d9-receipt.txt"
+          ],
+          "leaseIds": [],
+          "resultRef": ".alix/coordination/results/worker_dfd36306-3dfc-4850-8c8f-a9a022708593.json"
+        },
+        "toolAuthorization": {
+          "at": "2026-10-26T15:34:15.129Z",
+          "pid": 165532,
+          "type": "policy.tool",
+          "request": {
+            "requestId": "scripted-1793028855123-73970",
+            "toolName": "file.create",
+            "capability": "file.write",
+            "agentId": "alix",
+            "sessionId": "coord_1793028843804",
+            "source": "tool",
+            "cwd": "/tmp/alix-d9-review-corrected-liGo1J/workspace",
+            "sessionMode": "ask",
+            "ownedPaths": [
+              "docs/d9-receipt.txt"
+            ],
+            "argsHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70"
+          },
+          "decision": {
+            "requestId": "scripted-1793028855123-73970",
+            "capability": "file.write",
+            "decision": "allow",
+            "reason": "Write targets owned path",
+            "matchedRuleId": "owned-path-rule",
+            "policyRevision": "817fba5cb5732d14c365a02542533264fe55ee1a7ec7076c6adf28e79f2d3db5"
+          }
+        },
+        "fileCreateCount": 1,
+        "approvals": [
+          {
+            "id": "approval_1793028846304_tv845",
+            "status": "consumed",
+            "capabilities": [
+              "filesystem.write"
+            ],
+            "bindingKey": "879205e3507a0d38f418272939076d9d0e595dfdb26df71f09dfcfeec8fe4558",
+            "workerId": "worker_dfd36306-3dfc-4850-8c8f-a9a022708593",
+            "createdAt": "2026-10-26T15:34:06.304Z",
+            "expiresAt": "2026-10-26T16:04:06.304Z"
+          }
+        ],
+        "status": "Run: coord_3d7b6326-136f-48e4-994c-34427155ac6f\nStatus: completed\nGoal: Create docs/d9-receipt.txt containing D9-APPROVED\nWorkers: 1 completed\nCreated: 2026-10-26T15:34:03.866Z\nUpdated: 2026-10-26T15:34:15.323Z\nAggregate: .alix/coordination/results/runs/coord_3d7b6326-136f-48e4-994c-34427155ac6f.json (fresh)\nOutcome: success\nCompletion: completed; not verified\n  execution=completed aggregation=generated outcome=success verification=unverified\n",
+        "results": {
+          "schemaVersion": "1.0",
+          "runId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f",
+          "rootGoal": "Create docs/d9-receipt.txt containing D9-APPROVED",
+          "status": "completed",
+          "outcome": "success",
+          "generatedAt": "2026-10-26T15:34:15.323Z",
+          "sourceFingerprint": "0e440da1501cd7d838bad716a64027cf8bde9397fae2876a87724ccbdb837879",
+          "sourceRunUpdatedAt": "2026-10-26T15:34:15.271Z",
+          "complete": true,
+          "issues": [],
+          "counts": {
+            "workers": 1,
+            "completed": 1,
+            "failed": 0,
+            "blocked": 0,
+            "cancelled": 0,
+            "pending": 0,
+            "running": 0,
+            "successfulResults": 1,
+            "failedResults": 0,
+            "missingResults": 0
+          },
+          "workerResults": [
+            {
+              "workerId": "worker_dfd36306-3dfc-4850-8c8f-a9a022708593",
+              "taskLabel": "Create isolated receipt",
+              "goalPrompt": "Create docs/d9-receipt.txt containing D9-APPROVED",
+              "agentId": "alix#1",
+              "planOrder": 0,
+              "status": "completed",
+              "attempt": 1,
+              "maxAttempts": 3,
+              "outcome": "success",
+              "startedAt": "2026-10-26T15:34:08.554Z",
+              "completedAt": "2026-10-26T15:34:15.218Z",
+              "durationMs": 6664,
+              "summary": "[summary] Objective review: The persisted receipt contains exactly D9-APPROVED.\n[summary] Done."
+            }
+          ],
+          "failureChains": [],
+          "timing": {
+            "startedAt": "2026-10-26T15:34:08.554Z",
+            "completedAt": "2026-10-26T15:34:15.218Z",
+            "wallClockDurationMs": 6664,
+            "totalWorkerDurationMs": 6664
+          },
+          "synthesis": {
+            "status": "not_requested"
+          },
+          "aggregateRef": ".alix/coordination/results/runs/coord_3d7b6326-136f-48e4-994c-34427155ac6f.json"
+        },
+        "daemonExit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      "observations": [
+        {
+          "at": "2026-10-26T15:34:04.024Z",
+          "pid": 165532,
+          "type": "observer.ready",
+          "policyUnchanged": true
+        },
+        {
+          "at": "2026-10-26T15:34:06.458Z",
+          "pid": 165532,
+          "type": "policy.capability",
+          "request": {
+            "requestId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f:worker_dfd36306-3dfc-4850-8c8f-a9a022708593:filesystem.write:0",
+            "capability": "filesystem.write",
+            "agentId": "alix#1",
+            "sessionId": "coord_1793028843804",
+            "source": "tool",
+            "sessionMode": "ask",
+            "coordinationRunId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f",
+            "workerId": "worker_dfd36306-3dfc-4850-8c8f-a9a022708593",
+            "workerAttempt": 0
+          },
+          "decision": {
+            "requestId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f:worker_dfd36306-3dfc-4850-8c8f-a9a022708593:filesystem.write:0",
+            "capability": "filesystem.write",
+            "decision": "ask",
+            "reason": "Pending approval: approval_1793028846304_tv845",
+            "approvalId": "approval_1793028846304_tv845",
+            "matchedRuleId": "created-approval",
+            "policyRevision": "817fba5cb5732d14c365a02542533264fe55ee1a7ec7076c6adf28e79f2d3db5",
+            "bindingKey": "879205e3507a0d38f418272939076d9d0e595dfdb26df71f09dfcfeec8fe4558",
+            "requestFingerprint": "filesystem.write"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:06.459Z",
+          "pid": 165532,
+          "type": "authorization",
+          "request": {
+            "requestId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f:worker_dfd36306-3dfc-4850-8c8f-a9a022708593:filesystem.write:0",
+            "capability": "filesystem.write",
+            "agentId": "alix#1",
+            "sessionId": "coord_1793028843804",
+            "source": "agent",
+            "cwd": "/tmp/alix-d9-review-corrected-liGo1J/workspace",
+            "sessionMode": "ask",
+            "coordination": {
+              "coordinationRunId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f",
+              "workerId": "worker_dfd36306-3dfc-4850-8c8f-a9a022708593",
+              "workerAttempt": 0,
+              "ownershipClaims": [
+                {
+                  "path": "docs/d9-receipt.txt",
+                  "recursive": false,
+                  "sourcePattern": "docs/d9-receipt.txt"
+                }
+              ]
+            }
+          },
+          "decision": {
+            "status": "approval_required",
+            "approvalId": "approval_1793028846304_tv845",
+            "reason": "Pending approval: approval_1793028846304_tv845",
+            "policyRuleId": "created-approval",
+            "bindingKey": "879205e3507a0d38f418272939076d9d0e595dfdb26df71f09dfcfeec8fe4558",
+            "requestFingerprint": "filesystem.write"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:08.552Z",
+          "pid": 165532,
+          "type": "policy.capability",
+          "request": {
+            "requestId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f:worker_dfd36306-3dfc-4850-8c8f-a9a022708593:filesystem.write:0",
+            "capability": "filesystem.write",
+            "agentId": "alix#1",
+            "sessionId": "coord_1793028843804",
+            "source": "tool",
+            "sessionMode": "ask",
+            "coordinationRunId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f",
+            "workerId": "worker_dfd36306-3dfc-4850-8c8f-a9a022708593",
+            "workerAttempt": 0
+          },
+          "decision": {
+            "requestId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f:worker_dfd36306-3dfc-4850-8c8f-a9a022708593:filesystem.write:0",
+            "capability": "filesystem.write",
+            "decision": "allow",
+            "reason": "Approved by prior exact binding",
+            "approvalId": "approval_1793028846304_tv845",
+            "matchedRuleId": "exact-binding-approved",
+            "policyRevision": "817fba5cb5732d14c365a02542533264fe55ee1a7ec7076c6adf28e79f2d3db5",
+            "approvalConsumed": true
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:08.552Z",
+          "pid": 165532,
+          "type": "authorization",
+          "request": {
+            "requestId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f:worker_dfd36306-3dfc-4850-8c8f-a9a022708593:filesystem.write:0",
+            "capability": "filesystem.write",
+            "agentId": "alix#1",
+            "sessionId": "coord_1793028843804",
+            "source": "agent",
+            "cwd": "/tmp/alix-d9-review-corrected-liGo1J/workspace",
+            "sessionMode": "ask",
+            "coordination": {
+              "coordinationRunId": "coord_3d7b6326-136f-48e4-994c-34427155ac6f",
+              "workerId": "worker_dfd36306-3dfc-4850-8c8f-a9a022708593",
+              "workerAttempt": 0,
+              "ownershipClaims": [
+                {
+                  "path": "docs/d9-receipt.txt",
+                  "recursive": false,
+                  "sourcePattern": "docs/d9-receipt.txt"
+                }
+              ]
+            }
+          },
+          "decision": {
+            "status": "allowed",
+            "policyRuleId": "exact-binding-approved",
+            "approvalId": "approval_1793028846304_tv845",
+            "approvalConsumed": true
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:08.968Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804",
+            "actor": "system",
+            "type": "session.started",
+            "payload": {
+              "cwd": "/tmp/alix-d9-review-corrected-liGo1J/workspace",
+              "configHash": "mvp"
+            },
+            "id": "3fff3e3f-16d2-417f-a5c7-c5101731f65b",
+            "seq": 1,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:08.966Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.124Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804-agent",
+            "actor": "agent",
+            "type": "agent.decision",
+            "payload": {
+              "kind": "tool_selection",
+              "iteration": 0,
+              "description": "Called alix_file_create",
+              "outcome": "executed"
+            },
+            "id": "7a433773-a94e-42a0-bad3-464671d6056f",
+            "seq": 15,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.124Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.128Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804",
+            "actor": "system",
+            "type": "tool.requested",
+            "payload": {
+              "toolCallId": "scripted-1793028855123-73970",
+              "toolName": "file.create",
+              "capability": "file.write",
+              "canonicalCapability": "filesystem.write",
+              "argumentHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70",
+              "argsPreview": {
+                "path": "docs/d9-receipt.txt",
+                "content": "D9-APPROVED"
+              },
+              "executionId": "wf_82112052-8a21-4d88-b256-d6100f7d7931",
+              "invocationId": "inv-5a2462c7-2e5f-43b8-a571-7b3138537dc5"
+            },
+            "id": "82fa5ddc-2274-401d-a9fb-a5232bbbc172",
+            "seq": 16,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.127Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.129Z",
+          "pid": 165532,
+          "type": "policy.tool",
+          "request": {
+            "requestId": "scripted-1793028855123-73970",
+            "toolName": "file.create",
+            "capability": "file.write",
+            "agentId": "alix",
+            "sessionId": "coord_1793028843804",
+            "source": "tool",
+            "cwd": "/tmp/alix-d9-review-corrected-liGo1J/workspace",
+            "sessionMode": "ask",
+            "ownedPaths": [
+              "docs/d9-receipt.txt"
+            ],
+            "argsHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70"
+          },
+          "decision": {
+            "requestId": "scripted-1793028855123-73970",
+            "capability": "file.write",
+            "decision": "allow",
+            "reason": "Write targets owned path",
+            "matchedRuleId": "owned-path-rule",
+            "policyRevision": "817fba5cb5732d14c365a02542533264fe55ee1a7ec7076c6adf28e79f2d3db5"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.129Z",
+          "pid": 165532,
+          "type": "authorization",
+          "request": {
+            "requestId": "scripted-1793028855123-73970",
+            "toolName": "file.create",
+            "capability": "file.write",
+            "agentId": "alix",
+            "sessionId": "coord_1793028843804",
+            "source": "tool",
+            "cwd": "/tmp/alix-d9-review-corrected-liGo1J/workspace",
+            "sessionMode": "ask",
+            "ownedPaths": [
+              "docs/d9-receipt.txt"
+            ],
+            "argsHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70"
+          },
+          "decision": {
+            "status": "allowed",
+            "policyRuleId": "owned-path-rule"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.129Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804",
+            "actor": "system",
+            "type": "tool.started",
+            "payload": {
+              "toolCallId": "scripted-1793028855123-73970",
+              "toolName": "file.create",
+              "argumentHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70",
+              "executionId": "wf_82112052-8a21-4d88-b256-d6100f7d7931",
+              "invocationId": "inv-5a2462c7-2e5f-43b8-a571-7b3138537dc5"
+            },
+            "id": "bf131e40-d81a-45bf-b80c-cf14698401b0",
+            "seq": 17,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.129Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.133Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804",
+            "actor": "system",
+            "type": "file.created",
+            "payload": {
+              "path": "docs/d9-receipt.txt",
+              "resolvedPath": "/tmp/alix-d9-review-corrected-liGo1J/workspace/docs/d9-receipt.txt",
+              "root": "/tmp/alix-d9-review-corrected-liGo1J/workspace"
+            },
+            "id": "08ce6255-fdb0-4f02-b4fa-353a133d71cf",
+            "seq": 20,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.133Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.134Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804",
+            "actor": "system",
+            "type": "tool.output",
+            "payload": {
+              "toolCallId": "scripted-1793028855123-73970",
+              "outputPreview": "File created: docs/d9-receipt.txt",
+              "outputSize": 33,
+              "executionId": "wf_82112052-8a21-4d88-b256-d6100f7d7931",
+              "invocationId": "inv-5a2462c7-2e5f-43b8-a571-7b3138537dc5"
+            },
+            "id": "933ee453-723f-4553-8785-a7ece2a7b1c1",
+            "seq": 22,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.134Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.135Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804",
+            "actor": "system",
+            "type": "tool.completed",
+            "payload": {
+              "toolCallId": "scripted-1793028855123-73970",
+              "toolName": "file.create",
+              "status": "success",
+              "durationMs": 7,
+              "canonicalCapability": "filesystem.write",
+              "argumentHash": "6cb04ec2f93b7eaa3b3232c20c27697b9df706100d8dfd3e59ac689c32a7fe70",
+              "executionId": "wf_82112052-8a21-4d88-b256-d6100f7d7931",
+              "invocationId": "inv-5a2462c7-2e5f-43b8-a571-7b3138537dc5"
+            },
+            "id": "d632e08c-4127-4604-b9b9-8fa34288072b",
+            "seq": 23,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.135Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.145Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804-agent",
+            "actor": "agent",
+            "type": "agent.message",
+            "payload": {
+              "text": "Done."
+            },
+            "id": "d7e1b0a1-505c-44ef-a382-ec247ff0a605",
+            "seq": 27,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.145Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.146Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804-agent",
+            "actor": "agent",
+            "type": "agent.reasoning",
+            "payload": {
+              "text": "Done.",
+              "toolCalls": [],
+              "iteration": 1
+            },
+            "id": "cf36dc8d-8113-4b94-94b6-c3283418e3f7",
+            "seq": 29,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.146Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.152Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804",
+            "actor": "system",
+            "type": "session.ended",
+            "payload": {
+              "reason": "completed",
+              "summary": "Done.",
+              "unsubstantiatedClaims": [],
+              "objectiveEvidenceGaps": [],
+              "contextPressure": {
+                "aggregate": {
+                  "tier4Dropped": 0,
+                  "tier5Dropped": 0,
+                  "tier6Dropped": 0,
+                  "minRemainingTokens": 44104
+                },
+                "peak": {
+                  "iteration": 0,
+                  "tier4Dropped": 0,
+                  "tier5Dropped": 0,
+                  "tier6Dropped": 0,
+                  "remainingTokens": 44302
+                },
+                "totalIterations": 2
+              }
+            },
+            "id": "3ad7fbc4-c4a8-4f59-8996-b6f5edacdf97",
+            "seq": 30,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.151Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.213Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804",
+            "actor": "system",
+            "type": "tool.requested",
+            "payload": {
+              "toolCallId": "b360ef8e-6684-4eaf-89d1-5f6a5d3e0461",
+              "toolName": "file.read",
+              "capability": "file.read",
+              "canonicalCapability": "filesystem.read",
+              "argumentHash": "cdcbaae3ee44fc0c46b15793c40a90adcba6ffd6030a022ffec5b2033a589dca",
+              "argsPreview": {
+                "path": "docs/d9-receipt.txt"
+              },
+              "executionId": "",
+              "invocationId": ""
+            },
+            "id": "3b6d4d1a-eac0-41c7-b884-75890d37e360",
+            "seq": 37,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.213Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.213Z",
+          "pid": 165532,
+          "type": "policy.tool",
+          "request": {
+            "requestId": "b360ef8e-6684-4eaf-89d1-5f6a5d3e0461",
+            "toolName": "file.read",
+            "capability": "file.read",
+            "agentId": "alix",
+            "sessionId": "coord_1793028843804",
+            "source": "tool",
+            "cwd": "/tmp/alix-d9-review-corrected-liGo1J/workspace",
+            "sessionMode": "ask",
+            "argsHash": "cdcbaae3ee44fc0c46b15793c40a90adcba6ffd6030a022ffec5b2033a589dca"
+          },
+          "decision": {
+            "requestId": "b360ef8e-6684-4eaf-89d1-5f6a5d3e0461",
+            "capability": "file.read",
+            "decision": "allow",
+            "reason": "Allowed by tool policy (mode: ask)",
+            "matchedRuleId": "tool-policy-file.read",
+            "policyRevision": "817fba5cb5732d14c365a02542533264fe55ee1a7ec7076c6adf28e79f2d3db5"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.213Z",
+          "pid": 165532,
+          "type": "authorization",
+          "request": {
+            "requestId": "b360ef8e-6684-4eaf-89d1-5f6a5d3e0461",
+            "toolName": "file.read",
+            "capability": "file.read",
+            "agentId": "alix",
+            "sessionId": "coord_1793028843804",
+            "source": "tool",
+            "cwd": "/tmp/alix-d9-review-corrected-liGo1J/workspace",
+            "sessionMode": "ask",
+            "argsHash": "cdcbaae3ee44fc0c46b15793c40a90adcba6ffd6030a022ffec5b2033a589dca"
+          },
+          "decision": {
+            "status": "allowed",
+            "policyRuleId": "tool-policy-file.read"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.214Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804",
+            "actor": "system",
+            "type": "tool.started",
+            "payload": {
+              "toolCallId": "b360ef8e-6684-4eaf-89d1-5f6a5d3e0461",
+              "toolName": "file.read",
+              "argumentHash": "cdcbaae3ee44fc0c46b15793c40a90adcba6ffd6030a022ffec5b2033a589dca",
+              "executionId": "",
+              "invocationId": ""
+            },
+            "id": "e9fc3ffb-6d4e-4cf4-bdd2-38007c50d4ea",
+            "seq": 38,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.213Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.216Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804",
+            "actor": "system",
+            "type": "tool.output",
+            "payload": {
+              "toolCallId": "b360ef8e-6684-4eaf-89d1-5f6a5d3e0461",
+              "outputPreview": "D9-APPROVED",
+              "outputSize": 11,
+              "executionId": "",
+              "invocationId": ""
+            },
+            "id": "d3bdd401-e411-4745-8e8f-830156da1969",
+            "seq": 42,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.216Z"
+          }
+        },
+        {
+          "at": "2026-10-26T15:34:15.216Z",
+          "pid": 165532,
+          "type": "event",
+          "event": {
+            "sessionId": "coord_1793028843804",
+            "actor": "system",
+            "type": "tool.completed",
+            "payload": {
+              "observedLineCount": 1,
+              "toolCallId": "b360ef8e-6684-4eaf-89d1-5f6a5d3e0461",
+              "toolName": "file.read",
+              "status": "success",
+              "durationMs": 4,
+              "canonicalCapability": "filesystem.read",
+              "argumentHash": "cdcbaae3ee44fc0c46b15793c40a90adcba6ffd6030a022ffec5b2033a589dca",
+              "executionId": "",
+              "invocationId": ""
+            },
+            "id": "1eeec3b1-a46e-4cab-849e-3b966383cddc",
+            "seq": 43,
+            "version": 1,
+            "timestamp": "2026-10-26T15:34:15.216Z"
+          }
+        }
+      ],
+      "scriptedTrace": [
+        {
+          "timestamp": "2026-10-26T15:34:03.811Z",
+          "pid": 165454,
+          "event": "step",
+          "source": "global",
+          "index": 0,
+          "kind": "text"
+        },
+        {
+          "timestamp": "2026-10-26T15:34:04.853Z",
+          "pid": 165532,
+          "event": "daemon.coordination.start",
+          "cwd": "/tmp/alix-d9-review-corrected-liGo1J/workspace",
+          "provider": "scripted-mock",
+          "subagentsEnabled": false,
+          "scenarioEnvPresent": true
+        },
+        {
+          "timestamp": "2026-10-26T15:34:08.867Z",
+          "pid": 165532,
+          "event": "worker",
+          "workerId": "worker_dfd36306-3dfc-4850-8c8f-a9a022708593",
+          "provider": "scripted-mock",
+          "scenarioLoaded": true
+        },
+        {
+          "timestamp": "2026-10-26T15:34:15.122Z",
+          "pid": 165532,
+          "event": "step",
+          "source": "invocation",
+          "index": 0,
+          "kind": "tool"
+        },
+        {
+          "timestamp": "2026-10-26T15:34:15.144Z",
+          "pid": 165532,
+          "event": "step",
+          "source": "invocation",
+          "index": 1,
+          "kind": "text"
+        },
+        {
+          "timestamp": "2026-10-26T15:34:15.217Z",
+          "pid": 165532,
+          "event": "step",
+          "source": "global",
+          "index": 0,
+          "kind": "text"
+        }
+      ],
+      "workerScenario": {
+        "steps": [
+          {
+            "kind": "tool",
+            "tool": "file.create",
+            "args": {
+              "path": "docs/d9-receipt.txt",
+              "content": "D9-APPROVED"
+            }
+          },
+          {
+            "kind": "text",
+            "text": "Done."
+          }
+        ]
+      },
+      "globalScenario": {
+        "steps": [
+          {
+            "kind": "text",
+            "text": "{\"satisfied\":true,\"summary\":\"The persisted receipt contains exactly D9-APPROVED.\",\"gaps\":[]}"
+          }
+        ]
+      },
+      "configurationSha256": "59ff2dc849d3e39808778399bc94c914ad4926bbab28962e06af3fc5f970dc38"
+    }
+  },
+  "controls": {
+    "sourceHashesEqual": true,
+    "configurationHashesEqual": true,
+    "workerScenariosEqual": true,
+    "toolPolicyRevisionEqual": true,
+    "toolArgumentHashEqual": true,
+    "toolRule": "owned-path-rule",
+    "baselineObservedReviewerToolFailure": true,
+    "correctedOneCompletedAttempt": true,
+    "correctedApprovalCount": 1,
+    "correctedFileCreateCount": 1,
+    "correctedVerification": "unverified"
+  }
+}

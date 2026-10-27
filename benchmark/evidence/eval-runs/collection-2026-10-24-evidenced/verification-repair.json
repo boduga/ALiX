@@ -1,0 +1,922 @@
+{
+  "startedAt": "2026-10-24T07:04:14.770Z",
+  "finishedAt": "2026-10-24T07:06:24.177Z",
+  "frozen": {
+    "model": {
+      "provider": "hive",
+      "name": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revision": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "revisionSource": "model-id-snapshot"
+    },
+    "configHash": "4e4a10ef92218ae89868c9cb6367fd620bd5751a33ab76d6984b9ee52e353db7",
+    "offeredToolsHash": "24fb49fdfe87f7d8cb65b381189169a65f9649d909d02905a810ead8349e0164",
+    "offeredTools": [
+      "alix_collaboration_get_dependency_results",
+      "alix_collaboration_list_conflicts",
+      "alix_collaboration_publish_artifact",
+      "alix_collaboration_publish_finding",
+      "alix_collaboration_query_findings",
+      "alix_collaboration_report_conflict",
+      "alix_coordination_list",
+      "alix_coordination_results",
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_create_skill",
+      "alix_delegate",
+      "alix_done",
+      "alix_execution_state_propose",
+      "alix_file_create",
+      "alix_file_delete",
+      "alix_file_exists",
+      "alix_file_read",
+      "alix_glob_match",
+      "alix_grep_search",
+      "alix_hook_create",
+      "alix_inspect_extension",
+      "alix_list_extensions",
+      "alix_mcp_search_tools",
+      "alix_patch_apply",
+      "alix_schedule_propose",
+      "alix_shell_run",
+      "alix_state_query",
+      "alix_verify_claim",
+      "alix_web_fetch",
+      "alix_web_search"
+    ],
+    "corpusHash": "9ed559998d4b7e8a7bf4497992e0d45a4daf430aace084b31a3c6dc52ba2ce74",
+    "corpusFiles": [
+      {
+        "path": "src/operations/evals/cases/index.ts",
+        "sha256": "09d36787693d5ded9e8c32c4123366f208bd2aa0563651c6c4e2749f48c3827e"
+      },
+      {
+        "path": "src/operations/evals/cases/behavioral.ts",
+        "sha256": "4beb2ff22fbd65b0e2272ae05f8b752c430d1048905deeeb6226e4126ada4e09"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-2-4.ts",
+        "sha256": "3963f18afd4408cb13bd1d25c0e46210e6684e782ec81293054134c4a7381e5f"
+      },
+      {
+        "path": "src/operations/evals/cases/strata-5-10.ts",
+        "sha256": "9cab91edcb4a8f88bffdd9934fa524aeee27e5b7bc7d2d472e7814a196e0a35a"
+      },
+      {
+        "path": "src/operations/evals/cases/stratum-9-local.ts",
+        "sha256": "e77b9b30647c58e0b5e7dea3e37bb1f0a6d76e0970f4e5b6cfc020deb4df8f2d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/objective-evaluator.ts",
+        "sha256": "76869222509ac0a78d7e0dde1104d47e98c07abd9d1553964ec85c4072b6d56d"
+      },
+      {
+        "path": "src/operations/evals/evaluators/status-evaluator.ts",
+        "sha256": "3b16532d05fa07a8005ff3ade2fa52f03c7315435e322f2dc847a3858d759cd4"
+      },
+      {
+        "path": "src/operations/evals/eval-guards.ts",
+        "sha256": "a9b379a9aa87e949dc17256f0d7a9659326cf3e8352aa12d531111e80f2a5d6b"
+      },
+      {
+        "path": "src/operations/evals/eval-admissibility.ts",
+        "sha256": "721408143ecec8e42039e510f32b13a088b2958c8cfb4d47a9d227fbba9ef9a7"
+      }
+    ],
+    "environment": {
+      "node": "v26.11.0",
+      "platform": "linux",
+      "arch": "x64",
+      "cpuCount": 4,
+      "cpuModel": "Intel(R) Core(TM) i3-8145U CPU @ 2.10GHz",
+      "totalMemoryBytes": 12284481536
+    },
+    "pricing": {
+      "source": "operator-declared proxy: openai/gpt-4o catalog rate (defaultPricingCatalog), not a Hive-published rate",
+      "effectiveFrom": "2025-01-01",
+      "inputPerMillion": 2.5,
+      "outputPerMillion": 10,
+      "currency": "USD",
+      "observedAt": "2026-10-23T00:00:00.000Z",
+      "provenance": "operator-snapshot",
+      "note": "Operator-supplied rate snapshot; retained with the run."
+    },
+    "blocking": [],
+    "admissible": true
+  },
+  "suiteDurationMs": 129407,
+  "model": {
+    "provider": "hive",
+    "name": "deepseek-ai/deepseek-v4.1-flash-1017"
+  },
+  "results": [
+    {
+      "caseId": "behavioral.verification-repair",
+      "stratum": "verification-repair",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:04:14.770Z",
+      "finishedAt": "2026-10-24T07:04:43.770Z",
+      "durationMs": 29000,
+      "toolCalls": 4,
+      "toolCallsCompleted": 4,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/config.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const timeoutMs = 3000;\n"
+        },
+        "actual": {
+          "content": "export const timeoutMs = 3000;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-2361b773-cf79-11f1-b89c-0a7cbda7979f-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 8,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-2361b773-cf79-11f1-b89c-0a7cbda7979f-0-1",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo \"exit=$?\""
+              },
+              "requestIndex": 9,
+              "terminalIndex": 15,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-2509f165-cf79-11f1-8f0c-cb6fb09762af-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE"
+              },
+              "requestIndex": 17,
+              "terminalIndex": 29,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-2722a7b2-cf79-11f1-883a-875ef526de66-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo exit=$?"
+              },
+              "requestIndex": 31,
+              "terminalIndex": 37,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/config.ts",
+            "exists": true,
+            "sha256": "936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc",
+            "content": "export const timeoutMs = 3000;\n",
+            "bytes": 31
+          }
+        ],
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:92250a9618c5a4b68262cd3de8e1250895e9c6fb840b9a766a444fb91875d820",
+            "src": "directory",
+            "src/config.ts": "file:936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": null,
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-verification-repair",
+          "runId": null
+        },
+        "capturedAt": "2026-10-24T07:04:43.767Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-verification-repair",
+      "usage": {
+        "inputTokens": 23139,
+        "outputTokens": 603,
+        "observed": true
+      },
+      "costUsd": 0.06387749999999999,
+      "completeness": "complete",
+      "pricedRecords": 4,
+      "totalRecords": 4,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.verification-repair",
+      "stratum": "verification-repair",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:04:43.770Z",
+      "finishedAt": "2026-10-24T07:05:22.786Z",
+      "durationMs": 39016,
+      "toolCalls": 7,
+      "toolCallsCompleted": 6,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 2,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/config.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const timeoutMs = 3000;\n"
+        },
+        "actual": {
+          "content": "export const timeoutMs = 3000;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-3449d53a-cf79-11f1-a997-9dddc03d5cc3-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 8,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-3449d53a-cf79-11f1-a997-9dddc03d5cc3-0-1",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo \"exit=$?\""
+              },
+              "requestIndex": 9,
+              "terminalIndex": 15,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-364a6ea2-cf79-11f1-aaab-5afcdbfbb7c1-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE"
+              },
+              "requestIndex": 17,
+              "terminalIndex": 29,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-392580f9-cf79-11f1-b7ea-531099710359-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE"
+              },
+              "requestIndex": 31,
+              "terminalIndex": 42,
+              "outcome": "failed",
+              "error": "Search block not found for src/config.ts"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-3e584327-cf79-11f1-8334-cc0878c23148-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "od -c src/config.ts && wc -c src/config.ts"
+              },
+              "requestIndex": 45,
+              "terminalIndex": 51,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-42923bfe-cf79-11f1-ade2-6f54f831d6bb-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 53,
+              "terminalIndex": 59,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-42923bfe-cf79-11f1-ade2-6f54f831d6bb-0-1",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\" && echo PASS"
+              },
+              "requestIndex": 60,
+              "terminalIndex": 66,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/config.ts",
+            "exists": true,
+            "sha256": "936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc",
+            "content": "export const timeoutMs = 3000;\n",
+            "bytes": 31
+          }
+        ],
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:92250a9618c5a4b68262cd3de8e1250895e9c6fb840b9a766a444fb91875d820",
+            "src": "directory",
+            "src/config.ts": "file:936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": null,
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-verification-repair",
+          "runId": null
+        },
+        "capturedAt": "2026-10-24T07:05:22.783Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-verification-repair",
+      "usage": {
+        "inputTokens": 29224,
+        "outputTokens": 929,
+        "observed": true
+      },
+      "costUsd": 0.08235,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.verification-repair",
+      "stratum": "verification-repair",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:05:22.786Z",
+      "finishedAt": "2026-10-24T07:05:38.659Z",
+      "durationMs": 15873,
+      "toolCalls": 5,
+      "toolCallsCompleted": 4,
+      "toolCallsFailed": 1,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/config.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const timeoutMs = 3000;\n"
+        },
+        "actual": {
+          "content": "export const timeoutMs = 3000;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-4b07249a-cf79-11f1-b1d2-3cd53333d9c4-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 8,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-4bc977ce-cf79-11f1-aa7c-b3428d425964-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\""
+              },
+              "requestIndex": 10,
+              "terminalIndex": 15,
+              "outcome": "failed",
+              "error": "Command exited with code 1: node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"\n"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-4cd72ff2-cf79-11f1-9d26-8e0463fa2df6-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE"
+              },
+              "requestIndex": 18,
+              "terminalIndex": 30,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-4e09b855-cf79-11f1-bdeb-258de9aebb34-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo \"exit=$?\""
+              },
+              "requestIndex": 32,
+              "terminalIndex": 38,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-5069b5e5-cf79-11f1-b647-d8ab68df0013-0-0",
+              "toolName": "task.complete",
+              "args": {},
+              "requestIndex": 40,
+              "terminalIndex": 43,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/config.ts",
+            "exists": true,
+            "sha256": "936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc",
+            "content": "export const timeoutMs = 3000;\n",
+            "bytes": 31
+          }
+        ],
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:92250a9618c5a4b68262cd3de8e1250895e9c6fb840b9a766a444fb91875d820",
+            "src": "directory",
+            "src/config.ts": "file:936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": null,
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-verification-repair",
+          "runId": null
+        },
+        "capturedAt": "2026-10-24T07:05:38.656Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-verification-repair",
+      "usage": {
+        "inputTokens": 28976,
+        "outputTokens": 788,
+        "observed": true
+      },
+      "costUsd": 0.08032,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.verification-repair",
+      "stratum": "verification-repair",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:05:38.660Z",
+      "finishedAt": "2026-10-24T07:05:57.559Z",
+      "durationMs": 18899,
+      "toolCalls": 5,
+      "toolCallsCompleted": 3,
+      "toolCallsFailed": 2,
+      "rejectedCalls": 0,
+      "repeatedCalls": 1,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/config.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const timeoutMs = 3000;\n"
+        },
+        "actual": {
+          "content": "export const timeoutMs = 3000;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-544cc88c-cf79-11f1-acbb-5c36d8e486a4-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 8,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-56356067-cf79-11f1-9e05-9721b1ff35df-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo \"exit=$?\"; od -c src/config.ts"
+              },
+              "requestIndex": 10,
+              "terminalIndex": 16,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-582edabd-cf79-11f1-9872-74bb759c86fb-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE"
+              },
+              "requestIndex": 18,
+              "terminalIndex": 30,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-5950cb74-cf79-11f1-a137-5c8d956028e1-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE"
+              },
+              "requestIndex": 32,
+              "terminalIndex": 43,
+              "outcome": "failed",
+              "error": "Search block not found for src/config.ts"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-5b59fbb8-cf79-11f1-8d2a-3d2bfbab11ef-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE src/config.ts"
+              },
+              "requestIndex": 46,
+              "terminalIndex": 55,
+              "outcome": "failed",
+              "error": "Patch rejected: No patch hunks were parsed from the search_replace payload \u2014 the patch syntax is malformed or empty. Each search_replace block must be exactly `<<<<<<< SEARCH path=<file>` (the path on the SAME line as SEARCH), then the original text, then `=======`, then the replacement text, then `>>>>>>> REPLACE`. To create a NEW file, use alix_file_create instead of patch.apply."
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/config.ts",
+            "exists": true,
+            "sha256": "936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc",
+            "content": "export const timeoutMs = 3000;\n",
+            "bytes": 31
+          }
+        ],
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:92250a9618c5a4b68262cd3de8e1250895e9c6fb840b9a766a444fb91875d820",
+            "src": "directory",
+            "src/config.ts": "file:936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": null,
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-verification-repair",
+          "runId": null
+        },
+        "capturedAt": "2026-10-24T07:05:57.558Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-verification-repair",
+      "usage": {
+        "inputTokens": 29027,
+        "outputTokens": 1041,
+        "observed": true
+      },
+      "costUsd": 0.0829775,
+      "completeness": "complete",
+      "pricedRecords": 5,
+      "totalRecords": 5,
+      "rateSource": "pinned-rate"
+    },
+    {
+      "caseId": "behavioral.verification-repair",
+      "stratum": "verification-repair",
+      "driver": "delegate",
+      "provider": "hive",
+      "model": "deepseek-ai/deepseek-v4.1-flash-1017",
+      "startedAt": "2026-10-24T07:05:57.559Z",
+      "finishedAt": "2026-10-24T07:06:24.177Z",
+      "durationMs": 26618,
+      "toolCalls": 4,
+      "toolCallsCompleted": 4,
+      "toolCallsFailed": 0,
+      "rejectedCalls": 0,
+      "repeatedCalls": 0,
+      "toolRetries": 0,
+      "providerRetries": null,
+      "driverReinvocations": null,
+      "operatorInterventions": 0,
+      "operatorCancellations": 0,
+      "operatorActiveReviewMinutes": null,
+      "unobserved": [
+        "provider retries are not emitted by the event vocabulary",
+        "manual re-runs are per-sweep events, not per-case session evidence",
+        "driver re-invocations are not recorded per case",
+        "operator active review minutes require human observation"
+      ],
+      "verdict": "fail",
+      "inadmissible": false,
+      "inadmissibleReason": null,
+      "verifiedSuccess": false,
+      "objectiveLanded": true,
+      "statusHonest": true,
+      "statusActual": "success",
+      "statusExpected": [
+        "success"
+      ],
+      "objectiveExpected": true,
+      "objectiveEvidence": {
+        "path": "src/config.ts",
+        "exists": true,
+        "expected": {
+          "contentEquals": "export const timeoutMs = 3000;\n"
+        },
+        "actual": {
+          "content": "export const timeoutMs = 3000;\n"
+        },
+        "mismatches": []
+      },
+      "guardEvidence": {
+        "satisfied": false,
+        "mismatches": [
+          "required executed tool sequence not observed within one session"
+        ],
+        "toolEvidence": {
+          "complete": true,
+          "records": [
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-5f71a4f3-cf79-11f1-b0c3-5fbd8b4ca7f8-0-0",
+              "toolName": "file.read",
+              "args": {
+                "path": "src/config.ts"
+              },
+              "requestIndex": 2,
+              "terminalIndex": 8,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-5f71a4f3-cf79-11f1-b0c3-5fbd8b4ca7f8-0-1",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo \"exit=$?\"; cat -A src/config.ts"
+              },
+              "requestIndex": 9,
+              "terminalIndex": 15,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-631a5b3f-cf79-11f1-aa38-cacf8b5d8464-0-0",
+              "toolName": "patch.apply",
+              "args": {
+                "format": "search_replace",
+                "patchText": "<<<<<<< SEARCH path=src/config.ts\nexport const timeoutMs = 500;\n=======\nexport const timeoutMs = 3000;\n>>>>>>> REPLACE"
+              },
+              "requestIndex": 17,
+              "terminalIndex": 29,
+              "outcome": "success"
+            },
+            {
+              "sessionId": "eval:behavioral.verification-repair",
+              "toolCallId": "call-63d6a669-cf79-11f1-9a88-4f4ef28e3729-0-0",
+              "toolName": "shell.run",
+              "args": {
+                "command": "node -e \"process.exit(require('node:fs').readFileSync('src/config.ts','utf8') === 'export const timeoutMs = 3000;\\n' ? 0 : 1)\"; echo \"exit=$?\""
+              },
+              "requestIndex": 31,
+              "terminalIndex": 37,
+              "outcome": "success"
+            }
+          ],
+          "errors": []
+        }
+      },
+      "evidence": {
+        "objectiveTargets": [
+          {
+            "path": "src/config.ts",
+            "exists": true,
+            "sha256": "936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc",
+            "content": "export const timeoutMs = 3000;\n",
+            "bytes": 31
+          }
+        ],
+        "workspace": {
+          "entries": {
+            ".semantic-search-index.json": "file:92250a9618c5a4b68262cd3de8e1250895e9c6fb840b9a766a444fb91875d820",
+            "src": "directory",
+            "src/config.ts": "file:936e898abc8451f67062b92d299fc3f79aa1e682dd5e60f3a274f3125f416cdc"
+          },
+          "truncated": false
+        },
+        "outsideSentinel": null,
+        "runtime": {
+          "status": "success",
+          "reason": null,
+          "summary": null,
+          "error": null,
+          "provider": "hive",
+          "sessionId": "eval-behavioral-verification-repair",
+          "runId": null
+        },
+        "capturedAt": "2026-10-24T07:06:24.176Z"
+      },
+      "runId": null,
+      "sessionId": "eval-behavioral-verification-repair",
+      "usage": {
+        "inputTokens": 23212,
+        "outputTokens": 883,
+        "observed": true
+      },
+      "costUsd": 0.06686,
+      "completeness": "complete",
+      "pricedRecords": 4,
+      "totalRecords": 4,
+      "rateSource": "pinned-rate"
+    }
+  ],
+  "latency": {
+    "observed": true,
+    "samples": 5,
+    "p50Ms": 26618,
+    "p95Ms": 39016
+  },
+  "verifiedSuccesses": 0,
+  "inadmissible": 0,
+  "costUsd": 0.37638499999999997
+}

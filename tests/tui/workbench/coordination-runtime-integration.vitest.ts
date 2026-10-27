@@ -286,7 +286,13 @@ describe('Phase9 public coordination port with real handlers and scheduler', () 
     const protectedRead = await new ToolExecutor(
       f.config, f.log, f.cwd, undefined, undefined, undefined, undefined, f.approvalStore,
     ).execute({ toolCallId: 'protected-read-check', name: 'file.read', args: { path: '.env' } } as any);
-    expect(protectedRead).toMatchObject({ kind: 'error', message: expect.stringMatching(/path is protected/i) });
+    // The protected-path rule fires in `PolicyGate` now that relative patterns
+    // are matched against a workspace-relative path, so the refusal surfaces as
+    // a policy `denied` rather than reaching the router's `error`. Same outcome,
+    // earlier layer: it must still be refused, still name protection, and still
+    // never become an approval request the operator could grant.
+    expect(protectedRead.kind).toBe('denied');
+    expect(String((protectedRead as { reason?: string }).reason)).toMatch(/path is protected/i);
     await f.approvalStore.load();
     expect(f.approvalStore.listPending()).toHaveLength(0);
   }, 120_000);
@@ -402,14 +408,20 @@ describe('Phase9 public coordination port with real handlers and scheduler', () 
     expect(reclaimed.reclaimedWorkerIds).toEqual([worker.id]);
     const run = (await f.store.load(planned.run.id))!;
     expect(run).toMatchObject({ id: planned.run.id, sessionMode: 'ask', maxConcurrency: 1 });
-    expect(run.workers[0]).toMatchObject({ id: worker.id, status: 'pending', attempt: 1, ownershipScopes: worker.ownershipScopes });
+    // Reclaim resets to pending WITHOUT charging an attempt: the next successful
+    // atomic execution claim increments it. Charging here as well produced
+    // attempt=3 where 2 was expected (double increment), which is why the
+    // increment was moved to the claim. See coordination-resume.test.ts
+    // "reclaims dead-owner running workers to pending without charging another attempt".
+    expect(run.workers[0]).toMatchObject({ id: worker.id, status: 'pending', attempt: 0, ownershipScopes: worker.ownershipScopes });
     const scheduler = createCoordinationScheduler({ cwd: f.cwd, daemonInstanceId: `tool-${process.pid}`, store: f.store, eventLog: f.log,
       configProvider: async () => f.config, ownershipRegistry: new OwnershipRegistry(f.cwd), executor: f.executor,
       authorization: { evaluate: async () => ({ status: 'allowed' }) } as any,
     }, { maxConcurrency: run.maxConcurrency });
     try {
       await scheduler.runUntilIdle(run.id, { pollIntervalMs: 5, timeoutMs: 5000 });
-      expect(executed).toEqual([`${worker.id}:2`]);
+      // One charge, at the claim: 0 -> 1.
+      expect(executed).toEqual([`${worker.id}:1`]);
       const resumed = (await f.store.load(run.id))!;
       expect(resumed).toMatchObject({ id: run.id, sessionId: f.id, sessionMode: 'ask', maxConcurrency: 1, status: 'completed' });
       await vi.waitFor(async () => {

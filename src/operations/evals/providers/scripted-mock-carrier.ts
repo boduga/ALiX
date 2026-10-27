@@ -12,7 +12,38 @@
  * @module
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
+import { appendFileSync } from "node:fs";
+
+/** Opt-in evaluation diagnostics; never records prompts, tool arguments, or scenario contents. */
+export function traceScriptedEval(event: Record<string, string | number | boolean | null>): void {
+  const path = process.env.ALIX_EVAL_TRACE_FILE;
+  if (!path || !process.env.ALIX_EVAL_TRACE || process.env.ALIX_EVAL_TRACE !== "1") return;
+  try {
+    appendFileSync(path, JSON.stringify({ timestamp: new Date().toISOString(), pid: process.pid, ...event }) + "\n", { flag: "a" });
+  } catch {
+    // Diagnostics must never change worker execution or approval outcomes.
+  }
+}
 import type { ScriptedModelStep, ScriptedScenario } from "./scripted-mock-provider.js";
+
+const invocationScenario = new AsyncLocalStorage<{ scenario: ScriptedScenario; cursor: number }>();
+
+/** Isolate a deterministic script to one async worker invocation. */
+export function withScriptedScenario<T>(scenario: ScriptedScenario, run: () => Promise<T>): Promise<T> {
+  return invocationScenario.run({ scenario, cursor: 0 }, run);
+}
+
+/** Read the test-only scenario without mutating the process-global carrier. */
+export function scriptedScenarioFromEnv(): ScriptedScenario | null {
+  const raw = process.env.ALIX_EVAL_SCENARIO;
+  if (!raw) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    return value && typeof value === "object" && Array.isArray((value as ScriptedScenario).steps)
+      ? value as ScriptedScenario : null;
+  } catch { return null; }
+}
 
 export type ScriptedCarrier = {
   current: ScriptedScenario | null;
@@ -73,10 +104,24 @@ export function clearScriptedScenario(): void {
  * scenario is active or all steps are exhausted.
  */
 export function advanceScriptedStep(): ScriptedModelStep | undefined {
+  const invocation = invocationScenario.getStore();
+  if (invocation) {
+    const index = invocation.cursor++;
+    const step = invocation.scenario.steps[index];
+    traceScriptedEval({ event: "step", source: "invocation", index, kind: step?.kind ?? "exhausted" });
+    if (process.env.ALIX_EVAL_TRACE === "1") {
+      process.stderr.write(`[scripted-eval] pid=${process.pid} source=invocation step=${index} kind=${step?.kind ?? "exhausted"}\n`);
+    }
+    return step;
+  }
   hydrateFromEnv();
   const scenario = scriptedMockCarrier.current;
   if (!scenario) return undefined;
   const step = scenario.steps[scriptedMockCarrier.calls];
+  traceScriptedEval({ event: "step", source: "global", index: scriptedMockCarrier.calls, kind: step?.kind ?? "exhausted" });
+  if (process.env.ALIX_EVAL_TRACE === "1") {
+    process.stderr.write(`[scripted-eval] pid=${process.pid} source=global step=${scriptedMockCarrier.calls} kind=${step?.kind ?? "exhausted"}\n`);
+  }
   if (!step) return undefined;
   scriptedMockCarrier.calls += 1;
   return step;
