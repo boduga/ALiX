@@ -125,3 +125,25 @@ describe("WorkspacePathResolver", () => {
     assert.ok(resolver.isTraversalSafe("./src/index.ts"));
   });
 });
+
+describe('path-pattern separator parity', () => {
+  const resolver = new WorkspacePathResolver('C:\\workspace', ['C:/workspace/secrets/**']);
+  for (const path of [
+    'C:/workspace/.git/config', String.raw`C:\workspace\.git\config`,
+    'C:/workspace/.alix/approvals.json', String.raw`C:\workspace\.alix\approvals.json`,
+    'C:/Users/operator/.ssh/id_rsa', String.raw`C:\Users\operator\.ssh\id_rsa`,
+  ]) {
+    it(`sensitive: ${path}`, () => assert.equal(resolver.isSensitive(path), true));
+  }
+  for (const [path, expected] of [
+    ['C:/workspace/secrets/token', true], [String.raw`C:\workspace\secrets\token`, true],
+    ['C:/workspace/secrets', true], ['C:/workspace/secrets-other/token', false],
+    ['C:/workspace/.github/config', false],
+  ] as const) {
+    it(`protected: ${path} -> ${expected}`, () => assert.equal(resolver.isProtected(path), expected));
+  }
+  it('ordinary Windows paths remain non-sensitive', () => {
+    assert.equal(resolver.isSensitive(String.raw`C:\workspace\src\index.ts`), false);
+    assert.equal(resolver.isSensitive(String.raw`C:\workspace\.github\config`), false);
+  });
+});

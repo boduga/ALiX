@@ -97,18 +97,16 @@ export class WorkspacePathResolver {
   }
 
   isProtected(absolutePath: string): boolean {
-    const relative = absolutePath.startsWith(this.workspaceRoot)
-      ? absolutePath.slice(this.workspaceRoot.length + 1)
-      : absolutePath;
+    const workspacePath = relative(resolve(this.workspaceRoot), resolve(absolutePath));
     for (const pattern of this.protectedPaths) {
       if (this.matchesPattern(absolutePath, pattern)) return true;
-      if (this.matchesPattern(relative, pattern)) return true;
+      if (this.matchesPattern(workspacePath, pattern)) return true;
     }
     return false;
   }
 
   isSensitive(absolutePath: string): boolean {
-    return SENSITIVE_PATTERNS.some((re) => re.test(absolutePath));
+    return SENSITIVE_PATTERNS.some((re) => re.test(absolutePath.replaceAll("\\", "/")));
   }
 
   check(rawPath: string): ResolvedPath {
@@ -136,6 +134,8 @@ export class WorkspacePathResolver {
   }
 
   private matchesPattern(path: string, pattern: string): boolean {
+    path = path.replaceAll("\\", "/");
+    pattern = pattern.replaceAll("\\", "/");
     if (pattern.endsWith("/**")) {
       const prefix = pattern.slice(0, -3);
       return path === prefix || path.startsWith(prefix + "/");

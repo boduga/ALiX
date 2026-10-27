@@ -93,6 +93,18 @@ async function startCoordinationService(): Promise<void> {
   }
 
   const ownershipRegistry = new OwnershipRegistry(defaultCwd);
+  // One containment check and log constructor for scheduler events and resumes.
+  const openSessionLog = async (sessionId: string): Promise<EventLog> => {
+    if (typeof sessionId !== "string" || !sessionId) throw new Error("Coordination event requires a session ID");
+    const sessionsRoot = resolve(defaultCwd, ".alix", "sessions");
+    const sessionDir = resolve(sessionsRoot, sessionId);
+    if (sessionDir === sessionsRoot || relativeIsOutside(relative(sessionsRoot, sessionDir))) {
+      throw new Error("Coordination event session escapes session root");
+    }
+    const log = new EventLog(sessionDir);
+    await log.init();
+    return log;
+  };
   const scheduler = createCoordinationScheduler({
     cwd: defaultCwd,
     daemonInstanceId: `daemon-${process.pid}`,
@@ -108,26 +120,12 @@ async function startCoordinationService(): Promise<void> {
     // in the run's own session, where deriveRunCompletion reads it.
     eventLog: {
       append: async event => {
-        if (typeof event.sessionId !== "string" || !event.sessionId) throw new Error("Coordination event requires a session ID");
-        const sessionsRoot = resolve(defaultCwd, ".alix", "sessions");
-        const sessionDir = resolve(sessionsRoot, event.sessionId);
-        if (sessionDir === sessionsRoot || relativeIsOutside(relative(sessionsRoot, sessionDir))) {
-          throw new Error("Coordination event session escapes session root");
-        }
-        const log = new EventLog(sessionDir);
-        await log.init();
+        const log = await openSessionLog(event.sessionId);
         try { return await log.append(event); }
         finally { await log.close(); }
       },
       appendIfAbsent: async (event, matches) => {
-        if (typeof event.sessionId !== "string" || !event.sessionId) throw new Error("Coordination event requires a session ID");
-        const sessionsRoot = resolve(defaultCwd, ".alix", "sessions");
-        const sessionDir = resolve(sessionsRoot, event.sessionId);
-        if (sessionDir === sessionsRoot || relativeIsOutside(relative(sessionsRoot, sessionDir))) {
-          throw new Error("Coordination event session escapes session root");
-        }
-        const log = new EventLog(sessionDir);
-        await log.init();
+        const log = await openSessionLog(event.sessionId);
         try { return await log.appendIfAbsent(event, matches); }
         finally { await log.close(); }
       },
@@ -140,11 +138,7 @@ async function startCoordinationService(): Promise<void> {
   coordinationService.start();
   const { DaemonToolContinuationResumer } = await import("./tool-continuation-resumer.js");
   if (approvalStore) toolContinuationResumer = new DaemonToolContinuationResumer(defaultCwd, config, store,
-    approvalStore, ownershipRegistry, async sessionId => {
-      const log = new EventLog(join(defaultCwd, ".alix", "sessions", sessionId));
-      await log.init();
-      return log;
-    });
+    approvalStore, ownershipRegistry, openSessionLog);
   approvalWatcher = new ApprovalWatcher(defaultCwd, coordinationService, {
     resumeApproved: async id => { await toolContinuationResumer?.resumeApproved(id); },
   });

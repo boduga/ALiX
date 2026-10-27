@@ -1,4 +1,4 @@
-/** LEAN-G01 prospective acceptance: identity/attempt/invocation, no tool effects. */
+/** LEAN-G01 regression acceptance: identity/attempt/invocation, no tool effects. */
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -23,7 +23,7 @@ async function fixture() {
   return { store, approval, request, invocation };
 }
 
-describe('LEAN-G01 worker attempt and invocation acceptance (prospective)', () => {
+describe('LEAN-G01 worker attempt and invocation acceptance', () => {
   it('rejects a different execution attempt without consuming approval', async () => {
     const { store, approval, request, invocation } = await fixture();
     const result = await store.consumeApproved(approval.id, request.bindingKey, { workerId: 'worker-a', workerAttempt: 3 }, invocation);

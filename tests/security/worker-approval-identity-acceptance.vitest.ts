@@ -1,4 +1,4 @@
-/** LEAN-G01 prospective security acceptance: expected RED for known identity defects. */
+/** LEAN-G01 security regression acceptance for worker identity. */
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -28,7 +28,7 @@ async function fixture() {
   return { store, created, request };
 }
 
-describe('LEAN-G01 worker-bound approval acceptance (prospective)', () => {
+describe('LEAN-G01 worker-bound approval acceptance', () => {
   it('rejects missing consumer identity and preserves approved state', async () => {
     const { store, created, request } = await fixture();
     expect((await store.consumeApproved(created.id, request.bindingKey, {})).consumed).toBe(false);

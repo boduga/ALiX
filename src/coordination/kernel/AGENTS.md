@@ -39,6 +39,7 @@
   on `leaseIds` any lease that failed to release, so a later reclaim retries
   it; the old signature blanket-cleared and left live records blocking later
   runs until TTL).
+- `coordination-run-lock.ts` — Token-safe per-run acquisition always attempts once, even with a zero contention budget; parent-directory setup does not consume the retry budget.
 - `replan-proposal-store.ts` — Atomic durable proposal lifecycle at
   `.alix/coordination/replans/<runId>/<proposalId>.json`; its injected clock
   keeps timestamp assertions deterministic.

@@ -14,6 +14,7 @@ plus the path-scope arithmetic both enforcement points share.
   (`claimScopesOverlap`, R3.2) also lives here: planner serialization, lease
   conflicts, and runtime authorization are three questions over ONE matcher
   module and must not drift into disagreeing answers.
+- `owned-scope-channels.ts` — The single `SCOPABLE_WRITE_TOOLS` allowlist and channel-denial verdict shared by policy and executor enforcement. Known read-only tools pass; unknown executors fail closed regardless of supplied capability keys.
 - `ownership-registry.ts` — The registry of live ownership claims: which agent
   holds which paths, with lease ids.
 - `ownership-types.ts` — `PathScope`, `OwnershipScope`, `OwnershipMode`, `OwnershipStatus`, `OwnershipRecord`, `AcquireResult`, `OwnershipStore`, `OwnershipEventSink`.

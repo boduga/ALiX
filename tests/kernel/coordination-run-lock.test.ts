@@ -18,6 +18,18 @@ describe("CoordinationRunLock", () => {
     assert.equal(lock.isHeld(), false);
   });
 
+  // Nonblocking probes perform one filesystem attempt; no wait or clock mock.
+  it("tries a free lock once with a zero wait budget and still rejects contention", { timeout: 2_000 }, async () => {
+    const first = new CoordinationRunLock(cwd, "probe");
+    const second = new CoordinationRunLock(cwd, "probe");
+    try {
+      assert.equal(await first.acquire(0), true);
+      assert.equal(await second.acquire(0), false);
+      first.release();
+      assert.equal(await second.acquire(0), true);
+    } finally { first.release(); second.release(); }
+  });
+
   it("blocks second acquisition", async () => {
     const lock1 = new CoordinationRunLock(cwd, "run-1");
     const lock2 = new CoordinationRunLock(cwd, "run-1");

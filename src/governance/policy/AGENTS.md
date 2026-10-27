@@ -16,33 +16,21 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
 ## Local Contracts
 
 - **Owned-scope matching is owned by `src/coordination/ownership/AGENTS.md`.** This gate is
-  one of the enforcement points (with the `ToolExecutor` continuation/owned path and `FileToolRouter`) and calls `isWithinOwnedScope`; it must
-
-- **Owned-scope channel rule is one module.** `src/coordination/ownership/owned-scope-channels.ts`
-  decides whether a requested tool can be constrained to `ownedPaths` at all. It is an
-  ALLOWLIST of scopable write tools (`SCOPABLE_WRITE_TOOLS`), because a deny-list of
-  unscopable channels cannot be complete — the review found `skill.create`,
-  `agent.delegate`, `hook.create`, `coordination.run` and dynamic `mcp__*` outside the
-  first list. Mutability is read from `ToolCapabilityRegistry.resolve(toolName).mutates`,
-  NOT from `isReadonlyCapability(inferCapability(t))`: those two read different axes
-  (`policyKey` vs `capabilityId`), and combining them answered "read-only" for
-  `shell.run` and `file.create`.
-- **Rule ids are a durable audit surface.** These `matchedRuleId` values are emitted by
-  this gate and must stay stable:
-  `unscopable-mutation-rule` (declared scope + unconstrainable channel),
-  `consumed-binding-denied` (replay of a spent coordination binding),
-  `binding-claim-lost` (claim raced after a read),
-  `approval-store-missing` (no store; NOT a denial of the command — callers must not
-  treat it as one).
-  never grow its own matcher or re-normalize a grant. The rule, the fail-closed
-  cases, and the workspace-wide vocabulary are documented there — read them
-  there rather than restating them here. A blanket capability allow never
-  widens a grant: when the request declares owned paths for a write tool, the
-  owned-path rule decides (allow inside the scope, deny outside it) and runs
-  BEFORE any tool-permission allow can short-circuit it. Returning that allow
-  first made the rule unreachable — the write capability's permission resolves
-  to "allow" under auto/bypass session modes, so a worker scoped to one file
-  could write anywhere in the workspace.
+  one of the enforcement points (with the `ToolExecutor` continuation/owned path and `FileToolRouter`)
+  and calls `isWithinOwnedScope`; it must never grow its own matcher or re-normalize a grant.
+  A blanket capability allow never widens a grant: the owned-path rule decides every
+  declared-scope write before tool-permission allows can short-circuit it.
+- **Owned-scope channels have one allowlist.** `src/coordination/ownership/owned-scope-channels.ts`
+  exports `SCOPABLE_WRITE_TOOLS` for path-check admission and `unscopableChannelDenial`
+  for channel denial. Mutability comes from the executor's registry entry, never a
+  caller-supplied capability policy key. Unknown tools fail closed; known read-only
+  tools remain unaffected. Add scopable mutation channels only in that module.
+- **Explicit tool denials precede approval prompts.** A configured capability deny
+  is checked before shell-whitelist and evasion asks in every session mode.
+- **Rule ids are a durable audit surface.** Preserve `unscopable-mutation-rule`,
+  `consumed-binding-denied`, `binding-claim-lost`, and `approval-store-missing`.
+  The last means the approval authority is unavailable; callers must not treat it
+  as an operator denial of the command.
 - Two-layer enforcement: capability coverage first, policy second.
 - **Protected-path patterns are workspace-relative; the gate holds absolute paths, so it compares BOTH forms.** Comparing resolved absolute paths only against the shipped relative defaults (`.git/**`, `.env`, `secrets/**`) meant the rule never matched and silently never fired. `isProtectedPath` now takes `(patterns, absolutePath, relativePath?)` and matches either. `/**` prefixes must match the directory itself or a descendant — a bare `startsWith` over-blocks `.gitignore`/`.github/` — and `.*` suffixes keep exact-or-suffixed semantics. A protected read now refuses in the gate (`denied`) rather than reaching the router's `error`; same refusal, earlier layer, and it still never becomes an approvable request. Parity table: `tests/security/policy-protected-path-parity.vitest.ts` (relative and absolute forms, over-block negatives, patch targets under an owned scope).
 - Most-restrictive-wins across multiple capabilities: deny > ask > allow.

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile, readFile, unlink, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { closeSharedLedger } from "../../src/runtime-state/storage/runtime-ledger.js";
 import type { NormalizedRequest } from "../../src/models/providers/types.js";
 
 const harness = vi.hoisted(() => ({ complete: vi.fn(), execute: vi.fn(), durable: [] as { type: string; payload?: unknown }[], providerConfig: null as { timeoutMs?: number; streamIdleTimeoutMs?: number } | null }));
@@ -47,6 +48,7 @@ describe("child provider call budget", () => {
       process.chdir(cwd);
       process.exitCode = oldExit;
       if (tty) Object.defineProperty(process.stdin, "isTTY", tty); else Reflect.deleteProperty(process.stdin, "isTTY");
+      closeSharedLedger(root);
       await rm(root, { recursive: true, force: true });
     }
   });
@@ -91,6 +93,7 @@ describe("coordination worker completion boundary", () => {
       process.chdir(cwd);
       process.exitCode = oldExit;
       if (tty) Object.defineProperty(process.stdin, "isTTY", tty); else Reflect.deleteProperty(process.stdin, "isTTY");
+      closeSharedLedger(root);
       await rm(root, { recursive: true, force: true });
     }
   });
@@ -155,6 +158,7 @@ describe("coordination worker completion boundary", () => {
       process.chdir(cwd);
       process.exitCode = oldExit;
       if (tty) Object.defineProperty(process.stdin, "isTTY", tty); else Reflect.deleteProperty(process.stdin, "isTTY");
+      closeSharedLedger(root);
       await rm(root, { recursive: true, force: true });
     }
   });
@@ -205,6 +209,7 @@ describe("coordination worker completion boundary", () => {
       process.chdir(cwd);
       process.exitCode = oldExit;
       if (tty) Object.defineProperty(process.stdin, "isTTY", tty); else Reflect.deleteProperty(process.stdin, "isTTY");
+      closeSharedLedger(root);
       await rm(root, { recursive: true, force: true });
     }
   });

@@ -55,32 +55,17 @@ export const SCOPABLE_WRITE_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * True when this tool mutates state through a channel a declared owned scope
- * cannot constrain.
- *
- * Unknown tools fail closed (deny), because their mutability cannot be
- * established either way.
- */
-export function isUnscopableMutation(toolName: string, capability?: string): boolean {
-  if (SCOPABLE_WRITE_TOOLS.has(toolName)) return false;
-  const entry = resolveCataloguedExecutor(catalog, toolName)
-    ?? (capability ? catalog.resolve(capability) : undefined);
-  if (!entry) return true; // no identity, no proof: fail closed
-  return entry.mutates;
-}
-
-/**
- * Decide whether a request that DECLARED an owned scope may proceed on the
- * strength of that scope alone.
- *
- * Returns `null` when the channel is constrainable (the caller must then compare
- * the actual targets), or a denial reason when it is not.
+ * Deny channels a declared owned scope cannot constrain. Known read-only tools
+ * need no write authority; unknown tools fail closed because their mutability
+ * is unproven. Capability policy keys never establish executor identity.
+ * Returns null for scopable writes (callers must still compare actual targets).
  */
 export function unscopableChannelDenial(
   params: { toolName: string; capability?: string; ownedPaths?: readonly string[] },
 ): string | null {
-  if (!params.ownedPaths?.length) return null; // no scope declared: nothing to violate
-  if (!isUnscopableMutation(params.toolName, params.capability)) return null;
+  if (!params.ownedPaths?.length || SCOPABLE_WRITE_TOOLS.has(params.toolName)) return null;
+  const entry = resolveCataloguedExecutor(catalog, params.toolName);
+  if (entry && !entry.mutates) return null;
   const name = params.capability || params.toolName || "unknown";
   return (
     `Capability '${name}' cannot be constrained to owned paths ` +

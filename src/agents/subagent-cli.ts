@@ -3,6 +3,7 @@
  * Invoked by SubagentManager.spawn() as a child process via `alix run --subagent`.
  */
 import { parseArgs } from "util";
+import { pathToFileURL } from "node:url";
 import { basename, isAbsolute, relative, resolve } from "path";
 import { mkdir } from "fs/promises";
 import { readFileSync } from "node:fs";
@@ -1093,6 +1094,6 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
 }
 
 // Allow direct invocation: node dist/src/agents/subagent-cli.js --subagent explorer --task-id x --prompt y --session-id z
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   SubagentCLI.main(process.argv.slice(2));
 }

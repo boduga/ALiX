@@ -265,7 +265,7 @@ describe("control 6 — approval-gated execution", () => {
     const gate = new PolicyGate(config as never);
     const decision = await gate.evaluateToolCall({
       requestId: "iso-2",
-      // Executor identity, not the model-facing alias: OWNED_WRITE_TOOLS is
+      // Executor identity, not the model-facing alias: SCOPABLE_WRITE_TOOLS is
       // keyed by executor id, so an alias here would silently skip the rule.
       toolName: "file.create",
       capability: "file.write",

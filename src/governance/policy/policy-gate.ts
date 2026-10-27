@@ -19,7 +19,7 @@ import { invocationMatches } from "../approvals/approval-binding.js";
 import { extractPatchPaths } from "../../execution/patch/patch-paths.js";
 import { relative, resolve, sep } from "node:path";
 import { isWithinOwnedScope } from "../../coordination/ownership/path-scope.js";
-import { unscopableChannelDenial } from "../../coordination/ownership/owned-scope-channels.js";
+import { SCOPABLE_WRITE_TOOLS, unscopableChannelDenial } from "../../coordination/ownership/owned-scope-channels.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -91,22 +91,12 @@ export function resolvePolicyPath(cwd: string, path: string): string {
 
 // ─── Owned-path auto-approval helpers ─────────────────────────────────
 
-/** Write tools whose mutation targets can be scoped to ownedPaths. */
-const OWNED_WRITE_TOOLS = new Set(["file.create", "file.delete", "patch.apply"]);
-
-/**
- * Channel check lives in ONE place: `owned-scope-channels.ts`. The policy gate
- * and the executor's continuation branch both import it, so a new mutation
- * channel is handled once rather than in two fragments that can drift apart —
- * which is how the continuation branch ended up with no check at all.
- */
-
 /**
  * True when the request declares an owned scope for a write tool — the case
  * where the owned-path rule (step 5.5) is the authority for the write.
  */
 function hasOwnedWriteScope(request: ToolPolicyRequest): boolean {
-  return Boolean(request.ownedPaths?.length) && OWNED_WRITE_TOOLS.has(request.toolName);
+  return Boolean(request.ownedPaths?.length) && SCOPABLE_WRITE_TOOLS.has(request.toolName);
 }
 
 /** Extract the mutation targets from a write-tool's args. */
@@ -259,7 +249,7 @@ export class PolicyGate {
     // that spawns another agent cannot be — their targets are not in the args.
     // Before this check a worker owning `inside.txt` was allowed
     // `printf x > outside.txt`: the owned-path rule never ran (shell.run is not
-    // an OWNED_WRITE_TOOL) and the capability's blanket allow short-circuited.
+    // a scopable write tool) and the capability's blanket allow short-circuited.
     //
     // This sits with the hard denies rather than later, because a rule that can
     // be reached only after a permissive branch is not a rule.
@@ -288,6 +278,19 @@ export class PolicyGate {
         decision: "deny",
         reason: `Command is denied: ${command}`,
         matchedRuleId: "deny-command-rule",
+        policyRevision,
+      };
+    }
+
+    // Explicit tool denials precede every branch that can request approval,
+    // including the shell whitelist. Session modes never weaken a deny (D11).
+    if (this.config.permissions.tools?.[capability] === "deny") {
+      return {
+        requestId: request.requestId,
+        capability,
+        decision: "deny",
+        reason: `Denied by tool policy (mode: ${request.sessionMode})`,
+        matchedRuleId: `tool-policy-${capability}`,
         policyRevision,
       };
     }
@@ -333,29 +336,6 @@ export class PolicyGate {
       }
     }
 
-    // 3.5 Hard capability deny — evaluated BEFORE any branch that can return
-    // `ask`.
-    //
-    // Gate E review defect D11, second half: the shell-whitelist branch above
-    // could return `ask` for a capability the operator had explicitly set to
-    // `deny`, turning an absolute refusal into an approval prompt. A deny is not
-    // a stronger form of ask; it is the absence of a question. Checked here, a
-    // deny no longer depends on which permissive branch happened to run first.
-    const hardDeny = this.config.permissions.tools?.[capability];
-    if (hardDeny) {
-      const effectiveDeny = applySessionMode(hardDeny, request.sessionMode);
-      if (effectiveDeny === "deny") {
-        return {
-          requestId: request.requestId,
-          capability,
-          decision: "deny",
-          reason: `Denied by tool policy (mode: ${request.sessionMode})`,
-          matchedRuleId: `tool-policy-${capability}`,
-          policyRevision,
-        };
-      }
-    }
-
     // 4. Evasion detection
     if (command) {
       const evasionResult = detectEvasion(command);
@@ -375,9 +355,6 @@ export class PolicyGate {
     const toolDecision = this.config.permissions.tools?.[capability];
     if (toolDecision) {
       const effective = applySessionMode(toolDecision, request.sessionMode);
-      if (effective === "deny") {
-        return { requestId: request.requestId, capability, decision: "deny", reason: `Denied by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
-      }
       // A blanket allow must NOT widen past a declared owned scope: the
       // owned-path rule (5.5) IS the authorization for an owned write, so an
       // allowed capability falls through to it instead of short-circuiting.

@@ -52,6 +52,8 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 
 ## Local Contracts
 
+- The subagent CLI entry-point comparison uses `pathToFileURL` on the resolved executable path so Windows paths and escaped characters still launch the worker.
+
 - **`SubagentResult.status` is an OWNERSHIP verdict, not a task verdict.**
   `computeSubagentStatus` answers "did the worker stay inside and deliver to its
   owned scope?", which is why `ownedPaths: ["."]` treats any in-cwd change as

@@ -52,7 +52,8 @@ async function fixture(path = 'owned.txt') {
 }
 
 describe('D9 daemon continuation acceptance', () => {
-  it('the scheduler records an executor approval pause as blocked, never a terminal failure', async () => {
+  // Allow the 20s ledger/projection poll plus fixture setup, the second tick, and shutdown.
+  it('the scheduler records an executor approval pause as blocked, never a terminal failure', { timeout: 30_000 }, async () => {
     const f = await fixture();
     await f.runs.patchWorker(f.run.id, f.worker.id, { status: 'pending', approvalId: undefined, blockReason: undefined });
     const scheduler = new CoordinationScheduler({ cwd: f.cwd, daemonInstanceId: `daemon-${process.pid}`,

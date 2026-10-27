@@ -64,10 +64,12 @@ export class CoordinationRunLock {
 
   async acquire(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<boolean> {
     if (this.acquired) return true;
-    const deadline = Date.now() + timeoutMs;
     mkdirSync(dirname(this.lockPath), { recursive: true });
+    const deadline = Date.now() + timeoutMs;
 
-    while (Date.now() < deadline) {
+    // Even a nonblocking probe must try once; setup or scheduling delays are
+    // not evidence that another host owns this lock.
+    do {
       try {
         mkdirSync(this.lockPath);
         const meta: CoordinationLockMetadata = {
@@ -84,8 +86,9 @@ export class CoordinationRunLock {
           continue;
         }
       }
+      if (Date.now() >= deadline) break;
       await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
-    }
+    } while (Date.now() < deadline);
     return false;
   }
 

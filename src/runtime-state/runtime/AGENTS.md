@@ -32,6 +32,8 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
 
 ## Local Contracts
 
+- `WorkspacePathResolver` normalizes both directory separators for sensitive and protected pattern matching, and derives workspace-relative candidates through the path library. Windows paths must enforce the same deny boundaries as POSIX paths.
+
 - **Containment predicate is one function.** `relativeIsOutside(rel)` in
   `workspace-path.ts` is the single lexical check for a resolved
   `relative(root, target)` result (`rel === ".." || rel.startsWith("../") ||

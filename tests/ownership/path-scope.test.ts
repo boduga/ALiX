@@ -1,3 +1,4 @@
+import { unscopableChannelDenial } from "../../src/coordination/ownership/owned-scope-channels.js";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { pathScopesOverlap, scopeContains, pathInScope, normalizePathScope, resolveOwnedScopePrefix, claimScopesOverlap } from "../../src/coordination/ownership/path-scope.js";
@@ -332,4 +333,39 @@ describe("claimScopesOverlap — planning-side parity table", () => {
       assert.ok(covered.has(anchor), `parity table must cover ${anchor}`);
     }
   });
+});
+
+// The channel table is explicit rather than derived from the production
+// allowlist: adding a mutation channel must change a visible expected outcome.
+describe("owned-scope channel authorization parity", () => {
+  const cases = [
+    ["file.create", "file.read", false],
+    ["file.delete", undefined, false],
+    ["patch.apply", undefined, false],
+    ["shell.run", "file.read", true],
+    ["mcp.example.write", "file.read", true],
+    ["mcp__example__write", "file.read", true],
+    ["agent.delegate", undefined, true],
+    ["skill.create", undefined, true],
+    ["hook.create", undefined, true],
+    ["coordination.run", undefined, true],
+    ["unknown.write", "file.read", true],
+    ["unknown.write", undefined, true],
+    ["file.read", "shell.run", false],
+    ["grep.search", undefined, false],
+    ["glob.match", undefined, false],
+    ["file.exists", undefined, false],
+    ["file.search", undefined, true],
+    ["git.diff", undefined, true],
+    ["web.fetch", undefined, false],
+    ["web.search", undefined, false],
+    ["coordination.status", undefined, false],
+    ["task.complete", undefined, false],
+  ] as const;
+  for (const [toolName, capability, denied] of cases) {
+    it(`${toolName} (${capability ?? "inferred"})`, () => {
+      assert.equal(unscopableChannelDenial({ toolName, capability, ownedPaths: ["owned.txt"] }) !== null, denied);
+      assert.equal(unscopableChannelDenial({ toolName, capability }), null);
+    });
+  }
 });

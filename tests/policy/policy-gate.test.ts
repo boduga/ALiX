@@ -57,6 +57,35 @@ describe("PolicyGate", () => {
     assert.equal(result.decision, "deny");
   });
 
+  // D11: explicit denies cannot become approval prompts through the whitelist
+  // or evasion checks. Include allow/ask controls to pin the intended precedence.
+  for (const mode of ["ask", "auto", "bypass"] as const) {
+    for (const scenario of [
+      { label: "unmatched whitelist", command: "echo hello", whitelist: true, allowUnmatched: true, expected: "ask" },
+      { label: "strict whitelist", command: "echo hello", whitelist: true, allowUnmatched: false, expected: "deny" },
+      { label: "whitelisted command", command: "ls", whitelist: true, allowUnmatched: true, expected: "allow" },
+      { label: "evasion ask", command: "sudo su -", whitelist: false, allowUnmatched: true, expected: "ask" },
+      { label: "ordinary command", command: "echo hello", whitelist: false, allowUnmatched: true, expected: "allow" },
+    ] as const) {
+      for (const permission of ["deny", "allow"] as const) {
+        it(`D11: ${permission} / ${scenario.label} / ${mode}`, async () => {
+          const config = makeConfig();
+          config.permissions.tools = { "shell.run": permission };
+          config.permissions.shellWhitelist = { enabled: scenario.whitelist, commands: ["ls"], allowUnmatched: scenario.allowUnmatched };
+          const result = await new PolicyGate(config).evaluateToolCall({
+            requestId: "d11-precedence", toolName: "shell.run", args: { command: scenario.command },
+            cwd: "/tmp", sessionMode: mode, source: "tool",
+          });
+          assert.equal(result.decision, permission === "deny" ? "deny" : scenario.expected);
+          if (permission === "deny") {
+            assert.equal(result.matchedRuleId, "tool-policy-shell.run");
+            assert.equal(result.approvalId, undefined);
+          }
+        });
+      }
+    }
+  }
+
   it("denies protected path", async () => {
     const config = makeConfig();
     const gate = new PolicyGate(config);

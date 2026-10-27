@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { CoordinationStore } from '../../src/coordination/kernel/coordination-store.js';
-import { getSharedLedger } from '../../src/runtime-state/storage/runtime-ledger.js';
+import { getSharedLedger, closeSharedLedger } from '../../src/runtime-state/storage/runtime-ledger.js';
 import { CoordinationScheduler } from '../../src/coordination/kernel/coordination-scheduler.js';
 import { createCoordinationRun, createWorkerAssignment } from '../../src/coordination/kernel/coordination-types.js';
 
@@ -50,6 +51,7 @@ describe('coordination scheduler concurrent tick regression', () => {
 
     } finally {
       releaseBarrier();
+      closeSharedLedger(cwd);
       rmSync(cwd, { recursive: true, force: true });
     }
   });
@@ -95,6 +97,7 @@ describe('coordination scheduler concurrent tick regression', () => {
     } finally {
       release();
       await scheduler.shutdown();
+      closeSharedLedger(cwd);
       rmSync(cwd, { recursive: true, force: true });
     }
   });
@@ -108,8 +111,8 @@ describe('coordination scheduler concurrent tick regression', () => {
       const worker = createWorkerAssignment({ coordinationRunId: run.id, agentId: 'w', taskLabel: 'claim', goalPrompt: 'test', requiredCapabilities: ['task.do'], attempt: 0, maxAttempts: 3 });
       await store.addWorker(run.id, worker);
       const child = () => new Promise<{ claimed: boolean }>((resolve, reject) => {
-        const process = spawn(join(globalThis.process.cwd(), 'node_modules/.bin/tsx'),
-          [join(globalThis.process.cwd(), 'tests/kernel/coordination-claim-child.ts'), cwd, run.id, worker.id],
+        const process = spawn(globalThis.process.execPath,
+          [fileURLToPath(new URL('./coordination-claim-child.js', import.meta.url)), cwd, run.id, worker.id],
           { stdio: ['ignore', 'pipe', 'pipe'] });
         let stdout = ''; let stderr = '';
         process.stdout.on('data', data => { stdout += data; });
@@ -126,6 +129,7 @@ describe('coordination scheduler concurrent tick regression', () => {
       assert.equal(final?.workers[0]?.status, 'running');
       assert.equal(final?.workers[0]?.attempt, 1);
     } finally {
+      closeSharedLedger(cwd);
       rmSync(cwd, { recursive: true, force: true });
     }
   });
@@ -146,6 +150,7 @@ describe('coordination scheduler concurrent tick regression', () => {
       assert.equal(final?.workers[0]?.status, 'cancelled');
       assert.equal(final?.workers[0]?.attempt, 0);
     } finally {
+      closeSharedLedger(cwd);
       rmSync(cwd, { recursive: true, force: true });
     }
   });
@@ -183,6 +188,7 @@ describe('coordination scheduler concurrent tick regression', () => {
     } finally {
       release();
       await scheduler.shutdown();
+      closeSharedLedger(cwd);
       rmSync(cwd, { recursive: true, force: true });
     }
   });
@@ -226,6 +232,7 @@ describe('coordination scheduler concurrent tick regression', () => {
     } finally {
       release();
       await scheduler.shutdown();
+      closeSharedLedger(cwd);
       rmSync(cwd, { recursive: true, force: true });
     }
   });
@@ -258,6 +265,7 @@ describe('coordination scheduler concurrent tick regression', () => {
       assert.equal(final?.workers[0]?.attempt, 2, 'one failed execution plus one recovered execution');
     } finally {
       await scheduler.shutdown();
+      closeSharedLedger(cwd);
       rmSync(cwd, { recursive: true, force: true });
     }
   });
@@ -278,8 +286,8 @@ describe('coordination scheduler concurrent tick regression', () => {
       await store.save(run);
       const worker = createWorkerAssignment({ coordinationRunId: run.id, agentId: 'w', taskLabel: 'recover child', goalPrompt: 'test', requiredCapabilities: ['task.do'], attempt: 0, maxAttempts: 3 });
       await store.addWorker(run.id, worker);
-      const child = spawn(join(process.cwd(), 'node_modules/.bin/tsx'),
-        [join(process.cwd(), 'tests/kernel/coordination-claim-child.ts'), cwd, run.id, worker.id],
+      const child = spawn(process.execPath,
+        [fileURLToPath(new URL('./coordination-claim-child.js', import.meta.url)), cwd, run.id, worker.id],
         { stdio: ['ignore', 'pipe', 'pipe'] });
       let stdout = ''; let stderr = '';
       child.stdout.on('data', data => { stdout += data; });
@@ -305,6 +313,7 @@ describe('coordination scheduler concurrent tick regression', () => {
       assert.equal(final?.workers[0]?.attempt, 2);
     } finally {
       await scheduler.shutdown();
+      closeSharedLedger(cwd);
       rmSync(cwd, { recursive: true, force: true });
     }
   });

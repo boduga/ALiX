@@ -47,6 +47,11 @@ import type {
 } from "../../models/tracing/types.js";
 import { isCancellationError } from "../../runtime-state/runtime/cancellation-token.js";
 
+/** Session identity uses the session directory on both POSIX and Windows. */
+export function sessionIdFromDirectory(sessionDir: string): string {
+  return sessionDir.split(/[/\\]sessions[/\\]/)[1] ?? "unknown";
+}
+
 const LARGE_OUTPUT_THRESHOLD = 10000;
 
 function sanitizeArgs(args: Record<string, unknown>): Record<string, unknown> {
@@ -280,8 +285,7 @@ export class ToolExecutor {
 
   private sessionId(): string {
     // Extract sessionId from EventLog sessionDir: .alix/sessions/<sessionId>
-    const parts = this.log.sessionDir.split("sessions/");
-    return parts.length > 1 ? parts[1] : "unknown";
+    return sessionIdFromDirectory(this.log.sessionDir);
   }
 
   private async logEvent(type: string, payload: Record<string, unknown>): Promise<void> {
@@ -1230,7 +1234,7 @@ async function writeOutputToFile(
 
   // Emit artifact.created event (best-effort via emitToolTelemetry: the
   // artifact file above is the authoritative record).
-  const sessionId = sessionDir.split("sessions/").length > 1 ? sessionDir.split("sessions/")[1] : "unknown";
+  const sessionId = sessionIdFromDirectory(sessionDir);
   await emitToolTelemetry(log, sessionId, ARTIFACT_EVENT_TYPES.CREATED, {
     artifactId,
     toolCallId,

@@ -33,6 +33,8 @@ reason about.
 
 ## Local Contracts
 
+- `sessionIdFromDirectory` in `executor.ts` extracts session identity using either directory separator; approvals, continuations, and tool artifacts use the same identity on every supported host.
+
 - **The registry owns routed tool metadata.** Each entry pairs an internal
   executor ID with its capability id, policy key, risk, and `mutates` flag. `ALIX_BUILTIN_EXECUTORS` (`src/agents/tool-manifest.ts`) is the
   model-facing surface and `ToolName`/`ToolNameSchema` derive from it, so a
