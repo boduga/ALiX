@@ -792,7 +792,10 @@ export class PolicyGate {
 
       if (approved?.status === "approved" && new Date(approved.expiresAt) > new Date()) {
         // Try to consume it
-        const consumed = await store.consumeApproved(approved.id, bindingKey, {});
+        const consumed = await store.consumeApproved(approved.id, bindingKey, {
+          workerId: coordinationContext.workerId,
+          workerAttempt: coordinationContext.workerAttempt,
+        }, invocation);
         if (consumed.consumed) {
           return { requestId, capability, decision: "allow", reason: "Approved by prior exact binding", approvalId: approved.id, matchedRuleId: "exact-binding-approved", policyRevision, approvalConsumed: true };
         }
@@ -839,6 +842,7 @@ export class PolicyGate {
         sessionId,
         agentId,
         requestId,
+        invocation,
       });
       return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision, bindingKey: approval.bindingKey, requestFingerprint: approval.requestFingerprint };
     }

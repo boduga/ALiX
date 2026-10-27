@@ -14,6 +14,8 @@ import { CoordinationSchedulerService } from "./coordination-scheduler-service.j
 import type { ApprovalRecord } from "../../governance/approvals/approval-types.js";
 
 export type ApprovalWatcherOptions = {
+  /** Host execution seam; absent watchers remain notification-only. */
+  resumeApproved?: (approvalId: string) => Promise<void>;
   intervalMs?: number;
   approvalTtlMs?: number;
   approvedConsumptionTtlMs?: number;
@@ -22,7 +24,8 @@ export type ApprovalWatcherOptions = {
 export class ApprovalWatcher {
   private readonly store: ApprovalStore;
   private readonly schedulerService: CoordinationSchedulerService | null;
-  private readonly options: Required<ApprovalWatcherOptions>;
+  private readonly options: Required<Omit<ApprovalWatcherOptions, "resumeApproved">>;
+  private readonly resumeApproved?: (approvalId: string) => Promise<void>;
   private timer: ReturnType<typeof setInterval> | null = null;
   private scanning = false;
   private resolvedCursor = 0;
@@ -33,6 +36,7 @@ export class ApprovalWatcher {
     options: ApprovalWatcherOptions = {},
   ) {
     this.store = new ApprovalStore(cwd);
+    this.resumeApproved = options.resumeApproved;
     this.schedulerService = schedulerService ?? null;
     this.options = {
       intervalMs: options.intervalMs ?? 30_000,
@@ -46,7 +50,7 @@ export class ApprovalWatcher {
     // Initialize cursor from current resolved count
     const all = this.store.list();
     this.resolvedCursor = all.filter(a => a.status !== "pending").length;
-    this.timer = setInterval(() => void this.scan(), this.options.intervalMs);
+    this.timer = setInterval(() => { void this.scan().catch(error => console.error("approval scan failed", error)); }, this.options.intervalMs);
   }
 
   stop(): void {
@@ -72,6 +76,15 @@ export class ApprovalWatcher {
       const resolved = all.filter(a => a.status !== "pending");
       const newResolutions = resolved.slice(this.resolvedCursor);
       this.resolvedCursor = resolved.length;
+
+      // Retry durable approved continuations on every scan, including restart.
+      // Counts/order of resolved approvals are not an execution cursor.
+      for (const approval of all) {
+        if (this.resumeApproved && (approval.status === "approved" || approval.status === "denied" ||
+            (approval.status === "consumed" && approval.executionOutcome === "succeeded"))) {
+          await this.resumeApproved(approval.id);
+        }
+      }
 
       // Notify scheduler for affected runs
       for (const approval of newResolutions) {

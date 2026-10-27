@@ -89,7 +89,7 @@ describe('worker approval port (F8b)', () => {
 
   it('a worker cannot self-approve its own request through the port', async () => {
     const { store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
 
     const created = await port.requestOrReusePending(REQUEST);
     expect(created.status).toBe('pending');
@@ -105,7 +105,7 @@ describe('worker approval port (F8b)', () => {
 
   it('observes an operator decision made by a DIFFERENT process', async () => {
     const { cwd, store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
     const created = await port.requestOrReusePending(REQUEST);
 
     // The operator resolves through their own store instance (the TUI).
@@ -119,12 +119,12 @@ describe('worker approval port (F8b)', () => {
 
   it('consumes exactly once across processes (no double effect)', async () => {
     const { cwd, store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
     const created = await port.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
 
-    const first = await port.consumeApproved(created.id, REQUEST.bindingKey, {});
+    const first = await port.consumeApproved(created.id, REQUEST.bindingKey, { workerAttempt: 0 });
     expect(first.consumed).toBe(true);
 
     // A second process holding its OWN store must lose the race.
@@ -135,7 +135,7 @@ describe('worker approval port (F8b)', () => {
 
   it('rejects consumption bound to a different binding key', async () => {
     const { cwd, store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
     const created = await port.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
@@ -147,7 +147,7 @@ describe('worker approval port (F8b)', () => {
 
   it('an operator DENIAL is visible to the worker and blocks consumption', async () => {
     const { cwd, store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
     const created = await port.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'denied', 'operator');
@@ -159,7 +159,7 @@ describe('worker approval port (F8b)', () => {
 
   it('does not expose another worker\u2019s records through a different binding', async () => {
     const { store } = await workspace();
-    const port = createWorkerApprovalPort(store);
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-b' });
     await port.requestOrReusePending({ ...REQUEST, bindingKey: 'worker-b-binding', workerId: 'worker-b' });
 
     expect(port.findExact('worker-b-binding')).toBeDefined();
@@ -172,7 +172,7 @@ describe('worker approval port (F8b)', () => {
     const created = await port.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
-    await port.consumeApproved(created.id, REQUEST.bindingKey, {});
+    await port.consumeApproved(created.id, REQUEST.bindingKey, { workerAttempt: 0 });
 
     expect(await port.recordExecutionOutcome(created.id, 'succeeded')).toBe(true);
     const after = await port.loadFresh(created.id);
@@ -190,10 +190,11 @@ describe('worker approval port (F8b)', () => {
     const created = await ownerPort.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
-    await ownerPort.consumeApproved(created.id, REQUEST.bindingKey, {});
+    await ownerPort.consumeApproved(created.id, REQUEST.bindingKey, { workerAttempt: 0 });
 
     expect(await otherPort.recordExecutionOutcome(created.id, 'succeeded')).toBe(false);
-    expect((await otherPort.loadFresh(created.id))?.executionOutcome).toBe('pending');
+    expect(await otherPort.loadFresh(created.id)).toBeUndefined();
+    expect((await store.loadFresh(created.id))?.executionOutcome).toBe('pending');
 
     // The rightful owner can still report.
     expect(await ownerPort.recordExecutionOutcome(created.id, 'failed')).toBe(true);
@@ -207,7 +208,7 @@ describe('worker approval port (F8b)', () => {
     const created = await bound.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
-    await bound.consumeApproved(created.id, REQUEST.bindingKey, {});
+    await bound.consumeApproved(created.id, REQUEST.bindingKey, { workerAttempt: 0 });
 
     expect(await unbound.recordExecutionOutcome(created.id, 'succeeded')).toBe(false);
     expect(await bound.recordExecutionOutcome(created.id, 'succeeded')).toBe(true);

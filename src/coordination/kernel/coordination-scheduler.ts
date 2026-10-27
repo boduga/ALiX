@@ -752,6 +752,15 @@ export class CoordinationScheduler {
         return;
       }
 
+      if (result.failureKind === "approval_required" && result.approvalId) {
+        await this.patchWorkerWithRetry(runId, workerId, {
+          status: "blocked", blockReason: "approval_required", failureKind: "approval_required",
+          approvalId: result.approvalId, authorizationEvidence: undefined,
+          error: result.error,
+        });
+        return;
+      }
+
       if (result.outcome === "success") {
         const resultRef = await this.resultStore.persist(worker, runId, result);
         await this.patchWorkerWithRetry(runId, workerId, {

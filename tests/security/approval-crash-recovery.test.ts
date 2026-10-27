@@ -17,7 +17,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, mkdirSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createToolExecutor } from "../../src/capabilities/tools/tool-executor-factory.js";
@@ -88,7 +88,7 @@ describe("approval crash-after-consume recovery", () => {
       const { request, record } = await requestAndApprove(f);
 
       // Simulate a crash: the claim committed, execution never reported back.
-      const claim = await f.store.consumeApproved(record.id, record.bindingKey, {});
+      const claim = await f.store.consumeApproved(record.id, record.bindingKey, {}, record.invocation);
       assert.equal(claim.consumed, true);
       assert.equal(f.store.get(record.id)?.executionOutcome, "pending");
 
@@ -105,6 +105,37 @@ describe("approval crash-after-consume recovery", () => {
       const again = await f.executor.execute(request);
       assert.equal(again.kind, "denied");
       assert.equal(effectCount(f.root), 0);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("denies replay when an external effect happened but the receipt was lost", async () => {
+    const f = await makeFixture("effect-before-receipt");
+    try {
+      const { request, record } = await requestAndApprove(f);
+      const claim = await f.store.consumeApproved(record.id, record.bindingKey, {}, record.invocation);
+      assert.equal(claim.consumed, true);
+      assert.equal(f.store.get(record.id)?.executionOutcome, "pending");
+
+      // Simulate the external operation committing before the executor can
+      // durably report success. The side effect is deliberately non-idempotent.
+      writeFileSync(join(f.root, "effects.txt"), "effect\n", { flag: "a" });
+      assert.equal(effectCount(f.root), 1);
+
+      // Reconstruct the executor/store to model restart with persisted state.
+      const recoveredStore = new ApprovalStore(f.root, { eventLog: f.log });
+      await recoveredStore.load();
+      const recoveredExecutor = createToolExecutor({
+        config: f.config, log: f.log, root: f.root, approvalStore: recoveredStore,
+      });
+      const replay = await recoveredExecutor.execute(request);
+      assert.equal(replay.kind, "denied");
+      assert.match((replay as { reason: string }).reason, /UNVERIFIED|unknown/i);
+      assert.equal(effectCount(f.root), 1, "replay must not repeat an already-applied effect");
+      assert.equal(recoveredStore.get(record.id)?.executionOutcome, "unverified");
+      assert.equal((await recoveredExecutor.execute(request)).kind, "denied");
+      assert.equal(effectCount(f.root), 1);
     } finally {
       f.cleanup();
     }
@@ -151,7 +182,7 @@ describe("approval crash-after-consume recovery", () => {
     const f = await makeFixture("list");
     try {
       const { record } = await requestAndApprove(f);
-      await f.store.consumeApproved(record.id, record.bindingKey, {});
+      await f.store.consumeApproved(record.id, record.bindingKey, {}, record.invocation);
 
       const pendingList = f.store.listUncertainConsumptions();
       assert.equal(pendingList.length, 1);
@@ -197,7 +228,7 @@ describe("approval crash-after-consume recovery", () => {
     const f = await makeFixture("cont-crash");
     try {
       const { record } = await requestAndApprove(f);
-      await f.store.consumeApproved(record.id, record.bindingKey, {});
+      await f.store.consumeApproved(record.id, record.bindingKey, {}, record.invocation);
 
       const cs = new ContinuationStore(f.root);
       await cs.load();
