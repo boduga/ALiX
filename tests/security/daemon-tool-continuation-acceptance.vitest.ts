@@ -62,7 +62,15 @@ describe('D9 daemon continuation acceptance', () => {
     });
     try {
       await scheduler.tick(f.run.id);
-      await waitUntil(async () => (await f.runs.load(f.run.id))?.workers[0].status === 'blocked');
+      // 20s, not the 5s default: this drives a real scheduler tick that writes
+      // the run ledger and its JSON projection. Under a full parallel suite the
+      // same work has been observed to take ~11s on a loaded 4-core host, so the
+      // default budget turns a passing test into a flake. The workload is fixed,
+      // the machine speed is not.
+      await waitUntil(
+        async () => (await f.runs.load(f.run.id))?.workers[0].status === 'blocked',
+        20_000,
+      );
       const run = await f.runs.load(f.run.id);
       expect(run?.status).toBe('blocked');
       expect(run?.workers[0]).toMatchObject({ failureKind: 'approval_required', approvalId: f.approval.id });

@@ -78,7 +78,8 @@ export async function reclaimDeadOwnerWorkers(
       orphanThresholdMs,
     })) continue;
     // Owner provably gone (or ownerless + stale): release its leases BEFORE
-    // clearing them, then reset for a bounded retry. Failed releases stay on
+    // clearing them, then reset for a bounded retry without incrementing attempt.
+    // The next successful atomic execution claim increments it. Failed releases stay on
     // the record so a later reclaim retries them (R3.4).
     const release = await releaseWorkerLeases(ownershipRegistry, worker);
     await store.patchWorker(runId, worker.id, {
@@ -88,7 +89,6 @@ export async function reclaimDeadOwnerWorkers(
       blockReason: undefined,
       failureKind: undefined,
       error: `Reclaimed after host ${worker.executionOwnerId} stopped`,
-      attempt: (worker.attempt ?? 0) + 1,
     });
     reclaimedWorkerIds.push(worker.id);
   }

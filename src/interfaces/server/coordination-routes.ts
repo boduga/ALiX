@@ -419,7 +419,7 @@ async function buildCoordinationRuntime(
     });
   } else {
     const { DefaultWorkerExecutor } = await import("../../coordination/kernel/worker-executor.js");
-    executor = new DefaultWorkerExecutor();
+    executor = new DefaultWorkerExecutor(approvalStore);
   }
 
   const scheduler = createCoordinationScheduler(
@@ -624,7 +624,7 @@ async function handleCancelRun(cwd: string, runId: string, r: SecureJsonResponde
             toolRegistry: buildDefaultToolIndex().registry,
           }),
           ownershipRegistry: new OwnershipRegistry(cwd),
-          executor: new DefaultWorkerExecutor(),
+          executor: new DefaultWorkerExecutor(approvalStore),
         },
       );
       await scheduler.cancelRun(runId);

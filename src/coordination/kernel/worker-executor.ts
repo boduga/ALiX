@@ -124,7 +124,8 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
 
       const captured = captureWorkerEventLog(await initSharedEventLog(context.cwd, context.sessionId));
       const toolEvidence: string[] = [];
-      const result = await runTask(context.cwd, renderWorkerExecutionPrompt(worker, context), {
+      const { scriptedScenarioFromEnv, withScriptedScenario, traceScriptedEval } = await import("../../operations/evals/providers/scripted-mock-carrier.js");
+      const runWorker = () => runTask(context.cwd, renderWorkerExecutionPrompt(worker, context), {
         signal,
         onToolResult: (name, content) => { toolEvidence.push(`Tool ${name}:\n${content}`); },
         sessionMode: context.config.permissions.sessionMode ?? "ask",
@@ -152,6 +153,13 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
         // the previous fail-closed behaviour.
         ...(this.approvalStore ? { approvalStore: this.approvalStore } : {}),
       });
+      const scenario = context.config.models?.default?.provider === "scripted-mock"
+        ? scriptedScenarioFromEnv() : null;
+      traceScriptedEval({ event: "worker", workerId: worker.id, provider: context.config.models?.default?.provider ?? "unset", scenarioLoaded: !!scenario });
+      if (process.env.ALIX_EVAL_TRACE === "1") {
+        process.stderr.write(`[scripted-eval] worker=${worker.id} pid=${process.pid} provider=${context.config.models?.default?.provider ?? "unset"} scenario=${scenario ? "loaded" : "absent"}\n`);
+      }
+      const result = scenario ? await withScriptedScenario(scenario, runWorker) : await runWorker();
 
       if (signal.aborted) {
         return { outcome: "failure", failureKind: "cancelled", error: "Execution cancelled" };

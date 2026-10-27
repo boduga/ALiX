@@ -19,7 +19,7 @@ import type { ReconciliationResult as ReconcileResult, WorkerApprovalDenial } fr
 import { authorizeWorker } from "./coordination-authorization.js";
 import type { ExecutionAuthorization } from "../../runtime-state/runtime/execution-authorization.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
-import type { EventLog } from "../../runtime-state/events/event-log.js";
+import type { CoordinationEventSink } from "./coordination-completion-service.js";
 import type { MetricsSink } from "../../runtime-state/contracts/metrics-sink.js";
 import type { AuditStore } from "../../governance/audit/audit-store.js";
 import type { AlixConfig, SessionMode } from "../../operations/config/schema.js";
@@ -106,7 +106,7 @@ export type CoordinationSchedulerDeps = {
     contextSnapshot: WorkerContextSnapshot;
   }>;
   completionService?: CoordinationCompletionService;
-  eventLog?: EventLog;
+  eventLog?: CoordinationEventSink;
   /**
    * Optional metric-observation sink. Scheduler telemetry (tick counts,
    * useful/idle split, dispatch count, tick/reconciliation durations) goes
@@ -547,19 +547,17 @@ export class CoordinationScheduler {
 
       // Persist running state before execution
       const now = (this.deps.clock ?? systemClock).now().toISOString();
-      const updatedRun = await this.deps.store.patchWorker(runId, worker.id, {
-        status: "running",
+      const claimed = await this.deps.store.claimPendingWorker(runId, worker.id, worker.attempt, {
         startedAt: now,
         lastHeartbeatAt: now,
         executionOwnerId: this.deps.daemonInstanceId,
         leaseIds: ownResult.leaseIds,
-        attempt: worker.attempt + 1,
         blockReason: undefined,
         error: undefined,
         authorizationEvidence: authResult.evidence,
       });
 
-      if (!updatedRun) {
+      if (!claimed) {
         await releaseWorkerOwnership(this.deps.ownershipRegistry, ownResult.leaseIds);
         continue;
       }
@@ -1163,6 +1161,16 @@ export class CoordinationScheduler {
   }
 
   // ── Terminal finalization ──────────────────────────────────────────
+
+  /** Reconcile persisted terminal evidence without dispatching workers. */
+  async reconcileTerminalCompletion(runId: string): Promise<void> {
+    if (!this.deps.completionService) return;
+    const run = await this.deps.store.load(runId);
+    if (!run || (run.status !== "completed" && run.status !== "failed")) return;
+    // Recovery validates existing aggregate evidence under the finalization
+    // lock; it must not regenerate missing or stale aggregates at startup.
+    await this.deps.completionService.finalize(runId, { reconcileOnly: true });
+  }
 
   /**
    * If the run is terminal and a completion service is configured, finalize it.

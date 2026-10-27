@@ -16,6 +16,7 @@ The append-only session event log and its canonical event-type vocabulary. `even
 - **The resync window grows geometrically; it never degrades to a whole-file read while a complete line is reachable.** `readMaxSeqFromTail` starts at `RESYNC_TAIL_BYTES` (64KB) and doubles until a parseable complete line fits or the whole file is covered. This matters because ONE event can exceed 64KB (context bundles reached 126KB/141KB in session `1791853059081`): a fixed window then straddled a single huge line, found no complete line, and fell back to `resyncFromFullRead` — re-reading the ENTIRE growing file under the append lock on every append, holding it for seconds and timing out peer writers (`Timed out acquiring EventLog append lock`). Geometric growth bounds the lock hold at O(last-line size), independent of log length. Pinned by `tests/events/event-log.test.ts` ("append latency is flat as the log grows", "append stays cheap when the most recent event exceeds the tail window").
 - **Append telemetry must not sit on this lock.** Observability events written per-cycle (e.g. a scheduler tick heartbeat) contend for the same lock authoritative completion events need. Emit durable records on meaningful transitions, not per poll cadence — the scheduler's `coordination.tick.completed` gating follows this rule (see `src/coordination/kernel/AGENTS.md`).
 - Never read or write `events.jsonl` outside this module; cursors are opaque (`WeakMap`-backed) and belong to exactly one instance.
+- `appendIfAbsent` evaluates its stable identity predicate against durable history while holding the same append lock. A match returns the original event without writing, consuming a sequence number, or notifying watchers. Completion callers match type, session, run, aggregate reference and source fingerprint.
 
 ## Work Guidance
 
@@ -26,6 +27,7 @@ The append-only session event log and its canonical event-type vocabulary. `even
 
 - `tests/events/event-log.test.ts` — seq uniqueness (multi-instance + multi-process), lock reclaim/stale/live, incremental `readSince`, flat append latency, oversized-tail regression, watchers.
 - `tests/events/event-log-cursor.vitest.ts` — cursor opacity and foreign-cursor rejection.
+- `tests/events/event-log-completion-idempotency.test.ts` — concurrent independent-instance completion deduplication, fresh-instance retry after lost acknowledgement, and exact-identity separation. The lost-acknowledgement case simulates the crash boundary; it does not kill a process.
 
 ## Child DOX Index
 

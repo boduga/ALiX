@@ -324,6 +324,24 @@ export class EventLog {
   async append<TType extends string, TPayload>(
     event: NewEvent<TType, TPayload>
   ): Promise<AlixEvent<TType, TPayload>> {
+    return this.appendLocked(event);
+  }
+
+  /** Conditionally append under the same cross-process lock as append().
+   * The predicate is evaluated against durable history while the lock is held.
+   * Callers must use a stable identity predicate; returning an existing event
+   * is not a new append and does not notify watchers. */
+  async appendIfAbsent<TType extends string, TPayload>(
+    event: NewEvent<TType, TPayload>,
+    matches: (existing: AlixEvent) => boolean,
+  ): Promise<AlixEvent> {
+    return this.appendLocked(event, matches);
+  }
+
+  private async appendLocked<TType extends string, TPayload>(
+    event: NewEvent<TType, TPayload>,
+    matches?: (existing: AlixEvent) => boolean,
+  ): Promise<AlixEvent<TType, TPayload>> {
     // Self-correcting seq allocation: re-sync nextSeq from disk before every
     // append. This prevents collisions when more than one EventLog instance
     // points at the same sessionDir (e.g. the TUI's timelineEmitter and the
@@ -383,6 +401,10 @@ export class EventLog {
         }
       }
       await this.resyncFromDisk();
+      if (matches) {
+        const existing = (await this.readAll()).find(matches);
+        if (existing) return existing as AlixEvent<TType, TPayload>;
+      }
       fullEvent = {
         ...event,
         id: randomUUID(),
