@@ -88,6 +88,7 @@ reason about.
   independently checks the durable record (present, `approved`, not expired)
   before dispatch. Caller-set `source` alone is never authorization; missing
   or invalid evidence returns `denied`.
+- Continuation resumes check `AbortSignal` after ownership validation before claiming approval, and again immediately before downstream dispatch after claim/telemetry awaits. An observed abort throws `ExecutionCancelledError` without dispatching; cancellation after a successful claim records `cancelled` and never restores approval authority. Cancellation before claim leaves the approval untouched.
 - **`alix_file_delete` shares the owned-write second net.** When the request
   declares `ownedPaths`, the router runs the same `isOwnedWriteTarget` /
   `isWithinOwnedScope` check `alix_file_create` uses for overwrites — a worker
@@ -140,6 +141,7 @@ reason about.
   the ordinary retry and continuation routes (one real effect, replay denied).
 - `tests/security/approval-crash-recovery.test.ts` — post-claim outcome
   reporting and crash classification.
+- `tests/security/continuation-cancellation.vitest.ts` — aborted resumes before claim and after claim/telemetry, unchanged pre-claim authority, cancelled receipts, no filesystem effects, and active/legacy controls.
 
 ## Child DOX Index
 

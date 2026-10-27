@@ -45,7 +45,7 @@ import type {
   TraceRun,
   TraceSpan,
 } from "../../models/tracing/types.js";
-import { isCancellationError } from "../../runtime-state/runtime/cancellation-token.js";
+import { ExecutionCancelledError, isCancellationError, signalReason } from "../../runtime-state/runtime/cancellation-token.js";
 
 /** Session identity uses the session directory on both POSIX and Windows. */
 export function sessionIdFromDirectory(sessionDir: string): string {
@@ -535,6 +535,11 @@ export class ToolExecutor {
       // ownership call was never exercised (Gate E review, vacuous #10).
       const contGateResult = await this.checkOwnershipGate(request, name, args);
       if (contGateResult) return contGateResult;
+      // Ownership/loading may have yielded after the host's cancellation check.
+      // Do not consume authority for a resume already known to be cancelled.
+      if (request.signal?.aborted) {
+        throw new ExecutionCancelledError(signalReason(request.signal) ?? "continuation cancelled");
+      }
       // R1.5: the continuation tombstone is NOT authorization — claim the
       // backing approval atomically so two parallel resumes cannot both run.
       if (request.approvalId) {
@@ -553,7 +558,20 @@ export class ToolExecutor {
         ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
-      const resumed = await this.toolAwareRouter.downstream.execute(request);
+      let resumed: ExecuteResult;
+      try {
+        // Claiming and telemetry both yield. No await may separate this check
+        // from dispatch: even a router that ignores AbortSignal must not start.
+        if (request.signal?.aborted) {
+          throw new ExecutionCancelledError(signalReason(request.signal) ?? "continuation cancelled");
+        }
+        resumed = await this.toolAwareRouter.downstream.execute(request);
+      } catch (error) {
+        if (claimedApprovalId) {
+          await this.recordApprovalOutcome(claimedApprovalId, isCancellationError(error) ? "cancelled" : "failed");
+        }
+        throw error;
+      }
       if (claimedApprovalId) {
         await this.recordApprovalOutcome(claimedApprovalId, resumed.kind === "success" ? "succeeded" : "failed");
       }

@@ -3,6 +3,7 @@ import { mkdtemp, rm, readFile, mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ApprovalStore } from '../../src/governance/approvals/approval-store.js';
+import { createWorkerApprovalPort } from '../../src/governance/approvals/worker-approval-port.js';
 import { ContinuationStore } from '../../src/runtime-state/runtime/continuation-store.js';
 import { CoordinationStore } from '../../src/coordination/kernel/coordination-store.js';
 import { createCoordinationRun, createWorkerAssignment } from '../../src/coordination/kernel/coordination-types.js';
@@ -52,6 +53,32 @@ async function fixture(path = 'owned.txt') {
 }
 
 describe('D9 daemon continuation acceptance', () => {
+  it('another worker cannot forge a successful consumed receipt to requeue a blocked worker', async () => {
+    const f = await fixture();
+    expect(f.approval.workerId).toBeUndefined();
+    await f.approvals.resolve(f.approval.id, 'approved');
+    const conts = new ContinuationStore(f.cwd); await conts.load();
+    const cont = conts.findByApprovalId(f.approval.id)!;
+    await f.approvals.mutate(records => {
+      records.find(r => r.id === f.approval.id)!.toolContinuation = {
+        ...cont.coordinationWorker!, invocationFingerprint: f.approval.invocationFingerprint!,
+      };
+    });
+    expect((await f.approvals.consumeApproved(f.approval.id, f.approval.bindingKey,
+      { workerId: f.worker.id, workerAttempt: f.worker.attempt }, f.approval.invocation)).consumed).toBe(true);
+    const foreign = createWorkerApprovalPort(f.approvals, { workerId: 'another-worker', workerAttempt: 1 });
+    expect(await foreign.recordExecutionOutcome(f.approval.id, 'succeeded')).toBe(false);
+    const before = (await f.runs.load(f.run.id))!.workers[0];
+    const resumer = f.createResumer();
+    try {
+      await resumer.resumeApproved(f.approval.id);
+      expect((await f.runs.load(f.run.id))!.workers[0]).toEqual(before);
+      expect(f.approvals.loadCommitted(f.approval.id)).toMatchObject({ executionOutcome: 'pending',
+        consumedByWorkerId: f.worker.id, consumedAttempt: f.worker.attempt });
+      await expect(readFile(join(f.cwd, 'owned.txt'))).rejects.toThrow();
+    } finally { await resumer.shutdown(); }
+  });
+
   // Allow the 20s ledger/projection poll plus fixture setup, the second tick, and shutdown.
   it('the scheduler records an executor approval pause as blocked, never a terminal failure', { timeout: 30_000 }, async () => {
     const f = await fixture();

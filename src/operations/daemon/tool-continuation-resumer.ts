@@ -121,7 +121,7 @@ export class DaemonToolContinuationResumer {
         bound = true;
       });
       if (!bound) return;
-      const port = createWorkerApprovalPort(approvals, { workerId: worker.id });
+      const port = createWorkerApprovalPort(approvals, { workerId: worker.id, workerAttempt: worker.attempt });
       const executor = createToolExecutor({
         config: { ...this.config, ownership: { ...this.config.ownership, autoAcquire: false } }, log, root: this.cwd,
         ownedPaths: ownedPathsForWorker(worker),

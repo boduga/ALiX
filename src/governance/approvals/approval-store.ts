@@ -25,9 +25,17 @@ const JOURNAL_COMPACT_THRESHOLD = 500;
 
 /** Trusted host context supplied by the restricted worker port, never request metadata.
  * Omitted scope is the existing privileged host path; an explicit empty scope
- * permits only legacy records without a worker binding.
+ * permits only legacy records without worker or attempt attribution.
  */
-export type ApprovalOutcomeScope = Readonly<{ workerId?: string }>;
+export type ApprovalOutcomeScope = Readonly<{ workerId?: string; workerAttempt?: number }>;
+
+/** Check every recorded binding; consumption can attribute an unbound request. */
+function outcomeScopeMatches(record: ApprovalRecord, scope: ApprovalOutcomeScope): boolean {
+  return (!record.workerId || record.workerId === scope.workerId)
+    && (!record.consumedByWorkerId || record.consumedByWorkerId === scope.workerId)
+    && (record.workerAttempt === undefined || record.workerAttempt === scope.workerAttempt)
+    && (record.consumedAttempt === undefined || record.consumedAttempt === scope.workerAttempt);
+}
 
 // Abort mutate() before pruning, ledger append, or projection writes on denial.
 const OUTCOME_SCOPE_DENIED = Symbol("approval outcome scope denied");
@@ -790,14 +798,13 @@ export class ApprovalStore {
     outcome: "succeeded" | "failed" | "cancelled",
     scope?: ApprovalOutcomeScope,
   ): Promise<boolean> {
-    const scoped = scope !== undefined;
-    const workerId = scope?.workerId;
+    const trustedScope = scope === undefined ? undefined : { ...scope };
     let recorded = false;
     let sessionId: string | undefined;
     await this.mutate((approvals) => {
       const r = approvals.find(a => a.id === id);
       if (!r) return;
-      if (scoped && r.workerId && r.workerId !== workerId) throw OUTCOME_SCOPE_DENIED;
+      if (trustedScope && !outcomeScopeMatches(r, trustedScope)) throw OUTCOME_SCOPE_DENIED;
       if (r.status !== "consumed") return;
       if (r.executionOutcome !== "pending") return;
       r.executionOutcome = outcome;
@@ -829,14 +836,13 @@ export class ApprovalStore {
     id: string,
     scope?: ApprovalOutcomeScope,
   ): Promise<"unverified" | "terminal" | "missing"> {
-    const scoped = scope !== undefined;
-    const workerId = scope?.workerId;
+    const trustedScope = scope === undefined ? undefined : { ...scope };
     let verdict: "unverified" | "terminal" | "missing" = "missing";
     let sessionId: string | undefined;
     await this.mutate((approvals) => {
       const r = approvals.find(a => a.id === id);
       if (!r) { verdict = "missing"; return; }
-      if (scoped && r.workerId && r.workerId !== workerId) throw OUTCOME_SCOPE_DENIED;
+      if (trustedScope && !outcomeScopeMatches(r, trustedScope)) throw OUTCOME_SCOPE_DENIED;
       if (r.status !== "consumed") { verdict = "terminal"; return; }
       if (r.executionOutcome === "unverified") { verdict = "unverified"; return; }
       if (r.executionOutcome !== "pending") { verdict = "terminal"; return; }

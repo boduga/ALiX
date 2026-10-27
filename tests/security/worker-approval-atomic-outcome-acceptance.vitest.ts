@@ -35,6 +35,62 @@ const methods = ['report', 'unverified'] as const;
 const callers = ['owner', 'other', 'unbound', 'host'] as const;
 const states = ['requested', 'approved', 'pending', 'succeeded', 'unverified'] as const;
 
+// D9: an approval can acquire consumer attribution AFTER an unbound request.
+// Expected authority is explicit, including conflicting original/claim bindings.
+const receiptCases = [
+  { label: 'consumer owner', worker: undefined, consumer: 'worker-a', attempt: 1, caller: 'worker-a', callerAttempt: 1, allowed: true },
+  { label: 'other worker', worker: undefined, consumer: 'worker-a', attempt: 1, caller: 'worker-b', callerAttempt: 1, allowed: false },
+  { label: 'unbound port', worker: undefined, consumer: 'worker-a', attempt: 1, caller: undefined, callerAttempt: undefined, allowed: false },
+  { label: 'stale attempt', worker: undefined, consumer: 'worker-a', attempt: 2, caller: 'worker-a', callerAttempt: 1, allowed: false },
+  { label: 'missing caller attempt', worker: undefined, consumer: 'worker-a', attempt: 1, caller: 'worker-a', callerAttempt: undefined, allowed: false },
+  { label: 'original attempt mismatch', worker: 'worker-a', consumer: 'worker-a', attempt: undefined, originalAttempt: 2, caller: 'worker-a', callerAttempt: 1, allowed: false },
+  { label: 'original attempt match', worker: 'worker-a', consumer: 'worker-a', attempt: undefined, originalAttempt: 1, caller: 'worker-a', callerAttempt: 1, allowed: true },
+  { label: 'legacy consumer without attempt', worker: undefined, consumer: 'worker-a', attempt: undefined, caller: 'worker-a', callerAttempt: undefined, allowed: true },
+  { label: 'conflicting consumer', worker: 'worker-a', consumer: 'worker-b', attempt: 1, caller: 'worker-a', callerAttempt: 1, allowed: false },
+  { label: 'conflicting original worker', worker: 'worker-a', consumer: 'worker-b', attempt: 1, caller: 'worker-b', callerAttempt: 1, allowed: false },
+  { label: 'legacy unbound', worker: undefined, consumer: undefined, attempt: undefined, caller: undefined, callerAttempt: undefined, allowed: true },
+  { label: 'privileged host', worker: undefined, consumer: 'worker-a', attempt: 1, caller: undefined, callerAttempt: undefined, host: true, allowed: true },
+] as const;
+
+for (const method of ['succeeded', 'failed', 'cancelled', 'unverified'] as const) {
+  for (const entry of receiptCases) {
+    it(`D9 receipt ${method}: ${entry.label}`, async () => {
+      const { cwd, store, id } = await fixture(entry.worker ?? null);
+      // Host mutation models persisted legacy/inconsistent records as well as
+      // normal D9 claims. Authorization must use the locked durable snapshot.
+      await store.mutate(records => {
+        const r = records.find(r => r.id === id)!;
+        r.consumedByWorkerId = entry.consumer;
+        r.consumedAttempt = entry.attempt;
+        if ('originalAttempt' in entry) r.workerAttempt = entry.originalAttempt;
+      });
+      closeAllSharedLedgers();
+      const restarted = new ApprovalStore(cwd); await restarted.load();
+      const options: { workerId?: string; workerAttempt?: number } = { workerId: entry.caller, workerAttempt: entry.callerAttempt };
+      const port = 'host' in entry ? restarted : createWorkerApprovalPort(restarted, options);
+      // Neither changing construction options nor extra request args grants authority.
+      options.workerId = 'worker-a'; options.workerAttempt = 2;
+      const before = structuredClone(await restarted.loadFresh(id));
+      const projection = await readFile(join(cwd, '.alix/approvals/approvals.json'), 'utf8');
+      const appends = restarted.ledgerStatus().appends;
+      const emit = vi.spyOn(restarted, 'emit');
+      const extraArgs = 'host' in entry ? [] : [{ workerId: 'worker-a', workerAttempt: entry.attempt }];
+      const result = method === 'unverified'
+        ? await Reflect.apply(port.markExecutionUnverified!, port, [id, ...extraArgs])
+        : await Reflect.apply(port.recordExecutionOutcome, port, [id, method, ...extraArgs]);
+      expect(result).toBe(entry.allowed ? method === 'unverified' ? 'unverified' : true : method === 'unverified' ? 'missing' : false);
+      if (entry.allowed) {
+        expect(await restarted.loadFresh(id)).toEqual({ ...before, executionOutcome: method, executionOutcomeAt: expect.any(String) });
+      } else {
+        expect(await restarted.loadFresh(id)).toEqual(before);
+        expect(restarted.ledgerStatus().appends).toBe(appends);
+        expect(await readFile(join(cwd, '.alix/approvals/approvals.json'), 'utf8')).toBe(projection);
+        expect(emit).not.toHaveBeenCalled();
+      }
+    });
+  }
+}
+
 // Explicit parity across legacy/worker records, host/worker authority and states.
 // Host calls retain their privileged interface; every port supplies a scope.
 describe('D7 outcome authorization parity', () => {
@@ -68,6 +124,30 @@ describe('D7 outcome authorization parity', () => {
 });
 
 for (const method of methods) {
+  for (const field of ['consumedByWorkerId', 'consumedAttempt'] as const) {
+    it(`D9 ${method}: rechecks ${field} after concurrent claim attribution`, async () => {
+      const { cwd, store, id } = await fixture(null);
+      await store.mutate(records => {
+        const r = records.find(r => r.id === id)!;
+        r.consumedByWorkerId = 'worker-a'; r.consumedAttempt = 1;
+      });
+      const reader = new ApprovalStore(cwd); await reader.load();
+      const port = createWorkerApprovalPort(reader, { workerId: 'worker-a', workerAttempt: 1 });
+      const mutate = reader.mutate.bind(reader);
+      vi.spyOn(reader, 'mutate').mockImplementationOnce(async fn => {
+        await store.mutate(records => {
+          const r = records.find(r => r.id === id)!;
+          if (field === 'consumedByWorkerId') r.consumedByWorkerId = 'worker-b';
+          else r.consumedAttempt = 2;
+        });
+        return mutate(fn);
+      });
+      const result = method === 'report' ? await port.recordExecutionOutcome(id, 'succeeded') : await port.markExecutionUnverified!(id);
+      expect(result).toBe(method === 'report' ? false : 'missing');
+      expect((await store.loadFresh(id))?.executionOutcome).toBe('pending');
+    });
+  }
+
   it(`${method}: rechecks authoritative ownership after a concurrent rebind`, async () => {
     const { cwd, store, id } = await fixture();
     const reader = new ApprovalStore(cwd);

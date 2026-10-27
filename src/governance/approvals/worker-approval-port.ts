@@ -77,10 +77,10 @@ export interface WorkerApprovalPort {
   /**
    * Report the outcome of an execution THIS worker performed.
    *
-   * Scope-limited by the `workerId` bound at construction: the record must
-   * belong to this worker, or carry no worker binding at all (legacy
-   * non-coordination records). Without this, any worker holding a consumed id
-   * could falsify another worker's execution receipt. The store checks this
+   * Scope-limited by the worker identity and optional attempt captured at
+   * construction: original and consumption bindings must all match. Only
+   * records without either binding retain legacy access. Without this, a worker
+   * holding a consumed id could falsify another worker's receipt. The store checks this
    * trusted scope against fresh ledger state inside its mutation lock.
    *
    * Returns the store's own boolean: `true` only when the transition landed.
@@ -114,7 +114,7 @@ export interface WorkerApprovalPort {
  */
 export async function openWorkerApprovalPort(
   workspace: string,
-  options: { eventLog?: unknown; workerId?: string } = {},
+  options: { eventLog?: unknown; workerId?: string; workerAttempt?: number } = {},
 ): Promise<WorkerApprovalPort> {
   const { ApprovalStore } = await import("../../governance/approvals/approval-store.js");
   const store = new ApprovalStore(
@@ -122,7 +122,7 @@ export async function openWorkerApprovalPort(
     options.eventLog ? { eventLog: options.eventLog as never } : {},
   );
   await store.load();
-  return createWorkerApprovalPort(store, { ...(options.workerId ? { workerId: options.workerId } : {}) });
+  return createWorkerApprovalPort(store, { workerId: options.workerId, workerAttempt: options.workerAttempt });
 }
 
 /** Methods that would let a worker authorize its own operations. */
@@ -166,9 +166,10 @@ export function assertNoForbiddenDecisionMethods(candidate: object): void {
  */
 export function createWorkerApprovalPort(
   store: ApprovalStore,
-  options: { workerId?: string } = {},
+  options: { workerId?: string; workerAttempt?: number } = {},
 ): WorkerApprovalPort {
   const boundWorkerId = options.workerId;
+  const boundWorkerAttempt = options.workerAttempt;
   // A bound worker can only observe its own records and explicitly legacy
   // unbound approvals. An unbound compatibility port cannot observe records
   // owned by any worker. Do not leak metadata via alternate lookup methods.
@@ -196,10 +197,10 @@ export function createWorkerApprovalPort(
       return store.consumeApproved(id, bindingKey, boundWorkerId ? { ...consumer, workerId: boundWorkerId } : consumer, invocation);
     },
     recordExecutionOutcome: (id, outcome) =>
-      store.recordExecutionOutcome(id, outcome, { workerId: boundWorkerId }),
+      store.recordExecutionOutcome(id, outcome, { workerId: boundWorkerId, workerAttempt: boundWorkerAttempt }),
     load: () => store.load(),
     markExecutionUnverified: (id) =>
-      store.markExecutionUnverified(id, { workerId: boundWorkerId }),
+      store.markExecutionUnverified(id, { workerId: boundWorkerId, workerAttempt: boundWorkerAttempt }),
   };
 
   // Structural guarantee, not a convention: no forbidden method is reachable
