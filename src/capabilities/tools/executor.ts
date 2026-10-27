@@ -568,7 +568,12 @@ export class ToolExecutor {
         resumed = await this.toolAwareRouter.downstream.execute(request);
       } catch (error) {
         if (claimedApprovalId) {
-          await this.recordApprovalOutcome(claimedApprovalId, isCancellationError(error) ? "cancelled" : "failed");
+          // After downstream dispatch began, a thrown error cannot establish whether
+          // an external effect happened. Keep the consumed claim pending for
+          // fail-closed reconciliation; cancellation retains its own status.
+          if (isCancellationError(error)) {
+            await this.recordApprovalOutcome(claimedApprovalId, "cancelled");
+          }
         }
         throw error;
       }
@@ -833,9 +838,9 @@ export class ToolExecutor {
           // Telemetry cannot reclassify an operator cancellation as failure.
         }
         if (claimedApprovalId) await this.recordApprovalOutcome(claimedApprovalId, "cancelled");
-      } else if (claimedApprovalId) {
-        await this.recordApprovalOutcome(claimedApprovalId, "failed");
       }
+      // A thrown router error cannot prove the effect was not applied.
+      // Keep a consumed approval pending for reconciliation, not `failed`.
       throw error;
     }
 

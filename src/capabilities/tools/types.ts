@@ -99,12 +99,11 @@ export type ToolResult =
        * consumed claim stays `pending` (classified `unverified` on replay,
        * fail-closed) instead of being promoted to `succeeded`.
        *
-       * This flag MUST be returned, not thrown. A router that applies an
-       * external effect and then throws has its single-use approval recorded
-       * `failed` and retired, because the executor cannot distinguish a throw
-       * after a real effect from a throw before one. Adapters with an
-       * indeterminable post-effect outcome must therefore resolve to this
-       * error shape rather than raise.
+       * Adapters should return this flag for known-indeterminate outcomes.
+       * If the router throws after dispatch begins, the executor conservatively
+       * preserves a consumed claim as `pending` because it cannot distinguish
+       * pre-effect from post-effect exceptions. Neither path establishes
+       * exactly-once external effects without adapter idempotency.
        */
       outcomeUnknown?: boolean;
     };

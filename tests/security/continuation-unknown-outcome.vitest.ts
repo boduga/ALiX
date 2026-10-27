@@ -144,6 +144,34 @@ for (const outcome of ['success', 'error', 'unknown'] as const) {
   });
 }
 
+for (const route of ['ordinary', 'resumed'] as const) {
+  it(`${route}: an adapter throwing after a real effect cannot forge a failed receipt`, async () => {
+    const f = await fixture('success');
+    const call = request(`throw-after-effect-${route}`);
+    const approvalId = await askAndApprove(f, call);
+    if (route === 'resumed') await persistContinuation(f, approvalId, call);
+    // Remove the fixture's result-shaping spy before wrapping the real router.
+    // Otherwise a spy-on-spy can recursively call itself.
+    f.restore();
+    const real = FileToolRouter.prototype.execute;
+    const throwing = vi.spyOn(FileToolRouter.prototype, 'execute').mockImplementation(async function (this: FileToolRouter, req) {
+      const result = await real.call(this, req);
+      if (req.name === 'file.create') throw new Error('adapter threw after effect');
+      return result;
+    });
+    try {
+      if (route === 'ordinary') await expect(f.executor.execute(call)).rejects.toThrow('adapter threw after effect');
+      else await expect(f.executor.resumeApprovedContinuation(approvalId, new AbortController().signal)).rejects.toThrow('adapter threw after effect');
+      expect(await f.store.loadFresh(approvalId)).toMatchObject({ status: 'consumed', executionOutcome: 'pending' });
+      const { readFile } = await import('node:fs/promises');
+      expect(await readFile(join(f.root, `${call.args.path}`), 'utf8')).toBe('effect');
+    } finally {
+      throwing.mockRestore();
+      await f.log.close();
+    }
+  });
+}
+
 it('an unknown resumed outcome stays pending and is refused on replay, never reissued', async () => {
   const f = await fixture('unknown');
   const call = request('resumed-unknown-replay');
