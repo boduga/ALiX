@@ -57,6 +57,7 @@ Persistent background daemon for task execution, lifecycle management, and local
 - `tests/fixtures/d9-daemon-review-probe.mjs verified` — explicit offline daemon process probe; requires private Unix-socket capability, validates one matching durable completion event and normal CLI `verification=verified` without changing authorization or reviewer rules.
 - `tests/security/daemon-tool-continuation-wiring.vitest.ts` — independent production host construction, watcher callback, and watcher dispatch guards with deletion controls.
 - `tests/security/daemon-tool-continuation-acceptance.vitest.ts` — actual store/executor/watcher resumption, scope and identity denial parity, failed receipts, lease cleanup, concurrent hosts, scheduler approval pauses, ledger-only crash recovery without telemetry, and consumed-outcome/identity/host denial parity.
+- `tests/security/d9-resumer-sigkill.test.ts` — real child-process watcher/resumer/executor SIGKILL checkpoints and fresh-process recovery, using `tests/fixtures/d9-resumer-crash-child.ts`. Covers pre-resume, committed continuation removal, consumption, file effect and successful receipt before worker update; router-entry evidence detects replay despite identical-content writes. This isolates the resumer host, not the socket daemon or worker scheduler; uncertain outcomes remain blocked, not automatically classified as unverified.
 
 - `tests/daemon/daemon-manager.test.ts` — PID/status lifecycle.
 - `tests/daemon/task-registry.test.ts` — TaskRegistry CRUD and persistence.
