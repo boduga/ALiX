@@ -573,7 +573,18 @@ export class ToolExecutor {
         throw error;
       }
       if (claimedApprovalId) {
-        await this.recordApprovalOutcome(claimedApprovalId, resumed.kind === "success" ? "succeeded" : "failed");
+        // The ordinary path below already refuses to write a receipt for an
+        // unknown outcome; the continuation branch must not be the loophole.
+        // A resumed call whose adapter reported no provable terminal outcome
+        // (`outcomeUnknown`) has unknown success, so recording `failed` would
+        // be a fabricated verdict AND would permanently retire a
+        // single-use approval that may in fact have applied its effect.
+        // Leaving the claim `pending` keeps the fail-closed state: a replay
+        // classifies it `unverified` and denies, and it is never reissued.
+        const outcomeUnknown = resumed.kind === "error" && resumed.outcomeUnknown === true;
+        if (!outcomeUnknown) {
+          await this.recordApprovalOutcome(claimedApprovalId, resumed.kind === "success" ? "succeeded" : "failed");
+        }
       }
       return resumed;
     }

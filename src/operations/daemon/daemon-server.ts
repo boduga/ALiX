@@ -544,6 +544,18 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
         ...(daemonApprovalStore ? { approvalStore: daemonApprovalStore } : {}),
       };
       await executeRoute(route, runtimeCtx, daemonExecutor);
+      // An accepted cancellation must never be overwritten by "completed".
+      // `cancel` sets `cancel_requested` and aborts the task signal; this
+      // branch used to declare success unconditionally, so a task the operator
+      // cancelled (and that durably recorded `cancel_requested`) finished as
+      // `completed` and survived restart that way — the ledger then recorded a
+      // success for work the operator had stopped.
+      if (signal.aborted || registry.get(taskId)?.status === "cancel_requested") {
+        registry.update(taskId, { status: "cancelled", cancelledAt: new Date().toISOString() });
+        safeWrite(client, { type: "task.cancelled" as const, taskId });
+        await endSession();
+        return;
+      }
       registry.update(taskId, { status: "completed", completedAt: new Date().toISOString() });
       safeWrite(client, { type: "task.completed" as const, sessionId, status: "completed" });
       await endSession();

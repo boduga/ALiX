@@ -89,6 +89,7 @@ reason about.
   before dispatch. Caller-set `source` alone is never authorization; missing
   or invalid evidence returns `denied`.
 - Continuation resumes check `AbortSignal` after ownership validation before claiming approval, and again immediately before downstream dispatch after claim/telemetry awaits. An observed abort throws `ExecutionCancelledError` without dispatching; cancellation after a successful claim records `cancelled` and never restores approval authority. Cancellation before claim leaves the approval untouched.
+- **An unknown outcome writes no receipt on EITHER dispatch route.** A result flagged `outcomeUnknown` proves neither success nor failure, so `dispatch` records no execution receipt and the claim stays `pending` (later classified `unverified`, fail-closed, never reissued) instead of being promoted to `succeeded` or retired as `failed`. The ordinary path and the continuation branch share that rule; the continuation branch previously returned before reaching it, so an unknown resumed result was recorded `failed` and permanently retired a single-use approval that may have applied its effect. Pinned by `tests/security/continuation-unknown-outcome.vitest.ts` (ordinary and resumed × success/error/unknown parity).
 - **`alix_file_delete` shares the owned-write second net.** When the request
   declares `ownedPaths`, the router runs the same `isOwnedWriteTarget` /
   `isWithinOwnedScope` check `alix_file_create` uses for overwrites — a worker
@@ -142,6 +143,7 @@ reason about.
 - `tests/security/approval-crash-recovery.test.ts` — post-claim outcome
   reporting and crash classification.
 - `tests/security/continuation-cancellation.vitest.ts` — aborted resumes before claim and after claim/telemetry, unchanged pre-claim authority, cancelled receipts, no filesystem effects, and active/legacy controls.
+- `tests/security/continuation-unknown-outcome.vitest.ts` — the `outcomeUnknown` receipt rule across ordinary dispatch and continuation resume (success/error/unknown parity), plus unknown-outcome replay denial with the claim left `pending`.
 
 ## Child DOX Index
 

@@ -73,13 +73,48 @@ export class ApprovalStoreLock {
 
   isHeld(): boolean { return this.acquired; }
 
+  /**
+   * A lock is stale when its owner can no longer be holding it.
+   *
+   * Two independent proofs — either one is sufficient:
+   *  - the owning PID is gone, or
+   *  - the lock is older than {@link STALE_LOCK_MS} (covers PID reuse and
+   *    cross-host/PID-namespace cases where the PID cannot be probed).
+   *
+   * Requiring BOTH (the previous rule: age gate first, then liveness) meant a
+   * lock left behind by a daemon killed mid-mutation was never broken for a
+   * full minute: every `mutate()` then polled to its 10s timeout and threw
+   * "Could not acquire approval lock", so approvals, outcomes and worker
+   * recovery all failed during crash recovery. The age bound alone keeps the
+   * break safe for a lock whose PID was recycled by an unrelated process.
+   *
+   * A lock directory with no `meta.json` is NOT stale: the owner creates the
+   * directory and writes its metadata immediately after, and deleting that
+   * window would let a second process steal a live lock.
+   */
   private isStale(): boolean {
     try {
       const metaPath = join(this.lockPath, "meta.json");
       if (!existsSync(metaPath)) return false;
       const saved = JSON.parse(readFileSync(metaPath, "utf-8")) as ApprovalLockMetadata;
-      if (Date.now() - new Date(saved.acquiredAt).getTime() < STALE_LOCK_MS) return false;
-      try { process.kill(saved.pid, 0); return false; } catch { return true; }
+      const age = Date.now() - new Date(saved.acquiredAt).getTime();
+      if (age > STALE_LOCK_MS) return true;
+      if (!Number.isFinite(saved.pid) || saved.pid <= 0) return true;
+      return !pidIsAlive(saved.pid);
     } catch { return false; }
+  }
+}
+
+/**
+ * `process.kill(pid, 0)` is a portable existence probe: it sends nothing.
+ * A permission error still proves the process exists (it belongs to another
+ * user), so only "no such process" counts as dead.
+ */
+function pidIsAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
   }
 }
