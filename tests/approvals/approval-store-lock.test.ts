@@ -85,6 +85,19 @@ describe("ApprovalStoreLock (flock backend)", () => {
     successor.release();
   });
 
+  it("rejects an acquired lock if its pathname was replaced while waiting", async () => {
+    const original = new ApprovalStoreLock(cwd);
+    assert.equal(await original.acquire(500), true);
+    const contender = new ApprovalStoreLock(cwd);
+    const pending = contender.acquire(450);
+    await new Promise(r => setTimeout(r, 100));
+    rmSync(lockPath(cwd), { force: true });
+    writeFileSync(lockPath(cwd), "replacement", "utf8");
+    original.release();
+    assert.equal(await pending, false, "a contender on an unlinked inode must not report success");
+    contender.release();
+  });
+
   it("locks a leftover directory from the pre-flock mkdir lock without throwing", async () => {
     // A legacy mkdir-lock orphan leaves a DIRECTORY at the lock path. flock can
     // lock a directory, so acquisition must succeed rather than throw EISDIR.

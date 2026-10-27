@@ -21,7 +21,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import {
   mkdirSync, rmSync, writeFileSync, readFileSync, existsSync,
-  renameSync, openSync, closeSync,
+  renameSync, openSync, closeSync, fstatSync, statSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -122,6 +122,15 @@ class FlockApprovalStoreLock implements ApprovalLockBackend {
       while (Date.now() < deadline) {
         const code = await this.tryFlock(fd);
         if (code === 0) {
+          // A contender may have opened a stale inode after the pathname was
+          // replaced. Never report acquisition of an unlinked lock target.
+          // This detects replacement before the check; it cannot prevent a
+          // privileged/external actor from unlinking the path afterward.
+          const held = fstatSync(fd);
+          const current = statSync(this.path);
+          if (held.dev !== current.dev || held.ino !== current.ino) {
+            return false;
+          }
           this.fd = fd;
           this.acquired = true;
           return true;
