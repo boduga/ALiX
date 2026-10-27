@@ -19,6 +19,7 @@ import { invocationMatches } from "../approvals/approval-binding.js";
 import { extractPatchPaths } from "../../execution/patch/patch-paths.js";
 import { relative, resolve, sep } from "node:path";
 import { isWithinOwnedScope } from "../../coordination/ownership/path-scope.js";
+import { unscopableChannelDenial } from "../../coordination/ownership/owned-scope-channels.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -94,39 +95,11 @@ export function resolvePolicyPath(cwd: string, path: string): string {
 const OWNED_WRITE_TOOLS = new Set(["file.create", "file.delete", "patch.apply"]);
 
 /**
- * Capabilities that can mutate the workspace through a channel whose targets
- * `mutationTargets()` cannot enumerate — a shell command, a dynamic tool.
- *
- * These are the reason `hasOwnedWriteScope` is not enough on its own. A worker
- * declared to own exactly one file could previously run
- * `printf x > outside.txt` and be allowed, because `shell.run` is not in
- * `OWNED_WRITE_TOOLS`: the owned-path rule (step 5.5) never ran for it, and the
- * capability's blanket `allow` short-circuited at step 5. Independent Gate E
- * review defect D2.
- *
- * The rule is deliberately blunt: if a scope was declared, an unscopable
- * mutation channel is denied. Denying is the only safe answer, because the
- * gate has no way to prove the command stays inside the declared paths.
+ * Channel check lives in ONE place: `owned-scope-channels.ts`. The policy gate
+ * and the executor's continuation branch both import it, so a new mutation
+ * channel is handled once rather than in two fragments that can drift apart —
+ * which is how the continuation branch ended up with no check at all.
  */
-const UNSCOPABLE_MUTATION_CAPABILITIES = new Set([
-  "shell.run",
-  "mcp.invoke",
-  "dynamictool.invoke",
-]);
-
-/**
- * True when this request declares an owned scope AND can mutate through a
- * channel the owned-path rule cannot evaluate.
- */
-function isUnscopableMutationWithinScope(request: {
-  capability: string;
-  ownedPaths?: string[];
-}): boolean {
-  return (
-    Boolean(request.ownedPaths?.length) &&
-    UNSCOPABLE_MUTATION_CAPABILITIES.has(request.capability)
-  );
-}
 
 /**
  * True when the request declares an owned scope for a write tool — the case
@@ -282,22 +255,25 @@ export class PolicyGate {
     // 1.5 Owned-scope channel check (Gate E defect D2).
     //
     // A declared scope is only meaningful if every mutation channel can be
-    // evaluated against it. `mutationTargets()` reads a path or patch text, so
-    // it cannot enumerate what a shell command writes. Before this check a
-    // worker owning `inside.txt` was allowed `printf x > outside.txt`: the
-    // owned-path rule never ran (shell.run is not an OWNED_WRITE_TOOL) and the
-    // capability's blanket allow short-circuited at step 5.
+    // evaluated against it. A shell command, a dynamic MCP tool, or a delegate
+    // that spawns another agent cannot be — their targets are not in the args.
+    // Before this check a worker owning `inside.txt` was allowed
+    // `printf x > outside.txt`: the owned-path rule never ran (shell.run is not
+    // an OWNED_WRITE_TOOL) and the capability's blanket allow short-circuited.
     //
     // This sits with the hard denies rather than later, because a rule that can
     // be reached only after a permissive branch is not a rule.
-    if (isUnscopableMutationWithinScope({ capability, ownedPaths: request.ownedPaths })) {
+    const unscopableReason = unscopableChannelDenial({
+      capability,
+      toolName: request.toolName,
+      ownedPaths: request.ownedPaths,
+    });
+    if (unscopableReason) {
       return {
         requestId: request.requestId,
         capability,
         decision: "deny",
-        reason:
-          `Capability '${capability}' cannot be constrained to owned paths ` +
-          `(${request.ownedPaths!.length} declared); denied for scoped workers`,
+        reason: unscopableReason,
         matchedRuleId: "unscopable-mutation-rule",
         policyRevision,
       };
@@ -352,6 +328,29 @@ export class PolicyGate {
           decision: "deny",
           reason: `Command '${baseCmd}' is not in the allowed whitelist`,
           matchedRuleId: "shell-whitelist-rule",
+          policyRevision,
+        };
+      }
+    }
+
+    // 3.5 Hard capability deny — evaluated BEFORE any branch that can return
+    // `ask`.
+    //
+    // Gate E review defect D11, second half: the shell-whitelist branch above
+    // could return `ask` for a capability the operator had explicitly set to
+    // `deny`, turning an absolute refusal into an approval prompt. A deny is not
+    // a stronger form of ask; it is the absence of a question. Checked here, a
+    // deny no longer depends on which permissive branch happened to run first.
+    const hardDeny = this.config.permissions.tools?.[capability];
+    if (hardDeny) {
+      const effectiveDeny = applySessionMode(hardDeny, request.sessionMode);
+      if (effectiveDeny === "deny") {
+        return {
+          requestId: request.requestId,
+          capability,
+          decision: "deny",
+          reason: `Denied by tool policy (mode: ${request.sessionMode})`,
+          matchedRuleId: `tool-policy-${capability}`,
           policyRevision,
         };
       }

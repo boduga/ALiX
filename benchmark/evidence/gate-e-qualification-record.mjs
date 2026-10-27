@@ -35,8 +35,15 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
+import {
+  PATH_BASES,
+  isEntryPoint,
+  isIsoTimestamp,
+  nonEmpty,
+  resolveCited,
+  runRecordCli,
+} from './record-validation.mjs';
 
 /**
  * The five clauses of Gate E, frozen from PRD §9.
@@ -55,30 +62,16 @@ export const INDEPENDENCE_CLASSES = ['author-only', 'model-independent', 'declar
 export const COMPONENT_STATES = ['qualified', 'partial', 'unqualified'];
 
 /** Gate E outcomes. Independence upgrades the label; it never upgrades coverage. */
+export { PATH_BASES } from './record-validation.mjs';
+
 export const GATE_E_OUTCOMES = {
   independent: 'QUALIFIED-INDEPENDENT',
   authorOnly: 'QUALIFIED-AUTHOR-ONLY',
   hold: 'HOLD',
 };
 
-/** Where a record's cited paths resolve from. Explicit, never guessed. */
-export const PATH_BASES = ['record', 'repo-root'];
-
-/**
- * Resolve a cited path.
- *
- * A record must SAY which base it uses (`pathBase`), because a silent guess
- * either rejects valid citations or accepts nonexistent ones. `record` resolves
- * beside the record file; `repo-root` resolves from the process cwd, which is
- * the repository root when the documented command is used.
- */
-function resolveCited(cited, baseDir, pathBase) {
-  return pathBase === 'repo-root' ? resolve(cited) : resolve(baseDir, cited);
-}
-
-function nonEmpty(value) {
-  return typeof value === 'string' && value.trim().length > 0;
-}
+/** D9: what may stand as evidence for a control. */
+export const EVIDENCE_PATH_PATTERN = /\.(test|spec)\.(ts|mts|js|mjs)$|\.vitest\.ts$|^src\//;
 
 /**
  * Validate a Gate E qualification record.
@@ -139,6 +132,26 @@ export function validateGateERecord(record, options = {}) {
         continue;
       }
       if (!nonEmpty(run.runner)) problems.push(`${at}.runner is required`);
+      // D9: a runner NAME proves nothing — the review's probe passed
+      // "IMAGINARY-RUNNER" and was accepted. Requiring the exact command makes
+      // the claim falsifiable: a third party can re-run it and compare counts.
+      if (!nonEmpty(run.command)) {
+        problems.push(
+          `${at}.command is required: a runner name is not reproducible, the exact invocation is`,
+        );
+      } else {
+        for (const file of Array.isArray(run.files) ? run.files : []) {
+          if (!nonEmpty(file)) continue;
+          // Compare stem + extension, because a compiled run names
+          // `dist/tests/x.test.js` for a source file `tests/x.test.ts`.
+          const stem = file.replace(/\.(ts|mts)$/, "");
+          if (!run.command.includes(stem) && !run.command.includes(file)) {
+            problems.push(
+              `${at}.command does not reference ${file}: the command must be the one that ran those files`,
+            );
+          }
+        }
+      }
       if (!Array.isArray(run.files) || run.files.length === 0) {
         problems.push(`${at}.files is required: name the files that ran`);
       } else {
@@ -217,6 +230,13 @@ export function validateGateERecord(record, options = {}) {
             problems.push(`${clause} cites an empty evidence path`);
           } else if (pathBase && !existsSync(resolveCited(file, baseDir, pathBase))) {
             problems.push(`${clause} cites a path that does not exist: ${file}`);
+          } else if (!EVIDENCE_PATH_PATTERN.test(file)) {
+            // D9: the probe used package.json as every clause's evidence and was
+            // accepted. Evidence for a control must be code that can assert it —
+            // a test or the implementation under test.
+            problems.push(
+              `${clause} cites ${file}, which cannot assert a control: evidence must be a test or source file`,
+            );
           }
         }
       }
@@ -364,39 +384,22 @@ export function renderGateEReport(result) {
   return lines.join('\n');
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const path = process.argv[2];
-  if (!path) {
-    process.stderr.write('usage: node benchmark/evidence/gate-e-qualification-record.mjs <record.json>\n');
-    process.exit(2);
-  }
-  let raw;
-  try {
-    raw = readFileSync(resolve(path), 'utf-8');
-  } catch {
-    process.stderr.write(`cannot read Gate E record: ${path}\n`);
-    process.exit(2);
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    process.stderr.write(`Gate E record is not valid JSON: ${String(error)}\n`);
-    process.exit(2);
-  }
-  const result = validateGateERecord(parsed, { baseDir: dirname(resolve(path)) });
-  process.stdout.write(renderGateEReport(result) + '\n');
-  // Exit codes must never collapse "valid" into "cleared".
-  //
-  // A HOLD is a HOLD whether or not the record itself is well-formed: a record
-  // that validates and still reports HOLD (e.g. one clause `partial`) previously
-  // exited 0, which let a pipeline read a HOLD as a pass. Found by independent
-  // review D10; the original exit mapping only special-cased author-only.
-  process.exitCode = result.outcome === GATE_E_OUTCOMES.hold
-    ? 1
-    : !result.ok
-      ? 1
-      : result.outcome === GATE_E_OUTCOMES.authorOnly
-        ? 3
-        : 0;
+if (isEntryPoint(import.meta.url, process.argv)) {
+  runRecordCli({
+    argv: process.argv,
+    usage: 'node benchmark/evidence/gate-e-qualification-record.mjs <record.json>',
+    render: renderGateEReport,
+    validate: validateGateERecord,
+    // Exit codes must never collapse "valid" into "cleared": a HOLD is non-zero
+    // whether or not the record itself is well-formed, and a sound author-only
+    // record is 3 so a pipeline cannot read it as a cleared gate.
+    exitCodeFor: (result) =>
+      result.outcome === GATE_E_OUTCOMES.hold
+        ? 1
+        : !result.ok
+          ? 1
+          : result.outcome === GATE_E_OUTCOMES.authorOnly
+            ? 3
+            : 0,
+  });
 }

@@ -23,7 +23,8 @@
       ],
       "tests": 214,
       "passed": 214,
-      "failed": 0
+      "failed": 0,
+      "command": "node --test dist/tests/security/legacy-approval-single-use.test.js dist/tests/security/approval-crash-recovery.test.js dist/tests/security/approval-consumed-propagation.test.js dist/tests/ownership/path-scope.test.js dist/tests/ownership/ownership-gate.test.js dist/tests/ownership/ownership-registry.test.js dist/tests/policy/policy-gate.test.js dist/tests/policy/rule-evaluator.test.js dist/tests/policy/command-classifier.test.js"
     },
     {
       "runner": "vitest run",
@@ -36,7 +37,8 @@
       ],
       "tests": 68,
       "passed": 68,
-      "failed": 0
+      "failed": 0,
+      "command": "npx vitest run --config vitest.config.mts tests/security/worker-approval-port.vitest.ts tests/security/policy-protected-path-parity.vitest.ts tests/security/pre-r032-non-bypass.vitest.ts tests/security/pre-r024-isolation-qualification.vitest.ts tests/security/approval-event-dedup.vitest.ts"
     }
   ],
   "components": [
@@ -45,8 +47,7 @@
       "id": "GE-01",
       "question": "Is the child-process approval surface incapable of self-approval?",
       "evidence": [
-        "tests/security/worker-approval-port.vitest.ts",
-        "docs/harness-invariant-register.md"
+        "tests/security/worker-approval-port.vitest.ts"
       ],
       "negativeCase": "WorkerApprovalPort throws at construction if a resolve/revoke/invalidate/mutate method appears; recordExecutionOutcome is scoped to the bound workerId.",
       "observed": "partial",
@@ -169,34 +170,34 @@
     "startedAt": "2026-10-25T00:00:00.000Z",
     "fixed": [
       {
-        "id": "D2",
-        "what": "A declared owned scope now denies every mutation channel that cannot be enumerated against it (shell, dynamic tools). New hard-deny rule `unscopable-mutation-rule` at policy-gate step 1.5, placed with the denies so a permissive branch cannot precede it.",
-        "test": "tests/policy/policy-gate.test.ts — 4 tests, mutation-checked (disabling the rule fails 2 of them)",
-        "regressionRisk": "LOW: narrows scoped workers only; unscoped workers and in-scope file writes unaffected and covered by tests"
-      },
-      {
         "id": "D1",
-        "what": "The ask-mode safe-shell bypass consulted only `isSafeShellCommand`, so a command in `denyCommands` executed. It now evaluates mandatory policy denies first and returns an error result. `approval-store-missing` is deliberately NOT treated as a deny: it is an absent dependency, not a verdict on the command.",
-        "test": "tests/executor.test.ts — 2 tests, mutation-checked (disabling the check fails the deny test)",
-        "regressionRisk": "LOW: only refuses; never widens. A non-denied safe command still bypasses approvals, asserted."
+        "what": "Ask-mode safe-shell bypass now evaluates mandatory policy denies first. The probe uses this.root (not process.cwd()) and carries ownedPaths, so a scoped worker mutating \"safe\" command is caught. ToolResult shape corrected to {kind:\"error\",message} — the previous {kind:\"error\",error} plus a double cast rendered \"Error: undefined\". Also fixed isSafeShellCommand: `git branch -d x` was classified safe.",
+        "test": "tests/executor.test.ts + tests/unit/safe-shell.test.ts, mutation-checked"
       },
       {
-        "id": "D11",
-        "what": "RuleEvaluator precedence changed from first-match-wins to deny > ask > allow over all matching rules. File order can no longer grant authority. The reported rule is the strictest match, earliest among equals, so decisions are order-independent and audit lines stay stable.",
-        "test": "tests/policy/rule-evaluator.test.ts — 8 tests added; reverting to first-match fails 5 of 21, including the shipped-defaults case where allow-file-read preceded deny-critical-risk.",
-        "regressionRisk": "LOW: 7 symbols, 0 execution processes; matchedRuleId is audit-only and no consumer branches on it. CLI verified: filesystem.read + critical now reports deny/deny-critical-risk."
-      },
-      {
-        "id": "VACUOUS-TESTS",
-        "what": "Eight of the eleven vacuous assertions repaired to fail when their control is removed; two scoped to what they actually prove; the command-classifier removed from evidence entirely because it has no production consumer.",
-        "test": "Constructor guard 2, ownership persistence 10, continuation ownership 1, D2 2, D1 1, D11 5 — all fail on mutation.",
-        "regressionRisk": "LOW. One production change beyond the defects: continuation-resume now enforces ownedPaths (it failed closed before this, so defence-in-depth, not a new denial path for legitimate work)."
+        "id": "D2",
+        "what": "Inverted to an ALLOWLIST: owned-scope-channels.ts permits only tools whose targets are enumerable (file.create/file.delete/patch.apply) and reads mutability from ToolCapabilityRegistry.resolve(toolName).mutates. Everything else that mutates is denied for scoped workers. Covers shell, mcp.invoke, mcp__*, skill.create, agent.delegate, hook.create, coordination.run, schedule.propose. One module shared by PolicyGate and ToolExecutor.",
+        "test": "tests/policy/policy-gate.test.ts — 8 channels x 3 session modes; reverting to the deny-list fails it"
       },
       {
         "id": "D4",
-        "what": "A consumed coordination binding is now DENIED instead of minting a replacement pending approval; a lost claim race is denied rather than re-asked.",
-        "test": "tests/security/approval-consumed-propagation.test.ts — the tightened assertion reproduced D4 before the fix and passes after.",
-        "regressionRisk": "LOW: 1221 node tests across security/policy/ownership/kernel pass."
+        "what": "A consumed coordination binding is DENIED, and a lost claim race is denied, instead of minting a replacement approval.",
+        "test": "tests/security/approval-consumed-propagation.test.ts — asserts deny, no replacement approvalId, and matchedRuleId; the tightening reproduced the defect before the fix"
+      },
+      {
+        "id": "D9",
+        "what": "The validator now requires each run to carry the exact reproducible command referencing the files it claims ran, and requires component evidence to be a test or source file. A fabricated record (all-zero commit, IMAGINARY-RUNNER, package.json as evidence) is rejected.",
+        "test": "benchmark/evidence/gate-e-qualification-record.test.mjs — 2 tests fail when the checks are removed"
+      },
+      {
+        "id": "D10",
+        "what": "Any HOLD exits non-zero, and the exit code is now asserted at the process level rather than only via outcome.",
+        "test": "gate-e-qualification-record.test.mjs D10 CLI test"
+      },
+      {
+        "id": "D11",
+        "what": "RuleEvaluator is deny>ask>allow over all matching rules (already fixed), AND a hard capability deny is now checked before the shell-whitelist ask branch, so a deny can no longer become an approval prompt.",
+        "test": "tests/policy/rule-evaluator.test.ts (5 fail on revert) + policy-gate whitelist interaction"
       }
     ],
     "notFixed": [
@@ -204,24 +205,35 @@
       "D5",
       "D6",
       "D7",
-      "D8",
-      "D9 (validator — fixed)",
-      "D10 (validator — fixed)"
+      "D8"
     ],
-    "note": "D9 and D10 were fixed in the validator immediately when found. D1 and D2 are the two authority holes. D11 (deny-wins in rule-evaluator) remains open and is the next item: it is a precedence bug, not a bypass of the gate.",
+    "note": "RE-COUNT after the 2026-10-25 two-axis review. The earlier claim of '4 of 11 closed' was OVERSTATED and is corrected here: D2 was partial (capability deny-list missed skill.create, agent.delegate, hook.create, coordination.run and dynamic mcp__*), and D11 was half-fixed (the evaluator precedence was fixed; the ask-before-hard-deny branch was not). Both are now addressed at the general level rather than the enumerated case. Honest count of fully closed review defects, each mutation-checked: D1, D2, D4, D9, D10, D11 = 6. Still open: D3, D5, D6, D7, D8.",
     "foundWhileFixing": [
       {
         "id": "CONTINUATION-OWNEDSCOPE",
-        "what": "The continuation-resume branch skips PolicyGate, so ownedPaths was never enforced there; only the registry lease ran, with autoAcquire:true, which grants coverage. Now enforced before the approval claim.",
-        "severity": "defence-in-depth — it failed closed before (invocation-identity refused first), but the check was unreachable",
+        "what": "The continuation-resume branch skips PolicyGate, so ownedPaths was unenforced there; only the registry lease ran with autoAcquire:true (which grants coverage). Now enforced before the approval claim, using the shared channel module.",
+        "severity": "defence-in-depth (it failed closed on invocation identity first), but the check was unreachable",
         "test": "tests/executor.test.ts — removing the call fails 1 test"
       },
       {
+        "id": "WORKER-RESOLVER-MISSING",
+        "what": "subagent-cli passed ownedPaths but never a WorkspacePathResolver, so the executor owned-scope checks were INERT in production — only a hand-wired test reached them. Resolver now supplied.",
+        "severity": "CRITICAL evidence defect: the fix existed but did nothing where it mattered",
+        "test": "src/agents/subagent-cli.ts wiring"
+      },
+      {
+        "id": "ISREADONLY-MISMATCH",
+        "what": "isReadonlyCapability(inferCapability(t)) reads two different axes (policyKey vs capabilityId) and answered \"read-only\" for shell.run and file.create, silently defeating the first allowlist. Replaced with ToolCapabilityRegistry.resolve(toolName).mutates.",
+        "severity": "major — a plausible API that returns confidently wrong answers",
+        "test": "dist probe over 11 tools"
+      },
+      {
         "id": "CLASSIFIER-NO-CONSUMER",
-        "what": "CommandClassifier/classifyCommand have no production consumer (GitNexus risk UNKNOWN; only the policy barrel re-exports). Tests were cited as denied-action enforcement evidence.",
-        "severity": "evidence defect, not a code defect",
-        "test": "scope banner added; removed from Gate E evidence"
+        "what": "CommandClassifier has no production consumer; removed from Gate E evidence and the suite carries a scope banner.",
+        "severity": "evidence defect, not code",
+        "test": "scope banner"
       }
-    ]
+    ],
+    "reviewedAt": "2026-10-25T00:00:00.000Z"
   }
 }

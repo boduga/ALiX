@@ -641,22 +641,38 @@ describe("PolicyGate", () => {
   //
   // These tests fail if the unscopable-mutation rule is removed. That is the
   // point — the previous evidence for this control could not fail.
-  it("D2: a scoped worker cannot mutate through shell even when shell is allow-listed", async () => {
-    const config = makeConfig({ permissions: { tools: { "shell.run": "allow" } } as any });
-    for (const mode of ["ask", "auto", "bypass"] as const) {
-      const gate = new PolicyGate(config);
-      const redirect = await gate.evaluateToolCall({
-        requestId: `d2-redirect-${mode}`,
-        toolName: "shell.run",
-        args: { command: "printf x > outside.txt" },
-        cwd: "/ws",
-        sessionMode: mode,
-        source: "tool",
-        ownedPaths: ["inside.txt"],
-      });
-      assert.equal(redirect.decision, "deny", `session mode ${mode}`);
-      assert.equal(redirect.matchedRuleId, "unscopable-mutation-rule");
-      assert.match(redirect.reason, /cannot be constrained to owned paths/);
+  it("D2: a scoped worker cannot mutate through ANY unscopable channel", async () => {
+    // The first fix listed forbidden channels by name and the review defeated it
+    // by naming ones the list missed. This asserts the ALLOWLIST polarity: every
+    // channel below mutates and none of them can be proven within a declared
+    // scope, so every one must deny.
+    const channels = [
+      { tool: "shell.run", capability: "shell.run", args: { command: "printf x > outside.txt" } },
+      { tool: "mcp.invoke", capability: "mcp.invoke", args: { server: "s", tool: "t" } },
+      { tool: "mcp__server__weird", capability: undefined, args: { anything: 1 } },
+      { tool: "skill.create", capability: "skill.create", args: { name: "x" } },
+      { tool: "agent.delegate", capability: "agent.delegate", args: { task: "write outside" } },
+      { tool: "coordination.run", capability: "coordination.run", args: {} },
+      { tool: "schedule.propose", capability: "schedule.propose", args: {} },
+      { tool: "hook.create", capability: "hook.create", args: {} },
+    ];
+    for (const channel of channels) {
+      for (const mode of ["ask", "auto", "bypass"] as const) {
+        const config = makeConfig({ permissions: { tools: { [channel.capability ?? channel.tool]: "allow" } } as any });
+        const gate = new PolicyGate(config);
+        const decision = await gate.evaluateToolCall({
+          requestId: `d2-${channel.tool}-${mode}`,
+          toolName: channel.tool,
+          ...(channel.capability ? { capability: channel.capability } : {}),
+          args: channel.args,
+          cwd: "/ws",
+          sessionMode: mode,
+          source: "tool",
+          ownedPaths: ["inside.txt"],
+        });
+        assert.equal(decision.decision, "deny", `${channel.tool} / ${mode}`);
+        assert.equal(decision.matchedRuleId, "unscopable-mutation-rule", `${channel.tool} / ${mode}`);
+      }
     }
   });
 
@@ -679,6 +695,24 @@ describe("PolicyGate", () => {
     });
     assert.equal(decision.decision, "deny");
     assert.equal(decision.matchedRuleId, "unscopable-mutation-rule");
+  });
+
+  it("D2: a scoped worker can still use read-only capabilities", async () => {
+    // The allowlist denies unscopable MUTATION. A read cannot violate a write
+    // scope, so denying it would be an over-correction that breaks workers.
+    const config = makeConfig({ permissions: { tools: { "filesystem.read": "allow" } } as any });
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "d2-read",
+      toolName: "file.read",
+      capability: "filesystem.read",
+      args: { path: "inside.txt" },
+      cwd: "/ws",
+      sessionMode: "auto",
+      source: "tool",
+      ownedPaths: ["inside.txt"],
+    });
+    assert.equal(decision.decision, "allow");
   });
 
   it("D2: an UNSCOPED worker is unaffected — the rule narrows, never widens", async () => {

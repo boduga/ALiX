@@ -38,7 +38,7 @@ function components() {
     question: `Does ${clause} hold?`,
     observed: 'qualified',
     negativeCase: `removing ${clause} fails the test`,
-    evidence: ['evidence.md'],
+    evidence: ['evidence.test.ts'],
   }));
 }
 
@@ -47,7 +47,11 @@ function baseRecord(overrides = {}) {
     artifact: { commit: COMMIT, branch: 'main' },
     observedAt: '2026-10-24T00:00:00.000Z',
     pathBase: 'record',
-    runs: [{ runner: 'node --test', files: ['evidence.md'], tests: 10, passed: 10, failed: 0 }],
+    runs: [{
+      runner: 'node --test',
+      command: 'node --test dist/tests/evidence.test.js',
+      files: ['evidence.test.ts'], tests: 10, passed: 10, failed: 0,
+    }],
     components: components(),
     declaredGaps: [],
     independence: { class: 'author-only', note: 'tests authored with the code' },
@@ -59,7 +63,7 @@ function baseRecord(overrides = {}) {
 function withFixtures(fn) {
   const dir = mkdtempSync(join(tmpdir(), 'gate-e-'));
   try {
-    writeFileSync(join(dir, 'evidence.md'), '# evidence\n');
+    writeFileSync(join(dir, 'evidence.test.ts'), '// evidence\n');
     return fn(dir);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -124,7 +128,7 @@ test('a partial clause blocks qualification even with the other four qualified',
 test('a failing suite cannot be qualified', () => {
   withFixtures(dir => {
     const result = validateGateERecord(
-      baseRecord({ runs: [{ runner: 'node --test', files: ['evidence.md'], tests: 10, passed: 9, failed: 1 }] }),
+      baseRecord({ runs: [{ runner: 'node --test', command: 'node --test dist/tests/evidence.test.js', files: ['evidence.test.ts'], tests: 10, passed: 9, failed: 1 }] }),
       { baseDir: dir },
     );
     assert.equal(result.ok, false);
@@ -135,7 +139,7 @@ test('a failing suite cannot be qualified', () => {
 test('a run whose counts do not add up is rejected', () => {
   withFixtures(dir => {
     const result = validateGateERecord(
-      baseRecord({ runs: [{ runner: 'node --test', files: ['evidence.md'], tests: 10, passed: 7, failed: 0 }] }),
+      baseRecord({ runs: [{ runner: 'node --test', command: 'node --test dist/tests/evidence.test.js', files: ['evidence.test.ts'], tests: 10, passed: 7, failed: 0 }] }),
       { baseDir: dir },
     );
     assert.equal(result.ok, false);
@@ -176,8 +180,12 @@ test('repo-root citations resolve from the repository root', () => {
   const result = validateGateERecord(
     baseRecord({
       pathBase: 'repo-root',
-      runs: [{ runner: 'node --test', files: ['package.json'], tests: 1, passed: 1, failed: 0 }],
-      components: components().map(c => ({ ...c, evidence: ['package.json'] })),
+      runs: [{
+        runner: 'node --test',
+        command: 'node --test dist/tests/executor.test.js',
+        files: ['tests/executor.test.ts'], tests: 1, passed: 1, failed: 0,
+      }],
+      components: components().map(c => ({ ...c, evidence: ['tests/executor.test.ts'] })),
     }),
     { baseDir: '/nonexistent-base-should-be-ignored' },
   );
@@ -354,4 +362,100 @@ test('D10: a valid record that still HOLDs is not a pass', () => {
     // ...and still not cleared, which is the state that used to exit 0.
     assert.equal(result.outcome, GATE_E_OUTCOMES.hold);
   });
+});
+
+/**
+ * Regressions from the standards/spec review (2026-10-25).
+ *
+ * D9 was reported fixed once and was not: the earlier hardening only covered the
+ * free-text `note` path, so an all-zero commit with an imaginary runner still
+ * reached QUALIFIED-INDEPENDENT. These pin the parts that actually gate.
+ */
+
+test('D9: a fabricated run cannot qualify, even with a plausible shape', () => {
+  withFixtures(dir => {
+    const result = validateGateERecord(
+      baseRecord({
+        artifact: { commit: '0'.repeat(40) },
+        runs: [{ runner: 'IMAGINARY-RUNNER', files: ['evidence.test.ts'], tests: 999, passed: 999, failed: 0 }],
+      }),
+      { baseDir: dir },
+    );
+    assert.equal(result.ok, false);
+    assert.ok(result.problems.some(p => /command is required/.test(p)));
+    assert.equal(result.outcome, GATE_E_OUTCOMES.hold);
+  });
+});
+
+test('D9: the command must actually reference the files it claims ran', () => {
+  withFixtures(dir => {
+    const result = validateGateERecord(
+      baseRecord({
+        runs: [{
+          runner: 'node --test', command: 'node --test unrelated.test.ts',
+          files: ['evidence.test.ts'], tests: 1, passed: 1, failed: 0,
+        }],
+      }),
+      { baseDir: dir },
+    );
+    assert.equal(result.ok, false);
+    assert.ok(result.problems.some(p => /does not reference/.test(p)));
+  });
+});
+
+test('D9: a non-test file cannot stand as evidence for a control', () => {
+  withFixtures(dir => {
+    writeFileSync(join(dir, 'package.json'), '{}');
+    const comps = components();
+    comps[0].evidence = ['package.json'];
+    const result = validateGateERecord(baseRecord({ components: comps }), { baseDir: dir });
+    assert.equal(result.ok, false);
+    assert.ok(result.problems.some(p => /cannot assert a control/.test(p)));
+  });
+});
+
+test('D9: a compiled dist path satisfies the command check for a source file', () => {
+  withFixtures(dir => {
+    const result = validateGateERecord(
+      baseRecord({
+        runs: [{
+          runner: 'node --test',
+          command: 'node --test dist/tests/evidence.test.js',
+          files: ['evidence.test.ts'], tests: 1, passed: 1, failed: 0,
+        }],
+      }),
+      { baseDir: dir },
+    );
+    assert.ok(!result.problems.some(p => /does not reference/.test(p)));
+  });
+});
+
+test('D10: the CLI reports failure for every HOLD, not just for invalid input', async () => {
+  // The reviewer noted D10's fix was never verified at the process level: the
+  // suite asserted `outcome`, never an exit code. Drive the real CLI.
+  const { writeFileSync, mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { execFileSync } = await import('node:child_process');
+  const dir = mkdtempSync(join(tmpdir(), 'gate-e-cli-'));
+  try {
+    const record = baseRecord();
+    // A well-formed record with one partial clause -> valid, but HOLD.
+    record.components[0] = { ...record.components[0], observed: 'partial' };
+    const path = join(dir, 'record.json');
+    writeFileSync(path, JSON.stringify(record));
+    writeFileSync(join(dir, 'evidence.test.ts'), '// evidence\n');
+    writeFileSync(join(dir, 'evidence.md'), '# e\n');
+    let code = 0;
+    try {
+      execFileSync(process.execPath, [
+        'benchmark/evidence/gate-e-qualification-record.mjs', path,
+      ], { stdio: 'ignore', cwd: process.cwd() });
+    } catch (error) {
+      code = error?.status ?? -1;
+    }
+    assert.equal(code, 1, 'a valid HOLD record must exit 1, never 0');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -219,7 +219,10 @@ test("D1: a denyCommands entry still denies through the safe-shell bypass", asyn
     });
     assert.notEqual(result.kind, "success", "a denied command must not succeed");
     assert.equal(result.kind, "error");
-    assert.match(String((result as { error?: string }).error ?? ""), /denied by policy/i);
+    // `message`, not a nonexistent `error` field: ToolResult's error branch is
+    // {kind, message}. Asserting `.error` locked in a shape that rendered as
+    // "Error: undefined" downstream.
+    assert.match(String((result as { message?: string }).message ?? ""), /denied by policy/i);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

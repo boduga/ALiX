@@ -473,3 +473,78 @@ does that.
 Gate E remains **HOLD at 0 of 5**. Four of eleven review defects are now closed
 (D1, D2, D4, D11), eight vacuous assertions are repaired or scoped, and the
 remaining defects (D3, D5, D6, D7, D8) are still open.
+
+## 13. Two-axis review of the remediation, and what it caught
+
+The remediation was reviewed by the repo's `code-review` skill: two independent
+agents on separate axes, standards and spec. Both found real problems. The pattern
+in every one was the same — I had verified the case I had in mind and asserted the
+general property.
+
+### 13.1 Standards axis
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| `ToolResult` shape broken behind `as unknown as` — `{kind:"error", error}` instead of `{message}`, so the deny rendered `Error: undefined` | hard (CONTRIBUTING.md) | Fixed to `{kind:"error", message}`, test asserts `message` |
+| DOX undercounted enforcement points ("two"; there are three) | hard (DOX) | Root `AGENTS.md` now names all three and the shared channel module |
+| Three new rule ids undocumented (`unscopable-mutation-rule`, `consumed-binding-denied`, `binding-claim-lost`) | hard (DOX) | Documented in `policy/AGENTS.md` as a stable audit surface |
+| Shotgun surgery: a new channel needed three edits | judgement | **Fixed structurally** — one `owned-scope-channels.ts` both enforcement points import |
+| Duplicated validator scaffolding | judgement | Extracted `record-validation.mjs`; both validators now share it |
+| Self-defeating test fixture: `pre-r032` re-implemented the regex it was testing | judgement | Extracted `tests/security/source-scanners.ts`; test and assertion call the same function |
+| Probe used `process.cwd()` instead of `this.root` | judgement | Fixed — protected-path verdicts are cwd-relative |
+| Redundant assertion (kept `notEqual("allow")` beside `=== "deny"`) | judgement | Reduced to one, extended with the two unasserted requirements |
+
+### 13.2 Spec axis — and the two findings that mattered most
+
+**D2 was not the recommended fix.** The deny-list was capability-keyed and missed
+`skill.create`, `agent.delegate`, `hook.create`, `coordination.run` and dynamic
+`mcp__*`. `dynamictool.invoke` was dead — no producer yields it. Inverted to an
+allowlist: only tools whose targets are enumerable are permitted with a declared
+scope, and mutability comes from the registry row.
+
+**The continuation fix was inert in production.** It needed
+`this.workspacePathResolver`, but `subagent-cli.ts` passed `ownedPaths` without one.
+Every real worker ran with the check silently disabled; only my hand-wired test
+reached it. This is the most serious finding of the review, and it is the same
+shape as the vacuous tests: the code existed, the test passed, and neither touched
+the path that runs.
+
+**D9 had been reported fixed once and was not.** The earlier hardening covered only
+free-text independence. Re-probed, an all-zero commit with `IMAGINARY-RUNNER` and
+`package.json` as evidence still returned `QUALIFIED-INDEPENDENT`, exit 0. Now each
+run must carry the exact reproducible command referencing the files it claims ran,
+and evidence must be a test or source file.
+
+**D11 was half-fixed.** The evaluator precedence was right; the review's second
+half — an `ask` branch preceding a hard deny — was untouched. Confirmed by probe:
+`tools["shell.run"]="deny"` + `allowUnmatched` returned `ask`. The hard deny is now
+evaluated before the whitelist branch.
+
+### 13.3 A well-named API that answers confidently and wrongly
+
+Chasing D2 surfaced this:
+
+```
+isReadonlyCapability(inferCapability(t))
+  shell.run   -> capabilityId axis -> "read-only"   (wrong)
+  file.create -> capabilityId axis -> "read-only"   (wrong)
+```
+
+`inferCapability` returns a `policyKey`; `isReadonlyCapability` matches
+`capabilityId`. The two axes never met, so every lookup answered "read-only" — which
+silently disabled the first allowlist. Mutability now comes from
+`ToolCapabilityRegistry.resolve(toolName).mutates`, one hop, one axis.
+
+A wrong answer from a plausible API is harder to catch than a crash. It was caught
+only because the channel test failed on `shell.run`, the single case the whole fix
+was about.
+
+### 13.4 Corrected arithmetic
+
+The earlier claim of "four of eleven closed" was **overstated** and is corrected to
+**six**: D1, D2, D4, D9, D10, D11. D2 and D11 were partial when the claim was made.
+Still open: **D3, D5, D6, D7, D8**.
+
+Gate E remains **HOLD at 0 of 5**. Six defects closed with mutation-checked tests
+does not make five clauses qualified — that verdict is the reviewer's, and the last
+review returned NO.

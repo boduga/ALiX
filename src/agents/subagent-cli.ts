@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle, ModelSelectionPolicy } from "../operations/config/schema.js";
 import { resolvePolicyPath } from "../governance/policy/policy-gate.js";
+import { WorkspacePathResolver } from "../runtime-state/runtime/workspace-path.js";
 import { ALIX_BUILTIN_EXECUTORS } from "./tool-manifest.js";
 import { createModelResolver } from "../operations/config/model-resolver.js";
 import { getSubagentRole } from "../operations/config/subagent-config.js";
@@ -727,6 +728,15 @@ export class SubagentCLI {
       mcpManager: mcpManager ?? undefined,
       editFormatPolicy: buildEditFormatPolicy({ provider: effectiveProvider, preferred: provider.editFormatPreference }),
       ownedPaths: mode === "write" ? ownedPaths : undefined,
+      // Without a resolver the executor's owned-scope checks are INERT: it
+      // constructs a private resolver but never assigns it, so
+      // `this.workspacePathResolver` stays undefined and the declared scope is
+      // silently unenforced on the continuation and ownership paths. Supplying
+      // it here is what makes `ownedPaths` actually mean something in a worker.
+      workspacePathResolver: new WorkspacePathResolver(
+        projectRoot,
+        config.permissions?.protectedPaths ?? [],
+      ),
       // The port is passed as-is: `createToolExecutor` takes `approvalStore:
       // unknown` and the facade enforces the narrowing at runtime by throwing if
       // a decision method ever becomes reachable. The earlier `as never` cast

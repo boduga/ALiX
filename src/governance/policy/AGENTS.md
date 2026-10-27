@@ -16,7 +16,24 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
 ## Local Contracts
 
 - **Owned-scope matching is owned by `src/coordination/ownership/AGENTS.md`.** This gate is
-  one of the two enforcement points and calls `isWithinOwnedScope`; it must
+  one of the enforcement points (with the `ToolExecutor` continuation/owned path and `FileToolRouter`) and calls `isWithinOwnedScope`; it must
+
+- **Owned-scope channel rule is one module.** `src/coordination/ownership/owned-scope-channels.ts`
+  decides whether a requested tool can be constrained to `ownedPaths` at all. It is an
+  ALLOWLIST of scopable write tools (`SCOPABLE_WRITE_TOOLS`), because a deny-list of
+  unscopable channels cannot be complete — the review found `skill.create`,
+  `agent.delegate`, `hook.create`, `coordination.run` and dynamic `mcp__*` outside the
+  first list. Mutability is read from `ToolCapabilityRegistry.resolve(toolName).mutates`,
+  NOT from `isReadonlyCapability(inferCapability(t))`: those two read different axes
+  (`policyKey` vs `capabilityId`), and combining them answered "read-only" for
+  `shell.run` and `file.create`.
+- **Rule ids are a durable audit surface.** These `matchedRuleId` values are emitted by
+  this gate and must stay stable:
+  `unscopable-mutation-rule` (declared scope + unconstrainable channel),
+  `consumed-binding-denied` (replay of a spent coordination binding),
+  `binding-claim-lost` (claim raced after a read),
+  `approval-store-missing` (no store; NOT a denial of the command — callers must not
+  treat it as one).
   never grow its own matcher or re-normalize a grant. The rule, the fail-closed
   cases, and the workspace-wide vocabulary are documented there — read them
   there rather than restating them here. A blanket capability allow never

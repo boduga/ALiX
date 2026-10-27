@@ -38,9 +38,17 @@
  *      1 = HOLD, 2 = usage / unreadable / malformed input.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+  checkEvidenceFiles,
+  checkSignerNamed,
+  isEntryPoint,
+  isIsoTimestamp,
+  nonEmpty,
+  normalizeIdentity,
+  runRecordCli,
+} from './record-validation.mjs';
 
 /**
  * Release outcomes. There is deliberately no `CLOSED-WITH-WAIVER` analogue.
@@ -70,60 +78,10 @@ export const CLEARANCE_KINDS = ['restriction-cleared', 'no-restriction-applicabl
 /** Who supplied the maintainer decision. `model` is rejected, not merely flagged. */
 export const SIGNER_CLASSES = ['operator', 'model'];
 
+export { normalizeIdentity } from './record-validation.mjs';
+
 const COMMIT_RE = /^[0-9a-f]{40}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
-
-function isIso(value) {
-  return typeof value === 'string' && Number.isFinite(Date.parse(value));
-}
-
-function nonEmpty(value) {
-  return typeof value === 'string' && value.trim().length > 0;
-}
-
-/** Identity comparison for the same-party rule: case and spacing are not distinctions. */
-export function normalizeIdentity(value) {
-  return typeof value === 'string' ? value.trim().toLowerCase().replace(/\s+/g, ' ') : '';
-}
-
-/** Every cited evidence path must exist. A citation to nothing is not evidence. */
-function checkEvidenceFiles(label, list, baseDir, problems) {
-  if (!Array.isArray(list) || list.length === 0) {
-    problems.push(`${label} is required: a decision must cite the artifact a third party can re-read`);
-    return;
-  }
-  for (const entry of list) {
-    if (!nonEmpty(entry)) {
-      problems.push(`${label} contains an empty path`);
-      continue;
-    }
-    if (!existsSync(resolve(baseDir, entry))) {
-      problems.push(`${label} cites a path that does not exist: ${entry}`);
-    }
-  }
-}
-
-/**
- * The signing artifact must NAME the signer.
- *
- * This is the same rule the Gate B waiver check uses, for the same reason: a
- * record that points at a blank signature block is pointing at an unsigned gap.
- */
-function checkSignerNamed(label, list, identity, baseDir, problems) {
-  if (!nonEmpty(identity) || !Array.isArray(list)) return;
-  const readable = list.filter(entry => nonEmpty(entry) && existsSync(resolve(baseDir, entry)));
-  if (readable.length === 0) return;
-  const named = readable.some(entry => {
-    try {
-      return readFileSync(resolve(baseDir, entry), 'utf-8').includes(identity.trim());
-    } catch {
-      return false;
-    }
-  });
-  if (!named) {
-    problems.push(`${label} does not contain the named signer: ${identity.trim()}`);
-  }
-}
 
 /**
  * Validate a release-clearance record. Never throws on record shape; returns
@@ -131,6 +89,9 @@ function checkSignerNamed(label, list, identity, baseDir, problems) {
  */
 export function validateReleaseClearanceRecord(record, options = {}) {
   const baseDir = options.baseDir ? resolve(options.baseDir) : process.cwd();
+  // This record resolves citations beside itself. Declared explicitly rather
+  // than defaulted deeper in, so the base is visible where it is used.
+  const pathBase = 'record';
   const problems = [];
   const notes = [];
 
@@ -189,7 +150,7 @@ export function validateReleaseClearanceRecord(record, options = {}) {
     if (technical.verdict === 'partial') {
       problems.push('technical qualification is PARTIAL: a partial qualification is not a documented technical PASS');
     }
-    if (!isIso(technical.qualifiedAt)) {
+    if (!isIsoTimestamp(technical.qualifiedAt)) {
       problems.push('technical.qualifiedAt must be an ISO timestamp');
     }
     if (artifactCommit && String(technical.commit ?? '').toLowerCase() !== artifactCommit) {
@@ -197,7 +158,7 @@ export function validateReleaseClearanceRecord(record, options = {}) {
         `technical qualification is bound to a different artifact (${String(technical.commit ?? 'none')} != ${artifactCommit})`,
       );
     }
-    checkEvidenceFiles('technical.evidence', technical.evidence, baseDir, problems);
+    checkEvidenceFiles('technical.evidence', technical.evidence, baseDir, pathBase, problems);
   }
 
   // ── Independent security publication clearance ──────────────────
@@ -215,17 +176,17 @@ export function validateReleaseClearanceRecord(record, options = {}) {
         problems.push(`clearance.${field} is required: a clearance with no named ${field} is not a clearance`);
       }
     }
-    if (!isIso(clearance.grantedAt)) {
+    if (!isIsoTimestamp(clearance.grantedAt)) {
       problems.push('clearance.grantedAt must be an ISO timestamp');
     }
     if (clearance.expiresAt !== undefined && clearance.expiresAt !== null) {
-      if (!isIso(clearance.expiresAt)) {
+      if (!isIsoTimestamp(clearance.expiresAt)) {
         problems.push('clearance.expiresAt must be an ISO timestamp, or null when the clearance does not expire');
       } else if (Date.parse(clearance.expiresAt) <= Date.now()) {
         problems.push(`clearance EXPIRED at ${clearance.expiresAt}: an expired clearance cannot authorize a release`);
       }
     }
-    checkEvidenceFiles('clearance.evidence', clearance.evidence, baseDir, problems);
+    checkEvidenceFiles('clearance.evidence', clearance.evidence, baseDir, pathBase, problems);
   }
 
   // ── Maintainer decision ─────────────────────────────────────────
@@ -244,7 +205,7 @@ export function validateReleaseClearanceRecord(record, options = {}) {
     if (!nonEmpty(approval.identity)) {
       problems.push('approval.identity is required');
     }
-    if (!isIso(approval.approvedAt)) {
+    if (!isIsoTimestamp(approval.approvedAt)) {
       problems.push('approval.approvedAt must be an ISO timestamp');
     }
     if (!nonEmpty(approval.scope)) {
@@ -258,12 +219,12 @@ export function validateReleaseClearanceRecord(record, options = {}) {
     if (artifactSha && approval.sha256 !== undefined && approval.sha256 !== null && String(approval.sha256).toLowerCase() !== artifactSha) {
       problems.push('maintainer approval sha256 does not match the release artifact');
     }
-    checkEvidenceFiles('approval.evidence', approval.evidence, baseDir, problems);
-    checkSignerNamed('approval.evidence', approval.evidence, approval.identity, baseDir, problems);
+    checkEvidenceFiles('approval.evidence', approval.evidence, baseDir, pathBase, problems);
+    checkSignerNamed('approval.evidence', approval.evidence, approval.identity, baseDir, pathBase, problems);
 
     // Q13: approval comes *after* clearance. An approval written first is
     // approval of an unresolved restriction.
-    if (clearance && isIso(approval.approvedAt) && isIso(clearance.grantedAt) && Date.parse(approval.approvedAt) < Date.parse(clearance.grantedAt)) {
+    if (clearance && isIsoTimestamp(approval.approvedAt) && isIsoTimestamp(clearance.grantedAt) && Date.parse(approval.approvedAt) < Date.parse(clearance.grantedAt)) {
       problems.push('maintainer approval PREDATES clearance: Q13 requires approval after restrictions are cleared, not before');
     }
 
@@ -348,27 +309,12 @@ export function renderReleaseReport(result) {
   return lines.join('\n');
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const path = process.argv[2];
-  if (!path) {
-    process.stderr.write('usage: node benchmark/evidence/release-clearance-record.mjs <record.json>\n');
-    process.exit(2);
-  }
-  let raw;
-  try {
-    raw = readFileSync(resolve(path), 'utf-8');
-  } catch {
-    process.stderr.write(`cannot read release-clearance record: ${path}\n`);
-    process.exit(2);
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    process.stderr.write(`release-clearance record is not valid JSON: ${String(error)}\n`);
-    process.exit(2);
-  }
-  const result = validateReleaseClearanceRecord(parsed, { baseDir: dirname(resolve(path)) });
-  process.stdout.write(renderReleaseReport(result) + '\n');
-  process.exitCode = result.ok ? 0 : 1;
+if (isEntryPoint(import.meta.url, process.argv)) {
+  runRecordCli({
+    argv: process.argv,
+    usage: 'node benchmark/evidence/release-clearance-record.mjs <record.json>',
+    render: renderReleaseReport,
+    validate: validateReleaseClearanceRecord,
+    exitCodeFor: (result) => (result.ok ? 0 : 1),
+  });
 }

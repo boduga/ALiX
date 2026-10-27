@@ -90,3 +90,29 @@ describe("SafeShell", () => {
     });
   });
 });
+
+// ── Mutating "safe" commands must not be classified safe ──────────────
+//
+// `git branch` was matched by `/^git\s+branch(\s+-?[a-z]+)*$/`, which accepts
+// `-d <name>`. A destructive command therefore took the read-only path and
+// skipped the approval gate entirely. Found by review: an allowlist of flags is
+// the only safe form, because `[a-z]+` accepts every flag git ever adds.
+describe("mutating variants are not safe", () => {
+  it("git branch listing is safe", () => {
+    for (const c of ["git branch", "git branch -a", "git branch -r", "git branch -v", "git branch --list"]) {
+      assert.equal(isSafeShellCommand(c), true, c);
+    }
+  });
+
+  it("git branch deletion and mutation are NOT safe", () => {
+    for (const c of [
+      "git branch -d mybranch",
+      "git branch -D mybranch",
+      "git branch -m old new",
+      "git branch -f x HEAD",
+      "git branch --delete mybranch",
+    ]) {
+      assert.equal(isSafeShellCommand(c), false, c);
+    }
+  });
+});

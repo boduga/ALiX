@@ -24,6 +24,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { countConsumedWriters, eligibilityWideningPattern, missingApprovalGuards, scanEligibilityWidening } from "./source-scanners.js";
 
 async function defaultGate() {
   const { PolicyGate } = await import("../../src/governance/policy/policy-gate.js");
@@ -81,8 +82,6 @@ describe("authorization is not authority-by-adjacency", () => {
     // an eligibility/promotion record and returns allow. Nothing may do that.
     const { readFileSync, readdirSync, statSync } = await import("node:fs");
     const { join } = await import("node:path");
-    const offenders: string[] = [];
-
     const walk = (dir: string): string[] => {
       const out: string[] = [];
       for (const entry of readdirSync(dir)) {
@@ -108,17 +107,9 @@ describe("authorization is not authority-by-adjacency", () => {
     // the assertion could not fail: the walker ran only for a length sanity
     // check (Gate E review, vacuous assertion #3). A scan that cannot report a
     // hit is not a scan.
-    const policyRoot = join(process.cwd(), "src/governance/policy");
-    const scanned = walk(policyRoot);
-    for (const file of scanned) {
-      const body = readFileSync(file, "utf-8");
-      // An eligibility/promotion read that can WIDEN a decision is the bypass.
-      // Reading the word is not itself wrong, so the pattern requires an access
-      // that feeds a decision.
-      if (/eligibility/i.test(body) && /decision/i.test(body)) {
-        offenders.push(file);
-      }
-    }
+    // One scanner, used by both the assertion and its own negative test.
+    const offenders = scanEligibilityWidening(join(process.cwd(), "src/governance/policy"));
+    const scanned = walk(join(process.cwd(), "src/governance/policy"));
     // Sanity: the walker works, so an empty `offenders` is a real negative.
     expect(scanned.length).toBeGreaterThan(0);
     expect(offenders).toEqual([]);
@@ -224,36 +215,31 @@ describe("missing authority is a pause, never an implicit execute", () => {
 // coverage. These tests exercise the failure path directly.
 describe("source scanners can detect what they claim to forbid", () => {
   it("the eligibility scan would flag a decision-widening read", () => {
-    // The real scan requires BOTH an eligibility reference and decision logic.
-    const pattern = (body: string) =>
-      /eligibility/i.test(body) && /decision/i.test(body);
-    expect(pattern("const e = eligibility.read(); return decision;")).toBe(true);
-    expect(pattern("const decision = allow;")).toBe(false);
-    // A file that merely mentions eligibility without touching a decision is
-    // not the bypass this guard exists for.
-    expect(pattern("// eligibility is documented elsewhere")).toBe(false);
+    // Calls the SAME predicate the real scan uses. The earlier version
+    // re-implemented the regex here, so the copy could pass while the scanner
+    // drifted — it proved the copy worked, not the guard.
+    expect(eligibilityWideningPattern("const e = eligibility.read(); return decision;")).toBe(true);
+    expect(eligibilityWideningPattern("const decision = allow;")).toBe(false);
+    expect(eligibilityWideningPattern("// eligibility is documented elsewhere")).toBe(false);
   });
 
   it("the consumed-status writer count would catch a second writer", () => {
-    // The real assertion counts `.status = "consumed"` assignments. It matches
-    // exactly one today because the claim is the only writer. If a second
-    // appeared, the count would move — so the count must actually respond.
-    const countWriters = (src: string) => (src.match(/\.status\s*=\s*"consumed"/g) ?? []).length;
-    expect(countWriters('this.status = "consumed";')).toBe(1);
-    expect(countWriters('this.status = "consumed"; other.status = "consumed";')).toBe(2);
-    // Object.assign style writes are invisible to this scan — a real limitation,
+    expect(countConsumedWriters('this.status = "consumed";')).toBe(1);
+    expect(countConsumedWriters('this.status = "consumed"; other.status = "consumed";')).toBe(2);
+    // Object.assign-style writes are invisible to this scan — a real limitation,
     // recorded rather than papered over.
-    expect(countWriters('Object.assign(r, { status: "consumed" });')).toBe(0);
+    expect(countConsumedWriters('Object.assign(r, { status: "consumed" });')).toBe(0);
   });
 
-  it("the required-guard scan would fail when a guard is deleted", () => {
-    // The real test asserts four regexes are present in approval-store.ts.
-    const guards = [/status !== "approved"/, /expiresAt\) <= now/, /bindingKey !== expectedBindingKey/, /invocationMatches/];
-    const present = 'if (r.status !== "approved") {} if (r.expiresAt) <= now) {} if (r.bindingKey !== expectedBindingKey) {} invocationMatches(x)';
-    const missingOne = 'if (r.status !== "approved") {} if (r.expiresAt) <= now) {} if (r.bindingKey !== expectedBindingKey) {}';
-    const allPresent = guards.every((g) => g.test(present));
-    const oneGone = guards.every((g) => g.test(missingOne));
-    expect(allPresent).toBe(true);
-    expect(oneGone).toBe(false);
+  it("the required-guard scan reports a deleted guard", () => {
+    const all = [
+      'if (r.status !== "approved") {}',
+      'if (r.expiresAt) <= now) {}',
+      'if (r.bindingKey !== expectedBindingKey) {}',
+      'invocationMatches(x)',
+    ].join(" ");
+    expect(missingApprovalGuards(all)).toEqual([]);
+    const withoutOne = all.replace('if (r.bindingKey !== expectedBindingKey) {}', "");
+    expect(missingApprovalGuards(withoutOne)).toHaveLength(1);
   });
 });

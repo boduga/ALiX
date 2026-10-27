@@ -261,9 +261,16 @@ export class ToolExecutor {
       toolName: "shell.run",
       capability: "shell.run",
       args: { command },
-      cwd: process.cwd(),
+      // The CALLER's workspace, not the process cwd: protected-path and evasion
+      // verdicts are cwd-relative, so probing from a different root could allow
+      // a command the real evaluation denies.
+      cwd: this.root,
       sessionMode: "ask",
       source: "tool",
+      // Carry the declared scope so the probe sees the same channel denial the
+      // real authorization would. Without this a scoped worker's mutating
+      // "safe" command (e.g. `git branch -d x`) skipped the D2 check entirely.
+      ...(this.ownedPaths?.length ? { ownedPaths: this.ownedPaths } : {}),
     });
     if (decision.decision !== "deny") return null;
     // A missing approval store is not a verdict on the command.
@@ -577,8 +584,9 @@ export class ToolExecutor {
           });
           return {
             kind: "error",
-            error: `Command denied by policy: ${mandatoryDeny}`,
-          } as unknown as Awaited<ReturnType<typeof this.toolAwareRouter.downstream.execute>>;
+            message: `Command denied by policy: ${mandatoryDeny}`,
+            retryable: false,
+          };
         }
         // Skip the approval gate for a whitelisted read-only command, but do
         // not execute it here: the downstream ShellToolRouter owns workspace
@@ -1092,9 +1100,24 @@ export class ToolExecutor {
     // unchecked on that path: the registry lease below runs with
     // `autoAcquire: true`, which GRANTS coverage rather than enforcing it. A
     // scoped worker resuming a continuation could therefore write outside its
-    // declared scope. Same rule as PolicyGate's owned-path step, applied to the
-    // targets the shared extractor can see.
+    // declared scope.
+    //
+    // The CHANNEL rule comes from the shared module, not from a copy here: the
+    // first version of this block handled only enumerable targets, so a shell or
+    // delegate channel slipped through the same way it did in PolicyGate.
     const ownedPaths = request.ownedPaths?.length ? request.ownedPaths : this.ownedPaths;
+    if (ownedPaths?.length) {
+      const { unscopableChannelDenial } = await import("../../coordination/ownership/owned-scope-channels.js");
+      const capabilityId = this.toolRegistry?.lookupByName(toolName)?.policyKey ?? toolName;
+      const unscopable = unscopableChannelDenial({
+        capability: capabilityId,
+        toolName,
+        ownedPaths,
+      });
+      if (unscopable) {
+        return { kind: "error", message: unscopable, retryable: false };
+      }
+    }
     if (ownedPaths?.length && this.workspacePathResolver) {
       const { extractMutationTargets } = await import("../../coordination/ownership/mutation-targets.js");
       const extraction = extractMutationTargets(toolName, args, this.workspacePathResolver);

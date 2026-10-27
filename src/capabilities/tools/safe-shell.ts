@@ -137,8 +137,14 @@ export function isSafeShellCommand(command: string): boolean {
     // git diff with optional staged flag
     /^git\s+diff(\s+--staged)?(\s+--?[a-z]+)*$/,
 
-    // git branch (list only)
-    /^git\s+branch(\s+-?[a-z]+)*$/,
+    // git branch — LISTING ONLY.
+    //
+    // The previous pattern was `/^git\s+branch(\s+-?[a-z]+)*$/`, which accepts
+    // `git branch -d <name>`: a destructive command classified as read-only, so
+    // it skipped the approval gate. An allowlist of flags is the only safe form
+    // here; `[a-z]+` accepts every mutating flag ever added.
+    /^git\s+branch$/,
+    /^git\s+branch\s+(-a|--all|-r|--remotes|-v|--verbose|-vv|--list|--show-current)$/,
 
     // git remote -v
     /^git\s+remote\s+-v$/,
