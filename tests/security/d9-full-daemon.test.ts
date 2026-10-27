@@ -152,7 +152,12 @@ test('F-R03 independent approve deny revoke consume decisions stay single-use', 
     assert.ok(results.filter(m => (m.result as { consumed?: boolean })?.consumed).length <= 1);
     await host.wait('scan-done', scanAfter);
     const before = await snapshot(cwd, f); states.push(before);
-    assert.ok(['denied', 'revoked', 'consumed'].includes(before.approval.status));
+    // `revoke` is effective on every state except consumed/expired, so once the
+    // revoke actor runs it dominates the deny actor under contention: a durable
+    // `denied` is unreachable when all four actors race. The deny decision is
+    // still exercised (the actor records its own resolve), it just never wins
+    // against a concurrent revoke. Assert only the two reachable terminal states.
+    assert.ok(['revoked', 'consumed'].includes(before.approval.status));
     await host.scan(); await host.scan(); const after = await snapshot(cwd, f); states.push(after);
     assert.equal(after.entries, before.entries, 'later scans do not add effects');
     assert.ok((after.entries ?? '').trim().split('\n').filter(Boolean).length <= 1);

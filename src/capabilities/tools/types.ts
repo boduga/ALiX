@@ -98,6 +98,13 @@ export type ToolResult =
        * failure execution receipt for it: the evidence supports neither. The
        * consumed claim stays `pending` (classified `unverified` on replay,
        * fail-closed) instead of being promoted to `succeeded`.
+       *
+       * This flag MUST be returned, not thrown. A router that applies an
+       * external effect and then throws has its single-use approval recorded
+       * `failed` and retired, because the executor cannot distinguish a throw
+       * after a real effect from a throw before one. Adapters with an
+       * indeterminable post-effect outcome must therefore resolve to this
+       * error shape rather than raise.
        */
       outcomeUnknown?: boolean;
     };
