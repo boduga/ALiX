@@ -1,20 +1,31 @@
 /**
- * approval-store-lock.ts — Per-file lock for ApprovalStore.
+ * approval-store-lock.ts — Cross-process lock for ApprovalStore.
  *
- * Uses atomic mkdir for locking. Lock stored at .alix/approvals/approvals.lock.
- * Token-safe release, ownership-safe atomic stale-PID reclaim.
+ * The primary backend is OS-managed: an exclusive advisory `flock` on a lock
+ * file (via the util-linux `flock` binary's file-descriptor form). The lock
+ * lives in the kernel, so it is released automatically when the holding process
+ * exits for any reason — including SIGKILL. There is no lock state to recover,
+ * no PID to probe, no age to compare, and no reclaim race: a killed daemon
+ * never stalls later mutations, and a live holder is never stolen on age.
+ *
+ * A fallback backend (atomic `mkdir` + PID liveness) is used only where no
+ * `flock` binary is available (macOS/Windows CI). It is fail-closed: a
+ * provably DEAD pid is reclaimed immediately; a provably ALIVE pid (signal-0
+ * succeeds, or EPERM) is never reclaimed; and an unprovable owner
+ * (invalid/missing pid, missing/malformed metadata) is never reclaimed by age,
+ * because age cannot establish owner death. An unprovable orphan on those
+ * platforms therefore requires explicit operator recovery — a documented
+ * limitation of the fallback only, never a license to steal a live lock.
  */
 
-import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, statSync, renameSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import {
+  mkdirSync, rmSync, writeFileSync, readFileSync, existsSync,
+  renameSync, openSync, closeSync,
+} from "node:fs";
 import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 
-/**
- * Age backstop ceiling (ms). Applied ONLY when the lock's owner cannot be
- * proven dead or alive — an invalid/missing PID, or missing/malformed
- * metadata. It is never applied to a valid PID that is provably alive.
- */
-const STALE_LOCK_MS = 60_000;
 const POLL_INTERVAL_MS = 50;
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -24,26 +35,149 @@ export type ApprovalLockMetadata = {
   acquiredAt: string;
 };
 
-export class ApprovalStoreLock {
-  private readonly lockPath: string;
+/** Lock backends. `flock` is OS-managed (auto-released on process death). */
+export type LockBackendName = "flock" | "mkdir";
+
+interface ApprovalLockBackend {
+  acquire(timeoutMs: number): Promise<boolean>;
+  release(): void;
+  isHeld(): boolean;
+}
+
+function lockDir(cwd: string): string {
+  return join(cwd, ".alix", "approvals");
+}
+
+function lockPath(cwd: string): string {
+  return join(lockDir(cwd), "approvals.lock");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ─── Backend selection ──────────────────────────────────────────────────────
+
+let detectedBackend: LockBackendName | undefined;
+
+/**
+ * Choose the lock backend for this platform: OS-managed `flock` where the
+ * util-linux binary is present (Linux/BSD), the fail-closed `mkdir` lock
+ * otherwise (macOS, Windows). Detected once and cached; a per-instance
+ * `backend` option overrides it for tests.
+ */
+export function detectLockBackend(): LockBackendName {
+  if (detectedBackend !== undefined) return detectedBackend;
+  if (process.platform === "win32") {
+    detectedBackend = "mkdir";
+    return detectedBackend;
+  }
+  const probe = spawnSync("flock", ["--version"], { stdio: "ignore" });
+  detectedBackend = probe.error || probe.status !== 0 ? "mkdir" : "flock";
+  return detectedBackend;
+}
+
+// ─── OS-managed flock backend ───────────────────────────────────────────────
+
+/** The child fd slot used to hand our open fd to the `flock` binary. */
+const FLOCK_FD = 9;
+
+class FlockApprovalStoreLock implements ApprovalLockBackend {
+  private readonly path: string;
+  private fd: number | undefined;
+  private acquired = false;
+
+  constructor(cwd: string) {
+    this.path = lockPath(cwd);
+  }
+
+  async acquire(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<boolean> {
+    if (this.acquired) return true;
+    mkdirSync(dirname(this.path), { recursive: true, mode: 0o700 });
+
+    // One fd is opened and reused across non-blocking attempts. On success the
+    // fd stays open and IS the lock: the kernel holds an exclusive `flock` on
+    // the open file description until this fd is closed, so SIGKILL of this
+    // process closes it and releases the lock with no cleanup step.
+    const fd = openSync(this.path, "a+");
+    const deadline = Date.now() + timeoutMs;
+    try {
+      while (Date.now() < deadline) {
+        const code = await this.tryFlock(fd);
+        if (code === 0) {
+          this.fd = fd;
+          this.acquired = true;
+          return true;
+        }
+        await sleep(POLL_INTERVAL_MS);
+      }
+      return false;
+    } finally {
+      if (!this.acquired) {
+        try { closeSync(fd); } catch { /* already closed */ }
+      }
+    }
+  }
+
+  /**
+   * Ask the `flock` binary to take a non-blocking exclusive lock on our open
+   * fd. The child's fd 9 is a dup of the same open file description, so when
+   * `flock` exits (immediately) the lock is held by OUR fd, not the child's.
+   * Returns 0 when acquired, a non-zero exit code when contended, or null when
+   * the binary could not run at all.
+   */
+  private tryFlock(fd: number): Promise<number | null> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (code: number | null) => {
+        if (settled) return;
+        settled = true;
+        resolve(code);
+      };
+      const stdio = Array(FLOCK_FD).fill("ignore").concat([fd]);
+      const child = spawn("flock", ["-n", "-x", String(FLOCK_FD)], { stdio });
+      child.on("error", () => done(null));
+      child.on("exit", (code) => done(code));
+    });
+  }
+
+  release(): void {
+    if (!this.acquired) return;
+    this.acquired = false;
+    const fd = this.fd;
+    this.fd = undefined;
+    if (fd !== undefined) {
+      try { closeSync(fd); } catch { /* already closed */ }
+    }
+  }
+
+  isHeld(): boolean {
+    return this.acquired;
+  }
+}
+
+// ─── mkdir fallback backend ─────────────────────────────────────────────────
+
+class MkdirApprovalStoreLock implements ApprovalLockBackend {
+  private readonly path: string;
   private readonly token: string;
   private acquired = false;
 
   constructor(cwd: string) {
-    this.lockPath = join(cwd, ".alix", "approvals", "approvals.lock");
+    this.path = lockPath(cwd);
     this.token = randomUUID();
   }
 
   async acquire(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<boolean> {
     if (this.acquired) return true;
     const deadline = Date.now() + timeoutMs;
-    mkdirSync(dirname(this.lockPath), { recursive: true, mode: 0o700 });
+    mkdirSync(dirname(this.path), { recursive: true, mode: 0o700 });
 
     while (Date.now() < deadline) {
       try {
-        mkdirSync(this.lockPath);
+        mkdirSync(this.path);
         writeFileSync(
-          join(this.lockPath, "meta.json"),
+          join(this.path, "meta.json"),
           JSON.stringify({ pid: process.pid, token: this.token, acquiredAt: new Date().toISOString() } as ApprovalLockMetadata),
           "utf-8",
         );
@@ -52,7 +186,7 @@ export class ApprovalStoreLock {
       } catch {
         if (this.reclaimStaleLock()) continue;
       }
-      await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+      await sleep(POLL_INTERVAL_MS);
     }
     return false;
   }
@@ -60,12 +194,12 @@ export class ApprovalStoreLock {
   release(): void {
     if (!this.acquired) return;
     try {
-      if (existsSync(this.lockPath)) {
-        const metaPath = join(this.lockPath, "meta.json");
+      if (existsSync(this.path)) {
+        const metaPath = join(this.path, "meta.json");
         if (existsSync(metaPath)) {
           const saved = JSON.parse(readFileSync(metaPath, "utf-8")) as ApprovalLockMetadata;
           if (saved.token === this.token) {
-            rmSync(this.lockPath, { recursive: true, force: true });
+            rmSync(this.path, { recursive: true, force: true });
           }
         }
       }
@@ -73,7 +207,9 @@ export class ApprovalStoreLock {
     this.acquired = false;
   }
 
-  isHeld(): boolean { return this.acquired; }
+  isHeld(): boolean {
+    return this.acquired;
+  }
 
   /**
    * Ownership-safe atomic reclaim of a stale lock.
@@ -87,11 +223,11 @@ export class ApprovalStoreLock {
    * re-check proves a live owner the original read had not seen.
    */
   private reclaimStaleLock(): boolean {
-    if (!lockIsStale(this.lockPath)) return false;
+    if (!lockIsStale(this.path)) return false;
 
-    const tombstone = `${this.lockPath}.stale-${randomUUID()}`;
+    const tombstone = `${this.path}.stale-${randomUUID()}`;
     try {
-      renameSync(this.lockPath, tombstone);
+      renameSync(this.path, tombstone);
     } catch {
       // Lost the race (another host reclaimed or the owner released), or the
       // lock vanished between the staleness check and the rename.
@@ -104,7 +240,7 @@ export class ApprovalStoreLock {
     }
 
     // The frozen copy proves a live owner: restore it rather than steal it.
-    try { renameSync(tombstone, this.lockPath); } catch { /* best-effort */ }
+    try { renameSync(tombstone, this.path); } catch { /* best-effort */ }
     return false;
   }
 }
@@ -113,34 +249,31 @@ export class ApprovalStoreLock {
  * A lock is stale only when its owner can no longer be holding it:
  *
  *  - a valid, provably DEAD PID (signal-0 → ESRCH) is stale immediately — no
- *    age gate, so a daemon SIGKILLed inside `mutate()` is recovered right away
- *    instead of stalling every later mutation for a full minute;
+ *    age gate, so a daemon SIGKILLed inside `mutate()` is recovered right away;
  *  - a valid, provably ALIVE PID (signal-0 succeeds, or fails with EPERM for a
- *    process we cannot signal but that exists) is NEVER stale on age alone —
- *    age is a backstop for unprovable owners, never a license to steal a live
- *    lock (D9 review Finding 1);
- *  - an owner that cannot be proven — invalid/missing PID (Finding 2), or
- *    missing/malformed metadata (Finding 3) — is stale only after the age
- *    backstop {@link STALE_LOCK_MS}, measured on the metadata timestamp when
- *    available and on the directory mtime otherwise.
+ *    process we cannot signal but that exists) is NEVER stale on age alone;
+ *  - an owner that cannot be proven — invalid/missing PID, or missing/malformed
+ *    metadata — is never reclaimed automatically. Age cannot establish owner
+ *    death, and reclaiming by age would let a paused live writer lose its lock.
+ *    Such orphans require explicit operator recovery.
  */
 function lockIsStale(lockPath: string): boolean {
   const metaPath = join(lockPath, "meta.json");
   if (!existsSync(metaPath)) {
-    // No metadata: a live owner creates the directory and writes metadata
-    // immediately after. Age the directory so a young window is respected
-    // while a SIGKILL orphan (killed between mkdir and write) is reclaimed
-    // after the backstop instead of stalling recovery forever.
-    return directoryAgeMs(lockPath) > STALE_LOCK_MS;
+    // No owner identity exists to validate. Even an old directory may belong
+    // to a live process paused between mkdir and metadata creation. Fail
+    // closed; an orphan requires explicit operator recovery, never an
+    // unsafe automatic steal.
+    return false;
   }
 
   let meta: ApprovalLockMetadata;
   try {
     meta = JSON.parse(readFileSync(metaPath, "utf-8")) as ApprovalLockMetadata;
   } catch {
-    // Malformed metadata: the owner's state cannot be proven. Age the
-    // directory rather than stealing immediately.
-    return directoryAgeMs(lockPath) > STALE_LOCK_MS;
+    // An interrupted metadata write cannot prove that the writer is dead.
+    // Reclaim by age would allow a paused live writer to lose its lock.
+    return false;
   }
 
   const pid = meta.pid;
@@ -148,29 +281,8 @@ function lockIsStale(lockPath: string): boolean {
     return !pidIsAlive(pid);
   }
 
-  // Missing/invalid PID: cannot prove the owner dead. Age is the only signal.
-  const acquiredAt = new Date(meta.acquiredAt).getTime();
-  if (!Number.isFinite(acquiredAt)) return directoryAgeMs(lockPath) > STALE_LOCK_MS;
-  return Date.now() - acquiredAt > STALE_LOCK_MS;
-}
-
-/**
- * Age of the lock directory, from the mtime of its last write (the metadata
- * write, or the mkdir itself when no metadata was written). mtime, not
- * birthtime: for a SIGKILL orphan with no metadata the two coincide, and for a
- * malformed partial write mtime reflects the last write attempt. Returns 0 when
- * the directory cannot be stat'd, so an unreadable lock reads as young
- * (fail-closed: never reclaimed on a stat failure).
- */
-function directoryAgeMs(lockPath: string): number {
-  try {
-    const st = statSync(lockPath);
-    const ref = Number.isFinite(st.mtimeMs) && st.mtimeMs > 0 ? st.mtimeMs : st.birthtimeMs;
-    if (!Number.isFinite(ref) || ref <= 0) return 0;
-    return Date.now() - ref;
-  } catch {
-    return 0;
-  }
+  // Invalid PID cannot establish owner death. Never steal on elapsed time.
+  return false;
 }
 
 /**
@@ -184,5 +296,28 @@ function pidIsAlive(pid: number): boolean {
     return true;
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+// ─── Public facade ──────────────────────────────────────────────────────────
+
+export class ApprovalStoreLock implements ApprovalLockBackend {
+  private readonly backend: ApprovalLockBackend;
+
+  constructor(cwd: string, options?: { backend?: LockBackendName }) {
+    const name = options?.backend ?? detectLockBackend();
+    this.backend = name === "flock" ? new FlockApprovalStoreLock(cwd) : new MkdirApprovalStoreLock(cwd);
+  }
+
+  async acquire(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<boolean> {
+    return this.backend.acquire(timeoutMs);
+  }
+
+  release(): void {
+    this.backend.release();
+  }
+
+  isHeld(): boolean {
+    return this.backend.isHeld();
   }
 }

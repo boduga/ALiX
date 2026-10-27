@@ -1,8 +1,9 @@
 /**
  * approval-lock-liveness.test.ts — Real OS-process liveness and mutual-exclusion
  * tests for ApprovalStoreLock. Each case spawns independent processes so the
- * recorded `pid` is a genuine OS identity, then asserts the staleness decision
- * and the atomic-reclaim guarantee against it.
+ * OS-managed `flock` is held by a genuine OS identity that the test can signal
+ * (SIGSTOP / SIGCONT / SIGKILL) or kill, then asserts the exclusivity and
+ * automatic-release guarantees against it.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,8 +20,8 @@ const metaPath = (cwd: string) => join(cwd, ...LOCK_DIR, 'meta.json');
 
 type Message = { event: string; pid: number; acquired?: boolean };
 
-function host(cwd: string, mode: string, budget?: number) {
-  const child = spawn(process.execPath, [childScript, cwd, mode, String(budget ?? '')], {
+function host(cwd: string, mode: string, budget?: number, backend?: 'flock' | 'mkdir') {
+  const child = spawn(process.execPath, [childScript, cwd, mode, String(budget ?? ''), backend ?? ''], {
     cwd, env: { PATH: process.env.PATH, HOME: cwd }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
   const messages: Message[] = [];
@@ -44,12 +45,13 @@ function host(cwd: string, mode: string, budget?: number) {
   }
   return { child, wait, exited,
     go: () => child.send({ release: true }),
+    stop: () => child.kill('SIGSTOP'),
+    cont: () => child.kill('SIGCONT'),
     kill: () => child.kill('SIGKILL') };
 }
 
 async function workspace() {
-  const cwd = await mkdtemp(join(tmpdir(), 'aplock-proc-'));
-  return cwd;
+  return mkdtemp(join(tmpdir(), 'aplock-proc-'));
 }
 async function cleanup(cwd: string, hosts: ReturnType<typeof host>[]) {
   for (const h of hosts) if (h.child.exitCode === null && h.child.signalCode === null) h.child.kill('SIGKILL');
@@ -57,46 +59,50 @@ async function cleanup(cwd: string, hosts: ReturnType<typeof host>[]) {
   await rm(cwd, { recursive: true, force: true });
 }
 
-test('live holder older than the stale ceiling is never stolen', { timeout: 30_000 }, async () => {
+test('a paused (SIGSTOP) holder keeps its lock — a contender never steals it', { timeout: 30_000 }, async () => {
   const cwd = await workspace();
   const hosts: ReturnType<typeof host>[] = [];
   try {
     const holder = host(cwd, 'hold'); hosts.push(holder);
     const held = await holder.wait('held');
     assert.equal(held.acquired, true);
-    // Age the metadata out while the real owner stays alive: the stale ceiling
-    // alone must not justify stealing a live lock.
-    const meta = JSON.parse(await readFile(metaPath(cwd), 'utf8')) as { pid: number; token: string; acquiredAt: string };
-    await writeFile(metaPath(cwd), JSON.stringify({ ...meta, acquiredAt: new Date(Date.now() - 120_000).toISOString() }));
+
+    // Freeze the holder mid-hold. SIGSTOP does not close its fd, so the
+    // kernel keeps the flock. A contender must observe the lock held — never
+    // steal it on any timer.
+    holder.stop();
+    await new Promise(r => setTimeout(r, 200));
     const contender = new ApprovalStoreLock(cwd);
-    assert.equal(await contender.acquire(400), false, 'a provably-alive owner must not be stolen on age alone');
-    // The holder is still alive and still owns the lock.
-    assert.equal(holder.child.kill(0), true);
+    assert.equal(await contender.acquire(400), false, 'a paused live owner must not be stolen');
+
+    // Resume, release, and the lock is genuinely free.
+    holder.cont();
     holder.go(); await holder.wait('released');
-    // Once released, the lock is genuinely free and acquirable.
     assert.equal(await contender.acquire(2_000), true);
     contender.release();
   } finally { await cleanup(cwd, hosts); }
 });
 
-test('dead PID with a young lock is reclaimed immediately', { timeout: 30_000 }, async () => {
+test('a SIGKILLed holder releases immediately; a successor needs no stale recovery', { timeout: 30_000 }, async () => {
   const cwd = await workspace();
   const hosts: ReturnType<typeof host>[] = [];
   try {
     const holder = host(cwd, 'hold'); hosts.push(holder);
     const held = await holder.wait('held');
     assert.equal(held.acquired, true);
+
     holder.kill();
     assert.deepEqual(await holder.exited, { code: null, signal: 'SIGKILL' });
+
     const started = Date.now();
     const successor = new ApprovalStoreLock(cwd);
-    assert.equal(await successor.acquire(2_000), true, 'a dead owner must not hold the lock');
-    assert.ok(Date.now() - started < 1_000, 'recovery must not wait for the age ceiling');
+    assert.equal(await successor.acquire(2_000), true, 'the OS must release the lock on SIGKILL');
+    assert.ok(Date.now() - started < 1_000, 'recovery must not wait for any age or reclaim step');
     successor.release();
   } finally { await cleanup(cwd, hosts); }
 });
 
-test('concurrent hosts never overlap inside the critical section', { timeout: 30_000 }, async () => {
+test('concurrent contenders never overlap inside the critical section', { timeout: 30_000 }, async () => {
   const cwd = await workspace();
   const hosts: ReturnType<typeof host>[] = [];
   try {
@@ -110,19 +116,37 @@ test('concurrent hosts never overlap inside the critical section', { timeout: 30
   } finally { await cleanup(cwd, hosts); }
 });
 
-test('concurrent reclaimers of one dead-owner lock never double-steal', { timeout: 30_000 }, async () => {
+test('a daemon restart acquires immediately with no stale-lock recovery', { timeout: 30_000 }, async () => {
   const cwd = await workspace();
   const hosts: ReturnType<typeof host>[] = [];
   try {
-    // Seed a stale lock: a valid, dead PID with a recent timestamp. Several
-    // hosts must all observe it stale and race to reclaim it atomically.
+    // First daemon acquires and is killed without releasing.
+    const daemon = host(cwd, 'hold'); hosts.push(daemon);
+    assert.equal((await daemon.wait('held')).acquired, true);
+    daemon.kill();
+    assert.deepEqual(await daemon.exited, { code: null, signal: 'SIGKILL' });
+
+    // A restarted daemon must acquire immediately — there is no orphan lock
+    // state to detect, probe, or reclaim.
+    const restarted = host(cwd, 'hold'); hosts.push(restarted);
+    const held = await restarted.wait('held', 3_000);
+    assert.equal(held.acquired, true, 'the restarted daemon must acquire without recovery');
+    restarted.go(); await restarted.wait('released');
+  } finally { await cleanup(cwd, hosts); }
+});
+
+test('mkdir fallback: a dead owner is reclaimed immediately, and concurrent reclaimers never double-steal', { timeout: 30_000 }, async () => {
+  const cwd = await workspace();
+  const hosts: ReturnType<typeof host>[] = [];
+  try {
+    // Seed a stale mkdir lock: a valid, dead PID with a recent timestamp.
     const lockDir = join(cwd, ...LOCK_DIR);
     await mkdir(lockDir, { recursive: true });
     await writeFile(join(lockDir, 'meta.json'), JSON.stringify({
       pid: 2 ** 30, token: 'dead-owner', acquiredAt: new Date().toISOString(),
     }));
     const count = 6;
-    for (let i = 0; i < count; i++) hosts.push(host(cwd, 'mutate'));
+    for (let i = 0; i < count; i++) hosts.push(host(cwd, 'mutate', undefined, 'mkdir'));
     await Promise.all(hosts.map(h => h.wait('mutate-acquired')));
     await Promise.all(hosts.map(h => h.wait('mutated')));
     for (const h of hosts) assert.deepEqual(await h.exited, { code: 0, signal: null });
@@ -131,20 +155,17 @@ test('concurrent reclaimers of one dead-owner lock never double-steal', { timeou
   } finally { await cleanup(cwd, hosts); }
 });
 
-
-test('a metadata-less orphan ages out but a young live writer does not', { timeout: 30_000 }, async () => {
+test('mkdir fallback: a metadata-less lock is never stolen by age', { timeout: 30_000 }, async () => {
   const cwd = await workspace();
   const hosts: ReturnType<typeof host>[] = [];
   try {
     const lockDir = join(cwd, ...LOCK_DIR);
     await mkdir(lockDir, { recursive: true });
-    // Young: respect the writer's mkdir→write window.
-    assert.equal(await new ApprovalStoreLock(cwd).acquire(200), false);
-    // Orphan: age the directory out and the lock is reclaimable.
+    assert.equal(await new ApprovalStoreLock(cwd, { backend: 'mkdir' }).acquire(200), false);
     const old = new Date(Date.now() - 70_000);
     await utimes(lockDir, old, old);
-    const successor = new ApprovalStoreLock(cwd);
-    assert.equal(await successor.acquire(2_000), true);
+    const successor = new ApprovalStoreLock(cwd, { backend: 'mkdir' });
+    assert.equal(await successor.acquire(250), false, 'age cannot prove an owner is dead');
     successor.release();
   } finally { await cleanup(cwd, hosts); }
 });

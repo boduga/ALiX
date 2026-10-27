@@ -1,22 +1,24 @@
 /** Real OS host exercising ApprovalStoreLock liveness and mutual exclusion.
  * No sockets, providers, or model calls. Each invocation is a separate process
- * so `process.pid` is a genuine OS identity the lock's liveness probe observes.
+ * so the OS-managed lock and (for the mkdir fallback) `process.pid` are genuine
+ * OS identities the parent can probe or signal.
  */
 import { ApprovalStoreLock } from '../../src/governance/approvals/approval-store-lock.js';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const [cwd, mode, budget] = process.argv.slice(2);
+const [cwd, mode, budget, backend] = process.argv.slice(2);
 if (!process.send || !cwd || !mode) throw new Error('Expected isolated lock host');
 
 function send(event: string, data: object = {}) { process.send!({ event, pid: process.pid, ...data }); }
 
-const lock = new ApprovalStoreLock(cwd);
+const lock = new ApprovalStoreLock(cwd, backend === 'mkdir' || backend === 'flock' ? { backend } : undefined);
 
 void (async () => {
   if (mode === 'hold') {
     // Acquire and hold until the parent releases us, so the parent can probe a
-    // REAL live PID. The interval keeps the event loop (and the process) alive.
+    // REAL live holder (SIGSTOP) or kill us (SIGKILL). The interval keeps the
+    // event loop (and the process) alive.
     const acquired = await lock.acquire(5_000);
     send('held', { acquired });
     if (!acquired) { process.disconnect!(); return; }
