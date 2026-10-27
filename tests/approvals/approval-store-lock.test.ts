@@ -84,6 +84,15 @@ describe("ApprovalStoreLock (flock backend)", () => {
     assert.equal(await successor.acquire(500), true);
     successor.release();
   });
+
+  it("locks a leftover directory from the pre-flock mkdir lock without throwing", async () => {
+    // A legacy mkdir-lock orphan leaves a DIRECTORY at the lock path. flock can
+    // lock a directory, so acquisition must succeed rather than throw EISDIR.
+    mkdirSync(lockPath(cwd), { recursive: true });
+    const lock = new ApprovalStoreLock(cwd);
+    assert.equal(await lock.acquire(500), true, "a legacy directory target must not break the flock lock");
+    lock.release();
+  });
 });
 
 describe("ApprovalStoreLock (mkdir fallback)", () => {

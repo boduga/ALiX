@@ -82,6 +82,23 @@ export function detectLockBackend(): LockBackendName {
 /** The child fd slot used to hand our open fd to the `flock` binary. */
 const FLOCK_FD = 9;
 
+/**
+ * Open the lock target for the flock backend. Normally a regular file, created
+ * if absent. A leftover DIRECTORY at the lock path (an orphan from the pre-flock
+ * `mkdir` lock) is opened read-only instead: `flock` can lock a directory, so
+ * new-process mutual exclusion still holds rather than throwing EISDIR.
+ */
+function openLockFd(path: string): number {
+  try {
+    return openSync(path, "a+");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EISDIR") {
+      return openSync(path, "r");
+    }
+    throw error;
+  }
+}
+
 class FlockApprovalStoreLock implements ApprovalLockBackend {
   private readonly path: string;
   private fd: number | undefined;
@@ -99,7 +116,7 @@ class FlockApprovalStoreLock implements ApprovalLockBackend {
     // fd stays open and IS the lock: the kernel holds an exclusive `flock` on
     // the open file description until this fd is closed, so SIGKILL of this
     // process closes it and releases the lock with no cleanup step.
-    const fd = openSync(this.path, "a+");
+    const fd = openLockFd(this.path);
     const deadline = Date.now() + timeoutMs;
     try {
       while (Date.now() < deadline) {
