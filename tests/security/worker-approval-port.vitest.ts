@@ -168,7 +168,7 @@ describe('worker approval port (F8b)', () => {
 
   it('reports the execution outcome of its OWN consumed approval', async () => {
     const { cwd, store } = await workspace();
-    const port = createWorkerApprovalPort(store, { workerId: 'worker-a' });
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a', workerAttempt: 0 });
     const created = await port.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
     await operator.resolve(created.id, 'approved', 'operator');
@@ -184,7 +184,7 @@ describe('worker approval port (F8b)', () => {
     // so the port must refuse a cross-worker write or one worker could falsify
     // another's execution receipt.
     const { cwd, store } = await workspace();
-    const ownerPort = createWorkerApprovalPort(store, { workerId: 'worker-a' });
+    const ownerPort = createWorkerApprovalPort(store, { workerId: 'worker-a', workerAttempt: 0 });
     const otherPort = createWorkerApprovalPort(store, { workerId: 'worker-b' });
 
     const created = await ownerPort.requestOrReusePending(REQUEST);
@@ -203,7 +203,7 @@ describe('worker approval port (F8b)', () => {
   it('a port with no bound worker id cannot report on a worker-bound claim', async () => {
     const { cwd, store } = await workspace();
     const unbound = createWorkerApprovalPort(store);
-    const bound = createWorkerApprovalPort(store, { workerId: 'worker-a' });
+    const bound = createWorkerApprovalPort(store, { workerId: 'worker-a', workerAttempt: 0 });
 
     const created = await bound.requestOrReusePending(REQUEST);
     const operator = await otherProcess(cwd);
