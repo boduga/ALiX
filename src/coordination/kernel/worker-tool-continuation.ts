@@ -24,6 +24,7 @@ export async function bindWorkerToolContinuation(
   const cont = continuations[0];
   const bound = await executor.bindContinuationWorker(cont.approvalId, {
     runId: worker.coordinationRunId, workerId: worker.id, attempt: worker.attempt,
+    assignedAgentId: worker.agentId,
     ownershipHash: computeOwnershipClaimsHash(worker.ownershipClaims),
     ownershipScopes: [...worker.ownershipScopes],
   });

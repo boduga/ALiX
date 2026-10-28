@@ -1036,6 +1036,9 @@ export class ToolExecutor {
     await store.load();
     const cont = store.findByApprovalId(approvalId);
     if (!cont) return false;
+    // Attribution is a snapshot, never a way to transfer an existing grant to
+    // a replacement assignment (or silently upgrade unverifiable legacy data).
+    if (cont.coordinationWorker && JSON.stringify(cont.coordinationWorker) !== JSON.stringify(worker)) return false;
     await store.persist({ ...cont, coordinationWorker: worker });
     return true;
   }

@@ -1,6 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, statSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, statSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { createConnection } from "node:net";
 import { spawn } from "node:child_process";
@@ -209,9 +209,13 @@ describe("DaemonManager", () => {
     const first = await mgr.start();
     await mgr.stop();
     assert.equal((await mgr.status())?.status, "stopped");
+    assert.equal((await mgr.status())?.pid, first.pid);
+    assert.equal(existsSync(join(testHome, ".alix", "daemon.pid")), false);
     assert.equal(await mgr.isRunning(), false);
     const restarted = await mgr.start();
     assert.notEqual(restarted.pid, first.pid);
+    assert.equal(readFileSync(join(testHome, ".alix", "daemon.pid"), "utf8"), String(restarted.pid));
+    assert.equal((await mgr.status())?.status, "running");
     try {
       assert.ok(statSync(mgr.socketPath()).isSocket());
     } finally {

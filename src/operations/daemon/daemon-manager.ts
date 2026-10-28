@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { createConnection } from "node:net";
 import { join, dirname } from "node:path";
 import { resolveDaemonSocketAddress } from "./daemon-paths.js";
+import { ApprovalStoreLock } from "../../governance/approvals/approval-store-lock.js";
 import { homedir } from "node:os";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -164,6 +165,9 @@ export class DaemonManager {
       console.log("Daemon is not running.");
       return;
     }
+    if (!Number.isSafeInteger(status.pid) || status.pid <= 0) {
+      throw new Error("Invalid daemon PID; refusing to signal recorded PID");
+    }
     // Never signal a PID based solely on persisted metadata: the original
     // daemon may have exited and the OS may have reassigned its PID.
     // A live daemon must answer on its own socket before we may stop it.
@@ -207,9 +211,23 @@ export class DaemonManager {
     } catch (err: any) {
       if (err.code !== "ESRCH") throw err;
     }
-    const stopped: DaemonStatus = { ...status, status: "stopped" };
-    await writeFile(this.statusPath(), JSON.stringify(stopped, null, 2), "utf-8");
-    await rm(this.pidPath(), { force: true });
+    // Servers hold this global metadata lock for their entire lifetime. A
+    // successor that won admission must never lose its identity to this stop.
+    // Contention or unprovable lock ownership leaves metadata untouched.
+    const lifecycle = new ApprovalStoreLock(this.cwd, {
+      backend: "mkdir", lockPath: join(this.globalDir(), "daemon-lifecycle.lock"),
+    });
+    if (!(await lifecycle.acquire(300))) return;
+    try {
+      const current = await this.status();
+      if (!current || current.pid !== status.pid || current.startedAt !== status.startedAt ||
+          current.socketPath !== status.socketPath) return;
+      const stopped: DaemonStatus = { ...current, status: "stopped" };
+      await writeFile(this.statusPath(), JSON.stringify(stopped, null, 2), "utf-8");
+      // A mismatched PID projection is also not ours to remove.
+      const pid = await readFile(this.pidPath(), "utf-8").catch(() => undefined);
+      if (pid?.trim() === String(status.pid)) await rm(this.pidPath(), { force: true });
+    } finally { lifecycle.release(); }
   }
 
   /** Read current status. */

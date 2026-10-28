@@ -171,10 +171,10 @@ describe('D9 daemon continuation acceptance', () => {
   // Explicit outcome/identity/host parity for consumed recovery, independent of
   // tool telemetry and the removed continuation. Only the positive control moves.
   for (const fault of ['none', 'pending', 'unverified', 'failed', 'cancelled', 'missing-outcome',
-    'revoked', 'missing-context', 'context-run', 'context-worker', 'context-attempt', 'context-fingerprint',
+    'revoked', 'missing-context', 'missing-assignment', 'context-run', 'context-worker', 'context-attempt', 'context-fingerprint',
     'consumer-worker', 'consumer-attempt', 'missing-consumer', 'record-run', 'record-worker', 'record-attempt',
     'missing-fingerprint', 'args', 'capability', 'agent', 'session', 'workspace',
-    'host', 'run-cancelled', 'worker-cancelled', 'worker-running', 'worker-run', 'attempt', 'claims', 'scopes', 'shutdown']) {
+    'host', 'run-cancelled', 'worker-cancelled', 'worker-running', 'worker-run', 'current-agent', 'attempt', 'claims', 'scopes', 'shutdown']) {
     it(`consumed recovery parity: ${fault}`, async () => {
       const f = await fixture();
       await f.approvals.resolve(f.approval.id, 'approved');
@@ -188,6 +188,7 @@ describe('D9 daemon continuation acceptance', () => {
         if (fault === 'missing-outcome') delete record.executionOutcome;
         if (fault === 'revoked') record.status = 'revoked';
         if (fault === 'missing-context') delete record.toolContinuation;
+        if (fault === 'missing-assignment') delete record.toolContinuation!.assignedAgentId;
         if (fault === 'context-run') record.toolContinuation!.runId = 'another-run';
         if (fault === 'context-worker') record.toolContinuation!.workerId = 'another-worker';
         if (fault === 'context-attempt') record.toolContinuation!.attempt++;
@@ -211,6 +212,7 @@ describe('D9 daemon continuation acceptance', () => {
         if (fault === 'worker-cancelled') run.workers[0].status = 'cancelled';
         if (fault === 'worker-running') run.workers[0].status = 'running';
         if (fault === 'worker-run') run.workers[0].coordinationRunId = 'another-run';
+        if (fault === 'current-agent') run.workers[0].agentId = 'replacement';
         if (fault === 'attempt') run.workers[0].attempt++;
         if (fault === 'claims') run.workers[0].ownershipClaims = [{ path: 'other.txt', recursive: false }];
         if (fault === 'scopes') run.workers[0].ownershipScopes = ['other.txt'];
@@ -256,25 +258,27 @@ describe('D9 daemon continuation acceptance', () => {
 
   // Parity includes positive control, worker/run/attempt/scope/host identity,
   // denied/pending authority, altered invocation, and concurrent replay.
-  for (const fault of ['pending', 'denied', 'cancelled', 'host', 'worker', 'attempt', 'claims', 'scopes', 'args', 'agent', 'session', 'workspace', 'unattributed', 'out-of-scope', 'lease-conflict', 'shutdown']) {
+  for (const fault of ['pending', 'denied', 'cancelled', 'host', 'worker', 'current-agent', 'attempt', 'claims', 'scopes', 'args', 'agent', 'session', 'workspace', 'unattributed', 'missing-assignment', 'out-of-scope', 'lease-conflict', 'shutdown']) {
     it(`never widens authorization: ${fault}`, async () => {
       const f = await fixture(fault === 'out-of-scope' ? 'outside.txt' : 'owned.txt');
       if (fault !== 'pending') await f.approvals.resolve(f.approval.id, fault === 'denied' ? 'denied' : 'approved');
-      if (['cancelled', 'host', 'worker', 'attempt', 'claims', 'scopes'].includes(fault)) await f.runs.updateRun(f.run.id, run => {
+      if (['cancelled', 'host', 'worker', 'current-agent', 'attempt', 'claims', 'scopes'].includes(fault)) await f.runs.updateRun(f.run.id, run => {
         if (fault === 'cancelled') { run.status = 'cancelled'; run.workers[0].status = 'cancelled'; }
         if (fault === 'host') run.hostKind = 'inspector';
         if (fault === 'worker') run.workers[0].id = 'different-worker';
+        if (fault === 'current-agent') run.workers[0].agentId = 'replacement';
         if (fault === 'attempt') run.workers[0].attempt++;
         if (fault === 'claims') run.workers[0].ownershipClaims = [{ path: 'outside.txt', recursive: false }];
         if (fault === 'scopes') run.workers[0].ownershipScopes = ['outside.txt'];
       });
-      if (['args', 'agent', 'session', 'workspace', 'unattributed'].includes(fault)) {
+      if (['args', 'agent', 'session', 'workspace', 'unattributed', 'missing-assignment'].includes(fault)) {
         const store = new ContinuationStore(f.cwd); await store.load();
         const cont = store.list()[0];
         if (fault === 'args') cont.toolCall!.args.content = 'tampered';
         else if (fault === 'agent') cont.toolCall!.agentId = 'another-agent';
         else if (fault === 'session') cont.sessionId = 'another-session';
         else if (fault === 'workspace') cont.cwd = join(f.cwd, 'another-workspace');
+        else if (fault === 'missing-assignment') delete cont.coordinationWorker!.assignedAgentId;
         else delete cont.coordinationWorker;
         await store.persist(cont);
       }

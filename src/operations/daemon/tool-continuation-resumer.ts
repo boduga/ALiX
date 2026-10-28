@@ -63,7 +63,8 @@ export class DaemonToolContinuationResumer {
     if (!binding || !run || run.id !== binding.runId || run.hostKind !== 'daemon' ||
         !['running', 'blocked'].includes(run.status) || run.sessionId !== cont.sessionId) return;
     const worker = run.workers.find(w => w.id === binding.workerId);
-    if (!worker || worker.status !== 'blocked' || worker.blockReason !== 'approval_required' ||
+    if (!worker || !cont.toolCall?.agentId || !binding.assignedAgentId || worker.agentId !== binding.assignedAgentId ||
+        worker.coordinationRunId !== run.id || worker.status !== 'blocked' || worker.blockReason !== 'approval_required' ||
         worker.approvalId !== cont.approvalId || worker.attempt !== binding.attempt ||
         computeOwnershipClaimsHash(worker.ownershipClaims) !== binding.ownershipHash ||
         JSON.stringify(worker.ownershipScopes) !== JSON.stringify(binding.ownershipScopes) ||
@@ -137,10 +138,17 @@ export class DaemonToolContinuationResumer {
         ownedPaths: ownedPathsForWorker(worker),
         workspacePathResolver: new WorkspacePathResolver(this.cwd),
         ownershipRegistry: this.ownership,
-        approvalStore: { ...port, consumeApproved: (id: string, key: string,
+        approvalStore: { ...port, consumeApproved: async (id: string, key: string,
           consumer: Parameters<ApprovalStore['consumeApproved']>[2],
-          invocation: Parameters<ApprovalStore['consumeApproved']>[3]) =>
-          port.consumeApproved(id, key, { ...consumer, workerId: worker.id, workerAttempt: worker.attempt }, invocation) },
+          invocation: Parameters<ApprovalStore['consumeApproved']>[3]) => {
+          // Ownership and continuation loading yield. Re-read durable assignment
+          // at the claim seam rather than relying solely on the polling monitor.
+          if (controller.signal.aborted || !this.worker(cont, await this.runs.load(run!.id))) {
+            controller.abort('worker context changed');
+            return { consumed: false, reason: 'worker context changed' };
+          }
+          return port.consumeApproved(id, key, { ...consumer, workerId: worker.id, workerAttempt: worker.attempt }, invocation);
+        } },
       });
       // Acquire explicit, individually tracked leases for the original tool agent.
       // The worker id stays the approval consumer identity, never an agent alias.
@@ -210,6 +218,7 @@ export class DaemonToolContinuationResumer {
       const worker = current.workers.find(item => item.id === context.workerId);
       if (!worker || worker.coordinationRunId !== current.id || worker.status !== 'blocked' ||
           worker.blockReason !== 'approval_required' || worker.approvalId !== approval.id ||
+          !context.assignedAgentId || worker.agentId !== context.assignedAgentId ||
           worker.attempt !== context.attempt || !isWriteWorker(worker) || !ownedPathsForWorker(worker).length ||
           computeOwnershipClaimsHash(worker.ownershipClaims) !== context.ownershipHash ||
           JSON.stringify(worker.ownershipScopes) !== JSON.stringify(context.ownershipScopes)) return;

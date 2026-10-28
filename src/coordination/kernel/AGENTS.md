@@ -22,7 +22,7 @@
 - `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
 - `worker-role.ts` — Capability → role classification and canonical owned-path extraction shared by both worker executors; write workers with missing or malformed ownership fail closed before execution
 - `worker-executor.ts` — In-process worker execution via `runTask`; write-worker ownership claims flow as trusted execution options to the policy gate. A single pending tool observed in the worker's captured events returns `approval_required` with its durable approval ID.
-- `worker-tool-continuation.ts` — binds a single pending continuation to the originating worker/attempt and ownership snapshot through the executor's host API, using only that invocation's captured tool events, never a shared-session guess or model metadata.
+- `worker-tool-continuation.ts` — binds a single pending continuation to the originating worker/original assigned agent/attempt and ownership snapshot through the executor's host API, using only that invocation's captured tool events, never a shared-session guess or model metadata.
 - `owner-liveness.ts` — the ONE worker-liveness module (R3.3): `<kind>-<pid>`
   execution-owner liveness probe (unknown owners read alive), heartbeat
   staleness (`heartbeatStale`; missing/unparseable = no evidence), and the

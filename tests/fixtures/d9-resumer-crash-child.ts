@@ -22,6 +22,19 @@ async function checkpoint(name: string): Promise<void> {
   await new Promise<never>(() => {});
 }
 
+const updateRun = CoordinationStore.prototype.updateRun;
+let parkedRecovery = false;
+CoordinationStore.prototype.updateRun = async function (...args) {
+  if (point === 'recover-before-lock' && !parkedRecovery) {
+    parkedRecovery = true;
+    await new Promise<void>(resolve => {
+      process.once('message', () => resolve());
+      process.send!({ checkpoint: 'recover-before-lock', pid: process.pid });
+    });
+  }
+  return updateRun.apply(this, args);
+};
+
 const remove = ContinuationStore.prototype.remove;
 ContinuationStore.prototype.remove = async function (...args) {
   await remove.apply(this, args);

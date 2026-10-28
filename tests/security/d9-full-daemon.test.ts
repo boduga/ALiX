@@ -226,17 +226,16 @@ for (const stage of ['tool.requested', 'before-effect'] as const) for (const cha
       });
     }
     const changed = await snapshot(cwd, f); states.push(changed);
-    if (change === 'cancel' || change === 'attempt' || change === 'scope') await host.wait('abort-observed');
+    if (change === 'cancel' || change === 'attempt' || change === 'owner' || change === 'scope') await host.wait('abort-observed');
     // At router entry the executor has already crossed its last abort check.
     // The characterization intentionally asserts ACTUAL stale effects and records
     // them as security findings; a green test is never a prevention verdict.
     host.send('release'); await host.wait('scan-done');
     const after = await snapshot(cwd, f); states.push(after);
-    const prevented = stage === 'tool.requested' && change !== 'owner';
+    const prevented = stage === 'tool.requested';
     assert.equal(after.effect, prevented ? null : 'D9 full daemon effect\n');
     assert.equal((after.entries ?? '').trim().split('\n').filter(Boolean).length, prevented ? 0 : 1);
-    if (stage === 'tool.requested') assert.equal(after.approval.status, change === 'owner' ? 'consumed' :
-      change === 'approval-revoke' ? 'revoked' : change === 'policy' ? 'invalidated' : 'approved');
+    if (stage === 'tool.requested') assert.equal(after.approval.status, change === 'approval-revoke' ? 'revoked' : change === 'policy' ? 'invalidated' : 'approved');
     if (change === 'lease-replace') assert.equal((await ownership.listActive())[0]?.agentId, 'replacement');
     assert.equal(after.run.workers[0].attempt, change === 'attempt' ? 2 : 1);
   }));

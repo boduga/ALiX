@@ -30,7 +30,7 @@ async function seed(cwd: string) {
     assert.equal(approval.status, 'pending');
     const run = createCoordinationRun({ sessionId: 'd9-kill', rootGoal: 'write owned.txt', coordinatorAgentId: 'coordinator' });
     run.hostKind = 'daemon'; run.status = 'blocked';
-    const worker = createWorkerAssignment({ coordinationRunId: run.id, agentId: 'kill-agent', taskLabel: 'writer',
+    const worker = createWorkerAssignment({ coordinationRunId: run.id, agentId: 'assigned-agent', taskLabel: 'writer',
       goalPrompt: 'write owned.txt', requiredCapabilities: ['file.create'], attempt: 1,
       ownershipScopes: ['owned.txt'], ownershipClaims: [{ path: 'owned.txt', recursive: false }],
       status: 'blocked', blockReason: 'approval_required', approvalId: approval.id });
@@ -79,8 +79,10 @@ async function snapshot(cwd: string, f: Awaited<ReturnType<typeof seed>>) {
   };
 }
 
-for (const point of ['before-resume', 'after-tombstone', 'after-consume', 'after-effect', 'after-receipt']) {
-  test(`D9 actual resumer SIGKILL: ${point}`, { timeout: 60_000 }, async () => {
+for (const scenario of ['before-resume', 'after-tombstone', 'after-consume', 'after-effect', 'after-receipt', 'reassigned-after-receipt']) {
+  const reassigned = scenario === 'reassigned-after-receipt';
+  const point = reassigned ? 'after-receipt' : scenario;
+  test(`D9 actual resumer SIGKILL: ${scenario}`, { timeout: 60_000 }, async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'd9-resumer-kill-'));
     const hosts: ReturnType<typeof host>[] = [];
     try {
@@ -89,6 +91,7 @@ for (const point of ['before-resume', 'after-tombstone', 'after-consume', 'after
       const killedPid = await first.ready;
       assert.equal(first.child.kill('SIGKILL'), true);
       assert.equal((await first.exited).signal, 'SIGKILL');
+      if (reassigned) await new CoordinationStore(cwd).patchWorker(f.runId, f.workerId, { agentId: 'replacement' });
       const before = await snapshot(cwd, f);
       const spent = ['after-consume', 'after-effect', 'after-receipt'].includes(point);
       const effected = ['after-effect', 'after-receipt'].includes(point);
@@ -110,7 +113,7 @@ for (const point of ['before-resume', 'after-tombstone', 'after-consume', 'after
         assert.deepEqual(await next.exited, { code: 0, signal: null });
       }
       const after = await snapshot(cwd, f);
-      assert.equal(after.worker.status, ['before-resume', 'after-receipt'].includes(point) ? 'pending' : 'blocked');
+      assert.equal(after.worker.status, !reassigned && ['before-resume', 'after-receipt'].includes(point) ? 'pending' : 'blocked');
       assert.equal(after.worker.attempt, 1);
       if (point === 'before-resume') {
         assert.equal(after.approval.executionOutcome, 'succeeded');
@@ -123,7 +126,7 @@ for (const point of ['before-resume', 'after-tombstone', 'after-consume', 'after
         assert.equal(after.effect, before.effect);
         assert.equal(after.entries, before.entries, 'no router re-entry, even if file.create would be idempotent');
         assert.equal(after.mtime, before.mtime);
-        if (point !== 'after-receipt') assert.deepEqual(after.worker, before.worker);
+        if (point !== 'after-receipt' || reassigned) assert.deepEqual(after.worker, before.worker);
       }
     } finally {
       for (const h of hosts) {
@@ -134,3 +137,28 @@ for (const point of ['before-resume', 'after-tombstone', 'after-consume', 'after
     }
   });
 }
+
+
+test('D9 recovery rechecks reassignment under the run lock after initial eligibility', { timeout: 60_000 }, async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'd9-recovery-assignment-'));
+  const hosts: ReturnType<typeof host>[] = [];
+  try {
+    const f = await seed(cwd);
+    const first = host(cwd, f.approvalId, 'after-receipt'); hosts.push(first);
+    await first.ready; first.child.kill('SIGKILL'); await first.exited;
+    const recovering = host(cwd, f.approvalId, 'recover-before-lock'); hosts.push(recovering);
+    await recovering.ready; // initial eligibility has passed; updateRun has not acquired its lock
+    await new CoordinationStore(cwd).patchWorker(f.runId, f.workerId, { agentId: 'replacement' });
+    const before = await snapshot(cwd, f);
+    recovering.child.send({ continue: true });
+    assert.deepEqual(await recovering.exited, { code: 0, signal: null });
+    const after = await snapshot(cwd, f);
+    assert.deepEqual(after, before, 'no stale requeue, receipt rewrite or router re-entry');
+  } finally {
+    for (const h of hosts) {
+      if (h.child.exitCode === null && h.child.signalCode === null) h.child.kill('SIGKILL');
+      await h.exited;
+    }
+    closeAllSharedLedgers(); await rm(cwd, { recursive: true, force: true });
+  }
+});

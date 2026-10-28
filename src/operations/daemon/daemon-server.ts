@@ -653,6 +653,21 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
 process.on("uncaughtException", (err) => { console.error("[daemon] uncaughtException", err); process.exit(1); });
 process.on("unhandledRejection", (err) => { console.error("[daemon] unhandledRejection", err); process.exit(1); });
 
+// Serialize all global metadata writers with finishing managers, including
+// heartbeat and ping repair. Hold until exit, so no asynchronous publication
+// can outlive this ownership. This is separate from socket admission: servers
+// with different explicit sockets still share daemon.json under one HOME.
+const lifecycle = new ApprovalStoreLock(defaultCwd, {
+  backend: "mkdir", lockPath: join(globalDir, "daemon-lifecycle.lock"),
+});
+if (!(await lifecycle.acquire(300))) {
+  console.error("[daemon] lifecycle metadata owner unavailable; refusing startup");
+  process.exit(1);
+}
+// Leave the portable record for dead-owner reclamation. Releasing it in an
+// exit callback would admit a successor before this process (and any pending
+// filesystem I/O) has actually died. Reuse/uncertainty of its PID fails closed.
+
 // POSIX daemon admission uses kernel-owned flock where available, otherwise
 // a fail-closed portable directory lock. SIGKILL releases flock automatically;
 // the portable backend reclaims only when it proves the owner PID is dead.

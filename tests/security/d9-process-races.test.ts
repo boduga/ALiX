@@ -31,7 +31,7 @@ async function seed(cwd: string) {
     assert.equal(approval.status, 'pending');
     const run = createCoordinationRun({ sessionId: 'd9-kill', rootGoal: 'write owned.txt', coordinatorAgentId: 'coordinator' });
     run.hostKind = 'daemon'; run.status = 'blocked';
-    const worker = createWorkerAssignment({ coordinationRunId: run.id, agentId: 'kill-agent', taskLabel: 'writer',
+    const worker = createWorkerAssignment({ coordinationRunId: run.id, agentId: 'assigned-agent', taskLabel: 'writer',
       goalPrompt: 'write owned.txt', requiredCapabilities: ['file.create'], attempt: 1,
       ownershipScopes: ['owned.txt'], ownershipClaims: [{ path: 'owned.txt', recursive: false }],
       status: 'blocked', blockReason: 'approval_required', approvalId: approval.id });
@@ -122,7 +122,7 @@ test('D9 concurrent resumer loser cannot release the active winner lease or ente
   assert.equal((await ownership.listActive()).length, 0);
 }));
 
-for (const change of ['cancel', 'attempt', 'scope', 'cancel-before-claim', 'attempt-before-claim', 'scope-before-claim', 'lease-before-gate', 'lease-after-claim'] as const) {
+for (const change of ['cancel', 'attempt', 'agent', 'scope', 'agent-before-claim', 'cancel-before-claim', 'attempt-before-claim', 'scope-before-claim', 'lease-before-gate', 'lease-after-claim'] as const) {
   test(`D9 dispatch authority race: ${change}`, { timeout: 60_000 }, () => scenario(async (cwd, f, start) => {
     const lateLease = change === 'lease-after-claim';
     const preClaim = change.endsWith('before-claim');
@@ -140,6 +140,7 @@ for (const change of ['cancel', 'attempt', 'scope', 'cancel-before-claim', 'atte
       await new CoordinationStore(cwd).updateRun(f.runId, run => {
         if (change.startsWith('cancel')) { run.status = 'cancelled'; run.workers[0].status = 'cancelled'; }
         if (change.startsWith('attempt')) run.workers[0].attempt = 2;
+        if (change.startsWith('agent')) run.workers[0].agentId = 'replacement';
         if (change.startsWith('scope')) { run.workers[0].ownershipScopes = ['other.txt']; run.workers[0].ownershipClaims = [{ path: 'other.txt', recursive: false }]; }
       });
     }
@@ -177,3 +178,32 @@ test('D9 ambiguous nontransactional effect stays pending across competing fresh 
   assert.equal(await readFile(join(cwd, 'external-surrogate.jsonl'), 'utf8'), effect);
   assert.equal(await readFile(join(cwd, 'owned.txt'), 'utf8'), 'D9 real resumer effect\n');
 }));
+
+// Assignment and canonical tool identity deliberately differ in this fixture.
+// Both must retain their own meaning; neither can be inferred from worker ID.
+for (const fault of ['none', 'reassigned', 'missing-assignment', 'canonical-agent', 'missing-canonical']) {
+  test(`D9 assignment/canonical identity parity: ${fault}`, { timeout: 60_000 }, () => scenario(async (cwd, f, start) => {
+    const store = new ContinuationStore(cwd); await store.load();
+    const cont = store.findByApprovalId(f.approvalId)!;
+    assert.equal(cont.coordinationWorker!.assignedAgentId, 'assigned-agent');
+    assert.equal(cont.toolCall!.agentId, 'kill-agent');
+    const log = new EventLog(join(cwd, '.alix/sessions/d9-kill')); await log.init();
+    const executor = createToolExecutor({ config: DEFAULT_CONFIG, log, root: cwd, approvalStore: new ApprovalStore(cwd) });
+    // Rebinding a captured operation cannot transfer its approved authority.
+    assert.equal(await executor.bindContinuationWorker(f.approvalId, {
+      ...cont.coordinationWorker!, assignedAgentId: 'replacement',
+    }), false);
+    await log.close();
+    if (fault === 'reassigned') await new CoordinationStore(cwd).patchWorker(f.runId, f.workerId, { agentId: 'replacement' });
+    if (fault === 'missing-assignment') delete cont.coordinationWorker!.assignedAgentId;
+    if (fault === 'canonical-agent') cont.toolCall!.agentId = 'assigned-agent';
+    if (fault === 'missing-canonical') delete cont.toolCall!.agentId;
+    if (!['none', 'reassigned'].includes(fault)) await store.persist(cont);
+    const h = start('resume'); await h.wait('ready'); h.go(); await finish(h);
+    const s = await state(cwd, f);
+    assert.equal(s.entries.length, fault === 'none' ? 1 : 0);
+    assert.equal(s.run.workers[0].status, fault === 'none' ? 'pending' : 'blocked');
+    assert.equal(s.approval.status, fault === 'none' ? 'consumed' : 'approved');
+    if (fault !== 'none') await assert.rejects(readFile(join(cwd, 'owned.txt')), { code: 'ENOENT' });
+  }));
+}
