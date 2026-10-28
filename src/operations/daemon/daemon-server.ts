@@ -665,6 +665,7 @@ if (!isNamedPipe(socketPath)) {
     process.exit(1);
   }
   daemonLockFd = fd;
+  process.once("exit", () => { if (daemonLockFd !== undefined) closeSync(daemonLockFd); });
   // This cleanup is safe only while holding the unique daemon admission lock.
   if (existsSync(socketPath)) await rm(socketPath, { force: true });
 }
