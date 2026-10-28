@@ -50,6 +50,36 @@ const REQUEST = {
  * let it approve its own request).
  */
 describe('worker approval port (F8b)', () => {
+  it('binds legacy tool requests and denies sibling discovery and consumption', async () => {
+    const { store } = await workspace();
+    const owner = createWorkerApprovalPort(store, { workerId: 'worker-a', workerAttempt: 7 });
+    const sibling = createWorkerApprovalPort(store, { workerId: 'worker-b', workerAttempt: 7 });
+    const record = await owner.request({ reason: 'guarded write', capability: 'file.create', sessionId: 'victim', requestId: 'call-guard' });
+    expect(record.workerId).toBe('worker-a');
+    expect(record.workerAttempt).toBe(7);
+    await store.resolve(record.id, 'approved');
+    expect(sibling.get(record.id)).toBeUndefined();
+    expect(sibling.findByRequestId('call-guard')).toBeUndefined();
+    expect(sibling.findResolved({ capability: 'file.create' })).toBeUndefined();
+    const theft = await sibling.consumeApproved(record.id, record.bindingKey, { workerId: 'worker-b', workerAttempt: 7 });
+    expect(theft.consumed).toBe(false);
+    expect(await sibling.recordExecutionOutcome(record.id, 'succeeded')).toBe(false);
+  });
+
+  it('rejects cross-worker and cross-attempt pending reuse under the store lock', async () => {
+    const { store } = await workspace();
+    const owner = createWorkerApprovalPort(store, { workerId: 'worker-a', workerAttempt: 1 });
+    const sibling = createWorkerApprovalPort(store, { workerId: 'worker-b', workerAttempt: 1 });
+    const retry = createWorkerApprovalPort(store, { workerId: 'worker-a', workerAttempt: 2 });
+    const input = { ...REQUEST, workerId: 'worker-a', workerAttempt: 1 };
+    const original = await owner.requestOrReusePending(input);
+    expect((await owner.requestOrReusePending(input)).id).toBe(original.id);
+    await expect(sibling.requestOrReusePending({ ...input, workerId: 'worker-b' })).rejects.toThrow('identity mismatch');
+    await expect(retry.requestOrReusePending({ ...input, workerAttempt: 2 })).rejects.toThrow('identity mismatch');
+    expect(sibling.get(original.id)).toBeUndefined();
+    expect(retry.get(original.id)).toBeUndefined();
+  });
+
   it('exposes every operation a worker needs', async () => {
     const { store } = await workspace();
     const port = createWorkerApprovalPort(store);

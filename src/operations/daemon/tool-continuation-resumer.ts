@@ -117,6 +117,16 @@ export class DaemonToolContinuationResumer {
         if (!current || current.status !== 'approved' ||
             current.invocationFingerprint !== context.invocationFingerprint ||
             (current.toolContinuation && JSON.stringify(current.toolContinuation) !== JSON.stringify(context))) return;
+        // Legacy approvals were issued before worker attribution existed.
+        // After validating the durable continuation, run, worker, attempt and
+        // invocation above, bind the record atomically before exposing it to
+        // the strictly worker-scoped execution port. Never broaden that port.
+        if ((current.workerId && current.workerId !== worker.id) ||
+            (current.workerAttempt !== undefined && current.workerAttempt !== worker.attempt) ||
+            (current.coordinationRunId && current.coordinationRunId !== run!.id)) return;
+        current.workerId = worker.id;
+        current.workerAttempt = worker.attempt;
+        current.coordinationRunId = run!.id;
         current.toolContinuation = context;
         bound = true;
       });

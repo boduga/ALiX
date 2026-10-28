@@ -174,7 +174,7 @@ export function createWorkerApprovalPort(
   // unbound approvals. An unbound compatibility port cannot observe records
   // owned by any worker. Do not leak metadata via alternate lookup methods.
   const visible = (record: ApprovalRecord | undefined): ApprovalRecord | undefined =>
-    record && (!record.workerId || record.workerId === boundWorkerId) ? record : undefined;
+    record && (boundWorkerId ? record.workerId === boundWorkerId && (boundWorkerAttempt === undefined || record.workerAttempt === boundWorkerAttempt) : !record.workerId) ? record : undefined;
   const port: WorkerApprovalPort = {
     get: (id) => visible(store.get(id)),
     loadFresh: async (id) => visible(await store.loadFresh(id)),
@@ -183,18 +183,19 @@ export function createWorkerApprovalPort(
     findPending: (query) => visible(store.findPending(query)),
     findResolved: (opts) => visible(store.findResolved(opts)),
     findByRequestId: (requestId) => visible(store.findByRequestId(requestId)),
-    request: (opts) => store.request(opts),
+    request: (opts) => store.request(boundWorkerId ? { ...opts, workerId: boundWorkerId, workerAttempt: boundWorkerAttempt } : opts),
     requestOrReusePending: (input) => {
       if (boundWorkerId && input.workerId && input.workerId !== boundWorkerId) {
         throw new Error("worker approval request identity mismatch");
       }
-      return store.requestOrReusePending(boundWorkerId ? { ...input, workerId: boundWorkerId } : input);
+      return store.requestOrReusePending(boundWorkerId ? { ...input, workerId: boundWorkerId, workerAttempt: boundWorkerAttempt } : input);
     },
     consumeApproved: (id, bindingKey, consumer, invocation) => {
       if (boundWorkerId && consumer.workerId && consumer.workerId !== boundWorkerId) {
         return Promise.resolve({ consumed: false, reason: "worker mismatch" });
       }
-      return store.consumeApproved(id, bindingKey, boundWorkerId ? { ...consumer, workerId: boundWorkerId } : consumer, invocation);
+      if (boundWorkerId && !visible(store.get(id))) return Promise.resolve({ consumed: false, reason: "worker scope mismatch" });
+      return store.consumeApproved(id, bindingKey, boundWorkerId ? { ...consumer, workerId: boundWorkerId, workerAttempt: boundWorkerAttempt } : consumer, invocation);
     },
     recordExecutionOutcome: (id, outcome) =>
       store.recordExecutionOutcome(id, outcome, { workerId: boundWorkerId, workerAttempt: boundWorkerAttempt }),

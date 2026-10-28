@@ -324,3 +324,20 @@ jobs:
         with:
           name: coverage
           path: coverage/coverage-summary.json
+
+  # F-4: macOS does not ship util-linux flock; exercise portable daemon admission.
+  daemon-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+        with:
+          version: 11
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "26.11.0"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Daemon admission and restart regressions
+        run: node --test dist/tests/daemon/daemon-manager.test.js

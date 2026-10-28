@@ -189,8 +189,8 @@ class MkdirApprovalStoreLock implements ApprovalLockBackend {
   private readonly token: string;
   private acquired = false;
 
-  constructor(cwd: string) {
-    this.path = lockPath(cwd);
+  constructor(cwd: string, overridePath?: string) {
+    this.path = overridePath ?? lockPath(cwd);
     this.token = randomUUID();
   }
 
@@ -330,9 +330,9 @@ function pidIsAlive(pid: number): boolean {
 export class ApprovalStoreLock implements ApprovalLockBackend {
   private readonly backend: ApprovalLockBackend;
 
-  constructor(cwd: string, options?: { backend?: LockBackendName }) {
+  constructor(cwd: string, options?: { backend?: LockBackendName; lockPath?: string }) {
     const name = options?.backend ?? detectLockBackend();
-    this.backend = name === "flock" ? new FlockApprovalStoreLock(cwd) : new MkdirApprovalStoreLock(cwd);
+    this.backend = name === "flock" ? new FlockApprovalStoreLock(cwd) : new MkdirApprovalStoreLock(cwd, options?.lockPath);
   }
 
   async acquire(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<boolean> {

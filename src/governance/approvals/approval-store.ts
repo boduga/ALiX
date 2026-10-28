@@ -529,6 +529,12 @@ export class ApprovalStore {
         (a) => a.status === "pending" && a.bindingKey === input.bindingKey,
       );
       if (existing) {
+        // The binding key is not a substitute for worker/attempt authority.
+        // Reject collisions rather than returning another worker's approval.
+        if (existing.workerId !== input.workerId || existing.workerAttempt !== input.workerAttempt ||
+            existing.coordinationRunId !== input.coordinationRunId || existing.sessionId !== input.sessionId) {
+          throw new Error("pending approval identity mismatch");
+        }
         return { ...existing };
       }
 
@@ -653,6 +659,8 @@ export class ApprovalStore {
      * honour that resolution instead of creating a duplicate approval.
      */
     requestId?: string;
+    workerId?: string;
+    workerAttempt?: number;
   }): Promise<ApprovalRecord> {
     const { computeBindingKey } = await import("./approval-binding.js");
     const requestFingerprint = `legacy:${opts.capability ?? "unknown"}:${opts.graphId ?? ""}:${opts.nodeId ?? ""}:${opts.sessionId ?? ""}`;
@@ -679,6 +687,8 @@ export class ApprovalStore {
       riskLevel: opts.riskLevel,
       invocation: opts.invocation,
       requestId: opts.requestId,
+      workerId: opts.workerId,
+      workerAttempt: opts.workerAttempt,
     });
   }
 

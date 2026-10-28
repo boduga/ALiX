@@ -1,7 +1,9 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { createConnection } from "node:net";
+import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { DaemonManager } from "../../src/operations/daemon/daemon-manager.js";
 
@@ -53,6 +55,172 @@ describe("DaemonManager", () => {
   it("stop does not throw when daemon not running", async () => {
     const mgr = new DaemonManager("/tmp/project");
     await mgr.stop(); // should not throw
+  });
+
+  it("a second manager start cannot unlink the live daemon socket", async () => {
+    const mgr = new DaemonManager(testHome);
+    // Remove the synthetic stale state from earlier tests.
+    rmSync(join(testHome, ".alix", "daemon.json"), { force: true });
+    const first = await mgr.start();
+    const socket = mgr.socketPath();
+    const inode = statSync(socket).ino;
+    try {
+      await assert.rejects(() => mgr.start(), /already running/);
+      assert.equal(statSync(socket).ino, inode);
+      const reply = await new Promise<string>((resolve, reject) => {
+        const conn = createConnection(socket);
+        conn.setTimeout(3000);
+        conn.once("connect", () => conn.write(JSON.stringify({ command: "ping" }) + "\n"));
+        conn.once("data", (data) => { resolve(String(data)); conn.destroy(); });
+        conn.once("error", reject);
+        conn.once("timeout", () => { conn.destroy(); reject(new Error("ping timed out")); });
+      });
+      assert.match(reply, /pong/);
+    } finally {
+      await mgr.stop();
+    }
+    assert.ok(first.pid > 0);
+  });
+
+  it("client disconnect during ping does not terminate daemon", async () => {
+    const mgr = new DaemonManager(testHome);
+    rmSync(join(testHome, ".alix", "daemon.json"), { force: true });
+    const first = await mgr.start();
+    try {
+      // Destroy a connection immediately after writing a ping. The daemon
+      // must tolerate a peer disappearing before its response is delivered.
+      for (let i = 0; i < 30; i++) {
+        await new Promise<void>((resolve) => {
+          const conn = createConnection(mgr.socketPath());
+          conn.once("connect", () => {
+            conn.write('{"command":"ping"}\n');
+            conn.destroy();
+            resolve();
+          });
+          conn.once("error", () => resolve());
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      assert.equal(await mgr.isRunning(), true, "daemon must survive disconnected peers");
+      await assert.rejects(() => mgr.start(), /already running/);
+      assert.equal((await mgr.status())?.pid, first.pid);
+    } finally {
+      await mgr.stop();
+    }
+  });
+
+  it("client disconnect during ping does not crash the daemon", async () => {
+    const mgr = new DaemonManager(testHome);
+    rmSync(join(testHome, ".alix", "daemon.json"), { force: true });
+    const first = await mgr.start();
+    try {
+      // Send a valid command then immediately tear down the transport.
+      // This must not propagate EPIPE/ECONNRESET into process termination.
+      for (let i = 0; i < 25; i++) {
+        await new Promise<void>((resolve) => {
+          const client = createConnection(mgr.socketPath());
+          client.once("connect", () => {
+            client.write('{"command":"ping"}\n');
+            client.destroy();
+            resolve();
+          });
+          client.once("error", () => resolve());
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      assert.equal(await mgr.isRunning(), true, "daemon remains alive after disconnected clients");
+      await assert.rejects(() => mgr.start(), /already running/, "socket remains owned by daemon");
+      assert.equal((await mgr.status())?.pid, first.pid);
+    } finally {
+      await mgr.stop();
+    }
+  });
+
+  it("independent probe: competing start preserves the live owner's metadata", async () => {
+    const mgr = new DaemonManager(testHome);
+    rmSync(join(testHome, ".alix", "daemon.json"), { force: true });
+    const first = await mgr.start();
+    try {
+      // Simulate missing metadata while the original daemon still owns its socket.
+      rmSync(join(testHome, ".alix", "daemon.json"), { force: true });
+      await assert.rejects(() => mgr.start(), /failed to acquire ownership|already running/);
+      const current = await mgr.status();
+      assert.equal(current?.pid, first.pid, "the rejected contender must not erase the owner's status");
+      assert.equal(current?.status, "running");
+    } finally {
+      // Restore the original owner's metadata to permit orderly cleanup.
+      writeFileSync(join(testHome, ".alix", "daemon.json"), JSON.stringify(first));
+      await mgr.stop();
+    }
+  });
+
+  it("stop waits for daemon exit before allowing immediate restart", async () => {
+    const mgr = new DaemonManager(testHome);
+    rmSync(join(testHome, ".alix", "daemon.json"), { force: true });
+    const first = await mgr.start();
+    await mgr.stop();
+    assert.equal((await mgr.status())?.status, "stopped");
+    assert.equal(await mgr.isRunning(), false);
+    const restarted = await mgr.start();
+    assert.notEqual(restarted.pid, first.pid);
+    try {
+      assert.ok(statSync(mgr.socketPath()).isSocket());
+    } finally {
+      await mgr.stop();
+    }
+  });
+
+  it("portable lock denies competing daemon without flock executable", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "daemon-portable-"));
+    const socket = join(cwd, "portable.sock");
+    const entry = join(process.cwd(), "dist/src/operations/daemon/daemon-server.js");
+    const launch = () => spawn(process.execPath, [entry, "--socket", socket, "--cwd", cwd], {
+      env: { ...process.env, HOME: cwd, PATH: "" }, stdio: "ignore",
+    });
+    const first = launch();
+    try {
+      const deadline = Date.now() + 8000;
+      while (Date.now() < deadline) {
+        try { if (statSync(socket).isSocket()) break; } catch {}
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      const inode = statSync(socket).ino;
+      assert.equal(first.exitCode, null, "first daemon must remain alive before contention");
+      const second = launch();
+      const exit = await new Promise<number | null>((resolve, reject) => {
+        const timeout = setTimeout(() => { second.kill("SIGKILL"); reject(new Error("contender hung")); }, 5000);
+        second.once("exit", code => { clearTimeout(timeout); resolve(code); });
+        second.once("error", reject);
+      });
+      assert.notEqual(exit, 0);
+      assert.equal(first.exitCode, null, "first daemon must remain alive after contention");
+      assert.equal(statSync(socket).ino, inode);
+    } finally {
+      first.kill("SIGTERM");
+      await new Promise(resolve => { if (first.exitCode !== null) resolve(null); else first.once("exit", resolve); });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("flock backend refuses an existing portable lock directory", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "daemon-backend-switch-"));
+    const socket = join(cwd, "portable.sock");
+    const lock = `${socket}.lock`;
+    mkdirSync(lock);
+    writeFileSync(join(lock, "meta.json"), JSON.stringify({ pid: process.pid, token: "live", acquiredAt: new Date().toISOString() }));
+    const entry = join(process.cwd(), "dist/src/operations/daemon/daemon-server.js");
+    try {
+      const child = spawn(process.execPath, [entry, "--socket", socket, "--cwd", cwd], {
+        env: { ...process.env, HOME: cwd }, stdio: "ignore",
+      });
+      const code = await new Promise<number | null>((resolve, reject) => {
+        const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error("backend switch hung")); }, 5000);
+        child.once("exit", value => { clearTimeout(timer); resolve(value); });
+        child.once("error", reject);
+      });
+      assert.notEqual(code, 0);
+      assert.ok(statSync(lock).isDirectory());
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
   });
 
   it("start cleans stale state before spawning", async () => {
