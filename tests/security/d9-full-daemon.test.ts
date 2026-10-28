@@ -129,11 +129,15 @@ test('F-R01 second daemon is rejected without replacing the live socket', { time
 test('F-R01b SIGKILL releases daemon admission and permits stale-socket recovery', { timeout: 90_000 }, () =>
   scenario('F-R01b', async (cwd, f, hosts, _actors, states) => {
     const first = daemon(cwd, f); hosts.push(first); await first.ready();
-    const oldInode = (await stat(join(cwd, 'daemon.sock'))).ino;
+    const originalPid = first.child.pid;
     assert.deepEqual(await first.stop('SIGKILL'), { code: null, signal: 'SIGKILL' });
     const replacement = daemon(cwd, f); hosts.push(replacement); await replacement.ready();
-    assert.notEqual((await stat(join(cwd, 'daemon.sock'))).ino, oldInode);
-    assert.equal((await rpc(join(cwd, 'daemon.sock'), { command: 'ping' })).type, 'pong');
+    // Linux may immediately reuse the inode of an unlinked Unix socket. Verify
+    // replacement process identity and live IPC instead of inode inequality.
+    assert.notEqual(replacement.child.pid, originalPid, 'replacement must be a distinct process');
+    const pong = await rpc(join(cwd, 'daemon.sock'), { command: 'ping' });
+    assert.equal(pong.type, 'pong');
+    assert.equal(pong.pid, replacement.child.pid, 'socket must belong to the replacement daemon');
     states.push(await snapshot(cwd, f));
   }));
 
