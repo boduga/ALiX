@@ -108,21 +108,33 @@ async function scenario(id: string, body: (cwd: string, f: Fixture,
   }
 }
 
-test('F-R01 characterization: second daemon replaces a live socket (qualification finding)', { timeout: 90_000 }, () =>
+test('F-R01 second daemon is rejected without replacing the live socket', { timeout: 90_000 }, () =>
   scenario('F-R01', async (cwd, f, hosts, _actors, states) => {
     const first = daemon(cwd, f); hosts.push(first); await first.ready();
     const inode = (await stat(join(cwd, 'daemon.sock'))).ino;
-    const second = daemon(cwd, f); hosts.push(second); await second.ready();
-    assert.notEqual(first.child.pid, second.child.pid);
+    const second = daemon(cwd, f); hosts.push(second);
+    const rejected = await second.exited;
+    assert.notEqual(rejected.code, 0, 'second daemon must fail admission');
     assert.equal(first.child.kill(0), true);
-    assert.notEqual((await stat(join(cwd, 'daemon.sock'))).ino, inode, 'documents live socket replacement, NOT fail-closed admission');
+    assert.equal((await stat(join(cwd, 'daemon.sock'))).ino, inode, 'live socket must not be replaced');
+    assert.equal((await rpc(join(cwd, 'daemon.sock'), { command: 'ping' })).type, 'pong');
     const before = await snapshot(cwd, f); states.push(before);
-    // Both real hosts scan the same approval. Claim/lock serialization must still hold.
-    await Promise.all([first.scan(), second.scan()]);
+    await first.scan();
     const after = await snapshot(cwd, f); states.push(after);
     assert.equal(after.approval.executionOutcome, 'succeeded');
     assert.equal((after.entries ?? '').trim().split('\n').length, 1);
     assert.equal(after.run.workers[0].attempt, 1);
+  }));
+
+test('F-R01b SIGKILL releases daemon admission and permits stale-socket recovery', { timeout: 90_000 }, () =>
+  scenario('F-R01b', async (cwd, f, hosts, _actors, states) => {
+    const first = daemon(cwd, f); hosts.push(first); await first.ready();
+    const oldInode = (await stat(join(cwd, 'daemon.sock'))).ino;
+    assert.deepEqual(await first.stop('SIGKILL'), { code: null, signal: 'SIGKILL' });
+    const replacement = daemon(cwd, f); hosts.push(replacement); await replacement.ready();
+    assert.notEqual((await stat(join(cwd, 'daemon.sock'))).ino, oldInode);
+    assert.equal((await rpc(join(cwd, 'daemon.sock'), { command: 'ping' })).type, 'pong');
+    states.push(await snapshot(cwd, f));
   }));
 
 test('F-R02 daemon versus independent resumer preserves winner lease', { timeout: 90_000 }, () =>

@@ -19,7 +19,9 @@
 
 import { createServer, type Socket } from "node:net";
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, openSync, closeSync, fstatSync, statSync, mkdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { dirname } from "node:path";
 import { join, relative, resolve } from "node:path";
 import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js";
 import { homedir } from "node:os";
@@ -639,11 +641,32 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
 process.on("uncaughtException", (err) => { console.error("[daemon] uncaughtException", err); process.exit(1); });
 process.on("unhandledRejection", (err) => { console.error("[daemon] unhandledRejection", err); process.exit(1); });
 
-// Remove stale socket file before binding, otherwise `listen()` can fail
-// with EADDRINUSE after a crash or unclean shutdown. A Windows named pipe
-// (#732) has no backing file, so skip the filesystem stale-rm there.
-if (!isNamedPipe(socketPath) && existsSync(socketPath)) {
-  await rm(socketPath, { force: true }).catch(() => {});
+// POSIX daemon admission is serialized by a kernel-owned flock. Keep the
+// descriptor open for the entire process lifetime: SIGKILL releases it.
+// Never unlink a live daemon's socket, even if a second daemon starts.
+let daemonLockFd: number | undefined;
+if (!isNamedPipe(socketPath)) {
+  mkdirSync(dirname(socketPath), { recursive: true });
+  const lockPath = `${socketPath}.lock`;
+  const fd = openSync(lockPath, "a+");
+  const result = spawnSync("flock", ["-n", "-x", "9"], {
+    stdio: ["ignore", "ignore", "pipe", "ignore", "ignore", "ignore", "ignore", "ignore", "ignore", fd],
+  });
+  if (result.error || result.status !== 0) {
+    closeSync(fd);
+    console.error("[daemon] socket owner is active or lock unavailable; refusing startup", socketPath);
+    process.exit(1);
+  }
+  const held = fstatSync(fd);
+  const current = statSync(lockPath);
+  if (held.dev !== current.dev || held.ino !== current.ino) {
+    closeSync(fd);
+    console.error("[daemon] socket lock pathname changed; refusing startup", socketPath);
+    process.exit(1);
+  }
+  daemonLockFd = fd;
+  // This cleanup is safe only while holding the unique daemon admission lock.
+  if (existsSync(socketPath)) await rm(socketPath, { force: true });
 }
 
 const server = createServer((client: Socket) => {
