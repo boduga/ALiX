@@ -93,6 +93,44 @@ describe("DaemonManager", () => {
     } finally { await mgr.stop(); }
   });
 
+  it("never falls back when the socket explicitly reports another PID", async () => {
+    const mgr = new DaemonManager(testHome);
+    mkdirSync(join(testHome, ".alix"), { recursive: true });
+    writeFileSync(join(testHome, ".alix", "daemon.json"), JSON.stringify({ pid: process.pid, status: "running" }));
+    const originalPong = mgr["socketPong"];
+    const originalLegacy = mgr["legacyOwnerMatches"];
+    let legacyCalled = false;
+    mgr["socketPong"] = async () => ({ received: true, pid: process.pid + 1 });
+    mgr["legacyOwnerMatches"] = async () => { legacyCalled = true; return true; };
+    try {
+      await assert.rejects(() => mgr.stop(), /ownership could not be verified/);
+      assert.equal(legacyCalled, false);
+    } finally {
+      mgr["socketPong"] = originalPong;
+      mgr["legacyOwnerMatches"] = originalLegacy;
+      rmSync(join(testHome, ".alix", "daemon.json"), { force: true });
+    }
+  });
+
+  it("uses legacy verification only for a PID-less pong", async () => {
+    const mgr = new DaemonManager(testHome);
+    mkdirSync(join(testHome, ".alix"), { recursive: true });
+    writeFileSync(join(testHome, ".alix", "daemon.json"), JSON.stringify({ pid: process.pid, status: "running" }));
+    const originalPong = mgr["socketPong"];
+    const originalLegacy = mgr["legacyOwnerMatches"];
+    let legacyCalled = false;
+    mgr["socketPong"] = async () => ({ received: true });
+    mgr["legacyOwnerMatches"] = async () => { legacyCalled = true; return false; };
+    try {
+      await assert.rejects(() => mgr.stop(), /ownership could not be verified/);
+      assert.equal(legacyCalled, true);
+    } finally {
+      mgr["socketPong"] = originalPong;
+      mgr["legacyOwnerMatches"] = originalLegacy;
+      rmSync(join(testHome, ".alix", "daemon.json"), { force: true });
+    }
+  });
+
   it("client disconnect during ping does not terminate daemon", async () => {
     const mgr = new DaemonManager(testHome);
     rmSync(join(testHome, ".alix", "daemon.json"), { force: true });

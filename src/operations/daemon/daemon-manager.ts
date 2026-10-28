@@ -91,15 +91,20 @@ export class DaemonManager {
     throw new Error("Daemon failed to acquire ownership or become ready. Run daemon-server directly for logs.");
   }
 
-  private socketResponds(socketPath: string, expectedPid?: number): Promise<boolean> {
+  private async socketResponds(socketPath: string, expectedPid?: number): Promise<boolean> {
+    const pong = await this.socketPong(socketPath);
+    return pong.received && (expectedPid === undefined || pong.pid === expectedPid);
+  }
+
+  private socketPong(socketPath: string): Promise<{ received: boolean; pid?: number }> {
     return new Promise((resolve) => {
       const socket = createConnection(socketPath);
       let settled = false;
-      const finish = (ok: boolean) => {
+      const finish = (pong: { received: boolean; pid?: number }) => {
         if (settled) return;
         settled = true;
         socket.destroy();
-        resolve(ok);
+        resolve(pong);
       };
       socket.setTimeout(300);
       socket.once("connect", () => socket.write('{"command":"ping"}\n'));
@@ -115,16 +120,16 @@ export class DaemonManager {
           try {
             const response = JSON.parse(line) as { type?: string; pid?: number };
             if (response.type === "pong") {
-              finish(expectedPid === undefined || response.pid === expectedPid);
+              finish({ received: true, pid: response.pid });
               return;
             }
           } catch { /* ignore malformed non-pong frames */ }
         }
-        if (buffer.length > 65536) finish(false);
+        if (buffer.length > 65536) finish({ received: false });
       });
-      socket.once("error", () => finish(false));
-      socket.once("timeout", () => finish(false));
-      socket.once("close", () => finish(false));
+      socket.once("error", () => finish({ received: false }));
+      socket.once("timeout", () => finish({ received: false }));
+      socket.once("close", () => finish({ received: false }));
     });
   }
 
@@ -163,8 +168,12 @@ export class DaemonManager {
     // daemon may have exited and the OS may have reassigned its PID.
     // A live daemon must answer on its own socket before we may stop it.
     const socketPath = this.socketPath();
-    const verified = await this.socketResponds(socketPath, status.pid) ||
-      (await this.socketResponds(socketPath) && await this.legacyOwnerMatches(status.pid, socketPath));
+    const pong = await this.socketPong(socketPath);
+    // A reported PID is authoritative. Never downgrade an explicit mismatch
+    // into legacy verification by issuing a second identity-free ping.
+    const verified = pong.received && (pong.pid !== undefined
+      ? pong.pid === status.pid
+      : await this.legacyOwnerMatches(status.pid, socketPath));
     if (!verified) {
       // A stale record must not authorize signaling an unrelated process.
       // If its PID no longer exists, stopping is already complete.
