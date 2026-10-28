@@ -194,8 +194,9 @@ export function createWorkerApprovalPort(
       if (boundWorkerId && consumer.workerId && consumer.workerId !== boundWorkerId) {
         return Promise.resolve({ consumed: false, reason: "worker mismatch" });
       }
-      if (boundWorkerId && !visible(store.get(id))) return Promise.resolve({ consumed: false, reason: "worker scope mismatch" });
-      return store.consumeApproved(id, bindingKey, boundWorkerId ? { ...consumer, workerId: boundWorkerId, workerAttempt: boundWorkerAttempt } : consumer, invocation);
+      // consumeApproved reloads under the store lock and enforces worker/attempt
+      // identity atomically. A cached get() can be stale across processes.
+      return store.consumeApproved(id, bindingKey, boundWorkerId ? { ...consumer, workerId: boundWorkerId, workerAttempt: boundWorkerAttempt, requireWorkerBinding: true } : consumer, invocation);
     },
     recordExecutionOutcome: (id, outcome) =>
       store.recordExecutionOutcome(id, outcome, { workerId: boundWorkerId, workerAttempt: boundWorkerAttempt }),

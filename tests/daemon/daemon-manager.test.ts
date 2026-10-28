@@ -82,6 +82,17 @@ describe("DaemonManager", () => {
     assert.ok(first.pid > 0);
   });
 
+  it("verifies legacy daemon identity against its live command line", async () => {
+    const mgr = new DaemonManager(testHome);
+    rmSync(join(testHome, ".alix", "daemon.json"), { force: true });
+    const running = await mgr.start();
+    try {
+      assert.equal(await mgr["legacyOwnerMatches"](running.pid, mgr.socketPath()), true);
+      assert.equal(await mgr["legacyOwnerMatches"](running.pid, "/tmp/other.sock"), false);
+      assert.equal(await mgr["legacyOwnerMatches"](process.pid, mgr.socketPath()), false);
+    } finally { await mgr.stop(); }
+  });
+
   it("client disconnect during ping does not terminate daemon", async () => {
     const mgr = new DaemonManager(testHome);
     rmSync(join(testHome, ".alix", "daemon.json"), { force: true });

@@ -994,7 +994,7 @@ export class ApprovalStore {
   async consumeApproved(
     id: string,
     expectedBindingKey: string,
-    consumer: { workerId?: string; workerAttempt?: number; now?: Date },
+    consumer: { workerId?: string; workerAttempt?: number; now?: Date; requireWorkerBinding?: boolean },
     expectedInvocation?: InvocationIdentity,
   ): Promise<ConsumeResult> {
     let result: ConsumeResult = { consumed: false, reason: "not found" };
@@ -1005,6 +1005,12 @@ export class ApprovalStore {
       const now = consumer.now ?? new Date();
       if (new Date(r.expiresAt) <= now) { result = { consumed: false, reason: "expired" }; return; }
       if (r.bindingKey !== expectedBindingKey) { result = { consumed: false, reason: "binding key mismatch" }; return; }
+      // Restricted worker ports must not claim legacy/unbound records. Check
+      // against the freshly reloaded record while holding the store lock.
+      if (consumer.requireWorkerBinding && (!r.workerId || r.workerId !== consumer.workerId ||
+          (consumer.workerAttempt !== undefined && r.workerAttempt !== consumer.workerAttempt))) {
+        result = { consumed: false, reason: "worker scope mismatch" }; return;
+      }
       // Worker-bound authority requires explicit, matching execution identity.
       // A binding key alone must never authorize a different worker or attempt.
       if (r.workerId && r.workerId !== consumer.workerId) {

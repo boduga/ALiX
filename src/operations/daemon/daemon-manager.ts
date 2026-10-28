@@ -11,7 +11,8 @@ import { createConnection } from "node:net";
 import { join, dirname } from "node:path";
 import { resolveDaemonSocketAddress } from "./daemon-paths.js";
 import { homedir } from "node:os";
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const daemonManagerDir = dirname(fileURLToPath(import.meta.url));
@@ -127,6 +128,30 @@ export class DaemonManager {
     });
   }
 
+  /** Legacy pong has no PID. Verify its live process command line before
+   * allowing a stop; never trust the persisted PID alone. Fail closed if the
+   * OS cannot establish the expected executable and socket arguments. */
+  private async legacyOwnerMatches(pid: number, socketPath: string): Promise<boolean> {
+    if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+    try {
+      let args: string[];
+      if (process.platform === "linux") {
+        const cmdline = await readFile(`/proc/${pid}/cmdline`);
+        args = cmdline.toString("utf8").split("\0").filter(Boolean);
+      } else if (process.platform === "darwin") {
+        const { stdout } = await promisify(execFile)("ps", ["-p", String(pid), "-o", "command="], { timeout: 1000 });
+        // The legacy daemon command is spawned without shell quoting of the
+        // socket path. Reject ambiguous paths rather than guessing identity.
+        if (/\s/.test(socketPath)) return false;
+        args = stdout.trim().split(/\s+/);
+      } else return false;
+      const serverIndex = args.findIndex((arg) => arg.endsWith("/daemon-server.js"));
+      return serverIndex > 0 && args[serverIndex + 1] === "--socket" &&
+        args[serverIndex + 2] === socketPath &&
+        args[0] === process.execPath;
+    } catch { return false; }
+  }
+
   /** Stop the daemon. */
   async stop(): Promise<void> {
     const status = await this.status();
@@ -137,7 +162,10 @@ export class DaemonManager {
     // Never signal a PID based solely on persisted metadata: the original
     // daemon may have exited and the OS may have reassigned its PID.
     // A live daemon must answer on its own socket before we may stop it.
-    if (!(await this.socketResponds(this.socketPath(), status.pid))) {
+    const socketPath = this.socketPath();
+    const verified = await this.socketResponds(socketPath, status.pid) ||
+      (await this.socketResponds(socketPath) && await this.legacyOwnerMatches(status.pid, socketPath));
+    if (!verified) {
       // A stale record must not authorize signaling an unrelated process.
       // If its PID no longer exists, stopping is already complete.
       try { process.kill(status.pid, 0); }

@@ -66,6 +66,16 @@ describe('worker approval port (F8b)', () => {
     expect(await sibling.recordExecutionOutcome(record.id, 'succeeded')).toBe(false);
   });
 
+  it('consumes freshly approved records from another store without stale-cache rejection', async () => {
+    const { cwd, store } = await workspace();
+    const port = createWorkerApprovalPort(store, { workerId: 'worker-a', workerAttempt: 1 });
+    const writer = await otherProcess(cwd);
+    const record = await writer.request({ reason: 'cross-process', capability: 'file.create', workerId: 'worker-a', workerAttempt: 1 });
+    await writer.resolve(record.id, 'approved');
+    const result = await port.consumeApproved(record.id, record.bindingKey, { workerId: 'worker-a', workerAttempt: 1 });
+    expect(result.consumed).toBe(true);
+  });
+
   it('rejects cross-worker and cross-attempt pending reuse under the store lock', async () => {
     const { store } = await workspace();
     const owner = createWorkerApprovalPort(store, { workerId: 'worker-a', workerAttempt: 1 });
