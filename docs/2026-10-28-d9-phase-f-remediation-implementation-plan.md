@@ -189,7 +189,7 @@ If a required Linux target cannot satisfy required durability, return a stable `
 
 ### Slice F — recovery/reconciliation
 
-Add an audited operator reconciliation path for unresolved journal entries.
+Add an audited delegated reconciliation path for unresolved journal entries. The path is agent-driven within pre-delegated authority; missing authority fails closed and no implementation/reviewer agent may self-authorize reconciliation.
 
 Requirements:
 - never clear by age/PID alone;
@@ -238,7 +238,7 @@ Platform test collection alone is not qualification. Native execution evidence i
 8. Reconcile governance/risk/evidence docs.
 9. Run full native platform matrix plus typecheck/build/unused/DOX/dependency analysis.
 10. Independent final architecture/security review.
-11. Authorized operator/security disposition.
+11. Independent verifier/critic technical verdict against the exact evidence tree. Q13 publication/release authority remains external to D9 and unchanged.
 
 ## 5. Explicit no-go conditions
 
@@ -251,11 +251,11 @@ Phase F cannot clear if any of the following remain:
 - a declared supported platform lacks native qualification for journal durability and child-process semantics;
 - unresolved effects can be auto-cleared by PID/age or reviewer/agent decision;
 - evidence hashes/tree/platform provenance are inconsistent;
-- residual security risk lacks authorized disposition.
+- unresolved residual security risk or missing required qualification evidence remains; D9 has no in-loop waiver path.
 
 ## 6. Current gate state
 
 - Phase F: **HOLD**
-- Code changes authorized by this plan: **NO — pending §0 decisions**
-- Commit/push/merge: **NONE**
-- Existing uncommitted working tree must be preserved while remediation is staged deliberately.
+- Code changes authorized by this plan: **YES for the bounded D9 remediation/test/qualification work described above; §0 decisions are recorded in ADR-0017. This does not authorize unrelated PRE-2.0 work or release.**
+- Local remediation commits: **present on `fix/d9-phase-f-remediation-v2`**.
+- Push/merge: **not performed by this plan state**; technical qualification does not itself authorize release or merge.
