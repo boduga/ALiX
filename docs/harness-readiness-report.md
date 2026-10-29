@@ -113,7 +113,7 @@ PRE-R010 is also **SUPPORTED as an inventory requirement** after independent rev
 
 ## 2026-10-28 Harness² / verification-design acceptance
 
-Independent design audit and re-review now support **PRE-R021, R022, R023, R025, R026, R027, R028, R029 and R030** at their written design/recommendation scope. The audit first identified missing explicit Harness² concept mappings, budget/rollback authority rules, approval revocation/invalidation coverage, and the independent review required for R026; those were corrected and re-reviewed. This closes the design contracts only. PRE-R020 portability, PRE-R024 process/rubric isolation completion, PRE-R031 measured autonomous-review performance, PRE-R032 execution/non-bypass qualification, and all adoption/release gates remain separate. PRE-R024 now has a working per-arm S0 runner (44/44 mandatory negatives on its qualification-control record), but a committed negative probe proves `shell.run` can reach a grader outside `cwd`, so model-backed probes remain blocked.
+Independent design audit and re-review now support **PRE-R021, R022, R023, R025, R026, R027, R028, R029 and R030** at their written design/recommendation scope. The audit first identified missing explicit Harness² concept mappings, budget/rollback authority rules, approval revocation/invalidation coverage, and the independent review required for R026; those were corrected and re-reviewed. This closes the design contracts only. PRE-R020 portability, PRE-R024 process/rubric isolation completion, PRE-R032 execution/non-bypass qualification, and all adoption/release gates remain separate. PRE-R031 now has bounded blinded offline measurements, but their safety result fails reduced-supervision eligibility. PRE-R024 now has a working per-arm S0 runner (44/44 mandatory negatives on its qualification-control record), but a committed negative probe proves `shell.run` can reach a grader outside `cwd`, so model-backed probes remain blocked.
 
 ## 2026-10-28 contract/catalog acceptance reconciliation
 
@@ -154,7 +154,7 @@ Remaining work under the agent-driven closeout:
 
 1. Complete source/consumer review and historical provenance disposition with independent verifier/critic agents.
 2. Finish shim trigger/usage/retirement evidence and benchmark isolation protocol.
-3. Extend the new public-fixture PRE-R017/PRE-R031 pilot into blinded multi-fixture autonomous-review evidence: active verifier/critic effort and cost, repeated-agent disagreement, seeded-risk misses, sampling/exception behavior, and BLOCKED escalations.
+3. PRE-R031 bounded blinded measurement is complete and fails reduced-supervision eligibility; keep full verification. PRE-R017 presentation-effect qualification and any production-scale queue/BLOCKED study remain separate future evidence, not prerequisites to the PRE-R031 measurement clause.
 4. Complete PRE-R024 OS-level process isolation, per-benchmark rubric containment and model-arm replay reconstruction before any model-backed probe. The per-arm S0 negative runner is already qualified and remains mandatory.
 5. Continue Gate E/D9 remediation until independent security qualification no longer rejects the execution boundary.
 6. Produce exact-artifact agent readiness evidence for Gate F. Actual publication/release remains outside the Harness program unless machine-verifiable delegated release authority already exists; otherwise report `BLOCKED` without inserting a human review step.

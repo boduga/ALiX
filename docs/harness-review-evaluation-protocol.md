@@ -1,6 +1,6 @@
 # Offline review evaluation protocol v1
 
-Status: PILOT EXECUTED for PRE-R017/PRE-R031 mechanics; qualification remains open. On 2026-10-28 one isolated Codex verifier reviewed each public `scope-claim-v1` presentation and an independent critic mapped prose findings to the frozen risk IDs. Both presentations scored exact 1.0 with zero critical misses. This is public-fixture mechanics evidence only: no presentation benefit, blinded-holdout safety qualification, Gate B/E/F clearance, or autonomous-mode promotion is established.
+Status: PUBLIC PILOT EXECUTED; PRE-R031 BOUNDED BLINDED MEASUREMENT ALSO EXECUTED. The original public `scope-claim-v1` text/diagram pilot remains mechanics-only and does not establish presentation benefit. A separate 2026-10-28 seeded multi-fixture local-agent benchmark (`pre-r031-agent-review-benchmark-2026-10-28.json`) now measures every dimension named by PRE-R031. Its safety result is negative (critical miss, high false positives, disagreement), so no autonomous-mode promotion follows. PRE-R017 presentation-effect qualification remains open; Gate B/E/F are unaffected.
 
 ## Boundary and immutable mechanics fixture
 
@@ -110,4 +110,4 @@ coverage by risk stratum, exception arrivals/service times/backlog, independentl
 verified outcomes and complete cost/latency records. Do not invent these values
 from review intervals. No production queue instrumentation is authorized here.
 
-Current evidence: deterministic scorer tests are 5/5 green and `benchmark/evidence/review-agent-pilot-2026-10-28.json` records two isolated agent-review pilot trials (text n=1, diagram n=1), both exact with zero critical misses. Observed wall-clock latency was 14.159s text and 14.950s diagram; active-review intervals, confidence/Brier coverage, sampling quality, exception volume, queue behavior and holdout performance remain unmeasured. Because the fixture and expected risks are public mechanics data, PRE-R017/PRE-R031 remain open pending blinded multi-fixture agent measurements.
+Current evidence has two layers. The public pilot remains two mechanics trials (text n=1, diagram n=1), both exact, and is unsuitable for holdout claims. Separately, `benchmark/evidence/pre-r031-agent-review-benchmark-2026-10-28.json` uses a seeded 4/6 blinded selection across four strata with two local agent models and a hidden expected-risk mapping. It records effort tokens/eval duration, sampling coverage, missed/critical risk rates, disagreements, queue wait/backlog, deterministic outcomes, local cost and latency. PRE-R031 is supported at this bounded offline measurement scope, but the observed safety result fails reduced-supervision eligibility. PRE-R017 remains open because this run does not compare text versus diagram presentation effects.
