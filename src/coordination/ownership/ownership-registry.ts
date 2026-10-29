@@ -85,18 +85,47 @@ export class OwnershipRegistry {
 
   // ═══ Internal load/save (only inside withLock) ═══════════════════
 
-  private reloadFromDisk(): void {
+  private reloadFromDisk(): boolean {
     try {
       const raw = readFileSync(this.storagePath, "utf-8");
-      const store = JSON.parse(raw) as OwnershipStore;
-      this.records = (store.records ?? []).map(r => ({
+      const parsed = JSON.parse(raw) as Partial<OwnershipStore>;
+      if (!parsed || typeof parsed !== "object" || parsed.version !== STORE_VERSION ||
+          !Array.isArray(parsed.records) || !Number.isInteger(parsed.revision) || (parsed.revision ?? -1) < 0) {
+        this.records = [];
+        this.revision = 0;
+        return false;
+      }
+      const validModes = new Set(["exclusive-write", "shared-read", "review-only"]);
+      const validStatuses = new Set(["active", "released", "expired", "revoked"]);
+      const validRecord = (record: OwnershipRecord): boolean =>
+        !!record &&
+        typeof record.id === "string" && record.id.length > 0 &&
+        typeof record.agentId === "string" && record.agentId.length > 0 &&
+        record.scope?.kind === "path" && typeof record.scope.root === "string" &&
+        typeof record.scope.recursive === "boolean" &&
+        validModes.has(record.mode) && validStatuses.has(record.status) &&
+        typeof record.acquiredAt === "string" && !Number.isNaN(Date.parse(record.acquiredAt)) &&
+        typeof record.expiresAt === "string" && !Number.isNaN(Date.parse(record.expiresAt));
+      if (!parsed.records.every(record => validRecord(record as OwnershipRecord))) {
+        this.records = [];
+        this.revision = 0;
+        return false;
+      }
+      this.records = parsed.records.map(r => ({
         ...r,
         status: (r.status === "active" && this.isExpired(r)) ? ("expired" as const) : r.status,
       }));
-      this.revision = store.revision ?? 0;
-    } catch {
+      this.revision = parsed.revision as number;
+      return true;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        this.records = [];
+        this.revision = 0;
+        return true;
+      }
       this.records = [];
       this.revision = 0;
+      return false;
     }
   }
 
@@ -134,7 +163,10 @@ export class OwnershipRegistry {
     }
     let events: Array<{ event: string; data: Record<string, unknown> }> = [];
     try {
-      this.reloadFromDisk();
+      if (!this.reloadFromDisk()) {
+        events = [{ event: "ownership.state_invalid", data: { reason: "unreadable_or_malformed" } }];
+        return null;
+      }
       this.applyExpiration();
       this.changed = false;
       const result = await fn();
@@ -172,9 +204,11 @@ export class OwnershipRegistry {
   /** Reload state from disk. For read operations that need fresh data. */
   async refresh(): Promise<void> {
     const acquired = await this.lock.acquire(2000);
-    if (!acquired) return;
+    if (!acquired) throw new Error("Ownership state unavailable: lock acquisition timed out");
     try {
-      this.reloadFromDisk();
+      if (!this.reloadFromDisk()) {
+        throw new Error("Ownership state unavailable: persisted registry is unreadable or malformed");
+      }
       this.applyExpiration();
     } finally {
       this.lock.release();
@@ -211,7 +245,7 @@ export class OwnershipRegistry {
 
   async acquire(req: AcquireRequest): Promise<AcquireResult> {
     return (await this.withLock(async () => this.acquireUnlocked(req)))
-      ?? { acquired: false, conflict: { reason: "Lock acquisition timed out", conflictingRecords: [] } };
+      ?? { acquired: false, conflict: { reason: "Ownership state unavailable or lock acquisition timed out", conflictingRecords: [] } };
   }
 
   async acquireMany(reqs: AcquireRequest[]): Promise<AcquireResult[]> {
@@ -238,7 +272,7 @@ export class OwnershipRegistry {
         }
       }
       return reqs.map(r => this.acquireUnlocked(r));
-    })) ?? reqs.map(() => ({ acquired: false, conflict: { reason: "Lock acquisition timed out", conflictingRecords: [] } }));
+    })) ?? reqs.map(() => ({ acquired: false, conflict: { reason: "Ownership state unavailable or lock acquisition timed out", conflictingRecords: [] } }));
   }
 
   async release(id: string): Promise<boolean> {
@@ -267,7 +301,7 @@ export class OwnershipRegistry {
     autoAcquire: boolean;
   }): Promise<MutationAuthorization> {
     return (await this.withLock(async () => this.authorizeMutationUnlocked(opts)))
-      ?? { allowed: false, reason: "Lock acquisition timed out" };
+      ?? { allowed: false, reason: "Ownership state unavailable or lock acquisition timed out" };
   }
 
   /** Check whether agent has active exclusive-write coverage for a path. */
