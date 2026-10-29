@@ -16,7 +16,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DEFAULT_CONFIG } from "../../src/operations/config/defaults.js";
@@ -28,6 +28,7 @@ import { decisionAllowed } from "../../src/runtime-state/runtime/execution-decis
 import { hashArgs } from "../../src/capabilities/tools/hash-args.js";
 import { computeBindingKey } from "../../src/governance/approvals/approval-binding.js";
 import { computePolicyRevision } from "../../src/governance/policy/policy-revision.js";
+import { createToolExecutor } from "../../src/capabilities/tools/tool-executor-factory.js";
 
 describe("approval consumption propagation", () => {
   it("decisionAllowed preserves the consumed flag", () => {
@@ -70,6 +71,60 @@ describe("approval consumption propagation", () => {
     });
     assert.equal(decision.status, "allowed");
     assert.equal((decision as { approvalConsumed?: boolean }).approvalConsumed, undefined);
+  });
+
+  it("executor records a terminal receipt for an approval preconsumed by the exact-binding gate", async () => {
+    const root = mkdtempSync(join(tmpdir(), "alix-consumed-receipt-"));
+    try {
+      mkdirSync(join(root, ".alix", "approvals"), { recursive: true });
+      const log = new EventLog(join(root, ".alix", "sessions", "s1"));
+      await log.init();
+      const store = new ApprovalStore(root, { eventLog: log });
+      await store.load();
+
+      const config = structuredClone(DEFAULT_CONFIG);
+      config.permissions.sessionMode = "ask";
+      const policyRevision = computePolicyRevision(config);
+      const command = "printf receipt > receipt.txt";
+      const args = { command };
+      const bindingKey = computeBindingKey({
+        coordinationRunId: "run-1", workerId: "w1", workerAttempt: 0,
+        capabilities: ["shell.run"], ownershipClaims: undefined,
+        requestFingerprint: "fp-receipt", policyRevision,
+      });
+      const rec = await store.requestBound({
+        reason: "coord receipt fixture", bindingKey, requestFingerprint: "fp-receipt", policyRevision,
+        capabilities: ["shell.run"], coordinationRunId: "run-1", workerId: "w1",
+        workerAttempt: 0, sessionId: "s1", agentId: "w1",
+        invocation: {
+          capability: "shell.run", toolName: "shell.run", workspace: root,
+          argsHash: hashArgs(args), sessionId: "s1", agentId: "w1",
+        },
+      });
+      await store.resolve(rec.id, "approved", "coord receipt fixture");
+
+      const executor = createToolExecutor({
+        config, log, root, approvalStore: store,
+        coordinationContext: {
+          coordinationRunId: "run-1", workerId: "w1", workerAttempt: 0,
+          requestFingerprint: "fp-receipt",
+        },
+      });
+      const result = await executor.execute({
+        toolCallId: "tc-receipt", name: "shell.run", args,
+        sessionId: "s1", agentId: "w1", coordinationRunId: "run-1",
+        executionId: "exec-receipt", invocationId: "inv-receipt",
+      });
+
+      assert.equal(result.kind, "success");
+      assert.equal(existsSync(join(root, "receipt.txt")), true);
+      const persisted = new ApprovalStore(root);
+      await persisted.load();
+      assert.equal(persisted.get(rec.id)?.status, "consumed");
+      assert.equal(persisted.get(rec.id)?.executionOutcome, "succeeded");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("the coordination exact-binding branch consumes once and reports it", async () => {

@@ -11,6 +11,7 @@ import type { EventLog } from "../../runtime-state/events/event-log.js";
 import { TOOL_EVENT_TYPES, ARTIFACT_EVENT_TYPES } from "../../runtime-state/events/types.js";
 import type { ToolOutputPayload, ToolCompletedPayload, ToolFailedPayload, ArtifactCreatedPayload } from "../../runtime-state/events/types.js";
 import type { CorrelationContext } from "../../runtime-state/runtime/tool-correlation.js";
+import type { CoordinationExecutionContext } from "../../runtime-state/runtime/execution-decision.js";
 import type { McpManager } from "../mcp/manager.js";
 import "../../governance/policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../../execution/patch/edit-format-policy.js";
@@ -124,6 +125,7 @@ export class ToolExecutor {
     private workspacePathResolver?: any,  // WorkspacePathResolver — for OwnershipGate
     private ownershipRegistry?: any,  // OwnershipRegistry — for OwnershipGate
     private ownedPaths?: string[],  // OwnedPaths — owned-path auto-approval for headless write subagents
+    private coordinationContext?: CoordinationExecutionContext, // trusted host-minted worker identity
   ) {
     // Create router with all handlers
     const pathResolver = this.workspacePathResolver ?? new WorkspacePathResolver(this.root, config.permissions?.protectedPaths ?? []);
@@ -708,6 +710,7 @@ export class ToolExecutor {
       agentId: request.agentId ?? "alix",
       source: "tool",
       ownedPaths: this.ownedPaths,
+      coordination: this.coordinationContext,
     });
 
     // Denied — policy or ownership rejected this call
@@ -833,11 +836,16 @@ export class ToolExecutor {
     // The coordination exact-binding branch already consumed inside the gate
     // (`approvalConsumed`), so claiming again here would deny a legitimate
     // worker — skip it.
-    if (decision.status === "allowed" && decision.approvalId && !decision.approvalConsumed) {
-      const claimed = await this.claimApproval(decision.approvalId, {
-        ...this.invocationIdentity(capability, name, argumentHash, request.agentId),
-      });
-      if (claimed) return claimed;
+    if (decision.status === "allowed" && decision.approvalId) {
+      if (!decision.approvalConsumed) {
+        const claimed = await this.claimApproval(decision.approvalId, {
+          ...this.invocationIdentity(capability, name, argumentHash, request.agentId),
+        });
+        if (claimed) return claimed;
+      }
+      // The exact-binding branch may have consumed this approval atomically
+      // inside PolicyGate. Consumption is still single-use; carrying the id
+      // forward is only for the terminal execution receipt below.
       claimedApprovalId = decision.approvalId;
     }
 

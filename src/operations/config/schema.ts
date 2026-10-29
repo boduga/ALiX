@@ -436,6 +436,8 @@ export type SubagentTask = {
   cwd?: string; // working directory for the spawned subagent process
   scriptedScenarioJson?: string; // scripted provider scenario for the eval harness
   coordinationRunId?: string; // optional operator-facing correlation metadata
+  coordinationWorkerAttempt?: number; // trusted scheduler attempt for coordination authorization
+  coordinationOwnershipClaims?: Array<{ path: string; recursive: boolean; sourcePattern?: string }>;
   /**
    * The worker's OWN assigned objective, distinct from `prompt`.
    *
