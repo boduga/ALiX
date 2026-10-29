@@ -2,8 +2,9 @@
  * ownership-lock.ts — File-based lock for OwnershipRegistry atomicity.
  *
  * Prevents concurrent agents from reading stale state and writing conflicting
- * leases. Uses a lock file with stale-lock recovery via PID liveness check
- * and emergency age ceiling. Each lock acquisition gets a unique UUID token;
+ * leases. Uses a lock file with fail-closed stale-lock recovery: same-host
+ * locks are reclaimed only when the owning PID is provably dead; cross-host
+ * locks are never age-stolen automatically. Each lock acquisition gets a unique UUID token;
  * release verifies the token still owns the lock before unlinking.
  *
  * Long-term: ownership moves into the daemon process as the sole writer.
@@ -15,7 +16,6 @@ import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 
 export const DEFAULT_LOCK_TIMEOUT_MS = 5_000;          // max wait (CLI UX)
-export const STALE_LOCK_EMERGENCY_CEILING_MS = 120_000; // force-break threshold
 
 type LockMetadata = {
   token: string;
@@ -35,7 +35,8 @@ export class OwnershipLock {
 
   /**
    * Acquire the lock. Blocks (polls) up to timeoutMs.
-   * Stale if owning PID is dead or age > emergency ceiling or on different host.
+   * Stale only when a same-host owning PID is provably dead.
+   * Cross-host ownership cannot be proven locally and therefore fails closed.
    */
   async acquire(timeoutMs: number = DEFAULT_LOCK_TIMEOUT_MS): Promise<boolean> {
     mkdirSync(dirname(this.lockPath), { recursive: true });
@@ -116,23 +117,13 @@ export class OwnershipLock {
   }
 
   /**
-   * Lock is stale if:
-   * 1. Pid/timestamp are not finite numbers
-   * 2. On a different host (cross-host NFS) and age > ceiling
-   * 3. Age exceeds emergency ceiling (120s)
-   * 4. Owning PID is no longer alive
+   * Reclaim only when same-host ownership is provably dead.
+   * Malformed metadata and cross-host locks fail closed: automatic stealing
+   * would permit concurrent registry writers without a fencing token.
    */
   private isStale(meta: LockMetadata): boolean {
-    if (!Number.isFinite(meta.pid) || !Number.isFinite(meta.timestamp)) return true;
-
-    const age = Date.now() - meta.timestamp;
-
-    // Cross-host: if hostname differs, rely on emergency ceiling only
-    if (meta.hostname && meta.hostname !== hostname()) {
-      return age > STALE_LOCK_EMERGENCY_CEILING_MS;
-    }
-
-    if (age > STALE_LOCK_EMERGENCY_CEILING_MS) return true;
+    if (!Number.isFinite(meta.pid) || !Number.isFinite(meta.timestamp)) return false;
+    if (!meta.hostname || meta.hostname !== hostname()) return false;
     return !this.isPidAlive(meta.pid);
   }
 

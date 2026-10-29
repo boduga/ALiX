@@ -1,8 +1,8 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir, hostname } from "node:os";
 import { OwnershipLock } from "../../src/coordination/ownership/ownership-lock.js";
 
 describe("OwnershipLock", () => {
@@ -64,6 +64,27 @@ describe("OwnershipLock", () => {
     const acquired = await lockB.acquire(500);
     assert.equal(acquired, false);
     lockA.release();
+  });
+
+
+  it("does not steal an old lock while the same-host owner PID is alive", async () => {
+    const lockPath = join(dir, ".alix", "ownership", "ownership.lock");
+    mkdirSync(join(dir, ".alix", "ownership"), { recursive: true });
+    writeFileSync(lockPath, `other-token:${process.pid}:${Date.now() - 600_000}:${hostname()}`);
+
+    const contender = new OwnershipLock(dir);
+    assert.equal(await contender.acquire(250), false);
+    assert.ok(existsSync(lockPath));
+  });
+
+  it("does not auto-steal an old cross-host lock", async () => {
+    const lockPath = join(dir, ".alix", "ownership", "ownership.lock");
+    mkdirSync(join(dir, ".alix", "ownership"), { recursive: true });
+    writeFileSync(lockPath, `other-token:999999:${Date.now() - 600_000}:remote-host.example`);
+
+    const contender = new OwnershipLock(dir);
+    assert.equal(await contender.acquire(250), false);
+    assert.ok(existsSync(lockPath));
   });
 
   it("acquire succeeds after the lock is released", async () => {
