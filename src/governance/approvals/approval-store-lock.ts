@@ -104,8 +104,8 @@ class FlockApprovalStoreLock implements ApprovalLockBackend {
   private fd: number | undefined;
   private acquired = false;
 
-  constructor(cwd: string) {
-    this.path = lockPath(cwd);
+  constructor(cwd: string, overridePath?: string) {
+    this.path = overridePath ?? lockPath(cwd);
   }
 
   async acquire(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<boolean> {
@@ -332,7 +332,9 @@ export class ApprovalStoreLock implements ApprovalLockBackend {
 
   constructor(cwd: string, options?: { backend?: LockBackendName; lockPath?: string }) {
     const name = options?.backend ?? detectLockBackend();
-    this.backend = name === "flock" ? new FlockApprovalStoreLock(cwd) : new MkdirApprovalStoreLock(cwd, options?.lockPath);
+    this.backend = name === "flock"
+      ? new FlockApprovalStoreLock(cwd, options?.lockPath)
+      : new MkdirApprovalStoreLock(cwd, options?.lockPath);
   }
 
   async acquire(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<boolean> {

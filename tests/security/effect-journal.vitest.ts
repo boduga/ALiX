@@ -59,6 +59,28 @@ describe('D9 durable effect journal', () => {
   });
 
 
+  it('deep-snapshots nested mutating arguments so adapter effect identity cannot drift after dispatch', async () => {
+    const cwd = await root();
+    const request: ToolCallRequest = {
+      toolCallId: 'nested-mcp', name: 'mcp.provider.charge', args: { payment: { id: 'A', amount: 10 } },
+    };
+    let observed: unknown;
+    const pending = executeWithEffectJournal(cwd, request, async (bound) => {
+      observed = (bound.args.payment as { id: string }).id;
+      return { kind: 'success', output: 'applied' };
+    });
+    // Mutate immediately after dispatch, while executeWithEffectJournal has
+    // yielded at its first lock await. The adapter must still receive the
+    // exact deep snapshot whose identity was claimed before that await.
+    (request.args.payment as { id: string }).id = 'B';
+    expect((await pending).kind).toBe('success');
+    expect(observed).toBe('A');
+    const original: ToolCallRequest = { toolCallId: 'original', name: request.name, args: { payment: { id: 'A', amount: 10 } } };
+    const mutated: ToolCallRequest = { toolCallId: 'mutated', name: request.name, args: { payment: { id: 'B', amount: 10 } } };
+    expect(readEffectRecord(cwd, original)?.state).toBe('terminal_success');
+    expect(readEffectRecord(cwd, mutated)).toBeUndefined();
+  });
+
   it('binds the canonical shell cwd used for identity to the adapter request', async () => {
     const cwd = await root();
     const sub = join(cwd, 'sub');
@@ -92,10 +114,12 @@ describe('D9 durable effect journal', () => {
     const cwd = await root(); let calls = 0; const request = req('sleep 0.01; touch one');
     let release!: () => void; const gate = new Promise<void>((resolve) => { release = resolve; });
     const first = executeWithEffectJournal(cwd, request, async () => { calls++; await gate; return { kind: 'success', output: 'ok' }; });
-    const second = await executeWithEffectJournal(cwd, request, async () => { calls++; return { kind: 'success', output: 'duplicate' }; });
-    expect(second.kind).toBe('error');
+    const secondPending = executeWithEffectJournal(cwd, request, async () => { calls++; return { kind: 'success', output: 'duplicate' }; });
+    await new Promise((resolve) => setTimeout(resolve, 75));
+    expect(calls).toBe(1);
     release();
     expect((await first).kind).toBe('success');
+    expect((await secondPending).kind).toBe('error');
     expect(calls).toBe(1);
   });
 });

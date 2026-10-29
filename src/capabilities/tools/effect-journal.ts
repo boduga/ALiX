@@ -6,6 +6,9 @@ import { isSafeShellCommand } from './safe-shell.js';
 import { buildDefaultToolIndex } from './tool-registry.js';
 import type { ToolCallRequest, ToolResult } from './types.js';
 import { WorkspacePathResolver } from '../../runtime-state/runtime/workspace-path.js';
+import { computeBindingKey } from '../../governance/approvals/approval-binding.js';
+import type { ApprovalStore } from '../../governance/approvals/approval-store.js';
+import { ApprovalStoreLock } from '../../governance/approvals/approval-store-lock.js';
 import { ExecutionCancelledError, signalReason } from '../../runtime-state/runtime/cancellation-token.js';
 
 export type EffectJournalState =
@@ -31,12 +34,64 @@ export type EffectJournalHooks = {
 export type EffectJournalRecord = {
   schemaVersion: 1;
   effectKey: string;
+  generationId: string;
   toolName: string;
   canonicalArgsHash: string;
   workspaceHash: string;
   state: EffectJournalState;
   claimedAt: string;
   updatedAt: string;
+};
+
+export type EffectReconciliationOutcome = 'applied' | 'not_applied';
+
+export type EffectReconciliationInput = {
+  approvalId: string;
+  actorId: string;
+  policyRevision: string;
+  outcome: EffectReconciliationOutcome;
+  evidenceHash: string;
+  evidenceRef: string;
+};
+
+export type EffectReconciliationAuthority = {
+  capability: 'effect.reconcile';
+  effectKey: string;
+  generationId: string;
+  requestFingerprint: string;
+  bindingKey: string;
+};
+
+export type EffectReconciliationEvent = {
+  schemaVersion: 1;
+  eventId: string;
+  effectKey: string;
+  generationId: string;
+  toolName: string;
+  canonicalArgsHash: string;
+  workspaceHash: string;
+  previousState: EffectJournalState;
+  outcome: EffectReconciliationOutcome;
+  targetState: 'reconciled_success' | 'reconciled_not_applied';
+  actorId: string;
+  approvalId: string;
+  policyRevision: string;
+  evidenceHash: string;
+  evidenceRef: string;
+  recordedAt: string;
+};
+
+export type EffectReconciliationFaultPoint =
+  | 'after_authority'
+  | 'after_history'
+  | 'after_reconciled_state'
+  | 'after_archive';
+
+export type EffectReconciliationHooks = {
+  /** Test/qualification-only crash injection. Production callers supply none. */
+  onPoint?: (point: EffectReconciliationFaultPoint) => void;
+  /** Test-only bounded contention probe; production uses the lock default. */
+  lockTimeoutMs?: number;
 };
 
 type EffectIdentity = {
@@ -91,6 +146,14 @@ function canonicalShellCwd(root: string, request: ToolCallRequest): string {
   return realpathSync.native(checked.absolute);
 }
 
+function snapshotExecutionRequest(request: ToolCallRequest): ToolCallRequest {
+  // Model/tool arguments are structured data. Snapshot them before the first
+  // await so caller mutation of nested objects cannot make the adapter execute
+  // a different effect than the identity durably claimed by the journal. The
+  // AbortSignal intentionally remains live so later cancellation is observed.
+  return { ...request, args: structuredClone(request.args) };
+}
+
 function bindExecutionRequest(root: string, request: ToolCallRequest): ToolCallRequest {
   if (request.name !== 'shell.run') return request;
   const command = typeof request.args.command === 'string' ? request.args.command : '';
@@ -117,12 +180,139 @@ export function effectIdentity(root: string, request: ToolCallRequest): EffectId
   return { workspace, directory, path: join(directory, `${effectKey}.json`), effectKey, canonicalArgsHash, workspaceHash };
 }
 
+function validateEvidenceRef(value: string, field: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 1024 || /[\r\n\0]/.test(trimmed)) {
+    throw new Error(`invalid ${field}`);
+  }
+  return trimmed;
+}
+
+function validateEvidenceHash(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(normalized)) throw new Error('invalid evidenceHash; expected SHA-256 hex');
+  return normalized;
+}
+
+function reconciliationAuthorityForIdentity(
+  identity: EffectIdentity,
+  generationId: string,
+  input: Omit<EffectReconciliationInput, 'approvalId'>,
+): EffectReconciliationAuthority {
+  if (input.outcome !== 'applied' && input.outcome !== 'not_applied') throw new Error('invalid reconciliation outcome');
+  const actorId = validateEvidenceRef(input.actorId, 'actorId');
+  const policyRevision = validateEvidenceRef(input.policyRevision, 'policyRevision');
+  const evidenceHash = validateEvidenceHash(input.evidenceHash);
+  const evidenceRef = validateEvidenceRef(input.evidenceRef, 'evidenceRef');
+  const requestFingerprint = hashArgs({
+    schemaVersion: 1, capability: 'effect.reconcile', effectKey: identity.effectKey, generationId,
+    outcome: input.outcome, evidenceHash, evidenceRef, actorId,
+  });
+  const bindingKey = computeBindingKey({ capabilities: ['effect.reconcile'], requestFingerprint, policyRevision });
+  return { capability: 'effect.reconcile', effectKey: identity.effectKey, generationId, requestFingerprint, bindingKey };
+}
+
+export function effectReconciliationAuthority(
+  root: string,
+  request: ToolCallRequest,
+  input: Omit<EffectReconciliationInput, 'approvalId'>,
+): EffectReconciliationAuthority {
+  const identity = effectIdentity(root, request);
+  const record = readEffectRecordIdentity(identity);
+  if (!record) throw new Error('effect journal record not found');
+  return reconciliationAuthorityForIdentity(identity, record.generationId, input);
+}
+
+function historyPath(identity: EffectIdentity): string {
+  return join(identity.directory, `${identity.effectKey}.reconciliation.jsonl`);
+}
+
+function archiveDirectory(identity: EffectIdentity): string {
+  return join(identity.directory, 'archive');
+}
+
+function effectLockPath(identity: EffectIdentity): string {
+  return join(identity.directory, `.${identity.effectKey}.lock`);
+}
+
+async function acquireEffectLock(identity: EffectIdentity, timeoutMs?: number): Promise<ApprovalStoreLock> {
+  validateJournalNamespace(identity, true);
+  const path = effectLockPath(identity);
+  if (existsSync(path)) {
+    const stat = lstatSync(path);
+    if (stat.isSymbolicLink() || (!stat.isFile() && !stat.isDirectory())) {
+      throw new Error('effect journal lock path is not a regular lock target');
+    }
+  }
+  const lock = new ApprovalStoreLock(identity.workspace, { lockPath: path });
+  if (!await lock.acquire(timeoutMs)) throw new Error(`effect journal lock unavailable: ${identity.effectKey}`);
+  return lock;
+}
+
+function appendReconciliationHistory(identity: EffectIdentity, event: EffectReconciliationEvent): void {
+  validateJournalNamespace(identity, true);
+  const path = historyPath(identity);
+  let fd: number;
+  try {
+    fd = openSync(path, 'ax', 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    const stat = lstatSync(path);
+    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('effect reconciliation history is not a regular file');
+    fd = openSync(path, 'a');
+  }
+  try {
+    writeFileSync(fd, `${JSON.stringify(event)}\n`, 'utf8');
+    fsyncSync(fd);
+  } finally { closeSync(fd); }
+  syncDirectory(identity.directory);
+}
+
+export function readEffectReconciliationHistory(root: string, request: ToolCallRequest): EffectReconciliationEvent[] {
+  const identity = effectIdentity(root, request);
+  if (!validateJournalNamespace(identity, false)) return [];
+  const path = historyPath(identity);
+  if (!existsSync(path)) return [];
+  const stat = lstatSync(path);
+  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('effect reconciliation history is not a regular file');
+  return readFileSync(path, 'utf8').split(/\r?\n/).filter(Boolean).map((line) => {
+    const event = JSON.parse(line) as EffectReconciliationEvent;
+    if (event.schemaVersion !== 1 || event.effectKey !== identity.effectKey || !event.generationId || event.canonicalArgsHash !== identity.canonicalArgsHash) {
+      throw new Error('effect reconciliation history identity mismatch');
+    }
+    return event;
+  });
+}
+
+function archiveReconciledNotApplied(identity: EffectIdentity, record: EffectJournalRecord): void {
+  if (record.state !== 'reconciled_not_applied') throw new Error('only reconciled_not_applied may release quarantine');
+  const dir = archiveDirectory(identity);
+  try { mkdirSync(dir, { mode: 0o700 }); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
+  const stat = lstatSync(dir);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('effect journal archive namespace is not a real directory');
+  const archiveKey = record.generationId;
+  const destination = join(dir, `${record.effectKey}.${archiveKey}.json`);
+  if (existsSync(destination)) {
+    const existing = JSON.parse(readFileSync(destination, 'utf8')) as EffectJournalRecord;
+    if (existing.effectKey !== record.effectKey || existing.state !== 'reconciled_not_applied') {
+      throw new Error('effect journal archive identity mismatch');
+    }
+    if (existsSync(identity.path)) throw new Error('effect journal live record still exists beside prior archive');
+    return;
+  }
+  renameSync(identity.path, destination);
+  syncDirectory(dir);
+  syncDirectory(identity.directory);
+}
+
 function persistInitial(identity: EffectIdentity, toolName: string): EffectJournalRecord {
   validateJournalNamespace(identity, true);
   const now = new Date().toISOString();
   const record: EffectJournalRecord = {
     schemaVersion: 1,
     effectKey: identity.effectKey,
+    generationId: randomUUID(),
     toolName,
     canonicalArgsHash: identity.canonicalArgsHash,
     workspaceHash: identity.workspaceHash,
@@ -159,18 +349,101 @@ function persistTransition(identity: EffectIdentity, record: EffectJournalRecord
   return next;
 }
 
-export function readEffectRecord(root: string, request: ToolCallRequest): EffectJournalRecord | undefined {
-  const identity = effectIdentity(root, request);
+function readEffectRecordIdentity(identity: EffectIdentity): EffectJournalRecord | undefined {
   if (!validateJournalNamespace(identity, false)) return undefined;
   try {
     const parsed = JSON.parse(readFileSync(identity.path, 'utf8')) as EffectJournalRecord;
-    if (parsed.schemaVersion !== 1 || parsed.effectKey !== identity.effectKey || parsed.canonicalArgsHash !== identity.canonicalArgsHash) {
+    if (parsed.schemaVersion !== 1 || parsed.effectKey !== identity.effectKey || !parsed.generationId ||
+        parsed.canonicalArgsHash !== identity.canonicalArgsHash || parsed.workspaceHash !== identity.workspaceHash) {
       throw new Error('effect journal identity mismatch');
     }
     return parsed;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
     throw error;
+  }
+}
+
+export function readEffectRecord(root: string, request: ToolCallRequest): EffectJournalRecord | undefined {
+  return readEffectRecordIdentity(effectIdentity(root, request));
+}
+
+export async function reconcileEffectRecord(
+  root: string,
+  request: ToolCallRequest,
+  input: EffectReconciliationInput,
+  approvalStore: ApprovalStore,
+  hooks: EffectReconciliationHooks = {},
+): Promise<EffectJournalRecord> {
+  // Snapshot and validate caller-controlled reconciliation facts BEFORE the
+  // first await so a mutable object cannot change after authority binding.
+  const snapshot = Object.freeze({
+    approvalId: validateEvidenceRef(input.approvalId, 'approvalId'),
+    actorId: validateEvidenceRef(input.actorId, 'actorId'),
+    policyRevision: validateEvidenceRef(input.policyRevision, 'policyRevision'),
+    outcome: input.outcome,
+    evidenceHash: validateEvidenceHash(input.evidenceHash),
+    evidenceRef: validateEvidenceRef(input.evidenceRef, 'evidenceRef'),
+  });
+  if (snapshot.outcome !== 'applied' && snapshot.outcome !== 'not_applied') throw new Error('invalid reconciliation outcome');
+
+  const identity = effectIdentity(root, request);
+  const lock = await acquireEffectLock(identity, hooks.lockTimeoutMs);
+  try {
+    // The execution path holds this same OS-managed lock across adapter entry.
+    // Acquiring it proves no live ALiX holder for this exact effect remains.
+    const current = readEffectRecordIdentity(identity);
+    if (!current) throw new Error('effect journal record not found');
+    if (current.state !== 'claimed' && current.state !== 'started_unknown' && current.state !== 'terminal_failure') {
+      throw new Error(`effect journal state ${current.state} is not reconcilable`);
+    }
+
+    const authority = reconciliationAuthorityForIdentity(identity, current.generationId, {
+      actorId: snapshot.actorId, policyRevision: snapshot.policyRevision, outcome: snapshot.outcome,
+      evidenceHash: snapshot.evidenceHash, evidenceRef: snapshot.evidenceRef,
+    });
+
+    const approved = await approvalStore.loadFresh(snapshot.approvalId);
+    if (!approved || approved.status !== 'approved') throw new Error('effect reconciliation authority is not approved');
+    if (approved.agentId !== snapshot.actorId) throw new Error('effect reconciliation actor does not match approved authority');
+    if (approved.policyRevision !== snapshot.policyRevision || approved.requestFingerprint !== authority.requestFingerprint ||
+        approved.bindingKey !== authority.bindingKey || approved.capabilities.length !== 1 || approved.capabilities[0] !== authority.capability) {
+      throw new Error('effect reconciliation authority binding mismatch');
+    }
+
+    const consumed = await approvalStore.consumeApproved(snapshot.approvalId, authority.bindingKey, {});
+    if (!consumed.consumed) throw new Error(`effect reconciliation authority unavailable: ${consumed.reason}`);
+    hooks.onPoint?.('after_authority');
+
+    // Re-read under the effect lock after the approval-store await. This guards
+    // against any future path that could mutate journal state outside this lock.
+    const fresh = readEffectRecordIdentity(identity);
+    if (!fresh || fresh.generationId !== current.generationId || fresh.state !== current.state || fresh.updatedAt !== current.updatedAt) {
+      throw new Error('effect journal changed during reconciliation authority validation');
+    }
+
+    const targetState = snapshot.outcome === 'applied' ? 'reconciled_success' : 'reconciled_not_applied';
+    const event: EffectReconciliationEvent = {
+      schemaVersion: 1, eventId: randomUUID(), effectKey: identity.effectKey, generationId: current.generationId, toolName: current.toolName,
+      canonicalArgsHash: identity.canonicalArgsHash, workspaceHash: identity.workspaceHash,
+      previousState: current.state, outcome: snapshot.outcome, targetState,
+      actorId: snapshot.actorId, approvalId: snapshot.approvalId, policyRevision: snapshot.policyRevision,
+      evidenceHash: snapshot.evidenceHash, evidenceRef: snapshot.evidenceRef, recordedAt: new Date().toISOString(),
+    };
+    appendReconciliationHistory(identity, event);
+    hooks.onPoint?.('after_history');
+
+    const reconciled = persistTransition(identity, current, targetState);
+    hooks.onPoint?.('after_reconciled_state');
+    if (targetState === 'reconciled_not_applied') {
+      archiveReconciledNotApplied(identity, reconciled);
+      hooks.onPoint?.('after_archive');
+    }
+
+    await approvalStore.recordExecutionOutcome(snapshot.approvalId, 'succeeded').catch(() => false);
+    return reconciled;
+  } finally {
+    lock.release();
   }
 }
 
@@ -198,84 +471,71 @@ export async function executeWithEffectJournal(
   hooks: EffectJournalHooks = {},
 ): Promise<ToolResult> {
   if (!requiresEffectJournal(request)) return execute(request);
-  if (request.signal?.aborted) {
-    throw new ExecutionCancelledError(signalReason(request.signal) ?? 'tool cancelled');
+  if (request.signal?.aborted) throw new ExecutionCancelledError(signalReason(request.signal) ?? 'tool cancelled');
+
+  let snapshot: ToolCallRequest;
+  try { snapshot = snapshotExecutionRequest(request); }
+  catch (error) {
+    return { kind: 'error', retryable: false, message: `Effect request snapshot failed: ${error instanceof Error ? error.message : String(error)}` };
   }
 
-  // Fault hooks deliberately sit OUTSIDE storage error handlers. A synthetic
-  // qualification crash must behave like host death, not like a persistence
-  // error returned to the caller.
   hooks.onPoint?.('before_claim');
-
   let identity: EffectIdentity;
-  let record: EffectJournalRecord;
   let boundRequest: ToolCallRequest;
   try {
-    boundRequest = bindExecutionRequest(root, request);
+    boundRequest = bindExecutionRequest(root, snapshot);
     identity = effectIdentity(root, boundRequest);
-    const existing = readEffectRecord(root, boundRequest);
-    if (existing) return blocked(existing);
-    record = persistInitial(identity, request.name);
   } catch (error) {
-    return {
-      kind: 'error',
-      retryable: false,
-      message: `Effect journal unavailable or already claimed: ${error instanceof Error ? error.message : String(error)}`,
-    };
+    return { kind: 'error', retryable: false, message: `Effect journal unavailable: ${error instanceof Error ? error.message : String(error)}` };
   }
 
-  hooks.onPoint?.('after_claim');
+  let lock: ApprovalStoreLock;
+  try { lock = await acquireEffectLock(identity); }
+  catch (error) {
+    return { kind: 'error', retryable: false, message: `Effect journal unavailable: ${error instanceof Error ? error.message : String(error)}` };
+  }
 
   try {
-    // This transition is durable before adapter entry. A crash after `claimed`
-    // is distinguishable from a crash after the adapter may have started.
-    record = persistTransition(identity, record, 'started_unknown');
-  } catch (error) {
-    return {
-      kind: 'error',
-      retryable: false,
-      message: `Effect journal could not record adapter-entry uncertainty: ${error instanceof Error ? error.message : String(error)}`,
-    };
+    let record: EffectJournalRecord;
+    try {
+      let existing = readEffectRecordIdentity(identity);
+      if (existing?.state === 'reconciled_not_applied') {
+        archiveReconciledNotApplied(identity, existing);
+        existing = undefined;
+      }
+      if (existing) return blocked(existing);
+      record = persistInitial(identity, snapshot.name);
+    } catch (error) {
+      return { kind: 'error', retryable: false, message: `Effect journal unavailable or already claimed: ${error instanceof Error ? error.message : String(error)}` };
+    }
+
+    hooks.onPoint?.('after_claim');
+    try { record = persistTransition(identity, record, 'started_unknown'); }
+    catch (error) {
+      return { kind: 'error', retryable: false, message: `Effect journal could not record adapter-entry uncertainty: ${error instanceof Error ? error.message : String(error)}` };
+    }
+
+    hooks.onPoint?.('before_adapter');
+    if (snapshot.signal?.aborted) throw new ExecutionCancelledError(signalReason(snapshot.signal) ?? 'tool cancelled');
+
+    let result: ToolResult;
+    try { result = await execute(boundRequest); }
+    catch (error) { throw error; }
+
+    hooks.onPoint?.('after_adapter');
+    if (snapshot.signal?.aborted) {
+      throw new ExecutionCancelledError(signalReason(snapshot.signal) ?? 'tool cancelled after adapter execution');
+    }
+    if (result.kind === 'error' && result.outcomeUnknown === true) return { ...result, retryable: false };
+
+    const terminalState: EffectJournalState = result.kind === 'success' ? 'terminal_success' : 'terminal_failure';
+    try { record = persistTransition(identity, record, terminalState); }
+    catch (error) {
+      return { kind: 'error', retryable: false, outcomeUnknown: true, message: `Effect completed but terminal journal persistence failed: ${error instanceof Error ? error.message : String(error)}` };
+    }
+    hooks.onPoint?.('after_terminal');
+    return result.kind === 'error' ? { ...result, retryable: false } : result;
+  } finally {
+    lock.release();
   }
-
-  hooks.onPoint?.('before_adapter');
-  if (request.signal?.aborted) {
-    throw new ExecutionCancelledError(signalReason(request.signal) ?? 'tool cancelled');
-  }
-
-  let result: ToolResult;
-  try {
-    result = await execute(boundRequest);
-  } catch (error) {
-    // `started_unknown` is intentionally retained. The caller may additionally
-    // preserve approval uncertainty, but cannot make the effect retryable.
-    throw error;
-  }
-
-  hooks.onPoint?.('after_adapter');
-
-  // An abort observed after adapter return cannot become durable success: the
-  // effect may already have happened, so retain started_unknown and fail closed.
-  if (request.signal?.aborted) {
-    throw new ExecutionCancelledError(signalReason(request.signal) ?? 'tool cancelled after adapter execution');
-  }
-
-  if (result.kind === 'error' && result.outcomeUnknown === true) {
-    return { ...result, retryable: false };
-  }
-
-  const terminalState: EffectJournalState = result.kind === 'success' ? 'terminal_success' : 'terminal_failure';
-  try {
-    record = persistTransition(identity, record, terminalState);
-  } catch (error) {
-    return {
-      kind: 'error',
-      retryable: false,
-      outcomeUnknown: true,
-      message: `Effect completed but terminal journal persistence failed: ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-
-  hooks.onPoint?.('after_terminal');
-  return result.kind === 'error' ? { ...result, retryable: false } : result;
 }
