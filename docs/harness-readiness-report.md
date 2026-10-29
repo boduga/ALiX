@@ -107,6 +107,10 @@ PRE-R010 is also **SUPPORTED as an inventory requirement** after independent rev
 | R020–R026 Harness² | Historical demo result, component map, manifest, paired design, recursion/holdout rules and defer/reject recommendation | Demo logs/clone locally corroborated, not freshly executed or portable dependency-qualified; benchmark-specific isolation and independent authority review remain open. No adoption or model-backed probe. |
 | R027–R032 autonomous verification | Authority map now separates permission modes from verification modes; eligibility schema defines pre-versioned thresholds and fail-closed downgrade to full verification/`BLOCKED`; non-bypass specification retained | No verifier/critic sampling/risk measurements or executed autonomous-mode qualification. No agent may self-promote authority; missing qualification or authority => `BLOCKED`. |
 
+## 2026-10-28 Harness² / verification-design acceptance
+
+Independent design audit and re-review now support **PRE-R021, R022, R023, R025, R026, R027, R028, R029 and R030** at their written design/recommendation scope. The audit first identified missing explicit Harness² concept mappings, budget/rollback authority rules, approval revocation/invalidation coverage, and the independent review required for R026; those were corrected and re-reviewed. This closes the design contracts only. PRE-R020 portability, PRE-R024 isolation execution, PRE-R031 measured autonomous-review performance, PRE-R032 execution/non-bypass qualification, and all adoption/release gates remain separate.
+
 ## Executed verification and limits
 
 `c0def71d` fixed a real summary defect: a no-tool nudge followed by bare `Done.`

@@ -16,7 +16,7 @@ nothing was modified or cleared to produce it.
 
 | Claim | Basis | Confidence |
 |---|---|---|
-| The framework installs and runs deterministically without credentials | Reproduced at pinned commit `1cfe254e`; 2/2 tasks ok, 28 executions, 32 editor calls | **High** — observed |
+| The credential-free deterministic demo runs from the retained pinned environment without credentials | Reproduced at pinned commit `1cfe254e`; 2/2 tasks ok, 28 executions, 32 editor calls; fresh dependency installation remains unqualified | **High** — observed execution, not installation portability |
 | It exposes eight editable harness components | Source tree + README, verified | **High** — observed |
 | Its reported benchmark gains (up to 11.5 pts WorkBuddy, 4.5 pts JobBench, 11.8pp LAB) | **Upstream's own report; not reproduced by ALiX** | **None for ALiX** — do not cite as ALiX evidence |
 | It can improve ALiX | No experiment run; isolation gate unqualified | **Unknown** |
@@ -82,7 +82,7 @@ performance trade-off; it is an S0 boundary.
 - A verified isolation harness with rubric contamination impossible → G-1 closed.
 - An ALiX-native, approvals-governed proposal path → G-2 no longer requires the
   upstream store.
-- A signed Gate B baseline with repetitions → G-3/G-4/G-5 satisfiable.
+- A version-pinned, machine-verifiable Gate B baseline with repetitions → G-3/G-4/G-5 satisfiable.
 
 If all three closed, the honest next step is still a **single paired experiment**
 under `harness-optimization-experiment-spec.md`, not adoption.

@@ -18,6 +18,7 @@ This document maps what exists and names the gaps. It proposes no new authority.
 | **Session permission mode** | `permissions.sessionMode` (`"auto" \| "ask" \| "bypass"`, default `ask`) | `src/operations/config/schema.ts:277` | Permission input only. It is **not** a review/supervision mode and cannot substitute for autonomous verification qualification |
 | **Authorization decision** | `ExecutionAuthorization` → `PolicyGate` | S0-4 (R1.5 containment) | Every action is decided at one boundary; supervision does not add a second |
 | **Approval binding & consumption** | `ApprovalStore.consumeApproved` | S0-1, single-use, cross-process lock | An AFK/high-risk action needs a valid, specifically bound approval; consumed/expired/stale never authorize |
+| **Approval revocation / policy invalidation** | `ApprovalStore.revoke` + `invalidateByPolicyRevision` | Existing approval lifecycle authority | Revoked or policy-stale authority cannot remain eligible for autonomous execution/verification; eligibility must suspend/fail closed and require fresh qualification/authority |
 | **Child self-approval prevention** | `WorkerApprovalPort` | S0-2 | A supervised worker cannot grant itself capability |
 | **Ownership scope** | `OwnershipRegistry` + `path-scope` matcher | S0-5 | Bounds what an unsupervised worker may touch |
 | **Run ceilings** | `RunLimiter` (`src/planning/autonomy/run-limiter.ts`) | S0-7; `RunLimits`/`RunCounters`/`LimitCheckResult`/`RemainingCapacity` | Budget exhaustion is the existing stop mechanism (Q07) |

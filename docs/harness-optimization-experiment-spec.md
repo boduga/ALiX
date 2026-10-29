@@ -119,13 +119,11 @@ obligation. Two rows still hold this gate shut.
 | **Holdout validation** | A portion of tasks is held out from proposal and used only for scoring, or the result is explicitly marked optimistic |
 | Rollback criteria | Every adopted candidate must be revertible in one commit; no candidate implies data migration (per `harness-cutover-plan.md` §3) |
 
-### 4.1 Cost ceiling
+### 4.1 Cost ceiling and budget authority
 
-Not defined. PRD §13 forbids inventing one; the operator sets it. For scale, a
-future paired run needs a valid task set, repetitions, arms, deliberate priced
-model and retry budget before a spend ceiling can be quoted. A Harness²-style
-recursion adds its explicit candidate/step multiplier. No earlier rough dollar
-estimate is an approved budget.
+No numeric default is defined; PRD §13 forbids inventing one. Every model-backed probe must resolve a **pre-existing immutable budget reference** from versioned policy/qualification configuration or from the signed run manifest before execution. The reference binds at least model/provider class, maximum candidate/step count, retry ceiling, and spend/resource ceiling. The evaluated/proposing agents may read this budget but may not create, raise, renew, or reinterpret it. If a required ceiling or its provenance cannot be resolved, the probe is durably **`BLOCKED`** before any billable/model-backed execution. Local/non-billable resource experiments still require an explicit resource-time/recursion budget rather than treating missing dollar cost as unlimited authority.
+
+A Harness²-style recursion multiplies the declared candidate/step budget explicitly. Historical rough estimates and unused headroom are evidence only, never execution authority.
 
 ---
 
@@ -142,6 +140,10 @@ A probe halts immediately on any of:
 6. **Secret exposure** — any credential appears in evidence or logs.
 
 Halt means: stop, record the failure state, do not report a comparison.
+
+### 5.1 Rollback / candidate invalidation criteria
+
+For any candidate that has progressed beyond a disposable probe into a governed adoption candidate, rollback or invalidation is mandatory when: (a) an S0/security negative fails; (b) an independently verified correctness regression breaches its pre-versioned acceptance rule; (c) evidence/provenance cannot be reproduced or is discovered contaminated; (d) the bound policy, model, tool surface, isolation profile, or scorer changes such that qualification no longer applies; or (e) a material side effect/outcome becomes unknown. The candidate change must remain revertible as the isolated change package described above; rollback restores the last independently qualified baseline and invalidates the candidate's qualification/evidence binding. If rollback cannot be proven safe or the candidate involved irreversible external effects, automation stops at durable `BLOCKED` and the candidate is not promoted. No agent may redefine these triggers after observing results.
 
 ---
 

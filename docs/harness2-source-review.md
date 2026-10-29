@@ -127,6 +127,10 @@ reason **not** to adopt, not a gap to fill.
 | Improvement lesson library | `src/planning/evolution/`, capability evolution, learning synthesis | **Closest analogue — DUPLICATE AUTHORITY RISK** | **Do not adopt parallel store** |
 | Candidate harness probes | A-series governed evolution + `ApprovalStore` | ALiX gates candidate promotion through approvals | **ALiX superior — do not adopt** |
 | Egress / sandbox posture | Root contract: network policy on shell clients, workspace containment, approval-gated execution | ALiX denies what upstream permits | **ALiX stricter — must never be relaxed** |
+| Harness snapshot / candidate version | Git/tree identity + `harness-optimization-experiment-spec.md` candidate manifest; A-series lineage/evidence stores | Snapshot is immutable candidate evidence, never runtime authority | **Reuse evidence concept only** |
+| Editor / proposer | A-series proposal generation (`src/planning/evolution/pattern-discovery/evolution-proposal-generator.ts`) plus governed execution boundary for any later mutation | May propose scoped changes; cannot self-authorize or self-promote | **Reuse proposal concept only** |
+| Composer / candidate synthesis | A-series learning/evolution proposal synthesis and governance bridge; output remains a proposal/candidate with lineage | Composition may combine evidence-supported changes but does not bypass governance | **Reuse concept; no parallel promotion authority** |
+| Reflection outputs / lessons | verification/outcome evidence + learning/forecast inputs under `src/planning/evolution/`; candidate manifest records provenance/domain | Reflection is evidence/input, not a policy or execution decision | **Reuse evidence concept only** |
 
 ### 4.1 The blocking finding
 
