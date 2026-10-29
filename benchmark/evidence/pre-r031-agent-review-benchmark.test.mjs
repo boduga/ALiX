@@ -19,5 +19,5 @@ test('summary keeps sampling, safety, queue, cost and latency separate',()=>{
   const score=scoreRisks(f,[]);
   const row={fixtureId:f.id,stratum:f.stratum,disagreementIds:[],verifier:{score,fixtureCriticalCount:0,latencyMs:10,queueWaitMs:0},critic:{score,fixtureCriticalCount:0,latencyMs:20,queueWaitMs:0}};
   const s=summarize([row],[f],FIXTURES);
-  assert.equal(s.quality.criticalMisses,0); assert.equal(s.cost.observed,0); assert.equal(s.latency.observed,2); assert.equal(s.sample.population,6);
+  assert.equal(s.quality.criticalMisses,0); assert.equal(s.cost.observed,0); assert.equal(s.latency.observed,2); assert.equal(s.sample.population,6); assert.equal(s.queue.initialBacklog,2); assert.equal(s.effort.inputTokens,0);
 });

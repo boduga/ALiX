@@ -44,8 +44,8 @@ function gitValue(args){ const r=spawnSync('git',args,{encoding:'utf8'}); return
 function parseResponse(text){
   try { const x=JSON.parse(text); const arr=Array.isArray(x)?x:x.risks; return Array.isArray(arr)?arr.filter(v=>typeof v==='string'):[]; } catch { return Object.keys(RISK_CATALOG).filter(id=>text.includes(id)); }
 }
-async function callOllama(model,prompt){
-  const queuedAt=Date.now(); const startedAt=Date.now();
+async function callOllama(model,prompt,queuedAt){
+  const startedAt=Date.now();
   const body={model,prompt,stream:false,format:'json',options:{temperature:0}};
   const res=await fetch('http://127.0.0.1:11434/api/generate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
   const payload=await res.json(); const endedAt=Date.now();
@@ -68,12 +68,14 @@ export function summarize(rows,sample,population){
   const strata=[...new Set(population.map(f=>f.stratum))];
   const sampleStrata=[...new Set(sample.map(f=>f.stratum))];
   const latency=agentRows.map(r=>r.latencyMs).sort((a,b)=>a-b);
+  const effort={inputTokens:agentRows.reduce((n,r)=>n+(r.inputTokens??0),0),outputTokens:agentRows.reduce((n,r)=>n+(r.outputTokens??0),0),evalDurationMs:agentRows.reduce((n,r)=>n+((r.evalDurationNs??0)/1e6),0)};
   const pct=(arr,p)=>arr[Math.min(arr.length-1,Math.ceil(arr.length*p)-1)]??null;
   return {
     sample:{population:population.length,selected:sample.length,selectionRate:sample.length/population.length,strataTotal:strata.length,strataCovered:sampleStrata.length,strataCoverage:sampleStrata.length/strata.length,selectedIds:sample.map(f=>f.id)},
     quality:{agentReviews:agentRows.length,exact:agentRows.filter(r=>r.score.exact).length,missedRisks:totalMissed,expectedRisks:totalExpected,missedRiskRate:totalExpected?totalMissed/totalExpected:0,criticalMisses:criticalMissed,criticalExpected,criticalMissRate:criticalExpected?criticalMissed/criticalExpected:0,falsePositives:agentRows.reduce((n,r)=>n+r.score.falsePositives,0)},
     exceptions:{disagreementFixtures:disagreements.length,disagreementIds:disagreements.map(r=>({fixtureId:r.fixtureId,ids:r.disagreementIds}))},
-    queue:{jobs:agentRows.length,maxBacklog:agentRows.length,queueWaitMsTotal:agentRows.reduce((n,r)=>n+r.queueWaitMs,0),note:'Calls are executed sequentially; this bounded offline queue is not production queue telemetry.'},
+    effort,
+    queue:{jobs:agentRows.length,initialBacklog:agentRows.length,maxConcurrentReviewers:1,queueWaitMsTotal:agentRows.reduce((n,r)=>n+r.queueWaitMs,0),queueWaitMsP95:pct(agentRows.map(r=>r.queueWaitMs).sort((a,b)=>a-b),.95),note:'All jobs are enqueued before execution and drained sequentially by one reviewer slot; this is bounded offline queue telemetry, not production operations.'},
     verifiedOutcomes:{fixtureScoresDeterministic:true,reviewedFixtures:rows.length},
     cost:{currency:'USD',observed:0,reason:'local Ollama inference; non-billable in this benchmark'},
     latency:{observed:agentRows.length,totalMs:latency.reduce((a,b)=>a+b,0),p50Ms:pct(latency,.5),p95Ms:pct(latency,.95)},
@@ -86,9 +88,10 @@ async function main(){
   if(!out) throw new Error('Usage: ... --output FILE [--seed N]');
   const verifierModel='granite3-moe:latest'; const criticModel='llama3.2:3b';
   const sample=selectStratified(seed); const rows=[];
+  const enqueuedAt=Date.now();
   for(const fixture of sample){
-    const verifierRaw=await callOllama(verifierModel,promptFor('verifier',fixture));
-    const criticRaw=await callOllama(criticModel,promptFor('critic',fixture));
+    const verifierRaw=await callOllama(verifierModel,promptFor('verifier',fixture),enqueuedAt);
+    const criticRaw=await callOllama(criticModel,promptFor('critic',fixture),enqueuedAt);
     const va=parseResponse(verifierRaw.response); const ca=parseResponse(criticRaw.response);
     const disagreementIds=[...new Set([...va,...ca])].filter(id=>va.includes(id)!==ca.includes(id));
     rows.push({fixtureId:fixture.id,stratum:fixture.stratum,evidenceHash:sha(fixture.evidence),
