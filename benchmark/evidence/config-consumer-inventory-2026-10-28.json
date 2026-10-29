@@ -1,0 +1,4030 @@
+{
+  "reportSchemaVersion": 1,
+  "sourceCommit": "43d81e989464ca7ef7b9b59ff559244bc3dad56e",
+  "compilerVersion": "7.0.2",
+  "filesScanned": 1465,
+  "includesTests": false,
+  "sourceDigestSha256": "a7c18850758355f6b7226d62bdb6ca8c1fa14bc2d39329c679646e448e300731",
+  "schemaDigestSha256": "ad72c771c34e48fb0458d98deaba027b8a9c53e336062449b92b35486fb80c0f",
+  "counts": {
+    "schema-bound-config-field": 30,
+    "dynamic-config-key-unresolved": 0,
+    "other-declared-field-review": 221,
+    "unresolved-named-field-review": 54
+  },
+  "references": [
+    {
+      "file": "src/agents/agent/agent-activity.ts",
+      "line": 129,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/agent/agent-activity.ts",
+          "nodeIndex": 178
+        }
+      ]
+    },
+    {
+      "file": "src/agents/agent/agent-activity.ts",
+      "line": 129,
+      "column": 40,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/agent/agent-activity.ts",
+          "nodeIndex": 178
+        }
+      ]
+    },
+    {
+      "file": "src/agents/agent/agent-activity.ts",
+      "line": 129,
+      "column": 47,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/agent/agent-activity.ts",
+          "nodeIndex": 178
+        }
+      ]
+    },
+    {
+      "file": "src/agents/agent/agent-loop.ts",
+      "line": 422,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/agent/system-prompt.ts",
+          "nodeIndex": 305
+        }
+      ]
+    },
+    {
+      "file": "src/agents/agent/agent-loop.ts",
+      "line": 482,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/observability/execution-context.ts",
+          "nodeIndex": 57
+        }
+      ]
+    },
+    {
+      "file": "src/agents/agent/messages.ts",
+      "line": 51,
+      "column": 22,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/agents/agent/session/activity.ts",
+      "line": 59,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/agent/agent-activity.ts",
+          "nodeIndex": 178
+        }
+      ]
+    },
+    {
+      "file": "src/agents/agent/session/activity.ts",
+      "line": 59,
+      "column": 16,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/agent/session/state.ts",
+          "nodeIndex": 510
+        }
+      ]
+    },
+    {
+      "file": "src/agents/agent/session/init.ts",
+      "line": 218,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/agent/system-prompt.ts",
+          "nodeIndex": 305
+        }
+      ]
+    },
+    {
+      "file": "src/agents/agent/session/setup.ts",
+      "line": 321,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/agent/session/setup.ts",
+          "nodeIndex": 1475
+        }
+      ]
+    },
+    {
+      "file": "src/agents/agent/session/turn.ts",
+      "line": 500,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/observability/execution-context.ts",
+          "nodeIndex": 57
+        }
+      ]
+    },
+    {
+      "file": "src/agents/agent/session/turn.ts",
+      "line": 565,
+      "column": 56,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/agent/session/state.ts",
+          "nodeIndex": 510
+        }
+      ]
+    },
+    {
+      "file": "src/agents/agent/system-prompt.ts",
+      "line": 142,
+      "column": 44,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/agent/system-prompt.ts",
+          "nodeIndex": 305
+        }
+      ]
+    },
+    {
+      "file": "src/agents/subagent-cli.ts",
+      "line": 518,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/subagent-cli.ts",
+          "nodeIndex": 3277
+        }
+      ]
+    },
+    {
+      "file": "src/agents/subagent-cli.ts",
+      "line": 549,
+      "column": 27,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/subagent-cli.ts",
+          "nodeIndex": 3277
+        }
+      ]
+    },
+    {
+      "file": "src/agents/subagent-cli.ts",
+      "line": 656,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/capabilities/mcp/tool-selector.ts",
+          "nodeIndex": 44
+        }
+      ]
+    },
+    {
+      "file": "src/agents/subagent-manager.ts",
+      "line": 304,
+      "column": 11,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/capabilities/extensions/lifecycle.ts",
+      "line": 49,
+      "column": 41,
+      "field": "subagents",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/capabilities/extensions/lifecycle.ts",
+          "nodeIndex": 65
+        }
+      ]
+    },
+    {
+      "file": "src/capabilities/extensions/manifest.ts",
+      "line": 125,
+      "column": 43,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/capabilities/extensions/manifest.ts",
+      "line": 125,
+      "column": 50,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/capabilities/mcp/tool-selector.ts",
+      "line": 39,
+      "column": 13,
+      "field": "model",
+      "syntax": "BindingElement",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/capabilities/mcp/tool-selector.ts",
+          "nodeIndex": 44
+        }
+      ]
+    },
+    {
+      "file": "src/capabilities/self-extend/list-extensions.ts",
+      "line": 26,
+      "column": 9,
+      "field": "subagents",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/capabilities/self-extend/list-extensions.ts",
+          "nodeIndex": 70
+        }
+      ]
+    },
+    {
+      "file": "src/capabilities/self-extend/list-extensions.ts",
+      "line": 49,
+      "column": 13,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/capabilities/self-extend/list-extensions.ts",
+          "nodeIndex": 70
+        }
+      ]
+    },
+    {
+      "file": "src/capabilities/skills/dispatcher.ts",
+      "line": 7,
+      "column": 3,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 947
+        }
+      ]
+    },
+    {
+      "file": "src/capabilities/skills/factory.ts",
+      "line": 58,
+      "column": 41,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/registry.ts",
+          "nodeIndex": 532
+        }
+      ]
+    },
+    {
+      "file": "src/capabilities/skills/factory.ts",
+      "line": 58,
+      "column": 48,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 947
+        }
+      ]
+    },
+    {
+      "file": "src/capabilities/skills/factory.ts",
+      "line": 120,
+      "column": 39,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/registry.ts",
+          "nodeIndex": 532
+        }
+      ]
+    },
+    {
+      "file": "src/capabilities/skills/factory.ts",
+      "line": 120,
+      "column": 46,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 947
+        }
+      ]
+    },
+    {
+      "file": "src/coordination/kernel/graph-planner.ts",
+      "line": 397,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/coordination/kernel/model-assisted-replan-service.ts",
+      "line": 165,
+      "column": 17,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/coordination/kernel/model-replan-adapter.ts",
+          "nodeIndex": 607
+        }
+      ]
+    },
+    {
+      "file": "src/coordination/kernel/model-assisted-replan-service.ts",
+      "line": 206,
+      "column": 9,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/coordination/kernel/replan-types.ts",
+          "nodeIndex": 1040
+        }
+      ]
+    },
+    {
+      "file": "src/coordination/kernel/model-assisted-replan-service.ts",
+      "line": 238,
+      "column": 9,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/coordination/kernel/replan-types.ts",
+          "nodeIndex": 1040
+        }
+      ]
+    },
+    {
+      "file": "src/coordination/kernel/model-assisted-replan-service.ts",
+      "line": 278,
+      "column": 9,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/coordination/kernel/replan-types.ts",
+          "nodeIndex": 1040
+        }
+      ]
+    },
+    {
+      "file": "src/coordination/kernel/model-assisted-replan-service.ts",
+      "line": 310,
+      "column": 7,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/coordination/kernel/replan-types.ts",
+          "nodeIndex": 1040
+        }
+      ]
+    },
+    {
+      "file": "src/coordination/kernel/model-replan-adapter.ts",
+      "line": 420,
+      "column": 11,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/coordination/kernel/model-replan-adapter.ts",
+          "nodeIndex": 607
+        }
+      ]
+    },
+    {
+      "file": "src/coordination/kernel/model-replan-adapter.ts",
+      "line": 420,
+      "column": 18,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/types.ts",
+          "nodeIndex": 189
+        }
+      ]
+    },
+    {
+      "file": "src/coordination/kernel/replan-proposal-store.ts",
+      "line": 231,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/coordination/kernel/replan-types.ts",
+          "nodeIndex": 664
+        }
+      ]
+    },
+    {
+      "file": "src/coordination/kernel/replan-proposal-store.ts",
+      "line": 231,
+      "column": 22,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/coordination/kernel/replan-proposal-store.ts",
+          "nodeIndex": 1259
+        }
+      ]
+    },
+    {
+      "file": "src/coordination/kernel/replan-types.ts",
+      "line": 387,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/coordination/kernel/replan-types.ts",
+          "nodeIndex": 664
+        }
+      ]
+    },
+    {
+      "file": "src/coordination/kernel/replan-types.ts",
+      "line": 387,
+      "column": 12,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/coordination/kernel/replan-types.ts",
+          "nodeIndex": 1040
+        }
+      ]
+    },
+    {
+      "file": "src/execution/patch/patch-engine.ts",
+      "line": 81,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/runtime-state/events/types.ts",
+          "nodeIndex": 646
+        }
+      ]
+    },
+    {
+      "file": "src/execution/run/task-loop/completion-phase.ts",
+      "line": 96,
+      "column": 199,
+      "field": "model",
+      "syntax": "BindingElement",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/execution/run/task-loop/completion-phase.ts",
+          "nodeIndex": 249
+        }
+      ]
+    },
+    {
+      "file": "src/execution/run/task-loop/completion-phase.ts",
+      "line": 396,
+      "column": 157,
+      "field": "model",
+      "syntax": "BindingElement",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/execution/run/task-loop/completion-phase.ts",
+          "nodeIndex": 249
+        }
+      ]
+    },
+    {
+      "file": "src/execution/run/task-loop/execution-state-phase.ts",
+      "line": 118,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/runtime-state/runtime/context/context-builder.ts",
+          "nodeIndex": 2929
+        }
+      ]
+    },
+    {
+      "file": "src/execution/run/task-loop/execution-state-phase.ts",
+      "line": 181,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/runtime-state/runtime/context/context-builder.ts",
+          "nodeIndex": 2929
+        }
+      ]
+    },
+    {
+      "file": "src/execution/run/task-loop/main.ts",
+      "line": 489,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/runtime-state/events/types.ts",
+          "nodeIndex": 2016
+        }
+      ]
+    },
+    {
+      "file": "src/execution/run/task-loop/main.ts",
+      "line": 1009,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/runtime-state/events/types.ts",
+          "nodeIndex": 1946
+        }
+      ]
+    },
+    {
+      "file": "src/execution/run/task-loop/main.ts",
+      "line": 1039,
+      "column": 236,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/execution/run/task-loop/completion-phase.ts",
+          "nodeIndex": 249
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/config.ts",
+      "line": 271,
+      "column": 17,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/cli/commands/config.ts",
+      "line": 272,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/cli/commands/config.ts",
+      "line": 272,
+      "column": 27,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/cli/commands/decision/review.ts",
+      "line": 78,
+      "column": 36,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/registry.ts",
+          "nodeIndex": 532
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/decision/review.ts",
+      "line": 78,
+      "column": 43,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/catalog.ts",
+          "nodeIndex": 3280
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/decision/review.ts",
+      "line": 166,
+      "column": 57,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/adaptation/governance-review-types.ts",
+          "nodeIndex": 136
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/decision/review.ts",
+      "line": 166,
+      "column": 71,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/adaptation/governance-review-types.ts",
+          "nodeIndex": 136
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/evals.ts",
+      "line": 149,
+      "column": 5,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/evals-runner.ts",
+          "nodeIndex": 1306
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/evals.ts",
+      "line": 185,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/evals.ts",
+          "nodeIndex": 454
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/evals.ts",
+      "line": 185,
+      "column": 21,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/cli/commands/evals.ts",
+      "line": 218,
+      "column": 17,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/evals.ts",
+          "nodeIndex": 454
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/evals.ts",
+      "line": 218,
+      "column": 35,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/evals.ts",
+          "nodeIndex": 1442
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/evals.ts",
+      "line": 234,
+      "column": 70,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/registry.ts",
+          "nodeIndex": 532
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/evals.ts",
+      "line": 236,
+      "column": 52,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/registry.ts",
+          "nodeIndex": 532
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/init.ts",
+      "line": 127,
+      "column": 16,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/models.ts",
+      "line": 290,
+      "column": 33,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/cli/commands/models.ts",
+      "line": 294,
+      "column": 23,
+      "field": "model",
+      "syntax": "BindingElement",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/models.ts",
+          "nodeIndex": 2411
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/models.ts",
+      "line": 325,
+      "column": 23,
+      "field": "model",
+      "syntax": "BindingElement",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/models.ts",
+          "nodeIndex": 2411
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/models.ts",
+      "line": 396,
+      "column": 77,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/models.ts",
+          "nodeIndex": 3996
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/provider-doctor.ts",
+      "line": 24,
+      "column": 39,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/provider-doctor.ts",
+          "nodeIndex": 125
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/provider-doctor.ts",
+      "line": 30,
+      "column": 43,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/provider-doctor.ts",
+          "nodeIndex": 125
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/provider-doctor.ts",
+      "line": 40,
+      "column": 46,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/provider-doctor.ts",
+          "nodeIndex": 125
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/provider-doctor.ts",
+      "line": 53,
+      "column": 42,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/provider-doctor.ts",
+          "nodeIndex": 38
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/run.ts",
+      "line": 68,
+      "column": 72,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/run.ts",
+          "nodeIndex": 328
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+      "line": 44,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+          "nodeIndex": 41
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+      "line": 44,
+      "column": 12,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+      "line": 44,
+      "column": 48,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+      "line": 71,
+      "column": 57,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 947
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+      "line": 71,
+      "column": 64,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+          "nodeIndex": 41
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+      "line": 79,
+      "column": 17,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+          "nodeIndex": 41
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+      "line": 79,
+      "column": 31,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 947
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+      "line": 81,
+      "column": 65,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/registry.ts",
+          "nodeIndex": 532
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/commands/tui.ts",
+      "line": 371,
+      "column": 64,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/agents/agent/session/types.ts",
+          "nodeIndex": 566
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/helpers/init-args.ts",
+      "line": 53,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/helpers/init-args.ts",
+          "nodeIndex": 73
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/helpers/provider-selection.ts",
+      "line": 412,
+      "column": 49,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/catalog.ts",
+          "nodeIndex": 3280
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/helpers/provider-selection.ts",
+      "line": 432,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/helpers/init-args.ts",
+          "nodeIndex": 73
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/helpers/provider-selection.ts",
+      "line": 435,
+      "column": 47,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/helpers/init-args.ts",
+          "nodeIndex": 73
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/helpers/provider-selection.ts",
+      "line": 436,
+      "column": 43,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/helpers/init-args.ts",
+          "nodeIndex": 73
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/cli/helpers/provider-selection.ts",
+      "line": 437,
+      "column": 48,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/cli/helpers/init-args.ts",
+          "nodeIndex": 73
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/inspector/projection.ts",
+      "line": 224,
+      "column": 11,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/runtime-state/events/types.ts",
+          "nodeIndex": 1551
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/inspector/projection.ts",
+      "line": 224,
+      "column": 33,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/tui/frame-painter.ts",
+      "line": 394,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/tui/workbench/views/operator-shell.ts",
+          "nodeIndex": 74
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 66,
+      "column": 22,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 66,
+      "column": 47,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/tui/workbench/model/agent-roster.ts",
+          "nodeIndex": 179
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 66,
+      "column": 54,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 66,
+      "column": 66,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/tui/workbench/model/agent-roster.ts",
+          "nodeIndex": 179
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 66,
+      "column": 86,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/tui/workbench/model/agent-roster.ts",
+          "nodeIndex": 179
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 66,
+      "column": 93,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/tui/workbench/model/agent-roster.ts",
+          "nodeIndex": 179
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 130,
+      "column": 73,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 131,
+      "column": 15,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/tui/workbench/model/agent-roster.ts",
+          "nodeIndex": 179
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 131,
+      "column": 48,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/interfaces/tui/workbench/views/agent-inspector.ts",
+      "line": 22,
+      "column": 68,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/tui/workbench/model/agent-roster.ts",
+          "nodeIndex": 179
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/tui/workbench/views/operator-shell.ts",
+      "line": 139,
+      "column": 34,
+      "field": "model",
+      "syntax": "BindingElement",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/tui/workbench/views/operator-shell.ts",
+          "nodeIndex": 74
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/tui/workbench/views/roster-drawer.ts",
+      "line": 128,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/tui/workbench/model/agent-roster.ts",
+          "nodeIndex": 179
+        }
+      ]
+    },
+    {
+      "file": "src/interfaces/tui/workbench/views/roster-drawer.ts",
+      "line": 128,
+      "column": 40,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/interfaces/tui/workbench/model/agent-roster.ts",
+          "nodeIndex": 179
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/anthropic-provider.ts",
+      "line": 19,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/anthropic-provider.ts",
+      "line": 33,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/anthropic-provider.ts",
+      "line": 33,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/anthropic-provider.ts",
+          "nodeIndex": 42
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/base.ts",
+      "line": 70,
+      "column": 19,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/base.ts",
+      "line": 85,
+      "column": 51,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/parallel-tool-calls.ts",
+          "nodeIndex": 12
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/base.ts",
+      "line": 88,
+      "column": 51,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/parallel-tool-calls.ts",
+          "nodeIndex": 12
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/base.ts",
+      "line": 90,
+      "column": 49,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/parallel-tool-calls.ts",
+          "nodeIndex": 12
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/base.ts",
+      "line": 108,
+      "column": 30,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/catalog.ts",
+      "line": 434,
+      "column": 32,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/catalog.ts",
+          "nodeIndex": 3280
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/catalog.ts",
+      "line": 442,
+      "column": 32,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/catalog.ts",
+          "nodeIndex": 3280
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/catalog.ts",
+      "line": 447,
+      "column": 32,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/catalog.ts",
+          "nodeIndex": 3280
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/deepseek-provider.ts",
+      "line": 18,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/deepseek-provider.ts",
+      "line": 32,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/deepseek-provider.ts",
+      "line": 32,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/deepseek-provider.ts",
+          "nodeIndex": 42
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/freellmapi-provider.ts",
+      "line": 23,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/freellmapi-provider.ts",
+      "line": 39,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/freellmapi-provider.ts",
+      "line": 39,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/freellmapi-provider.ts",
+          "nodeIndex": 51
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/gemini-provider.ts",
+      "line": 18,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/gemini-provider.ts",
+      "line": 32,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/gemini-provider.ts",
+      "line": 32,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/gemini-provider.ts",
+          "nodeIndex": 42
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/grokai-provider.ts",
+      "line": 18,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/grokai-provider.ts",
+      "line": 32,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/grokai-provider.ts",
+      "line": 32,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/grokai-provider.ts",
+          "nodeIndex": 42
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/groq-provider.ts",
+      "line": 18,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/groq-provider.ts",
+      "line": 32,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/groq-provider.ts",
+      "line": 32,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/groq-provider.ts",
+          "nodeIndex": 42
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/hive-provider.ts",
+      "line": 37,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/hive-provider.ts",
+      "line": 51,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/hive-provider.ts",
+      "line": 51,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/hive-provider.ts",
+          "nodeIndex": 59
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/intern-provider.ts",
+      "line": 35,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/intern-provider.ts",
+      "line": 49,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/intern-provider.ts",
+      "line": 49,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/intern-provider.ts",
+          "nodeIndex": 57
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/local-llama-provider.ts",
+      "line": 55,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/local-llama-provider.ts",
+      "line": 74,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/local-llama-provider.ts",
+      "line": 74,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/local-llama-provider.ts",
+          "nodeIndex": 58
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/minimax-provider.ts",
+      "line": 19,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/minimax-provider.ts",
+      "line": 33,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/minimax-provider.ts",
+      "line": 33,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/minimax-provider.ts",
+          "nodeIndex": 42
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/minimax-token-plan-provider.ts",
+      "line": 18,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/minimax-token-plan-provider.ts",
+      "line": 32,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/minimax-token-plan-provider.ts",
+      "line": 32,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/minimax-token-plan-provider.ts",
+          "nodeIndex": 42
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/mock-provider.ts",
+      "line": 7,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/model-resolver.ts",
+      "line": 325,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/types.ts",
+          "nodeIndex": 189
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/model-resolver.ts",
+      "line": 335,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/parallel-tool-calls.ts",
+          "nodeIndex": 12
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/ollama-provider.ts",
+      "line": 29,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/ollama-provider.ts",
+      "line": 43,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/ollama-provider.ts",
+      "line": 43,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/ollama-provider.ts",
+          "nodeIndex": 44
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/openai-provider.ts",
+      "line": 18,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/openai-provider.ts",
+      "line": 32,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/openai-provider.ts",
+      "line": 32,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/openai-provider.ts",
+          "nodeIndex": 42
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/openrouter-provider.ts",
+      "line": 122,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/openrouter-provider.ts",
+      "line": 136,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/openrouter-provider.ts",
+      "line": 136,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/openrouter-provider.ts",
+          "nodeIndex": 78
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/parallel-tool-calls.ts",
+      "line": 71,
+      "column": 59,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/parallel-tool-calls.ts",
+          "nodeIndex": 200
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/parallel-tool-calls.ts",
+      "line": 73,
+      "column": 70,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/parallel-tool-calls.ts",
+          "nodeIndex": 12
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/parallel-tool-calls.ts",
+      "line": 73,
+      "column": 77,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/parallel-tool-calls.ts",
+          "nodeIndex": 200
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/parallel-tool-calls.ts",
+      "line": 142,
+      "column": 17,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/parallel-tool-calls.ts",
+          "nodeIndex": 12
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/perplexity-provider.ts",
+      "line": 18,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/perplexity-provider.ts",
+      "line": 32,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/perplexity-provider.ts",
+      "line": 32,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/perplexity-provider.ts",
+          "nodeIndex": 42
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/provider-contract-validation.ts",
+      "line": 164,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/tracing/types.ts",
+          "nodeIndex": 169
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/provider-contract-validation.ts",
+      "line": 164,
+      "column": 12,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/types.ts",
+          "nodeIndex": 189
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/provider-contract-validation.ts",
+      "line": 164,
+      "column": 27,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/observability/execution-context.ts",
+          "nodeIndex": 57
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/provider-doctor.ts",
+      "line": 34,
+      "column": 52,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/provider-doctor.ts",
+          "nodeIndex": 38
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/registry.ts",
+      "line": 86,
+      "column": 30,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/registry.ts",
+          "nodeIndex": 532
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/registry.ts",
+      "line": 136,
+      "column": 48,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/registry.ts",
+          "nodeIndex": 900
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/routing-adapter.ts",
+      "line": 70,
+      "column": 59,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/registry.ts",
+          "nodeIndex": 532
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/routing-adapter.ts",
+      "line": 77,
+      "column": 69,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/registry.ts",
+          "nodeIndex": 532
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/routing-adapter.ts",
+      "line": 84,
+      "column": 62,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/registry.ts",
+          "nodeIndex": 532
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/specs/_openai-base.ts",
+      "line": 28,
+      "column": 25,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/specs/_openai-base.ts",
+      "line": 28,
+      "column": 32,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/spec-types.ts",
+          "nodeIndex": 67
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/specs/_openai-base.ts",
+      "line": 57,
+      "column": 11,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/parallel-tool-calls.ts",
+          "nodeIndex": 200
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/specs/_openai-base.ts",
+      "line": 57,
+      "column": 18,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/specs/anthropic-spec.ts",
+      "line": 13,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/specs/anthropic-spec.ts",
+      "line": 13,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/spec-types.ts",
+          "nodeIndex": 67
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/specs/local-llama-spec.ts",
+      "line": 26,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/specs/local-llama-spec.ts",
+      "line": 26,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/spec-types.ts",
+          "nodeIndex": 67
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/specs/ollama-spec.ts",
+      "line": 31,
+      "column": 25,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/specs/ollama-spec.ts",
+      "line": 31,
+      "column": 32,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/spec-types.ts",
+          "nodeIndex": 67
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/specs/openai-spec.ts",
+      "line": 35,
+      "column": 32,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/spec-types.ts",
+          "nodeIndex": 67
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/specs/openrouter-spec.ts",
+      "line": 8,
+      "column": 19,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/specs/openrouter-spec.ts",
+          "nodeIndex": 51
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/specs/openrouter-spec.ts",
+      "line": 8,
+      "column": 42,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/specs/openrouter-spec.ts",
+          "nodeIndex": 51
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/unified-complete.ts",
+      "line": 302,
+      "column": 52,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/unified-complete.ts",
+          "nodeIndex": 1879
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/unified-complete.ts",
+      "line": 305,
+      "column": 46,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/parallel-tool-calls.ts",
+          "nodeIndex": 200
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/unified-complete.ts",
+      "line": 364,
+      "column": 52,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/unified-complete.ts",
+          "nodeIndex": 2342
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/unified-complete.ts",
+      "line": 366,
+      "column": 46,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/parallel-tool-calls.ts",
+          "nodeIndex": 200
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/unified-complete.ts",
+      "line": 454,
+      "column": 27,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/unified-complete.ts",
+      "line": 454,
+      "column": 95,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/xiaomi-mimo-token-plan-provider.ts",
+      "line": 23,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/xiaomi-mimo-token-plan-provider.ts",
+      "line": 37,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/xiaomi-mimo-token-plan-provider.ts",
+      "line": 37,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/xiaomi-mimo-token-plan-provider.ts",
+          "nodeIndex": 51
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/zhipuai-provider.ts",
+      "line": 18,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/models/providers/zhipuai-provider.ts",
+      "line": 32,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/base.ts",
+          "nodeIndex": 403
+        }
+      ]
+    },
+    {
+      "file": "src/models/providers/zhipuai-provider.ts",
+      "line": 32,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/zhipuai-provider.ts",
+          "nodeIndex": 42
+        }
+      ]
+    },
+    {
+      "file": "src/models/routing-cli.ts",
+      "line": 20,
+      "column": 33,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/routing-cli.ts",
+          "nodeIndex": 33
+        }
+      ]
+    },
+    {
+      "file": "src/models/routing-cli.ts",
+      "line": 23,
+      "column": 41,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/routing-cli.ts",
+          "nodeIndex": 33
+        }
+      ]
+    },
+    {
+      "file": "src/models/tracing/langfuse-client.ts",
+      "line": 153,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/tracing/langfuse-client.ts",
+          "nodeIndex": 389
+        }
+      ]
+    },
+    {
+      "file": "src/models/tracing/langfuse-client.ts",
+      "line": 153,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/tracing/types.ts",
+          "nodeIndex": 169
+        }
+      ]
+    },
+    {
+      "file": "src/models/tracing/langfuse-client.ts",
+      "line": 536,
+      "column": 44,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/tracing/types.ts",
+          "nodeIndex": 169
+        }
+      ]
+    },
+    {
+      "file": "src/models/tracing/langfuse-client.ts",
+      "line": 541,
+      "column": 11,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/operations/config/context-limits.ts",
+      "line": 131,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/context-limits.ts",
+          "nodeIndex": 38
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/defaults.ts",
+      "line": 13,
+      "column": 3,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/defaults.ts",
+      "line": 83,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 947
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/defaults.ts",
+      "line": 107,
+      "column": 3,
+      "field": "subagents",
+      "syntax": "PropertyAssignment",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 47,
+      "column": 3,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 51,
+      "column": 20,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 65,
+      "column": 5,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 66,
+      "column": 37,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 67,
+      "column": 33,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 73,
+      "column": 5,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 265,
+      "column": 8,
+      "field": "modelTiers",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 266,
+      "column": 8,
+      "field": "modelTiers",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 272,
+      "column": 7,
+      "field": "modelTiers",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/loader.ts",
+          "nodeIndex": 572
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 296,
+      "column": 16,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 297,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 306,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 306,
+      "column": 30,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 307,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 316,
+      "column": 43,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 316,
+      "column": 70,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 466,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 466,
+      "column": 19,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 466,
+      "column": 36,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        },
+        {
+          "file": "src/operations/config/loader.ts",
+          "nodeIndex": 496
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 512,
+      "column": 7,
+      "field": "subagents",
+      "syntax": "PropertyAssignment",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 512,
+      "column": 24,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 512,
+      "column": 44,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 512,
+      "column": 75,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        },
+        {
+          "file": "src/operations/config/loader.ts",
+          "nodeIndex": 567
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 517,
+      "column": 24,
+      "field": "modelTiers",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/loader.ts",
+          "nodeIndex": 572
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/persistence.ts",
+      "line": 62,
+      "column": 5,
+      "field": "model",
+      "syntax": "BindingElement",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/persistence.ts",
+      "line": 63,
+      "column": 5,
+      "field": "subagents",
+      "syntax": "BindingElement",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/persistence.ts",
+      "line": 74,
+      "column": 17,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/persistence.ts",
+      "line": 85,
+      "column": 7,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1790
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/reliability-matrix.ts",
+      "line": 22,
+      "column": 3,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/reliability-matrix.ts",
+          "nodeIndex": 49
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/reliability-matrix.ts",
+      "line": 47,
+      "column": 40,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/config/reliability-matrix.ts",
+          "nodeIndex": 49
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/schema.ts",
+      "line": 273,
+      "column": 66,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/schema.ts",
+      "line": 274,
+      "column": 63,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1615
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/subagent-config.ts",
+      "line": 14,
+      "column": 10,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/config/subagent-config.ts",
+      "line": 25,
+      "column": 10,
+      "field": "subagents",
+      "syntax": "PropertyAccessExpression",
+      "classification": "schema-bound-config-field",
+      "declarations": [
+        {
+          "file": "src/operations/config/schema.ts",
+          "nodeIndex": 1684
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/cost-correlation.ts",
+      "line": 102,
+      "column": 26,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/operations/evals/cost-correlation.ts",
+      "line": 102,
+      "column": 49,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/operations/evals/cost-correlation.ts",
+      "line": 110,
+      "column": 38,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/cost-correlation.ts",
+          "nodeIndex": 35
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/cost-correlation.ts",
+      "line": 119,
+      "column": 36,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/cost-correlation.ts",
+          "nodeIndex": 35
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/cost-correlation.ts",
+      "line": 214,
+      "column": 48,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/cost-correlation.ts",
+          "nodeIndex": 35
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/cost-correlation.ts",
+      "line": 216,
+      "column": 40,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/cost-correlation.ts",
+          "nodeIndex": 35
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/cost-correlation.ts",
+      "line": 221,
+      "column": 42,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/cost-correlation.ts",
+          "nodeIndex": 35
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/eval-frozen-inputs.ts",
+      "line": 156,
+      "column": 17,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "node_modules/.pnpm/@types+node@26.6.5/node_modules/@types/node/os.d.ts",
+          "nodeIndex": 19
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/eval-frozen-inputs.ts",
+      "line": 191,
+      "column": 43,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/eval-frozen-inputs.ts",
+          "nodeIndex": 169
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/eval-frozen-inputs.ts",
+      "line": 197,
+      "column": 56,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/eval-frozen-inputs.ts",
+          "nodeIndex": 169
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/eval-frozen-inputs.ts",
+      "line": 338,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/eval-frozen-inputs.ts",
+          "nodeIndex": 294
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/eval-usage.ts",
+      "line": 99,
+      "column": 20,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/operations/evals/eval-usage.ts",
+      "line": 99,
+      "column": 51,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/eval-usage.ts",
+          "nodeIndex": 44
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/eval-usage.ts",
+      "line": 99,
+      "column": 58,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/operations/evals/evals-runner.ts",
+      "line": 155,
+      "column": 17,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/evals-runner.ts",
+          "nodeIndex": 513
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/evals-runner.ts",
+      "line": 352,
+      "column": 13,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/evals-runner.ts",
+          "nodeIndex": 1306
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/evals-runner.ts",
+      "line": 352,
+      "column": 42,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/evals-runner.ts",
+          "nodeIndex": 513
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/evals-runner.ts",
+      "line": 352,
+      "column": 49,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/evals-runner.ts",
+          "nodeIndex": 1306
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/event-metrics-projection.ts",
+      "line": 318,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/eval-observation.ts",
+          "nodeIndex": 180
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/event-metrics-projection.ts",
+      "line": 318,
+      "column": 12,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/event-metrics-projection.ts",
+          "nodeIndex": 1558
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/gate7-observation-adapter.ts",
+      "line": 187,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/eval-observation.ts",
+          "nodeIndex": 180
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/gate7-observation-adapter.ts",
+      "line": 187,
+      "column": 12,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/evals/gate7-observation-adapter.ts",
+          "nodeIndex": 162
+        }
+      ]
+    },
+    {
+      "file": "src/operations/evals/providers/scripted-mock-provider.ts",
+      "line": 54,
+      "column": 3,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/models/providers/types.ts",
+          "nodeIndex": 189
+        }
+      ]
+    },
+    {
+      "file": "src/operations/observability/cost-attribution.ts",
+      "line": 58,
+      "column": 47,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/observability/cost-attribution.ts",
+          "nodeIndex": 44
+        }
+      ]
+    },
+    {
+      "file": "src/operations/observability/cost-attribution.ts",
+      "line": 74,
+      "column": 27,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/observability/cost-attribution.ts",
+          "nodeIndex": 44
+        }
+      ]
+    },
+    {
+      "file": "src/operations/observability/cost-attribution.ts",
+      "line": 75,
+      "column": 27,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/observability/cost-attribution.ts",
+          "nodeIndex": 44
+        }
+      ]
+    },
+    {
+      "file": "src/operations/observability/cost-attribution.ts",
+      "line": 76,
+      "column": 30,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/observability/cost-attribution.ts",
+          "nodeIndex": 44
+        }
+      ]
+    },
+    {
+      "file": "src/operations/observability/cost-attribution.ts",
+      "line": 77,
+      "column": 30,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/observability/cost-attribution.ts",
+          "nodeIndex": 44
+        }
+      ]
+    },
+    {
+      "file": "src/operations/observability/cost-attribution.ts",
+      "line": 78,
+      "column": 30,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/operations/observability/cost-attribution.ts",
+          "nodeIndex": 44
+        }
+      ]
+    },
+    {
+      "file": "src/operations/observability/cost-attribution.ts",
+      "line": 210,
+      "column": 32,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/planning/adaptation/llm-lens-agent.ts",
+      "line": 99,
+      "column": 72,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/adaptation/llm-adapter.ts",
+          "nodeIndex": 15
+        }
+      ]
+    },
+    {
+      "file": "src/planning/adaptation/llm-lens-agent.ts",
+      "line": 206,
+      "column": 7,
+      "field": "model",
+      "syntax": "ShorthandPropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/adaptation/governance-review-types.ts",
+          "nodeIndex": 136
+        }
+      ]
+    },
+    {
+      "file": "src/planning/adaptation/provider-catalog-adapter.ts",
+      "line": 33,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/planning/adaptation/provider-catalog-adapter.ts",
+      "line": 33,
+      "column": 14,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/adaptation/provider-catalog-adapter.ts",
+          "nodeIndex": 52
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/claim-verification/jev-mapping.ts",
+      "line": 56,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 165
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/claim-verification/jev-mapping.ts",
+      "line": 101,
+      "column": 11,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 252
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/claim-verification/jev-mapping.ts",
+      "line": 101,
+      "column": 59,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 252
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/context-relevance/jev-mapping.ts",
+      "line": 40,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 165
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/context-relevance/jev-mapping.ts",
+      "line": 76,
+      "column": 11,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 252
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/context-relevance/jev-mapping.ts",
+      "line": 76,
+      "column": 59,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 252
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/model-tier/jev-mapping.ts",
+      "line": 78,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 165
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/model-tier/jev-mapping.ts",
+      "line": 124,
+      "column": 11,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 252
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/model-tier/jev-mapping.ts",
+      "line": 124,
+      "column": 59,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 252
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/risk-escalation/jev-mapping.ts",
+      "line": 57,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 165
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/risk-escalation/jev-mapping.ts",
+      "line": 100,
+      "column": 11,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 252
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/decisions/risk-escalation/jev-mapping.ts",
+      "line": 100,
+      "column": 59,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 252
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/engines/jev.ts",
+      "line": 217,
+      "column": 79,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    },
+    {
+      "file": "src/planning/decision/engines/jev.ts",
+      "line": 217,
+      "column": 86,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev.ts",
+          "nodeIndex": 777
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-experiment.ts",
+      "line": 233,
+      "column": 13,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/tool-selection-experiment.ts",
+          "nodeIndex": 703
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-experiment.ts",
+      "line": 233,
+      "column": 31,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/tool-selection-experiment.ts",
+          "nodeIndex": 653
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-experiment.ts",
+      "line": 233,
+      "column": 38,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/tool-selection-experiment.ts",
+          "nodeIndex": 703
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+      "line": 79,
+      "column": 7,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 165
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+      "line": 110,
+      "column": 13,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 252
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+      "line": 110,
+      "column": 61,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev-protocol.ts",
+          "nodeIndex": 252
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+      "line": 150,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+          "nodeIndex": 492
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+      "line": 150,
+      "column": 41,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/engines/jev.ts",
+          "nodeIndex": 777
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+      "line": 150,
+      "column": 48,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+          "nodeIndex": 492
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+      "line": 159,
+      "column": 9,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+          "nodeIndex": 492
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+      "line": 159,
+      "column": 27,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/tool-selection-experiment.ts",
+          "nodeIndex": 703
+        }
+      ]
+    },
+    {
+      "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+      "line": 159,
+      "column": 34,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/decision/tool-selection-jev-mapping.ts",
+          "nodeIndex": 492
+        }
+      ]
+    },
+    {
+      "file": "src/planning/learning/routing-calibration-builder.ts",
+      "line": 78,
+      "column": 10,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/learning/routing-calibration-builder.ts",
+          "nodeIndex": 35
+        }
+      ]
+    },
+    {
+      "file": "src/planning/learning/routing-calibration-builder.ts",
+      "line": 78,
+      "column": 41,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/planning/learning/routing-calibration-builder.ts",
+          "nodeIndex": 35
+        }
+      ]
+    },
+    {
+      "file": "src/runtime-state/runtime/context/context-builder.ts",
+      "line": 468,
+      "column": 45,
+      "field": "model",
+      "syntax": "PropertyAccessExpression",
+      "classification": "other-declared-field-review",
+      "declarations": [
+        {
+          "file": "src/runtime-state/runtime/context/context-builder.ts",
+          "nodeIndex": 2929
+        }
+      ]
+    },
+    {
+      "file": "src/session/resume.ts",
+      "line": 212,
+      "column": 5,
+      "field": "model",
+      "syntax": "PropertyAssignment",
+      "classification": "unresolved-named-field-review",
+      "declarations": []
+    }
+  ],
+  "qualification": "Compiler-bound static census only; no graph qualification, runtime usage, external consumer census, or retirement authorization.",
+  "limitations": [
+    "Unresolved named fields are retained for manual triage, not silently classified unused.",
+    "Nonliteral keys on identified config containers are unresolved; any-typed dynamic access, spreads, reflection, JSON strings, external plugins, and files outside the compiler project are not a complete consumer proof."
+  ]
+}

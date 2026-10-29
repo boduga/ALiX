@@ -44,7 +44,7 @@ is schedulable. This is the single most important fact in this document.
 
 | ID | Item | Reader inventory | Status |
 |---|---|---|---|
-| HC-11 | `config.model` / `config.subagents` compatibility projections, single writer `normalizeModelConfig` (`src/operations/config/loader.ts:40-77`) | **PARTIAL** — concrete reader/writer manifest in `audits/2026-10-23-harness-legacy-inventory.md`; dynamic/external/graph completeness unresolved | **blocked on PRE-R010** |
+| HC-11 | `config.model` / `config.subagents` compatibility projections, single writer `normalizeModelConfig` (`src/operations/config/loader.ts:40-77`) | **PARTIAL** — concrete reader/writer manifest plus 2026-10-28 current-HEAD compiler triage; internal unresolved named/dynamic references are classified, while external/deep-import/reflection/runtime/graph completeness remains unresolved | **blocked on PRE-R010** |
 
 This is the one genuine L0 candidate and it is **not ready to touch**. The
 final projections have a loader owner and identified live readers; pre-normalization
@@ -288,7 +288,7 @@ These protocol tests and migration utility are **not implemented** by this doc.
 ### Package acceptance / outstanding approval
 
 Q04/Q05 now have concrete proposals, affected files, parity cases, recovery and
-stop criteria. Gate D remains **NOT MET**: graph/dynamic/external completeness,
+stop criteria. Gate D remains **NOT MET**: graph/external/deep-import/reflection/runtime completeness,
 target-version compatibility decisions, independent verifier/critic review, executable transaction qualification, and security qualification are unresolved. No package may be executed,
 no alias removed, and no sign-off inferred from this design.
 

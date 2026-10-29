@@ -92,3 +92,10 @@ Stop on unresolved consumers, changed model selection, lost behavior/redaction,
 failed restart/persistence tests, or a new authorization/boundary violation.
 No package is implemented or approved here. F-05 is now a concrete manifest with
 named completeness gaps; PRE-R010 and Gate D remain partial/unmet.
+
+
+## 2026-10-28 current-HEAD compiler triage reconciliation
+
+The 2026-10-23 inventory remains historical evidence. A fresh compiler-bound census at source commit `43d81e989464ca7ef7b9b59ff559244bc3dad56e` scanned 1,455 `src/` files and produced 30 schema-bound config-field references, 221 other-declared-field references, 54 unresolved named references, and **0 dynamic-config-key unresolved**. Independent agent triage plus a second ambiguity review classified all 54 named references as **5 genuine config consumers, 49 unrelated-domain references, 0 ambiguous**. The five genuine references are already represented by this inventory's loader `modelTiers` ingestion and CLI projected-model redaction groups.
+
+This closes the **internal compiler-project unresolved-reference triage** for that source commit. It does **not** prove graph completeness, runtime usage, external/deep-import consumers, reflection/JSON-string consumers, files outside the compiler project, or retirement safety. PRE-R010 and Gate D therefore remain partial/unmet. Evidence: `benchmark/evidence/config-consumer-inventory-2026-10-28.json`, `benchmark/evidence/config-consumer-triage-2026-10-28.json`, and `docs/audits/2026-10-28-pre-r002-r010-consumer-triage.md`.

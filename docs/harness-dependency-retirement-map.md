@@ -73,7 +73,7 @@ Confirms: **one loop chain**, **one scheduler**, **one authorization boundary**,
 |---|---|---|
 | HC-01 prompt guidance | **No** | No benchmark exists; ablating on intuition is exactly what the PRD forbids |
 | HC-03 provider format map | **No** | Same |
-| HC-11 config projections | **No** | Concrete consumers now listed in `audits/2026-10-23-harness-legacy-inventory.md`; graph/dynamic/external completeness and interface policy remain unresolved (F-05) |
+| HC-11 config projections | **No** | Concrete consumers are listed; current-HEAD compiler unresolved-reference triage is closed, but graph/external/deep-import/reflection/runtime completeness and interface policy remain unresolved (F-05) |
 | HC-05 context compiler | **No** | M1, benchmark-first |
 | Anything S0 | **Never by simplification** | Only via an equivalent control with security review |
 

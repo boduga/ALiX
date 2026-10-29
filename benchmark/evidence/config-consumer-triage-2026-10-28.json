@@ -1,0 +1,424 @@
+{
+  "schemaVersion": 1,
+  "evidenceClass": "config-consumer-unresolved-triage",
+  "sourceCensus": "benchmark/evidence/config-consumer-inventory-2026-10-28.json",
+  "sourceCommit": "43d81e989464ca7ef7b9b59ff559244bc3dad56e",
+  "censusSha256": "738d1e44c3c59b068081a51ccd4537213ddec4dcaa2ed0098b66d713c3c7900e",
+  "inputCounts": {
+    "schema-bound-config-field": 30,
+    "dynamic-config-key-unresolved": 0,
+    "other-declared-field-review": 221,
+    "unresolved-named-field-review": 54
+  },
+  "triagedEntries": [
+    {
+      "file": "src/agents/agent/messages.ts",
+      "line": 51,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Copies a function parameter into a model-usage event payload."
+    },
+    {
+      "file": "src/agents/subagent-manager.ts",
+      "line": 304,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Constructs subagent.started event metadata alongside task and agent identifiers."
+    },
+    {
+      "file": "src/capabilities/extensions/manifest.ts",
+      "line": 125,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Constructs a discriminated subagent manifest DTO with readonly, system_prompt, and files fields."
+    },
+    {
+      "file": "src/capabilities/extensions/manifest.ts",
+      "line": 125,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Reads the raw model field while converting a discriminated subagent manifest DTO."
+    },
+    {
+      "file": "src/coordination/kernel/graph-planner.ts",
+      "line": 397,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Sets the model field in a serialized HTTP inference request."
+    },
+    {
+      "file": "src/interfaces/cli/commands/config.ts",
+      "line": 271,
+      "field": "model",
+      "classification": "CONFIG_CONSUMER",
+      "reason": "handleConfigShow clones loadConfig() output before reading/writing output.model.apiKey for redaction; this is the RuntimeConfig compatibility projection.",
+      "resolvedBy": "enclosing-function source review + independent ambiguity verifier"
+    },
+    {
+      "file": "src/interfaces/cli/commands/config.ts",
+      "line": 272,
+      "field": "model",
+      "classification": "CONFIG_CONSUMER",
+      "reason": "handleConfigShow clones loadConfig() output before reading/writing output.model.apiKey for redaction; this is the RuntimeConfig compatibility projection.",
+      "resolvedBy": "enclosing-function source review + independent ambiguity verifier"
+    },
+    {
+      "file": "src/interfaces/cli/commands/config.ts",
+      "line": 272,
+      "field": "model",
+      "classification": "CONFIG_CONSUMER",
+      "reason": "handleConfigShow clones loadConfig() output before reading/writing output.model.apiKey for redaction; this is the RuntimeConfig compatibility projection.",
+      "resolvedBy": "enclosing-function source review + independent ambiguity verifier"
+    },
+    {
+      "file": "src/interfaces/cli/commands/evals.ts",
+      "line": 185,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Reads a parsed command argument into a provider-options DTO."
+    },
+    {
+      "file": "src/interfaces/cli/commands/models.ts",
+      "line": 290,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns an interactive model-selection DTO containing providerId and optional endpoint URLs."
+    },
+    {
+      "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+      "line": 44,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Checks a parsed command argument while constructing local command options."
+    },
+    {
+      "file": "src/interfaces/cli/commands/skills/distill-from-traces.ts",
+      "line": 44,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Converts a parsed command argument into a local model option."
+    },
+    {
+      "file": "src/interfaces/inspector/projection.ts",
+      "line": 224,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Reads event payload metadata into a token-usage snapshot entry."
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 66,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Checks a model string while constructing agent roster presentation state."
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 66,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Copies a model string into agent roster presentation state with a previous-state fallback."
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 130,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Reads an agent.usage event's model metadata."
+    },
+    {
+      "file": "src/interfaces/tui/workbench/projections/agent-roster-projection.ts",
+      "line": 131,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Copies an agent.usage event's resolved or reported model into presentation state."
+    },
+    {
+      "file": "src/models/providers/anthropic-provider.ts",
+      "line": 19,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/base.ts",
+      "line": 108,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Sets the model field in an HTTP chat-completions request body."
+    },
+    {
+      "file": "src/models/providers/deepseek-provider.ts",
+      "line": 18,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/freellmapi-provider.ts",
+      "line": 23,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata with documented generic token limits."
+    },
+    {
+      "file": "src/models/providers/gemini-provider.ts",
+      "line": 18,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/grokai-provider.ts",
+      "line": 18,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/groq-provider.ts",
+      "line": 18,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/hive-provider.ts",
+      "line": 37,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside calculated token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/intern-provider.ts",
+      "line": 35,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside calculated token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/local-llama-provider.ts",
+      "line": 55,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/minimax-provider.ts",
+      "line": 19,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/minimax-token-plan-provider.ts",
+      "line": 18,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/mock-provider.ts",
+      "line": 7,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Defines mock provider capability metadata with a literal model identifier."
+    },
+    {
+      "file": "src/models/providers/ollama-provider.ts",
+      "line": 29,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/openai-provider.ts",
+      "line": 18,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/openrouter-provider.ts",
+      "line": 122,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/perplexity-provider.ts",
+      "line": 18,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/specs/_openai-base.ts",
+      "line": 28,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Constructs a provider request body from request model and messages."
+    },
+    {
+      "file": "src/models/providers/specs/_openai-base.ts",
+      "line": 57,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Reads a request's model when deciding whether to request parallel tool calls."
+    },
+    {
+      "file": "src/models/providers/specs/anthropic-spec.ts",
+      "line": 13,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Sets the model field in a provider request-body conversion."
+    },
+    {
+      "file": "src/models/providers/specs/local-llama-spec.ts",
+      "line": 26,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Sets the model field in a provider request-body conversion."
+    },
+    {
+      "file": "src/models/providers/specs/ollama-spec.ts",
+      "line": 31,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Sets model and stream fields in a provider request-body conversion."
+    },
+    {
+      "file": "src/models/providers/unified-complete.ts",
+      "line": 454,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Checks a model identifier in a parsed streaming response containing choices."
+    },
+    {
+      "file": "src/models/providers/unified-complete.ts",
+      "line": 454,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Reads a model identifier from a parsed streaming response into streamModel."
+    },
+    {
+      "file": "src/models/providers/xiaomi-mimo-token-plan-provider.ts",
+      "line": 23,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/providers/zhipuai-provider.ts",
+      "line": 18,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Returns provider capability metadata alongside token limits and tool support."
+    },
+    {
+      "file": "src/models/tracing/langfuse-client.ts",
+      "line": 541,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Adds model metadata to a generation telemetry payload with captured input."
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 265,
+      "field": "modelTiers",
+      "classification": "CONFIG_CONSUMER",
+      "reason": "Reads user configuration modelTiers overrides into a PartialConfig modelTiers merge."
+    },
+    {
+      "file": "src/operations/config/loader.ts",
+      "line": 266,
+      "field": "modelTiers",
+      "classification": "CONFIG_CONSUMER",
+      "reason": "Reads project configuration modelTiers overrides into a PartialConfig modelTiers merge."
+    },
+    {
+      "file": "src/operations/evals/cost-correlation.ts",
+      "line": 102,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Checks a model identifier in event payload telemetry alongside token counts."
+    },
+    {
+      "file": "src/operations/evals/cost-correlation.ts",
+      "line": 102,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Reads a model identifier from event payload telemetry alongside token counts."
+    },
+    {
+      "file": "src/operations/evals/eval-usage.ts",
+      "line": 99,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Checks event payload model metadata while constructing usage records."
+    },
+    {
+      "file": "src/operations/evals/eval-usage.ts",
+      "line": 99,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Copies event payload model metadata into a usage record."
+    },
+    {
+      "file": "src/operations/observability/cost-attribution.ts",
+      "line": 210,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Reads model metadata from a model.usage event for cost attribution."
+    },
+    {
+      "file": "src/planning/adaptation/provider-catalog-adapter.ts",
+      "line": 33,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Constructs a result DTO containing generated content and provider/model metadata."
+    },
+    {
+      "file": "src/planning/decision/engines/jev.ts",
+      "line": 217,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "Sets a request DTO's model from local options or a default."
+    },
+    {
+      "file": "src/session/resume.ts",
+      "line": 212,
+      "field": "model",
+      "classification": "UNRELATED_DOMAIN",
+      "reason": "model is a field on the returned session summary DTO; the enclosing return block contains session metadata/counters, not RuntimeConfig.",
+      "resolvedBy": "enclosing-function source review + independent ambiguity verifier"
+    }
+  ],
+  "summary": {
+    "CONFIG_CONSUMER": 5,
+    "UNRELATED_DOMAIN": 49,
+    "AMBIGUOUS": 0
+  },
+  "dynamicUnresolved": 0,
+  "knownConfigConsumerGroups": [
+    {
+      "surface": "legacy modelTiers ingestion",
+      "refs": [
+        "src/operations/config/loader.ts:265",
+        "src/operations/config/loader.ts:266"
+      ]
+    },
+    {
+      "surface": "projected model display/redaction",
+      "refs": [
+        "src/interfaces/cli/commands/config.ts:271",
+        "src/interfaces/cli/commands/config.ts:272"
+      ]
+    }
+  ],
+  "qualification": "Closes manual triage of compiler-unresolved named/dynamic references inside the current compiler project only. It does not prove runtime usage, graph completeness, external/deep-import consumers, reflection/JSON-string consumers, or retirement safety.",
+  "independentReview": {
+    "firstPass": "Codex gpt-6.1-sol classified all 54 local-context entries: 2 CONFIG_CONSUMER, 48 UNRELATED_DOMAIN, 4 AMBIGUOUS.",
+    "ambiguityPass": "Independent Codex review resolved config.ts:271/272 as CONFIG_CONSUMER and session/resume.ts:212 as UNRELATED_DOMAIN."
+  }
+}

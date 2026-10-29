@@ -18,7 +18,7 @@ for designs that already exist. Their existence does not prove measurements.
 
 | Gate | Verdict | Evidence / remaining acceptance |
 |---|---|---|
-| A — Inventory | Historical PASS with named unknowns; authorized to complete | Component/invariant maps exist. Current legacy inventory adds real consumers; graph lookup and dynamic/external consumer completeness remain unresolved. |
+| A — Inventory | Historical PASS with named unknowns; current internal triage improved | Component/invariant maps exist. At `43d81e98`, all current compiler-project unresolved named/dynamic config-surface references are classified (5 genuine config consumers, 49 unrelated, 0 ambiguous; 0 dynamic unresolved). Graph/external/deep-import/reflection/runtime completeness remains unresolved. |
 | B — Baseline | **CLOSED-WITH-WAIVER (historical)** | Historical 13-met/1-waived closure and `36/45` / `$0.080520` evidence remain provenance. Under the 2026-10-28 amendment, the waived human-attention dimension is replaced by autonomous-review metrics that are still unmeasured; Gate B historical closure is not reopened solely for that reason, but PRE-R015–R019 remain open until agent-review evidence exists. |
 | C — Ablation | **RETAIN DISPOSITION RECORDED; no paired run** | No paired ablation executed. §9's "otherwise retain" branch is exercised in [`harness-gate-c-retain-disposition.md`](harness-gate-c-retain-disposition.md): both M2 candidates retained, none retired, and it is explicitly not a measured efficiency finding. PRE-R007/R008 remain unexecuted comparisons. |
 | D — Migration | **AUTHORIZED; not implemented** | Concrete reader/writer manifest and MP-01…MP-03 designs exist; implementation requires machine-verifiable delegated authority, parity evidence, and independent verifier/critic qualification. |
@@ -91,7 +91,7 @@ No missing capture has been invented or replayed against a model.
 projection owner, pre-normalization writes, runtime tier reader, loader/display
 consumers, behavior consumers, persistence boundary, distinct atomic writer,
 legacy aliases and regression constraints. `subagents.enabled/roles` are behavior
-and must remain. Unknown graph/dynamic/external consumers still block retirement.
+and must remain. Internal compiler-project unresolved-reference triage is closed at `43d81e98`; unknown graph/external/deep-import/reflection/runtime consumers still block retirement.
 
 ## Amendment work
 
