@@ -120,8 +120,8 @@ No decision has two owners. This is the strongest result of P0-B.
 - No consolidation is recommended from P0-B. The layering is sound; the findings
   are documentation and UI-fidelity issues, not authority splits.
 
-**Unknowns remaining:** production effectiveness of any prompt guidance (needs
-P0-D), and whether the `stateOf` alias table is exercised by any producer that
-still emits legacy names (needs a grep of event producers, deferred to P0-F).
+**2026-10-28 producer census:** the prior `stateOf` unknown is now source-resolved in `audits/2026-10-28-pre-r004-state-producer-census.md`. Canonical/emitted values `idle`, `planning`, `repairing`, `summarizing`, `stopped`, and `blocked` have no Workbench mapping and therefore fall back to the previous display state. This is a projection-fidelity gap, not evidence of a second runtime completion authority. Independent agent review also cautions that the inspected paths do not prove global absence of all duplicate authority.
+
+**Unknowns remaining:** production effectiveness of prompt guidance (needs P0-D), observed frequency/impact of the unmapped states, and exhaustive state-consumer coverage outside the inspected producer→Workbench path.
 
 Production simplification: **HOLD**. Publication: **HOLD** (Q13).
