@@ -5,6 +5,7 @@ import { readFile, grepSearch, globMatch } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
+import { shellExecutionDirectory } from "./shell-execution-directory.js";
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
@@ -418,9 +419,15 @@ export class ShellToolRouter implements ToolRouter {
       }
     }
 
-    // Level 5: Check if command is safe shell (runs before policy decision)
+    let workingDir: string;
+    try {
+      workingDir = shellExecutionDirectory(this.root, cwd, isSafeShellCommand(command));
+    } catch {
+      return { kind: "error", message: "Cannot establish shell execution directory", retryable: false };
+    }
+
     if (isSafeShellCommand(command)) {
-      const sResult = await executeSafeShell(command, { cwd: this.root, envAllowlist: this.envAllowlist });
+      const sResult = await executeSafeShell(command, { cwd: workingDir, envAllowlist: this.envAllowlist });
       if (sResult.allowed) {
         if (sResult.error) return { kind: "error", message: sResult.error };
         return {
@@ -431,16 +438,19 @@ export class ShellToolRouter implements ToolRouter {
       return { kind: "error", message: sResult.error ?? "SafeShell validation failed" };
     }
 
-    const workingDir = cwd ?? this.root;
-
     if (persistent) {
+      if (this.shellPool && this.shellPool.cwd !== workingDir) {
+        return { kind: "error", message: "Persistent shell cwd must match its initial execution directory", retryable: false };
+      }
       if (!this.shellPool) {
-        this.shellPool = new ShellPool({ cwd: workingDir, timeoutMs, envAllowlist: this.envAllowlist });
+        this.shellPool = new ShellPool({ cwd: workingDir, timeoutMs, envAllowlist: this.envAllowlist, fixedCwd: true });
       }
       try {
-        const shResult = await this.shellPool.run(command, timeoutMs);
+        const shResult = await this.shellPool.run(command, timeoutMs, request.signal);
+        if (shResult.exitCode !== 0) return { kind: "error", message: `Command exited with code ${shResult.exitCode}: ${shResult.output}` };
         return { kind: "success", output: shResult.output };
       } catch (err) {
+        if (isCancellationError(err)) throw err;
         return { kind: "error", message: String(err) };
       }
     }

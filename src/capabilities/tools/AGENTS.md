@@ -15,6 +15,8 @@ reason about.
   operation.
 - `executor.ts` — `ToolExecutor`: composes `PolicyGate` + `ToolRouter`, runs
   the call, and owns the `boundTools` path that workers use.
+- `effect-replay-guard.ts` — durable unresolved-effect claims for high-impact routed tools.
+- `shell-execution-directory.ts` — shared canonical execution-directory identity for the shell router and replay guard.
 - `safe-shell.ts` / `shell-tool.ts` / `shell-pool.ts` — Shell admission and
   execution, including the safe-shell grammar.
 - `shell-network-policy.ts` — Network policy applied to shell clients, so
@@ -32,6 +34,10 @@ reason about.
   `src/agents/tool-manifest.ts`. Change the mappings together when renaming.
 
 ## Local Contracts
+
+- **Ambiguous high-impact routed effects are quarantined before automatic replay.** `executeWithEffectReplayGuard` wraps ordinary dispatch, continuation resume and safe-shell dispatch after authorization. Registry-marked high/critical mutating tools (including dynamic MCP) require an exclusive, fsynced claim under `.alix/effect-replay/v1` before adapter entry; only conservatively classified safe-shell read commands are exempt. `rg` is never exempt: executable preprocessing flags such as `--pre` can be admitted by the shell grammar even when quoted. Identity is canonical workspace, routed tool and stable repaired arguments, independent of call/session/agent/approval identities. Shell identity uses command and execution cwd, excluding timeout and pool controls. The shared shell execution-directory resolver canonicalizes existing cwd aliases and resolves relative cwd from the workspace. Safe-shell execution always fingerprints and executes at the canonical router root because that branch ignores request cwd; both non-persistent and persistent non-safe-shell execution use the resolved directory. Cwd-only variations cannot bypass a retained safe-shell claim. Normal success releases the claim; every returned error is conservatively uncertain/non-retryable, and throws, cancellation and crashes retain it. Existing, malformed or unwritable claims fail closed. No TTL, PID reclaim, model flag, bypass mode or fresh approval clears a claim. Human reconciliation must establish the external outcome before any manual state recovery; no model-facing clearing tool exists. This is bounded admission control, not global exactly-once: changed commands/arguments, other workspaces, adapter-internal retries, direct provider/extension effects and old executions without claims remain outside this identity boundary. Approval receipts retain their separate authority.
+
+- **Persistent shell execution directory is fixed.** The router rejects a canonical cwd different from an existing pool’s initial cwd. Routed pool commands use isolated subshells pinned to that cwd; command-driven directory and environment changes do not survive into later commands. Direct ShellPool users retain legacy state persistence unless they select fixed cwd. A busy pool rejects concurrent entry; timeout, cancellation, transport error or exit before its unique completion marker permanently closes the pool. Nonzero command status is an error, retaining the replay claim. Neither timeout nor a new invocation recreates that router’s pool. Non-persistent requests may use genuinely different directories; they cannot silently execute in an earlier pool directory.
 
 - `sessionIdFromDirectory` in `executor.ts` extracts session identity using either directory separator; approvals, continuations, and tool artifacts use the same identity on every supported host.
 
@@ -134,6 +140,9 @@ reason about.
 
 ## Verification
 
+- `tests/security/persistent-shell-cwd.vitest.ts` — production ShellPool/executor timeout-after-effect replay, changed-cwd rejection, relative/absolute/symlink aliases, safe-shell/non-persistent directory parity, cd isolation, busy/closed/cancelled transport and nonzero exit coverage.
+- `tests/security/effect-replay-guard.test.ts` — effect parity, concurrent claims, fresh-process SIGKILL recovery, shell transport changes, real partial shell failures and fresh approvals across dispatch/resume modes.
+- `tests/security/effect-replay-boundary.vitest.ts` — executor boundary coverage for unknown/error/throw/success, fresh identities, continuation approvals, MCP, read-only/idempotent controls, real rg preprocessing counters across ask/auto/bypass, safe-shell cwd-only replay denial, distinct non-safe-shell working directories and claim storage failures.
 - `tests/tools/tool-router.test.ts` — dispatch, owned writes, containment.
 - `tests/unit/safe-shell.test.ts` — shell admission grammar.
 - `tests/policy/policy-gate.test.ts` — the authorization decision that runs
