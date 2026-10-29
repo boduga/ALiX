@@ -93,6 +93,10 @@ consumers, behavior consumers, persistence boundary, distinct atomic writer,
 legacy aliases and regression constraints. `subagents.enabled/roles` are behavior
 and must remain. Internal compiler-project unresolved-reference triage is closed at `43d81e98`; unknown graph/external/deep-import/reflection/runtime consumers still block retirement.
 
+## 2026-10-28 candidate-inventory reconciliation
+
+PRE-R002 is now **SUPPORTED for HC-01…HC-12 at current repository scope**. A first independent source/test audit rejected the stale historical table as incomplete; a current-HEAD reconciliation then supplied exact component identity, relevant internal consumers, authority boundaries, role/rationale, concrete tests/evidence, and corrected classifications. A second independent acceptance review found no blocking row and accepted PRE-R002. External/deep-import/reflection/runtime retirement completeness remains PRE-R010 work and no retirement authority follows.
+
 ## Amendment work
 
 | Group | Supported work | Remaining evidence |
