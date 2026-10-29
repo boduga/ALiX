@@ -63,7 +63,8 @@ export class DaemonToolContinuationResumer {
     if (!binding || !run || run.id !== binding.runId || run.hostKind !== 'daemon' ||
         !['running', 'blocked'].includes(run.status) || run.sessionId !== cont.sessionId) return;
     const worker = run.workers.find(w => w.id === binding.workerId);
-    if (!worker || worker.status !== 'blocked' || worker.blockReason !== 'approval_required' ||
+    if (!worker || !cont.toolCall?.agentId || !binding.assignedAgentId || worker.agentId !== binding.assignedAgentId ||
+        worker.coordinationRunId !== run.id || worker.status !== 'blocked' || worker.blockReason !== 'approval_required' ||
         worker.approvalId !== cont.approvalId || worker.attempt !== binding.attempt ||
         computeOwnershipClaimsHash(worker.ownershipClaims) !== binding.ownershipHash ||
         JSON.stringify(worker.ownershipScopes) !== JSON.stringify(binding.ownershipScopes) ||
@@ -117,20 +118,37 @@ export class DaemonToolContinuationResumer {
         if (!current || current.status !== 'approved' ||
             current.invocationFingerprint !== context.invocationFingerprint ||
             (current.toolContinuation && JSON.stringify(current.toolContinuation) !== JSON.stringify(context))) return;
+        // Legacy approvals were issued before worker attribution existed.
+        // After validating the durable continuation, run, worker, attempt and
+        // invocation above, bind the record atomically before exposing it to
+        // the strictly worker-scoped execution port. Never broaden that port.
+        if ((current.workerId && current.workerId !== worker.id) ||
+            (current.workerAttempt !== undefined && current.workerAttempt !== worker.attempt) ||
+            (current.coordinationRunId && current.coordinationRunId !== run!.id)) return;
+        current.workerId = worker.id;
+        current.workerAttempt = worker.attempt;
+        current.coordinationRunId = run!.id;
         current.toolContinuation = context;
         bound = true;
       });
       if (!bound) return;
-      const port = createWorkerApprovalPort(approvals, { workerId: worker.id });
+      const port = createWorkerApprovalPort(approvals, { workerId: worker.id, workerAttempt: worker.attempt });
       const executor = createToolExecutor({
         config: { ...this.config, ownership: { ...this.config.ownership, autoAcquire: false } }, log, root: this.cwd,
         ownedPaths: ownedPathsForWorker(worker),
         workspacePathResolver: new WorkspacePathResolver(this.cwd),
         ownershipRegistry: this.ownership,
-        approvalStore: { ...port, consumeApproved: (id: string, key: string,
+        approvalStore: { ...port, consumeApproved: async (id: string, key: string,
           consumer: Parameters<ApprovalStore['consumeApproved']>[2],
-          invocation: Parameters<ApprovalStore['consumeApproved']>[3]) =>
-          port.consumeApproved(id, key, { ...consumer, workerId: worker.id, workerAttempt: worker.attempt }, invocation) },
+          invocation: Parameters<ApprovalStore['consumeApproved']>[3]) => {
+          // Ownership and continuation loading yield. Re-read durable assignment
+          // at the claim seam rather than relying solely on the polling monitor.
+          if (controller.signal.aborted || !this.worker(cont, await this.runs.load(run!.id))) {
+            controller.abort('worker context changed');
+            return { consumed: false, reason: 'worker context changed' };
+          }
+          return port.consumeApproved(id, key, { ...consumer, workerId: worker.id, workerAttempt: worker.attempt }, invocation);
+        } },
       });
       // Acquire explicit, individually tracked leases for the original tool agent.
       // The worker id stays the approval consumer identity, never an agent alias.
@@ -200,6 +218,7 @@ export class DaemonToolContinuationResumer {
       const worker = current.workers.find(item => item.id === context.workerId);
       if (!worker || worker.coordinationRunId !== current.id || worker.status !== 'blocked' ||
           worker.blockReason !== 'approval_required' || worker.approvalId !== approval.id ||
+          !context.assignedAgentId || worker.agentId !== context.assignedAgentId ||
           worker.attempt !== context.attempt || !isWriteWorker(worker) || !ownedPathsForWorker(worker).length ||
           computeOwnershipClaimsHash(worker.ownershipClaims) !== context.ownershipHash ||
           JSON.stringify(worker.ownershipScopes) !== JSON.stringify(context.ownershipScopes)) return;

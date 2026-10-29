@@ -324,3 +324,42 @@ jobs:
         with:
           name: coverage
           path: coverage/coverage-summary.json
+
+  # F-4: macOS does not ship util-linux flock; exercise portable daemon admission.
+  daemon-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+        with:
+          version: 11
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "26.11.0"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # D9 Phase F: exercise portable mkdir-lock admission, successor publication,
+      # real process crash/recovery and approval/continuation authority on macOS.
+      # Keep this a required job; a Linux pass is not a substitute for macOS evidence.
+      - name: Daemon admission, stop/restart and successor publication
+        timeout-minutes: 8
+        run: |
+          node --test --test-isolation=none \
+            dist/tests/daemon/daemon-manager.test.js \
+            dist/tests/daemon/daemon-stop-publication.test.js
+      - name: Continuation authority, process races and SIGKILL recovery
+        timeout-minutes: 12
+        run: |
+          node --test --test-isolation=none \
+            dist/tests/security/d9-process-races.test.js \
+            dist/tests/security/d9-resumer-sigkill.test.js
+      - name: Focused continuation security acceptance
+        timeout-minutes: 8
+        run: |
+          ./node_modules/.bin/vitest run --configLoader native --config vitest.config.mts \
+            --pool=forks --maxWorkers=1 \
+            tests/security/daemon-tool-continuation-acceptance.vitest.ts \
+            tests/security/worker-approval-port.vitest.ts \
+            tests/security/continuation-cancellation.vitest.ts \
+            tests/security/continuation-unknown-outcome.vitest.ts

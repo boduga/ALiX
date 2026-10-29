@@ -87,6 +87,8 @@ export interface ApprovalRecord {
    * Not accepted from approval request metadata or exposed as a worker write.
    */
   toolContinuation?: {
+    /** Original assignment identity; distinct from the canonical tool agent. Legacy records lack this. */
+    assignedAgentId?: string;
     runId: string;
     workerId: string;
     attempt: number;

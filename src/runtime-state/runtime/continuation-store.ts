@@ -90,6 +90,8 @@ export type PendingContinuation = {
   };
   /** Set only by the host after observing the originating worker's tool events. */
   coordinationWorker?: {
+    /** Original assignment identity; distinct from the canonical tool agent. Legacy records lack this. */
+    assignedAgentId?: string;
     runId: string;
     workerId: string;
     attempt: number;

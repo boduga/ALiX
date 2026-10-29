@@ -19,7 +19,10 @@
 
 import { createServer, type Socket } from "node:net";
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, openSync, closeSync, fstatSync, statSync, mkdirSync, lstatSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { ApprovalStoreLock, detectLockBackend } from "../../governance/approvals/approval-store-lock.js";
+import { dirname } from "node:path";
 import { join, relative, resolve } from "node:path";
 import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js";
 import { homedir } from "node:os";
@@ -353,7 +356,18 @@ async function handleCommand(cmd: Record<string, unknown>, client: Socket): Prom
     return;
   }
   if (cmd.command === "ping") {
-    client.write(JSON.stringify({ type: "pong", sessionId: currentSessionId } satisfies DaemonResponse) + "\n");
+    // A live socket owner can repair metadata removed by an earlier crash or
+    // external cleanup. A rejected contender cannot reach this handler.
+    if (!existsSync(join(globalDir, "daemon.json"))) {
+      try {
+        writeFileSync(join(globalDir, "daemon.pid"), String(process.pid), "utf-8");
+        writeFileSync(join(globalDir, "daemon.json"), JSON.stringify({
+          pid: process.pid, startedAt: new Date().toISOString(), socketPath,
+          status: "running",
+        }, null, 2), "utf-8");
+      } catch (err) { console.error("[daemon] status recovery failed", err); }
+    }
+    client.write(JSON.stringify({ type: "pong", sessionId: currentSessionId, pid: process.pid }) + "\n");
     return;
   }
   if (cmd.command === "status") {
@@ -544,6 +558,18 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
         ...(daemonApprovalStore ? { approvalStore: daemonApprovalStore } : {}),
       };
       await executeRoute(route, runtimeCtx, daemonExecutor);
+      // An accepted cancellation must never be overwritten by "completed".
+      // `cancel` sets `cancel_requested` and aborts the task signal; this
+      // branch used to declare success unconditionally, so a task the operator
+      // cancelled (and that durably recorded `cancel_requested`) finished as
+      // `completed` and survived restart that way — the ledger then recorded a
+      // success for work the operator had stopped.
+      if (signal.aborted || registry.get(taskId)?.status === "cancel_requested") {
+        registry.update(taskId, { status: "cancelled", cancelledAt: new Date().toISOString() });
+        safeWrite(client, { type: "task.cancelled" as const, taskId });
+        await endSession();
+        return;
+      }
       registry.update(taskId, { status: "completed", completedAt: new Date().toISOString() });
       safeWrite(client, { type: "task.completed" as const, sessionId, status: "completed" });
       await endSession();
@@ -627,14 +653,78 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
 process.on("uncaughtException", (err) => { console.error("[daemon] uncaughtException", err); process.exit(1); });
 process.on("unhandledRejection", (err) => { console.error("[daemon] unhandledRejection", err); process.exit(1); });
 
-// Remove stale socket file before binding, otherwise `listen()` can fail
-// with EADDRINUSE after a crash or unclean shutdown. A Windows named pipe
-// (#732) has no backing file, so skip the filesystem stale-rm there.
-if (!isNamedPipe(socketPath) && existsSync(socketPath)) {
-  await rm(socketPath, { force: true }).catch(() => {});
+// Serialize all global metadata writers with finishing managers, including
+// heartbeat and ping repair. Hold until exit, so no asynchronous publication
+// can outlive this ownership. This is separate from socket admission: servers
+// with different explicit sockets still share daemon.json under one HOME.
+const lifecycle = new ApprovalStoreLock(defaultCwd, {
+  backend: "mkdir", lockPath: join(globalDir, "daemon-lifecycle.lock"),
+});
+if (!(await lifecycle.acquire(300))) {
+  console.error("[daemon] lifecycle metadata owner unavailable; refusing startup");
+  process.exit(1);
+}
+// Leave the portable record for dead-owner reclamation. Releasing it in an
+// exit callback would admit a successor before this process (and any pending
+// filesystem I/O) has actually died. Reuse/uncertainty of its PID fails closed.
+
+// POSIX daemon admission uses kernel-owned flock where available, otherwise
+// a fail-closed portable directory lock. SIGKILL releases flock automatically;
+// the portable backend reclaims only when it proves the owner PID is dead.
+// Never unlink a live daemon's socket, even if a second daemon starts.
+let daemonLockFd: number | undefined;
+let daemonPortableLock: ApprovalStoreLock | undefined;
+if (!isNamedPipe(socketPath)) {
+  mkdirSync(dirname(socketPath), { recursive: true });
+  const lockPath = `${socketPath}.lock`;
+  if (detectLockBackend() === "mkdir") {
+    // Portable, fail-closed ownership: never reclaim an unprovable owner.
+    // A leftover flock FILE blocks mkdir rather than silently switching owners.
+    const lock = new ApprovalStoreLock(defaultCwd, { backend: "mkdir", lockPath });
+    if (!(await lock.acquire(300))) {
+      console.error("[daemon] portable socket lock unavailable; refusing startup", socketPath);
+      process.exit(1);
+    }
+    daemonPortableLock = lock;
+    process.once("exit", () => daemonPortableLock?.release());
+  } else {
+    // Never cross from mkdir ownership to flock ownership: a directory
+    // represents an active or unrecovered portable lock.
+    if (existsSync(lockPath) && !lstatSync(lockPath).isFile()) {
+      console.error("[daemon] incompatible daemon lock backend; refusing startup", lockPath);
+      process.exit(1);
+    }
+    const fd = openSync(lockPath, "a+");
+    const result = spawnSync("flock", ["-n", "-x", "9"], {
+      stdio: ["ignore", "ignore", "pipe", "ignore", "ignore", "ignore", "ignore", "ignore", "ignore", fd],
+    });
+    if (result.error || result.status !== 0) {
+      closeSync(fd);
+      console.error("[daemon] socket owner is active or lock unavailable; refusing startup", socketPath);
+      process.exit(1);
+    }
+    const held = fstatSync(fd);
+    const current = statSync(lockPath);
+    if (!current.isFile() || held.dev !== current.dev || held.ino !== current.ino) {
+      closeSync(fd);
+      console.error("[daemon] socket lock pathname changed; refusing startup", socketPath);
+      process.exit(1);
+    }
+    daemonLockFd = fd;
+    process.once("exit", () => { if (daemonLockFd !== undefined) closeSync(daemonLockFd); });
+  }
+  // This cleanup is safe only while holding the unique daemon admission lock.
+  if (existsSync(socketPath)) await rm(socketPath, { force: true });
 }
 
 const server = createServer((client: Socket) => {
+  // Peers may disconnect during readiness probes or streaming responses.
+  // A broken client socket must never terminate the daemon process.
+  client.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code !== "EPIPE" && error.code !== "ECONNRESET") {
+      console.error("[daemon] client socket error", error);
+    }
+  });
   let buffer = "";
 
   client.on("data", (data: Buffer) => {
@@ -662,6 +752,22 @@ server.on("error", (err: NodeJS.ErrnoException) => {
 });
 
 server.listen(socketPath, () => {
+  // Publish identity only after exclusive admission AND successful listen.
+  // A rejected child must never overwrite the real owner's PID/status.
+  const ownerStatus = {
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+    socketPath,
+    status: "running" as const,
+  };
+  try {
+    mkdirSync(globalDir, { recursive: true, mode: 0o700 });
+    writeFileSync(join(globalDir, "daemon.pid"), String(process.pid), "utf-8");
+    writeFileSync(join(globalDir, "daemon.json"), JSON.stringify(ownerStatus, null, 2), "utf-8");
+  } catch (err) {
+    console.error("[daemon] failed to publish owner status", err);
+    process.exit(1);
+  }
   init().catch(() => {});
   startCoordinationService().catch((err: unknown) => {
     console.error("[daemon] coordination service failed to start:", err instanceof Error ? err.message : String(err));

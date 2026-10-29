@@ -25,9 +25,17 @@ const JOURNAL_COMPACT_THRESHOLD = 500;
 
 /** Trusted host context supplied by the restricted worker port, never request metadata.
  * Omitted scope is the existing privileged host path; an explicit empty scope
- * permits only legacy records without a worker binding.
+ * permits only legacy records without worker or attempt attribution.
  */
-export type ApprovalOutcomeScope = Readonly<{ workerId?: string }>;
+export type ApprovalOutcomeScope = Readonly<{ workerId?: string; workerAttempt?: number }>;
+
+/** Check every recorded binding; consumption can attribute an unbound request. */
+function outcomeScopeMatches(record: ApprovalRecord, scope: ApprovalOutcomeScope): boolean {
+  return (!record.workerId || record.workerId === scope.workerId)
+    && (!record.consumedByWorkerId || record.consumedByWorkerId === scope.workerId)
+    && (record.workerAttempt === undefined || record.workerAttempt === scope.workerAttempt)
+    && (record.consumedAttempt === undefined || record.consumedAttempt === scope.workerAttempt);
+}
 
 // Abort mutate() before pruning, ledger append, or projection writes on denial.
 const OUTCOME_SCOPE_DENIED = Symbol("approval outcome scope denied");
@@ -521,6 +529,12 @@ export class ApprovalStore {
         (a) => a.status === "pending" && a.bindingKey === input.bindingKey,
       );
       if (existing) {
+        // The binding key is not a substitute for worker/attempt authority.
+        // Reject collisions rather than returning another worker's approval.
+        if (existing.workerId !== input.workerId || existing.workerAttempt !== input.workerAttempt ||
+            existing.coordinationRunId !== input.coordinationRunId || existing.sessionId !== input.sessionId) {
+          throw new Error("pending approval identity mismatch");
+        }
         return { ...existing };
       }
 
@@ -645,6 +659,8 @@ export class ApprovalStore {
      * honour that resolution instead of creating a duplicate approval.
      */
     requestId?: string;
+    workerId?: string;
+    workerAttempt?: number;
   }): Promise<ApprovalRecord> {
     const { computeBindingKey } = await import("./approval-binding.js");
     const requestFingerprint = `legacy:${opts.capability ?? "unknown"}:${opts.graphId ?? ""}:${opts.nodeId ?? ""}:${opts.sessionId ?? ""}`;
@@ -671,6 +687,8 @@ export class ApprovalStore {
       riskLevel: opts.riskLevel,
       invocation: opts.invocation,
       requestId: opts.requestId,
+      workerId: opts.workerId,
+      workerAttempt: opts.workerAttempt,
     });
   }
 
@@ -790,14 +808,13 @@ export class ApprovalStore {
     outcome: "succeeded" | "failed" | "cancelled",
     scope?: ApprovalOutcomeScope,
   ): Promise<boolean> {
-    const scoped = scope !== undefined;
-    const workerId = scope?.workerId;
+    const trustedScope = scope === undefined ? undefined : { ...scope };
     let recorded = false;
     let sessionId: string | undefined;
     await this.mutate((approvals) => {
       const r = approvals.find(a => a.id === id);
       if (!r) return;
-      if (scoped && r.workerId && r.workerId !== workerId) throw OUTCOME_SCOPE_DENIED;
+      if (trustedScope && !outcomeScopeMatches(r, trustedScope)) throw OUTCOME_SCOPE_DENIED;
       if (r.status !== "consumed") return;
       if (r.executionOutcome !== "pending") return;
       r.executionOutcome = outcome;
@@ -829,14 +846,13 @@ export class ApprovalStore {
     id: string,
     scope?: ApprovalOutcomeScope,
   ): Promise<"unverified" | "terminal" | "missing"> {
-    const scoped = scope !== undefined;
-    const workerId = scope?.workerId;
+    const trustedScope = scope === undefined ? undefined : { ...scope };
     let verdict: "unverified" | "terminal" | "missing" = "missing";
     let sessionId: string | undefined;
     await this.mutate((approvals) => {
       const r = approvals.find(a => a.id === id);
       if (!r) { verdict = "missing"; return; }
-      if (scoped && r.workerId && r.workerId !== workerId) throw OUTCOME_SCOPE_DENIED;
+      if (trustedScope && !outcomeScopeMatches(r, trustedScope)) throw OUTCOME_SCOPE_DENIED;
       if (r.status !== "consumed") { verdict = "terminal"; return; }
       if (r.executionOutcome === "unverified") { verdict = "unverified"; return; }
       if (r.executionOutcome !== "pending") { verdict = "terminal"; return; }
@@ -978,7 +994,7 @@ export class ApprovalStore {
   async consumeApproved(
     id: string,
     expectedBindingKey: string,
-    consumer: { workerId?: string; workerAttempt?: number; now?: Date },
+    consumer: { workerId?: string; workerAttempt?: number; now?: Date; requireWorkerBinding?: boolean },
     expectedInvocation?: InvocationIdentity,
   ): Promise<ConsumeResult> {
     let result: ConsumeResult = { consumed: false, reason: "not found" };
@@ -989,6 +1005,12 @@ export class ApprovalStore {
       const now = consumer.now ?? new Date();
       if (new Date(r.expiresAt) <= now) { result = { consumed: false, reason: "expired" }; return; }
       if (r.bindingKey !== expectedBindingKey) { result = { consumed: false, reason: "binding key mismatch" }; return; }
+      // Restricted worker ports must not claim legacy/unbound records. Check
+      // against the freshly reloaded record while holding the store lock.
+      if (consumer.requireWorkerBinding && (!r.workerId || r.workerId !== consumer.workerId ||
+          (consumer.workerAttempt !== undefined && r.workerAttempt !== consumer.workerAttempt))) {
+        result = { consumed: false, reason: "worker scope mismatch" }; return;
+      }
       // Worker-bound authority requires explicit, matching execution identity.
       // A binding key alone must never authorize a different worker or attempt.
       if (r.workerId && r.workerId !== consumer.workerId) {

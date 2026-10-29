@@ -45,7 +45,7 @@ import type {
   TraceRun,
   TraceSpan,
 } from "../../models/tracing/types.js";
-import { isCancellationError } from "../../runtime-state/runtime/cancellation-token.js";
+import { ExecutionCancelledError, isCancellationError, signalReason } from "../../runtime-state/runtime/cancellation-token.js";
 
 /** Session identity uses the session directory on both POSIX and Windows. */
 export function sessionIdFromDirectory(sessionDir: string): string {
@@ -535,6 +535,11 @@ export class ToolExecutor {
       // ownership call was never exercised (Gate E review, vacuous #10).
       const contGateResult = await this.checkOwnershipGate(request, name, args);
       if (contGateResult) return contGateResult;
+      // Ownership/loading may have yielded after the host's cancellation check.
+      // Do not consume authority for a resume already known to be cancelled.
+      if (request.signal?.aborted) {
+        throw new ExecutionCancelledError(signalReason(request.signal) ?? "continuation cancelled");
+      }
       // R1.5: the continuation tombstone is NOT authorization — claim the
       // backing approval atomically so two parallel resumes cannot both run.
       if (request.approvalId) {
@@ -553,9 +558,38 @@ export class ToolExecutor {
         ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
-      const resumed = await this.toolAwareRouter.downstream.execute(request);
+      let resumed: ExecuteResult;
+      try {
+        // Claiming and telemetry both yield. No await may separate this check
+        // from dispatch: even a router that ignores AbortSignal must not start.
+        if (request.signal?.aborted) {
+          throw new ExecutionCancelledError(signalReason(request.signal) ?? "continuation cancelled");
+        }
+        resumed = await this.toolAwareRouter.downstream.execute(request);
+      } catch (error) {
+        if (claimedApprovalId) {
+          // After downstream dispatch began, a thrown error cannot establish whether
+          // an external effect happened. Keep the consumed claim pending for
+          // fail-closed reconciliation; cancellation retains its own status.
+          if (isCancellationError(error)) {
+            await this.recordApprovalOutcome(claimedApprovalId, "cancelled");
+          }
+        }
+        throw error;
+      }
       if (claimedApprovalId) {
-        await this.recordApprovalOutcome(claimedApprovalId, resumed.kind === "success" ? "succeeded" : "failed");
+        // The ordinary path below already refuses to write a receipt for an
+        // unknown outcome; the continuation branch must not be the loophole.
+        // A resumed call whose adapter reported no provable terminal outcome
+        // (`outcomeUnknown`) has unknown success, so recording `failed` would
+        // be a fabricated verdict AND would permanently retire a
+        // single-use approval that may in fact have applied its effect.
+        // Leaving the claim `pending` keeps the fail-closed state: a replay
+        // classifies it `unverified` and denies, and it is never reissued.
+        const outcomeUnknown = resumed.kind === "error" && resumed.outcomeUnknown === true;
+        if (!outcomeUnknown) {
+          await this.recordApprovalOutcome(claimedApprovalId, resumed.kind === "success" ? "succeeded" : "failed");
+        }
       }
       return resumed;
     }
@@ -804,9 +838,9 @@ export class ToolExecutor {
           // Telemetry cannot reclassify an operator cancellation as failure.
         }
         if (claimedApprovalId) await this.recordApprovalOutcome(claimedApprovalId, "cancelled");
-      } else if (claimedApprovalId) {
-        await this.recordApprovalOutcome(claimedApprovalId, "failed");
       }
+      // A thrown router error cannot prove the effect was not applied.
+      // Keep a consumed approval pending for reconciliation, not `failed`.
       throw error;
     }
 
@@ -1002,6 +1036,9 @@ export class ToolExecutor {
     await store.load();
     const cont = store.findByApprovalId(approvalId);
     if (!cont) return false;
+    // Attribution is a snapshot, never a way to transfer an existing grant to
+    // a replacement assignment (or silently upgrade unverifiable legacy data).
+    if (cont.coordinationWorker && JSON.stringify(cont.coordinationWorker) !== JSON.stringify(worker)) return false;
     await store.persist({ ...cont, coordinationWorker: worker });
     return true;
   }

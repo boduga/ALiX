@@ -98,6 +98,12 @@ export type ToolResult =
        * failure execution receipt for it: the evidence supports neither. The
        * consumed claim stays `pending` (classified `unverified` on replay,
        * fail-closed) instead of being promoted to `succeeded`.
+       *
+       * Adapters should return this flag for known-indeterminate outcomes.
+       * If the router throws after dispatch begins, the executor conservatively
+       * preserves a consumed claim as `pending` because it cannot distinguish
+       * pre-effect from post-effect exceptions. Neither path establishes
+       * exactly-once external effects without adapter idempotency.
        */
       outcomeUnknown?: boolean;
     };

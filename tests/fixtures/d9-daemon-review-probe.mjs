@@ -7,6 +7,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
+import { readRunSessionEvents } from '../../dist/src/coordination/kernel/coordination-view.js';
+import { CoordinationStore } from '../../dist/src/coordination/kernel/coordination-store.js';
 const repo = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const cli = join(repo, 'dist/src/cli.js');
 const { DEFAULT_CONFIG } = await import(pathToFileURL(join(repo, 'dist/src/operations/config/defaults.js')).href);
@@ -124,10 +126,14 @@ try {
   summary.results = JSON.parse(await runCli(['coordination', 'results', runId, '--json']));
   if (mode === 'verified') {
     assert.ok(summary.status.includes('verification=verified'), 'normal CLI derivation must verify the run from durable evidence');
-    const latest = (await readFile(observationsPath, 'utf8')).trim().split('\n').map(JSON.parse);
-    const completion = latest.filter(row => row.type === 'event' && row.event.type === 'coordination.aggregate.completed');
+    // Finalization can run in a separate CLI process, outside the daemon's
+    // injected observer. Inspect the same durable session log as the CLI.
+    const run = await new CoordinationStore(workspace).load(runId);
+    assert.ok(run?.sessionId, 'run must have a durable session identity');
+    const events = await readRunSessionEvents(workspace, run.sessionId);
+    const completion = events.filter(event => event.type === 'coordination.aggregate.completed' && event.payload?.runId === runId);
     assert.equal(completion.length, 1, 'one durable aggregate completion event');
-    const event = completion[0].event;
+    const event = completion[0];
     assert.equal(event.payload.runId, runId);
     assert.equal(event.payload.aggregateResultRef, summary.results.aggregateRef);
     assert.equal(event.payload.sourceFingerprint, summary.results.sourceFingerprint);
