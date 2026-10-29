@@ -4,7 +4,6 @@ import { relativeIsOutside } from "../../runtime-state/runtime/workspace-path.js
 import { readFile, grepSearch, globMatch } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
-import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
@@ -314,7 +313,6 @@ export class FileToolRouter implements ToolRouter {
 }
 
 export class ShellToolRouter implements ToolRouter {
-  private shellPool?: ShellPool;
   private readonly pathResolver: WorkspacePathResolver;
 
   constructor(
@@ -433,17 +431,10 @@ export class ShellToolRouter implements ToolRouter {
 
     const workingDir = cwd ?? this.root;
 
-    if (persistent) {
-      if (!this.shellPool) {
-        this.shellPool = new ShellPool({ cwd: workingDir, timeoutMs, envAllowlist: this.envAllowlist });
-      }
-      try {
-        const shResult = await this.shellPool.run(command, timeoutMs);
-        return { kind: "success", output: shResult.output };
-      } catch (err) {
-        return { kind: "error", message: String(err) };
-      }
-    }
+    // `persistent` is retained only as an input-compatibility flag. Routed shell
+    // execution intentionally uses one fresh OS process per command so command
+    // stdin/state/output cannot consume or forge a shared completion protocol.
+    void persistent;
 
     // Operator-cancel signal (optional) is threaded into runCommand so an
     // operator abort kills the child (via spawnCommand's cancel path) and the

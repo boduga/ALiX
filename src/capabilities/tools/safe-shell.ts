@@ -149,8 +149,9 @@ export function isSafeShellCommand(command: string): boolean {
     // git remote -v
     /^git\s+remote\s+-v$/,
 
-    // git show with commit ref
-    /^git\s+show(\s+--?[a-z]+)*(\s+[\w.\-]+)?$/,
+    // git show: allow only explicitly non-mutating presentation flags.
+    // Broad `--?[a-z]+` admitted effect-capable options such as `--output`.
+    /^git\s+show(?:\s+(?:--stat|--oneline|--summary|--name-only|--name-status))*(?:\s+[\w.\-]+)?$/,
 
     // npm version commands
     /^npm\s+list(\s+--depth=?\d+)?$/,

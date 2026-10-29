@@ -88,6 +88,11 @@ export class CommandClassifier {
     { pattern: /^sudo\s+(rm|chmod|chown|passwd|useradd)/, risk: "high", category: "system", tags: ["sudo", "system-modification"] },
     { pattern: /^\s*>\s*\/(etc|usr|var)/, risk: "high", category: "system", tags: ["redirect", "system-path"] },
 
+    // Effect-capable variants of normally read-oriented commands must be
+    // classified before the broad read rules below.
+    { pattern: /^rg\s+.*(?:--pre(?:=|\s)|--pre-glob(?:=|\s))/, risk: "high", category: "search-preprocessor", tags: ["subprocess", "mutation-possible"] },
+    { pattern: /^git\s+show\s+.*--output(?:=|\s)/, risk: "high", category: "git-output", tags: ["git", "file-modification"] },
+
     // Read-only commands (low risk)
     { pattern: /^(cat|head|tail|grep|rg|ls|stat|wc)\s/, risk: "low", category: "read", tags: ["read-only"] },
     { pattern: /^echo\s/, risk: "low", category: "echo", tags: ["read-only"] },

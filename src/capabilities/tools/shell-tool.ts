@@ -69,6 +69,9 @@ function spawnCommand(
     cwd: cwd || undefined,
     shell: true,
     detached: process.platform !== "win32",
+    // Routed commands receive no harness protocol or reusable shell stdin.
+    // EOF on stdin removes the completion-trailer channel that enabled F1.
+    stdio: ["ignore", "pipe", "pipe"],
     env: buildChildEnv(envAllowlist),
   });
   let stdout = "";
@@ -102,15 +105,19 @@ function spawnCommand(
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
 
-    child.on("close", (code) => {
+    child.on("close", (code, closeSignal) => {
       if (settled) return;
       const combined = stderr ? `${stdout}\n--- stderr ---\n${stderr}` : stdout;
       const output = truncate(combined, MAX_BYTES);
-      if ((code ?? 0) !== 0) {
+      if (closeSignal) {
+        finish({ kind: "error", message: `Command terminated by signal ${closeSignal}: ${command}\n${output}` });
+        return;
+      }
+      if (code === null || code !== 0) {
         finish({ kind: "error", message: `Command exited with code ${code}: ${command}\n${output}` });
         return;
       }
-      finish({ kind: "success", output, exitCode: code ?? 0 });
+      finish({ kind: "success", output, exitCode: code });
     });
 
     child.on("error", (err) => {
