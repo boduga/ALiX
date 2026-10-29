@@ -160,3 +160,8 @@ Remaining work under the agent-driven closeout:
 6. Produce exact-artifact agent readiness evidence for Gate F. Actual publication/release remains outside the Harness program unless machine-verifiable delegated release authority already exists; otherwise report `BLOCKED` without inserting a human review step.
 
 Full PRD completion remains open. Gate B retains its historical labelled weaker closure. Gate E is `HOLD` because independent review rejected qualification; that gap is remediation and requalification. Harness Gate F is also `HOLD` until exact-artifact technical/security evidence and an agent readiness verdict exist. Q13 publication/release authority remains a separate external boundary and is not manufactured by agents.
+
+
+### PRE-R004 projection-fidelity closeout (2026-10-28)
+
+The canonical producer census found one presentation-only gap in the Workbench agent roster projection. `agent.state_changed` producer states are now explicitly mapped as `idle→queued`, `planning→thinking`, `repairing→thinking`, `summarizing→thinking`, dependency `blocked→waiting_dependency`, and hard-terminal `stopped→failed`; existing `executing→tool_running` remains unchanged. Targeted Workbench regression tests pass 16/16, and an independent semantic review accepted the mapping as narrowly scoped. This closes PRE-R004 at the inspected source/projection scope only; it does not alter execution authority, scheduler state, or completion semantics.
