@@ -91,3 +91,5 @@ A fresh read-only Codex review of source commit `04711911a5169ed5652fbcfa89f3976
 - confirmed exact commit/tree and platform pins and no material overclaim.
 
 The review noted one **Low, pre-existing observation** outside the gate-specific Slice G acceptance: the broader `security doctor` diagnostic still interprets the exception file using legacy `items`/`expires` names. That diagnostic inconsistency does not change the accepted `security gate` contract and is tracked as follow-up hygiene rather than silently folded into this Slice G verdict.
+
+Post-acceptance follow-up: commit `d51be5b9ef0e7b9c32956ff421424c99826379fa` removed that inconsistency by making the broader `security doctor` path reuse the same canonical `advisories` / `id` / `expiry` validator. Build, 8/8 security-doctor tests, unused typecheck, DOX and diff check remained green; the accepted Slice G source verdict above remains pinned to `04711911` and is not retroactively rewritten.
