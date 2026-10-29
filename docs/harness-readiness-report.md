@@ -95,9 +95,9 @@ and must remain. Unknown graph/dynamic/external consumers still block retirement
 
 | Group | Supported work | Remaining evidence |
 |---|---|---|
-| R015–R019 autonomous review/briefs | Legacy metric definitions, read-only brief fields, governance and provenance rules | Reconcile metrics to verifier/critic cost, latency, disagreement, BLOCKED escalation and seeded-risk misses; run agent-review comparisons. Future renderer qualification remains open. |
+| R015–R019 autonomous review/briefs | **Metric/protocol contracts reconciled 2026-10-28**; read-only brief fields, governance and provenance rules preserved; deterministic review scorer 5/5 | Execute paired verifier/critic presentation trials and capture cost, latency, disagreement, BLOCKED escalation and seeded-risk misses. Future renderer qualification remains open. |
 | R020–R026 Harness² | Historical demo result, component map, manifest, paired design, recursion/holdout rules and defer/reject recommendation | Demo logs/clone locally corroborated, not freshly executed or portable dependency-qualified; benchmark-specific isolation and independent authority review remain open. No adoption or model-backed probe. |
-| R027–R032 supervision | Contract inventory, eligibility schema, promotion evaluation design, downgrade triggers and non-bypass test specification | No verifier/critic sampling/risk measurements or executed autonomous-mode qualification. No agent may self-promote authority; missing qualification or authority => `BLOCKED`. |
+| R027–R032 autonomous verification | Authority map now separates permission modes from verification modes; eligibility schema defines pre-versioned thresholds and fail-closed downgrade to full verification/`BLOCKED`; non-bypass specification retained | No verifier/critic sampling/risk measurements or executed autonomous-mode qualification. No agent may self-promote authority; missing qualification or authority => `BLOCKED`. |
 
 ## Executed verification and limits
 
