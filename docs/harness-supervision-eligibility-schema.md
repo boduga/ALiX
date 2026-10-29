@@ -7,7 +7,7 @@
 **Publication / simplification:** HOLD (Q13).
 
 A **node-level eligibility record** states whether a specific task class may run
-under reduced human review. It is an **evidence bundle**, not a grant: it confers
+under a qualified autonomous review mode. It is an **evidence bundle**, not a grant: it confers
 no authority by itself, and it can only ever *narrow* what an existing policy
 permits.
 
@@ -23,10 +23,10 @@ permits.
 | `modelConfig` | Provider, model id, version, executor | A model change **invalidates** the record |
 | `risk` | Maximum risk level permitted unattended | High/critical never eligible (Q08) |
 | `policyRevision` | Policy revision the record was qualified against | A revision change **invalidates** the record |
-| `reviewMode` | `fully-supervised` \| `sampled` \| `exception-based` | Today only `fully-supervised` is supported (gap S-1/S-2) |
+| `reviewMode` | `full-verification` \| `sampled-verification` \| `exception-based` | Today only `full-verification` is supported by the agent-driven contract; reduced modes require qualification |
 | `evidenceRefs` | Links to the runs/traces that justify the record | Required; a record with no evidence is invalid |
 | `expiry` | Explicit expiry timestamp | Required; no permanent eligibility |
-| `responsibleAuthority` | Who approved the qualification | Required; must be a policy owner, not the agent |
+| `authorityRef` | Machine-verifiable policy/config authority for the qualification | Required; evaluated agents cannot mint or modify it |
 
 **Mandatory default:** any field absent, unreadable, or stale ⇒ eligibility is
 **denied** (fail closed). Unmeasured confidence and failure rates are treated as
@@ -38,7 +38,7 @@ permits.
 
 Not executable today; specified so a future evaluation is constrained.
 
-A promotion from `fully-supervised` → `sampled` (or `sampled` → `exception-based`)
+A promotion from `full-verification` → `sampled-verification` (or `sampled-verification` → `exception-based`)
 requires:
 
 1. **Representative repeated tasks** — the class's real distribution, not a
@@ -46,19 +46,15 @@ requires:
 2. **Risk-weighted failure categories** — a rare catastrophic failure outweighs
    many trivial successes. Categories are named **before** the run.
 3. **Sample-size / uncertainty rationale** — reported with every estimate.
-4. **Blinded seeded-risk checks** — deliberately seeded defects the reviewer/judge
+4. **Blinded seeded-risk checks** — deliberately seeded defects the independent verifier/critic
    should catch; measures what review actually detects.
 5. **Holdouts** — tasks unseen by any tuning step.
 6. **Trace completeness** — every decision auditable after the fact (gap S-7).
-7. **Explicit policy-owner approval of thresholds.** **No default number is
-   supplied here.** PRD §14.1 forbids inventing them; a numeric bar proposed by an
-   agent would be fabricated authority.
+7. **Pre-versioned threshold authority.** **No default number is supplied here.** Thresholds must exist in signed/versioned policy or qualification configuration before evaluation begins. The evaluated agents cannot create, relax, or rewrite them.
 
 ### 2.1 The one rule that makes promotion meaningful
 
-**A faster workflow with worse safety fails.** Per PRE-R031, reviewer active time,
-sampling quality, missed-risk rate, exception volume, queue bottlenecks, verified
-outcomes, cost and latency are **distinct measures**. No composite score is
+**A faster workflow with worse safety fails.** Per PRE-R031, verifier/critic effort, sampling quality, missed-risk rate, exception volume, queue bottlenecks, verified outcomes, cost and latency are **distinct measures**. No composite score is
 defined here, because a composite would let a safety regression be offset by a
 speed gain — precisely what the PRD forbids.
 
@@ -66,8 +62,7 @@ speed gain — precisely what the PRD forbids.
 
 ## 3. Downgrade and suspension triggers (PRE-R030)
 
-Automatic demotion back to `fully-supervised`, with an auditable exception record
-and human fallback:
+Automatic demotion back to `full-verification`, with an auditable exception record and fail-closed fallback:
 
 | Trigger | Condition | Action |
 |---|---|---|
@@ -79,8 +74,7 @@ and human fallback:
 | Stale evidence | `evidenceRefs` older than the qualification window | Suspend pending refresh |
 | Expired qualification | `expiry` passed | Suspend |
 
-Every trigger routes to **human fallback** and produces a durable exception record.
-None silently resumes; re-qualification is explicit.
+Every trigger routes to **full-verification** when already authorized, otherwise durable `BLOCKED`, and produces a durable exception record. None silently resumes; re-qualification is explicit and agent-independent.
 
 ---
 
@@ -111,7 +105,7 @@ to what an allow/deny/owned decision authorizes.
 |---|---|
 | Eligibility present, all fields valid, within policy | Existing decisions unchanged; no new permission granted |
 | Eligibility present, but policy would deny | **Deny** — eligibility is not authority |
-| High-risk action, no approval | **Durable pause**, zero side effect |
+| High-risk action, no valid bound authority | **Durable `BLOCKED`**, zero side effect |
 | High-risk action, consumed approval | **Deny** with exact reason |
 | Model changed since qualification | **Suspend** class |
 | Policy revision changed | **Suspend** class |
@@ -131,11 +125,8 @@ to what an allow/deny/owned decision authorizes.
 **PRE-R032: non-bypass demonstration specified as parity tests, not written.**
 
 **Progressive supervision is not implemented and is not qualified.** No task is
-promoted to sampled or exception-only review; no autonomy engine was built; no
-threshold was invented. `sessionMode: "ask"` remains the only implemented
-supervision posture.
+promoted to sampled or exception-only review; no autonomy engine was built; no threshold was invented. Existing session modes remain execution-policy inputs; the Harness contract itself requires independent verification rather than human supervision.
 
 The durable value is the constraint set: eligibility is evidence, never authority;
-absence or staleness fails closed; every promotion needs policy-owner thresholds and
-blinded risk checks; and every safety bypass is a test case rather than a review
+absence or staleness fails closed; every promotion needs pre-versioned policy thresholds and blinded risk checks; and every safety bypass is a test case rather than a review
 promise.

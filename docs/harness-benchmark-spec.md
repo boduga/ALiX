@@ -70,22 +70,21 @@ total measured cost / independently verified successful task
 | tokens (prompt / completion) | provider usage |
 | tool calls, repeated calls | session events |
 | retry count | scheduler/worker attempts |
-| operator interventions | approval records |
+| approval-boundary encounters / durable BLOCKED outcomes | approval + policy records |
 
-### Operator-attention metrics (PRD v1.1 §12, PRE-R015–R019) — NOT IMPLEMENTED
+### Autonomous-review metrics (PRD v1.2 §12, PRE-R015–R019) — NOT IMPLEMENTED
 
 If the §12 amendment is adopted, P0-C/P0-D additionally owe:
 
 | Metric | Status | Rule |
 |---|---|---|
-| `operatorActiveReviewMinutes / independentlyVerifiedSuccesses` | **not measured** | Report `null` + coverage unless BOTH terms are observed. Never a guessed dollar conversion. |
-| Interruptions, approval touches | **not measured** | Separate from active review and from elapsed time. |
-| Missed-evidence / reversal events | **not measured** | Observed only where observable. |
-| Presentation-format comparison (text / diagram / HTML) | **not started** | Paired or randomized review tasks; no invented thresholds. |
+| Verifier/critic cost and invocations per verified success | **not measured** | Report `null` + coverage when unavailable; never impute. |
+| Review latency / disagreement / retries | **not measured** | Separate from task execution latency. |
+| Seeded-risk misses / reversal events | **not measured** | Safety regressions are disqualifying, not averaged away. |
+| BLOCKED escalations / approval-boundary encounters | **not measured** | Count explicit fail-closed boundaries; do not treat them as failures of autonomy. |
+| Presentation-format comparison (text / diagram / HTML) | **not started** | Paired or randomized agent-review tasks; no invented thresholds. |
 
-Active review must be reported **separately** from waiting, interruptions and
-total elapsed time. Faster approval is **not** better if the reviewer missed a
-security, correctness or governance issue (§12.3).
+Autonomous review effort must be reported separately from task execution and waiting. Faster or cheaper review is **not** better if verifier/critic agents miss a security, correctness, or governance issue (§12.3).
 
 Nothing in this audit implements PRE-R015–R019, and §12.4 states the amendment
 does **not** clear Gate B.
