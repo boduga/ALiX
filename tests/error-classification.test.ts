@@ -111,3 +111,9 @@ test("classifyError preserves existing retryable value on fatal errors", () => {
   const result = classifyError({ kind: "error", message: "path is outside workspace", retryable: false });
   assert.equal(result.retryable, false);
 });
+
+
+test("classifyError preserves explicit non-retryable boundary even when message looks transient", () => {
+  const result = classifyError({ kind: "error", message: "Effect journal unavailable", retryable: false });
+  assert.equal(result.retryable, false);
+});

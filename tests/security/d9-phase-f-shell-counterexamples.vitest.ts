@@ -49,6 +49,16 @@ describe('D9 Phase F shell counterexamples', () => {
     expect(isSafeShellCommand('git show --output HEAD')).toBe(false);
   });
 
+  it('F4: git diff output-writing syntax is not approval-exempt safe shell', () => {
+    expect(isSafeShellCommand('git diff --output --stat')).toBe(false);
+    expect(isSafeShellCommand('git diff --stat')).toBe(true);
+  });
+
+  it('F4: quoted rg --pre cannot receive safe-shell approval exemption', () => {
+    expect(isSafeShellCommand(`rg '--pre' sh script.txt script.txt`)).toBe(false);
+    expect(isSafeShellCommand(`rg 'needle' script.txt`)).toBe(false);
+  });
+
   it('F4: rg preprocessors are not classified as read-only', () => {
     const classification = new CommandClassifier().classify('rg --pre cat "needle" .');
     expect(classification.tags).not.toContain('read-only');

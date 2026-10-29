@@ -50,7 +50,6 @@ export const SAFE_SHELL_COMMANDS = [
 
   // Search (read-only)
   "grep",          // Text search
-  "rg",            // Ripgrep
 
   // Node/npm queries (read-only)
   "node --version",    // Node version
@@ -123,7 +122,6 @@ export function isSafeShellCommand(command: string): boolean {
 
     // grep with pattern and file (no pipes, no exec)
     /^grep\s+['"][^'"]*['"]\s+[\w\/.\-_\s]+$/,
-    /^rg\s+['"][^'"]*['"]\s+[\w\/.\-_\s]+$/,
 
     // wc with file
     /^wc\s+[\w\/.\-_\s]+$/,
@@ -134,8 +132,10 @@ export function isSafeShellCommand(command: string): boolean {
     // git log with commits count
     /^git\s+log(\s+--?oneline)?(\s+-n\d+)?$/,
 
-    // git diff with optional staged flag
-    /^git\s+diff(\s+--staged)?(\s+--?[a-z]+)*$/,
+    // git diff: presentation-only allowlist. Broad flag matching is unsafe:
+    // `--output` can write a file and option/value ambiguity can turn another
+    // flag token into that output filename.
+    /^git\s+diff(?:\s+(?:--staged|--stat|--name-only|--name-status))*$/,
 
     // git branch — LISTING ONLY.
     //

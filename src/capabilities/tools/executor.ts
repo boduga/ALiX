@@ -3,6 +3,7 @@ import "node:fs";
 import "node:fs/promises";
 import { resolve } from "node:path";
 import { hashArgs } from "./hash-args.js";
+import { executeWithEffectJournal } from "./effect-journal.js";
 import { emitToolTelemetry } from "./telemetry.js";
 import type { AlixConfig } from "../../operations/config/schema.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
@@ -565,7 +566,7 @@ export class ToolExecutor {
         if (request.signal?.aborted) {
           throw new ExecutionCancelledError(signalReason(request.signal) ?? "continuation cancelled");
         }
-        resumed = await this.toolAwareRouter.downstream.execute(request);
+        resumed = await executeWithEffectJournal(this.root, request, (boundRequest) => this.toolAwareRouter.downstream.execute(boundRequest));
       } catch (error) {
         if (claimedApprovalId) {
           // After downstream dispatch began, a thrown error cannot establish whether
@@ -816,7 +817,7 @@ export class ToolExecutor {
     // Verify argument hash match before execution (M0.9 permissive placeholder)
     let result: ToolResult;
     try {
-      result = await this.router.execute(request);
+      result = await executeWithEffectJournal(this.root, request, (boundRequest) => this.router.execute(boundRequest));
     } catch (error) {
       if (isCancellationError(error)) {
         // Cancellation is a terminal outcome, never a tool failure. Keep the
@@ -865,7 +866,7 @@ export class ToolExecutor {
     }
 
     // Classify MCP errors with hints
-    if (name.startsWith("mcp.") && result.kind === "error") {
+    if (name.startsWith("mcp.") && result.kind === "error" && result.outcomeUnknown !== true && result.retryable === undefined) {
       result = classifyError(result);
     }
 
@@ -1211,6 +1212,10 @@ export class ToolExecutor {
 type ErrorResult = { kind: "error"; message: string; retryable?: boolean; hint?: string };
 
 export function classifyError(result: ErrorResult): ErrorResult {
+  // An upstream boundary that explicitly marks an error non-retryable (for
+  // example the D9 effect journal) is authoritative. Classification may add
+  // retryability only when the caller has not already decided it.
+  if (result.retryable === false) return result;
   const msg = result.message.toLowerCase();
 
   // Fatal — don't retry, model can't fix this
