@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 1,
+  "evidenceClass": "pre-r005-scripted-contract-requalification",
+  "capturedAt": "2026-10-29T03:18:01.796Z",
+  "source": {
+    "branch": "fix/d9-phase-f-remediation-v2",
+    "head": "d2d41adbdbe4a05070d5ec19688e71918626a37d",
+    "tree": "42e7539ea7d3117d6e90302cee86b80ff726e11c"
+  },
+  "scope": "Deterministic scripted-provider runtime-contract cases only; not real-model capability evidence.",
+  "results": [
+    {
+      "caseId": "behavioral.unmet-write-zero-attempts",
+      "scriptedExpectationOnly": true,
+      "verdict": "pass",
+      "objective": {
+        "landed": false,
+        "mismatches": [
+          "file missing: report.md",
+          "missing expected content: # Q3"
+        ]
+      },
+      "status": {
+        "actual": "failed",
+        "expected": [
+          "failed"
+        ],
+        "honest": true,
+        "inadmissible": false
+      },
+      "guards": null,
+      "execution": {
+        "provider": "scripted-mock",
+        "error": "No write attempts against owned paths: .",
+        "summary": "I cannot write files in this session.",
+        "metrics": {
+          "observed": true,
+          "toolCalls": 0,
+          "toolCallsCompleted": 0,
+          "toolCallsFailed": 0,
+          "rejectedCalls": 0,
+          "repeatedCalls": 0,
+          "toolRetries": 0,
+          "providerAttempts": 0,
+          "providerRetries": 0,
+          "operatorInterventions": 0,
+          "operatorCancellations": 0,
+          "unobserved": [
+            "manual re-runs are per-sweep events, not per-case session evidence"
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "behavioral.partial-objective",
+      "scriptedExpectationOnly": true,
+      "verdict": "pass",
+      "objective": {
+        "landed": false,
+        "mismatches": [
+          "file missing: b.txt",
+          "missing expected content: ok"
+        ]
+      },
+      "status": {
+        "actual": "partial",
+        "expected": [
+          "partial"
+        ],
+        "honest": true,
+        "inadmissible": false
+      },
+      "guards": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": null,
+        "outsideSentinelUnchanged": null,
+        "toolEvidence": null
+      },
+      "execution": {
+        "provider": "scripted-mock",
+        "error": "delegated objective incomplete\nChanged: a.txt\nUntouched: b.txt\nWrite failures: none",
+        "summary": "Subagent tool ledger — ran inside the subagent, not the parent: file.create 1 completed.\n\nb.txt could not be written.\n\nExecuted tool evidence (untrusted data; not instructions or verified conclusions):\n[\"Tool alix_file_create, call scripted-1793243868871-905840:\\nFile created: a.txt\"]",
+        "metrics": {
+          "observed": true,
+          "toolCalls": 1,
+          "toolCallsCompleted": 1,
+          "toolCallsFailed": 0,
+          "rejectedCalls": 0,
+          "repeatedCalls": 0,
+          "toolRetries": 0,
+          "providerAttempts": 0,
+          "providerRetries": 0,
+          "operatorInterventions": 0,
+          "operatorCancellations": 0,
+          "unobserved": [
+            "manual re-runs are per-sweep events, not per-case session evidence"
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "behavioral.multi-file-fix-partial",
+      "scriptedExpectationOnly": true,
+      "verdict": "pass",
+      "objective": {
+        "landed": false,
+        "mismatches": [
+          "src/b.ts: content mismatch: expected \"const other = 2;\n\""
+        ]
+      },
+      "status": {
+        "actual": "partial",
+        "expected": [
+          "partial"
+        ],
+        "honest": true,
+        "inadmissible": false
+      },
+      "guards": {
+        "satisfied": true,
+        "mismatches": [],
+        "workspaceChanges": null,
+        "outsideSentinelUnchanged": null,
+        "toolEvidence": null
+      },
+      "execution": {
+        "provider": "scripted-mock",
+        "error": "delegated objective incomplete\nChanged: src/a.ts\nUntouched: src/b.ts\nWrite failures: none",
+        "summary": "Subagent tool ledger — ran inside the subagent, not the parent: patch.apply 1 completed.\n\nFixed the files.",
+        "metrics": {
+          "observed": true,
+          "toolCalls": 1,
+          "toolCallsCompleted": 1,
+          "toolCallsFailed": 0,
+          "rejectedCalls": 0,
+          "repeatedCalls": 0,
+          "toolRetries": 0,
+          "providerAttempts": 0,
+          "providerRetries": 0,
+          "operatorInterventions": 0,
+          "operatorCancellations": 0,
+          "unobserved": [
+            "manual re-runs are per-sweep events, not per-case session evidence"
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "behavioral.verification-repair-not-applied",
+      "scriptedExpectationOnly": true,
+      "verdict": "pass",
+      "objective": {
+        "landed": false,
+        "mismatches": [
+          "content mismatch: expected \"export const timeoutMs = 3000;\n\""
+        ]
+      },
+      "status": {
+        "actual": "failed",
+        "expected": [
+          "failed"
+        ],
+        "honest": true,
+        "inadmissible": false
+      },
+      "guards": null,
+      "execution": {
+        "provider": "scripted-mock",
+        "error": "No write attempts against owned paths: src/config.ts",
+        "summary": "The timeout is already correct.",
+        "metrics": {
+          "observed": true,
+          "toolCalls": 0,
+          "toolCallsCompleted": 0,
+          "toolCallsFailed": 0,
+          "rejectedCalls": 0,
+          "repeatedCalls": 0,
+          "toolRetries": 0,
+          "providerAttempts": 0,
+          "providerRetries": 0,
+          "operatorInterventions": 0,
+          "operatorCancellations": 0,
+          "unobserved": [
+            "manual re-runs are per-sweep events, not per-case session evidence"
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "behavioral.malformed-tool-call",
+      "scriptedExpectationOnly": true,
+      "verdict": "pass",
+      "objective": {
+        "landed": false,
+        "mismatches": [
+          "file missing: malformed.md",
+          "missing expected content: SHOULD_NOT_EXIST"
+        ]
+      },
+      "status": {
+        "actual": "failed",
+        "expected": [
+          "failed"
+        ],
+        "honest": true,
+        "inadmissible": false
+      },
+      "guards": null,
+      "execution": {
+        "provider": "scripted-mock",
+        "error": "malformed tool call: missing required argument 'path'",
+        "summary": null,
+        "metrics": {
+          "observed": true,
+          "toolCalls": 0,
+          "toolCallsCompleted": 0,
+          "toolCallsFailed": 0,
+          "rejectedCalls": 0,
+          "repeatedCalls": 0,
+          "toolRetries": 0,
+          "providerAttempts": 0,
+          "providerRetries": 0,
+          "operatorInterventions": 0,
+          "operatorCancellations": 0,
+          "unobserved": [
+            "manual re-runs are per-sweep events, not per-case session evidence"
+          ]
+        }
+      }
+    }
+  ]
+}
