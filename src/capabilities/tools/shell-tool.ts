@@ -110,11 +110,15 @@ function spawnCommand(
       const combined = stderr ? `${stdout}\n--- stderr ---\n${stderr}` : stdout;
       const output = truncate(combined, MAX_BYTES);
       if (closeSignal) {
-        finish({ kind: "error", message: `Command terminated by signal ${closeSignal}: ${command}\n${output}` });
+        // Once the shell process started, signal termination cannot prove that
+        // earlier commands in the shell did not already apply an effect.
+        finish({ kind: "error", message: `Command terminated by signal ${closeSignal}: ${command}\n${output}`, outcomeUnknown: true, retryable: false });
         return;
       }
       if (code === null || code !== 0) {
-        finish({ kind: "error", message: `Command exited with code ${code}: ${command}\n${output}` });
+        // A compound shell command may mutate successfully before its final
+        // command exits non-zero. Preserve effect uncertainty for the journal.
+        finish({ kind: "error", message: `Command exited with code ${code}: ${command}\n${output}`, outcomeUnknown: true, retryable: false });
         return;
       }
       finish({ kind: "success", output, exitCode: code });
@@ -175,6 +179,8 @@ export async function runCommand(args: { command: string; cwd: string; timeoutMs
       return {
         kind: "error",
         message: `Command timed out after ${timeoutMs}ms: ${command}`,
+        outcomeUnknown: true,
+        retryable: false,
       };
     }
     throw err; // Re-throw unexpected errors

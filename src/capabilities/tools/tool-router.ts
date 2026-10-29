@@ -591,7 +591,15 @@ export class McpToolRouter implements ToolRouter {
       await emitToolTelemetry(this.eventLog, this.sessionId, MCP_EVENT_TYPES.TOOL_INVOKED, { serverName, toolName: fullName, durationMs });
       return result;
     } catch (e: unknown) {
-      return { kind: "error", message: e instanceof Error ? e.message : String(e) };
+      // Dynamic MCP tools are conservatively catalogued as high-risk mutating.
+      // A thrown transport/provider error after callTool entry cannot prove the
+      // remote operation was not applied, so preserve an unknown outcome.
+      return {
+        kind: "error",
+        message: e instanceof Error ? e.message : String(e),
+        outcomeUnknown: true,
+        retryable: false,
+      };
     }
   }
 }

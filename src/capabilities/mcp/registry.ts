@@ -98,11 +98,21 @@ export class McpToolRegistry {
         .map(c => c.type === "text" ? c.text ?? "" : JSON.stringify(c))
         .join("\n");
 
+      // MCP tools are conservatively catalogued as mutating/high-risk. Once a
+      // tools/call request has entered the remote server, even an MCP `isError`
+      // response cannot prove that no partial/external effect occurred.
       return result.isError
-        ? { kind: "error", message: content }
+        ? { kind: "error", message: content, outcomeUnknown: true, retryable: false }
         : { kind: "success", output: content };
     } catch (e) {
-      return { kind: "error", message: e instanceof Error ? e.message : String(e) };
+      // Transport/provider failure after call entry is ambiguous: the server may
+      // have applied the effect before the response was lost.
+      return {
+        kind: "error",
+        message: e instanceof Error ? e.message : String(e),
+        outcomeUnknown: true,
+        retryable: false,
+      };
     }
   }
 
