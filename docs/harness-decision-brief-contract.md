@@ -5,9 +5,7 @@
 **Parent:** `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` §12.1–§12.3 (PRE-R016–R019).
 **Publication / simplification:** HOLD (Q13).
 
-A decision brief is a **read-only projection** of evidence that already exists. It
-grants no authority: it cannot approve, deny, merge, mutate a store, or widen a
-capability. This document fixes the field contract and the provenance/safety rules
+A decision brief is a **read-only projection** of evidence that already exists. It grants no authority: it cannot approve, deny, merge, mutate a store, widen a capability, or serve as an agent self-authorization mechanism. This document fixes the field contract and the provenance/safety rules
 so a future UI cannot invent either.
 
 This document specifies. It implements nothing, and the PRD explicitly
@@ -45,15 +43,14 @@ Hard rules, non-negotiable for any present or future representation:
 
 1. **No decision API.** A brief renders; it does not decide. There is no
    `approve()` on a brief and none may be added.
-2. **Degenerate action path if one is ever offered.** Any "approve" control must
-   call the **existing** governed path (`ApprovalStore.resolve` through the CLI, or
+2. **Degenerate action path if one is ever offered.** Any action control, if ever offered, must call the **existing** governed path (`ApprovalStore.resolve` through the CLI, or
    the SRAP-1 remote-decision route with its full authorization matrix) — never a
    direct store mutation, never a new endpoint.
 3. **Existing binding and consumption rules are untouched.** A brief cannot
    weaken single-use consumption (`consumeApproved`), cannot reuse a consumed
    approval, and cannot mint an approval id.
 4. **Remote-decision eligibility is unchanged.** The canonical workspace
-   requirement, `approvals:decide`, active operator principal, TLS transport,
+   requirement, `approvals:decide`, authenticated authorized principal where that interface is used, TLS transport,
    unexpired pending state and idempotency evidence all still apply
    (`src/governance/approvals/AGENTS.md`).
 5. **A brief is not an authorization.** Displaying a decision does not authorize

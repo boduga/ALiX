@@ -1,8 +1,6 @@
 # Offline review evaluation protocol v1
 
-Status: measurement preparation for PRE-R017/PRE-R031. No human trials executed;
-no presentation benefit, safety qualification, Gate B clearance or autonomy
-promotion established. Scripted scorer tests establish mechanics only.
+Status: measurement preparation for PRE-R017/PRE-R031. No agent-review trials executed under the 2026-10-28 contract; no presentation benefit, safety qualification, Gate B clearance, or autonomous-mode promotion established. Scripted scorer tests establish mechanics only.
 
 ## Boundary and immutable mechanics fixture
 
@@ -29,7 +27,7 @@ The CLI scores only this public fixture. An independently controlled holdout
 requires a separately reviewed, versioned rubric extension before its records
 can be scored. Neither participants nor any optimization agent receive holdout
 rubrics. Freeze source bytes, both presentations, expected findings and critical
-classification before recruitment; independent reviewers verify semantic parity.
+classification before execution; independent verifier/critic agents plus deterministic checks verify semantic parity.
 
 ## Trial record
 
@@ -49,9 +47,9 @@ Input is a nonempty JSON array. Every record supplies:
   task, never an actual authorization interface.
 - Optional `confidence`: probability in [0,1] that the complete answer is correct.
 - Optional `independentlyVerifiedSuccess`: observed boolean from independent
-  outcome assessment. Do not infer this from the reviewer answer or exact score.
+  outcome assessment. Do not infer this from the review answer or exact score.
 
-Example (timestamps illustrative, not human evidence):
+Example (timestamps illustrative, not executed agent-review evidence):
 
 ```json
 [
@@ -79,38 +77,16 @@ Partial observation must be labeled outside scoring as incomplete coverage and
 must not be submitted as a full active-time observation. Clock failures invalidate
 time fields; preserve original raw record and exclusion reason separately.
 
-## Prospective human protocol
+## Prospective agent-review protocol
 
-1. Independent study owner freezes protocol, task classes, risks, exclusion
-   rules, source/presentation hashes, analysis and sample-size rationale before
-   inspecting outcomes. Obtain needed participant consent and owner acceptance.
-   No invented qualification thresholds; policy owners decide such thresholds.
-2. Use multiple comparable evidence fixtures, including realistic benign cases,
-   correctness and security findings, and consequential missing evidence. Reserve
-   independent holdout fixtures. Public scorer fixture is a training task only.
-3. Record reviewer experience, task complexity, reading context and accessibility
-   constraints. Assign pseudonyms. An independent coordinator retains randomized
-   allocation seed and schedule, balancing text-first and diagram-first sequences
-   across reviewers and task families.
-4. Prefer matched task pairs with different surface details to reduce memorization.
-   If same source must be reviewed twice, counterbalance order, insert a predeclared
-   washout and report carryover limitations. A single same-source pair cannot
-   establish causal superiority. Do not expose findings between presentations.
-5. Blind participants to rubric and study hypothesis where feasible. Present
-   identical source evidence coverage and decision question. Reviewers report
-   finding IDs, confidence and missing evidence; independent adjudicators map
-   free-form findings to frozen IDs without seeing presentation assignment.
-6. Observe active and waiting intervals directly. Record elapsed timestamps,
-   interruptions and simulated touches separately. Preserve hashes and raw logs;
-   audit exclusions and missing observations before computing summaries.
-7. Score independent correctness and critical misses before comparing speed.
-   Stop investigation/promotion on consequential safety regression. Any actual
-   operational approval remains in existing authenticated approval interfaces;
-   study answers have no approval, execution or mutation effects.
-8. Analyze paired differences at reviewer/task level, report sample sizes,
-   uncertainty, missingness, order effects and all exclusions. Predeclare a
-   participant-clustered interval/permutation method; do not treat repeated trials
-   as independent samples. Keep pilot and held-out outcomes separate.
+1. A deterministic setup step freezes protocol, task classes, risks, exclusion rules, source/presentation hashes, analysis method, verifier/critic configurations and sample-size rationale before outcomes are inspected. Qualification thresholds must already exist in versioned policy/configuration; evaluated agents cannot create them.
+2. Use multiple comparable evidence fixtures, including benign cases, correctness/security findings, and consequential missing evidence. Reserve independent holdouts. Public scorer fixtures are training/mechanics only.
+3. Record verifier/critic model id/version, system prompt or rubric hash, tool surface, policy revision, task complexity, context budget and seed. Randomized allocation/order is generated from a retained deterministic seed.
+4. Prefer matched task pairs with different surface details to reduce memorization. If the same source is reviewed twice, counterbalance order, insert a predeclared washout/context reset, and report carryover limitations. Do not expose findings between presentations.
+5. Keep verifier/critic agents blind to held-out expected findings and experiment hypothesis where feasible. They report finding IDs, confidence, missing evidence and rationale summaries; a deterministic scorer maps outputs to frozen IDs.
+6. Record model/tool usage, latency, retries, disagreement/arbitration, BLOCKED escalations and raw outputs. Preserve hashes and raw logs; audit exclusions and missing observations before computing summaries.
+7. Score correctness and critical misses before comparing speed/cost. Stop promotion on consequential safety regression. Review outputs have no approval, execution, mutation, or authority effects.
+8. Analyze paired differences at verifier/task level; report sample sizes, uncertainty, missingness, order effects and exclusions. Predeclare a clustered/permutation method appropriate to repeated agent runs. Keep pilot and held-out outcomes separate.
 
 ## Outputs and limits
 
@@ -134,6 +110,5 @@ coverage by risk stratum, exception arrivals/service times/backlog, independentl
 verified outcomes and complete cost/latency records. Do not invent these values
 from review intervals. No production queue instrumentation is authorized here.
 
-Current evidence: scorer tests only; human sample size zero; all human-comparison
-and supervision metrics unmeasured. PRE-R017/PRE-R031 remain open pending executed,
+Current evidence: scorer tests only; agent-review sample size under the new contract is zero; autonomous-review and supervision metrics are unmeasured. PRE-R017/PRE-R031 remain open pending executed,
 independently reviewed measurements.
