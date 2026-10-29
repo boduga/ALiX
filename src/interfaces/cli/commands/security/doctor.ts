@@ -43,18 +43,20 @@ export type SecurityExceptionValidation =
   | { ok: false; reason: "schema" | "invalid_expiry" };
 
 export function validateSecurityExceptionsDocument(value: unknown, now = new Date()): SecurityExceptionValidation {
-  if (!value || typeof value !== "object" || !Array.isArray((value as { items?: unknown }).items)) {
+  if (!value || typeof value !== "object" || !Array.isArray((value as { advisories?: unknown }).advisories)) {
     return { ok: false, reason: "schema" };
   }
   let expiredCount = 0;
-  for (const item of (value as { items: unknown[] }).items) {
-    if (!item || typeof item !== "object") return { ok: false, reason: "schema" };
-    const expires = (item as { expires?: unknown }).expires;
-    if (expires === undefined) continue;
-    if (typeof expires !== "string" || expires.trim().length === 0) return { ok: false, reason: "invalid_expiry" };
-    const parsed = new Date(expires);
+  for (const advisory of (value as { advisories: unknown[] }).advisories) {
+    if (!advisory || typeof advisory !== "object") return { ok: false, reason: "schema" };
+    const id = (advisory as { id?: unknown }).id;
+    if (typeof id !== "string" || id.trim().length === 0) return { ok: false, reason: "schema" };
+    const expiry = (advisory as { expiry?: unknown }).expiry;
+    if (expiry === undefined) continue;
+    if (typeof expiry !== "string" || expiry.trim().length === 0) return { ok: false, reason: "invalid_expiry" };
+    const parsed = new Date(expiry);
     if (Number.isNaN(parsed.getTime())) return { ok: false, reason: "invalid_expiry" };
-    if (parsed < now) expiredCount++;
+    if (now >= parsed) expiredCount++;
   }
   return { ok: true, expiredCount };
 }
@@ -520,7 +522,7 @@ export async function handleSecurityGate(args: string[]): Promise<void> {
           ok: false,
           message: validation.reason === "invalid_expiry"
             ? "Security exceptions file contains an invalid expiry value."
-            : "Security exceptions file must contain an items array of exception objects.",
+            : "Security exceptions file must contain an advisories array of exception objects with ids.",
         });
       } else {
         checks.push({
