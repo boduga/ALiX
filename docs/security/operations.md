@@ -201,14 +201,15 @@ alix security gate
 alix security gate --json
 ```
 
-The gate validates invariants that must hold before deployment:
+The gate performs a bounded runtime/configuration acceptance check. It currently verifies:
 
-- Config is signed (required in production)
-- Auth store exists with active tokens
-- No expired security exceptions
-- Audit log is present (recommended)
-- Host binding is loopback or TLS is required
-- Rate limiter and connection limiter are functional
+- Auth store exists, is readable, and has at least one active token
+- Config signature marker is present when `NODE_ENV=production` (recommended otherwise)
+- No expired security exceptions are present in `security/audit-exceptions.json`
+- Audit log **presence** (required in production); this command does not verify the audit hash chain
+- Host binding is loopback, or remote TLS is required by configuration
+
+It does **not** currently test rate-limiter/connection-limiter behavior, perform full audit-chain integrity verification, adjudicate independent review findings, or establish D9/Phase-F release readiness. Use the dedicated audit/security tests and the applicable qualification gate for those claims.
 
 ### Gate in CI
 
@@ -224,9 +225,10 @@ The gate validates invariants that must hold before deployment:
 
 ### Gate Exit Codes
 
-- `0` — All checks pass
-- `1` — One or more checks failed
-- `2` — Internal error during gate execution
+- `0` — All gate checks pass
+- `1` — One or more gate checks fail (including checks that could not be completed)
+
+The current handler converts per-check read/parse/config errors into failed checks; it does not emit a distinct `2` internal-error exit from the gate path.
 
 ---
 

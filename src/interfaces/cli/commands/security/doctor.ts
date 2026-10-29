@@ -399,10 +399,11 @@ interface GateReport {
  * - Auth store exists
  * - At least one active token
  * - No expired security exceptions
- * - Audit chain is verifiable
+ * - Audit log presence (production requires it; integrity verification is separate)
+ * - Host binding is loopback or remote TLS is required
  *
  * Returns structured ok/fail with details.
- * Exit codes: 0=pass, 1=fail, 2=error, 3=invalid invocation
+ * Exit codes: 0=pass, 1=one or more failed checks.
  */
 interface GateCheckResult {
   /** Stable check identifier. */
@@ -519,7 +520,7 @@ export async function handleSecurityGate(args: string[]): Promise<void> {
     });
   }
 
-  // ── Audit chain verifiable ──────────────────────────────────────
+  // ── Audit log presence (integrity verification is a separate command) ──
   const auditLogPath = join(paths.authStateDir, "audit.jsonl");
   if (existsSync(auditLogPath)) {
     checks.push({
