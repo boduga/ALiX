@@ -23,6 +23,19 @@ import { getSharedLedger, appendFact, currentEntityVersion, type LedgerFactCount
 /** Compact the append-only journal once it reaches this many entries (#703). */
 const JOURNAL_COMPACT_THRESHOLD = 500;
 
+export type ApprovalExpiryState = "valid" | "expired" | "invalid";
+
+/**
+ * Authority expiry is security-significant persisted data. Missing, empty, or
+ * unparsable values are corrupt authority and must never become "no expiry".
+ */
+export function approvalExpiryState(expiresAt: unknown, now: Date = new Date()): ApprovalExpiryState {
+  if (typeof expiresAt !== "string" || expiresAt.trim().length === 0) return "invalid";
+  const expiryMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiryMs)) return "invalid";
+  return expiryMs <= now.getTime() ? "expired" : "valid";
+}
+
 /** Trusted host context supplied by the restricted worker port, never request metadata.
  * Omitted scope is the existing privileged host path; an explicit empty scope
  * permits only legacy records without worker or attempt attribution.
@@ -1003,7 +1016,9 @@ export class ApprovalStore {
       if (!r) { result = { consumed: false, reason: "not found" }; return; }
       if (r.status !== "approved") { result = { consumed: false, reason: `status is ${r.status}` }; return; }
       const now = consumer.now ?? new Date();
-      if (new Date(r.expiresAt) <= now) { result = { consumed: false, reason: "expired" }; return; }
+      const expiryState = approvalExpiryState(r.expiresAt, now);
+      if (expiryState === "invalid") { result = { consumed: false, reason: "invalid expiry" }; return; }
+      if (expiryState === "expired") { result = { consumed: false, reason: "expired" }; return; }
       if (r.bindingKey !== expectedBindingKey) { result = { consumed: false, reason: "binding key mismatch" }; return; }
       // Restricted worker ports must not claim legacy/unbound records. Check
       // against the freshly reloaded record while holding the store lock.

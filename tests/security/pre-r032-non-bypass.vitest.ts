@@ -171,7 +171,9 @@ describe("approvals cannot be minted, widened or reused", () => {
     // would let a stale or foreign approval authorize an invocation.
     for (const guard of [
       /status !== "approved"/,
-      /expiresAt\) <= now/,
+      /approvalExpiryState\(r\.expiresAt, now\)/,
+      /expiryState === "invalid"/,
+      /expiryState === "expired"/,
       /bindingKey !== expectedBindingKey/,
       /invocationMatches/,
     ]) {
@@ -234,7 +236,9 @@ describe("source scanners can detect what they claim to forbid", () => {
   it("the required-guard scan reports a deleted guard", () => {
     const all = [
       'if (r.status !== "approved") {}',
-      'if (r.expiresAt) <= now) {}',
+      'const expiryState = approvalExpiryState(r.expiresAt, now);',
+      'if (expiryState === "invalid") {}',
+      'if (expiryState === "expired") {}',
       'if (r.bindingKey !== expectedBindingKey) {}',
       'invocationMatches(x)',
     ].join(" ");

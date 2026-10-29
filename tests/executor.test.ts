@@ -228,6 +228,103 @@ test("D1: a denyCommands entry still denies through the safe-shell bypass", asyn
   }
 });
 
+for (const badExpiry of [undefined, "", "not-a-date"] as const) {
+  const label = badExpiry === undefined ? "missing" : badExpiry === "" ? "empty" : "malformed";
+
+  test(`approval expiry fails closed on ordinary dispatch: ${label}`, async () => {
+    const dir = await mkdtemp(join(tmpdir(), `alix-exec-expiry-${label}-`));
+    try {
+      const log = new EventLog(dir);
+      await log.init();
+      const { ApprovalStore } = await import("../src/governance/approvals/approval-store.js");
+      const store = new ApprovalStore(dir);
+      await store.load();
+      const config = structuredClone(DEFAULT_CONFIG) as AlixConfig;
+      config.permissions.sessionMode = "ask";
+      config.permissions.tools["shell.run"] = "ask";
+      const executor = new ToolExecutor(config, log, dir, undefined, undefined, undefined, undefined, store);
+      const request = {
+        toolCallId: `expiry-ordinary-${label}`,
+        name: "shell.run",
+        args: { command: `printf blocked > expiry-${label}.txt`, cwd: dir, timeoutMs: 5000 },
+        agentId: "expiry-agent",
+        ...TEST_CORRELATION,
+      };
+
+      const first = await executor.execute(request);
+      assert.equal(first.kind, "denied");
+      const approvalId = (first as { approvalId?: string }).approvalId;
+      assert.ok(approvalId);
+      await store.resolve(approvalId, "approved", "expiry regression");
+      const record = store.get(approvalId)! as { expiresAt?: string };
+      if (badExpiry === undefined) delete record.expiresAt;
+      else record.expiresAt = badExpiry;
+
+      const retry = await executor.execute(request);
+      assert.equal(retry.kind, "denied", JSON.stringify(retry));
+      assert.match(JSON.stringify(retry), /invalid expiry/i);
+      assert.equal(existsSync(join(dir, `expiry-${label}.txt`)), false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test(`approval expiry fails closed on continuation resume: ${label}`, async () => {
+    const dir = await mkdtemp(join(tmpdir(), `alix-exec-expiry-cont-${label}-`));
+    try {
+      const log = new EventLog(dir);
+      await log.init();
+      const { ApprovalStore } = await import("../src/governance/approvals/approval-store.js");
+      const store = new ApprovalStore(dir);
+      await store.load();
+      const created = await store.request({ reason: "expiry continuation", capability: "shell.run", sessionId: "test" });
+      await store.resolve(created.id, "approved", "expiry regression");
+      const record = store.get(created.id)! as { expiresAt?: string };
+      if (badExpiry === undefined) delete record.expiresAt;
+      else record.expiresAt = badExpiry;
+
+      const config = structuredClone(DEFAULT_CONFIG) as AlixConfig;
+      config.permissions.sessionMode = "ask";
+      config.permissions.tools["shell.run"] = "ask";
+      const executor = new ToolExecutor(config, log, dir, undefined, undefined, undefined, undefined, store);
+      const result = await executor.execute({
+        toolCallId: `expiry-cont-${label}`,
+        name: "shell.run",
+        args: { command: `printf blocked > expiry-cont-${label}.txt`, cwd: dir, timeoutMs: 5000 },
+        source: "continuation-resume",
+        approvalId: created.id,
+        agentId: "expiry-agent",
+        ...TEST_CORRELATION,
+      } as never);
+
+      assert.equal(result.kind, "denied", JSON.stringify(result));
+      assert.match(JSON.stringify(result), /missing, not approved, or expired/i);
+      assert.equal(existsSync(join(dir, `expiry-cont-${label}.txt`)), false);
+      assert.equal(store.get(created.id)?.status, "approved", "invalid authority must not be consumed");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+}
+
+test("ApprovalStore.consumeApproved rejects missing, empty, and malformed expiry", async () => {
+  const { ApprovalStore } = await import("../src/governance/approvals/approval-store.js");
+  for (const expiresAt of [undefined, "", "not-a-date"] as const) {
+    const record: Record<string, unknown> = {
+      id: "expiry-store-probe", status: "approved", bindingKey: "binding", expiresAt,
+      workerAttempt: undefined, workerId: undefined,
+    };
+    const fakeStore = {
+      mutate: async (fn: (records: Array<Record<string, unknown>>) => unknown) => fn([record]),
+      emit: () => undefined,
+    };
+    const result = await ApprovalStore.prototype.consumeApproved.call(fakeStore as never, "expiry-store-probe", "binding", {});
+    assert.equal(result.consumed, false);
+    assert.equal(result.reason, "invalid expiry");
+    assert.equal(record.status, "approved");
+  }
+});
+
 test("D1: a non-denied safe command still bypasses approvals", async () => {
   // The narrowing must not turn the bypass off. `echo` is safe and not denied,
   // so it must still execute without an approval prompt in ask mode.

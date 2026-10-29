@@ -1,4 +1,5 @@
 import type { InvocationIdentity } from "../../governance/approvals/approval-binding.js";
+import { approvalExpiryState } from "../../governance/approvals/approval-store.js";
 import "node:fs";
 import "node:fs/promises";
 import { resolve } from "node:path";
@@ -551,7 +552,7 @@ export class ToolExecutor {
       const stillAuthorized =
         !!approval &&
         approval.status === "approved" &&
-        (!approval.expiresAt || new Date(approval.expiresAt).getTime() > Date.now());
+        approvalExpiryState(approval.expiresAt) === "valid";
       if (!stillAuthorized) {
         return {
           kind: "denied",
