@@ -64,6 +64,8 @@ Authorization source: `docs/audits/2026-10-23-harness-authorization.md`.
 
 ## Reproducibility and legacy inventory
 
+A new agent-driven closeout manifest now anchors subsequent evidence: `benchmark/evidence/harness-closeout-manifest-2026-10-28.json`. It pins source/tree/branch, clean tracked state, runtime/toolchain, machine profile, config-schema hash, lockfile and PRD hashes. Independent review keeps PRE-R001 partial because this cannot retroactively supply missing per-run provenance for historical model collections; each new measured run must bind its own inputs/outputs and before/after state to the manifest.
+
 [Baseline provenance](audits/2026-10-23-harness-baseline-provenance.md) replaces
 ambiguous counts of scripts with a record-by-record account. Table replay,
 arithmetic replay and scenario reproduction are different claims.
