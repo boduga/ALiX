@@ -3,7 +3,6 @@ import "node:fs";
 import "node:fs/promises";
 import { resolve } from "node:path";
 import { hashArgs } from "./hash-args.js";
-import { executeWithEffectReplayGuard } from "./effect-replay-guard.js";
 import { emitToolTelemetry } from "./telemetry.js";
 import type { AlixConfig } from "../../operations/config/schema.js";
 import { createModelResolver } from "../../operations/config/model-resolver.js";
@@ -566,7 +565,7 @@ export class ToolExecutor {
         if (request.signal?.aborted) {
           throw new ExecutionCancelledError(signalReason(request.signal) ?? "continuation cancelled");
         }
-        resumed = await executeWithEffectReplayGuard(this.root, request, () => this.toolAwareRouter.downstream.execute(request));
+        resumed = await this.toolAwareRouter.downstream.execute(request);
       } catch (error) {
         if (claimedApprovalId) {
           // After downstream dispatch began, a thrown error cannot establish whether
@@ -639,7 +638,7 @@ export class ToolExecutor {
           ...agentPayload,
           ...(request.replayId ? { replayId: request.replayId } : {}),
         });
-        return await executeWithEffectReplayGuard(this.root, request, () => this.toolAwareRouter.downstream.execute(request));
+        return await this.toolAwareRouter.downstream.execute(request);
       }
     }
 
@@ -817,7 +816,7 @@ export class ToolExecutor {
     // Verify argument hash match before execution (M0.9 permissive placeholder)
     let result: ToolResult;
     try {
-      result = await executeWithEffectReplayGuard(this.root, request, () => this.router.execute(request));
+      result = await this.router.execute(request);
     } catch (error) {
       if (isCancellationError(error)) {
         // Cancellation is a terminal outcome, never a tool failure. Keep the
@@ -866,7 +865,7 @@ export class ToolExecutor {
     }
 
     // Classify MCP errors with hints
-    if (name.startsWith("mcp.") && result.kind === "error" && result.outcomeUnknown !== true) {
+    if (name.startsWith("mcp.") && result.kind === "error") {
       result = classifyError(result);
     }
 
