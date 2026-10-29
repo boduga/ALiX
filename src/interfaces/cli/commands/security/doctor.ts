@@ -288,25 +288,25 @@ export async function handleSecurityDoctorComprehensive(args: string[]): Promise
     try {
       const raw = await readFile(exceptionsPath, "utf-8");
       const exceptions = JSON.parse(raw);
-      const now = new Date();
-      if (exceptions && Array.isArray(exceptions.items)) {
-        const expired = exceptions.items.filter(
-          (e: { expires?: string }) => e.expires && new Date(e.expires) < now,
-        );
+      const validation = validateSecurityExceptionsDocument(exceptions, new Date());
+      if (!validation.ok) {
         checks.push({
           id: "supplychain.exceptions",
           category: "supplychain",
-          status: expired.length > 0 ? "warn" : "pass",
-          message: expired.length > 0
-            ? `${exceptions.items.length} supply-chain exception(s), ${expired.length} expired.`
-            : `${exceptions.items.length} supply-chain exception(s), none expired.`,
+          status: "error",
+          message: validation.reason === "invalid_expiry"
+            ? "Supply-chain exception file contains an invalid expiry value."
+            : "Supply-chain exception file has an invalid advisory schema.",
         });
       } else {
+        const total = (exceptions as { advisories: unknown[] }).advisories.length;
         checks.push({
           id: "supplychain.exceptions",
           category: "supplychain",
-          status: "pass",
-          message: "Supply-chain exception file present.",
+          status: validation.expiredCount > 0 ? "warn" : "pass",
+          message: validation.expiredCount > 0
+            ? `${total} supply-chain exception(s), ${validation.expiredCount} expired.`
+            : `${total} supply-chain exception(s), none expired.`,
         });
       }
     } catch {
