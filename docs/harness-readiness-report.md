@@ -99,7 +99,9 @@ PRE-R002 is now **SUPPORTED for HC-01…HC-12 at current repository scope**. A f
 
 PRE-R010 is also **SUPPORTED as an inventory requirement** after independent review. The manifest/cutover evidence identifies readers, writers, aliases/legacy formats, persistence boundaries, supported surfaces and migration paths, while explicitly retaining deep-import/runtime/reflection uncertainty. Package metadata exposes the `alix` executable with no `main`/`exports`, but ships `dist/`; therefore deep imports are possible but not a declared stable module API. Compatibility disposition and retirement safety remain Gate D/Q04/Q05 work.
 
-**PRE-R005 corpus contract (2026-10-28): SUPPORTED.** A fresh deterministic scripted-provider requalification confirms all five explicitly scripted-only runtime-contract fixtures are repeatable and honestly scored; exact file guards cover both partial cases and observed metrics establish zero tool calls for the three no-effect negatives. This is corpus-contract evidence only: PRE-R006 real-model measurement and historical paid-run qualification remain separate and open.
+**PRE-R005 corpus contract (2026-10-28): SUPPORTED.** A fresh deterministic scripted-provider requalification confirms all five explicitly scripted-only runtime-contract fixtures are repeatable and honestly scored; exact file guards cover both partial cases and observed metrics establish zero tool calls for the three no-effect negatives. This is corpus-contract evidence only and does not itself establish model-quality metrics.
+
+**PRE-R006 baseline metrics (2026-10-28): SUPPORTED at baseline-record scope.** The current reconciliation binds the final 45-run collection to model revision, config/corpus/tool/environment hashes, explicit sample sizes and producer commit while retaining verified success, tokens, proxy-priced cost, latency, tool/retry and intervention fields. The historical provider-retry dimension remains `null`/unobserved and is not fabricated as zero. Strata 6/8/9 are separately commit-bound at n=3 each. This is a baseline-record acceptance, not an improvement claim, Gate E clearance or release decision.
 
 ## Amendment work
 
