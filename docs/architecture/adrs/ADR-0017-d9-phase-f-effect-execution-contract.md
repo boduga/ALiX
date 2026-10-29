@@ -27,16 +27,19 @@ The implementation plan requires five contract decisions before runtime implemen
 
 ### 1. Supported platforms
 
-Phase F targets **Linux, macOS, and native Windows** as supported execution
-platforms.
+Per Master PRD v2.9 Q10/NFR-11, Phase F certification is required for **Linux
+x86-64 and Linux ARM64**. macOS, native Windows, and containerized deployment are
+**deferred certification targets** and are not required to clear this first-release
+Phase F gate. Development behavior on those platforms must still fail closed where
+the guarded durability/process contract is unavailable; it must not be advertised
+as qualified support.
 
-A platform must not silently downgrade to best-effort replay protection. If a
-required persistence or process-control primitive cannot satisfy this contract,
-the affected guarded capability must fail closed with an explicit unsupported-
-capability result until that backend is qualified.
-
-CI collection by itself is not platform qualification; the claimed execution
-and failure semantics must be exercised natively.
+A required Linux architecture must not silently downgrade to best-effort replay
+protection. If a required persistence or process-control primitive cannot satisfy
+this contract, the affected guarded capability fails closed until that backend is
+qualified. CI collection by itself is not platform qualification; claimed execution
+and failure semantics must be exercised natively on both certified Linux
+architectures.
 
 ### 2. Durability target
 
@@ -107,19 +110,24 @@ an ambiguous effect automatically retryable.
 
 ### 5. Risk and clearance authority
 
-Implementation agents, automated reviewers, CI, and `alix security gate`
-provide evidence but **cannot clear Phase F or accept residual risk**.
+Harness/D9 technical qualification is agent-driven, but **no agent may accept or
+waive residual security risk**. Implementation agents also cannot self-clear their
+own findings.
 
 For D9:
 
-- reviewers may propose technical finding classifications;
-- platform exclusions, residual-risk acceptance, and Phase F clearance require
-  an explicit **operator-owned decision** preserved in the Phase F evidence;
-- a future named security approver may be added as a co-approver, but authority
-  never falls implicitly to the implementation agent.
+- implementation agents produce changes and evidence;
+- deterministic/native qualification oracles produce machine-verifiable results;
+- an independent verifier/critic agent may issue the technical Phase F verdict only
+  when all required evidence is present and no unresolved blocker remains;
+- any unresolved residual risk, missing native-platform evidence, or ambiguous
+  effect outcome forces durable `HOLD`/`BLOCKED`; there is no in-loop waiver path;
+- Linux x86-64/ARM64 are required by the governing Master PRD, while macOS/Windows
+  are already deferred by Q10 and therefore need no D9 platform-exclusion waiver.
 
-Until an explicit operator decision clears it, Phase F remains `HOLD` even when
-CI is green.
+This technical verdict does **not** replace Q13 release/publication authority.
+Actual release remains subject to the Master PRD's separately recorded maintainer
+and independent-publication-clearance requirements.
 
 ## Consequences
 
@@ -147,12 +155,12 @@ Before the remediation PR may be described as Phase F ready:
    read-oriented.
 3. Crash-injection tests cover each journal boundary from durable claim through
    terminal outcome recording.
-4. Linux, macOS, and native Windows have explicit qualification for the
-   guarantees claimed here.
+4. Linux x86-64 and Linux ARM64 have explicit native qualification for the
+   guarantees claimed here; macOS/Windows remain deferred per Q10.
 5. Unknown outcomes remain quarantined after ALiX process restart.
 6. Evidence distinguishes process-crash safety from kernel/power-loss claims.
-7. Independent review finds no unresolved violation of this ADR, or any residual
-   issue has an explicit operator disposition.
+7. Independent verifier/critic review finds no unresolved violation of this ADR;
+   any unresolved residual issue keeps Phase F on HOLD because D9 has no risk-waiver path.
 
 ## Alternatives Considered
 
