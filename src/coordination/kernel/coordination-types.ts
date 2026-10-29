@@ -133,11 +133,15 @@ export type WorkerCapabilityDecision = {
   status: "allowed" | "denied" | "approval_required";
   policyRuleId?: string;
   approvalId?: string;
+  /** True only when PolicyGate atomically consumed this approval during dispatch authorization. */
+  approvalConsumed?: boolean;
   reason?: string;
 };
 
 export type WorkerAuthorizationEvidence = {
   evaluatedAt: string;
+  /** Worker attempt identity used when this authorization evidence was evaluated. */
+  authorizationAttempt?: number;
   policyRevision?: number;
   decisions: WorkerCapabilityDecision[];
   /**

@@ -698,6 +698,38 @@ export class CoordinationScheduler {
     return false;
   }
 
+  /**
+   * Report the terminal outcome of capability approvals atomically consumed by
+   * dispatch authorization. A host crash before this point deliberately leaves
+   * the approval `pending`, which recovery classifies as unverified.
+   */
+  private async recordDispatchApprovalOutcome(
+    worker: WorkerAssignment,
+    outcome: "succeeded" | "failed" | "cancelled",
+  ): Promise<void> {
+    const evidence = worker.authorizationEvidence;
+    const attempt = evidence?.authorizationAttempt;
+    if (attempt === undefined) return;
+    const approvalIds = [...new Set((evidence?.decisions ?? [])
+      .filter(decision => decision.approvalConsumed === true && !!decision.approvalId)
+      .map(decision => decision.approvalId!))];
+    if (approvalIds.length === 0) return;
+
+    try {
+      const { ApprovalStore } = await import("../../governance/approvals/approval-store.js");
+      const store = new ApprovalStore(this.deps.cwd);
+      await store.load();
+      for (const approvalId of approvalIds) {
+        await store.recordExecutionOutcome(approvalId, outcome, {
+          workerId: worker.id,
+          workerAttempt: attempt,
+        });
+      }
+    } catch {
+      // Fail closed by leaving the consumed approval pending/unverified.
+    }
+  }
+
   private async executeWorker(runId: string, workerId: string, signal: AbortSignal, collaboration?: WorkerExecutionContext["collaboration"]): Promise<void> {
     const run = await this.deps.store.loadWithRetry(runId);
     if (!run) {
@@ -891,6 +923,16 @@ export class CoordinationScheduler {
     } finally {
       const finalRun = await this.deps.store.load(runId);
       const finalWorker = finalRun?.workers.find(w => w.id === workerId);
+      if (finalWorker) {
+        const receiptOutcome = finalWorker.status === "completed"
+          ? "succeeded" as const
+          : (finalWorker.status === "cancelled" || finalWorker.failureKind === "cancelled" || finalWorker.blockReason === "cancelled")
+            ? "cancelled" as const
+            : (["failed", "pending", "blocked"] as const).includes(finalWorker.status as "failed" | "pending" | "blocked")
+              ? "failed" as const
+              : undefined;
+        if (receiptOutcome) await this.recordDispatchApprovalOutcome(worker, receiptOutcome);
+      }
       if (finalWorker?.leaseIds && finalWorker.leaseIds.length > 0) {
         await releaseWorkerLeases(this.deps.ownershipRegistry, finalWorker);
         await this.patchWorkerWithRetry(runId, workerId, { leaseIds: [] });

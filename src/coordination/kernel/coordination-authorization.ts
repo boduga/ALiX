@@ -89,6 +89,7 @@ export async function authorizeWorker(options: AuthorizeWorkerOptions): Promise<
       status: decision.status === "allowed" ? "allowed" : decision.status === "denied" ? "denied" : "approval_required",
       policyRuleId: (decision as any).policyRuleId,
       approvalId: (decision as any).approvalId,
+      approvalConsumed: decision.status === "allowed" ? (decision as any).approvalConsumed : undefined,
       reason: (decision as any).reason,
     };
     decisions.push(capDecision);
@@ -107,6 +108,7 @@ export async function authorizeWorker(options: AuthorizeWorkerOptions): Promise<
 
   const evidence: WorkerAuthorizationEvidence = {
     evaluatedAt: new Date().toISOString(),
+    authorizationAttempt: worker.attempt,
     decisions,
     ...(bindingKey !== undefined ? { bindingKey } : {}),
     ...(requestFingerprint !== undefined ? { requestFingerprint } : {}),

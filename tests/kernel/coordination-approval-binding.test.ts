@@ -270,6 +270,8 @@ describe("SRAP coordination approval-binding continuity", () => {
     await reloaded.load();
     const record = reloaded.findExact(bindingKey)!;
     assert.equal(record.status, "consumed", "the single-use approval is consumed");
+    assert.equal(record.executionOutcome, "succeeded", "completed worker must write the consumed dispatch approval receipt");
+    assert.ok(record.executionOutcomeAt, "terminal dispatch approval receipt is timestamped");
     // No stray second pending approval was minted by the re-dispatch.
     const pending = reloaded.listPending();
     assert.equal(pending.length, 0, "no new pending approval after resumption");
