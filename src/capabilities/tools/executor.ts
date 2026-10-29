@@ -284,6 +284,36 @@ export class ToolExecutor {
     return decision.reason;
   }
 
+
+  /**
+   * Re-check only current mandatory policy denies for a continuation that
+   * already has durable approval. `bypass` collapses normal ask/allow policy
+   * without weakening hard denies, so this probe cannot mint a second approval
+   * and cannot widen authority. A current deny always revokes execution.
+   */
+  private async mandatoryContinuationDeny(
+    request: ToolCallRequest,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<string | null> {
+    const gate = await this.policyGate();
+    const decision = await gate.evaluateToolCall({
+      requestId: `continuation-deny-probe-${request.toolCallId}`,
+      toolName,
+      capability: inferCapability(toolName),
+      args,
+      cwd: this.root,
+      sessionMode: "bypass",
+      sessionId: this.sessionId(),
+      agentId: request.agentId ?? "alix",
+      source: "replay",
+      ...((request.ownedPaths?.length ?? this.ownedPaths?.length)
+        ? { ownedPaths: [...(request.ownedPaths?.length ? request.ownedPaths : this.ownedPaths ?? [])] }
+        : {}),
+    });
+    return decision.decision === "deny" ? decision.reason : null;
+  }
+
   private sessionId(): string {
     // Extract sessionId from EventLog sessionDir: .alix/sessions/<sessionId>
     return sessionIdFromDirectory(this.log.sessionDir);
@@ -527,6 +557,18 @@ export class ToolExecutor {
             ? `Continuation resume rejected: approval ${request.approvalId} missing, not approved, or expired`
             : "Continuation resume rejected: no durable approval backing this request",
         };
+      }
+      // Prior approval does not override CURRENT hard policy. Re-check only
+      // mandatory denies without creating a second approval. This must happen
+      // before ownership awaits, approval consumption, or adapter entry.
+      const continuationDeny = await this.mandatoryContinuationDeny(request, name, args);
+      if (continuationDeny) {
+        await this.logEvent(TOOL_EVENT_TYPES.FAILED, {
+          toolCallId, toolName: name, error: continuationDeny, durationMs: 0,
+          canonicalCapability, argumentHash, executionId: correlation.executionId,
+          invocationId: correlation.invocationId, ...agentPayload,
+        });
+        return { kind: "denied", reason: continuationDeny };
       }
       // Ownership BEFORE the approval claim: a continuation resume is still a
       // write, and a write outside the declared scope is refused on its own

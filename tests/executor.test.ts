@@ -286,6 +286,56 @@ test("continuation-resume still enforces ownership through the executor", async 
   }
 });
 
+for (const mode of ["ask", "auto", "bypass"] as const) {
+  test(`continuation-resume current hard deny wins in ${mode} mode before approval claim or effect`, async () => {
+    const dir = await mkdtemp(join(tmpdir(), `alix-exec-cont-policy-${mode}-`));
+    try {
+      const log = new EventLog(dir);
+      await log.init();
+      const { ApprovalStore } = await import("../src/governance/approvals/approval-store.js");
+      const store = new ApprovalStore(dir);
+      await store.load();
+      const command = "printf blocked > continuation-policy-denied.txt";
+      const created = await store.request({
+        reason: "continuation policy recheck",
+        requestedBy: "test",
+        capability: "shell.run",
+        capabilities: ["shell.run"],
+      } as never);
+      await store.resolve(created.id, "approved", "operator");
+
+      const config = {
+        ...DEFAULT_CONFIG,
+        permissions: {
+          ...DEFAULT_CONFIG.permissions,
+          sessionMode: mode,
+          denyCommands: [...DEFAULT_CONFIG.permissions.denyCommands, command],
+        },
+      } as AlixConfig;
+      const executor = new ToolExecutor(
+        config, log, dir,
+        undefined, undefined, undefined, undefined,
+        store,
+      );
+      const result = await executor.execute({
+        toolCallId: `cont-policy-${mode}`,
+        name: "shell.run",
+        args: { command, cwd: dir, timeoutMs: 5000 },
+        source: "continuation-resume",
+        approvalId: created.id,
+        ...TEST_CORRELATION,
+      } as never);
+
+      assert.equal(result.kind, "denied", JSON.stringify(result));
+      assert.match(JSON.stringify(result), /Command is denied/);
+      assert.equal(existsSync(join(dir, "continuation-policy-denied.txt")), false);
+      assert.equal((await store.loadFresh(created.id))?.status, "approved", "policy deny must happen before approval consumption");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+}
+
 test("continuation-resume DENIES an out-of-scope owned write once approval is valid", async () => {
   // This is the case that actually reaches executor.ts's continuation ownership
   // check: a real, approved, unexpired backing record. Without the ownership
