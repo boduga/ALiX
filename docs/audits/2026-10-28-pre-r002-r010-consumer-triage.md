@@ -5,7 +5,7 @@
 
 ## Evidence
 
-- Fresh compiler census: `benchmark/evidence/config-consumer-inventory-2026-10-28.json` (1,455 files).
+- Fresh compiler census: `benchmark/evidence/config-consumer-inventory-2026-10-28.json` (1,465 files).
 - Census counts: 30 schema-bound config-field, 221 other-declared-field, 54 unresolved-named-field, **0 dynamic-config-key unresolved**.
 - Independent first-pass agent classified all 54 unresolved named references from retained local source context: 2 config consumers, 48 unrelated-domain, 4 ambiguous.
 - Enclosing-function inspection established that `handleConfigShow` clones `loadConfig()` output before the three `output.model.apiKey` redaction references; a second independent agent classified all three as config consumers. The same ambiguity review classified `session/resume.ts:212` `model` as a session-summary DTO field, not RuntimeConfig.

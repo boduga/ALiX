@@ -44,7 +44,7 @@ is schedulable. This is the single most important fact in this document.
 
 | ID | Item | Reader inventory | Status |
 |---|---|---|---|
-| HC-11 | `config.model` / `config.subagents` compatibility projections, single writer `normalizeModelConfig` (`src/operations/config/loader.ts:40-77`) | **PARTIAL** — concrete reader/writer manifest plus 2026-10-28 current-HEAD compiler triage; internal unresolved named/dynamic references are classified, while external/deep-import/reflection/runtime/graph completeness remains unresolved | **blocked on PRE-R010** |
+| HC-11 | `config.model` / `config.subagents` compatibility projections, single writer `normalizeModelConfig` (`src/operations/config/loader.ts:40-77`) | **PRE-R010 inventory SUPPORTED** — concrete reader/writer manifest plus current-HEAD compiler triage; deep-import/runtime/reflection compatibility disposition and retirement qualification remain open | **blocked on PRE-R011 / Gate D / Q04-Q05, not PRE-R010 inventory** |
 
 This is the one genuine L0 candidate and it is **not ready to touch**. The
 final projections have a loader owner and identified live readers; pre-normalization
@@ -318,10 +318,7 @@ no alias removed, and no sign-off inferred from this design.
 
 ## 7. Verdict
 
-**Gate D: NOT MET.** PRE-R010 is partially met (the one L0 candidate is
-characterised and its concrete readers are enumerated, but supported-interface
-completeness remains unresolved); PRE-R011 now has three concrete design-only
-packages, not an approved or qualified complete cutover plan.
+**Gate D: NOT MET.** PRE-R010 inventory is supported: the L0 compatibility surface, known readers/writers, legacy formats/aliases, supported surfaces, and migration paths are inventoried, with external/deep-import uncertainty explicitly retained. PRE-R011 still has three concrete design-only packages rather than a qualified cutover; Q04/Q05 compatibility policy, parity, recovery, and retirement safety remain unresolved.
 
 The plan's value today is the ordering constraint it records: **nothing downstream
 of P0-D is schedulable while Gate B is HOLD**, and the first real step is a reader

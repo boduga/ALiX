@@ -97,6 +97,8 @@ and must remain. Internal compiler-project unresolved-reference triage is closed
 
 PRE-R002 is now **SUPPORTED for HC-01…HC-12 at current repository scope**. A first independent source/test audit rejected the stale historical table as incomplete; a current-HEAD reconciliation then supplied exact component identity, relevant internal consumers, authority boundaries, role/rationale, concrete tests/evidence, and corrected classifications. A second independent acceptance review found no blocking row and accepted PRE-R002. External/deep-import/reflection/runtime retirement completeness remains PRE-R010 work and no retirement authority follows.
 
+PRE-R010 is also **SUPPORTED as an inventory requirement** after independent review. The manifest/cutover evidence identifies readers, writers, aliases/legacy formats, persistence boundaries, supported surfaces and migration paths, while explicitly retaining deep-import/runtime/reflection uncertainty. Package metadata exposes the `alix` executable with no `main`/`exports`, but ships `dist/`; therefore deep imports are possible but not a declared stable module API. Compatibility disposition and retirement safety remain Gate D/Q04/Q05 work.
+
 ## Amendment work
 
 | Group | Supported work | Remaining evidence |
