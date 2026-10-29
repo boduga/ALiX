@@ -95,7 +95,7 @@ and must remain. Unknown graph/dynamic/external consumers still block retirement
 
 | Group | Supported work | Remaining evidence |
 |---|---|---|
-| R015–R019 autonomous review/briefs | **Metric/protocol contracts reconciled 2026-10-28**; read-only brief fields, governance and provenance rules preserved; deterministic review scorer 5/5 | Execute paired verifier/critic presentation trials and capture cost, latency, disagreement, BLOCKED escalation and seeded-risk misses. Future renderer qualification remains open. |
+| R015–R019 autonomous review/briefs | **Metric/protocol contracts reconciled; public-fixture pilot executed 2026-10-28**. Deterministic scorer 5/5; text n=1 and diagram n=1 both exact with zero critical misses. | Pilot is mechanics-only because fixture/risks are public. Execute blinded multi-fixture verifier/critic trials; capture active effort/cost, repeated-agent disagreement, BLOCKED escalation and seeded-risk misses. Future renderer qualification remains open. |
 | R020–R026 Harness² | Historical demo result, component map, manifest, paired design, recursion/holdout rules and defer/reject recommendation | Demo logs/clone locally corroborated, not freshly executed or portable dependency-qualified; benchmark-specific isolation and independent authority review remain open. No adoption or model-backed probe. |
 | R027–R032 autonomous verification | Authority map now separates permission modes from verification modes; eligibility schema defines pre-versioned thresholds and fail-closed downgrade to full verification/`BLOCKED`; non-bypass specification retained | No verifier/critic sampling/risk measurements or executed autonomous-mode qualification. No agent may self-promote authority; missing qualification or authority => `BLOCKED`. |
 
@@ -134,7 +134,7 @@ Remaining work under the agent-driven closeout:
 
 1. Complete source/consumer review and historical provenance disposition with independent verifier/critic agents.
 2. Finish shim trigger/usage/retirement evidence and benchmark isolation protocol.
-3. Replace the unmeasured human-attention dimension with PRE-R015–R019 autonomous-review evidence: verifier/critic cost, latency, disagreement, seeded-risk misses, and BLOCKED escalations.
+3. Extend the new public-fixture PRE-R017/PRE-R031 pilot into blinded multi-fixture autonomous-review evidence: active verifier/critic effort and cost, repeated-agent disagreement, seeded-risk misses, sampling/exception behavior, and BLOCKED escalations.
 4. Complete PRE-R024 rubric containment and per-arm negative execution before any model-backed probe.
 5. Continue Gate E/D9 remediation until independent security qualification no longer rejects the execution boundary.
 6. Produce exact-artifact agent readiness evidence for Gate F. Actual publication/release remains outside the Harness program unless machine-verifiable delegated release authority already exists; otherwise report `BLOCKED` without inserting a human review step.

@@ -1,6 +1,6 @@
 # Offline review evaluation protocol v1
 
-Status: measurement preparation for PRE-R017/PRE-R031. No agent-review trials executed under the 2026-10-28 contract; no presentation benefit, safety qualification, Gate B clearance, or autonomous-mode promotion established. Scripted scorer tests establish mechanics only.
+Status: PILOT EXECUTED for PRE-R017/PRE-R031 mechanics; qualification remains open. On 2026-10-28 one isolated Codex verifier reviewed each public `scope-claim-v1` presentation and an independent critic mapped prose findings to the frozen risk IDs. Both presentations scored exact 1.0 with zero critical misses. This is public-fixture mechanics evidence only: no presentation benefit, blinded-holdout safety qualification, Gate B/E/F clearance, or autonomous-mode promotion is established.
 
 ## Boundary and immutable mechanics fixture
 
@@ -110,5 +110,4 @@ coverage by risk stratum, exception arrivals/service times/backlog, independentl
 verified outcomes and complete cost/latency records. Do not invent these values
 from review intervals. No production queue instrumentation is authorized here.
 
-Current evidence: scorer tests only; agent-review sample size under the new contract is zero; autonomous-review and supervision metrics are unmeasured. PRE-R017/PRE-R031 remain open pending executed,
-independently reviewed measurements.
+Current evidence: deterministic scorer tests are 5/5 green and `benchmark/evidence/review-agent-pilot-2026-10-28.json` records two isolated agent-review pilot trials (text n=1, diagram n=1), both exact with zero critical misses. Observed wall-clock latency was 14.159s text and 14.950s diagram; active-review intervals, confidence/Brier coverage, sampling quality, exception volume, queue behavior and holdout performance remain unmeasured. Because the fixture and expected risks are public mechanics data, PRE-R017/PRE-R031 remain open pending blinded multi-fixture agent measurements.
