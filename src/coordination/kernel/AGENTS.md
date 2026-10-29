@@ -184,7 +184,14 @@
   the binding key the approval was **created** with (`worker.authorizationEvidence.bindingKey`,
   never reconstructed), then independently verifies the stored record still
   describes THIS run / worker / attempt / capability set / ownership-claim hash /
-  current policy revision. It is a **read-only verdict**: it must NOT consume
+  current policy revision, and that its persisted `expiresAt` is a valid future
+  timestamp (`approvalExpiryState`; missing/empty/unparsable is corrupt authority,
+  exactly as consumption treats it). **An explicit operator `denied` record is
+  decided BEFORE expiry validation and stays terminal** (`approval_denied`,
+  `failureKind: approval_denied`): expiry is a property of a GRANT, so corrupt or
+  absent metadata on a refusal cannot suppress it. Only an `approved` record is
+  expiry-checked; `pending`/`consumed`/`expired`/`revoked`/`invalidated` stay
+  fail-closed without being read as denials. It is a **read-only verdict**: it must NOT consume
   the approval. Consumption is owned by the dispatch path (`PolicyGate`'s
   `exact-binding-approved` branch) as the single place an approval authorizes
   execution. Consuming in reconcile resumes the worker to `pending`, and the

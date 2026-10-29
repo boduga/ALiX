@@ -23,6 +23,7 @@ import type { CoordinationEventSink } from "./coordination-completion-service.js
 import type { MetricsSink } from "../../runtime-state/contracts/metrics-sink.js";
 import type { AuditStore } from "../../governance/audit/audit-store.js";
 import type { AlixConfig, SessionMode } from "../../operations/config/schema.js";
+import { approvalExpiryState } from "../../governance/approvals/approval-binding.js";
 import { recomputeRunStatus, type CoordinationRun, type CoordinationRunStatus, type WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationCompletionService } from "./coordination-completion-service.js";
 import { createCompletionService } from "./coordination-completion-service.js";
@@ -247,7 +248,10 @@ export class CoordinationScheduler {
    *      hash / policy revision binding and an unexpired grant.
    *   4. An approval satisfies ONLY its own capability — never a superset, never
    *      a sibling. Two gated capabilities therefore need two approvals.
-   *   5. This is VERIFY-ONLY. Consumption stays with the dispatch path
+   *   5. An explicit operator DENIAL is terminal and is decided before expiry:
+   *      a denied record grants nothing, so its expiry metadata cannot qualify
+   *      the refusal.
+   *   6. This is VERIFY-ONLY. Consumption stays with the dispatch path
    *      (PolicyGate `exact-binding-approved`), so a legitimate approval is never
    *      spent by a probe and two dispatches cannot both claim it.
    */
@@ -316,7 +320,6 @@ export class CoordinationScheduler {
 
       const record = await store.loadFresh(approvalId);
       if (!record) return { satisfied: false, denial: null };
-      if (new Date(record.expiresAt) <= new Date()) return { satisfied: false, denial: null };
 
       // (4) Exact scope: this record authorizes THIS capability and nothing
       // else. Two gated capabilities therefore need two approvals, and one
@@ -340,6 +343,14 @@ export class CoordinationScheduler {
       // qualifies: `pending` keeps waiting, and `expired`/`revoked`/
       // `invalidated`/`consumed` keep their own fail-closed semantics rather
       // than being reinterpreted as a denial.
+      //
+      // This must be evaluated BEFORE expiry validation. Expiry is a property
+      // of a GRANT; a `denied` record grants nothing, so corrupt or absent
+      // expiry metadata says nothing about the operator's refusal. Running the
+      // expiry gate first returned `denial: null` for a denied record with a
+      // missing/empty/malformed `expiresAt`, silently discarding a terminal
+      // operator decision and leaving the worker blocked on `approval_required`
+      // forever.
       if (record.status === "denied") {
         return {
           satisfied: false,
@@ -352,7 +363,16 @@ export class CoordinationScheduler {
         };
       }
 
+      // `pending`, `consumed`, `expired`, `revoked`, `invalidated`, and any
+      // unknown status stay fail-closed without being read as a denial.
       if (record.status !== "approved") return { satisfied: false, denial: null };
+
+      // (6) An APPROVED grant must still be currently unexpired. Missing, empty,
+      // or unparsable expiry is corrupt authority — the same fail-closed verdict
+      // consumption applies, so a reconciled worker cannot be revived on it.
+      if (approvalExpiryState(record.expiresAt) !== "valid") {
+        return { satisfied: false, denial: null };
+      }
     }
 
     return { satisfied: true, denial: null };

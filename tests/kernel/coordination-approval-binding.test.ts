@@ -369,6 +369,84 @@ describe("SRAP coordination approval-binding continuity", () => {
     assert.equal(recResult.approvalResumed.length, 0, "expired approval must not resume");
   });
 
+  for (const badExpiry of [undefined, "", "not-a-date"] as const) {
+    const label = badExpiry === undefined ? "missing" : badExpiry === "" ? "empty" : "malformed";
+
+    it(`does not resume an approval with ${label} expiry`, async () => {
+      h = await buildHarness();
+      const { run, worker } = await seedWorker(h);
+      await h.scheduler.tick(run.id);
+
+      const loaded = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!;
+      const bindingKey = loaded.authorizationEvidence?.bindingKey as string;
+      await h.approvals.resolve(h.approvals.findExact(bindingKey)!.id, "approved", "ok");
+      await tamperRecord(h, bindingKey, (r) => {
+        if (badExpiry === undefined) delete r.expiresAt;
+        else r.expiresAt = badExpiry;
+      });
+
+      const recResult = await h.scheduler.reconcile(run.id);
+      assert.equal(
+        recResult.approvalResumed.length,
+        0,
+        `${label} expiry is corrupt authority and must not resume a worker`,
+      );
+    });
+  }
+
+  // An operator denial is terminal for the worker and is a property of the
+  // DECISION, not of a grant. Corrupt or absent expiry metadata on a denied
+  // record must never suppress it — the worker must fail with
+  // `approval_denied` instead of waiting on `approval_required` forever.
+  for (const badExpiry of [undefined, "", "not-a-date"] as const) {
+    const label = badExpiry === undefined ? "missing" : badExpiry === "" ? "empty" : "malformed";
+
+    it(`keeps an operator denial terminal despite ${label} expiry`, async () => {
+      h = await buildHarness();
+      const { run, worker } = await seedWorker(h);
+      await h.scheduler.tick(run.id);
+
+      const loaded = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!;
+      const bindingKey = loaded.authorizationEvidence?.bindingKey as string;
+      await h.approvals.resolve(h.approvals.findExact(bindingKey)!.id, "denied", "operator says no");
+      await tamperRecord(h, bindingKey, (r) => {
+        if (badExpiry === undefined) delete r.expiresAt;
+        else r.expiresAt = badExpiry;
+      });
+
+      const recResult = await h.scheduler.reconcile(run.id);
+      assert.deepEqual(recResult.approvalDenied, [worker.id], `${label} expiry must not swallow an operator denial`);
+      assert.equal(recResult.approvalResumed.length, 0, "a denied worker must never resume");
+
+      const w = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!;
+      assert.equal(w.status, "failed", `${label} expiry denial must terminalize the worker`);
+      assert.equal(w.failureKind, "approval_denied");
+      assert.equal(
+        (w as unknown as { approvalDeniedCapability?: string }).approvalDeniedCapability,
+        "filesystem.write",
+      );
+    });
+  }
+
+  it("keeps an operator denial terminal with a valid expiry", async () => {
+    h = await buildHarness();
+    const { run, worker } = await seedWorker(h);
+    await h.scheduler.tick(run.id);
+
+    const loaded = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!;
+    const bindingKey = loaded.authorizationEvidence?.bindingKey as string;
+    await h.approvals.resolve(h.approvals.findExact(bindingKey)!.id, "denied", "operator says no");
+    await tamperRecord(h, bindingKey, (r) => {
+      r.expiresAt = new Date(Date.now() + 60 * 60_000).toISOString();
+    });
+
+    const recResult = await h.scheduler.reconcile(run.id);
+    assert.deepEqual(recResult.approvalDenied, [worker.id]);
+    const w = (await h.store.load(run.id))!.workers.find((x) => x.id === worker.id)!;
+    assert.equal(w.status, "failed");
+    assert.equal(w.failureKind, "approval_denied");
+  });
+
   it("fails closed on legacy evidence with no binding key", async () => {
     h = await buildHarness();
     const { run, worker } = await seedWorker(h);
