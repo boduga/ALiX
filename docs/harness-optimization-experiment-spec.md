@@ -80,30 +80,22 @@ qualified.**
 
 | Control | Requirement | Current ALiX state |
 |---|---|---|
-| Sandbox / filesystem boundary | Workspace containment enforced; no writes outside the isolated root | Exists (`WorkspacePathResolver`, workspace containment contract) |
+| Sandbox / filesystem boundary | Workspace containment enforced; probe processes cannot read/write outside the isolated root | **PARTIAL** — file tools enforce `WorkspacePathResolver`, but committed PRE-R024 probe shows `shell.run` can read a sibling path outside `cwd` |
 | **Restricted egress** | Domain allowlist, DNS validation, private/link-local rejection — **including shell clients** | Exists (root contract: network policy applies to shell clients) |
 | No hidden rubrics | Benchmark answers/graders unreachable from the probe environment | **Must be verified per benchmark** — upstream warns rubrics may be online |
 | Secret controls | Credentials from the store only; never in env files or argv | Exists (store-only key resolution) |
 | Prompt-injection defenses | Fetched/retrieved content treated as data, never instructions | Exists (root contract) |
 | Side-effect policy | Approval-gated execution; no new write path | Exists (`ExecutionAuthorization` → `PolicyGate`) |
-| Replay | Runs reproducible from recorded evidence | Partial — table/arithmetic replay and scenario reproduction differ; see `audits/2026-10-23-harness-baseline-provenance.md` |
-| Negative tests | S0 negatives run **per arm**, a bypass is never a success | Exists; must be wired per arm |
+| Replay | Runs reproducible from recorded evidence | Partial — runner now requires a replay class and source pin; model-backed scenario reconstruction is still unproved |
+| Negative tests | S0 negatives run **per arm**, a bypass is never a success | **Mechanism qualified** — `pre-r024-arm-isolation-check.mjs` executes all four mandatory suites and fails the arm on any nonzero result |
 
 **Explicitly rejected from upstream:** unrestricted executor network access and
 disabled Codex sandboxing. PRD §13.3 pre-authorizes this rejection; the source
 review records why (§4.1 there).
 
-**Blocker:** "No hidden rubrics" is unqualified for every upstream benchmark
-(JobBench/LAB/WorkBuddy are public, and upstream itself warns graders may be
-fetched). Until that is closed, a model-backed probe would measure contamination
-as much as capability.
+**Blocker:** process isolation and hidden-rubric containment are not qualified. The committed shell-boundary probe demonstrates that a grader placed outside the workspace remains readable through `shell.run`; `cwd` is not a filesystem sandbox. Public upstream benchmarks add a second risk because graders may also be reachable remotely. Until both the process boundary and per-benchmark grader unreachability are proved, a model-backed probe is inadmissible.
 
-**Qualification status (2026-10-23):** six of eight controls now have executable
-adversarial evidence rather than an "exists" claim — see
-[isolation qualification record](harness-pre-r024-isolation-qualification.md) and
-`tests/security/pre-r024-isolation-qualification.vitest.ts`. The blocker above is
-unchanged, and per-arm execution of the S0 negative suites remains a runner
-obligation. Two rows still hold this gate shut.
+**Qualification status (requalified 2026-10-28):** five controls are qualified, sandbox/process isolation and replay are partial, and hidden-rubric containment is unqualified. The per-arm S0 runner mechanism is now executable and has a committed passing qualification-control record (44/44 mandatory negatives). See [isolation qualification record](harness-pre-r024-isolation-qualification.md), `benchmark/evidence/pre-r024-arm-isolation-check-2026-10-28.json`, and `benchmark/evidence/pre-r024-shell-boundary-probe-2026-10-28.json`.
 
 ---
 

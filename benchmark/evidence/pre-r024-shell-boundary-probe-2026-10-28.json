@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "kind": "pre-r024-shell-boundary-probe",
+  "recordedAt": "2026-10-29T04:16:11.132Z",
+  "source": {
+    "commit": "b52c77cf8b87ee25b8b1daa22bc610850709d974",
+    "tree": "acb752ba290380a5871a24f5466fb30f509d4238"
+  },
+  "probe": {
+    "command": "test -r ../grader-marker.txt && echo REACHABLE || echo BLOCKED",
+    "shellCwd": "<temp>/workspace",
+    "graderPath": "<temp>/grader-marker.txt"
+  },
+  "result": {
+    "childExitCode": 0,
+    "observation": "REACHABLE"
+  },
+  "qualified": false,
+  "interpretation": "shell.run is constrained by cwd but not OS-isolated from sibling/parent filesystem paths; a grader outside the workspace is reachable."
+}
