@@ -38,6 +38,28 @@ import { createCredentialStore } from "./credentials.js";
 // ---------------------------------------------------------------------------
 
 
+export type SecurityExceptionValidation =
+  | { ok: true; expiredCount: number }
+  | { ok: false; reason: "schema" | "invalid_expiry" };
+
+export function validateSecurityExceptionsDocument(value: unknown, now = new Date()): SecurityExceptionValidation {
+  if (!value || typeof value !== "object" || !Array.isArray((value as { items?: unknown }).items)) {
+    return { ok: false, reason: "schema" };
+  }
+  let expiredCount = 0;
+  for (const item of (value as { items: unknown[] }).items) {
+    if (!item || typeof item !== "object") return { ok: false, reason: "schema" };
+    const expires = (item as { expires?: unknown }).expires;
+    if (expires === undefined) continue;
+    if (typeof expires !== "string" || expires.trim().length === 0) return { ok: false, reason: "invalid_expiry" };
+    const parsed = new Date(expires);
+    if (Number.isNaN(parsed.getTime())) return { ok: false, reason: "invalid_expiry" };
+    if (parsed < now) expiredCount++;
+  }
+  return { ok: true, expiredCount };
+}
+
+
 /**
  * alix security doctor — Comprehensive passive security diagnosis.
  *
@@ -491,18 +513,22 @@ export async function handleSecurityGate(args: string[]): Promise<void> {
   if (existsSync(exceptionsPath)) {
     try {
       const raw = await readFile(exceptionsPath, "utf-8");
-      const exceptions = JSON.parse(raw);
-      const now = new Date();
-      if (exceptions && Array.isArray(exceptions.items)) {
-        const expired = exceptions.items.filter(
-          (e: { expires?: string }) => e.expires && new Date(e.expires) < now,
-        );
+      const validation = validateSecurityExceptionsDocument(JSON.parse(raw), new Date());
+      if (!validation.ok) {
+        checks.push({
+          id: "supplychain.exceptions_schema",
+          ok: false,
+          message: validation.reason === "invalid_expiry"
+            ? "Security exceptions file contains an invalid expiry value."
+            : "Security exceptions file must contain an items array of exception objects.",
+        });
+      } else {
         checks.push({
           id: "supplychain.expired_exceptions",
-          ok: expired.length === 0,
-          message: expired.length === 0
+          ok: validation.expiredCount === 0,
+          message: validation.expiredCount === 0
             ? "No expired security exceptions."
-            : `${expired.length} expired security exception(s) found.`,
+            : `${validation.expiredCount} expired security exception(s) found.`,
         });
       }
     } catch {

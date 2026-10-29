@@ -58,6 +58,38 @@ async function runHandler(fn: () => Promise<void>): Promise<string> {
 // Tests
 // ---------------------------------------------------------------------------
 
+describe("security exception validation", () => {
+  it("rejects a document without an items array", async () => {
+    const { validateSecurityExceptionsDocument } = await import(
+      "../../src/interfaces/cli/commands/security/doctor.js"
+    );
+    assert.deepEqual(validateSecurityExceptionsDocument({}), { ok: false, reason: "schema" });
+  });
+
+  it("rejects an invalid expires timestamp", async () => {
+    const { validateSecurityExceptionsDocument } = await import(
+      "../../src/interfaces/cli/commands/security/doctor.js"
+    );
+    assert.deepEqual(
+      validateSecurityExceptionsDocument({ items: [{ expires: "not-a-date" }] }),
+      { ok: false, reason: "invalid_expiry" },
+    );
+  });
+
+  it("counts expired entries deterministically", async () => {
+    const { validateSecurityExceptionsDocument } = await import(
+      "../../src/interfaces/cli/commands/security/doctor.js"
+    );
+    assert.deepEqual(
+      validateSecurityExceptionsDocument(
+        { items: [{ expires: "2025-01-01T00:00:00.000Z" }, { expires: "2027-01-01T00:00:00.000Z" }] },
+        new Date("2026-10-29T00:00:00.000Z"),
+      ),
+      { ok: true, expiredCount: 1 },
+    );
+  });
+});
+
 describe("security doctor and gate", () => {
   it("doctor --json produces valid DoctorReport", async () => {
     const { handleSecurityDoctorComprehensive } = await import(

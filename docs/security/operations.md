@@ -205,7 +205,7 @@ The gate performs a bounded runtime/configuration acceptance check. It currently
 
 - Auth store exists, is readable, and has at least one active token
 - Config signature marker is present when `NODE_ENV=production` (recommended otherwise)
-- No expired security exceptions are present in `security/audit-exceptions.json`
+- Security exceptions file has a valid `items` array; any present `expires` values are parseable timestamps; no exception is expired
 - Audit log **presence** (required in production); this command does not verify the audit hash chain
 - Host binding is loopback, or remote TLS is required by configuration
 
