@@ -35,7 +35,7 @@ measured zero. The same rule that governs cost governs autonomous review metrics
 |---|---|---|---|
 | M-1 | Review cost per verified success | Verifier/critic model/tool/resource cost divided by independently verified successes | **not measured** |
 | M-2 | Review latency | Verifier/critic elapsed latency, separate from executor and queue wait | **not measured** |
-| M-3 | Review disagreement/retry | Conflicting verifier/critic verdicts and required retry/arbitration passes | **not measured** |
+| M-3 | Review disagreement rate / retry | **Disagreement rate = decision-bearing review items with at least two eligible independent verdicts whose normalized verdicts conflict / decision-bearing review items with at least two eligible independent verdicts observed.** An eligible verdict is one produced under the run's recorded verifier/critic configuration before seeing the other verdict; retries/arbitration passes are counted separately. Items with fewer than two eligible verdicts are excluded from the denominator and reported as uncovered, never agreement. | **not measured** |
 | M-4 | Seeded-risk miss / missed-evidence event | Independent review fails to catch a seeded or known critical issue | **not measured** |
 | M-5 | BLOCKED/reversal event | Durable authority/qualification block or later reversal caused by failed evidence | **not measured** |
 
@@ -99,11 +99,6 @@ A report that shows executor cost but omits autonomous-review coverage reproduce
 
 ## 6. Verdict
 
-**PRE-R015: definitions published; measurement NOT started.** All five measures
-are `not measured`. This satisfies the "define" half of the acceptance criterion
-("versioned metric definitions") and none of the measurement half.
+**PRE-R015: definition requirement satisfied; measurements NOT started.** All five measures remain `not measured`. PRE-R015 requires versioned definitions, including the disagreement-rate population and denominator above; observing those measures is downstream benchmark evidence, not a second half of this definition requirement.
 
-**Blocked by:** nothing technical — this is unstarted work, not blocked work. It is
-not scheduled because it is P1 and downstream of a Gate B baseline that is HOLD.
-
-**What would change this:** instrumenting M-1..M-5 over an existing scored run using independent verifier/critic agents and deterministic seeded-risk cases. No human observation is required.
+**Measurement status:** unstarted, not blocked. Instrumenting M-1..M-5 over scored runs with independent verifier/critic agents and deterministic seeded-risk cases would produce PRE-R031/benchmark evidence; no human observation is required.

@@ -122,7 +122,7 @@ to what an allow/deny/owned decision authorizes.
 **PRE-R029: evaluation design specified, not executed.**
 **PRE-R030: downgrade triggers defined, not implemented.**
 **PRE-R031: measures named, all `not measured`.**
-**PRE-R032: non-bypass demonstration specified as parity tests, not written.**
+**PRE-R032: current structural non-bypass demonstration exists.** `tests/security/pre-r032-non-bypass.vitest.ts` and `tests/security/policy-protected-path-parity.vitest.ts` exercise the present authorization surfaces a future verification layer would have to preserve. This demonstrates the current absence of a supervision bypass surface; it does not qualify any future sampling/exception implementation.
 
 **Progressive supervision is not implemented and is not qualified.** No task is
 promoted to sampled or exception-only review; no autonomy engine was built; no threshold was invented. Existing session modes remain execution-policy inputs; the Harness contract itself requires independent verification rather than human supervision.

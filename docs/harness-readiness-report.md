@@ -111,6 +111,10 @@ PRE-R010 is also **SUPPORTED as an inventory requirement** after independent rev
 
 Independent design audit and re-review now support **PRE-R021, R022, R023, R025, R026, R027, R028, R029 and R030** at their written design/recommendation scope. The audit first identified missing explicit Harness² concept mappings, budget/rollback authority rules, approval revocation/invalidation coverage, and the independent review required for R026; those were corrected and re-reviewed. This closes the design contracts only. PRE-R020 portability, PRE-R024 isolation execution, PRE-R031 measured autonomous-review performance, PRE-R032 execution/non-bypass qualification, and all adoption/release gates remain separate.
 
+## 2026-10-28 contract/catalog acceptance reconciliation
+
+Independent acceptance review supports **PRE-R003, R009, R015, R016, R018, R019, R020 and R032** at their exact requirement scope. R015 required one repair before closure: disagreement rate is now defined over decision-bearing items with at least two eligible independent verdicts, with uncovered items excluded from the denominator rather than treated as agreement. R032 is supported only for the present structural authorization surface and does not pre-qualify a future supervision engine. Fresh current-branch execution of the two structural suites passed **28/28** (10 PRE-R032 + 18 protected-path parity). These closures do not supply Gate B/E qualification or measured PRE-R031 performance.
+
 ## Executed verification and limits
 
 `c0def71d` fixed a real summary defect: a no-tool nudge followed by bare `Done.`
