@@ -5,6 +5,22 @@
 **Scope:** F1–F7 from `/tmp/alix-d9-consolidated-design-audit-20261028.log`  
 **Primary objective:** remove replay/authorization/completion ambiguity as one execution-boundary change, then qualify supported platforms and reconcile governance evidence.
 
+## Authority and scoped-freeze boundary
+
+This plan is an **already-active D9 dependency-resolution lane**, not authorization to resume the broader PRE-2.0 program. Its requirement chain is:
+
+```text
+ALiX Master PRD v2.9
+├─ PRE-2.0 Master PRD v1.1
+│  └─ D9 / LEAN-R006 / LEAN-G01 dependency constraints
+└─ Harness PRD v1.2
+   └─ Gate E execution/security + uncertain-effect stop rules
+        ↓
+ADR-0017 → this remediation plan → implementation → independent qualification
+```
+
+The PRE-2.0 Master PRD is frozen for **new** work while Harness v1.2 closeout and D9 are reconciled. Permitted under the D9 exception: Phase F remediation, tests, native-platform qualification, evidence reconciliation, and the minimum contract/document changes required to close D9. Not permitted under this exception: unrelated LEAN optimization/cutover, new capability expansion, new milestone execution, or treating D9 progress as LEAN-G01 PASS. Harness PRE-R001–PRE-R032 and Gate F remain independently controlled until their own closeout evidence is accepted.
+
 ## 0. Non-negotiable design decisions before code changes
 
 Record these explicitly in this document or a linked ADR before implementation begins:

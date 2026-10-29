@@ -13,9 +13,15 @@ approval exemption, replay protection, crash recovery, and cross-platform
 durability. The retained design audit showed these properties span the full
 effect-execution boundary and cannot be safely repaired as isolated patches.
 
-The parent plan is
-`docs/2026-10-28-d9-phase-f-remediation-implementation-plan.md`. It requires
-five contract decisions before runtime implementation resumes.
+The immediate implementation plan is
+`docs/2026-10-28-d9-phase-f-remediation-implementation-plan.md`. This ADR is governed by a dual requirement chain:
+
+1. `docs/prd/ALiX_MASTER_PRD_v2.9.md` → `docs/prd/ALiX_PRE_2_0_MASTER_PRD_v1.1.md`, where D9 is an already-active dependency-resolution lane and LEAN-R006 requires preservation of durable transition, effect reconciliation, authorization, audit, and Q01–Q15 invariants; and
+2. `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (document version **1.2**), whose Gate E requires independent qualification of authority, crash/recovery, ownership, denied-action behavior, and whose stop rules forbid non-idempotent retry after uncertain effects.
+
+The PRE-2.0 Master PRD is scoped-frozen for new work. That freeze does **not** stop this D9 remediation because D9 predates the freeze and is a blocker shared by the PRE-2.0 program and the Harness v1.2 closeout. This ADR grants no authority to advance unrelated LEAN work.
+
+The implementation plan requires five contract decisions before runtime implementation resumes.
 
 ## Decision
 
@@ -163,8 +169,18 @@ Before the remediation PR may be described as Phase F ready:
 - **Use reviewer P0-P3 priority as release authority.** Rejected: reviewer
   priority is triage evidence, not ALiX risk acceptance or operator clearance.
 
+## Requirement Traceability
+
+- **Master PRD v2.9:** top-level authority remains unchanged; this ADR may close execution/recovery gaps but cannot alter product-level authorization or release authority.
+- **PRE-2.0 Master PRD v1.1:** D9 remains active under the scoped freeze; relevant constraints include LEAN-R006 and the LEAN-G01 dependency relationship already recorded in D9 evidence. No unrelated LEAN gate is advanced by this ADR.
+- **Harness PRD v1.2:** this ADR supports Gate E execution/security closeout and preserves PRE-R012 authorization independence plus the explicit stop rule against non-idempotent retry after uncertain effects. It does not itself close PRE-R001–PRE-R032 or Gate F.
+- **Existing ADRs:** ADR-0009 and ADR-0013 supply security/audit and capability/provider invariants. ADR-0012 applies where filesystem mutation is involved. ADR-0015/0016 do not automatically govern the effect journal unless a later explicit decision places it in the runtime ledger.
+
 ## Related Records
 
+- `docs/prd/ALiX_MASTER_PRD_v2.9.md`
+- `docs/prd/ALiX_PRE_2_0_MASTER_PRD_v1.1.md`
+- `docs/ALiX_PRE_2_0_HARNESS_PRD_v1.1.md` (document version 1.2)
 - `docs/2026-10-28-d9-phase-f-remediation-implementation-plan.md`
 - `docs/2026-10-28-d9-effect-replay-hardening.md`
 - `docs/2026-10-28-review-finding-classification-proposal.md`
