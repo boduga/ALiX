@@ -41,12 +41,18 @@ export class McpToolRegistry {
   async registerServer(config: McpServerConfig): Promise<void> {
     const transport = this.createTransport(config);
     const client = new McpClient(transport);
-    // Let errors propagate — McpManager catches them per-server
-    await client.initialize();
+    // Until discovery succeeds, this client is not owned by the registry.
+    // Close it here on failure so manager cleanup cannot lose its process.
+    let tools;
+    try {
+      await client.initialize();
+      tools = await client.listTools();
+    } catch (error) {
+      await client.close().catch(() => {});
+      throw error;
+    }
 
     this.clients.set(config.name, client);
-
-    const tools = await client.listTools();
     for (const tool of tools) {
       // MCP servers may prefix tool.name with server name (e.g. "fetch/fetch").
       // Strip the prefix so fullName is always "server/tool" without duplication.
