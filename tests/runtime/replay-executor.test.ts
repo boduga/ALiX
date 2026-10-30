@@ -280,6 +280,8 @@ describe("ReplayExecutor approved-live mode", () => {
     const preview = buildReplayPreview(events[0], events);
     const plan = buildReplayPlan(preview, events, "approved-live");
 
+    await executor.execute(plan, { approvalStore, diffStore });
+
     // Resolve any pending approvals
     const pending = approvalStore.listPending();
     for (const a of pending) {

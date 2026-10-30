@@ -162,6 +162,8 @@ describe("RollbackExecutor approved-live mode", () => {
     assert.ok(diffSet);
     const plan = buildRollbackPlan(replayId, diffSet!, "approved-live");
 
+    await executor.execute(plan, { approvalStore });
+
     const pending = approvalStore.listPending();
     for (const a of pending) {
       await approvalStore.resolve(a.id, "approved");

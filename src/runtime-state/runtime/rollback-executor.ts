@@ -12,7 +12,7 @@
  *   - Completed paths skipped on resume
  */
 
-import { existsSync, copyFileSync, rmSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { EventLog } from "../events/event-log.js";
 import { ROLLBACK_EVENT_TYPES } from "../events/types.js";
@@ -20,6 +20,9 @@ import type { RollbackPlan, RollbackStepAction, RollbackMode } from "./rollback-
 import type { ReplayStatusIndex } from "./replay-status-index.js";
 import type { ReplayLock } from "./replay-lock.js";
 import type { RollbackProgressStore } from "./rollback-progress.js";
+import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
+import { claimLiveStep, liveStepInvocation } from "../../governance/approvals/live-step-approval.js";
+import { createHash } from "node:crypto";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -52,7 +55,7 @@ export type RollbackResult = {
 };
 
 export type RollbackExecuteOptions = {
-  approvalStore?: any;
+  approvalStore?: ApprovalStore;
   resume?: boolean;
   statusIndex?: ReplayStatusIndex;
   replayLock?: ReplayLock;
@@ -77,6 +80,7 @@ export class RollbackExecutor {
   }
 
   async execute(plan: RollbackPlan, opts?: RollbackExecuteOptions): Promise<RollbackResult> {
+    plan = structuredClone(plan);
     // Dry-run mode — simple, no locking or idempotency needed
     if (plan.mode === "dry-run") {
       return this.executeDryRun(plan, opts);
@@ -416,42 +420,50 @@ export class RollbackExecutor {
           action: step.action,
         });
 
-        // Check for approval
         const store = opts?.approvalStore;
-        if (store) {
-          const allApprovals = store.list();
-          const toolId = step.action === "restore" ? "file.restore" : "file.delete";
-          const matching = allApprovals.find((a: any) =>
-            a.toolId === toolId
-          );
-
-          if (!matching || matching.status !== "approved") {
-            const created = await store.request({
-              reason: `Rollback ${plan.rollbackId}: ${step.action} ${step.path}`,
-              capability: "file.write",
-              sessionId: this.sessionId(),
-              toolId,
-            });
-
-            await this.logEvent("approval.created", {
-              approvalId: created.id,
-              rollbackId: plan.rollbackId,
-              replayId: plan.replayId,
-              path: step.path,
-              action: step.action,
-              status: "pending",
-            });
-
-            stepResult.status = "blocked";
-            stepResult.blockReason = `Approval required: ${created.id}`;
-            stepResult.durationMs = Date.now() - stepStart;
-            blockedCount++;
-            stepResults.push(stepResult);
-            continue;
-          }
-        } else {
+        if (!store || !plan.replayId?.trim() || !plan.rollbackId?.trim()) {
           stepResult.status = "blocked";
-          stepResult.blockReason = "Approval store required for approved-live rollback";
+          stepResult.blockReason = !store
+            ? "Approval store required for approved-live rollback"
+            : "Replay and rollback identities required for approved-live rollback";
+          stepResult.durationMs = Date.now() - stepStart;
+          blockedCount++;
+          stepResults.push(stepResult);
+          continue;
+        }
+
+        // Bind snapshot bytes and execute those same bytes, even if the file changes while awaiting the claim.
+        let snapshot: Buffer | undefined;
+        try {
+          if (step.action === "restore") {
+            if (!step.beforeSnapshotPath) throw new Error("Restore requires a before snapshot");
+            snapshot = readFileSync(step.beforeSnapshotPath);
+          }
+        } catch (err: any) {
+          stepResult.status = "blocked";
+          stepResult.blockReason = err.message;
+          blockedCount++;
+          stepResults.push(stepResult);
+          continue;
+        }
+        const toolId = step.action === "restore" ? "file.restore" : "file.delete";
+        const invocation = liveStepInvocation(this.cwd, this.sessionId(), toolId, "file.write", {
+          operation: "rollback", replayId: plan.replayId, rollbackId: plan.rollbackId,
+          position: i, step,
+          snapshotHash: snapshot ? createHash("sha256").update(snapshot).digest("hex") : undefined,
+        });
+        const claim = await claimLiveStep(store, invocation,
+          `Rollback ${plan.rollbackId} step ${stepIndex}: ${step.action} ${step.path}`,
+          { replayId: plan.replayId, rollbackId: plan.rollbackId, position: i, step });
+        if (!claim.claimed) {
+          if (claim.created && !store.emitsLifecycleEvents) {
+            await this.logEvent("approval.created", {
+              approvalId: claim.approvalId, rollbackId: plan.rollbackId,
+              replayId: plan.replayId, path: step.path, action: step.action, status: "pending",
+            });
+          }
+          stepResult.status = "blocked";
+          stepResult.blockReason = claim.reason;
           stepResult.durationMs = Date.now() - stepStart;
           blockedCount++;
           stepResults.push(stepResult);
@@ -463,7 +475,7 @@ export class RollbackExecutor {
           if (step.action === "restore" && step.beforeSnapshotPath) {
             const resolvedPath = resolve(this.cwd, step.path);
             mkdirSync(dirname(resolvedPath), { recursive: true });
-            copyFileSync(step.beforeSnapshotPath, resolvedPath);
+            writeFileSync(resolvedPath, snapshot!);
 
             await this.logEvent(ROLLBACK_EVENT_TYPES.STEP_COMPLETED, {
               rollbackId: plan.rollbackId,
@@ -494,7 +506,9 @@ export class RollbackExecutor {
             stepResult.output = "File deleted: " + step.path;
             successCount++;
           }
+          await store.recordExecutionOutcome(claim.approvalId, "succeeded");
         } catch (err: any) {
+          await store.recordExecutionOutcome(claim.approvalId, "failed");
           await this.logEvent(ROLLBACK_EVENT_TYPES.STEP_BLOCKED, {
             rollbackId: plan.rollbackId,
             replayId: plan.replayId,
@@ -524,7 +538,7 @@ export class RollbackExecutor {
 
       // ── Step 6: Determine completion status ─────────────────
       let completionStatus: "completed" | "partial" = "completed";
-      if (hadError) {
+      if (hadError || blockedCount > 0) {
         completionStatus = "partial";
       }
 

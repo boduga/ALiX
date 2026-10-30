@@ -12,6 +12,7 @@ import type { ReplayAction } from "./replay-preview.js";
 import type { ReplayPlan, ReplayPlanStep, ReplayMode } from "./replay-plan.js";
 import { existsSync } from "node:fs";
 import type { ApprovalStore } from "../../governance/approvals/approval-store.js";
+import { claimLiveStep, liveStepInvocation } from "../../governance/approvals/live-step-approval.js";
 import type { ReplayDiffSet, ReplayDiffStore } from "./replay-diff-store.js";
 import { readFile, grepSearch, globMatch } from "../../capabilities/tools/file-tools.js";
 import type { ReplayStatusIndex } from "./replay-status-index.js";
@@ -380,6 +381,7 @@ export class ReplayExecutor {
   }
 
   async execute(plan: ReplayPlan, opts?: ReplayExecuteOptions): Promise<ReplayResult> {
+    plan = structuredClone(plan);
     const startedAt = new Date().toISOString();
     const startTime = Date.now();
 
@@ -395,7 +397,8 @@ export class ReplayExecutor {
     let skippedCount = 0;
     let failedCount = 0;
 
-    for (const step of plan.steps) {
+    for (const [position, step] of plan.steps.entries()) {
+      let claimedApprovalId: string | undefined;
       const stepStart = Date.now();
       const stepResult: ReplayStepResult = {
         index: step.index,
@@ -444,54 +447,39 @@ export class ReplayExecutor {
 
         if (sideEffect !== "read-only") {
           const store = opts?.approvalStore;
-          if (!store) {
+          if (!store || !plan.replayId?.trim()) {
             stepResult.status = "blocked";
-            stepResult.blockReason = "Approval store required for approved-live mode";
+            stepResult.blockReason = !store
+              ? "Approval store required for approved-live mode"
+              : "Replay identity required for approved-live mode";
             stepResult.durationMs = Date.now() - stepStart;
             blockedCount++;
             stepResults.push(stepResult);
             continue;
           }
 
-          // Check for an existing approved approval for this tool
-          const allApprovals = store.list();
-          const matching = allApprovals.find(a =>
-            a.toolId === toolName && a.status === "approved"
-          );
-
-          if (!matching) {
-            // Create a new pending approval
-            const created = await store.request({
-              reason: `Replay ${plan.replayId || "?"}: ${toolName}`,
-              capability: toolName,
-              sessionId: this.sessionId(),
-              toolId: toolName,
-            });
-
-            // Emit approval.created event with replayId
-            await this.logEvent("approval.created", {
-              approvalId: created.id,
-              replayId: plan.replayId,
-              capability: toolName,
-              toolName,
-              status: "pending",
-            });
-
-            stepResult.status = "blocked";
-            stepResult.blockReason = `Approval required: ${created.id}`;
-            stepResult.durationMs = Date.now() - stepStart;
-            blockedCount++;
-            stepResults.push(stepResult);
-            continue;
-          }
-
-          // Approval exists and was approved — emit resolution
-          await this.logEvent("approval.resolved", {
-            approvalId: matching.id,
-            replayId: plan.replayId,
-            status: "approved",
-            reason: "Replay approval granted",
+          const invocation = liveStepInvocation(this.cwd, this.sessionId(), toolName, toolName, {
+            operation: "replay", replayId: plan.replayId, sourceSessionId: plan.sessionId,
+            position, step,
           });
+          const claim = await claimLiveStep(store, invocation,
+            `Replay ${plan.replayId || "?"} step ${step.index}: ${toolName}`,
+            { replayId: plan.replayId, position, step });
+          if (!claim.claimed) {
+            if (claim.created && !store.emitsLifecycleEvents) {
+              await this.logEvent("approval.created", {
+                approvalId: claim.approvalId, replayId: plan.replayId,
+                capability: toolName, toolName, status: "pending",
+              });
+            }
+            stepResult.status = "blocked";
+            stepResult.blockReason = claim.reason;
+            stepResult.durationMs = Date.now() - stepStart;
+            blockedCount++;
+            stepResults.push(stepResult);
+            continue;
+          }
+          claimedApprovalId = claim.approvalId;
         }
       }
 
@@ -500,6 +488,10 @@ export class ReplayExecutor {
           replayId: plan.replayId,
           diffStore: opts?.diffStore,
         });
+        if (claimedApprovalId) {
+          await opts!.approvalStore!.recordExecutionOutcome(claimedApprovalId,
+            toolResult.status === "completed" ? "succeeded" : "failed");
+        }
         await this.logEvent(REPLAY_EVENT_TYPES.STEP_COMPLETED, {
           stepIndex: step.index, traceId: step.traceId, action: step.replayAction,
           toolName: step.toolName, status: toolResult.status, outputPreview: (toolResult.output || "").slice(0, 200),
@@ -518,6 +510,7 @@ export class ReplayExecutor {
         else if (toolResult.status === "skipped") skippedCount++;
         else failedCount++;
       } catch (err: any) {
+        if (claimedApprovalId) await opts!.approvalStore!.recordExecutionOutcome(claimedApprovalId, "failed");
         await this.logEvent(REPLAY_EVENT_TYPES.STEP_BLOCKED, {
           stepIndex: step.index, traceId: step.traceId, action: step.replayAction,
           toolName: step.toolName, error: err.message,
@@ -544,7 +537,7 @@ export class ReplayExecutor {
     // Set status to "completed" for approved-live replays that ran without critical failures
     if (plan.replayId && plan.mode === "approved-live" && opts?.statusIndex) {
       // Only set completed if at least one step succeeded and no fatal errors
-      if (successCount > 0 && failedCount === 0) {
+      if (successCount > 0 && failedCount === 0 && blockedCount === 0) {
         await opts.statusIndex.ensureReplay(plan.replayId, "approved-live");
         await opts.statusIndex.setStatus(plan.replayId, "completed", "approved-live");
       }

@@ -6,6 +6,7 @@ File-backed approval queue management — create, resolve, list, and lookup pend
 
 ## Ownership
 
+- `live-step-approval.ts` — Host-derived replay/rollback invocation identities and exact per-step `consumeApproved` claims using the existing ApprovalStore ledger and lock.
 - `approval-store.ts` — File-backed store at `.alix/approvals/approvals.json`. Supports create, resolve, list, listPending, findPending, findResolved, get. `ApprovalRequestInput.metadata` carries a structured payload for non-tool approvals (e.g. `alix_schedule_propose`), copied onto the record.
 - `approval-ledger-reconcile.ts` — R2.4 read-only comparison of the approvals projection (snapshot + journal replay) against the transactional ledger; reports `missing_in_ledger` / `record_mismatch` / `projection_stale` / `projection_missing` / `version_behind` / `ledger_payload_invalid`, counts unknown event types, reports truncated reads.
 - `global-store.ts` — `openGlobalApprovalStore()`: the cross-project store at `~/.alix/approvals`. Schedule proposals live here so the daemon and the human see them regardless of cwd; `src/interfaces/cli/helpers/approval-stores.ts` unions it with the project store for the one-inbox `alix approvals` surface.
@@ -13,6 +14,7 @@ File-backed approval queue management — create, resolve, list, and lookup pend
 
 ## Local Contracts
 
+- Approved-live replay and rollback grants bind the canonical workspace, host session, operation IDs, step position, tool, and actual step data through the invocation fingerprint. Rollback also binds snapshot bytes. Tool-only and legacy grants cannot authorize execution; each effect requires a successful atomic `consumeApproved` claim with the expected binding and invocation. Consumed grants stay spent, including a crash before effect; successful and failed attempts report their execution outcome.
 - Approvals are CLI-first. Sole browser write exception: default-off
   `POST /api/approvals/:id/decision` for SRAP-1 (`src/interfaces/server/remote-decision-route.ts`;
   `ui.security.remoteDecisions.enabled`, default false). It is bearer-only and
@@ -101,6 +103,7 @@ File-backed approval queue management — create, resolve, list, and lookup pend
 
 ## Verification
 
+- `tests/security/live-step-approval.test.ts` — replay/rollback authority parity, changed steps and snapshot bytes, reuse refusal, concurrent fresh-process claims, and crash between claim and effect.
 - `tests/security/worker-approval-atomic-outcome-acceptance.vitest.ts` — outcome authorization parity across callers, states and legacy records; concurrent rebind and reporting; ledger reopen and trusted identity capture.
 - `tests/security/worker-approval-atomic-restart.test.ts` — fresh Node processes contend on persisted worker ownership after the creating store closes.
 
