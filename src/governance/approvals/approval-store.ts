@@ -544,9 +544,9 @@ export class ApprovalStore {
   async requestOrReusePending(input: ApprovalRequestInput): Promise<ApprovalRecord> {
     return this.mutate((approvals) => {
       // Look for existing pending approval with the same binding key
-      const existing = approvals.find(
-        (a) => a.status === "pending" && a.bindingKey === input.bindingKey,
-      );
+      const latest = approvals.filter(a => a.bindingKey === input.bindingKey)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))[0];
+      const existing = latest?.status === "pending" ? latest : undefined;
       if (existing) {
         // The binding key is not a substitute for worker/attempt authority.
         // Reject collisions rather than returning another worker's approval.
@@ -907,7 +907,8 @@ export class ApprovalStore {
 
   /** Find a pending approval by binding key — O(1) bucket lookup (#703). */
   findPendingByBindingKey(bindingKey: string): ApprovalRecord | undefined {
-    return this.byBindingKey.get(bindingKey)?.find(a => a.status === "pending");
+    const latest = this.byBindingKey.get(bindingKey)?.[0];
+    return latest?.status === "pending" ? latest : undefined;
   }
 
   /**

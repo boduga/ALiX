@@ -28,11 +28,31 @@ describe("ApprovalStore", () => {
       await store.resolve(newer.id, "denied");
       assert.equal(store.findExact("shared")?.id, newer.id);
       assert.equal((await store.findExactFresh("shared"))?.id, newer.id);
+      await new Promise(resolve => setTimeout(resolve, 10));
       const pending = await store.requestBound(input);
       assert.equal(store.findExact("shared")?.id, pending.id);
       assert.equal(store.findPendingByBindingKey("shared")?.id, pending.id);
     } finally { cleanup(); }
   });
+  it("never reuses an older pending record after a newer denial", async () => {
+    const { store, cleanup } = freshStore();
+    try {
+      await store.load();
+      const input = { reason: "test", bindingKey: "latest-only", requestFingerprint: "fp", policyRevision: "v1", capabilities: ["file.write"] };
+      const older = await store.requestBound(input);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      const newer = await store.requestBound(input);
+      await store.resolve(newer.id, "denied");
+      assert.equal(store.findExact(input.bindingKey)?.id, newer.id);
+      assert.equal(store.findPendingByBindingKey(input.bindingKey), undefined);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      const fresh = await store.requestOrReusePending(input);
+      assert.notEqual(fresh.id, older.id);
+      assert.notEqual(fresh.id, newer.id);
+      assert.equal(store.findPendingByBindingKey(input.bindingKey)?.id, fresh.id);
+    } finally { cleanup(); }
+  });
+
   it("loads empty store when no file exists", async () => {
     const { store, cleanup } = freshStore();
     try {
