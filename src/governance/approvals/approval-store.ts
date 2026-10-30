@@ -164,6 +164,12 @@ export class ApprovalStore {
       if (bucket) bucket.push(record);
       else this.byBindingKey.set(record.bindingKey, [record]);
     }
+    // Latest decision is authoritative for a binding, including terminal
+    // decisions. Never resurrect an older grant because a newer record is
+    // pending, denied, consumed, or revoked. IDs break timestamp ties.
+    for (const bucket of this.byBindingKey.values()) {
+      bucket.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+    }
   }
 
   /**

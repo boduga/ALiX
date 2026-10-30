@@ -16,6 +16,23 @@ function freshStore(): { store: ApprovalStore; cleanup: () => void } {
 }
 
 describe("ApprovalStore", () => {
+  it("selects newest exact binding even when the earlier record is approved", async () => {
+    const { store, cleanup } = freshStore();
+    try {
+      await store.load();
+      const input = { reason: "test", bindingKey: "shared", requestFingerprint: "fp", policyRevision: "v1", capabilities: ["file.write"] };
+      const older = await store.requestBound(input);
+      await store.resolve(older.id, "approved");
+      await new Promise(resolve => setTimeout(resolve, 10));
+      const newer = await store.requestBound(input);
+      await store.resolve(newer.id, "denied");
+      assert.equal(store.findExact("shared")?.id, newer.id);
+      assert.equal((await store.findExactFresh("shared"))?.id, newer.id);
+      const pending = await store.requestBound(input);
+      assert.equal(store.findExact("shared")?.id, pending.id);
+      assert.equal(store.findPendingByBindingKey("shared")?.id, pending.id);
+    } finally { cleanup(); }
+  });
   it("loads empty store when no file exists", async () => {
     const { store, cleanup } = freshStore();
     try {
