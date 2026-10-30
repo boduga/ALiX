@@ -290,20 +290,19 @@ async function authorize(
 });
 
 (process.platform === 'linux' ? describe : describe.skip)('D9 Slice F reconciliation crash ordering', () => {
-  it('crash after authority/history leaves the live unknown record quarantined', async () => {
-    for (const point of ['after_authority', 'after_history'] as const) {
-      const { root, approvals } = await setup();
-      const req = request(`touch ${point}`);
-      await seedUnknown(root, req);
-      const { input } = await authorize(root, approvals, req, { outcome: 'not_applied', evidenceRef: `evidence://${point}` });
-      await expect(reconcileEffectRecord(root, req, input, approvals, {
-        onPoint: (seen) => { if (seen === point) throw new Error(`fault:${point}`); },
-      })).rejects.toThrow(`fault:${point}`);
-      expect(readEffectRecord(root, req)?.state).toBe('started_unknown');
-      let calls = 0;
-      expect((await executeWithEffectJournal(root, req, async () => { calls++; return { kind: 'success', output: 'bad' }; })).kind).toBe('error');
-      expect(calls).toBe(0);
-    }
+  // Each crash point owns a complete durable fixture and its own test budget.
+  it.each(['after_authority', 'after_history'] as const)('crash %s leaves the live unknown record quarantined', async (point) => {
+    const { root, approvals } = await setup();
+    const req = request(`touch ${point}`);
+    await seedUnknown(root, req);
+    const { input } = await authorize(root, approvals, req, { outcome: 'not_applied', evidenceRef: `evidence://${point}` });
+    await expect(reconcileEffectRecord(root, req, input, approvals, {
+      onPoint: (seen) => { if (seen === point) throw new Error(`fault:${point}`); },
+    })).rejects.toThrow(`fault:${point}`);
+    expect(readEffectRecord(root, req)?.state).toBe('started_unknown');
+    let calls = 0;
+    expect((await executeWithEffectJournal(root, req, async () => { calls++; return { kind: 'success', output: 'bad' }; })).kind).toBe('error');
+    expect(calls).toBe(0);
   });
 
   it('crash after durable reconciled_not_applied state can only finish the already-authorized release', async () => {
