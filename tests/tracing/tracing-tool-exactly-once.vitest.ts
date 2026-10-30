@@ -349,13 +349,15 @@ describe("T18 tool exactly-once at the shared recorder surface", () => {
     const CMD = longRunningCommand(5000);
     const req = toolCallReq({ runId, name: "shell.run", args: { command: CMD, timeoutMs: 150 } });
     const traced = await h.executor.execute(req);
+    // An uncertain timeout must not be replayed merely by removing tracing.
+    // The effect journal intentionally blocks a second execution of this effect.
     const plain = await h.executor.execute(untraced(req));
 
-    // The timeout is a caller-visible error RESULT (SideEffectTimeoutError →
-    // kind:"error") — identical with and without tracing; the child was killed.
+    // The original call surfaces the timeout; replay is safely rejected.
+    expect(traced.kind).toBe("error");
+    expect(String((traced as { message?: string }).message)).toMatch(/timed out after 150ms/);
     expect(plain.kind).toBe("error");
-    expect(String((plain as { message?: string }).message)).toMatch(/timed out after 150ms/);
-    expect(traced).toEqual(plain);
+    expect(String((plain as { message?: string }).message)).toMatch(/Effect journal blocked replay/);
 
     // Finalize the run so the root observation is recorded (v5 spans record on end).
     await client.endRun(run, { status: "error", endedAt: Date.now() });
