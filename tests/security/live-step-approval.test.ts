@@ -12,6 +12,7 @@ import { ReplayExecutor } from "../../src/runtime-state/runtime/replay-executor.
 import { RollbackExecutor } from "../../src/runtime-state/runtime/rollback-executor.js";
 import type { ReplayPlan } from "../../src/runtime-state/runtime/replay-plan.js";
 import type { RollbackPlan } from "../../src/runtime-state/runtime/rollback-plan.js";
+import { executeWithEffectJournal, readEffectRecord } from "../../src/capabilities/tools/effect-journal.js";
 
 const run = promisify(execFile);
 
@@ -144,6 +145,102 @@ for (const operation of ["replay", "rollback"] as const) {
       });
     }
 
+    const precedenceCases = [
+      ["denied", false, false], ["pending", false, false],
+      ["revoked", false, false], ["invalidated", false, false],
+      ["consumed", false, false], ["expired", false, false],
+      ["approved", false, true],
+      ["approved", false, true, "consumed"],
+      ["denied", true, false], ["approved", true, false],
+      ["denied", "equivalent", false], ["approved", "equivalent", false],
+    ] as const;
+    for (const [status, tied, allowed, olderStatus = "approved"] of precedenceCases) {
+      it(`decision precedence: older ${olderStatus}, newer ${status}, tied=${tied} => ${allowed ? "allow" : "deny"}`, async t => {
+        const f = await fixture(t);
+        const olderId = await f.approve();
+        const newerId = `newer-${olderId}`;
+        await f.store.mutate(records => {
+          const older = records.find(a => a.id === olderId)!;
+          older.status = olderStatus;
+          older.createdAt = "2026-01-01T00:00:00.000Z";
+          records.push({ ...older, id: newerId, status,
+            createdAt: tied === "equivalent" ? "2026-01-01T00:00:00Z"
+              : tied ? older.createdAt : "2026-01-01T00:00:01.000Z" });
+        });
+        const result = await f.execute();
+        assert.equal(result.successCount, allowed ? 1 : 0);
+        assert.equal(existsSync(join(f.cwd, "target.txt")), allowed);
+        assert.equal(f.store.get(olderId)?.status, olderStatus);
+        assert.equal(f.store.get(newerId)?.status, allowed ? "consumed" : status);
+      });
+    }
+
+    it("keeps a distinct invocation independent even when its legacy binding key collides", async t => {
+      const f = await fixture(t);
+      const id = await f.approve();
+      await f.store.mutate(records => {
+        const original = records.find(a => a.id === id)!;
+        original.createdAt = "2026-01-01T00:00:00.000Z";
+        records.push({ ...original, id: `unrelated-${id}`, status: "denied",
+          invocationFingerprint: "different-invocation", createdAt: "2026-01-01T00:00:01.000Z" });
+      });
+      assert.equal((await f.execute()).successCount, 1);
+      assert.equal(f.store.get(id)?.executionOutcome, "succeeded");
+      assert.equal(f.store.get(`unrelated-${id}`)?.status, "denied");
+    });
+
+    it("rejects a newer denial committed after selection but before the atomic claim", async t => {
+      const f = await fixture(t);
+      const id = await f.approve();
+      await f.store.mutate(records => { records.find(a => a.id === id)!.createdAt = "2026-01-01T00:00:00.000Z"; });
+      const consume = f.store.consumeApproved.bind(f.store);
+      const otherProcess = new ApprovalStore(f.cwd);
+      f.store.consumeApproved = async (...args) => {
+        await otherProcess.mutate(records => {
+          const original = records.find(a => a.id === id)!;
+          records.push({ ...original, id: `denied-${id}`, status: "denied", createdAt: "2026-01-01T00:00:01.000Z" });
+        });
+        return consume(...args);
+      };
+      assert.equal((await f.execute()).blockedCount, 1);
+      assert.equal(existsSync(join(f.cwd, "target.txt")), false);
+      assert.equal(f.store.get(id)?.status, "approved");
+    });
+
+    if (operation === "replay") {
+      it("preserves deletion quarantine across new replay IDs and approvals", { skip: process.platform !== "linux" }, async t => {
+        const f = await fixture(t);
+        f.replay.steps[0].toolName = "file.delete";
+        f.replay.steps[0].args = { path: "target.txt" };
+        writeFileSync(join(f.cwd, "target.txt"), "operator data");
+        const request = { toolCallId: "uncertain-delete", name: "file.delete" as const, args: { path: "target.txt" } };
+        await executeWithEffectJournal(f.cwd, request, async () => ({ kind: "error", message: "lost response", outcomeUnknown: true }));
+        for (const replayId of ["first-delete", "renewed-delete"]) {
+          f.replay.replayId = replayId;
+          const id = await f.approve();
+          assert.equal((await f.execute()).successCount, 0);
+          assert.equal(f.store.get(id)?.executionOutcome, "pending");
+          assert.equal(readFileSync(join(f.cwd, "target.txt"), "utf8"), "operator data");
+          assert.equal(readEffectRecord(f.cwd, request)?.state, "started_unknown");
+        }
+      });
+
+      it("journals a successful deletion before refusing replay of a recreated file", { skip: process.platform !== "linux" }, async t => {
+        const f = await fixture(t);
+        f.replay.steps[0].toolName = "file.delete";
+        f.replay.steps[0].args = { path: "target.txt" };
+        writeFileSync(join(f.cwd, "target.txt"), "original");
+        const id = await f.approve();
+        assert.equal((await f.execute()).successCount, 1);
+        assert.equal(f.store.get(id)?.executionOutcome, "succeeded");
+        writeFileSync(join(f.cwd, "target.txt"), "recreated");
+        f.replay.replayId = "renewed-delete";
+        await f.approve();
+        assert.equal((await f.execute()).successCount, 0);
+        assert.equal(readFileSync(join(f.cwd, "target.txt"), "utf8"), "recreated");
+      });
+    }
+
     it("never reuses a successful grant or silently requests a replacement", async t => {
       const f = await fixture(t);
       await f.approve();
@@ -181,7 +278,7 @@ for (const operation of ["replay", "rollback"] as const) {
       assert.equal(existsSync(join(f.cwd, "target.txt")), false);
     });
 
-    it("keeps a failed effect's grant spent and records failure", async t => {
+    it("keeps a failed effect's grant spent without fabricating a definite replay outcome", async t => {
       const f = await fixture(t);
       if (operation === "replay") f.replay.steps[0].args!.path = "parent/target.txt";
       else f.rollback.steps[0].path = "parent/target.txt";
@@ -189,7 +286,7 @@ for (const operation of ["replay", "rollback"] as const) {
       writeFileSync(join(f.cwd, "parent"), "blocks directory creation");
       assert.equal((await f.execute()).successCount, 0);
       assert.equal(f.store.get(id)?.status, "consumed");
-      assert.equal(f.store.get(id)?.executionOutcome, "failed");
+      assert.equal(f.store.get(id)?.executionOutcome, operation === "replay" ? "pending" : "failed");
       assert.equal((await f.execute()).blockedCount, 1);
     });
 
@@ -207,7 +304,8 @@ for (const operation of ["replay", "rollback"] as const) {
       assert.equal(f.store.get(requests[1].id)?.status, "pending");
     });
 
-    it("permits only one effect when fresh processes race the same grant", async t => {
+    // Two independent Node processes contend on a durable approval ledger.
+    it("permits only one effect when fresh processes race the same grant", { timeout: 45_000 }, async t => {
       const f = await fixture(t);
       const id = await f.approve();
       const results = await Promise.all([f.child(), f.child()]);
@@ -218,7 +316,8 @@ for (const operation of ["replay", "rollback"] as const) {
       assert.equal(f.store.get(id)?.executionOutcome, "succeeded");
     });
 
-    it("fails closed after a process exits between durable claim and effect", async t => {
+    // Multiple fresh processes cover crash, restart, and refusal to replay.
+    it("fails closed after a process exits between durable claim and effect", { timeout: 45_000 }, async t => {
       const f = await fixture(t);
       const id = await f.approve();
       await assert.rejects(f.child(true), (error: unknown) => (error as { code: number }).code === 73);

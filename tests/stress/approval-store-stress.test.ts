@@ -11,6 +11,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ApprovalStore } from "../../src/governance/approvals/approval-store.js";
+import type { ApprovalRecord } from "../../src/governance/approvals/approval-types.js";
 import {
   runConcurrent,
   assertStressPasses,
@@ -30,7 +31,10 @@ function createStore(): { cwd: string; store: ApprovalStore; cleanup: () => void
 // =========================================================================
 
 for (const N of CONCURRENCY_LEVELS) {
-  test(`requestOrReusePending unique binding keys (N=${N})`, async () => {
+  // These cases persist N operations; allow workload-scaled test time without
+  // changing the store's cross-process lock or queue idle deadlines.
+  const timeout = 30_000 + N * 500;
+  test(`requestOrReusePending unique binding keys (N=${N})`, { timeout }, async () => {
     const { store, cleanup } = createStore();
     try {
       await store.load();
@@ -57,7 +61,7 @@ for (const N of CONCURRENCY_LEVELS) {
     }
   });
 
-  test(`requestOrReusePending same binding key (N=${N}) deduplicates`, async () => {
+  test(`requestOrReusePending same binding key (N=${N}) deduplicates`, { timeout }, async () => {
     const { store, cleanup } = createStore();
     try {
       await store.load();
@@ -84,21 +88,26 @@ for (const N of CONCURRENCY_LEVELS) {
     }
   });
 
-  test(`parallel consumeApproved (N=${N})`, async () => {
+  // Seed and resolve N durable grants before contending N claims; setup alone
+  // performs 2N ledger transitions on slow qualification filesystems.
+  test(`parallel consumeApproved (N=${N})`, { timeout: 120_000 }, async () => {
     const { store, cleanup } = createStore();
     try {
       await store.load();
 
-      // Create N approved approvals via request() then resolve() each
-      const records = await Promise.all(
-        Array.from({ length: N }, (_, i) =>
-          store.request({
+      // Independent effects need distinct bindings; repeated grants for one
+      // exact effect supersede each other and cannot all be consumed.
+      const records: ApprovalRecord[] = [];
+      for (let i = 0; i < N; i++) {
+        records.push(await store.requestBound({
             reason: `consume-test-${i}`,
-            capability: "stress.test",
+            capabilities: ["stress.test"],
+            bindingKey: `consume-${i}`,
+            requestFingerprint: `consume-${i}`,
+            policyRevision: "stress-v1",
             riskLevel: "low",
-          }),
-        ),
-      );
+        }));
+      }
 
       // First approve all records
       for (const r of records) {
@@ -119,7 +128,7 @@ for (const N of CONCURRENCY_LEVELS) {
     }
   });
 
-  test(`parallel resolve mixed approve/reject (N=${N})`, async () => {
+  test(`parallel resolve mixed approve/reject (N=${N})`, { timeout }, async () => {
     const { store, cleanup } = createStore();
     try {
       await store.load();
@@ -150,7 +159,7 @@ for (const N of CONCURRENCY_LEVELS) {
     }
   });
 
-  test(`parallel request() throughput (N=${N})`, async () => {
+  test(`parallel request() throughput (N=${N})`, { timeout }, async () => {
     const { store, cleanup } = createStore();
     try {
       await store.load();

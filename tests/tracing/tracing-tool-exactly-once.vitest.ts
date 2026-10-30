@@ -45,7 +45,7 @@
  *   docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, writeFile } from "node:fs/promises";
 import { removeTempDir } from "../helpers/temp.js";
 import { longRunningCommand } from "../helpers/shell.js";
 import { tmpdir } from "node:os";
@@ -167,7 +167,7 @@ interface Harness {
 }
 
 async function makeHarness(opts?: { log?: EventLog }): Promise<Harness> {
-  const dir = await mkdtemp(join(tmpdir(), "t18-"));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "t18-")));
   cleanup.push(dir);
   const sessionDir = join(dir, ".alix", "sessions", "t18-session");
   await mkdir(sessionDir, { recursive: true });
@@ -335,7 +335,7 @@ describe("T18 tool exactly-once at the shared recorder surface", () => {
 
   });
 
-  it("timeout — real shell.run (sleep 5, timeoutMs 150) → exactly ONE terminal error span; timeout is an error RESPONSE, not a throw", async () => {
+  it.skipIf(process.platform !== "linux")("timeout — real shell.run (sleep 5, timeoutMs 150) → exactly ONE terminal error span; timeout is an error RESPONSE, not a throw", async () => {
     const runId = "t18-timeout";
     const run = client.startRun({
       runId,

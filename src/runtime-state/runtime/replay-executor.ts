@@ -67,7 +67,7 @@ async function replayToolStep(
   mode: ReplayMode,
   cwd: string,
   opts?: { replayId?: string; diffStore?: ReplayDiffStore },
-): Promise<Pick<ReplayStepResult, "status" | "output" | "error" | "blockReason">> {
+): Promise<Pick<ReplayStepResult, "status" | "output" | "error" | "blockReason"> & { outcomeUnknown?: boolean }> {
   const toolName = step.toolName || "";
   const args = step.args || {};
 
@@ -75,9 +75,14 @@ async function replayToolStep(
   if (toolName === "shell.run" && mode === "approved-live") {
     const command = String(args.command || "");
     const { runCommand } = await import("../../capabilities/tools/shell-tool.js");
-    const result = await runCommand({ command, cwd });
+    const { executeWithEffectJournal } = await import("../../capabilities/tools/effect-journal.js");
+    // Replay IDs and renewed approvals are not effect identities. The durable
+    // journal keys the actual shell command and workspace across replay runs.
+    const result = await executeWithEffectJournal(cwd, {
+      toolCallId: `replay-${step.index}`, name: "shell.run", args: { command, cwd },
+    }, (boundRequest) => runCommand({ command, cwd: String(boundRequest.args.cwd) }));
     if (result.kind === "error") {
-      return { status: "failed", error: result.message };
+      return { status: "failed", error: result.message, outcomeUnknown: result.outcomeUnknown === true };
     }
     return { status: "completed", output: result.output || "" };
   }
@@ -118,34 +123,38 @@ async function replayToolStep(
 
   // Approved-live file.delete: execute for real with diff capture
   if (toolName === "file.delete" && mode === "approved-live") {
-    const path = String(args.path || "");
-    const { rm } = await import("node:fs/promises");
-    const { resolve } = await import("node:path");
-    const resolvedPath = resolve(cwd, path);
+    const { executeWithEffectJournal } = await import("../../capabilities/tools/effect-journal.js");
+    const result = await executeWithEffectJournal(cwd, {
+      toolCallId: `replay-${step.index}`, name: "file.delete", args,
+    }, async () => {
+      const path = String(args.path || "");
+      const { rm } = await import("node:fs/promises");
+      const { resolve } = await import("node:path");
+      const resolvedPath = resolve(cwd, path);
+      const beforePath = opts?.replayId && opts?.diffStore
+        ? await opts.diffStore.captureBefore(opts.replayId, path) : null;
 
-    // Capture before
-    const beforePath = opts?.replayId && opts?.diffStore
-      ? await opts.diffStore.captureBefore(opts.replayId, path) : null;
+      await rm(resolvedPath);
 
-    await rm(resolvedPath);
-
-    // Capture after (will be null since file was deleted)
-    if (opts?.replayId && opts?.diffStore) {
-      const afterPath = await opts.diffStore.captureAfter(opts.replayId, path);
-      const diffOutput = await opts.diffStore.computeDiff(opts.replayId, path);
-      await opts.diffStore.appendRecord(opts.replayId, {
-        filePath: path,
-        changeType: "deleted",
-        beforeSnapshotPath: beforePath || undefined,
-        afterSnapshotPath: afterPath || undefined,
-        diffPreview: diffOutput.slice(0, 2000),
-        diffSize: diffOutput.length,
-        rollbackable: true,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    return { status: "completed", output: `File deleted: ${path}` };
+      if (opts?.replayId && opts?.diffStore) {
+        const afterPath = await opts.diffStore.captureAfter(opts.replayId, path);
+        const diffOutput = await opts.diffStore.computeDiff(opts.replayId, path);
+        await opts.diffStore.appendRecord(opts.replayId, {
+          filePath: path,
+          changeType: "deleted",
+          beforeSnapshotPath: beforePath || undefined,
+          afterSnapshotPath: afterPath || undefined,
+          diffPreview: diffOutput.slice(0, 2000),
+          diffSize: diffOutput.length,
+          rollbackable: true,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      return { kind: "success", output: `File deleted: ${path}` };
+    });
+    return result.kind === "error"
+      ? { status: "failed", error: result.message, outcomeUnknown: result.outcomeUnknown === true }
+      : { status: "completed", output: result.output };
   }
 
   // Approved-live patch.apply: execute for real with diff capture
@@ -488,7 +497,7 @@ export class ReplayExecutor {
           replayId: plan.replayId,
           diffStore: opts?.diffStore,
         });
-        if (claimedApprovalId) {
+        if (claimedApprovalId && !toolResult.outcomeUnknown) {
           await opts!.approvalStore!.recordExecutionOutcome(claimedApprovalId,
             toolResult.status === "completed" ? "succeeded" : "failed");
         }
@@ -510,7 +519,7 @@ export class ReplayExecutor {
         else if (toolResult.status === "skipped") skippedCount++;
         else failedCount++;
       } catch (err: any) {
-        if (claimedApprovalId) await opts!.approvalStore!.recordExecutionOutcome(claimedApprovalId, "failed");
+        // A thrown adapter can have applied an effect; leave the consumed approval pending.
         await this.logEvent(REPLAY_EVENT_TYPES.STEP_BLOCKED, {
           stepIndex: step.index, traceId: step.traceId, action: step.replayAction,
           toolName: step.toolName, error: err.message,

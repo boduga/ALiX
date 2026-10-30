@@ -54,7 +54,10 @@ function makeWorker(runId: string, label: string) {
 // =========================================================================
 
 for (const N of CONCURRENCY_LEVELS) {
-  test(`parallel worker completions (N=${N})`, async () => {
+  // Setup persists N workers before N durable updates contend. Scale the test
+  // budget for that work while the production lock/idle limits stay unchanged.
+  const timeout = 30_000 + N * 500;
+  test(`parallel worker completions (N=${N})`, { timeout }, async () => {
     const { store, cleanup, cwd } = createStore();
     try {
       const runId = await createRun(store);
@@ -86,7 +89,7 @@ for (const N of CONCURRENCY_LEVELS) {
     }
   });
 
-  test(`parallel worker failures (N=${N})`, async () => {
+  test(`parallel worker failures (N=${N})`, { timeout }, async () => {
     const { store, cleanup } = createStore();
     try {
       const runId = await createRun(store);
@@ -114,7 +117,7 @@ for (const N of CONCURRENCY_LEVELS) {
     }
   });
 
-  test(`CAS revision increments (N=${N})`, async () => {
+  test(`CAS revision increments (N=${N})`, { timeout }, async () => {
     const { store, cleanup, cwd } = createStore();
     try {
       const runId = await createRun(store);
@@ -150,7 +153,7 @@ for (const N of CONCURRENCY_LEVELS) {
     }
   });
 
-  test(`mixed read/write contention (N=${N})`, async () => {
+  test(`mixed read/write contention (N=${N})`, { timeout }, async () => {
     const { store, cleanup } = createStore();
     try {
       const runId = await createRun(store);

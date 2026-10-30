@@ -36,7 +36,8 @@ function runCrashChild(cwd: string, effect: string): Promise<{ code: number | nu
 }
 
 describe('D9 effect journal fresh-process crash recovery', () => {
-  it('SIGKILL after applied effect but before terminal receipt quarantines exact replay', async () => {
+  // A fresh Node process must start, persist the journal, and exit via SIGKILL.
+  it('SIGKILL after applied effect but before terminal receipt quarantines exact replay', { timeout: 30_000, skip: process.platform !== 'linux' }, async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'alix-effect-kill-'));
     try {
       const effect = join(cwd, 'effect.txt');

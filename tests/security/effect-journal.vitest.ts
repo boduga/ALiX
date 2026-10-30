@@ -10,7 +10,7 @@ afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recur
 async function root(): Promise<string> { const p = await mkdtemp(join(tmpdir(), 'alix-effect-journal-')); roots.push(p); return p; }
 function req(command = 'printf applied > effect.txt'): ToolCallRequest { return { toolCallId: 't1', name: 'shell.run', args: { command } }; }
 
-describe('D9 durable effect journal', () => {
+(process.platform === 'linux' ? describe : describe.skip)('D9 durable effect journal', () => {
   it('persists terminal_success and blocks exact replay without re-entering the adapter', async () => {
     const cwd = await root(); let calls = 0;
     const request = req();
@@ -124,7 +124,7 @@ describe('D9 durable effect journal', () => {
   });
 });
 
-describe('D9 effect journal crash-order injection', () => {
+(process.platform === 'linux' ? describe : describe.skip)('D9 effect journal crash-order injection', () => {
   for (const [point, expected] of [
     ['after_claim', 'claimed'],
     ['before_adapter', 'started_unknown'],
@@ -150,7 +150,7 @@ describe('D9 effect journal crash-order injection', () => {
 });
 
 
-describe('D9 effect journal cancellation boundary', () => {
+(process.platform === 'linux' ? describe : describe.skip)('D9 effect journal cancellation boundary', () => {
   it('already-aborted request neither journals nor enters the adapter', async () => {
     const cwd = await root(); const controller = new AbortController(); controller.abort('cancel-before-claim');
     const request = { ...req('touch never'), signal: controller.signal };

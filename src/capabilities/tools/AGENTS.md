@@ -15,7 +15,7 @@ reason about.
   operation.
 - `executor.ts` — `ToolExecutor`: composes `PolicyGate` + `ToolRouter`, runs
   the call, and owns the `boundTools` path that workers use.
-- `safe-shell.ts` / `shell-tool.ts` / `shell-pool.ts` — Shell admission and
+- `safe-shell.ts` / `shell-tool.ts` — Shell admission and fresh-process
   execution, including the safe-shell grammar.
 - `shell-network-policy.ts` — Network policy applied to shell clients, so
   `curl`/`wget` cannot bypass the `alix_web_fetch` domain allowlist.
@@ -33,6 +33,7 @@ reason about.
 
 ## Local Contracts
 
+- Guarded high/critical mutations and effect reconciliation fail closed before adapter entry on non-Linux hosts. Safe-shell reads remain available. Linux-only process and tracing qualification fixtures are skipped elsewhere; `tests/security/effect-journal-platform.vitest.ts` verifies unsupported-host rejection.
 - `sessionIdFromDirectory` in `executor.ts` extracts session identity using either directory separator; approvals, continuations, and tool artifacts use the same identity on every supported host.
 
 - **The registry owns routed tool metadata.** Each entry pairs an internal

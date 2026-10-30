@@ -418,7 +418,7 @@ export class ShellToolRouter implements ToolRouter {
 
     // Level 5: Check if command is safe shell (runs before policy decision)
     if (isSafeShellCommand(command)) {
-      const sResult = await executeSafeShell(command, { cwd: this.root, envAllowlist: this.envAllowlist });
+      const sResult = await executeSafeShell(command, { cwd: this.root, envAllowlist: this.envAllowlist, signal: request.signal });
       if (sResult.allowed) {
         if (sResult.error) return { kind: "error", message: sResult.error };
         return {

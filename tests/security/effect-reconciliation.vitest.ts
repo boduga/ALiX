@@ -65,7 +65,7 @@ async function authorize(
   return { input: { ...input, approvalId: approval.id } satisfies EffectReconciliationInput, approval };
 }
 
-describe('D9 Slice F effect reconciliation authority', () => {
+(process.platform === 'linux' ? describe : describe.skip)('D9 Slice F effect reconciliation authority', () => {
   it('rejects a self-asserted actor that does not match the approved subject', async () => {
     const { root, approvals } = await setup();
     const req = request();
@@ -159,7 +159,7 @@ describe('D9 Slice F effect reconciliation authority', () => {
   });
 });
 
-describe('D9 Slice F reconciliation outcomes', () => {
+(process.platform === 'linux' ? describe : describe.skip)('D9 Slice F reconciliation outcomes', () => {
   it('applied evidence is append-audited, transitions to reconciled_success, and remains quarantined', async () => {
     const { root, approvals } = await setup();
     const req = request();
@@ -241,7 +241,7 @@ describe('D9 Slice F reconciliation outcomes', () => {
   });
 });
 
-describe('D9 Slice F reconciliation concurrency', () => {
+(process.platform === 'linux' ? describe : describe.skip)('D9 Slice F reconciliation concurrency', () => {
   it('serializes contradictory reconcilers so a stale not_applied decision cannot overwrite an applied decision', async () => {
     const { root, approvals } = await setup();
     const req = request('touch reconcile-race');
@@ -289,7 +289,7 @@ describe('D9 Slice F reconciliation concurrency', () => {
   });
 });
 
-describe('D9 Slice F reconciliation crash ordering', () => {
+(process.platform === 'linux' ? describe : describe.skip)('D9 Slice F reconciliation crash ordering', () => {
   it('crash after authority/history leaves the live unknown record quarantined', async () => {
     for (const point of ['after_authority', 'after_history'] as const) {
       const { root, approvals } = await setup();

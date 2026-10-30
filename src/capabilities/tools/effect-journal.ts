@@ -375,6 +375,7 @@ export async function reconcileEffectRecord(
   approvalStore: ApprovalStore,
   hooks: EffectReconciliationHooks = {},
 ): Promise<EffectJournalRecord> {
+  if (process.platform !== 'linux') throw new Error('Effect journal reconciliation requires qualified durable execution on Linux');
   // Snapshot and validate caller-controlled reconciliation facts BEFORE the
   // first await so a mutable object cannot change after authority binding.
   const snapshot = Object.freeze({
@@ -471,6 +472,11 @@ export async function executeWithEffectJournal(
   hooks: EffectJournalHooks = {},
 ): Promise<ToolResult> {
   if (!requiresEffectJournal(request)) return execute(request);
+  // Directory fsync durability has only been qualified on Linux. On other
+  // platforms reject high-risk effects before adapter entry or journal mutation.
+  if (process.platform !== 'linux') {
+    return { kind: 'error', retryable: false, message: 'Effect journal durable execution is unsupported on this platform' };
+  }
   if (request.signal?.aborted) throw new ExecutionCancelledError(signalReason(request.signal) ?? 'tool cancelled');
 
   let snapshot: ToolCallRequest;

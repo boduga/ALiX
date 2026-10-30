@@ -165,7 +165,7 @@ export function isSafeShellCommand(command: string): boolean {
 /**
  * Execute a safe shell command with output validation
  */
-export async function executeSafeShell(command: string, options: { cwd?: string; envAllowlist?: string[] } = {}): Promise<{
+export async function executeSafeShell(command: string, options: { cwd?: string; envAllowlist?: string[]; signal?: AbortSignal } = {}): Promise<{
   allowed: boolean;
   output?: string;
   error?: string;
@@ -186,11 +186,13 @@ export async function executeSafeShell(command: string, options: { cwd?: string;
       cwd: options.cwd ?? process.cwd(),
       timeoutMs: SAFE_SHELL_TIMEOUT_MS,
       envAllowlist: options.envAllowlist,
+      signal: options.signal,
     });
     return result.kind === "success"
       ? { allowed: true, output: (result.output ?? "").slice(0, SAFE_SHELL_MAX_BUFFER_BYTES) }
       : { allowed: true, error: result.message };
   } catch (err) {
+    if (options.signal?.aborted) throw err;
     return {
       allowed: true,  // Still allowed, but command failed
       error: err instanceof Error ? err.message : String(err),

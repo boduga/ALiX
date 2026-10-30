@@ -45,7 +45,7 @@ const shellCall = (): ToolCallRequest => ({
   agentId: 'original-agent',
 });
 
-for (const mode of ['auto', 'bypass'] as const) {
+for (const mode of (process.platform === 'linux' ? ['auto', 'bypass'] : []) as Array<'auto' | 'bypass'>) {
   for (const outcome of ['success', 'failure', 'unknown', 'throw'] as const) {
     it(`${mode}/${outcome}: exact effect enters the adapter once across fresh executor identities`, async () => {
       const f = await fixture(mode);
@@ -74,7 +74,7 @@ for (const mode of ['auto', 'bypass'] as const) {
   }
 }
 
-it('ask: a fresh approval cannot override an unresolved journal entry', async () => {
+(process.platform === 'linux' ? it : it.skip)('ask: a fresh approval cannot override an unresolved journal entry', async () => {
   const f = await fixture('ask');
   let effects = 0;
   vi.spyOn(ShellToolRouter.prototype, 'execute').mockImplementation(async () => {

@@ -25,6 +25,7 @@ import type { InvocationIdentity } from "./approval-binding.js";
 import { ApprovalStoreLock } from "./approval-store-lock.js";
 import { APPROVAL_EVENT_TYPES } from "../../runtime-state/events/types.js";
 import { getSharedLedger, appendFact, currentEntityVersion, type LedgerFactCounters } from "../../runtime-state/storage/runtime-ledger.js";
+import { serializeStoreMutation } from "../../runtime-state/storage/mutation-queue.js";
 
 // Preserve the historical import surface; the classifier itself lives in
 // approval-binding.ts so non-store callers never need this protected store edge.
@@ -387,67 +388,69 @@ export class ApprovalStore {
    * deletions, or retention pruning compact the snapshot (#703).
    */
   async mutate<T>(fn: (approvals: ApprovalRecord[]) => T | Promise<T>): Promise<T> {
-    const lock = new ApprovalStoreLock(this.cwd);
-    const acquired = await lock.acquire();
-    if (!acquired) throw new Error("Could not acquire approval lock");
-    try {
-      await this.load();
-      const before = new Map<string, string>();
-      for (const r of this.approvals) before.set(r.id, JSON.stringify(r));
-
-      const result = await fn(this.approvals);
-
-      // Classify the diff: additions vs updates/deletions.
-      const added: ApprovalRecord[] = [];
-      let mutatedExisting = false;
-      for (const r of this.approvals) {
-        const prior = before.get(r.id);
-        if (prior === undefined) added.push(r);
-        else if (prior !== JSON.stringify(r)) mutatedExisting = true;
-      }
-      const afterIds = new Set(this.approvals.map((r) => r.id));
-      for (const id of before.keys()) {
-        if (!afterIds.has(id)) { mutatedExisting = true; break; }
-      }
-
-      const pruned = this.pruneTerminal();
-      this.rebuildIndexes();
-
-      // R2.5 authority: the ledger append IS the commit — it runs BEFORE the
-      // projection and throws on failure (no JSON-only state can exist).
-      const finalIds = new Set(this.approvals.map((r) => r.id));
-      for (const r of this.approvals) {
-        const prior = before.get(r.id);
-        if (prior === undefined) this.appendApprovalFact(r, "created");
-        else if (prior !== JSON.stringify(r)) this.appendApprovalFact(r, "updated");
-      }
-      for (const id of before.keys()) {
-        if (!finalIds.has(id)) this.appendApprovalRemoved(id);
-      }
-
-      // Projection second: failure tolerated and counted — the ledger holds
-      // the truth and reconciliation reports projection drift for rebuild.
+    return serializeStoreMutation(this.filePath, async () => {
+      const lock = new ApprovalStoreLock(this.cwd);
+      const acquired = await lock.acquire();
+      if (!acquired) throw new Error("Could not acquire approval lock");
       try {
-        if (!mutatedExisting && !pruned && added.length > 0 && existsSync(this.filePath)) {
-          // Append-only fast path: no unrelated history rewritten. (The first
-          // write compacts so `approvals.json` exists for external readers.)
-          await this.appendJournal(added);
-          const journalLines = await this.journalLineCount();
-          if (journalLines >= JOURNAL_COMPACT_THRESHOLD) {
+        await this.load();
+        const before = new Map<string, string>();
+        for (const r of this.approvals) before.set(r.id, JSON.stringify(r));
+
+        const result = await fn(this.approvals);
+
+        // Classify the diff: additions vs updates/deletions.
+        const added: ApprovalRecord[] = [];
+        let mutatedExisting = false;
+        for (const r of this.approvals) {
+          const prior = before.get(r.id);
+          if (prior === undefined) added.push(r);
+          else if (prior !== JSON.stringify(r)) mutatedExisting = true;
+        }
+        const afterIds = new Set(this.approvals.map((r) => r.id));
+        for (const id of before.keys()) {
+          if (!afterIds.has(id)) { mutatedExisting = true; break; }
+        }
+
+        const pruned = this.pruneTerminal();
+        this.rebuildIndexes();
+
+        // R2.5 authority: the ledger append IS the commit — it runs BEFORE the
+        // projection and throws on failure (no JSON-only state can exist).
+        const finalIds = new Set(this.approvals.map((r) => r.id));
+        for (const r of this.approvals) {
+          const prior = before.get(r.id);
+          if (prior === undefined) this.appendApprovalFact(r, "created");
+          else if (prior !== JSON.stringify(r)) this.appendApprovalFact(r, "updated");
+        }
+        for (const id of before.keys()) {
+          if (!finalIds.has(id)) this.appendApprovalRemoved(id);
+        }
+
+        // Projection second: failure tolerated and counted — the ledger holds
+        // the truth and reconciliation reports projection drift for rebuild.
+        try {
+          if (!mutatedExisting && !pruned && added.length > 0 && existsSync(this.filePath)) {
+            // Append-only fast path: no unrelated history rewritten. (The first
+            // write compacts so `approvals.json` exists for external readers.)
+            await this.appendJournal(added);
+            const journalLines = await this.journalLineCount();
+            if (journalLines >= JOURNAL_COMPACT_THRESHOLD) {
+              await this.saveAtomic();
+            }
+          } else {
             await this.saveAtomic();
           }
-        } else {
-          await this.saveAtomic();
+        } catch (err) {
+          this.projectionFailures += 1;
+          this.lastProjectionError = err instanceof Error ? err.message : String(err);
         }
-      } catch (err) {
-        this.projectionFailures += 1;
-        this.lastProjectionError = err instanceof Error ? err.message : String(err);
-      }
 
-      return result;
-    } finally {
-      lock.release();
-    }
+        return result;
+      } finally {
+        lock.release();
+      }
+    });
   }
 
   /** Count journal lines (cheap; used to trigger compaction). */
@@ -1027,6 +1030,22 @@ export class ApprovalStore {
       if (expiryState === "invalid") { result = { consumed: false, reason: "invalid expiry" }; return; }
       if (expiryState === "expired") { result = { consumed: false, reason: "expired" }; return; }
       if (r.bindingKey !== expectedBindingKey) { result = { consumed: false, reason: "binding key mismatch" }; return; }
+      // Re-check precedence against the locked ledger, not the caller's earlier
+      // selection. IDs cannot establish authority between simultaneous decisions.
+      const createdAt = Date.parse(r.createdAt);
+      const competingTimes = approvals.filter(a => a.id !== r.id && a.bindingKey === expectedBindingKey &&
+        a.invocationFingerprint === r.invocationFingerprint && a.workerId === r.workerId &&
+        a.workerAttempt === r.workerAttempt && a.coordinationRunId === r.coordinationRunId)
+        .map(a => Date.parse(a.createdAt));
+      if (!Number.isFinite(createdAt) || competingTimes.some(time => !Number.isFinite(time))) {
+        result = { consumed: false, reason: "invalid approval decision timestamp" }; return;
+      }
+      if (competingTimes.some(time => time === createdAt)) {
+        result = { consumed: false, reason: "ambiguous approval decision timestamp" }; return;
+      }
+      if (competingTimes.some(time => time > createdAt)) {
+        result = { consumed: false, reason: "superseded by a newer exact decision" }; return;
+      }
       // Restricted worker ports must not claim legacy/unbound records. Check
       // against the freshly reloaded record while holding the store lock.
       if (consumer.requireWorkerBinding && (!r.workerId || r.workerId !== consumer.workerId ||

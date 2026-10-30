@@ -34,7 +34,7 @@ describe('D9 Slice D registry coverage', () => {
     ]);
   });
 
-  it('journals every high/critical mutating catalogue family and blocks exact replay', async () => {
+  (process.platform === 'linux' ? it : it.skip)('journals every high/critical mutating catalogue family and blocks exact replay', async () => {
     const root = await tempRoot();
     const calls: ToolCallRequest[] = [
       { toolCallId: '1', name: 'file.delete', args: { path: 'x' } },
@@ -61,7 +61,7 @@ describe('D9 Slice D registry coverage', () => {
   });
 });
 
-describe('D9 Slice D ambiguous shell outcomes', () => {
+(process.platform === 'linux' ? describe : describe.skip)('D9 Slice D ambiguous shell outcomes', () => {
   it('timeout after an observable effect remains started_unknown', async () => {
     const root = await tempRoot();
     const effect = join(root, 'timeout-effect.txt');
@@ -99,7 +99,7 @@ describe('D9 Slice D ambiguous shell outcomes', () => {
   });
 });
 
-describe('D9 Slice D dynamic MCP ambiguity', () => {
+(process.platform === 'linux' ? describe : describe.skip)('D9 Slice D dynamic MCP ambiguity', () => {
   it('production MCP registry preserves a thrown transport failure as outcome-unknown', async () => {
     const root = await tempRoot();
     let providerCalls = 0;

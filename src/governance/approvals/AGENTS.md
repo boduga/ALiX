@@ -14,6 +14,8 @@ File-backed approval queue management — create, resolve, list, and lookup pend
 
 ## Local Contracts
 
+- `mutate` enters canonical per-file FIFO admission before acquiring the existing cross-process lock and reloading the ledger. Admission is shared across store instances; a healthy backlog advances without spending another writer's OS-lock contention budget. No progress expires waiting callbacks with no mutation. Lock failure and ledger failure remain fail-closed.
+- `consumeApproved` validates exact-binding precedence inside the store lock after ledger reload. Records compete only when binding key, invocation fingerprint and worker/run attribution match. A newer record supersedes an older grant regardless of its status; competing records with the selected grant's creation timestamp are ambiguous and cannot authorize consumption. Renewed grants require a strictly newer timestamp. Replay and rollback precedence parity is pinned in `tests/security/live-step-approval.test.ts`.
 - Approved-live replay and rollback grants bind the canonical workspace, host session, operation IDs, step position, tool, and actual step data through the invocation fingerprint. Rollback also binds snapshot bytes. Tool-only and legacy grants cannot authorize execution; each effect requires a successful atomic `consumeApproved` claim with the expected binding and invocation. Consumed grants stay spent, including a crash before effect; successful and failed attempts report their execution outcome.
 - Approvals are CLI-first. Sole browser write exception: default-off
   `POST /api/approvals/:id/decision` for SRAP-1 (`src/interfaces/server/remote-decision-route.ts`;

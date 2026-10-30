@@ -32,6 +32,7 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
 
 ## Local Contracts
 
+- Approved-live shell and file deletion replay enter `executeWithEffectJournal` before their adapters. Replay IDs and renewed approvals cannot bypass an unresolved exact effect. Unknown returned or thrown outcomes leave the consumed approval pending; definite results record their terminal execution outcome. Deletion diff capture runs inside the same journal boundary.
 - `ReplayExecutor` and `RollbackExecutor` snapshot their plans and require exact per-step approved-live grants through `src/governance/approvals/live-step-approval.ts` before effects. Recompute binding from actual arguments, operation IDs and position; never trust recorded argument hashes. Rollback restores the same snapshot bytes whose hash was approved. Spent grants cannot resume an effect, and blocked steps prevent a completed status.
 - `WorkspacePathResolver` normalizes both directory separators for sensitive and protected pattern matching, and derives workspace-relative candidates through the path library. Windows paths must enforce the same deny boundaries as POSIX paths.
 

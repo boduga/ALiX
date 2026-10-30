@@ -28,8 +28,9 @@ export async function claimLiveStep(
   const fingerprint = computeInvocationFingerprint(invocation);
   await store.load();
   const exact = store.list().filter(a => a.bindingKey === fingerprint && invocationMatches(a, invocation));
-  // Prefer an explicitly renewed grant; a spent grant alone never creates new authority.
-  const matching = exact.find(a => a.status === "approved") ?? exact[0];
+  // The newest exact decision is authoritative. An older grant must never
+  // override a later denial, expiry, or consumed grant.
+  const matching = exact[0];
   if (!matching) {
     const pending = await store.requestOrReusePending({
       reason,

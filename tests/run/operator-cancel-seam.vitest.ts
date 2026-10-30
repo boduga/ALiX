@@ -12,7 +12,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { markerThenSleepCommand } from "../helpers/shell.js";
-import { mkdtempSync, mkdirSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, existsSync, realpathSync } from "node:fs";
 import { removeTempDirSync } from "../helpers/temp.js";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -265,7 +265,7 @@ async function buildToolHarness(): Promise<{
   const { ToolExecutor } = await import("../../src/capabilities/tools/executor.js");
   const { BASE_TOOLS } = await import("../../src/execution/run/helpers.js");
 
-  const tmpRoot = mkdtempSync(join(tmpdir(), "operator-cancel-tool-"));
+  const tmpRoot = realpathSync.native(mkdtempSync(join(tmpdir(), "operator-cancel-tool-")));
   const sessionDir = join(tmpRoot, ".alix", "sessions", "cancel-tool");
   mkdirSync(sessionDir, { recursive: true });
   const eventLog = new EventLog(sessionDir);
@@ -351,7 +351,7 @@ function toolProvider(responses: ToolProviderResponse[], calls?: () => void): Mo
 }
 
 describe("operator cancel reaches an in-flight tool (Task 6.1 current-tool propagation)", () => {
-  it("kills an in-flight shell.run child on operator cancel and unwinds as ExecutionCancelledError — never a tool failure", async () => {
+  it.skipIf(process.platform !== "linux")("kills an in-flight shell.run child on operator cancel and unwinds as ExecutionCancelledError — never a tool failure", async () => {
     const { CancellationToken, ExecutionCancelledError } = await import("../../src/runtime-state/runtime/cancellation-token.js");
     const { runTaskLoop } = await import("../../src/execution/run/task-loop.js");
     const h = await buildToolHarness();
